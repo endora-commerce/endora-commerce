@@ -13,6 +13,9 @@ import {
   matchesTsGlob,
   normalizeRelative,
   parseChangeset,
+  publicationExemptionLine,
+  publicationExemptions,
+  publicRegistryExemptions,
   publishScope,
   publicRegistryLicence,
   readChangesetDocument,
@@ -252,6 +255,158 @@ describe('check-release-intent — publication: every versionable package publis
   it('tells the reader that not publishing is its own decision', () => {
     const message = findings(PRIVATE_BETA).find((f) => f.kind === 'unpublished-package')?.message;
     expect(message).toContain('change this check in the same commit');
+  });
+});
+
+/**
+ * D-267 — the one private member the tree may hold, and why the exemption is
+ * derived rather than declared.
+ *
+ * `create-endora-commerce` is unscoped, so it cannot be green as either state:
+ * public, it is `unresolvable-scope` (the GitLab endpoint turns a scope into a
+ * namespace path, and it has none) and `publishScope()` refuses it; private, it
+ * is `unpublished-package`. The ruling's exemption is the conjunction of two
+ * facts this check already computes — the configured target cannot serve the
+ * name, **and** no workspace member depends on it, so the finding's harm (a
+ * dependent's packed manifest pinning a version the registry never receives)
+ * cannot occur. No package name appears in the check. Its expiry is the
+ * `--publish-registry` refusal below: the day the target is public npmjs, the
+ * exempted member stops being private or the publish does not happen.
+ *
+ * The fixture's unscoped member is `create-fx`, not the real name: the rule is
+ * about a shape, and a fixture carrying the real name would read as a claim
+ * about it.
+ */
+describe('check-release-intent — D-267: a private member the target cannot serve', () => {
+  const UNSCOPED_PRIVATE = JSON.stringify({
+    name: 'create-fx',
+    version: '0.0.0',
+    private: true,
+    license: 'MIT',
+    repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/gamma' },
+    publishConfig: { access: 'public' },
+    bin: { 'create-fx': './dist/bin.js' },
+    dependencies: { '@fx/alpha': 'workspace:*' },
+  });
+  const FRONT_DOOR: FileMap = { 'packages/gamma/package.json': UNSCOPED_PRIVATE };
+
+  function inputsOf(files: FileMap) {
+    const tree = checkout(files);
+    const inputs = readReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in inputs) throw new Error(`expected inputs, got a refusal: ${inputs.reason}`);
+    return inputs;
+  }
+
+  it('does not report a private unscoped member nothing depends on', () => {
+    const found = findings(FRONT_DOOR);
+    expect(found.filter((f) => f.kind === 'unpublished-package').map((f) => f.subject)).toEqual([]);
+    expect(found).toEqual([]);
+  });
+
+  it('names every exempted member and why, so nothing is skipped in silence', () => {
+    const exempt = publicationExemptions(inputsOf(FRONT_DOOR).members);
+    expect(exempt.map((entry) => entry.name)).toEqual(['create-fx']);
+    expect(exempt[0]!.dir).toBe('packages/gamma');
+    expect(exempt[0]!.reason).toContain('unscoped');
+    const line = publicationExemptionLine(exempt);
+    expect(line).toContain('exempt-private=1');
+    expect(line).toContain('create-fx');
+    expect(line).toContain('D-267');
+  });
+
+  it('prints a zero when nothing is exempted, rather than printing nothing', () => {
+    expect(publicationExemptions(inputsOf({}).members)).toEqual([]);
+    expect(publicationExemptionLine([])).toContain('exempt-private=0');
+  });
+
+  /**
+   * The negative the ruling asks for by name: a private **scoped** member is
+   * the finding's own subject, and the `@endora-commerce` scope is always
+   * servable — so the owner's ruling of 2026-09-05 (every `@endora-commerce`
+   * package publishes) loses nothing to this exemption.
+   */
+  it('still reports a private scoped member, whose scope the target can serve', () => {
+    const found = findings({ ...FRONT_DOOR, ...PRIVATE_BETA });
+    expect(found.filter((f) => f.kind === 'unpublished-package').map((f) => f.subject)).toEqual([
+      '@fx/beta',
+    ]);
+    expect(publicationExemptions(inputsOf({ ...FRONT_DOOR, ...PRIVATE_BETA }).members).map((e) => e.name)).toEqual([
+      'create-fx',
+    ]);
+  });
+
+  it('still reports it the moment any member depends on it, in any dependency field', () => {
+    for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+      const found = findings({
+        ...FRONT_DOOR,
+        'packages/beta/package.json': JSON.stringify({
+          name: '@fx/beta',
+          version: '1.0.0',
+          license: 'MIT',
+          repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/beta' },
+          publishConfig: { access: 'public' },
+          [field]: { 'create-fx': 'workspace:*' },
+        }),
+      });
+      expect(
+        found.filter((f) => f.kind === 'unpublished-package').map((f) => f.subject),
+        field,
+      ).toEqual(['create-fx']);
+    }
+  });
+
+  it('counts an application depending on it as a dependent too', () => {
+    const found = findings({
+      ...FRONT_DOOR,
+      'apps/host/package.json': JSON.stringify({
+        name: 'host',
+        version: '0.0.0',
+        private: true,
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0', 'create-fx': 'workspace:*' },
+      }),
+    });
+    expect(found.map((f) => f.subject)).toContain('create-fx');
+  });
+
+  it('exempts nothing public — a public unscoped member is still `unresolvable-scope`', () => {
+    const found = findings({
+      'packages/gamma/package.json': UNSCOPED_PRIVATE.replace('"private":true,', ''),
+    });
+    expect(found.map((f) => `${f.kind} ${f.subject}`)).toContain('unresolvable-scope create-fx');
+  });
+
+  describe('--publish-registry: the exemption expires where its reason does', () => {
+    it('refuses public npmjs while a member is exempted, naming it and 136 §5.3', () => {
+      for (const registry of ['https://registry.npmjs.org/', 'https://REGISTRY.npmjs.com']) {
+        const verdict = publicRegistryExemptions(inputsOf(FRONT_DOOR).members, registry);
+        expect(verdict.publicRegistry, registry).toBe(true);
+        expect(verdict.exempt, registry).toEqual(['create-fx']);
+        expect(verdict.refusal, registry).toContain('create-fx');
+        expect(verdict.refusal, registry).toContain('§5.3');
+      }
+    });
+
+    it('lets the rehearsal on the private registry through untouched', () => {
+      const verdict = publicRegistryExemptions(
+        inputsOf(FRONT_DOOR).members,
+        'https://gitlab.example.invalid/api/v4/projects/1/packages/npm/',
+      );
+      expect(verdict.publicRegistry).toBe(false);
+      expect(verdict.refusal).toBe('');
+    });
+
+    it('lets public npmjs through once nothing is exempted', () => {
+      const verdict = publicRegistryExemptions(inputsOf({}).members, 'https://registry.npmjs.org/');
+      expect(verdict.exempt).toEqual([]);
+      expect(verdict.refusal).toBe('');
+    });
+
+    it('refuses a registry it cannot read as a URL rather than guessing', () => {
+      const verdict = publicRegistryExemptions(inputsOf(FRONT_DOOR).members, 'not a url');
+      expect(verdict.publicRegistry).toBeNull();
+      expect(verdict.refusal).toContain('not a URL');
+    });
   });
 });
 

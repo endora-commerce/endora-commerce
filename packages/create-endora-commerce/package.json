@@ -1,0 +1,38 @@
+{
+  "name": "create-endora-commerce",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "npx create-endora-commerce <dir> — the front door to `endora install`, and nothing else.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "directory": "packages/create-endora-commerce"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "create-endora-commerce": "./dist/bin/create-endora-commerce.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@endora-commerce/cli": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "vitest": "^2.1.4"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  // Type-check configuration, and the two-config split every package under
+  // `packages/` uses (feature 080, T042 / R11). `noEmit` because the base's
+  // `paths` block is active here; the emitting configuration is
+  // `tsconfig.build.json`.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  // `test/` is type-checked too; the emit's exclusion lives in
+  // `tsconfig.build.json`, where `package-dist-build.test.ts` reads it.
+  "include": ["src/**/*", "test/**/*"]
+}

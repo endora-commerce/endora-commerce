@@ -2940,7 +2940,8 @@ publish:packages:
     # on the private registry; on npmjs a version is permanent and readable by
     # anyone. The registry this job targets is handed over rather than assumed,
     # and the private registry is answered yes
-    # (`specs/136-open-source-publication/` FR-011).
+    # (`specs/136-open-source-publication/` FR-011). It also refuses npmjs
+    # while a member is private under D-267's exemption.
     - pnpm --filter backend exec tsx scripts/check-release-intent.ts --publish-registry "$ENDORA_NPM_REGISTRY"
     # The last gate before a publish. `quality` does not run on a branch
     # pipeline — its rules are a merge request or the default branch — so

@@ -48,6 +48,8 @@
  *   * `unpublished-package` — a versionable member that **is**
  *     `"private": true`. The third spelling of one question, and the direction
  *     the question now has a subject in — see *The publication set* below.
+ *     One derived exemption (D-267), printed as `exempt-private=`: see *The
+ *     exemption, and where it expires* below.
  *   * `incomplete-public-package` — a public versionable member that declares
  *     no `repository` or no `publishConfig.access`. Fitness to be published,
  *     which is the question `publishable-package` was standing in for.
@@ -298,6 +300,28 @@
  * something is its own decision made in a merge request that says so — exactly
  * as publishing something used to be.
  *
+ * ## The exemption, and where it expires (D-267)
+ *
+ * `create-endora-commerce` is unscoped and goes to public npmjs only, so while
+ * the configured target is GitLab's namespace-keyed endpoint it cannot be green
+ * as either state: public, it is `unresolvable-scope` and {@link publishScope}
+ * refuses it; private, it is `unpublished-package`. The ruling keeps it private
+ * and makes the exemption **derived** rather than declared — a private
+ * versionable member is not reported when {@link unservableScope} answers a
+ * sentence for its name **and** no workspace member names it in any dependency
+ * field, so the harm the finding is about (a dependent pinning a version the
+ * registry never receives) cannot occur. No name, no list, no ledger: both are
+ * facts this file already computes, and the `@endora-commerce` scope is always
+ * servable, so no package of the scope can be exempted. Every exempted member
+ * is printed by name and counted, the zero included
+ * ({@link publicationExemptionLine}).
+ *
+ * Its expiry is a refusal where its reason expires: `--publish-registry` refuses
+ * public npmjs while any member is exempted ({@link publicRegistryExemptions}),
+ * so the first npmjs publish cannot go out with the front door left private.
+ * The merge request that satisfies it flips `private` and makes the scope rules
+ * target-aware; that design is its own.
+ *
  * ## The scope, and the failure that is silent
  *
  * `contracts/registry-and-scope.md` R2: GitLab's instance-level npm endpoint
@@ -442,8 +466,10 @@
  * names. A package declaring `SEE LICENSE IN` is legitimate on the private
  * registry and refused on public npmjs, so the job hands the registry over and
  * {@link publicRegistryLicence} answers for the pair
- * (`specs/136-open-source-publication/` FR-011). Like the scope, a precondition
- * of one job rather than the check's verdict: no read-size line.
+ * (`specs/136-open-source-publication/` FR-011). The same mode refuses public
+ * npmjs while a member is exempted under D-267 ({@link publicRegistryExemptions}),
+ * printing both refusals when both hold. Like the scope, a precondition of one
+ * job rather than the check's verdict: no read-size line.
  *
  * Usage: `tsx scripts/check-release-intent.ts [--root <dir>] [--since <ref>]`
  *        `tsx scripts/check-release-intent.ts --print-publish-scope`
@@ -522,6 +548,20 @@ export interface ClassifiedMember {
    * judged in the same run that moves it.
    */
   readonly version: string | null;
+  /**
+   * Every package name this manifest declares in any of the four dependency
+   * fields — `dependencies`, `devDependencies`, `peerDependencies`,
+   * `optionalDependencies` — sorted and de-duplicated.
+   *
+   * It is here for D-267's second condition: a private member is exempt from
+   * `unpublished-package` only while **no** member depends on it, because the
+   * finding's harm is a dependent's packed manifest pinning a version the
+   * registry never receives. All four fields, including `devDependencies`: a
+   * development dependency is still resolved from the registry by whoever
+   * installs the dependent from source, and a narrower reading would be the
+   * permissive guess.
+   */
+  readonly dependsOn: readonly string[];
 }
 
 /** One `<name>: <bump>` line in the front matter of a `.changeset/*.md`. */
@@ -881,6 +921,7 @@ export function readReleaseIntent(
       licenseFileFound,
       licenseFile,
       version: declaredVersion(member.manifest),
+      dependsOn: declaredDependencyNames(member.manifest),
     };
   });
 
@@ -967,6 +1008,25 @@ const GITLAB_RESERVED_PATHS: ReadonlySet<string> = new Set([
   'users',
   'v2',
 ]);
+
+/** The four manifest fields a dependency can be declared in. */
+const DEPENDENCY_FIELDS = [
+  'dependencies',
+  'devDependencies',
+  'peerDependencies',
+  'optionalDependencies',
+] as const;
+
+/** Every name a manifest declares in {@link DEPENDENCY_FIELDS}, sorted and unique. */
+function declaredDependencyNames(manifest: Readonly<Record<string, unknown>>): readonly string[] {
+  const names = new Set<string>();
+  for (const field of DEPENDENCY_FIELDS) {
+    const block = manifest[field];
+    if (typeof block !== 'object' || block === null || Array.isArray(block)) continue;
+    for (const name of Object.keys(block)) names.add(name);
+  }
+  return [...names].sort();
+}
 
 /** The scope of a package name — `@fx/alpha` → `fx` — or `null` when unscoped. */
 export function scopeOf(name: string): string | null {
@@ -1124,10 +1184,8 @@ export function publicRegistryLicence(
     .map((member) => member.name)
     .sort();
 
-  let host: string;
-  try {
-    host = new URL(registry.trim()).hostname.toLowerCase();
-  } catch {
+  const publicRegistry = isPublicNpmRegistry(registry);
+  if (publicRegistry === null) {
     return {
       publicRegistry: null,
       ownLicence,
@@ -1138,7 +1196,6 @@ export function publicRegistryLicence(
     };
   }
 
-  const publicRegistry = PUBLIC_NPM_HOSTS.has(host);
   if (!publicRegistry || ownLicence.length === 0) {
     return { publicRegistry, ownLicence, refusal: '' };
   }
@@ -1150,6 +1207,128 @@ export function publicRegistryLicence(
       '`SEE LICENSE IN`, and this publish targets public npmjs. Terms of their own belong on ' +
       'the private registry; a version on npmjs is permanent and readable by anyone, whatever ' +
       'the file it names says',
+  };
+}
+
+/** One private versionable member `unpublished-package` does not report (D-267). */
+export interface PublicationExemption {
+  readonly name: string;
+  /** Repository-relative directory, for the printed line. */
+  readonly dir: string;
+  /** {@link unservableScope}'s sentence — why the configured target cannot serve it. */
+  readonly reason: string;
+}
+
+/**
+ * The private versionable members `unpublished-package` exempts — D-267 clause 2.
+ *
+ * A member is exempt when **both** hold, and both are facts this check already
+ * computes, so there is no list, no ledger and no package name here:
+ *
+ *   1. {@link unservableScope} answers a sentence for its name — the configured
+ *      target cannot serve it, so the member would be `unresolvable-scope` the
+ *      moment it went public, and `private` is the only state in which the tree
+ *      can be green; and
+ *   2. **no workspace member depends on it** in any dependency field — so the
+ *      finding's harm, a dependent's packed manifest pinning a version the
+ *      registry never receives, cannot occur.
+ *
+ * The `@endora-commerce` scope is always servable, so condition 1 never holds
+ * for it and the owner's ruling of 2026-09-05 — every `@endora-commerce`
+ * package publishes — loses nothing. The exemption expires where its reason
+ * does: {@link publicRegistryExemptions} refuses a publish to public npmjs
+ * while any member is exempted (clause 3). Every exempted member is printed by
+ * name and counted ({@link publicationExemptionLine}), never skipped in silence.
+ */
+export function publicationExemptions(
+  members: readonly ClassifiedMember[],
+): readonly PublicationExemption[] {
+  const depended = new Set(members.flatMap((member) => member.dependsOn));
+  const exempt: PublicationExemption[] = [];
+  for (const member of members) {
+    if (!member.family || !member.isPrivate || depended.has(member.name)) continue;
+    const reason = unservableScope(member.name);
+    if (reason === null) continue;
+    exempt.push({ name: member.name, dir: member.dir, reason });
+  }
+  return exempt.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * The line the default mode prints about {@link publicationExemptions} — the
+ * count **including the zero**, and each member by name. A skip nobody can see
+ * is the silence `unpublished-package` exists to end.
+ */
+export function publicationExemptionLine(exempt: readonly PublicationExemption[]): string {
+  const head = `${PREFIX} exempt-private=${String(exempt.length)}`;
+  if (exempt.length === 0) return head;
+  return (
+    `${head} (D-267: private, the configured target cannot serve the name, and no workspace ` +
+    `member depends on it) — ${exempt.map((entry) => `${entry.name} (${entry.dir})`).join(', ')}`
+  );
+}
+
+/**
+ * Whether `registry` is public npmjs; `null` when it could not be read as a
+ * URL at all. The one predicate both `--publish-registry` verdicts share.
+ */
+function isPublicNpmRegistry(registry: string): boolean | null {
+  try {
+    return PUBLIC_NPM_HOSTS.has(new URL(registry.trim()).hostname.toLowerCase());
+  } catch {
+    return null;
+  }
+}
+
+/** What {@link publicRegistryExemptions} decided about one publish target. */
+export interface PublicRegistryExemptions {
+  /** As {@link PublicRegistryLicence.publicRegistry}. */
+  readonly publicRegistry: boolean | null;
+  /** The members {@link publicationExemptions} exempts, by name, sorted. */
+  readonly exempt: readonly string[];
+  /** Why the publish is refused, or `''` when it is not. */
+  readonly refusal: string;
+}
+
+/**
+ * D-267 clause 3 — the exemption's expiry, placed where its reason expires.
+ *
+ * The exemption rests on the configured target being GitLab's namespace-keyed
+ * endpoint, which cannot serve an unscoped name. Public npmjs can, and the
+ * first publish there is the day the front door must stop being private
+ * (`specs/136-open-source-publication/` §5.3). So a publish to public npmjs is
+ * refused while any member is exempted; the private-registry rehearsal is not
+ * touched. The merge request that satisfies this refusal flips `private` and
+ * teaches `unresolvable-scope` and {@link publishScope} which target they judge
+ * — its design, not this function's.
+ */
+export function publicRegistryExemptions(
+  members: readonly ClassifiedMember[],
+  registry: string,
+): PublicRegistryExemptions {
+  const exempt = publicationExemptions(members).map((entry) => entry.name);
+  const publicRegistry = isPublicNpmRegistry(registry);
+  if (publicRegistry === null) {
+    return {
+      publicRegistry,
+      exempt,
+      refusal:
+        `the registry \`${registry}\` is not a URL, so whether it is public npmjs cannot be ` +
+        'told, and a private member exempted for the private registry could be left behind by ' +
+        'the publish that makes the product public',
+    };
+  }
+  if (!publicRegistry || exempt.length === 0) return { publicRegistry, exempt, refusal: '' };
+  return {
+    publicRegistry,
+    exempt,
+    refusal:
+      `${exempt.join(', ')} ${exempt.length === 1 ? 'is' : 'are'} \`"private": true\` under ` +
+      "D-267's exemption, and this publish targets public npmjs, which serves an unscoped name. " +
+      'The exemption held only while the target could not serve it: publishing to npmjs now ' +
+      'would leave the front door unpublished (`specs/136-open-source-publication/` §5.3). ' +
+      'Flip `private` and make `unresolvable-scope` and `publishScope()` target-aware in the ' +
+      'same merge request, then publish',
   };
 }
 
@@ -1232,7 +1411,14 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
   // has already rewritten every sibling's `workspace:*` to its exact version,
   // so one package left behind is every dependent pinning a version the
   // registry never receives.
-  for (const member of versionable.filter((candidate) => candidate.isPrivate)) {
+  //
+  // D-267 clause 2: a private member the configured target cannot serve and no
+  // member depends on is exempt — derived, printed by name and counted by the
+  // CLI, and refused at a public-npmjs publish (`publicationExemptions`).
+  const exempted = new Set(publicationExemptions(inputs.members).map((entry) => entry.name));
+  for (const member of versionable.filter(
+    (candidate) => candidate.isPrivate && !exempted.has(candidate.name),
+  )) {
     findings.push({
       kind: 'unpublished-package',
       subject: member.name,
@@ -2805,14 +2991,20 @@ function reportPublishRegistry(repoRoot: string, registry: string): number {
     console.error(`${PREFIX} --publish-registry: ${verdict.refusal}.`);
     return 2;
   }
-  if (verdict.refusal !== '') {
-    console.error(`${PREFIX} --publish-registry: ${verdict.refusal}.`);
+  // D-267 clause 3, asked beside the licence question and reported with it:
+  // both refusals are printed when both hold, so one repair does not uncover
+  // the other a run later.
+  const exemptions = publicRegistryExemptions(inputs.members, registry);
+  const refusals = [verdict.refusal, exemptions.refusal].filter((refusal) => refusal !== '');
+  if (refusals.length > 0) {
+    for (const refusal of refusals) console.error(`${PREFIX} --publish-registry: ${refusal}.`);
     return 1;
   }
   console.log(
     `${PREFIX} --publish-registry: ${verdict.publicRegistry ? 'public npmjs' : 'not public npmjs'}, ` +
-      `${String(verdict.ownLicence.length)} public member(s) declaring \`SEE LICENSE IN\` — ` +
-      'nothing refused',
+      `${String(verdict.ownLicence.length)} public member(s) declaring \`SEE LICENSE IN\`, ` +
+      `${String(exemptions.exempt.length)} private member(s) exempted under D-267` +
+      `${exemptions.exempt.length > 0 ? ` (${exemptions.exempt.join(', ')})` : ''} — nothing refused`,
   );
   return 0;
 }
@@ -2959,6 +3151,7 @@ function main(): void {
       `${perClassToken(merged)} cleared=${clearedCount} ` +
       `violations=${result.findings.length}`,
   );
+  console.log(publicationExemptionLine(publicationExemptions(result.inputs.members)));
 
   if (result.findings.length > 0) {
     console.error(
