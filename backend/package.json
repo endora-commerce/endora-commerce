@@ -10,7 +10,6 @@
   "scripts": {
     "acceptance:instance": "tsx scripts/acceptance/instance.ts",
     "acceptance:instance:ci": "tsx scripts/acceptance/instance.ts --against-expectation",
-    "acceptance:instance:local-registry": "tsx scripts/acceptance/instance-local-registry.ts",
     "acceptance:package-schema": "tsx scripts/acceptance/package-schema.ts",
     "acceptance:package-schema:ci": "tsx scripts/acceptance/package-schema.ts --against-expectation",
     "acceptance:storefront-scaffold": "tsx scripts/acceptance/storefront-scaffold.ts",
