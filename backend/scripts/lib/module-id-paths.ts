@@ -6,26 +6,30 @@
  *
  * ## Why this is its own file
  *
- * Two instruments ask this question of two different histories. The one-time
- * publication filter (`public-history-filter.ts`, 129 T025) asks it to refuse
- * **publishing** a withheld module's path; the extraction deriver
- * (`derive-extraction-path-set.ts`, 134 E3p) asks it to refuse **losing** one.
- * D-262 clause 1 is the shape where two instruments answered one question two
- * ways, and D-263 clause 1 point 1 names the repair in the same words: *"share
- * the predicate, do not copy it."* So it is neither instrument's private
- * function. FR-011(d) is the statement of the rule and is not restated here.
+ * Two instruments were written to ask this question of two different
+ * histories. The extraction deriver (`derive-extraction-path-set.ts`, 134 E3p)
+ * asked it to refuse **losing** a module's path, and retired with the last
+ * extraction (`specs/136-open-source-publication/` W3.3). The one-time
+ * publication filter (`public-history-filter.ts`, 129 T025) is to ask it to
+ * refuse **publishing** a withheld module's path, and does not yet — that is
+ * `specs/134-paid-module-extraction/` T091 case 6. D-262 clause 1 is the shape
+ * where two instruments answered one question two ways, and D-263 clause 1
+ * point 1 names the repair in the same words: *"share the predicate, do not
+ * copy it."* So it is neither instrument's private function, and it outlived
+ * the one that retired. FR-011(d) is the statement of the rule and is not
+ * restated here.
  *
  * ## What the predicate deliberately is not
  *
- * It is **not** a substring match, and the temptation is real:
- * `backend/test/helpers/scripted-xl-client.ts` is `comarch_xl`'s and carries
- * `xl` in the middle of a filename. Widening the predicate to catch it would
- * make every `scripted-*` helper in the tree every module's, and one of the
- * shortest ids in the population (`xl`, `blog`, `cms`) would match hundreds of
- * paths that are nobody's. Those paths are found by a resolver instead — E3p's
- * R2, the rename closure — and this predicate's job is the complement: the
- * class a **convention** names, which is exactly a directory per module and a
- * file per module.
+ * It is **not** a substring match, and the temptation is real: a
+ * `scripted-<vendor>-client.ts` test helper belongs to one module and carries
+ * that module's id, or a fragment of it, in the middle of a filename. Widening
+ * the predicate to catch it would make every `scripted-*` helper in the tree
+ * every module's, and the shortest ids in the population (`blog`, `cms`) would
+ * match hundreds of paths that are nobody's. Those paths are found by a
+ * resolver instead — the extraction's was E3p's R2, the rename closure — and
+ * this predicate's job is the complement: the class a **convention** names,
+ * which is exactly a directory per module and a file per module.
  */
 
 /** `snake_case` and `kebab-case`, deduplicated for an id that has no underscore. */
