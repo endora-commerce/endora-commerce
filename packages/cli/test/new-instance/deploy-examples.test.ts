@@ -27,9 +27,10 @@
  * `deploy/compose.prod.yml`'s dependency graph partitions cleanly at the three
  * layer boundaries: exactly one edge crosses (`storefront -> backend`,
  * `service_healthy`, a readiness convenience) and the only
- * `service_completed_successfully` edge (`backend -> backend-migrate`) lives
- * entirely inside the backend host. The renderer **derives** the three-host
- * files by dropping the edges that cross a partition, so the count below is a
+ * `service_completed_successfully` edges (`backend -> backend-install ->
+ * backend-migrate`) live entirely inside the backend host. The renderer
+ * **derives** the three-host files by dropping the edges that cross a
+ * partition, so the count below is a
  * measurement of the emitted files rather than a restatement of the design: an
  * edge added across a boundary moves it, and a correctness edge crossing one
  * would move it too.
@@ -220,10 +221,11 @@ describe('§3 R3.3 — what each topology writes, read off the parsed documents'
     ];
   };
 
-  it('the single-host example holds the stateful services, the migration job and the apps', () => {
+  it('the single-host example holds the stateful services, the migration and install jobs and the apps', () => {
     expect(serviceNames(singleHost())).toEqual([
       'admin',
       'backend',
+      'backend-install',
       'backend-migrate',
       'meilisearch',
       'postgres',
@@ -236,6 +238,7 @@ describe('§3 R3.3 — what each topology writes, read off the parsed documents'
     const [backend, storefront, admin] = threeHost();
     expect(serviceNames(backend!)).toEqual([
       'backend',
+      'backend-install',
       'backend-migrate',
       'meilisearch',
       'postgres',
@@ -260,16 +263,17 @@ describe('§3 R3.3 — what each topology writes, read off the parsed documents'
     expect(after.length).toBe(before.length - 1);
   });
 
-  it('R3.6 — the only completion edge is inside the backend host, and it survives', () => {
+  it('R3.6 — every completion edge is inside the backend host, and they survive', () => {
     const [backend] = threeHost();
     const completion = dependsOnEdges(backend!).filter(
       (edge) => edge.condition === 'service_completed_successfully',
     );
     expect(completion).toEqual([
-      { from: 'backend', to: 'backend-migrate', condition: 'service_completed_successfully' },
+      { from: 'backend', to: 'backend-install', condition: 'service_completed_successfully' },
+      { from: 'backend-install', to: 'backend-migrate', condition: 'service_completed_successfully' },
     ]);
-    // …and it is the only one in the whole single-host example too, which is
-    // what makes the partition free of a correctness cost.
+    // …and they are the only ones in the whole single-host example too, which
+    // is what makes the partition free of a correctness cost.
     expect(
       dependsOnEdges(singleHost()).filter(
         (edge) => edge.condition === 'service_completed_successfully',
@@ -288,6 +292,82 @@ describe('§3 R3.3 — what each topology writes, read off the parsed documents'
       }
     }
   });
+});
+
+/**
+ * The backend one-shots run files the rendered backend really emits (136 plan
+ * W7.3, D-274; FR-104).
+ *
+ * The example ran `node dist/db/migrate.js up` while the backend the same plan
+ * writes compiles `src/migrate.ts` to `dist/migrate.js` — so every client's
+ * migrate one-shot exited non-zero and the API, which waits on it, never started.
+ * And nothing ran the install hooks: a database whose first act after the
+ * migrations is a boot never runs them. So the path is **derived**, not
+ * compared to a literal: the rendered `command` is mapped back through the
+ * backend's own `rootDir: src` / `outDir: dist` onto a file the plan writes.
+ */
+describe('W7.3 — the backend one-shots migrate and install, from files the backend emits', () => {
+  /** A service's `command` as the argv list it declares on one line. */
+  function commandOf(document: ReturnType<typeof parseComposeYaml>, service: string): string[] {
+    const definition = (document['services'] as Record<string, Record<string, unknown>>)[service];
+    expect(definition, `no \`${service}\` service`).toBeDefined();
+    const raw = String(definition!['command'] ?? '');
+    const list = /^\[(.*)\]$/.exec(raw);
+    expect(list, `\`${service}\`'s command is not a one-line argv list: ${raw}`).not.toBeNull();
+    return list![1]!.split(',').map((item) => item.trim().replace(/^['"]|['"]$/g, ''));
+  }
+
+  /** `dist/<x>.js` -> `backend/src/<x>.ts`, the mapping the rendered tsconfig makes. */
+  function sourceOf(compiled: string): string {
+    expect(compiled).toMatch(/^dist\/.+\.js$/);
+    return `backend/${compiled.replace(/^dist\//, 'src/').replace(/\.js$/, '.ts')}`;
+  }
+
+  const cases: readonly (readonly [string, PlanInput, string])[] = [
+    ['single-host', withAdmin(), 'deploy/compose.prod.yml'],
+    ['three-host', withAdmin({ topology: 'three-host' }), 'deploy/three-host/compose.backend.yml'],
+  ];
+
+  it('the rendered backend compiles `src` to `dist`, so the mapping below is the real one', () => {
+    const tsconfig = fileAt(withAdmin(), 'backend/tsconfig.json');
+    expect(tsconfig).toMatch(/"outDir":\s*"dist"/);
+    expect(tsconfig).toMatch(/"rootDir":\s*"src"/);
+  });
+
+  for (const [topology, input, path] of cases) {
+    it(`${topology}: \`backend-migrate\` runs the migrate entry point the plan writes`, () => {
+      const argv = commandOf(parseComposeYaml(fileAt(input, path)), 'backend-migrate');
+      expect(argv[0]).toBe('node');
+      const written = planInstance(input).files.map((file) => file.path);
+      expect(written).toContain(sourceOf(argv[1]!));
+    });
+
+    it(`${topology}: \`backend-install\` runs \`module:install --all\` between migrate and the API`, () => {
+      const document = parseComposeYaml(fileAt(input, path));
+      const argv = commandOf(document, 'backend-install');
+      expect(argv[0]).toBe('node');
+      expect(argv.slice(2)).toEqual(['--all']);
+      const written = planInstance(input).files.map((file) => file.path);
+      expect(written).toContain(sourceOf(argv[1]!));
+      // …and it is the file the instance's own `module:install` script runs.
+      const scripts = JSON.parse(fileAt(input, 'backend/package.json')) as {
+        scripts: Record<string, string>;
+      };
+      expect(scripts.scripts['module:install']).toContain(argv[1]!);
+
+      const edges = dependsOnEdges(document);
+      expect(edges).toContainEqual({
+        from: 'backend-install',
+        to: 'backend-migrate',
+        condition: 'service_completed_successfully',
+      });
+      expect(edges).toContainEqual({
+        from: 'backend',
+        to: 'backend-install',
+        condition: 'service_completed_successfully',
+      });
+    });
+  }
 });
 
 describe('§3 R3.4 and R3.5 — a cross-host URL is a real origin, and the split has a stated cost', () => {
@@ -351,6 +431,7 @@ describe('§3 R3.7 — the origin triple is scoped by declared consumer, never b
   it('an admin-less instance names no admin service and no `ADMIN_DOMAIN` in the nginx example', () => {
     expect(serviceNames(parseComposeYaml(fileAt(planInput(), 'deploy/compose.prod.yml')))).toEqual([
       'backend',
+      'backend-install',
       'backend-migrate',
       'meilisearch',
       'postgres',

@@ -29,9 +29,9 @@
  * drops an edge whose target is not in the same file. That is what makes R3.6
  * checkable rather than asserted: the single-host graph partitions with exactly
  * one edge crossing — `storefront -> backend`, `service_healthy`, a readiness
- * convenience — and the only `service_completed_successfully` edge in the file,
- * `backend -> backend-migrate`, lives entirely inside the backend host. The
- * lost edge is replaced by **nothing**: each layer starts, answers its own
+ * convenience — and every `service_completed_successfully` edge in the file,
+ * `backend-install -> backend-migrate` and `backend -> backend-install`, lives
+ * entirely inside the backend host. The lost edge is replaced by **nothing**: each layer starts, answers its own
  * health check and tolerates an absent peer, and a wait-for-it script is the
  * temptation this rule exists to refuse. An edge added across a boundary
  * changes what the renderer drops and reds `test/new-instance/deploy-examples.test.ts`.
@@ -394,7 +394,30 @@ function services(
         '    # build of the application is the half-built state that ordering',
         '    # exists to close.',
         IMAGE('backend'),
-        "    command: ['node', 'dist/db/migrate.js', 'up']",
+        '    # `dist/migrate.js` is what the backend this instance was scaffolded',
+        '    # with compiles `src/migrate.ts` to.',
+        "    command: ['node', 'dist/migrate.js']",
+        '    environment: *backend-env',
+        "    restart: 'no'",
+      ],
+    },
+    {
+      name: 'backend-install',
+      host: 'backend',
+      dependsOn: [
+        ['postgres', 'service_healthy'],
+        ['redis', 'service_healthy'],
+        ['meilisearch', 'service_healthy'],
+        ['backend-migrate', 'service_completed_successfully'],
+      ],
+      body: [
+        '    # One-shot: run every installed module\'s install hooks once the schema',
+        '    # exists and before the API starts — `pnpm run module:install --all`,',
+        '    # compiled. A database whose first act after the migrations is a boot',
+        '    # never runs them. Idempotent: an installed module reports itself done,',
+        '    # so it runs on every start, like the migrations.',
+        IMAGE('backend'),
+        "    command: ['node', 'dist/module-commands/install.js', '--all']",
         '    environment: *backend-env',
         "    restart: 'no'",
       ],
@@ -406,7 +429,7 @@ function services(
         ['postgres', 'service_healthy'],
         ['redis', 'service_healthy'],
         ['meilisearch', 'service_healthy'],
-        ['backend-migrate', 'service_completed_successfully'],
+        ['backend-install', 'service_completed_successfully'],
       ],
       body: [
         IMAGE('backend'),
@@ -1199,7 +1222,7 @@ function backendDockerfile(input: DeployInput): string {
     'WORKDIR /app/backend',
     'EXPOSE 3001',
     '',
-    '# The compose example overrides this for the one-shot migrate job.',
+    '# The compose example overrides this for the one-shot migrate and install jobs.',
     'CMD ["node", "dist/index.js"]',
   ].join('\n')}\n`;
 }
@@ -1286,17 +1309,19 @@ function deployReadme(input: DeployInput, written: readonly string[]): string {
           'docker compose --env-file .env -f compose.prod.yml up -d',
           '```',
           '',
-          'The migration job runs first and the API waits for it to exit 0, so a schema change',
-          'is applied before anything serves a request. Point your host nginx at the loopback',
-          'ports (see `nginx.example.conf`) and let certbot handle TLS.',
+          'The migration job runs first, then the install job (`module:install --all`, a no-op',
+          'for a module already installed), and the API waits for both to exit 0, so a schema',
+          'change and a new module\'s install hooks are applied before anything serves a request.',
+          'Point your host nginx at the loopback ports (see `nginx.example.conf`) and let certbot',
+          'handle TLS.',
         ]
       : [
           'Three machines, in this order. The order matters once, on a first bring-up: the',
           'storefront\'s first page fetch and the admin\'s first API call both need a backend',
           'that has migrated.',
           '',
-          '1. **The backend host** — it owns every stateful service, the migration job and the',
-          '   API:',
+          '1. **The backend host** — it owns every stateful service, the migration and install',
+          '   jobs and the API:',
           '',
           '   ```',
           '   docker compose --env-file .env -f three-host/compose.backend.yml up -d',
