@@ -900,6 +900,13 @@ export function planInstance(input: PlanInput): InstancePlan {
     // named it, so a client who ran `build:admin` had a bundle and no way to
     // look at it. With the member, like every other admin entry.
     ...(admin.written ? { 'preview:admin': 'pnpm -C admin run preview' } : {}),
+    // One development command over the layers above (`specs/136-open-source-
+    // publication/` GAP-7, FR-060): `endora dev` supervises `start`,
+    // `preview:admin` and the sibling storefront's `dev` by **name**, so it
+    // changes none of them and none of the per-layer builds (FR-061, D-230).
+    // It is the CLI's, so it is declared exactly when the CLI is on the root's
+    // path — the predicate `generate` and the devDependency already share.
+    ...(generatesArtefacts ? { 'dev:all': 'endora dev' } : {}),
     'module:install': 'pnpm -C backend run module:install',
     'module:uninstall': 'pnpm -C backend run module:uninstall',
     'module:enable': 'pnpm -C backend run module:enable',
@@ -1501,6 +1508,7 @@ const README_COMMANDS: readonly (readonly [script: string, argument: string, not
   ['module:install', ' --all', 'every module you declared, in dependency order'],
   ['start', '', 'the API'],
   ['preview:admin', '', 'the admin bundle you just built, served on its own port'],
+  ['dev:all', '', 'the API, the admin preview and the storefront beside this\ndirectory, in one terminal. Ctrl-C stops all of them'],
   ['dev', '', 'the API, rebuilt and restarted as you edit your overlay'],
   ['module:status', '', 'what is installed, and what the operator has switched on'],
   ['module:enable', ' <id>', 'the operator\'s switch. A module that is off behaves as\nthough it were never installed'],

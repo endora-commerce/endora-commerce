@@ -599,6 +599,43 @@ describe('FR-160 — the storefront is a sibling, and this checkout is what it i
   });
 });
 
+describe('GAP-7 — the closing block leads with the one development command', () => {
+  // `specs/136-open-source-publication/` FR-060: the three per-layer commands
+  // were three terminals. They stay printed — a layer on its own is still a
+  // thing an operator wants — but the first line is the one that starts all of
+  // them.
+  it('names `pnpm run dev:all` first, and keeps every per-layer command after it', async () => {
+    const root = host();
+    const { run } = recorder();
+    const result = await runInstall(options(root, { run }));
+    const text = result.output.join('\n');
+    const devAll = text.indexOf(`cd ${join(root, 'acme-shop')} && pnpm run dev:all`);
+    const start = text.indexOf(`cd ${join(root, 'acme-shop')} && pnpm run start`);
+    expect(devAll).toBeGreaterThan(-1);
+    expect(start).toBeGreaterThan(devAll);
+    expect(text).not.toContain('--storefront-dir');
+  });
+
+  it('a storefront somewhere other than the default sibling is named on that line', async () => {
+    const root = checkoutFixture();
+    const { run } = recorder();
+    const elsewhere = join(root, 'shops', 'front');
+    const result = await runInstall({
+      dir: join(root, 'acme-shop'),
+      cwd: root,
+      storefront: true,
+      storefrontDir: elsewhere,
+      services: false,
+      demo: false,
+      run,
+      ...ADMIN,
+    } as Parameters<typeof runInstall>[0]);
+    expect(result.output.join('\n')).toContain(
+      `pnpm run dev:all -- --storefront-dir ${elsewhere}`,
+    );
+  });
+});
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------

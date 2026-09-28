@@ -1,0 +1,80 @@
+# The `public` acceptance mode: a stranger installs Endora Commerce from npmjs.
+#
+# `specs/136-open-source-publication/spec.md` §6.4, GAP-8, FR-070; plan W5.4.
+# `acceptance:instance` already measures two supply routes — packed tarballs
+# and the private registry — from inside a CI container that holds this
+# repository. This is the third row of §6.4's table and the one neither can
+# answer: whether somebody with Node and Docker and nothing of ours reaches a
+# logged-in administrator, and in how many commands.
+#
+# ## Why a GitHub-hosted runner, and why nothing is installed on it
+#
+# A hosted runner is clean by construction: a fresh machine per run, Node and
+# Docker preinstalled, no registry configuration and no credential. The job
+# keeps it that way — no secret, no `registry-url`, no `.npmrc`, no pnpm, no
+# workspace install, no build. The harness is fetched with the checkout and run
+# with `npx tsx` from `runner.temp`, so the target directory has no workspace
+# and no git repository above it; `instance-public.ts` refuses (exit 2) if any
+# of that turns out not to hold rather than measuring a configured machine.
+# `setup-node` pins the Node an instance requires (`engines.node`) and writes
+# no `.npmrc` without `registry-url`.
+#
+# ## Dormant, deliberately
+#
+# Until `0.100.0` is on npmjs there is nothing to install, so this runs only
+# when dispatched, with the version (or dist-tag) the dispatcher names. FR-071 —
+# on every release and nightly, and promoting `latest` only after this passes on
+# `next` — is plan W5.5, after the first publish. The harness refuses a version
+# npmjs does not serve (exit 2) rather than reporting it as a failed install.
+#
+# ## Reading the result
+#
+# The harness prints one line per assertion, P1 … P5, and exits 0 met, 1
+# measured and red, 2 could not be measured. P2 (the storefront renders a
+# catalogue) is unmeasured for as long as `endora install` refuses the
+# storefront outside a checkout of the platform repository
+# (`specs/110-instance-repository/contracts/cli-product.md` R3.1c), so a run
+# that is otherwise green exits 2 until that changes.
+
+name: acceptance-public
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The published version or dist-tag of the one-shot to install (for example 0.100.0 or next)'
+        required: true
+        type: string
+      package:
+        description: 'The one-shot package: create-endora-commerce, or the scoped fallback @endora-commerce/create-app'
+        required: false
+        default: create-endora-commerce
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance-public:
+    name: acceptance:instance:public
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The harness and its judgement, and nothing that could be installed.
+          sparse-checkout: backend/scripts/acceptance
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - name: a stranger installs from npmjs
+        working-directory: ${{ runner.temp }}
+        env:
+          # Inputs reach the shell through the environment, never interpolated
+          # into it.
+          ENDORA_PUBLIC_VERSION: ${{ inputs.version }}
+          ENDORA_PUBLIC_PACKAGE: ${{ inputs.package }}
+        run: npx --yes --package=tsx@4 -- tsx "$GITHUB_WORKSPACE/backend/scripts/acceptance/instance-public.ts" --version "$ENDORA_PUBLIC_VERSION" --package "$ENDORA_PUBLIC_PACKAGE"
