@@ -44,9 +44,6 @@
   "sidebar.main.category.auth": {
     "message": "auth"
   },
-  "sidebar.main.category.autopay": {
-    "message": "Autopay"
-  },
   "sidebar.main.category.blog": {
     "message": "Blog"
   },
@@ -58,9 +55,6 @@
   },
   "sidebar.main.category.cms": {
     "message": "CMS"
-  },
-  "sidebar.main.category.comarch_xl": {
-    "message": "Comarch ERP XL"
   },
   "sidebar.main.category.comparisons": {
     "message": "Porównywanie produktów"
@@ -89,9 +83,6 @@
   "sidebar.main.category.deployment.link.generated-index.title": {
     "message": "Wdrożenie"
   },
-  "sidebar.main.category.dhl_parcel": {
-    "message": "DHL Parcel"
-  },
   "sidebar.main.category.dictionaries": {
     "message": "Słownik"
   },
@@ -103,12 +94,6 @@
   },
   "sidebar.main.category.import_export": {
     "message": "import_export"
-  },
-  "sidebar.main.category.infakt": {
-    "message": "Infakt"
-  },
-  "sidebar.main.category.inpost": {
-    "message": "InPost"
   },
   "sidebar.main.category.integrations": {
     "message": "Integracje"
@@ -124,9 +109,6 @@
   },
   "sidebar.main.category.invoices": {
     "message": "invoices"
-  },
-  "sidebar.main.category.ksef": {
-    "message": "KSeF"
   },
   "sidebar.main.category.languages": {
     "message": "languages"
@@ -163,24 +145,6 @@
   },
   "sidebar.main.category.payments": {
     "message": "payments"
-  },
-  "sidebar.main.category.paypal": {
-    "message": "PayPal"
-  },
-  "sidebar.main.category.payu": {
-    "message": "PayU"
-  },
-  "sidebar.main.category.pim_akeneo": {
-    "message": "Akeneo PIM"
-  },
-  "sidebar.main.category.pim_ergonode": {
-    "message": "Ergonode PIM"
-  },
-  "sidebar.main.category.pim_pimcore": {
-    "message": "Pimcore PIM"
-  },
-  "sidebar.main.category.pim_unopim": {
-    "message": "UnoPim PIM"
   },
   "sidebar.main.category.price_lists": {
     "message": "price_lists"
@@ -233,16 +197,10 @@
   "sidebar.main.category.taxes": {
     "message": "taxes"
   },
-  "sidebar.main.category.tpay": {
-    "message": "TPay"
-  },
   "sidebar.main.category.transactional_emails": {
     "message": "transactional_emails"
   },
   "sidebar.main.category.webhooks": {
     "message": "webhooks"
-  },
-  "sidebar.main.category.wfirma": {
-    "message": "wFirma"
   }
 }
