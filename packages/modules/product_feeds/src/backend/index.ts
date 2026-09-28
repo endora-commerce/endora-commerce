@@ -108,8 +108,14 @@ export interface ProductFeedsCradle {
   readonly adminNotificationRecordPort: AdminNotificationRecordPort;
   readonly settingsReadPort: NonNullable<ProductFeedsModuleOptions['settings']>;
   readonly moduleQueueRedis: Redis | undefined;
-  /** Root-supplied (Principle X): the harness runs no generation or reaper consumer. */
-  readonly productFeedsRunWorkers: boolean;
+  /**
+   * Whether this process runs queue consumers (Principle X): the platform's one
+   * module-agnostic answer, registered by `composeApp` from `BACKEND_ROLE` and
+   * `false` by the test kit, so the harness runs no generation or reaper
+   * consumer (`specs/134-paid-module-extraction/` research D16). It replaced a
+   * root-supplied worker flag named after this module.
+   */
+  readonly processRunsWorkers: boolean;
   /**
    * Pinned per composition rather than derived, and registered **early** in each
    * root: the boot hook below constructs the module, and these two are read at
@@ -151,7 +157,7 @@ export function registerModule(ctx: ModuleContext): void {
           commandBus,
           eventBus,
           moduleQueueRedis,
-          productFeedsRunWorkers,
+          processRunsWorkers,
           productFeedsPublicBaseUrl,
           productFeedsTokenEncryptionKey,
         }: ProductFeedsCradle) => {
@@ -173,7 +179,7 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             commandBus,
             eventBus,
-            runWorkers: productFeedsRunWorkers,
+            runWorkers: processRunsWorkers,
             ...(moduleQueueRedis === undefined ? {} : { redis: moduleQueueRedis }),
             publicBaseUrl: productFeedsPublicBaseUrl,
             ...(productFeedsTokenEncryptionKey === undefined
@@ -362,7 +368,7 @@ export function registerModule(ctx: ModuleContext): void {
     // now — `check:entry-presence`, D-68 — so removing this probe fails the
     // build rather than waiting for the next deploy to notice.
     if (!effectiveState.isPresent('product_feeds')) return;
-    const runWorkers = ctx.cradle<ProductFeedsCradle>().productFeedsRunWorkers;
+    const runWorkers = ctx.cradle<ProductFeedsCradle>().processRunsWorkers;
     const handle = ctx.cradle<ProductFeedsCradle>().productFeeds.handle;
     const reconcile = async (what: string, run: () => Promise<unknown>): Promise<void> => {
       try {

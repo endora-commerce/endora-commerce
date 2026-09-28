@@ -22,6 +22,7 @@ import {
   nonBindingPortEdges,
   overlayManifestEntries,
   NON_LITERAL_PORT_NAME,
+  platformReadNames,
   providedPortNames,
   registeredNames,
   resolvedNames,
@@ -802,6 +803,7 @@ const noPlatformSweep = {
   platformNames: new Set<string>(),
   kernelNames: new Set<string>(),
   moduleOwnedNames: new Map<string, string>(),
+  platformReadNames: new Set<string>(),
 };
 
 describe('findRootIssues', () => {
@@ -862,16 +864,34 @@ describe('findRootIssues', () => {
     });
   });
 
-  it('accepts a host-registered port both compositions supply', () => {
+  it('accepts a host-registered port both compositions supply and a module reads', () => {
     expect(
       findRootIssues({
         moduleRegistered: new Map(),
         rootNames: roots(['requireCustomer'], ['requireCustomer']),
         hostRegistered: { requireCustomer: 'auth' },
         ...noPlatformSweep,
-        resolvedNames: new Set<string>(),
+        resolvedNames: new Set(['requireCustomer']),
       }),
     ).toEqual([]);
+  });
+
+  it('flags a host-registered port a root supplies and nothing reads as unread', () => {
+    // `specs/134-paid-module-extraction/` research D16 §5. The table entry names
+    // an owner in principle; a root supplying the name for a reader that is not
+    // in the tree is the residue a departing module leaves behind.
+    const issues = findRootIssues({
+      moduleRegistered: new Map(),
+      rootNames: roots(['requireCustomer'], []),
+      hostRegistered: { requireCustomer: 'auth' },
+      ...noPlatformSweep,
+      resolvedNames: new Set<string>(),
+    });
+    // One finding per name: an unread name one root supplies is not also a
+    // divergence — nothing can throw on a name nothing resolves.
+    expect(issues).toEqual([
+      { kind: 'platform-name-unread', name: 'requireCustomer', roots: ['production'], owner: 'auth' },
+    ]);
   });
 
   it('says nothing about a host-registered port neither composition supplies', () => {
@@ -958,6 +978,7 @@ describe('findRootIssues — PLATFORM_OWNED_NAMES', () => {
     kernel?: string[];
     moduleOwned?: [string, string][];
     resolved?: string[];
+    platformRead?: string[];
   }) =>
     findRootIssues({
       moduleRegistered: new Map(),
@@ -967,6 +988,7 @@ describe('findRootIssues — PLATFORM_OWNED_NAMES', () => {
       platformNames: new Set(['salesChannelResolutionPort']),
       kernelNames: new Set(input.kernel ?? []),
       moduleOwnedNames: new Map(input.moduleOwned ?? []),
+      platformReadNames: new Set(input.platformRead ?? []),
     });
 
   it('flags a platform name nothing registers that a module resolves', () => {
@@ -1060,14 +1082,87 @@ describe('findRootIssues — PLATFORM_OWNED_NAMES', () => {
     ).toEqual([]);
   });
 
-  it('says nothing about a name both roots register and nobody resolves yet', () => {
-    // A root preparing a seam, which is not a defect — the reason `stale`
-    // requires *both* halves.
+  it('flags a name both roots register and nothing reads as unread', () => {
+    // `specs/134-paid-module-extraction/` research D16 §5. This case said
+    // "a root preparing a seam, not a defect" until T124: written for a seam
+    // about to gain a reader, it also cleared a seam for a reader in another
+    // repository — six values named after paid modules stood in the platform
+    // after their readers had left, and nothing here could say so.
+    const issues = sweep({
+      roots: bothRoots(['salesChannelResolutionPort'], ['salesChannelResolutionPort']),
+    });
+    expect(issues).toEqual([
+      {
+        kind: 'platform-name-unread',
+        name: 'salesChannelResolutionPort',
+        roots: ['production', 'harness'],
+        owner: null,
+      },
+    ]);
+  });
+
+  it('counts a platform source reading the name as a reader', () => {
+    // `apiInterceptors` is the shape: registered by `composeApp`, read by the
+    // platform's own code rather than by any module.
     expect(
       sweep({
         roots: bothRoots(['salesChannelResolutionPort'], ['salesChannelResolutionPort']),
+        platformRead: ['salesChannelResolutionPort'],
       }),
     ).toEqual([]);
+  });
+
+  it('reports an unread name one root supplies as unread, not as a divergence', () => {
+    const issues = sweep({ roots: bothRoots(['salesChannelResolutionPort'], []) });
+    expect(issues.map((issue) => issue.kind)).toEqual(['platform-name-unread']);
+  });
+});
+
+describe('platformReadNames — what the platform itself reads back', () => {
+  const FILE = '/repo/packages/platform/src/composition/compose-app.ts';
+
+  it('reads a cradle accessor, a direct cradle access and a destructuring', () => {
+    const source = `
+      const reads = (): Reads => container.cradle as never;
+      export function build() {
+        const a = reads().salesChannelsService;
+        const { adminI18nService, adminUserReadPort: users } = reads();
+        const b = container.cradle.eventBus;
+        const { redis } = container.cradle;
+        return [a, b, users, adminI18nService, redis];
+      }
+    `;
+    expect(platformReadNames(source, FILE).sort()).toEqual([
+      'adminI18nService',
+      'adminUserReadPort',
+      'eventBus',
+      'redis',
+      'salesChannelsService',
+    ]);
+  });
+
+  it('reads a ctx.cradle<C>() access the way a module would', () => {
+    const source = `
+      const cradle = ctx.cradle<LifecycleCradle>();
+      use(cradle.apiInterceptors, ctx.cradle<LifecycleCradle>().lifecycleOrchestrator);
+    `;
+    expect(platformReadNames(source, FILE).sort()).toEqual([
+      'apiInterceptors',
+      'lifecycleOrchestrator',
+    ]);
+  });
+
+  it('does not count the registration itself as a read', () => {
+    // The trap the T122 report named: a text search for the name finds the
+    // line that supplies it, and a supply that counts as its own reader makes
+    // `platform-name-unread` unreachable.
+    const source = `
+      const runWorkers = processRunsWorkersFor(process.env['BACKEND_ROLE']);
+      registerValues(container, { processRunsWorkers: runWorkers, redis });
+      composedModules.contribute({ webhooksRunWorkers: runWorkers });
+      container.register({ orm: asValue(orm) });
+    `;
+    expect(platformReadNames(source, FILE)).toEqual([]);
   });
 });
 
@@ -1809,7 +1904,7 @@ describe('a delegating root supplies through its composer', () => {
       '  await composeTestServer({',
       '    composition,',
       '    values: {',
-      '      productFeedsRunWorkers: false,',
+      "      productFeedsPublicBaseUrl: 'http://feeds.test.local',",
       "      storefrontBaseUrl: 'http://localhost:3000',",
       '    },',
       '    contribute: async () => undefined,',
@@ -1819,7 +1914,7 @@ describe('a delegating root supplies through its composer', () => {
     ].join('\n');
 
     expect(delegatedSuppliedNames(root, 'root.ts', 'composeTestServer', ['values'])).toEqual([
-      'productFeedsRunWorkers',
+      'productFeedsPublicBaseUrl',
       'storefrontBaseUrl',
     ]);
     // The names are invisible to the call-shape reader, which is the whole

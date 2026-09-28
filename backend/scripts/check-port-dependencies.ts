@@ -162,9 +162,10 @@ const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src')
  * typecheck, lint and this check all read green (`composition.ts` says so in
  * its own comment).
  *
- * `findRootIssues` now sweeps this set for four findings — unsupplied,
- * divergence, owned-by-a-module and stale — over the same three supply sources
- * every composition really has: the two roots and `src/kernel/**`. Two entries
+ * `findRootIssues` now sweeps this set for five findings — unsupplied,
+ * divergence, owned-by-a-module, stale and, since
+ * `specs/134-paid-module-extraction/` T124, unread — over the same three supply
+ * sources every composition really has: the two roots and `src/kernel/**`. Two entries
  * went on its first run: `organizationsSettingsChannelId`, whose name D-41 had
  * deleted, and `priceListsPricingCacheTtlMs`, which `price_lists` registers
  * itself and which was therefore a module-owned name laundering a cross-module
@@ -274,26 +275,17 @@ export const PLATFORM_OWNED_NAMES: ReadonlySet<string> = new Set([
   // module's consumers are built at all (`specs/134-paid-module-extraction/`
   // research D16, contract W1.1). `composeApp` registers it from
   // `BACKEND_ROLE`; the test kit registers it `false`.
+  //
+  // Its module-named predecessors — five worker flags and a base URL named
+  // after paid modules, and `product_feeds`' own worker flag — left this list
+  // in T124 together with their registrations. The `platform-name-unread`
+  // finding is what says so the next time a name here outlives its reader.
   'processRunsWorkers',
-  // Deprecated by D16 (T122) and removed by T124: the module-named
-  // predecessors of `processRunsWorkers`, still registered by both roots for a
-  // published module release that may resolve them. No in-tree module other
-  // than `pim_akeneo` reads them.
-  'pimErgonodeRunWorkers',
-  'pimAkeneoRunWorkers',
-  'pimPimcoreRunWorkers',
-  'pimUnopimRunWorkers',
-  'comarchXlRunWorkers',
-  // `product_feeds`' own flag — a free module's copy of the same pattern, which
-  // D16 §6 records as not this feature's.
-  'productFeedsRunWorkers',
   // Pinned per composition and read at construction, so each root registers
   // them early beside the worker flag: production derives the feed base URL
   // from the environment, the harness pins one because a test asserts the
-  // exact link an administrator is handed (T137). `pimAkeneoPublicBaseUrl` is
-  // deprecated by D16 (T122) — a module calls `resolvePublicApiBaseUrl()` — and
-  // removed by T124.
-  'pimAkeneoPublicBaseUrl',
+  // exact link an administrator is handed (T137). A free module's copy of the
+  // pattern D16 §6 records as not feature 134's to move.
   'productFeedsPublicBaseUrl',
   'productFeedsTokenEncryptionKey',
   // Same shape for `inventory` (T129): how this deployment names a non-admin
@@ -516,11 +508,6 @@ export const HOST_REGISTERED_PORTS: Readonly<Record<string, string>> = {
   // worker itself is `webhooks`' own now; only the deployment half — production
   // follows `BACKEND_ROLE`, the harness runs none — stays a root's.
   webhooksRunWorkers: 'webhooks',
-  // `comarchXlRunWorkers` was here, attributed to `comarch_xl`, and moved to
-  // `PLATFORM_OWNED_NAMES` when the module left for the paid repository
-  // (feature 134, T069): a name attributed to a module this tree no longer
-  // declares is `every host-registered port names a module that exists`'s red,
-  // and the PIM connectors' flags took the same move before it.
 };
 
 
@@ -572,34 +559,16 @@ export const CAPTURABLE_NAMES: ReadonlySet<string> = new Set([
   // Same category: the platform's one module-agnostic answer to "does this
   // process run queue consumers?", a plain boolean that decides whether a
   // module's consumers are constructed at all, so it cannot be deferred past
-  // construction (`specs/134-paid-module-extraction/` research D16).
+  // construction (`specs/134-paid-module-extraction/` research D16). The
+  // module-named flags it replaced left this list in T124.
   'processRunsWorkers',
-  // Same category, and deprecated by D16 (T122), removed by T124 along with the
-  // Pimcore, Akeneo and UnoPim flags and `pimAkeneoPublicBaseUrl` below: a plain
-  // boolean that decides whether the Ergonode import and reaper consumers are
-  // constructed at all (T131).
-  'pimErgonodeRunWorkers',
-  // Same category: whether this process runs the Pimcore import consumer
-  // (feature 089).
-  'pimPimcoreRunWorkers',
-  // Same category: whether this process runs the Akeneo apply consumer.
-  'pimAkeneoRunWorkers',
-  // Same category: whether this process runs the UnoPim import and reaper
-  // consumers (feature 089).
-  'pimUnopimRunWorkers',
-  // Same category: whether this process runs the feed generation and reaper
-  // consumers, read at construction because it decides whether they are built
-  // at all (T137).
-  'productFeedsRunWorkers',
   // Same category again: whether this process runs the bulk-operation consumer,
   // read at construction because it decides whether it is built at all (T142).
   'catalogRunBulkOperationWorker',
   // Pinned per composition and read at construction, so they are registered
   // early alongside the worker flag: production derives the feed base URL from
   // the environment, the harness pins one because a test asserts the exact link
-  // an administrator is handed (T137). Receive URLs on the Akeneo connection
-  // screen use the same origin.
-  'pimAkeneoPublicBaseUrl',
+  // an administrator is handed (T137).
   'productFeedsPublicBaseUrl',
   'productFeedsTokenEncryptionKey',
   // The storefront origin a customer-facing link points at, and whether this
@@ -1613,7 +1582,11 @@ export interface RootRegistrationIssue {
     | 'platform-name-unsupplied'
     | 'platform-name-divergence'
     | 'platform-name-owned-by-module'
-    | 'platform-name-stale';
+    | 'platform-name-stale'
+    // The mirror of `platform-name-stale`, over **both** tables
+    // (`specs/134-paid-module-extraction/` research D16 §5, T124): a root
+    // supplies the name and nothing reads it back.
+    | 'platform-name-unread';
   readonly name: string;
   /** Roots involved: the shadowing ones, or the ones that *do* register it. */
   readonly roots: readonly string[];
@@ -1652,6 +1625,13 @@ export interface RootCheckInput {
    * the platform list and clearing both exemptions for it.
    */
   readonly moduleOwnedNames: ReadonlyMap<string, string>;
+  /**
+   * Names the platform's own sources read back from the container — see
+   * {@link platformReadNames}. The second half of "does anything read this?",
+   * beside `resolvedNames`: `composeApp` reads `adminUserReadPort` through its
+   * own cradle accessor, and a name only the platform reads is still read.
+   */
+  readonly platformReadNames: ReadonlySet<string>;
 }
 
 /**
@@ -1699,11 +1679,23 @@ export interface RootCheckInput {
  *    cross-module edge past a dependency declaration *and* an operator's
  *    confirmation dialog.
  *  - **`platform-name-stale`** — nothing registers it anywhere **and** no
- *    module resolves it. Deliberately both halves: a name a root registers
- *    before anything reads it is a root preparing a seam, not a defect.
+ *    module resolves it.
+ *  - **`platform-name-unread`** — a root supplies it, and no module and no
+ *    platform source reads it back (`specs/134-paid-module-extraction/`
+ *    research D16 §5, T124). Swept over `HOST_REGISTERED_PORTS` as well, where
+ *    it replaces the silence the `root-supplies-nothing` arm keeps for an
+ *    unread entry. This used to be tolerated as *"a root preparing a seam"*,
+ *    which was written for a seam about to gain a reader and cleared a seam for
+ *    a reader in another repository just as well: five worker flags and a base
+ *    URL named after paid modules stood in `composeApp` after their readers
+ *    had left, with this check green. It needs to know nothing about which modules are paid —
+ *    a value supplied for a consumer that is not in the tree is exactly the
+ *    residue a departure leaves, and it fires in that departure's own merge
+ *    request. A kernel-supplied name is outside it: the kernel supplies every
+ *    composition by construction and is not a root.
  *
- * Three of the four are absolute and the fourth reuses the exemption table the
- * sibling half already has. No number, no per-entry allow-list, no ratchet: the
+ * Three of the five are absolute and the divergence arm reuses the exemption
+ * table the sibling half already has. No number, no per-entry allow-list, no ratchet: the
  * list may only shrink by being *true*.
  */
 export function findRootIssues(input: RootCheckInput): RootRegistrationIssue[] {
@@ -1729,6 +1721,12 @@ export function findRootIssues(input: RootCheckInput): RootRegistrationIssue[] {
       if (input.resolvedNames.has(name)) {
         issues.push({ kind: 'root-supplies-nothing', name, roots: [], owner });
       }
+      continue;
+    }
+    // Supplied and read by nothing: the one finding for this name, because a
+    // divergence over a name nothing resolves cannot throw anywhere.
+    if (!isRead(input, name)) {
+      issues.push({ kind: 'platform-name-unread', name, roots: supplying, owner });
       continue;
     }
     if (supplying.length < input.rootNames.size) {
@@ -1769,12 +1767,130 @@ export function findRootIssues(input: RootCheckInput): RootRegistrationIssue[] {
       });
       continue;
     }
+    if (!isRead(input, name)) {
+      issues.push({ kind: 'platform-name-unread', name, roots: supplying, owner: null });
+      continue;
+    }
     if (supplying.length < input.rootNames.size && ROOT_DIVERGENCE_ALLOWED[name] === undefined) {
       issues.push({ kind: 'platform-name-divergence', name, roots: supplying, owner: null });
     }
   }
 
   return issues;
+}
+
+/** Does a module resolve `name`, or does the platform's own code read it back? */
+function isRead(input: RootCheckInput, name: string): boolean {
+  return input.resolvedNames.has(name) || input.platformReadNames.has(name);
+}
+
+/**
+ * The container names a **platform** source reads back, which `resolvedNames`
+ * cannot see: it attributes every read to a module and returns nothing for a
+ * file that belongs to none, and `composeApp` is such a file.
+ *
+ * Three shapes, the ones the platform writes: a zero-argument accessor over
+ * `<x>.cradle` (`const reads = (): R => container.cradle as never`) followed by
+ * `reads().name` or destructured; `<x>.cradle` itself, accessed or
+ * destructured; and `ctx.cradle<C>()`, accessed, destructured or bound to a
+ * local first.
+ *
+ * **A registration is never a read** — the trap the T122 report named
+ * (`specs/134-paid-module-extraction/`). A text search for a name finds the
+ * `registerValues(container, { name: … })` line that supplies it, and a supply
+ * that counted as its own reader would make `platform-name-unread` unreachable
+ * for every name `composeApp` registers. Reading the syntax rather than the
+ * text makes that true by construction: an object-literal key is not a property
+ * access on a cradle.
+ */
+export function platformReadNames(source: string, file: string): string[] {
+  const sf = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
+  const strip = (node: ts.Expression): ts.Expression => {
+    let current = node;
+    while (
+      ts.isAsExpression(current) ||
+      ts.isParenthesizedExpression(current) ||
+      ts.isNonNullExpression(current) ||
+      ts.isTypeAssertionExpression(current) ||
+      ts.isSatisfiesExpression(current)
+    ) {
+      current = current.expression;
+    }
+    return current;
+  };
+  const isCradleExpression = (node: ts.Expression): boolean => {
+    const bare = strip(node);
+    // `<x>.cradle`
+    if (ts.isPropertyAccessExpression(bare) && bare.name.text === 'cradle') return true;
+    // `ctx.cradle<C>()`
+    return (
+      ts.isCallExpression(bare) &&
+      bare.arguments.length === 0 &&
+      ts.isPropertyAccessExpression(bare.expression) &&
+      bare.expression.name.text === 'cradle'
+    );
+  };
+  // Locals standing for a cradle: `accessors` are called (`reads()`), `objects`
+  // are the cradle itself (`const cradle = ctx.cradle<C>()`).
+  const accessors = new Set<string>();
+  const objects = new Set<string>();
+  const soleReturn = (fn: ts.ArrowFunction | ts.FunctionExpression): ts.Expression | null => {
+    if (fn.parameters.length > 0) return null;
+    if (!ts.isBlock(fn.body)) return fn.body;
+    const statements = fn.body.statements;
+    const only = statements.length === 1 ? statements[0] : undefined;
+    return only !== undefined && ts.isReturnStatement(only) && only.expression !== undefined
+      ? only.expression
+      : null;
+  };
+  const collect = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      const init = strip(node.initializer);
+      if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
+        const returned = soleReturn(init);
+        if (returned !== null && isCradleExpression(returned)) accessors.add(node.name.text);
+      } else if (isCradleExpression(init)) {
+        objects.add(node.name.text);
+      }
+    }
+    node.forEachChild(collect);
+  };
+  sf.forEachChild(collect);
+
+  const isSource = (node: ts.Expression): boolean => {
+    const bare = strip(node);
+    if (isCradleExpression(bare)) return true;
+    if (ts.isIdentifier(bare)) return objects.has(bare.text);
+    return (
+      ts.isCallExpression(bare) &&
+      bare.arguments.length === 0 &&
+      ts.isIdentifier(bare.expression) &&
+      accessors.has(bare.expression.text)
+    );
+  };
+
+  const names = new Set<string>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isPropertyAccessExpression(node) && isSource(node.expression)) {
+      names.add(node.name.text);
+    }
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isObjectBindingPattern(node.name) &&
+      node.initializer !== undefined &&
+      isSource(node.initializer)
+    ) {
+      for (const element of node.name.elements) {
+        const property = element.propertyName ?? element.name;
+        if (ts.isIdentifier(property)) names.add(property.text);
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  // `cradle` is the accessor's own member name, never a registration.
+  names.delete('cradle');
+  return [...names];
 }
 
 /**
@@ -1923,6 +2039,21 @@ export function describeRootIssue(issue: RootRegistrationIssue): string {
       `    root, no kernel file — while no module resolves it either.\n` +
       `    The name is gone and its exemption outlived it, so the list now pre-clears whatever\n` +
       `    lands on that string next. Delete the entry.`
+    );
+  }
+  if (issue.kind === 'platform-name-unread') {
+    const table =
+      issue.owner === null
+        ? 'PLATFORM_OWNED_NAMES'
+        : `HOST_REGISTERED_PORTS (owner in principle: '${issue.owner}')`;
+    return (
+      `  - '${issue.name}' is on ${table}, is supplied by ${issue.roots.join(' and ')}, and\n` +
+      `    no module and no platform source reads it back.\n` +
+      `    A value supplied for a consumer that is not in this tree is what a departing module\n` +
+      `    leaves behind: the composition carries a slot named for something that may be\n` +
+      `    absent (specs/134-paid-module-extraction/ research D16, contract W1.1). Delete the\n` +
+      `    registration and the table entry. Dropping a name the platform registers is a\n` +
+      `    breaking platform release — a published module may still resolve it.`
     );
   }
   if (issue.kind === 'platform-name-owned-by-module') {
@@ -2441,6 +2572,27 @@ async function main(): Promise<void> {
     }
     rootNames.set(label, names);
   }
+  // The platform's own reads (`specs/134-paid-module-extraction/` research D16
+  // §5): the second half of "does anything read this name?" beside the module
+  // resolutions, over every platform source rather than the kernel alone —
+  // `composeApp` reads through its own cradle accessor. Exit 2 on an empty
+  // answer rather than a report: with no platform reader every name only the
+  // platform consumes would read as `platform-name-unread`, a fact about the
+  // walk dressed as a fact about the tree (issue #113).
+  const platformReads = new Set<string>();
+  for (const file of walk(platformRoot)) {
+    for (const name of platformReadNames(readFileSync(file, 'utf8'), file)) {
+      platformReads.add(name);
+    }
+  }
+  if (platformReads.size === 0) {
+    console.error(
+      `[port-deps] no container read seen in the platform's sources under ${platformRoot} — ` +
+        'every name only the platform reads back would be reported as unread; refusing to ' +
+        'report anything',
+    );
+    process.exit(2);
+  }
   const rootIssues = findRootIssues({
     moduleRegistered,
     rootNames,
@@ -2449,6 +2601,7 @@ async function main(): Promise<void> {
     platformNames: PLATFORM_OWNED_NAMES,
     kernelNames,
     moduleOwnedNames,
+    platformReadNames: platformReads,
   });
 
   // FR-034 — the third composition. Exit 2 before the finding, because with an

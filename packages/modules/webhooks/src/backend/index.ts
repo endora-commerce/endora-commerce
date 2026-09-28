@@ -50,9 +50,8 @@ import { Webhook } from './entities/webhook.entity.js';
  * `webhook_deliveries` rows. `ctx.worker` puts it behind `defineModuleWorker`,
  * which pauses it with the module and resumes it with it. The deployment half
  * stays a root's, as `webhooksRunWorkers` — the same shape `searchRunWorkers`
- * and `productFeedsRunWorkers` already have, and for the same reason: the
- * harness runs no consumer, and deriving that from `BACKEND_ROLE` here would
- * start one in every test file.
+ * already has, and for the same reason: the harness runs no consumer, and
+ * deriving that from `BACKEND_ROLE` here would start one in every test file.
  */
 
 /** The events bridged to the delivery queue (contracts/order-webhooks.md §2). */

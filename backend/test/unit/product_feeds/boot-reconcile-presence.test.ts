@@ -70,7 +70,7 @@ async function composeProductFeeds(): Promise<Composed> {
     commandBus: {},
     eventBus: new EventBus(),
     moduleQueueRedis: undefined,
-    productFeedsRunWorkers: true,
+    processRunsWorkers: true,
     productFeedsPublicBaseUrl: 'http://feeds.test.local',
     productFeedsTokenEncryptionKey: undefined,
     configurationTypeRegistry: {

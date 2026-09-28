@@ -1359,25 +1359,6 @@ export async function setupBackendServer(
     // `redis`, `redisSubscriber`, `eventBus`, `commandBus`, `auditLogService`,
     // `apiInterceptors` and `resolvedModuleRegistry`; these are this harness's.
     values: {
-      // Deprecated, all six (`specs/134-paid-module-extraction/` research D16,
-      // T122). The in-tree readers moved to the platform's module-agnostic
-      // `processRunsWorkers`, which the kit registers `false` itself, so this
-      // harness needs no entry for it. Only `pim_akeneo` still resolves these;
-      // they mirror `compose-app.ts`, which keeps them for a published module
-      // release that may resolve them. Removal: T124.
-      /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
-      pimErgonodeRunWorkers: false,
-      /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
-      pimPimcoreRunWorkers: false,
-      /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
-      pimUnopimRunWorkers: false,
-      /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
-      comarchXlRunWorkers: false,
-      /** @deprecated Read `processRunsWorkers`. Removal: T124 (D16). */
-      pimAkeneoRunWorkers: false,
-      /** @deprecated Call `resolvePublicApiBaseUrl()`. Removal: T124 (D16). */
-      pimAkeneoPublicBaseUrl: 'http://localhost',
-      productFeedsRunWorkers: false,
       productFeedsPublicBaseUrl: 'http://feeds.test.local',
       productFeedsTokenEncryptionKey: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
       // Feature 072 (T138) — mirrors `composition.ts`, reading this harness's own

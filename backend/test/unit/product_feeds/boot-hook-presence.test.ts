@@ -65,7 +65,7 @@ function build(): Harness {
   // never reached — a hook that returns early resolves nothing at all, which is
   // itself part of what is being asserted.
   container.register({
-    productFeedsRunWorkers: asValue(true),
+    processRunsWorkers: asValue(true),
     productFeeds: asValue({
       handle: {
         reconcileTemplates: async (): Promise<void> => {
