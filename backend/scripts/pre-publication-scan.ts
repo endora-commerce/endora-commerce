@@ -64,7 +64,7 @@
  *   `pnpm --filter backend run history:filter`   # writes the projection
  *   `pnpm --filter backend run history:scan -- [--repo <dir>] [--out <dir>]`
  *   `    [--pack | --tarballs <dir>] [--no-scanner] [--internal-zone <zone>]...`
- *   `    [--paid-ids <a,b,…>] [--rehearsal]`
+ *   `    [--paid-ids <a,b,…>] [--reviewed <file>] [--rehearsal]`
  *
  * `--repo` defaults to the filter's projection, `<git-dir>/endora-public-history/projection`,
  * and the filter's `report.json` beside it is the population floor: a scan
@@ -73,23 +73,44 @@
  * `pnpm pack` packs what is on disk). `--rehearsal` lets an incomplete run exit
  * on its findings instead of 2; the verdict line still says *incomplete*.
  *
- * Exit codes: `0` every cell scanned and no finding; `1` findings (they are for
- * a human — FR-004 says what an S finding costs); `2` a vacuous or incomplete
- * run.
+ * ## The reviewed-findings record (contract §4, amendment of 2026-09-27)
+ *
+ * `--reviewed <file>` reads the one record of sites a human has already read
+ * (research R-12). It must resolve **outside** `--repo` — the scanned tree never
+ * vouches for itself — and its schema is strict ({@link parseReviewedRecord}):
+ * unknown fields are refused, so no column can ever be added to hold a value.
+ * A row is keyed by **content**: git blob ids for T and Y, `{ package, version,
+ * sha256 }` of one tarball file for K; never a commit (the filter rewrites them)
+ * and never a hash of the matched value (brute-forceable for a low-entropy
+ * secret). A matched site keeps its line with the mode `reviewed` and the row's
+ * `ref`, and leaves the `findings` count only; a row, blob, tarball file or line
+ * that matches nothing is `stale-review` and counts toward exit 1. Inline
+ * `commercial-data: cleared` annotations are counted beside them as `cleared`.
+ * Every run writes `reviewed-candidates.json` — the unreviewed recordable groups
+ * in record shape with `review` and `reason` **absent**, so none applies until a
+ * person writes both.
+ *
+ * Exit codes: `0` every cell scanned, no finding and no stale row; `1` findings
+ * or stale rows (they are for a human — FR-004 says what an S finding costs);
+ * `2` a vacuous or incomplete run, or a record that is refused.
  */
 /* eslint-disable no-console -- CLI tool: stdout/stderr is the interface. */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, join, relative, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import { z } from 'zod';
 
 import { scanCommercialVocabulary, TERMS } from './lib/commercial-vocabulary.js';
 import { classifyWorkspaceMembers, nodeWorkspaceFs } from './lib/workspace-packages.js';
@@ -154,6 +175,12 @@ export interface Hit {
   readonly rule: string;
   /** 1-based; 0 when the hit is about the file rather than a line. */
   readonly line: number;
+  /**
+   * `cleared` — an inline `commercial-data: cleared` annotation clears it
+   * (`commercial-data.md` §7.4): counted, never dropped. `stale-clearance` — an
+   * annotation naming a term the text no longer contains; listed, not counted.
+   */
+  readonly mark?: 'cleared' | 'stale-clearance';
 }
 
 export interface ScanContext {
@@ -364,10 +391,25 @@ export function detectContent(text: string, ctx: ScanContext): Hit[] {
       if (VOCABULARY_PREFILTER.test(l) || CLEARANCE_LINE.test(l)) kept.push(i);
     }
     const scan = scanCommercialVocabulary(kept.map((i) => all[i]!).join('\n'));
+    const asClass = (k: string): ScanClass => (k === 'C4' ? 'C4-other' : (k as ScanClass));
     for (const hit of scan.hits) {
-      const line = kept[hit.line - 1]! + 1;
-      const klass: ScanClass = hit.klass === 'C4' ? 'C4-other' : hit.klass;
-      hits.push({ klass, rule: hit.term, line });
+      hits.push({ klass: asClass(hit.klass), rule: hit.term, line: kept[hit.line - 1]! + 1 });
+    }
+    // Contract §4 amendment item 6: a cleared hit is counted as `cleared`, not
+    // dropped, as the vocabulary module itself requires.
+    for (const hit of scan.cleared) {
+      hits.push({ klass: asClass(hit.klass), rule: hit.term, line: kept[hit.line - 1]! + 1, mark: 'cleared' });
+    }
+    for (const stale of scan.staleClearances) {
+      // A clearance naming no vocabulary term clears nothing this scan reports.
+      const term = TERMS.find((t) => t.term === stale.term);
+      if (term === undefined) continue;
+      hits.push({
+        klass: asClass(term.klass),
+        rule: stale.term,
+        line: kept[stale.line - 1]! + 1,
+        mark: 'stale-clearance',
+      });
     }
   }
   if (PRESS_LOCATOR.test(text)) {
@@ -651,6 +693,21 @@ export interface Finding {
   /** Y: the commit that removed the blob; `null` when it is still at the tip or unknown. */
   readonly removed?: string | null;
   readonly method: 'patterns' | 'scanner';
+  /** T, Y: the git blob id of the content the hit is in (absent for a commit message). */
+  readonly blob?: string;
+  /** K: the one file of a packed tarball the hit is in. */
+  readonly tarballFile?: TarballFile;
+  /** `reviewed` by a record row, `cleared` inline, or a `stale-clearance`; absent otherwise. */
+  readonly mark?: 'reviewed' | 'cleared' | 'stale-clearance';
+  /** For `reviewed`: the refs of every row covering the site, comma-joined. */
+  readonly ref?: string;
+}
+
+/** One file inside a packed tarball, keyed by content. */
+export interface TarballFile {
+  readonly package: string;
+  readonly version: string;
+  readonly sha256: string;
 }
 
 export interface TarballInput {
@@ -682,6 +739,9 @@ export interface ScanReport {
   readonly scanner: string;
   readonly findings: readonly Finding[];
   readonly floor: FilterFloor | null;
+  /** The record applied, or `null` when no `--reviewed` was given. */
+  readonly record: { readonly name: string; readonly sha256: string; readonly rows: number } | null;
+  readonly staleReviews: readonly StaleReview[];
 }
 
 export interface FilterFloor {
@@ -698,6 +758,7 @@ export interface RunScanOptions {
   readonly tarballs: readonly TarballInput[] | null;
   readonly workDir?: string;
   readonly floor?: FilterFloor | null;
+  readonly reviewed?: ReviewedRecord | null;
 }
 
 function git(cwd: string, args: readonly string[], input?: string): string {
@@ -835,6 +896,7 @@ export async function runScan(options: RunScanOptions): Promise<ScanReport> {
 
   // T — the tip, path → blob.
   const tipByOid = new Map<string, string[]>();
+  const tipOidOf = new Map<string, string>();
   let tipFiles = 0;
   for (const entry of git(repo, ['ls-tree', '-r', '-z', 'HEAD']).split('\0')) {
     if (entry === '') continue;
@@ -845,6 +907,7 @@ export async function runScan(options: RunScanOptions): Promise<ScanReport> {
     const list = tipByOid.get(oid) ?? [];
     list.push(entry.slice(tab + 1));
     tipByOid.set(oid, list);
+    tipOidOf.set(entry.slice(tab + 1), oid);
   }
 
   // Y — every reachable blob, deduplicated by id, with the first path it was seen at.
@@ -880,13 +943,14 @@ export async function runScan(options: RunScanOptions): Promise<ScanReport> {
     if (y.length > 0) yHits.push({ oid, path, hits: y });
     for (const tipPath of tipByOid.get(oid) ?? []) {
       const t = detectForPath(tipPath, text, 'T', ctx, content);
-      pushGrouped(findings, 'T', tipPath, t, {});
+      pushGrouped(findings, 'T', tipPath, t, { blob: oid });
     }
   });
   const commitsOf = blobCommits(repo, new Set(yHits.map((h) => h.oid)));
   for (const { oid, path, hits } of yHits) {
     const commits = commitsOf.get(oid) ?? { introduced: null, removed: null };
     pushGrouped(findings, 'Y', path, hits, {
+      blob: oid,
       introduced: commits.introduced,
       removed: tipByOid.has(oid) ? null : commits.removed,
     });
@@ -908,7 +972,14 @@ export async function runScan(options: RunScanOptions): Promise<ScanReport> {
   let tarballFiles = 0;
   let tarballs = 0;
   const kDir = join(workDir, 'tarballs');
-  const kRoots: { root: string; memberDir: string }[] = [];
+  const kRoots: { root: string; memberDir: string; package: string; version: string }[] = [];
+  const tarballFileOf = (member: (typeof kRoots)[number], file: string, data?: Buffer): TarballFile => ({
+    package: member.package,
+    version: member.version,
+    sha256: createHash('sha256')
+      .update(data ?? readFileSync(join(member.root, file)))
+      .digest('hex'),
+  });
   if (options.tarballs === null) {
     for (const klass of CLASS_ORDER) {
       if (CLASS_SURFACES[klass].K !== undefined) {
@@ -925,7 +996,8 @@ export async function runScan(options: RunScanOptions): Promise<ScanReport> {
       const packageRoot = join(root, 'package');
       const files = existsSync(packageRoot) ? walkFiles(packageRoot) : [];
       const memberDir = input.memberDir ?? `tarball:${basename(input.tarball)}`;
-      kRoots.push({ root: packageRoot, memberDir });
+      const member = { root: packageRoot, memberDir, ...tarballIdentity(packageRoot) };
+      kRoots.push(member);
       if (!files.some((f) => /^LICEN[CS]E/i.test(f))) {
         findings.push({
           surface: 'K',
@@ -941,7 +1013,9 @@ export async function runScan(options: RunScanOptions): Promise<ScanReport> {
         const data = readFileSync(join(packageRoot, file));
         if (isBinary(data)) continue;
         const path = `${memberDir}/${file}`;
-        pushGrouped(findings, 'K', path, detectForPath(path, data.toString('utf8'), 'K', ctx), {});
+        const hits = detectForPath(path, data.toString('utf8'), 'K', ctx);
+        if (hits.length === 0) continue;
+        pushGrouped(findings, 'K', path, hits, { tarballFile: tarballFileOf(member, file, data) });
       }
     }
   }
@@ -968,8 +1042,11 @@ export async function runScan(options: RunScanOptions): Promise<ScanReport> {
     const y = runGitleaks(scanner, [[resolve(repo), '/repo']], 'git', '/repo', 'y.json');
     if (y.ok) {
       ran.push('Y');
+      const blobOf = blobsAt(repo, y.locations);
       for (const loc of y.locations) {
+        const blob = loc.commit === null ? undefined : blobOf.get(`${loc.commit}:${loc.path}`);
         findings.push({
+          ...(blob === undefined ? {} : { blob }),
           surface: 'Y',
           klass: 'S',
           rule: `gitleaks:${loc.rule}`,
@@ -993,13 +1070,16 @@ export async function runScan(options: RunScanOptions): Promise<ScanReport> {
     if (t.ok) {
       ran.push('T');
       for (const loc of t.locations) {
+        const path = loc.path.replace(/^\/?tip\//, '');
+        const blob = tipOidOf.get(path);
         findings.push({
           surface: 'T',
           klass: 'S',
           rule: `gitleaks:${loc.rule}`,
-          path: loc.path.replace(/^\/?tip\//, ''),
+          path,
           lines: [loc.line],
           method: 'scanner',
+          ...(blob === undefined ? {} : { blob }),
         });
       }
     } else notScanned.set('S/T', `scanner: ${t.reason}`);
@@ -1013,19 +1093,28 @@ export async function runScan(options: RunScanOptions): Promise<ScanReport> {
           const inner = loc.path.replace(/^\/?k\//, '');
           const match = /^(\d+)\/package\/(.*)$/.exec(inner);
           const member = match === null ? null : kRoots[Number(match[1])];
+          const file = match?.[2];
+          const tarballFile =
+            member == null || file === undefined || !existsSync(join(member.root, file))
+              ? undefined
+              : tarballFileOf(member, file);
           findings.push({
             surface: 'K',
             klass: 'S',
             rule: `gitleaks:${loc.rule}`,
-            path: member == null ? inner : `${member.memberDir}/${match![2]!}`,
+            path: member == null ? inner : `${member.memberDir}/${file!}`,
             lines: [loc.line],
             method: 'scanner',
+            ...(tarballFile === undefined ? {} : { tarballFile }),
           });
         }
       } else notScanned.set('S/K', `scanner: ${k.reason}`);
     }
     scannerLine = `${scanner.image} ran on ${ran.length === 0 ? 'nothing' : ran.join(', ')}`;
   }
+
+  const record = options.reviewed ?? null;
+  const applied = record === null ? { findings, stale: [] } : applyReviewed(findings, record.rows);
 
   return {
     repo,
@@ -1045,9 +1134,49 @@ export async function runScan(options: RunScanOptions): Promise<ScanReport> {
     internalZones: ctx.internalZones.length,
     notScanned,
     scanner: scannerLine,
-    findings,
+    findings: applied.findings,
     floor: options.floor ?? null,
+    record: record === null ? null : { name: record.name, sha256: record.sha256, rows: record.rows.length },
+    staleReviews: applied.stale,
   };
+}
+
+/** A tarball's package name and version, from its own `package.json`. */
+function tarballIdentity(packageRoot: string): { package: string; version: string } {
+  try {
+    const manifest = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')) as {
+      name?: unknown;
+      version?: unknown;
+    };
+    return {
+      package: typeof manifest.name === 'string' ? manifest.name : 'unknown',
+      version: typeof manifest.version === 'string' ? manifest.version : 'unknown',
+    };
+  } catch {
+    return { package: 'unknown', version: 'unknown' };
+  }
+}
+
+/** The blob id at `<commit>:<path>` for each scanner location, in one batch. */
+function blobsAt(repo: string, locations: readonly ScannerLocation[]): Map<string, string> {
+  const keys = [
+    ...new Set(
+      locations
+        .filter((l) => l.commit !== null && !l.path.includes('\n'))
+        .map((l) => `${l.commit!}:${l.path}`),
+    ),
+  ];
+  const result = new Map<string, string>();
+  if (keys.length === 0) return result;
+  const out = git(repo, ['cat-file', '--batch-check=%(objectname) %(objecttype)'], `${keys.join('\n')}\n`);
+  out
+    .split('\n')
+    .filter((line) => line !== '')
+    .forEach((line, i) => {
+      const [oid, type] = line.split(' ');
+      if (type === 'blob' && oid !== undefined && keys[i] !== undefined) result.set(keys[i]!, oid);
+    });
+  return result;
 }
 
 function pushGrouped(
@@ -1055,18 +1184,314 @@ function pushGrouped(
   surface: Surface,
   path: string,
   hits: readonly Hit[],
-  commits: { introduced?: string | null; removed?: string | null },
+  extra: {
+    introduced?: string | null;
+    removed?: string | null;
+    blob?: string;
+    tarballFile?: TarballFile;
+  },
 ): void {
-  const groups = new Map<string, { klass: ScanClass; rule: string; lines: number[] }>();
+  const groups = new Map<
+    string,
+    { klass: ScanClass; rule: string; lines: number[]; mark?: 'cleared' | 'stale-clearance' }
+  >();
   for (const hit of hits) {
-    const key = `${hit.klass} ${hit.rule}`;
-    const group = groups.get(key) ?? { klass: hit.klass, rule: hit.rule, lines: [] };
+    const key = `${hit.klass} ${hit.rule} ${hit.mark ?? ''}`;
+    const group =
+      groups.get(key) ??
+      { klass: hit.klass, rule: hit.rule, lines: [], ...(hit.mark === undefined ? {} : { mark: hit.mark }) };
     group.lines.push(hit.line);
     groups.set(key, group);
   }
   for (const group of groups.values()) {
-    findings.push({ surface, path, ...group, ...commits, method: 'patterns' });
+    findings.push({ surface, path, ...group, ...extra, method: 'patterns' });
   }
+}
+
+// --- the reviewed-findings record ---------------------------------------------
+
+/**
+ * Contract §4, amendment of 2026-09-27, item 3: the classes a row may name, and
+ * the `review` values each admits. Nothing here records a real credential, a
+ * real person or a real disclosure — there is no value to write for one. H, L,
+ * R and C4 are absent: their findings are fixed by a commit or only reported.
+ */
+export const REVIEWS_BY_CLASS = {
+  S: ['synthetic', 'not-a-secret'],
+  P: ['synthetic', 'not-personal'],
+  C1: ['§1', 'N1', 'N2', 'N3', 'N4', '§4(a)', '§4(b)', '§4(c)'],
+  C2: ['§1', 'N1', 'N2', 'N3', 'N4', '§4(a)', '§4(b)', '§4(c)'],
+  C3: ['§1', 'N1', 'N2', 'N3', 'N4', '§4(a)', '§4(b)', '§4(c)'],
+} as const satisfies Partial<Record<ScanClass, readonly string[]>>;
+
+export type RecordableClass = keyof typeof REVIEWS_BY_CLASS;
+const RECORDABLE = new Set<string>(Object.keys(REVIEWS_BY_CLASS));
+/** The vocabulary's own floor for a stated reason (`commercial-vocabulary.ts`). */
+const REASON_FLOOR = 8;
+
+const BLOB_ID = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+const tarballFileSchema = z.strictObject({
+  package: z.string().min(1),
+  version: z.string().min(1),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/, 'a SHA-256 in lowercase hex'),
+});
+
+const rowSchema = z
+  .strictObject({
+    class: z.string(),
+    rule: z.string().min(1),
+    path: z.string().min(1),
+    blobs: z.array(z.string().regex(BLOB_ID, 'a git blob id')).min(1).optional(),
+    tarballFiles: z.array(tarballFileSchema).min(1).optional(),
+    lines: z.array(z.number().int().positive()).min(1).optional(),
+    review: z.string(),
+    reason: z.string(),
+    ref: z.string().min(1).optional(),
+  })
+  .superRefine((row, ctx) => {
+    if (!RECORDABLE.has(row.class)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['class'],
+        message: `class ${row.class} is not recordable (only ${[...RECORDABLE].join(', ')}): its findings are fixed by a commit or only reported`,
+      });
+      return;
+    }
+    const admitted: readonly string[] = REVIEWS_BY_CLASS[row.class as RecordableClass];
+    if (!admitted.includes(row.review)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['review'],
+        message: `review "${row.review}" is not one class ${row.class} admits (${admitted.join(', ')})`,
+      });
+    }
+    if (row.reason.trim().length < REASON_FLOOR) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['reason'],
+        message: `reason must state why in at least ${REASON_FLOOR} characters`,
+      });
+    }
+    if ((row.blobs === undefined) === (row.tarballFiles === undefined)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['blobs'],
+        message: 'a row names its content by exactly one of blobs (T, Y) or tarballFiles (K)',
+      });
+    }
+    if (row.class === 'S' && row.lines === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['lines'],
+        message: 'an S row is one site: lines is required',
+      });
+    }
+  });
+
+const recordSchema = z.strictObject({ rows: z.array(rowSchema) });
+
+export interface ReviewedRow {
+  readonly class: RecordableClass;
+  readonly rule: string;
+  readonly path: string;
+  readonly blobs?: readonly string[];
+  readonly tarballFiles?: readonly TarballFile[];
+  readonly lines?: readonly number[];
+  readonly review: string;
+  readonly reason: string;
+  readonly ref?: string;
+}
+
+export interface ReviewedRecord {
+  /** The file name, printed in the report header. */
+  readonly name: string;
+  /** SHA-256 of the file's bytes, so a quoted report names the record it applied. */
+  readonly sha256: string;
+  readonly rows: readonly ReviewedRow[];
+}
+
+/** A group the scan would accept as a row once a person writes `review` and `reason`. */
+export type ReviewedCandidate = Omit<ReviewedRow, 'review' | 'reason'>;
+
+/** The record, validated strictly; throws with every refused field named. */
+export function parseReviewedRecord(raw: string, name: string): ReviewedRecord {
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`${name}: not JSON (${(error as Error).message})`);
+  }
+  const parsed = recordSchema.safeParse(json);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join('.') || '(record)'}: ${i.message}`);
+    throw new Error(`${name}: ${issues.join('; ')}`);
+  }
+  return {
+    name,
+    sha256: createHash('sha256').update(raw).digest('hex'),
+    rows: parsed.data.rows as ReviewedRow[],
+  };
+}
+
+function realpathOrResolved(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    const parent = dirname(path);
+    return parent === path ? path : join(realpathOrResolved(parent), basename(path));
+  }
+}
+
+/** Item 1: whether the record resolves inside the scanned repository. */
+export function reviewedRecordInsideRepo(recordPath: string, repo: string): boolean {
+  const rel = relative(realpathOrResolved(resolve(repo)), realpathOrResolved(resolve(recordPath)));
+  return rel === '' || (!isAbsolute(rel) && rel.split(sep)[0] !== '..');
+}
+
+export interface StaleReview {
+  readonly class: RecordableClass;
+  readonly rule: string;
+  readonly path: string;
+  readonly ref: string | null;
+  /** What in the row matched nothing: the whole row, one blob, one tarball file, or one line. */
+  readonly what: 'row' | 'blob' | 'tarball-file' | 'line';
+  readonly blob?: string;
+  readonly tarballFile?: TarballFile;
+  readonly line?: number;
+}
+
+const tarballKey = (t: TarballFile): string => `${t.package}@${t.version}#${t.sha256}`;
+
+/**
+ * Items 4 and 5: mark every recorded site `reviewed` and list every row, blob,
+ * tarball file or line that matched nothing. A row names exact content, so it
+ * cannot touch a hit in any other blob, under any other rule, or on any other
+ * line when it lists lines (item 7). Commit messages are never recordable.
+ */
+export function applyReviewed(
+  findings: readonly Finding[],
+  rows: readonly ReviewedRow[],
+): { findings: Finding[]; stale: StaleReview[] } {
+  const used = rows.map(() => ({ row: false, blobs: new Set<string>(), tarballs: new Set<string>(), lines: new Set<number>() }));
+  const refOf = (i: number): string => rows[i]!.ref ?? `row${i + 1}`;
+  const out: Finding[] = [];
+  for (const f of findings) {
+    const key = f.blob ?? (f.tarballFile === undefined ? undefined : tarballKey(f.tarballFile));
+    if (f.mark !== undefined || f.path === 'commit-message' || !RECORDABLE.has(f.klass) || key === undefined) {
+      out.push(f);
+      continue;
+    }
+    const matching = rows.flatMap((row, i) =>
+      row.class === f.klass &&
+      row.rule === f.rule &&
+      (f.blob !== undefined
+        ? (row.blobs ?? []).includes(f.blob)
+        : (row.tarballFiles ?? []).some((t) => tarballKey(t) === key))
+        ? [i]
+        : [],
+    );
+    if (matching.length === 0) {
+      out.push(f);
+      continue;
+    }
+    const reviewed = new Map<string, number[]>();
+    const rest: number[] = [];
+    for (const line of f.lines) {
+      const covering = matching.filter((i) => rows[i]!.lines === undefined || rows[i]!.lines!.includes(line));
+      if (covering.length === 0) {
+        rest.push(line);
+        continue;
+      }
+      for (const i of covering) {
+        used[i]!.row = true;
+        if (f.blob !== undefined) used[i]!.blobs.add(f.blob);
+        else used[i]!.tarballs.add(key);
+        if (rows[i]!.lines !== undefined) used[i]!.lines.add(line);
+      }
+      const ref = covering.map(refOf).join(',');
+      reviewed.set(ref, [...(reviewed.get(ref) ?? []), line]);
+    }
+    for (const [ref, lines] of reviewed) out.push({ ...f, lines, mark: 'reviewed', ref });
+    if (rest.length > 0) out.push({ ...f, lines: rest });
+  }
+
+  const stale: StaleReview[] = [];
+  rows.forEach((row, i) => {
+    const base = { class: row.class, rule: row.rule, path: row.path, ref: row.ref ?? null };
+    const u = used[i]!;
+    if (!u.row) {
+      stale.push({ ...base, what: 'row' });
+      return;
+    }
+    for (const blob of row.blobs ?? []) if (!u.blobs.has(blob)) stale.push({ ...base, what: 'blob', blob });
+    for (const tarballFile of row.tarballFiles ?? []) {
+      if (!u.tarballs.has(tarballKey(tarballFile))) stale.push({ ...base, what: 'tarball-file', tarballFile });
+    }
+    for (const line of row.lines ?? []) if (!u.lines.has(line)) stale.push({ ...base, what: 'line', line });
+  });
+  return { findings: out, stale };
+}
+
+/**
+ * `reviewed-candidates.json`: every unreviewed recordable group in record
+ * shape, with `review` and `reason` **absent**, so no candidate applies until a
+ * person writes both. S is one row per site (item 3); P and C1–C3 one row per
+ * rule per path, every version of the content listed.
+ */
+export function reviewedCandidates(report: Pick<ScanReport, 'findings'>): ReviewedCandidate[] {
+  const groups = new Map<
+    string,
+    { class: RecordableClass; rule: string; path: string; blobs: Set<string>; tarballs: Map<string, TarballFile>; line?: number }
+  >();
+  for (const f of report.findings) {
+    if (f.mark !== undefined || modeOf(f) !== 'finding' || f.path === 'commit-message') continue;
+    if (!RECORDABLE.has(f.klass) || (f.blob === undefined && f.tarballFile === undefined)) continue;
+    const kind = f.blob !== undefined ? 'blob' : 'tarball';
+    const lines = f.klass === 'S' ? f.lines : [undefined];
+    for (const line of lines) {
+      const key = [f.klass, f.rule, f.path, kind, line ?? ''].join('\0');
+      const group = groups.get(key) ?? {
+        class: f.klass as RecordableClass,
+        rule: f.rule,
+        path: f.path,
+        blobs: new Set<string>(),
+        tarballs: new Map<string, TarballFile>(),
+        ...(line === undefined ? {} : { line }),
+      };
+      if (f.blob !== undefined) group.blobs.add(f.blob);
+      if (f.tarballFile !== undefined) group.tarballs.set(tarballKey(f.tarballFile), f.tarballFile);
+      groups.set(key, group);
+    }
+  }
+  return [...groups.values()]
+    .sort(
+      (a, b) =>
+        a.class.localeCompare(b.class) ||
+        a.path.localeCompare(b.path) ||
+        a.rule.localeCompare(b.rule) ||
+        (a.line ?? 0) - (b.line ?? 0),
+    )
+    .map((g) => ({
+      class: g.class,
+      rule: g.rule,
+      path: g.path,
+      ...(g.blobs.size > 0 ? { blobs: [...g.blobs].sort() } : { tarballFiles: [...g.tarballs.values()] }),
+      ...(g.line === undefined ? {} : { lines: [g.line] }),
+    }));
+}
+
+/** One stale row, blob, tarball file or line — keys and refs only. */
+export function formatStaleReview(s: StaleReview): string {
+  const detail =
+    s.blob !== undefined
+      ? ` blob=${s.blob}`
+      : s.tarballFile !== undefined
+        ? ` tarball=${s.tarballFile.package}@${s.tarballFile.version} sha256=${s.tarballFile.sha256}`
+        : s.line !== undefined
+          ? ` line=${s.line}`
+          : '';
+  return `stale-review ${s.class} ${s.rule} ${s.path} ${s.what} ref=${s.ref ?? '-'}${detail}`;
 }
 
 // --- the verdict and the report ---------------------------------------------
@@ -1093,9 +1518,10 @@ export function vacuousScanReason(
   return null;
 }
 
-type FindingMode = 'finding' | 'located' | 'reported';
+type FindingMode = 'finding' | 'located' | 'reported' | 'reviewed' | 'cleared' | 'stale-clearance';
 
 function modeOf(f: Finding): FindingMode {
+  if (f.mark !== undefined) return f.mark;
   if (CLASS_SURFACES[f.klass][f.surface] === 'reported') return 'reported';
   if (LOCATOR_CLASSES.has(f.klass)) return 'located';
   return 'finding';
@@ -1103,30 +1529,50 @@ function modeOf(f: Finding): FindingMode {
 
 export interface Verdict {
   readonly findings: number;
+  /** Locations a record row or an inline clearance covers: counted, not findings. */
+  readonly reviewed: number;
+  /** Record rows, blobs, tarball files or lines that matched nothing: they fail the run. */
+  readonly staleReview: number;
+  /** Inline clearances naming an absent term: listed, not counted (a Y blob cannot be edited). */
+  readonly staleClearance: number;
   readonly located: number;
   readonly reported: number;
   readonly notScanned: number;
   readonly status: 'clean' | 'findings' | 'incomplete';
 }
 
-export function verdictOf(report: ScanReport): Verdict {
+export function verdictOf(report: Pick<ScanReport, 'findings' | 'notScanned' | 'staleReviews'>): Verdict {
   let findings = 0;
+  let reviewed = 0;
+  let staleClearance = 0;
   let located = 0;
   let reported = 0;
   for (const f of report.findings) {
     const mode = modeOf(f);
     if (mode === 'finding') findings += 1;
+    else if (mode === 'reviewed' || mode === 'cleared') reviewed += 1;
+    else if (mode === 'stale-clearance') staleClearance += 1;
     else if (mode === 'located') located += 1;
     else reported += 1;
   }
+  const staleReview = report.staleReviews.length;
   const notScanned = report.notScanned.size;
-  const status = notScanned > 0 ? 'incomplete' : findings > 0 ? 'findings' : 'clean';
-  return { findings, located, reported, notScanned, status };
+  const status =
+    notScanned > 0 ? 'incomplete' : findings > 0 || staleReview > 0 ? 'findings' : 'clean';
+  return { findings, reviewed, staleReview, staleClearance, located, reported, notScanned, status };
+}
+
+/** `1` for a finding or a stale row, else `0`; exit 2 is decided before this. */
+export function scanExitCode(verdict: Pick<Verdict, 'findings' | 'staleReview'>): 0 | 1 {
+  return verdict.findings > 0 || verdict.staleReview > 0 ? 1 : 0;
 }
 
 const short = (sha: string | null | undefined): string => (sha == null ? '-' : sha.slice(0, 12));
 
-/** One finding as a line. Paths, classes, rules, line numbers and commits — nothing else. */
+/**
+ * One finding as a line. Paths, classes, rules, line numbers, commits, the
+ * content key (blob id, or tarball file) and the record's refs — nothing else.
+ */
 export function formatFinding(f: Finding): string {
   const lines = f.lines.filter((l) => l > 0);
   const where =
@@ -1139,7 +1585,14 @@ export function formatFinding(f: Finding): string {
         ? ` commit=${short(f.introduced)}`
         : ` introduced=${short(f.introduced)} removed=${f.removed === null ? 'at-tip-or-unknown' : short(f.removed)}`
       : '';
-  return `${f.surface} ${f.klass} ${modeOf(f)} ${f.rule} ${f.path}${where}${commits}`;
+  const content =
+    f.blob !== undefined
+      ? ` blob=${f.blob}`
+      : f.tarballFile !== undefined
+        ? ` tarball=${f.tarballFile.package}@${f.tarballFile.version} sha256=${f.tarballFile.sha256}`
+        : '';
+  const ref = f.ref === undefined ? '' : ` ref=${f.ref}`;
+  return `${f.surface} ${f.klass} ${modeOf(f)} ${f.rule} ${f.path}${where}${commits}${content}${ref}`;
 }
 
 /** The report: header, one row per class per surface, top paths, verdict. */
@@ -1166,15 +1619,26 @@ export function formatScanReport(report: ScanReport, options: { top?: number } =
       `internal-zones=${report.internalZones} (values not printed)`,
   );
   p(`${PREFIX} secret scanner: ${report.scanner}`);
+  p(
+    `${PREFIX} reviewed record: ${
+      report.record === null
+        ? 'none (no --reviewed: every recordable site reads as a finding)'
+        : `${report.record.name} sha256=${report.record.sha256} rows=${report.record.rows}`
+    }`,
+  );
   p(`${PREFIX} no matched value is printed anywhere in this report (FR-002).`);
   p('');
-  p('class         surface  status          locations  sites');
+  p('class         surface  status          locations  sites  reviewed (locations sites)');
   for (const klass of CLASS_ORDER) {
     for (const surface of SURFACE_ORDER) {
       const mode = CLASS_SURFACES[klass][surface];
       if (mode === undefined) continue;
-      const cell = report.findings.filter((f) => f.klass === klass && f.surface === surface);
+      const cell = report.findings.filter(
+        (f) => f.klass === klass && f.surface === surface && f.mark !== 'stale-clearance',
+      );
       const sites = cell.reduce((sum, f) => sum + f.lines.length, 0);
+      const reviewedCell = cell.filter((f) => f.mark === 'reviewed' || f.mark === 'cleared');
+      const reviewedSites = reviewedCell.reduce((sum, f) => sum + f.lines.length, 0);
       const reason = report.notScanned.get(`${klass}/${surface}`);
       const status =
         reason !== undefined
@@ -1184,7 +1648,10 @@ export function formatScanReport(report: ScanReport, options: { top?: number } =
             : LOCATOR_CLASSES.has(klass)
               ? 'located'
               : 'scanned';
-      const counts = reason !== undefined && cell.length === 0 ? '' : ` ${cell.length} ${sites}`;
+      const counts =
+        reason !== undefined && cell.length === 0
+          ? ''
+          : ` ${cell.length} ${sites} reviewed ${reviewedCell.length} ${reviewedSites}`;
       p(`${klass.padEnd(13)} ${surface.padEnd(8)} ${status}${counts}`);
     }
   }
@@ -1211,11 +1678,16 @@ export function formatScanReport(report: ScanReport, options: { top?: number } =
     p(`${PREFIX} S in history — revoke at the issuer first (FR-004):`);
     for (const f of y.slice(0, 50)) p(`  ${formatFinding(f)}`);
   }
+  if (report.staleReviews.length > 0) {
+    p(`${PREFIX} stale review rows — prune or re-read them; each counts toward exit 1:`);
+    for (const stale of report.staleReviews) p(`  ${formatStaleReview(stale)}`);
+  }
   const v = verdictOf(report);
   p('');
   p(
-    `${PREFIX} verdict: ${v.status} — findings=${v.findings} located-for-review=${v.located} ` +
-      `reported=${v.reported} cells-not-scanned=${v.notScanned}`,
+    `${PREFIX} verdict: ${v.status} — findings=${v.findings} reviewed=${v.reviewed} ` +
+      `stale-review=${v.staleReview} located-for-review=${v.located} reported=${v.reported} ` +
+      `stale-clearance=${v.staleClearance} cells-not-scanned=${v.notScanned}`,
   );
   return out;
 }
@@ -1283,6 +1755,25 @@ async function main(): Promise<void> {
         '`pnpm --filter backend run history:filter` first, or pass --repo',
     );
   }
+  let reviewed: ReviewedRecord | null = null;
+  if (argv.includes('--reviewed')) {
+    const flag = valuesOf(argv, '--reviewed')[0];
+    if (flag === undefined) refuse('--reviewed needs a file');
+    const recordFile = resolve(flag);
+    if (!existsSync(recordFile)) refuse(`no reviewed record at ${recordFile}`);
+    if (reviewedRecordInsideRepo(recordFile, repo)) {
+      refuse(
+        `the reviewed record ${recordFile} is inside --repo ${repo}: the scanned tree must never ` +
+          'vouch for itself (contract §4, amendment of 2026-09-27, item 1)',
+      );
+    }
+    try {
+      reviewed = parseReviewedRecord(readFileSync(recordFile, 'utf8'), basename(recordFile));
+    } catch (error) {
+      refuse(`the reviewed record is refused: ${(error as Error).message}`);
+    }
+  }
+
   const out = resolve(valuesOf(argv, '--out')[0] ?? join(repo, '..', 'scan'));
   mkdirSync(out, { recursive: true });
 
@@ -1336,6 +1827,7 @@ async function main(): Promise<void> {
     tarballs,
     workDir: out,
     floor,
+    reviewed,
   });
 
   const lines = formatScanReport(report);
@@ -1343,11 +1835,17 @@ async function main(): Promise<void> {
   writeFileSync(join(out, 'scan-report.txt'), `${lines.join('\n')}\n`, 'utf8');
   writeFileSync(
     join(out, 'scan-findings.txt'),
-    `${report.findings.map(formatFinding).join('\n')}\n`,
+    `${[...report.findings.map(formatFinding), ...report.staleReviews.map(formatStaleReview)].join('\n')}\n`,
+    'utf8',
+  );
+  writeFileSync(
+    join(out, 'reviewed-candidates.json'),
+    `${JSON.stringify({ rows: reviewedCandidates(report) }, null, 2)}\n`,
     'utf8',
   );
   rmSync(join(out, 'tarballs'), { recursive: true, force: true });
   console.log(`${PREFIX} full list: ${join(out, 'scan-findings.txt')}`);
+  console.log(`${PREFIX} unreviewed recordable groups: ${join(out, 'reviewed-candidates.json')}`);
 
   const vacuous = vacuousScanReason(report.sizes, floor);
   if (vacuous !== null) refuse(`refusing a vacuous run: ${vacuous}`);
@@ -1355,7 +1853,7 @@ async function main(): Promise<void> {
   if (verdict.status === 'incomplete' && !rehearsal) {
     refuse(`${verdict.notScanned} cell(s) not scanned; a rehearsal passes --rehearsal`);
   }
-  process.exit(verdict.findings > 0 ? 1 : 0);
+  process.exit(scanExitCode(verdict));
 }
 
 // Run as CLI only — importing this module from a unit test must not scan anything.
