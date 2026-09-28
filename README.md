@@ -19,7 +19,8 @@ catalogue with variants, custom fields and organisation pricing; customer organi
 addresses and credit limits; carts, RFQs, quick order and shopping lists; orders, invoice records,
 returns, inventory, shipment tracking, and payment by bank transfer, on pickup or against a credit
 limit. It also includes the page and e-mail builders, search, promotions, SEO, product feeds,
-import/export, the mega-menu and PWA across multiple tenants, channels and currencies.
+import/export, the mega-menu and PWA across multiple tenants, channels and currencies. A new
+instance installs all of it; anything you do not use can be switched off in the admin.
 
 **It ships no online payment gateway and no courier integration.** Card, BLIK and wallet payments,
 courier labels and parcel-locker selection, accounting and ERP synchronisation, PIM
@@ -40,8 +41,9 @@ cd my-shop && pnpm run start
 ```
 
 The first writes an instance into `my-shop/`, starts PostgreSQL, Redis, Meilisearch and Mailpit
-in Docker, installs every module, creates your administrator and prints every address and
-credential you need. Each step prints the command it runs, so a failure names the command to
+in Docker, installs every module of the open-source set — each capability described above,
+switched on; turn any of them off later under **Modules** in the admin, and switch it back without
+losing its data — creates your administrator and prints every address and credential you need. Each step prints the command it runs, so a failure names the command to
 finish by hand. The second starts the API on `http://localhost:3001`; the admin and the
 storefront each have their own command, printed at the end of the first.
 
