@@ -1,6 +1,80 @@
 <!--
 SYNC IMPACT REPORT
 ==================
+Version change: 4.0.2 → 4.1.0
+Rationale: MINOR. The Documentation Requirements' README clause obliged every
+merge request adding a backend module to update the root `README.md`, and
+quality gate #6 repeated it. Measured by feature 100's Phase 1 across the
+twelve most recent module additions, 3 of 12 did; nothing enforced it and
+nobody owned it (`specs/deferred-defects.md`, entry now under *Resolved*).
+That is the compliance rate of a second, hand-maintained enumeration of a
+population the tree already enumerates by derivation (D-100): the generated
+module map and the documentation sidebar, both written by `composer:generate`
+and held by `check:module-docs`, where an undeclared `docs` is a finding and
+`docs: false` is the only way to owe nothing.
+
+The per-module duty therefore moves off the README and onto the module's own
+documentation page — which item 2 already mandated ("kept in sync with module
+changes") and which `specs/conventions/module-documentation.md` governs. The
+README becomes what `specs/136-open-source-publication/` FR-081 and
+`specs/123-oss-install-experience/` T8-F require of it, a front page, and is
+told not to restate the module inventory. Every other README obligation stays
+exactly as it was: prerequisites, install steps, environment variables, how to
+run each application, the test suite and migrations, the Hardware & System
+Requirements section, and the start-up and system-requirement triggers. The
+ruling, with the alternatives rejected, is D-266 in
+`specs/080-f4-real-scope/rulings.md`.
+
+MINOR, not MAJOR. Neither limb of the MAJOR clause is met. No work that was
+compliant becomes non-compliant: a merge request that added a module, its
+documentation page and a README line is compliant under both texts, and the
+new README sentence is a SHOULD NOT, so the README on the tree at the moment
+of this amendment is not made non-compliant by it whichever order this and
+the front-page rewrite merge in. And no guarantee is withdrawn from a reader:
+the enumeration the README clause was meant to provide still exists, now
+derived and enforced where before it was hand-written and missed nine times
+in twelve. Not PATCH: an obligation moves from one artefact to another, which
+is a material change of guidance rather than a wording clarification.
+
+Modified sections:
+  - Documentation Requirements — item 1 loses the "addition of any new
+    backend module" trigger and gains the front-page paragraph; item 2 gains
+    the per-module duty.
+  - Development Workflow & Quality Gates — gate #6 (Docs sync) split into
+    its module half (the module's page) and its infrastructure half (README
+    and site, unchanged).
+
+Added sections:
+  - (none)
+
+Removed sections:
+  - (none)
+
+Templates / artifacts requiring alignment:
+  - ✅ .github/pull_request_template.md — gate #6's checkbox restated to
+       match.
+  - ✅ .specify/templates/plan-template.md / spec-template.md /
+       tasks-template.md — none names gate #6 or the README clause; verified
+       by grep.
+  - ✅ AGENTS.md — carries no statement of the README clause; the
+       Documentation row of its routing table already sends a module
+       author to `specs/conventions/module-documentation.md`.
+  - ✅ README.md — the front page of `specs/136-open-source-publication/`
+       W6.5 carries no constitution quick reference, so from that rewrite
+       on the README is not an artefact a constitution amendment has to
+       align (the 3.10.0 and 4.0.0 reports below updated its "point 17";
+       that section does not survive the rewrite).
+  - ✅ specs/deferred-defects.md — the entry is moved to *Resolved*.
+
+Deferred items / TODOs:
+  - (none). Plans written before this amendment that record "update the
+    README's module list" as a gate #6 action are history and are not
+    edited.
+
+--- The 4.0.2 report follows unchanged.
+
+SYNC IMPACT REPORT
+==================
 Version change: 4.0.1 → 4.0.2
 Rationale: PATCH. The 3.10.0 report — the amendment that introduced Principle
 XVII — carries a "Deferred items / TODOs" block naming four mechanisms the
@@ -1141,12 +1215,18 @@ shippable:
    section listing both **minimum** and **recommended** specs for
    development and production on a single VPS. The README MUST be updated
    in the same PR as:
-   - the addition of any new backend module,
    - any change that alters how the project is started in development or
      production (new service, new env var, new migration step, new external
      dependency),
    - the addition of any new runtime technology or library that changes
      system requirements.
+
+   The README is the project's front page. It describes what the product
+   does by capability, sends the reader to the documentation site for
+   everything past the first run, and SHOULD NOT restate the module
+   inventory: the modules are enumerated once, by derivation, on the
+   documentation site (item 2). Adding a module owes the README nothing
+   unless the same change is one of those listed above.
 
 2. **Project Documentation Site** — a generated, browsable documentation
    site readable by **both** a programmer (enough detail to extend a
@@ -1155,7 +1235,13 @@ shippable:
    be buildable from the repository and MUST be kept in sync with module
    changes. Authoring approach (Markdown in-repo, Docusaurus, Nextra,
    etc.) is a plan-level decision; the mandate is the artifact, not the
-   tool.
+   tool. Every module is documented on its own page of this site, shipped
+   from the module's own `docs/` directory in the same PR that adds the
+   module; a module with genuinely nothing to document declares
+   `docs: false` in its manifest instead. The site's module navigation and
+   module map are generated from the modules and never hand-maintained, and
+   `check:module-docs` holds the two to each other
+   (`specs/conventions/module-documentation.md` is the operational rule).
 
 The Project Documentation Site MUST be authored in English per Principle VIII.
 The README MAY be authored in any language; only its inline comments inside
@@ -1210,9 +1296,11 @@ Every change MUST pass the following sixteen gates before merge:
    on a `/docs/` Docusaurus page**, in violation of Principle VIII.
    Identifiers, string literals, specs, plans, READMEs, commit
    messages, and code-review prose are not constrained by this gate.
-6. **Docs sync** — if a module is added or an infrastructure-relevant
-   change is made, the PR MUST update `README.md` and the documentation
-   site in the same commit range.
+6. **Docs sync** — if a module is added, the PR MUST add the module's
+   page to the documentation site or declare `docs: false` (Documentation
+   Requirements, item 2); if an infrastructure-relevant change is made, the
+   PR MUST update `README.md` and the documentation site in the same commit
+   range.
 7. **Dependency justification** — any new runtime dependency MUST carry a
    one-paragraph rationale in the PR description (Principle IV).
 8. **UI reuse** — reviewers MUST reject any net-new frontend component or
@@ -1346,4 +1434,4 @@ corrective issues for any drift.
 to constitutional weight lives in `README.md` and the generated project
 documentation site.
 
-**Version**: 4.0.2 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-09-03
+**Version**: 4.1.0 | **Ratified**: 2026-04-23 | **Last Amended**: 2026-09-28
