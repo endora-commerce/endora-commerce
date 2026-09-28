@@ -32,7 +32,7 @@
  * ## What it still does not reach
  *
  * A real GitLab. This measures pnpm's credential matching against GitLab's
- * documented tarball layout, not gitlab.endora.pl's behaviour, and the
+ * documented tarball layout, not any one GitLab instance's behaviour, and the
  * end-to-end answer belongs to `acceptance:storefront-scaffold` in registry
  * mode, which is the job that has the token.
  */

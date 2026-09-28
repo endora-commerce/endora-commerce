@@ -54,8 +54,8 @@ import { StorefrontInputError, workspaceRanges } from './reference.js';
  * The environment variable the auth line refers to.
  *
  * One name, spelled here and in `.gitlab-ci.yml`'s `publish:packages` job,
- * because it is the name the contract writes (R3) and the one an operator is told to
- * set. It is deliberately not an option: a per-scaffold variable name is a
+ * because it is the name the contract writes (R3) and the one an operator is told
+ * to set. It is deliberately not an option: a per-scaffold variable name is a
  * support conversation per client for no capability.
  */
 export const TOKEN_VARIABLE = 'ENDORA_NPM_TOKEN';

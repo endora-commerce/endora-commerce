@@ -40,13 +40,13 @@ const detail: InvoiceDetail = {
     city: 'Warszawa',
     country: 'PL',
     taxId: '1234567890',
-    bankName: 'Pekao',
-    bankAccount: '31 1240',
-    swift: 'PKOPPLPW',
+    bankName: 'Example Bank',
+    bankAccount: '00 1234',
+    swift: 'EXMPPLPW',
     email: '',
     phone: '',
   },
-  buyer: { name: 'Example Buyer Sp. z o.o.', taxId: '1231231230', addressLine1: '', addressLine2: '', postalCode: '', city: '', country: '' },
+  buyer: { name: 'Example Buyer Sp. z o.o.', taxId: '1111111111', addressLine1: '', addressLine2: '', postalCode: '', city: '', country: '' },
 };
 
 describe('InvoicePdfRenderer', () => {

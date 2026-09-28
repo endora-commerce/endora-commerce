@@ -492,7 +492,8 @@ describe('what a reviewer checks: no second module list, and no concrete deploym
   it('D-215 — no example carries a real registry, a real domain or a real secret', () => {
     for (const topology of TOPOLOGIES) {
       for (const file of deployFilesOf(withAdmin({ topology }))) {
-        expect(file.content, file.path).not.toContain('gitlab.endora.pl');
+        // No host on the project's own domain at all, internal or public.
+        expect(file.content, file.path).not.toMatch(/\bendora\.pl\b/i);
         expect(file.content, file.path).not.toContain('registry.gitlab.com');
         expect(file.content, file.path).not.toContain('endora-commerce-backend');
       }

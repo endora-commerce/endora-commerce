@@ -82,7 +82,7 @@ export function Header(props: {
           </div>
           <div className="industria-topbar__right">
             <span className="industria-topbar__chip">
-              <strong>NIP</strong> 5252736418
+              <strong>NIP</strong> 7251234567
             </span>
             <CurrencySwitcher currency={props.currency} />
             <span className="industria-topbar__sep" aria-hidden="true" />

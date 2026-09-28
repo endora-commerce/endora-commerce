@@ -891,8 +891,10 @@ export const ESTATE: readonly EstateEntry[] = [
     // attributes **226** sites to 41 packages; the same analysis over each package
     // alone finds **19** in 10; and **31 of the 41 lose every site** — all four
     // PIM connectors (17–19 each) and `product_feeds` (24) among them, which is
-    // the paid population this phase exists for. A host shipped on the original
-    // assessment would have printed `violations=0` over exactly those packages.
+    // to say the integration-heavy packages whose ports are almost all somebody
+    // else's — the ones a package-scope host exists to judge. A host shipped on
+    // the original assessment would have printed `violations=0` over exactly
+    // those packages.
     //
     // What closes it is `check/peer-owners.ts`, synchronously and with no new
     // dependency, and what makes a short owner map legible rather than

@@ -261,7 +261,7 @@
  *
  * **The owner's publication ruling of 2026-09-05 retires that one too, and the
  * arithmetic is the argument.** Every `@endora-commerce` package publishes,
- * because a deployment builds its own instance (D-208) and an instance takes the
+ * because an instance is built by whoever runs it (D-208) and an instance takes the
  * platform, the admin kit and all 70 module packages as dependencies while
  * holding a copy of none. Measured on this tree, the honest closure — the two
  * roots above, plus the module packages an instance composes, read off the
@@ -1425,7 +1425,7 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
       message:
         `(${member.dir}) is \`"private": true\`, so \`changeset publish\` skips it without a ` +
         "word. Every `@endora-commerce` package publishes (D-208, and the owner's publication " +
-        'ruling of 2026-09-05): a deployment builds its own instance, and an instance takes the ' +
+        'ruling of 2026-09-05): an instance is built by whoever runs it, and it takes the ' +
         'platform, the admin kit and every module package as a dependency while holding a copy ' +
         "of none. `pnpm pack` rewrites a `workspace:*` range to the sibling's exact version, so " +
         "a package left behind is every dependent's packed manifest pinning a version the " +
