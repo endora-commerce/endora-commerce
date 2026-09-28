@@ -1,0 +1,81 @@
+name: Bug report
+description: Something in Endora Commerce does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report this.
+
+        **A suspected security vulnerability does not belong here.** Report it privately, as
+        [SECURITY.md](https://github.com/endora-commerce/endora-commerce/blob/master/SECURITY.md)
+        describes — a public issue is a disclosure.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Where does it happen?
+      options:
+        - Backend (API, workers, CLI commands of an instance)
+        - Admin application
+        - Storefront
+        - A module package (name it below)
+        - The endora CLI or create-endora-commerce
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: >-
+        The `@endora-commerce/platform` version of your instance (`pnpm ls @endora-commerce/platform`),
+        or the commit you run from, plus the module package concerned if there is one.
+      placeholder: '@endora-commerce/platform 0.x.y, @endora-commerce/mod-orders 0.x.y'
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, including the exact error message or status code.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: What should have happened instead, and where that is documented if you know.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce it
+      description: The smallest sequence of steps, requests or inputs that shows the problem.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Remove secrets, tokens and personal data before pasting.
+      render: shell
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node.js version, operating system, PostgreSQL / Redis / Meilisearch versions, browser for a UI problem.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and this is not a duplicate.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

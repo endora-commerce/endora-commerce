@@ -1,0 +1,15 @@
+# Who reviews what: GitHub requests a review from the owners of every path a
+# pull request touches, and the catch-all below guarantees every path has one.
+# Whether a code owner's approval is also *required* is a branch-protection
+# setting (`specs/129-github-canonical-migration/` T033), not this file.
+#
+# The governance section of CONTRIBUTING.md says who decides; this file only
+# routes the review request. A later line overrides an earlier one for the paths
+# it matches, so narrower rules go below the catch-all.
+#
+# [CODEOWNERS_OWNER] is a placeholder for the GitHub user or team handle
+# (`@user` or `@endora-commerce/<team>`) that reviews this repository. GitHub
+# reports the line as invalid until it is replaced, and replacing it is part of
+# configuring branch protection (T033), before the repository becomes public.
+
+*       [CODEOWNERS_OWNER]

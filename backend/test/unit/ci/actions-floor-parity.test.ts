@@ -107,8 +107,12 @@ describe('the floor parsed a population that looks like both hosts', () => {
    * which is also what two empty lists say, and what a parser that stopped
    * recognising `run:` says. Both would be a green measuring nothing.
    */
-  it('read two workflow files and the five floor jobs', () => {
-    expect(WORKFLOW_FILES).toEqual(['publish.yml', 'quality.yml']);
+  it('read the three workflow files and the five floor jobs', () => {
+    // `dco.yml` is not a port of a GitLab job — the sign-off gate exists only on
+    // the canonical host (`specs/136-open-source-publication/` W6.3) and
+    // `test/unit/ci/dco-signoff.test.ts` holds it. It is listed so that a fourth
+    // workflow still has to be named here by whoever adds it.
+    expect(WORKFLOW_FILES).toEqual(['dco.yml', 'publish.yml', 'quality.yml']);
     expect(QUALITY_JOBS.map((job) => job.name)).toEqual([...FLOOR]);
     expect(PUBLISH_JOBS.map((job) => job.name)).toEqual(['publish:packages']);
     expect(

@@ -18,6 +18,10 @@ This project is unusual in two ways that will save you time to know up front.
    every change and reports by name. You are unlikely to break a rule silently — but you are
    also unlikely to talk a check out of a finding, so it is cheaper to read the rule first.
 
+Everybody taking part — in issues, pull requests, reviews and anywhere else the project meets —
+is held to the [Code of Conduct](CODE_OF_CONDUCT.md). Conduct you want to report goes to
+community@endora.software, never into a public thread.
+
 ---
 
 ## Read these three, in this order
@@ -70,7 +74,7 @@ judged against. Where a public feature directory does exist, it will tell you wh
 the way it does; the fastest route in is to find the module you are touching and grep `specs/`
 for its id.
 
-**A feature's `tasks.md` is ticked in the same merge request as its code.** A row marked done
+**A feature's `tasks.md` is ticked in the same pull request as its code.** A row marked done
 in a later change is a status nobody can trust afterwards, and the whole point of the file is
 that somebody arriving in six months can tell what is finished from what was merely started.
 If your change completes a task, tick it and say what you measured; if it completes it
@@ -139,9 +143,10 @@ skips the contract and integration trees entirely.
 
 ## Before you send a change
 
-The verification list is **whatever the `quality` and `quality:static` jobs in
-`.gitlab-ci.yml` run** — not a subset of them, and not a remembered list. Read the jobs; they
-are a flat list of commands and they are all fast. The ones that catch the most:
+The verification list is **whatever the `quality` and `quality:static` jobs run** — in
+`.github/workflows/quality.yml`, which a test holds equal to the same two jobs in
+`.gitlab-ci.yml` — not a subset of them, and not a remembered list. Read the jobs; they are a
+flat list of commands and they are all fast. The ones that catch the most:
 
 ```bash
 pnpm -r run typecheck
@@ -169,7 +174,7 @@ Four things catch people out, and each has a document:
   migration simply does not run. Regenerate and commit in the same change, and run
   `pnpm install --lockfile-only` beside `manifests:generate`.
 
-Report failures with their output. A merge request that says "tests pass" while one does not
+Report failures with their output. A pull request that says "tests pass" while one does not
 costs the next person more than the change was worth.
 
 ---
@@ -203,7 +208,7 @@ The published documentation is the Docusaurus site under `docs/`, and a module's
 live in that module's package (`packages/modules/<id>/docs/`) and are composed into the site —
 so documentation travels with the code it describes rather than with whoever remembered to
 update a central tree. A change that adds a module or moves something an operator relies on
-updates its page in the same merge request. `specs/conventions/module-documentation.md` says
+updates its page in the same pull request. `specs/conventions/module-documentation.md` says
 where a page belongs and what the check that enforces it looks at.
 
 Pages under `docs/` must be in English (Principle VIII).
@@ -223,8 +228,43 @@ narrowness above exists so that a rule about *comments* is not used to reject a 
 - English, imperative, and explaining the *why*.
 - **No `Co-Authored-By` trailer for an AI assistant, and no AI/LLM attribution of any kind.**
   This applies whether or not a tool helped you write the change.
+- **Signed off by you** — see the next section. The `dco` check refuses a pull request with an
+  unsigned commit.
 - Branch from `origin/master` — never from a local `master`, which goes stale — and deliver
-  through a merge request. Nothing is committed to `master` directly.
+  through a pull request. Nothing is committed to `master` directly.
+
+## Sign your commits
+
+Every commit in a pull request ends with a **`Signed-off-by:` trailer carrying your name and the
+address the commit is authored with**:
+
+```text
+Signed-off-by: Ada Lovelace <ada@example.com>
+```
+
+With it you certify the [Developer Certificate of Origin 1.1](https://developercertificate.org/)
+for that commit: in short, that you wrote the change or otherwise have the right to submit it
+under the project's licence, and that you understand the contribution and the sign-off are
+recorded publicly. Read the four clauses once; they are short. There is **no contributor licence
+agreement** — the sign-off is the whole of it, and your contribution stays yours, licensed as the
+§ *Licence* section below says.
+
+`git commit -s` adds the trailer for you. `git config format.signOff true` does not affect
+`git commit`, so the flag is the reliable habit.
+
+**The `dco` check enforces it.** It is a required status on `master`, it reads every commit the
+pull request adds, and it accepts a commit only when one of its `Signed-off-by` trailers names the
+**commit author's address** — a sign-off by somebody else, or a line in the body that merely
+looks like one, does not count. Merge commits are not asked. If it refuses, sign off the commits
+you already have and update the branch:
+
+```bash
+git rebase --signoff origin/master
+git push --force-with-lease
+```
+
+A sign-off is a statement you make, so nobody can add it on your behalf: a maintainer will not
+sign off a commit for you, and a bot's commits carry the bot's own sign-off.
 
 ---
 
@@ -261,3 +301,28 @@ Read that file before reporting — it is not finished, and it says exactly what
 **What is safe to start on right now:** a bug fix with a failing test, a documentation
 correction, a missing test for existing behaviour, or a small repair a check reported. Those are
 reviewable on their own terms.
+
+---
+
+## Governance
+
+**The project owner decides.** Endora Commerce is maintained by Endora sp. z o.o., and the owner
+has the final word on what is merged, what the product includes and when it is released. That is a statement of who is accountable, not of who may take part: proposals,
+objections and alternatives are welcome in issues and pull requests, and a decision that goes
+against yours comes with its reasoning written down.
+
+**Rulings are numbered and public.** A decision that settles a design or process question —
+rather than a single review comment — is recorded as a **ruling** with an identifier of the form
+`D-nnn`, its reasoning, and the date, in the document it changes: a feature's specification
+under `specs/`, a convention under `specs/conventions/`, or `.specify/memory/constitution.md`.
+The numbering continues the series from before this repository was public, which is why older
+`D-nnn` citations in the code point at a record you cannot open (see the top of this file);
+every ruling from the migration onward is made here and can be read here. A ruling is changed by
+a later ruling that says what it amends, never by editing the old one silently.
+
+**Maintainers review; the owner appoints them.** `.github/CODEOWNERS` routes each review request,
+and a pull request merges only after a maintainer's review and with every required check green.
+
+**The project's names are covered separately.** The code is MIT; the names *Endora* and *Endora
+Commerce* are not licensed by it. [TRADEMARKS.md](TRADEMARKS.md) says what you may call a fork or
+a product built on this one.
