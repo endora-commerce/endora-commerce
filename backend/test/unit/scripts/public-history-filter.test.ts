@@ -27,28 +27,44 @@
  * promised. Each of those is a place where a green could mean *"not looking"*,
  * which is the one failure a run against real history cannot afford.
  */
-import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+
+import { afterAll, describe, expect, it } from 'vitest';
 
 import {
   byteIdentityFindings,
   commitMapAfterSecondPass,
+  completenessFindings,
   historicalDisclosureFindings,
   historicalRootsDroppedBy,
   composeCommitMaps,
   type DispositionDocument,
   keepSpecsFrom,
+  literalCensus,
   type MessageReplacementDocument,
   messageIdentityFindings,
+  moduleExclusionLines,
   parseCommitMap,
   patternAudit,
   projectionOf,
+  readModuleHistory,
   renderPathsFile,
   renderReplaceMessageFile,
+  renderReplaceTextFile,
+  replaceTextLocationRefusal,
   resolveModuleExclusions,
+  type TextReplacementDocument,
+  type TextReplacementRule,
+  textReplacementFindings,
   tipResidueFindings,
+  tipResolvedPaths,
   translateMatch,
   vacuousReason,
   validateReplacements,
+  validateTextReplacements,
 } from '../../../scripts/public-history-filter.js';
 
 function doc(entries: DispositionDocument['entries']): DispositionDocument {
@@ -162,38 +178,255 @@ describe('a top-level name only history holds', () => {
   });
 });
 
-describe('the module-id exclusion resolves through the declared manifest (D-246)', () => {
-  const packages = [
-    { moduleId: 'blog', dir: 'packages/modules/blog' },
-    { moduleId: 'quotes', dir: 'packages/modules/rfq' },
-  ];
+// --- 134 T091: the resolution is over the history, not over the tip ---------
+//
+// Every case below builds a throwaway repository and reads it through the same
+// function the run uses, because the defect T091 exists about was a resolver
+// that read the *working tree* while the path filter it fed applied to *every
+// commit*. A test over a hand-written list of packages cannot tell those apart.
 
-  it('is silent and legitimate when the list is empty (FR-012)', () => {
-    const resolved = resolveModuleExclusions([], packages);
+interface Fixture {
+  readonly root: string;
+  commit(files: Record<string, string | null>, message?: string): void;
+}
+
+const fixtures: string[] = [];
+afterAll(() => {
+  for (const dir of fixtures) rmSync(dir, { recursive: true, force: true });
+});
+
+function fixtureRepo(): Fixture {
+  const root = mkdtempSync(join(tmpdir(), 'endora-history-filter-'));
+  fixtures.push(root);
+  const git = (...args: string[]): string =>
+    execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+  execFileSync('git', ['init', '--quiet', '--initial-branch=main', root], { stdio: 'ignore' });
+  git('config', 'user.name', 'fixture');
+  git('config', 'user.email', 'fixture@example.com');
+  git('config', 'commit.gpgsign', 'false');
+  let n = 0;
+  return {
+    root,
+    commit(files, message) {
+      for (const [path, content] of Object.entries(files)) {
+        const full = join(root, path);
+        if (content === null) {
+          git('rm', '--quiet', '-r', path);
+          continue;
+        }
+        mkdirSync(dirname(full), { recursive: true });
+        writeFileSync(full, content);
+        git('add', path);
+      }
+      n += 1;
+      git('commit', '--quiet', '--allow-empty', '-m', message ?? `fixture commit ${n}`);
+    },
+  };
+}
+
+function manifestOf(id: string): string {
+  return (
+    "import { defineModuleManifest } from '@endora-commerce/platform/modules';\n\n" +
+    `export const manifest = defineModuleManifest({\n  id: '${id}',\n  version: '0.1.0',\n});\n`
+  );
+}
+
+function resolve(fixture: Fixture, ids: readonly string[]) {
+  return resolveModuleExclusions(ids, readModuleHistory('HEAD', fixture.root));
+}
+
+describe('the module-id exclusion resolves over the history (129 FR-011 as amended, 134 T091)', () => {
+  it('case 1: a moved module resolves to every root it ever occupied, not only the tip’s', () => {
+    const repo = fixtureRepo();
+    repo.commit({
+      'backend/src/modules/demo_mod/manifest.ts': manifestOf('demo_mod'),
+      'backend/src/modules/demo_mod/service.ts': 'export const a = 1;\n',
+      'backend/src/core.ts': 'export const core = 1;\n',
+    });
+    repo.commit({
+      'backend/src/modules/demo_mod/manifest.ts': null,
+      'backend/src/modules/demo_mod/service.ts': null,
+      'packages/modules/demo_mod/src/manifest.ts': manifestOf('demo_mod'),
+      'packages/modules/demo_mod/src/service.ts': 'export const a = 1;\n',
+    });
+    repo.commit({ 'packages/modules/demo_mod/src/extra.ts': 'export const b = 2;\n' });
+
+    const resolved = resolve(repo, ['demo_mod']);
     expect(resolved.findings).toEqual([]);
-    expect(resolved.paths).toEqual([]);
+    expect(resolved.paths).toEqual(['backend/src/modules/demo_mod', 'packages/modules/demo_mod']);
+    expect(resolved.perId).toEqual([
+      {
+        moduleId: 'demo_mod',
+        roots: ['backend/src/modules/demo_mod', 'packages/modules/demo_mod'],
+        files: 5,
+      },
+    ]);
   });
 
   it('resolves an id to the directory its own manifest declares, not to its name', () => {
-    const resolved = resolveModuleExclusions(['quotes'], packages);
+    const repo = fixtureRepo();
+    repo.commit({ 'packages/modules/rfq/src/manifest.ts': manifestOf('quotes') });
+    const resolved = resolve(repo, ['quotes']);
     expect(resolved.paths).toEqual(['packages/modules/rfq']);
     expect(resolved.findings).toEqual([]);
   });
 
-  it('refuses an id that resolves to no package — a typo publishes what it meant to withhold', () => {
-    const resolved = resolveModuleExclusions(['quote'], packages);
-    expect(resolved.findings.map((f) => f.kind)).toEqual(['unresolved-module-id']);
+  it('case 2: an id gone from the tip but present in history resolves, and does not refuse', () => {
+    // Migration day's normal case: the extraction removes the module from the
+    // tip *before* the filter runs (134 FR-043), so a tip-resolved id would
+    // refuse the only correct ordering.
+    const repo = fixtureRepo();
+    repo.commit({
+      'packages/modules/gone_mod/src/manifest.ts': manifestOf('gone_mod'),
+      'packages/modules/gone_mod/src/index.ts': 'export {};\n',
+      'README.md': 'core\n',
+    });
+    repo.commit({ 'packages/modules/gone_mod': null });
+
+    const resolved = resolve(repo, ['gone_mod']);
+    expect(resolved.findings.map((f) => f.kind)).not.toContain('unresolved-module-id');
+    expect(resolved.findings).toEqual([]);
+    expect(resolved.paths).toEqual(['packages/modules/gone_mod']);
+  });
+
+  it('case 3: an id no manifest declared at any commit refuses, naming it — the typo guard', () => {
+    const repo = fixtureRepo();
+    repo.commit({ 'packages/modules/quotes/src/manifest.ts': manifestOf('quotes') });
+    const resolved = resolve(repo, ['quote']);
+    expect(resolved.findings.map((f) => [f.kind, f.subject])).toEqual([
+      ['unresolved-module-id', 'quote'],
+    ]);
+    expect(resolved.findings[0]!.detail).toMatch(/any commit/);
     expect(resolved.paths).toEqual([]);
   });
 
-  it('refuses the same id twice, because the second entry is invisible', () => {
-    const resolved = resolveModuleExclusions(['blog', 'blog'], packages);
-    expect(resolved.findings.map((f) => f.kind)).toEqual(['duplicate-module-id']);
+  it('case 4: an empty list proceeds silently, and the report says it is legitimate (FR-012)', () => {
+    const repo = fixtureRepo();
+    repo.commit({ 'packages/modules/quotes/src/manifest.ts': manifestOf('quotes') });
+    const resolved = resolve(repo, []);
+    expect(resolved).toEqual({ paths: [], perId: [], findings: [] });
+    expect(moduleExclusionLines([], [])).toEqual([
+      '[public-history-filter] module ids excluded: 0 (an empty list is legitimate — D-246, FR-012)',
+    ]);
   });
 
-  it('refuses a run that could resolve no module at all, rather than excluding nothing', () => {
-    const resolved = resolveModuleExclusions(['blog'], []);
-    expect(resolved.findings.map((f) => f.kind)).toContain('no-module-packages');
+  it('prints one line per excluded id — a file count and the roots, never the paths (FR-020)', () => {
+    const lines = moduleExclusionLines(
+      ['demo_mod'],
+      [{ moduleId: 'demo_mod', roots: ['a/demo_mod', 'b/demo_mod'], files: 12 }],
+    );
+    expect(lines).toEqual([
+      '[public-history-filter] module ids excluded: 1',
+      '  - demo_mod files=12 roots=a/demo_mod, b/demo_mod',
+    ]);
+  });
+
+  it('case 5: the core-owned satellites travel with the id, in both spellings', () => {
+    const repo = fixtureRepo();
+    repo.commit({
+      'packages/modules/pim_unopim/src/manifest.ts': manifestOf('pim_unopim'),
+      'backend/test/unit/pim_unopim/a.test.ts': 'x\n',
+      'backend/test/contract/pim_unopim/b.test.ts': 'x\n',
+      'backend/test/integration/pim_unopim/c.test.ts': 'x\n',
+      'backend/test/perf/pim_unopim/d.test.ts': 'x\n',
+      'admin/test/modules/pim-unopim/e.test.tsx': 'x\n',
+      'admin/src/modules/pim-unopim/index.tsx': 'x\n',
+      'backend/scripts/ledgers/cross-module-imports/pim_unopim.ts': 'x\n',
+      'packages/contracts/src/pim-unopim.ts': 'x\n',
+      // Carries no id as a segment or a stem, so it is nobody's satellite.
+      'backend/test/helpers/scripted-pim-unopim-client.ts': 'x\n',
+    });
+    // Satellites deleted before the tip still resolve for the commits that held them.
+    repo.commit({ 'backend/test/perf/pim_unopim': null, 'admin/src/modules/pim-unopim': null });
+
+    const resolved = resolve(repo, ['pim_unopim']);
+    expect(resolved.findings).toEqual([]);
+    expect(resolved.paths).toEqual([
+      'admin/src/modules/pim-unopim',
+      'admin/test/modules/pim-unopim',
+      'backend/scripts/ledgers/cross-module-imports/pim_unopim.ts',
+      'backend/test/contract/pim_unopim',
+      'backend/test/integration/pim_unopim',
+      'backend/test/perf/pim_unopim',
+      'backend/test/unit/pim_unopim',
+      'packages/contracts/src/pim-unopim.ts',
+      'packages/modules/pim_unopim',
+    ]);
+    expect(resolved.perId[0]!.files).toBe(9);
+  });
+
+  it('case 6: an id-bearing path the resolution did not cover refuses, printed — segment and stem', () => {
+    // Both are shapes this repository's own history holds: a request-fixture
+    // directory named in the kebab spelling under `backend/test/fixtures/`, and
+    // a module documentation page whose stem is the id. Neither is a satellite
+    // convention, so a resolver that trusted its conventions would publish them.
+    const repo = fixtureRepo();
+    repo.commit({
+      'packages/modules/comarch_xl/src/manifest.ts': manifestOf('comarch_xl'),
+      'packages/modules/ksef/src/manifest.ts': manifestOf('ksef'),
+      'backend/test/fixtures/comarch-xl/request.xml': '<x/>\n',
+      'docs/docs/modules/ksef.md': '# page\n',
+      'backend/test/helpers/scripted-ksef-client.ts': 'x\n',
+      'docs/docs/modules/blog.md': '# page\n',
+    });
+    const history = readModuleHistory('HEAD', repo.root);
+    const resolved = resolveModuleExclusions(['comarch_xl', 'ksef'], history);
+    expect(resolved.findings).toEqual([]);
+
+    const refused = completenessFindings(history.paths, ['comarch_xl', 'ksef'], resolved.paths);
+    expect(refused.map((f) => [f.kind, f.subject])).toEqual([
+      ['uncovered-module-path', 'backend/test/fixtures/comarch-xl/request.xml'],
+      ['uncovered-module-path', 'docs/docs/modules/ksef.md'],
+    ]);
+    expect(refused[0]!.detail).toContain('comarch_xl');
+  });
+
+  it('case 6: is silent when every id-bearing path is covered, and when the list is empty', () => {
+    expect(
+      completenessFindings(
+        ['packages/modules/ksef/src/manifest.ts', 'docs/docs/modules/blog.md'],
+        ['ksef'],
+        ['packages/modules/ksef'],
+      ),
+    ).toEqual([]);
+    expect(completenessFindings(['docs/docs/modules/ksef.md'], [], [])).toEqual([]);
+  });
+
+  it('case 7: the same id twice still refuses, because the second entry is invisible', () => {
+    const repo = fixtureRepo();
+    repo.commit({ 'packages/modules/blog/src/manifest.ts': manifestOf('blog') });
+    const resolved = resolve(repo, ['blog', 'blog']);
+    expect(resolved.findings.map((f) => f.kind)).toEqual(['duplicate-module-id']);
+    expect(resolved.paths).toEqual([]);
+  });
+
+  it('refuses a history that holds no manifest at all, rather than excluding nothing', () => {
+    const repo = fixtureRepo();
+    repo.commit({ 'README.md': 'core\n' });
+    const resolved = resolve(repo, ['blog']);
+    expect(resolved.findings.map((f) => f.kind)).toEqual(['no-module-packages']);
+    expect(resolved.paths).toEqual([]);
+  });
+
+  it('reads a path that only a merge resolution ever held (first-parent merge diffs)', () => {
+    const repo = fixtureRepo();
+    repo.commit({ 'README.md': 'core\n' });
+    const git = (...args: string[]): string =>
+      execFileSync('git', ['-C', repo.root, ...args], { encoding: 'utf8' });
+    git('checkout', '--quiet', '-b', 'side');
+    repo.commit({ 'side.txt': 'side\n' });
+    git('checkout', '--quiet', 'main');
+    repo.commit({ 'main.txt': 'main\n' });
+    git('merge', '--quiet', '--no-commit', 'side');
+    mkdirSync(join(repo.root, 'backend/test/unit/demo_mod'), { recursive: true });
+    writeFileSync(join(repo.root, 'backend/test/unit/demo_mod/born-in-merge.test.ts'), 'x\n');
+    git('add', '.');
+    git('commit', '--quiet', '-m', 'merge side');
+    repo.commit({ 'backend/test/unit/demo_mod': null });
+
+    expect(readModuleHistory('HEAD', repo.root).paths).toContain(
+      'backend/test/unit/demo_mod/born-in-merge.test.ts',
+    );
   });
 });
 
@@ -231,6 +464,20 @@ describe('an excluded id still at the tip refuses (136 FR-050, GAP-6)', () => {
     expect(residue.findings[0]!.detail).toContain('packages/modules/rfq');
     expect(residue.findings[1]!.detail).toContain('packages/modules/wishlist');
     expect(residue.findings[0]!.detail).toContain('--allow-tip-residue');
+  });
+
+  it('refuses an id whose history-resolved path is still at the tip, naming the tip path', () => {
+    // With the resolver on the history, "resolves at the tip" is any resolved
+    // path the tip still holds — a satellite included. Left alone, the second
+    // pass would take that file out of the published tip silently.
+    const atTip = tipResolvedPaths(
+      [{ moduleId: 'gone', roots: ['packages/modules/gone', 'packages/contracts/src/gone.ts'], files: 9 }],
+      ['packages/contracts/src/gone.ts', 'packages/contracts/src/index.ts'],
+    );
+    expect(atTip).toEqual(new Map([['gone', ['packages/contracts/src/gone.ts']]]));
+    const residue = tipResidueFindings(['gone'], tip, { allowTipResidue: false, apply: false }, atTip);
+    expect(residue.findings.map((f) => [f.kind, f.subject])).toEqual([['excluded-id-at-tip', 'gone']]);
+    expect(residue.findings[0]!.detail).toContain('packages/contracts/src/gone.ts');
   });
 
   it('lets a rehearsal through with --allow-tip-residue, reporting what it let through', () => {
@@ -654,5 +901,163 @@ describe('a short or empty walk is exit 2, not a beautiful empty report', () => 
     // `messageIdentityFindings` into a green over an empty set.
     expect(vacuousReason({ ...full, reconciledMessages: 39 })).toMatch(/message/);
     expect(vacuousReason({ ...full, reconciledMessages: 0 })).toMatch(/message/);
+  });
+});
+
+// --- 136 W2.4: `--replace-text`, historical-only blobs (O-3) --------------------
+//
+// Everything below is invented. A rule's literal is the payload it removes, and
+// this file is public: a test quoting a real one would publish it in the merge
+// request that removes it.
+
+describe('the text-replacement record is validated before it is used (136 O-3)', () => {
+  function rule(over: Partial<TextReplacementRule> = {}): TextReplacementRule {
+    return {
+      class: 'C2',
+      ref: 'fixture-1',
+      literal: 'an invented sentence about a counterparty',
+      replacement: '[removed]',
+      reason: 'an invented C2 sentence for this test',
+      ...over,
+    };
+  }
+  const record = (rules: readonly unknown[]): TextReplacementDocument =>
+    ({ version: 1, rules }) as TextReplacementDocument;
+
+  it('accepts a complete S, C2 or C3 rule', () => {
+    expect(
+      validateTextReplacements(
+        record([
+          rule(),
+          rule({ class: 'C3', ref: 'fixture-2', literal: 'another invented phrase' }),
+          rule({ class: 'S', ref: 'fixture-3', literal: 'not-a-real-value-0000' }),
+        ]),
+      ),
+    ).toEqual([]);
+  });
+
+  it('refuses every class O-3 does not admit — C4 in history stays accepted', () => {
+    const kinds = ['C1', 'C4', 'H', 'P', 'L', 'R', ''].map(
+      (cls, n) =>
+        validateTextReplacements(record([rule({ class: cls as 'S', ref: `r${n}` })]))[0]?.kind,
+    );
+    expect(kinds).toEqual(Array(7).fill('disallowed-replacement-class'));
+  });
+
+  it('refuses the shapes a line-oriented file cannot express or that leave the payload', () => {
+    const findings = validateTextReplacements(
+      record([
+        rule({ ref: 'a', literal: 'two\nlines' }),
+        rule({ ref: 'b', literal: 'has ==> separator' }),
+        rule({ ref: 'c', literal: 'same', replacement: 'still same' }),
+        rule({ ref: 'd', literal: '' }),
+        rule({ ref: 'e', literal: 'dup literal' }),
+        rule({ ref: 'f', literal: 'dup literal' }),
+      ]),
+    );
+    expect(findings.map((f) => [f.kind, f.subject])).toEqual([
+      ['unusable-literal', 'a'],
+      ['unusable-literal', 'b'],
+      ['self-referential-replacement', 'c'],
+      ['unusable-literal', 'd'],
+      ['duplicate-literal', 'f'],
+    ]);
+  });
+
+  it('refuses a rule with no ref, a short reason, a repeated ref, or a field the record does not define', () => {
+    const findings = validateTextReplacements(
+      record([
+        rule({ ref: '' }),
+        rule({ ref: 'x', literal: 'one', reason: 'short' }),
+        rule({ ref: 'y', literal: 'two' }),
+        rule({ ref: 'y', literal: 'three' }),
+        { ...rule({ ref: 'z', literal: 'four' }), note: 'extra' },
+      ]),
+    );
+    expect(findings.map((f) => [f.kind, f.subject])).toEqual([
+      ['invalid-replacement-rule', '(no ref)'],
+      ['unreasoned-replacement', 'x'],
+      ['invalid-replacement-rule', 'y'],
+      ['invalid-replacement-rule', 'z'],
+    ]);
+  });
+
+  it('refuses a record that is not one', () => {
+    expect(validateTextReplacements({} as TextReplacementDocument).map((f) => f.kind)).toEqual([
+      'invalid-replacement-rule',
+    ]);
+  });
+
+  it('renders one literal line per rule, in the format git-filter-repo parses', () => {
+    expect(
+      renderReplaceTextFile(record([rule(), rule({ ref: 'b', literal: 'x y', replacement: '' })])),
+    ).toBe('literal:an invented sentence about a counterparty==>[removed]\nliteral:x y==>\n');
+  });
+
+  it('refuses a replacement file inside the repository — the payload is never committed', () => {
+    expect(replaceTextLocationRefusal('/repo/specs/x.json', '/repo')).toMatch(/inside/);
+    expect(replaceTextLocationRefusal('/repo', '/repo')).toMatch(/inside/);
+    expect(replaceTextLocationRefusal('/elsewhere/rules.json', '/repo')).toBeNull();
+    expect(replaceTextLocationRefusal('/repository-sibling/rules.json', '/repo')).toBeNull();
+  });
+});
+
+describe('a text replacement reaches only blobs absent from the tip (136 W2.4, 129 SC-004)', () => {
+  const rules: TextReplacementRule[] = [
+    { class: 'C2', ref: 'hist', literal: 'OLD PHRASE', replacement: 'new', reason: 'invented phrase' },
+    { class: 'S', ref: 'tip', literal: 'TIP-VALUE', replacement: 'x', reason: 'invented value' },
+    { class: 'C3', ref: 'none', literal: 'NOWHERE', replacement: 'x', reason: 'invented phrase' },
+  ];
+  const blob = (id: string, text: string) => ({ id, data: Buffer.from(text) });
+  const tip = new Map([
+    ['docs/current.md', 'b-tip'],
+    ['src/config.ts', 'b-cfg'],
+  ]);
+  const blobs = [
+    blob('b-old1', 'a line with OLD PHRASE in it'),
+    blob('b-old2', 'OLD PHRASE twice: OLD PHRASE'),
+    blob('b-tip', 'the current text'),
+    blob('b-cfg', 'const k = "TIP-VALUE";'),
+  ];
+
+  it('counts historical blobs per rule and names the tip paths a literal is in', () => {
+    const census = literalCensus({ blobs, tip, rules });
+    expect(census.get('hist')).toEqual({ historyBlobs: 2, tipPaths: [] });
+    expect(census.get('tip')).toEqual({ historyBlobs: 0, tipPaths: ['src/config.ts'] });
+    expect(census.get('none')).toEqual({ historyBlobs: 0, tipPaths: [] });
+  });
+
+  it('refuses a rule whose literal is at the tip, and one that reaches no blob at all', () => {
+    const before = literalCensus({ blobs, tip, rules });
+    const findings = textReplacementFindings({ rules, before, after: null });
+    expect(findings.map((f) => [f.kind, f.subject])).toEqual([
+      ['replacement-reaches-tip', 'tip'],
+      ['inert-text-replacement', 'none'],
+    ]);
+    expect(findings[0]!.detail).toContain('src/config.ts');
+    // The report names the rule by its ref; the literal is the payload.
+    for (const f of findings) {
+      expect(`${f.subject} ${f.detail}`).not.toMatch(/TIP-VALUE|NOWHERE/);
+    }
+  });
+
+  it('refuses a literal that survived the rewrite in any blob', () => {
+    const only = [rules[0]!];
+    const before = literalCensus({ blobs, tip, rules: only });
+    const after = literalCensus({
+      blobs: [blob('b-old1', 'a line with new in it'), blob('bin', 'OLD PHRASE\0binary')],
+      tip,
+      rules: only,
+    });
+    expect(textReplacementFindings({ rules: only, before, after }).map((f) => f.kind)).toEqual([
+      'text-payload-survived',
+    ]);
+  });
+
+  it('is silent when each rule reached history only and nothing survived', () => {
+    const only = [rules[0]!];
+    const before = literalCensus({ blobs, tip, rules: only });
+    const after = literalCensus({ blobs: [blob('b-new', 'new')], tip, rules: only });
+    expect(textReplacementFindings({ rules: only, before, after })).toEqual([]);
   });
 });
