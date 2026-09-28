@@ -64,7 +64,7 @@ export async function seedInvoiceableOrder(
       postalCode: '00-002',
       country: 'PL',
       companyName: 'Example Buyer Sp. z o.o.',
-      taxId: '1111111111',
+      taxId: '1231231230',
     },
     deliveryMethodId: randomUUID(),
     deliveryMethodSnapshot: { code: 'dm', name: 'Kurier', cost: 0 },
