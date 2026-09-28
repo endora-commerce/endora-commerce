@@ -20,7 +20,7 @@ this PR (constitution §Governance).
 - [ ] **3. Type check & lint** — `pnpm -r run typecheck` and `pnpm -r run lint` are clean.
 - [ ] **4. Naming conventions** (Principle VI) — `pnpm run check:naming` is clean.
 - [ ] **5. Working language** (Principle VIII) — `pnpm run check:language` is clean. Inline **comments inside source files** and every page authored under the **`/docs/` documentation site** are English. Identifiers, string literals, specs, plans, tasks, the README, this PR description, commit messages, and code-review prose MAY be in any language.
-- [ ] **6. Docs sync** — README and the docs site are updated alongside any new module or infrastructure-relevant change.
+- [ ] **6. Docs sync** — a new module ships its own documentation page (or declares `docs: false`); an infrastructure-relevant change updates the README and the docs site.
 - [ ] **7. Dependency justification** (Principle IV) — every new runtime dependency added by this PR has a one-paragraph rationale below.
 - [ ] **8. UI reuse** (Principle IX) — frontend changes reuse existing Admin UI / Storefront UI components and layouts; any net-new component or layout carries a UX justification (missing pattern, primitives evaluated, why composition failed).
 - [ ] **9. Async queue consumers** (Principle X) — queue-backed async work uses a durable queue with atomic claim + idempotent handlers (safe at N ≥ 2 instances), the producer only enqueues, and the consumer is a separable worker entrypoint (never an in-process `setInterval` sweeper). Separate process is the production default; co-locating low-volume work carries a one-sentence justification.
