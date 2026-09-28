@@ -9,6 +9,7 @@ function categoryLabel(slug, message) {
 const sidebars = {
   main: [
     'intro',
+    'getting-started',
     {
       type: 'category',
       key: 'admin-ui',
