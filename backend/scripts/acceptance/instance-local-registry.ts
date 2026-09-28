@@ -309,10 +309,13 @@ async function main(): Promise<number> {
     };
     // The one file a stranger may place in the target before the run: their
     // own answers. `--no-services` means these are the services they run.
+    // `REVALIDATE_SECRET` is deliberately not among them: under
+    // `--no-storefront` nothing generates it (`input-resolution.md` R4.6
+    // permits that only to a run writing both trees), and this run proves the
+    // instance boots and signs an administrator in without it.
     const answers = {
       ...instanceEnvValues({ databaseUrl: database.databaseUrl, env: { ...process.env, REDIS_URL: redisUrl } }),
       PORT: String(port),
-      REVALIDATE_SECRET: randomBytes(24).toString('base64url'),
     };
     writeFileSync(
       join(target, '.env'),
