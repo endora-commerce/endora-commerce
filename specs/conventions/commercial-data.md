@@ -191,6 +191,7 @@ scratch. Record that as a disposition with its reason; do not argue it back into
 | §3's N4 applied to `LICENSE-COMMERCIAL.md` | **ruled public** — put as P-1(c) | D-239, second amendment |
 | §4(d) *scan class by class* | **ruled, not merely recommended** — put as P-1(d) | D-239, second amendment |
 | This document's path and its public disposition | **ruled** | D-239, amendment |
+| §7.4's annotation reach: its own block, not the document | **ruled** | D-277 |
 | §2 C4's first sub-class announced for the paid tier's population; §3 N4 applied to `README.md` § Overview, with the *inform, never press* condition | **ruled by the owner, 2026-09-26** — option A, *"not a problem if it not forced people to buy them"* | D-265 (amends D-253) |
 
 **Nothing below the line is unruled**, and that matters: an earlier statement of this relocation
@@ -214,6 +215,9 @@ has one value.
    exception is a ledger entry with a reason somebody can read; a widened list silently stops
    refusing a real finding somewhere else. This is the estate's standing precedent —
    `specs/conventions/check-estate.md`.
+   **An annotation reaches its own block only** (D-277, 2026-09-28): the run of non-blank lines
+   that holds it. It clears the named term there, not in the rest of the document. Put it beside
+   the paragraph it judges. A term that recurs in another paragraph is judged again there.
 5. **A heuristic's green is not a guarantee.** The vocabulary rule that automates part of this has
    a measured precision of ≈ 28 % and an **unknown recall**. It cannot see a cost stated as *"three
    weeks of work"*, a client named without the word *pilot*, or a margin written as a bare number.
