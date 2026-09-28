@@ -19,7 +19,8 @@ catalogue with variants, custom fields and organisation pricing; customer organi
 addresses and credit limits; carts, RFQs, quick order and shopping lists; orders, invoice records,
 returns, inventory, shipment tracking, and payment by bank transfer, on pickup or against a credit
 limit. It also includes the page and e-mail builders, search, promotions, SEO, product feeds,
-import/export, the mega-menu and PWA across multiple tenants, channels and currencies.
+import/export, the mega-menu and PWA across multiple tenants, channels and currencies. A new
+instance installs all of it; anything you do not use can be switched off in the admin.
 
 **It ships no online payment gateway and no courier integration.** Card, BLIK and wallet payments,
 courier labels and parcel-locker selection, accounting and ERP synchronisation, PIM
@@ -44,9 +45,11 @@ the development services in Docker, whether to load demo data, and the e-mail, p
 of your administrator. Enter accepts the recommendation where there is one — every part, services
 started. Demo data has none, because a shop you are evaluating wants it and one you will sell from
 does not. It then writes an instance into `my-shop/`, starts PostgreSQL, Redis, Meilisearch and
-Mailpit, installs the modules, creates your administrator and prints what to run next. Each step
-prints the command it runs, so a failure names the command to finish by hand. Leave out `my-shop`
-and it asks for the directory too.
+Mailpit, installs every module of the open-source set — each capability described above, switched
+on; turn any of them off later under **Modules** in the admin, and switch it back without losing
+its data — creates your administrator and prints what to run next. Each step prints the command it
+runs, so a failure names the command to finish by hand. Leave out `my-shop` and it asks for the
+directory too.
 
 The second is the one development command. It starts the API on `http://localhost:3001`, the
 admin, and the storefront when there is one beside the instance, in one terminal with every line
@@ -55,9 +58,6 @@ first command prints them — and builds and deploys on its own.
 
 What a first run gives you, today:
 
-- **The core modules only**, unless you ask for more: with no `--module <id>` the instance holds
-  the smallest set the platform runs with. Add a module with `--module <id>` (repeatable); the
-  [module reference](docs/docs/module-reference/README.md) describes each one.
 - **No storefront outside a checkout of this repository.** The storefront is copied from the
   reference in this repository, so run anywhere else the parts question shows it unchecked and
   cannot change it, and the instance is written without one.
