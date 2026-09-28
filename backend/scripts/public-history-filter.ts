@@ -24,8 +24,13 @@
  * `git-filter-repo`, a **path filter over the recorded dispositions**, and
  * `--replace-message` over the seven commit messages of
  * `specs/126-public-mirror-disclosure/spec.md` §2.1 — **and no other content
- * change of any kind.** Two consequences of that last clause are decisions
- * this file takes and states rather than leaves to be discovered:
+ * change of any kind**, with one exception the owner ruled narrowly (O-3 of
+ * `specs/136-open-source-publication/`, 2026-09-25): `--replace-text` over
+ * blobs **absent from the tip**, for S, C2 and C3 findings only. The tip stays
+ * byte-identical, which {@link byteIdentityFindings} keeps asserting (129
+ * SC-004), and {@link textReplacementFindings} refuses any rule that would
+ * reach it. Two consequences of the no-other-change clause are decisions this
+ * file takes and states rather than leaves to be discovered:
  *
  *   * **`--preserve-commit-hashes` is passed.** `git-filter-repo` rewrites, by
  *     default, any commit hash quoted *inside* a message to the hash the
@@ -68,7 +73,17 @@
  * exit code:
  *
  *   `pnpm --filter backend run history:filter -- [--ref <rev>] [--out <dir>] [--apply]
- *     [--allow-tip-residue]`
+ *     [--allow-tip-residue] [--replace-text <record outside the repository>]`
+ *
+ * The module-id exclusion resolves each id over the **history** of the ref
+ * being filtered (129 FR-011 as amended; `specs/134-paid-module-extraction/`
+ * T091), and a path carrying an excluded id that the resolution did not cover
+ * refuses the run rather than being published (FR-011(d)).
+ *
+ * `--replace-text` reads a JSON record of `{ class, ref, literal, replacement,
+ * reason }` rules ({@link validateTextReplacements}). It must resolve outside
+ * the repository ({@link replaceTextLocationRefusal}); the report names each
+ * rule by its `ref` and never prints a literal.
  *
  * `--allow-tip-residue` lets a dry run through while an excluded id is still
  * declared at the tip ({@link tipResidueFindings}); `--apply` ignores it.
@@ -93,7 +108,7 @@
 /* eslint-disable no-console -- CLI tool: stdout/stderr is the interface. */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve as resolvePath } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
@@ -102,6 +117,7 @@ import {
   DISPOSITIONS_PATH,
   globToRegExp,
 } from './check-root-dispositions.js';
+import { moduleIdSpellings, pathCarriesModuleId } from './lib/module-id-paths.js';
 import { discoverModulePackages } from './lib/module-packages.js';
 
 export type { DispositionDocument };
@@ -156,6 +172,7 @@ export type FindingKind =
   | 'duplicate-disposition'
   | 'unresolved-module-id'
   | 'duplicate-module-id'
+  | 'uncovered-module-path'
   | 'no-module-packages'
   | 'excluded-id-at-tip'
   | 'unusable-literal'
@@ -171,7 +188,12 @@ export type FindingKind =
   | 'private-path-in-history'
   | 'undeclared-message-change'
   | 'payload-survived'
-  | 'non-deterministic-map';
+  | 'non-deterministic-map'
+  | 'invalid-replacement-rule'
+  | 'disallowed-replacement-class'
+  | 'replacement-reaches-tip'
+  | 'inert-text-replacement'
+  | 'text-payload-survived';
 
 export interface Finding {
   readonly kind: FindingKind;
@@ -272,7 +294,7 @@ export function renderPathsFile(specs: readonly KeepSpec[]): string {
   return specs.map((spec) => `${spec.kind}:${spec.value}\n`).join('');
 }
 
-// --- the module-id exclusion (D-246) ---------------------------------------
+// --- the module-id exclusion (D-246, resolved over the history) ------------
 
 /** A module package, as its own declared manifest names it. */
 export interface DeclaredModulePackage {
@@ -280,43 +302,124 @@ export interface DeclaredModulePackage {
   readonly dir: string;
 }
 
-export interface ModuleExclusionResolution {
+/** One historical `manifest.ts` blob and the id it declared about itself, if any. */
+export interface HistoricalManifest {
+  readonly path: string;
+  readonly moduleId: string | null;
+}
+
+/**
+ * What the resolution reads: every `manifest.ts` any commit held, and every
+ * path any commit held. Both come from the **history being filtered**, never
+ * from the working tree (129 FR-011(a), as amended 2026-09-17).
+ */
+export interface ModuleHistory {
+  readonly manifests: readonly HistoricalManifest[];
   readonly paths: readonly string[];
+}
+
+/** One excluded id's resolution, in the form the report prints (129 FR-020 as amended). */
+export interface ModuleResolution {
+  readonly moduleId: string;
+  /** Every resolved prefix: the manifest roots and the satellites history held. */
+  readonly roots: readonly string[];
+  /** Distinct historical paths under those prefixes. */
+  readonly files: number;
+}
+
+export interface ModuleExclusionResolution {
+  /** Every resolved prefix for every id — what the second pass removes. */
+  readonly paths: readonly string[];
+  readonly perId: readonly ModuleResolution[];
   readonly findings: readonly Finding[];
 }
 
 /**
- * Resolve each excluded id to the package directory **its own manifest
- * declares** — never to a directory convention, because a package is a module
- * because it says so and not because of where it sits (D-246, D-231).
+ * The id a lifecycle-shape `manifest.ts` declares about itself, read out of a
+ * **blob** rather than off the disk: a module is a module because its manifest
+ * says so (D-246, D-231). The same pattern the retired extraction deriver read
+ * historical manifests with.
+ */
+export function declaredManifestId(source: string): string | null {
+  return /defineModuleManifest\(\{[\s\S]*?\bid:\s*['"]([^'"]+)['"]/.exec(source)?.[1] ?? null;
+}
+
+/**
+ * The module root a historical `manifest.ts` path implies. A package keeps its
+ * manifest at `src/manifest.ts`; the pre-packaging era kept it at the module
+ * root itself.
+ */
+export function moduleRootOf(manifestPath: string): string {
+  const withoutFile = manifestPath.slice(0, manifestPath.lastIndexOf('/'));
+  return withoutFile.endsWith('/src') ? withoutFile.slice(0, -'/src'.length) : withoutFile;
+}
+
+function escapeRe(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * The core-owned satellites of 129 FR-011(a), keyed to an id a manifest
+ * declared — plus `admin/src/modules/<id>/`, which
+ * `specs/134-paid-module-extraction/` T091 case 5 adds — each in **both**
+ * spellings. Returns the prefix the second pass removes: the directory for a
+ * directory convention, the file for a file convention.
+ */
+export function satellitePrefixOf(path: string, moduleId: string): string | null {
+  const ids = moduleIdSpellings(moduleId).map(escapeRe).join('|');
+  const conventions = [
+    new RegExp(`^(backend/test/(?:unit|contract|integration|perf)/(?:${ids}))/`),
+    new RegExp(`^(admin/test/modules/(?:${ids}))/`),
+    new RegExp(`^(admin/src/modules/(?:${ids}))/`),
+    new RegExp(`^(backend/scripts/ledgers/[^/]+/(?:${ids})\\.ts)$`),
+    new RegExp(`^(packages/contracts/src/(?:${ids})\\.ts)$`),
+  ];
+  for (const convention of conventions) {
+    const match = convention.exec(path);
+    if (match) return match[1]!;
+  }
+  return null;
+}
+
+function isUnder(path: string, prefix: string): boolean {
+  return path === prefix || path.startsWith(`${prefix}/`);
+}
+
+/**
+ * Resolve each excluded id over the **history** (129 FR-011(a)–(c), as amended;
+ * `specs/134-paid-module-extraction/` T091).
  *
- * Two refusals and one silence. An id that resolves to nothing **refuses the
- * run**: it is a typo, not an empty set, and a typo publishes the very module
- * it was written to withhold, into a repository that cannot take it back. An
- * id listed twice refuses, because the second entry is invisible. An **empty**
- * list is silent and legitimate (FR-012) — and a non-empty list against a scan
- * that found no module packages at all is the vacuous case wearing the list's
- * clothes, so it refuses too.
+ * An id resolves to every directory a manifest declaring it occupied at any
+ * commit — the module's own code, through the manifest and never through a
+ * directory name — plus the satellites history held for it. The set is derived
+ * here, on the day of the run, and never written down (FR-011(b)).
+ *
+ * Three refusals and one silence. An id no manifest declared **at any commit**
+ * refuses (FR-011(c)): a typo resolves to nothing everywhere, while an id the
+ * extraction removed from the tip resolves to its history, which is migration
+ * day's normal case. An id listed twice refuses, because the second entry is
+ * invisible. A non-empty list against a history holding no manifest at all is
+ * the vacuous case wearing the list's clothes. An **empty** list is silent and
+ * legitimate (FR-012).
  */
 export function resolveModuleExclusions(
   ids: readonly string[],
-  packages: readonly DeclaredModulePackage[],
+  history: ModuleHistory,
 ): ModuleExclusionResolution {
-  if (ids.length === 0) return { paths: [], findings: [] };
+  if (ids.length === 0) return { paths: [], perId: [], findings: [] };
   const findings: Finding[] = [];
-  if (packages.length === 0) {
+  if (history.manifests.length === 0) {
     findings.push({
       kind: 'no-module-packages',
       subject: `${ids.length} excluded id(s)`,
       detail:
-        'the workspace scan found no module package at all, so every id below would resolve ' +
-        'to nothing for a reason that is about the walk rather than about the list',
+        'the history walk found no manifest at all, so every id below would resolve to ' +
+        'nothing for a reason that is about the walk rather than about the list',
     });
-    return { paths: [], findings };
+    return { paths: [], perId: [], findings };
   }
-  const byId = new Map(packages.map((pkg) => [pkg.moduleId, pkg]));
   const seen = new Set<string>();
-  const paths: string[] = [];
+  const perId: ModuleResolution[] = [];
   for (const id of ids) {
     if (seen.has(id)) {
       findings.push({
@@ -327,20 +430,94 @@ export function resolveModuleExclusions(
       continue;
     }
     seen.add(id);
-    const pkg = byId.get(id);
-    if (pkg === undefined) {
+    const roots = new Set(
+      history.manifests.filter((m) => m.moduleId === id).map((m) => moduleRootOf(m.path)),
+    );
+    if (roots.size === 0) {
       findings.push({
         kind: 'unresolved-module-id',
         subject: id,
         detail:
-          'no workspace package declares this module id. A typo here publishes the module it ' +
-          'was written to withhold, silently, into a repository that cannot take it back',
+          'no manifest at any commit of the history declares this module id. A typo here ' +
+          'publishes the module it was written to withhold, silently, into a repository that ' +
+          'cannot take it back',
       });
       continue;
     }
-    paths.push(pkg.dir);
+    for (const path of history.paths) {
+      const satellite = satellitePrefixOf(path, id);
+      if (satellite !== null) roots.add(satellite);
+    }
+    const prefixes = [...roots].sort();
+    const files = history.paths.filter((path) => prefixes.some((p) => isUnder(path, p))).length;
+    perId.push({ moduleId: id, roots: prefixes, files });
   }
-  return { paths: findings.length > 0 ? [] : paths, findings };
+  if (findings.length > 0) return { paths: [], perId: [], findings };
+  const paths = [...new Set(perId.flatMap((r) => r.roots))].sort();
+  return { paths, perId, findings };
+}
+
+/**
+ * 129 FR-011(d): an incomplete resolution refuses rather than publishes. Every
+ * path carrying an excluded id as a whole segment or a filename stem, in either
+ * spelling — the predicate's one home is `lib/module-id-paths.ts` (D-263
+ * clause 1) — that no resolved prefix covers is printed and refuses the run.
+ * There is no default: the operator widens the resolution or records the path
+ * as deliberately public, because both answers are real and the wrong one is
+ * unrecoverable.
+ */
+export function completenessFindings(
+  paths: readonly string[],
+  ids: readonly string[],
+  resolved: readonly string[],
+): Finding[] {
+  const findings: Finding[] = [];
+  for (const path of paths) {
+    if (resolved.some((prefix) => isUnder(path, prefix))) continue;
+    const carried = ids.filter((id) => pathCarriesModuleId(path, id));
+    if (carried.length === 0) continue;
+    findings.push({
+      kind: 'uncovered-module-path',
+      subject: path,
+      detail:
+        `carries the excluded id ${carried.join(', ')} as a path segment or a filename stem, ` +
+        'and the resolution does not cover it. Widen the resolution or record it as ' +
+        'deliberately public — 129 FR-011(d) has no default',
+    });
+  }
+  return findings;
+}
+
+/** The report's module-id block: one line per id, a count and the roots, never the paths. */
+export function moduleExclusionLines(
+  ids: readonly string[],
+  perId: readonly ModuleResolution[],
+): string[] {
+  if (ids.length === 0) {
+    return [
+      '[public-history-filter] module ids excluded: 0 (an empty list is legitimate — D-246, FR-012)',
+    ];
+  }
+  return [
+    `[public-history-filter] module ids excluded: ${ids.length}`,
+    ...perId.map((r) => `  - ${r.moduleId} files=${r.files} roots=${r.roots.join(', ')}`),
+  ];
+}
+
+/**
+ * Which of each id's resolved prefixes the **tip** still holds a path under —
+ * FR-050's *"resolves at the tip"*, now that the resolution is over history.
+ */
+export function tipResolvedPaths(
+  perId: readonly ModuleResolution[],
+  tipPaths: readonly string[],
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const r of perId) {
+    const hits = tipPaths.filter((path) => r.roots.some((prefix) => isUnder(path, prefix)));
+    if (hits.length > 0) out.set(r.moduleId, hits.sort());
+  }
+  return out;
 }
 
 /** What {@link tipResidueFindings} is told about the run it guards. */
@@ -371,9 +548,12 @@ export interface TipResidue {
  * each id with the root the tip holds it at.
  *
  * `tipPackages` is the **tip's** population — a scan of the tree being
- * projected — and stays that when the resolver moves to history
+ * projected — and stays that now the resolver is on history
  * (`specs/134-paid-module-extraction/` T091): the two questions are different,
- * "where has this id ever lived" and "is it still here".
+ * "where has this id ever lived" and "is it still here". `resolvedAtTip` is the
+ * second half of "still here": a history-resolved path — a satellite such as a
+ * vendor contract module — that the tip still holds ({@link tipResolvedPaths}).
+ * Left alone, the second pass would take it out of the published tip silently.
  *
  * `--allow-tip-residue` lets a **dry run** through while waves are still
  * landing, and what it let through is returned as `allowed` so the report says
@@ -383,17 +563,27 @@ export function tipResidueFindings(
   ids: readonly string[],
   tipPackages: readonly DeclaredModulePackage[],
   options: TipResidueOptions,
+  resolvedAtTip: ReadonlyMap<string, readonly string[]> = new Map(),
 ): TipResidue {
   const byId = new Map(tipPackages.map((pkg) => [pkg.moduleId, pkg]));
   const residue: Finding[] = [];
   for (const id of new Set(ids)) {
     const pkg = byId.get(id);
-    if (pkg === undefined) continue;
+    const paths = resolvedAtTip.get(id) ?? [];
+    if (pkg === undefined && paths.length === 0) continue;
+    const where =
+      pkg !== undefined
+        ? `the tip still declares it at \`${pkg.dir}\``
+        : `the tip still holds ${paths.length} path(s) its history resolves to, first ` +
+          paths
+            .slice(0, 5)
+            .map((path) => `\`${path}\``)
+            .join(', ');
     residue.push({
       kind: 'excluded-id-at-tip',
       subject: id,
       detail:
-        `excluded, yet the tip still declares it at \`${pkg.dir}\`. Its extraction has not ` +
+        `excluded, yet ${where}. Its extraction has not ` +
         'finished; the exclusion is for a module that has left this repository. ' +
         (options.apply
           ? 'The final run (--apply) refuses this whatever else is passed — ' +
@@ -546,6 +736,265 @@ export function patternAudit(input: {
     }
   }
   return { hits, findings };
+}
+
+// --- the text replacement (136 O-3, W2.4) ----------------------------------
+
+/**
+ * The classes O-3 admits: secrets, and the C2 and C3 classes of
+ * `specs/conventions/commercial-data.md`. C4 in history stays accepted
+ * (D-253, D-254); H, P, C1, L and R are fixed some other way or reported.
+ */
+export const REPLACEABLE_CLASSES = ['S', 'C2', 'C3'] as const;
+
+export type ReplaceableClass = (typeof REPLACEABLE_CLASSES)[number];
+
+/**
+ * One literal to rewrite in historical blobs. `ref` is how every report names
+ * it — the pre-publication scan's finding reference, typically — because the
+ * literal is the payload and is never printed.
+ */
+export interface TextReplacementRule {
+  readonly class: ReplaceableClass;
+  readonly ref: string;
+  readonly literal: string;
+  readonly replacement: string;
+  readonly reason: string;
+}
+
+export interface TextReplacementDocument {
+  readonly version: number;
+  readonly rules: readonly TextReplacementRule[];
+}
+
+const RULE_FIELDS = new Set(['class', 'ref', 'literal', 'replacement', 'reason']);
+
+/** The vocabulary's own floor, which the reviewed-findings record also uses. */
+const MIN_REASON = 8;
+
+/**
+ * The record's own validity, before a blob is rewritten. The shapes refused
+ * are the message record's ({@link validateReplacements}) plus the two O-3
+ * adds: a class it does not admit, and a field the record does not define.
+ */
+export function validateTextReplacements(document: TextReplacementDocument): Finding[] {
+  const rules: unknown = (document as { rules?: unknown } | null)?.rules;
+  if (!Array.isArray(rules)) {
+    return [
+      {
+        kind: 'invalid-replacement-rule',
+        subject: '(record)',
+        detail: 'the record carries no `rules` array, so nothing it says can be applied',
+      },
+    ];
+  }
+  const findings: Finding[] = [];
+  const refs = new Set<string>();
+  const literals = new Set<string>();
+  for (const raw of rules as Record<string, unknown>[]) {
+    const ref = typeof raw?.ref === 'string' && raw.ref.trim() !== '' ? raw.ref : null;
+    if (ref === null) {
+      findings.push({
+        kind: 'invalid-replacement-rule',
+        subject: '(no ref)',
+        detail: 'a rule with no `ref` cannot be named in a report that never prints its literal',
+      });
+      continue;
+    }
+    if (refs.has(ref)) {
+      findings.push({
+        kind: 'invalid-replacement-rule',
+        subject: ref,
+        detail: 'two rules share one `ref`, so the report cannot tell them apart',
+      });
+      continue;
+    }
+    refs.add(ref);
+    const unknown = Object.keys(raw).filter((key) => !RULE_FIELDS.has(key));
+    if (unknown.length > 0 || typeof raw.replacement !== 'string') {
+      findings.push({
+        kind: 'invalid-replacement-rule',
+        subject: ref,
+        detail:
+          unknown.length > 0
+            ? `carries a field the record does not define: ${unknown.join(', ')}`
+            : 'carries no string `replacement`',
+      });
+      continue;
+    }
+    if (!(REPLACEABLE_CLASSES as readonly unknown[]).includes(raw.class)) {
+      findings.push({
+        kind: 'disallowed-replacement-class',
+        subject: ref,
+        detail:
+          `class ${JSON.stringify(raw.class)} is not one O-3 admits (${REPLACEABLE_CLASSES.join(', ')}). ` +
+          'C4 in history stays accepted (D-253, D-254); every other class is fixed at the tip ' +
+          'or reported',
+      });
+      continue;
+    }
+    if (typeof raw.reason !== 'string' || raw.reason.trim().length < MIN_REASON) {
+      findings.push({
+        kind: 'unreasoned-replacement',
+        subject: ref,
+        detail: `a reason of at least ${MIN_REASON} characters is required: this record is the ` +
+          'only account of why a published historical blob differs from the original',
+      });
+    }
+    const literal = typeof raw.literal === 'string' ? raw.literal : '';
+    const replacement = raw.replacement;
+    if (literal.trim() === '' || /[\r\n]/.test(literal) || /[\r\n]/.test(replacement)) {
+      findings.push({
+        kind: 'unusable-literal',
+        subject: ref,
+        detail:
+          'empty, or carries a newline. The replacement file is read a line at a time, so a ' +
+          'literal spanning lines must be split into one rule per line',
+      });
+      continue;
+    }
+    if (literal.includes('==>') || replacement.includes('==>')) {
+      findings.push({
+        kind: 'unusable-literal',
+        subject: ref,
+        detail: "carries the file format's own `==>` separator, which it would be split on",
+      });
+      continue;
+    }
+    if (replacement.includes(literal)) {
+      findings.push({
+        kind: 'self-referential-replacement',
+        subject: ref,
+        detail: 'the replacement still contains the literal, so the payload survives the run',
+      });
+    }
+    if (literals.has(literal)) {
+      findings.push({
+        kind: 'duplicate-literal',
+        subject: ref,
+        detail: 'two rules claim one literal; the second can never be attributed',
+      });
+    }
+    literals.add(literal);
+  }
+  return findings;
+}
+
+export function renderReplaceTextFile(document: TextReplacementDocument): string {
+  return document.rules
+    .map(({ literal, replacement }) => `literal:${literal}==>${replacement}\n`)
+    .join('');
+}
+
+/**
+ * The record is read from **outside** the repository, and anything inside it is
+ * refused. For class S its literals are credentials, and the contract
+ * (`specs/136-open-source-publication/contracts/pre-publication-scan.md`)
+ * defines no form in which a committed file may carry one; a file kept beside
+ * the tree is one `git add` from being committed. So the only place it may
+ * live is one this repository cannot stage.
+ */
+export function replaceTextLocationRefusal(file: string, repoRoot: string): string | null {
+  const rel = relative(resolvePath(repoRoot), resolvePath(file));
+  const inside = rel === '' || (!isAbsolute(rel) && rel !== '..' && !rel.startsWith(`..${'/'}`));
+  return inside
+    ? `the --replace-text record resolves inside the repository (\`${rel || '.'}\`). Its ` +
+        'literals are the payload — credentials, for class S — and a file inside the tree is ' +
+        'one `git add` from being committed. Keep it outside the repository'
+    : null;
+}
+
+/** Where one rule's literal was found, per the projection's blob population. */
+export interface LiteralReach {
+  /** Distinct blobs holding it that the tip does not hold. */
+  readonly historyBlobs: number;
+  /** Tip paths whose blob holds it. */
+  readonly tipPaths: readonly string[];
+}
+
+/**
+ * Which blobs hold each literal. A blob the tip holds counts toward the tip
+ * whatever older commits also hold it, because it is one object.
+ */
+export function literalCensus(input: {
+  blobs: Iterable<{ readonly id: string; readonly data: Buffer }>;
+  tip: ReadonlyMap<string, string>;
+  rules: readonly TextReplacementRule[];
+}): Map<string, LiteralReach> {
+  const tipPathsByBlob = new Map<string, string[]>();
+  for (const [path, blob] of input.tip) {
+    const paths = tipPathsByBlob.get(blob) ?? [];
+    paths.push(path);
+    tipPathsByBlob.set(blob, paths);
+  }
+  const needles = input.rules.map((rule) => ({ ref: rule.ref, bytes: Buffer.from(rule.literal) }));
+  const history = new Map<string, number>(input.rules.map((rule) => [rule.ref, 0]));
+  const tip = new Map<string, string[]>(input.rules.map((rule) => [rule.ref, []]));
+  for (const blob of input.blobs) {
+    for (const needle of needles) {
+      if (!blob.data.includes(needle.bytes)) continue;
+      const atTip = tipPathsByBlob.get(blob.id);
+      if (atTip === undefined) history.set(needle.ref, history.get(needle.ref)! + 1);
+      else tip.get(needle.ref)!.push(...atTip);
+    }
+  }
+  return new Map(
+    input.rules.map((rule) => [
+      rule.ref,
+      { historyBlobs: history.get(rule.ref)!, tipPaths: [...tip.get(rule.ref)!].sort() },
+    ]),
+  );
+}
+
+/**
+ * O-3's restriction, checked rather than assumed: a rule may rewrite only blobs
+ * **absent from the tip**, so the tip stays byte-identical (129 SC-004, which
+ * {@link byteIdentityFindings} still asserts over the result). A literal at the
+ * tip refuses — the tip is fixed by an ordinary commit, per the scan contract's
+ * table. A rule that reaches nothing refuses, as a drifted record. And after the
+ * rewrite, a literal still present anywhere refuses: `git-filter-repo` skips a
+ * blob it classifies as binary, and that is exactly the case to hear about.
+ */
+export function textReplacementFindings(input: {
+  rules: readonly TextReplacementRule[];
+  before: ReadonlyMap<string, LiteralReach>;
+  after: ReadonlyMap<string, LiteralReach> | null;
+}): Finding[] {
+  const findings: Finding[] = [];
+  for (const rule of input.rules) {
+    const before = input.before.get(rule.ref);
+    if (before === undefined) continue;
+    if (before.tipPaths.length > 0) {
+      findings.push({
+        kind: 'replacement-reaches-tip',
+        subject: rule.ref,
+        detail:
+          `its literal is in ${before.tipPaths.length} file(s) at the tip — ` +
+          `${before.tipPaths.slice(0, 5).join(', ')}. --replace-text rewrites only blobs absent ` +
+          'from the tip (136 O-3): a tip site is fixed by an ordinary commit first, and ' +
+          'rewriting it here would break 129 SC-004',
+      });
+    } else if (before.historyBlobs === 0) {
+      findings.push({
+        kind: 'inert-text-replacement',
+        subject: rule.ref,
+        detail:
+          'its literal is in no blob of the projection — either the path filter already ' +
+          'withholds the content, or the record has drifted from the history it describes',
+      });
+    }
+    const after = input.after?.get(rule.ref);
+    if (after !== undefined && after.historyBlobs + after.tipPaths.length > 0) {
+      findings.push({
+        kind: 'text-payload-survived',
+        subject: rule.ref,
+        detail:
+          `its literal is still in ${after.historyBlobs + after.tipPaths.length} blob(s) after ` +
+          'the rewrite. git-filter-repo skips a blob it classifies as binary',
+      });
+    }
+  }
+  return findings;
 }
 
 // --- the commit map (FR-013) -----------------------------------------------
@@ -823,10 +1272,124 @@ function messagesOf(rev: string, cwd: string): Map<string, string> {
   return messages;
 }
 
-/** Every distinct path reachable history ever held, at any commit. */
+/**
+ * Every distinct path reachable history ever held, at any commit.
+ *
+ * `--diff-merges=first-parent`, because `git log` prints **no diff for a merge
+ * commit**, and a path a merge resolution wrote is then in no walk at all (D-246
+ * as amended records the measurement). `--no-renames`, so that a rename is the
+ * old path and the new one. **No pathspec**: history simplification can omit
+ * commits under one.
+ */
 function historicalPathsOf(rev: string, cwd: string = REPO_ROOT): string[] {
-  const out = git(['log', '-z', '--format=', '--name-only', '--no-renames', rev], cwd);
-  return [...new Set(out.split('\0').filter((line) => line !== ''))];
+  const out = git(
+    ['log', '-z', '--format=', '--name-only', '--no-renames', '--diff-merges=first-parent', rev],
+    cwd,
+  );
+  return [...new Set(out.split('\0').map((line) => line.replace(/^\n+/, '')).filter((l) => l !== ''))];
+}
+
+/**
+ * What {@link resolveModuleExclusions} reads: every path the history held, and
+ * every `manifest.ts` blob any commit wrote, with the id it declared. Read from
+ * the **ref being filtered**, never from the working tree (129 FR-011(a); 134
+ * T091). The same three flags as {@link historicalPathsOf}, for the same reasons.
+ */
+export function readModuleHistory(rev: string, cwd: string = REPO_ROOT): ModuleHistory {
+  const paths = historicalPathsOf(rev, cwd);
+  const raw = git(
+    [
+      'log',
+      '-z',
+      '--format=',
+      '--raw',
+      '--no-abbrev',
+      '--no-renames',
+      '--diff-merges=first-parent',
+      rev,
+    ],
+    cwd,
+  );
+  const tokens = raw.split('\0');
+  const touched = new Map<string, string>();
+  for (let i = 0; i < tokens.length - 1; i += 1) {
+    const meta = tokens[i]!.replace(/^\n+/, '');
+    if (!meta.startsWith(':')) continue;
+    const path = tokens[i + 1]!;
+    i += 1;
+    if (path !== 'manifest.ts' && !path.endsWith('/manifest.ts')) continue;
+    const blob = meta.split(' ')[3] ?? '';
+    if (!/^[0-9a-f]{40,64}$/.test(blob) || /^0+$/.test(blob)) continue;
+    touched.set(`${blob} ${path}`, blob);
+  }
+  const blobs = [...new Set(touched.values())];
+  const sources = new Map<string, string>();
+  if (blobs.length > 0) {
+    for (const { id, data } of catFileBatch(blobs, cwd)) sources.set(id, data.toString('utf8'));
+  }
+  const manifests: HistoricalManifest[] = [];
+  for (const [key, blob] of touched) {
+    manifests.push({
+      path: key.slice(key.indexOf(' ') + 1),
+      moduleId: declaredManifestId(sources.get(blob) ?? ''),
+    });
+  }
+  return { manifests, paths };
+}
+
+/** `git cat-file --batch` over a list of object ids, parsed as bytes. */
+function catFileBatch(ids: readonly string[], cwd: string): { id: string; data: Buffer }[] {
+  const out = execFileSync('git', ['cat-file', '--batch'], {
+    cwd,
+    input: `${ids.join('\n')}\n`,
+    maxBuffer: 1024 * 1024 * 1024,
+  });
+  const objects: { id: string; data: Buffer }[] = [];
+  let at = 0;
+  while (at < out.length) {
+    const eol = out.indexOf(0x0a, at);
+    if (eol === -1) break;
+    const header = out.subarray(at, eol).toString('utf8').split(' ');
+    if (header[1] === 'missing') {
+      at = eol + 1;
+      continue;
+    }
+    const size = Number(header[2]);
+    objects.push({ id: header[0]!, data: out.subarray(eol + 1, eol + 1 + size) });
+    at = eol + 1 + size + 1;
+  }
+  return objects;
+}
+
+/**
+ * Every blob reachable from `rev`, read in batches bounded by size so that a
+ * repository of a gigabyte and more never has to sit in one buffer.
+ */
+function* reachableBlobs(rev: string, cwd: string): Generator<{ id: string; data: Buffer }> {
+  const ids = git(['rev-list', '--objects', rev], cwd)
+    .split('\n')
+    .map((line) => line.split(' ')[0]!)
+    .filter((id) => id !== '');
+  const checked = execFileSync(
+    'git',
+    ['cat-file', '--batch-check=%(objectname) %(objecttype) %(objectsize)'],
+    { cwd, input: `${ids.join('\n')}\n`, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 },
+  );
+  const CHUNK = 128 * 1024 * 1024;
+  let batch: string[] = [];
+  let size = 0;
+  for (const line of checked.split('\n')) {
+    const [id, type, bytes] = line.split(' ');
+    if (type !== 'blob' || id === undefined) continue;
+    batch.push(id);
+    size += Number(bytes);
+    if (size >= CHUNK) {
+      yield* catFileBatch(batch, cwd);
+      batch = [];
+      size = 0;
+    }
+  }
+  if (batch.length > 0) yield* catFileBatch(batch, cwd);
 }
 
 /** Every top-level name **history** ever held, which today's tree cannot answer. */
@@ -834,9 +1397,18 @@ function historicalRootEntries(rev: string): string[] {
   // `-z` rather than newlines: `git log --name-only` quotes a path carrying a
   // special character, and a quoted path read as a name puts `\"storefront`
   // into the report as a top-level entry that never existed.
-  const out = git(['log', '-z', '--format=', '--name-only', '--no-renames', rev]);
+  const out = git([
+    'log',
+    '-z',
+    '--format=',
+    '--name-only',
+    '--no-renames',
+    '--diff-merges=first-parent',
+    rev,
+  ]);
   const roots = new Set<string>();
-  for (const line of out.split('\0')) {
+  for (const entry of out.split('\0')) {
+    const line = entry.replace(/^\n+/, '');
     if (line === '') continue;
     const slash = line.indexOf('/');
     roots.add(slash === -1 ? line : line.slice(0, slash));
@@ -899,6 +1471,15 @@ function resolveFilterRepo(): readonly string[] {
   );
 }
 
+/** One `--replace-text` rule as the report names it — never with its literal. */
+interface TextReplacementReport {
+  readonly ref: string;
+  readonly class: string;
+  readonly blobsBefore: number;
+  /** `null` when the rewrite did not run because the record refused first. */
+  readonly blobsAfter: number | null;
+}
+
 interface RunReport {
   readonly mode: 'dry-run' | 'apply';
   readonly ref: string;
@@ -909,7 +1490,11 @@ interface RunReport {
   readonly keptBytes: number;
   readonly excludedEntries: readonly { subject: string; disposition: string; reason: string }[];
   readonly moduleIds: readonly string[];
-  readonly modulePaths: readonly string[];
+  readonly moduleResolutions: readonly ModuleResolution[];
+  /** Id-bearing paths the completeness walk refused on (129 FR-011(d)). */
+  readonly completenessRefused: number;
+  /** `null` when no `--replace-text` record was given. */
+  readonly textReplacements: readonly TextReplacementReport[] | null;
   /** Excluded ids still at the tip that `--allow-tip-residue` let a dry run through with. */
   readonly tipResidueAllowed: readonly string[];
   readonly historicalRootsDropped: readonly string[];
@@ -958,14 +1543,14 @@ function formatReport(report: RunReport): string[] {
   for (const row of report.excludedEntries) {
     p(`  - ${row.subject} [${row.disposition}] ${row.reason.slice(0, 110)}`);
   }
-  p(
-    `[public-history-filter] module ids excluded: ${
-      report.moduleIds.length === 0
-        ? '0 (an empty list is legitimate — D-246, FR-012)'
-        : report.moduleIds.join(', ')
-    }`,
-  );
-  for (const path of report.modulePaths) p(`  - ${path}`);
+  for (const line of moduleExclusionLines(report.moduleIds, report.moduleResolutions)) p(line);
+  if (report.moduleIds.length > 0) {
+    p(
+      `[public-history-filter] completeness walk (129 FR-011(d)): ` +
+        `projected-history-paths=${report.sizes.projectedPathsRead} ` +
+        `refused=${report.completenessRefused}`,
+    );
+  }
   if (report.tipResidueAllowed.length > 0) {
     p(
       `[public-history-filter] still at the tip, let through by --allow-tip-residue ` +
@@ -994,6 +1579,20 @@ function formatReport(report: RunReport): string[] {
         ` :: ${commit.label}`,
     );
   }
+  if (report.textReplacements === null) {
+    p('[public-history-filter] text replacements: none (no --replace-text record given)');
+  } else {
+    p(
+      `[public-history-filter] text replacements (136 O-3; historical blobs only, literals not ` +
+        `printed — they are the payload): ${report.textReplacements.length}`,
+    );
+    for (const rule of report.textReplacements) {
+      p(
+        `  - ${rule.ref} [${rule.class}] historical-blobs=${rule.blobsBefore} ` +
+          (rule.blobsAfter === null ? 'not applied' : `surviving=${rule.blobsAfter}`),
+      );
+    }
+  }
   p(
     `[public-history-filter] determinism: ${
       report.deterministic === null
@@ -1012,6 +1611,7 @@ function main(): void {
   const apply = argv.includes('--apply');
   const allowTipResidue = argv.includes('--allow-tip-residue');
   const ref = valueOf(argv, '--ref') ?? 'HEAD';
+  const replaceTextArg = valueOf(argv, '--replace-text');
   const gitDir = git(['rev-parse', '--absolute-git-dir']).trim();
   const out = valueOf(argv, '--out') ?? join(gitDir, 'endora-public-history');
 
@@ -1037,6 +1637,18 @@ function main(): void {
   }
   const exclusionBlock = (document as { moduleExclusions?: ModuleExclusionBlock })
     .moduleExclusions;
+  let textRecord: TextReplacementDocument | null = null;
+  if (replaceTextArg !== undefined) {
+    const file = resolvePath(replaceTextArg);
+    const misplaced = replaceTextLocationRefusal(file, REPO_ROOT);
+    if (misplaced !== null) refuse(misplaced);
+    if (!existsSync(file)) refuse(`the --replace-text record does not exist: ${file}`);
+    try {
+      textRecord = readJson<TextReplacementDocument>(file);
+    } catch (error) {
+      return refuse(`the --replace-text record is not readable JSON: ${(error as Error).message}`);
+    }
+  }
   const filterRepo = resolveFilterRepo();
 
   // 1. The record against today's tree. An entry with no disposition refuses
@@ -1068,12 +1680,22 @@ function main(): void {
       : pkg.dir,
   }));
   const moduleIds = exclusionBlock?.moduleIds ?? [];
-  const exclusions = resolveModuleExclusions(moduleIds, modulePackages);
+  // 129 FR-011(a)–(c): each id resolves over the history of the ref being
+  // filtered (134 T091), never over the working tree. An empty list reads
+  // nothing and says so (FR-012).
+  const exclusions = resolveModuleExclusions(
+    moduleIds,
+    moduleIds.length === 0 ? { manifests: [], paths: [] } : readModuleHistory(ref, REPO_ROOT),
+  );
   findings.push(...exclusions.findings);
-  // FR-050: the same scan is the tip's population. When T091 moves the resolver
-  // onto history, this call keeps reading the tip — it asks whether the module
-  // is still here, not where it has ever been.
-  const residue = tipResidueFindings(moduleIds, modulePackages, { allowTipResidue, apply });
+  // FR-050: "is it still here" is the tip's question — a package the tip still
+  // declares, or any history-resolved path the tip still holds.
+  const residue = tipResidueFindings(
+    moduleIds,
+    modulePackages,
+    { allowTipResidue, apply },
+    tipResolvedPaths(exclusions.perId, paths),
+  );
   findings.push(...residue.findings);
   for (const f of residue.allowed) {
     console.warn(
@@ -1082,6 +1704,7 @@ function main(): void {
     );
   }
   findings.push(...validateReplacements(replacements));
+  if (textRecord !== null) findings.push(...validateTextReplacements(textRecord));
 
   const projection = projectionOf(paths, specs, exclusions.paths);
   const sourceSha = git(['rev-parse', ref]).trim();
@@ -1162,6 +1785,65 @@ function main(): void {
     );
   }
 
+  // 3c. O-3's redaction (136 W2.4): a third pass, `--replace-text`, over blobs
+  //     absent from the tip only. The census before it is what enforces that
+  //     restriction — a literal at the tip refuses, and the pass never runs —
+  //     and the census after it is what proves the payload left every blob.
+  //     SC-004 is then asserted below exactly as for a run without it.
+  let textReplacements: TextReplacementReport[] | null = null;
+  if (textRecord !== null) {
+    const rules = textRecord.rules;
+    const before = literalCensus({
+      blobs: reachableBlobs('HEAD', projectionDir),
+      tip: treeBlobs('HEAD', projectionDir),
+      rules,
+    });
+    let pre = textReplacementFindings({ rules, before, after: null });
+    let after: Map<string, LiteralReach> | null = null;
+    if (pre.length === 0 && rules.length > 0) {
+      const textFile = join(out, 'replace-text.txt');
+      writeFileSync(textFile, renderReplaceTextFile(textRecord), { encoding: 'utf8', mode: 0o600 });
+      try {
+        execFileSync(
+          filterRepo[0]!,
+          [
+            ...filterRepo.slice(1),
+            '--replace-text',
+            textFile,
+            '--preserve-commit-hashes',
+            '--force',
+          ],
+          { cwd: projectionDir, stdio: 'inherit' },
+        );
+      } finally {
+        // The rendered file is the payload spelled out; it does not outlive the pass.
+        rmSync(textFile, { force: true });
+      }
+      commitMap = commitMapAfterSecondPass(
+        commitMap,
+        parseCommitMap(
+          readFileSync(join(projectionDir, '.git', 'filter-repo', 'commit-map'), 'utf8'),
+        ),
+      );
+      after = literalCensus({
+        blobs: reachableBlobs('HEAD', projectionDir),
+        tip: treeBlobs('HEAD', projectionDir),
+        rules,
+      });
+      pre = textReplacementFindings({ rules, before, after });
+    }
+    findings.push(...pre);
+    textReplacements = rules.map((rule) => ({
+      ref: rule.ref,
+      class: rule.class,
+      blobsBefore: before.get(rule.ref)?.historyBlobs ?? 0,
+      blobsAfter:
+        after === null
+          ? null
+          : (after.get(rule.ref)?.historyBlobs ?? 0) + (after.get(rule.ref)?.tipPaths.length ?? 0),
+    }));
+  }
+
   // 4. Everything below is measured on the **projection**, never on the tree it
   //    was derived from.
   const projectedHead = git(['rev-parse', 'HEAD'], projectionDir).trim();
@@ -1198,6 +1880,10 @@ function main(): void {
   );
   const projectedHistoryPaths = historicalPathsOf(projectedHead, projectionDir);
   findings.push(...historicalDisclosureFindings(projectedHistoryPaths, specs, exclusions.paths));
+  // 129 FR-011(d): what the projection still holds that carries an excluded id
+  // is, by construction, what the resolution did not cover.
+  const uncovered = completenessFindings(projectedHistoryPaths, moduleIds, exclusions.paths);
+  findings.push(...uncovered);
   findings.push(
     ...messageIdentityFindings({
       original: originalMessages,
@@ -1257,7 +1943,9 @@ function main(): void {
     keptBytes,
     excludedEntries: excludedEntriesOf(document),
     moduleIds,
-    modulePaths: exclusions.paths,
+    moduleResolutions: exclusions.perId,
+    completenessRefused: uncovered.length,
+    textReplacements,
     tipResidueAllowed: residue.allowed.map((f) => f.subject),
     historicalRootsDropped,
     patterns: audit.hits,
