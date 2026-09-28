@@ -77,8 +77,10 @@ function workflowSource(file: string): string {
 
 const QUALITY_WORKFLOW = workflowSource('quality.yml');
 const PUBLISH_WORKFLOW = workflowSource('publish.yml');
+const ACCEPTANCE_PUBLIC_WORKFLOW = workflowSource('acceptance-public.yml');
 const QUALITY_JOBS = readWorkflowJobs(QUALITY_WORKFLOW);
 const PUBLISH_JOBS = readWorkflowJobs(PUBLISH_WORKFLOW);
+const ACCEPTANCE_PUBLIC_JOBS = readWorkflowJobs(ACCEPTANCE_PUBLIC_WORKFLOW);
 
 /** The five of window §3.1, named as both hosts name them. */
 const FLOOR = [
@@ -107,8 +109,14 @@ describe('the floor parsed a population that looks like both hosts', () => {
    * which is also what two empty lists say, and what a parser that stopped
    * recognising `run:` says. Both would be a green measuring nothing.
    */
-  it('read two workflow files and the five floor jobs', () => {
-    expect(WORKFLOW_FILES).toEqual(['publish.yml', 'quality.yml']);
+  it('read the four workflow files and the five floor jobs', () => {
+    // Neither `dco.yml` nor `acceptance-public.yml` is a port of a GitLab job:
+    // the sign-off gate exists only on the canonical host
+    // (`specs/136-open-source-publication/` W6.3, held by
+    // `test/unit/ci/dco-signoff.test.ts`), and the public acceptance mode is a
+    // dormant `workflow_dispatch` (W5.4). Both are listed so that a fifth
+    // workflow still has to be named here by whoever adds it.
+    expect(WORKFLOW_FILES).toEqual(['acceptance-public.yml', 'dco.yml', 'publish.yml', 'quality.yml']);
     expect(QUALITY_JOBS.map((job) => job.name)).toEqual([...FLOOR]);
     expect(PUBLISH_JOBS.map((job) => job.name)).toEqual(['publish:packages']);
     expect(
@@ -230,7 +238,7 @@ describe('the workflows run on hosted runners, at the node version GitLab names'
   });
 
   it('declares an explicit permissions block on every job', () => {
-    const missing = [...QUALITY_JOBS, ...PUBLISH_JOBS]
+    const missing = [...QUALITY_JOBS, ...PUBLISH_JOBS, ...ACCEPTANCE_PUBLIC_JOBS]
       .filter((job) => !/^\s{4}permissions:\s*$/m.test(job.body))
       .map((job) => job.name ?? job.id);
     expect(
@@ -329,5 +337,61 @@ describe('the refusals survive the port', () => {
         '`when: manual`; here it is `workflow_dispatch` plus a reviewed environment.',
     ).toBe(false);
     expect(PUBLISH_JOBS[0]!.body).toContain('environment: npm-publish');
+  });
+});
+
+describe('the `public` acceptance mode runs on a stranger\'s machine, and only when dispatched', () => {
+  /**
+   * `specs/136-open-source-publication/` GAP-8, FR-070, plan W5.4. The mode's
+   * whole subject is a machine with Node and Docker and nothing of ours — no
+   * `.npmrc`, no credential, no workspace install — so each property below is
+   * one way the workflow could stop being that machine while still going green.
+   */
+  const job = ACCEPTANCE_PUBLIC_JOBS[0]!;
+
+  it('is one job, named for the mode', () => {
+    expect(ACCEPTANCE_PUBLIC_JOBS.map((entry) => entry.name)).toEqual(['acceptance:instance:public']);
+  });
+
+  it('is dispatched and nothing else, until there is a published version to install', () => {
+    // FR-071's nightly and per-release runs are plan W5.5, after `0.100.0`
+    // exists on npmjs. Before that every trigger but a person's would fail on
+    // a package that is not there.
+    const triggers = /^on:\s*\n((?:[ \t]+.*\n|\s*\n)*)/m.exec(ACCEPTANCE_PUBLIC_WORKFLOW)?.[1] ?? '';
+    const keys = [...triggers.matchAll(/^ {2}([a-z_]+):/gm)].map((match) => match[1]);
+    expect(keys).toEqual(['workflow_dispatch']);
+  });
+
+  it('carries no credential and writes no registry configuration', () => {
+    // Over the configuration, not the prose: the header names each of these
+    // in order to say the job does not use it — `commandLines()`' trap in
+    // `ci-jobs.ts`, one host over.
+    const configuration = ACCEPTANCE_PUBLIC_WORKFLOW.split('\n')
+      .filter((line) => !line.trim().startsWith('#'))
+      .join('\n');
+    expect(configuration).not.toMatch(/\$\{\{\s*secrets\./);
+    expect(configuration).not.toContain('registry-url');
+    expect(configuration).not.toContain('.npmrc');
+    expect(configuration).not.toContain('id-token');
+    expect(job.body).toMatch(/persist-credentials:\s*false/);
+  });
+
+  it('installs nothing of this repository — no pnpm, no workspace install, no build', () => {
+    for (const line of job.runLines) {
+      expect(line, 'a runner that installed this workspace is not a stranger\'s machine').not.toMatch(
+        /\bpnpm\b|corepack/,
+      );
+    }
+    expect(job.uses.some((action) => action.startsWith('pnpm/'))).toBe(false);
+  });
+
+  it('runs the harness from outside the checkout, with the version the dispatcher chose', () => {
+    expect(job.body).toContain('working-directory: ${{ runner.temp }}');
+    const harness = job.runLines.find((line) => line.includes('instance-public.ts'));
+    expect(harness, 'the job no longer runs the public-mode harness').toBeDefined();
+    expect(harness).toContain('--version "$ENDORA_PUBLIC_VERSION"');
+    // An input interpolated straight into a shell line is script injection;
+    // it arrives through the environment instead.
+    expect(job.runLines.join('\n')).not.toContain('${{ inputs.');
   });
 });
