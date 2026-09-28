@@ -43,7 +43,7 @@
     "node": ">=22.18.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node scripts/write-release-index.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src test",
     "test": "vitest run"
