@@ -1,0 +1,14 @@
+# Who reviews what: GitHub requests a review from the owners of every path a
+# pull request touches, and the catch-all below guarantees every path has one.
+# Whether a code owner's approval is also *required* is a branch-protection
+# setting (`specs/129-github-canonical-migration/` T033), not this file.
+#
+# The governance section of CONTRIBUTING.md says who decides; this file only
+# routes the review request. A later line overrides an earlier one for the paths
+# it matches, so narrower rules go below the catch-all.
+#
+# The owner is the organisation's `maintainers` team. A code owner that is a
+# team must be *visible* (a secret team is ignored) and must hold write access
+# to this repository, or GitHub reports the line as invalid.
+
+*       @endora-commerce/maintainers

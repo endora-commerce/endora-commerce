@@ -1,0 +1,47 @@
+# The Developer Certificate of Origin gate — a required status on `master`.
+#
+# `specs/136-open-source-publication/` W6.3 and owner decision O-7: DCO,
+# enforced by a GitHub check, and no CLA. `CONTRIBUTING.md` § *Sign your
+# commits* is the rule; `backend/scripts/dco-signoff.ts` is the instrument and
+# its header carries the reasoning (what counts as a sign-off, why merges are
+# not asked, why an empty range refuses). This file only runs it.
+#
+# No install and no build: the script is dependency-free Node with erasable
+# types, so it runs straight after checkout. The full history is fetched
+# because the range is the pull request's commits against the target branch as
+# it stands now — not the event's `base.sha`, which predates any `master` a
+# contributor merged into the branch since opening it.
+#
+# The job's `name` is `dco`, and that is the string branch protection lists as
+# the required status (129 T033). Renaming it silently drops the requirement.
+
+name: dco
+
+on:
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: dco-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dco:
+    name: dco
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.18'
+      - env:
+          BASE_REF: origin/${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node backend/scripts/dco-signoff.ts "$BASE_REF" "$HEAD_SHA"
