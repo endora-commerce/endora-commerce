@@ -371,6 +371,30 @@ describe('R2.5f (iv) — an Enter answer is a recommendation, counted and revers
   });
 });
 
+describe('the closing block says where the password came from', () => {
+  it('typed at the prompt: it does not claim the command line', async () => {
+    const root = host();
+    const { io } = terminal(['acme-shop', '', 'n', 'n', ...Object.values(ADMIN)]);
+    const result = await runInstall({ cwd: root, interactivity: AT_A_TERMINAL, io, run: recorder().run });
+    const text = result.output.join('\n');
+    expect(text).not.toContain('passed on the command line');
+    expect(text).toContain('with the password you entered above');
+  });
+
+  it('given as --admin-password: it names the command line', async () => {
+    const root = host();
+    const { io } = terminal(['acme-shop', '', 'n', 'n', ADMIN.adminEmail, 'Ada', 'Lovelace']);
+    const result = await runInstall({
+      cwd: root,
+      interactivity: AT_A_TERMINAL,
+      io,
+      adminPassword: ADMIN.adminPassword,
+      run: recorder().run,
+    });
+    expect(result.output.join('\n')).toContain('with the password you passed on the command line');
+  });
+});
+
 describe('R2.5f (i) — no terminal pair, no question', () => {
   it('with the facts saying "not a terminal", nothing is read and the refusal is the one it was', async () => {
     const root = host();

@@ -752,6 +752,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       demo: options.demo === true,
       recommended: provenance.recommended,
       services: wantsServices,
+      passwordFromFlag: provenance.fromFlags.has('admin-password'),
     })) {
       say(line);
     }
@@ -907,6 +908,8 @@ function closing(input: {
   readonly admin: { readonly email?: string | undefined; readonly password?: string | undefined };
   readonly recommended: readonly QuestionId[];
   readonly services: boolean;
+  /** Whether the password was `--admin-password` or typed at the wizard's prompt. */
+  readonly passwordFromFlag: boolean;
 }): readonly string[] {
   const lines = ['', input.dryRun ? 'It would then be yours to start:' : 'Done. To start it:'];
   // One command first (`specs/136-open-source-publication/` GAP-7, FR-060):
@@ -949,7 +952,8 @@ function closing(input: {
   }
   lines.push(
     '',
-    `Sign in as ${input.admin.email ?? ''} with the password you passed on the command line.`,
+    `Sign in as ${input.admin.email ?? ''} with the password you ` +
+      `${input.passwordFromFlag ? 'passed on the command line' : 'entered above'}.`,
     input.demo
       ? `Demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`pnpm run cli demo reset\` withdraws it ` +
         'and leaves your own rows alone.'
