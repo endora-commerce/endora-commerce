@@ -507,6 +507,10 @@ describe('FR-143 / FR-161 — it composes the two commands and changes no topolo
     expect(source).not.toContain('planInstance');
     expect(source).not.toContain('planStorefront');
     expect(source).not.toContain('template.js');
+    // D-270 — it passes a seed policy and derives no module set of its own.
+    expect(source).not.toContain('resolveModuleSet');
+    expect(source).not.toContain('nonDeactivatable');
+    expect(source).not.toContain("from '../new-instance/modules.js'");
   });
 
   it('the tree it writes is the tree `new instance` writes — same files, same kinds', async () => {

@@ -120,6 +120,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
 import { normalizeRegistry, parseEnvFile, writeEnvFile } from '@endora-commerce/cli';
 import { instanceComposition } from '@endora-commerce/cli/lib/divergence-artefacts.js';
+import { publishablePackages } from '@endora-commerce/cli/lib/release-index.js';
 import {
   discoverModulePackages,
   scanInstalledPlatformPackage,
@@ -280,29 +281,16 @@ function resolveMode(): { mode: AcceptanceMode; registry: string | null } {
   }
 }
 
-/** Every publishable workspace package of this checkout, with its directory. */
-function publishablePackages(): readonly { name: string; dir: string }[] {
-  const found: { name: string; dir: string }[] = [];
-  const roots = [join(REPO_ROOT, 'packages')];
-  const walk = (root: string): void => {
-    if (!existsSync(root)) return;
-    for (const entry of readdirSync(root, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const dir = join(root, entry.name);
-      const manifestPath = join(dir, 'package.json');
-      if (!existsSync(manifestPath)) {
-        walk(dir);
-        continue;
-      }
-      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-        name?: string;
-        private?: boolean;
-      };
-      if (manifest.private === true || typeof manifest.name !== 'string') continue;
-      found.push({ name: manifest.name, dir });
-    }
-  };
-  for (const root of roots) walk(root);
+/**
+ * Every publishable workspace package of this checkout, with its directory.
+ *
+ * The rule is the CLI's `publishablePackages()` — the one derivation its build
+ * also writes the release index from (D-271 clause 2) — so the population this
+ * criterion packs and the population `endora install` provisions a host from
+ * cannot disagree. What stays here is this script's own refusal.
+ */
+function publishableOrRefuse(): readonly { name: string; dir: string }[] {
+  const found = publishablePackages(join(REPO_ROOT, 'packages'));
   if (found.length === 0) {
     refuse(
       `no publishable package was found under ${join(REPO_ROOT, 'packages')}. With nothing to ` +
@@ -316,7 +304,7 @@ function publishablePackages(): readonly { name: string; dir: string }[] {
 /** Pack every publishable package once, into one directory. */
 function packEverything(tarballDir: string): ReadonlyMap<string, string> {
   const packed = new Map<string, string>();
-  for (const pkg of publishablePackages()) {
+  for (const pkg of publishableOrRefuse()) {
     if (!existsSync(join(pkg.dir, 'dist'))) {
       refuse(`${pkg.dir} has no dist — run \`pnpm run build:packages\` first`);
     }
@@ -352,7 +340,7 @@ function provisionHost(
   mkdirSync(hostDir, { recursive: true });
   const dependencies: Record<string, string> = {};
   if (packed === null) {
-    for (const pkg of publishablePackages()) dependencies[pkg.name] = 'latest';
+    for (const pkg of publishableOrRefuse()) dependencies[pkg.name] = 'latest';
   } else {
     for (const [name, tarball] of packed) dependencies[name] = `file:${tarball}`;
   }
@@ -428,7 +416,7 @@ function packagesWithUnconsumedChangesets(): ReadonlySet<string> {
 function suppliedPackages(hostDir: string): readonly SuppliedPackage[] {
   const pending = packagesWithUnconsumedChangesets();
   const supplied: SuppliedPackage[] = [];
-  for (const pkg of publishablePackages()) {
+  for (const pkg of publishableOrRefuse()) {
     const installed = join(hostDir, 'node_modules', ...pkg.name.split('/'), 'package.json');
     if (!existsSync(installed)) continue;
     const served = (JSON.parse(readFileSync(installed, 'utf8')) as { version?: string }).version;

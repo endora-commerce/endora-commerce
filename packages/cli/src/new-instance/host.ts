@@ -259,6 +259,37 @@ function readPackage(dir: string): ResolvedPackage | null {
 }
 
 /**
+ * Does the platform resolve from here — without deciding anything else?
+ *
+ * The question `endora install` asks before it resolves (D-271): when the
+ * answer is no, it provisions a temporary host and resolves from there. The
+ * same scope, the same roots and the same order {@link resolveInstanceHost}
+ * reads, so the two cannot disagree about "beside the target". The scope comes
+ * back with the answer because the host's `.npmrc` is keyed on it.
+ */
+export function probePlatform(options: {
+  readonly cwd: string;
+  readonly targetDir: string;
+  readonly moduleUrl?: string | undefined;
+}): { readonly scope: string; readonly resolves: boolean } {
+  const own = readOwnManifest(options.moduleUrl);
+  const ownName = own['name'];
+  const scope = typeof ownName === 'string' ? scopeOfPackageName(ownName) : null;
+  if (scope === null) {
+    throw new InstanceHostError(
+      'F8',
+      `this build's own manifest declares no scoped \`name\`, so the scope an instance ` +
+        `installs its packages from cannot be derived from it.`,
+    );
+  }
+  const resolves = [
+    ...scopeRootsAbove(options.targetDir, scope),
+    ...scopeRootsAbove(options.cwd, scope),
+  ].some((root) => existsSync(join(root, PLATFORM_PACKAGE, 'package.json')));
+  return { scope, resolves };
+}
+
+/**
  * What this run can see, or the refusal saying which input it could not read.
  *
  * Validate-then-write (R5.2) starts here: every F5–F8 condition is decided
@@ -328,7 +359,9 @@ export function resolveInstanceHost(options: {
           : ` Looked in: ${searched.join(', ')}.`) +
         ` Install the platform beside the directory you are scaffolding into — ` +
         `\`pnpm add ${scope}${PLATFORM_PACKAGE}\` in the parent of the target, or run this ` +
-        `command from a directory that already has it — and try again.`,
+        `command from a directory that already has it — and try again. This command writes a ` +
+        `tree and installs nothing; \`endora install <dir>\` is the one that provisions the ` +
+        `packages for you.`,
     );
   }
 

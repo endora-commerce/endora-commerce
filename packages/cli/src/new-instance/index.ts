@@ -80,6 +80,7 @@ import {
   instanceEnvironmentInputs,
   loadModuleCandidates,
   resolveModuleSet,
+  type ModuleSeedPolicy,
   type ModuleSetResolution,
 } from './modules.js';
 import {
@@ -121,6 +122,14 @@ export interface NewInstanceOptions {
   readonly cwd?: string | undefined;
   /** Injected so a test drives the manifest lookup without a fixture install. */
   readonly moduleUrl?: string | undefined;
+  /**
+   * What a default module set is seeded with when `modules` is empty.
+   *
+   * Absent is `required` — `instance-tree.md` R3.2's smallest set, which is this
+   * command's default and stays so. `endora install` passes `available`
+   * (D-270): a policy, never a list, so the verb names no module (125 FR-143).
+   */
+  readonly moduleSeed?: ModuleSeedPolicy | undefined;
 }
 
 export interface NewInstanceResult {
@@ -241,7 +250,9 @@ export async function runNewInstance(
   });
   const platform = host.packages.get(`${host.scope}platform`)!;
   const { candidates, platformEnv } = await loadModuleCandidates(host.packages, platform);
-  const modules = resolveModuleSet(options.modules ?? [], candidates);
+  const modules = resolveModuleSet(options.modules ?? [], candidates, {
+    seed: options.moduleSeed,
+  });
 
   if (registry !== null) {
     try {
