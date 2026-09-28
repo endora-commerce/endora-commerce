@@ -1759,7 +1759,7 @@ function scanChangesetProse(
         kind: 'stale-disclosure-clearance',
         subject: `${document.file}:${stale.line}`,
         message:
-          `clears \`${stale.term}\`, and the body no longer contains it. Remove the ` +
+          `clears \`${stale.term}\`, and its own paragraph no longer contains it. Remove the ` +
           'annotation, so that every clearance left is one somebody still has to agree with — ' +
           'the same direction every other ledger in this estate is held to.',
       });

@@ -2387,6 +2387,14 @@ describe('R3 over changeset prose', () => {
       expect(found[0]!.message).toContain('clear it **beside the paragraph that carries it**');
       expect(found[0]!.message).not.toContain('in the changeset body');
     });
+
+    it('calls a clearance stale when its own paragraph no longer carries the term', () => {
+      const found = findings({
+        '.changeset/x.md': `---\n---\n\nAn ordinary change.\n${clearance}\n`,
+      }).filter((finding) => finding.kind === 'stale-disclosure-clearance');
+      expect(found).toHaveLength(1);
+      expect(found[0]!.message).toContain('and its own paragraph no longer contains it');
+    });
   });
 });
 
