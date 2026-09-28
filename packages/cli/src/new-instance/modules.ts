@@ -12,6 +12,11 @@
  * un-locking a module changes the default in the same run, and nothing here has
  * to be edited for it.
  *
+ * That is `endora new instance`'s default. `endora install`'s is wider (D-270):
+ * every module package the run resolved that is not separately licensed,
+ * closed the same way. Both are {@link resolveModuleSet} with a
+ * {@link ModuleSeedPolicy}, so there is one derivation and not two.
+ *
  * ## Where the manifests come from
  *
  * §3.4: from the packages the command **resolved** — a module package publishes
@@ -105,6 +110,17 @@ export interface ModuleCandidate {
   /** The manifest's `activation.reason`, which the refusal prints (§3.3). */
   readonly reason: string | undefined;
   /**
+   * The `license` the **package** declares, verbatim — or, for a module the
+   * platform carries ({@link carriedByHost}), the platform's own.
+   *
+   * The install verb's default set excludes a separately licensed module
+   * ({@link separatelyLicensed}, D-270), and a package's licence is a fact about
+   * the package rather than about the manifest inside it — the convention
+   * `check-release-intent`'s header states for a paid package. Absent when the
+   * package declares none, which is not a claim of separate terms.
+   */
+  readonly license?: string | undefined;
+  /**
    * True when the **platform package itself** carries this module.
    *
    * `_lifecycle` is the one today (D-160.11: *"it is the one module the
@@ -131,6 +147,34 @@ export interface ModuleCandidate {
   readonly env: readonly EnvironmentInput[];
 }
 
+/**
+ * Is this licence one of **separate terms** — the paid tier's convention?
+ *
+ * The `SEE LICENSE IN <file>` form and `UNLICENSED`: the two npm spellings of
+ * "these terms are not an open-source licence", and the ones D-270 names. Any
+ * other value, and no value at all, is not: the open core's packages declare
+ * `MIT`, and a package that declares nothing has claimed no terms of its own.
+ */
+export function separatelyLicensed(license: string | undefined): boolean {
+  if (license === undefined) return false;
+  const value = license.trim();
+  return /^SEE LICENSE IN\b/i.test(value) || value === 'UNLICENSED';
+}
+
+/**
+ * Which modules a default is seeded with when no `--module` was given.
+ *
+ * - `required` — `instance-tree.md` R3.2's smallest set that composes: the
+ *   modules declaring `activation.nonDeactivatable`. `endora new instance`'s.
+ * - `available` — every module the run resolved whose package is not
+ *   {@link separatelyLicensed}: the install verb's (D-270). The required set is
+ *   the floor either way; the closure and its refusals are the same code.
+ *
+ * A policy rather than a list, so the install verb names no module (125 FR-143)
+ * and the population moves with the packages resolved (D-100).
+ */
+export type ModuleSeedPolicy = 'required' | 'available';
+
 /** What a resolution decided, before a single file is planned. */
 export interface ModuleSetResolution {
   /** Every id in the set, sorted, so the manifest a run writes is reproducible. */
@@ -139,7 +183,10 @@ export interface ModuleSetResolution {
   readonly requested: readonly string[];
   /** The ids the closure added on top of `requested` (or of the required set). */
   readonly closure: readonly string[];
-  /** True when no `--module` was given and §3.2's default was written. */
+  /**
+   * True when no `--module` was given and a default was written — §3.2's
+   * smallest set, or the install verb's `available` seed (D-270).
+   */
   readonly defaulted: boolean;
   readonly candidates: ReadonlyMap<string, ModuleCandidate>;
 }
@@ -320,6 +367,7 @@ function candidateFrom(
   packageName: string,
   version: string,
   carriedByHost: boolean,
+  license: unknown,
 ): ModuleCandidate {
   const activation = manifest.activation as
     | { readonly nonDeactivatable?: unknown; readonly reason?: unknown }
@@ -356,6 +404,7 @@ function candidateFrom(
       'nonDeactivatable' in activation,
     reason: typeof activation?.reason === 'string' ? activation.reason : undefined,
     carriedByHost,
+    license: typeof license === 'string' ? license : undefined,
   };
 }
 
@@ -419,7 +468,10 @@ export async function loadModuleCandidates(
           `the package and try again.`,
       );
     }
-    candidates.set(declaredId, candidateFrom(declaredId, manifest, pkg.name, pkg.version, false));
+    candidates.set(
+      declaredId,
+      candidateFrom(declaredId, manifest, pkg.name, pkg.version, false, pkg.manifest['license']),
+    );
   }
 
   // The host's own, last: a package that has been extracted out of the platform
@@ -429,7 +481,11 @@ export async function loadModuleCandidates(
   const declarations = await hostDeclarations(host);
   for (const [id, manifest] of declarations.carried) {
     if (candidates.has(id)) continue;
-    candidates.set(id, candidateFrom(id, manifest, host.name, host.version, true));
+    // A module the platform carries is published under the platform's terms.
+    candidates.set(
+      id,
+      candidateFrom(id, manifest, host.name, host.version, true, host.manifest['license']),
+    );
   }
   return { candidates, platformEnv: declarations.env };
 }
@@ -463,7 +519,9 @@ export function instanceEnvironmentInputs(
 export function resolveModuleSet(
   requested: readonly string[],
   candidates: ReadonlyMap<string, ModuleCandidate>,
+  options: { readonly seed?: ModuleSeedPolicy | undefined } = {},
 ): ModuleSetResolution {
+  const policy = options.seed ?? 'required';
   const asked = [...new Set(requested.map((entry) => entry.trim()).filter((e) => e.length > 0))];
 
   // F3 — an id no resolvable package declares. Named before the closure, so
@@ -481,12 +539,25 @@ export function resolveModuleSet(
   }
 
   const defaulted = asked.length === 0;
-  const seed = defaulted ? requiredModuleIds(candidates) : asked;
+  // Only a default is licence-filtered: a module the operator named is theirs
+  // to name, which is `--module` unchanged (D-270 clause 1).
+  const licenceFiltered = defaulted && policy === 'available';
+  const seed = !defaulted
+    ? asked
+    : policy === 'available'
+      ? [...candidates.values()]
+          .filter((entry) => !separatelyLicensed(entry.license))
+          .map((entry) => entry.id)
+          .sort()
+      : requiredModuleIds(candidates);
   if (seed.length === 0) {
     throw new InstanceInputError(
       'F2',
-      `no module set could be derived: no \`--module\` was given and no resolvable package ` +
-        `declares \`activation.nonDeactivatable\`, so there is no smallest set that composes ` +
+      `no module set could be derived: no \`--module\` was given and ` +
+        (policy === 'available'
+          ? `every resolvable module package is separately licensed, so there is no set of `
+          : `no resolvable package declares \`activation.nonDeactivatable\`, so there is no ` +
+            `smallest set that composes `) +
         `to fall back to. Name the modules with \`--module <id>\` (repeatable, ` +
         `comma-splittable). Nothing is written.`,
     );
@@ -501,6 +572,7 @@ export function resolveModuleSet(
   const chosen = new Set<string>();
   const queue = [...seed];
   const unsatisfied: { readonly from: string; readonly to: string }[] = [];
+  const licensed: { readonly from: string; readonly to: string }[] = [];
   while (queue.length > 0) {
     const id = queue.shift()!;
     if (chosen.has(id)) continue;
@@ -512,8 +584,37 @@ export function resolveModuleSet(
         unsatisfied.push({ from: id, to: dependency });
         continue;
       }
+      // D-270 clause 4 — a default never installs paid code by way of an
+      // edge: a free module that needs a separately licensed one is a defect in
+      // the free module (D-265 clause 3), so it is named rather than followed.
+      if (licenceFiltered && separatelyLicensed(candidates.get(dependency)!.license)) {
+        licensed.push({ from: id, to: dependency });
+        continue;
+      }
       queue.push(dependency);
     }
+  }
+
+  if (licensed.length > 0) {
+    const lines: string[] = [
+      'the default module set cannot be written, so nothing was written.',
+      '',
+    ];
+    for (const edge of licensed) {
+      lines.push(
+        `  ${edge.from} declares a dependency on ${edge.to}, which is separately licensed.`,
+      );
+    }
+    lines.push(
+      '',
+      'With no `--module`, this command installs every module that is not separately',
+      'licensed, and a module in that set may not need one that is — the edge is a defect',
+      'in the module that declares it, and installing the other module to satisfy it would',
+      'put code under separate terms into an instance nobody chose it for.',
+      'remedy: name the modules you want with `--module <id>` (repeatable), and report the',
+      'edge to the maintainers of the module that declares it.',
+    );
+    throw new InstanceInputError('F2', lines.join('\n'));
   }
 
   // F2 — the required half, which is R5.6's and whose message T134 replaces

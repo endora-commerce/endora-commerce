@@ -146,6 +146,12 @@ composes the two \`new\` commands and reimplements neither, and every step is ec
 before it runs so an operator can reproduce any one of them by hand. A failing step
 exits with that step's own code and prints what is left.
 
+With no \`--module\` it installs every module of the open-source set, each switched
+on; switch any of them off later under Modules in the admin, without losing its
+data. Run where nothing of ours is installed beside the target — from an empty
+directory, or through \`npx\` — it first installs this release's packages into a
+temporary directory to read the module set from, and removes it when done.
+
 At a terminal it asks what the flags below did not answer — at most seven questions,
 and Enter takes the recommendation wherever there is one: every part, the services
 started. The demo question has no recommendation and the administrator has no
@@ -740,7 +746,9 @@ async function runInstallCommand(
     }
     if (error instanceof InstallHostError) {
       process.stderr.write(`endora: ${error.message}\n`);
-      return 2;
+      // 2 for an input it could not read; a failed host install exits with
+      // that step's own code, like every other step (FR-156, D-271).
+      return error.exitCode;
     }
     // The two commands this one composes keep their own classes and their own
     // codes: a refusal they make is theirs, and reporting it as this command's

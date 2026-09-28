@@ -40,6 +40,17 @@
  * all of them (FR-157), because a client who has to run a command five times to
  * learn five things has been handed a puzzle.
  *
+ * ## Where nothing of ours is installed, it provisions a host first (D-271)
+ *
+ * `new instance` reads the platform's and every module's manifest off the
+ * packages installed beside the target or the working directory, and under
+ * `npx` there are none there. So when the platform does not resolve, the first
+ * step installs this CLI's release index into a temporary directory
+ * (`host.ts`) and `new instance` is called with that directory as its working
+ * directory — before the target is written, removed once it has been, kept and
+ * named when anything fails. It is not a pipeline step: the instance is not
+ * left with it, and a checkout or a pre-installed host never plans it.
+ *
  * ## Every step prints the command it is about to run (FR-156)
  *
  * So an operator watching can reproduce any step by hand, and a failure names a
@@ -49,7 +60,8 @@
  * typing.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { isAbsolute, join, resolve, sep } from 'node:path';
 
 import { parseEnvFile, writeEnvFile } from '../inputs/env-file.js';
@@ -59,6 +71,7 @@ import {
   mayPrompt,
   type InteractivityFacts,
 } from '../inputs/resolve.js';
+import { ownReleaseIndexPath } from '../lib/release-index.js';
 import {
   developmentAddresses,
   developmentMailUrl,
@@ -70,10 +83,13 @@ import {
   runNewInstance,
   type NewInstanceResult,
 } from '../new-instance/index.js';
+import { probePlatform } from '../new-instance/host.js';
 import {
   runNewStorefront,
   type NewStorefrontResult,
 } from '../new-storefront/index.js';
+
+import { HOST_DIRECTORY_PREFIX, hostNpmrc, readReleaseIndex, writeHost } from './host.js';
 
 import {
   answeredByFlags,
@@ -89,9 +105,18 @@ export class InstallInputError extends Error {
   override readonly name = 'InstallInputError';
 }
 
-/** An input this run could not read — exit 2. */
+/**
+ * An input this run could not read — exit 2 — or a failed host install, which
+ * exits with **that step's own** code like every other step (FR-156).
+ */
 export class InstallHostError extends Error {
   override readonly name = 'InstallHostError';
+  readonly exitCode: number;
+
+  constructor(message: string, exitCode = 2) {
+    super(message);
+    this.exitCode = exitCode;
+  }
 }
 
 /**
@@ -105,7 +130,14 @@ export class InstallHostError extends Error {
  */
 export interface InstallStep {
   /** Stable across renderings; what a test and a resume list address. */
-  readonly id: 'install' | 'services' | 'setup' | 'admin' | 'demo' | 'storefront-install';
+  readonly id:
+    | 'host'
+    | 'install'
+    | 'services'
+    | 'setup'
+    | 'admin'
+    | 'demo'
+    | 'storefront-install';
   /** The command as an operator would type it, echoed before it runs. */
   readonly command: string;
   /** What it is for, in one clause. */
@@ -216,6 +248,11 @@ export interface InstallOptions {
   readonly interactivity?: InteractivityFacts | undefined;
   /** Where the wizard asks and reads. Defaults to this process's own. */
   readonly io?: WizardIo | undefined;
+  /**
+   * Where this CLI's release index is read from when a host has to be
+   * provisioned (D-271). Defaults to the one its own build wrote into `dist`.
+   */
+  readonly releaseIndexFile?: string | undefined;
 }
 
 /** One way to run `pnpm` on this machine. */
@@ -233,6 +270,11 @@ export interface InstallResult {
   readonly storefront: NewStorefrontResult | null;
   /** The pipeline, in order — the whole of it, whether or not it ran. */
   readonly steps: readonly InstallStep[];
+  /**
+   * The temporary host step, when one ran (D-271) — not a pipeline step: it is
+   * how this run reads the release, not a command the instance is left with.
+   */
+  readonly hostStep: InstallStep | null;
   /** Everything this run printed, in order. Exported so a proof reads it. */
   readonly output: readonly string[];
   /** The failing step's own code, or 0 (FR-156). */
@@ -649,24 +691,79 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   const storefrontDir = namedStorefrontDir;
   const runner = runners[0]!;
   const dryRun = options.dryRun === true;
+  const run = options.run ?? spawnStep;
+
+  // ── provision, only where nothing of ours resolves (D-271) ───────────────
+  // Decided before anything is written, like every other input: an index this
+  // build cannot read, or a `--registry` that is not one, refuses here.
+  const hostStep = planHost({
+    cwd,
+    targetDir,
+    runner,
+    registry: options.registry,
+    releaseIndexFile: options.releaseIndexFile,
+  });
 
   // ── write ─────────────────────────────────────────────────────────────────
   say(`endora install ${targetDir}${dryRun ? ' — dry run, nothing written' : ''}`);
   const answers = answersLine(provenance);
   say(`  ${answers}`);
+  if (hostStep !== null) {
+    const keptLine =
+      `  the temporary host is kept at ${hostStep.cwd} so you can read what its install ` +
+      'left; delete it when you are done.';
+    say(`\n[host] ${hostStep.command}   # in ${hostStep.cwd}`);
+    say(`      ${hostStep.purpose}`);
+    const code = await run(hostStep);
+    if (code !== 0) {
+      say(keptLine);
+      throw new InstallHostError(
+        `${hostStep.command} failed (exit ${String(code)}) in the temporary host ` +
+          `${hostStep.cwd}, so no package of this release could be read and nothing was ` +
+          `written to ${targetDir}. The host is kept there so you can read what its install ` +
+          'left. If the registry needs configuration, pass `--registry <url>`; then run this ' +
+          'command again.',
+        code,
+      );
+    }
+  }
   const without = (options.without ?? []).filter((name) => name.trim().length > 0);
-  const instance = await runNewInstance({
-    dir: targetDir,
-    ...(options.modules === undefined ? {} : { modules: options.modules }),
-    // R6.3b — nothing at all when every member is wanted, so the common case
-    // is the argv a bare `endora new instance <dir>` has.
-    ...(without.length === 0 ? {} : { without }),
-    ...(options.deployment === undefined ? {} : { deployment: options.deployment }),
-    ...(options.registry === undefined ? {} : { registry: options.registry }),
-    ...(options.topology === undefined ? {} : { topology: options.topology }),
-    dryRun,
-    cwd,
-  });
+  let instance: NewInstanceResult;
+  try {
+    instance = await runNewInstance({
+      dir: targetDir,
+      ...(options.modules === undefined ? {} : { modules: options.modules }),
+      // R6.3b — nothing at all when every member is wanted, so the common case
+      // is the argv a bare `endora new instance <dir>` has.
+      ...(without.length === 0 ? {} : { without }),
+      ...(options.deployment === undefined ? {} : { deployment: options.deployment }),
+      ...(options.registry === undefined ? {} : { registry: options.registry }),
+      ...(options.topology === undefined ? {} : { topology: options.topology }),
+      // D-270 — with no `--module`, every module of the open-source set this
+      // run resolved rather than the smallest set. A policy, not a list: which
+      // modules that is stays `new instance`'s to derive (FR-143).
+      moduleSeed: 'available',
+      dryRun,
+      // The host, when there is one, is only a place to look: every resolution
+      // is `new instance`'s, unchanged (D-271 clause 1.1).
+      cwd: hostStep?.cwd ?? cwd,
+    });
+  } catch (error: unknown) {
+    if (hostStep !== null) {
+      say(
+        `  the temporary host is kept at ${hostStep.cwd} so you can read what it holds; ` +
+          'delete it when you are done.',
+      );
+    }
+    throw error;
+  }
+  if (hostStep !== null) {
+    rmSync(hostStep.cwd, { recursive: true, force: true });
+    say(
+      `  removed the temporary host at ${hostStep.cwd}` +
+        (dryRun ? ` — it was provisioned to read the module set; nothing was written to ${targetDir}` : ''),
+    );
+  }
   say(
     `  ${dryRun ? 'would write' : 'wrote'} ${String(instance.plan.files.length)} files across ` +
       `${instance.plan.members.join(', ')} — ${instance.modules.ids.length} module(s)`,
@@ -715,7 +812,6 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     demo: options.demo === true,
     admin,
   });
-  const run = options.run ?? spawnStep;
   let exitCode = 0;
   const done: InstallStep[] = [];
   if (!dryRun) {
@@ -764,11 +860,59 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     instance,
     storefront,
     steps,
+    hostStep,
     output,
     exitCode,
     derived,
     answers,
     dryRun,
+  };
+}
+
+/**
+ * The temporary host step, or `null` when the platform already resolves.
+ *
+ * D-271: provisioned **exactly** when `@endora-commerce/platform` does not
+ * resolve beside the target or the working directory — a checkout, the
+ * acceptance harness and a client who installed the packages beside all plan
+ * none, and run exactly as before. Its files are written here, before the
+ * header is printed, because a release index this build cannot read is an input
+ * the run could not read and is refused before anything is started.
+ */
+function planHost(input: {
+  readonly cwd: string;
+  readonly targetDir: string;
+  readonly runner: PackageManagerRunner;
+  readonly registry: string | undefined;
+  readonly releaseIndexFile: string | undefined;
+}): InstallStep | null {
+  const { scope, resolves } = probePlatform({ cwd: input.cwd, targetDir: input.targetDir });
+  if (resolves) return null;
+  const file = input.releaseIndexFile ?? ownReleaseIndexPath();
+  const read = readReleaseIndex(file);
+  if ('problem' in read) {
+    throw new InstallHostError(
+      `${scope}platform does not resolve from ${input.targetDir} or ${input.cwd}, and this ` +
+        `build's release index — the packages it would install to read the module set from — ` +
+        `could not be read: ${read.problem}. Nothing was written. Reinstall ` +
+        `\`${scope}cli\`, or install the platform beside the target directory and run this ` +
+        'command again.',
+    );
+  }
+  const npmrc = hostNpmrc(input.registry, scope);
+  const dir = mkdtempSync(join(tmpdir(), HOST_DIRECTORY_PREFIX));
+  writeHost(dir, read.index, npmrc);
+  const argv = ['install'];
+  return {
+    id: 'host',
+    command: `${input.runner.label} ${argv.join(' ')}`,
+    purpose:
+      `nothing of ours is installed beside ${input.targetDir}, so every package of this ` +
+      `release (${String(read.index.packages.length)}) is installed into a temporary host to ` +
+      'read the module manifests from. It is removed when the instance is written.',
+    bin: input.runner.command,
+    argv: [...input.runner.prefix, ...argv],
+    cwd: dir,
   };
 }
 
@@ -960,6 +1104,21 @@ function closing(input: {
       : `No demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`pnpm run cli demo seed\` adds a ` +
         "shop's worth of it, and `demo reset` withdraws it again.",
   );
+  // D-270 — the module set is not a question and not an input, so it is not in
+  // the `[answers]` or `[inputs]` line; it is a derived value, and the run says
+  // what it derived and how to take any of it back. Off is non-destructive
+  // (Constitution XVII), which is what makes "everything" the safe default.
+  if (input.instance.modules.defaulted) {
+    const count = input.instance.modules.ids.length;
+    lines.push(
+      '',
+      `${String(count)} module${count === 1 ? '' : 's'} ${input.dryRun ? 'would be' : 'were'} ` +
+        'installed, because no `--module` was given: every module of the open-source set ' +
+        'this run found, each switched on.',
+      'Switch any of them off in the admin under Modules (/platform/modules). Off keeps its ' +
+        'data, and switching it back on brings it back.',
+    );
+  }
   // R2.5f (iv) — every answer taken as a recommendation, said to be one, with
   // what reverses it. A recommendation nobody is told they accepted is a
   // default with better manners.
