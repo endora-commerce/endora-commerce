@@ -1,0 +1,50 @@
+name: Feature request
+description: Propose a capability Endora Commerce does not have, or a change to one it has.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the problem before the solution: a request that says what you are trying to do
+        is easier to weigh — and often has an answer already — than one that names only the
+        change. A larger feature is designed as a specification before it is built;
+        [CONTRIBUTING.md](https://github.com/endora-commerce/endora-commerce/blob/master/CONTRIBUTING.md)
+        explains how that works and which changes need it.
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what stops you today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you propose
+      description: The behaviour you would like, from the point of view of whoever uses it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Other approaches, including configuration, an overlay module or an existing module.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Backend or a domain module
+        - Admin application
+        - Storefront
+        - The endora CLI or installation
+        - Documentation
+        - Not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to work on this myself.

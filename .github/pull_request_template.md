@@ -11,7 +11,11 @@ this PR (constitution §Governance).
 
 ## Linked work
 
-<!-- Issue / spec / task references. e.g. specs/001-…/tasks.md → T123, T124. -->
+<!-- Issue / spec / task references. e.g. #123, or specs/NNN-slug/tasks.md → T123, T124. -->
+
+## Sign-off
+
+- [ ] Every commit ends with a `Signed-off-by:` trailer by its author (`git commit -s`), certifying the [Developer Certificate of Origin](https://developercertificate.org/). The `dco` check refuses a pull request with an unsigned commit; `CONTRIBUTING.md` § Sign your commits says how to fix one.
 
 ## Quality gates
 
