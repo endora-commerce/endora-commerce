@@ -481,6 +481,81 @@ const SPECS_LINK = /\]\(\s*<?[^)\s]*?\bspecs\/\d{3}[^)\s]*\)|^\s*\[[^\]]+\]:\s*\
 const EXTRACTION_SLUG = new RegExp(['paid', 'module', 'extraction'].join('-'), 'g');
 const MIT_TEXT = /Permission is hereby granted, free of charge/;
 
+/**
+ * Every file name GitHub's licence detector scores above zero (D-276; contract
+ * §3, the L row as amended 2026-09-28). A port of `licensee` **v10.1.0**,
+ * `lib/licensee/project_files/license_file.rb`, `LicenseFile::FILENAME_REGEXES`
+ * without its zero-scoring catch-all, one entry per row in the source's order.
+ * The scores are dropped because only *above zero* matters here: a name in this
+ * set makes the file a licence file, and a licence file whose text is not MIT
+ * makes the repository read *other*, not MIT. Ruby's `\A`/`\z` are `^`/`$`
+ * without the `m` flag. Every entry is case-insensitive, where the source's
+ * `PREFERRED_EXT` alone is not; that widens no name, since each name it would
+ * add is already scored by the `LICENSE_EXT`/`OTHER_EXT`/`ANY_EXT` row after it.
+ * The source's `LICENSES/` directory rule (REUSE file names) is not
+ * `FILENAME_REGEXES` and is not ported.
+ */
+export const LICENCE_FILE_NAMES: readonly RegExp[] = (() => {
+  const preferredExt = String.raw`\.(?:md|markdown|txt|html)$`;
+  const licenseExt = String.raw`\.(?!spdx|header)(?:[^./]|\.\d)+`;
+  const otherExt = String.raw`\.(?!xml|sh|go|gemspec)(?:[^./]|\.\d)+`;
+  const anyExt = String.raw`\.(?:[^./]|\.\d)+`;
+  const license = '(?:un)?licen[sc]e';
+  const copying = 'copying';
+  const copyright = 'copyright';
+  const ofl = 'ofl';
+  const patents = 'patents';
+  const word = String.raw`^\w+[-_]`;
+  return [
+    `^${license}$`, // LICENSE
+    `^${license}${preferredExt}`, // LICENSE.md
+    `^${copying}$`, // COPYING
+    `^${copying}${preferredExt}`, // COPYING.md
+    `^${license}${licenseExt}$`, // LICENSE.textile
+    `^${copying}${anyExt}$`, // COPYING.textile
+    `^${license}[-_][^.]*(?:${otherExt})?$`, // LICENSE-MIT
+    `^${copying}[-_][^.]*(?:${otherExt})?$`, // COPYING-MIT
+    `${word}${license}[^.]*(?:${otherExt})?$`, // MIT-LICENSE-MIT
+    `${word}${copying}[^.]*(?:${otherExt})?$`, // MIT-COPYING
+    `^${ofl}${preferredExt}`, // OFL.md
+    `^${ofl}${otherExt}`, // OFL.textile
+    `^${ofl}$`, // OFL
+    `^${copyright}$`, // COPYRIGHT
+    `^${copyright}${preferredExt}`, // COPYRIGHT.txt
+    `^${copyright}${otherExt}$`, // COPYRIGHT.textile
+    `^${copyright}[-_][^.]*(?:${otherExt})?$`, // COPYRIGHT-MIT
+    `^${patents}$`, // PATENTS
+    `^${patents}${otherExt}$`, // PATENTS.txt
+  ].map((source) => new RegExp(source, 'i'));
+})();
+
+/** Whether `licensee` scores this file name above zero (D-276). */
+export function isLicenceFileName(name: string): boolean {
+  return LICENCE_FILE_NAMES.some((pattern) => pattern.test(name));
+}
+
+/**
+ * `licensee`'s copyright-only exclusion (v10.1.0, `ProjectFile#copyright?` over
+ * `Matchers::Copyright`): a file named `COPYRIGHT`, optionally with an
+ * extension, whose whole text is copyright notices does not count toward the
+ * repository's licence. Every non-blank line must be a notice (`copyright`,
+ * `(c)` or `©` after optional `_*-` decoration), a year continuation indented
+ * under one, or a *with Reserved Font Name* line.
+ */
+function isCopyrightOnly(name: string, text: string): boolean {
+  if (!/^copyright(?:\.(?!xml|sh|go|gemspec)(?:[^./]|\.\d)+)?$/i.test(name)) return false;
+  const lines = text.split('\n').filter((line) => line.trim() !== '');
+  return (
+    lines.length > 0 &&
+    lines.every(
+      (line) =>
+        /^[_*\-\s]*(?:copyright|\(c\)|©)/i.test(line) ||
+        /^[ \t]+\d{4}/.test(line) ||
+        /^[_*\-\s]*with Reserved Font Name/i.test(line),
+    )
+  );
+}
+
 function licenceHits(path: string, text: string): Hit[] {
   const name = basename(path);
   if (name === 'package.json') {
@@ -496,7 +571,7 @@ function licenceHits(path: string, text: string): Hit[] {
     if (licence !== 'MIT') return [{ klass: 'L', rule: 'non-mit-licence', line: 0 }];
     return [];
   }
-  if (/^LICEN[CS]E/i.test(name) && !MIT_TEXT.test(text)) {
+  if (isLicenceFileName(name) && !MIT_TEXT.test(text) && !isCopyrightOnly(name, text)) {
     return [{ klass: 'L', rule: 'non-mit-licence-file', line: 0 }];
   }
   return [];

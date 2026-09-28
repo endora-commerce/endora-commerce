@@ -119,9 +119,9 @@ const config = {
         // Public-facing (FR-009, FR-010): the publisher, the licence under which
         // this documentation is published, and the route back to the project.
         // The licence is stated as **text** rather than linked: `LICENSE` and
-        // `LICENSE-COMMERCIAL.md` live in a repository a public reader cannot
+        // `LICENSING.md` live in a repository a public reader cannot
         // open, so a link to either would be the dead-link class FR-035 exists
-        // to remove — and `LICENSE-COMMERCIAL.md` states a mechanism and
+        // to remove — and `LICENSING.md` states a mechanism and
         // grants nothing. No published surface describes this site as internal.
         links: [
           {
