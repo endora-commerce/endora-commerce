@@ -4,8 +4,15 @@ Deploys the whole platform (backend API + co-located workers, storefront, admin)
 plus its stateful services (PostgreSQL, Redis, Meilisearch) onto **one VPS**.
 TLS is **not** handled by this stack — the VPS's **existing host nginx** already
 terminates SSL (Let's Encrypt) and reverse-proxies the public domains to the
-apps, which are published on loopback host ports. Images are built and pushed by
-**GitLab CI/CD**; the VPS only pulls and runs them.
+apps, which are published on loopback host ports. The VPS only pulls and runs
+images; building and pushing them is a registry and a pipeline of the operator's
+own.
+
+**This repository's CI does not deploy this stack anywhere** (D-274). It builds
+the three images on the default branch, as the proof that they still build, and
+nothing ships them to a host: the live demo is never deployed over from here. The
+procedure below is the one a client — or anyone standing this file up on a host
+of their own — performs.
 
 ```
                  ┌──────────────────────── VPS ────────────────────────┐
@@ -29,7 +36,7 @@ The Docker stack binds the three apps to `127.0.0.1` only, so they are reachable
 | `nginx.docs.example.conf` | **Template** server block for the documentation site — a static root, no proxy; copied & adapted on the VPS, **not** applied by CI |
 | `publish-docs.sh` | Shipped to the VPS by `publish:docs` and run there — flips `current` onto the transferred release, records it, prunes to five |
 | `.env.prod.example` | Template for `deploy/.env` (secrets, domains, registry, host ports) — **copied to the VPS, never committed** |
-| `../.gitlab-ci.yml` | quality → test → build → deploy pipeline |
+| `../.gitlab-ci.yml` | quality → test → build pipeline, plus the documentation publication; it deploys no application stack (D-274) |
 | `../backend/Dockerfile` `../storefront/Dockerfile` `../admin/Dockerfile` | per-app images |
 
 Apps run built output: `node dist/index.js` (backend, feature 080 D-165) / Next standalone
@@ -74,26 +81,35 @@ The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
    (so the loopback ports answer) before `nginx -t` passes a proxied request,
    but certbot's HTTP-01 challenge on :80 does not need the apps running.
 
-5. **Registry access** — the deploy job logs the VPS into the registry with the
-   pipeline job token automatically. For manual `pull`s, run once:
-   `docker login registry.gitlab.com`.
+5. **Registry access** — log the VPS into whichever registry holds your images,
+   once: `docker login <your-registry>`. A pipeline that deploys for you can do it
+   per run with a short-lived token instead.
 
-6. **GitLab CI/CD variables** — set the variables listed at the top of
-   `../.gitlab-ci.yml`: domains + `SALES_CHANNEL_CODE`/`DEFAULT_LOCALE` as plain;
-   `DEPLOY_*` as protected/masked. `SSH_PRIVATE_KEY` and `SSH_KNOWN_HOSTS` must be
-   **type `File`** (not `Variable`) — masked variables cannot hold the newlines an
-   SSH key / `known_hosts` contain. When pasting the key, keep the **trailing
-   newline** or `ssh-add` rejects it.
+6. **Build inputs** — the storefront and the admin inline their public origins at
+   build time, so the images must be built with your domains. The inputs, and the
+   build argument each image reads, are declared once in
+   `packages/cli/src/lib/instance-build-inputs.ts`; `../.gitlab-ci.yml`'s `build:*`
+   jobs are this repository's own use of that declaration.
 
 ---
 
 ## First deploy
 
-1. Push to the default branch → `quality`, `test`, `build` run automatically and
-   push `:$CI_COMMIT_SHORT_SHA` + `:latest` images.
-2. Run the manual **`deploy`** job. It ships `compose.prod.yml` (the host nginx
-   config stays on the VPS, owned by the operator), pulls the tagged images, runs
-   migrations (`backend-migrate`), and starts the stack.
+This repository's CI stops at building images; it has no job that deploys this
+stack, and none may be added (D-274 — `backend/test/unit/ci/live-demo-deploy.test.ts`
+refuses one). A deployment is therefore the operator's own act, on the host:
+
+1. **Build and push the three images** with your build inputs (step 6 above), tagged
+   by commit, to the registry `.env`'s `REGISTRY_IMAGE` names.
+2. **Copy `compose.prod.yml`** into the deploy directory beside `.env`, then start
+   the stack:
+   ```bash
+   cd /opt/b2b
+   export IMAGE_TAG=<sha>
+   docker compose --env-file .env -f compose.prod.yml pull
+   docker compose --env-file .env -f compose.prod.yml up -d
+   ```
+   `backend-migrate` applies the migrations before the API starts.
 3. **Create an admin user** (once), on the VPS:
    ```bash
    cd /opt/b2b
@@ -112,9 +128,11 @@ The backend runs API **and** BullMQ workers in one process (`BACKEND_ROLE=all`).
    activation, seller identity, gateway environments, backups, and the one environment value
    these templates still do not carry (`SMTP_URL`).
 
-Subsequent deploys: just run the `deploy` job. Migrations run before the API
-starts every time; rollback = re-run `deploy` from an older pipeline (its images
-are tagged by that commit's SHA).
+## Subsequent deploys
+
+The same two `docker compose` commands with the new `IMAGE_TAG`. Migrations run before
+the API starts every time; rollback is the same commands with
+an older tag. This repository's pipeline performs none of it.
 
 ---
 
@@ -217,13 +235,13 @@ certbot has something to attach to; its HTTP-01 challenge does not need anything
 | Variable | Type | Value |
 |----------|------|-------|
 | `DOCS_DEPLOY_PATH` | Variable (protected) | the documentation root from step 2, e.g. `/var/www/docs.commerce.endora.software` |
-| `SSH_PRIVATE_KEY` | **File** | shared with the application `deploy` job |
-| `SSH_KNOWN_HOSTS` | **File** | shared with the application `deploy` job |
-| `DEPLOY_USER` | Variable (protected) | shared with the application `deploy` job |
-| `DEPLOY_HOST` | Variable (protected) | shared with the application `deploy` job |
+| `SSH_PRIVATE_KEY` | **File** | created for the application `deploy` job D-274 retired |
+| `SSH_KNOWN_HOSTS` | **File** | created for the application `deploy` job D-274 retired |
+| `DEPLOY_USER` | Variable (protected) | created for the application `deploy` job D-274 retired |
+| `DEPLOY_HOST` | Variable (protected) | created for the application `deploy` job D-274 retired |
 
-Only `DOCS_DEPLOY_PATH` is new; the other four already exist for the application deploy and are
-read the same way. `SSH_PRIVATE_KEY` and `SSH_KNOWN_HOSTS` must be type **`File`** — masked
+Only `DOCS_DEPLOY_PATH` is new; the other four were created for the application deploy, which
+D-274 retired, and `publish:docs` is now the one job that reads them. `SSH_PRIVATE_KEY` and `SSH_KNOWN_HOSTS` must be type **`File`** — masked
 variables cannot hold the newlines an SSH key and a `known_hosts` contain — and the key needs
 its **trailing newline** or `ssh-add` rejects it.
 
@@ -279,17 +297,24 @@ network to join, and nothing about publishing documentation belongs in that file
 `compose.prod.yml` used to ship a `seed` service with `ALLOW_DEV_SEED_IN_PRODUCTION=true`
 already set — the flag whose whole purpose is that an accidental run cannot wipe real data —
 and this file listed it as a deployment step. It no longer exists (issue #218). To populate a
-demo host, the override is typed at the moment it is meant:
+demo host, **both** overrides are typed at the moment they are meant:
 
 ```bash
 cd /opt/b2b
 export IMAGE_TAG=<deployed-sha>
 docker compose --env-file .env -f compose.prod.yml run --rm \
-  -e ALLOW_DEV_SEED_IN_PRODUCTION=true backend \
-  node dist/cli.js demo seed
+  -e ALLOW_DEV_SEED_IN_PRODUCTION=true \
+  -e ALLOW_DEV_SEED_ON_NON_LOCAL_DATABASE=true \
+  backend node dist/cli.js demo seed
 ```
 
-Without that `-e`, the command refuses to run under `NODE_ENV=production` and says so.
+The guard (`packages/platform/src/demo/guard.ts`) asks two separate questions, and each
+override answers one. `ALLOW_DEV_SEED_IN_PRODUCTION` is the answer to *"this is
+`NODE_ENV=production`"*. `ALLOW_DEV_SEED_ON_NON_LOCAL_DATABASE` is the answer to *"the
+database is neither on loopback nor named as a test database"* — and in this stack it is
+not: the host is `postgres`, the compose service, and the name is `POSTGRES_DB` (`b2b` by
+default). With only the
+first, the command refuses on the second and says so.
 `node dist/cli.js demo reset` withdraws exactly what it created.
 
 ---
