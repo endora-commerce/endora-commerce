@@ -41,6 +41,14 @@
  * wrong. `input-resolution.md` R4.1's test — *are two correct values
  * interchangeable* — is answered per **environment**, and for a value two
  * environments must share the answer is no.
+ *
+ * **The one exception is a command, not a change to this field.** A single
+ * run that writes **both** trees is one environment, so the premise *"two
+ * environments"* does not hold of it: `endora install` generates this secret
+ * once and writes the same value into both `.env` files
+ * (`input-resolution.md` R4.6, ruled 2026-09-25 as D-269). The field stays
+ * `false` because it describes the input to every other consumer, and every
+ * other command still may not generate it.
  */
 import type { EnvironmentInput } from '@endora-commerce/contracts';
 
