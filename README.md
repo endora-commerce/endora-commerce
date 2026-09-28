@@ -36,22 +36,49 @@ Compose v2. Then two commands:
 
 ```bash
 npx create-endora-commerce@latest my-shop
-cd my-shop && pnpm run start
+cd my-shop && pnpm run dev:all
 ```
 
-The first writes an instance into `my-shop/`, starts PostgreSQL, Redis, Meilisearch and Mailpit
-in Docker, installs every module, creates your administrator and prints every address and
-credential you need. Each step prints the command it runs, so a failure names the command to
-finish by hand. The second starts the API on `http://localhost:3001`; the admin and the
-storefront each have their own command, printed at the end of the first.
+The first asks a few questions before it writes anything: which parts to write, whether to start
+the development services in Docker, whether to load demo data, and the e-mail, password and name
+of your administrator. Enter accepts the recommendation where there is one — every part, services
+started. Demo data has none, because a shop you are evaluating wants it and one you will sell from
+does not. It then writes an instance into `my-shop/`, starts PostgreSQL, Redis, Meilisearch and
+Mailpit, installs the modules, creates your administrator and prints what to run next. Each step
+prints the command it runs, so a failure names the command to finish by hand. Leave out `my-shop`
+and it asks for the directory too.
 
-`create-endora-commerce` is only a front door: it runs `endora install` from
-[`@endora-commerce/cli`](packages/cli/), which you can also call directly as
-`npx @endora-commerce/cli install my-shop`. Everything it writes is an ordinary pnpm workspace
-you own — the API, the admin and the storefront build and deploy independently.
+The second is the one development command. It starts the API on `http://localhost:3001`, the
+admin, and the storefront when there is one beside the instance, in one terminal with every line
+labelled by its layer; Ctrl-C stops them all. Each layer keeps its own command — the end of the
+first command prints them — and builds and deploys on its own.
+
+What a first run gives you, today:
+
+- **The core modules only**, unless you ask for more: with no `--module <id>` the instance holds
+  the smallest set the platform runs with. Add a module with `--module <id>` (repeatable); the
+  [module reference](docs/docs/module-reference/README.md) describes each one.
+- **No storefront outside a checkout of this repository.** The storefront is copied from the
+  reference in this repository, so run anywhere else the parts question shows it unchecked and
+  cannot change it, and the instance is written without one.
+
+With no terminal — in CI, or with `--non-interactive` — it asks nothing and every answer is a
+flag. A missing one is a single refusal naming every flag still owed:
+
+```bash
+npx create-endora-commerce@latest my-shop --non-interactive --no-storefront --no-demo \
+  --admin-email you@example.com --admin-password "$ADMIN_PASSWORD" \
+  --admin-first-name Ada --admin-last-name Lovelace
+```
+
+`create-endora-commerce` is only a front door: it passes its arguments unchanged to
+`endora install` from [`@endora-commerce/cli`](packages/cli/), which you can also call directly
+as `npx @endora-commerce/cli install my-shop`; `--help` lists every flag. Everything it writes is
+an ordinary pnpm workspace you own — the API, the admin and the storefront build and deploy
+independently.
 
 > **Before the first public release** the packages are not on the public npm registry yet, so
-> the two commands above do not resolve. To run Endora Commerce from a clone of this repository,
+> the commands above do not resolve. To run Endora Commerce from a clone of this repository,
 > follow [Developing Endora Commerce](#developing-endora-commerce) below.
 
 ## Documentation
