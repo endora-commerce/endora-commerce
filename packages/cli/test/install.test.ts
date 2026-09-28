@@ -235,7 +235,12 @@ describe('FR-157 — it refuses its preconditions before it writes anything', ()
     expect(message).toContain('Nothing was written');
   });
 
-  it('FR-124 — neither demo flag is a refusal, and it is deliberate until PR-2', async () => {
+  /**
+   * T5-A. 125 PR-2 was ruled **(c)** by the owner on 2026-09-25 (D-269): the
+   * question has no default in the wizard and none on the command line, so the
+   * posture T3-I shipped is the final one and this case stays as it was.
+   */
+  it('FR-124 / D-269 — neither demo flag is a refusal: PR-2 was ruled (c), no default', async () => {
     const root = host();
     await expect(runInstall(options(root, { demo: undefined }))).rejects.toThrow(/--no-demo/);
   });

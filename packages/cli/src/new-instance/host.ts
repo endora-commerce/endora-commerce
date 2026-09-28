@@ -65,9 +65,9 @@ import { fileURLToPath } from 'node:url';
 export class InstanceInputError extends Error {
   override readonly name = 'InstanceInputError';
   /** The refusal class from `instance-tree.md` §4, so a test asserts the class. */
-  readonly refusal: 'F1' | 'F2' | 'F3' | 'F4';
+  readonly refusal: 'F1' | 'F2' | 'F3' | 'F4' | 'F10' | 'F11';
 
-  constructor(refusal: 'F1' | 'F2' | 'F3' | 'F4', message: string) {
+  constructor(refusal: 'F1' | 'F2' | 'F3' | 'F4' | 'F10' | 'F11', message: string) {
     super(message);
     this.refusal = refusal;
   }

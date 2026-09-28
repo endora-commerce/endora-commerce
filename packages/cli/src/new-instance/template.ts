@@ -111,6 +111,85 @@ export type FileKind = 'client' | 'wiring' | 'derived';
 /** Which member of the workspace a file belongs to, or the workspace root. */
 export type MemberName = 'root' | 'deployment' | 'backend' | 'admin' | 'docs';
 
+/** One workspace member an operator can name, and what a person is told about it. */
+export interface MemberDeclaration {
+  /** The `--without` name, and the directory the member is written into. */
+  readonly name: 'backend' | 'admin' | 'docs';
+  /** One line, for a human choosing which parts of an instance they want. */
+  readonly describes: string;
+  /**
+   * Why the member cannot be declined, or `null` when it can.
+   *
+   * A sentence rather than a boolean because the one place this is read with a
+   * human in front of it — the install wizard's checklist — renders the reason
+   * instead of a checkbox that refuses when unchecked (125 FR-152).
+   */
+  readonly fixed: string | null;
+}
+
+/**
+ * The members this template writes, and therefore the whole `--without`
+ * vocabulary (`specs/118-instance-member-selection/contracts/instance-members.md`
+ * R3.5a, ruled by D-215).
+ *
+ * **This is the one statement of the member set**, and two consumers read it:
+ * the refusal below, and `endora install`'s checklist (125 R6.3a), which
+ * renders one row per entry and holds no list of its own. A member the template
+ * gains is added here, beside the decision that writes it, and reaches both —
+ * `test/new-instance-members.test.ts` fails when a planned member has no entry.
+ */
+export const MEMBER_VOCABULARY: readonly MemberDeclaration[] = [
+  {
+    name: 'backend',
+    describes: 'the API and the workers — the part every other one talks to',
+    fixed:
+      'an instance is the tree that composes the platform, and the backend is what composes it',
+  },
+  {
+    name: 'admin',
+    describes: 'the operator interface, built as its own artefact',
+    fixed: null,
+  },
+  {
+    name: 'docs',
+    describes: "a documentation site rendering your modules' own pages",
+    fixed: null,
+  },
+];
+
+/**
+ * F10 and F11 (`instance-members.md` §5.6), decided over the names alone — the
+ * refusal sentence, or `null` when every name is one this template can decline.
+ *
+ * Exported because two commands validate the same flag before either writes:
+ * `endora new instance`, and `endora install`, which reports it together with
+ * every other precondition (125 FR-157) rather than one refusal later.
+ */
+export function memberRefusal(without: readonly string[]): string | null {
+  const names = without.map((name) => name.trim()).filter((name) => name.length > 0);
+  const vocabulary = MEMBER_VOCABULARY.map((entry) => entry.name as string);
+  if (names.includes('backend')) {
+    return (
+      '`--without backend` is refused: an instance is the tree that composes the platform, and ' +
+      'the backend member is what composes it. If the admin is meant to run on a second host, ' +
+      'keep both members and deploy the built admin there — a machine layout is a fact about ' +
+      'the deployment, not about the repository (`--topology three-host` writes the examples).'
+    );
+  }
+  const unknown = names.filter((name) => !vocabulary.includes(name));
+  if (unknown.length === 0) return null;
+  const storefront = unknown.includes('storefront')
+    ? ' The storefront is not a member: it is its own repository, written by ' +
+      '`endora new storefront` — and `endora install --no-storefront` is how the one-shot ' +
+      'leaves it out.'
+    : '';
+  return (
+    `\`--without\` names ${unknown.join(', ')}, which ${unknown.length === 1 ? 'is' : 'are'} not ` +
+    `a member of an instance. The members are ${vocabulary.join(', ')}, and ` +
+    `\`--without\` names the ones not to write.${storefront}`
+  );
+}
+
 /** One file the command would write. */
 export interface PlannedFile {
   /** Relative to the target directory, with `/` separators. */
@@ -248,6 +327,14 @@ export interface PlanInput {
    * that rule both live.
    */
   readonly topology: Topology;
+  /**
+   * The members the operator declined with `--without` (D-215, 118 R3.5).
+   *
+   * Optional, and absent is the empty set: the subtractive default is
+   * *everything*, so a caller that says nothing about members gets every member
+   * this build can write. Already validated by {@link memberRefusal}.
+   */
+  readonly without?: ReadonlySet<string> | undefined;
   /**
    * What this instance reads from its environment — the platform's declaration
    * unioned with the manifests of the modules it installs
@@ -688,10 +775,10 @@ export function planInstance(input: PlanInput): InstancePlan {
   // and the `.gitignore` all depend on whether this instance has an operator
   // interface. Deciding it twice is how two files would come to disagree about
   // a member one of them writes.
-  const admin = adminMember(input);
+  const admin = declinable('admin', adminMember(input), input);
   // §2.4a — same reasoning, same three consequences (the member list, the root
   // scripts, the `.gitignore`), decided in the same place.
-  const docs = docsMember(input);
+  const docs = declinable('docs', docsMember(input), input);
 
   const dependencies = new Map<string, string>();
   // Each range is `^` over the version **that package** declares about itself,
@@ -1553,6 +1640,46 @@ repository on purpose: it shares two \`.env\` values with this tree and nothing 
 // entry point does **not** call — would register an asset the tree does not
 // serve. A client drops their own files in `admin/public/` and links them from
 // `index.html`, both of which are theirs.
+
+/**
+ * What the operator is told a declined member means — one sentence per
+ * declinable member, keyed by the vocabulary's own names.
+ */
+const DECLINED_CONSEQUENCE: Readonly<Record<'admin' | 'docs', string>> = {
+  admin:
+    'This instance is a headless API by choice. Its backend still serves /api/v1/admin/*, so ' +
+    'an operator interface built elsewhere reaches it.',
+  docs:
+    'The pages your module packages ship are still in their tarballs; this instance builds no ' +
+    'site to read them in.',
+};
+
+/**
+ * A member decision, with the operator's `--without` applied on top of it
+ * (118 R3.5c, R4.1).
+ *
+ * **Every reason that holds is printed, never the first.** A member declined
+ * *and* unavailable in this build is two facts with two different remedies —
+ * one stops being true when a package publishes and the other does not — so
+ * the availability sentence the decision already carries is kept beside the
+ * declined one rather than replaced by it.
+ */
+function declinable(
+  member: 'admin' | 'docs',
+  decision: AdminMemberDecision,
+  input: PlanInput,
+): AdminMemberDecision {
+  if (input.without?.has(member) !== true) return decision;
+  const declined =
+    `declined: you passed --without ${member}. ${DECLINED_CONSEQUENCE[member]} Scaffolding ` +
+    `again without that flag writes it`;
+  return {
+    written: false,
+    files: [],
+    omission:
+      decision.omission === null ? declined : `${declined}; and unavailable: ${decision.omission}`,
+  };
+}
 
 /** What `planInstance` needs to know about §2.4 before it writes anything else. */
 interface AdminMemberDecision {
