@@ -1,5 +1,12 @@
 # @endora-commerce/mod-invoice-ledger
 
+## 0.12.4
+
+### Patch Changes
+
+- Updated dependencies [2ffcda5]
+  - @endora-commerce/platform@0.14.0
+
 ## 0.12.3
 
 ### Patch Changes

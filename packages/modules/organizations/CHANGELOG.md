@@ -1,5 +1,14 @@
 # @endora-commerce/mod-organizations
 
+## 0.11.4
+
+### Patch Changes
+
+- 4b1844c: Reword a manifest comment: `delivery_methods` and `payment_methods` are
+  described as optional modules. No behaviour change.
+- Updated dependencies [2ffcda5]
+  - @endora-commerce/platform@0.14.0
+
 ## 0.11.3
 
 ### Patch Changes

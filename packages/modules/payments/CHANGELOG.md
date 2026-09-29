@@ -1,5 +1,13 @@
 # @endora-commerce/mod-payments
 
+## 0.10.3
+
+### Patch Changes
+
+- Updated dependencies [2ffcda5]
+  - @endora-commerce/platform@0.14.0
+  - @endora-commerce/mod-orders@0.10.8
+
 ## 0.10.2
 
 ### Patch Changes
