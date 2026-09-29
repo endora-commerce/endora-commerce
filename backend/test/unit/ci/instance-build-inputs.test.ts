@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,6 +11,8 @@ import {
   INSTANCE_BUILD_INPUTS,
   type BuildTarget,
 } from '@endora-commerce/cli/lib/instance-build-inputs.js';
+
+import { readWorkflowJobs } from '../../helpers/actions-workflows.js';
 
 /**
  * The four per-instance build inputs are declared once, and this pipeline is
@@ -82,14 +84,51 @@ const JOBS: Readonly<Record<BuildTarget, string>> = {
 };
 const TARGETS = Object.keys(JOBS) as BuildTarget[];
 
+/**
+ * The second source: the open-source demo's build job
+ * (`.github/workflows/demo.yml`, `specs/136-open-source-publication/` plan W7.5,
+ * D-274 clause 1.1 — *"with the build arguments `instance-build-inputs.ts`
+ * emits, exactly as `build:*` do today"*). It is read here **now**, beside the
+ * GitLab jobs, so that when 129 T045 retires `build:*` (plan W7.11) this file
+ * loses a source rather than gaining its first check of the workflow.
+ *
+ * Each target's text is the run lines from its `docker build -f <target>/…` up
+ * to the next one: the job builds all three images in one job, one step each.
+ */
+const DEMO_WORKFLOW_PATH = join(REPO_ROOT, '.github/workflows/demo.yml');
+function demoBuilds(): Readonly<Record<BuildTarget, string>> {
+  const empty = { backend: '', admin: '', storefront: '' };
+  if (!existsSync(DEMO_WORKFLOW_PATH)) return empty;
+  const lines = readWorkflowJobs(readFileSync(DEMO_WORKFLOW_PATH, 'utf8')).flatMap(
+    (job) => job.runLines,
+  );
+  const builds: Record<BuildTarget, string> = { ...empty };
+  let current: BuildTarget | null = null;
+  for (const line of lines) {
+    const opener = /^docker build -f (backend|admin|storefront)\/Dockerfile\b/.exec(line);
+    if (opener !== null) current = opener[1] as BuildTarget;
+    else if (line.startsWith('docker build')) current = null;
+    if (current !== null) builds[current] += `${line}\n`;
+  }
+  return builds;
+}
+
+/** Every source of `--build-arg` flags, by the file a failure should name. */
+const SOURCES: readonly (readonly [string, Readonly<Record<BuildTarget, string>>])[] = [
+  ['.gitlab-ci.yml build:', JOBS],
+  ['.github/workflows/demo.yml build of ', demoBuilds()],
+];
+
 describe('the per-instance build inputs are declared once', () => {
   it('has a population to judge — a declaration, and three build jobs', () => {
     // Issue #113: a green that could mean "the file moved" is not a green. Both
     // sides of the reconciliation have to be non-empty before any of it means
     // anything.
     expect(INSTANCE_BUILD_INPUTS.length).toBeGreaterThan(0);
-    for (const target of TARGETS) {
-      expect(JOBS[target], `.gitlab-ci.yml declares no build:${target} job`).not.toBe('');
+    for (const [source, jobs] of SOURCES) {
+      for (const target of TARGETS) {
+        expect(jobs[target], `${source}${target} is not there to read`).not.toBe('');
+      }
     }
     expect(
       INSTANCE_BUILD_INPUTS.flatMap((input) => input.consumers).length,
@@ -111,26 +150,30 @@ describe('the per-instance build inputs are declared once', () => {
   });
 
   it('is what the build jobs pass, flag for flag', () => {
-    for (const target of TARGETS) {
-      for (const flag of buildArgFlags(target)) {
-        expect(
-          JOBS[target].includes(flag),
-          `build:${target} does not pass ${flag}. The declaration in ` +
-            '`packages/cli/src/lib/instance-build-inputs.ts` is the author; this pipeline ' +
-            'supplies what it says.',
-        ).toBe(true);
+    for (const [source, jobs] of SOURCES) {
+      for (const target of TARGETS) {
+        for (const flag of buildArgFlags(target)) {
+          expect(
+            jobs[target].includes(flag),
+            `${source}${target} does not pass ${flag}. The declaration in ` +
+              '`packages/cli/src/lib/instance-build-inputs.ts` is the author; this pipeline ' +
+              'supplies what it says.',
+          ).toBe(true);
+        }
       }
     }
   });
 
   it('passes no build argument the declaration does not name', () => {
-    for (const target of TARGETS) {
-      const declared = buildInputsFor(target).map(({ consumer }) => consumer.buildArg);
-      expect(
-        [...buildArgsIn(JOBS[target])].sort(),
-        `build:${target} passes a build argument that is in no declaration — which is how the ` +
-          'set came to be written in three places in the first place.',
-      ).toEqual([...declared].sort());
+    for (const [source, jobs] of SOURCES) {
+      for (const target of TARGETS) {
+        const declared = buildInputsFor(target).map(({ consumer }) => consumer.buildArg);
+        expect(
+          [...buildArgsIn(jobs[target])].sort(),
+          `${source}${target} passes a build argument that is in no declaration — which is how ` +
+            'the set came to be written in three places in the first place.',
+        ).toEqual([...declared].sort());
+      }
     }
   });
 
@@ -156,7 +199,9 @@ describe('the per-instance build inputs are declared once', () => {
     const deployment = INSTANCE_BUILD_INPUTS.find((input) => input.name === 'DEPLOYMENT');
     expect(deployment, 'DEPLOYMENT is no longer a declared build input').toBeDefined();
     expect(deployment!.consumers.map((consumer) => consumer.target)).toContain('backend');
-    expect(JOBS.backend).toContain('--build-arg DEPLOYMENT=');
+    for (const [source, jobs] of SOURCES) {
+      expect(jobs.backend, `${source}backend`).toContain('--build-arg DEPLOYMENT=');
+    }
   });
 
   it('renders a default as the shell expansion that applies it', () => {
