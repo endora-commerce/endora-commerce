@@ -1,5 +1,12 @@
 # @endora-commerce/mod-megamenu
 
+## 0.9.8
+
+### Patch Changes
+
+- Updated dependencies [2ffcda5]
+  - @endora-commerce/platform@0.14.0
+
 ## 0.9.7
 
 ### Patch Changes

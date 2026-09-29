@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-webhooks",
-  "version": "0.10.7",
+  "version": "0.10.8",
   "type": "module",
   "sideEffects": false,
   "description": "Outbound webhook subscription registry and dispatcher.",

@@ -1,5 +1,32 @@
 # @endora-commerce/cli
 
+## 0.15.0
+
+### Minor Changes
+
+- c9faba1: Add `endora dev`, and a `dev:all` root script in every instance `endora new instance` and `endora install` write. From the instance root, `pnpm run dev:all` starts the API (`pnpm run start`), the admin preview (`pnpm run preview:admin`, when the instance has an admin) and the storefront beside the instance (its `pnpm run dev`, when there is one at `<dir>-storefront` or at `--storefront-dir <path>`), in one terminal with each line prefixed by its layer. Ctrl-C stops all of them and exits 0; any one layer ending stops the others, names which, and exits with that layer's code. `--no-storefront` starts the API and the admin preview only.
+
+  No per-layer script changes: `build`, `build:backend`, `build:admin`, `start` and `preview:admin` keep their values, and each layer is still built and deployed on its own. The instance README lists the new script, and the closing block `endora install` prints now names `pnpm run dev:all` first, followed by the per-layer commands it replaces for everyday use.
+
+  An instance scaffolded by an earlier version gains the script by adding `"dev:all": "endora dev"` to its root `package.json`; the `@endora-commerce/cli` devDependency it already declares provides the binary.
+
+- 797a579: `endora install` now works from an empty directory, including through `npx create-endora-commerce`. When `@endora-commerce/platform` is not installed beside the target or the working directory, it first installs every package of this CLI's release into a temporary directory under the OS temp directory, reads the module set from there, and removes it once the instance is written; if that install fails the directory is kept and its path printed, and the command exits with the install's own code. `--dry-run` provisions and removes it too. The release is read from `dist/release-index.json`, which the CLI's build now writes. When the platform already resolves, nothing changes.
+
+  With no `--module`, `endora install` now installs every module package it resolved that is not separately licensed (`SEE LICENSE IN` / `UNLICENSED`), closed over dependencies as before, instead of only the modules the platform cannot run without; its closing block names the count and that any module can be switched off in the admin under Modules. If one of those modules depends on a separately licensed one, the run is refused (F2) rather than installing it. `--module` and `endora new instance`'s default are unchanged. `resolveModuleSet` gains an optional third argument, `{ seed: 'required' | 'available' }`, and `runNewInstance` a `moduleSeed` option; `ModuleCandidate` gains `license`.
+
+- 224fe10: `endora install` asks, at a terminal, what its flags did not answer: the directory (recommending `./endora-commerce`), which parts to write (a checklist over the instance's members and the storefront), whether to start the development services, whether to seed demo data (no default: Enter asks again), and the administrator's e-mail, password (not echoed) and name. Every question has a flag, and with `--non-interactive`, `--dry-run`, a CI marker or no terminal on either descriptor it asks nothing — a missing answer, the directory now included, is one refusal naming every flag still owed. Each run prints an `[answers]` line (`flags=`, `prompted=`, `recommended=`, `defaulted=0`) and the closing block names every recommendation taken with what reverses it.
+
+  `endora new instance` and `endora install` accept `--without <member>` (repeatable; `admin` or `docs`), which writes the instance without that member while keeping the same module list. `--without backend` and a name that is not a member (including `storefront`, which `--no-storefront` leaves out of `install`) are refused before anything is written. The vocabulary is exported as `MEMBER_VOCABULARY` beside `memberRefusal`.
+
+### Patch Changes
+
+- 82986ff: The example deployment files `endora new instance` writes now migrate and install. The `backend-migrate` one-shot ran `node dist/db/migrate.js up`, a file the scaffolded backend never emits, so it exited non-zero and the API waiting on it never started; it now runs `node dist/migrate.js`, the file `backend/src/migrate.ts` compiles to. A new `backend-install` one-shot runs `node dist/module-commands/install.js --all` (the compiled `module:install --all`, idempotent) after the migrations and before the API, in `deploy/compose.prod.yml` and in the three-host `deploy/three-host/compose.backend.yml`, so a fresh database runs every module's install hooks. An instance scaffolded by an earlier version can copy the two service blocks from a newly rendered example.
+- fe176a6: `endora new storefront` now writes a `Dockerfile` that builds in the storefront it scaffolds. It used to copy the reference storefront's own `Dockerfile`, which builds from the platform repository's root and stops at `scripts/collect-workspace-manifests.sh`, a file a scaffolded storefront does not have. The rendered one installs from the storefront's `package.json` and committed `pnpm-lock.yaml`, runs `pnpm run build`, and serves the standalone output; its build arguments are the storefront's entries in the instance build-input declaration. With `--registry` it also copies `.npmrc` and reads the registry token from a BuildKit secret (`--secret id=endora_npm_token,env=ENDORA_NPM_TOKEN`), never from a build argument. A `.dockerignore` is written beside it, so `.env` and the installed trees stay out of the image. A storefront scaffolded by an earlier version can take both files from a new scaffold.
+- 4b1844c: Reword two source comments that ship in `dist`: the `TOKEN_VARIABLE` note in
+  `new-storefront/npmrc` now speaks of an operator, and the port-catches rule note
+  in `check/estate` describes the packages it measures by what they are
+  (integration-heavy, with ports owned elsewhere). No behaviour change.
+
 ## 0.14.0
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # @endora-commerce/mod-mfa
 
+## 0.11.4
+
+### Patch Changes
+
+- Updated dependencies [2ffcda5]
+  - @endora-commerce/platform@0.14.0
+
 ## 0.11.3
 
 ### Patch Changes
