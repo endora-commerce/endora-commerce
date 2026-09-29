@@ -15,7 +15,7 @@ const DEV_LOCAL = 'postgresql://b2b:b2b@localhost:5432/b2b';
 const DEV_COMPOSE = 'postgresql://b2b:b2b@postgres:5432/b2b';
 const CI_COMPOSE = 'postgresql://b2b:b2b@postgres:5432/b2b_test';
 const PROD_HOSTNAME = 'postgresql://user:pw@db.production.example.com:5432/shop';
-const PROD_IP = 'postgresql://u:p@10.0.0.5:5432/prod';
+const PROD_IP = 'postgresql://u:p@192.0.2.5:5432/prod';
 
 /** The whole environment the guard reads, so no test inherits the real one. */
 function env(overrides: Record<string, string | undefined> = {}): NodeJS.ProcessEnv {

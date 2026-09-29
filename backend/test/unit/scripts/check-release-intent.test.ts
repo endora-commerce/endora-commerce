@@ -173,8 +173,8 @@ describe('check-release-intent — publication: every versionable package publis
    * D-203 made fire four times on a correct tree. `unexpected-public-package`
    * asked *may this package be public* against the closure of what a client
    * obtains directly; the owner's ruling of 2026-09-05 made that answer
-   * constant — every `@endora-commerce` package publishes, because a deployment
-   * builds its own instance (D-208) — so the closure stopped discriminating and
+   * constant — every `@endora-commerce` package publishes, because an instance
+   * is built by whoever runs it (D-208) — so the closure stopped discriminating and
    * the finding inverted.
    *
    * What it now catches is a hazard the old rule could not see and the module
@@ -2240,6 +2240,20 @@ describe('check-release-intent --since — the release shape (D-212)', () => {
  * the only sanctioned way to answer a false positive. Widening the term list is
  * not clearing, and no test here may be made to pass by doing it.
  */
+/**
+ * The annotation these fixtures carry, assembled rather than written out.
+ *
+ * A clearance applies to the whole document it sits in, and this test file is
+ * itself a document the pre-publication scan reads. A literal annotation here
+ * would therefore clear the term for every line of the file — real prose
+ * included — which is how a sentence once hid behind a fixture (spec 136, tip
+ * hand review A2). Assembling it keeps the fixture exact at runtime while
+ * leaving no annotation in the source for the scan to honour.
+ */
+function clearanceAnnotation(term: string, reason: string): string {
+  return `<${'!--'} commercial-data: cleared \`${term}\` — ${reason} -->\n`;
+}
+
 describe('R3 over changeset prose', () => {
   it('finds a counterparty, a cost, a money figure and a strategy line, and says which class', () => {
     const scan = scanCommercialVocabulary(
@@ -2306,7 +2320,7 @@ describe('R3 over changeset prose', () => {
   it('clears a hit by annotation, and counts the clearance rather than hiding it', () => {
     const scan = scanCommercialVocabulary(
       'Adds the pilot-programme module.\n' +
-        '<!-- commercial-data: cleared `pilot` — the module is named pilot, no party is -->\n',
+        clearanceAnnotation('pilot', 'the module is named pilot, no party is'),
     );
     expect(scan.hits).toEqual([]);
     expect(scan.cleared.map((h) => h.term)).toEqual(['pilot']);
@@ -2314,7 +2328,7 @@ describe('R3 over changeset prose', () => {
 
   it('refuses a clearance with no reason worth reading', () => {
     const scan = scanCommercialVocabulary(
-      'Adds the pilot-programme module.\n<!-- commercial-data: cleared `pilot` — ok -->\n',
+      'Adds the pilot-programme module.\n' + clearanceAnnotation('pilot', 'ok'),
     );
     expect(scan.hits.map((h) => h.term)).toEqual(['pilot']);
   });
@@ -2323,7 +2337,7 @@ describe('R3 over changeset prose', () => {
   it('reports a clearance naming a term the body no longer contains', () => {
     const scan = scanCommercialVocabulary(
       'An ordinary change.\n' +
-        '<!-- commercial-data: cleared `pilot` — the module is named pilot, no party is -->\n',
+        clearanceAnnotation('pilot', 'the module is named pilot, no party is'),
     );
     expect(scan.staleClearances.map((c) => c.term)).toEqual(['pilot']);
   });

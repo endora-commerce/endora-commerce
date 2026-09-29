@@ -102,7 +102,7 @@ export const manifest = defineModuleManifest({
   //   → delivery_methods   (organization_delivery_methods.delivery_method_id)
   //   → payment_methods    (organization_payment_methods.payment_method_id)
   // The last two close no cycle on their own; they are dropped because a
-  // tenancy root that cannot install before an optional commercial module is
+  // tenancy root that cannot install before an optional module is
   // not a root. All four are recorded in
   // test/unit/db/acknowledged-fk-edges.ts, which asserts each is still real and
   // still an exception.
