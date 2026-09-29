@@ -5910,7 +5910,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: sites 535 -> 518.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 518 -> 512.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
     // **136 W3.3 (the extraction tooling retires): 512 -> 511.** Agrees on `origin/master` (ed7e9e068) and moves with the branch: the extraction tooling retires — `scripts/extract-paid-module.sh`, `scripts/lib/w1-root-names.sh`, `backend/scripts/derive-extraction-path-set.ts` and the two unit tests leave, `backend/test/unit/scripts/module-id-paths.test.ts` arrives; measured on the pristine pair.
-    sites: 511,
+    // **`feat/134-t094a-token-predicate` (134 T094a): sites 511 -> 512, files unchanged.** Merged with `origin/master` `d84d28a0c` after !1860 and !1859; the record was resolved wholly to master at the merge and re-measured on a pristine detached worktree of the merge commit `5469c82bb` (`setup-worktree.sh`, `build:packages`, `docs/docs/modules` cleaned), whose `[read-size drift]` census named exactly these four entries. No file arrives under `backend/test/`: `backend/test/unit/scripts/public-history-filter.test.ts` gains two `lines.find(...)` bindings in its report test, which the read detection counts as a database read (attributed by running `filesReadingTheDatabase` over the file before and after the branch: 0, then 1).
+    sites: 512,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -10097,7 +10098,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **136 W5.1 (`create-endora-commerce`, D-267): 7821 -> 7830.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's eight files and its changeset; measured on the pristine pair after merging `origin/master`.
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 7830 -> 7840.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`docs/136-getting-started`: files 7840 -> 7843.** The Getting started page (`docs/docs/getting-started.md`), its Polish materialisation and cache entry; measured on a pristine detached worktree of `af4bdfea4` after `setup-worktree.sh` and `build:packages`, not computed from a delta.
-    files: 7843,
+    // **`feat/134-t094a-token-predicate` (134 T094a): 7843 -> 7844.** Merged with `origin/master` `d84d28a0c` after !1860 and !1859; the record was resolved wholly to master at the merge and re-measured on a pristine detached worktree of the merge commit `5469c82bb` (`setup-worktree.sh`, `build:packages`, `docs/docs/modules` cleaned), whose `[read-size drift]` census named exactly these four entries. The branch adds one file, `specs/136-open-source-publication/text-replacements.json`, D-273's committed C2/C3 rule record.
+    files: 7844,
     sites: null,
     sources: [],
     //
@@ -12352,7 +12354,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **136 W5.1 (`create-endora-commerce`, D-267): 7882 -> 7891.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's eight files and its changeset; measured on the pristine pair after merging `origin/master`.
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 7891 -> 7901.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`docs/136-getting-started`: files 7901 -> 7904.** The Getting started page (`docs/docs/getting-started.md`), its Polish materialisation and cache entry; measured on a pristine detached worktree of `af4bdfea4` after `setup-worktree.sh` and `build:packages`, not computed from a delta.
-    files: 7904,
+    // **`feat/134-t094a-token-predicate` (134 T094a): files 7904 -> 7905.** Merged with `origin/master` `d84d28a0c` after !1860 and !1859; the record was resolved wholly to master at the merge and re-measured on a pristine detached worktree of the merge commit `5469c82bb` (`setup-worktree.sh`, `build:packages`, `docs/docs/modules` cleaned), whose `[read-size drift]` census named exactly these four entries. The branch adds one file, `specs/136-open-source-publication/text-replacements.json`, D-273's committed C2/C3 rule record.
+    files: 7905,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T055 (`pim_ergonode` leaves): 1337 -> 1338.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
@@ -12363,7 +12366,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-reviewed-findings` (plan W2.3a), merged with `origin/master` `6b6882399`: sites 1343 -> 1344.** The same one file as `files` above: it sits under `specs/`, the one partially-public entry, so it is one more decision — resolved by its own new `private` path rule, placed ahead of `specs/[0-9]*/**` so it is reachable (`unreachable-path-rule=0`). Measured on the same pristine pair, withdrawn and restored.
     // **`docs/134-package-decoration` (feature 134 D25), merged with `origin/master` `e426d0dc6` after !1846 and !1847: sites 1344 -> 1345.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty). The one moving file is this branch's only new tracked file, `specs/127-decoration-default-and-seam-discovery/tasks.md`. Not computed from a delta.
     // **`feat/136-w6-community-files` (W6), merged with `origin/master` after !1853 and !1851: sites 1345 -> 1347.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    sites: 1347,
+    // **`feat/134-t094a-token-predicate` (134 T094a): sites 1347 -> 1348.** The same one file as `files` above: it sits under `specs/`, the one partially-public entry, so it is one more decision — resolved by its own new `private` path rule, placed ahead of `specs/[0-9]*/**` as `reviewed-findings.json`'s is; measured on the same pristine worktree of `5469c82bb`.
+    sites: 1348,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -15664,7 +15668,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **136 W5.1 (`create-endora-commerce`, D-267): 7881 -> 7890.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's eight files and its changeset; measured on the pristine pair after merging `origin/master`.
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 7890 -> 7900.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`docs/136-getting-started`: files 7900 -> 7903.** The Getting started page (`docs/docs/getting-started.md`), its Polish materialisation and cache entry; measured on a pristine detached worktree of `af4bdfea4` after `setup-worktree.sh` and `build:packages`, not computed from a delta.
-    files: 7903,
+    // **`feat/134-t094a-token-predicate` (134 T094a): 7903 -> 7904.** Merged with `origin/master` `d84d28a0c` after !1860 and !1859; the record was resolved wholly to master at the merge and re-measured on a pristine detached worktree of the merge commit `5469c82bb` (`setup-worktree.sh`, `build:packages`, `docs/docs/modules` cleaned), whose `[read-size drift]` census named exactly these four entries. The branch adds one file, `specs/136-open-source-publication/text-replacements.json`, D-273's committed C2/C3 rule record.
+    files: 7904,
     sites: null,
     sources: ['manifest-index'],
     //
