@@ -104,7 +104,7 @@ Pola manifestu:
 - `description` (opcjonalne, string) — do 2000 znaków.
 - `version` (wymagane, string) — semver-lite (`MAJOR.MINOR.PATCH` plus opcjonalny sufiks `-prerelease`).
 - `dependencies` (wymagane, tablica stringów) — id modułów, które platforma musi mieć zainstalowane przed tym. Walidowane względem rejestru manifestów przy starcie.
-- `license` (opcjonalne, enum `'core' | 'pro' | 'enterprise'`) — zarezerwowane pod przyszłe bramkowanie edycji; deklarowane i audytowane, ale w v1 nieegzekwowane.
+- **Pola `license` nie ma.** Manifest, który wciąż je deklaruje, nie jest odrzucany; klucz jest pomijany. Licencją pakietu modułu jest `license` w jego `package.json`, które `manifests:generate` kopiuje z `license` w katalogu głównym repozytorium, chyba że moduł eksportuje `packageLicense` obok swojego manifestu — tę deklarację opisuje `LICENSE-COMMERCIAL.md` w katalogu głównym repozytorium. Platforma nigdy nie czyta licencji w czasie działania: żaden moduł nie jest z jej powodu włączany, odrzucany ani ograniczany.
 - `settings` (opcjonalne) — kształt `ModuleSettingsManifest`; ścieżka instalacji cyklu życia uruchamia na nim istniejący reconciler ustawień.
 - `i18n` (opcjonalne) — kształt `{ bundlesDir: string }`; gdy jest obecny, ścieżka instalacji czyta `<modulePath>/<bundlesDir>/<lang>.json` dla każdego wspieranego języka Admin UI i robi UPSERT paczki do `translation_bundles`. Miękki uninstall zachowuje paczki; twardy je usuwa.
 - `actions` (opcjonalne) — kształt `ModuleAction[]`; wbudowana lista deklaracji akcji palety poleceń (id, klucz etykiety, ikona, trasa docelowa, opcjonalne wymagane uprawnienie, waga, słowa kluczowe). Ścieżka instalacji robi UPSERT każdej zadeklarowanej akcji do `module_actions` i przycina wiersze, których nowy manifest już nie deklaruje; twardy uninstall je usuwa. Pełny schemat i zachowanie po stronie operatora opisuje strona modułu [Admin Command Palette Actions](./admin-actions.md).
@@ -339,7 +339,6 @@ Rozwój sterowany testami jest nienegocjowalny: każdy moduł dostarcza testy je
 ## Punkty rozszerzeń
 
 - **Własne kroki install / uninstall**: wyeksportuj `installHook` / `uninstallHook` z `manifest.ts` modułu. Hooki dzielą transakcję instalacji, więc wyjątek cofa migracje i ustawienia.
-- **Bramkowanie po poziomie licencji** (planowane): pole `license` manifestu jest przechowywane i audytowane; przyszły pipeline komponowania edycji odmówi włączenia płatnego modułu na edycji niepłatnej.
 
 ## Runbook operatora
 
