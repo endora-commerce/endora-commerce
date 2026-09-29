@@ -5,7 +5,7 @@
  *
  * ## Why they are generated and not written
  *
- * `LICENSE-COMMERCIAL.md` states the rule these exist for: *"npm force-includes
+ * `LICENSING.md` states the rule these exist for: *"npm force-includes
  * a file called `LICENSE` in the published tarball exactly as it does
  * `README.md`, whatever `files` says — so the text has to be **in the package
  * directory**, not only at the repository root. The root `LICENSE` is the

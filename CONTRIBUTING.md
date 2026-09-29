@@ -276,7 +276,7 @@ under MIT.
 
 A package whose `package.json` declares `SEE LICENSE IN LICENSE.md` is **not** MIT: it ships its
 own `LICENSE.md` in place of the MIT text, and that file is what applies to it.
-`LICENSE-COMMERCIAL.md` at the root explains that mechanism. It is not a licence — it carries no
+`LICENSING.md` at the root explains that mechanism. It is not a licence — it carries no
 terms, grants nothing and names no package; each package's own declaration is the only list.
 
 ---

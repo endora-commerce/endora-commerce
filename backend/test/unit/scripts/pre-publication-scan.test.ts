@@ -31,6 +31,7 @@ import {
   formatScanReport,
   formatStaleReview,
   gitleaksArguments,
+  isLicenceFileName,
   isPersonalEmail,
   parseGitleaksReport,
   parsePaidIds,
@@ -217,6 +218,52 @@ describe('path-dependent classes: L, R and the hand-review population', () => {
       CTX,
     );
     expect(mit.filter((h) => h.klass === 'L')).toEqual([]);
+  });
+
+  // D-276: the L predicate reads a file name the way GitHub's detector does.
+  describe('a licence file is any name licensee scores above zero (D-276)', () => {
+    const NOT_MIT = 'This document explains how the project is distributed.\n';
+    const lRules = (path: string, text: string) =>
+      detectForPath(path, text, 'T', CTX)
+        .filter((h) => h.klass === 'L')
+        .map((h) => h.rule);
+
+    it('reports LICENSE-COMMERCIAL.md with non-MIT text, and not LICENSING.md', () => {
+      expect(lRules('LICENSE-COMMERCIAL.md', NOT_MIT)).toEqual(['non-mit-licence-file']);
+      expect(lRules('LICENSING.md', NOT_MIT)).toEqual([]);
+    });
+
+    it('reports MIT-LICENSE and COPYING with non-MIT text', () => {
+      expect(lRules('MIT-LICENSE', NOT_MIT)).toEqual(['non-mit-licence-file']);
+      expect(lRules('COPYING', NOT_MIT)).toEqual(['non-mit-licence-file']);
+    });
+
+    it('does not report a COPYRIGHT file holding only a copyright line', () => {
+      expect(lRules('COPYRIGHT', 'Copyright (c) 2026 Example Maintainers\n')).toEqual([]);
+      expect(
+        lRules('COPYRIGHT', 'Copyright (c) 2026 Example Maintainers\n\nAll rights reserved by contract.\n'),
+      ).toEqual(['non-mit-licence-file']);
+    });
+
+    it('does not report LICENSE with MIT text', () => {
+      expect(
+        lRules('LICENSE', 'MIT License\n\nPermission is hereby granted, free of charge, to any person'),
+      ).toEqual([]);
+    });
+
+    it('scores the names licensee scores, and nothing else', () => {
+      const scored = [
+        'LICENSE', 'LICENCE', 'UNLICENSE', 'license.txt', 'LICENSE.textile', 'LICENSE-MIT',
+        'LICENSE_APACHE.md', 'COPYING', 'COPYING.md', 'COPYING.lesser', 'COPYING-GPL', 'MIT-COPYING',
+        'MIT-LICENSE', 'OFL', 'OFL.md', 'OFL.textile', 'COPYRIGHT', 'COPYRIGHT.txt', 'COPYRIGHT-MIT',
+        'PATENTS', 'PATENTS.txt',
+      ];
+      const unscored = [
+        'LICENSING.md', 'LICENSE.spdx', 'README.md', 'CONTRIBUTING.md', 'licence-hits.test.ts', 'PATENTS.sh',
+      ];
+      expect(scored.filter((n) => !isLicenceFileName(n))).toEqual([]);
+      expect(unscored.filter((n) => isLicenceFileName(n))).toEqual([]);
+    });
   });
 
   it('reports a link into specs/NNN in a shipped document and not in code', () => {
@@ -742,6 +789,39 @@ describe('amendment 6: inline vocabulary clearances are counted as cleared, not 
     expect(v.staleClearance).toBe(stale.length);
     expect(v.findings).toBe(0);
     expect(scanExitCode(v)).toBe(0);
+  });
+
+  /**
+   * D-277: a clearance reaches its own block. The scan hands the rule only the
+   * candidate lines, so it must keep the blank lines between blocks, or every
+   * annotation would reach the whole file again.
+   */
+  it('clears a term only in the block the annotation sits in (D-277)', () => {
+    const text = [
+      `// Signed with the ${C2_WORD} customer last week.`,
+      '',
+      'const fixture = `',
+      `the ${C2_WORD} module`,
+      clearance(C2_WORD, 'names the programme module, not a client'),
+      '`;',
+      '',
+    ].join('\n');
+    const c2 = detectContent(text, CTX_PLAIN).filter((h) => h.klass === 'C2');
+    expect(c2.map((h) => [h.line, h.mark ?? 'finding'])).toEqual([
+      [1, 'finding'],
+      [4, 'cleared'],
+    ]);
+  });
+
+  it('reports a clearance whose own block lost its hit as stale (D-277)', () => {
+    const text = [clearance(C2_WORD, 'the term left this paragraph'), 'nothing here', '', `the ${C2_WORD} module`].join(
+      '\n',
+    );
+    const c2 = detectContent(text, CTX_PLAIN).filter((h) => h.klass === 'C2');
+    expect(c2.map((h) => [h.line, h.mark ?? 'finding'])).toEqual([
+      [4, 'finding'],
+      [1, 'stale-clearance'],
+    ]);
   });
 });
 

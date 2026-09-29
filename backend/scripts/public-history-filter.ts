@@ -22,9 +22,9 @@
  * ## The operation (D-240, unchanged by its amendment)
  *
  * `git-filter-repo`, a **path filter over the recorded dispositions**, and
- * `--replace-message` over the seven commit messages of
- * `specs/126-public-mirror-disclosure/spec.md` §2.1 — **and no other content
- * change of any kind**, with one exception the owner ruled narrowly (O-3 of
+ * `--replace-message` over the commit messages the record lists (first
+ * found by `specs/126-public-mirror-disclosure/spec.md` §2.1; D-275) — **and
+ * no other content change of any kind**, with one exception the owner ruled narrowly (O-3 of
  * `specs/136-open-source-publication/`, 2026-09-25): `--replace-text` over
  * blobs **absent from the tip**, for S, C2 and C3 findings only. The tip stays
  * byte-identical, which {@link byteIdentityFindings} keeps asserting (129

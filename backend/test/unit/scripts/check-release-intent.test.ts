@@ -2231,6 +2231,13 @@ describe('check-release-intent --since — the release shape (D-212)', () => {
 });
 
 /**
+ * The C2 term these fixtures plant, assembled at run time: this file is public
+ * and the pre-publication scan reads it, and since D-277 an annotation in one
+ * fixture no longer clears the same word in the next one.
+ */
+const C2_TERM = ['pi', 'lot'].join('');
+
+/**
  * **R3 — the vocabulary rule over changeset prose** (129 T017 / FR-031).
  *
  * The rule is a term list and it is the weakest instrument in this estate:
@@ -2257,7 +2264,7 @@ function clearanceAnnotation(term: string, reason: string): string {
 describe('R3 over changeset prose', () => {
   it('finds a counterparty, a cost, a money figure and a strategy line, and says which class', () => {
     const scan = scanCommercialVocabulary(
-      'Bumped for the pilot, whose contract lands before the sales event.\n' +
+      `Bumped for the ${C2_TERM}, whose contract lands before the sales event.\n` +
         'The work is 3–5 person-days and the margin on it is thin.\n',
     );
     expect(scan.perClass).toEqual({ C1: 2, C2: 1, C3: 1, C4: 1 });
@@ -2265,7 +2272,7 @@ describe('R3 over changeset prose', () => {
       'day-range',
       'margin',
       'person-day',
-      'pilot',
+      C2_TERM,
       'sales-event',
     ]);
   });
@@ -2301,7 +2308,7 @@ describe('R3 over changeset prose', () => {
    */
   it('narrows C1 only — a counterparty in the past tense still fires', () => {
     expect(
-      scanCommercialVocabulary('We measured this against the pilot.\n').hits.map((h) => h.klass),
+      scanCommercialVocabulary(`We measured this against the ${C2_TERM}.\n`).hits.map((h) => h.klass),
     ).toEqual(['C2']);
   });
 
@@ -2330,7 +2337,7 @@ describe('R3 over changeset prose', () => {
     const scan = scanCommercialVocabulary(
       'Adds the pilot-programme module.\n' + clearanceAnnotation('pilot', 'ok'),
     );
-    expect(scan.hits.map((h) => h.term)).toEqual(['pilot']);
+    expect(scan.hits.map((h) => h.term)).toEqual([C2_TERM]);
   });
 
   /** The ledger's other direction: a clearance that has stopped clearing anything. */
@@ -2340,6 +2347,68 @@ describe('R3 over changeset prose', () => {
         clearanceAnnotation('pilot', 'the module is named pilot, no party is'),
     );
     expect(scan.staleClearances.map((c) => c.term)).toEqual(['pilot']);
+  });
+
+  /**
+   * D-277: an annotation reaches its own block — the run of non-blank lines
+   * that holds it — and not the document. The term is assembled at run time so
+   * that these fixtures add no hit of their own to the file that holds them.
+   */
+  describe('a clearance reaches its own block only (D-277)', () => {
+    const term = C2_TERM;
+    const clearance = `<!-- commercial-data: cleared \`${term}\` — the module is named so, no party is -->`;
+
+    it('clears the term in its own paragraph and judges it again in the next one', () => {
+      const scan = scanCommercialVocabulary(
+        [`Adds the ${term}-programme module.`, clearance, '', `Bumped for the ${term} customer.`, ''].join(
+          '\n',
+        ),
+      );
+      expect(scan.cleared.map((h) => [h.term, h.line])).toEqual([[term, 1]]);
+      expect(scan.hits.map((h) => [h.term, h.line])).toEqual([[term, 4]]);
+      expect(scan.staleClearances).toEqual([]);
+    });
+
+    it('does not let an annotation inside a fixture template literal clear prose elsewhere', () => {
+      const source = [
+        `// Signed with the ${term} customer last week.`,
+        '',
+        'const fixture = `',
+        `Adds the ${term}-programme module.`,
+        clearance,
+        '`;',
+        '',
+      ].join('\n');
+      const scan = scanCommercialVocabulary(source);
+      expect(scan.hits.map((h) => h.line)).toEqual([1]);
+      expect(scan.cleared.map((h) => h.line)).toEqual([4]);
+    });
+
+    it('reports a clearance whose own block lost its hit, while the term survives in another block', () => {
+      const scan = scanCommercialVocabulary(
+        ['An ordinary change.', clearance, '', `Bumped for the ${term} customer.`, ''].join('\n'),
+      );
+      expect(scan.staleClearances.map((c) => [c.term, c.line])).toEqual([[term, 2]]);
+      expect(scan.hits.map((h) => h.line)).toEqual([4]);
+      expect(scan.cleared).toEqual([]);
+    });
+
+    it('tells the author to clear it beside the paragraph that carries it', () => {
+      const found = findings({
+        '.changeset/x.md': `---\n---\n\nBumped for the ${term} customer.\n`,
+      }).filter((finding) => finding.kind === 'commercial-disclosure-in-changeset');
+      expect(found).toHaveLength(1);
+      expect(found[0]!.message).toContain('clear it **beside the paragraph that carries it**');
+      expect(found[0]!.message).not.toContain('in the changeset body');
+    });
+
+    it('calls a clearance stale when its own paragraph no longer carries the term', () => {
+      const found = findings({
+        '.changeset/x.md': `---\n---\n\nAn ordinary change.\n${clearance}\n`,
+      }).filter((finding) => finding.kind === 'stale-disclosure-clearance');
+      expect(found).toHaveLength(1);
+      expect(found[0]!.message).toContain('and its own paragraph no longer contains it');
+    });
   });
 });
 
@@ -2360,8 +2429,8 @@ describe('a changeset document keeps the prose R3 reads', () => {
    * The two questions stay apart: `hasFrontMatter` keeps its own refusal.
    */
   it('reads the whole source as the body when there is no front matter', () => {
-    const document = readChangesetDocument('x.md', 'Just prose about the pilot.\n');
+    const document = readChangesetDocument('x.md', `Just prose about the ${C2_TERM}.\n`);
     expect(document.hasFrontMatter).toBe(false);
-    expect(document.body).toBe('Just prose about the pilot.\n');
+    expect(document.body).toBe(`Just prose about the ${C2_TERM}.\n`);
   });
 });

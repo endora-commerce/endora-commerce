@@ -190,7 +190,7 @@ describe('every published package ships a LICENSE and a README (FR-020, FR-021)'
     });
 
     it('writes no LICENSE beside a package that declares its own', () => {
-      // The open-core mechanism `LICENSE-COMMERCIAL.md` fixes: the package
+      // The open-core mechanism `LICENSING.md` fixes: the package
       // ships the file its `SEE LICENSE IN` names, and putting the root's
       // permissive text beside it would be two licences in one directory.
       const files = checkoutWith(

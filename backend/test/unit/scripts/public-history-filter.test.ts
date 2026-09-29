@@ -7,7 +7,7 @@
  *
  * ## Why every fixture here is synthetic
  *
- * The seven messages this filter replaces carry the C1 and C2 payloads the
+ * The messages this filter replaces carry the C1, C2 and C4 payloads the
  * migration exists to leave behind, and this file is **public** under the
  * record the filter reads. A test quoting a real payload to prove the
  * replacement works would publish the payload in the same merge request that

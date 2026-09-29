@@ -9238,8 +9238,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // public-flip fix's changeset. This walk is the whole repository, so it takes
     // the changeset the document walk does not.
     // **+3: two files from this branch, one already on `master`.** The branch adds
-    // `LICENSE` and `LICENSE-COMMERCIAL.md` at the repository root. Separated by
-    // measuring twice, with and without them.
+    // `LICENSE` and `LICENSE-COMMERCIAL.md` (since renamed `LICENSING.md`, D-276)
+    // at the repository root. Separated by measuring twice, with and without them.
     // **+8: six specification files and two changesets from beneath, plus this
     // branch's own two.** The recorded value predates two merges and the stacking
     // on the licence-and-peers branch; measured on the combined tree, not resolved
