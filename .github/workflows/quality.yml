@@ -150,7 +150,6 @@ jobs:
           pnpm --filter backend run overlay:check
           pnpm --filter backend run check:divergence
           pnpm --filter backend run check:release-intent
-          pnpm --filter backend run check:root-dispositions
           pnpm --filter backend run check:platform-surface
           pnpm --filter backend run manifests:check
 

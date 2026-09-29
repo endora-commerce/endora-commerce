@@ -1039,25 +1039,6 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'C',
   },
   {
-    id: 'check:root-dispositions',
-    script: 'backend/scripts/check-root-dispositions.ts',
-    // `repository-only`, and here the claim about the *subject* is unusually
-    // literal: the rule is over **this repository's top-level entries**, and a
-    // module package has none of them — it contributes paths under `packages/`
-    // and never a root entry. There is no analogue to give an author either:
-    // the question "may this be published" is answered for a repository by its
-    // owner, once, and a package installed from a registry has already been.
-    scope: 'repository-only',
-    reason:
-      'its subject is this repository’s own top-level entries and the recorded disposition ' +
-      'of each — whether a path travels into the public repository at the migration. A ' +
-      'module package holds no root entry of its own, and the question the rule asks has ' +
-      'already been answered for anything installed from a registry.',
-    subjectDeclaration: null,
-    readsArtefact: false,
-    tier: 'C',
-  },
-  {
     id: 'check:rsc-discipline',
     script: 'backend/scripts/check-rsc-discipline.ts',
     // `repository-only`, and the reason is the *subject* rather than the root:

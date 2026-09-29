@@ -1,6 +1,8 @@
 /**
- * `check-root-dispositions` — one red proof per shape it claims to refuse, plus
- * the two-way ratchet and the real record.
+ * The root-disposition analysis — one red proof per shape it claims to refuse,
+ * plus the two-way ratchet. It was `check-root-dispositions`' companion test;
+ * 129 T035 retired the check from the canonical tree and kept the analysis
+ * for the history filter, which still reads its record with it.
  *
  * The rule under test is D-232's second amendment, clauses (i) and (ii):
  * **private is a recorded disposition over an enumerated population, and an
@@ -16,7 +18,7 @@ import {
   type DispositionDocument,
   globToRegExp,
   rootEntriesOf,
-} from '../../../scripts/check-root-dispositions.js';
+} from '../../../scripts/lib/root-dispositions.js';
 
 function doc(entries: DispositionDocument['entries']): DispositionDocument {
   return { version: 1, entries };

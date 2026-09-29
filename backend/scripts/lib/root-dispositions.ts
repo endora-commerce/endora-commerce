@@ -1,70 +1,33 @@
 /**
- * CI check — every top-level entry of this repository has a **recorded
- * disposition**, and an entry that has none refuses
+ * The root-disposition analysis — what the one-time history filter
+ * (`public-history-filter.ts`, 129 T025) reads its record with.
+ *
+ * **This was `check-root-dispositions.ts` and it is no longer a check.** It
+ * held every top-level entry of the repository to a recorded disposition
  * (`specs/129-github-canonical-migration/` T012 / FR-003; D-232's second
- * amendment, clauses (i) and (ii)).
+ * amendment, clauses (i) and (ii)), so that the population the filter would
+ * carry into the public repository could not drift while nobody looked. Its
+ * subject ended at T031, when the filter ran: in a public repository every
+ * committed path is published, so a `private` disposition cannot be honoured,
+ * and the record itself is a withheld path. 129 T035 (D-283 §4.7) retired the
+ * check from the canonical tree — its inventory row, its estate verdict, its
+ * `quality` line, its read size and its command — and kept the analysis here,
+ * because the filter still imports it until it retires with T045.
  *
- * ## Why this is a standing check and not a stage of the filter
- *
- * The migration filter does not exist yet, and the hazard this refuses is
- * produced by **ordinary merges at ordinary speed** rather than by the
- * migration. D-232's amendment argued in the abstract that an include-list is
- * the wrong shape because *"nothing in this ruling decides what happens to entry
- * number forty"*, and measured **39** top-level entries the morning it was
- * written. Entry number forty — `CONTRIBUTING.md`, a good file added by an
- * ordinary merge — arrived the same day, carrying no disposition, by people who
- * had no reason to have read a clause written that morning. **Nobody did
- * anything wrong; there was simply no instrument.** A disposition file that
- * lands now catches entry forty-one; the same file written alongside the filter
- * would first run against a population that had been drifting for weeks, by
- * somebody with no way to tell a deliberate addition from an oversight.
- *
- * ## What it refuses, and why the default is refusal in *neither* direction
+ * What it refuses, one finding kind each, is unchanged and is proven in
+ * `backend/test/unit/scripts/root-dispositions.test.ts`:
  *
  *   * `undisposed-root-entry` — the tree holds an entry the record does not
- *     name. **This is the rule.** It does not default to private and it does
- *     not default to public: a refusal costs whoever added the entry five
- *     minutes, and a default is a decision nobody took, one of whose two
- *     directions is irreversible in public.
+ *     name, and there is no default in either direction.
  *   * `undisposed-path` — a file under a `partially-public` entry that matches
- *     no recorded path rule. The same rule one level down, and it is the one
- *     that would have caught the single real leak this estate found: a standing
- *     `specs/*.md` document that travelled because the ruling's phrasing was
- *     shaped like a directory and the file was not one.
- *   * `stale-disposition` — the record names an entry the tree no longer holds,
- *     and `unreachable-path-rule` — a path rule that matched nothing. Both are
- *     the ratchet's other direction. Without them the record accretes ghosts,
- *     and a reader cannot tell which rows still describe the tree from which
- *     ones are answering a question nobody asks any more.
- *   * `duplicate-disposition` and `invalid-disposition` — two rows for one
- *     entry, a disposition outside the three words, a `partially-public` entry
- *     with no path rules, or a row with no reason. A reason is not decoration:
- *     without one a disposition is a vote, and with one it is a decision the
- *     next reader can disagree with by name.
- *
- * ## Exit codes
- *
- * `0` clean, `1` findings, `2` **a vacuous pass refused** — a missing or
- * unparseable record, an empty walk, or a walk shorter than the commit tree's
- * own count of root entries. The vacuous case is the #244 predicate and it is
- * the one that matters most here: a green that means *"not looking"* is the
- * failure this estate exists against, and this check's green is the one nobody
- * would question. `reportReadSize` owns all three refusals, so the vacuous
- * verdict enters where a real run enters rather than being re-derived here.
- *
- * Usage: `tsx scripts/check-root-dispositions.ts [--list]`
+ *     no recorded path rule.
+ *   * `stale-disposition` and `unreachable-path-rule` — the ratchet's other
+ *     direction: a row or a rule that no longer describes the tree.
+ *   * `duplicate-disposition` and `invalid-disposition` — a record that is
+ *     not well formed, including a row with no reason.
  */
-/* eslint-disable no-console -- CLI check: stdout/stderr is the interface. */
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { reportReadSize } from './lib/read-size.js';
-
-const REPO_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
-
-/** Where the record lives. One file, read by this check and by the filter. */
+/** Where the record lives, in the pre-migration record: withheld from the public tree. */
 export const DISPOSITIONS_PATH =
   'specs/129-github-canonical-migration/contracts/root-dispositions.json';
 
@@ -341,113 +304,4 @@ export function analyseDispositions(input: DispositionInput): DispositionAnalysi
   }
 
   return { findings, rootEntries, resolved };
-}
-
-/** Every tracked path plus every untracked one git does not ignore. */
-function treePaths(): string[] {
-  const out = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-    maxBuffer: 64 * 1024 * 1024,
-  });
-  return [...new Set(out.split('\n').filter((l) => l !== ''))];
-}
-
-/**
- * The independent second author: the committed tree's own top-level entries,
- * read from the commit rather than from the index this check's walk uses. It is
- * a different store answering the same question, which is what makes the
- * reconciliation worth printing rather than the same number twice.
- */
-function committedRootEntries(): string[] {
-  const out = execFileSync('git', ['ls-tree', '--name-only', 'HEAD'], {
-    cwd: REPO_ROOT,
-    encoding: 'utf8',
-    maxBuffer: 8 * 1024 * 1024,
-  });
-  return out.split('\n').filter((l) => l !== '');
-}
-
-function main(): void {
-  const listMode = process.argv.includes('--list');
-  const recordPath = join(REPO_ROOT, DISPOSITIONS_PATH);
-  if (!existsSync(recordPath)) {
-    console.error(
-      `[root-dispositions] the record is missing at \`${DISPOSITIONS_PATH}\`, so every entry ` +
-        'in the tree is undisposed and a clean result would mean "not looking"',
-    );
-    process.exit(2);
-  }
-  let document: DispositionDocument;
-  try {
-    document = JSON.parse(readFileSync(recordPath, 'utf8')) as DispositionDocument;
-  } catch (error) {
-    console.error(
-      `[root-dispositions] the record at \`${DISPOSITIONS_PATH}\` is not readable JSON: ` +
-        `${(error as Error).message}`,
-    );
-    process.exit(2);
-  }
-  if (!Array.isArray(document.entries)) {
-    console.error(
-      `[root-dispositions] the record at \`${DISPOSITIONS_PATH}\` declares no \`entries\` array`,
-    );
-    process.exit(2);
-  }
-
-  const paths = treePaths();
-  const analysis = analyseDispositions({ paths, document });
-  const committed = committedRootEntries();
-  const covered = committed.filter((e) => analysis.rootEntries.includes(e)).length;
-
-  if (listMode) {
-    for (const entry of analysis.rootEntries) {
-      const row = document.entries.find((r) => r.entry === entry);
-      console.log(`[root-dispositions] ${entry} ${row?.disposition ?? '(none)'}`);
-    }
-  }
-
-  reportReadSize({
-    prefix: '[root-dispositions]',
-    files: paths.length,
-    sites: analysis.resolved,
-    coverage: [{ source: 'git-tree-entries', expected: committed.length, covered }],
-  });
-  const counts = new Map<FindingKind, number>();
-  for (const f of analysis.findings) counts.set(f.kind, (counts.get(f.kind) ?? 0) + 1);
-  const kinds: FindingKind[] = [
-    'undisposed-root-entry',
-    'undisposed-path',
-    'stale-disposition',
-    'unreachable-path-rule',
-    'duplicate-disposition',
-    'invalid-disposition',
-  ];
-  console.log(
-    `[root-dispositions] root-entries=${analysis.rootEntries.length} ` +
-      `recorded=${document.entries.length} resolved=${analysis.resolved} ` +
-      `${kinds.map((k) => `${k}=${counts.get(k) ?? 0}`).join(' ')} ` +
-      `findings=${analysis.findings.length}`,
-  );
-
-  if (analysis.findings.length > 0) {
-    console.error(
-      `\nEvery top-level entry needs a recorded disposition, and one that has none refuses ` +
-        `(D-232 clause (ii)). The record is \`${DISPOSITIONS_PATH}\`:`,
-    );
-    for (const f of analysis.findings.slice(0, 50)) {
-      console.error(`  - [${f.kind}] ${f.subject}: ${f.detail}`);
-    }
-    if (analysis.findings.length > 50) {
-      console.error(`  … and ${analysis.findings.length - 50} more`);
-    }
-  }
-
-  process.exit(analysis.findings.length === 0 ? 0 : 1);
-}
-
-// Run as CLI only — importing this module from a unit test must not trigger the
-// walk or the exit.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main();
 }
