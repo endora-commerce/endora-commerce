@@ -1,0 +1,73 @@
+# `boot-gate` on GitHub Actions — tranche 1 of the gate window.
+#
+# `specs/129-github-canonical-migration/contracts/gate-window.md` §4.2 is the
+# specification and T042b is the task: due by day 0 + 7. The gate builds the
+# production image, migrates a throwaway database, boots it and asks the running
+# platform whether every module installed and every overlay composed — then,
+# under `--with-negatives`, derives two broken images and requires each to go
+# red. `scripts/boot-gate.sh` and the paragraph above `boot-gate:` in
+# `.gitlab-ci.yml` carry the reasoning; it is not copied here.
+# `backend/test/unit/ci/actions-tranche-one-parity.test.ts` holds this file
+# equal to the GitLab job in what it runs and in when it runs.
+#
+# ## When it runs
+#
+# GitLab's two rules, one per trigger: every push to `master`, unfiltered, and a
+# pull request that touches what the image is built from — GitLab's `changes:`
+# list with `.gitlab-ci.yml` replaced by this file. A separate workflow because
+# a `paths` filter applies to a whole workflow; if this check is ever made
+# required (T033), the filter must go in the same change, because a skipped
+# workflow reports no status and would block a pull request outside it forever.
+#
+# ## Docker, and nothing else
+#
+# GitLab runs this in `docker:27` against a `docker:27-dind` service, with
+# `DOCKER_HOST` pointing at the service and `bash` added to the alpine image. A
+# GitHub-hosted `ubuntu-24.04` runner has a Docker engine and `bash` of its own,
+# so none of that is needed: the gate already speaks HTTP from a container on its
+# own docker network rather than through a published port, which is what makes
+# it indifferent to where the daemon is. Postgres, Redis and Meilisearch are
+# containers the gate starts itself, not service containers, so nothing here
+# declares one. No install, no build, no credential.
+
+name: boot-gate
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'backend/**/*'
+      - 'packages/**/*'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.base.json'
+      - 'backend/Dockerfile'
+      - '.dockerignore'
+      - 'scripts/collect-workspace-manifests.sh'
+      - 'scripts/boot-gate.sh'
+      - 'scripts/lib/boot-gate-assert.sh'
+      - 'deploy/compose.prod.yml'
+      - '.github/workflows/boot-gate.yml'
+  push:
+    branches: [master]
+
+concurrency:
+  group: boot-gate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  boot-gate:
+    name: boot-gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v4.4.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - run: bash scripts/boot-gate.sh --with-negatives

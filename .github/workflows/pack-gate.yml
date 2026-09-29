@@ -1,0 +1,95 @@
+# `pack-gate` on GitHub Actions — tranche 1 of the gate window.
+#
+# `specs/129-github-canonical-migration/contracts/gate-window.md` §4.2 is the
+# specification and T042b is the task. Of the three tranche-1 jobs this is the
+# one with a hard trigger of its own: **it must run before T052**, the first
+# npmjs publish, whatever the calendar says. It is the only gate whose subject
+# is a tarball, and it is what stands between a package that packs the wrong
+# files and a version on a public registry nobody can take back.
+#
+# The reasoning for the job itself is above `pack-gate:` in `.gitlab-ci.yml` and
+# in `backend/scripts/pack-gate.ts`, and is not copied here: a copied comment
+# drifts silently while the command it explains does not.
+# `backend/test/unit/ci/actions-tranche-one-parity.test.ts` holds this file
+# equal to the GitLab job in what it runs and in when it runs.
+#
+# ## When it runs
+#
+# GitLab's two rules, one per trigger: every push to `master`, unfiltered, and a
+# pull request that touches one of the paths below — GitLab's `changes:` list
+# with `.gitlab-ci.yml` replaced by this file, which is where the job is now
+# defined. A separate workflow rather than a job in `quality.yml` because a
+# `paths` filter applies to a whole workflow, and `quality.yml` is the floor
+# (window §3.1) that runs on every pull request.
+#
+# That filter has one consequence T033 must know: a workflow skipped by `paths`
+# reports no status at all, so if this check is ever made **required** the
+# filter must go in the same change, or a pull request outside it can never
+# merge. `quality.yml`'s header gives the same reason for not porting the unit
+# suite's `changes:` ladder.
+#
+# ## Runner and supply
+#
+# GitHub-hosted, never self-hosted (`actions-floor-parity.test.ts`). The GitLab
+# job installs `tar` into `node:22.18-slim`; `ubuntu-24.04` ships it. It needs no
+# credential and makes no registry request — see the GitLab comment — so the job
+# reads nothing but the checkout. Actions are pinned by full commit SHA.
+
+name: pack-gate
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'packages/**/*'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.base.json'
+      - 'backend/scripts/pack-gate.ts'
+      - 'backend/scripts/lib/pack-assert.ts'
+      - '.github/workflows/pack-gate.yml'
+  push:
+    branches: [master]
+
+concurrency:
+  # As in `quality.yml`: a superseded pull-request run is cancelled, a `master`
+  # run never is — it is the answer T052 reads.
+  group: pack-gate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  pack-gate:
+    name: pack-gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v4.4.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      # actions/setup-node v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # actions/cache v4.3.0
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      # `pnpm pack` packs what is on disk, so an unbuilt workspace would produce
+      # tarballs with no code in them and the gate would report the run rather
+      # than the tree.
+      - run: pnpm run build:packages
+      # `--no-build` because the step above has already built.
+      - run: pnpm --filter backend run pack-gate -- --no-build

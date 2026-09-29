@@ -81,6 +81,14 @@ const ACCEPTANCE_PUBLIC_WORKFLOW = workflowSource('acceptance-public.yml');
 const QUALITY_JOBS = readWorkflowJobs(QUALITY_WORKFLOW);
 const PUBLISH_JOBS = readWorkflowJobs(PUBLISH_WORKFLOW);
 const ACCEPTANCE_PUBLIC_JOBS = readWorkflowJobs(ACCEPTANCE_PUBLIC_WORKFLOW);
+/**
+ * Tranche 1 (window §4.2, T042b). Its parity with GitLab — commands and
+ * triggers — is `actions-tranche-one-parity.test.ts`; it is read here only so
+ * the host-wide rules below reach it.
+ */
+const TRANCHE_ONE_JOBS = ['pack-gate.yml', 'boot-gate.yml'].flatMap((file) =>
+  readWorkflowJobs(workflowSource(file)),
+);
 
 /** The five of window §3.1, named as both hosts name them. */
 const FLOOR = [
@@ -109,22 +117,27 @@ describe('the floor parsed a population that looks like both hosts', () => {
    * which is also what two empty lists say, and what a parser that stopped
    * recognising `run:` says. Both would be a green measuring nothing.
    */
-  it('read the five workflow files and the five floor jobs', () => {
+  it('read every workflow file and the five floor jobs', () => {
     // None of `dco.yml`, `acceptance-public.yml` or `demo.yml` is a port of a
     // GitLab floor job: the sign-off gate exists only on the canonical host
     // (`specs/136-open-source-publication/` W6.3, held by
     // `test/unit/ci/dco-signoff.test.ts`), the public acceptance mode is a
     // dormant `workflow_dispatch` (W5.4), and the open-source demo's build and
     // deploy (W7.5, D-274) are held by `test/unit/ci/demo-workflow.test.ts`.
-    // All are listed so that a sixth workflow still has to be named here by
+    // `pack-gate.yml` and `boot-gate.yml` are tranche 1, not
+    // the floor, and are held by `actions-tranche-one-parity.test.ts`.
+    // All are listed so that any new workflow still has to be named here by
     // whoever adds it.
     expect(WORKFLOW_FILES).toEqual([
       'acceptance-public.yml',
+      'boot-gate.yml',
       'dco.yml',
       'demo.yml',
+      'pack-gate.yml',
       'publish.yml',
       'quality.yml',
     ]);
+    expect(TRANCHE_ONE_JOBS.map((job) => job.name)).toEqual(['pack-gate', 'boot-gate']);
     expect(QUALITY_JOBS.map((job) => job.name)).toEqual([...FLOOR]);
     expect(PUBLISH_JOBS.map((job) => job.name)).toEqual(['publish:packages']);
     expect(
@@ -172,7 +185,7 @@ describe('the ported jobs are given what their scripts need', () => {
    */
   const runsWorkspaceCode = (line: string): boolean => /\bpnpm\s+(--filter\b|-r\b)/.test(line);
 
-  for (const job of [...QUALITY_JOBS, ...PUBLISH_JOBS]) {
+  for (const job of [...QUALITY_JOBS, ...PUBLISH_JOBS, ...TRANCHE_ONE_JOBS]) {
     it(`holds for \`${job.name ?? job.id}\``, () => {
       const first = job.runLines.findIndex(runsWorkspaceCode);
       if (first === -1) return;
@@ -246,7 +259,7 @@ describe('the workflows run on hosted runners, at the node version GitLab names'
   });
 
   it('declares an explicit permissions block on every job', () => {
-    const missing = [...QUALITY_JOBS, ...PUBLISH_JOBS, ...ACCEPTANCE_PUBLIC_JOBS]
+    const missing = [...QUALITY_JOBS, ...PUBLISH_JOBS, ...ACCEPTANCE_PUBLIC_JOBS, ...TRANCHE_ONE_JOBS]
       .filter((job) => !/^\s{4}permissions:\s*$/m.test(job.body))
       .map((job) => job.name ?? job.id);
     expect(
