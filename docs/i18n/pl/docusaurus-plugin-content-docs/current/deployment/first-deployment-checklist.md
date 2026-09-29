@@ -23,7 +23,8 @@ wygenerowały.
 
 **Ta strona to nie procedura wdrożenia.** Provisioning VPS, rejestr kontenerów, TLS, DNS i
 stack compose są w `deploy/README.md` i powinno się je wykonać najpierw. Ta strona zaczyna
-się tam, gdzie tamta się kończy: stack stoi, schema jest nałożona, a nikt jeszcze nie podjął
+się tam, gdzie tamta się kończy: stack stoi, schema jest nałożona (`backend-migrate`), hooki
+instalacyjne każdego modułu zostały uruchomione (`backend-install`), a nikt jeszcze nie podjął
 decyzji o biznesie, który na nim działa.
 
 **Dyscyplina zakresu.** Punkt należy tutaj tylko wtedy, gdy wszystkie trzy warunki są spełnione:
@@ -156,12 +157,24 @@ gruncie braku wdrożenia produkcyjnego — kolejność bloku przed `20260801T000
 wyrzucić. Pierwsza produkcyjna baza to pierwsza, która musi zachować wiersze.
 
 **Zrób (inżynier).** Na dokładnym commicie, który będzie wdrożony, nałóż cały łańcuch na pustą
-jednorazową bazę — `DATABASE_URL=…/b2b_rehearsal pnpm --filter backend run db:fresh`. Nigdy
-nie uruchamiaj `db:fresh` ani `db:reset` bez jawnego `DATABASE_URL`: bez prefiksu przebudowują
-własną bazę developera.
+jednorazową bazę, a potem uruchom na niej hooki instalacyjne każdego modułu — te same dwa kroki,
+w tej samej kolejności, które `deploy/compose.prod.yml` wykonuje jako `backend-migrate` i
+`backend-install`, zanim wystartuje API:
 
-**Zweryfikuj.** Run kończy się bez błędu kolejności, a wynikowa schema odpowiada temu, co
-kontener `backend-migrate` na VPS produkuje na release.
+```bash
+DATABASE_URL=…/b2b_rehearsal pnpm --filter backend run setup
+```
+
+`setup` (w `backend/package.json`) to `db:fresh`, a po nim `module:install --all`. Samo
+`db:fresh` nie jest próbą wdrożenia: baza, której pierwszym aktem po migracjach jest boot, nigdy
+nie uruchamia swoich hooków instalacyjnych. Nigdy nie uruchamiaj `db:fresh`, `setup` ani
+`db:reset` bez jawnego `DATABASE_URL`: bez prefiksu przebudowują własną bazę developera, a
+`db:reset` dodatkowo uruchamia demo seed.
+
+**Zweryfikuj.** Oba kroki kończą się bez błędu kolejności i bez nieudanego hooka instalacyjnego,
+a wynikowa schema odpowiada temu, co kontenery `backend-migrate` i `backend-install` produkują
+na VPS na release — każdy z nich kończy się kodem `0` (`docker compose --env-file .env -f
+compose.prod.yml ps -a` pokazuje je jako `Exited (0)`).
 
 ### C2. Nie uruchamiaj demo seed
 
@@ -172,7 +185,12 @@ nie należą do klienta, a nie utrata jego wierszy. Ma production guard —
 `ALLOW_DEV_SEED_IN_PRODUCTION` — który `deploy/compose.prod.yml` kiedyś permanentnie pokonywał
 w pre-armed serwisie `seed`, który `deploy/README.md` wymieniał jako krok wdrożenia. Serwis został
 od tego czasu usunięty, a seed wyrzucony z procedury wdrożenia: nie ma już sposobu uruchomić go bez
-wpisania przez operatora `-e ALLOW_DEV_SEED_IN_PRODUCTION=true`.
+wpisania przez operatora **obu** override'ów — `-e ALLOW_DEV_SEED_IN_PRODUCTION=true` oraz
+`-e ALLOW_DEV_SEED_ON_NON_LOCAL_DATABASE=true`. Guard (`packages/platform/src/demo/guard.ts`)
+zadaje dwa osobne pytania: pierwszy override odpowiada na *„to jest `NODE_ENV=production`"*,
+drugi na *„baza nie jest ani na loopbacku, ani nazwana jako baza testowa"* — a w stacku
+produkcyjnym nie jest żadnym z nich, bo jej host to serwis `postgres`. Z samym pierwszym
+polecenie odmawia na drugim.
 
 To zamyka wypadek, nie decyzję. Seed nadal jest osiągalny, a ten krok nadal jest miejscem, gdzie
 operator mówi nie.
@@ -211,10 +229,17 @@ trzymająca wildcard `*`. Wszystko inne to design klienta.
 
 ```bash
 cd /opt/b2b
+export IMAGE_TAG=<deployed-sha>
 docker compose --env-file .env -f compose.prod.yml run --rm backend \
-  pnpm exec tsx src/cli.ts admin_users create \
+  node dist/cli.js admin_users create \
   --email=… --password=… --first-name=… --last-name=…
 ```
+
+To to samo polecenie, które podaje krok 3 w `deploy/README.md`, z czterema flagami, których
+wymaga polecenie `create` modułu `admin_users` (hasło musi mieć co najmniej 12 znaków). Obraz produkcyjny uruchamia zbudowane drzewo, więc host CLI to
+`node dist/cli.js` — skrypt pakietu `admin:create` to jego zapis deweloperski
+(`tsx src/cli.ts`), nie coś do uruchamiania na VPS. Uruchom je, gdy stack już stoi, żeby
+`backend-install` zdążył wykonać hooki instalacyjne każdego modułu.
 
 Potem w Admin UI zdefiniuj role, których klient faktycznie potrzebuje na `/admin-roles`, i
 przestań używać konta wildcard do codziennej pracy.
@@ -480,10 +505,11 @@ storefront zwraca nic i bez błędu.
 
 ```bash
 docker compose --env-file .env -f compose.prod.yml run --rm backend \
-  pnpm exec tsx src/cli.ts search reindex
+  node dist/cli.js search reindex
 ```
 
-(ta sama invokacja, którą robi skrypt pakietu `search:reindex` — `src/cli.ts` to host binary
+(zbudowana postać tego, co skrypt pakietu `search:reindex` uruchamia w developmencie —
+`dist/cli.js` to host binary
 uruchamiający polecenia, które moduły deklarują w `manifest.ts`; `--list` wypisuje każde,
 które ta instancja oferuje). Zobacz `docs/docs/modules/search.md`.
 
