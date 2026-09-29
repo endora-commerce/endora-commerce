@@ -66,6 +66,10 @@ x-backend-env: &backend-env
   REVALIDATE_SECRET: ${REVALIDATE_SECRET:-}
   # Secrets — generate per environment, see deploy/.env.prod.example.
   SESSION_COOKIE_SECRET: ${SESSION_COOKIE_SECRET}
+  # Signs newsletter confirmation and unsubscribe links. Unset, the backend
+  # signs them with the session key, so rotating that key invalidates every
+  # link still waiting in an inbox.
+  NEWSLETTER_TOKEN_SECRET: ${NEWSLETTER_TOKEN_SECRET}
   SETTINGS_SECRET_ENCRYPTION_KEY: ${SETTINGS_SECRET_ENCRYPTION_KEY}
   MFA_SECRET_ENCRYPTION_KEY: ${MFA_SECRET_ENCRYPTION_KEY}
   ASSETS_LIBRARY_HMAC_KEY: ${ASSETS_LIBRARY_HMAC_KEY}

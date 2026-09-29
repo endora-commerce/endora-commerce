@@ -196,3 +196,49 @@ describe('it installs every module between the migrations and the API (FR-104)',
     expect(missing).toEqual([]);
   });
 });
+
+/**
+ * Every generable secret the platform declares reaches the backend of this
+ * stack, and has a line in `deploy/.env.prod.example` to fill in.
+ *
+ * `NEWSLETTER_TOKEN_SECRET` was missing from both. The backend then fell back
+ * to signing newsletter links with the session key, which meant rotating that
+ * key invalidated every confirmation link still waiting in an inbox. The names
+ * are read off the platform's own declaration, not listed here.
+ */
+describe('it hands the backend every generable secret the platform declares', () => {
+  const ENV_EXAMPLE = readFileSync(join(REPO_ROOT, 'deploy/.env.prod.example'), 'utf8');
+
+  async function generableSecrets(): Promise<readonly string[]> {
+    const { PLATFORM_ENVIRONMENT_INPUTS } = await import('@endora-commerce/platform/env');
+    return PLATFORM_ENVIRONMENT_INPUTS.filter(
+      (input) => input.generable && input.secret && input.consumers.includes('backend'),
+    ).map((input) => input.name);
+  }
+
+  it('declares at least the three the platform has, so the assertions below are not vacuous', async () => {
+    expect((await generableSecrets()).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('passes each one to the backend through `x-backend-env`', async () => {
+    // `topLevelBlock` looks for `<key>:` alone on its line; this block's key
+    // line carries the YAML anchor after it.
+    const lines = COMPOSE.split('\n');
+    const start = lines.findIndex((line) => /^x-backend-env:\s*&backend-env\s*$/.test(line));
+    expect(start, 'no `x-backend-env: &backend-env` block').toBeGreaterThan(-1);
+    const end = lines.findIndex((line, index) => index > start && /^\S/.test(line) && !line.startsWith('#'));
+    const env = lines.slice(start + 1, end === -1 ? undefined : end);
+    expect(env.some((line) => /^ {2}SESSION_COOKIE_SECRET:/.test(line))).toBe(true);
+    const missing = (await generableSecrets()).filter(
+      (name) => !env.some((line) => new RegExp(`^ {2}${name}: \\$\\{${name}[:}]`).test(line)),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it('gives each one a line in deploy/.env.prod.example', async () => {
+    const missing = (await generableSecrets()).filter(
+      (name) => !new RegExp(`^${name}=`, 'm').test(ENV_EXAMPLE),
+    );
+    expect(missing).toEqual([]);
+  });
+});
