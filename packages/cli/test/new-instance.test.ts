@@ -25,6 +25,7 @@
  * below the defect could not catch it.
  */
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -1589,6 +1590,22 @@ describe('G3 — `.env.example` declares every input the instance reads (FR-010)
     const ignore = plan.files.find((file) => file.path === '.gitignore')!.content;
     expect(ignore).toMatch(/^\.env$/m);
     expect(ignore).not.toMatch(/^\.env\.example$/m);
+  });
+
+  /**
+   * The same set `endora new storefront` guarantees, asserted through git rather
+   * than by reading lines: a `.env.local` holds the same secrets as `.env`, and
+   * an installed or built tree is never the client's to commit.
+   */
+  it('§2.6 — git ignores local env files and the installed and built trees', () => {
+    const plan = planInstance(planInput({ declared: DECLARED }));
+    const dir = tempRoot();
+    writeFileSync(join(dir, '.gitignore'), plan.files.find((file) => file.path === '.gitignore')!.content);
+    expect(spawnSync('git', ['init', '-q'], { cwd: dir }).status).toBe(0);
+    const probes = ['.env', '.env.local', 'node_modules/x', '.next/x', 'tsconfig.tsbuildinfo'];
+    const checked = spawnSync('git', ['check-ignore', '--no-index', ...probes], { cwd: dir, encoding: 'utf8' });
+    expect(checked.stdout.split('\n').filter(Boolean)).toEqual(probes);
+    expect(spawnSync('git', ['check-ignore', '-q', '--no-index', '.env.example'], { cwd: dir }).status).toBe(1);
   });
 });
 

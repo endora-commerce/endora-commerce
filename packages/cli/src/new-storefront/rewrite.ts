@@ -56,6 +56,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 
 import { STOREFRONT_DOCKERIGNORE, storefrontDockerfile } from './dockerfile.js';
+import { storefrontGitignore } from './gitignore.js';
 import { installedScopes, normalizeRegistry, npmrcContent, TOKEN_VARIABLE } from './npmrc.js';
 import {
   DEPENDENCY_FIELDS,
@@ -651,6 +652,17 @@ export function planStorefront(
       {
         content: STOREFRONT_DOCKERIGNORE,
         note: 'keeps `.env` and the installed trees out of the image build context',
+      },
+    ],
+    [
+      '.gitignore',
+      {
+        content: storefrontGitignore(
+          reference.files.includes('.gitignore')
+            ? readFileSync(join(reference.dir, '.gitignore'), 'utf8')
+            : null,
+        ),
+        note: 'keeps `.env` and the installed and built trees out of this repository',
       },
     ],
   ]);
