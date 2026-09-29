@@ -128,6 +128,7 @@ import {
   loadPackageModuleEntries,
 } from '../packages/package-runtime.js';
 import { nodeModulesRootsFor } from '../packages/installed-packages.js';
+import { newsletterTokenSecretFrom } from './newsletter-token-secret.js';
 import { processRunsWorkersFor } from './process-runs-workers.js';
 import { forkScopedEm } from '../tenancy/scoped-em.js';
 import { systemTenantContext } from '../tenancy/resolve-tenant-context.js';
@@ -641,13 +642,13 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // module-named values that once stood beside it were removed (T124).
     //
     // The fallback chain is the declaration's own sentence: absent, *"newsletter
-    // links are signed with the session key instead"*. The **third** fallback
+    // links are signed with the session key instead"* — and an empty value is
+    // absent (`./newsletter-token-secret.ts`). The **third** fallback
     // the reference deployment carried — a literal `'newsletter-dev-secret'` —
     // is deliberately not reproduced. It is a shipped default signing key,
     // nothing declares it, and a deployment that reached it signed every
     // confirmation link with a secret that is in this repository.
-    newsletterTokenSecret:
-      process.env['NEWSLETTER_TOKEN_SECRET'] ?? process.env['SESSION_COOKIE_SECRET'] ?? '',
+    newsletterTokenSecret: newsletterTokenSecretFrom(process.env),
     // The one connection ioredis has put into subscriber mode. Shared, because
     // a subscriber connection cannot serve commands: a per-module one would
     // cost a socket per module and buy nothing.
