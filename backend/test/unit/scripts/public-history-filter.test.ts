@@ -28,6 +28,7 @@
  * which is the one failure a run against real history cannot afford.
  */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -36,11 +37,14 @@ import { afterAll, describe, expect, it } from 'vitest';
 
 import {
   byteIdentityFindings,
+  combineTextRecords,
   commitMapAfterSecondPass,
-  completenessFindings,
+  completenessLines,
+  completenessWalk,
   historicalDisclosureFindings,
   historicalRootsDroppedBy,
   composeCommitMaps,
+  idPathContext,
   type DispositionDocument,
   keepSpecsFrom,
   literalCensus,
@@ -50,12 +54,16 @@ import {
   parseCommitMap,
   patternAudit,
   projectionOf,
+  readCommittedTextRecord,
   readModuleHistory,
   renderPathsFile,
   renderReplaceMessageFile,
   renderReplaceTextFile,
   replaceTextLocationRefusal,
   resolveModuleExclusions,
+  TEXT_REPLACEMENTS_PATH,
+  textRecordLines,
+  textRecordRefusals,
   type TextReplacementDocument,
   type TextReplacementRule,
   textReplacementFindings,
@@ -259,6 +267,9 @@ describe('the module-id exclusion resolves over the history (129 FR-011 as amend
         moduleId: 'demo_mod',
         roots: ['backend/src/modules/demo_mod', 'packages/modules/demo_mod'],
         files: 5,
+        renamed: 0,
+        host: {},
+        withheldPaths: 0,
       },
     ]);
   });
@@ -313,11 +324,21 @@ describe('the module-id exclusion resolves over the history (129 FR-011 as amend
   it('prints one line per excluded id — a file count and the roots, never the paths (FR-020)', () => {
     const lines = moduleExclusionLines(
       ['demo_mod'],
-      [{ moduleId: 'demo_mod', roots: ['a/demo_mod', 'b/demo_mod'], files: 12 }],
+      [
+        {
+          moduleId: 'demo_mod',
+          roots: ['a/demo_mod', 'b/demo_mod'],
+          files: 12,
+          renamed: 3,
+          host: { storefront: 2, docs: 5 },
+          withheldPaths: 1,
+        },
+      ],
     );
     expect(lines).toEqual([
       '[public-history-filter] module ids excluded: 1',
-      '  - demo_mod files=12 roots=a/demo_mod, b/demo_mod',
+      '  - demo_mod files=12 renamed=3 host=docs:5,storefront:2 withheld-paths=1 ' +
+        'roots=a/demo_mod, b/demo_mod',
     ]);
   });
 
@@ -355,41 +376,56 @@ describe('the module-id exclusion resolves over the history (129 FR-011 as amend
     expect(resolved.perId[0]!.files).toBe(9);
   });
 
-  it('case 6: an id-bearing path the resolution did not cover refuses, printed — segment and stem', () => {
-    // Both are shapes this repository's own history holds: a request-fixture
-    // directory named in the kebab spelling under `backend/test/fixtures/`, and
-    // a module documentation page whose stem is the id. Neither is a satellite
-    // convention, so a resolver that trusted its conventions would publish them.
+  it('case 6: an id-bearing path no rule reaches refuses, printed — segment and stem', () => {
+    // T091 drew both shapes from this repository's history: a request-fixture
+    // directory in the kebab spelling under `backend/test/fixtures/`, and a
+    // module page whose stem is the id. D-272 clause 1 withholds both by shape
+    // (row W: a host tree), so the refusal is now asserted where D-272 clause 4
+    // keeps it — outside the host trees — in a segment and in a stem.
     const repo = fixtureRepo();
     repo.commit({
       'packages/modules/comarch_xl/src/manifest.ts': manifestOf('comarch_xl'),
       'packages/modules/ksef/src/manifest.ts': manifestOf('ksef'),
       'backend/test/fixtures/comarch-xl/request.xml': '<x/>\n',
       'docs/docs/modules/ksef.md': '# page\n',
-      'backend/test/helpers/scripted-ksef-client.ts': 'x\n',
+      'backend/src/lib/comarch-xl/mapper.ts': 'x\n',
+      'scripts/ksef.sh': 'x\n',
       'docs/docs/modules/blog.md': '# page\n',
     });
+    repo.commit({
+      'backend/test/fixtures/comarch-xl': null,
+      'docs/docs/modules/ksef.md': null,
+      'backend/src/lib/comarch-xl': null,
+      'scripts/ksef.sh': null,
+      'packages/modules': null,
+    });
     const history = readModuleHistory('HEAD', repo.root);
-    const resolved = resolveModuleExclusions(['comarch_xl', 'ksef'], history);
+    const ids = ['comarch_xl', 'ksef'];
+    const resolved = resolveModuleExclusions(ids, history);
     expect(resolved.findings).toEqual([]);
+    expect(resolved.paths).toContain('backend/test/fixtures/comarch-xl/request.xml');
+    expect(resolved.paths).toContain('docs/docs/modules/ksef.md');
 
-    const refused = completenessFindings(history.paths, ['comarch_xl', 'ksef'], resolved.paths);
-    expect(refused.map((f) => [f.kind, f.subject])).toEqual([
-      ['uncovered-module-path', 'backend/test/fixtures/comarch-xl/request.xml'],
-      ['uncovered-module-path', 'docs/docs/modules/ksef.md'],
+    const walk = completenessWalk(history.paths, resolved.paths, idPathContext(ids, history));
+    expect(walk.findings.map((f) => [f.kind, f.subject])).toEqual([
+      ['uncovered-module-path', 'backend/src/lib/comarch-xl/mapper.ts'],
+      ['uncovered-module-path', 'scripts/ksef.sh'],
     ]);
-    expect(refused[0]!.detail).toContain('comarch_xl');
+    expect(walk.findings[0]!.detail).toContain('comarch_xl');
   });
 
   it('case 6: is silent when every id-bearing path is covered, and when the list is empty', () => {
+    const history = {
+      manifests: [{ path: 'packages/modules/ksef/src/manifest.ts', moduleId: 'ksef' }],
+      paths: ['packages/modules/ksef/src/manifest.ts', 'docs/docs/modules/blog.md'],
+    };
     expect(
-      completenessFindings(
-        ['packages/modules/ksef/src/manifest.ts', 'docs/docs/modules/blog.md'],
-        ['ksef'],
-        ['packages/modules/ksef'],
-      ),
+      completenessWalk(history.paths, ['packages/modules/ksef'], idPathContext(['ksef'], history))
+        .findings,
     ).toEqual([]);
-    expect(completenessFindings(['docs/docs/modules/ksef.md'], [], [])).toEqual([]);
+    expect(
+      completenessWalk(['scripts/ksef.sh'], [], idPathContext([], history)).findings,
+    ).toEqual([]);
   });
 
   it('case 7: the same id twice still refuses, because the second entry is invisible', () => {
@@ -471,7 +507,16 @@ describe('an excluded id still at the tip refuses (136 FR-050, GAP-6)', () => {
     // path the tip still holds — a satellite included. Left alone, the second
     // pass would take that file out of the published tip silently.
     const atTip = tipResolvedPaths(
-      [{ moduleId: 'gone', roots: ['packages/modules/gone', 'packages/contracts/src/gone.ts'], files: 9 }],
+      [
+        {
+          moduleId: 'gone',
+          roots: ['packages/modules/gone', 'packages/contracts/src/gone.ts'],
+          files: 9,
+          renamed: 0,
+          host: {},
+          withheldPaths: 0,
+        },
+      ],
       ['packages/contracts/src/gone.ts', 'packages/contracts/src/index.ts'],
     );
     expect(atTip).toEqual(new Map([['gone', ['packages/contracts/src/gone.ts']]]));
@@ -930,7 +975,12 @@ describe('the text-replacement record is validated before it is used (136 O-3)',
         record([
           rule(),
           rule({ class: 'C3', ref: 'fixture-2', literal: 'another invented phrase' }),
-          rule({ class: 'S', ref: 'fixture-3', literal: 'not-a-real-value-0000' }),
+          rule({
+            class: 'S',
+            ref: 'fixture-3',
+            literal: 'not-a-real-value-0000',
+            revoked: '2026-09-28',
+          }),
         ]),
       ),
     ).toEqual([]);
@@ -1059,5 +1109,410 @@ describe('a text replacement reaches only blobs absent from the tip (136 W2.4, 1
     const before = literalCensus({ blobs, tip, rules: only });
     const after = literalCensus({ blobs: [blob('b-new', 'new')], tip, rules: only });
     expect(textReplacementFindings({ rules: only, before, after })).toEqual([]);
+  });
+});
+
+// --- 134 T094a: D-272 clauses 3–5 and 7, D-273 ------------------------------
+//
+// Every fixture is a throwaway repository with invented ids — `vendo` is
+// excluded, `invoices` is free — because the rules are about shapes and order,
+// and this tree's own counts are T094's reconciliation, not a unit test's
+// (D-100).
+
+/** Ten lines; {@link similar} keeps four of them, which git scores at 39%. */
+const TEN_LINES = Array.from({ length: 10 }, (_, n) => `original line ${n} of a moved file\n`).join('');
+function similar(tag: string): string {
+  return (
+    TEN_LINES.split('\n').slice(0, 4).join('\n') +
+    '\n' +
+    Array.from({ length: 6 }, (_, n) => `${tag} rewritten line ${n}\n`).join('')
+  );
+}
+
+describe('the rename closure (D-272 clause 3, 134 T094a test 2)', () => {
+  function closureFixture(): Fixture {
+    const repo = fixtureRepo();
+    repo.commit({
+      'packages/modules/vendo/src/manifest.ts': manifestOf('vendo'),
+      'packages/modules/invoices/src/manifest.ts': manifestOf('invoices'),
+      'backend/test/helpers/plain-a.ts': TEN_LINES,
+      'old/one.ts': `${TEN_LINES}chain\n`,
+      'lib/shared.ts': `${TEN_LINES}copied\n`,
+      'packages/modules/invoices/src/moved.ts': `${TEN_LINES}free\n`,
+    });
+    // A rename at 39% similarity: under git's default 50% it is a delete and an add.
+    repo.commit({
+      'backend/test/helpers/plain-a.ts': null,
+      'backend/test/unit/vendo/a.test.ts': similar('a'),
+    });
+    // A chain, one rename per commit: one → two → a resolved satellite.
+    repo.commit({ 'old/one.ts': null, 'mid/two.ts': `${TEN_LINES}chain\n` });
+    repo.commit({ 'mid/two.ts': null, 'backend/test/unit/vendo/three.test.ts': `${TEN_LINES}chain\n` });
+    // A copy: the source is kept, so it is not a rename.
+    repo.commit({ 'backend/test/unit/vendo/copied.test.ts': `${TEN_LINES}copied\n` });
+    // A rename out of a free module's own root.
+    repo.commit({
+      'packages/modules/invoices/src/moved.ts': null,
+      'backend/test/unit/vendo/moved.test.ts': `${TEN_LINES}free\n`,
+    });
+    // The extraction: the excluded module and its satellite leave the tip.
+    repo.commit({ 'packages/modules/vendo': null, 'backend/test/unit/vendo': null });
+    return repo;
+  }
+
+  it('resolves a path renamed at between 30% and 50% similarity into a resolved satellite', () => {
+    const repo = closureFixture();
+    const resolved = resolveModuleExclusions(['vendo'], readModuleHistory('HEAD', repo.root));
+    expect(resolved.findings).toEqual([]);
+    expect(resolved.paths).toContain('backend/test/helpers/plain-a.ts');
+  });
+
+  it('resolves every link of a chain A → B → C whose end is resolved', () => {
+    const repo = closureFixture();
+    const resolved = resolveModuleExclusions(['vendo'], readModuleHistory('HEAD', repo.root));
+    expect(resolved.paths).toContain('mid/two.ts');
+    expect(resolved.paths).toContain('old/one.ts');
+    expect(resolved.perId[0]!.renamed).toBe(3);
+  });
+
+  it('does not follow a copy, and does not take a rename source from a free module’s own root', () => {
+    const repo = closureFixture();
+    const resolved = resolveModuleExclusions(['vendo'], readModuleHistory('HEAD', repo.root));
+    expect(resolved.paths).not.toContain('lib/shared.ts');
+    expect(resolved.paths).not.toContain('packages/modules/invoices/src/moved.ts');
+  });
+});
+
+describe('the exemption classes and their order (D-272 clause 4, 134 T094a test 3)', () => {
+  function classFixture(): Fixture {
+    const repo = fixtureRepo();
+    repo.commit({
+      'packages/modules/vendo/src/manifest.ts': manifestOf('vendo'),
+      'packages/modules/invoices/src/manifest.ts': manifestOf('invoices'),
+      // P3: under a host tree, carrying the id, and held at the tip.
+      'admin/test/components/Shell.vendo-nav.test.tsx': 'x\n',
+      // P2: a free module's satellite.
+      'backend/test/unit/invoices/x-vendo.test.ts': 'x\n',
+      // P1: release notes.
+      '.changeset/vendo-note.md': 'x\n',
+      // W: a host tree.
+      'storefront/app/x/VendoPayForm.tsx': 'x\n',
+      // Refuses: outside the host trees.
+      'backend/src/core/vendo-helper.ts': 'x\n',
+      // P2 would exempt it; the closure reaches it first.
+      'backend/test/unit/invoices/vendo-section.test.ts': `${TEN_LINES}section\n`,
+    });
+    repo.commit({
+      'backend/test/unit/invoices/vendo-section.test.ts': null,
+      'backend/test/unit/vendo/section.test.ts': `${TEN_LINES}section\n`,
+    });
+    repo.commit({
+      'packages/modules/vendo': null,
+      'backend/test/unit/vendo': null,
+      'backend/test/unit/invoices/x-vendo.test.ts': null,
+      '.changeset/vendo-note.md': null,
+      'storefront/app/x/VendoPayForm.tsx': null,
+      'backend/src/core/vendo-helper.ts': null,
+    });
+    return repo;
+  }
+
+  it('disposes of each id-carrying path by the first row that matches: P3, P2, P1, W, refuse', () => {
+    const repo = classFixture();
+    const history = readModuleHistory('HEAD', repo.root);
+    const resolved = resolveModuleExclusions(['vendo'], history);
+    expect(resolved.findings).toEqual([]);
+    // W withholds, and the closure goes before P2.
+    expect(resolved.paths).toContain('storefront/app/x/VendoPayForm.tsx');
+    expect(resolved.paths).toContain('backend/test/unit/invoices/vendo-section.test.ts');
+    // P3, P2, P1 and the refusal are not resolved.
+    for (const path of [
+      'admin/test/components/Shell.vendo-nav.test.tsx',
+      'backend/test/unit/invoices/x-vendo.test.ts',
+      '.changeset/vendo-note.md',
+      'backend/src/core/vendo-helper.ts',
+    ]) {
+      expect(resolved.paths).not.toContain(path);
+    }
+    expect(resolved.perId[0]).toMatchObject({ renamed: 1, host: { storefront: 1 } });
+
+    const walk = completenessWalk(history.paths, resolved.paths, idPathContext(['vendo'], history));
+    expect(walk.findings.map((f) => [f.kind, f.subject])).toEqual([
+      ['uncovered-module-path', 'backend/src/core/vendo-helper.ts'],
+    ]);
+    expect(walk.exempt).toEqual({
+      P1: ['.changeset/vendo-note.md'],
+      P2: ['backend/test/unit/invoices/x-vendo.test.ts'],
+      P3: ['admin/test/components/Shell.vendo-nav.test.tsx'],
+    });
+  });
+
+  it('never resolves a path the tip holds, so P3 produces no tip residue', () => {
+    const repo = classFixture();
+    const history = readModuleHistory('HEAD', repo.root);
+    const resolved = resolveModuleExclusions(['vendo'], history);
+    const tip = execFileSync('git', ['-C', repo.root, 'ls-files'], { encoding: 'utf8' })
+      .split('\n')
+      .filter((line) => line !== '');
+    expect(tip).toContain('admin/test/components/Shell.vendo-nav.test.tsx');
+    const atTip = tipResolvedPaths(resolved.perId, tip);
+    expect(atTip).toEqual(new Map());
+    for (const path of tip) expect(resolved.paths).not.toContain(path);
+  });
+});
+
+describe('moduleExclusions.withheldPaths (D-272 clause 5, 134 T094a test 4)', () => {
+  function residueFixture(): Fixture {
+    const repo = fixtureRepo();
+    repo.commit({
+      'packages/modules/vendo/src/manifest.ts': manifestOf('vendo'),
+      'storefront/app/checkout/pay/page.tsx': 'x\n',
+      'storefront/app/x/VendoPayForm.tsx': 'x\n',
+      'storefront/app/kept.tsx': 'x\n',
+    });
+    repo.commit({
+      'packages/modules/vendo': null,
+      'storefront/app/checkout/pay/page.tsx': null,
+      'storefront/app/x/VendoPayForm.tsx': null,
+    });
+    return repo;
+  }
+  const entry = (over: Record<string, string> = {}) => ({
+    path: 'storefront/app/checkout/pay/page.tsx',
+    moduleId: 'vendo',
+    reason: 'a gateway page no name reaches (fixture)',
+    ...over,
+  });
+
+  it('resolves a historical, non-tip, otherwise unresolved path under its moduleId', () => {
+    const repo = residueFixture();
+    const resolved = resolveModuleExclusions(['vendo'], readModuleHistory('HEAD', repo.root), {
+      withheldPaths: [entry()],
+    });
+    expect(resolved.findings).toEqual([]);
+    expect(resolved.paths).toContain('storefront/app/checkout/pay/page.tsx');
+    expect(resolved.perId[0]!.withheldPaths).toBe(1);
+  });
+
+  it('refuses each way an entry can be wrong', () => {
+    const repo = residueFixture();
+    const history = readModuleHistory('HEAD', repo.root);
+    const refusal = (entries: readonly ReturnType<typeof entry>[]) =>
+      resolveModuleExclusions(['vendo'], history, { withheldPaths: entries }).findings.map(
+        (f) => f.kind,
+      );
+    // A path no commit held.
+    expect(refusal([entry({ path: 'storefront/app/never.tsx' })])).toEqual(['invalid-withheld-path']);
+    // A path the tip holds.
+    expect(refusal([entry({ path: 'storefront/app/kept.tsx' })])).toEqual(['invalid-withheld-path']);
+    // A path W already resolves: stale.
+    expect(refusal([entry({ path: 'storefront/app/x/VendoPayForm.tsx' })])).toEqual([
+      'stale-withheld-path',
+    ]);
+    // A moduleId not in the list.
+    expect(refusal([entry({ moduleId: 'other' })])).toEqual(['invalid-withheld-path']);
+    // A reason under eight characters.
+    expect(refusal([entry({ reason: 'short' })])).toEqual(['invalid-withheld-path']);
+    // A path listed twice.
+    expect(refusal([entry(), entry()])).toEqual(['duplicate-withheld-path']);
+  });
+
+  it('refuses a path the closure already resolves as stale', () => {
+    const repo = fixtureRepo();
+    repo.commit({
+      'packages/modules/vendo/src/manifest.ts': manifestOf('vendo'),
+      'lib/plain.ts': TEN_LINES,
+    });
+    repo.commit({ 'lib/plain.ts': null, 'packages/modules/vendo/src/plain.ts': TEN_LINES });
+    repo.commit({ 'packages/modules/vendo': null });
+    const findings = resolveModuleExclusions(['vendo'], readModuleHistory('HEAD', repo.root), {
+      withheldPaths: [entry({ path: 'lib/plain.ts' })],
+    }).findings;
+    expect(findings.map((f) => f.kind)).toEqual(['stale-withheld-path']);
+  });
+
+  it('is silent when withheldPaths is absent or empty (FR-012’s spirit)', () => {
+    const repo = residueFixture();
+    const history = readModuleHistory('HEAD', repo.root);
+    expect(resolveModuleExclusions(['vendo'], history).findings).toEqual([]);
+    expect(resolveModuleExclusions(['vendo'], history, { withheldPaths: [] }).findings).toEqual([]);
+  });
+});
+
+describe('the report block (D-272 clause 7, 134 T094a test 5, ticks T092)', () => {
+  it('prints the per-id counts, the completeness counts and the P2/P3 paths — never a resolved path', () => {
+    const repo = fixtureRepo();
+    repo.commit({
+      'packages/modules/vendo/src/manifest.ts': manifestOf('vendo'),
+      'packages/modules/invoices/src/manifest.ts': manifestOf('invoices'),
+      'admin/test/components/Shell.vendo-nav.test.tsx': 'x\n',
+      'backend/test/unit/invoices/x-vendo.test.ts': 'x\n',
+      '.changeset/vendo-note.md': 'x\n',
+      'storefront/app/x/VendoPayForm.tsx': 'x\n',
+      'docs/docs/modules/vendo.md': 'x\n',
+      'storefront/app/checkout/pay/page.tsx': 'x\n',
+      'lib/plain.ts': TEN_LINES,
+    });
+    repo.commit({ 'lib/plain.ts': null, 'packages/modules/vendo/src/plain.ts': TEN_LINES });
+    repo.commit({
+      'packages/modules/vendo': null,
+      'backend/test/unit/invoices/x-vendo.test.ts': null,
+      '.changeset/vendo-note.md': null,
+      'storefront/app/x/VendoPayForm.tsx': null,
+      'docs/docs/modules/vendo.md': null,
+      'storefront/app/checkout/pay/page.tsx': null,
+    });
+    const history = readModuleHistory('HEAD', repo.root);
+    const resolved = resolveModuleExclusions(['vendo'], history, {
+      withheldPaths: [
+        {
+          path: 'storefront/app/checkout/pay/page.tsx',
+          moduleId: 'vendo',
+          reason: 'a gateway page no name reaches (fixture)',
+        },
+      ],
+    });
+    expect(resolved.findings).toEqual([]);
+    const walk = completenessWalk(history.paths, resolved.paths, idPathContext(['vendo'], history));
+    const lines = [
+      ...moduleExclusionLines(['vendo'], resolved.perId),
+      ...completenessLines(walk),
+    ];
+    const text = lines.join('\n');
+
+    const idLine = lines.find((line) => line.startsWith('  - vendo '))!;
+    expect(idLine).toContain('renamed=1');
+    expect(idLine).toContain('host=docs:1,storefront:1');
+    expect(idLine).toContain('withheld-paths=1');
+
+    const completeness = lines.find((line) => line.includes('completeness walk'))!;
+    expect(completeness).toContain(`projected-history-paths=${history.paths.length}`);
+    expect(completeness).toContain('refused=0');
+    expect(completeness).toContain('P1=1');
+    expect(completeness).toContain('P2=1');
+    expect(completeness).toContain('P3=1');
+    expect(text).toContain('backend/test/unit/invoices/x-vendo.test.ts');
+    expect(text).toContain('admin/test/components/Shell.vendo-nav.test.tsx');
+    // P1 is a count; the resolved paths are never printed.
+    for (const path of [
+      '.changeset/vendo-note.md',
+      'storefront/app/x/VendoPayForm.tsx',
+      'docs/docs/modules/vendo.md',
+      'storefront/app/checkout/pay/page.tsx',
+      'lib/plain.ts',
+    ]) {
+      expect(text).not.toContain(path);
+    }
+  });
+});
+
+describe('the two text-replacement records (D-273, 134 T094a test 6)', () => {
+  const sha = (text: string): string => createHash('sha256').update(text).digest('hex');
+  const rule = (over: Partial<TextReplacementRule> = {}): TextReplacementRule => ({
+    class: 'C2',
+    ref: 'Y-c2',
+    literal: 'an invented fixture sentence',
+    replacement: '[removed]',
+    reason: 'an invented C2 sentence for this test',
+    ...over,
+  });
+  const record = (label: string, rules: readonly TextReplacementRule[]) => {
+    const document = { rules } as unknown as TextReplacementDocument;
+    return { label, sha256: sha(JSON.stringify(document)), document };
+  };
+  const sRule = (over: Partial<TextReplacementRule> = {}) =>
+    rule({ class: 'S', ref: 'Y-s', literal: 'not-a-real-value-0000', revoked: '2026-09-28', ...over });
+  const noKeep = keepSpecsFrom(TREE);
+
+  it('refuses a missing committed record, which is exit 2 rather than an empty one', () => {
+    const empty = mkdtempSync(join(tmpdir(), 'endora-text-record-'));
+    fixtures.push(empty);
+    const read = readCommittedTextRecord(empty);
+    expect('refusal' in read && read.refusal).toMatch(new RegExp(TEXT_REPLACEMENTS_PATH));
+  });
+
+  it('reads the committed record and names it by the SHA-256 of its bytes', () => {
+    const root = mkdtempSync(join(tmpdir(), 'endora-text-record-'));
+    fixtures.push(root);
+    const body = '{ "rules": [] }\n';
+    mkdirSync(dirname(join(root, TEXT_REPLACEMENTS_PATH)), { recursive: true });
+    writeFileSync(join(root, TEXT_REPLACEMENTS_PATH), body);
+    const read = readCommittedTextRecord(root);
+    expect(read).toEqual({
+      label: TEXT_REPLACEMENTS_PATH,
+      sha256: sha(body),
+      document: { rules: [] },
+    });
+  });
+
+  it('refuses an S rule in the committed record', () => {
+    const refusals = textRecordRefusals({
+      committed: record(TEXT_REPLACEMENTS_PATH, [sRule()]),
+      outside: null,
+      keep: noKeep,
+    });
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0]).toMatch(/Y-s/);
+  });
+
+  it('refuses when the keep-list reaches the committed record’s path', () => {
+    const published = keepSpecsFrom(
+      doc([{ entry: 'specs', disposition: 'public', reason: 'everything' }]),
+    );
+    const refusals = textRecordRefusals({
+      committed: record(TEXT_REPLACEMENTS_PATH, []),
+      outside: null,
+      keep: published,
+    });
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0]).toMatch(/keep-list/);
+  });
+
+  it('refuses a C2 or C3 rule in the outside record, and an S rule without a valid revoked date', () => {
+    const committed = record(TEXT_REPLACEMENTS_PATH, []);
+    const refused = (rules: readonly TextReplacementRule[]) =>
+      textRecordRefusals({ committed, outside: record('--replace-text', rules), keep: noKeep });
+    expect(refused([rule()])).toHaveLength(1);
+    expect(refused([rule({ class: 'C3', ref: 'Y-c3' })])).toHaveLength(1);
+    const undated = Object.fromEntries(
+      Object.entries(sRule()).filter(([key]) => key !== 'revoked'),
+    ) as unknown as TextReplacementRule;
+    expect(refused([undated])).toHaveLength(1);
+    expect(refused([sRule({ revoked: 'last week' })])).toHaveLength(1);
+    expect(refused([sRule({ revoked: '2026-02-30' })])).toHaveLength(1);
+    expect(refused([sRule()])).toEqual([]);
+  });
+
+  it('refuses a ref repeated across the two records', () => {
+    const combined = combineTextRecords(
+      record(TEXT_REPLACEMENTS_PATH, [rule({ ref: 'Y-same' })]),
+      record('--replace-text', [sRule({ ref: 'Y-same' })]),
+    );
+    expect(validateTextReplacements(combined).map((f) => [f.kind, f.subject])).toEqual([
+      ['invalid-replacement-rule', 'Y-same'],
+    ]);
+  });
+
+  it('renders two valid records as one replace-text payload, and names each record by SHA-256', () => {
+    const committed = record(TEXT_REPLACEMENTS_PATH, [rule()]);
+    const outside = record('--replace-text', [sRule()]);
+    expect(textRecordRefusals({ committed, outside, keep: noKeep })).toEqual([]);
+    const combined = combineTextRecords(committed, outside);
+    expect(validateTextReplacements(combined)).toEqual([]);
+    expect(renderReplaceTextFile(combined)).toBe(
+      'literal:an invented fixture sentence==>[removed]\n' +
+        'literal:not-a-real-value-0000==>[removed]\n',
+    );
+    const lines = textRecordLines([committed, outside], [
+      { ref: 'Y-c2', class: 'C2', blobsBefore: 2, blobsAfter: 0 },
+      { ref: 'Y-s', class: 'S', blobsBefore: 1, blobsAfter: 0, revoked: '2026-09-28' },
+    ]);
+    const text = lines.join('\n');
+    expect(text).toContain(committed.sha256);
+    expect(text).toContain(outside.sha256);
+    expect(text).toContain('Y-c2');
+    expect(text).toContain('Y-s');
+    expect(text).toContain('revoked=2026-09-28');
+    expect(text).not.toMatch(/invented fixture sentence|not-a-real-value/);
   });
 });

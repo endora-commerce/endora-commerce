@@ -103,7 +103,7 @@ Manifest fields:
 - `description` (optional, string) — up to 2000 chars.
 - `version` (required, string) — semver-lite (`MAJOR.MINOR.PATCH` plus optional `-prerelease` suffix).
 - `dependencies` (required, string array) — module ids the platform needs installed before this one. Validated against the manifest registry at boot.
-- `license` (optional, enum `'core' | 'pro' | 'enterprise'`) — reserved for future edition gating; declared and audited but not enforced in v1.
+- There is **no `license` field.** A manifest that still declares one is not refused; the key is dropped. A module package's licence is its `package.json` `license`, which `manifests:generate` copies from the repository root's `license` unless the module exports `packageLicense` beside its manifest — `LICENSE-COMMERCIAL.md` at the repository root describes that declaration. The platform never reads a licence at runtime: no module is enabled, refused or limited because of one.
 - `settings` (optional) — the `ModuleSettingsManifest` shape; the lifecycle's install path runs the existing settings reconciler over it.
 - `i18n` (optional) — the `{ bundlesDir: string }` shape; when present, the install path reads `<modulePath>/<bundlesDir>/<lang>.json` for every supported Admin UI language and UPSERTs the bundle into `translation_bundles`. Soft-uninstall preserves bundles; hard-uninstall removes them.
 - `actions` (optional) — the `ModuleAction[]` shape; an inline list of command-palette action declarations (id, label key, icon, target route, optional required-permission, weight, keywords). The install path UPSERTs every declared action into `module_actions` and prunes any rows the new manifest no longer declares; hard-uninstall removes them. See the [Admin Command Palette Actions](./admin-actions.md) module page for the full schema and operator-side behaviour.
@@ -338,7 +338,6 @@ Test-driven development is non-negotiable: every module ships with unit + contra
 ## Extension points
 
 - **Custom install / uninstall steps**: export `installHook` / `uninstallHook` from the module's `manifest.ts`. Hooks share the install transaction, so a throw rolls back migrations and settings.
-- **License-tier gating** (planned): the manifest's `license` field is stored and audited; a future edition-composition pipeline will refuse to enable a paid module on a non-paid edition.
 
 ## Operator runbook
 
