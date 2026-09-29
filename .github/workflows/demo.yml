@@ -1,0 +1,204 @@
+# The open-source demo: built from `master` and deployed after an approval.
+#
+# D-274 clause 1; `specs/136-open-source-publication/` FR-100, FR-102, FR-104,
+# FR-106, plan W7.5. `backend/test/unit/ci/demo-workflow.test.ts` holds every
+# property this header states, and `instance-build-inputs.test.ts` holds the
+# build arguments to the one declaration of them.
+#
+# ## What it does
+#
+# `demo:build` builds the three images from the tree at the pushed commit —
+# `backend/Dockerfile`, `storefront/Dockerfile`, `admin/Dockerfile`, with the
+# build arguments `packages/cli/src/lib/instance-build-inputs.ts` emits — and
+# pushes them to `ghcr.io/<this repository>/{backend,storefront,admin}`, tagged
+# with the commit SHA. The module set is what `backend` composes from this tree;
+# nothing here names a module.
+#
+# `demo:deploy` copies `deploy/compose.prod.yml` to the host and runs `pull` and
+# `up -d` in its own compose project, `endora-demo`. The compose file orders the
+# start: migrations, then `module:install --all`, then the API, then the
+# storefront (FR-104). The images carry only MIT code and are public, so the host
+# pulls them anonymously: there is no `docker login` on the host and no registry
+# credential on it at all.
+#
+# ## Why no fork can reach the key
+#
+# The deploy job holds an SSH key that is root-equivalent on the demo host. So:
+#
+#   * the only triggers are a push to `master` and a manual dispatch — never a
+#     pull-request, pull-request-target or workflow-run trigger, each of which
+#     runs or can be steered by code nobody reviewed;
+#   * every job runs only when the ref is `master`, whatever a dispatch names;
+#   * the key, the known-hosts entry and the host coordinates are secrets of the
+#     `demo` environment, whose required reviewer is the owner and whose
+#     deployment branch is `master` — so a secret reaches only the one job that
+#     names the environment, after that approval. The approval is the manual
+#     `deploy` click of the GitLab pipeline, moved;
+#   * top-level permissions are empty and each job widens only what it needs;
+#     only `demo:build` may write packages, and it reads no secret — it pushes
+#     with the run's own token;
+#   * every action is pinned by full commit SHA, and no input, variable or secret
+#     is interpolated into a shell line: each arrives through `env:`.
+#
+# ## Demo data
+#
+# Seeded only by an explicit act: dispatch the workflow with `reseed` ticked. The
+# seed step runs after the stack is up and types both of the seed guard's
+# overrides (`packages/platform/src/demo/guard.ts`). A push never seeds.
+#
+# ## What the owner configures before the first run (D-274 O-e)
+#
+# Environment `demo` — required reviewer, deployment branch `master`, and five
+# secrets: `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`, `DEPLOY_HOST`, `DEPLOY_USER`,
+# `DEPLOY_PATH`. Repository variables — not environment variables, because the
+# build job deliberately does not enter the environment and so cannot read them
+# there: `API_DOMAIN`, `STOREFRONT_DOMAIN`, `SALES_CHANNEL_CODE`,
+# `DEFAULT_LOCALE` (optional, `en-US` when unset) and `DEPLOYMENT` (optional,
+# blank is bare core — the right answer for this demo). On the host, in
+# `DEPLOY_PATH`: a `.env` from `deploy/.env.prod.example` with fresh secrets, the
+# admin domain and this stack's own `*_HOST_PORT` binds. The GHCR packages are
+# made public after the first push. No hostname is written in this file.
+
+name: demo
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      reseed:
+        description: 'Replace the demo data with a fresh seed after the deploy (destroys what is there)'
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+jobs:
+  build:
+    name: demo:build
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    env:
+      REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
+      IMAGE_TAG: ${{ github.sha }}
+      # The per-instance build inputs, by the names the declaration gives them,
+      # so the flags below are its own emitted text.
+      DEPLOYMENT: ${{ vars.DEPLOYMENT }}
+      API_DOMAIN: ${{ vars.API_DOMAIN }}
+      STOREFRONT_DOMAIN: ${{ vars.STOREFRONT_DOMAIN }}
+      SALES_CHANNEL_CODE: ${{ vars.SALES_CHANNEL_CODE }}
+      DEFAULT_LOCALE: ${{ vars.DEFAULT_LOCALE }}
+    steps:
+      # actions/checkout v4.4.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: refuse to build without the inputs a bundle inlines
+        # An unset origin builds successfully and serves the fallback origin
+        # from every canonical link and every API call, with nothing said.
+        run: |
+          for name in API_DOMAIN STOREFRONT_DOMAIN SALES_CHANNEL_CODE; do
+            if [ -z "${!name}" ]; then
+              echo "::error::the repository variable $name is not set; refusing to build images that would inline an empty value"
+              exit 1
+            fi
+          done
+      - name: log in to the container registry
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: backend image
+        run: |
+          docker build -f backend/Dockerfile \
+            --build-arg DEPLOYMENT="${DEPLOYMENT}" \
+            -t "$REGISTRY_IMAGE/backend:$IMAGE_TAG" .
+          docker push "$REGISTRY_IMAGE/backend:$IMAGE_TAG"
+      - name: storefront image
+        run: |
+          docker build -f storefront/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_BASE_URL="https://${API_DOMAIN}" \
+            --build-arg NEXT_PUBLIC_SITE_URL="https://${STOREFRONT_DOMAIN}" \
+            --build-arg NEXT_PUBLIC_SALES_CHANNEL_CODE="${SALES_CHANNEL_CODE}" \
+            --build-arg NEXT_PUBLIC_DEFAULT_LOCALE="${DEFAULT_LOCALE:-en-US}" \
+            -t "$REGISTRY_IMAGE/storefront:$IMAGE_TAG" .
+          docker push "$REGISTRY_IMAGE/storefront:$IMAGE_TAG"
+      - name: admin image
+        run: |
+          docker build -f admin/Dockerfile \
+            --build-arg VITE_API_BASE_URL="https://${API_DOMAIN}" \
+            -t "$REGISTRY_IMAGE/admin:$IMAGE_TAG" .
+          docker push "$REGISTRY_IMAGE/admin:$IMAGE_TAG"
+
+  deploy:
+    name: demo:deploy
+    if: github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    environment:
+      name: demo
+      url: https://${{ vars.STOREFRONT_DOMAIN }}
+    # One deploy at a time, and a deploy in flight is never cancelled: a
+    # half-run `up -d` leaves a stack nobody chose.
+    concurrency:
+      group: demo-deploy
+      cancel-in-progress: false
+    env:
+      REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
+      IMAGE_TAG: ${{ github.sha }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+    steps:
+      # actions/checkout v4.4.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          sparse-checkout: deploy
+          persist-credentials: false
+      - name: ssh credentials
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/demo_key
+          chmod 600 ~/.ssh/demo_key
+          cat > ~/.ssh/config <<EOF
+          Host demo
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/demo_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+          EOF
+          chmod 600 ~/.ssh/config
+      - name: ship the compose file, pull and start the stack
+        run: |
+          scp deploy/compose.prod.yml "demo:$DEPLOY_PATH/compose.prod.yml"
+          ssh demo "cd '$DEPLOY_PATH' && \
+            export REGISTRY_IMAGE='$REGISTRY_IMAGE' IMAGE_TAG='$IMAGE_TAG' && \
+            docker compose -p endora-demo --env-file .env -f compose.prod.yml pull && \
+            docker compose -p endora-demo --env-file .env -f compose.prod.yml up -d --remove-orphans && \
+            docker image prune -f"
+      - name: reseed the demo data
+        if: github.event_name == 'workflow_dispatch' && inputs.reseed == true
+        run: |
+          ssh demo "cd '$DEPLOY_PATH' && \
+            export REGISTRY_IMAGE='$REGISTRY_IMAGE' IMAGE_TAG='$IMAGE_TAG' && \
+            docker compose -p endora-demo --env-file .env -f compose.prod.yml run --rm --no-deps \
+              -e ALLOW_DEV_SEED_IN_PRODUCTION=true \
+              -e ALLOW_DEV_SEED_ON_NON_LOCAL_DATABASE=true \
+              backend node dist/cli.js demo seed"
+      - name: forget the key
+        if: always()
+        run: rm -rf ~/.ssh
