@@ -707,6 +707,63 @@ describe('the scaffolded Dockerfile builds in the scaffolded tree', () => {
   });
 });
 
+/**
+ * A scaffolded storefront is its own repository, so its `.gitignore` has to keep
+ * `.env` out of it.
+ *
+ * The reference storefront's `.gitignore` was written for a directory inside this
+ * repository, whose root file covers `.env` and the installed trees; copied
+ * unchanged it covered none of them, while the same run wrote `REVALIDATE_SECRET`
+ * — the bearer token of the public `app/api/revalidate` route — into `.env`, and
+ * the client's first `git add .` committed it. Asserted through git itself rather
+ * than by reading the file's lines: what matters is what git would stage.
+ */
+describe('the scaffolded storefront keeps its secrets out of git', () => {
+  function git(cwd: string, ...args: string[]): ReturnType<typeof spawnSync> {
+    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    if (result.error) throw new Error(`git ${args.join(' ')} could not run: ${result.error.message}`);
+    return result;
+  }
+
+  it('ignores `.env`, local env files, installed and built trees, and never stages `.env`', async () => {
+    const parent = temp('endora-sf-gitignore-');
+    const target = join(parent, 'shop');
+    try {
+      await runNewStorefront({ dir: target, cwd: REPO_ROOT, inputs: REFERENCE_INPUTS });
+      // The secret really is on disk, so the assertions below are about a real hazard.
+      expect(readFileSync(join(target, '.env'), 'utf8')).toContain('REVALIDATE_SECRET=');
+      expect(git(target, 'init', '-q').status).toBe(0);
+
+      const probes = ['.env', '.env.local', 'node_modules/x', '.next/x', 'tsconfig.tsbuildinfo'];
+      const checked = git(target, 'check-ignore', '--no-index', ...probes);
+      expect(String(checked.stdout).split('\n').filter(Boolean)).toEqual(probes);
+      // And what the client must commit stays visible.
+      expect(git(target, 'check-ignore', '-q', '--no-index', '.env.example').status).toBe(1);
+
+      const status = git(target, 'status', '--porcelain', '--untracked-files=all');
+      expect(status.status).toBe(0);
+      const listed = String(status.stdout).split('\n').filter(Boolean).map((line) => line.slice(3));
+      expect(listed.length).toBeGreaterThan(0);
+      expect(listed).not.toContain('.env');
+      expect(listed).toContain('.gitignore');
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it('keeps every entry of the reference storefront\'s own `.gitignore`', () => {
+    const reference = resolveReference(REPO_ROOT);
+    const plan = planStorefront(reference, memberDirectories(reference.repoRoot), '/tmp/a');
+    const file = plan.files.find((entry) => entry.path === '.gitignore');
+    expect(file?.content, '.gitignore is copied, not rendered').toBeTypeOf('string');
+    const entries = (text: string): string[] =>
+      text.split('\n').map((line) => line.trim()).filter((line) => line !== '' && !line.startsWith('#'));
+    const own = entries(readFileSync(join(reference.dir, '.gitignore'), 'utf8'));
+    expect(own.length).toBeGreaterThan(0);
+    expect(entries(file!.content!)).toEqual(expect.arrayContaining(own));
+  });
+});
+
 describe('the argv layer', () => {
   it('refuses a target directory that exists and is not empty, exit 1, writing nothing', async () => {
     const target = temp('endora-sf-occupied-');
