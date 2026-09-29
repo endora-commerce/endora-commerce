@@ -1,13 +1,14 @@
-# GitLab CI/CD — quality gates, build + push Docker images, deploy to the VPS.
+# GitLab CI/CD — quality gates, build + push Docker images, publish.
 #
 # Pipeline:
 #   quality  → typecheck + lint, plus the toolchain-free naming/language
 #              conventions check (fast, every push/MR)
 #   test     → migrate + full vitest with postgres/redis/meilisearch services
 #   build    → build & push backend/storefront/admin images to the Container Registry
-#   deploy   → SSH to the VPS, pull tagged images, run migrations, recreate the stack
+#   deploy   → publish the documentation site and the packages; no job here
+#              deploys the application stack (D-274)
 #
-# build + deploy run on the default branch only; deploy is a MANUAL gate.
+# build runs on the default branch only.
 #
 # Every job that executes repository code runs `pnpm run build:packages` after the
 # install — every one, with no exception. Since feature 080 (T042) the packages under
@@ -50,9 +51,11 @@
 #   Next inlines it at build time, and `/robots.txt` is prerendered into the image
 #   — so no container environment can supply it afterwards. It is a build input
 #   now, and one an operator already sets.
-#   Domains this pipeline deploys to, which are not build inputs:
+#   Domains that are not build inputs (read by no job since D-274 retired `deploy`):
 #     ADMIN_DOMAIN            e.g. admin.example.com
-#   Deploy:
+#   Deploy (read by `publish:docs` only since D-274 retired the application
+#   `deploy` job; `DEPLOY_PATH` is read by no job and goes with the rest when
+#   `publish:docs` moves — D-274 order step 9):
 #     SSH_PRIVATE_KEY  (type File, protected)  deploy key for the VPS user.
 #                      Masked type rejects multi-line values, so use type=File:
 #                      the variable then resolves to a PATH to the key file.
@@ -2713,46 +2716,23 @@ build:admin:
     - docker push "$CI_REGISTRY_IMAGE/admin:latest"
 
 # ---------------------------------------------------------------------------
-# Deploy — SSH to the VPS, pull tagged images, recreate the stack
-# ---------------------------------------------------------------------------
-deploy:
-  stage: deploy
-  image: alpine:3.20
-  before_script:
-    # SSH_PRIVATE_KEY and SSH_KNOWN_HOSTS are "File" type CI/CD variables (masked
-    # Variables reject the newlines an SSH key / known_hosts contain), so each
-    # variable resolves to a PATH to a file holding the content — not the content.
-    - apk add --no-cache openssh-client
-    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
-    - eval "$(ssh-agent -s)"
-    - chmod 600 "$SSH_PRIVATE_KEY"
-    - ssh-add "$SSH_PRIVATE_KEY"
-  script:
-    # Ship the latest compose file (secrets/.env + host nginx config stay on the
-    # VPS; TLS is terminated by the host's existing nginx, not this stack).
-    - scp deploy/compose.prod.yml "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
-    - ssh "$DEPLOY_USER@$DEPLOY_HOST"
-      "cd $DEPLOY_PATH &&
-       echo '$CI_JOB_TOKEN' | docker login -u gitlab-ci-token --password-stdin $CI_REGISTRY &&
-       export IMAGE_TAG=$IMAGE_TAG &&
-       docker compose --env-file .env -f compose.prod.yml pull &&
-       docker compose --env-file .env -f compose.prod.yml up -d --remove-orphans &&
-       docker image prune -f"
-  environment:
-    name: production
-    url: https://$STOREFRONT_DOMAIN
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      when: manual
-  allow_failure: false
-
+# There is deliberately no application `deploy` job (D-274, order step 1).
+#
+# One stood here: it shipped `deploy/compose.prod.yml` to `$DEPLOY_PATH` and
+# recreated the stack there from the images `build:*` push. The live demo it
+# last deployed predates the paid modules' departure and still serves them, so
+# one click on it would have replaced the full demo with a free-only one — the
+# regression FR-105 forbids. The open-source demo is to be deployed by a workflow of
+# its own (136 plan W7.5) into a stack of its own, and the full demo by the paid
+# repository. `test/unit/ci/live-demo-deploy.test.ts` fails on any job that
+# ships the compose file or runs compose in `$DEPLOY_PATH` again, under any name.
 # ---------------------------------------------------------------------------
 # Publish the documentation site — an rsync and a symlink flip, and nothing else
 # (`specs/133-docs-site-publication/contracts/publication-pipeline.md` §2)
 # ---------------------------------------------------------------------------
 #
-# It shares the credentials with `deploy` above and nothing else. There is no
+# It shares the credentials the retired application `deploy` job used (D-274)
+# and nothing else. There is no
 # image to pull, no container to recreate, no application to restart: the site
 # is static files under `$DOCS_DEPLOY_PATH`, served by the host's own nginx from
 # a `current` symlink. A documentation release and an application release are
@@ -2766,8 +2746,9 @@ deploy:
 # nothing structurally, because an unsatisfiable `needs:` never starts this job
 # — not because anything here checks.
 #
-# **Automatic, and deliberately not `when: manual`** (FR-020). `deploy` above is
-# manual because it recreates the application stack; this writes files, and a
+# **Automatic, and deliberately not `when: manual`** (FR-020). The retired
+# application `deploy` job was manual because it recreated the application
+# stack; this writes files, and a
 # documentation typo corrected on the default branch must not wait for somebody
 # to click a button.
 #
@@ -2795,7 +2776,7 @@ publish:docs:
   before_script:
     # SSH_PRIVATE_KEY and SSH_KNOWN_HOSTS are "File" type CI/CD variables, so
     # each resolves to a PATH to a file holding the content — not the content
-    # (the same two the application deploy uses, read the same way).
+    # (the same two the retired application deploy used, read the same way).
     # `alpine:3.20` ships neither an ssh client nor rsync.
     - apk add --no-cache openssh-client rsync
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh

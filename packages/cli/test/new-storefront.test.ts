@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 import type { EnvironmentInput } from '@endora-commerce/contracts';
 
 import { main } from '../src/bin/endora.js';
+import { buildArgFlags, buildInputsFor } from '../src/lib/instance-build-inputs.js';
 import { DECLARATION_FILE } from '../src/inputs/declaration.js';
 import { runNewStorefront } from '../src/new-storefront/index.js';
 import {
@@ -624,6 +625,86 @@ describe('the scaffold names nothing above its own directory', () => {
     expect(first.files.map((file) => file.path)).toEqual(second.files.map((file) => file.path));
     expect(first.ranges).toEqual(second.ranges);
   }, 120_000);
+});
+
+/**
+ * The scaffolded storefront's `Dockerfile` builds in the scaffolded tree (136 plan
+ * W7.4, D-274 clause 6; `layer-independence.md` R3.8).
+ *
+ * It used to be `storefront/Dockerfile` copied byte for byte, and that file builds
+ * from **this repository's root**: its first stage runs
+ * `scripts/collect-workspace-manifests.sh` and a later one copies `packages/`, and
+ * neither exists in a scaffolded tree — measured on 2026-09-28, `docker build` of
+ * a fresh scaffold stopped at `cannot open scripts/collect-workspace-manifests.sh`.
+ * So it is rendered now, and what is asserted is the property rather than a
+ * text: every path a `COPY` reads from the build context is a file the scaffold
+ * writes, and the build arguments are the declaration's own.
+ */
+describe('the scaffolded Dockerfile builds in the scaffolded tree', () => {
+  /** Every `COPY` source read from the build context — `--from=<stage>` reads an image. */
+  function contextCopySources(dockerfile: string): readonly string[] {
+    return dockerfile
+      .split('\n')
+      .filter((line) => /^COPY\s/.test(line) && !/\s--from=/.test(line))
+      .flatMap((line) => {
+        const words = line.replace(/^COPY\s+/, '').split(/\s+/).filter((word) => !word.startsWith('--'));
+        return words.slice(0, -1);
+      });
+  }
+
+  function planned(registry?: string): ReturnType<typeof planStorefront> {
+    const reference = resolveReference(REPO_ROOT);
+    return planStorefront(
+      reference,
+      memberDirectories(reference.repoRoot),
+      '/tmp/a',
+      registry === undefined ? {} : { registry },
+    );
+  }
+
+  function fileOf(plan: ReturnType<typeof planStorefront>, path: string): string {
+    const file = plan.files.find((entry) => entry.path === path);
+    expect(file, `${path} is not in the plan`).toBeDefined();
+    expect(file!.content, `${path} is copied, not rendered`).not.toBeNull();
+    return file!.content!;
+  }
+
+  for (const registry of [undefined, 'https://registry.example.com/api/v4/packages/npm/']) {
+    it(`every COPY source is in the scaffolded tree (${registry === undefined ? 'public' : 'private'} registry)`, () => {
+      const plan = planned(registry);
+      const written = new Set(plan.files.map((file) => file.path));
+      const sources = contextCopySources(fileOf(plan, 'Dockerfile'));
+      expect(sources.length).toBeGreaterThan(0);
+      // `pnpm-lock.yaml` is the one source no scaffold can write: the client's first
+      // step, `pnpm install`, resolves it, and `--frozen-lockfile` is what makes the
+      // image build from the versions they committed. So it is admitted only while
+      // the copy does not ignore it.
+      const missing = sources.filter(
+        (source) => source !== '.' && source !== './' && source !== 'pnpm-lock.yaml' && !written.has(source),
+      );
+      expect(missing).toEqual([]);
+      const gitignore = plan.files.find((file) => file.path === '.gitignore');
+      const ignored = gitignore?.content ?? readFileSync(gitignore!.source!, 'utf8');
+      expect(ignored).not.toMatch(/^\/?pnpm-lock\.yaml$/m);
+      if (registry !== undefined) expect(sources).toContain('.npmrc');
+    });
+  }
+
+  it('declares exactly the build arguments the declaration emits for the storefront', () => {
+    const dockerfile = fileOf(planned(), 'Dockerfile');
+    const declared = [...dockerfile.matchAll(/^ARG (\w+)/gm)].map((match) => match[1]!);
+    expect(declared).toEqual(buildInputsFor('storefront').map(({ consumer }) => consumer.buildArg));
+    const passed = [...dockerfile.matchAll(/--build-arg [^\s\\]+(?:="[^"]*")?/g)].map(
+      (match) => match[0]!,
+    );
+    expect(passed).toEqual([...buildArgFlags('storefront')]);
+  });
+
+  it('keeps the environment file and installed trees out of the build context', () => {
+    const ignore = fileOf(planned(), '.dockerignore').split('\n');
+    // `.env` holds this storefront's REVALIDATE_SECRET: in the context, it would be in the image.
+    expect(ignore).toEqual(expect.arrayContaining(['.env', '**/node_modules', '**/.next']));
+  });
 });
 
 describe('the argv layer', () => {
