@@ -1,6 +1,6 @@
 {
   "name": "create-endora-commerce",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "npx create-endora-commerce <dir> — the front door to `endora install`, and nothing else.",

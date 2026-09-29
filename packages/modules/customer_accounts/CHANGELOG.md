@@ -1,5 +1,14 @@
 # @endora-commerce/mod-customer-accounts
 
+## 0.10.8
+
+### Patch Changes
+
+- Updated dependencies [4b1844c]
+- Updated dependencies [2ffcda5]
+  - @endora-commerce/mod-organizations@0.11.4
+  - @endora-commerce/platform@0.14.0
+
 ## 0.10.7
 
 ### Patch Changes

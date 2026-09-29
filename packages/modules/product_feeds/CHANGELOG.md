@@ -1,5 +1,13 @@
 # @endora-commerce/mod-product-feeds
 
+## 0.9.8
+
+### Patch Changes
+
+- 2ffcda5: The module decides whether to build its feed generation and reaper consumers, and whether to reconcile their schedules at boot, from the platform's `processRunsWorkers` host value instead of a `productFeedsRunWorkers` flag a composition root registered for it. Behaviour is unchanged: both carried the same answer, `false` when `BACKEND_ROLE` is `api` and in the test kit. A composition that registers the module itself must register `processRunsWorkers`, which `composeApp` and `composeTestServer` both do.
+- Updated dependencies [2ffcda5]
+  - @endora-commerce/platform@0.14.0
+
 ## 0.9.7
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @endora-commerce/mod-blog
 
+## 0.9.8
+
+### Patch Changes
+
+- Updated dependencies [2ffcda5]
+  - @endora-commerce/platform@0.14.0
+  - @endora-commerce/mod-cms@0.10.8
+
 ## 0.9.7
 
 ### Patch Changes

@@ -1,7 +1,0 @@
----
-'@endora-commerce/cli': minor
----
-
-`endora install` now works from an empty directory, including through `npx create-endora-commerce`. When `@endora-commerce/platform` is not installed beside the target or the working directory, it first installs every package of this CLI's release into a temporary directory under the OS temp directory, reads the module set from there, and removes it once the instance is written; if that install fails the directory is kept and its path printed, and the command exits with the install's own code. `--dry-run` provisions and removes it too. The release is read from `dist/release-index.json`, which the CLI's build now writes. When the platform already resolves, nothing changes.
-
-With no `--module`, `endora install` now installs every module package it resolved that is not separately licensed (`SEE LICENSE IN` / `UNLICENSED`), closed over dependencies as before, instead of only the modules the platform cannot run without; its closing block names the count and that any module can be switched off in the admin under Modules. If one of those modules depends on a separately licensed one, the run is refused (F2) rather than installing it. `--module` and `endora new instance`'s default are unchanged. `resolveModuleSet` gains an optional third argument, `{ seed: 'required' | 'available' }`, and `runNewInstance` a `moduleSeed` option; `ModuleCandidate` gains `license`.

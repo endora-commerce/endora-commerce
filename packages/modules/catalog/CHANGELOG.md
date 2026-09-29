@@ -1,5 +1,13 @@
 # @endora-commerce/mod-catalog
 
+## 0.11.3
+
+### Patch Changes
+
+- Updated dependencies [2ffcda5]
+  - @endora-commerce/platform@0.14.0
+  - @endora-commerce/mod-custom-fields@0.9.8
+
 ## 0.11.2
 
 ### Patch Changes

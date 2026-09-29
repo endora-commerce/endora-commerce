@@ -1,5 +1,12 @@
 # @endora-commerce/mod-invoices
 
+## 0.11.1
+
+### Patch Changes
+
+- Updated dependencies [2ffcda5]
+  - @endora-commerce/platform@0.14.0
+
 ## 0.11.0
 
 ### Minor Changes

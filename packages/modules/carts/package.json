@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-carts",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "type": "module",
   "sideEffects": false,
   "description": "Shopping cart aggregation, pricing, lifecycle, and approval gate.",
