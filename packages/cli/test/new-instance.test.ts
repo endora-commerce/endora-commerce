@@ -29,6 +29,7 @@ import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import ts from 'typescript';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { EnvironmentInput } from '@endora-commerce/contracts';
@@ -546,6 +547,54 @@ describe('the tree (§1, §2)', () => {
     );
     const naming = plan.files.filter((file) => file.content.includes(`${SCOPE}mod-blog`));
     expect(naming.map((file) => file.path)).toEqual(['package.json']);
+  });
+
+  /**
+   * S5 — CLI 0.15.0 rendered `backend/src/worker.ts` with a `shutdown(signal)`
+   * that never read `signal`, so a client's first lint of the tree they own
+   * reported a defect in a file they did not write. Asked of every rendered
+   * TypeScript wiring file rather than of that one, through the compiler's own
+   * unused-binding diagnostics: a regex over parameter lists would be a second,
+   * weaker parser of the same text.
+   */
+  it('R1.4 — no rendered wiring file declares a binding it never reads', () => {
+    const plan = planInstance(planInput());
+    const sources = plan.files.filter((file) => file.kind === 'wiring' && file.path.endsWith('.ts'));
+    expect(sources.map((file) => file.path)).toContain('backend/src/worker.ts');
+    const texts = new Map<string, string>(
+      sources.map((file) => [`/instance/${file.path}`, file.content]),
+    );
+    const options: ts.CompilerOptions = {
+      target: ts.ScriptTarget.ES2022,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      noUnusedLocals: true,
+      noUnusedParameters: true,
+      noResolve: true,
+      noLib: true,
+      types: [],
+    };
+    const host = ts.createCompilerHost(options);
+    host.getSourceFile = (name, version) => {
+      const text = texts.get(name);
+      return text === undefined ? undefined : ts.createSourceFile(name, text, version, true);
+    };
+    host.fileExists = (name) => texts.has(name);
+    host.readFile = (name) => texts.get(name);
+    const program = ts.createProgram([...texts.keys()], options, host);
+    // 6133: declared but never read; 6192/6196/6198/6205: the unused-import and
+    // unused-destructuring variants of it.
+    const unused = new Set([6133, 6192, 6196, 6198, 6205]);
+    const found = [...texts.keys()].flatMap((name) =>
+      program
+        .getSemanticDiagnostics(program.getSourceFile(name))
+        .filter((diagnostic) => unused.has(diagnostic.code))
+        .map(
+          (diagnostic) =>
+            `${name.slice('/instance/'.length)}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')}`,
+        ),
+    );
+    expect(found).toEqual([]);
   });
 
   it('R1.5 — no file names anything above the instance directory', () => {

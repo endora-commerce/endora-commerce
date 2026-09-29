@@ -59,8 +59,10 @@ import { STOREFRONT_DOCKERIGNORE, storefrontDockerfile } from './dockerfile.js';
 import { storefrontGitignore } from './gitignore.js';
 import { installedScopes, normalizeRegistry, npmrcContent, TOKEN_VARIABLE } from './npmrc.js';
 import {
+  declaredPackages,
   DEPENDENCY_FIELDS,
   globPrefix,
+  importedPackages,
   outwardReferences,
   StorefrontInputError,
   workspaceRanges,
@@ -70,6 +72,9 @@ import {
 
 /** An outward reference no rule below classifies. */
 export class UnclassifiedReferenceError extends StorefrontInputError {}
+
+/** A vendored configuration imports a package the scaffold's manifest does not declare. */
+export class UndeclaredImportError extends StorefrontInputError {}
 
 /** A file the scaffold writes: either copied bytes or rewritten text. */
 export interface PlannedFile {
@@ -627,6 +632,7 @@ export function planStorefront(
   }
 
   const manifest = rewriteManifest(reference, memberDirs);
+  assertVendoredImportsDeclared(vendored, reference);
   const omittedPaths = new Set(omitted.map((entry) => entry.path));
   const registry = options.registry === undefined ? null : normalizeRegistry(options.registry);
   const rewritten = JSON.parse(manifest.text) as {
@@ -726,6 +732,38 @@ export function planStorefront(
     omitted,
     registry,
   };
+}
+
+/**
+ * Rule 2's other half: a vendored configuration's bare imports are declared by
+ * the scaffold's own manifest.
+ *
+ * In this repository a configuration the storefront extends resolves its
+ * packages through the manifest *beside it* — the root one. Vendored, the same
+ * text resolves them through the storefront's, and nothing about the copy
+ * changes that. CLI 0.15.0 shipped a scaffold whose vendored ESLint
+ * configuration imported four packages its manifest never named, so the first
+ * `pnpm run lint` on a stranger's machine failed to load it. The repair is in the
+ * reference storefront's manifest; this refusal is what stops it recurring.
+ */
+function assertVendoredImportsDeclared(
+  vendored: ReadonlyMap<string, VendorPlan>,
+  reference: StorefrontReference,
+): void {
+  const declared = declaredPackages(reference.manifest);
+  for (const [path, plan] of [...vendored].sort(([a], [b]) => a.localeCompare(b))) {
+    const missing = importedPackages(plan.content).filter((name) => !declared.has(name));
+    if (missing.length === 0) continue;
+    throw new UndeclaredImportError(
+      `the configuration vendored as ${path} imports ` +
+        `${missing.map((name) => `"${name}"`).join(', ')}, which ` +
+        `${reference.dir}/package.json does not declare. In this repository that import ` +
+        `resolves through the manifest beside the file it was vendored from; in the scaffold ` +
+        `it resolves through the storefront's own, so the copy would fail to load on its ` +
+        `first install. Declare ${missing.length === 1 ? 'it' : 'them'} in the reference ` +
+        `storefront's devDependencies at the version this repository already uses.`,
+    );
+  }
 }
 
 function refusal(entry: OutwardReference): string {

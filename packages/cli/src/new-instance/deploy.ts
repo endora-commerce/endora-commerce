@@ -67,7 +67,7 @@
  * this file would have done if the development compose had been authored rather
  * than derived.
  */
-import type { EnvironmentInput } from '@endora-commerce/contracts';
+import { scopeToMembers, type EnvironmentInput } from '@endora-commerce/contracts';
 
 import {
   buildArgFlags,
@@ -216,6 +216,10 @@ const BACKEND_ENVIRONMENT: readonly string[] = [
   '  # catalogue change never reaches the rendered storefront.',
   '  REVALIDATE_SECRET: ${REVALIDATE_SECRET}',
   '  SESSION_COOKIE_SECRET: ${SESSION_COOKIE_SECRET}',
+  '  # Signs newsletter confirmation and unsubscribe links. Unset, the backend',
+  '  # signs them with the session key, and rotating that key invalidates every',
+  '  # link still waiting in an inbox.',
+  '  NEWSLETTER_TOKEN_SECRET: ${NEWSLETTER_TOKEN_SECRET}',
   '  SETTINGS_SECRET_ENCRYPTION_KEY: ${SETTINGS_SECRET_ENCRYPTION_KEY}',
   '  MFA_SECRET_ENCRYPTION_KEY: ${MFA_SECRET_ENCRYPTION_KEY}',
   '  ASSETS_LIBRARY_HMAC_KEY: ${ASSETS_LIBRARY_HMAC_KEY}',
@@ -228,6 +232,33 @@ const BACKEND_ENVIRONMENT: readonly string[] = [
   '  SMTP_URL: ${SMTP_URL}',
   '  SMTP_FROM: ${SMTP_FROM}',
 ];
+
+/**
+ * {@link BACKEND_ENVIRONMENT}, completed from the declaration this run read.
+ *
+ * The static block is the fallback a run with no readable declaration still
+ * renders, and CLI 0.15.0's copy of it left `NEWSLETTER_TOKEN_SECRET` out — the
+ * only one of the platform's generable secrets it omitted, so every deployment
+ * signed newsletter links with the session key. A list can only be kept complete
+ * by somebody remembering to; so every **generable secret** the declaration
+ * scopes to the backend and the block does not name is appended here. Those are
+ * the inputs `new instance` writes a value for into a `.env` it generates, and a
+ * value the container is never handed is a value generated for nothing.
+ */
+function backendEnvironment(declared: readonly EnvironmentInput[]): readonly string[] {
+  const named = new Set(
+    BACKEND_ENVIRONMENT.flatMap((line) => /^ {2}([A-Z][A-Z0-9_]*):/.exec(line)?.[1] ?? []),
+  );
+  const owed = scopeToMembers(declared, ['backend']).filter(
+    (input) => input.generable && input.secret && !named.has(input.name),
+  );
+  if (owed.length === 0) return BACKEND_ENVIRONMENT;
+  return [
+    ...BACKEND_ENVIRONMENT,
+    '  # Generable secrets the platform declares that the lines above do not name.',
+    ...owed.map((input) => `  ${input.name}: \${${input.name}}`),
+  ];
+}
 
 /**
  * Every service the examples can hold, with the host it belongs to (R1.4), in
@@ -580,11 +611,12 @@ function volumesFor(chosen: readonly ExampleService[]): readonly string[] {
 function composeDocument(
   header: readonly string[],
   chosen: readonly ExampleService[],
+  declared: readonly EnvironmentInput[],
 ): string {
   const present = new Set(chosen.map((service) => service.name));
   const lines = [...header, ''];
   if (chosen.some((service) => service.name === 'backend')) {
-    lines.push(...BACKEND_ENVIRONMENT, '');
+    lines.push(...backendEnvironment(declared), '');
   }
   lines.push('services:');
   for (const service of chosen) {
@@ -686,7 +718,7 @@ export function developmentComposeFile(
   const backing = services(input, 'development').filter(
     (service) => !service.body.some((line) => line.includes('${REGISTRY_IMAGE}')),
   );
-  const content = composeDocument([...DEVELOPMENT_HEADER, ...extra], backing);
+  const content = composeDocument([...DEVELOPMENT_HEADER, ...extra], backing, input.declared);
   const blank = undefaultedExpansions(content);
   if (blank.length > 0) {
     throw new Error(
@@ -784,7 +816,7 @@ interface RuntimeInput {
    * run time, so a platform whose `./env` entry point will not import — an older
    * release, a broken install — yields an empty one; with no fallback here the
    * compose examples would then refuse to render at all, turning a missing
-   * sentence into a scaffold that fails. Fourteen of these names are declared
+   * sentence into a scaffold that fails. Most of these names are declared
    * somewhere in this repository and their sentences below are therefore dead
    * prose in every real run, which
    * `deploy-examples.test.ts`' precedence case is what keeps honest.
@@ -893,6 +925,13 @@ const RUNTIME_INPUTS: readonly RuntimeInput[] = [
   {
     name: 'SESSION_COOKIE_SECRET',
     meaning: 'Signs the session cookie. `openssl rand -hex 32`, freshly per environment.',
+    example: 'change-me-generate-one',
+  },
+  {
+    name: 'NEWSLETTER_TOKEN_SECRET',
+    meaning:
+      'Signs newsletter confirmation and unsubscribe links. `openssl rand -base64 32`. ' +
+      'Empty, the backend signs them with the session key instead.',
     example: 'change-me-generate-one',
   },
   {
@@ -1453,7 +1492,7 @@ export function deployFiles(input: DeployInput): readonly DeployFile[] {
   };
 
   if (input.topology === 'single-host') {
-    const compose = composeDocument(SINGLE_HOST_HEADER, all);
+    const compose = composeDocument(SINGLE_HOST_HEADER, all, input.declared);
     write('compose.prod.yml', compose);
     write(
       '.env.example',
@@ -1478,7 +1517,11 @@ export function deployFiles(input: DeployInput): readonly DeployFile[] {
       : ['backend', 'storefront'];
     for (const host of hosts) {
       const chosen = all.filter((service) => service.host === host);
-      const compose = composeDocument(threeHostHeader(host, extraHeaderFor(host)), chosen);
+      const compose = composeDocument(
+        threeHostHeader(host, extraHeaderFor(host)),
+        chosen,
+        input.declared,
+      );
       write(`three-host/compose.${host}.yml`, compose);
       write(
         `three-host/.env.${host}.example`,

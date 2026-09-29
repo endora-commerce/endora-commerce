@@ -88,7 +88,11 @@ function temp(prefix: string): string {
  * It is a real tree because every refusal below is about a real tree — a
  * hand-built option record would enter the analysis below the thing under test.
  */
-function fixtureRepo(options: { storefrontFiles: Record<string, string> }): string {
+function fixtureRepo(options: {
+  storefrontFiles: Record<string, string>;
+  /** Files at the repository root, beside `tsconfig.base.json` — a configuration the storefront extends. */
+  rootFiles?: Record<string, string>;
+}): string {
   const root = temp('endora-sf-fixture-');
   writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - shop\n  - packages/*\n');
   // The checkout's own `packageManager`, which the scaffold copies rather than
@@ -123,6 +127,9 @@ function fixtureRepo(options: { storefrontFiles: Record<string, string> }): stri
       paths: { '@acme/contracts': ['./packages/contracts/src/index.ts'] },
     },
   }, null, 2)}\n`);
+  for (const [path, content] of Object.entries(options.rootFiles ?? {})) {
+    writeFileSync(join(root, path), content);
+  }
   // git is the copy population's author, so the fixture has to be a checkout.
   for (const args of [['init', '-q'], ['add', '-A'], ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'f']]) {
     const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
@@ -333,6 +340,91 @@ describe('rule 2 — a configuration the storefront extends is vendored and made
         '/repo/shop',
       ),
     ).toThrow(UnclassifiedReferenceError);
+  });
+});
+
+/**
+ * A vendored configuration resolves its bare imports against the SCAFFOLD's
+ * manifest, not the one it was vendored from.
+ *
+ * In this repository the root `eslint.config.js` finds its parser and plugins in
+ * the root manifest; vendored into a storefront, the same text finds them only
+ * if the storefront's own manifest declares them. CLI 0.15.0 shipped a scaffold
+ * whose vendored ESLint configuration imported four packages its manifest never
+ * named, so `pnpm run lint` failed on a stranger's first install (S3).
+ */
+describe('rule 2 — a vendored configuration imports only what the scaffold declares', () => {
+  const ROOT_ESLINT = [
+    "import { join } from 'node:path';",
+    '// A commented-out import is not an import: nothing resolves it.',
+    "// import legacy from 'eslint-plugin-legacy';",
+    "import tsParser from '@acme/eslint-parser';",
+    "import plugin from 'eslint-plugin-acme/flat';",
+    '',
+    'export default [{ languageOptions: { parser: tsParser }, plugins: { acme: plugin }, x: join }];',
+    '',
+  ].join('\n');
+  const STOREFRONT_ESLINT =
+    "import rootConfig from '../eslint.config.base.js';\nexport default [...rootConfig];\n";
+
+  function manifestDeclaring(devDependencies: Record<string, string>): string {
+    return JSON.stringify(
+      {
+        name: 'shop',
+        version: '0.0.0',
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0' },
+        devDependencies,
+      },
+      null,
+      2,
+    );
+  }
+
+  it('refuses a bare import the scaffold\'s manifest does not declare, and writes nothing', async () => {
+    const root = fixtureRepo({
+      rootFiles: { 'eslint.config.base.js': ROOT_ESLINT },
+      storefrontFiles: {
+        'package.json': manifestDeclaring({ '@acme/eslint-parser': '^1.0.0' }),
+        'eslint.config.js': STOREFRONT_ESLINT,
+      },
+    });
+    const target = join(temp('endora-sf-out-'), 'shop');
+    try {
+      const run = runNewStorefront({ dir: target, cwd: root, inputs: FIXTURE_INPUTS });
+      await expect(run).rejects.toThrow(StorefrontInputError);
+      // Names the package — the subpath is reduced to it — and not the one that is declared.
+      await expect(run).rejects.toThrow(/"eslint-plugin-acme"/);
+      await expect(run).rejects.not.toThrow(/"@acme\/eslint-parser"/);
+      expect(existsSync(target)).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('vendors the configuration once every bare import it makes is declared, in any field', async () => {
+    const root = fixtureRepo({
+      rootFiles: { 'eslint.config.base.js': ROOT_ESLINT },
+      storefrontFiles: {
+        'package.json': manifestDeclaring({
+          '@acme/eslint-parser': '^1.0.0',
+          'eslint-plugin-acme': '^2.0.0',
+        }),
+        'eslint.config.js': STOREFRONT_ESLINT,
+      },
+    });
+    const target = join(temp('endora-sf-out-'), 'shop');
+    try {
+      await runNewStorefront({ dir: target, cwd: root, inputs: FIXTURE_INPUTS });
+      expect(readFileSync(join(target, 'eslint.config.js'), 'utf8')).toContain(
+        "from './eslint.config.base.js'",
+      );
+      expect(readFileSync(join(target, 'eslint.config.base.js'), 'utf8')).toContain(
+        "from 'eslint-plugin-acme/flat'",
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
@@ -615,6 +707,39 @@ describe('the scaffold names nothing above its own directory', () => {
     } finally {
       rmSync(parent, { recursive: true, force: true });
     }
+  }, 120_000);
+
+  /**
+   * S3, against this repository's own storefront rather than a fixture: every
+   * package a vendored configuration imports by name is one the scaffold's
+   * manifest declares, and so is the tool its `lint` script runs. The fixture
+   * cases above prove the refusal; this one proves the reference is repaired.
+   */
+  it('declares every package a vendored configuration imports, and the linter it runs', () => {
+    const reference = resolveReference(REPO_ROOT);
+    const plan = planStorefront(reference, memberDirectories(reference.repoRoot), '/tmp/a');
+    const manifestFile = plan.files.find((file) => file.path === 'package.json');
+    const manifest = JSON.parse(manifestFile!.content!) as Record<string, unknown>;
+    const declared = new Set(
+      ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'].flatMap(
+        (field) => Object.keys((manifest[field] as Record<string, string> | undefined) ?? {}),
+      ),
+    );
+    const vendored = plan.files.filter((file) => file.note?.startsWith('vendored from') === true);
+    expect(vendored.map((file) => file.path)).toContain('eslint.config.js');
+    const imported = new Set<string>();
+    for (const file of vendored) {
+      for (const line of file.content!.split('\n')) {
+        const match = /^\s*import\s[^'"]*?from\s*['"]([^'"]+)['"]/.exec(line);
+        if (match === null || match[1]!.startsWith('.') || match[1]!.startsWith('node:')) continue;
+        const parts = match[1]!.split('/');
+        imported.add(match[1]!.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!);
+      }
+    }
+    expect(imported.size).toBeGreaterThan(0);
+    expect([...imported].filter((name) => !declared.has(name)).sort()).toEqual([]);
+    expect((manifest['scripts'] as Record<string, string>)['lint']).toMatch(/^eslint\s/);
+    expect(declared.has('eslint')).toBe(true);
   }, 120_000);
 
   it('plans the same thing twice from the same tree', () => {

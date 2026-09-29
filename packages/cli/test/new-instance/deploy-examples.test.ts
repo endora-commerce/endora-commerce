@@ -35,7 +35,12 @@
  * edge added across a boundary moves it, and a correctness edge crossing one
  * would move it too.
  */
+import { join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
+
+import { scopeToMembers, type EnvironmentInput } from '@endora-commerce/contracts';
 
 import { buildArgFlags, type BuildTarget } from '../../src/lib/instance-build-inputs.js';
 import { assertTopology, TOPOLOGIES, type Topology } from '../../src/new-instance/deploy.js';
@@ -656,5 +661,88 @@ describe('G3 — a declared name takes the declaration\'s sentence, not the loca
     const text = fileAt(planInput(), 'deploy/.env.example');
     expect(text).toContain('How much the backend says.');
     expect(text).toContain('LOG_LEVEL=info');
+  });
+});
+
+/**
+ * S6 — every generable secret the platform declares reaches the backend of a
+ * deployed stack.
+ *
+ * CLI 0.15.0's compose examples passed two of the platform's three generable
+ * secrets to the backend and left `NEWSLETTER_TOKEN_SECRET` out of both the
+ * compose file and its `.env.example`, so a deployment signed every newsletter
+ * link with the session key whatever its `.env` said. The population is read
+ * off the platform's own declaration, never listed here: a list in this test
+ * would be the third statement of a fact the declaration already makes.
+ */
+describe('S6 — the backend of a deployed stack receives every generable secret the platform declares', () => {
+  const REPO_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
+
+  async function platformDeclaration(): Promise<readonly EnvironmentInput[]> {
+    const loaded = (await import(
+      pathToFileURL(join(REPO_ROOT, 'packages/platform/src/env/index.ts')).href
+    )) as { PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] };
+    return loaded.PLATFORM_ENVIRONMENT_INPUTS;
+  }
+
+  function generableSecrets(declared: readonly EnvironmentInput[]): readonly string[] {
+    return scopeToMembers(declared, ['backend'])
+      .filter((input) => input.generable && input.secret)
+      .map((input) => input.name);
+  }
+
+  /** The backend's environment block and the `.env.example` beside it, per topology. */
+  function backendFiles(input: PlanInput): readonly { env: Record<string, unknown>; example: string }[] {
+    const pairs =
+      input.topology === 'single-host'
+        ? [['deploy/compose.prod.yml', 'deploy/.env.example']]
+        : [['deploy/three-host/compose.backend.yml', 'deploy/three-host/.env.backend.example']];
+    return pairs.map(([compose, example]) => {
+      const document = parseComposeYaml(fileAt(input, compose!));
+      const env = document['x-backend-env'];
+      expect(env, `${compose!} declares no x-backend-env block`).toBeTypeOf('object');
+      return { env: env as Record<string, unknown>, example: fileAt(input, example!) };
+    });
+  }
+
+  function assertCarried(input: PlanInput, names: readonly string[]): void {
+    for (const { env, example } of backendFiles(input)) {
+      for (const name of names) {
+        expect(env[name], `${name} in x-backend-env`).toBe(`\${${name}}`);
+        expect(example, `${name} in the .env.example`).toMatch(new RegExp(`^${name}=`, 'm'));
+      }
+    }
+  }
+
+  it('the platform declares generable secrets, so the assertions below are not vacuous', async () => {
+    expect(generableSecrets(await platformDeclaration()).length).toBeGreaterThanOrEqual(3);
+  });
+
+  for (const topology of ['single-host', 'three-host'] as const) {
+    it(`${topology}: passes each one through, from the declaration the run reads`, async () => {
+      const declared = await platformDeclaration();
+      assertCarried(planInput({ topology, declared }), generableSecrets(declared));
+    });
+
+    it(`${topology}: passes each one through on the fallback, when no declaration could be read`, async () => {
+      const names = generableSecrets(await platformDeclaration());
+      assertCarried(planInput({ topology, declared: [] }), names);
+    });
+  }
+
+  it('a generable secret the static environment does not name is still passed through', () => {
+    const declared: EnvironmentInput[] = [
+      {
+        name: 'FUTURE_SIGNING_KEY',
+        describes: { en: 'Signs something new.', pl: 'Podpisuje coś nowego.' },
+        requirement: { kind: 'required' },
+        secret: true,
+        generable: true,
+        owner: { kind: 'platform' },
+        consumers: ['backend'],
+        addressOf: null,
+      },
+    ];
+    assertCarried(planInput({ declared }), ['FUTURE_SIGNING_KEY']);
   });
 });
