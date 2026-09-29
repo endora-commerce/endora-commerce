@@ -55,6 +55,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 
+import { STOREFRONT_DOCKERIGNORE, storefrontDockerfile } from './dockerfile.js';
 import { installedScopes, normalizeRegistry, npmrcContent, TOKEN_VARIABLE } from './npmrc.js';
 import {
   DEPENDENCY_FIELDS,
@@ -626,10 +627,37 @@ export function planStorefront(
 
   const manifest = rewriteManifest(reference, memberDirs);
   const omittedPaths = new Set(omitted.map((entry) => entry.path));
+  const registry = options.registry === undefined ? null : normalizeRegistry(options.registry);
+  const rewritten = JSON.parse(manifest.text) as {
+    engines?: { node?: string };
+    packageManager?: string;
+  };
+  // The reference's own Dockerfile builds from the platform repository's root;
+  // the copy gets one that builds in its own tree (`./dockerfile.ts`).
+  const rendered = new Map<string, { content: string; note: string }>([
+    [
+      'Dockerfile',
+      {
+        content: storefrontDockerfile({
+          enginesNode: rewritten.engines?.node,
+          packageManager: rewritten.packageManager,
+          npmrc: registry !== null,
+        }),
+        note: 'rendered to build in this tree rather than from the platform repository root',
+      },
+    ],
+    [
+      '.dockerignore',
+      {
+        content: STOREFRONT_DOCKERIGNORE,
+        note: 'keeps `.env` and the installed trees out of the image build context',
+      },
+    ],
+  ]);
 
   const files: PlannedFile[] = [];
   for (const file of [...reference.files].sort()) {
-    if (omittedPaths.has(file)) continue;
+    if (omittedPaths.has(file) || rendered.has(file)) continue;
     if (file === 'package.json') {
       files.push({
         path: file,
@@ -657,13 +685,15 @@ export function planStorefront(
   for (const [path, plan] of [...vendored].sort(([a], [b]) => a.localeCompare(b))) {
     files.push({ path, source: null, content: plan.content, note: plan.note });
   }
+  for (const [path, file] of rendered) {
+    files.push({ path, source: null, content: file.content, note: file.note });
+  }
 
   // The registry, when there is one. It is a file the copy gains rather than a
   // rewrite of one it has: the reference storefront installs from the workspace
   // and holds no `.npmrc` of its own, so there is nothing here to overwrite —
   // and a scaffold that already carried one would be a declaration the copy
   // population, not this option, is answerable for.
-  const registry = options.registry === undefined ? null : normalizeRegistry(options.registry);
   if (registry !== null) {
     const scopes = installedScopes(reference.manifest);
     files.push({
