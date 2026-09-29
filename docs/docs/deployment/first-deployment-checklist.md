@@ -22,8 +22,9 @@ somebody who was not in the conversations that produced the items.
 
 **This page is not the deployment procedure.** Provisioning the VPS, the container registry,
 TLS, DNS and the compose stack are in `deploy/README.md`, and it should be followed first. This
-page starts where that one stops: the stack is up, the schema is applied, and nobody has yet
-decided anything about the business running on it.
+page starts where that one stops: the stack is up, the schema is applied (`backend-migrate`),
+every module's install hooks have run (`backend-install`), and nobody has yet decided anything
+about the business running on it.
 
 **Scope discipline.** An item belongs here only if all three hold: it must happen before real
 customers transact, no code change can decide it for the operator, and getting it wrong is
@@ -159,12 +160,24 @@ that were free to be thrown away. The first production database is the first one
 keep its rows.
 
 **Do (engineer).** On the exact commit that will be deployed, apply the whole chain to an empty
-throwaway database — `DATABASE_URL=…/b2b_rehearsal pnpm --filter backend run db:fresh`. Never
-run `db:fresh` or `db:reset` without an explicit `DATABASE_URL`: unprefixed they rebuild the
-developer's own database.
+throwaway database and then run every module's install hooks over it — the same two steps, in
+the same order, that `deploy/compose.prod.yml` runs as `backend-migrate` and `backend-install`
+before the API starts:
 
-**Verify.** The run completes with no ordering failure, and the resulting schema matches what
-the release's `backend-migrate` container produces on the VPS.
+```bash
+DATABASE_URL=…/b2b_rehearsal pnpm --filter backend run setup
+```
+
+`setup` (in `backend/package.json`) is `db:fresh` followed by `module:install --all`. Running
+`db:fresh` alone is not a rehearsal of the deployment: a database whose first act after the
+migrations is a boot never runs its install hooks. Never run `db:fresh`, `setup` or `db:reset`
+without an explicit `DATABASE_URL`: unprefixed they rebuild the developer's own database, and
+`db:reset` also runs the demo seed.
+
+**Verify.** Both steps complete with no ordering failure and no failed install hook, and the
+resulting schema matches what the release's `backend-migrate` and `backend-install` containers
+produce on the VPS — each of which exits `0` (`docker compose --env-file .env -f compose.prod.yml
+ps -a` shows them `Exited (0)`).
 
 ### C2. Do not run the demo seed
 
@@ -176,8 +189,12 @@ that are. It has a production guard —
 `ALLOW_DEV_SEED_IN_PRODUCTION` — which `deploy/compose.prod.yml` used to defeat permanently in
 a pre-armed `seed` service that `deploy/README.md` listed as a deployment step. That service
 has since been removed and the seed taken out of the deployment procedure: there is now no way to
-run it that does not involve an operator typing `-e ALLOW_DEV_SEED_IN_PRODUCTION=true`
-themselves.
+run it that does not involve an operator typing **both** overrides themselves —
+`-e ALLOW_DEV_SEED_IN_PRODUCTION=true` and `-e ALLOW_DEV_SEED_ON_NON_LOCAL_DATABASE=true`.
+The guard (`packages/platform/src/demo/guard.ts`) asks two separate questions: the first
+override answers *"this is `NODE_ENV=production`"*, the second *"the database is neither on
+loopback nor named as a test database"* — and in the production stack it is neither, since
+its host is the `postgres` service. With only the first, the command refuses on the second.
 
 That closes the accident, not the decision. The seed is still reachable, and this step is
 still the place where an operator says no to it.
@@ -217,10 +234,18 @@ wildcard `*` permission. Everything else is the client's own design.
 
 ```bash
 cd /opt/b2b
+export IMAGE_TAG=<deployed-sha>
 docker compose --env-file .env -f compose.prod.yml run --rm backend \
-  pnpm exec tsx src/cli.ts admin_users create \
+  node dist/cli.js admin_users create \
   --email=… --password=… --first-name=… --last-name=…
 ```
+
+This is the same command `deploy/README.md` step 3 gives, with the four flags the
+`admin_users` module's `create` command requires (the password must be at least 12
+characters). The production image runs the built tree, so the host CLI is
+`node dist/cli.js` — the `admin:create` package script is its development spelling
+(`tsx src/cli.ts`), not something to run on the VPS. Run it after the stack is up, so that
+`backend-install` has already run every module's install hooks.
 
 Then, in the Admin UI, define the roles the client actually needs on `/admin-roles`, and stop
 using the wildcard account for day-to-day work.
@@ -488,11 +513,11 @@ search returns nothing and no error.
 
 ```bash
 docker compose --env-file .env -f compose.prod.yml run --rm backend \
-  pnpm exec tsx src/cli.ts search reindex
+  node dist/cli.js search reindex
 ```
 
-(the same invocation the `search:reindex` package script makes — `src/cli.ts` is the host
-binary that runs the commands modules declare in their `manifest.ts`; `--list` prints every
+(the built form of what the `search:reindex` package script runs in development —
+`dist/cli.js` is the host binary that runs the commands modules declare in their `manifest.ts`; `--list` prints every
 one this instance offers). See `docs/docs/modules/search.md`.
 
 **Verify.** Search for a product you know exists and find it; compare the indexed document count
