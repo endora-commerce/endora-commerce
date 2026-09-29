@@ -1,23 +1,32 @@
 # Production stack for a single VPS.
 #
-# Runs on the server, NOT in CI. Images are built + pushed by GitLab CI to the
-# Container Registry; this file pulls them by tag and wires the runtime topology:
+# Runs on the server, NOT in CI: this repository's pipeline deploys no stack
+# (D-274). Images are built and pushed to a registry; this file pulls them by
+# tag and wires the runtime topology:
 #
-#   central-nginx-proxy ─┬─ https://${STOREFRONT_DOMAIN} → endora-commerce-storefront:3000
-#   (on `public_proxy`)  ├─ https://${ADMIN_DOMAIN}      → endora-commerce-admin:80
-#                        └─ https://${API_DOMAIN}        → endora-commerce-backend:3001
+#   host nginx (TLS via certbot)
+#     ├─ https://${STOREFRONT_DOMAIN} → ${STOREFRONT_HOST_PORT} → storefront:3000
+#     ├─ https://${ADMIN_DOMAIN}      → ${ADMIN_HOST_PORT}      → admin:80
+#     └─ https://${API_DOMAIN}        → ${API_HOST_PORT}        → backend:3001
 #
-# This stack does NOT terminate TLS. A separate, host-level `central-nginx-proxy`
-# container (the `global-proxy` compose project) handles SSL + Let's Encrypt and
-# reverse-proxies the public (sub)domains. It reaches backend/storefront/admin by
-# container name over the shared external `public_proxy` Docker network — so those
-# three services join `public_proxy` in addition to the stack-private `internal`
-# network (postgres/redis/meilisearch stay on `internal` only, never exposed to
-# the proxy). The loopback host ports below are kept for optional direct host
-# access/debugging; public routing no longer depends on them.
+# This stack does NOT terminate TLS. The host's own nginx does (Let's Encrypt via
+# certbot) and reverse-proxies each public name to a port this stack publishes on
+# loopback only (defaults 127.0.0.1:3000 / :8080 / :3001; see
+# deploy/nginx.example.conf). Nothing else reaches the apps: postgres, redis and
+# meilisearch publish no port at all and live on the stack-private `internal`
+# network.
 #
-# Prereq: the shared proxy network must exist on the host before `up`:
-#   docker network create public_proxy
+# It starts anywhere and beside another stack. No service fixes a
+# `container_name` and no network is external, so the compose project names
+# everything: a second stack on the same host is a second `-p <project>`, its own
+# directory, its own `.env` (fresh secrets, its own *_HOST_PORT binds) and its own
+# volumes. `backend/test/unit/ci/compose-prod.test.ts` holds both.
+#
+# Order of a start: postgres healthy → `backend-migrate` (migrations) →
+# `backend-install` (every module's install hooks, `module:install --all`,
+# idempotent) → `backend` → storefront. A database whose first act after the
+# migrations is a boot never runs its install hooks, so the install step is not
+# optional on a fresh database and is a no-op on an installed one.
 #
 # Stateful services (postgres / redis / meilisearch) live on the same host with
 # named volumes.
@@ -26,7 +35,7 @@
 #   IMAGE_TAG=<sha> docker compose --env-file .env -f compose.prod.yml up -d
 #
 # `.env` (next to this file, never committed) supplies secrets + domains +
-# REGISTRY_IMAGE; IMAGE_TAG is supplied per-deploy by the CD job.
+# REGISTRY_IMAGE; IMAGE_TAG is supplied per deploy.
 
 x-backend-env: &backend-env
   NODE_ENV: production
@@ -75,7 +84,6 @@ x-backend-env: &backend-env
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: endora-commerce-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-b2b}
@@ -93,7 +101,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: endora-commerce-redis
     restart: unless-stopped
     command: ['redis-server', '--appendonly', 'yes']
     volumes:
@@ -108,7 +115,6 @@ services:
 
   meilisearch:
     image: getmeili/meilisearch:v1.11
-    container_name: endora-commerce-meilisearch
     restart: unless-stopped
     environment:
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
@@ -136,7 +142,6 @@ services:
   # to serve requests is the half-built state that ruling exists to close.
   backend-migrate:
     image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
-    container_name: endora-commerce-backend-migrate
     command: ['node', 'dist/db/migrate.js', 'up']
     environment: *backend-env
     networks:
@@ -146,9 +151,29 @@ services:
         condition: service_healthy
     restart: 'no'
 
+  # One-shot: run every module's install hooks once the schema exists, before
+  # the API starts. Idempotent — an installed module reports itself done — so it
+  # runs on every start, like the migrations. Same image, same environment, and
+  # it needs Redis as well as Postgres (the install command opens both).
+  backend-install:
+    image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
+    command: ['node', 'dist/lifecycle/scripts/install.js', '--all']
+    environment: *backend-env
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      backend-migrate:
+        condition: service_completed_successfully
+    restart: 'no'
+
   backend:
     image: ${REGISTRY_IMAGE}/backend:${IMAGE_TAG:-latest}
-    container_name: endora-commerce-backend
     restart: unless-stopped
     environment: *backend-env
     # Published on loopback only — the host nginx proxies ${API_DOMAIN} here.
@@ -158,10 +183,7 @@ services:
       # Local-FS assets adapter writes under backend/var — persist it.
       - backend-assets:/app/backend/var
     networks:
-      # internal → reach postgres/redis/meilisearch; public_proxy → reachable by
-      # central-nginx-proxy as endora-commerce-backend:3001.
       - internal
-      - public_proxy
     depends_on:
       postgres:
         condition: service_healthy
@@ -169,7 +191,7 @@ services:
         condition: service_healthy
       meilisearch:
         condition: service_healthy
-      backend-migrate:
+      backend-install:
         condition: service_completed_successfully
     healthcheck:
       test:
@@ -181,7 +203,6 @@ services:
 
   storefront:
     image: ${REGISTRY_IMAGE}/storefront:${IMAGE_TAG:-latest}
-    container_name: endora-commerce-storefront
     restart: unless-stopped
     environment:
       NODE_ENV: production
@@ -210,10 +231,8 @@ services:
     ports:
       - '${STOREFRONT_HOST_PORT:-127.0.0.1:3000}:3000'
     networks:
-      # internal → server-side fetch to backend:3001; public_proxy → reachable by
-      # central-nginx-proxy as endora-commerce-storefront:3000.
+      # internal → server-side fetch to backend:3001.
       - internal
-      - public_proxy
     depends_on:
       backend:
         condition: service_healthy
@@ -227,16 +246,13 @@ services:
 
   admin:
     image: ${REGISTRY_IMAGE}/admin:${IMAGE_TAG:-latest}
-    container_name: endora-commerce-admin
     restart: unless-stopped
     # Published on loopback only — the host nginx proxies ${ADMIN_DOMAIN} here.
     ports:
       - '${ADMIN_HOST_PORT:-127.0.0.1:8080}:80'
     networks:
-      # admin is a static SPA (talks to the API from the browser); public_proxy
-      # makes it reachable by central-nginx-proxy as endora-commerce-admin:80.
+      # admin is a static SPA and talks to the API from the browser.
       - internal
-      - public_proxy
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--spider', 'http://127.0.0.1:80/']
       interval: 10s
@@ -253,21 +269,18 @@ services:
   # exist — so the moment somebody "fixed the path" the README's own deployment
   # steps would have wiped the catalogue.
   #
-  # Populating a demo host is still supported, but the operator types the
-  # override themselves, at the moment they mean it (see deploy/README.md):
+  # Populating a demo host is still supported, but the operator types both
+  # overrides themselves, at the moment they mean it (see deploy/README.md):
   #   docker compose --env-file .env -f compose.prod.yml run --rm \
-  #     -e ALLOW_DEV_SEED_IN_PRODUCTION=true backend \
-  #     node dist/cli.js demo seed
+  #     -e ALLOW_DEV_SEED_IN_PRODUCTION=true \
+  #     -e ALLOW_DEV_SEED_ON_NON_LOCAL_DATABASE=true \
+  #     backend node dist/cli.js demo seed
 
 networks:
   # Stack-private network for all services (DB/cache/search + apps talk here).
+  # Created per compose project, so two stacks on one host never share it.
   internal:
     driver: bridge
-  # Shared, host-level network owned by the `global-proxy` compose project
-  # (central-nginx-proxy). Must already exist: `docker network create public_proxy`.
-  # backend/storefront/admin join it so the proxy resolves them by container name.
-  public_proxy:
-    external: true
 
 volumes:
   postgres-data:
