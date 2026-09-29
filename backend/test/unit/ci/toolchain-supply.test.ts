@@ -85,7 +85,7 @@ describe('the CI file gives every job what its script needs', () => {
   it('parsed a population that looks like this pipeline', () => {
     const named = JOBS.map((job) => job.name);
     expect(named).toEqual(
-      expect.arrayContaining(['quality', 'release:changeset', 'deploy', 'publish:docs']),
+      expect.arrayContaining(['quality', 'release:changeset', 'publish:docs']),
     );
     expect(JOBS.filter((job) => job.script !== '').length).toBeGreaterThanOrEqual(8);
     expect(JOBS.filter((job) => runsWorkspaceCode(job.script)).length).toBeGreaterThanOrEqual(6);
@@ -235,10 +235,10 @@ describe('the CI file names the jobs the release gate is wired into', () => {
 /**
  * ## 4. A job that transfers over ssh is given ssh, and rsync if it transfers
  *
- * `alpine:3.20` ships neither an ssh client nor rsync, and both deployment jobs
- * run on it. `deploy` has installed `openssh-client` in its `before_script`
- * since it was written; `publish:docs` (feature 133) needs rsync as well,
- * because the documentation site is transferred file by file into a fresh
+ * `alpine:3.20` ships neither an ssh client nor rsync. The application `deploy`
+ * job installed `openssh-client` in its `before_script` until D-274 retired it;
+ * `publish:docs` (feature 133), the one transferring job left, needs rsync as
+ * well, because the documentation site is transferred file by file into a fresh
  * release directory rather than pulled as an image.
  *
  * The failure this refuses is the file's own shape one tool over: a job whose
@@ -281,7 +281,7 @@ describe('a job that ships files to the VPS is given the tools to ship them', ()
       TRANSFER_TOOLS.some((tool) => tool.used.test(commandLines([job]).join('\n'))),
     ).map((job) => job.name);
 
-    expect(transferring).toEqual(expect.arrayContaining(['deploy', 'publish:docs']));
+    expect(transferring).toEqual(expect.arrayContaining(['publish:docs']));
   });
 
   it('installs every transfer tool its commands use', () => {
