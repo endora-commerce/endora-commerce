@@ -235,6 +235,19 @@ describe('it hands the backend every generable secret the platform declares', ()
     expect(missing).toEqual([]);
   });
 
+  /**
+   * Empty is a working state for these two: newsletter links fall back to the
+   * session key, and `mfa` refuses enrolment rather than storing a secret it
+   * cannot encrypt. `change-me-base64-32` is not a working state: it decodes to
+   * 14 bytes, so an `mfa` handed it refuses to boot, and as a newsletter key it
+   * is a signing key every copy of this file shares.
+   */
+  it('leaves the secrets whose empty value is a working state empty, not a placeholder', () => {
+    for (const name of ['NEWSLETTER_TOKEN_SECRET', 'MFA_SECRET_ENCRYPTION_KEY']) {
+      expect(ENV_EXAMPLE).toMatch(new RegExp(`^${name}=$`, 'm'));
+    }
+  });
+
   it('gives each one a line in deploy/.env.prod.example', async () => {
     const missing = (await generableSecrets()).filter(
       (name) => !new RegExp(`^${name}=`, 'm').test(ENV_EXAMPLE),

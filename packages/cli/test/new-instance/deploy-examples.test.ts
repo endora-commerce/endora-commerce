@@ -730,6 +730,24 @@ describe('S6 — the backend of a deployed stack receives every generable secret
     });
   }
 
+  /**
+   * A placeholder is worse than a blank for these two. Empty is a working state
+   * for both — newsletter links fall back to the session key, and `mfa` serves
+   * its screens and refuses enrolment — while `change-me-generate-one` is a
+   * value the backend acts on: it decodes to 16 bytes, so an instance with
+   * `mfa` installed refused to boot on the example as copied.
+   */
+  for (const topology of ['single-host', 'three-host'] as const) {
+    it(`${topology}: leaves the secrets whose empty value is a working state empty, with their sentence`, () => {
+      for (const { example } of backendFiles(planInput({ topology }))) {
+        for (const name of ['NEWSLETTER_TOKEN_SECRET', 'MFA_SECRET_ENCRYPTION_KEY']) {
+          expect(example).toMatch(new RegExp(`^${name}=$`, 'm'));
+          expect(example).toMatch(new RegExp(`^# [^\\n]*\\n${name}=$`, 'm'));
+        }
+      }
+    });
+  }
+
   it('a generable secret the static environment does not name is still passed through', () => {
     const declared: EnvironmentInput[] = [
       {

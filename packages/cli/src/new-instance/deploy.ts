@@ -932,7 +932,9 @@ const RUNTIME_INPUTS: readonly RuntimeInput[] = [
     meaning:
       'Signs newsletter confirmation and unsubscribe links. `openssl rand -base64 32`. ' +
       'Empty, the backend signs them with the session key instead.',
-    example: 'change-me-generate-one',
+    // Empty rather than a placeholder: empty is a working state, and a
+    // placeholder is a signing key every copy of this file shares.
+    example: '',
   },
   {
     name: 'SETTINGS_SECRET_ENCRYPTION_KEY',
@@ -941,8 +943,12 @@ const RUNTIME_INPUTS: readonly RuntimeInput[] = [
   },
   {
     name: 'MFA_SECRET_ENCRYPTION_KEY',
-    meaning: 'Encrypts stored MFA secrets. `openssl rand -base64 32`.',
-    example: 'change-me-generate-one',
+    meaning:
+      'Encrypts stored MFA secrets. `openssl rand -base64 32`. Empty, no second factor ' +
+      'can be enrolled.',
+    // Empty rather than a placeholder: `change-me-generate-one` decodes to 16
+    // bytes, and `mfa` refuses to boot on a key that is not 32.
+    example: '',
   },
   {
     name: 'ASSETS_LIBRARY_HMAC_KEY',
