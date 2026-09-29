@@ -322,6 +322,54 @@ describe('FR-157 — it refuses its preconditions before it writes anything', ()
       runInstall(options(root, { services: true, dockerReachable: undefined })),
     ).rejects.toThrow(/--no-services/);
   });
+
+  /**
+   * The probe's own answer, not the seam's: **an exit status of 0 is not a
+   * daemon**. Docker CLI 28 — the one GitHub's `ubuntu-24.04` image ships —
+   * answers `docker info --format '{{.ServerVersion}}'` with exit 0 and an
+   * empty line when nothing is listening; 29 exits 1. So the case above was
+   * green on a laptop running 29 and red on the hosted runner, with the same
+   * unreachable `DOCKER_HOST`, and a client on 28 with Docker stopped was sent
+   * into `pnpm install` instead of being told to start it.
+   *
+   * Each case puts a `docker` of known behaviour first on `PATH`, so the
+   * version installed on whichever machine runs this decides nothing.
+   */
+  function withDocker(script: string): () => void {
+    const bin = temp('endora-fake-docker-');
+    const path = join(bin, 'docker');
+    writeFileSync(path, `#!/bin/sh\n${script}\n`, { mode: 0o755 });
+    const previous = process.env['PATH'];
+    process.env['PATH'] = `${bin}:${previous ?? ''}`;
+    return () => {
+      process.env['PATH'] = previous;
+    };
+  }
+
+  it('a Docker CLI that exits 0 and names no server version has no daemon behind it', async () => {
+    const restore = withDocker('exit 0');
+    try {
+      const root = host();
+      const { run } = recorder();
+      await expect(
+        runInstall(options(root, { services: true, dockerReachable: undefined, run })),
+      ).rejects.toThrow(/--no-services/);
+    } finally {
+      restore();
+    }
+  });
+
+  it('a Docker CLI that names a server version is a daemon, so the probe is not simply "no"', async () => {
+    const restore = withDocker("echo '28.0.4'");
+    try {
+      const root = host();
+      const { run, steps } = recorder();
+      await runInstall(options(root, { services: true, dockerReachable: undefined, run }));
+      expect(steps.map((step) => step.id)).toContain('services');
+    } finally {
+      restore();
+    }
+  });
 });
 
 describe('FR-155 / FR-156 — the pipeline is the printed sequence, and every step is echoed', () => {

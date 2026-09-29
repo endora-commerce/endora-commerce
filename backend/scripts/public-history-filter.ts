@@ -124,7 +124,7 @@ import {
   type DispositionDocument,
   DISPOSITIONS_PATH,
   globToRegExp,
-} from './check-root-dispositions.js';
+} from './lib/root-dispositions.js';
 import { moduleIdMatcher, moduleIdSpellings } from './lib/module-id-paths.js';
 import { discoverModulePackages } from './lib/module-packages.js';
 
@@ -2204,8 +2204,9 @@ function main(): void {
   const filterRepo = resolveFilterRepo();
 
   // 1. The record against today's tree. An entry with no disposition refuses
-  //    here exactly as it refuses in `check:root-dispositions` — one statement
-  //    of the rule, imported rather than restated.
+  //    here exactly as it refused in `check:root-dispositions`, retired from
+  //    the canonical tree by 129 T035 — one statement of the rule, imported
+  //    rather than restated.
   const paths = treePaths();
   const analysis = analyseDispositions({ paths, document });
   const refusing = new Set<string>([

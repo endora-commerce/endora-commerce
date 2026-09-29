@@ -3992,8 +3992,10 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`docs/136-hand-review-history` (136 W2.3, Y half): files 1387 -> 1388.** One markdown file under `specs/`, the history-surface review note, which cites no fenced block; measured on a pristine detached worktree of `2e1848203` after `setup-worktree.sh` and `build:packages`, whose `[read-size drift]` census named exactly these four entries; not computed from a delta.
     // **`docs/136-hand-review-tip` (W2.3 tip review), merged with `origin/master` after !1862 and !1863: files 1388 -> 1389.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1870: files 1389 -> 1390.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 1390,
-    sites: 13,
+    // **`fix/t035-floor` (129 T035, the first pull request on GitHub): files 1390 -> 170.** The same cut: `59a212961` reads 169 in the same clone, so 1 221 of the markdown files this check walked are among those the history filter withheld. The one file this branch adds is `specs/110-instance-repository/contracts/instance-tree.md`, published alone under D-247's option A because a CLI test reconciles against it. Measured on a pristine detached clone of `dfe10873f` (`pnpm install --frozen-lockfile`, `build:packages`, no `docs/docs/modules` copies and no copy stamp, `git status --porcelain` empty), whose `[read-size drift]` census named exactly five entries; not computed from a delta.
+    files: 170,
+    // **`fix/t035-floor` (129 T035, the first pull request on GitHub): sites 13 -> 3.** The first measurement of the canonical tree, which is GitLab `d595cf8b0` less the pre-migration record: ten of the thirteen citing documents are among the files the history filter withheld. The three left are `docs/docs/architecture/kernel.md`, `docs/docs/architecture/migrations.md` and `specs/conventions/check-inventory.md`; `59a212961`, the canonical first commit, already reads 3 in the same clone, and this branch adds no citing document. Measured on a pristine detached clone of `dfe10873f` (`pnpm install --frozen-lockfile`, `build:packages`, no `docs/docs/modules` copies and no copy stamp, `git status --porcelain` empty), whose `[read-size drift]` census named exactly five entries; not computed from a delta.
+    sites: 3,
     sources: [],
     //
     // **1267 -> 1268, and none of it is this branch.** Measured by withdrawing
@@ -6811,7 +6813,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-pre-publication-scan` merged with `origin/master` at `655a22edc`: files 286 -> 287 (origin/master reads 287).** Resolved wholly to master, then re-measured on a pristine pair (fresh worktree, `build:packages`, `git clean -fX docs/docs/modules`): master already read past the record from merges that did not re-record; this branch's own share is its two files, `backend/scripts/pre-publication-scan.ts` and its test.
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 287 -> 286.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 286 -> 279.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    files: 279,
+    // **`fix/t035-floor` (129 T035, the first pull request on GitHub): files 279 -> 278.** `59a212961` reads 279, measured in the same clone; the one file is `backend/scripts/check-root-dispositions.ts`, which this branch retires into `scripts/lib/root-dispositions.ts` and which part 2 of the walk (`scripts/check-*.ts`) therefore no longer opens. Measured on a pristine detached clone of `dfe10873f` (`pnpm install --frozen-lockfile`, `build:packages`, no `docs/docs/modules` copies and no copy stamp, `git status --porcelain` empty), whose `[read-size drift]` census named exactly five entries; not computed from a delta.
+    files: 278,
     // **2026-09-04: 14 -> 15.** One further named-subject lock claim.
     // **`specs/110-instance-repository/` T118c (the `pwa` drain, `pwaBridge` retired):**
     // sites 15 -> 17, files unchanged. `pwa`'s manifest gains `orders` in its
@@ -10119,7 +10122,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1870: files 7853 -> 7854.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`docs/136-demo-hostnames` (D-279), merged with `origin/master` after !1873: files 7854 -> 7844.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is the release !1875 consuming its changesets, already on `master`. Not computed from a delta.
     // **`feat/136-w7-5-demo-workflow` (W7.5, `demo.yml` and its test), merged with `origin/master` after !1874: files 7844 -> 7846.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 7846,
+    // **`fix/t035-floor` (129 T035, the first pull request on GitHub): files 7846 -> 6565.** The canonical tree is GitLab's less the files the history filter withheld, and `59a212961` reads 6562 in the same clone, 1 284 fewer. This branch adds three — the instance-tree contract and two changesets — and moves `check-root-dispositions.ts` and its test rather than deleting them. Measured on a pristine detached clone of `dfe10873f` (`pnpm install --frozen-lockfile`, `build:packages`, no `docs/docs/modules` copies and no copy stamp, `git status --porcelain` empty), whose `[read-size drift]` census named exactly five entries; not computed from a delta.
+    files: 6565,
     sites: null,
     sources: [],
     //
@@ -12195,215 +12199,6 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // check's own `read:` comment says it does and why. Recorded here so a
     // branch carrying a changeset and a tree just released are both describable.
     conditionalSources: ['changeset-subjects'],
-  },
-  'backend/scripts/check-root-dispositions.ts': {
-    prefix: '[root-dispositions]',
-    run: { kind: 'tsx', path: 'scripts/check-root-dispositions.ts', args: [] },
-    // **New with `specs/129-github-canonical-migration/` Phase 1 (T012).** Both
-    // numbers were measured on a fresh worktree of this branch's tip and neither
-    // is derived from the other.
-    //
-    // `files` is every path `git ls-files --cached --others --exclude-standard`
-    // yields — the whole repository, because the population it derives is the
-    // *first segment* of every path and nothing smaller can produce it. It
-    // therefore moves with every merge that adds or deletes a tracked file,
-    // exactly as the two whole-tree walks do, and it is the same quantity they
-    // read by a different route: this one asks git's index, `check-naming.sh`
-    // asks the same index and `check-nul-bytes` walks the disk.
-    //
-    // `sites` is the finer population and is **not** the file count: it is one
-    // decision per root entry plus one per file under a `partially-public`
-    // entry. Today that is the 40 root entries plus everything under `specs/`,
-    // which is the only partially-public entry — so `sites` moves when a
-    // document lands under `specs/` and stands still when one lands under
-    // `backend/`, while `files` moves for both. That divergence is the reason
-    // both are recorded: a check that answers per decision and prints only its
-    // file count has said nothing about the decisions.
-    // **The values below are the *merged* tree's**, and this entry's first
-    // recorded pair was thrown away rather than carried across the merge with
-    // `origin/master` at `eebd2d92e`. That is the same wholesale resolution the
-    // rest of this record took, applied to an entry only one side had: the
-    // entry itself is new content and survives, its numbers are measurements and
-    // were taken against a base that no longer exists.
-    // Measured on the merged tree, in a worktree stood up for it and worked in
-    // nowhere else. `files` is the whole repository by the index; `sites` is the
-    // 40 root entries plus every file under `specs/`, the one partially-public
-    // entry. `check-doc-snippets` does **not** move for the disposition record
-    // even though `specs/` is one of its two roots: its walk is markdown and the
-    // record is JSON.
-    // **`specs/129-github-canonical-migration/` Phase 1 (T013/T014), the
-    // contributor-facing documents: 8417 -> 8418 (+1).** One file, `SECURITY.md`
-    // at the repository root — entry number forty-one, and the first one the
-    // disposition instrument from the previous merge actually caught. Its `sites` moves with it, 1258 -> **1259**, and the two are different quantities that happen to agree here: `files` is every path in the tree, `sites` is one decision per root entry plus one per file under a partially-public entry, and a new root entry adds one of each.
-    // Two measurements: the parent of this merge reads 8417 in the same fresh
-    // worktree and this tree reads 8418; nothing is inferred.
-    // **`specs/129-github-canonical-migration/` Phase 1 (T017), the changeset
-    // disclosure gate: 8418 -> 8420 (+2).** Two files, no deletions:
-    // `backend/scripts/lib/commercial-vocabulary.ts` — R3's term list, its two
-    // ruled narrowings and its clearing mechanism — and one changeset. Its `sites` does **not** move and stays 1259: neither new file is under a partially-public entry — `backend/scripts/lib/` sits under `backend`, which is public wholesale, and `.changeset/` likewise — so the two counts move apart here, which is the whole reason both are recorded.
-    // Two measurements: the parent of this merge reads 8418 in the same fresh
-    // worktree and this tree reads 8420.
-    // **`test/declared-absence` (!1698), re-measured after merging `origin/master`: files 8420 -> 8425.** The branch adds **five** tracked files — `scripts/declared-absence.ts`, `backend/test/generable-secrets.ts`, two unit tests under `backend/test/unit/harness/` and its changeset — and every walk moves by as many of the five as it reads. The two whole-repository walks and `check-root-dispositions` move by **5**; `check-language.sh` by **4**, seeing the four `.ts` and not the `.md`; the four that read only `backend/test` by **3** or **2**, by which of those roots they walk. Conflict resolved wholly to the incoming side and the whole record re-measured — **not reconciled and not reconstructed** — in a fresh worktree of the merge commit after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain --ignored` reporting zero unignored residue. That the other thirty-five entries agree is the check on this attribution.
-    // **`specs/129-github-canonical-migration/` Phase 2 (T020-T025), the one-time disclosure filter: files 8425 -> 8428, sites 1259 -> 1260.** Three tracked files, no deletions: `backend/scripts/public-history-filter.ts`, `backend/test/unit/scripts/public-history-filter.test.ts` and the message-replacement record under `specs/129-github-canonical-migration/contracts/`. There is no changeset, because the branch changes nothing under `packages/`. Every walk moves by as many of the three as it reads: **files +3, all three by the index; sites +1**, the record alone. `sites` is one decision per root entry plus one per file under a partially-public entry, and `specs/` is the only one — the two `.ts` sit under `backend`, which is public wholesale. This is exactly the divergence the entry records both numbers to show, and the filter's own run reports the same pair (`paths=8428 dispositions=1260`) from its own walk. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` reporting no unignored residue at either commit: `origin/master` at `aeca6738f` reports **0 drifted, 45 agree**, so the recorded values were current and the whole of this move is these three files, and the branch tip reports the values below. Nothing is subtracted and no band is widened.
-    // **`specs/129-github-canonical-migration/` T040, the gate window: files 8428 -> 8429, sites 1260 -> 1261.** **One** tracked file, no deletions: `specs/129-github-canonical-migration/contracts/gate-window.md`. The branch also edits `tasks.md` and this record, and an edit moves nothing. There is no changeset — the branch changes nothing under `packages/`. **files +1** by the index, and **sites +1** — `sites` is one decision per root entry plus one per file under a partially-public entry, and `specs/` is the only such entry, so a file added under it moves both numbers. The 41 root entries are unchanged and `root-entries=41 recorded=41` still reconciles. Two measurements, in one worktree stood up for them and worked in nowhere else, after `pnpm install`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` reporting no unignored residue beyond the one new file: with the file withdrawn the tree reports 8428 / 1260, which is what this record already held, and with it restored it reports 8429 / 1261. **The baseline half is the one worth keeping**: an earlier pass of this measurement read the record with a pairing that matched each check's name to the first number in its *narrative* rather than to its `files:` field, and concluded four entries were three stale on a pristine `c47cde5f1`. They were not. The withdrawal measurement is what refuted it, and it is the reason the convention says two measurements rather than one. Nothing is subtracted and no band is widened.
-    // **Merged `origin/master` (3644ece1a) into `feat/connector-family-discovery`
-    // (`specs/132-connector-family-discovery/`): files 8429 -> 8437 (+8), sites 1261 -> 1269 (+8).** The record conflicted and was
-    // resolved wholly to master's side per `specs/conventions/check-estate.md`, so the value
-    // below was measured on a tree this branch's eight added files had never reached — the
-    // `specs/132-connector-family-discovery/` pages, which are the branch's whole tracked
-    // contribution besides an edit to `specs/deferred-defects.md` and this record. Every one
-    // of the four entries the census named moved by exactly +8, which is the arithmetic that
-    // says so; nothing is deleted. Re-measured on the merged tree in a worktree stood up for
-    // the measurement, never computed from a delta.
-    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`,
-    // b5ff66c83) already in it, into `feat/119-comarch-xl-sync`
-    // (`specs/130-comarch-xl-sync/`): files 8437 -> 8624 (+187), sites 1269 -> 1280 (+11).** The record was the only conflicting
-    // path and was resolved wholly to the incoming side per
-    // `specs/conventions/check-estate.md`, so the value below was measured on a tree this
-    // branch's 187 added files had never reached: 98 under `packages/modules/comarch_xl/`,
-    // 17 under `packages/modules/erp_connector/`, 46 under `backend/test/`, 11 spec pages,
-    // 4 example-overlay files under `backend/src/apps/example/`, 3 `docs/docs/` pages, 3
-    // `invoices` files, 2 contracts modules, 2 changesets and one test-ownership ledger.
-    // The merge deletes nothing, so every move is upward, and the three whole-repository
-    // walks move by exactly +187, which is the arithmetic that says so. Re-measured on the
-    // merged tree in a worktree stood up for the measurement and worked in nowhere else,
-    // never computed from a delta.
-    // **Merged `origin/master` 3644ece1a with !1700 (`feat/connector-family-discovery`)
-    // and !1686 (`feat/119-comarch-xl-sync`, tip b4f2f144e) already in it, into
-    // `feat/129-wfirma-integration` (`specs/131-wfirma-integration/`): files 8624 -> 8688 (+64), sites 1280 -> 1291 (+11).**
-    // Eight paths conflicted; this record was resolved wholly to the incoming side per
-    // `specs/conventions/check-estate.md`, four per-module registries were unioned, and the
-    // three generated registries were regenerated rather than hand-merged. The value below
-    // was therefore measured on a tree this branch's 64 added files had never reached: 31
-    // under `packages/modules/wfirma/`, 19 under `backend/test/`, 11 spec pages, one
-    // contracts module, one `docs/docs/` page and one changeset. The merge deletes nothing,
-    // so every move is upward, and the three whole-repository walks move by exactly +64,
-    // which is the arithmetic that says so. Re-measured on the merged tree in a worktree
-    // stood up for the measurement and worked in nowhere else, after `build:packages`,
-    // `composer:generate` and `manifests:generate`, with the generated `docs/docs/modules`
-    // copies and their stamp cleaned and `storefront/tsconfig.tsbuildinfo` removed — a
-    // git-ignored build artefact is exactly what `check-nul-bytes` would otherwise walk —
-    // and never computed from a delta.
-    // **`fix/comarch-credit-limits-edge`: +1 file.** One co-located test,
-    // `packages/modules/comarch_xl/src/backend/services/apply/credit-limit-edge.test.ts`,
-    // beside the manifest edge it holds. Nothing moved and nothing was deleted.
-    // **`feat/129-t041-t042a-actions`: +4 files.** The Actions floor:
-    // `.github/workflows/quality.yml`, `.github/workflows/publish.yml`,
-    // `backend/test/helpers/actions-workflows.ts` and
-    // `backend/test/unit/ci/actions-floor-parity.test.ts`. This walk takes the YAML too.
-    // **`fix/comarch-queue-names`: files 8693 -> 8697.** All four files this merge request adds.
-    // Attributed by inspection rather than by parking, and the distinction is the one this
-    // record's own preamble makes about `check-naming.sh` and `check-language.sh`: this
-    // population comes off the git **index**, so moving a file aside changes its index entry
-    // rather than removing it from the walk, and the number does not budge. Four added files, +4,
-    // and the other ten drifted entries in the same run corroborate the population.
-    //
-    // **Feature 133 Phase 8 (T080), measured 2026-09-23** on a clean tree — the
-    // narrow clean `check-estate.md` prescribes (`git clean -fX docs/docs/modules`,
-    // `rm -f docs/.module-docs-copies.json`, no `docs/build`, no `docs/.docusaurus`),
-    // taken from the `[read-size drift]` census and never computed from a delta.
-    // The branch adds **421** tracked files over `origin/master` and deletes none.
-    // **387** of those are feature 132's tail — 188 `docs/i18n/pl/**` and 185
-    // `docs/translation-cache/pl/**` — which never reached this record, because the
-    // only commit that touched it there (`8b4be25aa`) moved the
-    // `check-docs-translations` entry alone. The remaining **34** are feature 133's
-    // own: the publication scripts, the deployment template, the spec directory, the
-    // chrome translation files and the two static assets.
-    // **files 8697 -> 9111, +414** — the tracked population, the same arrival count
-    // `check-naming.sh` sees. **sites 1291 -> 1305, +14**: fourteen new entries in
-    // the root-disposition population, contributed by the new `specs/` directory,
-    // the two `deploy/` files and the docs artefacts. Recorded from the census.
-    //
-    // **Feature 133 acceptance follow-up, measured 2026-09-23** on a clean tree,
-    // the same narrow clean Phase 8 used, taken from the `[read-size drift]`
-    // census and never computed from a delta. Two tracked files landed after
-    // T080's census and neither re-recorded it: the code-review fix
-    // (`d05624700`) added `packages/cli/test/docs-front-matter-scalar.test.ts`,
-    // and the acceptance record (`7e3fd4da7`) added
-    // `specs/133-docs-site-publication/acceptance.md`.
-    // **files 9111 -> 9113, +2** — the tracked population, both arrivals.
-    // **sites 1305 -> 1306, +1**: a site is one per root entry plus one per path
-    // under a `partially-public` entry, and only `specs` is partial, so the
-    // acceptance record contributes a site while the `packages/cli` test, under a
-    // wholly `public` root entry, does not. Recorded from the census.
-    //
-    // **Feature 133 FR-046 closeout, measured 2026-09-25** on a clean tree, the
-    // same narrow clean the record above used, taken from the `[read-size drift]`
-    // census and never computed from a delta. § 7 of
-    // `internal-reference-removal.md` deleted `docs/docs/about/spec-citations.md`,
-    // its Polish materialisation and its translation-cache entry (-3 tracked); the
-    // feature added `internal-reference-removal.md` and
-    // `internal-reference-removal-worklist.md` under
-    // `specs/133-docs-site-publication/` (+2 tracked). The sixteen removal batches'
-    // ~171 edited files move nothing — an edit does not change a population.
-    // **files 9113 -> 9112, -1**, the tracked net. **sites 1306 -> 1308, +2** — and
-    // the two move in opposite directions for the reason the record above states: a
-    // site is one per root entry plus one per path under a `partially-public`
-    // entry, only `specs` is partial, so both spec pages contribute a site while
-    // the three deletions, all under wholly `public` root entries, take none away.
-    // **2026-09-25: rebase of `docs/133-docs-site-publication` (and its base, `docs/132-docs-pl-locale`) onto current `master`.** Re-measured on the merged tree in a fresh detached `git worktree`, after `pnpm install --frozen-lockfile`, `build:packages` and `composer:generate` (no drift from the generator), with the generated `docs/docs/modules` copies swept and `git status --porcelain` clean. Most of the movement is population shrinkage from module packages the branch's base did not yet have removed: `dhl_parcel`, `inpost` and `wfirma` left this repository for the paid one, and the four PIM connector pages (`architecture/pim-{ergonode,pimcore,unopim}.md`, `integrations/akeneo-pim.md`) moved with them — a `modify/delete` conflict on each file the rebase resolved by keeping the deletion. No band was widened and no value was computed from a delta.
-    // **`feat/134-attribute-type-mapping` (feature 134 T131), measured 2026-09-26** on the
-    // branch merged with `master` at `077b90f42`, in a fresh detached worktree after
-    // `pnpm install --frozen-lockfile` and `build:packages`, never computed from a delta. The
-    // branch adds `packages/contracts/test/attribute-type-mapping.unit.test.ts` and two
-    // changesets, deletes `backend/test/unit/pim_unopim/attribute-type-mapping.test.ts` and moves
-    // `pim_ergonode`'s into its package; the rest of the distance from the previous value is
-    // `master`'s own drift from the paid-module departures, which a pristine `077b90f42`
-    // worktree reproduces.
-    // **`fix/134-port-catches-binding` (feature 134 T130), measured 2026-09-26** on the branch
-    // merged with `master` at `bf8564b29`, in a fresh detached worktree after
-    // `pnpm install --frozen-lockfile` and `build:packages`, never computed from a delta. The
-    // branch adds one `product_feeds` test and two changesets and edits prose in the files it
-    // touches; the rest of the distance from the previous value is `master`'s own drift, which a
-    // pristine `bf8564b29` worktree reproduces.
-    // **T055 (`pim_unopim` leaves): 8630 -> 8460.** the branch deletes 172 tracked files and adds 2 against its base, net -170.
-    // **T055 (`pim_pimcore` leaves): 8460 -> 8307.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **`feat/134-invoice-import-identity` (T135, `research.md` D21), merged with `origin/master` after release 0.16.0: files 8152 -> 8151.** Measured on a pristine worktree of the merge commit `85928a9ff` beside a pristine `origin/master` worktree (`6d0169c2c`), after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and this record first resolved wholly to master. The branch adds `invoices`' import-identity migration, its upgrade test and three changesets. Of this entry's move, -6 is master's own: the pristine `origin/master` worktree already reads 6 fewer files than master records, and the branch adds 5. Not computed from a delta.
-    // **`feat/136-pre-publication-scan` merged with `origin/master` at `655a22edc`: files 8151 -> 8180 (origin/master reads 8178, this branch +2).** Resolved wholly to master, then re-measured on a pristine pair (fresh worktree, `build:packages`, `git clean -fX docs/docs/modules`): master already read past the record from merges that did not re-record; this branch's own share is its two files, `backend/scripts/pre-publication-scan.ts` and its test.
-    // **`docs/136-secret-review`, merged with `origin/master` `b28ed6cfc` after !1839 and !1842: files 8180 -> 8184.** Measured on a pristine pair — a detached worktree of this branch's tip `ad886ce8c` and one of `origin/master` `b28ed6cfc`, each after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and `git status --porcelain` empty — with this record first resolved wholly to master. The branch adds one tracked file, `specs/136-open-source-publication/secret-review-2026-09-27.md`, and edits `root-dispositions.json`. The pristine `origin/master` reads 8183, so +3 is master's own and +1 is the new file. Not computed from a delta.
-    // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: files 8184 -> 8027.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
-    // **T069 (`ksef` and `infakt` leave): 8027 -> 7878.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    // **`feat/136-reviewed-findings` (plan W2.3a), merged with `origin/master` `6b6882399`: files 7878 -> 7879.** **One** tracked file, no deletions: `specs/136-open-source-publication/reviewed-findings.json`, the pre-publication scan's reviewed-findings record. The branch also edits the scan, its test, the contract, `root-dispositions.json` and this record, and an edit moves nothing; there is no changeset, as nothing under `packages/` changes. The record was resolved wholly to `master` at the merge, then re-measured on a pristine pair — a fresh detached worktree of the merge after `setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules` and deleting the copy stamp, with `git status --porcelain` empty: with the file withdrawn from the index and the disk all 47 recorded entries agree, and with it restored this entry moves by exactly the one file. Nothing is subtracted and no band is widened.
-    // **`feat/136-reviewed-findings` (plan W2.3a), merged again with `origin/master` `afaec3b99` (the `chore: version packages` release): files 7879 -> 7858.** The release deletes 21 tracked files — the changesets it consumed — and adds none, and it did not re-record this entry, so `master` itself reads 21 below the value above; this branch's own share stays its one file, `reviewed-findings.json`. Re-measured on a fresh pristine detached worktree of the merge (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty), never computed from a delta.
-    // **`docs/134-package-decoration` (feature 134 D25), merged with `origin/master` `e426d0dc6` after !1846 and !1847: files 7858 -> 7859.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty). The one moving file is this branch's only new tracked file, `specs/127-decoration-default-and-seam-discovery/tasks.md`. Not computed from a delta.
-    // **`feat/134-t124-delete-named-host-values` (T124, T125), merged with `origin/master` `b6c3de41d` after !1849: files 7859 -> 7863.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files, the same entries and deltas it recorded against the earlier master. Not computed from a delta.
-    // **136 W3.3 (the extraction tooling retires): 7863 -> 7859.** Agrees on `origin/master` (ed7e9e068) and moves with the branch: the extraction tooling retires — `scripts/extract-paid-module.sh`, `scripts/lib/w1-root-names.sh`, `backend/scripts/derive-extraction-path-set.ts` and the two unit tests leave, `backend/test/unit/scripts/module-id-paths.test.ts` arrives; measured on the pristine pair.
-    // **`feat/136-w6-community-files` (W6), merged with `origin/master` after !1853 and !1851: files 7859 -> 7868.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 7868 -> 7875.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`feat/136-w52-install-wizard` (W5.2), merged with `origin/master` after !1852: files 7875 -> 7882.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W5.1 (`create-endora-commerce`, D-267): 7882 -> 7891.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's eight files and its changeset; measured on the pristine pair after merging `origin/master`.
-    // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 7891 -> 7901.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`docs/136-getting-started`: files 7901 -> 7904.** The Getting started page (`docs/docs/getting-started.md`), its Polish materialisation and cache entry; measured on a pristine detached worktree of `af4bdfea4` after `setup-worktree.sh` and `build:packages`, not computed from a delta.
-    // **`feat/134-t094a-token-predicate` (134 T094a): files 7904 -> 7905.** Merged with `origin/master` `d84d28a0c` after !1860 and !1859; the record was resolved wholly to master at the merge and re-measured on a pristine detached worktree of the merge commit `5469c82bb` (`setup-worktree.sh`, `build:packages`, `docs/docs/modules` cleaned), whose `[read-size drift]` census named exactly these four entries. The branch adds one file, `specs/136-open-source-publication/text-replacements.json`, D-273's committed C2/C3 rule record.
-    // **`docs/136-hand-review-history` (136 W2.3, Y half): files 7905 -> 7906.** One file, the history-surface review note under `specs/136-open-source-publication/`; measured on a pristine detached worktree of `2e1848203` after `setup-worktree.sh` and `build:packages`, whose `[read-size drift]` census named exactly these four entries; not computed from a delta.
-    // **`docs/136-hand-review-tip` (W2.3 tip review), merged with `origin/master` after !1862 and !1863: files 7906 -> 7907.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 7907 -> 7912.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`fix/136-tip-disclosures` (D1–D6), merged with `origin/master` after !1869: files 7912 -> 7914.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1870: files 7914 -> 7915.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`docs/136-demo-hostnames` (D-279), merged with `origin/master` after !1873: files 7915 -> 7905.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is the release !1875 consuming its changesets, already on `master`. Not computed from a delta.
-    // **`feat/136-w7-5-demo-workflow` (W7.5, `demo.yml` and its test), merged with `origin/master` after !1874: files 7905 -> 7907.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 7907,
-    // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
-    // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
-    // **T055 (`pim_ergonode` leaves): 1337 -> 1338.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
-    // **`feat/134-attachment-seam` (T061, T065, T066), merged with `origin/master` after !1829/!1836: sites 1338 -> 1339, files 8307 -> 8152.** Measured on a pristine worktree of the merge commit beside a pristine `origin/master` worktree, after `setup-worktree.sh` and `build:packages`, with this record first resolved wholly to master. The branch adds `invoices`' attachment fetch registry, its tests and four changesets, and deletes the example Comarch overlay and one port. Not computed from a delta.
-    // **`docs/136-secret-review`, merged with `origin/master` `b28ed6cfc` after !1839 and !1842: sites 1339 -> 1340.** Measured on a pristine pair — a detached worktree of this branch's tip `ad886ce8c` and one of `origin/master` `b28ed6cfc`, each after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned and `git status --porcelain` empty — with this record first resolved wholly to master. The branch adds one tracked file, `specs/136-open-source-publication/secret-review-2026-09-27.md`, and edits `root-dispositions.json`. The new file is one more path under the partially-public `specs` entry; the pristine `origin/master` reads 1339, agreeing with the record. Not computed from a delta.
-    // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: sites 1340 -> 1341.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
-    // **T069 (`ksef` and `infakt` leave): 1341 -> 1343.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
-    // **`feat/136-reviewed-findings` (plan W2.3a), merged with `origin/master` `6b6882399`: sites 1343 -> 1344.** The same one file as `files` above: it sits under `specs/`, the one partially-public entry, so it is one more decision — resolved by its own new `private` path rule, placed ahead of `specs/[0-9]*/**` so it is reachable (`unreachable-path-rule=0`). Measured on the same pristine pair, withdrawn and restored.
-    // **`docs/134-package-decoration` (feature 134 D25), merged with `origin/master` `e426d0dc6` after !1846 and !1847: sites 1344 -> 1345.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty). The one moving file is this branch's only new tracked file, `specs/127-decoration-default-and-seam-discovery/tasks.md`. Not computed from a delta.
-    // **`feat/136-w6-community-files` (W6), merged with `origin/master` after !1853 and !1851: sites 1345 -> 1347.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`feat/134-t094a-token-predicate` (134 T094a): sites 1347 -> 1348.** The same one file as `files` above: it sits under `specs/`, the one partially-public entry, so it is one more decision — resolved by its own new `private` path rule, placed ahead of `specs/[0-9]*/**` as `reviewed-findings.json`'s is; measured on the same pristine worktree of `5469c82bb`.
-    // **`docs/136-hand-review-history` (136 W2.3, Y half): sites 1348 -> 1349.** The same one file: under `specs/`, the partially-public entry, so one more decision, resolved by its own `private` path rule ahead of `specs/[0-9]*/**`; measured on a pristine detached worktree of `2e1848203` after `setup-worktree.sh` and `build:packages`, whose `[read-size drift]` census named exactly these four entries; not computed from a delta.
-    // **`docs/136-hand-review-tip` (W2.3 tip review), merged with `origin/master` after !1862 and !1863: sites 1349 -> 1350.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1870: sites 1350 -> 1351.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    sites: 1351,
-    // `git-tree-entries` — the committed tree's own root entries, read from a
-    // different git store than the index this walk uses. Not `self-reported`:
-    // two derivations of one population by two routes is precisely the second
-    // author `read-size.ts` asks for, and a short walk here means the index and
-    // the commit disagree, which is a real state and not a hypothetical one.
-    sources: ['git-tree-entries'],
   },
   'backend/scripts/check-rsc-discipline.ts': {
     prefix: '[rsc-discipline]',
@@ -15712,7 +15507,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1870: files 7913 -> 7914.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`docs/136-demo-hostnames` (D-279), merged with `origin/master` after !1873: files 7914 -> 7904.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is the release !1875 consuming its changesets, already on `master`. Not computed from a delta.
     // **`feat/136-w7-5-demo-workflow` (W7.5, `demo.yml` and its test), merged with `origin/master` after !1874: files 7904 -> 7906.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 7906,
+    // **`fix/t035-floor` (129 T035, the first pull request on GitHub): files 7906 -> 6615.** The same population as `check-nul-bytes` by the index rather than the disk: `59a212961` reads 6612 in the same clone, 1 294 fewer after the history filter, and this branch's three added files. Measured on a pristine detached clone of `dfe10873f` (`pnpm install --frozen-lockfile`, `build:packages`, no `docs/docs/modules` copies and no copy stamp, `git status --porcelain` empty), whose `[read-size drift]` census named exactly five entries; not computed from a delta.
+    files: 6615,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -16441,7 +16237,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 5473 -> 5482.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 5482 -> 5485.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-w7-5-demo-workflow` (W7.5, `demo.yml` and its test), merged with `origin/master` after !1874: files 5485 -> 5486.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 5486,
+    // **`fix/t035-floor` (129 T035, the first pull request on GitHub): files 5486 -> 5452.** All of it is the history filter: `59a212961` reads 5452 as well, measured in the same clone, because this branch's added files are a markdown contract under `specs/` and two changesets, none of which this check scans. Measured on a pristine detached clone of `dfe10873f` (`pnpm install --frozen-lockfile`, `build:packages`, no `docs/docs/modules` copies and no copy stamp, `git status --porcelain` empty), whose `[read-size drift]` census named exactly five entries; not computed from a delta.
+    files: 5452,
     sites: null,
     sources: ['manifest-index'],
     //
