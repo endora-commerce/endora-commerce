@@ -40,11 +40,12 @@ Pull requests here merge with no branch protection behind them: the owner merges
   Derive the population rather than trusting a recorded count; `manifests:generate`,
   `pnpm install --lockfile-only`, a changeset. **May land before the flip; must land before
   N4**[^t050].
-- [ ] **S1–S5** (D, then O) Five defects in what the CLI's 0.15.0 release scaffolds, recorded in
-  the private register; each fix is a pull request here describing its defect in terms of the code.
-  S1 — a scaffolded storefront's `.gitignore` did not ignore `.env` — is pull request #5. The other
-  four land **before N4 if they touch the path a stranger's first install takes**, otherwise when
-  convenient[^cli].
+- [x] **S1** (D, then O) A scaffolded storefront's `.gitignore` now ignores `.env`, `node_modules`
+  and `.next`. Pull request #5, merged 2026-09-29[^cli].
+- [ ] **S2–S5** (D, then O) The other four defects in what the CLI's 0.15.0 release scaffolds,
+  recorded in the private register; each fix is a pull request here describing its defect in terms
+  of the code. Each lands **before N4 if it touches the path a stranger's first install takes**,
+  otherwise when convenient[^cli].
 - [ ] **P7** (O) The repository variables `.github/workflows/demo.yml` reads — `API_DOMAIN`,
   `STOREFRONT_DOMAIN`, `SALES_CHANNEL_CODE`, and optionally `DEFAULT_LOCALE` and `DEPLOYMENT`.
   Done when `demo` on `master` no longer fails at its input guard[^p7].
@@ -99,7 +100,7 @@ Pull requests here merge with no branch protection behind them: the owner merges
 - [ ] **N4 = T052** (D prepares, O dispatches and approves `npm-publish`) `0.100.0` with provenance,
   through `.github/workflows/publish.yml`. **Do not skip the fail-closed dry step**: it is the only
   thing between a misconfiguration and a permanently spent version. Precondition: N1, N2, N3, T050,
-  and the scaffold fixes S1–S5 that are on the first-install path[^t052].
+  and the scaffold fixes S2–S5 that are on the first-install path[^t052].
 - [ ] **N5** (O) Deprecate the `create-endora-commerce@0.0.1` placeholder; the other reserved
   names stay reserved[^d267].
 - [ ] **N6 = W5.5** (O dispatches) The first `public`-mode acceptance run against `0.100.0` on a
@@ -186,12 +187,12 @@ Pull requests here merge with no branch protection behind them: the owner merges
 ## Dependencies
 
 ```
-T032, P4, P7, P8, S1–S5, T050 ─┐     (T050 may also land after the flip)
+T032, P4, P7, P8, S2–S5, T050 ─┐     (T050 may also land after the flip)
                                ├─> F1 → F2 → F3 → F4 (T033) → F5 → F6 (T047)
 T035 ──────────────────────────┘
 F4 → Dependabot #1–#3 become ordinary pull requests
 F5 → N1 (T042b pack-gate) → N2 (T051) → N3 → N4 (T052) → N5 → N6 (W5.5) → N7 (W4.3/W4.4) → N8 (T060)
-T050 → N4          S1–S5 on the first-install path → N4          T046b → N4 (in practice)
+T050 → N4          S2–S5 on the first-install path → N4          T046b → N4 (in practice)
 N4 → N11
 T043 (10-13), T043p (10-20), T045 + T044 + W7.11 (10-27)          independent of Phase C
 P7 + F5 + first demo.yml build + host capacity confirmed → W7.10
