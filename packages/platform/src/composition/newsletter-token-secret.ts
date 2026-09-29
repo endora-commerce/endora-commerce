@@ -11,11 +11,16 @@
  * an empty key, so the backend exited 1 inside `buildServer` on exactly the
  * configuration every example described as "leave it empty and the session key
  * is used". The answer is `''` only when neither has a value; no key is invented.
+ *
+ * It takes the two values rather than an environment, so `composeApp` keeps
+ * reading both as `process.env['NAME']` — the form `check:env-inputs` sees.
  */
 export function newsletterTokenSecretFrom(
-  env: Readonly<Record<string, string | undefined>>,
+  newsletterTokenSecret: string | undefined,
+  sessionCookieSecret: string | undefined,
 ): string {
-  const own = env['NEWSLETTER_TOKEN_SECRET'];
-  if (own !== undefined && own !== '') return own;
-  return env['SESSION_COOKIE_SECRET'] ?? '';
+  if (newsletterTokenSecret !== undefined && newsletterTokenSecret !== '') {
+    return newsletterTokenSecret;
+  }
+  return sessionCookieSecret ?? '';
 }

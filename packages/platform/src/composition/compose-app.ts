@@ -648,7 +648,10 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // is deliberately not reproduced. It is a shipped default signing key,
     // nothing declares it, and a deployment that reached it signed every
     // confirmation link with a secret that is in this repository.
-    newsletterTokenSecret: newsletterTokenSecretFrom(process.env),
+    newsletterTokenSecret: newsletterTokenSecretFrom(
+      process.env['NEWSLETTER_TOKEN_SECRET'],
+      process.env['SESSION_COOKIE_SECRET'],
+    ),
     // The one connection ioredis has put into subscriber mode. Shared, because
     // a subscriber connection cannot serve commands: a per-module one would
     // cost a socket per module and buy nothing.

@@ -21,28 +21,29 @@ import { newsletterTokenSecretFrom } from './newsletter-token-secret.js';
  */
 describe('newsletterTokenSecret', () => {
   it('uses NEWSLETTER_TOKEN_SECRET when it has a value', () => {
-    expect(
-      newsletterTokenSecretFrom({ NEWSLETTER_TOKEN_SECRET: 'n', SESSION_COOKIE_SECRET: 's' }),
-    ).toBe('n');
+    expect(newsletterTokenSecretFrom('n', 's')).toBe('n');
   });
 
   it('falls back to SESSION_COOKIE_SECRET when NEWSLETTER_TOKEN_SECRET is unset', () => {
-    expect(newsletterTokenSecretFrom({ SESSION_COOKIE_SECRET: 's' })).toBe('s');
+    expect(newsletterTokenSecretFrom(undefined, 's')).toBe('s');
   });
 
   it('falls back to SESSION_COOKIE_SECRET when NEWSLETTER_TOKEN_SECRET is empty', () => {
-    expect(
-      newsletterTokenSecretFrom({ NEWSLETTER_TOKEN_SECRET: '', SESSION_COOKIE_SECRET: 's' }),
-    ).toBe('s');
+    expect(newsletterTokenSecretFrom('', 's')).toBe('s');
   });
 
   it('answers empty only when neither has a value, inventing no key', () => {
-    expect(newsletterTokenSecretFrom({ NEWSLETTER_TOKEN_SECRET: '', SESSION_COOKIE_SECRET: '' })).toBe('');
-    expect(newsletterTokenSecretFrom({})).toBe('');
+    expect(newsletterTokenSecretFrom('', '')).toBe('');
+    expect(newsletterTokenSecretFrom(undefined, undefined)).toBe('');
   });
 
-  it('is what composeApp registers, read from process.env', () => {
-    const source = readFileSync(fileURLToPath(new URL('./compose-app.ts', import.meta.url)), 'utf8');
-    expect(source).toMatch(/^\s*newsletterTokenSecret: newsletterTokenSecretFrom\(process\.env\),$/m);
+  it('is what composeApp registers, reading both as process.env[NAME]', () => {
+    const source = readFileSync(
+      fileURLToPath(new URL('./compose-app.ts', import.meta.url)),
+      'utf8',
+    );
+    expect(source).toMatch(
+      /newsletterTokenSecret: newsletterTokenSecretFrom\(\s*process\.env\['NEWSLETTER_TOKEN_SECRET'\],\s*process\.env\['SESSION_COOKIE_SECRET'\],\s*\)/,
+    );
   });
 });
