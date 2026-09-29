@@ -1041,7 +1041,13 @@ export function planInstance(input: PlanInput): InstancePlan {
       '',
       'node_modules',
       'dist',
+      '.next/',
+      '*.tsbuildinfo',
+      '',
+      '# This instance\'s own configuration, with the secrets this command generated.',
+      '# `.env.example` is the file to commit.',
       '.env',
+      '.env*.local',
       '',
     ].join('\n'),
   });
