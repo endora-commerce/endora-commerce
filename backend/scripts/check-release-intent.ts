@@ -261,7 +261,7 @@
  *
  * **The owner's publication ruling of 2026-09-05 retires that one too, and the
  * arithmetic is the argument.** Every `@endora-commerce` package publishes,
- * because a deployment builds its own instance (D-208) and an instance takes the
+ * because an instance is built by whoever runs it (D-208) and an instance takes the
  * platform, the admin kit and all 70 module packages as dependencies while
  * holding a copy of none. Measured on this tree, the honest closure — the two
  * roots above, plus the module packages an instance composes, read off the
@@ -1425,7 +1425,7 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
       message:
         `(${member.dir}) is \`"private": true\`, so \`changeset publish\` skips it without a ` +
         "word. Every `@endora-commerce` package publishes (D-208, and the owner's publication " +
-        'ruling of 2026-09-05): a deployment builds its own instance, and an instance takes the ' +
+        'ruling of 2026-09-05): an instance is built by whoever runs it, and it takes the ' +
         'platform, the admin kit and every module package as a dependency while holding a copy ' +
         "of none. `pnpm pack` rewrites a `workspace:*` range to the sibling's exact version, so " +
         "a package left behind is every dependent's packed manifest pinning a version the " +
@@ -1747,8 +1747,8 @@ function scanChangesetProse(
           'this estate found in a published artefact came through this surface. Judge it ' +
           'against `specs/conventions/commercial-data.md` §1 rather than against the word ' +
           'that matched: §4(b) and §4(c) narrow this rule sharply, and its measured precision ' +
-          'is about 28 %. If it is a false positive, clear it **in the changeset body** with ' +
-          '`<!-- commercial-data: cleared `' +
+          'is about 28 %. If it is a false positive, clear it **beside the paragraph that ' +
+          'carries it** with `<!-- commercial-data: cleared `' +
           hit.term +
           '` — why -->` and a reason somebody can disagree with. Do not widen the term list: ' +
           'that silently stops the rule refusing a real finding somewhere else.',
@@ -1759,7 +1759,7 @@ function scanChangesetProse(
         kind: 'stale-disclosure-clearance',
         subject: `${document.file}:${stale.line}`,
         message:
-          `clears \`${stale.term}\`, and the body no longer contains it. Remove the ` +
+          `clears \`${stale.term}\`, and its own paragraph no longer contains it. Remove the ` +
           'annotation, so that every clearance left is one somebody still has to agree with — ' +
           'the same direction every other ledger in this estate is held to.',
       });

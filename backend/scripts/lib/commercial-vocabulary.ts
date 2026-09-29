@@ -51,13 +51,21 @@
  * <!-- commercial-data: cleared `pilot` — names the pilot-programme module, not a client -->
  * ```
  *
+ * **An annotation reaches its own block, not the document** (D-277;
+ * `specs/conventions/commercial-data.md` §7.4): the maximal run of non-blank
+ * lines that holds the annotation line. It clears its term there and nowhere
+ * else, so it goes beside the paragraph it judges, and the same term in another
+ * paragraph is judged again. Document reach was sized for a changeset body a
+ * few lines long; over a whole source file it let an annotation inside a
+ * fixture string clear a real sentence elsewhere in the file.
+ *
  * A cleared hit is **counted and printed**, so the clearances are visible rather
  * than invisible. Widening {@link TERMS} is not clearing: it silently stops the
  * rule refusing a real finding somewhere else, which is the estate's standing
  * precedent (a recorded exception is a ledger entry, never a band made wider).
  * The ledger is two-way for the same reason every other one here is — a
- * clearance naming a term the document no longer contains is reported, so the
- * annotations cannot accumulate into a list nobody reads.
+ * clearance whose own block holds no hit of its term is reported as stale, so
+ * the annotations cannot accumulate into a list nobody reads.
  *
  * ## Reported class by class, zeros included
  *
@@ -156,7 +164,7 @@ export interface VocabularyScan {
   readonly hits: readonly VocabularyHit[];
   /** Hits an annotation cleared, counted so that clearances stay visible. */
   readonly cleared: readonly VocabularyHit[];
-  /** Annotations naming a term the text does not contain. The other direction. */
+  /** Annotations whose own block holds no hit of their term. The other direction. */
   readonly staleClearances: readonly Clearance[];
   /** Lines scanned, for the read line. */
   readonly lines: number;
@@ -175,9 +183,33 @@ export interface VocabularyScan {
 const CLEARANCE =
   /<!--\s*commercial-data:\s*cleared\s+`?([a-z0-9-]+)`?\s*[-–—]+\s*(\S[^>]*?)\s*-->/i;
 
+/**
+ * The block of every line: lines in one maximal run of non-blank lines share a
+ * number, and a blank (or whitespace-only) line belongs to none (D-277).
+ */
+function blocksOf(lines: readonly string[]): number[] {
+  const blocks: number[] = [];
+  let block = 0;
+  let inBlock = false;
+  for (const line of lines) {
+    if (line.trim() === '') {
+      inBlock = false;
+      blocks.push(-1);
+      continue;
+    }
+    if (!inBlock) {
+      block += 1;
+      inBlock = true;
+    }
+    blocks.push(block);
+  }
+  return blocks;
+}
+
 /** The rule, pure over the text. */
 export function scanCommercialVocabulary(text: string): VocabularyScan {
   const lines = text.split('\n');
+  const blocks = blocksOf(lines);
   const clearances: Clearance[] = [];
   for (const [index, line] of lines.entries()) {
     const match = CLEARANCE.exec(line);
@@ -187,7 +219,9 @@ export function scanCommercialVocabulary(text: string): VocabularyScan {
     if (term === undefined || reason === undefined || reason.trim().length < 8) continue;
     clearances.push({ term: term.toLowerCase(), reason: reason.trim(), line: index + 1 });
   }
-  const clearedTerms = new Set(clearances.map((c) => c.term));
+  // A clearance reaches its own block only: key it by block and term.
+  const key = (block: number, term: string): string => `${block}\u0000${term}`;
+  const clearedInBlock = new Set(clearances.map((c) => key(blocks[c.line - 1]!, c.term)));
 
   const hits: VocabularyHit[] = [];
   const cleared: VocabularyHit[] = [];
@@ -207,13 +241,13 @@ export function scanCommercialVocabulary(text: string): VocabularyScan {
         text: line.trim(),
       };
       perClass[term.klass] += 1;
-      if (clearedTerms.has(term.term)) cleared.push(hit);
+      if (clearedInBlock.has(key(blocks[index]!, term.term))) cleared.push(hit);
       else hits.push(hit);
     }
   }
 
-  const seen = new Set(cleared.map((h) => h.term));
-  const staleClearances = clearances.filter((c) => !seen.has(c.term));
+  const seen = new Set(cleared.map((h) => key(blocks[h.line - 1]!, h.term)));
+  const staleClearances = clearances.filter((c) => !seen.has(key(blocks[c.line - 1]!, c.term)));
   return { hits, cleared, staleClearances, lines: lines.length, perClass };
 }
 

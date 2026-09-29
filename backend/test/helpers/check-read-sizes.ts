@@ -3989,8 +3989,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`docs/136-getting-started`: files 1386 -> 1387.** The English Getting started page, `docs/docs/getting-started.md`; measured on a pristine detached worktree of `af4bdfea4` after `setup-worktree.sh` and `build:packages`, not computed from a delta.
     // **`docs/136-hand-review-history` (136 W2.3, Y half): files 1387 -> 1388.** One markdown file under `specs/`, the history-surface review note, which cites no fenced block; measured on a pristine detached worktree of `2e1848203` after `setup-worktree.sh` and `build:packages`, whose `[read-size drift]` census named exactly these four entries; not computed from a delta.
     // **`docs/136-hand-review-tip` (W2.3 tip review), merged with `origin/master` after !1862 and !1863: files 1388 -> 1389.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1869: files 1389 -> 1390.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 1390,
+    files: 1389,
     sites: 13,
     sources: [],
     //
@@ -9239,8 +9238,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // public-flip fix's changeset. This walk is the whole repository, so it takes
     // the changeset the document walk does not.
     // **+3: two files from this branch, one already on `master`.** The branch adds
-    // `LICENSE` and `LICENSE-COMMERCIAL.md` at the repository root. Separated by
-    // measuring twice, with and without them.
+    // `LICENSE` and `LICENSE-COMMERCIAL.md` (since renamed `LICENSING.md`, D-276)
+    // at the repository root. Separated by measuring twice, with and without them.
     // **+8: six specification files and two changesets from beneath, plus this
     // branch's own two.** The recorded value predates two merges and the stacking
     // on the licence-and-peers branch; measured on the combined tree, not resolved
@@ -10110,8 +10109,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`docs/136-hand-review-history` (136 W2.3, Y half): 7844 -> 7845.** One file, `specs/136-open-source-publication/hand-review-2026-09-28-history.md`; measured on a pristine detached worktree of `2e1848203` after `setup-worktree.sh` and `build:packages`, whose `[read-size drift]` census named exactly these four entries; not computed from a delta.
     // **`docs/136-hand-review-tip` (W2.3 tip review), merged with `origin/master` after !1862 and !1863: files 7845 -> 7846.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 7846 -> 7851.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1869: files 7851 -> 7852.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 7852,
+    // **`fix/136-tip-disclosures` (D1–D6), merged with `origin/master` after !1869: files 7851 -> 7853.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
+    files: 7853,
     sites: null,
     sources: [],
     //
@@ -12370,8 +12369,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`docs/136-hand-review-history` (136 W2.3, Y half): files 7905 -> 7906.** One file, the history-surface review note under `specs/136-open-source-publication/`; measured on a pristine detached worktree of `2e1848203` after `setup-worktree.sh` and `build:packages`, whose `[read-size drift]` census named exactly these four entries; not computed from a delta.
     // **`docs/136-hand-review-tip` (W2.3 tip review), merged with `origin/master` after !1862 and !1863: files 7906 -> 7907.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 7907 -> 7912.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1869: files 7912 -> 7913.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 7913,
+    // **`fix/136-tip-disclosures` (D1–D6), merged with `origin/master` after !1869: files 7912 -> 7914.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
+    files: 7914,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T055 (`pim_ergonode` leaves): 1337 -> 1338.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
@@ -12385,8 +12384,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/134-t094a-token-predicate` (134 T094a): sites 1347 -> 1348.** The same one file as `files` above: it sits under `specs/`, the one partially-public entry, so it is one more decision — resolved by its own new `private` path rule, placed ahead of `specs/[0-9]*/**` as `reviewed-findings.json`'s is; measured on the same pristine worktree of `5469c82bb`.
     // **`docs/136-hand-review-history` (136 W2.3, Y half): sites 1348 -> 1349.** The same one file: under `specs/`, the partially-public entry, so one more decision, resolved by its own `private` path rule ahead of `specs/[0-9]*/**`; measured on a pristine detached worktree of `2e1848203` after `setup-worktree.sh` and `build:packages`, whose `[read-size drift]` census named exactly these four entries; not computed from a delta.
     // **`docs/136-hand-review-tip` (W2.3 tip review), merged with `origin/master` after !1862 and !1863: sites 1349 -> 1350.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1869: sites 1350 -> 1351.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    sites: 1351,
+    sites: 1350,
     // `git-tree-entries` — the committed tree's own root entries, read from a
     // different git store than the index this walk uses. Not `self-reported`:
     // two derivations of one population by two routes is precisely the second
@@ -15694,8 +15692,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`docs/136-hand-review-history` (136 W2.3, Y half): 7904 -> 7905.** One file, `specs/136-open-source-publication/hand-review-2026-09-28-history.md`, the history-surface review note; measured on a pristine detached worktree of `2e1848203` after `setup-worktree.sh` and `build:packages`, whose `[read-size drift]` census named exactly these four entries; not computed from a delta.
     // **`docs/136-hand-review-tip` (W2.3 tip review), merged with `origin/master` after !1862 and !1863: files 7905 -> 7906.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 7906 -> 7911.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1869: files 7911 -> 7912.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    files: 7912,
+    // **`fix/136-tip-disclosures` (D1–D6), merged with `origin/master` after !1869: files 7911 -> 7913.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
+    files: 7913,
     sites: null,
     sources: ['manifest-index'],
     //
