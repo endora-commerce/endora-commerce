@@ -290,9 +290,10 @@ reviewed and merged like any other change, and nothing has to carry it anywhere 
 Endora Commerce was built on the project's own self-hosted GitLab, which is kept as the
 **historical repository**: reachable by the team, not written to. That is where the `specs/`
 and `D-nnn` citations in the code resolve, and it is why they are left in place rather than
-stripped. **If you are reading this file inside that GitLab repository, the migration has not
-completed yet** — the paragraph above is the decided destination rather than today's address, so
-ask before investing effort in a large change.
+stripped. A pre-migration commit id resolves through `specs/pre-migration-history/`, which maps
+it to its counterpart here. **If you are reading this file inside that GitLab repository, the
+migration has not completed yet** — the paragraph above is the decided destination rather than
+today's address, so ask before investing effort in a large change.
 
 **A suspected vulnerability does not go in an issue or a pull request.** `SECURITY.md` is the
 route, and it is the only one: the security class is kept off the public tracker deliberately.

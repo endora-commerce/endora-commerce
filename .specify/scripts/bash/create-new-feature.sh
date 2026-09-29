@@ -66,7 +66,7 @@ while [ $i -le $# ]; do
             echo ""
             echo "Examples:"
             echo "  $0 'Add user authentication system' --short-name 'user-auth'"
-            echo "  $0 'Implement OAuth2 integration for API' --number 5"
+            echo "  $0 'Implement OAuth2 integration for API' --number 140"
             echo "  $0 --timestamp --short-name 'user-auth' 'Add user authentication'"
             exit 0
             ;;
@@ -182,6 +182,27 @@ check_existing_branches() {
     echo $((max_num + 1))
 }
 
+# The pre-migration feature floor (D-283 §4.6). The numbered directories up to it
+# stayed in the historical repository, so this tree cannot derive it from specs/;
+# it is written once, in specs/pre-migration-history/README.md, and read from there.
+# Fails closed: numbering from what the tree happens to hold would re-use a
+# withheld number.
+FLOOR_FILE_REL="specs/pre-migration-history/README.md"
+read_feature_floor() {
+    local floor_file="$1/$FLOOR_FILE_REL"
+    local floor
+    if [ ! -f "$floor_file" ]; then
+        >&2 echo "Error: cannot read the feature numbering floor: $FLOOR_FILE_REL is missing."
+        return 1
+    fi
+    floor=$(sed -n 's/^| Last pre-migration feature | `\([0-9][0-9]*\)` |$/\1/p' "$floor_file" | head -n 1)
+    if [ -z "$floor" ]; then
+        >&2 echo "Error: cannot read the feature numbering floor: no 'Last pre-migration feature' row in $FLOOR_FILE_REL."
+        return 1
+    fi
+    echo $((10#$floor))
+}
+
 # Function to clean and format a branch name
 clean_branch_name() {
     local name="$1"
@@ -276,6 +297,20 @@ if [ "$USE_TIMESTAMP" = true ]; then
     FEATURE_NUM=$(date +%Y%m%d-%H%M%S)
     BRANCH_NAME="${FEATURE_NUM}-${BRANCH_SUFFIX}"
 else
+    FEATURE_FLOOR=$(read_feature_floor "$REPO_ROOT") || exit 1
+
+    # An explicit number at or below the floor names a withheld directory.
+    if [ -n "$BRANCH_NUMBER" ]; then
+        if ! [[ "$BRANCH_NUMBER" =~ ^[0-9]+$ ]]; then
+            >&2 echo "Error: --number must be a positive integer, got '$BRANCH_NUMBER'."
+            exit 1
+        fi
+        if [ "$((10#$BRANCH_NUMBER))" -le "$FEATURE_FLOOR" ]; then
+            >&2 echo "Error: feature number $BRANCH_NUMBER is at or below the pre-migration floor $FEATURE_FLOOR ($FLOOR_FILE_REL); it belongs to a withheld directory."
+            exit 1
+        fi
+    fi
+
     # Determine branch number
     if [ -z "$BRANCH_NUMBER" ]; then
         if [ "$DRY_RUN" = true ] && [ "$HAS_GIT" = true ]; then
@@ -292,6 +327,10 @@ else
             # Fall back to local directory check
             HIGHEST=$(get_highest_from_specs "$SPECS_DIR")
             BRANCH_NUMBER=$((HIGHEST + 1))
+        fi
+        # Never below the floor, whatever the tree and the branches hold.
+        if [ "$((10#$BRANCH_NUMBER))" -le "$FEATURE_FLOOR" ]; then
+            BRANCH_NUMBER=$((FEATURE_FLOOR + 1))
         fi
     fi
 
