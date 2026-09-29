@@ -3096,8 +3096,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **136 W5.1 (`create-endora-commerce`, D-267): 4836 -> 4839.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's three TypeScript files; measured on the pristine pair after merging `origin/master`.
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 4839 -> 4842.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 4842 -> 4845.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 4845 -> 4846.** Measured on a pristine detached worktree of the branch commit, not computed.
-    files: 4846,
+    files: 4845,
     // It had none until issue #244, on the stated ground that "the unit is the
     // fold, and a file without one is exactly what #244 is about". True of the
     // two fold signals and no longer the whole check: the `slug-run` signal
@@ -3293,8 +3292,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T069 (`comarch_xl` leaves), after merging `origin/master` at !1841: sites 469 -> 461.** The record was resolved wholly to `master` and re-measured on a pristine detached worktree of the merge commit `8c875cb4a`, after `setup-worktree.sh` and `build:packages`, with `docs/docs/modules` cleaned; the tree is this branch's E5 and `comarch_xl`'s departure (package, 34 host test files and their support file, three Polish pages, E1 baseline) over `master`. Not computed from a delta.
     // **T069 (`ksef` and `infakt` leave): 461 -> 438.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: sites 438 -> 442.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 442 -> 443.** Measured on a pristine detached worktree of the branch commit, not computed.
-    sites: 443,
+    sites: 442,
     sources: [],
     //
     // **5314 -> 5315.** D-217 added `backend/test/helpers/interactive-run.ts`, the
@@ -5844,8 +5842,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 1414 -> 1415.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 1415 -> 1416.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 1416 -> 1418.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 1418 -> 1419.** Measured on a pristine detached worktree of the branch commit, not computed.
-    files: 1419,
+    files: 1418,
     // **Batch 13 (feature 091, Phase 4): +1**, a fixture read in the batch's own
     // backend off-state test.
     // **Batch 14 (feature 091, Phase 4): +1 file and +1 site.** The batch's own
@@ -5921,8 +5918,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **136 W3.3 (the extraction tooling retires): 512 -> 511.** Agrees on `origin/master` (ed7e9e068) and moves with the branch: the extraction tooling retires — `scripts/extract-paid-module.sh`, `scripts/lib/w1-root-names.sh`, `backend/scripts/derive-extraction-path-set.ts` and the two unit tests leave, `backend/test/unit/scripts/module-id-paths.test.ts` arrives; measured on the pristine pair.
     // **`feat/134-t094a-token-predicate` (134 T094a): sites 511 -> 512, files unchanged.** Merged with `origin/master` `d84d28a0c` after !1860 and !1859; the record was resolved wholly to master at the merge and re-measured on a pristine detached worktree of the merge commit `5469c82bb` (`setup-worktree.sh`, `build:packages`, `docs/docs/modules` cleaned), whose `[read-size drift]` census named exactly these four entries. No file arrives under `backend/test/`: `backend/test/unit/scripts/public-history-filter.test.ts` gains two `lines.find(...)` bindings in its report test, which the read detection counts as a database read (attributed by running `filesReadingTheDatabase` over the file before and after the branch: 0, then 1).
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: sites 512 -> 513.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 513 -> 514.** Measured on a pristine detached worktree of the branch commit, not computed.
-    sites: 514,
+    sites: 513,
     sources: [],
   },
   'backend/scripts/check-harness-teardown.ts': {
@@ -6225,8 +6221,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 1414 -> 1415.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 1415 -> 1416.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 1416 -> 1418.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 1418 -> 1419.** Measured on a pristine detached worktree of the branch commit, not computed.
-    files: 1419,
+    files: 1418,
     sites: null,
     sources: [],
   },
@@ -10117,9 +10112,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 7846 -> 7851.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-tip-disclosures` (D1–D6), merged with `origin/master` after !1869: files 7851 -> 7853.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1870: files 7853 -> 7854.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 7854 -> 7856.** Measured on a pristine detached worktree of the branch commit, not computed.
-    // **Merged with `origin/master` at `5ad1a2a9f` (`chore: version packages` consumed the pending changesets): 7856 -> 7846.** Measured on a pristine detached worktree of the merge commit.
-    files: 7846,
+    // **`docs/136-demo-hostnames` (D-279), merged with `origin/master` after !1873: files 7854 -> 7844.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is the release !1875 consuming its changesets, already on `master`. Not computed from a delta.
+    files: 7844,
     sites: null,
     sources: [],
     //
@@ -12380,9 +12374,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 7907 -> 7912.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-tip-disclosures` (D1–D6), merged with `origin/master` after !1869: files 7912 -> 7914.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1870: files 7914 -> 7915.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 7915 -> 7917.** Measured on a pristine detached worktree of the branch commit, not computed.
-    // **Merged with `origin/master` at `5ad1a2a9f` (`chore: version packages` consumed the pending changesets): 7917 -> 7907.** Measured on a pristine detached worktree of the merge commit.
-    files: 7907,
+    // **`docs/136-demo-hostnames` (D-279), merged with `origin/master` after !1873: files 7915 -> 7905.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is the release !1875 consuming its changesets, already on `master`. Not computed from a delta.
+    files: 7905,
     // **T055 (`pim_unopim` leaves): 1335 -> 1336.** measured on the branch's tree and not attributed further; it is inside the band either way and is re-recorded because it agreed on `master`.
     // **T055 (`pim_pimcore` leaves): 1336 -> 1337.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T055 (`pim_ergonode` leaves): 1337 -> 1338.** Agrees on the base (3f0568e5b) and moves with the package, its host tests, its Polish pages and the E9 drain; measured on the pristine pair.
@@ -12743,8 +12736,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 1414 -> 1415.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 1415 -> 1416.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 1416 -> 1418.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 1418 -> 1419.** Measured on a pristine detached worktree of the branch commit, not computed.
-    files: 1419,
+    files: 1418,
     // **T055 (`pim_unopim` leaves): 166 -> 157.** the sites those host test files held.
     // **T055 (`pim_pimcore` leaves): 157 -> 156.** Agrees on `master` (961634f66) and moves with the package, its host tests and its Polish pages; measured on the pristine pair.
     // **T134 (`pim_ergonode`'s W7 key repair), after merging `origin/master`: 156 -> 157.**
@@ -13504,8 +13496,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 1496 -> 1497.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 1497 -> 1498.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 1498 -> 1500.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 1500 -> 1501.** Measured on a pristine detached worktree of the branch commit, not computed.
-    files: 1501,
+    files: 1500,
     // Owner **attributions**, not classified files, and the difference is the
     // reason both numbers are printed. A per-file `sites` would move with
     // `files` and say the same thing twice; attributions move independently in
@@ -14512,8 +14503,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`feat/136-install-experience` (W5.3, W5.4), merged with `origin/master` after !1850: files 3879 -> 3882.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 3882 -> 3885.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 3885 -> 3887.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 3887 -> 3888.** Measured on a pristine detached worktree of the branch commit, not computed.
-    files: 3888,
+    files: 3887,
     // Reaches into a module package's source examined, cleared ones included —
     // it does not move with the findings, which is what #244 asks of a site
     // count.
@@ -15710,9 +15700,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 7906 -> 7911.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-tip-disclosures` (D1–D6), merged with `origin/master` after !1869: files 7911 -> 7913.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`docs/session-handover-2026-09-28`, merged with `origin/master` after !1870: files 7913 -> 7914.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 7914 -> 7916.** Measured on a pristine detached worktree of the branch commit, not computed.
-    // **Merged with `origin/master` at `5ad1a2a9f` (`chore: version packages` consumed the pending changesets): 7916 -> 7906.** Measured on a pristine detached worktree of the merge commit.
-    files: 7906,
+    // **`docs/136-demo-hostnames` (D-279), merged with `origin/master` after !1873: files 7914 -> 7904.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is the release !1875 consuming its changesets, already on `master`. Not computed from a delta.
+    files: 7904,
     sites: null,
     sources: ['manifest-index'],
     //
@@ -16440,8 +16429,7 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **136 W5.1 (`create-endora-commerce`, D-267): 5470 -> 5473.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: the package's three TypeScript files; measured on the pristine pair after merging `origin/master`.
     // **`feat/136-install-host-step` (D-270, D-271), merged with `origin/master` after !1857 and !1856: files 5473 -> 5482.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
     // **`fix/136-w7-demo-compose` (W7.1–W7.4), merged with `origin/master` after !1865: files 5482 -> 5485.** The record was resolved wholly to `master` at the merge and re-measured on a pristine detached worktree of the merge commit (`setup-worktree.sh`, `build:packages`, `git clean -fX docs/docs/modules`, the copy stamp deleted, `git status --porcelain` empty); the movement is this branch's own files. Not computed from a delta.
-    // **136 W7.5 (`.github/workflows/demo.yml` and `test/unit/ci/demo-workflow.test.ts` arrive): 5485 -> 5486.** Measured on a pristine detached worktree of the branch commit, not computed.
-    files: 5486,
+    files: 5485,
     sites: null,
     sources: ['manifest-index'],
     //
