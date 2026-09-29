@@ -428,6 +428,51 @@ describe('rule 2 — a vendored configuration imports only what the scaffold dec
   });
 });
 
+describe('the plan writes each path once', () => {
+  it('vendors a configuration under a distinct name when the storefront has a file with its name', async () => {
+    const root = fixtureRepo({
+      rootFiles: { 'eslint.config.js': 'export default [];\n' },
+      storefrontFiles: {
+        'package.json': MANIFEST,
+        'eslint.config.js':
+          "import rootConfig from '../eslint.config.js';\nexport default [...rootConfig, { rules: {} }];\n",
+      },
+    });
+    const target = join(temp('endora-sf-out-'), 'shop');
+    try {
+      await runNewStorefront({ dir: target, cwd: root, inputs: FIXTURE_INPUTS });
+      expect(readFileSync(join(target, 'eslint.config.js'), 'utf8')).toBe(
+        "import rootConfig from './eslint.config.base.js';\nexport default [...rootConfig, { rules: {} }];\n",
+      );
+      expect(readFileSync(join(target, 'eslint.config.base.js'), 'utf8')).toBe('export default [];\n');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a plan that would write one path twice, and writes nothing', async () => {
+    // A storefront carrying its own `.npmrc`, asked for a registry: the copy and
+    // the rendered file land on one path, and whichever is written last wins.
+    const root = fixtureRepo({
+      storefrontFiles: { 'package.json': MANIFEST, '.npmrc': 'engine-strict=true\n' },
+    });
+    const target = join(temp('endora-sf-out-'), 'shop');
+    try {
+      await expect(
+        runNewStorefront({
+          dir: target,
+          cwd: root,
+          inputs: FIXTURE_INPUTS,
+          registry: 'https://registry.example.com/npm/',
+        }),
+      ).rejects.toThrow(/\.npmrc/);
+      expect(existsSync(target)).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe('rule 4 — an outward reference no rule classifies is a refusal', () => {
   it('refuses an application file reaching above the storefront, and writes nothing', async () => {
     const root = fixtureRepo({
@@ -726,7 +771,7 @@ describe('the scaffold names nothing above its own directory', () => {
       ),
     );
     const vendored = plan.files.filter((file) => file.note?.startsWith('vendored from') === true);
-    expect(vendored.map((file) => file.path)).toContain('eslint.config.js');
+    expect(vendored.map((file) => file.path)).toContain('eslint.config.base.js');
     const imported = new Set<string>();
     for (const file of vendored) {
       for (const line of file.content!.split('\n')) {
@@ -740,6 +785,32 @@ describe('the scaffold names nothing above its own directory', () => {
     expect([...imported].filter((name) => !declared.has(name)).sort()).toEqual([]);
     expect((manifest['scripts'] as Record<string, string>)['lint']).toMatch(/^eslint\s/);
     expect(declared.has('eslint')).toBe(true);
+  }, 120_000);
+
+  /**
+   * The storefront's own `eslint.config.js` extends `../eslint.config.js`, a file
+   * with the same name. CLI 0.15.0 vendored the root one as `eslint.config.js`
+   * too, so the plan held two files at one path: the vendored root config was
+   * written last and replaced the storefront's own (its Next plugin and naming
+   * overrides), and the rewritten import named the file it was in.
+   */
+  it('keeps the storefront\'s own eslint.config.js and vendors the base beside it', () => {
+    const reference = resolveReference(REPO_ROOT);
+    const plan = planStorefront(reference, memberDirectories(reference.repoRoot), '/tmp/a');
+    const paths = plan.files.map((file) => file.path);
+    expect(paths.filter((path, index) => paths.indexOf(path) !== index)).toEqual([]);
+
+    const own = plan.files.find((file) => file.path === 'eslint.config.js');
+    expect(own?.source).toBe(join(reference.dir, 'eslint.config.js'));
+    expect(own!.content).toContain("from '@next/eslint-plugin-next'");
+    expect(own!.content).toContain("'@typescript-eslint/naming-convention'");
+    const base = /import rootConfig from '\.\/([^']+)'/.exec(own!.content!);
+    expect(base?.[1]).toBeDefined();
+    expect(base![1]).not.toBe('eslint.config.js');
+
+    const vendored = plan.files.find((file) => file.path === base![1]);
+    expect(vendored?.note).toMatch(/^vendored from eslint\.config\.js/);
+    expect(vendored!.content).toContain("from '@typescript-eslint/parser'");
   }, 120_000);
 
   it('plans the same thing twice from the same tree', () => {
