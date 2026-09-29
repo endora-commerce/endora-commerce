@@ -51,7 +51,6 @@
     "check:release-intent": "tsx scripts/check-release-intent.ts",
     "check:queue-names": "tsx scripts/check-queue-names.ts",
     "pack-gate": "tsx scripts/pack-gate.ts",
-    "check:root-dispositions": "tsx scripts/check-root-dispositions.ts",
     "check:rsc-discipline": "tsx scripts/check-rsc-discipline.ts",
     "check:shared-table-wipes": "tsx scripts/check-shared-table-wipes.ts",
     "check:singleton-identity": "tsx scripts/check-singleton-identity.ts",

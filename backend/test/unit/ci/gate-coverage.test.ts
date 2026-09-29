@@ -237,8 +237,9 @@ const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
       'verdict here for a pipeline to hold a branch to: a dry run reports on a projection no ' +
       'branch contains, and a real run performs the migration, which happens once and by hand. ' +
       'It also refuses with exit 2 unless `git-filter-repo` is present, and no job provisions ' +
-      'it. What CI does ask about the same subject is the disposition record the filter reads, ' +
-      'through `check:root-dispositions`.',
+      'it. CI asked about the disposition record the filter reads through ' +
+      '`check:root-dispositions` until the filter ran; 129 T035 retired that check from the ' +
+      'canonical tree, where the record is a withheld path.',
   },
   'backend::history:scan': {
     kind: 'local-operation',

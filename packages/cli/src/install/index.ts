@@ -345,9 +345,21 @@ function resolvePackageManagers(): readonly PackageManagerRunner[] {
   return found;
 }
 
-/** Is a Docker daemon there? `docker info` answers, `docker --version` does not. */
+/**
+ * Is a Docker daemon there? `docker info` answers, `docker --version` does not.
+ *
+ * **The server version it prints is the answer, not its exit status.** Docker
+ * CLI 28 exits 0 with an empty line when no daemon is listening (29 exits 1),
+ * so a status-only probe told a client on 28 with Docker stopped that the
+ * services step could run. Only a daemon can name its own version.
+ */
 function dockerIsReachable(): boolean {
-  return probe('docker', ['info', '--format', '{{.ServerVersion}}']);
+  const result = spawnSync('docker', ['info', '--format', '{{.ServerVersion}}'], {
+    stdio: ['ignore', 'pipe', 'ignore'],
+    encoding: 'utf8',
+    timeout: 20_000,
+  });
+  return result.error === undefined && result.status === 0 && result.stdout.trim() !== '';
 }
 
 /**

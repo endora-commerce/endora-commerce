@@ -112,7 +112,37 @@ describe('discoverCitingDocuments', () => {
     for (const doc of documents) {
       expect(readFileSync(join(REPO_ROOT, doc), 'utf8'), doc).toContain('verbatim-from:');
     }
-    expect(documents).toContain('specs/072-module-kernel-di/quickstart.md');
+  });
+
+  /**
+   * The walk reaches a feature directory's quickstart, the document this check
+   * was written for. This asserted the real
+   * `specs/072-module-kernel-di/quickstart.md` until the public tree was cut
+   * from the private one (129 T035): the pre-migration feature directories
+   * are not in it, so a pin on one named a file that no public checkout holds.
+   * The shape is what the pin was for, so the shape is the fixture.
+   */
+  it('reaches a quickstart inside a numbered feature directory, beside the documentation site', () => {
+    const root = mkdtempSync(join(tmpdir(), 'endora-doc-snippets-'));
+    try {
+      mkdirSync(join(root, 'specs', '072-module-kernel-di'), { recursive: true });
+      mkdirSync(join(root, 'docs', 'docs', 'architecture'), { recursive: true });
+      writeFileSync(
+        join(root, 'specs', '072-module-kernel-di', 'quickstart.md'),
+        '<!-- verbatim-from: packages/platform/src/kernel/module-context.ts -->\n',
+      );
+      writeFileSync(
+        join(root, 'docs', 'docs', 'architecture', 'kernel.md'),
+        '<!-- verbatim-from: packages/platform/src/kernel/index.ts -->\n',
+      );
+
+      expect(discoverCitingDocuments(root)).toEqual([
+        join('docs', 'docs', 'architecture', 'kernel.md'),
+        join('specs', '072-module-kernel-di', 'quickstart.md'),
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('walks the documented roots', () => {

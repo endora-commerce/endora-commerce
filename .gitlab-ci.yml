@@ -269,10 +269,11 @@ quality:
     # lost and the job starts failing as a SIGKILL instead.
     NODE_OPTIONS: --max-old-space-size=2560
   before_script:
-    # `check:root-dispositions` derives the top-level entries with
-    # `git ls-files`, and `node:22.18-slim` carries no git. Until this line
-    # the check died `spawnSync git ENOENT` and took the whole job with it,
-    # which is why `quality:static` installs git the same way one job over.
+    # `node:22.18-slim` carries no git, and `check:release-intent` below asks
+    # it. The line was first written for `check:root-dispositions`, which died
+    # `spawnSync git ENOENT` and took the whole job with it until then; 129
+    # T035 retired that check from the canonical tree, and the gate that
+    # remains still needs git.
     - apt-get update -qq && apt-get install -y -qq --no-install-recommends git
     - corepack enable && corepack prepare pnpm@9.15.0 --activate
     - pnpm install --frozen-lockfile
@@ -727,16 +728,6 @@ quality:
     # so it also runs on the merge request whose only diff is that file, which
     # matches no rung of `.backend-test-rules`.
     - pnpm --filter backend run check:release-intent
-    # `specs/129-github-canonical-migration/` T012 — every top-level entry of
-    # this repository carries a recorded disposition, and one that carries none
-    # refuses (D-232's second amendment, clause (ii)). It runs here, before the
-    # filter that will consume the record exists, because the hazard is produced
-    # by ordinary merges at ordinary speed rather than by the migration: the
-    # amendment reasoned in the abstract about "entry number forty", and entry
-    # number forty arrived by an ordinary merge the same day, with no
-    # disposition and no instrument to say so. Built beside the filter it would
-    # first run against a population that had been drifting for weeks.
-    - pnpm --filter backend run check:root-dispositions
     # D-160.8 — a module reaches the platform only through what the platform
     # publishes. `host-package.md` §1 classifies all 53 platform files a module
     # reaches as published API, accidental reach or should-be-a-port, three
