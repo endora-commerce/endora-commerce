@@ -105,8 +105,13 @@ Pull requests here merged with no branch protection behind them: the owner merge
 - [ ] **F6 = T047** (O) Somebody is notified when `master` goes red on GitHub — the owner's watch
   and notification settings. The historical repository's failed-pipeline notification was a
   project setting and did not travel[^t047].
-- [ ] **L1** (D, then O) The copyright line reads *"Endora sp. z o.o. and the Endora Commerce
-  contributors"* now that contributions arrive from outside. **In progress.**
+- [x] **L1** (D, then O) The copyright line reads *"Endora sp. z o.o. and the Endora Commerce
+  contributors"* now that contributions arrive from outside. Pull request #13.
+  - [ ] The documentation site's footer reads *"© 2026 Endora Commerce"*. **In progress**, as a
+    separate documentation pull request.
+- [x] **B1** (D, then O) `docs/docs/deployment/first-deployment-checklist.md` § B1 describes each
+  secret as the code reads it — how to generate it, and what an empty or wrong value does — in
+  English and Polish, after #9 and #12 changed the environment examples. Pull request #14.
 
 ---
 
@@ -214,9 +219,9 @@ Pull requests here merged with no branch protection behind them: the owner merge
 ## Dependencies
 
 ```
-done: T031 T035 T032 T050 S2 S3 S5 S6 (S4 not a defect) P4 P6 P7 P9 F1 F2 F3 F4 F5 N1(pack-gate, boot-gate) N9
+done: T031 T035 T032 T050 S2 S3 S5 S6 (S4 not a defect) P4 P6 P7 P9 F1 F2 F3 F4 F5 L1 B1 N1(pack-gate, boot-gate) N9
 open, in order:
-  F6 (T047) · L1
+  F6 (T047) · L1's documentation footer
   N1b build:docs (10-06) → N2 (T051) → N3 → N4 (T052) → N5 → N6 (W5.5) → N7 (W4.3/W4.4) → N8 (T060)
   S1 on the first-install path → N4          T046b → N4 (in practice)
   N4 → N11 (before npm ends stored-token publishing)
