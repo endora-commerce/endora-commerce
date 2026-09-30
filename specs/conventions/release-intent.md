@@ -1,7 +1,7 @@
 # Release intent — changesets
 
 **Open this before changing anything a package publishes, and before cutting a release.** It
-carries the rule (a merge request that changes what a package publishes carries a changeset),
+carries the rule (a pull request that changes what a package publishes carries a changeset),
 the versioning model, the `linked` group's real behaviour, and the two `.changeset/config.json`
 fields that look like boilerplate and decide whether the gate is looking at all. One of the
 bodies `AGENTS.md` routes to; it is the single home for these rules, so never restate them in
@@ -12,7 +12,7 @@ ruling **D-107**; **D-108** sets the versioning model. Both are in
 `specs/080-f4-real-scope/rulings.md` and are settled — do not re-open them, and in particular
 do not reach for Lerna, `semantic-release` or conventional-commit inference.
 
-**The rule: a merge request that changes what a package publishes carries a changeset.**
+**The rule: a pull request that changes what a package publishes carries a changeset.**
 For every package in this repository today that reads "a file under `packages/`", which is the
 entire trigger; `backend`, `admin`, `storefront` and `docs` are in the config's `ignore` list
 and never need one — they are applications, and nobody consumes them by version.
@@ -46,7 +46,7 @@ with it.
 A good changeset is written **for the consumer of the package**, not for the reviewer of the
 branch: name the exported symbol, and for a `major` give the old call and the new one, because
 nothing else in this repository will tell an upgrader what to do. One file per meaning, not
-one per merge request. **The bump level is your judgement and cannot be delegated** — that is
+one per pull request. **The bump level is your judgement and cannot be delegated** — that is
 why D-107 chose this tool: a change to `@endora-commerce/contracts` can be breaking for
 `@endora-commerce/admin-kit`, which depends on it, and inert for
 `@endora-commerce/cms-components`, which does not; no commit prefix knows which. (This sentence
@@ -60,7 +60,7 @@ already takes every caret dependent out of range, which is the whole consumer-fa
 break, and *leaving the series* is the only thing `major` says that `minor` does not. The
 instrument is `check:release-intent`'s `major-bump-in-a-zero-series`, which is derived per package
 from that package's own manifest and has no override and no ledger — its one escape is deletion,
-by the merge request that performs the npmjs move. Its row in `check-inventory.md` says why it
+by the pull request that performs the npmjs move. Its row in `check-inventory.md` says why it
 had to be an instrument rather than a remembered rule: the failure is silent, because
 `changeset status` reports a `major` as ordinary intent, which it is.
 
@@ -106,15 +106,34 @@ mechanism, never the requirement.
 `pnpm changeset:version` cannot: a run with no changeset to consume, and a run that exited 0
 having moved nothing it consumed. The second is the whole reason it exists — see the
 `check:release-intent` row in `check-inventory.md`. It runs locally rather than in CI because a
-version bump changes `packages/`, every change to `packages/` lands through a merge request,
-and a CI job that could open one needs a push credential that D-160.5 defers to the merge
-request that makes a package public. The reasoning is in the script's own header, in full.
+version bump changes `packages/`, every change to `packages/` lands through a pull request,
+and a CI job that could open one needs a push credential D-160.5 deferred and CI still does not
+hold. The reasoning is in the script's own header, in full.
 `release:changeset` recognises the resulting branch from the **diff**, and since feature 114
 (D-212) it recognises it by what the branch **produced** rather than by what it consumed: a
 moved `version` in a versionable package's manifest, an added `## <version>` CHANGELOG section,
 or both. A branch that deleted changeset files and produced neither is refused, which is the
 inverted question in its new clothes — and an added changeset, empty or not, reclassifies
 nothing.
+
+*Amended 2026-09-30.* The D-160.5 sentence above said the credential was deferred *"to the merge
+request that makes a package public"*. That step has happened — the publication ruling of
+2026-09-05 made the packages public — and it did not bring the credential, so the deferral no
+longer points at a future step; it describes a standing state. On GitHub Actions the state is
+visible in the workflows themselves: `grep -n 'contents:' .github/workflows/*.yml` shows no job
+granted more than `contents: read`, so no job can push a release branch or open its pull request.
+The rule is unchanged — the version step runs locally — and giving CI that credential is an open
+decision for the owner, not one waiting on an event. `scripts/version-packages.mjs`' header still
+carries the old wording.
+
+**Publishing is a separate, deliberate step and it runs in CI.** Since the move to GitHub
+(2026-09-29) it is `.github/workflows/publish.yml` (`specs/129-github-canonical-migration/`
+T041), written to replace `.gitlab-ci.yml`'s `publish:packages` — a job that file still carries
+and that no longer runs anywhere canonical. `workflow_dispatch` is the deliberate act, the
+`npm-publish` environment holds the registry and token and its required reviewer, and the job
+requests npm provenance and refuses to publish without it. The publish credential it holds is
+an npm token, not a push credential, so it changes nothing in the paragraph above. The workflow's
+own header lists every fail-closed refusal it carries; they are not restated here.
 
 **Tags: `privatePackages.tag` is `false`.** It is consulted only where changesets asks *which
 private packages to tag* (`getUntaggedPrivatePackages`). Between the publication ruling of
@@ -123,7 +142,8 @@ private packages to tag* (`getUntaggedPrivatePackages`). Between the publication
 release from writing a tag for a version no registry serves. A public package is git-tagged by `changeset publish` regardless of it
 (`@changesets/cli@3.0.1`, `dist/git-tag.mjs`). So the field is now held for the **reader**
 rather than for the tool — `check:release-intent`'s `tag-policy-unstated` is total in both
-states and, with nothing private left, requires it to be explicitly present and boolean, so
+states: it requires `false` while any versionable package is private and, once nothing private
+is left, requires the field to be explicitly present and boolean, so
 that an absent one cannot be mistaken for a decision when it is the `@changesets/config@4`
 default.
 
@@ -142,8 +162,10 @@ Two things about `.changeset/config.json` that are load-bearing and look like bo
   publication ruling of 2026-09-05 **none was**, and D-267 made one private again
   (`create-endora-commerce`), so `version: true` is once more what lets changesets version it. The measurement it records still holds for that state and is why it is
   written down at all. `@changesets/config@4` defaults
-  `privatePackages` to `false`, which makes every changesets command skip all five and report
-  a cheerful nothing — including the CI gate. `version: true` is what makes the tooling see
+  `privatePackages` to `false`, which makes every changesets command skip every private
+  package and report a cheerful nothing — including the CI gate. (This read *"skip all five"*,
+  the private population on the day it was measured; which members are private today is the
+  complement of the public list `check-release-intent.ts --print-publish-scope` prints.) `version: true` is what makes the tooling see
   them; `tag: false` keeps it from tagging things nobody publishes.
 - **`ignore` matches package *names*, not paths.** It is glob-matched against
   `backend` / `admin` / `storefront` / `docs`, the names in those manifests. The
@@ -154,21 +176,26 @@ Two things about `.changeset/config.json` that are load-bearing and look like bo
   silently, and that is what `check:release-intent` refuses as `ignored-family-member`.
 
 Neither bullet is enforced by being written here — both are `check:release-intent` findings,
-in the `quality` job, on every merge request. They were written here and read by nothing until
+in the `quality` job, on every pull request. They were written here and read by nothing until
 feature 080's T043.
 
 **Every package under `packages/` is public and `access` is `public`**, since the owner's
 publication ruling of 2026-09-05 (D-208's consequence): four were already on the rehearsal
-registry at `0.7.0` and the remaining 75 joined them in one commit, because `pnpm pack` rewrites
+registry at `0.7.0` and every other member joined them in one commit, because `pnpm pack` rewrites
 a `workspace:*` range to the sibling's **exact** version and a package left behind is every
 dependent pinning a version the registry does not have. This paragraph read *"nothing is
 published yet: every package is `"private": true` … `check:release-intent` goes red the moment
 `private` comes off one"* — the direction has inverted, and the check now goes red the moment
-`private` goes **on** one. Not publishing something is what takes a merge request that says so. **One member is private by
+`private` goes **on** one. Not publishing something is what takes a pull request that says so.
+**How many members publish, and which, is not written here** (D-100): this paragraph used to
+count them, and the count moves with every module package and every `"private"` flag. Ask the
+program that decides it — `pnpm --filter backend exec tsx scripts/check-release-intent.ts
+--print-publish-scope` prints the scope on stdout and, on stderr, how many workspace members are
+public and which, the same derivation `publish.yml` uses to write its `.npmrc`. **One member is private by
 ruling rather than by accident** (D-267): `create-endora-commerce` is unscoped, the configured
 target cannot serve an unscoped name, and nothing depends on it — `check:release-intent`
 exempts exactly that conjunction, prints it, and refuses a publish to public npmjs while it
-holds, so the first npmjs publish is the merge request that flips it.
+holds, so the first npmjs publish is the pull request that flips it.
 The meta-package / supported-set question D-108 defers is still open, and so is the move to
 public npmjs, which D-203 makes its own step. The longer guide, for the moment you are writing
 the file, is `.changeset/README.md`.
