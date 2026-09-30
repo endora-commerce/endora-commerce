@@ -129,7 +129,7 @@ const config = {
             href: 'https://commerce.endora.software',
           },
         ],
-        copyright: '© 2026 Endora — documentation published under the MIT licence.',
+        copyright: '© 2026 Endora Commerce — documentation published under the MIT licence.',
       },
     }),
 };
