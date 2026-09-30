@@ -658,3 +658,65 @@ describe('G3 — a declared name takes the declaration\'s sentence, not the loca
     expect(text).toContain('LOG_LEVEL=info');
   });
 });
+
+/**
+ * `SETTINGS_SECRET_ENCRYPTION_KEY` is rendered empty, with a comment saying how
+ * to generate it and what empty costs — on the declaration's sentence and on the
+ * fallback alike.
+ *
+ * It was rendered as `change-me-generate-one`, which decodes to 16 bytes. The
+ * backend boots on that without a word — its warning fires only for an unset
+ * key — and then every attempt to save a secret setting fails. Empty is the
+ * honest state: the backend boots, logs a warning naming the key, and secret
+ * settings stay unavailable until one is set. The declaration deliberately does
+ * not say that boot survives (`environment-inputs.ts`, the requirement schema's
+ * note), so the sentence about the empty example has to reach the file whichever
+ * sentence the name takes.
+ */
+describe('the settings encryption key is rendered empty, with how to fill it in', () => {
+  async function settingsKeyDeclaration(): Promise<PlanInput['declared']> {
+    const loaded = (await import(
+      new URL('../../../platform/src/env/index.ts', import.meta.url).href
+    )) as { PLATFORM_ENVIRONMENT_INPUTS: PlanInput['declared'] };
+    const declared = loaded.PLATFORM_ENVIRONMENT_INPUTS.filter(
+      (input) => input.name === 'SETTINGS_SECRET_ENCRYPTION_KEY',
+    );
+    expect(declared, 'the platform no longer declares the key').toHaveLength(1);
+    return declared;
+  }
+
+  /** The comment lines immediately above `name=`, `# ` stripped and joined. */
+  function commentAbove(source: string, name: string): string {
+    const lines = source.split('\n');
+    const at = lines.findIndex((line) => line.startsWith(`${name}=`));
+    expect(at, `no ${name}= line`).toBeGreaterThan(-1);
+    const comment: string[] = [];
+    for (let index = at - 1; index >= 0 && lines[index]!.startsWith('#'); index -= 1) {
+      comment.unshift(lines[index]!.replace(/^#\s?/, ''));
+    }
+    return comment.join(' ');
+  }
+
+  const examples = {
+    'single-host': 'deploy/.env.example',
+    'three-host': 'deploy/three-host/.env.backend.example',
+  } as const;
+
+  for (const [topology, path] of Object.entries(examples) as [Topology, string][]) {
+    for (const source of ['the declaration', 'the fallback'] as const) {
+      it(`${topology}, on ${source}: empty, with \`openssl rand -base64 32\` and the boot warning`, async () => {
+        const declared = source === 'the declaration' ? await settingsKeyDeclaration() : [];
+        const text = fileAt(planInput({ topology, declared }), path);
+        expect(text).toMatch(/^SETTINGS_SECRET_ENCRYPTION_KEY=$/m);
+        const comment = commentAbove(text, 'SETTINGS_SECRET_ENCRYPTION_KEY');
+        expect(comment).toContain('openssl rand -base64 32');
+        expect(comment).toMatch(/boots/);
+        expect(comment).toMatch(/warning/);
+        if (source === 'the declaration') {
+          // The declaration's own sentence still leads.
+          expect(comment).toContain('The key settings marked secret are encrypted with');
+        }
+      });
+    }
+  }
+});

@@ -792,6 +792,18 @@ interface RuntimeInput {
   readonly meaning: string;
   /** The value written on the right of the `=`. An example, never a value. */
   readonly example: string;
+  /**
+   * How to fill in an example left **empty**, and what running on the empty
+   * value costs — rendered after the sentence, whichever sentence the name
+   * takes.
+   *
+   * It is about this file's example rather than about the variable, which is
+   * why it is not left to the declaration: a declaration carries no default
+   * (`environment-inputs.md` R1.3) and deliberately does not say whether the
+   * boot survives without an input, so an operator shown a blank would
+   * otherwise read nothing about how to fill it.
+   */
+  readonly whenEmpty?: string;
 }
 
 /**
@@ -897,8 +909,14 @@ const RUNTIME_INPUTS: readonly RuntimeInput[] = [
   },
   {
     name: 'SETTINGS_SECRET_ENCRYPTION_KEY',
-    meaning: 'Encrypts the secret Settings modules store. `openssl rand -base64 32`.',
-    example: 'change-me-generate-one',
+    meaning: 'Encrypts the secret Settings modules store. Base64, 32 bytes.',
+    // Empty rather than a placeholder: `change-me-generate-one` decodes to 16
+    // bytes, which the backend boots on silently and then refuses at the first
+    // save of a secret setting. Empty at least logs a warning at boot.
+    example: '',
+    whenEmpty:
+      'Generate one with `openssl rand -base64 32`. Left empty, the backend boots with a ' +
+      'warning and secret settings stay unavailable until it is set.',
   },
   {
     name: 'MFA_SECRET_ENCRYPTION_KEY',
@@ -982,7 +1000,12 @@ function envExampleFor(
     const declaration = describes.get(input.name);
     const sentence =
       declaration === undefined ? input.meaning : declarationSentence(declaration);
-    lines.push('', ...wrapComment(sentence), `${input.name}=${input.example}`);
+    lines.push(
+      '',
+      ...wrapComment(sentence),
+      ...(input.whenEmpty === undefined ? [] : wrapComment(input.whenEmpty)),
+      `${input.name}=${input.example}`,
+    );
   }
   // A variable only the declaration covers. It is rendered rather than refused
   // because the declaration is the more authoritative of the two sources: an

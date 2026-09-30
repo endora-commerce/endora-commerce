@@ -56,6 +56,15 @@
 # pattern is therefore not ported as a pattern: the environment is what decides
 # who may spend a version, and a ref restriction belongs on the environment, not
 # in a regex here.
+#
+# ## If this workflow is missing from the Actions tab
+#
+# It is `workflow_dispatch`-only, so no event ever runs it on its own, and GitHub
+# registered each of this repository's workflows at its first run (their
+# `created_at` equals that run's to the second). This one therefore stayed
+# unlisted — `gh workflow list --all` omitted it and
+# `GET /actions/workflows/<file>` answered 404 — until a push to `master`
+# changed this file. If it disappears again, a commit touching it re-registers it.
 
 name: publish
 
@@ -125,6 +134,7 @@ jobs:
           # the auth position, so no file in this job holds the secret. It goes
           # to `$HOME`, not the checkout, so it cannot be committed or packed.
           printf '%s:registry=%s\n' "$scope" "$ENDORA_NPM_REGISTRY" > "$HOME/.npmrc"
+          # shellcheck disable=SC2016 # the single quotes keep the reference literal, as above
           printf '%s:_authToken=${ENDORA_NPM_TOKEN}\n' "${ENDORA_NPM_REGISTRY#*:}" >> "$HOME/.npmrc"
           printf 'provenance=true\n' >> "$HOME/.npmrc"
           echo "publish:packages — publishing $scope to $ENDORA_NPM_REGISTRY"

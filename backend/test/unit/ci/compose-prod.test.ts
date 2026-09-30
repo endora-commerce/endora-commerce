@@ -196,3 +196,41 @@ describe('it installs every module between the migrations and the API (FR-104)',
     expect(missing).toEqual([]);
   });
 });
+
+/**
+ * `SETTINGS_SECRET_ENCRYPTION_KEY` is left empty in `deploy/.env.prod.example`,
+ * with a comment saying how to generate it and what empty costs.
+ *
+ * It carried `change-me-base64-32`, which decodes to 14 bytes. The backend boots
+ * on that without a word — the boot warning fires only for an unset key — and
+ * then every attempt to save a secret setting fails with `SecretKeyInvalid`.
+ * Empty is the honest state: the backend boots, logs a warning naming the key,
+ * and secret settings stay unavailable until one is set.
+ */
+describe('it leaves SETTINGS_SECRET_ENCRYPTION_KEY empty rather than a placeholder that is not a key', () => {
+  const ENV_EXAMPLE = readFileSync(join(REPO_ROOT, 'deploy/.env.prod.example'), 'utf8');
+
+  /** The comment lines immediately above `name=`, `# ` stripped. */
+  function commentAbove(source: string, name: string): string {
+    const lines = source.split('\n');
+    const at = lines.findIndex((line) => line.startsWith(`${name}=`));
+    expect(at, `no ${name}= line`).toBeGreaterThan(-1);
+    const comment: string[] = [];
+    for (let index = at - 1; index >= 0 && lines[index]!.startsWith('#'); index -= 1) {
+      comment.unshift(lines[index]!.replace(/^#\s?/, ''));
+    }
+    return comment.join(' ');
+  }
+
+  it('has an empty value', () => {
+    expect(ENV_EXAMPLE).toMatch(/^SETTINGS_SECRET_ENCRYPTION_KEY=$/m);
+  });
+
+  it('says how to generate one, and that the backend boots with a warning until it is set', () => {
+    const comment = commentAbove(ENV_EXAMPLE, 'SETTINGS_SECRET_ENCRYPTION_KEY');
+    expect(comment).toContain('openssl rand -base64 32');
+    expect(comment).toMatch(/boots/);
+    expect(comment).toMatch(/warning/);
+    expect(comment).toMatch(/secret settings/i);
+  });
+});
