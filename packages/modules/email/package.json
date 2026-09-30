@@ -60,7 +60,7 @@
     "@mikro-orm/postgresql": "^6.6.13",
     "@types/node": "^22.9.0",
     "@types/nodemailer": "^7.0.4",
-    "nodemailer": "^7.0.9",
+    "nodemailer": "^10.0.9",
     "typescript": "^5.9.3",
     "vitest": "^2.1.4"
   }
