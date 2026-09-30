@@ -104,8 +104,9 @@
  *     intent will be dropped on the floor by `changeset version`.
  *   * `major-bump-in-a-zero-series` — a changeset entry declaring `major` for a
  *     package whose own `version` has major `0`. **D-225**: no package leaves
- *     `0.x` before the move to public npmjs, which is that ruling's retiring
- *     condition. See *The series* below.
+ *     `0.x` until a release deliberately does — the retiring condition as
+ *     amended on 2026-09-13, which the npmjs move does not meet. See *The
+ *     series* below.
  *
  * ## The ninth, and the one that needs a diff — `--since <ref>`
  *
@@ -198,6 +199,11 @@
  *
  * The owner, 2026-09-11: no package leaves `0.x` before the move to public
  * npmjs, because what is on the registry is still not a production solution.
+ * **Amended 2026-09-13**: D-234 put the first public version at `0.100.0`, a
+ * floor that keeps the series in `0.x` through and after publication, so the
+ * retiring condition became *the first release that deliberately leaves
+ * `0.x`* and this rule survives the npmjs move. It is worth more after it: a
+ * stray `major` then produces a `1.0.0` on npmjs, which cannot be taken back.
  * That is a decision about one thing only — *leave the series* — and in a `0.x`
  * series it is the **only** thing `major` says that `minor` does not: `^0.7.0`
  * is `>=0.7.0 <0.8.0`, so `0.8.0` and `1.0.0` are both out of range for every
@@ -219,9 +225,11 @@
  *     judged correctly, and a package that has left `0.x` stops being judged in
  *     the same run that moves it.
  *   * **No override and no ledger.** The rule has one escape and it is
- *     deletion: the merge request that performs the npmjs move removes this
+ *     deletion: the merge request that takes the estate to `1.0.0` removes this
  *     finding in the same diff that performs the bump, which is the visibility
- *     a one-way door deserves. A flag would be a switch somebody could flip
+ *     a one-way door deserves. (It read *"the merge request that performs the
+ *     npmjs move"* until D-225's amendment of 2026-09-13; the first npmjs
+ *     publish is `0.100.0` and does not remove it.) A flag would be a switch somebody could flip
  *     quietly, and a ledger entry could only license the thing D-225 forbids.
  *   * **The empty changeset is untouched.** `---`, `---`, then a summary is
  *     what AGENTS.md tells an author to write for a change with no release
@@ -1939,7 +1947,8 @@ export function analyzeReleaseIntent(
       continue;
     }
 
-    // 9 — D-225: no package leaves `0.x` before the move to public npmjs.
+    // 9 — D-225: no package leaves `0.x` until a release deliberately does
+    // (amended 2026-09-13; the npmjs move at `0.100.0` does not).
     //
     // Per package, from that package's own `version`. The estate is not asked
     // whether it is "in `0.x`" and no list of series-bound packages exists: a
@@ -1963,14 +1972,15 @@ export function analyzeReleaseIntent(
       message:
         `declares \`major\` for a package at \`${member.version ?? '?'}\`, which the next ` +
         '`changeset version` would take out of `0.x`. **D-225**: no package leaves `0.x` ' +
-        'before the move to public npmjs, which is that ruling\'s retiring condition. Write ' +
+        'until the first release that deliberately leaves `0.x`, which is that ruling\'s ' +
+        'retiring condition — publication at `0.100.0` (D-234) is not it. Write ' +
         '`minor` — in a `0.x` series the two have the identical consumer-facing contract, ' +
         'because `^0.7.0` is `>=0.7.0 <0.8.0` and `0.8.0` is out of range for every caret ' +
         'dependent exactly as `1.0.0` is, so `minor` already forces the explicit opt-in that ' +
         'is the whole consumer-facing meaning of "breaking". Keep the summary body as it is: ' +
         'it is where the break is described, and preserving it is why D-225 calls this a ' +
         'translation. There is deliberately no override and no ledger — the escape is ' +
-        'deletion, in the merge request that performs the npmjs move.',
+        'deletion, in the merge request that takes the estate to `1.0.0`.',
     });
   }
 
