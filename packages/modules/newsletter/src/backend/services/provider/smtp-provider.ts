@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 import type { NewsletterSendMessage, NewsletterSendProvider } from '@endora-commerce/contracts';
 
 export interface SmtpProviderConfig {
@@ -18,7 +18,7 @@ export interface SmtpProviderConfig {
  * throttling is applied by the BullMQ send-worker limiter, not here.
  */
 export class SmtpProvider implements NewsletterSendProvider {
-  private readonly transport: nodemailer.Transporter;
+  private readonly transport: Transporter;
 
   constructor(config: SmtpProviderConfig) {
     this.transport = nodemailer.createTransport({

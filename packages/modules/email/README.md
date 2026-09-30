@@ -32,7 +32,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `@mikro-orm/core` ^6
 - `@mikro-orm/migrations` ^6
 - `@mikro-orm/postgresql` ^6
-- `nodemailer` ^7
+- `nodemailer` ^10
 
 ## What the tarball carries
 
