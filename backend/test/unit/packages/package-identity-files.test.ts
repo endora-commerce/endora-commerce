@@ -60,6 +60,10 @@ function fixtureFs(files: Readonly<Record<string, string>>): ManifestFs {
   };
 }
 
+/** The copyright notice every MIT licence in this repository carries (owner decision, 2026-09-30). */
+const COPYRIGHT_LINE =
+  'Copyright (c) 2026 Endora sp. z o.o. and the Endora Commerce contributors';
+
 const ROOT = '/repo';
 const MIT = 'MIT License\n\nCopyright (c) 2026 Endora\n';
 
@@ -141,6 +145,36 @@ describe('every published package ships a LICENSE and a README (FR-020, FR-021)'
       for (const artefact of run.licenses) {
         expect(artefact.content, artefact.outputPath).toBe(root);
       }
+    });
+
+    it('names the company and the contributors as copyright holders, root and every package alike', () => {
+      // Owner decision of 2026-09-30: the project takes contributions under
+      // the DCO, not a CLA, so a contributor keeps the copyright in what they
+      // contributed and the notice has to say so. The line is asserted exactly
+      // — a notice naming the company alone, the wording every LICENSE carried
+      // before, is the regression this exists to catch, and it would pass a
+      // `toContain('Endora sp. z o.o.')`.
+      const holders = (text: string): readonly string[] =>
+        text.split('\n').filter((line) => /^copyright\b/i.test(line.trim()));
+      expect(holders(readFileSync(join(repoRoot!, 'LICENSE'), 'utf8'))).toEqual([COPYRIGHT_LINE]);
+      // The population is every library-family member minus the ones declaring
+      // terms of their own, whose `LICENSE.md` is not an MIT notice. A member
+      // still `private` by ruling is counted too: the renderer skips it, so its
+      // `LICENSE` is hand-kept, and it is flipped public before its first
+      // publish — which is exactly the copy a regeneration would not fix.
+      const own = new Set(renderPackageIdentityFiles(repoRoot!, nodeManifestFs()).ownLicenceMembers);
+      const mit = classifyWorkspaceMembers(repoRoot!, nodeManifestFs())
+        .members.filter((member) => member.family)
+        .filter((member) => !own.has(member.name));
+      expect(mit.length).toBeGreaterThan(0);
+      const wrong = mit
+        .map((member) => {
+          const path = join(member.dir, 'LICENSE');
+          return { name: member.name, lines: existsSync(path) ? holders(readFileSync(path, 'utf8')) : [] };
+        })
+        .filter((entry) => JSON.stringify(entry.lines) !== JSON.stringify([COPYRIGHT_LINE]))
+        .map((entry) => `${entry.name}: ${JSON.stringify(entry.lines)}`);
+      expect(wrong).toEqual([]);
     });
 
     it('leaves no LICENSE beside a package that declares its own terms', () => {
