@@ -163,7 +163,9 @@ jobs:
       # anyone. The registry is handed over rather than assumed, because this job
       # publishes to whichever one the environment names, and the private
       # registry is answered yes (`specs/136-open-source-publication/` FR-011).
-      # It also refuses npmjs while a member is private under D-267's exemption.
+      # It also refuses npmjs while a member is private under D-267's exemption,
+      # and a registry that cannot serve a member's name — an unscoped one on
+      # anything but public npmjs (`specs/137-open-source-launch/` N3).
       - run: pnpm --filter backend exec tsx scripts/check-release-intent.ts --publish-registry "$ENDORA_NPM_REGISTRY"
       # The last gate before a publish. `quality` does not run on the dispatched
       # ref unless it happens to be `master`, so without this line the packages

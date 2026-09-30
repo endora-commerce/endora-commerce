@@ -11,11 +11,11 @@
  * them out. A test over `src/` would pass for a package whose `files` or `bin`
  * shipped nothing runnable.
  *
- * The premise that `pnpm pack` packs a `"private": true` member (D-267 keeps
- * this package private until the first npmjs publish) was re-derived rather
- * than trusted — pnpm 9.15.0 and 10.28.2 both pack one — and it stays asserted
- * here: a pack that produced no tarball fails `beforeAll`, never reads as a
- * package with nothing wrong with it.
+ * The package was `"private": true` under D-267 until
+ * `specs/137-open-source-launch/` N3 made it public; that `pnpm pack` packs a
+ * private member was re-derived then (pnpm 9.15.0 and 10.28.2 both pack one),
+ * and a pack that produced no tarball still fails `beforeAll`, never reading as
+ * a package with nothing wrong with it.
  *
  * ## What "the same tree" is measured as
  *
@@ -357,11 +357,13 @@ describe('T6-B — the shim implements nothing (FR-142, D-268)', () => {
   });
 });
 
-describe('T6-C — a publishable package like every other, private until npmjs (D-267)', () => {
-  it('carries everything a public package owes, so publishing it is one field', () => {
+describe('T6-C — a publishable package like every other, public since N3 (D-267)', () => {
+  it('carries everything a public package owes, and is not private', () => {
     const manifest = readManifest(PACKAGE_DIR);
     expect(manifest.name).toBe('create-endora-commerce');
-    expect(manifest.private).toBe(true);
+    // D-267 kept it private until the first npmjs publish; the one field came
+    // off in `specs/137-open-source-launch/` N3.
+    expect(manifest.private).toBeUndefined();
     expect(manifest.license).toBe('MIT');
     expect(manifest.repository?.directory).toBe('packages/create-endora-commerce');
     expect(manifest.publishConfig?.access).toBe('public');
