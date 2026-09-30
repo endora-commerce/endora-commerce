@@ -17,7 +17,7 @@ import {
  * auth contract.
  *
  * The test password `stub-password-change-me-1234` is argon2-hashed only once
- * per test run (vitest singleFork) so this is cheap.
+ * per test file (each file runs in its own fork) so this is cheap.
  */
 
 export const STUB_CUSTOMER_PASSWORD = 'stub-password-change-me-1234';

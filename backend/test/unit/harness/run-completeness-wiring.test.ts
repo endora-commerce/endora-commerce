@@ -3,15 +3,16 @@
  *
  * `run-completeness.test.ts` holds the arithmetic; this holds the thing the
  * arithmetic was written for, because the two can be wrong independently. A
- * reporter whose `onPathsCollected` never fires, or that vitest drops for
+ * reporter whose `onTestRunStart` never fires, or that vitest drops for
  * arriving as a class instance rather than a module path, produces exactly the
  * silence it exists to break — and a unit test over `incompleteRun` is green
  * throughout.
  *
  * The fixture kills the fork the way the CI shards did: from inside a test file,
- * with the process simply gone. `poolOptions.forks.singleFork` puts all four
- * files in one `pool.run`, so the two files after the killer never run and no
- * result is ever reported for them.
+ * with the process simply gone. `maxWorkers: 1` with `isolate: false` hands all
+ * four files to one fork at once — vitest 4's spelling of what
+ * `poolOptions.forks.singleFork` was — so the two files after the killer never
+ * run and no result is ever reported for them.
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -55,7 +56,8 @@ beforeAll(() => {
       `  test: {\n` +
       `    include: ['*.test.ts'],\n` +
       `    pool: 'forks',\n` +
-      `    poolOptions: { forks: { singleFork: true } },\n` +
+      `    maxWorkers: 1,\n` +
+      `    isolate: false,\n` +
       `    fileParallelism: false,\n` +
       `    reporters: ['default', new RunCompletenessReporter()],\n` +
       `  },\n` +
@@ -100,7 +102,7 @@ beforeAll(() => {
   status = run.status;
 
   // The same fixture minus the killer, run **sharded**. Vitest applies
-  // `--shard` inside the pool, after `onPathsCollected` has reported the whole
+  // `--shard` inside the pool, after `onTestRunStart` has reported the whole
   // glob, so a reporter that compares against that list calls every green shard
   // an incomplete run. This is the discriminator: three files, shard 1 of 2, all
   // green, and the reporter must be silent.

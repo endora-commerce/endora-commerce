@@ -10,7 +10,6 @@
 // over `REGISTERED_MANIFESTS`, which is the same population every module walk in
 // this repository reads.
 
-import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { blockNameRe } from '@endora-commerce/contracts/cms';
 import { FROZEN_BLOCK_RENAMES, FROZEN_BLOCK_RENAMES_INVERSE } from './frozen-block-renames.js';
@@ -28,14 +27,18 @@ import { FROZEN_BLOCK_RENAMES, FROZEN_BLOCK_RENAMES_INVERSE } from './frozen-blo
 const FROZEN_DIGEST = '35e67094d49e97566beb9a9cdd45bb92be306e3bdda04ed9cf180fbbf41d4bf8';
 
 describe('FROZEN_BLOCK_RENAMES', () => {
-  it('is frozen — the digest over its entries has not moved', () => {
-    const digest = createHash('sha256')
-      .update(
-        Object.entries(FROZEN_BLOCK_RENAMES)
-          .map(([bare, namespaced]) => `${bare}=${namespaced}`)
-          .join('\n'),
-      )
-      .digest('hex');
+  it('is frozen — the digest over its entries has not moved', async () => {
+    // Web Crypto rather than `node:crypto`: this package type-checks against the
+    // DOM lib and `types: []`, so Node's module declarations are not in its
+    // program — vitest 2's typings used to drag them in and hide that. The input
+    // is UTF-8 either way, so the digest is the same bytes.
+    const entries = Object.entries(FROZEN_BLOCK_RENAMES)
+      .map(([bare, namespaced]) => `${bare}=${namespaced}`)
+      .join('\n');
+    const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(entries));
+    const digest = Array.from(new Uint8Array(bytes), (byte) =>
+      byte.toString(16).padStart(2, '0'),
+    ).join('');
     expect(digest).toBe(FROZEN_DIGEST);
   });
 

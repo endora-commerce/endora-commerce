@@ -4,7 +4,7 @@
 // nothing). One source, so a timeout or a pool setting cannot drift between the
 // run a developer does and the run CI does.
 
-import { mergeConfig, type UserConfig } from 'vitest/config';
+import { mergeConfig, type ViteUserConfig as UserConfig } from 'vitest/config';
 
 import { RunCompletenessReporter } from './test/run-completeness.js';
 
@@ -85,6 +85,13 @@ export function mergeBackendConfig(base: UserConfig, override: UserConfig): User
  * The contracts package's **built** output is loaded by node, once, and not by
  * vite-node once per test file (issue #199).
  *
+ * The measurement below was taken under vitest 2, whose module runner was
+ * `vite-node` and whose `singleFork` shared one process across every file. Vitest
+ * 4 replaced `vite-node` with Vite's module runner and runs each file of this
+ * suite in a fork of its own (see `maxWorkers` below), so the accumulation it
+ * describes can no longer build up across files; the rule still spares every
+ * file a transform of the barrel, and `server.deps.external` keeps its meaning.
+ *
  * `shouldExternalize` in `vite-node` asks one question: does the resolved id
  * contain `/node_modules/`? A workspace package does not — pnpm links it and
  * vite resolves the link, so `@endora-commerce/contracts` arrives as
@@ -158,21 +165,29 @@ export function backendTestOptions(): NonNullable<UserConfig['test']> {
     // See test/global-setup.ts.
     globalSetup: ['./test/global-setup.ts'],
     // Integration/contract tests share a single Postgres database. Running
-    // test files in parallel would race on truncate+seed — pin to a single
-    // fork so they execute serially inside one worker.
+    // test files in parallel would race on truncate+seed — one worker at a
+    // time, so files execute serially.
+    //
+    // This was `poolOptions.forks.singleFork: true` until vitest 4 removed it,
+    // and there is no exact successor. Under vitest 2 it meant **one** fork for
+    // the whole run, with every inlined module re-evaluated per file. Vitest 4
+    // offers two halves of that and not the whole: `isolate: false` keeps one
+    // fork but also keeps its module graph — nothing is re-evaluated between
+    // files, and a `vi.mock` registered by one file stays registered for the
+    // next — while the default `isolate: true` gives every file a fresh fork. The
+    // default is kept, because per-file re-evaluation is what every file here
+    // was written against and one fork per file is strictly more isolated than
+    // it. The price is a cold start per file: measured over
+    // `test/contract/carts`, 185 s under vitest 2 against 265 s here.
     pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true,
-        // `--expose-gc` is what makes `test/integration/kernel/heap-ceiling.test.ts`
-        // possible: a post-GC `heapUsed` reading separates live data from
-        // garbage, and without a forced GC the number is noise. It lives here
-        // rather than in the `test` script so a targeted run, a CI shard and an
-        // IDE run all measure the same thing. V8 exposes the function; it does
-        // not change how the heap is managed.
-        execArgv: ['--expose-gc'],
-      },
-    },
+    maxWorkers: 1,
+    // `--expose-gc` is what makes `test/integration/kernel/heap-ceiling.test.ts`
+    // possible: a post-GC `heapUsed` reading separates live data from
+    // garbage, and without a forced GC the number is noise. It lives here
+    // rather than in the `test` script so a targeted run, a CI shard and an
+    // IDE run all measure the same thing. V8 exposes the function; it does
+    // not change how the heap is managed.
+    execArgv: ['--expose-gc'],
     fileParallelism: false,
     hookTimeout: 30_000,
     testTimeout: 30_000,
@@ -202,9 +217,6 @@ export function backendTestOptions(): NonNullable<UserConfig['test']> {
     ...(isCi
       ? {
           teardownTimeout: 60_000,
-          // Last resort: tests already green; don't fail the pipeline on IPC noise.
-          // Fixed properly in vitest ≥4 (pool shutdown). Remove when upgraded.
-          // dangerouslyIgnoreUnhandledErrors: true,
         }
       : {}),
   };

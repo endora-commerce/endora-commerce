@@ -42,11 +42,7 @@ export default mergeConfig(
       // Feature 050's ambient `system` scope is a property of the *run*, and
       // four of the moved files assert over it.
       setupFiles: ['./vitest.setup.ts'],
-      poolOptions: {
-        forks: {
-          execArgv: ['--expose-gc'],
-        },
-      },
+      execArgv: ['--expose-gc'],
     },
   }),
 );

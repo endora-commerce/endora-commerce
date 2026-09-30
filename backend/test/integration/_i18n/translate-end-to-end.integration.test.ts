@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MikroORM, type EntityManager } from '@mikro-orm/postgresql';
@@ -36,7 +36,7 @@ const MODULE_ID = 'demo_module_translate_test';
 describe('I18nService.translate (end-to-end against real DB)', () => {
   let orm: MikroORM;
   let em: EntityManager;
-  let logSink: ReturnType<typeof vi.fn>;
+  let logSink: Mock<(msg: string) => void>;
 
   beforeAll(async () => {
     orm = await MikroORM.init(await mikroOrmConfig());
@@ -44,7 +44,7 @@ describe('I18nService.translate (end-to-end against real DB)', () => {
 
   beforeEach(async () => {
     em = orm.em.fork() as EntityManager;
-    logSink = vi.fn();
+    logSink = vi.fn<(msg: string) => void>();
     await em.nativeDelete(TranslationBundle, { moduleId: MODULE_ID });
   });
 

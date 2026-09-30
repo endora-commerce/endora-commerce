@@ -8,9 +8,9 @@
  * `/node_modules/`. A pnpm workspace link resolves through to the real
  * directory, so `@endora-commerce/contracts` arrives as
  * `<repo>/packages/contracts/dist/index.js` and is **inlined** — transformed
- * and re-evaluated for every test file that imports it. The whole backend suite
- * shares one process (`poolOptions.forks.singleFork`), so those evaluations
- * accumulate: measured on this repository, one evaluation of the contracts
+ * and re-evaluated for every test file that imports it. Under vitest 2 the whole
+ * backend suite shared one process (`poolOptions.forks.singleFork`), so those
+ * evaluations accumulated: measured on this repository, one evaluation of the contracts
  * barrel retains 111 MB, twelve test files produced ten of them, and 6.4 were
  * still reachable when the fork hit its 2 GB cap and took the rest of the shard
  * with it.

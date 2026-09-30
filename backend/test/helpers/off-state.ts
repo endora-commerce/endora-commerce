@@ -17,7 +17,7 @@ import { REGISTERED_MANIFESTS } from '../../src/lifecycle/registered-manifests.j
  *  1. **It never boots a server.** It flips state against the one the caller
  *     already has, through `registryCache.__setEnabledForTesting`, which
  *     touches neither Redis nor the database. 555 of 908 backend test files
- *     already call `setupBackendServer()` under `singleFork: true`, and the
+ *     already call `setupBackendServer()` under vitest 2's `singleFork`, and the
  *     measured baseline reaches PostgreSQL's `max_connections` partway through
  *     the run (`specs/073-lifecycle-gating-completion/baseline.md`). There is
  *     no headroom to spend.

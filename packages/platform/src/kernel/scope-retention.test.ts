@@ -24,7 +24,7 @@ import { systemTenantContext } from '../tenancy/resolve-tenant-context.js';
  *
  * The assertion is direct rather than statistical: hold the scope, drop every
  * other reference to the container, force a GC, and ask whether the container
- * was collected. `--expose-gc` comes from `poolOptions.forks.execArgv` in
+ * was collected. `--expose-gc` comes from `execArgv` in
  * `packages/platform/vitest.config.ts`.
  */
 

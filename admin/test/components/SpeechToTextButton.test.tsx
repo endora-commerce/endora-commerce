@@ -34,7 +34,10 @@ describe('SpeechToTextButton', () => {
 
   it('starts a session and forwards the final transcript', () => {
     let instance: FakeRecognition | null = null;
-    (window as unknown as Record<string, unknown>).SpeechRecognition = vi.fn(() => {
+    // A `function`, not an arrow: the hook calls `new Ctor()`, and since vitest 4 a
+    // mock honours `new` by constructing its implementation — which an arrow
+    // function cannot be.
+    (window as unknown as Record<string, unknown>).SpeechRecognition = vi.fn(function () {
       instance = new FakeRecognition();
       return instance;
     });

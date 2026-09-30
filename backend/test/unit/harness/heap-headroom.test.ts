@@ -2,8 +2,9 @@
  * The fork says how close it is to its heap limit before it dies of it
  * (issue #199).
  *
- * The whole backend suite runs in **one** process (`poolOptions.forks.singleFork`),
- * and CI caps that process's old-space at 2 GB. When the run's live set reaches
+ * The whole backend suite ran in **one** process under vitest 2
+ * (`poolOptions.forks.singleFork`; vitest 4 gives each file a fork of its own),
+ * and CI capped that process's old-space at 2 GB. When the run's live set reaches
  * the cap the process dies, and it dies in one of two ways, neither of which
  * names a file: V8 prints `FATAL ERROR: ... JavaScript heap out of memory` and
  * aborts, or the host kills it and prints nothing. Either way vitest sees only
@@ -149,7 +150,8 @@ describe('the guard fails a run, with the file and the numbers', () => {
         `    include: ['*.test.ts'],\n` +
         `    setupFiles: ['./arm.ts'],\n` +
         `    pool: 'forks',\n` +
-        `    poolOptions: { forks: { singleFork: true, execArgv: ['--expose-gc'] } },\n` +
+        `    maxWorkers: 1,\n` +
+        `    execArgv: ['--expose-gc'],\n` +
         `  },\n` +
         `});\n`,
     );

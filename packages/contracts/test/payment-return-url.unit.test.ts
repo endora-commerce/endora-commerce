@@ -4,6 +4,12 @@ import {
   type PaymentReturnOutcome,
 } from '../src/payment-return-url.js';
 
+// This package type-checks with `types: []` and `lib: ["ES2022"]`, so neither
+// Node's nor the DOM's `URL` is declared here — vitest 2's own typings used to
+// drag `@types/node` into the program and hide that. The runtime has the WHATWG
+// `URL`; this is the one member the test reads.
+declare const URL: new (input: string) => { readonly pathname: string };
+
 /**
  * Issue #287 — every payment gateway hands the buyer back to one landing, and
  * the platform decides from there.

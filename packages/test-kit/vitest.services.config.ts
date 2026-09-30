@@ -27,7 +27,7 @@ export default mergeConfig(
       // One composed server at a time: each file composes its own platform over
       // the one leased database, and two in parallel would race on its rows.
       pool: 'forks',
-      poolOptions: { forks: { singleFork: true } },
+      maxWorkers: 1,
       fileParallelism: false,
       hookTimeout: 60_000,
       testTimeout: 60_000,

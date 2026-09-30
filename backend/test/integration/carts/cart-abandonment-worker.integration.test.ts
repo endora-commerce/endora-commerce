@@ -1,5 +1,5 @@
 import { Cart, CartAuditEntry, CartItem } from '../../helpers/package-entities.js';
-import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { setupTestDb, type TestDb } from '../../helpers/test-db.js';
 
@@ -21,10 +21,14 @@ import { CartAbandonmentWorker } from '../../../../packages/modules/carts/src/ba
  *   - notification recipient empty → no dispatch
  */
 
+type DispatchNotification = NonNullable<
+  ConstructorParameters<typeof CartAbandonmentWorker>[0]['dispatchNotification']
+>;
+
 describe('CartAbandonmentWorker.sweep', () => {
   let db: TestDb;
   let worker: CartAbandonmentWorker;
-  let dispatchSpy: ReturnType<typeof vi.fn>;
+  let dispatchSpy: Mock<DispatchNotification>;
   let resolveInactivity: () => Promise<number>;
   let resolveRecipient: () => Promise<string>;
   let systemDefaultChannelId: string;
@@ -38,7 +42,7 @@ describe('CartAbandonmentWorker.sweep', () => {
     await db.beginTx();
     const em = db.em();
     const emFactory = () => em;
-    dispatchSpy = vi.fn().mockResolvedValue(undefined);
+    dispatchSpy = vi.fn<DispatchNotification>().mockResolvedValue(undefined);
     resolveInactivity = vi.fn().mockResolvedValue(10);   // 10 minutes
     resolveRecipient = vi.fn().mockResolvedValue('abandon@example.com');
     const auditLog = new AuditLogService(emFactory);
