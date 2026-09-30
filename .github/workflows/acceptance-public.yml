@@ -35,6 +35,15 @@
 # storefront outside a checkout of the platform repository
 # (`specs/110-instance-repository/contracts/cli-product.md` R3.1c), so a run
 # that is otherwise green exits 2 until that changes.
+#
+# ## If this workflow is missing from the Actions tab
+#
+# It is `workflow_dispatch`-only, so no event ever runs it on its own, and GitHub
+# registered each of this repository's workflows at its first run (their
+# `created_at` equals that run's to the second). This one therefore stayed
+# unlisted — `gh workflow list --all` omitted it and
+# `GET /actions/workflows/<file>` answered 404 — until a push to `master`
+# changed this file. If it disappears again, a commit touching it re-registers it.
 
 name: acceptance-public
 
