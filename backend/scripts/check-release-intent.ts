@@ -13,8 +13,9 @@
  * **exit 0 with an empty release plan**, which is byte-identical to a clean
  * branch.
  *
- * Measured on this repository, against the real five manifests, with a branch
- * that changes `packages/contracts/src/index.ts` and carries no changeset:
+ * Measured on this repository, against the real manifests of the day (every
+ * one of them then `"private": true`), with a branch that changes
+ * `packages/contracts/src/index.ts` and carries no changeset:
  *
  * ```
  * privatePackages: { version: true,  tag: false }   exit 1   <- the gate
@@ -488,7 +489,8 @@
  * ({@link publicRegistryScopes}, N3), printing every refusal that holds. Like
  * the scope, a precondition of one job rather than the check's verdict: no
  * read-size line. `--print-publish-scope` takes the same flag, because the
- * scope it prints depends on the target.
+ * scope it prints depends on the target; without it the mode judges the
+ * default mode's target, public npmjs ({@link publishScopeTarget}).
  *
  * Usage: `tsx scripts/check-release-intent.ts [--root <dir>] [--since <ref>]`
  *        `tsx scripts/check-release-intent.ts --print-publish-scope [--publish-registry <url>]`
@@ -1090,6 +1092,23 @@ export function publishTargetOf(registry: string): PublishTarget | null {
 }
 
 /**
+ * The target `--print-publish-scope` judges: the registry's own when one is
+ * handed over with `--publish-registry`, and {@link CORE_PUBLISH_TARGET} when
+ * none is — the target the default mode judges, so the two modes cannot
+ * disagree about an unscoped member. `null` when the value is not a URL.
+ *
+ * It used to judge an unnamed target as namespace-keyed, which refused this
+ * repository's unscoped `create-endora-commerce` with exit 2 while the default
+ * mode, judging public npmjs, reported nothing about it — so the invocation the
+ * documentation gave for "which packages publish" answered with a refusal whose
+ * text cited a finding the check was not reporting. A publish job that targets
+ * any other registry still names it, and is refused there.
+ */
+export function publishScopeTarget(registry: string | undefined): PublishTarget | null {
+  return registry === undefined ? CORE_PUBLISH_TARGET : publishTargetOf(registry);
+}
+
+/**
  * The one scope `publish:packages` writes an `.npmrc` line for, or why it
  * cannot be derived.
  *
@@ -1177,8 +1196,9 @@ export function publishScope(
       refusal:
         `${unscoped.join(', ')} is public and unscoped, so there is no scope for an \`.npmrc\` ` +
         'line to name and no namespace path for the endpoint to resolve. Skipping it would ' +
-        'publish it to whatever the client default registry is — the `unresolvable-scope` ' +
-        'finding this check already reports, arriving here as a refusal rather than a silence',
+        'publish it to whatever the client default registry is — what `--publish-registry` ' +
+        'refuses for a registry that is not public npmjs (N3), arriving here before the ' +
+        '`.npmrc` is written rather than as a silence',
     };
   }
 
@@ -3195,7 +3215,7 @@ function changesetStatusRunner(repoRoot: string): ChangesetStatusRunner {
  * printed here: this mode reports no verdict, and the check's ordinary mode is
  * what `check-read-size.test.ts` spawns.
  */
-function reportPublishScope(repoRoot: string, target: PublishTarget | undefined): number {
+function reportPublishScope(repoRoot: string, target: PublishTarget, named: boolean): number {
   const inputs = readReleaseIntent(repoRoot, nodeWorkspaceFs(), listDirectoryFiles);
   if ('reason' in inputs) {
     console.error(`${PREFIX} ${inputs.reason}; refusing to name a scope it did not derive.`);
@@ -3210,7 +3230,7 @@ function reportPublishScope(repoRoot: string, target: PublishTarget | undefined)
 
   console.error(
     `${PREFIX} --print-publish-scope: @${resolved.scope} ` +
-      `(target ${target ?? 'unnamed, judged as namespace-keyed'}) ` +
+      `(target ${target}${named ? '' : ', the default mode\'s own — no registry handed over'}) ` +
       `(${String(resolved.packages.length)} public of ${String(inputs.members.length)} ` +
       `workspace members: ${resolved.packages.join(', ')})`,
   );
@@ -3337,17 +3357,13 @@ function main(): void {
   if (process.argv.includes('--print-publish-scope')) {
     // The scope depends on the target (N3): public npmjs publishes an unscoped
     // member through the default registry, a namespace-keyed endpoint cannot.
-    // With no registry handed over, `publishScope` fails closed.
-    let target: PublishTarget | undefined;
-    if (registryValue !== undefined) {
-      const named = publishTargetOf(registryValue);
-      if (named === null) {
-        console.error(`${PREFIX} --print-publish-scope: the registry \`${registryValue}\` is not a URL; refusing to name a scope for it.`);
-        process.exit(2);
-      }
-      target = named;
+    // With no registry handed over it is the default mode's target, public npmjs.
+    const target = publishScopeTarget(registryValue);
+    if (target === null) {
+      console.error(`${PREFIX} --print-publish-scope: the registry \`${registryValue ?? ''}\` is not a URL; refusing to name a scope for it.`);
+      process.exit(2);
     }
-    const code = reportPublishScope(repoRoot, target);
+    const code = reportPublishScope(repoRoot, target, registryValue !== undefined);
     // Not `process.exit(0)`: this mode's stdout is read through a pipe, and
     // exiting while a pipe write is still buffered truncates it. A refusal has
     // nothing on stdout to lose.

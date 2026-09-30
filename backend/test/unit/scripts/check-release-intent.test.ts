@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -21,6 +22,7 @@ import {
   publicRegistryScopes,
   publicVersionFloor,
   publishScope,
+  publishScopeTarget,
   publishTargetOf,
   publicRegistryLicence,
   readChangesetDocument,
@@ -112,8 +114,9 @@ describe('check-release-intent — the default checkout passes', () => {
 
 describe('check-release-intent — the four lines that look like boilerplate', () => {
   /**
-   * The headline. Measured against the real five manifests with a branch that
-   * changes `packages/contracts/src/index.ts` and carries no changeset:
+   * The headline. Measured against the real manifests of the day (every one of
+   * them then `"private": true`) with a branch that changes
+   * `packages/contracts/src/index.ts` and carries no changeset:
    * `version: true` exits 1, `version: false` exits 0 with an empty plan, and
    * the block deleted exits 0 too. Nothing in the repository read those four
    * lines before this check.
@@ -1923,6 +1926,11 @@ describe('check-release-intent — the publish scope', () => {
     );
     expect(resolved.scope).toBeNull();
     expect(resolved.refusal).toContain('unscoped');
+    // The refusal names the mode that refuses the same registry, not a
+    // default-mode finding: the default mode judges public npmjs, where an
+    // unscoped name is servable and no `unresolvable-scope` is reported.
+    expect(resolved.refusal).toContain('`--publish-registry`');
+    expect(resolved.refusal).not.toContain('this check already reports');
   });
 
   it('refuses two scopes, which one `.npmrc` line cannot cover', () => {
@@ -1938,6 +1946,59 @@ describe('check-release-intent — the publish scope', () => {
     expect(resolved.scope).toBeNull();
     expect(resolved.refusal).toContain('2 scopes');
   });
+
+  /**
+   * The target `--print-publish-scope` judges when no registry is handed over.
+   * It is the default mode's own, public npmjs, so the mode and the check agree
+   * about an unscoped member; a registry that is handed over names its own
+   * target, and a value that is not a URL is refused (`null`).
+   */
+  it('judges public npmjs when no registry is handed over, like the default mode', () => {
+    expect(publishScopeTarget(undefined)).toBe(CORE_PUBLISH_TARGET);
+    expect(publishScopeTarget(undefined)).toBe('public-npmjs');
+    expect(publishScopeTarget('https://registry.npmjs.org/')).toBe('public-npmjs');
+    expect(publishScopeTarget('https://gitlab.example.invalid/api/v4/packages/npm/')).toBe(
+      'namespace-keyed',
+    );
+    expect(publishScopeTarget('not a url')).toBeNull();
+  });
+
+  /**
+   * The CLI, spawned the way `.changeset/README.md` and `publish.yml` invoke it.
+   * Stdout is captured into an `.npmrc` line, so it must carry the scope and
+   * nothing else — and a refusal must leave it empty.
+   */
+  function printPublishScope(...extra: string[]): { status: number; stdout: string; stderr: string } {
+    const result = spawnSync(
+      `${REPO_ROOT}backend/node_modules/.bin/tsx`,
+      [`${REPO_ROOT}backend/scripts/check-release-intent.ts`, '--print-publish-scope', ...extra],
+      { cwd: `${REPO_ROOT}backend`, encoding: 'utf8' },
+    );
+    return { status: result.status ?? -1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+  }
+
+  it('prints the scope for this repository with no registry named, as the README invokes it', () => {
+    const run = printPublishScope();
+    expect(run.stderr).toContain('target public-npmjs');
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe('@endora-commerce\n');
+  }, 60_000);
+
+  it('prints the same scope when public npmjs is handed over, as `publish.yml` invokes it', () => {
+    const run = printPublishScope('--publish-registry', 'https://registry.npmjs.org/');
+    expect(run.status).toBe(0);
+    expect(run.stdout).toBe('@endora-commerce\n');
+  }, 60_000);
+
+  it('refuses a namespace-keyed registry for the unscoped member, with nothing on stdout', () => {
+    const run = printPublishScope(
+      '--publish-registry',
+      'https://gitlab.example.invalid/api/v4/packages/npm/',
+    );
+    expect(run.status).toBe(2);
+    expect(run.stdout).toBe('');
+    expect(run.stderr).toContain('create-endora-commerce is public and unscoped');
+  }, 60_000);
 
   /**
    * And over the tree the job actually runs it on, so a green here is a

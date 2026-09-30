@@ -9,17 +9,23 @@
  * it, so: three shapes were on the table and two of them cannot be built here.
  *
  *   * **A CI job that versions and pushes.** It needs a credential that can
- *     write to the default branch. `CI_JOB_TOKEN` cannot, so it means a project
- *     access token — release infrastructure, which D-160.5 defers to the merge
- *     request that makes a package public. It would also put a bot commit
- *     straight onto `master`, which this repository's working agreement forbids
- *     for a human and has no reason to allow for a robot: a version bump is a
- *     change to `packages/`, and every change to `packages/` is reviewed.
+ *     push a release branch and open its pull request, and CI holds none: no
+ *     workflow job is granted more than `contents: read`
+ *     (`grep -n 'contents:' .github/workflows/*.yml`). D-160.5 once deferred
+ *     that credential to the change that makes a package public; the packages
+ *     are public now and it did not arrive, so whether CI gets it is an open
+ *     decision for the owner, not a step waiting on an event
+ *     (`specs/conventions/release-intent.md`). The publish workflow's npm token
+ *     is not a push credential and changes nothing here. A job that pushed
+ *     straight to `master` is out either way: the working agreement forbids it
+ *     for a human and has no reason to allow it for a robot, because a version
+ *     bump is a change to `packages/` and every change to `packages/` is
+ *     reviewed.
  *   * **A scheduled job.** Same credential, plus a worse property: it decides
  *     *when* to release, and nothing about this repository makes a calendar the
- *     right answer to that. Nothing is published; a release here is a changelog
- *     and a number, and both are wanted at a moment somebody chooses.
- *   * **A local step that produces a merge request.** This one. It lands
+ *     right answer to that. A release is wanted at a moment somebody chooses,
+ *     and publishing it is a separate, deliberate step of its own.
+ *   * **A local step that produces a pull request.** This one. It lands
  *     through the same gate as every other change to `packages/`, needs no
  *     credential CI does not already have, and the reviewer sees the diff that
  *     the changelog was generated from.

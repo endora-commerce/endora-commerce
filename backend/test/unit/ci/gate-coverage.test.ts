@@ -255,9 +255,11 @@ const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
     kind: 'local-operation',
     reason:
       'It cuts a `release/version-<date>` branch and consumes the pending changesets. It runs ' +
-      "locally by design: a CI job that could open that merge request needs a push credential " +
-      'D-160.5 defers to the merge request that makes a package public, and the reasoning is in ' +
-      "the script's own header. What CI asks instead is the resulting branch's inverted " +
+      'locally by design: a CI job that could open that pull request needs a push credential ' +
+      'CI does not hold. D-160.5 deferred it to the change that makes a package public; the ' +
+      'packages are public and it did not arrive, so granting it is an open owner decision ' +
+      "(`specs/conventions/release-intent.md`), and the reasoning is in the script's own " +
+      "header. What CI asks instead is the resulting branch's inverted " +
       'question, in `release:changeset`.',
   },
 };

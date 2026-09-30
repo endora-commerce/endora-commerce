@@ -354,10 +354,11 @@ describe('the refusals survive the port', () => {
 
   it('`publish:packages` derives the scope for the registry it publishes to (N3)', () => {
     // `specs/137-open-source-launch/` N3: `create-endora-commerce` is public and
-    // unscoped. The scope derivation refuses it unless it is told the target is
-    // public npmjs, and the unscoped package is then published through the
-    // default registry line — which must name the environment's registry rather
-    // than trust npm's own default.
+    // unscoped. The scope derivation judges public npmjs when no registry is
+    // named, so the job hands over the one it publishes to: any other registry
+    // is refused there, and on npmjs the unscoped package is published through
+    // the default registry line — which must name the environment's registry
+    // rather than trust npm's own default.
     const body = PUBLISH_JOBS[0]!.body;
     expect(body).toContain(
       'scripts/check-release-intent.ts --print-publish-scope --publish-registry "$ENDORA_NPM_REGISTRY"',
