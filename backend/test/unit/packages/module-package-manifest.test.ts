@@ -168,7 +168,7 @@ function checkoutWith(extra: Readonly<Record<string, string>>): Record<string, s
         // 'vitest'` and the peer range is the major of what the application
         // runs, so without this a realistic test fixture is refused for a
         // reason that has nothing to do with what it is proving.
-        vitest: '^2.1.4',
+        vitest: '^4.1.11',
       },
     }),
     // The installed `@types/*` packages D-181's split reads, in the two shapes it
@@ -664,7 +664,7 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       expect(manifest['peerDependencies']).not.toHaveProperty('vitest');
       expect(manifest['peerDependencies']).not.toHaveProperty('fastify');
       expect(manifest['devDependencies']).toMatchObject({
-        vitest: '^2.1.4',
+        vitest: '^4.1.11',
         fastify: '^5.8.5',
       });
     });
@@ -1689,7 +1689,7 @@ describe('module package manifests are generated (feature 080, T041)', () => {
           [`${ROOT}/packages/modules/widgets/vitest.config.ts`]: VITEST_CONFIG,
         }),
       );
-      expect((manifest['devDependencies'] as Record<string, string>)['vitest']).toBe('^2.1.4');
+      expect((manifest['devDependencies'] as Record<string, string>)['vitest']).toBe('^4.1.11');
       // A devDependency and not a peer: a consumer never runs this package's
       // tests, and the emit excludes them, so nothing published names it.
       expect(manifest['peerDependencies']).not.toHaveProperty('vitest');
