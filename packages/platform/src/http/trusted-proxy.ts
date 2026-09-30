@@ -122,6 +122,32 @@ function parseAddresses(raw: string): string[] {
   return entries;
 }
 
+/** Fastify's `trustProxy` function form: `hop` 0 is the socket's own peer. */
+export type TrustProxyFunction = (address: string, hop: number) => boolean;
+
+/**
+ * What `buildServer` hands Fastify for a {@link TrustedProxy}.
+ *
+ * Fastify 5.12.1 (GHSA-3m5p-2c4r-xxw2) removed the numeric `trustProxy`: a
+ * number now fails closed at runtime, so `TRUSTED_PROXY_HOPS=1` would silently
+ * go back to reporting the proxy as the client. A hop count is therefore
+ * translated into the function form, and the function is exactly what Fastify
+ * compiled a number into before 5.12.1 — `@fastify/proxy-addr` walks the chain
+ * from the socket peer (hop 0) through `X-Forwarded-For` right to left, and
+ * trusts hop `i` while `i < hops`. The address list is passed through
+ * unchanged; Fastify compiles it itself.
+ *
+ * Like the numeric form it replaces, a hop count does not look at the
+ * connecting address, so it is only as safe as the network that guarantees the
+ * backend is reachable through its proxies alone. `TRUSTED_PROXY_ADDRESSES`
+ * is the form that does not depend on that.
+ */
+export function toFastifyTrustProxy(trusted: TrustedProxy): TrustProxyFunction | string[] {
+  if (Array.isArray(trusted)) return trusted;
+  const hops = trusted;
+  return (_address, hop) => hop < hops;
+}
+
 /**
  * Turns the two environment variables into the value `buildServer` takes.
  * Returns `undefined` when neither is set — the server then trusts no proxy,

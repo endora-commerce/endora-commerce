@@ -11,7 +11,7 @@
  * Router 7's default `startTransition` update leaves `useLocation()` on the
  * previous module while `history` has already moved, so the URL changes and the
  * outlet does not. A project that mounts `<BrowserRouter>` without
- * `unstable_useTransitions={false}` gets an admin whose sidebar navigates
+ * `useTransitions={false}` gets an admin whose sidebar navigates
  * nowhere, with no error anywhere — and until this component existed, every
  * instance's `main.tsx` had to carry that flag from memory.
  *
@@ -51,13 +51,16 @@ export function AdminRoot({ contributions }: AdminRootProps): ReactNode {
   return (
     <StrictMode>
       {/*
-        `unstable_useTransitions={false}` — react-router 7.14. Module screens
-        are `lazy()` inside `ModuleRoute`, and RR 7's default transition leaves
-        `useLocation()` on the previous module while `history` has already
-        moved: the URL changes and the outlet does not. Home works because it
-        is eager, which is what makes the defect look like a module problem.
+        `useTransitions={false}`. Module screens are `lazy()` inside
+        `ModuleRoute`, and RR 7's default transition leaves `useLocation()` on
+        the previous module while `history` has already moved: the URL changes
+        and the outlet does not. Home works because it is eager, which is what
+        makes the defect look like a module problem. react-router 7.15.0
+        renamed the flag from `unstable_useTransitions` and ignores the old
+        spelling at runtime, which is why the peer floor is past the rename;
+        `admin/test/components/AdminRoot.transitions.test.tsx` holds it.
       */}
-      <BrowserRouter unstable_useTransitions={false}>
+      <BrowserRouter useTransitions={false}>
         <AuthProvider>
           <App contributions={contributions} />
         </AuthProvider>

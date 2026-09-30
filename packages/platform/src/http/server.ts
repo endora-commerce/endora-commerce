@@ -17,7 +17,7 @@ import {
   type OpenApiMetadata,
 } from './openapi.js';
 import type { ErrorEnvelopeOptions } from './error-envelope.js';
-import type { TrustedProxy } from './trusted-proxy.js';
+import { toFastifyTrustProxy, type TrustedProxy } from './trusted-proxy.js';
 import {
   makePostDispatchPreSerialization,
   makePreDispatchOnRoute,
@@ -107,7 +107,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     requestIdHeader: 'x-request-id',
     // See BuildServerOptions.trustedProxy — `false` unless a deployment names
     // the hop it trusts.
-    trustProxy: options.trustedProxy ?? false,
+    trustProxy: options.trustedProxy === undefined ? false : toFastifyTrustProxy(options.trustedProxy),
     disableRequestLogging: false,
   });
 
