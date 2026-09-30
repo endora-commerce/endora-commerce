@@ -89,18 +89,59 @@ locale, a ekran Languages pokazuje ten język jako domyślny.
 
 ### B1. Wygeneruj każdy sekret na nowo dla tego wdrożenia
 
-**Dlaczego.** `deploy/.env.prod.example` dostarcza placeholdery (`change-me-hex-32`,
-`change-me-base64-32`). Są składniowo poprawne, więc nic nie odmawia bootu: wdrożenie, które
-je zostawia, działa z publicznie znaną sesją podpisującą i publicznie znanym kluczem szyfrowania
-settings. Tylko dwie rzeczy są odrzucane przy boot: brak `SESSION_COOKIE_SECRET`
-(`backend/src/index.ts`) i brak publicznego origin API (B2). Placeholder sekretu — nie — jest
-składniowo sekretem.
+**Dlaczego.** Sekrety backendu są w dwóch plikach przykładowych: `deploy/.env.prod.example`,
+dla wdrożenia referencyjnego tego repozytorium, oraz `deploy/.env.example`, który
+`endora new instance` renderuje w szkielecie nowej instancji
+(`packages/cli/src/new-instance/deploy.ts`). Żaden z nich nie zawiera użytecznego sekretu, a
+zawodzą na dwa różne sposoby:
 
-**Zrób (inżynier).** Wygeneruj każdy z `SESSION_COOKIE_SECRET`, `ASSETS_LIBRARY_HMAC_KEY`
-(`openssl rand -hex 32`), `SETTINGS_SECRET_ENCRYPTION_KEY`, `MFA_SECRET_ENCRYPTION_KEY`,
-`MEILI_MASTER_KEY` (`openssl rand -base64 32`) i silne `POSTGRES_PASSWORD`. `chmod 600` pliku.
+- **Sekrety podpisujące i hasła mają placeholder** (`change-me-hex-32`,
+  `change-me-base64-32`, `change-me-strong-password` w pierwszym pliku,
+  `change-me-generate-one` w drugim). Nic nie sprawdza ich treści, więc wdrożenie, które je
+  zostawi, uruchamia się i podpisuje ciasteczka sesji oraz linki do zasobów kluczem, który
+  każdy może przeczytać w tym repozytorium.
+- **Trzy linie są celowo puste**: `NEWSLETTER_TOKEN_SECRET`,
+  `SETTINGS_SECRET_ENCRYPTION_KEY` i `MFA_SECRET_ENCRYPTION_KEY`. Oba klucze szyfrujące to
+  klucze AES-256 i po zdekodowaniu z base64 muszą mieć dokładnie 32 bajty, czego żaden
+  placeholder nie spełnia. Pusta wartość to stan, który backend obsługuje i zgłasza; nadal nie
+  jest to gotowa konfiguracja.
 
-**Zweryfikuj.** `grep change-me /opt/b2b/.env` nie zwraca nic.
+Tylko dwie rzeczy zatrzymują backend przy starcie niezależnie od reszty: pusty
+`SESSION_COOKIE_SECRET` (`backend/src/index.ts`, `backend/src/worker.ts`) i brak publicznego
+origin API (B2). Błędny `MFA_SECRET_ENCRYPTION_KEY` to jedyny sekret, który też przerywa start,
+i tylko gdy moduł `mfa` jest zainstalowany.
+
+**Zrób (inżynier).** Wygeneruj każdy sekret poleceniem z tabeli, wpisz go do `.env` wdrożenia
+i ustaw `chmod 600` na pliku. Używaj `-hex` albo `-base64` tak, jak mówi tabela: oba klucze
+szyfrujące są dekodowane z base64, więc ciąg hex tam nie zadziała (64 znaki hex dekodują się
+do 48 bajtów, nie 32).
+
+| Zmienna | Wygeneruj poleceniem | Pusta | Błędna lub placeholder |
+| --- | --- | --- | --- |
+| `SESSION_COOKIE_SECRET` | `openssl rand -hex 32` | Backend i worker kończą działanie przy starcie z komunikatem `SESSION_COOKIE_SECRET must be set in production`. | Każdy niepusty ciąg jest akceptowany, więc placeholder uruchamia się i podpisuje ciasteczka publicznym kluczem. |
+| `NEWSLETTER_TOKEN_SECRET` | `openssl rand -base64 32` | Działa. Linki potwierdzenia i wypisania z newslettera są podpisywane kluczem `SESSION_COOKIE_SECRET` (`packages/platform/src/composition/newsletter-token-secret.ts`), więc rotacja klucza sesji unieważnia każdy link, który wciąż czeka w skrzynce. Ustaw go, aby oba klucze można było rotować niezależnie. | Każdy niepusty ciąg jest akceptowany jako klucz podpisujący. |
+| `SETTINGS_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Backend startuje i loguje `[settings] SETTINGS_SECRET_ENCRYPTION_KEY is not set`. Sekretnych ustawień i sekretnych pól poświadczeń (np. tokenu API zapisywanego przez moduł) nie da się zapisać ani odczytać, dopóki klucz nie zostanie ustawiony, a backend zrestartowany. | Nie jest sprawdzany przy starcie. Backend uruchamia się **bez ostrzeżenia**, a potem każdy zapis sekretnego ustawienia kończy się błędem `SETTINGS_SECRET_ENCRYPTION_KEY is misconfigured — it must decode to 32 bytes (got N)`, zgłaszanym przez moduł `credentials`. |
+| `MFA_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Moduł `mfa` udostępnia swoje ekrany i odmawia każdej rejestracji, więc żaden administrator nie włączy drugiego składnika (D4). | Gdy `mfa` jest zainstalowany, backend nie startuje: `MFA_SECRET_ENCRYPTION_KEY must decode to 32 bytes (got N)`. |
+| `ASSETS_LIBRARY_HMAC_KEY` | `openssl rand -hex 32` | Backend startuje. Każde żądanie, które podpisuje lub sprawdza link do prywatnego zasobu, kończy się błędem `ASSETS_LIBRARY_HMAC_KEY is unset`. | Wartość, która nie jest hex, jest używana jako surowe bajty, więc placeholder działa i podpisuje linki do zasobów publicznym kluczem. |
+| `MEILI_MASTER_KEY` | `openssl rand -base64 32` | `deploy/compose.prod.yml` uruchamia Meilisearch z `MEILI_ENV: production`, który odmawia startu bez klucza głównego. Backend czyta tę samą wartość jako `MEILISEARCH_API_KEY`. | Meilisearch akceptuje każdy klucz o długości co najmniej 16 bajtów, więc placeholder daje wyszukiwarce publicznie znany klucz. |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 32` (hex, nie base64: wartość trafia bez escapowania do `DATABASE_URL`, gdzie `/` lub `+` psuje URL) | `deploy/compose.prod.yml` przyjmuje wtedy `b2b` (`${POSTGRES_PASSWORD:-b2b}`). | Placeholder działa i jest publicznie znany. |
+| `REVALIDATE_SECRET` | `openssl rand -hex 32` | Zob. B2. | Zob. B2. |
+
+**Wygeneruj klucze szyfrujące raz i je zachowaj.** Zastąpienie działającego
+`SETTINGS_SECRET_ENCRYPTION_KEY` lub `MFA_SECRET_ENCRYPTION_KEY` niczego nie szyfruje ponownie:
+sekretów zapisanych starym kluczem nie da się już odszyfrować. To samo dotyczy
+`POSTGRES_PASSWORD`: obraz bazy czyta go tylko przy pierwszej inicjalizacji wolumenu, więc
+późniejsza zmiana wymaga zmiany hasła roli również w PostgreSQL.
+
+**Zweryfikuj.** `grep change-me /opt/b2b/.env` nie zwraca nic, a żadna z trzech linii pustych w
+przykładzie nie jest już pusta. Oba klucze szyfrujące dekodują się do 32 bajtów:
+
+```bash
+grep -E '^(SETTINGS|MFA)_SECRET_ENCRYPTION_KEY=' /opt/b2b/.env | cut -d= -f2- | while read -r key; do printf '%s' "$key" | base64 -d | wc -c; done
+```
+
+Polecenie wypisuje `32` dwa razy. Po restarcie log backendu nie zawiera ostrzeżenia
+`SETTINGS_SECRET_ENCRYPTION_KEY is not set`.
 
 ### B2. Ustaw `REVALIDATE_SECRET` i wiedz, dlaczego backend odmawia bootu bez public origin
 
