@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 import {
   analyzeReleaseIntent,
   changelogSections,
+  CORE_PUBLISH_TARGET,
+  FIRST_PUBLIC_VERSION,
   checkBranchIntent,
   checkReleaseIntent,
   compilesPath,
@@ -16,7 +18,10 @@ import {
   publicationExemptionLine,
   publicationExemptions,
   publicRegistryExemptions,
+  publicRegistryScopes,
+  publicVersionFloor,
   publishScope,
+  publishTargetOf,
   publicRegistryLicence,
   readChangesetDocument,
   readPublishedSurface,
@@ -259,19 +264,24 @@ describe('check-release-intent — publication: every versionable package publis
 });
 
 /**
- * D-267 — the one private member the tree may hold, and why the exemption is
- * derived rather than declared.
+ * D-267 — the private member the tree held until the first npmjs publish, and
+ * why the exemption was derived rather than declared.
  *
- * `create-endora-commerce` is unscoped, so it cannot be green as either state:
- * public, it is `unresolvable-scope` (the GitLab endpoint turns a scope into a
- * namespace path, and it has none) and `publishScope()` refuses it; private, it
- * is `unpublished-package`. The ruling's exemption is the conjunction of two
- * facts this check already computes — the configured target cannot serve the
- * name, **and** no workspace member depends on it, so the finding's harm (a
- * dependent's packed manifest pinning a version the registry never receives)
- * cannot occur. No package name appears in the check. Its expiry is the
- * `--publish-registry` refusal below: the day the target is public npmjs, the
- * exempted member stops being private or the publish does not happen.
+ * `create-endora-commerce` is unscoped. Judged against GitLab's
+ * namespace-keyed endpoint it cannot be green as either state: public, it is
+ * `unresolvable-scope` (the endpoint turns a scope into a namespace path, and it
+ * has none) and `publishScope()` refuses it; private, it is
+ * `unpublished-package`. The ruling's exemption is the conjunction of two facts
+ * this check already computes — the target cannot serve the name, **and** no
+ * workspace member depends on it, so the finding's harm (a dependent's packed
+ * manifest pinning a version the registry never receives) cannot occur. No
+ * package name appears in the check.
+ *
+ * Its expiry was a refusal where its reason expires, and it has expired: the
+ * core's publish target is public npmjs (`specs/137-open-source-launch/` N3),
+ * which serves an unscoped name, so against that target nothing is exempted
+ * and the proofs of the exemption itself name the namespace-keyed target they
+ * are about.
  *
  * The fixture's unscoped member is `create-fx`, not the real name: the rule is
  * about a shape, and a fixture carrying the real name would read as a claim
@@ -297,14 +307,18 @@ describe('check-release-intent — D-267: a private member the target cannot ser
     return inputs;
   }
 
+  /** The analysis judged against GitLab's namespace-keyed endpoint, the exemption's own target. */
+  const namespaceKeyed = (files: FileMap): readonly ReleaseIntentFinding[] =>
+    analyzeReleaseIntent(inputsOf(files), 'namespace-keyed');
+
   it('does not report a private unscoped member nothing depends on', () => {
-    const found = findings(FRONT_DOOR);
+    const found = namespaceKeyed(FRONT_DOOR);
     expect(found.filter((f) => f.kind === 'unpublished-package').map((f) => f.subject)).toEqual([]);
     expect(found).toEqual([]);
   });
 
   it('names every exempted member and why, so nothing is skipped in silence', () => {
-    const exempt = publicationExemptions(inputsOf(FRONT_DOOR).members);
+    const exempt = publicationExemptions(inputsOf(FRONT_DOOR).members, 'namespace-keyed');
     expect(exempt.map((entry) => entry.name)).toEqual(['create-fx']);
     expect(exempt[0]!.dir).toBe('packages/gamma');
     expect(exempt[0]!.reason).toContain('unscoped');
@@ -315,7 +329,7 @@ describe('check-release-intent — D-267: a private member the target cannot ser
   });
 
   it('prints a zero when nothing is exempted, rather than printing nothing', () => {
-    expect(publicationExemptions(inputsOf({}).members)).toEqual([]);
+    expect(publicationExemptions(inputsOf({}).members, 'namespace-keyed')).toEqual([]);
     expect(publicationExemptionLine([])).toContain('exempt-private=0');
   });
 
@@ -326,18 +340,20 @@ describe('check-release-intent — D-267: a private member the target cannot ser
    * package publishes) loses nothing to this exemption.
    */
   it('still reports a private scoped member, whose scope the target can serve', () => {
-    const found = findings({ ...FRONT_DOOR, ...PRIVATE_BETA });
+    const found = namespaceKeyed({ ...FRONT_DOOR, ...PRIVATE_BETA });
     expect(found.filter((f) => f.kind === 'unpublished-package').map((f) => f.subject)).toEqual([
       '@fx/beta',
     ]);
-    expect(publicationExemptions(inputsOf({ ...FRONT_DOOR, ...PRIVATE_BETA }).members).map((e) => e.name)).toEqual([
-      'create-fx',
-    ]);
+    expect(
+      publicationExemptions(inputsOf({ ...FRONT_DOOR, ...PRIVATE_BETA }).members, 'namespace-keyed').map(
+        (e) => e.name,
+      ),
+    ).toEqual(['create-fx']);
   });
 
   it('still reports it the moment any member depends on it, in any dependency field', () => {
     for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
-      const found = findings({
+      const found = namespaceKeyed({
         ...FRONT_DOOR,
         'packages/beta/package.json': JSON.stringify({
           name: '@fx/beta',
@@ -356,7 +372,7 @@ describe('check-release-intent — D-267: a private member the target cannot ser
   });
 
   it('counts an application depending on it as a dependent too', () => {
-    const found = findings({
+    const found = namespaceKeyed({
       ...FRONT_DOOR,
       'apps/host/package.json': JSON.stringify({
         name: 'host',
@@ -369,8 +385,8 @@ describe('check-release-intent — D-267: a private member the target cannot ser
     expect(found.map((f) => f.subject)).toContain('create-fx');
   });
 
-  it('exempts nothing public — a public unscoped member is still `unresolvable-scope`', () => {
-    const found = findings({
+  it('exempts nothing public — a public unscoped member is still `unresolvable-scope` there', () => {
+    const found = namespaceKeyed({
       'packages/gamma/package.json': UNSCOPED_PRIVATE.replace('"private":true,', ''),
     });
     expect(found.map((f) => `${f.kind} ${f.subject}`)).toContain('unresolvable-scope create-fx');
@@ -407,6 +423,137 @@ describe('check-release-intent — D-267: a private member the target cannot ser
       expect(verdict.publicRegistry).toBeNull();
       expect(verdict.refusal).toContain('not a URL');
     });
+  });
+});
+
+/**
+ * `specs/137-open-source-launch/` N3 — the flip D-267 made impossible to skip.
+ *
+ * The scope rules modelled one target, GitLab's namespace-keyed endpoint, and
+ * that endpoint stops being the core's target at the first npmjs publish. So
+ * the rules now take the target as an input:
+ *
+ *   * **public npmjs serves an unscoped name** from its default registry, so an
+ *     unscoped member is neither `unresolvable-scope` nor a second scope, and
+ *     `publishScope()` publishes it through the default registry line;
+ *   * **a scoped name is still judged as a namespace path on either target**,
+ *     because a consumer whose `.npmrc` maps the scope to the private registry
+ *     reaches every free package through that endpoint's forwarding
+ *     (`specs/136-open-source-publication/` FR-030) — a scope the endpoint
+ *     cannot resolve is the same silence there as before;
+ *   * the default mode judges the core's own target, public npmjs, so the
+ *     D-267 exemption computes to nothing and a private unscoped member is an
+ *     ordinary `unpublished-package` again;
+ *   * `--publish-registry` hands over a URL that is not public npmjs and gets
+ *     the namespace-keyed judgement, refusing an unscoped public member rather
+ *     than letting it fall through to npm's default registry.
+ */
+describe('check-release-intent — N3: the target decides whether an unscoped name is servable', () => {
+  const UNSCOPED_PUBLIC = JSON.stringify({
+    name: 'create-fx',
+    version: '1.0.0',
+    license: 'MIT',
+    repository: { type: 'git', url: 'https://example.invalid/fx.git', directory: 'packages/gamma' },
+    publishConfig: { access: 'public' },
+    bin: { 'create-fx': './dist/bin.js' },
+    dependencies: { '@fx/alpha': 'workspace:*' },
+  });
+  const FRONT_DOOR_PUBLIC: FileMap = { 'packages/gamma/package.json': UNSCOPED_PUBLIC };
+  const FRONT_DOOR_PRIVATE: FileMap = {
+    'packages/gamma/package.json': UNSCOPED_PUBLIC.replace('"name":"create-fx",', '"name":"create-fx","private":true,'),
+  };
+
+  function inputsOf(files: FileMap) {
+    const tree = checkout(files);
+    const inputs = readReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in inputs) throw new Error(`expected inputs, got a refusal: ${inputs.reason}`);
+    return inputs;
+  }
+
+  it('answers an unscoped name by the target, and a scope the same way on both', () => {
+    expect(unservableScope('create-fx', 'public-npmjs')).toBeNull();
+    expect(unservableScope('create-fx', 'namespace-keyed')).toContain('unscoped');
+    for (const target of ['public-npmjs', 'namespace-keyed'] as const) {
+      expect(unservableScope('@api/alpha', target), target).toContain('reserved');
+      expect(unservableScope('@endora-commerce/contracts', target), target).toBeNull();
+    }
+  });
+
+  it('judges the core target, public npmjs, when no registry is handed over', () => {
+    expect(CORE_PUBLISH_TARGET).toBe('public-npmjs');
+    expect(publishTargetOf('https://registry.npmjs.org/')).toBe('public-npmjs');
+    expect(publishTargetOf('https://gitlab.example.invalid/api/v4/packages/npm/')).toBe('namespace-keyed');
+    expect(publishTargetOf('not a url')).toBeNull();
+  });
+
+  it('reports nothing for a public unscoped member beside one scope', () => {
+    expect(findings(FRONT_DOOR_PUBLIC)).toEqual([]);
+  });
+
+  it('reports a private unscoped member as unpublished — the exemption has expired', () => {
+    const found = findings(FRONT_DOOR_PRIVATE);
+    expect(found.map((f) => `${f.kind} ${f.subject}`)).toEqual(['unpublished-package create-fx']);
+    expect(publicationExemptions(inputsOf(FRONT_DOOR_PRIVATE).members, CORE_PUBLISH_TARGET)).toEqual([]);
+  });
+
+  it('still counts two scopes beside an unscoped member as two', () => {
+    const found = findings({
+      ...FRONT_DOOR_PUBLIC,
+      'packages/beta/package.json': JSON.stringify({
+        name: '@other/beta',
+        version: '1.0.0',
+        license: 'MIT',
+        repository: { url: 'https://example.invalid/fx.git' },
+        publishConfig: { access: 'public' },
+      }),
+    });
+    expect(found.find((f) => f.kind === 'unresolvable-scope')?.subject).toBe('fx, other');
+  });
+
+  it('publishes an unscoped member through the default registry on public npmjs', () => {
+    const resolved = publishScope(inputsOf(FRONT_DOOR_PUBLIC).members, 'public-npmjs');
+    expect(resolved.refusal).toBe('');
+    expect(resolved.scope).toBe('fx');
+    expect(resolved.packages).toEqual(['@fx/alpha', '@fx/beta', 'create-fx']);
+  });
+
+  it('refuses the same member when no target is named, or the target is namespace-keyed', () => {
+    for (const resolved of [
+      publishScope(inputsOf(FRONT_DOOR_PUBLIC).members),
+      publishScope(inputsOf(FRONT_DOOR_PUBLIC).members, 'namespace-keyed'),
+    ]) {
+      expect(resolved.scope).toBeNull();
+      expect(resolved.refusal).toContain('create-fx');
+      expect(resolved.refusal).toContain('unscoped');
+    }
+  });
+
+  it('refuses an unscoped public member for a registry that is not public npmjs', () => {
+    const members = inputsOf(FRONT_DOOR_PUBLIC).members;
+    const gitlab = publicRegistryScopes(members, 'https://gitlab.example.invalid/api/v4/packages/npm/');
+    expect(gitlab.refusal).toContain('create-fx');
+    expect(gitlab.refusal).toContain('unscoped');
+    expect(publicRegistryScopes(members, 'https://registry.npmjs.org/').refusal).toBe('');
+    expect(publicRegistryScopes(members, 'not a url').refusal).toContain('not a URL');
+  });
+
+  /** And over the tree the publish job actually runs on. */
+  it('publishes this repository, front door included, to public npmjs with nothing refused', () => {
+    const root = REPO_ROOT.replace(/\/$/, '');
+    const inputs = readReleaseIntent(root, nodeWorkspaceFs(), (dir) =>
+      readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name),
+    );
+    if ('reason' in inputs) throw new Error(inputs.reason);
+    const npmjs = 'https://registry.npmjs.org/';
+    const resolved = publishScope(inputs.members, publishTargetOf(npmjs)!);
+    expect(resolved.refusal).toBe('');
+    expect(resolved.scope).toBe('endora-commerce');
+    expect(resolved.packages).toContain('create-endora-commerce');
+    expect(publicationExemptions(inputs.members, CORE_PUBLISH_TARGET)).toEqual([]);
+    expect(publicRegistryExemptions(inputs.members, npmjs).refusal).toBe('');
+    expect(publicRegistryScopes(inputs.members, npmjs).refusal).toBe('');
   });
 });
 
@@ -616,8 +763,10 @@ describe('check-release-intent — a scope the registry can serve', () => {
    * registry. Every case below is therefore invisible to any install anyone
    * could run, which is why they are static findings.
    */
-  it('reports an unscoped public package', () => {
-    const found = findings({
+  it('reports an unscoped public package to the namespace-keyed endpoint', () => {
+    // Public npmjs serves an unscoped name (N3, above); GitLab's endpoint has no
+    // scope to turn into a namespace path, so this is judged against it.
+    const tree = checkout({
       ...PUBLISHED_ALPHA,
       'apps/host/package.json': JSON.stringify({
         name: 'host',
@@ -633,6 +782,9 @@ describe('check-release-intent — a scope the registry can serve', () => {
         publishConfig: { access: 'public' },
       }),
     });
+    const inputs = readReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in inputs) throw new Error(inputs.reason);
+    const found = analyzeReleaseIntent(inputs, 'namespace-keyed');
     expect(kinds(found)).toContain('unresolvable-scope');
     expect(found.find((f) => f.kind === 'unresolvable-scope')?.message).toContain('unscoped');
   });
@@ -658,9 +810,11 @@ describe('check-release-intent — a scope the registry can serve', () => {
   });
 
   it('reports a scope that is not spellable as a namespace path', () => {
-    expect(unservableScope('@fx~one/alpha')).toContain('namespace path');
-    expect(unservableScope('@fx.git/alpha')).toContain('`.git`');
-    expect(unservableScope('@endora-commerce/contracts')).toBeNull();
+    for (const target of ['public-npmjs', 'namespace-keyed'] as const) {
+      expect(unservableScope('@fx~one/alpha', target), target).toContain('namespace path');
+      expect(unservableScope('@fx.git/alpha', target), target).toContain('`.git`');
+      expect(unservableScope('@endora-commerce/contracts', target), target).toBeNull();
+    }
   });
 
   /**
@@ -874,7 +1028,8 @@ describe('check-release-intent — groups and written intent', () => {
 });
 
 /**
- * D-225, FR-017. No package leaves `0.x` before the move to public npmjs, and
+ * D-225, FR-017. No package leaves `0.x` until a release deliberately does so —
+ * the npmjs move included, since D-225's amendment of 2026-09-13 — and
  * the rule is refused rather than remembered because the failure is **silent**:
  * a `major` changeset sits in `.changeset/` for weeks and is applied by a
  * release nobody is watching. `changeset status` reports it as ordinary intent,
@@ -909,9 +1064,13 @@ describe('check-release-intent — the series stays in `0.x` (D-225)', () => {
     expect(finding?.subject).toBe('x.md:@fx/alpha');
     // The message has to carry the remedy and the ruling, because there is no
     // ledger and no override: the escape is deletion, in the merge request that
-    // performs the npmjs move.
+    // takes the estate to `1.0.0`. D-225 as amended on 2026-09-13 (after D-234
+    // put the first public version at `0.100.0`): the check **survives** the
+    // npmjs move, so the message must not send its reader to delete it there.
     expect(finding?.message).toContain('D-225');
     expect(finding?.message).toContain('0.7.0');
+    expect(finding?.message).toContain('the first release that deliberately leaves `0.x`');
+    expect(finding?.message).not.toContain('npmjs move');
   });
 
   it('reports nothing for the same `major` on a package at `1.y.z` (A13)', () => {
@@ -1797,7 +1956,9 @@ describe('check-release-intent — the publish scope', () => {
         .map((entry) => entry.name),
     );
     if ('reason' in inputs) throw new Error(inputs.reason);
-    const resolved = publishScope(inputs.members);
+    // The target the publish job hands over for this repository: its unscoped
+    // front door is refused against any other (N3).
+    const resolved = publishScope(inputs.members, CORE_PUBLISH_TARGET);
 
     expect(resolved.scope).toBe('endora-commerce');
     // The population is the whole workspace, module packages included — the
@@ -2432,5 +2593,92 @@ describe('a changeset document keeps the prose R3 reads', () => {
     const document = readChangesetDocument('x.md', `Just prose about the ${C2_TERM}.\n`);
     expect(document.hasFrontMatter).toBe(false);
     expect(document.body).toBe(`Just prose about the ${C2_TERM}.\n`);
+  });
+});
+
+/**
+ * `specs/137-open-source-launch/` N4 — the first public version's floor (D-234;
+ * 123 T7-D1, its static half).
+ *
+ * The first public version is `max(0.100.0, the highest version any
+ * publishable package has reached)`. `changeset publish` publishes whatever
+ * each manifest says and exits 0 whatever the numbers are, so a release branch
+ * that forgot the hand-set would spend `0.17.x` … `0.8.x` on public npmjs,
+ * permanently. The refusal lives in `--publish-registry`, the publish job's
+ * precondition, rather than in the default mode: every package is below the
+ * floor until the release branch sets it, so a default-mode finding would be
+ * red on every pull request until then.
+ */
+describe('check-release-intent — N4: nothing reaches public npmjs below the first public version', () => {
+  function membersOf(files: FileMap) {
+    const tree = checkout(files);
+    const inputs = readReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in inputs) throw new Error(`expected inputs, got a refusal: ${inputs.reason}`);
+    return inputs.members;
+  }
+  const atVersion = (version: string): FileMap =>
+    publishedAlphaAs((manifest) => {
+      manifest['version'] = version;
+    });
+  const NPMJS = 'https://registry.npmjs.org/';
+
+  it('declares the floor D-234 ruled, once', () => {
+    expect(FIRST_PUBLIC_VERSION).toBe('0.100.0');
+  });
+
+  it('refuses a publishable package below the floor, naming it and its version', () => {
+    const verdict = publicVersionFloor(membersOf(atVersion('0.17.0')), NPMJS);
+    expect(verdict.below).toEqual(['@fx/alpha@0.17.0']);
+    expect(verdict.refusal).toContain('@fx/alpha@0.17.0');
+    expect(verdict.refusal).toContain('0.100.0');
+  });
+
+  it('compares numerically, never as strings', () => {
+    for (const [version, below] of [
+      ['0.9.0', true],
+      ['0.99.0', true],
+      ['0.99.99', true],
+      ['0.100.0', false],
+      ['0.100.1', false],
+      ['0.101.0', false],
+      ['1.0.0', false],
+    ] as const) {
+      expect(publicVersionFloor(membersOf(atVersion(version)), NPMJS).below.length > 0, version).toBe(below);
+    }
+  });
+
+  it('counts a pre-release of the floor as below it, as semver does', () => {
+    expect(publicVersionFloor(membersOf(atVersion('0.100.0-rc.1')), NPMJS).below).toEqual([
+      '@fx/alpha@0.100.0-rc.1',
+    ]);
+  });
+
+  it('refuses a version it cannot read rather than reading it as above the floor', () => {
+    const verdict = publicVersionFloor(membersOf(atVersion('next')), NPMJS);
+    expect(verdict.refusal).toContain('@fx/alpha');
+    expect(verdict.refusal).toContain('cannot be read');
+  });
+
+  it('judges only what would be published — a private member is not a publish', () => {
+    const verdict = publicVersionFloor(
+      membersOf({
+        ...atVersion('0.100.0'),
+        'packages/beta/package.json': '{ "name": "@fx/beta", "version": "0.1.0", "private": true }',
+      }),
+      NPMJS,
+    );
+    expect(verdict.refusal).toBe('');
+  });
+
+  it('leaves a registry that is not public npmjs to its own rules', () => {
+    const verdict = publicVersionFloor(
+      membersOf(atVersion('0.17.0')),
+      'https://gitlab.example.invalid/api/v4/packages/npm/',
+    );
+    expect(verdict.refusal).toBe('');
+  });
+
+  it('refuses a registry it cannot read as a URL', () => {
+    expect(publicVersionFloor(membersOf(atVersion('0.17.0')), 'not a url').refusal).toContain('not a URL');
   });
 });
