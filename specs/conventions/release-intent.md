@@ -54,13 +54,18 @@ named `@endora-commerce/api-client` as the breaking side until 2026-09-11, a pac
 deleted.)
 
 **One level is not yours to choose: `major` is refused while the package is in `0.x`** (D-225,
-owner ruling of 2026-09-11 — no package leaves `0.x` before the move to public npmjs). Write
+owner ruling of 2026-09-11, amended 2026-09-13 — no package leaves `0.x` until a release
+deliberately does, and the move to public npmjs is not that release: its first version is
+`0.100.0`, D-234). Write
 `minor`, and nothing is lost by it: `^0.7.0` is `>=0.7.0 <0.8.0`, so in a `0.x` series a minor
 already takes every caret dependent out of range, which is the whole consumer-facing meaning of a
 break, and *leaving the series* is the only thing `major` says that `minor` does not. The
 instrument is `check:release-intent`'s `major-bump-in-a-zero-series`, which is derived per package
 from that package's own manifest and has no override and no ledger — its one escape is deletion,
-by the merge request that performs the npmjs move. Its row in `check-inventory.md` says why it
+by the merge request that takes the estate to `1.0.0`. **It survives the npmjs move** (123 T7-D):
+this sentence read *"by the merge request that performs the npmjs move"* until D-225's amendment,
+and a `major` that slips through after publication is a `1.0.0` on npmjs, which cannot be taken
+back. Its row in `check-inventory.md` says why it
 had to be an instrument rather than a remembered rule: the failure is silent, because
 `changeset status` reports a `major` as ordinary intent, which it is.
 
