@@ -182,7 +182,7 @@ Two things about `.changeset/config.json` that are load-bearing and look like bo
   `privatePackages` to `false`, which makes every changesets command skip every private
   package and report a cheerful nothing — including the CI gate. (This read *"skip all five"*,
   the private population on the day it was measured; which members are private today is the
-  complement of the public list `check-release-intent.ts --print-publish-scope` prints.) `version: true` is what makes the tooling see
+  complement of the public list `--print-publish-scope` prints — see the last section.) `version: true` is what makes the tooling see
   them; `tag: false` keeps it from tagging things nobody publishes.
 - **`ignore` matches package *names*, not paths.** It is glob-matched against
   `backend` / `admin` / `storefront` / `docs`, the names in those manifests. The
@@ -207,8 +207,10 @@ published yet: every package is `"private": true` … `check:release-intent` goe
 **How many members publish, and which, is not written here** (D-100): this paragraph used to
 count them, and the count moves with every module package and every `"private"` flag. Ask the
 program that decides it — `pnpm --filter backend exec tsx scripts/check-release-intent.ts
---print-publish-scope` prints the scope on stdout and, on stderr, how many workspace members are
-public and which, the same derivation `publish.yml` uses to write its `.npmrc`. **No member is
+--print-publish-scope --publish-registry <registry>` prints the scope on stdout and, on stderr,
+how many workspace members are public and which, the same invocation `publish.yml` uses to write
+its `.npmrc`. Pass the registry: without one the target is not public npmjs and the unscoped
+`create-endora-commerce` makes it refuse with exit 2. **No member is
 private by ruling any more.** D-267 kept `create-endora-commerce` private while the configured target was
 GitLab's namespace-keyed endpoint, which cannot serve an unscoped name, and made the first npmjs
 publish refuse while it held. `specs/137-open-source-launch/` N3 flipped it and made the scope rules
