@@ -1,3 +1,12 @@
+# PROVENANCE PROBE — `specs/137-open-source-launch/` N2 (129 T051, 123 T6a-A).
+#
+# This file exists ONLY on the throwaway branch `release/version-0.0.0-provenance-probe`
+# and is never merged. It is `publish.yml` with the same environment, OIDC, token,
+# `.npmrc` and provenance guards, and with the product publish replaced by one
+# publish of `@endora-commerce/provenance-probe@0.0.0-probe.0` under the `probe`
+# dist-tag, followed by a check that npmjs recorded a provenance attestation.
+# It spends one throwaway name in the scope and nothing of the product.
+#
 # Publish the workspace packages, with npm provenance.
 #
 # `specs/129-github-canonical-migration/` T041, window §4.1. It replaces
@@ -26,6 +35,10 @@
 #   6. The inline `check:release-intent`, the last gate before a publish.
 #   7. `changeset publish` reporting "No unpublished projects to publish" —
 #      exit 2 rather than passing as a silent success.
+#   8. On public npmjs, the first public version (D-234): the check refuses a
+#      package below `0.100.0`, and `first-publish-preconditions.ts` refuses a
+#      set that does not carry one number or a package already published at or
+#      above the floor. Both retire after the first publish.
 #
 # A publish workflow that keeps the provenance and loses the guards is a worse
 # instrument than the one it replaces.
@@ -100,10 +113,6 @@ jobs:
           node-version: '22.18'
       - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
       - run: pnpm install --frozen-lockfile
-      # Every package resolves at its own `dist`, and `changeset publish` packs
-      # what is on disk: an unbuilt workspace publishes tarballs with no code in
-      # them.
-      - run: pnpm run build:packages
       - name: fail closed on a misconfigured publish
         run: |
           if [ -z "$ENDORA_NPM_REGISTRY" ]; then
@@ -128,12 +137,21 @@ jobs:
           # `exec tsx`, not `run check:release-intent --`: `pnpm run` prints its
           # `> backend@0.0.0 …` banner on stdout, which this command
           # substitution would capture into the `.npmrc` line.
-          scope=$(pnpm --filter backend exec tsx scripts/check-release-intent.ts --print-publish-scope)
+          #
+          # The registry is handed over because the answer depends on it
+          # (`specs/137-open-source-launch/` N3): public npmjs publishes the
+          # unscoped `create-endora-commerce` through the default registry line
+          # below, and any other registry refuses it here, before a publish.
+          scope=$(pnpm --filter backend exec tsx scripts/check-release-intent.ts --print-publish-scope --publish-registry "$ENDORA_NPM_REGISTRY")
           # The token is written as an environment **reference**, not as a
           # value: pnpm expands `${VAR}` in `.npmrc` in both the registry and
           # the auth position, so no file in this job holds the secret. It goes
           # to `$HOME`, not the checkout, so it cannot be committed or packed.
           printf '%s:registry=%s\n' "$scope" "$ENDORA_NPM_REGISTRY" > "$HOME/.npmrc"
+          # The default registry too, for the unscoped front door: named here
+          # rather than left to npm's built-in default, so an unscoped package
+          # goes where the environment says and nowhere else.
+          printf 'registry=%s\n' "$ENDORA_NPM_REGISTRY" >> "$HOME/.npmrc"
           # shellcheck disable=SC2016 # the single quotes keep the reference literal, as above
           printf '%s:_authToken=${ENDORA_NPM_TOKEN}\n' "${ENDORA_NPM_REGISTRY#*:}" >> "$HOME/.npmrc"
           printf 'provenance=true\n' >> "$HOME/.npmrc"
@@ -149,27 +167,23 @@ jobs:
             echo "publish:packages — npm reports provenance=$resolved. Neither NPM_CONFIG_PROVENANCE nor \$HOME/.npmrc reached it, so \`changeset publish\` would spend versions with no attestation and the failure would be silent." >&2
             exit 2
           fi
-      # A package declaring `SEE LICENSE IN` states terms of its own and belongs
-      # on the private registry; on npmjs a version is permanent and readable by
-      # anyone. The registry is handed over rather than assumed, because this job
-      # publishes to whichever one the environment names, and the private
-      # registry is answered yes (`specs/136-open-source-publication/` FR-011).
-      # It also refuses npmjs while a member is private under D-267's exemption.
-      - run: pnpm --filter backend exec tsx scripts/check-release-intent.ts --publish-registry "$ENDORA_NPM_REGISTRY"
-      # The last gate before a publish. `quality` does not run on the dispatched
-      # ref unless it happens to be `master`, so without this line the packages
-      # would be published having been judged only by the pull request that
-      # wrote them.
-      - run: pnpm --filter backend run check:release-intent
-      - name: changeset publish
+      - name: publish the probe, and nothing else
+        working-directory: packages/provenance-probe
+        # The same route `changeset publish` takes — `pnpm publish`, which
+        # delegates to `npm publish` — so the probe measures whether the
+        # provenance configuration survives that delegation.
+        run: pnpm publish --no-git-checks --access public --tag probe
+      - name: the registry recorded a provenance attestation
         run: |
-          status=0
-          pnpm exec changeset publish > changeset-publish.log 2>&1 || status=$?
-          cat changeset-publish.log
-          if [ "$status" -ne 0 ]; then exit "$status"; fi
-          # `changeset publish` exits 0 when it has nothing to publish, which is
-          # byte-identical to a successful publish.
-          if grep -q 'No unpublished projects to publish' changeset-publish.log; then
-            echo "publish:packages — this run consumed changesets and published nothing. \`changeset publish\` reports a plan of zero releases and exits 0, which is byte-identical to a successful publish. Check that the versions moved (\`release:changeset\` asks that question) and that \`.changeset/config.json\` still sees the packages." >&2
-            exit 2
+          sleep 20
+          npm view @endora-commerce/provenance-probe@0.0.0-probe.0 dist.attestations --json --registry "$ENDORA_NPM_REGISTRY" | tee attestations.json
+          if ! grep -q 'slsa.dev/provenance' attestations.json; then
+            echo "probe — the package published but npmjs reports no SLSA provenance attestation for it." >&2
+            exit 1
           fi
+      - name: deprecate the probe version (it is not for use)
+        # After the attestation is read, so the probe's verdict is already in.
+        # A failure here does not change that verdict: it is reported, and the
+        # owner deprecates it from their own login instead.
+        continue-on-error: true
+        run: npm deprecate @endora-commerce/provenance-probe@0.0.0-probe.0 "Provenance probe for the Endora Commerce publish workflow (specs/137-open-source-launch/ N2). Not a product package; do not use." --registry "$ENDORA_NPM_REGISTRY"

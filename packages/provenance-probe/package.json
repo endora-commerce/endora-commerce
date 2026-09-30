@@ -1,0 +1,17 @@
+{
+  "name": "@endora-commerce/provenance-probe",
+  "version": "0.0.0-probe.0",
+  "description": "Throwaway provenance probe for the Endora Commerce publish workflow (specs/137-open-source-launch/ N2). Not a product package; it will be unpublished.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/endora-commerce/endora-commerce.git",
+    "directory": "packages/provenance-probe"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "index.js"
+  ]
+}

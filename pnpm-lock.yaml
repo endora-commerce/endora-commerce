@@ -3770,6 +3770,8 @@ importers:
         specifier: ^4.2.0
         version: 4.3.6
 
+  packages/provenance-probe: {}
+
   packages/test-kit:
     devDependencies:
       '@endora-commerce/contracts':
