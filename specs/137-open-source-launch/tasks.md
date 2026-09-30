@@ -125,8 +125,13 @@ Pull requests here merged with no branch protection behind them: the owner merge
   pull request as the job[^t042b].
 - [ ] **N2 = T051** (D prepares, O dispatches) The provenance probe on the public repository. A
   throwaway rehearsal of `publish.yml`; it leaves nothing in the tree. Needs F3[^t051].
-- [ ] **N3** (D) The pull request that takes `create-endora-commerce` out of `private` and makes
+- [x] **N3** (D) The pull request that takes `create-endora-commerce` out of `private` and makes
   `check:release-intent --publish-registry` accept an unscoped name on the npmjs target[^d267].
+  The scope rules take a target: the default mode judges public npmjs, which serves an unscoped
+  name, so the D-267 exemption computes to nothing; a registry that is not public npmjs refuses an
+  unscoped member; `publish.yml` hands its registry to `--print-publish-scope` and names the
+  default registry for the unscoped front door. **Landed ahead of N2**: nothing it changes
+  publishes, and N4 still waits on N2.
 - [ ] **N4 = T052** (D prepares, O dispatches and approves `npm-publish`) `0.100.0` with provenance,
   through `.github/workflows/publish.yml`. **Do not skip the fail-closed dry step**: it is the only
   thing between a misconfiguration and a permanently spent version. Precondition: N1, N2, N3, F3,

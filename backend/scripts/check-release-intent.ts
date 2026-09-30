@@ -48,8 +48,9 @@
  *   * `unpublished-package` — a versionable member that **is**
  *     `"private": true`. The third spelling of one question, and the direction
  *     the question now has a subject in — see *The publication set* below.
- *     One derived exemption (D-267), printed as `exempt-private=`: see *The
- *     exemption, and where it expires* below.
+ *     One derived exemption (D-267), printed as `exempt-private=`, which
+ *     computes to zero since N3: see *The exemption, and where it expired*
+ *     below.
  *   * `incomplete-public-package` — a public versionable member that declares
  *     no `repository` or no `publishConfig.access`. Fitness to be published,
  *     which is the question `publishable-package` was standing in for.
@@ -73,9 +74,10 @@
  *     `--access` entirely, so the rehearsal exercises no access decision and
  *     the value has to be judged statically (feature 104, FR-012).
  *   * `unresolvable-scope` — a public versionable member whose scope the
- *     configured registry cannot serve (feature 104, FR-013). See *The scope*
- *     below: the failure is **silent**, which is why it is a static finding
- *     rather than something a failing install would reveal.
+ *     target cannot serve (feature 104, FR-013), judged against a
+ *     {@link PublishTarget}. See *The scope* below: the failure is **silent**,
+ *     which is why it is a static finding rather than something a failing
+ *     install would reveal.
  *   * `tag-policy-unstated` — the total replacement of
  *     `tag-without-publication`. See *Tags* below.
  *   * `ignored-family-member` — an `ignore` pattern matching a package that a
@@ -300,13 +302,13 @@
  * something is its own decision made in a merge request that says so — exactly
  * as publishing something used to be.
  *
- * ## The exemption, and where it expires (D-267)
+ * ## The exemption, and where it expired (D-267)
  *
  * `create-endora-commerce` is unscoped and goes to public npmjs only, so while
- * the configured target is GitLab's namespace-keyed endpoint it cannot be green
- * as either state: public, it is `unresolvable-scope` and {@link publishScope}
- * refuses it; private, it is `unpublished-package`. The ruling keeps it private
- * and makes the exemption **derived** rather than declared — a private
+ * the configured target was GitLab's namespace-keyed endpoint it could not be
+ * green as either state: public, it was `unresolvable-scope` and
+ * {@link publishScope} refused it; private, it was `unpublished-package`. The
+ * ruling kept it private and made the exemption **derived** rather than declared — a private
  * versionable member is not reported when {@link unservableScope} answers a
  * sentence for its name **and** no workspace member names it in any dependency
  * field, so the harm the finding is about (a dependent pinning a version the
@@ -319,8 +321,13 @@
  * Its expiry is a refusal where its reason expires: `--publish-registry` refuses
  * public npmjs while any member is exempted ({@link publicRegistryExemptions}),
  * so the first npmjs publish cannot go out with the front door left private.
- * The merge request that satisfies it flips `private` and makes the scope rules
- * target-aware; that design is its own.
+ * The merge request that satisfied it (`specs/137-open-source-launch/` N3)
+ * flipped `private` and made the scope rules target-aware: they take a
+ * {@link PublishTarget}, the default mode judges {@link CORE_PUBLISH_TARGET}
+ * (public npmjs, which serves an unscoped name), and so the exemption computes
+ * to nothing there. It is kept rather than deleted because it still answers
+ * for the namespace-keyed target, and the npmjs refusal still stands for a
+ * member made private again for the reason it was once exempted.
  *
  * ## The scope, and the failure that is silent
  *
@@ -338,6 +345,15 @@
  * top-level namespace path, and every public package must share **one** scope —
  * the client holds one `.npmrc` line naming one scope (R3), so a second scope is
  * a package that silently forwards to a registry that does not have it.
+ *
+ * **Except an unscoped name on public npmjs** (N3): npmjs serves it from the
+ * default registry, which a consumer needs no line for, so there it is neither
+ * unresolvable nor a second scope. A scoped name is judged as above on both
+ * targets, because a consumer that maps the scope to the private registry
+ * reaches every free package through that endpoint's forwarding
+ * (`specs/136-open-source-publication/` FR-030). A publish to a registry that is
+ * not public npmjs is judged in `--publish-registry`, where an unscoped member
+ * is refused ({@link publicRegistryScopes}).
  *
  * ## Tags — and why the old rule went quiet through its own repair
  *
@@ -468,11 +484,14 @@
  * {@link publicRegistryLicence} answers for the pair
  * (`specs/136-open-source-publication/` FR-011). The same mode refuses public
  * npmjs while a member is exempted under D-267 ({@link publicRegistryExemptions}),
- * printing both refusals when both hold. Like the scope, a precondition of one
- * job rather than the check's verdict: no read-size line.
+ * and refuses a registry that cannot serve a member's name
+ * ({@link publicRegistryScopes}, N3), printing every refusal that holds. Like
+ * the scope, a precondition of one job rather than the check's verdict: no
+ * read-size line. `--print-publish-scope` takes the same flag, because the
+ * scope it prints depends on the target.
  *
  * Usage: `tsx scripts/check-release-intent.ts [--root <dir>] [--since <ref>]`
- *        `tsx scripts/check-release-intent.ts --print-publish-scope`
+ *        `tsx scripts/check-release-intent.ts --print-publish-scope [--publish-registry <url>]`
  *        `tsx scripts/check-release-intent.ts --publish-registry <url>`
  * Exit 0 = the flow can still go red; 1 = a finding; 2 = it did not read.
  */
@@ -1035,6 +1054,42 @@ export function scopeOf(name: string): string | null {
 }
 
 /**
+ * Which kind of registry a publish goes to — the one fact the scope rules
+ * depend on (`specs/137-open-source-launch/` N3, completing D-267 clause 3).
+ *
+ *   * `namespace-keyed` — GitLab's instance-level npm endpoint, which resolves a
+ *     package by turning its **scope** into a top-level namespace path, so an
+ *     unscoped name has nothing to resolve through.
+ *   * `public-npmjs` — `registry.npmjs.org`, which serves an unscoped name from
+ *     its default registry. A **scoped** name is still judged as a namespace
+ *     path against this target, because a consumer whose `.npmrc` maps the
+ *     scope to the private registry reaches every free package through that
+ *     endpoint's forwarding (`specs/136-open-source-publication/` FR-030): a
+ *     scope it cannot resolve is the same silence on either target.
+ */
+export type PublishTarget = 'public-npmjs' | 'namespace-keyed';
+
+/**
+ * The target the default mode judges the tree against: public npmjs, where the
+ * core's packages are published (`specs/136-open-source-publication/` §5.3;
+ * `specs/137-open-source-launch/` FR-005 and the rule that no free package is
+ * released to any other registry). The publish job does not rely on it — it
+ * hands its registry over with `--publish-registry`, and a registry that is not
+ * public npmjs is judged as namespace-keyed there.
+ */
+export const CORE_PUBLISH_TARGET: PublishTarget = 'public-npmjs';
+
+/**
+ * The {@link PublishTarget} a registry URL names, or `null` when the value is
+ * not a URL — which every caller refuses rather than guessing at.
+ */
+export function publishTargetOf(registry: string): PublishTarget | null {
+  const publicRegistry = isPublicNpmRegistry(registry);
+  if (publicRegistry === null) return null;
+  return publicRegistry ? 'public-npmjs' : 'namespace-keyed';
+}
+
+/**
  * The one scope `publish:packages` writes an `.npmrc` line for, or why it
  * cannot be derived.
  *
@@ -1078,7 +1133,13 @@ export interface PublishScope {
  * the two cannot silently disagree: `ignored-family-member` and
  * `unignored-application` are the findings this check reconciles them with.
  */
-export function publishScope(members: readonly ClassifiedMember[]): PublishScope {
+export function publishScope(
+  members: readonly ClassifiedMember[],
+  // Fail closed: a caller that names no target is judged as if the registry
+  // were namespace-keyed, which refuses an unscoped member rather than letting
+  // it fall through to whatever the client's default registry is.
+  target: PublishTarget = 'namespace-keyed',
+): PublishScope {
   if (members.length === 0) {
     return {
       scope: null,
@@ -1106,8 +1167,10 @@ export function publishScope(members: readonly ClassifiedMember[]): PublishScope
     };
   }
 
+  // On public npmjs an unscoped name is published through the default registry
+  // line the job writes beside the scope's, so it needs no scope of its own.
   const unscoped = publishable.filter((name) => scopeOf(name) === null);
-  if (unscoped.length > 0) {
+  if (target === 'namespace-keyed' && unscoped.length > 0) {
     return {
       scope: null,
       packages: publishable,
@@ -1119,7 +1182,9 @@ export function publishScope(members: readonly ClassifiedMember[]): PublishScope
     };
   }
 
-  const scopes = [...new Set(publishable.map((name) => scopeOf(name)!))].sort();
+  const scopes = [
+    ...new Set(publishable.map((name) => scopeOf(name)).filter((scope) => scope !== null)),
+  ].sort();
   if (scopes.length !== 1) {
     return {
       scope: null,
@@ -1242,12 +1307,13 @@ export interface PublicationExemption {
  */
 export function publicationExemptions(
   members: readonly ClassifiedMember[],
+  target: PublishTarget,
 ): readonly PublicationExemption[] {
   const depended = new Set(members.flatMap((member) => member.dependsOn));
   const exempt: PublicationExemption[] = [];
   for (const member of members) {
     if (!member.family || !member.isPrivate || depended.has(member.name)) continue;
-    const reason = unservableScope(member.name);
+    const reason = unservableScope(member.name, target);
     if (reason === null) continue;
     exempt.push({ name: member.name, dir: member.dir, reason });
   }
@@ -1306,7 +1372,11 @@ export function publicRegistryExemptions(
   members: readonly ClassifiedMember[],
   registry: string,
 ): PublicRegistryExemptions {
-  const exempt = publicationExemptions(members).map((entry) => entry.name);
+  // The exemption's own meaning: private *because* the namespace-keyed
+  // endpoint cannot serve the name. The default mode no longer exempts anything
+  // (it judges public npmjs); this keeps the refusal standing for a member that
+  // is made private again for that reason.
+  const exempt = publicationExemptions(members, 'namespace-keyed').map((entry) => entry.name);
   const publicRegistry = isPublicNpmRegistry(registry);
   if (publicRegistry === null) {
     return {
@@ -1332,6 +1402,58 @@ export function publicRegistryExemptions(
   };
 }
 
+/** What {@link publicRegistryScopes} decided about one publish target. */
+export interface PublicRegistryScopes {
+  /** The target the registry names, or `null` when it is not a URL. */
+  readonly target: PublishTarget | null;
+  /** The public versionable members the target cannot serve, sorted. */
+  readonly unservable: readonly string[];
+  /** Why the publish is refused, or `''` when it is not. */
+  readonly refusal: string;
+}
+
+/**
+ * Whether every package this checkout would publish can be served by the
+ * registry the publish job names (`specs/137-open-source-launch/` N3).
+ *
+ * The default mode judges the core's own target, public npmjs. A publish to a
+ * registry that is **not** public npmjs is judged here, against the
+ * namespace-keyed endpoint, because that is the case in which an unscoped
+ * member would silently fall through to npm's default registry — the one
+ * direction nobody can take back. The population is {@link publishScope}'s.
+ */
+export function publicRegistryScopes(
+  members: readonly ClassifiedMember[],
+  registry: string,
+): PublicRegistryScopes {
+  const target = publishTargetOf(registry);
+  if (target === null) {
+    return {
+      target,
+      unservable: [],
+      refusal:
+        `the registry \`${registry}\` is not a URL, so which names it can serve cannot be ` +
+        'told, and an unscoped package could fall through to whatever the client default ' +
+        'registry is',
+    };
+  }
+  const unservable = members
+    .filter((member) => member.family && !member.isPrivate)
+    .filter((member) => unservableScope(member.name, target) !== null)
+    .map((member) => member.name)
+    .sort();
+  if (unservable.length === 0) return { target, unservable, refusal: '' };
+  return {
+    target,
+    unservable,
+    refusal:
+      `${unservable.join(', ')} cannot be served by \`${registry}\`: ` +
+      unservable.map((name) => `${name} ${unservableScope(name, target)!}`).join(' ') +
+      ' Publishing anyway sends an unscoped package to npm\'s default registry, where a ' +
+      'version is permanent',
+  };
+}
+
 /**
  * Why a GitLab instance-level npm endpoint cannot serve this package, or `null`.
  *
@@ -1339,9 +1461,12 @@ export function publicRegistryExemptions(
  * nothing in common for the reader: no scope at all, a scope that is not a legal
  * namespace path, and a scope at a path GitLab reserves for itself.
  */
-export function unservableScope(name: string): string | null {
+export function unservableScope(name: string, target: PublishTarget): string | null {
   const scope = scopeOf(name);
   if (scope === null) {
+    // Public npmjs serves an unscoped name from its default registry; the
+    // namespace-keyed endpoint has no scope to resolve it through.
+    if (target === 'public-npmjs') return null;
     return (
       'is unscoped, so there is no scope for the endpoint to turn into a namespace path — ' +
       '`Packages::Npm.scope_of` answers nothing and the lookup never happens.'
@@ -1374,7 +1499,10 @@ export function unservableScope(name: string): string | null {
  * Pure over the record {@link readReleaseIntent} produces, so the CLI and a red
  * proof run the same predicates over the same shape.
  */
-export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly ReleaseIntentFinding[] {
+export function analyzeReleaseIntent(
+  inputs: ReleaseIntentInputs,
+  target: PublishTarget = CORE_PUBLISH_TARGET,
+): readonly ReleaseIntentFinding[] {
   const findings: ReleaseIntentFinding[] = [];
   const ignorePatterns = stringList(inputs.config['ignore']);
   const isIgnored = (name: string): boolean =>
@@ -1415,7 +1543,7 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
   // D-267 clause 2: a private member the configured target cannot serve and no
   // member depends on is exempt — derived, printed by name and counted by the
   // CLI, and refused at a public-npmjs publish (`publicationExemptions`).
-  const exempted = new Set(publicationExemptions(inputs.members).map((entry) => entry.name));
+  const exempted = new Set(publicationExemptions(inputs.members, target).map((entry) => entry.name));
   for (const member of versionable.filter(
     (candidate) => candidate.isPrivate && !exempted.has(candidate.name),
   )) {
@@ -1537,7 +1665,7 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
 
     // 2d — a scope the registry cannot serve. Silent, by R2.1: the request is
     // forwarded to npmjs and the client is told the package does not exist.
-    const problem = unservableScope(member.name);
+    const problem = unservableScope(member.name, target);
     if (problem !== null) {
       findings.push({
         kind: 'unresolvable-scope',
@@ -1554,7 +1682,16 @@ export function analyzeReleaseIntent(inputs: ReleaseIntentInputs): readonly Rele
 
   // 2e — one client `.npmrc`, one scope (R3). A second scope resolves through
   // whatever the client's default registry is, which is the same silence.
-  const scopes = [...new Set(publicVersionable.map((member) => scopeOf(member.name)))].sort();
+  //
+  // On public npmjs an unscoped member resolves through the default registry and
+  // needs no line, so it is not counted as a scope there.
+  const scopes = [
+    ...new Set(
+      publicVersionable
+        .map((member) => scopeOf(member.name))
+        .filter((scope) => scope !== null || target === 'namespace-keyed'),
+    ),
+  ].sort();
   if (scopes.length > 1) {
     findings.push({
       kind: 'unresolvable-scope',
@@ -2950,14 +3087,14 @@ function changesetStatusRunner(repoRoot: string): ChangesetStatusRunner {
  * printed here: this mode reports no verdict, and the check's ordinary mode is
  * what `check-read-size.test.ts` spawns.
  */
-function reportPublishScope(repoRoot: string): number {
+function reportPublishScope(repoRoot: string, target: PublishTarget | undefined): number {
   const inputs = readReleaseIntent(repoRoot, nodeWorkspaceFs(), listDirectoryFiles);
   if ('reason' in inputs) {
     console.error(`${PREFIX} ${inputs.reason}; refusing to name a scope it did not derive.`);
     return 2;
   }
 
-  const resolved = publishScope(inputs.members);
+  const resolved = publishScope(inputs.members, target);
   if (resolved.scope === null) {
     console.error(`${PREFIX} --print-publish-scope: ${resolved.refusal}.`);
     return 2;
@@ -2965,6 +3102,7 @@ function reportPublishScope(repoRoot: string): number {
 
   console.error(
     `${PREFIX} --print-publish-scope: @${resolved.scope} ` +
+      `(target ${target ?? 'unnamed, judged as namespace-keyed'}) ` +
       `(${String(resolved.packages.length)} public of ${String(inputs.members.length)} ` +
       `workspace members: ${resolved.packages.join(', ')})`,
   );
@@ -2995,7 +3133,11 @@ function reportPublishRegistry(repoRoot: string, registry: string): number {
   // both refusals are printed when both hold, so one repair does not uncover
   // the other a run later.
   const exemptions = publicRegistryExemptions(inputs.members, registry);
-  const refusals = [verdict.refusal, exemptions.refusal].filter((refusal) => refusal !== '');
+  // N3: a registry that is not public npmjs cannot serve an unscoped member.
+  const scopes = publicRegistryScopes(inputs.members, registry);
+  const refusals = [verdict.refusal, exemptions.refusal, scopes.refusal].filter(
+    (refusal) => refusal !== '',
+  );
   if (refusals.length > 0) {
     for (const refusal of refusals) console.error(`${PREFIX} --publish-registry: ${refusal}.`);
     return 1;
@@ -3075,8 +3217,27 @@ function main(): void {
       ? process.argv[rootFlag + 1]!
       : fileURLToPath(new URL('../../', import.meta.url)).replace(/\/$/, '');
 
+  const registryFlag = process.argv.indexOf('--publish-registry');
+  const registryValue = registryFlag >= 0 ? process.argv[registryFlag + 1] : undefined;
+  if (registryFlag >= 0 && (registryValue === undefined || registryValue.startsWith('--'))) {
+    console.error(`${PREFIX} \`--publish-registry\` needs a URL; refusing to judge a publish it cannot name.`);
+    process.exit(2);
+  }
+
   if (process.argv.includes('--print-publish-scope')) {
-    const code = reportPublishScope(repoRoot);
+    // The scope depends on the target (N3): public npmjs publishes an unscoped
+    // member through the default registry, a namespace-keyed endpoint cannot.
+    // With no registry handed over, `publishScope` fails closed.
+    let target: PublishTarget | undefined;
+    if (registryValue !== undefined) {
+      const named = publishTargetOf(registryValue);
+      if (named === null) {
+        console.error(`${PREFIX} --print-publish-scope: the registry \`${registryValue}\` is not a URL; refusing to name a scope for it.`);
+        process.exit(2);
+      }
+      target = named;
+    }
+    const code = reportPublishScope(repoRoot, target);
     // Not `process.exit(0)`: this mode's stdout is read through a pipe, and
     // exiting while a pipe write is still buffered truncates it. A refusal has
     // nothing on stdout to lose.
@@ -3084,14 +3245,8 @@ function main(): void {
     return;
   }
 
-  const registryFlag = process.argv.indexOf('--publish-registry');
-  if (registryFlag >= 0) {
-    const registry = process.argv[registryFlag + 1];
-    if (registry === undefined || registry.startsWith('--')) {
-      console.error(`${PREFIX} \`--publish-registry\` needs a URL; refusing to judge a publish it cannot name.`);
-      process.exit(2);
-    }
-    process.exit(reportPublishRegistry(repoRoot, registry));
+  if (registryValue !== undefined) {
+    process.exit(reportPublishRegistry(repoRoot, registryValue));
   }
 
   const sinceFlag = process.argv.indexOf('--since');
@@ -3151,7 +3306,7 @@ function main(): void {
       `${perClassToken(merged)} cleared=${clearedCount} ` +
       `violations=${result.findings.length}`,
   );
-  console.log(publicationExemptionLine(publicationExemptions(result.inputs.members)));
+  console.log(publicationExemptionLine(publicationExemptions(result.inputs.members, CORE_PUBLISH_TARGET)));
 
   if (result.findings.length > 0) {
     console.error(
