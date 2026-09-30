@@ -89,19 +89,57 @@ switch, and the Languages screen shows that language as default.
 
 ### B1. Generate every secret freshly for this deployment
 
-**Why.** `deploy/.env.prod.example` ships placeholders (`change-me-hex-32`,
-`change-me-base64-32`). They are syntactically valid, so nothing refuses to boot: a deployment
-that keeps them runs with a publicly-known session-signing key and a publicly-known
-settings-encryption key. Only two things are refused at boot: a missing
-`SESSION_COOKIE_SECRET` (`backend/src/index.ts`) and a missing public API origin (B2). A
-placeholder secret is not — it is syntactically a secret.
+**Why.** Two example files carry the backend's secrets: `deploy/.env.prod.example`, for this
+repository's reference deployment, and `deploy/.env.example`, which `endora new instance`
+renders into a scaffolded instance (`packages/cli/src/new-instance/deploy.ts`). Neither holds a
+usable secret, and they fail in two different ways:
 
-**Do (engineer).** Generate each of `SESSION_COOKIE_SECRET`, `ASSETS_LIBRARY_HMAC_KEY`
-(`openssl rand -hex 32`), `SETTINGS_SECRET_ENCRYPTION_KEY`, `MFA_SECRET_ENCRYPTION_KEY`,
-`MEILI_MASTER_KEY` (`openssl rand -base64 32`) and a strong `POSTGRES_PASSWORD`. `chmod 600`
-the file.
+- **Signing secrets and passwords carry a placeholder** (`change-me-hex-32`,
+  `change-me-base64-32`, `change-me-strong-password` in the first file,
+  `change-me-generate-one` in the second). Nothing checks their content, so a deployment that
+  keeps them boots and signs session cookies and asset links with a key anyone can read in
+  this repository.
+- **Three lines are left empty on purpose**: `NEWSLETTER_TOKEN_SECRET`,
+  `SETTINGS_SECRET_ENCRYPTION_KEY` and `MFA_SECRET_ENCRYPTION_KEY`. The two encryption keys
+  are AES-256 keys and must base64-decode to exactly 32 bytes, which no placeholder does. Empty
+  is a state the backend handles and reports; it is still not a finished configuration.
 
-**Verify.** `grep change-me /opt/b2b/.env` returns nothing.
+Only two things stop the backend at boot whatever the rest says: an empty
+`SESSION_COOKIE_SECRET` (`backend/src/index.ts`, `backend/src/worker.ts`) and a missing public
+API origin (B2). A malformed `MFA_SECRET_ENCRYPTION_KEY` is the one secret that also crashes
+the boot, and only when the `mfa` module is installed.
+
+**Do (engineer).** Generate each secret with the form in the table, put it in the deployment
+`.env`, and `chmod 600` the file. Use `-hex` or `-base64` as the table says: the two
+encryption keys are base64-decoded, so a hex string fails there (64 hex characters decode to
+48 bytes, not 32).
+
+| Variable | Generate with | Left empty | Wrong or placeholder |
+| --- | --- | --- | --- |
+| `SESSION_COOKIE_SECRET` | `openssl rand -hex 32` | The backend and the worker exit at boot with `SESSION_COOKIE_SECRET must be set in production`. | Any non-empty string is accepted, so a placeholder boots and signs cookies with a public key. |
+| `NEWSLETTER_TOKEN_SECRET` | `openssl rand -base64 32` | Works. Newsletter confirmation and unsubscribe links are signed with `SESSION_COOKIE_SECRET` instead (`packages/platform/src/composition/newsletter-token-secret.ts`), so rotating the session key invalidates every link still waiting in an inbox. Set it so the two can rotate independently. | Any non-empty string is accepted as the signing key. |
+| `SETTINGS_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (must decode to 32 bytes) | The backend boots and logs `[settings] SETTINGS_SECRET_ENCRYPTION_KEY is not set`. Secret settings and secret credential fields (for example an API token a module stores) cannot be saved or read until the key is set and the backend restarted. | Not checked at boot. The backend starts **without a warning**, then every save of a secret setting fails with `SETTINGS_SECRET_ENCRYPTION_KEY is misconfigured — it must decode to 32 bytes (got N)`, raised by the `credentials` module. |
+| `MFA_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (must decode to 32 bytes) | The `mfa` module serves its screens and refuses every enrolment, so no administrator can turn on a second factor (D4). | With `mfa` installed, the backend does not boot: `MFA_SECRET_ENCRYPTION_KEY must decode to 32 bytes (got N)`. |
+| `ASSETS_LIBRARY_HMAC_KEY` | `openssl rand -hex 32` | The backend boots. Every request that signs or checks a private asset link fails with `ASSETS_LIBRARY_HMAC_KEY is unset`. | A value that is not hex is used as raw bytes, so a placeholder works and signs asset links with a public key. |
+| `MEILI_MASTER_KEY` | `openssl rand -base64 32` | `deploy/compose.prod.yml` runs Meilisearch with `MEILI_ENV: production`, which refuses to start without a master key. The backend reads the same value as `MEILISEARCH_API_KEY`. | Meilisearch accepts any key of at least 16 bytes, so a placeholder gives a publicly known key to the search engine. |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 32` (hex, not base64: the value goes unescaped into `DATABASE_URL`, where a `/` or `+` breaks the URL) | `deploy/compose.prod.yml` falls back to `b2b` (`${POSTGRES_PASSWORD:-b2b}`). | A placeholder works and is publicly known. |
+| `REVALIDATE_SECRET` | `openssl rand -hex 32` | See B2. | See B2. |
+
+**Generate the encryption keys once and keep them.** Replacing a working
+`SETTINGS_SECRET_ENCRYPTION_KEY` or `MFA_SECRET_ENCRYPTION_KEY` does not re-encrypt anything:
+secrets already stored under the old key can no longer be decrypted. The same applies to
+`POSTGRES_PASSWORD`: the database image reads it only when it first initialises its volume, so
+changing it later means changing the role's password in PostgreSQL as well.
+
+**Verify.** `grep change-me /opt/b2b/.env` returns nothing, and none of the three lines left
+empty in the example is still empty. Both encryption keys decode to 32 bytes:
+
+```bash
+grep -E '^(SETTINGS|MFA)_SECRET_ENCRYPTION_KEY=' /opt/b2b/.env | cut -d= -f2- | while read -r key; do printf '%s' "$key" | base64 -d | wc -c; done
+```
+
+That command prints `32` twice. After a restart, the backend log has no
+`SETTINGS_SECRET_ENCRYPTION_KEY is not set` warning.
 
 ### B2. Set `REVALIDATE_SECRET`, and know why the backend refuses to boot without a public origin
 
