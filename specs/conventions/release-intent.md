@@ -116,6 +116,21 @@ or both. A branch that deleted changeset files and produced neither is refused, 
 inverted question in its new clothes — and an added changeset, empty or not, reclassifies
 nothing.
 
+**The first public version is a floor, and two instruments hold it until it is spent** (D-234;
+123 §6a; `specs/137-open-source-launch/` N4). The first npmjs publish is `max(0.100.0, the highest
+version any publishable package has reached)`, and every publishable package carries that one
+number on the day. It is reached by a **hand-set** of `version` in every publishable manifest on a
+`release/version-<n>` branch, never by `changeset version`, which bumps minor by minor and cannot
+get there; the pending changesets are not consumed by that branch but afterwards, as an ordinary
+release. `check:release-intent --publish-registry <npmjs>` refuses any publishable package below
+`FIRST_PUBLIC_VERSION` (`public-version-below-the-declared-floor`, a refusal of that mode rather
+than a default-mode finding, because every package is below the floor until the release branch sets
+it), and `backend/scripts/first-publish-preconditions.ts`, run by `publish.yml` before `changeset
+publish`, asks npmjs whether it really is the first publish: one number across the set, and no
+package already holding a version at or above the floor other than that number (which is a resumed
+run). Both are **deleted by the merge request after the first publish**; left in place, the second
+refuses the next release, which is how it cannot outlive its subject.
+
 **Tags: `privatePackages.tag` is `false`.** It is consulted only where changesets asks *which
 private packages to tag* (`getUntaggedPrivatePackages`). Between the publication ruling of
 2026-09-05 and D-267 there were none and the field decided nothing; from D-267 until
