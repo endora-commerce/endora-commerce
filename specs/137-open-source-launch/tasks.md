@@ -50,9 +50,11 @@ Pull requests here merged with no branch protection behind them: the owner merge
 - [x] **Unnumbered** (D, then O) Two further defects fixed in pull request #9: the vendored ESLint
   configuration was written to the storefront's own `eslint.config.js` path and replaced it; and an
   empty `NEWSLETTER_TOKEN_SECRET` line crashed the backend at boot.
-- [ ] **S1** (D, then O) The last scaffold defect: the scaffold's pin on
-  `@endora-commerce/contracts`. **Before N4** if it is on the path a stranger's first install
-  takes[^cli].
+- [x] **S1** — **not a defect** (exact pin by design; owner, 2026-09-30): the scaffold pins
+  `@endora-commerce/contracts` to an exact version. Every release publishes all 71 packages in
+  lockstep at one number, so the exact pin always names a version that exists beside the rest of
+  the set, and a caret range could install a second copy of `contracts` next to the one the
+  platform packages pin exactly. No fix, and no longer a precondition of N4[^cli].
 - [x] **P7** (O) The repository variables `.github/workflows/demo.yml` reads — `API_DOMAIN`,
   `STOREFRONT_DOMAIN`, `SALES_CHANNEL_CODE`, `DEFAULT_LOCALE` — set; verified 2026-09-30 by
   reading `actions/variables`[^p7].
@@ -125,12 +127,17 @@ Pull requests here merged with no branch protection behind them: the owner merge
   pull request as the job[^t042b].
 - [ ] **N2 = T051** (D prepares, O dispatches) The provenance probe on the public repository. A
   throwaway rehearsal of `publish.yml`; it leaves nothing in the tree. Needs F3[^t051].
-- [ ] **N3** (D) The pull request that takes `create-endora-commerce` out of `private` and makes
+- [x] **N3** (D) The pull request that takes `create-endora-commerce` out of `private` and makes
   `check:release-intent --publish-registry` accept an unscoped name on the npmjs target[^d267].
+  The scope rules take a target: the default mode judges public npmjs, which serves an unscoped
+  name, so the D-267 exemption computes to nothing; a registry that is not public npmjs refuses an
+  unscoped member; `publish.yml` hands its registry to `--print-publish-scope` and names the
+  default registry for the unscoped front door. **Landed ahead of N2**: nothing it changes
+  publishes, and N4 still waits on N2.
 - [ ] **N4 = T052** (D prepares, O dispatches and approves `npm-publish`) `0.100.0` with provenance,
   through `.github/workflows/publish.yml`. **Do not skip the fail-closed dry step**: it is the only
-  thing between a misconfiguration and a permanently spent version. Precondition: N1, N2, N3, F3,
-  and S1 if it is on the first-install path[^t052].
+  thing between a misconfiguration and a permanently spent version. Precondition: N1, N2, N3,
+  F3 (S1 was closed as by design on 2026-09-30)[^t052].
 - [ ] **N5** (O) Deprecate the `create-endora-commerce@0.0.1` placeholder; the other reserved
   names stay reserved[^d267].
 - [ ] **N6 = W5.5** (O dispatches) The first `public`-mode acceptance run against `0.100.0` on a
@@ -223,7 +230,7 @@ done: T031 T035 T032 T050 S2 S3 S5 S6 (S4 not a defect) P4 P6 P7 P9 F1 F2 F3 F4 
 open, in order:
   F6 (T047) · L1's documentation footer
   N1b build:docs (10-06) → N2 (T051) → N3 → N4 (T052) → N5 → N6 (W5.5) → N7 (W4.3/W4.4) → N8 (T060)
-  S1 on the first-install path → N4          T046b → N4 (in practice)
+  T046b → N4 (in practice)                   (S1 closed as by design, 2026-09-30)
   N4 → N11 (before npm ends stored-token publishing)
   T043 (10-13), T043p (10-20), T045 + T044 + W7.11 (10-27)          independent of Phase C
   W7.9 + first demo.yml build + host capacity confirmed → W7.10

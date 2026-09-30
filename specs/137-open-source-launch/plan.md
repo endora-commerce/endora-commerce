@@ -83,8 +83,9 @@ is a permanently spent version.
 
 ## Open questions
 
-- **[NEEDS CLARIFICATION]** Whether S1, the one scaffold defect still open, touches the path a
-  stranger's first install takes, and so must land before N4. Answered in its pull request.
+- *Answered 2026-09-30 (owner):* S1 is not a defect. The scaffold's exact pin on
+  `@endora-commerce/contracts` is by design — every release publishes all 71 packages in lockstep
+  at one number, and a caret could install two copies of `contracts` — so it does not gate N4.
 - *Answered 2026-09-30:* T050 landed before the flip (#8).
 - **[NEEDS CLARIFICATION]** Whether the reverse proxy on the demo's host reaches a stack through
   loopback binds, which is what makes W7.10's switch a proxy reload (tasks.md, Phase E). The owner

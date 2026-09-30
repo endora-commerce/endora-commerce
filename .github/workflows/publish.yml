@@ -128,12 +128,21 @@ jobs:
           # `exec tsx`, not `run check:release-intent --`: `pnpm run` prints its
           # `> backend@0.0.0 …` banner on stdout, which this command
           # substitution would capture into the `.npmrc` line.
-          scope=$(pnpm --filter backend exec tsx scripts/check-release-intent.ts --print-publish-scope)
+          #
+          # The registry is handed over because the answer depends on it
+          # (`specs/137-open-source-launch/` N3): public npmjs publishes the
+          # unscoped `create-endora-commerce` through the default registry line
+          # below, and any other registry refuses it here, before a publish.
+          scope=$(pnpm --filter backend exec tsx scripts/check-release-intent.ts --print-publish-scope --publish-registry "$ENDORA_NPM_REGISTRY")
           # The token is written as an environment **reference**, not as a
           # value: pnpm expands `${VAR}` in `.npmrc` in both the registry and
           # the auth position, so no file in this job holds the secret. It goes
           # to `$HOME`, not the checkout, so it cannot be committed or packed.
           printf '%s:registry=%s\n' "$scope" "$ENDORA_NPM_REGISTRY" > "$HOME/.npmrc"
+          # The default registry too, for the unscoped front door: named here
+          # rather than left to npm's built-in default, so an unscoped package
+          # goes where the environment says and nowhere else.
+          printf 'registry=%s\n' "$ENDORA_NPM_REGISTRY" >> "$HOME/.npmrc"
           # shellcheck disable=SC2016 # the single quotes keep the reference literal, as above
           printf '%s:_authToken=${ENDORA_NPM_TOKEN}\n' "${ENDORA_NPM_REGISTRY#*:}" >> "$HOME/.npmrc"
           printf 'provenance=true\n' >> "$HOME/.npmrc"
@@ -154,7 +163,9 @@ jobs:
       # anyone. The registry is handed over rather than assumed, because this job
       # publishes to whichever one the environment names, and the private
       # registry is answered yes (`specs/136-open-source-publication/` FR-011).
-      # It also refuses npmjs while a member is private under D-267's exemption.
+      # It also refuses npmjs while a member is private under D-267's exemption,
+      # and a registry that cannot serve a member's name — an unscoped one on
+      # anything but public npmjs (`specs/137-open-source-launch/` N3).
       - run: pnpm --filter backend exec tsx scripts/check-release-intent.ts --publish-registry "$ENDORA_NPM_REGISTRY"
       # The last gate before a publish. `quality` does not run on the dispatched
       # ref unless it happens to be `master`, so without this line the packages
