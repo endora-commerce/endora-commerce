@@ -21,7 +21,10 @@ Feature artifacts under `specs/NNN-slug/`, following `.specify/templates/` and t
 - `research.md`, `data-model.md`, `contracts/` — decisions, with the alternatives that were
   rejected and why.
 
-Number a new spec directory sequentially after the highest existing `specs/NNN-*`. Do **not**
+Number a new spec directory — and a new `D-nnn` ruling — above both the highest existing one
+and the floor recorded in `specs/pre-migration-history/README.md`: the numbers below that floor
+belong to withheld pre-migration records, so the tree alone would re-use one.
+`.specify/scripts/bash/create-new-feature.sh` applies the feature floor for you. Do **not**
 assign migration numbers — migrations are timestamped and scaffolded by
 `pnpm --filter backend run migration:new` (see `AGENTS.md` § Migrations); plan them by module
 ownership and dependency, not by number.
