@@ -1028,7 +1028,8 @@ describe('check-release-intent — groups and written intent', () => {
 });
 
 /**
- * D-225, FR-017. No package leaves `0.x` before the move to public npmjs, and
+ * D-225, FR-017. No package leaves `0.x` until a release deliberately does so —
+ * the npmjs move included, since D-225's amendment of 2026-09-13 — and
  * the rule is refused rather than remembered because the failure is **silent**:
  * a `major` changeset sits in `.changeset/` for weeks and is applied by a
  * release nobody is watching. `changeset status` reports it as ordinary intent,
@@ -1063,9 +1064,13 @@ describe('check-release-intent — the series stays in `0.x` (D-225)', () => {
     expect(finding?.subject).toBe('x.md:@fx/alpha');
     // The message has to carry the remedy and the ruling, because there is no
     // ledger and no override: the escape is deletion, in the merge request that
-    // performs the npmjs move.
+    // takes the estate to `1.0.0`. D-225 as amended on 2026-09-13 (after D-234
+    // put the first public version at `0.100.0`): the check **survives** the
+    // npmjs move, so the message must not send its reader to delete it there.
     expect(finding?.message).toContain('D-225');
     expect(finding?.message).toContain('0.7.0');
+    expect(finding?.message).toContain('the first release that deliberately leaves `0.x`');
+    expect(finding?.message).not.toContain('npmjs move');
   });
 
   it('reports nothing for the same `major` on a package at `1.y.z` (A13)', () => {
