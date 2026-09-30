@@ -86,7 +86,7 @@ jobs:
       # is no container to raise, so the answer is this line.
       NODE_OPTIONS: --max-old-space-size=2560
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '22.18'
@@ -170,7 +170,7 @@ jobs:
       # are POSIX shell over perl/awk/grep, all of which `ubuntu-24.04` ships,
       # and their file list is `git ls-files` — so they hard-fail with exit 2
       # rather than pass vacuously if git ever goes missing.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Run both and fail at the end, so one round-trip reports every finding
       # instead of hiding the language check behind a naming failure.
       - run: |
@@ -185,7 +185,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '22.18'
@@ -217,7 +217,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: '22.18'
@@ -246,7 +246,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # `changeset status` diffs against the merge base, which a shallow
           # clone does not contain. GitLab spelled this `GIT_DEPTH: 0`.

@@ -71,7 +71,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # The harness and its judgement, and nothing that could be installed.
           sparse-checkout: backend/scripts/acceptance
