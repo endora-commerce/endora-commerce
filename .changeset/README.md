@@ -1,23 +1,37 @@
 # Changesets
 
-This folder holds the release intent for the workspace packages under `packages/`
-(`pnpm changeset:status` prints how many there are; the count moves with every module
-package and does not belong in a sentence).
+This folder holds the release intent for the workspace packages under `packages/` and
+`packages/modules/`. How many there are, and how many of them publish, is not written here: the
+count moves with every module package and every `"private"` flag, so it does not belong in a
+sentence (D-100). Ask the program that decides it:
+
+```bash
+pnpm --filter backend exec tsx scripts/check-release-intent.ts --print-publish-scope
+```
+
+It prints the npm scope on stdout and, on stderr, how many workspace members are public and
+which — the same derivation the publish workflow uses to write its `.npmrc`.
 The tooling is [Changesets](https://changesets.dev), adopted by owner ruling **D-107**
 (`specs/080-f4-real-scope/rulings.md`); **D-108** sets the versioning model.
 
-The short version of the rule lives in `AGENTS.md` § *Release intent — changesets*. This
-page is the longer one, for the moment you are actually writing a file here.
+The rules themselves live in `specs/conventions/release-intent.md`, which is their single
+home. This page is the practical guide, for the moment you are actually writing a file here;
+where the two disagree, the convention wins and this page is the one to fix.
 
 ## When you need one
 
-**A merge request that changes a file under `packages/` needs a changeset.** That is the
-whole trigger. `backend`, `admin`, `storefront` and `docs` are in the config's `ignore`
-list and never need one — they are applications, not packages, and nobody consumes them by
-version.
+**A pull request that changes what a package publishes needs a changeset.** For almost
+every package that reads "a file under `packages/`", but the rule is stated as *publishes*
+because the two came apart (D-162): `@endora-commerce/platform` compiles code from outside its
+own directory, so the honest question is "does this commit change what a published package
+emits?", and it is answered by the package's `tsconfig.build.json`, not by a path. `backend`,
+`admin`, `storefront` and `docs` are in the config's `ignore` list and never need one — they
+are applications, not packages, and nobody consumes them by version.
 
-CI enforces it: the `release:changeset` job runs `changeset status --since=origin/<target>`
-on every merge request and fails when a package changed and the branch carries no changeset.
+CI enforces it: the `release:changeset` job (`.github/workflows/quality.yml`) runs
+`pnpm --filter backend run check:release-intent -- --since origin/<base>` on every pull
+request and fails when a published package changed and the branch carries no changeset. Run
+the same command locally, with `--since origin/master`, before you push.
 
 If the change genuinely carries no release meaning — a comment, a test, a rename that
 crosses no export — record that decision instead of skipping the gate:
@@ -40,8 +54,12 @@ deciding whether to upgrade, so:
 
 - **Write it for the consumer, not for the reviewer.** "Add `channel` to
   `productListQuerySchema`" — not "refactor query schema per !812".
-- **A `major` says what breaks and what to do instead.** Give the old call and the new one.
-  Nothing else in this repository will tell an upgrader that.
+- **A breaking change says what breaks and what to do instead.** Give the old call and the
+  new one. Nothing else in this repository will tell an upgrader that.
+- **Write `minor`, not `major`, while the package is in `0.x`** (D-225). `check:release-intent`
+  refuses a `major` there as `major-bump-in-a-zero-series`. Nothing is lost: `^0.7.0` is
+  `>=0.7.0 <0.8.0`, so in a `0.x` series a minor already takes every caret dependent out of
+  range, which is the whole consumer-facing meaning of a break.
 - **One changeset per meaning, not per merge request.** A branch that fixes a bug and adds
   a field carries two files, so the changelog carries two lines.
 - **The bump is a judgement, and it is yours.** D-107 chose this tool precisely because
@@ -51,37 +69,36 @@ deciding whether to upgrade, so:
 
 ## What the bumps do here
 
-Versioning is **independent** (D-108), with one `linked` group:
+Versioning is **independent** (D-108), with one `linked` group built around
+`@endora-commerce/page-builder-core`. **Who its members are is not written here** —
+`.changeset/config.json`'s `linked` answers it; this page once named three while the file
+declared four.
 
-| Group | Packages | Why |
-| --- | --- | --- |
-| Page Builder | `@endora-commerce/page-builder-core`, `@endora-commerce/cms-components`, `@endora-commerce/email-components` | `page-builder-core` is a **peer** dependency of the other two and ships React contexts and hooks. The consuming application resolves exactly one copy; version ranges that disagree resolve two, and a provider in one copy with a consumer in the other is a `null` context, not a type error. So `linked` gives them one number **whenever a release includes more than one of them**. `cms-components` can still move on its own — it does not carry the runtime, so nothing skews. |
+`page-builder-core` is a **peer** dependency of the other members and ships React contexts and
+hooks. The consuming application resolves exactly one copy; version ranges that disagree
+resolve two, and a provider in one copy with a consumer in the other is a `null` context, not
+a type error. So `linked` gives the members one number **whenever a release includes more than
+one of them**.
 
-Read `linked` precisely, and precisely is narrower than this page used to claim. It **raises a
-package that is already in a release** to the group's highest number; it never *adds* one. It
-does not force the other two out whenever one moves — a patch on `@endora-commerce/cms-components` alone
-leaves the other two where they are, which is right, because `cms-components` carries no
-runtime the app has to resolve once.
+Read `linked` precisely. It **raises a package that is already in a release** to the group's
+highest number; it never *adds* one. What puts the other members into a `page-builder-core`
+release is their `peerDependencies` range going **out of range**, so the behaviour depends on
+the version the group currently sits at:
 
-The sentence that stood here — *"a release of `page-builder-core` always includes all three,
-since the other two peer-depend on it"* — was measured wrong in feature 080's T043. What puts
-the peers into a `page-builder-core` release is their `peerDependencies` range going **out of
-range**, and every package sits at `0.0.0`, where `workspace:^` resolves to `^0.0.0` and any
-bump at all breaks it. So it holds today by accident of the version, and stops holding at the
-first real release:
+| Seeded at | Patch on one member | Minor on `page-builder-core` | Major |
+| --- | --- | --- | --- |
+| `0.0.0` | the member **and its dependents** (`^0.0.0` is `>=0.0.0 <0.0.1`) | the whole group | the whole group |
+| `0.<n>.0`, n > 0 | the member alone | **the whole group** (`^0.7.0` is `>=0.7.0 <0.8.0`) | the whole group |
+| `1.4.2` | the member alone | `page-builder-core` alone | the whole group |
 
-| Seeded at | Change | Result |
-| --- | --- | --- |
-| `0.0.0` | minor on `page-builder-core` | all three → `0.1.0` |
-| `0.0.0` | patch on `cms-components` | `cms-components` → `0.0.1`, others unmoved |
-| `1.4.2` | minor on `page-builder-core` | `page-builder-core` → `1.5.0`, **others unmoved** |
-| `1.4.2` | major on `page-builder-core` | all three → `2.0.0` |
-
-The third row is correct rather than broken: the requirement is that the application resolve
-one copy of `page-builder-core`, and `^1.4.2` satisfied by `1.5.0` resolves one copy. The
-shared number was the mechanism, never the requirement. Every row is asserted by
-`backend/test/unit/release/changeset-flow.test.ts`, against these manifests and this config,
-so nobody meets the third one for the first time in a release merge request.
+The middle row is the one this repository is in;
+`node -p "require('./packages/contracts/package.json').version"` answers where it sits today.
+The `1.4.2` divergence is correct rather than broken: the requirement is that the application
+resolve one copy of `page-builder-core`, and `^1.4.2` satisfied by `1.5.0` resolves one copy.
+The shared number was the mechanism, never the requirement. Every row is asserted by
+`backend/test/unit/release/changeset-flow.test.ts`, which seeds its own base version over the
+real manifests and this config, so nobody meets the `1.4.2` row for the first time in a release
+pull request.
 
 `@endora-commerce/contracts` and its dependents version independently. Changesets patch-bumps a
 dependent automatically (`updateInternalDependencies: "patch"`), so a `contracts` release
@@ -92,21 +109,22 @@ D-108 defers — and a shared number would churn every dependent on each contrac
 without saying anything true. `@endora-commerce/api-client` was this paragraph's worked
 example until D-202 deleted the package.
 
-**Three packages are publishable and the rest are not** (feature 104, D-203):
-`@endora-commerce/contracts`, `@endora-commerce/cms-components` and
-`@endora-commerce/page-builder-core` — the set a scaffolded storefront resolves — have had
-`"private": true` removed, and `access` is `public`. Everything else under `packages/`,
-including `platform`, `admin-kit`, `cli` and every module package, stays private.
+**Every workspace package under `packages/` is public unless a ruling keeps it private, and
+`access` is `public`** — the owner's publication ruling of 2026-09-05. Not publishing something
+is the exception, and it takes a pull request that says so: `check:release-intent` reports
+`unpublished-package` the moment `"private": true` appears on a versionable package. The one
+exception it derives is D-267's: an unscoped package that the configured registry cannot serve
+and that no workspace member depends on — `create-endora-commerce`, private until the first
+npmjs publish. The check prints each exempted member on its `exempt-private=` line, and
+`--publish-registry` refuses public npmjs while any is exempted, so the first npmjs publish is
+necessarily the pull request that makes it public. Which packages publish today is whatever
+`--print-publish-scope` (above) reports, not a number or a list on this page.
 
-That set is **derived and not listed**: it is the closure of the reference storefront's
-`dependencies` and `peerDependencies` over the workspace, which is what
-`check:release-intent` computes, so a fourth package joins it by being added to
-`storefront/package.json` and by nothing else.
-
-`privatePackages` is `{ "version": true, "tag": false }`, which is what makes the tooling see
-the private remainder at all: with the `@changesets/config@4` default (`false`), every
-command here would report a cheerful nothing for them. It says nothing about the three above
-— a public package is versioned, published and tagged regardless of that block.
+`privatePackages` is `{ "version": true, "tag": false }`. `version: true` is what makes the
+tooling see a private package at all — with the `@changesets/config@4` default (`false`), every
+command here would report a cheerful nothing for it. `tag: false` keeps a release from writing
+a git tag for a private version no registry serves. Neither field affects a public package: it
+is versioned, published and tagged regardless of that block.
 
 ## Commands
 
@@ -128,14 +146,14 @@ not pulled. Pass the remote ref when you want the answer CI gives:
 
 ```bash
 pnpm run version:packages
-git push -o merge_request.create -o merge_request.remove_source_branch -u origin release/version-<date>
+git push -u origin release/version-<date>
+gh pr create --base master --head release/version-<date>
 ```
 
 That is the whole flow, and it runs **on your machine** rather than in CI. The reasoning is in
 `scripts/version-packages.mjs`' header in full; the short version is that a version bump is a
-change to `packages/`, every change to `packages/` lands through a merge request, and a CI job
-that could open one needs a push credential that D-160.5 defers to the merge request that
-makes a package public.
+change to `packages/`, every change to `packages/` lands through a pull request, and a CI job
+that could open one needs a push credential D-160.5 deferred and CI still does not hold.
 
 **Do not run `pnpm changeset:version` by hand.** It exits **0** when it bumps nothing —
 measured on this repository, with `privatePackages.version` at the `@changesets/config@4`
@@ -143,39 +161,39 @@ default of `false` and a pending changeset naming `@endora-commerce/contracts`: 
 been updated", no version moved, and the changeset still on disk. `version:packages` refuses
 that, and refuses a release with nothing to consume, and restores the tree either way.
 
-The resulting merge request deletes every changeset it consumed and carries none, which is
-precisely the shape `release:changeset` exists to fail. The job recognises it from the diff —
-files deleted under `.changeset/` and none added — and asks the inverted question instead: did
-any package's `version` actually move.
+The resulting pull request deletes every changeset it consumed and carries none, which is
+precisely the shape `release:changeset` would otherwise fail. Since feature 114 (D-212) the job
+recognises a release branch by what it **produced**: a moved `version` in a versionable
+package's manifest, an added `## <version>` CHANGELOG section, or both. A branch that deleted
+changeset files and produced neither is refused, and an added changeset, empty or not,
+reclassifies nothing.
 
-**Publishing is a CI job on that release branch, not a script here.** `publish:packages`
-(`.gitlab-ci.yml`, `stage: deploy`, manual) runs `changeset publish` against the registry
-`ENDORA_NPM_REGISTRY` names, with the token as an environment reference in an `.npmrc` it
-writes outside the checkout. It refuses an unset registry rather than falling through to
-`registry.npmjs.org`, and refuses a release branch whose publish plan turns out to be empty.
-There is still no `release` script in `package.json`: the credential belongs to CI and a
-script that cannot reach it is worse than its absence.
+**Publishing is a CI workflow, not a script here.** `publish:packages`
+(`.github/workflows/publish.yml`, `workflow_dispatch` only, in the `npm-publish` environment,
+which carries the credentials and the required reviewer) runs `changeset publish` against the
+registry `ENDORA_NPM_REGISTRY` names, with npm provenance and with the token as an environment
+reference in an `.npmrc` written outside the checkout. It derives the scope from
+`--print-publish-scope`, refuses an unset registry or token rather than falling through to
+`registry.npmjs.org` or publishing anonymously, refuses a registry/licence pair or a D-267
+exemption that public npmjs cannot take, and refuses a run whose publish plan turns out to be
+empty. There is still no `release` script in `package.json`: the credential belongs to CI and
+a script that cannot reach it is worse than its absence.
 
 ## Tags
 
-`privatePackages.tag` is `false`, and it governs the private packages only.
+`privatePackages.tag` is `false`. It is consulted only where changesets asks *which private
+packages to tag*, so it governs only the members D-267 keeps private (see above), and `false`
+is what keeps a release from writing a tag for a version no registry serves. A private package's
+version is re-derivable from the commit that wrote its `version` field; a tag for it would be a
+derived fact written down (D-100), in a ref every clone then fetches.
 
-For them the answer is unchanged: a git tag naming a private package's version anchors
-nothing a reader cannot re-derive from the commit that wrote the `version` field — a derived
-fact written down (D-100), here written into a ref that every clone then fetches, one per
-package per release. What makes a tag *anchor* something is publication: it is how you
-assert that this exact tree is what a registry serves under that version, which git history
-alone cannot say about a registry.
+A public package is git-tagged by `changeset publish` whatever the field says
+(`@changesets/cli@3.0.1`, `dist/git-tag.mjs`). **Whether the repository keeps and pushes those
+tags is a separate question, and it is the owner's**: a tag asserts that this exact tree is
+what a registry serves under that version, which is worth asserting only once something is
+actually published there.
 
-For the three public ones the field is not consulted at all — `changeset publish` tags a
-public package whatever it says (`@changesets/cli@3.0.1`, `dist/git-tag.mjs`). It writes
-those tags locally in the publish job, and nothing pushes them, because a tag is only worth
-having once it points at something a registry the world can reach is serving. That decision
-belongs to the merge request that makes a package public on npmjs.
-
-**The rule is enforced in both states, which is the part worth knowing.**
-`check:release-intent`'s `tag-policy-unstated` requires `tag: false` while *any* versionable
-package is private, and — once none is — requires the field to be stated rather than
-defaulted. Its predecessor asked only while *every* package was private, so the first public
-package would have made it stop asking in both directions, with nothing left holding the
-field at all.
+**The field is enforced in both states.** `check:release-intent`'s `tag-policy-unstated`
+requires `tag: false` while any versionable package is private and, once none is, still
+requires the field to be explicitly present and boolean — so an absent one cannot be mistaken
+for a decision when it is only the `@changesets/config@4` default.
