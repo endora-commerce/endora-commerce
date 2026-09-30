@@ -343,11 +343,41 @@ describe('the refusals survive the port', () => {
     const refusal = lines.findIndex(
       (line) =>
         line.includes('scripts/check-release-intent.ts') &&
-        line.includes('--publish-registry "$ENDORA_NPM_REGISTRY"'),
+        line.includes('--publish-registry "$ENDORA_NPM_REGISTRY"') &&
+        // The scope derivation carries the registry too (N3); it is not the refusal.
+        !line.includes('--print-publish-scope'),
     );
     const publish = lines.findIndex((line) => line.startsWith('pnpm exec changeset publish'));
     expect(refusal, 'the publish job lost its own-licence refusal').toBeGreaterThan(-1);
     expect(publish).toBeGreaterThan(refusal);
+  });
+
+  it('`publish:packages` derives the scope for the registry it publishes to (N3)', () => {
+    // `specs/137-open-source-launch/` N3: `create-endora-commerce` is public and
+    // unscoped. The scope derivation refuses it unless it is told the target is
+    // public npmjs, and the unscoped package is then published through the
+    // default registry line — which must name the environment's registry rather
+    // than trust npm's own default.
+    const body = PUBLISH_JOBS[0]!.body;
+    expect(body).toContain(
+      'scripts/check-release-intent.ts --print-publish-scope --publish-registry "$ENDORA_NPM_REGISTRY"',
+    );
+    expect(body).toContain("printf 'registry=%s\\n' \"$ENDORA_NPM_REGISTRY\"");
+  });
+
+  it('`publish:packages` measures the registry for a first publish before publishing (N4)', () => {
+    // 123 T7-D1's network half: one number across the set, and no package
+    // already at or above the floor on npmjs. The static half is the
+    // `--publish-registry` refusal asserted above.
+    const lines = PUBLISH_JOBS[0]!.runLines;
+    const precondition = lines.findIndex(
+      (line) =>
+        line.includes('scripts/first-publish-preconditions.ts') &&
+        line.includes('--registry "$ENDORA_NPM_REGISTRY"'),
+    );
+    const publish = lines.findIndex((line) => line.startsWith('pnpm exec changeset publish'));
+    expect(precondition, 'the publish job lost its first-publish precondition').toBeGreaterThan(-1);
+    expect(publish).toBeGreaterThan(precondition);
   });
 
   it('is a deliberate act — the publish workflow is dispatched, never triggered by a push', () => {
