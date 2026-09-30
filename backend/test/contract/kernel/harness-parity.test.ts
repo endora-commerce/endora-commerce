@@ -909,6 +909,12 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
       'unit test over its pure half instead; a boot-level assertion here would be green for ' +
       'the wrong reason. It drains when the harness composes presence the way production ' +
       'does, which is T073’s open half.',
+    newsletterTokenSecretFrom:
+      'Production derives `newsletterTokenSecret` from `NEWSLETTER_TOKEN_SECRET`, falling back to ' +
+      '`SESSION_COOKIE_SECRET` when it is unset or empty; the harness pins the value, because a ' +
+      'token signed on one request and verified on another has to be predictable for a test to ' +
+      "assert a link. The fallback is proved over its inputs by the platform's " +
+      '`newsletter-token-secret.test.ts`, which also holds `composeApp` to the call.',
     processRunsWorkersFor:
       'Production derives `processRunsWorkers` from `BACKEND_ROLE` (feature 134 D16, T122); the ' +
       'harness registers the value as `false` and never reads the role, so a composition whose ' +

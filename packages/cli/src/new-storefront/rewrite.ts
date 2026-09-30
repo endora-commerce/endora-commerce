@@ -59,8 +59,10 @@ import { STOREFRONT_DOCKERIGNORE, storefrontDockerfile } from './dockerfile.js';
 import { storefrontGitignore } from './gitignore.js';
 import { installedScopes, normalizeRegistry, npmrcContent, TOKEN_VARIABLE } from './npmrc.js';
 import {
+  declaredPackages,
   DEPENDENCY_FIELDS,
   globPrefix,
+  importedPackages,
   outwardReferences,
   StorefrontInputError,
   workspaceRanges,
@@ -70,6 +72,9 @@ import {
 
 /** An outward reference no rule below classifies. */
 export class UnclassifiedReferenceError extends StorefrontInputError {}
+
+/** A vendored configuration imports a package the scaffold's manifest does not declare. */
+export class UndeclaredImportError extends StorefrontInputError {}
 
 /** A file the scaffold writes: either copied bytes or rewritten text. */
 export interface PlannedFile {
@@ -308,6 +313,7 @@ interface VendorPlan {
 export function vendorConfiguration(
   reference: OutwardReference,
   storefrontDir: string,
+  taken: ReadonlySet<string> = new Set(),
 ): VendorPlan {
   const source = resolveTarget(reference.target);
   if (source === null) {
@@ -317,13 +323,22 @@ export function vendorConfiguration(
         `standalone.`,
     );
   }
-  const base = source.split(sep).pop()!;
-  // The vendored file lands under its own name; the *specifier* keeps the
-  // extension the referring file wrote. `vitest.config.mts` names the base
-  // configuration `../vitest.config.base.js` although the file is `.ts`, which
-  // is the ESM spelling TypeScript requires — rewriting it to `./…​.ts` would be
-  // `allowImportingTsExtensions` territory and a type error in the copy.
-  const spelt = reference.specifier.split('/').pop()!;
+  // The vendored file lands under its own name unless the storefront already
+  // has a file of that name — `eslint.config.js` extends `../eslint.config.js`
+  // — and then under `<name>.base.<ext>`. CLI 0.15.0 used the name regardless:
+  // the plan held two files at one path, the vendored one was written last and
+  // replaced the storefront's own, and the rewritten import named the file it
+  // was written in.
+  const own = source.split(sep).pop()!;
+  const collides = taken.has(own);
+  const base = collides ? withBaseInfix(own) : own;
+  // The *specifier* keeps the extension the referring file wrote.
+  // `vitest.config.mts` names the base configuration `../vitest.config.base.js`
+  // although the file is `.ts`, which is the ESM spelling TypeScript requires —
+  // rewriting it to `./…​.ts` would be `allowImportingTsExtensions` territory
+  // and a type error in the copy.
+  const written = reference.specifier.split('/').pop()!;
+  const spelt = collides ? withBaseInfix(written) : written;
   const text = readFileSync(source, 'utf8');
 
   if (source.endsWith('.json')) {
@@ -334,8 +349,8 @@ export function vendorConfiguration(
       specifier: `./${spelt}`,
       note:
         cut.dropped.length === 0
-          ? `vendored from ${base}`
-          : `vendored from ${base}, without ${String(cut.dropped.length)} ` +
+          ? `vendored from ${own}${collides ? ` as ${base}` : ''}`
+          : `vendored from ${own}${collides ? ` as ${base}` : ''}, without ${String(cut.dropped.length)} ` +
             `${cut.dropped.length === 1 ? 'declaration' : 'declarations'} whose ` +
             `${cut.dropped.length === 1 ? 'target names' : 'targets name'} a directory of the ` +
             `platform repository that a standalone storefront does not have ` +
@@ -350,11 +365,17 @@ export function vendorConfiguration(
     specifier: `./${spelt}`,
     note:
       cut.dropped.length === 0
-        ? `vendored from ${base}`
-        : `vendored from ${base}, without its import of ${cut.dropped.join(', ')} — ` +
+        ? `vendored from ${own}${collides ? ` as ${base}` : ''}`
+        : `vendored from ${own}${collides ? ` as ${base}` : ''}, without its import of ${cut.dropped.join(', ')} — ` +
           `${cut.dropped.length === 1 ? 'that module reaches' : 'those modules reach'} into ` +
           `the platform repository, and a standalone storefront installs no part of it`,
   };
+}
+
+/** `eslint.config.js` -> `eslint.config.base.js`: `.base` before the last extension. */
+function withBaseInfix(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot <= 0 ? `${name}.base` : `${name.slice(0, dot)}.base${name.slice(dot)}`;
 }
 
 /** `../x.js` may be written for `../x.ts`; try the extensions TypeScript does. */
@@ -605,7 +626,7 @@ export function planStorefront(
         continue;
       }
       if (isConfiguration(file)) {
-        const plan = vendorConfiguration(entry, reference.dir);
+        const plan = vendorConfiguration(entry, reference.dir, new Set(reference.files));
         vendored.set(plan.path, plan);
         text = replaceOnce(text, entry.specifier, plan.specifier);
         rewrites.push({ ...entry, to: plan.specifier });
@@ -627,6 +648,7 @@ export function planStorefront(
   }
 
   const manifest = rewriteManifest(reference, memberDirs);
+  assertVendoredImportsDeclared(vendored, reference);
   const omittedPaths = new Set(omitted.map((entry) => entry.path));
   const registry = options.registry === undefined ? null : normalizeRegistry(options.registry);
   const rewritten = JSON.parse(manifest.text) as {
@@ -719,6 +741,7 @@ export function planStorefront(
     });
   }
 
+  assertEachPathOnce(files);
   return {
     files: files.sort((a, b) => a.path.localeCompare(b.path)),
     ranges: manifest.ranges,
@@ -726,6 +749,64 @@ export function planStorefront(
     omitted,
     registry,
   };
+}
+
+/**
+ * Rule 2's other half: a vendored configuration's bare imports are declared by
+ * the scaffold's own manifest.
+ *
+ * In this repository a configuration the storefront extends resolves its
+ * packages through the manifest *beside it* — the root one. Vendored, the same
+ * text resolves them through the storefront's, and nothing about the copy
+ * changes that. CLI 0.15.0 shipped a scaffold whose vendored ESLint
+ * configuration imported four packages its manifest never named, so the first
+ * `pnpm run lint` on a stranger's machine failed to load it. The repair is in the
+ * reference storefront's manifest; this refusal is what stops it recurring.
+ */
+function assertVendoredImportsDeclared(
+  vendored: ReadonlyMap<string, VendorPlan>,
+  reference: StorefrontReference,
+): void {
+  const declared = declaredPackages(reference.manifest);
+  for (const [path, plan] of [...vendored].sort(([a], [b]) => a.localeCompare(b))) {
+    const missing = importedPackages(plan.content).filter((name) => !declared.has(name));
+    if (missing.length === 0) continue;
+    throw new UndeclaredImportError(
+      `the configuration vendored as ${path} imports ` +
+        `${missing.map((name) => `"${name}"`).join(', ')}, which ` +
+        `${reference.dir}/package.json does not declare. In this repository that import ` +
+        `resolves through the manifest beside the file it was vendored from; in the scaffold ` +
+        `it resolves through the storefront's own, so the copy would fail to load on its ` +
+        `first install. Declare ${missing.length === 1 ? 'it' : 'them'} in the reference ` +
+        `storefront's devDependencies at the version this repository already uses.`,
+    );
+  }
+}
+
+/**
+ * A plan writes each path once.
+ *
+ * Two entries at one path are two authors of one file, and the writer keeps
+ * whichever comes last without saying so — which is how CLI 0.15.0's scaffold
+ * lost the storefront's own `eslint.config.js` to the vendored root one. So it
+ * is a refusal before anything is written, naming both sides.
+ */
+function assertEachPathOnce(files: readonly PlannedFile[]): void {
+  const seen = new Map<string, PlannedFile>();
+  for (const file of files) {
+    const first = seen.get(file.path);
+    if (first === undefined) {
+      seen.set(file.path, file);
+      continue;
+    }
+    const describe = (entry: PlannedFile): string =>
+      entry.note ?? (entry.source === null ? 'rendered' : `copied from ${entry.source}`);
+    throw new StorefrontInputError(
+      `this run would write ${file.path} twice (${describe(first)}; ${describe(file)}), and ` +
+        `the second would silently replace the first. Rename or remove one of them in the ` +
+        `reference storefront, or drop the option that renders the other.`,
+    );
+  }
 }
 
 function refusal(entry: OutwardReference): string {
