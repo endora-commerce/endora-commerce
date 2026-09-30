@@ -30,8 +30,8 @@ import {
 
 const ORIGIN = 'https://docs.example.com';
 const SITE_TITLE = 'Endora Commerce';
-const EN_COPYRIGHT = '© 2026 Endora — documentation published under the MIT licence.';
-const PL_COPYRIGHT = '© 2026 Endora — dokumentacja publikowana na licencji MIT.';
+const EN_COPYRIGHT = '© 2026 Endora Commerce — documentation published under the MIT licence.';
+const PL_COPYRIGHT = '© 2026 Endora Commerce — dokumentacja publikowana na licencji MIT.';
 
 let fixtureDir: string | undefined;
 
