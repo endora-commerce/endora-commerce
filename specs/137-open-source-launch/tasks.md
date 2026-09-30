@@ -37,11 +37,19 @@ Pull requests here merged with no branch protection behind them: the owner merge
 - [x] **P4** (A, then O) This directory[^d283-43].
 - [x] **T050** (D, then O) Every published package's `repository.url` names this repository, with
   its changeset, landed ahead of N4. Pull request #8[^t050].
-- [x] **S2, S3, S5, S6** (D, then O) Four defects in what the CLI's 0.15.0 release scaffolds, and a
-  boot failure found beside them — an empty `NEWSLETTER_TOKEN_SECRET` line crashed the backend at
-  start; it now falls back as an unset one does. Pull request #9[^cli].
-- [x] **S4** (D, then O) A scaffolded storefront's `.gitignore` ignores `.env`, `node_modules` and
+- [x] **S2** (D, then O) A scaffolded storefront's `.gitignore` ignores `.env`, `node_modules` and
   `.next`. Pull request #5[^cli].
+- [x] **S3** (D, then O) The storefront scaffold declares every package its vendored ESLint
+  configuration imports. Pull request #9[^cli].
+- [x] **S4** — **not a defect** (alias load-bearing): the admin `tsconfig`'s `@/*` alias did not
+  reproduce as a defect; `endora generate` depends on it. No fix[^cli].
+- [x] **S5** (D, then O) The rendered worker's `shutdown` uses the `signal` it receives. Pull
+  request #9[^cli].
+- [x] **S6** (D, then O) `NEWSLETTER_TOKEN_SECRET` reaches the backend in the deploy compose
+  examples. Pull request #9[^cli].
+- [x] **Unnumbered** (D, then O) Two further defects fixed in pull request #9: the vendored ESLint
+  configuration was written to the storefront's own `eslint.config.js` path and replaced it; and an
+  empty `NEWSLETTER_TOKEN_SECRET` line crashed the backend at boot.
 - [ ] **S1** (D, then O) The last scaffold defect: the scaffold's pin on
   `@endora-commerce/contracts`. **Before N4** if it is on the path a stranger's first install
   takes[^cli].
@@ -203,7 +211,7 @@ Pull requests here merged with no branch protection behind them: the owner merge
 ## Dependencies
 
 ```
-done: T031 T035 T032 T050 S2–S6 P4 P6 P7 P9 F1 F2 F4 F5 N1(pack-gate, boot-gate) N9
+done: T031 T035 T032 T050 S2 S3 S5 S6 (S4 not a defect) P4 P6 P7 P9 F1 F2 F4 F5 N1(pack-gate, boot-gate) N9
 open, in order:
   F2 signed-out check · F3 (register publish + acceptance-public) · F6 (T047) · L1
   N1b build:docs (10-06) → N2 (T051) → N3 → N4 (T052) → N5 → N6 (W5.5) → N7 (W4.3/W4.4) → N8 (T060)

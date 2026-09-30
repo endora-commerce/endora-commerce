@@ -52,7 +52,7 @@ reviewer-gated environments on a private repository[^d282]; the CI window closes
 ## Order
 
 ```
-done        T031 push (59a212961)   T035 floor green (#4)   S4 .gitignore (#5)
+done        T031 push (59a212961)   T035 floor green (#4)   S2 .gitignore (#5)
             — the state on 2026-09-30 is tasks.md's; this block is the order, not the status
 
 before the flip (private)
