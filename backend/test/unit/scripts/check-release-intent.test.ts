@@ -6,6 +6,7 @@ import {
   analyzeReleaseIntent,
   changelogSections,
   CORE_PUBLISH_TARGET,
+  FIRST_PUBLIC_VERSION,
   checkBranchIntent,
   checkReleaseIntent,
   compilesPath,
@@ -18,6 +19,7 @@ import {
   publicationExemptions,
   publicRegistryExemptions,
   publicRegistryScopes,
+  publicVersionFloor,
   publishScope,
   publishTargetOf,
   publicRegistryLicence,
@@ -2586,5 +2588,92 @@ describe('a changeset document keeps the prose R3 reads', () => {
     const document = readChangesetDocument('x.md', `Just prose about the ${C2_TERM}.\n`);
     expect(document.hasFrontMatter).toBe(false);
     expect(document.body).toBe(`Just prose about the ${C2_TERM}.\n`);
+  });
+});
+
+/**
+ * `specs/137-open-source-launch/` N4 — the first public version's floor (D-234;
+ * 123 T7-D1, its static half).
+ *
+ * The first public version is `max(0.100.0, the highest version any
+ * publishable package has reached)`. `changeset publish` publishes whatever
+ * each manifest says and exits 0 whatever the numbers are, so a release branch
+ * that forgot the hand-set would spend `0.17.x` … `0.8.x` on public npmjs,
+ * permanently. The refusal lives in `--publish-registry`, the publish job's
+ * precondition, rather than in the default mode: every package is below the
+ * floor until the release branch sets it, so a default-mode finding would be
+ * red on every pull request until then.
+ */
+describe('check-release-intent — N4: nothing reaches public npmjs below the first public version', () => {
+  function membersOf(files: FileMap) {
+    const tree = checkout(files);
+    const inputs = readReleaseIntent(FIXTURE_ROOT, tree.fs, tree.listChangesets);
+    if ('reason' in inputs) throw new Error(`expected inputs, got a refusal: ${inputs.reason}`);
+    return inputs.members;
+  }
+  const atVersion = (version: string): FileMap =>
+    publishedAlphaAs((manifest) => {
+      manifest['version'] = version;
+    });
+  const NPMJS = 'https://registry.npmjs.org/';
+
+  it('declares the floor D-234 ruled, once', () => {
+    expect(FIRST_PUBLIC_VERSION).toBe('0.100.0');
+  });
+
+  it('refuses a publishable package below the floor, naming it and its version', () => {
+    const verdict = publicVersionFloor(membersOf(atVersion('0.17.0')), NPMJS);
+    expect(verdict.below).toEqual(['@fx/alpha@0.17.0']);
+    expect(verdict.refusal).toContain('@fx/alpha@0.17.0');
+    expect(verdict.refusal).toContain('0.100.0');
+  });
+
+  it('compares numerically, never as strings', () => {
+    for (const [version, below] of [
+      ['0.9.0', true],
+      ['0.99.0', true],
+      ['0.99.99', true],
+      ['0.100.0', false],
+      ['0.100.1', false],
+      ['0.101.0', false],
+      ['1.0.0', false],
+    ] as const) {
+      expect(publicVersionFloor(membersOf(atVersion(version)), NPMJS).below.length > 0, version).toBe(below);
+    }
+  });
+
+  it('counts a pre-release of the floor as below it, as semver does', () => {
+    expect(publicVersionFloor(membersOf(atVersion('0.100.0-rc.1')), NPMJS).below).toEqual([
+      '@fx/alpha@0.100.0-rc.1',
+    ]);
+  });
+
+  it('refuses a version it cannot read rather than reading it as above the floor', () => {
+    const verdict = publicVersionFloor(membersOf(atVersion('next')), NPMJS);
+    expect(verdict.refusal).toContain('@fx/alpha');
+    expect(verdict.refusal).toContain('cannot be read');
+  });
+
+  it('judges only what would be published — a private member is not a publish', () => {
+    const verdict = publicVersionFloor(
+      membersOf({
+        ...atVersion('0.100.0'),
+        'packages/beta/package.json': '{ "name": "@fx/beta", "version": "0.1.0", "private": true }',
+      }),
+      NPMJS,
+    );
+    expect(verdict.refusal).toBe('');
+  });
+
+  it('leaves a registry that is not public npmjs to its own rules', () => {
+    const verdict = publicVersionFloor(
+      membersOf(atVersion('0.17.0')),
+      'https://gitlab.example.invalid/api/v4/packages/npm/',
+    );
+    expect(verdict.refusal).toBe('');
+  });
+
+  it('refuses a registry it cannot read as a URL', () => {
+    expect(publicVersionFloor(membersOf(atVersion('0.17.0')), 'not a url').refusal).toContain('not a URL');
   });
 });

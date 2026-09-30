@@ -1455,6 +1455,114 @@ export function publicRegistryScopes(
 }
 
 /**
+ * The first public version — a **floor**, not a target (D-234, the owner's
+ * ruling of 2026-09-13): the first npmjs publish is `max(0.100.0, the highest
+ * version any publishable package has reached)`, and every publishable package
+ * carries that one number on the day.
+ *
+ * Declared once, here, and read by {@link publicVersionFloor} and by
+ * `scripts/first-publish-preconditions.ts`. **Retiring condition**: deleted,
+ * with both of them, by the merge request after the first npmjs publish —
+ * their whole subject is that publish (`specs/137-open-source-launch/` N4).
+ */
+export const FIRST_PUBLIC_VERSION = '0.100.0';
+
+/** `major.minor.patch` and whether a pre-release tag follows, or `null`. */
+export function readSemver(
+  version: string,
+): { readonly core: readonly [number, number, number]; readonly prerelease: boolean } | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(version.trim());
+  if (match === null) return null;
+  return {
+    core: [Number(match[1]), Number(match[2]), Number(match[3])],
+    prerelease: match[4] !== undefined,
+  };
+}
+
+/**
+ * Whether `version` is below `floor` in semver order — numerically, component
+ * by component, a pre-release sorting below its own release. `null` when either
+ * cannot be read, which every caller refuses rather than guessing at.
+ */
+export function isBelow(version: string, floor: string): boolean | null {
+  const [a, b] = [readSemver(version), readSemver(floor)];
+  if (a === null || b === null) return null;
+  for (let at = 0; at < 3; at += 1) {
+    if (a.core[at] !== b.core[at]) return a.core[at]! < b.core[at]!;
+  }
+  return a.prerelease && !b.prerelease;
+}
+
+/** What {@link publicVersionFloor} decided about one publish target. */
+export interface PublicVersionFloor {
+  /** The publishable members below the floor, as `name@version`, sorted. */
+  readonly below: readonly string[];
+  /** Why the publish is refused, or `''` when it is not. */
+  readonly refusal: string;
+}
+
+/**
+ * `public-version-below-the-declared-floor` — the static half of 123 T7-D1.
+ *
+ * `changeset publish` publishes whatever each manifest says and exits 0 whatever
+ * the numbers are, so a release that skipped D-234's hand-set would spend its
+ * pilot numbers on public npmjs permanently, and nothing else in the flow judges
+ * a version **number** (`major-bump-in-a-zero-series` judges a bump level).
+ * Derived per package from that package's own `version`, so a package past the
+ * floor stops being judged in the run that moves it.
+ *
+ * It is a refusal of `--publish-registry` and not a default-mode finding: until
+ * the release branch sets the number, every package is below the floor, and a
+ * finding would be red on every pull request in between. `--publish-registry`
+ * runs in the publish job immediately before `changeset publish`, which is the
+ * last moment the number can still be refused. A registry that is not public
+ * npmjs is left to its own rules.
+ */
+export function publicVersionFloor(
+  members: readonly ClassifiedMember[],
+  registry: string,
+): PublicVersionFloor {
+  const target = publishTargetOf(registry);
+  if (target === null) {
+    return {
+      below: [],
+      refusal:
+        `the registry \`${registry}\` is not a URL, so whether the first public version's ` +
+        'floor applies cannot be told',
+    };
+  }
+  if (target !== 'public-npmjs') return { below: [], refusal: '' };
+
+  const publishable = members.filter((member) => member.family && !member.isPrivate);
+  const unreadable = publishable
+    .filter((member) => member.version === null || isBelow(member.version, FIRST_PUBLIC_VERSION) === null)
+    .map((member) => `${member.name}@${String(member.version)}`)
+    .sort();
+  const below = publishable
+    .filter((member) => member.version !== null && isBelow(member.version, FIRST_PUBLIC_VERSION) === true)
+    .map((member) => `${member.name}@${member.version!}`)
+    .sort();
+
+  const reasons: string[] = [];
+  if (unreadable.length > 0) {
+    reasons.push(
+      `the version of ${unreadable.join(', ')} cannot be read as semver, so whether it is below ` +
+        `the first public version (${FIRST_PUBLIC_VERSION}) cannot be told`,
+    );
+  }
+  if (below.length > 0) {
+    reasons.push(
+      `[public-version-below-the-declared-floor] ${String(below.length)} package(s) would reach ` +
+        `public npmjs below the first public version, ${FIRST_PUBLIC_VERSION} (D-234): ` +
+        `${below.join(', ')}. A version on npmjs is permanent. Set every publishable manifest to ` +
+        '`max(0.100.0, the highest version any of them has reached)` on the release branch — a ' +
+        'hand-set, not `changeset version` (123 §6a.2) — and publish that',
+    );
+  }
+  return { below, refusal: reasons.join('; ') };
+}
+
+/**
  * Why a GitLab instance-level npm endpoint cannot serve this package, or `null`.
  *
  * A sentence rather than a boolean, because the three ways it fails have
@@ -3135,7 +3243,9 @@ function reportPublishRegistry(repoRoot: string, registry: string): number {
   const exemptions = publicRegistryExemptions(inputs.members, registry);
   // N3: a registry that is not public npmjs cannot serve an unscoped member.
   const scopes = publicRegistryScopes(inputs.members, registry);
-  const refusals = [verdict.refusal, exemptions.refusal, scopes.refusal].filter(
+  // N4: nothing reaches public npmjs below the first public version (D-234).
+  const floor = publicVersionFloor(inputs.members, registry);
+  const refusals = [verdict.refusal, exemptions.refusal, scopes.refusal, floor.refusal].filter(
     (refusal) => refusal !== '',
   );
   if (refusals.length > 0) {
