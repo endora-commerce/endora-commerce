@@ -70,15 +70,14 @@ Pull requests here merged with no branch protection behind them: the owner merge
 
 - [x] **F1** (O) Visibility → public, 2026-09-30[^d282].
 - [x] **F2** (O) Private vulnerability reporting on — `private-vulnerability-reporting` answers
-  `enabled: true` (read 2026-09-30). **Still owed: the signed-out check** that the *Security* tab
-  offers *Report a vulnerability*, which is what `SECURITY.md` says was done. Part of
+  `enabled: true` (read 2026-09-30), and the owner confirmed from a signed-out browser that the
+  *Security* tab offers *Report a vulnerability*, which is what `SECURITY.md` says. Part of
   **W6.6**[^f2].
-- [ ] **F3** (O, or A/D reading the API) Actions on the public repository: `actions/workflows` lists
-  `quality`, `dco`, `demo`, `pack-gate`, `boot-gate` (read 2026-09-30) but **not `publish` or
-  `acceptance-public`**. A `workflow_dispatch`-only file is registered by a push that touches it;
-  the pull request doing that also replaces the `SETTINGS_SECRET_ENCRYPTION_KEY` placeholder in the
-  environment examples — **in progress**. Done when all seven are listed and `quality` is green on
-  `master`'s head[^d283-5].
+- [x] **F3** (O, or A/D reading the API) Actions on the public repository: `gh workflow list --all`
+  lists all seven files — `quality`, `dco`, `demo`, `pack-gate`, `boot-gate`, `publish`,
+  `acceptance-public` — the last two registered by pull request #12, which also replaced the
+  `SETTINGS_SECRET_ENCRYPTION_KEY` placeholder in the environment examples. `quality` is green on
+  `master`'s head `129a5afa3` (read 2026-09-30)[^d283-5].
 - [x] **F4 = T033** (O) A ruleset on `master`: a pull request is required; required status checks
   `quality`, `quality:static`, `test:backend:unit`, `test:frontend`, `release:changeset` and `dco`;
   merge commits only; deletion and force-push blocked; **no bypass actor**, administrators
@@ -86,8 +85,10 @@ Pull requests here merged with no branch protection behind them: the owner merge
   force-push. Verified 2026-09-30 by reading `rulesets`. Completes **W6.6**[^t033].
   **Deviation, recorded:** **0 required approvals**, not one through `CODEOWNERS` — the owner is the
   sole maintainer and cannot approve his own pull request, so a required approval would stop every
-  merge. Not yet confirmed: *Require contributors to sign off on web-based commits* and approval
-  of first-time contributors' fork workflows.
+  merge. Repository settings beside the ruleset, confirmed by the owner: *Require contributors to
+  sign off on web-based commits* is on (`web_commit_signoff_required: true`), and fork pull-request
+  workflows use *Require approval for all external contributors* — stricter than the first-time
+  contributors D-283 asked for.
 - [ ] **F4b** (O) Raise the `master` ruleset to **one approving review, code-owner review
   required**, when a second maintainer joins. Until then `CONTRIBUTING.md` § *Governance*'s
   *"only after a maintainer's review"* holds only for pull requests the owner did not open.
@@ -97,6 +98,8 @@ Pull requests here merged with no branch protection behind them: the owner merge
     token scoped to the `@endora-commerce` packages and `create-endora-commerce`, with no
     organisation access.
   - `demo`: a required reviewer; deployment branch `master`; the five secrets `demo.yml` reads.
+  - The container packages `backend`, `storefront` and `admin` are public, and the organisation's
+    policy allows public packages; an anonymous pull token lists their tags (read 2026-09-30).
   Reviewer-gated environments do exist on the public repository, confirming the one premise D-282
   left unmeasured[^f5].
 - [ ] **F6 = T047** (O) Somebody is notified when `master` goes red on GitHub — the owner's watch
@@ -211,11 +214,11 @@ Pull requests here merged with no branch protection behind them: the owner merge
 ## Dependencies
 
 ```
-done: T031 T035 T032 T050 S2 S3 S5 S6 (S4 not a defect) P4 P6 P7 P9 F1 F2 F4 F5 N1(pack-gate, boot-gate) N9
+done: T031 T035 T032 T050 S2 S3 S5 S6 (S4 not a defect) P4 P6 P7 P9 F1 F2 F3 F4 F5 N1(pack-gate, boot-gate) N9
 open, in order:
-  F2 signed-out check · F3 (register publish + acceptance-public) · F6 (T047) · L1
+  F6 (T047) · L1
   N1b build:docs (10-06) → N2 (T051) → N3 → N4 (T052) → N5 → N6 (W5.5) → N7 (W4.3/W4.4) → N8 (T060)
-  F3 → N2          S1 on the first-install path → N4          T046b → N4 (in practice)
+  S1 on the first-install path → N4          T046b → N4 (in practice)
   N4 → N11 (before npm ends stored-token publishing)
   T043 (10-13), T043p (10-20), T045 + T044 + W7.11 (10-27)          independent of Phase C
   W7.9 + first demo.yml build + host capacity confirmed → W7.10
