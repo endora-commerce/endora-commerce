@@ -30,7 +30,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `lucide-react` ^1.11.0
 - `react` ^19.0.0
 - `react-dom` ^19.0.0
-- `react-router-dom` ^7.14.2
+- `react-router-dom` ^7.18.2
 - `tailwindcss` ^4.2.4 — *optional*
 - `vite` ^7.3.2 — *optional*
 

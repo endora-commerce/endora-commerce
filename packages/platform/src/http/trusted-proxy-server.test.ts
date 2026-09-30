@@ -22,7 +22,11 @@ async function startServer(trustedProxy?: TrustedProxy): Promise<string> {
     ...(trustedProxy === undefined ? {} : { trustedProxy }),
     modules: [
       (instance): void => {
-        instance.get('/test-client-ip', async (request) => ({ ip: request.ip }));
+        instance.get('/test-client-ip', async (request) => ({
+          ip: request.ip,
+          ips: request.ips ?? [],
+          protocol: request.protocol,
+        }));
       },
     ],
   });
@@ -32,12 +36,19 @@ async function startServer(trustedProxy?: TrustedProxy): Promise<string> {
   return `http://127.0.0.1:${address.port}`;
 }
 
+interface Observed {
+  ip: string;
+  ips: string[];
+  protocol: string;
+}
+
+async function observe(baseUrl: string, headers: Record<string, string>): Promise<Observed> {
+  const response = await fetch(`${baseUrl}/test-client-ip`, { headers });
+  return (await response.json()) as Observed;
+}
+
 async function observedClientIp(baseUrl: string): Promise<string> {
-  const response = await fetch(`${baseUrl}/test-client-ip`, {
-    headers: { 'x-forwarded-for': FORWARDED_CLIENT_IP },
-  });
-  const body = (await response.json()) as { ip: string };
-  return body.ip;
+  return (await observe(baseUrl, { 'x-forwarded-for': FORWARDED_CLIENT_IP })).ip;
 }
 
 afterEach(async () => {
@@ -64,5 +75,64 @@ describe('buildServer trusted-proxy option', () => {
   it('ignores a forwarded client arriving from an untrusted address', async () => {
     const baseUrl = await startServer(['10.9.9.9']);
     expect(await observedClientIp(baseUrl)).toBe('127.0.0.1');
+  });
+
+  // Fastify 5.12.1 (GHSA-3m5p-2c4r-xxw2) removed the numeric `trustProxy` —
+  // at runtime a number now fails closed, so `TRUSTED_PROXY_HOPS=1` would
+  // silently stop resolving the client. The hop count is translated into the
+  // `(address, hop) => boolean` form, and these pin that the translation is
+  // exactly the old `(_, i) => i < hops` of fastify <= 5.12.0.
+  describe('a hop count keeps the pre-5.12.1 hop semantics', () => {
+    it('hops=1 behind one proxy: the client is the forwarded address, not the proxy', async () => {
+      const baseUrl = await startServer(1);
+      const seen = await observe(baseUrl, { 'x-forwarded-for': FORWARDED_CLIENT_IP });
+      expect(seen.ip).toBe(FORWARDED_CLIENT_IP);
+      expect(seen.ips).toEqual(['127.0.0.1', FORWARDED_CLIENT_IP]);
+    });
+
+    it('hops=0 trusts nothing: the client is the socket peer', async () => {
+      const baseUrl = await startServer(0);
+      const seen = await observe(baseUrl, { 'x-forwarded-for': FORWARDED_CLIENT_IP });
+      expect(seen.ip).toBe('127.0.0.1');
+    });
+
+    it('does not believe entries a client prepended beyond the trusted hops', async () => {
+      const spoofed = '198.51.100.66';
+      const baseUrl = await startServer(1);
+      const seen = await observe(baseUrl, {
+        'x-forwarded-for': `${spoofed}, ${FORWARDED_CLIENT_IP}`,
+      });
+      expect(seen.ip).toBe(FORWARDED_CLIENT_IP);
+      expect(seen.ips).not.toContain(spoofed);
+    });
+
+    it('hops=2 walks exactly two hops back and no further', async () => {
+      const spoofed = '198.51.100.66';
+      const innerProxy = '10.0.0.2';
+      const baseUrl = await startServer(2);
+      const seen = await observe(baseUrl, {
+        'x-forwarded-for': `${spoofed}, ${FORWARDED_CLIENT_IP}, ${innerProxy}`,
+      });
+      expect(seen.ip).toBe(FORWARDED_CLIENT_IP);
+      expect(seen.ips).toEqual(['127.0.0.1', innerProxy, FORWARDED_CLIENT_IP]);
+    });
+
+    it('believes X-Forwarded-Proto from the trusted proxy, as the numeric form did', async () => {
+      const baseUrl = await startServer(1);
+      const seen = await observe(baseUrl, {
+        'x-forwarded-for': FORWARDED_CLIENT_IP,
+        'x-forwarded-proto': 'https',
+      });
+      expect(seen.protocol).toBe('https');
+    });
+  });
+
+  it('the address list still resolves the client through a spoofed prefix', async () => {
+    const spoofed = '198.51.100.66';
+    const baseUrl = await startServer(['127.0.0.1']);
+    const seen = await observe(baseUrl, {
+      'x-forwarded-for': `${spoofed}, ${FORWARDED_CLIENT_IP}`,
+    });
+    expect(seen.ip).toBe(FORWARDED_CLIENT_IP);
   });
 });

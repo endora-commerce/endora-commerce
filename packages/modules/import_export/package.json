@@ -73,7 +73,7 @@
     "@endora-commerce/platform": "workspace:*",
     "@types/node": "^22.9.0",
     "@types/react": "^19.2.14",
-    "fastify": "^5.8.5",
+    "fastify": "^5.12.5",
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",
     "typescript": "^5.9.3",
