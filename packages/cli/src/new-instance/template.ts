@@ -1353,6 +1353,7 @@ const app = await buildServer({
 });
 
 const shutdown = async (signal: string): Promise<void> => {
+  app.log.info({ signal }, 'worker shutting down');
   await app.close();
   await composition.dispose();
   process.exit(0);

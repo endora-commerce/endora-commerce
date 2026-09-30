@@ -31,6 +31,7 @@
  * from going stale the way the roadmap's own sentence did.
  */
 import { spawnSync } from 'node:child_process';
+import { builtinModules } from 'node:module';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
@@ -321,6 +322,44 @@ function referencesIn(text: string): readonly RawReference[] {
     found.push({ kind: 'css-source', specifier: match[1]! });
   }
   return found;
+}
+
+/**
+ * Every package a module's **static import and re-export statements** name,
+ * reduced to the package: `vitest/config` is `vitest`, `@scope/pkg/sub` is
+ * `@scope/pkg`. Relative specifiers and Node's own modules are not packages an
+ * installer resolves, so they are not here.
+ *
+ * Anchored at the start of a line, deliberately narrower than
+ * {@link outwardReferences}' pattern: that one looks for a path anywhere a
+ * declaration could write one, and over a configuration file it also matches
+ * the word "import" inside a rule's message string. Here a false match is a
+ * refusal of a correct scaffold, and the statements a configuration file
+ * loads its packages with are the static ones this reads.
+ */
+export function importedPackages(text: string): readonly string[] {
+  const found = new Set<string>();
+  for (const match of text.matchAll(STATIC_IMPORT)) {
+    const specifier = match[1]!;
+    if (specifier.startsWith('.') || specifier.startsWith('/')) continue;
+    if (specifier.startsWith('node:') || builtinModules.includes(specifier.split('/')[0]!)) continue;
+    const parts = specifier.split('/');
+    found.add(specifier.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0]!);
+  }
+  return [...found].sort();
+}
+
+const STATIC_IMPORT = /^[ \t]*(?:import|export)\s+(?:[^'";]*?\sfrom\s*)?['"]([^'"]+)['"]/gm;
+
+/** Every package name a manifest declares, in any dependency field. */
+export function declaredPackages(manifest: Record<string, unknown>): ReadonlySet<string> {
+  const names = new Set<string>();
+  for (const field of DEPENDENCY_FIELDS) {
+    const block = manifest[field];
+    if (typeof block !== 'object' || block === null) continue;
+    for (const name of Object.keys(block as Record<string, unknown>)) names.add(name);
+  }
+  return names;
 }
 
 /** The file a storefront declares its environment in, and the copy carries verbatim. */

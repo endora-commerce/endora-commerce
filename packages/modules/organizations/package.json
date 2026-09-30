@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://gitlab.endora.pl/b2b-platform-ai/monorepo.git",
+    "url": "git+https://github.com/endora-commerce/endora-commerce.git",
     "directory": "packages/modules/organizations"
   },
   "publishConfig": {

@@ -41,7 +41,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { planInstance } from '@endora-commerce/cli';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, type Dirent } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -682,8 +682,24 @@ function firstPartySourcesOutsideThePlatform(): ReadonlyMap<string, string> {
   const members = workspaceMembers(REPO_ROOT, nodeWorkspaceFs());
   const platformRoot = platformSourceRootOf(members);
   const out = new Map<string, string>();
+  // The walk reads a live checkout while other test files run beside it, and
+  // some of them write a fixture into the test tree and delete it again —
+  // `check-module-boundary.test.ts`' `ledger-shard-fixture-*`, which has to sit
+  // there for its shards to resolve as real ones. An entry listed and then gone
+  // before it is read is such a fixture, not a consumer: it is skipped, and
+  // only that `ENOENT` is. Anything else still throws. On 2026-09-30 the race
+  // turned `test:unit:fast` red on a branch whose change touched neither file.
+  const vanished = (error: unknown): boolean =>
+    (error as NodeJS.ErrnoException | null)?.code === 'ENOENT';
   const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch (error) {
+      if (vanished(error)) return;
+      throw error;
+    }
+    for (const entry of entries) {
       if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) {
         continue;
       }
@@ -695,7 +711,14 @@ function firstPartySourcesOutsideThePlatform(): ReadonlyMap<string, string> {
       if (!entry.name.endsWith('.ts') && !entry.name.endsWith('.tsx')) continue;
       if (entry.name.endsWith('.d.ts')) continue;
       if (platformRoot !== null && full.startsWith(platformRoot)) continue;
-      out.set(full.slice(REPO_ROOT.length), readFileSync(full, 'utf8'));
+      let text: string;
+      try {
+        text = readFileSync(full, 'utf8');
+      } catch (error) {
+        if (vanished(error)) continue;
+        throw error;
+      }
+      out.set(full.slice(REPO_ROOT.length), text);
     }
   };
   for (const member of members) {
