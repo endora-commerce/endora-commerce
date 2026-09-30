@@ -29,8 +29,8 @@ reviewer-gated environments on a private repository[^d282]; the CI window closes
    and rows that had none take the sequencing label D-283 §5 gave them (`P7`, `F2`, `N11`).
    *Rationale*: those ids are what every pull request, commit message and footnote already cites;
    a renumbering would break each of them to buy uniqueness nothing needs. The ids cannot collide:
-   the two origin features used `T0nn` and `Wn.n`, and D-283 used `Pn`, `Fn` and `Nn`. The one
-   group with no label anywhere — the five scaffold defects — takes `S1`–`S5`, this directory's own.
+   the two origin features used `T0nn` and `Wn.n`, and D-283 used `Pn`, `Fn` and `Nn`. The six
+   scaffold defects keep the `S1`–`S6` labels of the private register that records them.
    *Rejected*: a fresh `T001…` series with the origin id in a column — it makes every existing
    citation resolve through a lookup table.
 2. **No cost figure travels with a row.** The origin rows carried effort estimates; a forward
@@ -52,7 +52,8 @@ reviewer-gated environments on a private repository[^d282]; the CI window closes
 ## Order
 
 ```
-done        T031 push (59a212961)   T035 floor green (#4)   storefront .gitignore (#5)
+done        T031 push (59a212961)   T035 floor green (#4)   S4 .gitignore (#5)
+            — the state on 2026-09-30 is tasks.md's; this block is the order, not the status
 
 before the flip (private)
             T032 commit map (in progress)   137 (this directory)
@@ -82,13 +83,9 @@ is a permanently spent version.
 
 ## Open questions
 
-- **[NEEDS CLARIFICATION]** Which of the four open scaffold defects touch the path a stranger's
-  first install takes, and so must land before N4? The records hold the defects but not that
-  classification; it is answered per defect in its pull request.
-- **[NEEDS CLARIFICATION]** Whether T050 lands before or after the flip. Either satisfies FR-004;
-  the owner chooses. Before is preferred — seventy-odd manifests stop naming a host a stranger
-  cannot open on the day they become visible.
-
+- **[NEEDS CLARIFICATION]** Whether S1, the one scaffold defect still open, touches the path a
+  stranger's first install takes, and so must land before N4. Answered in its pull request.
+- *Answered 2026-09-30:* T050 landed before the flip (#8).
 - **[NEEDS CLARIFICATION]** Whether the reverse proxy on the demo's host reaches a stack through
   loopback binds, which is what makes W7.10's switch a proxy reload (tasks.md, Phase E). The owner
   verifies it on the host; if it does not, the binds or the proxy change before the first deploy,
@@ -129,8 +126,8 @@ None.
   are the owner's and need no pull request; do not change a repository setting on the owner's
   behalf.
 - One pull request per row that changes files, ticking that row in the same pull request.
-- Before the flip, there is no branch protection: a pull request merges on the owner's explicit
-  *ready* with every check green, as it did on GitLab.
+- Since F4 (2026-09-30) the `master` ruleset requires a pull request, the six checks and merge
+  commits; it requires no approval yet (F4b), so the owner's explicit *ready* is still the review.
 - Adding or removing files moves recorded read sizes; re-measure per
   `specs/conventions/check-estate.md` on a pristine clone after merging `origin/master` in.
 - The scaffold defect fixes: the owner or the architect gives the defect in the brief. Do not copy

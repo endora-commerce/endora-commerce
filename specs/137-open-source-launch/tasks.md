@@ -1,14 +1,15 @@
 # Tasks: the open-source launch
 
 **Input**: [spec.md](spec.md), [plan.md](plan.md)
-**State as of**: 2026-09-29
+**State as of**: 2026-09-30 — the repository is public
 
 ## Format
 
 `- [ ] **ID** (hands) description` — *hands*: **O** owner, **A** architect, **D** developer.
 The id is the origin row's own (`T0nn` from the migration feature, `Wn.n` from the publication
 feature) or, for a row that had none, the sequencing label D-283 §5 gave it (`Pn`, `Fn`, `Nn`)
-— plan decision 1. The footnote on each row names where it came from; those records are private
+— plan decision 1. The scaffold defects keep the `S1`–`S6` labels of the private register they
+are recorded in. The footnote on each row names where it came from; those records are private
 and the footnote is provenance, not a link. A row is ticked in the pull request that does it; a
 row whose work is a setting is ticked by the next pull request after it, citing how it was
 verified.
@@ -27,80 +28,93 @@ verified.
 
 ## Phase A — before the flip, while private
 
-Pull requests here merge with no branch protection behind them: the owner merges on an explicit
-*ready* with every check green, as before the migration. Keep this list short.
+Pull requests here merged with no branch protection behind them: the owner merged on an explicit
+*ready* with every check green, as before the migration.
 
-- [ ] **T032** (D, then O) `specs/pre-migration-history/`: the commit map, byte-identical to the
-  migration's artefact (its SHA-256 is the check), a `README.md` saying how to resolve an old id, and
-  the two numbering floors; one sentence in `CONTRIBUTING.md` § *Where to send a change*;
-  `.specify/scripts/bash/create-new-feature.sh` reading the feature floor. **In progress** on
-  `docs/t032-commit-map`[^t032].
+- [x] **T032** (D, then O) `specs/pre-migration-history/`: the commit map, byte-identical to the
+  migration's artefact, its `README.md` and the two numbering floors; the `CONTRIBUTING.md`
+  sentence; `create-new-feature.sh` reading the feature floor. Pull request #7[^t032].
 - [x] **P4** (A, then O) This directory[^d283-43].
-- [ ] **T050** (D, then O) Every published package's `repository.url` names this repository.
-  Derive the population rather than trusting a recorded count; `manifests:generate`,
-  `pnpm install --lockfile-only`, a changeset. **May land before the flip; must land before
-  N4**[^t050].
-- [x] **S1** (D, then O) A scaffolded storefront's `.gitignore` now ignores `.env`, `node_modules`
-  and `.next`. Pull request #5, merged 2026-09-29[^cli].
-- [ ] **S2–S5** (D, then O) The other four defects in what the CLI's 0.15.0 release scaffolds,
-  recorded in the private register; each fix is a pull request here describing its defect in terms
-  of the code. Each lands **before N4 if it touches the path a stranger's first install takes**,
-  otherwise when convenient[^cli].
-- [ ] **P7** (O) The repository variables `.github/workflows/demo.yml` reads — `API_DOMAIN`,
-  `STOREFRONT_DOMAIN`, `SALES_CHANNEL_CODE`, and optionally `DEFAULT_LOCALE` and `DEPLOYMENT`.
-  Done when `demo` on `master` no longer fails at its input guard[^p7].
+- [x] **T050** (D, then O) Every published package's `repository.url` names this repository, with
+  its changeset, landed ahead of N4. Pull request #8[^t050].
+- [x] **S2, S3, S5, S6** (D, then O) Four defects in what the CLI's 0.15.0 release scaffolds, and a
+  boot failure found beside them — an empty `NEWSLETTER_TOKEN_SECRET` line crashed the backend at
+  start; it now falls back as an unset one does. Pull request #9[^cli].
+- [x] **S4** (D, then O) A scaffolded storefront's `.gitignore` ignores `.env`, `node_modules` and
+  `.next`. Pull request #5[^cli].
+- [ ] **S1** (D, then O) The last scaffold defect: the scaffold's pin on
+  `@endora-commerce/contracts`. **Before N4** if it is on the path a stranger's first install
+  takes[^cli].
+- [x] **P7** (O) The repository variables `.github/workflows/demo.yml` reads — `API_DOMAIN`,
+  `STOREFRONT_DOMAIN`, `SALES_CHANNEL_CODE`, `DEFAULT_LOCALE` — set; verified 2026-09-30 by
+  reading `actions/variables`[^p7].
 - [ ] **P8** (O) The historical repository's scheduled pipelines paused, and its project description
   saying it is historical[^p8].
-- [x] **P9** (O) The private records project exists, 2026-09-29. Seeding it is N9[^p9].
-- **Standing, until F4:** Dependabot pull requests #1–#3 stay unmerged. After F4 they are ordinary
-  pull requests under protection[^dependabot].
+- [x] **P9** (O) The private records project exists[^p9].
+- **Standing, until F4:** Dependabot pull requests #1–#3 stayed unmerged. F4 is done; they are
+  ordinary pull requests under the ruleset now[^dependabot].
 
 ---
 
-## Phase B — the sitting: immediately after the flip, one person, uninterrupted, in this order
+## Phase B — the sitting: immediately after the flip
 
 **Nobody links to or announces the repository before F2 is verified**[^d283-6].
 
-- [ ] **F1** (O) Visibility → public[^d282].
-- [ ] **F2** (O) Private vulnerability reporting on, and **verified from a signed-out browser**:
-  the *Security* tab offers *Report a vulnerability*. This is what makes `SECURITY.md` true.
-  Part of **W6.6**[^f2].
+- [x] **F1** (O) Visibility → public, 2026-09-30[^d282].
+- [x] **F2** (O) Private vulnerability reporting on — `private-vulnerability-reporting` answers
+  `enabled: true` (read 2026-09-30). **Still owed: the signed-out check** that the *Security* tab
+  offers *Report a vulnerability*, which is what `SECURITY.md` says was done. Part of
+  **W6.6**[^f2].
 - [ ] **F3** (O, or A/D reading the API) Actions on the public repository: `actions/workflows` lists
-  all five files — `quality`, `dco`, `demo`, `publish`, `acceptance-public` — and `quality` is green
-  on `master`'s head[^d283-5].
-- [ ] **F4 = T033** (O) Protection on `master`: pull request required; one approving review through
-  `CODEOWNERS`; required status checks `quality`, `quality:static`, `test:backend:unit`,
-  `test:frontend`, `release:changeset` and `dco`; force-push and deletion blocked; **Do not allow
-  bypassing the above settings** (administrators included); *Require contributors to sign off on
-  web-based commits*; fork pull-request workflows need approval for first-time contributors.
-  Completes **W6.6**[^t033].
-- [ ] **F5** (O) Environments.
-  - `npm-publish` (from T041): required reviewer, deployment restricted to `master`, variable
-    `ENDORA_NPM_REGISTRY` = `https://registry.npmjs.org/`, secret `ENDORA_NPM_TOKEN` — a
-    **granular** token scoped to the `@endora-commerce` organisation's packages.
-  - `demo`: required reviewer, branch policy `master`, the five secrets `demo.yml` reads
-    (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`); the
-    container package's visibility public.
-  Confirms that reviewer-gated environments exist on the public repository[^f5].
+  `quality`, `dco`, `demo`, `pack-gate`, `boot-gate` (read 2026-09-30) but **not `publish` or
+  `acceptance-public`**. A `workflow_dispatch`-only file is registered by a push that touches it;
+  the pull request doing that also replaces the `SETTINGS_SECRET_ENCRYPTION_KEY` placeholder in the
+  environment examples — **in progress**. Done when all seven are listed and `quality` is green on
+  `master`'s head[^d283-5].
+- [x] **F4 = T033** (O) A ruleset on `master`: a pull request is required; required status checks
+  `quality`, `quality:static`, `test:backend:unit`, `test:frontend`, `release:changeset` and `dco`;
+  merge commits only; deletion and force-push blocked; **no bypass actor**, administrators
+  included. A second ruleset on `release/version-*` and `support/v*` blocks deletion and
+  force-push. Verified 2026-09-30 by reading `rulesets`. Completes **W6.6**[^t033].
+  **Deviation, recorded:** **0 required approvals**, not one through `CODEOWNERS` — the owner is the
+  sole maintainer and cannot approve his own pull request, so a required approval would stop every
+  merge. Not yet confirmed: *Require contributors to sign off on web-based commits* and approval
+  of first-time contributors' fork workflows.
+- [ ] **F4b** (O) Raise the `master` ruleset to **one approving review, code-owner review
+  required**, when a second maintainer joins. Until then `CONTRIBUTING.md` § *Governance*'s
+  *"only after a maintainer's review"* holds only for pull requests the owner did not open.
+- [x] **F5** (O) Environments, verified 2026-09-30 by reading `environments`:
+  - `npm-publish` (from T041): a required reviewer; deployment branches `master` and
+    `release/version-*`; variable `ENDORA_NPM_REGISTRY`; secret `ENDORA_NPM_TOKEN`, a **granular**
+    token scoped to the `@endora-commerce` packages and `create-endora-commerce`, with no
+    organisation access.
+  - `demo`: a required reviewer; deployment branch `master`; the five secrets `demo.yml` reads.
+  Reviewer-gated environments do exist on the public repository, confirming the one premise D-282
+  left unmeasured[^f5].
 - [ ] **F6 = T047** (O) Somebody is notified when `master` goes red on GitHub — the owner's watch
   and notification settings. The historical repository's failed-pipeline notification was a
   project setting and did not travel[^t047].
+- [ ] **L1** (D, then O) The copyright line reads *"Endora sp. z o.o. and the Endora Commerce
+  contributors"* now that contributions arrive from outside. **In progress.**
 
 ---
 
 ## Phase C — publication, in this order
 
-- [ ] **N1 = T042b** (D) `pack-gate` on Actions — **before N4, whatever the calendar says**; it is
-  what stands between a tarball that packs the wrong files and a spent version. `boot-gate` and
-  `build:docs` by **2026-10-06**[^t042b].
+- [x] **N1 = T042b**, part (D) `pack-gate` and `boot-gate` on Actions, ahead of N4. Pull request
+  #10[^t042b].
+- [ ] **N1b = T042b**, rest (D) `build:docs` on Actions, by **2026-10-06**. It reads
+  `specs/133-docs-site-publication/url-inventory.txt`, a pre-migration file this repository does not
+  hold; it is published here under D-247's option A — cleaned against the definition — in the same
+  pull request as the job[^t042b].
 - [ ] **N2 = T051** (D prepares, O dispatches) The provenance probe on the public repository. A
-  throwaway rehearsal of `publish.yml`; it leaves nothing in the tree[^t051].
+  throwaway rehearsal of `publish.yml`; it leaves nothing in the tree. Needs F3[^t051].
 - [ ] **N3** (D) The pull request that takes `create-endora-commerce` out of `private` and makes
   `check:release-intent --publish-registry` accept an unscoped name on the npmjs target[^d267].
 - [ ] **N4 = T052** (D prepares, O dispatches and approves `npm-publish`) `0.100.0` with provenance,
   through `.github/workflows/publish.yml`. **Do not skip the fail-closed dry step**: it is the only
-  thing between a misconfiguration and a permanently spent version. Precondition: N1, N2, N3, T050,
-  and the scaffold fixes S2–S5 that are on the first-install path[^t052].
+  thing between a misconfiguration and a permanently spent version. Precondition: N1, N2, N3, F3,
+  and S1 if it is on the first-install path[^t052].
 - [ ] **N5** (O) Deprecate the `create-endora-commerce@0.0.1` placeholder; the other reserved
   names stay reserved[^d267].
 - [ ] **N6 = W5.5** (O dispatches) The first `public`-mode acceptance run against `0.100.0` on a
@@ -115,7 +129,8 @@ Pull requests here merge with no branch protection behind them: the owner merges
   artefact a human approves; **never a CI job, never scheduled**[^t060].
 - [ ] **N11** (D, then O) Trusted publishing: a pull request changing `publish.yml`'s token guard;
   the trusted publisher configured on npmjs; `ENDORA_NPM_TOKEN` revoked once trusted publishing has
-  carried one release[^n11].
+  carried one release. **Hard deadline: before npm ends publishing with a stored token, relayed as
+  January 2027** — re-read npm's own notice for the date before planning against it[^n11].
 
 ---
 
@@ -146,8 +161,11 @@ Pull requests here merge with no branch protection behind them: the owner merges
 
 ## Phase E — the open-source demo
 
-- [ ] **W7.10** (O, D) The first deploy through `.github/workflows/demo.yml`, after **O-e** (the
-  `demo` environment, F5) and P7, and after the first green `demo.yml` build. Then verification over
+- [ ] **W7.9** (O) The paid tier's demonstration goes live from the paid repository, and the
+  deployment the `demo.` names serve today is retired. Tracked there; listed here only because
+  W7.10's first deploy is ordered after it on the shared host[^fr107].
+- [ ] **W7.10** (O, D) The first deploy through `.github/workflows/demo.yml` — its **O-e** half
+  (F5) and P7 are done — after the first green `demo.yml` build. Then verification over
   loopback, then the `demo.` names switched to it, then the front page links it[^w710].
   **O-a is answered (owner, 2026-09-29): the demo runs on a host that already serves other
   deployments.** No address or hostname goes into this repository. What follows from it:
@@ -169,17 +187,15 @@ Pull requests here merge with no branch protection behind them: the owner merges
   - **The first `demo:deploy` is approved only once the host has measured room** for every stack
     that will run beside it at that moment, at `deploy/README.md`'s per-stack floor. What stops
     first, and when, is recorded privately with the other deployments' plans.
-- The paid tier's own demonstration is built and deployed from the paid repository and tracked
-  there; this repository does not name or link it[^fr107].
 
 ---
 
 ## Phase F — closing the historical repository (private records; outcomes only)
 
-- [ ] **P6** (A) The origin rows marked *continued in `specs/137-open-source-launch/`* in the
+- [x] **P6** (A) The origin rows marked *continued in `specs/137-open-source-launch/`* in the
   historical repository[^d283-43].
-- [ ] **N9** (A) **By 2026-10-27.** Seed the private records project, and write the historical
-  repository's last record-only merge, pointing at it[^n9].
+- [x] **N9** (A) The private records project seeded, and the historical repository's record bridge
+  closed by its last record-only merge, 2026-09-30[^n9].
 - [ ] **N10** (O) **By 2026-10-27, after N9.** Archive the historical repository[^n9].
 
 ---
@@ -187,16 +203,15 @@ Pull requests here merge with no branch protection behind them: the owner merges
 ## Dependencies
 
 ```
-T032, P4, P7, P8, S2–S5, T050 ─┐     (T050 may also land after the flip)
-                               ├─> F1 → F2 → F3 → F4 (T033) → F5 → F6 (T047)
-T035 ──────────────────────────┘
-F4 → Dependabot #1–#3 become ordinary pull requests
-F5 → N1 (T042b pack-gate) → N2 (T051) → N3 → N4 (T052) → N5 → N6 (W5.5) → N7 (W4.3/W4.4) → N8 (T060)
-T050 → N4          S2–S5 on the first-install path → N4          T046b → N4 (in practice)
-N4 → N11
-T043 (10-13), T043p (10-20), T045 + T044 + W7.11 (10-27)          independent of Phase C
-P7 + F5 + first demo.yml build + host capacity confirmed → W7.10
-N9 → N10 (both by 10-27)
+done: T031 T035 T032 T050 S2–S6 P4 P6 P7 P9 F1 F2 F4 F5 N1(pack-gate, boot-gate) N9
+open, in order:
+  F2 signed-out check · F3 (register publish + acceptance-public) · F6 (T047) · L1
+  N1b build:docs (10-06) → N2 (T051) → N3 → N4 (T052) → N5 → N6 (W5.5) → N7 (W4.3/W4.4) → N8 (T060)
+  F3 → N2          S1 on the first-install path → N4          T046b → N4 (in practice)
+  N4 → N11 (before npm ends stored-token publishing)
+  T043 (10-13), T043p (10-20), T045 + T044 + W7.11 (10-27)          independent of Phase C
+  W7.9 + first demo.yml build + host capacity confirmed → W7.10
+  N10 (10-27)          F4b when a second maintainer joins
 ```
 
 ---
@@ -206,8 +221,8 @@ N9 → N10 (both by 10-27)
 [^t032]: 129 T032; D-283 §2 and §4.6; D-283 §5 P3.
 [^d283-43]: D-283 §4.3 and §5 P4, P6.
 [^t050]: 129 T050; D-242 step 5; D-283 §4.5 and §5 P5; owner answer B of 2026-09-29.
-[^cli]: D-283 §4.5 names the class; the entries were recorded through the historical repository's
-    record bridge on 2026-09-29.
+[^cli]: D-283 §4.5 names the class and counts six; the entries, `S1`–`S6`, were recorded through
+    the historical repository's record bridge on 2026-09-29.
 [^p7]: D-283 §5 P7; D-280, amending D-274 O-e.
 [^p8]: D-283 §3 and §5 P8.
 [^p9]: D-283, owner answer A of 2026-09-29, and §5 P9.
