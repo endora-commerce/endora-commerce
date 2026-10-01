@@ -12,7 +12,8 @@ pnpm --filter backend exec tsx scripts/check-release-intent.ts --print-publish-s
 It prints the npm scope on stdout and, on stderr, how many workspace members are public and
 which — the same derivation the publish workflow uses to write its `.npmrc`.
 The tooling is [Changesets](https://changesets.dev), adopted by owner ruling **D-107**
-(`specs/080-f4-real-scope/rulings.md`); **D-108** sets the versioning model.
+(`specs/080-f4-real-scope/rulings.md`); **D-108** set the versioning model, which the owner's
+ruling of 2026-10-01 replaced with lockstep (below).
 
 The rules themselves live in `specs/conventions/release-intent.md`, which is their single
 home. This page is the practical guide, for the moment you are actually writing a file here;
@@ -69,45 +70,21 @@ deciding whether to upgrade, so:
 
 ## What the bumps do here
 
-Versioning is **independent** (D-108), with one `linked` group built around
-`@endora-commerce/page-builder-core`. **Who its members are is not written here** —
-`.changeset/config.json`'s `linked` answers it; this page once named three while the file
-declared four.
+Every release publishes **every package at one number** — lockstep, the owner's ruling of
+2026-10-01, which supersedes D-108's independent versioning. The internal pins are exact (a packed
+`workspace:*` is the sibling's version, and the scaffold pins `@endora-commerce/contracts`
+exactly), so a package versioned on its own would pin a sibling at a number the rest never
+carried. `.changeset/config.json` says it with one `fixed` group,
+`["@endora-commerce/*", "create-endora-commerce"]`, and an empty `linked`; the glob means a new
+package under the scope joins without an edit. One changeset on any package releases all of them
+at the highest bump pending: after `0.100.0`, a single patch is `0.100.1` everywhere.
+`check:release-intent` reports `outside-the-release-group` for a published package the group does
+not cover, and `backend/test/unit/release/changeset-flow.test.ts` measures the group with the
+real CLI.
 
-`page-builder-core` is a **peer** dependency of the other members and ships React contexts and
-hooks. The consuming application resolves exactly one copy; version ranges that disagree
-resolve two, and a provider in one copy with a consumer in the other is a `null` context, not
-a type error. So `linked` gives the members one number **whenever a release includes more than
-one of them**.
-
-Read `linked` precisely. It **raises a package that is already in a release** to the group's
-highest number; it never *adds* one. What puts the other members into a `page-builder-core`
-release is their `peerDependencies` range going **out of range**, so the behaviour depends on
-the version the group currently sits at:
-
-| Seeded at | Patch on one member | Minor on `page-builder-core` | Major |
-| --- | --- | --- | --- |
-| `0.0.0` | the member **and its dependents** (`^0.0.0` is `>=0.0.0 <0.0.1`) | the whole group | the whole group |
-| `0.<n>.0`, n > 0 | the member alone | **the whole group** (`^0.7.0` is `>=0.7.0 <0.8.0`) | the whole group |
-| `1.4.2` | the member alone | `page-builder-core` alone | the whole group |
-
-The middle row is the one this repository is in;
-`node -p "require('./packages/contracts/package.json').version"` answers where it sits today.
-The `1.4.2` divergence is correct rather than broken: the requirement is that the application
-resolve one copy of `page-builder-core`, and `^1.4.2` satisfied by `1.5.0` resolves one copy.
-The shared number was the mechanism, never the requirement. Every row is asserted by
-`backend/test/unit/release/changeset-flow.test.ts`, which seeds its own base version over the
-real manifests and this config, so nobody meets the `1.4.2` row for the first time in a release
-pull request.
-
-`@endora-commerce/contracts` and its dependents version independently. Changesets patch-bumps a
-dependent automatically (`updateInternalDependencies: "patch"`), so a `contracts` release
-carries `@endora-commerce/admin-kit` and `@endora-commerce/page-builder-core` with it without
-either sharing its number. They are deliberately *not* linked: what a consumer of those
-packages really has to agree with is the **server's** version — the supported-set question
-D-108 defers — and a shared number would churn every dependent on each contracts change
-without saying anything true. `@endora-commerce/api-client` was this paragraph's worked
-example until D-202 deleted the package.
+The changesets pending at `0.100.0` are deleted rather than consumed, by the release pull request
+that cuts `0.100.1`: that release hand-set every version and consumed none, so they describe work
+it already shipped. Until then lockstep plans every package at the highest bump among them.
 
 **Every workspace package under `packages/` is public unless a ruling keeps it private, and
 `access` is `public`** — the owner's publication ruling of 2026-09-05. Not publishing something

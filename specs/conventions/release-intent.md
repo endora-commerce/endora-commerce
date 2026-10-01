@@ -2,13 +2,14 @@
 
 **Open this before changing anything a package publishes, and before cutting a release.** It
 carries the rule (a pull request that changes what a package publishes carries a changeset),
-the versioning model, the `linked` group's real behaviour, and the two `.changeset/config.json`
+the versioning model (lockstep, one `fixed` group), and the two `.changeset/config.json`
 fields that look like boilerplate and decide whether the gate is looking at all. One of the
 bodies `AGENTS.md` routes to; it is the single home for these rules, so never restate them in
 `AGENTS.md` or in a tool-specific pointer file.
 
 Release tooling is **Changesets** (`@changesets/cli`, a root devDependency), adopted by owner
-ruling **D-107**; **D-108** sets the versioning model. Both are in
+ruling **D-107**; **D-108** set the versioning model, and the owner's ruling of 2026-10-01 replaced
+its independent versioning with lockstep (below). Both are in
 `specs/080-f4-real-scope/rulings.md` and are settled — do not re-open them, and in particular
 do not reach for Lerna, `semantic-release` or conventional-commit inference.
 
@@ -69,42 +70,34 @@ back. Its row in `check-inventory.md` says why it
 had to be an instrument rather than a remembered rule: the failure is silent, because
 `changeset status` reports a `major` as ordinary intent, which it is.
 
-**Versioning is independent, with one `linked` group** (D-108), built around
-`@endora-commerce/page-builder-core`: its members take one version number whenever a release
-includes more than one of them. **Who the members are is not written here** — `.changeset/config.json`'s
-`linked` answers it, and this sentence named three of them while the file declared four
-(`page-builder-admin` joined and nothing said so), which is D-100 met in the paragraph that
-exists to explain the group. `page-builder-core` is a **peer** dependency of the rest and ships
-React contexts and hooks, so the consuming application resolves exactly one copy; ranges that
-disagree resolve two, and a provider in one copy against a consumer in the other is a `null`
-context at runtime, not a type error. Everything outside the group versions on its own —
-Changesets patch-bumps a dependent by itself (`updateInternalDependencies: "patch"`).
+**Every release publishes every package at one number — lockstep** (owner, 2026-10-01; it
+supersedes D-108's independent versioning and the `linked` group built around
+`@endora-commerce/page-builder-core`). The internal pins are **exact**: `pnpm pack` turns every
+`workspace:*` into the sibling's version, and the scaffold pins `@endora-commerce/contracts`
+exactly (S1, closed as by design on that ground), so a package versioned on its own would pin a
+sibling at a number the rest of the set never carried. `.changeset/config.json` expresses it as
+**one `fixed` group** whose entries are a glob for the scope and the unscoped front door —
+`["@endora-commerce/*", "create-endora-commerce"]` — and an empty `linked`. Changesets matches
+group entries with picomatch (`@changesets/config@4`), so a package added under the scope joins
+the group without an edit. One changeset on any package releases all of them, at the highest bump
+any pending changeset declares: a patch to one package after `0.100.0` is `0.100.1` for every
+package.
 
-**Read `linked` precisely, because it does less than its name suggests and the regime decides
-the rest.** `linked` **raises a package that is already in a release** to the group's highest
-number; it never *adds* one. What puts the other members into a `page-builder-core` release is
-their `peerDependencies` range going **out of range**, so the behaviour is a fact about the
-version the group currently sits at and not about the group:
+`check:release-intent` holds it: `outside-the-release-group` reports a public versionable package
+the one `fixed` group does not cover — an unscoped package added beside the front door, a second
+`fixed` group, or a `linked` group standing in for `fixed` — and `stale-group-member` reports a
+group entry, name or glob, that matches no workspace package. Measured over the real manifests and
+this config in `backend/test/unit/release/changeset-flow.test.ts`, which seeds its own base, in
+both the `0.x` and the `1.x` regime: under `fixed` the caret regime no longer decides anything,
+which is what the old `linked` table spent a paragraph explaining.
 
-| seeded at | patch on one member | minor on `page-builder-core` | major |
-| --- | --- | --- | --- |
-| `0.0.0` | the member **and its dependents** (`^0.0.0` is `>=0.0.0 <0.0.1`) | the whole group | the whole group |
-| `0.<n>.0`, n > 0 | the member alone | **the whole group** (`^0.7.0` is `>=0.7.0 <0.8.0`) | the whole group |
-| `1.4.2` | the member alone | `page-builder-core` alone | the whole group |
-
-Measured, over the real manifests, in `backend/test/unit/release/changeset-flow.test.ts` — which
-seeds its own base rather than reading the tree's, because the tree's version is a release
-decision that moves and it falsified four of these measurements once already. **The middle row is
-the one this repository is in**, and its label is a shape rather than a number for the same
-reason: it read `0.7.0` and `release/version-0.8.0` moved 83 packages out from under it within
-the week. `node -p "require('./packages/contracts/package.json').version"` answers where the
-estate sits today; what the row asserts is the *series*, and while it holds, D-225's
-`major` → `minor` translation costs nothing — in `0.x` a minor already takes every caret peer
-out of range, which is the whole consumer-facing meaning of a break.
-
-The `1.4.2` divergence is correct, not a defect: the requirement is that the application resolve
-one copy, and `^1.4.2` satisfied by `1.5.0` resolves one copy. The shared number was the
-mechanism, never the requirement.
+**The changesets that predate `0.100.0` are deleted by the release pull request that cuts
+`0.100.1`** (owner, 2026-10-01). `0.100.0` was a hand-set of every manifest and consumed none of
+them, so the nineteen files still pending afterwards describe work that version already shipped;
+consuming them would release it twice. They are deleted there rather than on their own because
+`release:changeset` refuses a branch that deletes changesets and produces no release artefact
+(`vacuous-release`, D-212) — and while they are pending, lockstep plans every package at the
+highest bump among them, `0.101.0`.
 
 **The version step is `pnpm run version:packages`, and it runs locally.** It cuts a
 `release/version-<date>` branch, runs `changeset version`, and refuses two things a bare

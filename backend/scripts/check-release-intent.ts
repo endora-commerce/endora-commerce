@@ -94,9 +94,19 @@
  *     entry it replaced stops being ignored — loud for an application, and the
  *     reason `AGENTS.md` says a typo fails safe. It is still a claim about this
  *     repository that this repository no longer contains.
- *   * `stale-group-member` — a `linked` or `fixed` group naming a package that
- *     is not a workspace member. The group silently stops covering it; nothing
- *     else reports that.
+ *   * `stale-group-member` — a `linked` or `fixed` group entry matching no
+ *     workspace member. An entry is a name or a glob (changesets matches it
+ *     with picomatch; `@endora-commerce/*` is the repository's own), read here
+ *     with the same reader as `ignore`. The group silently stops covering it;
+ *     nothing else reports that.
+ *   * `outside-the-release-group` — a public versionable package that the one
+ *     `fixed` group does not cover. Lockstep (owner, 2026-10-01): every release
+ *     publishes every package at one number, because the internal pins are
+ *     exact (S1) and a package versioned on its own would pin a sibling at a
+ *     number the rest of the set never carried. A `linked` group does not
+ *     count — it raises a package already in a release and never adds one —
+ *     and two `fixed` groups are two numbers, so the members outside the
+ *     largest group are reported.
  *   * `unversionable-changeset` — a `.changeset/*.md` naming a package that is
  *     ignored, or that is not a member. This is the reconciliation: the
  *     changeset files are written by hand, the classification is derived from
@@ -631,6 +641,7 @@ export type ReleaseIntentFindingKind =
   | 'unignored-application'
   | 'stale-ignore-entry'
   | 'stale-group-member'
+  | 'outside-the-release-group'
   | 'unversionable-changeset'
   | 'major-bump-in-a-zero-series'
   | 'vacuous-release'
@@ -707,12 +718,18 @@ function stringList(value: unknown): readonly string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
-/** Every package name named by a `linked` or `fixed` group. */
+/** Every entry — a name or a glob — of every `linked` or `fixed` group. */
 export function groupMembers(config: Readonly<Record<string, unknown>>): readonly string[] {
   const groups = [config['linked'], config['fixed']].flatMap((value) =>
     Array.isArray(value) ? (value as unknown[]) : [],
   );
   return groups.flatMap((group) => stringList(group));
+}
+
+/** The `fixed` groups, each as its list of entries. */
+export function fixedGroups(config: Readonly<Record<string, unknown>>): readonly (readonly string[])[] {
+  const value = config['fixed'];
+  return Array.isArray(value) ? (value as unknown[]).map((group) => stringList(group)) : [];
 }
 
 /** One `.changeset/*.md`, read as the front matter it opens with. */
@@ -1915,16 +1932,39 @@ export function analyzeReleaseIntent(
   }
 
   // 7 — a group that has quietly stopped covering one of its members.
-  for (const name of groupMembers(inputs.config)) {
-    if (inputs.members.some((member) => member.name === name)) continue;
+  for (const entry of groupMembers(inputs.config)) {
+    if (inputs.members.some((member) => matchesPattern(entry, member.name))) continue;
     findings.push({
       kind: 'stale-group-member',
-      subject: name,
+      subject: entry,
       message:
-        'is named by a `linked` or `fixed` group and is not a workspace package. The group ' +
+        'is named by a `linked` or `fixed` group and matches no workspace package. The group ' +
         'goes on applying to the others and nothing reports that it stopped applying to this ' +
-        'one — which for a `linked` group means the version agreement it exists to enforce is ' +
-        'quietly one package short.',
+        'one — which means the version agreement it exists to enforce is quietly short.',
+    });
+  }
+
+  // 7a — lockstep: one `fixed` group covers every public versionable package.
+  const groups = fixedGroups(inputs.config);
+  const releaseGroupOf = (name: string): number =>
+    groups.findIndex((group) => group.some((entry) => matchesPattern(entry, name)));
+  const published = inputs.members.filter(
+    (member) => member.family && !member.isPrivate && !isIgnored(member.name),
+  );
+  const sizes = groups.map((_, index) => published.filter((m) => releaseGroupOf(m.name) === index).length);
+  const releaseGroup = sizes.length === 0 ? -1 : sizes.indexOf(Math.max(...sizes));
+  for (const member of published) {
+    const group = releaseGroupOf(member.name);
+    if (group !== -1 && group === releaseGroup) continue;
+    findings.push({
+      kind: 'outside-the-release-group',
+      subject: member.name,
+      message:
+        `(${member.dir}) is published and ${group === -1 ? 'no `fixed` group covers it' : 'sits in a second `fixed` group'}, ` +
+        'so a release versions it apart from the rest. Every release publishes every package ' +
+        'at one number (owner, 2026-10-01) because the internal pins are exact: add it to the ' +
+        'one `fixed` group in `.changeset/config.json`. A `linked` group does not do this — it ' +
+        'raises a package already in a release and never adds one.',
     });
   }
 

@@ -12216,7 +12216,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **T069 (`ksef` and `infakt` leave): 447 -> 435.** Agrees on `origin/master` (d6808271f, after `comarch_xl` left) and moves with the branch: E5, the two packages, their host tests, their Polish pages, the E9 drain and T140/T142; measured on the pristine pair.
     // **136 W5.1 (`create-endora-commerce`, D-267): 435 -> 437.** Agrees on `origin/master` (06bc1f2c7, after !1854 and !1855) and moves with the branch: one more workspace member's manifest, and its classification and publication decisions; measured on the pristine pair after merging `origin/master`.
     // **`specs/137-open-source-launch/` N3 (`create-endora-commerce` made public; the scope rules take a target): sites 437 -> 441.** The one member that left `private` is judged as a public one now; measured, not decomposed, on a pristine worktree of the branch head over `origin/master` 5c3f2cb79 (`setup-worktree.sh`, `build:packages`, `git status --porcelain` empty), whose `[read-size drift]` census named exactly three entries.
-    sites: 441,
+    // **`chore/release-lockstep` (lockstep, owner ruling of 2026-10-01), stacked on `fix/stranger-boot-0.100.1`: sites 441 -> 439.** The `fixed` group's two entries (a glob and the front door) replace the `linked` group's four names, and `sites` counts group entries. Re-measured on a pristine worktree of the branch head (`setup-worktree.sh`, `build:packages`, no `docs/docs/modules` copies, `git status --porcelain` empty), whose `[read-size drift]` census named 3 drifted entries.
+    sites: 439,
     // **Feature 114 Phase 3 (FR-017, D-225): a second author, and neither count
     // moves.** `changeset-subjects` is the distinct package names the changeset
     // files name, reconciled against the members the workspace globs produce.
