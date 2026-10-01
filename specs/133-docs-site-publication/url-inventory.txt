@@ -1,0 +1,386 @@
+# URL inventory — FR-042, SC-022.
+# Published 2026-10-01 under D-247's option A (129 T042b), alone of its directory, because `verify:docs-build` reads it; the rest of `specs/133-docs-site-publication/` stays in the pre-migration record.
+#
+# Every URL the documentation site published at first publication, flattened from
+# both sitemaps of the first build that carried the public origin (feature 133,
+# Phase 4, T054). `verify:docs-build` family 12 asserts that every line below is
+# still in this build's sitemaps, or covered by a committed redirect map: a URL
+# that disappears without one is a broken inbound link, not a tidy-up.
+#
+# Blank lines and `#` comments are ignored by the verifier. One URL per line.
+#
+# A per-page disposition under FR-036 that withholds a page after this capture
+# must remove that page's URLs here, in both locales, beside the disposition
+# that caused it (T077) — otherwise family 12 reds on a deliberate withdrawal.
+#
+# The same obligation holds for a page that leaves with a paid module
+# (`specs/134-paid-module-extraction/` FR-027: a page wholly about a paid module
+# moves to the paid repository's own documentation, which has no published URL
+# to redirect to yet). Re-recorded 2026-09-25 from a fresh build of
+# `origin/master` at 20129efdb, removing 19 URLs per locale:
+# `architecture/pim-{ergonode,pimcore,unopim}` and `integrations/akeneo-pim`
+# (!1756); `module-reference/inpost` + `modules/inpost` (!1739),
+# `module-reference/dhl-parcel` + `modules/dhl_parcel` (!1744),
+# `module-reference/wfirma` + `modules/wfirma` (!1768); and the five
+# gateways of MR !1783 — `module-reference/{autopay,paypal,payu,stripe,tpay}`
+# and `modules/{autopay,paypal,payu,tpay}` (`stripe` shipped no module page).
+#
+# 2026-09-25, MR !1805 (`pim_akeneo` leaves, T055): `module-reference/pim-akeneo`
+# and `modules/pim-akeneo` removed in both locales, re-recorded from a fresh
+# build of that branch after merging `origin/master` at 447510342.
+#
+# 2026-09-26, MR !1812 (`pim_unopim` leaves, T055): `module-reference/pim-unopim`
+# and `modules/pim_unopim` removed in both locales, re-recorded from a fresh
+# build of that branch after merging `origin/master` at cb54356ae.
+#
+# 2026-09-26, MR !1808 (`pim_pimcore` leaves, T055): `module-reference/pim-pimcore`
+# and `modules/pim_pimcore` removed in both locales, re-recorded from a fresh
+# build of that branch after merging `origin/master` at 961634f66.
+#
+# 2026-09-26, `feat/134-pim-ergonode-departure` (`pim_ergonode` leaves, T055, the
+# last PIM connector): `module-reference/pim-ergonode` and `modules/pim_ergonode`
+# removed in both locales, re-recorded from a fresh build of that branch at
+# ff17171f3, whose `verify:docs-build` reported exactly these four as
+# `inventory-url-dropped` and nothing else.
+#
+# 2026-09-26, feature 134 T068 (`feat/134-comarch-prologue`): `architecture/comarch-xl`
+# removed in both locales. The page moved into `comarch_xl`'s own `docs/` layer so
+# its history travels with the package (extraction contract E3p.1), and is served
+# at `modules/comarch_xl/architecture/` until that module leaves, when it is withdrawn
+# with it. No redirect: the successor is itself withdrawn at that departure (D17
+# §2(b)), and no redirect mechanism is served. Re-recorded from a fresh build of that
+# branch after merging `origin/master` at 655a22edc. The new address is **not** added
+# here: this record is the first-publication set, and `modules/comarch_xl/architecture/`
+# was never in it.
+#
+# 2026-09-27, `feat/134-comarch-xl-departure` (`comarch_xl` leaves, T069, the last of
+# the fifteen): `module-reference/comarch-xl` and `modules/comarch_xl` removed in both
+# locales, re-recorded from a fresh build of that branch at d4f319852, whose
+# `verify:docs-build` reported exactly these four as `inventory-url-dropped` and
+# nothing else. `modules/comarch_xl/architecture/` is withdrawn with them and, as the
+# note above says, was never in this record.
+#
+# 2026-09-27, `feat/134-ksef-infakt-departure` (`ksef` and `infakt` leave
+# together, T069): `module-reference/{infakt,ksef}` and `modules/{infakt,ksef}`
+# removed in both locales, re-recorded from a fresh build of that branch at
+# 8d644b6fa, whose `verify:docs-build` reported exactly these eight as
+# `inventory-url-dropped` and nothing else.
+
+https://docs.commerce.endora.software/
+https://docs.commerce.endora.software/admin/mobile-responsive/
+https://docs.commerce.endora.software/architecture/api-interceptor/
+https://docs.commerce.endora.software/architecture/command-bus/
+https://docs.commerce.endora.software/architecture/custom-fields/
+https://docs.commerce.endora.software/architecture/customisation-ladder/
+https://docs.commerce.endora.software/architecture/erp-connector/
+https://docs.commerce.endora.software/architecture/kernel/
+https://docs.commerce.endora.software/architecture/migrations/
+https://docs.commerce.endora.software/architecture/overlay-pattern/
+https://docs.commerce.endora.software/architecture/permissions/
+https://docs.commerce.endora.software/architecture/pim-connector/
+https://docs.commerce.endora.software/architecture/tenant-scoping/
+https://docs.commerce.endora.software/category/architecture/
+https://docs.commerce.endora.software/category/deployment/
+https://docs.commerce.endora.software/category/integrations/
+https://docs.commerce.endora.software/category/operations/
+https://docs.commerce.endora.software/category/runbooks/
+https://docs.commerce.endora.software/checkout/
+https://docs.commerce.endora.software/contracts/
+https://docs.commerce.endora.software/contributing/documentation-i18n/
+https://docs.commerce.endora.software/contributing/translations/
+https://docs.commerce.endora.software/deployment/first-deployment-checklist/
+https://docs.commerce.endora.software/integrations/
+https://docs.commerce.endora.software/integrations/api-access/
+https://docs.commerce.endora.software/module-reference/addresses/
+https://docs.commerce.endora.software/module-reference/admin-actions/
+https://docs.commerce.endora.software/module-reference/admin-notifications/
+https://docs.commerce.endora.software/module-reference/admin-roles/
+https://docs.commerce.endora.software/module-reference/admin-users/
+https://docs.commerce.endora.software/module-reference/analytics/
+https://docs.commerce.endora.software/module-reference/api-keys/
+https://docs.commerce.endora.software/module-reference/assets-library/
+https://docs.commerce.endora.software/module-reference/audit-logs/
+https://docs.commerce.endora.software/module-reference/auth/
+https://docs.commerce.endora.software/module-reference/blog/
+https://docs.commerce.endora.software/module-reference/carts/
+https://docs.commerce.endora.software/module-reference/catalog/
+https://docs.commerce.endora.software/module-reference/cms/
+https://docs.commerce.endora.software/module-reference/comparisons/
+https://docs.commerce.endora.software/module-reference/credentials/
+https://docs.commerce.endora.software/module-reference/credit-limits/
+https://docs.commerce.endora.software/module-reference/currencies/
+https://docs.commerce.endora.software/module-reference/custom-fields/
+https://docs.commerce.endora.software/module-reference/customer-accounts/
+https://docs.commerce.endora.software/module-reference/customers/
+https://docs.commerce.endora.software/module-reference/delivery-methods/
+https://docs.commerce.endora.software/module-reference/dictionaries/
+https://docs.commerce.endora.software/module-reference/email/
+https://docs.commerce.endora.software/module-reference/google-analytics/
+https://docs.commerce.endora.software/module-reference/google-tag-manager/
+https://docs.commerce.endora.software/module-reference/i18n/
+https://docs.commerce.endora.software/module-reference/import-export/
+https://docs.commerce.endora.software/module-reference/inventory/
+https://docs.commerce.endora.software/module-reference/invoice-ledger/
+https://docs.commerce.endora.software/module-reference/invoices/
+https://docs.commerce.endora.software/module-reference/languages/
+https://docs.commerce.endora.software/module-reference/lifecycle/
+https://docs.commerce.endora.software/module-reference/linkedin-ads/
+https://docs.commerce.endora.software/module-reference/megamenu/
+https://docs.commerce.endora.software/module-reference/meta-ads/
+https://docs.commerce.endora.software/module-reference/mfa/
+https://docs.commerce.endora.software/module-reference/newsletter/
+https://docs.commerce.endora.software/module-reference/orders/
+https://docs.commerce.endora.software/module-reference/organizations/
+https://docs.commerce.endora.software/module-reference/payment-methods/
+https://docs.commerce.endora.software/module-reference/payments/
+https://docs.commerce.endora.software/module-reference/pim-connector/
+https://docs.commerce.endora.software/module-reference/price-lists/
+https://docs.commerce.endora.software/module-reference/product-feeds/
+https://docs.commerce.endora.software/module-reference/promotions/
+https://docs.commerce.endora.software/module-reference/prompt-actions/
+https://docs.commerce.endora.software/module-reference/pwa/
+https://docs.commerce.endora.software/module-reference/quick-order/
+https://docs.commerce.endora.software/module-reference/quote-requests/
+https://docs.commerce.endora.software/module-reference/returns/
+https://docs.commerce.endora.software/module-reference/sales-channels/
+https://docs.commerce.endora.software/module-reference/search/
+https://docs.commerce.endora.software/module-reference/seo/
+https://docs.commerce.endora.software/module-reference/settings/
+https://docs.commerce.endora.software/module-reference/shipments/
+https://docs.commerce.endora.software/module-reference/shopping-lists/
+https://docs.commerce.endora.software/module-reference/taxes/
+https://docs.commerce.endora.software/module-reference/transactional-emails/
+https://docs.commerce.endora.software/module-reference/webhooks/
+https://docs.commerce.endora.software/modules/
+https://docs.commerce.endora.software/modules/addresses/
+https://docs.commerce.endora.software/modules/admin-actions/
+https://docs.commerce.endora.software/modules/admin_roles/
+https://docs.commerce.endora.software/modules/admin_users/
+https://docs.commerce.endora.software/modules/analytics/
+https://docs.commerce.endora.software/modules/api_keys/
+https://docs.commerce.endora.software/modules/assets-library/
+https://docs.commerce.endora.software/modules/audit_logs/
+https://docs.commerce.endora.software/modules/auth/
+https://docs.commerce.endora.software/modules/blog/
+https://docs.commerce.endora.software/modules/carts/
+https://docs.commerce.endora.software/modules/catalog/
+https://docs.commerce.endora.software/modules/catalog/attachments/
+https://docs.commerce.endora.software/modules/catalog/attribute-sets/
+https://docs.commerce.endora.software/modules/catalog/attributes/
+https://docs.commerce.endora.software/modules/catalog/composite-products/
+https://docs.commerce.endora.software/modules/catalog/gallery-and-labels/
+https://docs.commerce.endora.software/modules/catalog/packaging-units/
+https://docs.commerce.endora.software/modules/catalog/per-channel-per-language-overrides/
+https://docs.commerce.endora.software/modules/catalog/product-links/
+https://docs.commerce.endora.software/modules/cms/
+https://docs.commerce.endora.software/modules/cms/extending-page-builder/
+https://docs.commerce.endora.software/modules/comparisons/
+https://docs.commerce.endora.software/modules/credentials/
+https://docs.commerce.endora.software/modules/credit_limits/
+https://docs.commerce.endora.software/modules/currencies/
+https://docs.commerce.endora.software/modules/customer_accounts/
+https://docs.commerce.endora.software/modules/customers/
+https://docs.commerce.endora.software/modules/delivery_methods/
+https://docs.commerce.endora.software/modules/dictionaries/
+https://docs.commerce.endora.software/modules/google-analytics/
+https://docs.commerce.endora.software/modules/google-tag-manager/
+https://docs.commerce.endora.software/modules/i18n/
+https://docs.commerce.endora.software/modules/import_export/
+https://docs.commerce.endora.software/modules/inventory/
+https://docs.commerce.endora.software/modules/invoice-ledger/
+https://docs.commerce.endora.software/modules/invoices/
+https://docs.commerce.endora.software/modules/languages/
+https://docs.commerce.endora.software/modules/lifecycle/
+https://docs.commerce.endora.software/modules/linkedin-ads/
+https://docs.commerce.endora.software/modules/megamenu/
+https://docs.commerce.endora.software/modules/meta-ads/
+https://docs.commerce.endora.software/modules/module-map.generated/
+https://docs.commerce.endora.software/modules/newsletter/
+https://docs.commerce.endora.software/modules/orders/
+https://docs.commerce.endora.software/modules/organization-hierarchy/
+https://docs.commerce.endora.software/modules/organizations/
+https://docs.commerce.endora.software/modules/payment_methods/
+https://docs.commerce.endora.software/modules/payments/
+https://docs.commerce.endora.software/modules/price_lists/
+https://docs.commerce.endora.software/modules/product_feeds/
+https://docs.commerce.endora.software/modules/promotions/
+https://docs.commerce.endora.software/modules/prompt-actions/
+https://docs.commerce.endora.software/modules/pwa/
+https://docs.commerce.endora.software/modules/quick_order/
+https://docs.commerce.endora.software/modules/quote_requests/
+https://docs.commerce.endora.software/modules/returns/
+https://docs.commerce.endora.software/modules/sales_channels/
+https://docs.commerce.endora.software/modules/sales_channels/admin-usage/
+https://docs.commerce.endora.software/modules/sales_channels/developer-guide/
+https://docs.commerce.endora.software/modules/search/
+https://docs.commerce.endora.software/modules/seo/
+https://docs.commerce.endora.software/modules/settings/
+https://docs.commerce.endora.software/modules/shipments/
+https://docs.commerce.endora.software/modules/shopping_lists/
+https://docs.commerce.endora.software/modules/taxes/
+https://docs.commerce.endora.software/modules/transactional-emails/
+https://docs.commerce.endora.software/modules/webhooks/
+https://docs.commerce.endora.software/operations/health-endpoint/
+https://docs.commerce.endora.software/operations/queue-consumers/
+https://docs.commerce.endora.software/operations/runbooks/block-name-migration/
+https://docs.commerce.endora.software/operations/runbooks/module-lifecycle-stuck-lock/
+https://docs.commerce.endora.software/operations/warden/
+https://docs.commerce.endora.software/pl/
+https://docs.commerce.endora.software/pl/admin/mobile-responsive/
+https://docs.commerce.endora.software/pl/architecture/api-interceptor/
+https://docs.commerce.endora.software/pl/architecture/command-bus/
+https://docs.commerce.endora.software/pl/architecture/custom-fields/
+https://docs.commerce.endora.software/pl/architecture/customisation-ladder/
+https://docs.commerce.endora.software/pl/architecture/erp-connector/
+https://docs.commerce.endora.software/pl/architecture/kernel/
+https://docs.commerce.endora.software/pl/architecture/migrations/
+https://docs.commerce.endora.software/pl/architecture/overlay-pattern/
+https://docs.commerce.endora.software/pl/architecture/permissions/
+https://docs.commerce.endora.software/pl/architecture/pim-connector/
+https://docs.commerce.endora.software/pl/architecture/tenant-scoping/
+https://docs.commerce.endora.software/pl/category/architecture/
+https://docs.commerce.endora.software/pl/category/deployment/
+https://docs.commerce.endora.software/pl/category/integrations/
+https://docs.commerce.endora.software/pl/category/operations/
+https://docs.commerce.endora.software/pl/category/runbooks/
+https://docs.commerce.endora.software/pl/checkout/
+https://docs.commerce.endora.software/pl/contracts/
+https://docs.commerce.endora.software/pl/contributing/documentation-i18n/
+https://docs.commerce.endora.software/pl/contributing/translations/
+https://docs.commerce.endora.software/pl/deployment/first-deployment-checklist/
+https://docs.commerce.endora.software/pl/integrations/
+https://docs.commerce.endora.software/pl/integrations/api-access/
+https://docs.commerce.endora.software/pl/module-reference/addresses/
+https://docs.commerce.endora.software/pl/module-reference/admin-actions/
+https://docs.commerce.endora.software/pl/module-reference/admin-notifications/
+https://docs.commerce.endora.software/pl/module-reference/admin-roles/
+https://docs.commerce.endora.software/pl/module-reference/admin-users/
+https://docs.commerce.endora.software/pl/module-reference/analytics/
+https://docs.commerce.endora.software/pl/module-reference/api-keys/
+https://docs.commerce.endora.software/pl/module-reference/assets-library/
+https://docs.commerce.endora.software/pl/module-reference/audit-logs/
+https://docs.commerce.endora.software/pl/module-reference/auth/
+https://docs.commerce.endora.software/pl/module-reference/blog/
+https://docs.commerce.endora.software/pl/module-reference/carts/
+https://docs.commerce.endora.software/pl/module-reference/catalog/
+https://docs.commerce.endora.software/pl/module-reference/cms/
+https://docs.commerce.endora.software/pl/module-reference/comparisons/
+https://docs.commerce.endora.software/pl/module-reference/credentials/
+https://docs.commerce.endora.software/pl/module-reference/credit-limits/
+https://docs.commerce.endora.software/pl/module-reference/currencies/
+https://docs.commerce.endora.software/pl/module-reference/custom-fields/
+https://docs.commerce.endora.software/pl/module-reference/customer-accounts/
+https://docs.commerce.endora.software/pl/module-reference/customers/
+https://docs.commerce.endora.software/pl/module-reference/delivery-methods/
+https://docs.commerce.endora.software/pl/module-reference/dictionaries/
+https://docs.commerce.endora.software/pl/module-reference/email/
+https://docs.commerce.endora.software/pl/module-reference/google-analytics/
+https://docs.commerce.endora.software/pl/module-reference/google-tag-manager/
+https://docs.commerce.endora.software/pl/module-reference/i18n/
+https://docs.commerce.endora.software/pl/module-reference/import-export/
+https://docs.commerce.endora.software/pl/module-reference/inventory/
+https://docs.commerce.endora.software/pl/module-reference/invoice-ledger/
+https://docs.commerce.endora.software/pl/module-reference/invoices/
+https://docs.commerce.endora.software/pl/module-reference/languages/
+https://docs.commerce.endora.software/pl/module-reference/lifecycle/
+https://docs.commerce.endora.software/pl/module-reference/linkedin-ads/
+https://docs.commerce.endora.software/pl/module-reference/megamenu/
+https://docs.commerce.endora.software/pl/module-reference/meta-ads/
+https://docs.commerce.endora.software/pl/module-reference/mfa/
+https://docs.commerce.endora.software/pl/module-reference/newsletter/
+https://docs.commerce.endora.software/pl/module-reference/orders/
+https://docs.commerce.endora.software/pl/module-reference/organizations/
+https://docs.commerce.endora.software/pl/module-reference/payment-methods/
+https://docs.commerce.endora.software/pl/module-reference/payments/
+https://docs.commerce.endora.software/pl/module-reference/pim-connector/
+https://docs.commerce.endora.software/pl/module-reference/price-lists/
+https://docs.commerce.endora.software/pl/module-reference/product-feeds/
+https://docs.commerce.endora.software/pl/module-reference/promotions/
+https://docs.commerce.endora.software/pl/module-reference/prompt-actions/
+https://docs.commerce.endora.software/pl/module-reference/pwa/
+https://docs.commerce.endora.software/pl/module-reference/quick-order/
+https://docs.commerce.endora.software/pl/module-reference/quote-requests/
+https://docs.commerce.endora.software/pl/module-reference/returns/
+https://docs.commerce.endora.software/pl/module-reference/sales-channels/
+https://docs.commerce.endora.software/pl/module-reference/search/
+https://docs.commerce.endora.software/pl/module-reference/seo/
+https://docs.commerce.endora.software/pl/module-reference/settings/
+https://docs.commerce.endora.software/pl/module-reference/shipments/
+https://docs.commerce.endora.software/pl/module-reference/shopping-lists/
+https://docs.commerce.endora.software/pl/module-reference/taxes/
+https://docs.commerce.endora.software/pl/module-reference/transactional-emails/
+https://docs.commerce.endora.software/pl/module-reference/webhooks/
+https://docs.commerce.endora.software/pl/modules/
+https://docs.commerce.endora.software/pl/modules/addresses/
+https://docs.commerce.endora.software/pl/modules/admin-actions/
+https://docs.commerce.endora.software/pl/modules/admin_roles/
+https://docs.commerce.endora.software/pl/modules/admin_users/
+https://docs.commerce.endora.software/pl/modules/analytics/
+https://docs.commerce.endora.software/pl/modules/api_keys/
+https://docs.commerce.endora.software/pl/modules/assets-library/
+https://docs.commerce.endora.software/pl/modules/audit_logs/
+https://docs.commerce.endora.software/pl/modules/auth/
+https://docs.commerce.endora.software/pl/modules/blog/
+https://docs.commerce.endora.software/pl/modules/carts/
+https://docs.commerce.endora.software/pl/modules/catalog/
+https://docs.commerce.endora.software/pl/modules/catalog/attachments/
+https://docs.commerce.endora.software/pl/modules/catalog/attribute-sets/
+https://docs.commerce.endora.software/pl/modules/catalog/attributes/
+https://docs.commerce.endora.software/pl/modules/catalog/composite-products/
+https://docs.commerce.endora.software/pl/modules/catalog/gallery-and-labels/
+https://docs.commerce.endora.software/pl/modules/catalog/packaging-units/
+https://docs.commerce.endora.software/pl/modules/catalog/per-channel-per-language-overrides/
+https://docs.commerce.endora.software/pl/modules/catalog/product-links/
+https://docs.commerce.endora.software/pl/modules/cms/
+https://docs.commerce.endora.software/pl/modules/cms/extending-page-builder/
+https://docs.commerce.endora.software/pl/modules/comparisons/
+https://docs.commerce.endora.software/pl/modules/credentials/
+https://docs.commerce.endora.software/pl/modules/credit_limits/
+https://docs.commerce.endora.software/pl/modules/currencies/
+https://docs.commerce.endora.software/pl/modules/customer_accounts/
+https://docs.commerce.endora.software/pl/modules/customers/
+https://docs.commerce.endora.software/pl/modules/delivery_methods/
+https://docs.commerce.endora.software/pl/modules/dictionaries/
+https://docs.commerce.endora.software/pl/modules/google-analytics/
+https://docs.commerce.endora.software/pl/modules/google-tag-manager/
+https://docs.commerce.endora.software/pl/modules/i18n/
+https://docs.commerce.endora.software/pl/modules/import_export/
+https://docs.commerce.endora.software/pl/modules/inventory/
+https://docs.commerce.endora.software/pl/modules/invoice-ledger/
+https://docs.commerce.endora.software/pl/modules/invoices/
+https://docs.commerce.endora.software/pl/modules/languages/
+https://docs.commerce.endora.software/pl/modules/lifecycle/
+https://docs.commerce.endora.software/pl/modules/linkedin-ads/
+https://docs.commerce.endora.software/pl/modules/megamenu/
+https://docs.commerce.endora.software/pl/modules/meta-ads/
+https://docs.commerce.endora.software/pl/modules/module-map.generated/
+https://docs.commerce.endora.software/pl/modules/newsletter/
+https://docs.commerce.endora.software/pl/modules/orders/
+https://docs.commerce.endora.software/pl/modules/organization-hierarchy/
+https://docs.commerce.endora.software/pl/modules/organizations/
+https://docs.commerce.endora.software/pl/modules/payment_methods/
+https://docs.commerce.endora.software/pl/modules/payments/
+https://docs.commerce.endora.software/pl/modules/price_lists/
+https://docs.commerce.endora.software/pl/modules/product_feeds/
+https://docs.commerce.endora.software/pl/modules/promotions/
+https://docs.commerce.endora.software/pl/modules/prompt-actions/
+https://docs.commerce.endora.software/pl/modules/pwa/
+https://docs.commerce.endora.software/pl/modules/quick_order/
+https://docs.commerce.endora.software/pl/modules/quote_requests/
+https://docs.commerce.endora.software/pl/modules/returns/
+https://docs.commerce.endora.software/pl/modules/sales_channels/
+https://docs.commerce.endora.software/pl/modules/sales_channels/admin-usage/
+https://docs.commerce.endora.software/pl/modules/sales_channels/developer-guide/
+https://docs.commerce.endora.software/pl/modules/search/
+https://docs.commerce.endora.software/pl/modules/seo/
+https://docs.commerce.endora.software/pl/modules/settings/
+https://docs.commerce.endora.software/pl/modules/shipments/
+https://docs.commerce.endora.software/pl/modules/shopping_lists/
+https://docs.commerce.endora.software/pl/modules/taxes/
+https://docs.commerce.endora.software/pl/modules/transactional-emails/
+https://docs.commerce.endora.software/pl/modules/webhooks/
+https://docs.commerce.endora.software/pl/operations/health-endpoint/
+https://docs.commerce.endora.software/pl/operations/queue-consumers/
+https://docs.commerce.endora.software/pl/operations/runbooks/block-name-migration/
+https://docs.commerce.endora.software/pl/operations/runbooks/module-lifecycle-stuck-lock/
+https://docs.commerce.endora.software/pl/operations/warden/

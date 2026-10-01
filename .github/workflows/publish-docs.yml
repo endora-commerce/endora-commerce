@@ -1,0 +1,199 @@
+# The documentation site, published from `master` after an approval.
+#
+# 129 T046b: the Actions twin of GitLab's `publish:docs`, whose reasoning is
+# above that job in `.gitlab-ci.yml` and in
+# `specs/133-docs-site-publication/contracts/publication-pipeline.md`; it is
+# not copied here. `backend/test/unit/ci/docs-publish-workflow.test.ts` holds
+# every property this header states.
+#
+# ## What it does
+#
+# `publish:docs:build` runs exactly what the pull-request check `build:docs`
+# runs (`build-docs.yml`) — the Docusaurus build, then `verify:docs-build` over
+# what it emitted — and uploads the verified `docs/build`. `publish:docs`
+# downloads that tree, so what goes live is what the gate judged; it never
+# rebuilds.
+#
+# The deploy ships the tree over SSH the way GitLab did:
+#
+#   1. `rsync --delete --link-dest=../../current` into a fresh
+#      `$DOCS_DEPLOY_PATH/releases/<sha>/`, which nothing serves yet; files that
+#      did not change are hard-linked against the live release;
+#   2. `deploy/publish-docs.sh`, shipped from this tree and run on the host,
+#      swaps `current` to the new release with one `rename(2)` of a symlink, so
+#      a reader sees the old build or the new one and never half of either.
+#      It keeps the last five releases, so a rollback is the same swap pointed
+#      at an older one, and it declines, with exit 0, to replace a build of a
+#      later commit with an earlier one.
+#
+# The host layout is the one `deploy/README.md` § The documentation site
+# describes: the web server's root is `$DOCS_DEPLOY_PATH/current`.
+#
+# ## Why no fork can reach the key
+#
+#   * the only triggers are a push to `master` and a manual dispatch, and every
+#     job runs only when the ref is `master`;
+#   * the key and the host coordinates are secrets of the `docs` environment,
+#     whose required reviewer is the owner and whose deployment branch is
+#     `master`; only the deploy job names it;
+#   * the build job runs the repository's own scripts and every dependency's
+#     install hooks, so it holds no secret at all;
+#   * top-level permissions are empty and each job reads the repository only;
+#   * every action is pinned by full commit SHA, and no secret is interpolated
+#     into a shell line: each arrives through `env:`.
+#
+# ## What the owner configures before the first run
+#
+# Environment `docs` — required reviewer, deployment branch `master`, and five
+# secrets: `SSH_PRIVATE_KEY`, `SSH_KNOWN_HOSTS`, `DEPLOY_HOST`, `DEPLOY_USER`,
+# `DOCS_DEPLOY_PATH`. No hostname or path is written in this file.
+
+name: publish:docs
+
+on:
+  push:
+    branches: [master]
+    # `build-docs.yml`'s pull_request list, with this file in its own place.
+    paths:
+      - 'docs/**/*'
+      - 'docs/static/**/*'
+      - 'docs/translation-cache/**/*'
+      - 'docs/i18n/**/*'
+      - 'docs/locales.config.json'
+      - 'docs/translation-skip.json'
+      - 'packages/modules/*/docs/**/*'
+      - 'backend/scripts/generate-composer.ts'
+      - 'backend/scripts/check-docs-translations.ts'
+      - 'backend/scripts/verify-docs-build.ts'
+      - 'specs/133-docs-site-publication/url-inventory.txt'
+      - 'specs/133-docs-site-publication/redirect-map.txt'
+      - 'backend/scripts/lib/docs-*.ts'
+      - 'packages/cli/src/lib/module-docs.ts'
+      - 'packages/cli/src/lib/docs-artefacts.ts'
+      - 'deploy/publish-docs.sh'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/publish-docs.yml'
+  workflow_dispatch:
+
+permissions: {}
+
+# One publication at a time, and one in flight is never cancelled. A newer
+# commit queued behind it still wins: the host script orders by commit time.
+concurrency:
+  group: publish-docs
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: publish:docs:build
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # actions/cache v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:packages
+      - run: pnpm --filter docs run build
+      - run: pnpm --filter backend run verify:docs-build
+      # actions/upload-artifact v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: docs-build
+          path: docs/build/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
+
+  deploy:
+    name: publish:docs
+    if: github.ref == 'refs/heads/master'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    environment:
+      name: docs
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DOCS_DEPLOY_PATH: ${{ secrets.DOCS_DEPLOY_PATH }}
+      RELEASE: ${{ github.sha }}
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          sparse-checkout: deploy
+          persist-credentials: false
+      # actions/download-artifact v8.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: docs-build
+          path: docs/build
+      - name: refuse to start without every coordinate
+        # An empty DOCS_DEPLOY_PATH turns `mkdir -p "$DOCS_DEPLOY_PATH/releases"`
+        # into a directory at the host's root.
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          for name in SSH_PRIVATE_KEY SSH_KNOWN_HOSTS DEPLOY_HOST DEPLOY_USER DOCS_DEPLOY_PATH; do
+            if [ -z "${!name}" ]; then
+              echo "::error::the docs environment secret $name is not set"
+              exit 1
+            fi
+          done
+      - name: ssh credentials
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/docs_key
+          chmod 600 ~/.ssh/docs_key
+          cat > ~/.ssh/config <<EOF
+          Host docs
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/docs_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            UserKnownHostsFile ~/.ssh/known_hosts
+          EOF
+          chmod 600 ~/.ssh/config
+      - name: upload the release beside the live one
+        # The job's values are expanded here on purpose (SC2029): ssh carries
+        # none of the runner's environment to the host.
+        run: |
+          # shellcheck disable=SC2029
+          ssh docs "mkdir -p '$DOCS_DEPLOY_PATH/releases'"
+          scp deploy/publish-docs.sh "docs:$DOCS_DEPLOY_PATH/publish-docs.sh"
+          rsync -a --delete --link-dest=../../current docs/build/ "docs:$DOCS_DEPLOY_PATH/releases/$RELEASE/"
+      - name: swap the live site to it
+        run: |
+          COMMIT_TIMESTAMP="$(git log -1 --format=%cI HEAD)"
+          # shellcheck disable=SC2029
+          ssh docs "DOCS_DEPLOY_PATH='$DOCS_DEPLOY_PATH' CI_COMMIT_SHA='$RELEASE' CI_COMMIT_TIMESTAMP='$COMMIT_TIMESTAMP' bash '$DOCS_DEPLOY_PATH/publish-docs.sh'"
+      - name: forget the key
+        if: always()
+        run: rm -rf ~/.ssh
