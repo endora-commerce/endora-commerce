@@ -2666,9 +2666,14 @@ describe('a changeset document keeps the prose R3 reads', () => {
  * each manifest says and exits 0 whatever the numbers are, so a release branch
  * that forgot the hand-set would spend `0.17.x` … `0.8.x` on public npmjs,
  * permanently. The refusal lives in `--publish-registry`, the publish job's
- * precondition, rather than in the default mode: every package is below the
- * floor until the release branch sets it, so a default-mode finding would be
- * red on every pull request until then.
+ * precondition, rather than in the default mode: every package was below the
+ * floor until the release branch set it, so a default-mode finding would have
+ * been red on every pull request until then.
+ *
+ * `0.100.0` is published, and the floor stays: its network twin, which asked
+ * whether a publish was the *first*, is gone (it refused every later release),
+ * while this half asks nothing about history and holds for every release — a
+ * package added at a number of its own, or a `latest` moving down.
  */
 describe('check-release-intent — N4: nothing reaches public npmjs below the first public version', () => {
   function membersOf(files: FileMap) {
@@ -2712,6 +2717,12 @@ describe('check-release-intent — N4: nothing reaches public npmjs below the fi
     expect(publicVersionFloor(membersOf(atVersion('0.100.0-rc.1')), NPMJS).below).toEqual([
       '@fx/alpha@0.100.0-rc.1',
     ]);
+  });
+
+  it('after the first publish, tells a package below the floor to join at the release number', () => {
+    const verdict = publicVersionFloor(membersOf(atVersion('0.1.0')), NPMJS);
+    expect(verdict.refusal).toContain('joins at the current one');
+    expect(verdict.refusal).not.toContain('hand-set');
   });
 
   it('refuses a version it cannot read rather than reading it as above the floor', () => {

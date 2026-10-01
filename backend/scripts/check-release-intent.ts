@@ -1488,10 +1488,13 @@ export function publicRegistryScopes(
  * version any publishable package has reached)`, and every publishable package
  * carries that one number on the day.
  *
- * Declared once, here, and read by {@link publicVersionFloor} and by
- * `scripts/first-publish-preconditions.ts`. **Retiring condition**: deleted,
- * with both of them, by the merge request after the first npmjs publish —
- * their whole subject is that publish (`specs/137-open-source-launch/` N4).
+ * Declared once, here, and read by {@link publicVersionFloor}. It **outlived**
+ * the first publish on purpose (`specs/137-open-source-launch/` N4): its
+ * network twin, which asked npmjs whether a publish was the *first*, was
+ * deleted once `0.100.0` was published, because left in place it refused every
+ * release after it. This half asks nothing about history — only that no
+ * publishable package reaches public npmjs below the number every package
+ * started there at — so it is as true for the hundredth release as the first.
  */
 export const FIRST_PUBLIC_VERSION = '0.100.0';
 
@@ -1539,12 +1542,14 @@ export interface PublicVersionFloor {
  * Derived per package from that package's own `version`, so a package past the
  * floor stops being judged in the run that moves it.
  *
- * It is a refusal of `--publish-registry` and not a default-mode finding: until
- * the release branch sets the number, every package is below the floor, and a
- * finding would be red on every pull request in between. `--publish-registry`
- * runs in the publish job immediately before `changeset publish`, which is the
- * last moment the number can still be refused. A registry that is not public
- * npmjs is left to its own rules.
+ * Since `0.100.0` was published the refusal guards two things: a package added
+ * to the workspace at a low number of its own, which would leave the set's one
+ * number behind (the lockstep S1 relies on), and a publish whose `latest`
+ * would move **down** — npm points `latest` at whatever a plain publish
+ * publishes. It is a refusal of `--publish-registry` rather than a default-mode
+ * finding because that is where it has always run: in the publish job,
+ * immediately before `changeset publish`, the last moment a number can still be
+ * refused. A registry that is not public npmjs is left to its own rules.
  */
 export function publicVersionFloor(
   members: readonly ClassifiedMember[],
@@ -1582,9 +1587,9 @@ export function publicVersionFloor(
     reasons.push(
       `[public-version-below-the-declared-floor] ${String(below.length)} package(s) would reach ` +
         `public npmjs below the first public version, ${FIRST_PUBLIC_VERSION} (D-234): ` +
-        `${below.join(', ')}. A version on npmjs is permanent. Set every publishable manifest to ` +
-        '`max(0.100.0, the highest version any of them has reached)` on the release branch — a ' +
-        'hand-set, not `changeset version` (123 §6a.2) — and publish that',
+        `${below.join(', ')}. A version on npmjs is permanent, and every package published there ` +
+        `started at ${FIRST_PUBLIC_VERSION}. Give the package the release's own number — a new ` +
+        'package joins at the current one rather than starting a series of its own — and publish that',
     );
   }
   return { below, refusal: reasons.join('; ') };
@@ -3273,7 +3278,8 @@ function reportPublishRegistry(repoRoot: string, registry: string): number {
   const exemptions = publicRegistryExemptions(inputs.members, registry);
   // N3: a registry that is not public npmjs cannot serve an unscoped member.
   const scopes = publicRegistryScopes(inputs.members, registry);
-  // N4: nothing reaches public npmjs below the first public version (D-234).
+  // N4: nothing reaches public npmjs below the first public version (D-234),
+  // for every release and not only the first.
   const floor = publicVersionFloor(inputs.members, registry);
   const refusals = [verdict.refusal, exemptions.refusal, scopes.refusal, floor.refusal].filter(
     (refusal) => refusal !== '',

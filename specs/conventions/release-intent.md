@@ -140,20 +140,19 @@ requests npm provenance and refuses to publish without it. The publish credentia
 an npm token, not a push credential, so it changes nothing in the paragraph above. The workflow's
 own header lists every fail-closed refusal it carries; they are not restated here.
 
-**The first public version is a floor, and two instruments hold it until it is spent** (D-234;
-123 §6a; `specs/137-open-source-launch/` N4). The first npmjs publish is `max(0.100.0, the highest
-version any publishable package has reached)`, and every publishable package carries that one
-number on the day. It is reached by a **hand-set** of `version` in every publishable manifest on a
-`release/version-<n>` branch, never by `changeset version`, which bumps minor by minor and cannot
-get there; the pending changesets are not consumed by that branch but afterwards, as an ordinary
-release. `check:release-intent --publish-registry <npmjs>` refuses any publishable package below
-`FIRST_PUBLIC_VERSION` (`public-version-below-the-declared-floor`, a refusal of that mode rather
-than a default-mode finding, because every package is below the floor until the release branch sets
-it), and `backend/scripts/first-publish-preconditions.ts`, run by `publish.yml` before `changeset
-publish`, asks npmjs whether it really is the first publish: one number across the set, and no
-package already holding a version at or above the floor other than that number (which is a resumed
-run). Both are **deleted by the pull request after the first publish**; left in place, the second
-refuses the next release, which is how it cannot outlive its subject.
+**The first public version is a floor, and one instrument holds it for every release** (D-234;
+123 §6a; `specs/137-open-source-launch/` N4). The first npmjs publish was `max(0.100.0, the highest
+version any publishable package had reached)` — `0.100.0` — reached by a **hand-set** of `version`
+in every publishable manifest on a `release/version-<n>` branch, never by `changeset version`,
+which bumps minor by minor and could not get there. `check:release-intent --publish-registry
+<npmjs>` refuses any publishable package below `FIRST_PUBLIC_VERSION`
+(`public-version-below-the-declared-floor`, a refusal of that mode rather than a default-mode
+finding, because every package was below the floor until the release branch set it). It
+**stays**: after the first publish it refuses a package added to the workspace at a number of its
+own — a new package joins at the release's current number — and a publish that would move npm's
+`latest` down. Its network twin, `backend/scripts/first-publish-preconditions.ts`, asked npmjs
+whether a publish really was the first and was deleted by the pull request after `0.100.0`, as
+it was written to be: left in place it refused every later release.
 
 **Tags: `privatePackages.tag` is `false`.** It is consulted only where changesets asks *which
 private packages to tag* (`getUntaggedPrivatePackages`). Between the publication ruling of

@@ -83,7 +83,7 @@ import {
   runNewInstance,
   type NewInstanceResult,
 } from '../new-instance/index.js';
-import { probePlatform } from '../new-instance/host.js';
+import { probePlatform, readOwnManifest } from '../new-instance/host.js';
 import {
   runNewStorefront,
   type NewStorefrontResult,
@@ -326,22 +326,56 @@ function probe(command: string, args: readonly string[]): boolean {
 }
 
 /**
+ * The corepack runner for a `packageManager` value, or `null`.
+ *
+ * Only an exact `pnpm@<x.y.z>` is accepted, and that is the whole point:
+ * `0.100.0` ran corepack with the `latest` tag, and on the day of the first public
+ * acceptance run `latest` was a pnpm whose `bin/pnpm.mjs` the corepack bundled
+ * with Node 22.18 cannot start — every machine without `pnpm` on `PATH` died
+ * before installing anything. A tag or a range is a value that moves without
+ * this repository, so it is no runner at all rather than a guess. A corepack
+ * hash suffix stays in the manifest and off the command line.
+ */
+export function corepackRunnerFor(packageManager: unknown): PackageManagerRunner | null {
+  if (typeof packageManager !== 'string') return null;
+  const match = /^(pnpm@\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)(?:\+.*)?$/.exec(packageManager.trim());
+  if (match === null) return null;
+  const spec = match[1]!;
+  return { command: 'corepack', prefix: [spec], label: `corepack ${spec}` };
+}
+
+/**
+ * The CLI's own `packageManager` as a corepack runner, or `null`.
+ *
+ * The same value `new instance` copies into the scaffold's root manifest
+ * (`new-instance/host.ts`), so the pnpm that installs an instance and the pnpm
+ * that instance declares are one number.
+ */
+function ownCorepackRunner(): PackageManagerRunner | null {
+  try {
+    return corepackRunnerFor(readOwnManifest(import.meta.url)['packageManager']);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * How this machine runs `pnpm`, in the declared order (FR-158).
  *
- * `pnpm` on `PATH` first, then `corepack pnpm@<range>` — and **never**
- * `corepack enable`, which is baseline step A1 and a command that writes shims
- * into a directory this program does not own. `corepack pnpm@…` runs the
- * package manager without changing anything about the machine, which is the
- * property that lets this step be a fallback rather than an installation.
+ * `pnpm` on `PATH` first, then `corepack <the CLI's own packageManager>` — and
+ * **never** `corepack enable`, which is baseline step A1 and a command that
+ * writes shims into a directory this program does not own. `corepack pnpm@…`
+ * runs the package manager without changing anything about the machine, which
+ * is the property that lets this step be a fallback rather than an
+ * installation.
  */
 function resolvePackageManagers(): readonly PackageManagerRunner[] {
   const found: PackageManagerRunner[] = [];
   if (probe('pnpm', ['--version'])) {
     found.push({ command: 'pnpm', prefix: [], label: 'pnpm' });
   }
-  if (probe('corepack', ['--version'])) {
-    found.push({ command: 'corepack', prefix: ['pnpm@latest'], label: 'corepack pnpm@latest' });
-  }
+  const corepack = ownCorepackRunner();
+  if (corepack !== null && probe('corepack', ['--version'])) found.push(corepack);
   return found;
 }
 
@@ -639,8 +673,9 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     refusals.add(
       'no package manager to run: `pnpm` is not on PATH and `corepack` is not either. ' +
         'Install pnpm (`npm i -g pnpm`), or use a Node that ships corepack — this command ' +
-        'runs `corepack pnpm@latest` when it has to, and never `corepack enable`, which ' +
-        'writes shims into a directory it does not own.',
+        `runs \`${ownCorepackRunner()?.label ?? 'corepack pnpm@<the version this CLI pins>'}\` ` +
+        'when it has to, and never `corepack enable`, which writes shims into a directory ' +
+        'it does not own.',
     );
   }
 

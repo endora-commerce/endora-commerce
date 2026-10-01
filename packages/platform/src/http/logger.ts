@@ -1,5 +1,7 @@
 import { pino, type Logger as PinoLogger, type LoggerOptions } from 'pino';
 
+import { prettyTransport } from './pretty-transport.js';
+
 export type Logger = PinoLogger;
 
 export interface CreateLoggerOptions {
@@ -22,14 +24,7 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
     },
   };
 
-  if (pretty) {
-    return pino({
-      ...loggerOptions,
-      transport: {
-        target: 'pino-pretty',
-        options: { colorize: true, translateTime: 'SYS:HH:MM:ss.l', ignore: 'pid,hostname' },
-      },
-    });
-  }
+  const transport = pretty ? prettyTransport() : undefined;
+  if (transport !== undefined) return pino({ ...loggerOptions, transport });
   return pino(loggerOptions);
 }
