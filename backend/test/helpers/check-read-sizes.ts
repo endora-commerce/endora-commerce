@@ -10171,7 +10171,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/137-open-source-launch/` N3 (`create-endora-commerce` made public): files 6595 -> 6596.** The branch's one new file, its changeset. Measured on a pristine worktree of the branch head over `origin/master` 5c3f2cb79 (`setup-worktree.sh`, `build:packages`, `git status --porcelain` empty), whose `[read-size drift]` census named exactly three entries.
     // **`specs/137-open-source-launch/` N4 (the first-publish floor, 123 T7-D1): files 6596 -> 6598.** Measured on a pristine worktree of the branch head, stacked on N3 over `origin/master` 5c3f2cb79 (`setup-worktree.sh`, `build:packages`, `git status --porcelain` empty), whose `[read-size drift]` census named exactly nine entries. Not computed from a delta.
     // **`chore/vitest-4` (vitest 2 -> 4.1.11), merged with `origin/master` after #24: files 6598 -> 6600.** The record was resolved wholly to `master` at the merge and re-measured on a pristine worktree of the merge commit (`setup-worktree.sh`, `build:packages`, no `docs/docs/modules` copies and no copy stamp, `git status --porcelain` empty), whose `[read-size drift]` census named exactly two entries, this and `check-naming.sh`. The movement is the branch's two new files, both `.changeset/*.md` (`test-kit-vitest-4-peer`, `vitest-4-dev-ranges`). The 62 edited `package.json` files, the edited tests and configs and the re-locked `pnpm-lock.yaml` change no walk's population. Not computed from a delta.
-    files: 6600,
+    // **`docs/readme-logo-badges-screens`: files 6600 -> 6601.** Re-measured on a pristine clone of the branch commit (`setup-worktree.sh`, `build:packages`, no `docs/docs/modules` copies, `git status --porcelain` empty), up to date with `origin/master`; its `[read-size drift]` census named exactly two entries, this and `check-naming.sh`. The movement is the README logo, `docs/static/img/logo.svg`. The branch's five screenshots under `docs/static/img/screenshots/` are `.png`, which this walk excludes as binary, so they move nothing here. Not computed from a delta.
+    files: 6601,
     sites: null,
     sources: [],
     //
@@ -15591,7 +15592,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/137-open-source-launch/` N3 (`create-endora-commerce` made public): files 6645 -> 6646.** The branch's one new file, its changeset. Measured on a pristine worktree of the branch head over `origin/master` 5c3f2cb79 (`setup-worktree.sh`, `build:packages`, `git status --porcelain` empty), whose `[read-size drift]` census named exactly three entries.
     // **`specs/137-open-source-launch/` N4 (the first-publish floor, 123 T7-D1): files 6646 -> 6648.** Measured on a pristine worktree of the branch head, stacked on N3 over `origin/master` 5c3f2cb79 (`setup-worktree.sh`, `build:packages`, `git status --porcelain` empty), whose `[read-size drift]` census named exactly nine entries. Not computed from a delta.
     // **`chore/vitest-4` (vitest 2 -> 4.1.11), merged with `origin/master` after #24: files 6648 -> 6650.** Re-measured on the same pristine worktree of the merge commit, in the same census. The movement is the same two new `.changeset/*.md` files, by the index rather than the disk. Not computed from a delta.
-    files: 6650,
+    // **`docs/readme-logo-badges-screens`: files 6650 -> 6656.** Re-measured on the same pristine clone, in the same census. The movement is the branch's six new files by the index: `docs/static/img/logo.svg` and the five README screenshots under `docs/static/img/screenshots/`. Not computed from a delta.
+    files: 6656,
     sites: null,
     sources: ['manifest-index'],
     //
