@@ -67,8 +67,9 @@ list; those are not installed from npm.
 
 ## 🚀 Quick start
 
-You need **Node.js ≥ 22.18**, **pnpm** (`corepack enable` provides it) and **Docker** with
-Compose v2. Then two commands:
+You need **Node.js ≥ 22.18** and **Docker** with Compose v2; **pnpm** is optional
+(`corepack enable` provides it). Then two commands — without pnpm, run the second one the way the
+first prints it (`npx --yes pnpm@<version> run dev:all`):
 
 ```bash
 npx create-endora-commerce@latest my-shop

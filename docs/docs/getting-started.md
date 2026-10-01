@@ -15,8 +15,11 @@ repository's `README.md` is the short version.
 
 - **Node.js ≥ 22.18** — the instance's own `package.json` declares the same range, and the
   installer refuses to start on an older Node rather than write a tree its manifest rejects.
-- **pnpm** — `corepack enable` provides it. If neither `pnpm` nor `corepack` is on your `PATH`,
-  the installer refuses and says so.
+- **pnpm** — `corepack enable` provides it. Without it the installer still works: it runs the
+  pnpm this release pins through corepack, and prints every next command in a form that needs
+  only Node and npm — the second command becomes `npx --yes pnpm@<version> run dev:all`. Run
+  what it prints. If neither `pnpm` nor `corepack` is on your `PATH`, the installer refuses and
+  says so.
 - **Docker with Compose v2**, for the development services (PostgreSQL, Redis, Meilisearch and the
   Mailpit mail catcher). Not needed with `--no-services`, when you run those services yourself.
 

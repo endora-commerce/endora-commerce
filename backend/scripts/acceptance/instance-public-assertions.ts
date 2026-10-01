@@ -210,21 +210,8 @@ export function strangerEnvironment(
   return stranger;
 }
 
-/**
- * What the stranger types, in order — the list P5 counts and the harness runs.
- *
- * Data rather than a sequence of calls, so the count is of the commands that
- * actually ran rather than of a description of them. Two, as §6.2's *"Endora
- * after this programme"* row states the target.
- *
- * **`--no-storefront` is in it because a stranger has to type it.** `endora
- * install` copies the reference storefront out of a checkout of the platform
- * repository and refuses the storefront anywhere else, naming this flag
- * (`specs/110-instance-repository/contracts/cli-product.md` R3.1c). A clean
- * runner is anywhere else. P2 reports the consequence rather than this list
- * hiding it.
- */
-export function strangerCommands(input: {
+/** Who installs as whom: the one-shot's inputs. */
+export interface OneShotInput {
   readonly packageName: string;
   readonly version: string;
   readonly dir: string;
@@ -234,20 +221,64 @@ export function strangerCommands(input: {
     readonly firstName: string;
     readonly lastName: string;
   };
-}): readonly string[] {
+}
+
+/**
+ * The first command: the one-shot, every answer a flag.
+ *
+ * **`--no-storefront` is in it because a stranger has to type it.** `endora
+ * install` copies the reference storefront out of a checkout of the platform
+ * repository and refuses the storefront anywhere else, naming this flag
+ * (`specs/110-instance-repository/contracts/cli-product.md` R3.1c). A clean
+ * runner is anywhere else. P2 reports the consequence rather than this list
+ * hiding it.
+ */
+export function oneShotCommand(input: OneShotInput): string {
   return [
-    [
-      `npx --yes ${input.packageName}@${input.version} ${input.dir}`,
-      '--non-interactive',
-      '--no-storefront',
-      '--demo',
-      `--admin-email ${input.admin.email}`,
-      `--admin-password ${input.admin.password}`,
-      `--admin-first-name ${input.admin.firstName}`,
-      `--admin-last-name ${input.admin.lastName}`,
-    ].join(' '),
-    `cd ${input.dir} && pnpm run dev:all`,
-  ];
+    `npx --yes ${input.packageName}@${input.version} ${input.dir}`,
+    '--non-interactive',
+    '--no-storefront',
+    '--demo',
+    `--admin-email ${input.admin.email}`,
+    `--admin-password ${input.admin.password}`,
+    `--admin-first-name ${input.admin.firstName}`,
+    `--admin-last-name ${input.admin.lastName}`,
+  ].join(' ');
+}
+
+/**
+ * The `… run dev:all` line the one-shot printed, as a command — its trailing
+ * `# …` comment dropped — or `null` when it printed none.
+ *
+ * The CLI decides the spelling: `pnpm run dev:all` where `pnpm` is on PATH,
+ * the pinned pnpm through `npx` where it is not. A copy of either written here
+ * would be a second answer to one question, and the first time they disagreed
+ * (W5.5 against `0.100.1`, run 36868691058) this harness typed a command no
+ * stranger had been told to type, and measured its own assumption.
+ */
+export function printedDevAllCommand(output: string): string | null {
+  for (const line of output.split('\n')) {
+    const match = /^\s*(cd \S+ && \S.*?\brun dev:all\b.*?)(?:\s+#.*)?\s*$/.exec(line);
+    if (match !== null) return match[1]!.trim();
+  }
+  return null;
+}
+
+/**
+ * What the stranger types, in order — the list P5 counts and the harness runs.
+ *
+ * Data rather than a sequence of calls, so the count is of the commands that
+ * actually ran rather than of a description of them. Two, as §6.2's *"Endora
+ * after this programme"* row states the target: the one-shot, then **the
+ * command it printed** to start every layer ({@link printedDevAllCommand}).
+ * When it printed none, the list is one command long — the sequence did not
+ * reach its end, which P5 reports as unmeasured and P1 as a failure.
+ */
+export function strangerCommands(
+  input: OneShotInput & { readonly installOutput: string },
+): readonly string[] {
+  const devAll = printedDevAllCommand(input.installOutput);
+  return devAll === null ? [oneShotCommand(input)] : [oneShotCommand(input), devAll];
 }
 
 /**

@@ -10,7 +10,8 @@
  * directory with no workspace and no git above it:
  *
  *   1. `npx --yes create-endora-commerce@<version> shop --non-interactive …`
- *   2. `cd shop && pnpm run dev:all`
+ *   2. the command the one-shot printed to start every layer — `cd shop && pnpm run dev:all`,
+ *      or, with no `pnpm` on PATH, the pinned pnpm through `npx`
  *
  * and then judges §6.4's five properties (`instance-public-assertions.ts`).
  * The list is {@link strangerCommands}: P5 counts what ran, not a description.
@@ -69,6 +70,7 @@ import {
   evaluateStorefront,
   formatPublicReport,
   publicExitCode,
+  oneShotCommand,
   strangerCommands,
   strangerEnvironment,
   type InstalledManifest,
@@ -323,21 +325,31 @@ async function main(): Promise<number> {
     firstName: 'Public',
     lastName: 'Acceptance',
   };
-  const typed = strangerCommands({ packageName, version, dir: dirName, admin });
+  const oneShot = oneShotCommand({ packageName, version, dir: dirName, admin });
+  // The second command is read off the one-shot's own output once it has run:
+  // the CLI decides how a stranger without `pnpm` on PATH starts every layer,
+  // and this harness types what it was told rather than a copy of it.
+  let typed: readonly string[] = [oneShot];
   const results: PublicAssertionResult[] = [];
   let devAll: ChildProcess | null = null;
 
   try {
     // ── 1. the one-shot ───────────────────────────────────────────────────────
-    const install = await typeCommand(typed[0]!, host, INSTALL_TIMEOUT_MS);
+    const install = await typeCommand(oneShot, host, INSTALL_TIMEOUT_MS);
     const installed = install.code === 0;
     if (!installed) notes.push(`the one-shot exited ${String(install.code)}`);
+    typed = strangerCommands({ packageName, version, dir: dirName, admin, installOutput: install.output });
+    const printedNext = typed.length > 1;
+    if (installed && !printedNext) notes.push('the one-shot printed no `run dev:all` command to type next');
 
     // ── 2. one command for every layer ────────────────────────────────────────
     let healthStatus: number | null = null;
     let loginStatus: number | null = null;
     let loginBody = '';
-    if (installed) {
+    if (installed && !printedNext) {
+      loginBody = 'the one-shot exited 0 and printed no `run dev:all` command, so a stranger has nothing to type next';
+    }
+    if (installed && printedNext) {
       console.log(`\n$ ${typed[1]!}`);
       devAll = spawn('sh', ['-c', typed[1]!], {
         cwd: host,
@@ -391,7 +403,7 @@ async function main(): Promise<number> {
           : null,
       }),
       evaluateLicences(installedManifests(instanceDir, packageName)),
-      evaluateCommandCount(installed ? typed : typed.slice(0, 1), installed),
+      evaluateCommandCount(installed ? typed : typed.slice(0, 1), installed && printedNext),
     );
   } finally {
     if (devAll !== null) await stopGroup(devAll);
