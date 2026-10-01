@@ -382,19 +382,17 @@ describe('the refusals survive the port', () => {
     expect(body).toContain("printf 'registry=%s\\n' \"$ENDORA_NPM_REGISTRY\"");
   });
 
-  it('`publish:packages` measures the registry for a first publish before publishing (N4)', () => {
-    // 123 T7-D1's network half: one number across the set, and no package
-    // already at or above the floor on npmjs. The static half is the
-    // `--publish-registry` refusal asserted above.
+  it('`publish:packages` no longer carries the first-publish precondition (N4 is spent)', () => {
+    // 123 T7-D1's network half asked npmjs whether a publish was the *first*
+    // one; `0.100.0` was, and left in place the step refuses every release
+    // after it, by design. The static half — nothing below `0.100.0` on public
+    // npmjs — is the `--publish-registry` refusal asserted above, and stays.
     const lines = PUBLISH_JOBS[0]!.runLines;
-    const precondition = lines.findIndex(
-      (line) =>
-        line.includes('scripts/first-publish-preconditions.ts') &&
-        line.includes('--registry "$ENDORA_NPM_REGISTRY"'),
-    );
-    const publish = lines.findIndex((line) => line.startsWith('pnpm exec changeset publish'));
-    expect(precondition, 'the publish job lost its first-publish precondition').toBeGreaterThan(-1);
-    expect(publish).toBeGreaterThan(precondition);
+    expect(
+      lines.filter((line) => line.includes('first-publish-preconditions')),
+      'the publish job still runs the first-publish precondition, which refuses every release after the first',
+    ).toEqual([]);
+    expect(lines.some((line) => line.startsWith('pnpm exec changeset publish'))).toBe(true);
   });
 
   it('is a deliberate act — the publish workflow is dispatched, never triggered by a push', () => {

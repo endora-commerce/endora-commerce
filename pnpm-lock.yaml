@@ -592,9 +592,6 @@ importers:
       pino:
         specifier: ^10.3.1
         version: 10.3.1
-      pino-pretty:
-        specifier: ^13.1.3
-        version: 13.1.3
       read-excel-file:
         specifier: ^9.0.9
         version: 9.0.9
@@ -3744,6 +3741,9 @@ importers:
       pino:
         specifier: ^10.3.1
         version: 10.3.1
+      pino-pretty:
+        specifier: ^13.1.3
+        version: 13.1.3
     devDependencies:
       '@mikro-orm/core':
         specifier: ^6.6.13

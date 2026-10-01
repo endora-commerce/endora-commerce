@@ -17,6 +17,7 @@ import {
   type OpenApiMetadata,
 } from './openapi.js';
 import type { ErrorEnvelopeOptions } from './error-envelope.js';
+import { prettyTransport } from './pretty-transport.js';
 import { toFastifyTrustProxy, type TrustedProxy } from './trusted-proxy.js';
 import {
   makePostDispatchPreSerialization,
@@ -87,6 +88,7 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   // Logger instance because pino 10's `msgPrefix: string | undefined` conflicts with
   // Fastify's stricter `FastifyBaseLogger` under exactOptionalPropertyTypes.
   const isDev = process.env['NODE_ENV'] !== 'production';
+  const transport = isDev ? prettyTransport() : undefined;
   const app = Fastify({
     logger: {
       level: process.env['LOG_LEVEL'] ?? 'info',
@@ -94,14 +96,9 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
         paths: ['req.headers.authorization', 'req.headers.cookie', '*.password', '*.passwordHash', '*.secret'],
         censor: '[REDACTED]',
       },
-      ...(isDev
-        ? {
-            transport: {
-              target: 'pino-pretty',
-              options: { colorize: true, translateTime: 'SYS:HH:MM:ss.l', ignore: 'pid,hostname' },
-            },
-          }
-        : {}),
+      // Development only, and only when it resolves: a missing `pino-pretty`
+      // means JSON lines, never a server that will not start.
+      ...(transport === undefined ? {} : { transport }),
     },
     genReqId: () => `req_${randomHex(16)}`,
     requestIdHeader: 'x-request-id',

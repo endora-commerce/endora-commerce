@@ -134,15 +134,24 @@ Pull requests here merged with no branch protection behind them: the owner merge
   unscoped member; `publish.yml` hands its registry to `--print-publish-scope` and names the
   default registry for the unscoped front door. **Landed ahead of N2**: nothing it changes
   publishes, and N4 still waits on N2.
-- [ ] **N4 = T052** (D prepares, O dispatches and approves `npm-publish`) `0.100.0` with provenance,
+- [x] **N4 = T052** (D prepares, O dispatches and approves `npm-publish`) `0.100.0` with provenance,
   through `.github/workflows/publish.yml`. **Do not skip the fail-closed dry step**: it is the only
   thing between a misconfiguration and a permanently spent version. Precondition: N1, N2, N3,
-  F3 (S1 was closed as by design on 2026-09-30)[^t052].
+  F3 (S1 was closed as by design on 2026-09-30)[^t052]. **Published 2026-10-01** by `publish` run
+  36820161561 on `master` `08577d44a`, after the release pull request #29. The first-publish guard's
+  network half (`first-publish-preconditions.ts` and its `publish.yml` step) is retired by the pull
+  request that ships `0.100.1`; the static floor stays as a permanent rule (nothing reaches public
+  npmjs below `0.100.0`).
 - [ ] **N5** (O) Deprecate the `create-endora-commerce@0.0.1` placeholder; the other reserved
   names stay reserved[^d267].
 - [ ] **N6 = W5.5** (O dispatches) The first `public`-mode acceptance run against `0.100.0` on a
   GitHub-hosted runner with no registry configuration; then nightly and on every release; then the
-  `next` → `latest` promotion[^w55].
+  `next` → `latest` promotion[^w55]. **The first run against `0.100.0`** (run 36835214331, on pull
+  request #31's branch) found two defects that stop a stranger starting an instance, both confirmed
+  in a clean `node:22.18-bookworm` container: `endora install` fell back to `corepack pnpm@latest`,
+  a pnpm (12.8.1) whose `bin/pnpm.mjs` the corepack bundled with Node 22.18 (0.33.0) cannot start;
+  and `@endora-commerce/platform` named `pino-pretty` as a transport target without declaring it,
+  so `dev:all` died at API boot. Both are fixed for `0.100.1`; N6 is re-run against that.
 - [ ] **N7 = W4.3 + W4.4** (O, D) The free packages leave the private registry's namespace, so a
   consumer resolves them from npmjs. Verified with an authenticated probe: a free name forwards to
   npmjs, a paid name is refused without forwarding for a credential that cannot read it. The paid

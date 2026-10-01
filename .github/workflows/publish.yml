@@ -27,9 +27,8 @@
 #   7. `changeset publish` reporting "No unpublished projects to publish" —
 #      exit 2 rather than passing as a silent success.
 #   8. On public npmjs, the first public version (D-234): the check refuses a
-#      package below `0.100.0`, and `first-publish-preconditions.ts` refuses a
-#      set that does not carry one number or a package already published at or
-#      above the floor. Both retire after the first publish.
+#      package below `0.100.0`. Its network twin, which asked npmjs whether a
+#      publish was the first, retired once `0.100.0` was published (137 N4).
 #
 # A publish workflow that keeps the provenance and loses the guards is a worse
 # instrument than the one it replaces.
@@ -171,15 +170,6 @@ jobs:
       # and a registry that cannot serve a member's name — an unscoped one on
       # anything but public npmjs (`specs/137-open-source-launch/` N3).
       - run: pnpm --filter backend exec tsx scripts/check-release-intent.ts --publish-registry "$ENDORA_NPM_REGISTRY"
-      # The first public release, measured against the registry (D-234; 123
-      # T7-D1's network half; `specs/137-open-source-launch/` N4). The check
-      # above refuses a package below `0.100.0` without a network call; this asks
-      # npmjs whether the publish really is the first: every package carries one
-      # number, and none already holds a version at or above the floor other than
-      # that number. It is the fail-closed dry step N4 must not skip, and it is
-      # deleted by the merge request after the first publish — left in place it
-      # refuses the second release, by design.
-      - run: pnpm --filter backend exec tsx scripts/first-publish-preconditions.ts --registry "$ENDORA_NPM_REGISTRY"
       # The last gate before a publish. `quality` does not run on the dispatched
       # ref unless it happens to be `master`, so without this line the packages
       # would be published having been judged only by the pull request that
