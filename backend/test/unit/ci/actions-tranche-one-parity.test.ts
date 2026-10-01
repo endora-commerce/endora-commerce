@@ -34,13 +34,14 @@ import { readJobs } from '../../helpers/ci-jobs.js';
  * place. `.gitlab-ci.yml` is not carried across — an edit to it changes nothing
  * a workflow runs.
  *
- * **`build:docs` is not ported yet, and is not listed below.** Its second
+ * **`build:docs` reads a file the D-247 cut line first withheld.** Its second
  * command, `verify:docs-build`, reads
- * `specs/133-docs-site-publication/url-inventory.txt`, which stayed behind the
- * D-247 cut line; on this tree it exits 2 (`inventory-absent`) on every run.
- * Where the inventory lives on the canonical tree is a decision, not a port.
- * The `!reference [.docs-rules, rules]` resolution in `gitlabRules` is kept
- * for it: whoever ports it adds one row to `TRANCHE`.
+ * `specs/133-docs-site-publication/url-inventory.txt`, which exits 2
+ * (`inventory-absent`) on a tree without it. The inventory is published under
+ * D-247's option A, alone of its directory, in the change that added the row
+ * below (129 T042b, N1b). Its publication twin, `publish-docs.yml` (T046b), is
+ * not a port of a GitLab job's triggers — it publishes on a path-filtered push —
+ * and is held by `docs-publish-workflow.test.ts`.
  */
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
@@ -51,6 +52,7 @@ const GITLAB_JOBS = readJobs(CI_SOURCE);
 const TRANCHE = [
   { name: 'pack-gate', workflow: '.github/workflows/pack-gate.yml' },
   { name: 'boot-gate', workflow: '.github/workflows/boot-gate.yml' },
+  { name: 'build:docs', workflow: '.github/workflows/build-docs.yml' },
 ] as const;
 
 function workflowSource(path: string): string {
