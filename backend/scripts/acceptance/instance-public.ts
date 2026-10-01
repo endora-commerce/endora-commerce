@@ -70,6 +70,7 @@ import {
   formatPublicReport,
   publicExitCode,
   strangerCommands,
+  strangerEnvironment,
   type InstalledManifest,
   type PublicAssertionResult,
 } from './instance-public-assertions.js';
@@ -78,6 +79,14 @@ const HEALTH_PATH = '/api/v1/_health';
 const LOGIN_PATH = '/api/v1/auth/admin/login';
 const INSTALL_TIMEOUT_MS = 45 * 60_000;
 const BOOT_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * What every `sh` and `npm` this harness starts runs with: this process's
+ * environment without what the `npx` that started it exported
+ * (`strangerEnvironment`). Without it the one-shot's own `npx` inherited
+ * `npm_config_package=tsx@4` and exited 127 (run 36834341414).
+ */
+const stranger = strangerEnvironment(process.env);
 
 function refuse(message: string): never {
   console.error(`[instance-acceptance:public] cannot measure: ${message}`);
@@ -99,7 +108,7 @@ function npmrcFilesFor(dir: string): readonly string[] {
       found.push(user);
     }
   }
-  const prefix = spawnSync('npm', ['config', 'get', 'globalconfig'], { encoding: 'utf8' });
+  const prefix = spawnSync('npm', ['config', 'get', 'globalconfig'], { encoding: 'utf8', env: stranger });
   const global = prefix.status === 0 ? prefix.stdout.trim() : '';
   if (global.length > 0 && existsSync(global)) found.push(global);
   return found;
@@ -123,7 +132,7 @@ function typeCommand(
 ): Promise<{ code: number; output: string }> {
   return new Promise((resolveResult) => {
     console.log(`\n$ ${command.split(' --admin-password ')[0]!} …`);
-    const child = spawn('sh', ['-c', command], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('sh', ['-c', command], { cwd, env: stranger, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     const keep = (chunk: Buffer): void => {
       const text = chunk.toString('utf8');
@@ -215,7 +224,7 @@ function installedManifests(instanceDir: string, packageName: string): Installed
       walkNodeModules(join(store, entry, 'node_modules'));
     }
   }
-  const cache = spawnSync('npm', ['config', 'get', 'cache'], { encoding: 'utf8' });
+  const cache = spawnSync('npm', ['config', 'get', 'cache'], { encoding: 'utf8', env: stranger });
   const npx = cache.status === 0 ? join(cache.stdout.trim(), '_npx') : null;
   if (npx !== null && existsSync(npx)) {
     for (const entry of readdirSync(npx)) {
@@ -272,7 +281,11 @@ async function main(): Promise<number> {
     rmSync(host, { recursive: true, force: true });
     refuse(`${above} is above the target. A stranger's directory has no workspace and no git above it.`);
   }
-  const registry = spawnSync('npm', ['config', 'get', 'registry'], { cwd: host, encoding: 'utf8' });
+  const registry = spawnSync('npm', ['config', 'get', 'registry'], {
+    cwd: host,
+    encoding: 'utf8',
+    env: stranger,
+  });
   const refusals = cleanMachineRefusals({
     npmrcFiles: npmrcFilesFor(host),
     env: process.env,
@@ -287,6 +300,7 @@ async function main(): Promise<number> {
   const published = spawnSync('npm', ['view', `${packageName}@${version}`, 'version'], {
     cwd: host,
     encoding: 'utf8',
+    env: stranger,
   });
   if (published.status !== 0 || published.stdout.trim().length === 0) {
     rmSync(host, { recursive: true, force: true });
@@ -327,6 +341,7 @@ async function main(): Promise<number> {
       console.log(`\n$ ${typed[1]!}`);
       devAll = spawn('sh', ['-c', typed[1]!], {
         cwd: host,
+        env: stranger,
         stdio: ['ignore', 'inherit', 'inherit'],
         detached: true,
       });
