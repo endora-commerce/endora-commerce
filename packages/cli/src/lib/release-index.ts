@@ -49,6 +49,17 @@ export interface ReleaseIndexEntry {
 /** The whole index: this CLI's release, sorted by name. */
 export interface ReleaseIndex {
   readonly packages: readonly ReleaseIndexEntry[];
+  /**
+   * The pnpm this release was built and tested with: the workspace root's
+   * `packageManager`, copied at build. It travels here rather than in the CLI's
+   * own manifest because `pnpm pack` strips `packageManager` from a packed
+   * `package.json` — measured on `0.100.1`'s tarball — so a field declared
+   * there never reaches a stranger. `endora install` runs exactly this through
+   * corepack when no `pnpm` is on `PATH`, and `new instance` writes it into the
+   * scaffold, so the CLI and the instance agree on one pnpm. Absent from an
+   * index an older build wrote.
+   */
+  readonly packageManager?: string | undefined;
 }
 
 /**
@@ -136,7 +147,22 @@ export function parseReleaseIndex(text: string, source: string): ReleaseIndex {
   if (entries.length === 0) {
     throw new Error(`${source} names no package, so there is nothing to install from it.`);
   }
-  return { packages: entries };
+  const packageManager = (parsed as { packageManager?: unknown }).packageManager;
+  return typeof packageManager === 'string' ? { packages: entries, packageManager } : { packages: entries };
+}
+
+/**
+ * The `packageManager` this CLI's own build recorded, or `undefined` when the
+ * index is absent, unreadable or older than the field. Never a guess: a caller
+ * with no value offers no corepack runner and writes no `packageManager`.
+ */
+export function ownPackageManager(moduleUrl: string = import.meta.url): string | undefined {
+  try {
+    const file = ownReleaseIndexPath(moduleUrl);
+    return parseReleaseIndex(readFileSync(file, 'utf8'), file).packageManager;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -178,11 +204,21 @@ export function writeReleaseIndex(cliDir: string): ReleaseIndex {
     }
     root = parent;
   }
-  const index = releaseIndexOf(join(root, 'packages'), scope);
+  const packages = releaseIndexOf(join(root, 'packages'), scope);
   const platform = `${scope}platform`;
-  if (!index.packages.some((entry) => entry.name === platform)) {
+  if (!packages.packages.some((entry) => entry.name === platform)) {
     throw new Error(`${platform} is not among the publishable packages under ${join(root, 'packages')}.`);
   }
+  const rootManifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+    packageManager?: unknown;
+  };
+  if (typeof rootManifest.packageManager !== 'string' || !/^pnpm@\d+\.\d+\.\d+/.test(rootManifest.packageManager)) {
+    throw new Error(
+      `${join(root, 'package.json')} declares no exact \`packageManager\` (\`pnpm@<x.y.z>\`), so the ` +
+        'release index cannot say which pnpm this release installs an instance with.',
+    );
+  }
+  const index: ReleaseIndex = { ...packages, packageManager: rootManifest.packageManager };
   writeFileSync(join(cliDir, 'dist', RELEASE_INDEX_FILE), `${JSON.stringify(index, null, 2)}\n`, 'utf8');
   return index;
 }

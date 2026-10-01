@@ -15,19 +15,27 @@
  *
  * ## The rule
  *
- * One value: the CLI's own manifest declares `packageManager`, equal to the
- * repository root's — the pnpm this release was built and tested with. The
- * fallback runs exactly that through corepack, and the instance re-declares it
- * (`new-instance/host.ts` already copies the CLI's own `packageManager` into
- * the scaffold), so the CLI and the instance agree by construction.
+ * One value: the repository root's `packageManager` — the pnpm this release
+ * was built and tested with — copied by the CLI's build into
+ * `dist/release-index.json`. The fallback runs exactly that through corepack,
+ * and `new instance` writes the same value into the scaffold, so the CLI and
+ * the instance agree by construction.
+ *
+ * Not the CLI's own `package.json`: the first version of this fix declared it
+ * there, and the packed `0.100.1` tarball came out without it — `pnpm pack`
+ * strips `packageManager` from a published manifest — so a stranger would have
+ * had no pin at all.
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
 import { corepackRunnerFor, runInstall } from '../src/install/index.js';
+import { ownPackageManager, parseReleaseIndex, RELEASE_INDEX_FILE } from '../src/lib/release-index.js';
+import { resolveInstanceHost } from '../src/new-instance/host.js';
 
 const CLI_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 const REPO_ROOT = dirname(dirname(CLI_DIR));
@@ -36,12 +44,30 @@ const readJson = (file: string): Record<string, unknown> =>
   JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
 
 describe('the CLI pins the pnpm it falls back to', () => {
-  const own = readJson(join(CLI_DIR, 'package.json'))['packageManager'];
   const root = readJson(join(REPO_ROOT, 'package.json'))['packageManager'];
+  const own = ownPackageManager();
 
-  it("declares `packageManager`, equal to the repository root's", () => {
+  it("the build records the repository root's `packageManager` in the release index", () => {
     expect(typeof root).toBe('string');
-    expect(own, 'packages/cli/package.json declares no `packageManager`').toBe(root);
+    const built = join(CLI_DIR, 'dist', RELEASE_INDEX_FILE);
+    expect(parseReleaseIndex(readFileSync(built, 'utf8'), built).packageManager).toBe(root);
+    expect(own).toBe(root);
+  });
+
+  it('`new instance` takes the same value for the scaffold', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'endora-pm-'));
+    try {
+      const platform = join(dir, 'node_modules', '@endora-commerce', 'platform');
+      mkdirSync(platform, { recursive: true });
+      writeFileSync(
+        join(platform, 'package.json'),
+        JSON.stringify({ name: '@endora-commerce/platform', version: '0.100.1' }),
+      );
+      const host = resolveInstanceHost({ cwd: dir, targetDir: join(dir, 'acme-shop') });
+      expect(host.packageManager).toBe(root);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('pins an exact pnpm whose major the supported Node’s corepack can start', () => {

@@ -61,6 +61,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ownPackageManager } from '../lib/release-index.js';
+
 /** A refusal the operator can act on — F1…F4, exit `1`. */
 export class InstanceInputError extends Error {
   override readonly name = 'InstanceInputError';
@@ -131,7 +133,11 @@ export interface InstanceHost {
   readonly cliVersion: string;
   /** The CLI's own `engines.node`, which the instance re-declares (R2.3). */
   readonly enginesNode: string;
-  /** The CLI's own `packageManager`, when it declares one. Never invented. */
+  /**
+   * The pnpm this CLI's build recorded in its release index — the repository
+   * root's `packageManager` — or `undefined` when there is none. Never
+   * invented. Not the CLI's own manifest: `pnpm pack` strips the field there.
+   */
   readonly packageManager: string | undefined;
   /**
    * The CLI's own manifest, whole.
@@ -330,7 +336,7 @@ export function resolveInstanceHost(options: {
         `value nobody reviewed.`,
     );
   }
-  const packageManager = own['packageManager'];
+  const packageManager = ownPackageManager(options.moduleUrl);
 
   const searched = [
     ...scopeRootsAbove(options.targetDir, scope),
@@ -370,7 +376,7 @@ export function resolveInstanceHost(options: {
     cliVersion,
     ownManifest: own,
     enginesNode,
-    packageManager: typeof packageManager === 'string' ? packageManager : undefined,
+    packageManager,
     searched,
     packages,
     platformVersion: platform.version,

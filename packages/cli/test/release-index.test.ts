@@ -101,9 +101,13 @@ describe('the built artefact', () => {
   it('`dist/release-index.json` is the derivation over this workspace, as built', () => {
     const built = join(PACKAGE_ROOT, 'dist', RELEASE_INDEX_FILE);
     expect(existsSync(built), `${built} is absent — run \`pnpm run build:packages\``).toBe(true);
-    expect(parseReleaseIndex(readFileSync(built, 'utf8'), built)).toEqual(
-      releaseIndexOf(PACKAGES_ROOT, SCOPE),
-    );
+    const parsed = parseReleaseIndex(readFileSync(built, 'utf8'), built);
+    expect(parsed.packages).toEqual(releaseIndexOf(PACKAGES_ROOT, SCOPE).packages);
+    // …plus the pnpm the release was built with, the root's own declaration.
+    const root = JSON.parse(readFileSync(join(REPOSITORY_ROOT, 'package.json'), 'utf8')) as {
+      packageManager?: unknown;
+    };
+    expect(parsed.packageManager).toBe(root.packageManager);
   });
 
   it('is never committed: it lives under `dist`, which the repository ignores', () => {

@@ -71,7 +71,7 @@ import {
   mayPrompt,
   type InteractivityFacts,
 } from '../inputs/resolve.js';
-import { ownReleaseIndexPath } from '../lib/release-index.js';
+import { ownPackageManager, ownReleaseIndexPath } from '../lib/release-index.js';
 import {
   developmentAddresses,
   developmentMailUrl,
@@ -83,7 +83,7 @@ import {
   runNewInstance,
   type NewInstanceResult,
 } from '../new-instance/index.js';
-import { probePlatform, readOwnManifest } from '../new-instance/host.js';
+import { probePlatform } from '../new-instance/host.js';
 import {
   runNewStorefront,
   type NewStorefrontResult,
@@ -345,24 +345,21 @@ export function corepackRunnerFor(packageManager: unknown): PackageManagerRunner
 }
 
 /**
- * The CLI's own `packageManager` as a corepack runner, or `null`.
+ * The pnpm this CLI's build recorded, as a corepack runner, or `null`.
  *
- * The same value `new instance` copies into the scaffold's root manifest
+ * Read from the release index (`lib/release-index.ts`), which is where
+ * `new instance` reads the scaffold's `packageManager` from too
  * (`new-instance/host.ts`), so the pnpm that installs an instance and the pnpm
  * that instance declares are one number.
  */
 function ownCorepackRunner(): PackageManagerRunner | null {
-  try {
-    return corepackRunnerFor(readOwnManifest(import.meta.url)['packageManager']);
-  } catch {
-    return null;
-  }
+  return corepackRunnerFor(ownPackageManager());
 }
 
 /**
  * How this machine runs `pnpm`, in the declared order (FR-158).
  *
- * `pnpm` on `PATH` first, then `corepack <the CLI's own packageManager>` — and
+ * `pnpm` on `PATH` first, then `corepack <the pnpm this release pins>` — and
  * **never** `corepack enable`, which is baseline step A1 and a command that
  * writes shims into a directory this program does not own. `corepack pnpm@…`
  * runs the package manager without changing anything about the machine, which
