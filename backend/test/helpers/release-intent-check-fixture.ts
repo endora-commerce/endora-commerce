@@ -95,8 +95,10 @@ export const DEFAULT_CHECKOUT: FileMap = {
     {
       baseBranch: 'master',
       ignore: ['host'],
-      fixed: [],
-      linked: [['@fx/alpha', '@fx/beta']],
+      // Lockstep, as the repository is configured (owner, 2026-10-01): one
+      // `fixed` group, written as a glob, covering every publishable package.
+      fixed: [['@fx/*']],
+      linked: [],
       updateInternalDependencies: 'patch',
       privatePackages: { version: true, tag: false },
     },

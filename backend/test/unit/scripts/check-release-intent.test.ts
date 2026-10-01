@@ -461,7 +461,14 @@ describe('check-release-intent — N3: the target decides whether an unscoped na
     bin: { 'create-fx': './dist/bin.js' },
     dependencies: { '@fx/alpha': 'workspace:*' },
   });
-  const FRONT_DOOR_PUBLIC: FileMap = { 'packages/gamma/package.json': UNSCOPED_PUBLIC };
+  // The front door is published with the rest, so it joins the one `fixed`
+  // group beside the scope glob — as `create-endora-commerce` does.
+  const FRONT_DOOR_PUBLIC: FileMap = {
+    'packages/gamma/package.json': UNSCOPED_PUBLIC,
+    ...configuredAs((config) => {
+      config['fixed'] = [['@fx/*', 'create-fx']];
+    }),
+  };
   const FRONT_DOOR_PRIVATE: FileMap = {
     'packages/gamma/package.json': UNSCOPED_PUBLIC.replace('"name":"create-fx",', '"name":"create-fx","private":true,'),
   };
@@ -1002,6 +1009,73 @@ describe('check-release-intent — groups and written intent', () => {
     expect(found.find((f) => f.kind === 'stale-group-member')?.subject).toBe('@fx/absent');
   });
 
+  it('reads a group entry as a pattern: `@fx/*` names every member and is not stale', () => {
+    const found = findings({});
+    expect(kinds(found)).not.toContain('stale-group-member');
+    expect(kinds(found)).not.toContain('outside-the-release-group');
+  });
+
+  it('reports a group pattern that matches no member', () => {
+    const found = findings(
+      configuredAs((config) => {
+        config['fixed'] = [['@nope/*']];
+      }),
+    );
+    expect(found.filter((f) => f.kind === 'stale-group-member').map((f) => f.subject)).toEqual([
+      '@nope/*',
+    ]);
+  });
+
+  /**
+   * Lockstep (owner, 2026-10-01): every release publishes every package at one
+   * number, because internal pins are exact (S1). A public package no `fixed`
+   * group covers would be versioned on its own and leave the set's one number.
+   */
+  it('reports a public package that no `fixed` group covers', () => {
+    const found = findings(
+      configuredAs((config) => {
+        config['fixed'] = [['@fx/alpha']];
+      }),
+    );
+    expect(found.filter((f) => f.kind === 'outside-the-release-group').map((f) => f.subject)).toEqual([
+      '@fx/beta',
+    ]);
+  });
+
+  it('reports packages split across two `fixed` groups: two groups are two numbers', () => {
+    const found = findings(
+      configuredAs((config) => {
+        config['fixed'] = [['@fx/alpha'], ['@fx/beta']];
+      }),
+    );
+    expect(found.filter((f) => f.kind === 'outside-the-release-group').map((f) => f.subject)).toEqual([
+      '@fx/beta',
+    ]);
+  });
+
+  it('a `linked` group is not lockstep: it does not stand in for `fixed`', () => {
+    const found = findings(
+      configuredAs((config) => {
+        config['fixed'] = [];
+        config['linked'] = [['@fx/*']];
+      }),
+    );
+    expect(found.filter((f) => f.kind === 'outside-the-release-group').map((f) => f.subject)).toEqual([
+      '@fx/alpha',
+      '@fx/beta',
+    ]);
+  });
+
+  it('asks nothing of a private package, which is never published', () => {
+    const found = findings({
+      ...configuredAs((config) => {
+        config['fixed'] = [['@fx/alpha']];
+      }),
+      'packages/beta/package.json': JSON.stringify({ name: '@fx/beta', version: '1.0.0', private: true }),
+    });
+    expect(kinds(found)).not.toContain('outside-the-release-group');
+  });
+
   it('reports a changeset naming a package that is not a member', () => {
     const found = findings({ '.changeset/x.md': '---\n"@fx/nope": minor\n---\n\nsomething\n' });
     expect(kinds(found)).toContain('unversionable-changeset');
@@ -1401,13 +1475,14 @@ describe('check-release-intent — what it reads, beside what it finds', () => {
     // config.json + pnpm-workspace.yaml + three manifests. **Not the changeset**
     // — see the pair below.
     expect(result.inputs.files).toBe(5);
-    // three members, one ignore pattern, two linked members, two settings —
+    // three members, one ignore pattern, one `fixed` group entry (the `@fx/*`
+    // glob; two linked members before lockstep), two settings —
     // plus, since the ruling of 2026-09-05, one publication decision per
     // versionable member (2) and four fitness decisions per public one (8),
     // with one more for the scope agreement across the set. The fourth fitness
     // decision is the licensing ruling of 2026-09-06: is this package licensed,
     // and — for the one licence form that names a file — is that file there.
-    expect(result.sites).toBe(19);
+    expect(result.sites).toBe(18);
     expect(result.coverage).toEqual([
       { source: 'workspace-globs', expected: 2, covered: 2 },
       // The changeset names one subject, so the second author is on the line.
