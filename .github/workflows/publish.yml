@@ -95,7 +95,7 @@ jobs:
       # The config route npm reads directly; `$HOME/.npmrc` below is the second.
       NPM_CONFIG_PROVENANCE: 'true'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # `changeset publish` tags what it publishes, so it shells out to git.
           fetch-depth: 0
