@@ -99,7 +99,7 @@ jobs:
         with:
           # `changeset publish` tags what it publishes, so it shells out to git.
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.18'
       - run: corepack enable && corepack prepare pnpm@9.15.0 --activate

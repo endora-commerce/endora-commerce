@@ -76,7 +76,7 @@ jobs:
           # The harness and its judgement, and nothing that could be installed.
           sparse-checkout: backend/scripts/acceptance
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.18'
       - name: a stranger installs from npmjs

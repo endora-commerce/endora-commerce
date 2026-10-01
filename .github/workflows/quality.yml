@@ -87,7 +87,7 @@ jobs:
       NODE_OPTIONS: --max-old-space-size=2560
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.18'
       - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
@@ -186,7 +186,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.18'
       - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
@@ -218,7 +218,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.18'
       - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
@@ -251,7 +251,7 @@ jobs:
           # `changeset status` diffs against the merge base, which a shallow
           # clone does not contain. GitLab spelled this `GIT_DEPTH: 0`.
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22.18'
       - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
