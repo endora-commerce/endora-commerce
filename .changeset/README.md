@@ -112,13 +112,15 @@ example until D-202 deleted the package.
 **Every workspace package under `packages/` is public unless a ruling keeps it private, and
 `access` is `public`** — the owner's publication ruling of 2026-09-05. Not publishing something
 is the exception, and it takes a pull request that says so: `check:release-intent` reports
-`unpublished-package` the moment `"private": true` appears on a versionable package. The one
-exception it derives is D-267's: an unscoped package that the configured registry cannot serve
-and that no workspace member depends on — `create-endora-commerce`, private until the first
-npmjs publish. The check prints each exempted member on its `exempt-private=` line, and
-`--publish-registry` refuses public npmjs while any is exempted, so the first npmjs publish is
-necessarily the pull request that makes it public. Which packages publish today is whatever
-`--print-publish-scope` (above) reports, not a number or a list on this page.
+`unpublished-package` the moment `"private": true` appears on a versionable package. No package
+is private by ruling any more: `create-endora-commerce`, unscoped, was kept private under D-267
+while the configured target could not serve its name, and `specs/137-open-source-launch/` N3
+made it public. The scope rules now take a target. Public npmjs, which the default mode judges,
+serves an unscoped name from its default registry, so the D-267 exemption computes to nothing
+and the `exempt-private=` line prints `0`; `--publish-registry` with any other registry refuses
+an unscoped public package rather than letting it fall through to npm's default registry. Which
+packages publish today is whatever `--print-publish-scope` (above) reports, not a number or a
+list on this page.
 
 `privatePackages` is `{ "version": true, "tag": false }`. `version: true` is what makes the
 tooling see a private package at all — with the `@changesets/config@4` default (`false`), every

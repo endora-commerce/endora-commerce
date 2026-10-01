@@ -128,8 +128,8 @@ longer points at a future step; it describes a standing state. On GitHub Actions
 visible in the workflows themselves: `grep -n 'contents:' .github/workflows/*.yml` shows no job
 granted more than `contents: read`, so no job can push a release branch or open its pull request.
 The rule is unchanged — the version step runs locally — and giving CI that credential is an open
-decision for the owner, not one waiting on an event. `scripts/version-packages.mjs`' header still
-carries the old wording.
+decision for the owner, not one waiting on an event. `scripts/version-packages.mjs`' header says
+the same.
 
 **Publishing is a separate, deliberate step and it runs in CI.** Since the move to GitHub
 (2026-09-29) it is `.github/workflows/publish.yml` (`specs/129-github-canonical-migration/`
@@ -214,8 +214,9 @@ count them, and the count moves with every module package and every `"private"` 
 program that decides it — `pnpm --filter backend exec tsx scripts/check-release-intent.ts
 --print-publish-scope --publish-registry <registry>` prints the scope on stdout and, on stderr,
 how many workspace members are public and which, the same invocation `publish.yml` uses to write
-its `.npmrc`. Pass the registry: without one the target is not public npmjs and the unscoped
-`create-endora-commerce` makes it refuse with exit 2. **No member is
+its `.npmrc`. Without `--publish-registry` it judges public npmjs, the default mode's own target,
+so the bare `--print-publish-scope` answers too; a registry that is not public npmjs refuses the
+unscoped `create-endora-commerce` with exit 2. **No member is
 private by ruling any more.** D-267 kept `create-endora-commerce` private while the configured target was
 GitLab's namespace-keyed endpoint, which cannot serve an unscoped name, and made the first npmjs
 publish refuse while it held. `specs/137-open-source-launch/` N3 flipped it and made the scope rules
