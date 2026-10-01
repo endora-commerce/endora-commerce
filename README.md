@@ -1,4 +1,18 @@
-# Endora Commerce
+<p align="center">
+  <img src="docs/static/img/logo.svg" width="120" alt="Endora Commerce">
+</p>
+
+<h1 align="center">Endora Commerce</h1>
+
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="https://www.npmjs.com/package/@endora-commerce/cli"><img src="https://img.shields.io/npm/v/@endora-commerce/cli?label=npm&amp;logo=npm" alt="npm version of @endora-commerce/cli"></a>
+  <a href="https://docs.commerce.endora.software"><img src="https://img.shields.io/badge/docs-docs.commerce.endora.software-6322C8" alt="Documentation"></a>
+  <a href="https://discord.gg/GJ2Yk9CvY"><img src="https://img.shields.io/badge/Discord-join%20us-5865F2?logo=discord&amp;logoColor=white" alt="Join us on Discord"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome"></a>
+  <img src="https://img.shields.io/badge/built%20with-Fastify-000000?logo=fastify&amp;logoColor=white" alt="Built with Fastify">
+  <img src="https://img.shields.io/badge/built%20with-Next.js-000000?logo=nextdotjs&amp;logoColor=white" alt="Built with Next.js">
+</p>
 
 **Open-source commerce for B2B and B2C** — quote requests and direct purchase on one codebase,
 customer organisations with roles and credit limits, a permissioned admin panel, a server-rendered
@@ -7,12 +21,13 @@ MikroORM backend on PostgreSQL, a React admin, a Next.js storefront, and every b
 a module you install, switch off or replace.
 
 [Documentation](https://docs.commerce.endora.software) ·
+[Discord](https://discord.gg/GJ2Yk9CvY) ·
 [Contributing](CONTRIBUTING.md) ·
 [Security](SECURITY.md) ·
 [Code of Conduct](CODE_OF_CONDUCT.md) ·
 [Licence: MIT](LICENSE)
 
-## Overview
+## ✨ Overview
 
 **A free Endora Commerce runs a complete B2B storefront and its back office.** It includes a
 catalogue with variants, custom fields and organisation pricing; customer organisations, roles,
@@ -30,7 +45,27 @@ vendor-neutral `payments`, `payment_methods`, `delivery_methods`, `shipments`, `
 parties can build their own adapters. Sell here and invoice where you already invoice; an operator
 who wants Endora itself to issue Polish invoices needs the commercial KSeF module.
 
-## Quick start
+## 📸 Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/static/img/screenshots/admin-dashboard.png"><img src="docs/static/img/screenshots/admin-dashboard.png" alt="The admin dashboard"></a><br><sub>The admin dashboard</sub></td>
+    <td width="50%"><a href="docs/static/img/screenshots/storefront-catalog.png"><img src="docs/static/img/screenshots/storefront-catalog.png" alt="The storefront category page, with demo data"></a><br><sub>The storefront category page (demo data)</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/static/img/screenshots/admin-product-editor.png"><img src="docs/static/img/screenshots/admin-product-editor.png" alt="The product editor with sales-channel and language scope"></a><br><sub>The product editor with sales-channel and language scope</sub></td>
+    <td width="50%"><a href="docs/static/img/screenshots/product-feed-editor.png"><img src="docs/static/img/screenshots/product-feed-editor.png" alt="The product feed field mapping for Google Merchant"></a><br><sub>The product feed field mapping (Google Merchant)</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/static/img/screenshots/admin-command-palette.png"><img src="docs/static/img/screenshots/admin-command-palette.png" alt="The command palette, opened with Cmd+K or Ctrl+K"></a><br><sub>The ⌘K command palette</sub></td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
+Some screenshots also show commercial modules from the [Overview](#-overview) list; those are not
+installed from npm.
+
+## 🚀 Quick start
 
 You need **Node.js ≥ 22.18**, **pnpm** (`corepack enable` provides it) and **Docker** with
 Compose v2. Then two commands:
@@ -77,11 +112,11 @@ as `npx @endora-commerce/cli install my-shop`; `--help` lists every flag. Everyt
 an ordinary pnpm workspace you own — the API, the admin and the storefront build and deploy
 independently.
 
-> **Before the first public release** the packages are not on the public npm registry yet, so
-> the commands above do not resolve. To run Endora Commerce from a clone of this repository,
-> follow [Developing Endora Commerce](#developing-endora-commerce) below.
+The packages are published on the public npm registry, so the instance, the API and the admin
+need neither a registry setting nor a clone of this repository. To work on Endora Commerce itself, see
+[Developing Endora Commerce](#-developing-endora-commerce) below.
 
-## Documentation
+## 📚 Documentation
 
 Everything past the first run is on the documentation site,
 **[docs.commerce.endora.software](https://docs.commerce.endora.software)** — built from
@@ -98,7 +133,7 @@ Everything past the first run is on the documentation site,
   [per-deployment overlay modules](docs/docs/architecture/overlay-pattern.md).
 - **The API** — a running backend serves its OpenAPI document at `GET /api/v1/_openapi.json`.
 
-## Hardware & system requirements
+## 💻 Hardware & system requirements
 
 Endora Commerce is sized to run on a **single VPS** meeting the combined minimum requirements of
 the technologies it uses. These tables are the authoritative list: a change that adds a runtime
@@ -143,7 +178,7 @@ Meilisearch from distribution packages, is an equally valid target. Catalogues a
 sustained traffic above one order per minute should use the Recommended tier or move Meilisearch
 to its own node. Queues run on Redis (BullMQ).
 
-## Developing Endora Commerce
+## 🔧 Developing Endora Commerce
 
 This section is for working on Endora Commerce itself, in this repository. It is a pnpm
 monorepo:
@@ -251,15 +286,29 @@ not run. [`docs/docs/architecture/migrations.md`](docs/docs/architecture/migrati
 rules and the failure modes. Demo data is optional: `pnpm --filter backend run cli demo seed`
 loads a synthetic shop and prints its credentials, and `cli demo reset` withdraws it.
 
-### Contributing
+### 🤝 Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md) is the place to start: how a change is specified, tested,
 checked and signed off, and how the project is governed. The binding principles every change is
 reviewed against are in [the constitution](.specify/memory/constitution.md), and
 [`AGENTS.md`](AGENTS.md) maps the repository and routes to the convention for whatever you are
-about to do. Report a suspected vulnerability privately, as [SECURITY.md](SECURITY.md) describes.
+about to do. Questions about a change before you open a pull request are welcome on
+[Discord](https://discord.gg/GJ2Yk9CvY).
 
-## Licence
+## 💬 Community
+
+Join the **[Endora Commerce Discord server](https://discord.gg/GJ2Yk9CvY)** to ask questions, get
+help with an installation, share what you are building and talk to the people working on the
+project. Bugs and feature requests belong in [GitHub issues](https://github.com/endora-commerce/endora-commerce/issues),
+where they can be tracked. Everyone taking part is expected to follow the
+[Code of Conduct](CODE_OF_CONDUCT.md).
+
+## 🔒 Security
+
+Report a suspected vulnerability privately, as [SECURITY.md](SECURITY.md) describes, and never in
+a public issue or on Discord.
+
+## 📄 Licence
 
 Endora Commerce is released under the [MIT licence](LICENSE). The project's names are covered
 by the [trademark policy](TRADEMARKS.md).

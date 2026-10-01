@@ -11,11 +11,6 @@ where one can be written, a storefront. This page is the reference for those two
 question the installer asks, the flag that answers it, and the limits of a first run today. The
 repository's `README.md` is the short version.
 
-> **Before the first public release** the packages are not on the public npm registry yet, so
-> `npx create-endora-commerce` and `npx @endora-commerce/cli` do not resolve. Until then, run
-> Endora Commerce from a clone of the repository by following its `README.md`, section
-> *Developing Endora Commerce*.
-
 ## What you need
 
 - **Node.js ≥ 22.18** — the instance's own `package.json` declares the same range, and the

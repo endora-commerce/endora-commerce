@@ -11,11 +11,6 @@ gdzie da się go zapisać — sklep. Ta strona opisuje te dwa polecenia w cało�
 instalatora, flagę, która na nie odpowiada, oraz dzisiejsze ograniczenia pierwszego uruchomienia.
 Krótka wersja jest w pliku `README.md` repozytorium.
 
-> **Przed pierwszym publicznym wydaniem** pakietów nie ma jeszcze w publicznym rejestrze npm, więc
-> `npx create-endora-commerce` i `npx @endora-commerce/cli` nie dają się rozwiązać. Do tego czasu
-> uruchamiaj Endora Commerce z klonu repozytorium według jego pliku `README.md`, sekcja
-> *Developing Endora Commerce*.
-
 ## Czego potrzebujesz
 
 - **Node.js ≥ 22.18** — `package.json` instancji deklaruje ten sam zakres, a instalator odmawia
