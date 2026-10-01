@@ -31,6 +31,7 @@ import {
   lockfileEntries,
   publicExitCode,
   strangerCommands,
+  strangerEnvironment,
 } from '../../../scripts/acceptance/instance-public-assertions.js';
 
 const SCRIPTS = fileURLToPath(new URL('../../../scripts/acceptance/', import.meta.url));
@@ -154,6 +155,105 @@ describe('a clean machine is a precondition, refused rather than assumed', () =>
         npmRegistry: PUBLIC_NPM_REGISTRY,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("the stranger's commands run in a stranger's environment, not the harness's", () => {
+  // Run 36834341414 (0.100.0): the workflow starts the harness with
+  // `npx --package=tsx@4 -- tsx …`, `npx` exports `npm_config_package=tsx@4`
+  // into it, and the one-shot's own `npx --yes create-endora-commerce@0.100.0`
+  // inherited it — so npm ran `create-endora-commerce@0.100.0` as a command
+  // inside the tsx package, exit 127, and nothing was measured.
+  const npxBin = '/home/runner/.npm/_npx/17e7e13df003209e/node_modules/.bin';
+  const inherited: Record<string, string | undefined> = {
+    HOME: '/home/runner',
+    PATH: [
+      npxBin,
+      '/home/runner/work/_temp/node_modules/.bin',
+      '/node_modules/.bin',
+      '/opt/hostedtoolcache/node/22.18.0/x64/lib/node_modules/npm/node_modules/@npmcli/run-script/lib/node-gyp-bin',
+      '/opt/hostedtoolcache/node/22.18.0/x64/bin',
+      '/usr/local/bin',
+      '/usr/bin',
+    ].join(':'),
+    RUNNER_TEMP: '/home/runner/work/_temp',
+    DOCKER_HOST: 'unix:///var/run/docker.sock',
+    npm_config_package: 'tsx@4',
+    npm_config_yes: 'true',
+    npm_config_cache: '/home/runner/.npm',
+    npm_config_registry: 'https://registry.npmjs.org/',
+    npm_config_user_agent: 'npm/10.9.3 node/v22.18.0 linux x64 workspaces/false',
+    NPM_CONFIG_LOGLEVEL: 'silly',
+    npm_config_userconfig: '/home/runner/.npmrc',
+    npm_package_json: '/home/runner/work/_temp/package.json',
+    npm_package_name: 'tsx',
+    npm_lifecycle_event: 'npx',
+    npm_lifecycle_script: 'tsx',
+    npm_execpath: '/opt/hostedtoolcache/node/22.18.0/x64/lib/node_modules/npm/bin/npm-cli.js',
+    npm_node_execpath: '/opt/hostedtoolcache/node/22.18.0/x64/bin/node',
+    npm_command: 'exec',
+    INIT_CWD: '/home/runner/work/_temp',
+    NODE: '/opt/hostedtoolcache/node/22.18.0/x64/bin/node',
+    COLOR: '0',
+    PNPM_SCRIPT_SRC_DIR: '/home/runner/work/endora',
+    pnpm_config_verify_deps_before_run: 'false',
+    UNSET: undefined,
+  };
+  const stranger = strangerEnvironment(inherited);
+
+  it('drops the variable that broke run 36834341414', () => {
+    expect(stranger).not.toHaveProperty('npm_config_package');
+  });
+
+  it('drops every npm and pnpm configuration, package, lifecycle and exec variable it inherited', () => {
+    const leaked = Object.keys(stranger).filter(
+      (name) =>
+        /^(npm|pnpm)_(config|package|lifecycle)_/i.test(name) && name !== 'npm_config_userconfig',
+    );
+    expect(leaked).toEqual([]);
+    for (const name of [
+      'npm_execpath',
+      'npm_node_execpath',
+      'npm_command',
+      'INIT_CWD',
+      'NODE',
+      'COLOR',
+      'PNPM_SCRIPT_SRC_DIR',
+    ]) {
+      expect(stranger, name).not.toHaveProperty(name);
+    }
+  });
+
+  it('drops the `node_modules/.bin` directories npx put on PATH, and keeps the rest in order', () => {
+    expect(stranger['PATH']).toBe(
+      '/opt/hostedtoolcache/node/22.18.0/x64/bin:/usr/local/bin:/usr/bin',
+    );
+  });
+
+  it('keeps what the harness relies on: HOME, the user config the clean-machine check read, and the rest', () => {
+    expect(stranger['HOME']).toBe('/home/runner');
+    // `npmrcFilesFor` decided this machine is clean by reading this path; the
+    // commands it then runs must read the same one, not another.
+    expect(stranger['npm_config_userconfig']).toBe('/home/runner/.npmrc');
+    expect(stranger['RUNNER_TEMP']).toBe('/home/runner/work/_temp');
+    expect(stranger['DOCKER_HOST']).toBe('unix:///var/run/docker.sock');
+    expect(stranger).not.toHaveProperty('UNSET');
+  });
+
+  it('leaves an environment that never went through npx as it was', () => {
+    const plain = { HOME: '/home/a', PATH: '/usr/local/bin:/usr/bin', LANG: 'C.UTF-8' };
+    expect(strangerEnvironment(plain)).toEqual(plain);
+  });
+
+  it('is what the harness hands every `sh` and `npm` it spawns', () => {
+    const source = readFileSync(`${SCRIPTS}instance-public.ts`, 'utf8');
+    const calls = [...source.matchAll(/\bspawn(?:Sync)?\(\s*'(sh|npm)'[\s\S]*?\);/g)].map(
+      (match) => match[0],
+    );
+    // A count of zero is a regex that stopped matching, not a harness that spawns nothing.
+    expect(calls.length).toBeGreaterThanOrEqual(5);
+    const bare = calls.filter((call) => !/\benv:\s*stranger\b/.test(call));
+    expect(bare).toEqual([]);
   });
 });
 

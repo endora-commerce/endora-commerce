@@ -1,0 +1,98 @@
+# `build:docs` on GitHub Actions — tranche 1 of the gate window.
+#
+# `specs/129-github-canonical-migration/contracts/gate-window.md` §4.2 is the
+# specification and T042b is the task: due by day 0 + 7. The Docusaurus build,
+# then `verify:docs-build` over what it emitted. The reasoning is above
+# `.docs-rules:` and `build:docs:` in `.gitlab-ci.yml` and is not copied here.
+# `backend/test/unit/ci/actions-tranche-one-parity.test.ts` holds this file
+# equal to the GitLab job in what it runs and in when it runs.
+#
+# ## When it runs
+#
+# GitLab's two rules (the shared `.docs-rules` block), one per trigger: every
+# push to `master`, unfiltered, and a pull request that touches an input the
+# build reads — GitLab's `changes:` list with `.gitlab-ci.yml` replaced by this
+# file. A separate workflow because a `paths` filter applies to a whole
+# workflow; if this check is ever made required (T033), the filter must go in
+# the same change, because a skipped workflow reports no status.
+#
+# ## The inventory it reads
+#
+# `verify:docs-build` reads `specs/133-docs-site-publication/url-inventory.txt`
+# and, when one exists, `redirect-map.txt` beside it. The inventory stayed behind
+# the D-247 cut line and is published under D-247's option A, alone of its
+# directory, in the change that added this file (129 T042b, N1b). No redirect map
+# exists; the verifier treats its absence as an empty map.
+#
+# ## What is deliberately not ported: the artefact
+#
+# GitLab keeps `docs/build` for a week because `publish:docs` consumes it. Its
+# Actions twin, `publish-docs.yml` (T046b), builds and verifies in its own run and
+# hands its own artefact to its deploy job, because a workflow cannot read
+# another run's artefact without a `workflow_run` trigger, which a public
+# repository refuses beside a deploy key. So nothing is uploaded here.
+
+name: build:docs
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'docs/**/*'
+      - 'docs/static/**/*'
+      - 'docs/translation-cache/**/*'
+      - 'docs/i18n/**/*'
+      - 'docs/locales.config.json'
+      - 'docs/translation-skip.json'
+      - 'packages/modules/*/docs/**/*'
+      - 'backend/scripts/generate-composer.ts'
+      - 'backend/scripts/check-docs-translations.ts'
+      - 'backend/scripts/verify-docs-build.ts'
+      - 'specs/133-docs-site-publication/url-inventory.txt'
+      - 'specs/133-docs-site-publication/redirect-map.txt'
+      - 'backend/scripts/lib/docs-*.ts'
+      - 'packages/cli/src/lib/module-docs.ts'
+      - 'packages/cli/src/lib/docs-artefacts.ts'
+      - 'deploy/publish-docs.sh'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/build-docs.yml'
+  push:
+    branches: [master]
+
+concurrency:
+  group: build-docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  build-docs:
+    # The job id cannot hold a colon; the name keeps the GitLab job's name.
+    name: build:docs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-node v7.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '22.18'
+      - run: corepack enable && corepack prepare pnpm@9.15.0 --activate
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # actions/cache v6.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build:packages
+      - run: pnpm --filter docs run build
+      - run: pnpm --filter backend run verify:docs-build
