@@ -1,5 +1,7 @@
 # @endora-commerce/contracts
 
+## 0.100.1
+
 ## 0.17.0
 
 ### Minor Changes
