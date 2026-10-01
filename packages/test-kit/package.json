@@ -48,7 +48,7 @@
     "fastify": "^5",
     "ioredis": "^5",
     "pg": "^8",
-    "vitest": "^2"
+    "vitest": "^4.1.11"
   },
   "devDependencies": {
     "@endora-commerce/contracts": "workspace:*",
@@ -61,6 +61,6 @@
     "ioredis": "^5.10.1",
     "pg": "^8.20.0",
     "typescript": "^5.9.3",
-    "vitest": "^2.1.4"
+    "vitest": "^4.1.11"
   }
 }

@@ -4,9 +4,13 @@
  *
  * ## Why this is a setup file and not a test
  *
- * The whole backend suite runs in one process — `poolOptions.forks.singleFork`
- * puts every file of a shard into a single `pool.run`, so the fork is recycled
- * once, at the end — and CI caps that process's old-space at 2 GB. When the
+ * Under vitest 2 the whole backend suite ran in one process —
+ * `poolOptions.forks.singleFork` put every file of a shard into a single
+ * `pool.run`, so the fork was recycled once, at the end — and CI capped that
+ * process's old-space at 2 GB. Vitest 4 has no such mode and each file now gets
+ * a fork of its own (see `vitest.shared.ts`), which bounds the live set by one
+ * file's rather than by the shard's; the guard stays, because one file can
+ * still reach the cap and the failure it names is the same. When the
  * run's live set reaches the cap the process dies with `FATAL ERROR: ...
  * JavaScript heap out of memory`, or the host kills it and it dies silently;
  * vitest sees `Error: Worker exited unexpectedly` either way, every remaining
@@ -28,7 +32,7 @@
  * collection — the only expensive part, and the only way to tell live data from
  * garbage — happens only once a raw reading has already crossed the warning
  * line, which on a healthy run never happens. `--expose-gc` reaches the fork
- * through `poolOptions.forks.execArgv` (it is there for the heap-ceiling test);
+ * through `execArgv` (it is there for the heap-ceiling test);
  * where it is absent the reading is still reported and is never failed on,
  * because an uncollected heap near the limit is an ordinary state for a process
  * nobody has asked to collect.
@@ -134,7 +138,10 @@ function read(collected: boolean, canCollect: boolean): HeapReading {
  * file's suites.
  */
 export function watchHeapHeadroom(fractions: HeapFractions = {}): void {
-  afterAll((suite: { name?: string }) => {
+  // Vitest 4 hands a hook its context first and the suite second, and refuses a
+  // first parameter that is not an object pattern — so the empty pattern is the
+  // documented spelling of "no context wanted", not an oversight.
+  afterAll(({}, suite: { name?: string }) => {
     const canCollect = typeof (globalThis as { gc?: () => void }).gc === 'function';
     let reading = read(false, canCollect);
     let verdict = heapVerdict(reading, fractions);

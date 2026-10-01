@@ -54,7 +54,7 @@ export default mergeBackendConfig(
       exclude: [...configDefaults.exclude, ...SERVICE_DEPENDENT_UNIT_TEST_PATHS],
       ...backendTestOptions(),
       // The one setting this config does NOT share with the complete suite.
-      // `singleFork` exists there because contract and integration files share
+      // `maxWorkers: 1` exists there because contract and integration files share
       // one Postgres database and would race on truncate+seed. Nothing in this
       // run has a database to race on, and the alternative is not merely
       // slower: 299 files in one process reach the 4 GB V8 default and die with
@@ -63,26 +63,20 @@ export default mergeBackendConfig(
       // shards and a `--max-old-space-size` cap. Separate forks bound it
       // structurally, each seeing a few dozen files instead of all of them.
       fileParallelism: true,
-      poolOptions: {
-        forks: {
-          singleFork: false,
-          // Sized for the 4 vCPU CI runner rather than a developer's laptop:
-          // more forks means more concurrent module graphs, and the graph is
-          // what costs memory here. `minForks` has to move with it — it
-          // defaults to the host's CPU count, and tinypool refuses a minimum
-          // above the maximum.
-          minForks: 1,
-          maxForks: 4,
-          // `--expose-gc` for the same reason the complete suite passes it —
-          // `test/unit/harness/heap-headroom.test.ts` measures a post-GC heap.
-          // It named `test/unit/kernel/scope-retention.test.ts` until that file
-          // moved into `@endora-commerce/platform` with the rest of the
-          // platform's own unit tests (`specs/110-instance-repository/`, T119a),
-          // where `packages/platform/vitest.config.ts` passes the same flag. The
-          // flag is still needed here; the file that needs it is a different one.
-          execArgv: ['--expose-gc'],
-        },
-      },
+      // Sized for the 4 vCPU CI runner rather than a developer's laptop:
+      // more forks means more concurrent module graphs, and the graph is
+      // what costs memory here. Each file still gets a fork of its own —
+      // `isolate` is left at its default — so this bounds concurrency, not
+      // isolation.
+      maxWorkers: 4,
+      // `--expose-gc` for the same reason the complete suite passes it —
+      // `test/unit/harness/heap-headroom.test.ts` measures a post-GC heap.
+      // It named `test/unit/kernel/scope-retention.test.ts` until that file
+      // moved into `@endora-commerce/platform` with the rest of the
+      // platform's own unit tests (`specs/110-instance-repository/`, T119a),
+      // where `packages/platform/vitest.config.ts` passes the same flag. The
+      // flag is still needed here; the file that needs it is a different one.
+      execArgv: ['--expose-gc'],
     },
   }),
 );

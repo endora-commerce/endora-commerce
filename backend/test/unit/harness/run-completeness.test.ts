@@ -13,7 +13,7 @@
  *
  * So the count is compared against the count this run was scheduled, and the
  * difference is reported by name. Which list that is is the subtlety, and it
- * has its own describe block at the bottom of this file: `onPathsCollected`
+ * has its own describe block at the bottom of this file: `onTestRunStart`
  * carries the whole glob, because vitest applies `--shard` inside the pool,
  * afterwards.
  */
@@ -203,7 +203,7 @@ describe('renderIncompleteRun', () => {
  * was wrong and would have been wrong on **every** shard.
  *
  * Vitest applies `--shard` inside the pool (`sortSpecs` calls
- * `sequencer.shard`), after `onPathsCollected` has already reported the whole
+ * `sequencer.shard`), after `onTestRunStart` has already reported the whole
  * glob. Measured on a real `--shard=5/5` run of this suite: 1 337 paths
  * reported to the reporter, 267 files handed to the fork. A comparison against
  * the reported list turns every green shard into a claim that a thousand files

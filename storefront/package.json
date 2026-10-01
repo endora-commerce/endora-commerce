@@ -54,6 +54,6 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "postcss": "^8.5.10",
     "typescript": "^5.9.3",
-    "vitest": "^2.1.4"
+    "vitest": "^4.1.11"
   }
 }

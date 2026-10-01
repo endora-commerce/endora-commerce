@@ -279,12 +279,13 @@ the **generable secrets**, which `test/generable-secrets.ts` derives from the pl
 the modules' own `secret && generable` declarations rather than listing, pinning two and
 deleting the rest. Each file carries why; neither rule is restated here.
 
-The fast config differs from the complete one in exactly one setting: `singleFork` is off.
-`singleFork` exists there because contract and integration files share one database and would
-race on truncate+seed; nothing in the fast run has a database to race on, and one process is
-not merely slower — 299 files in it reach the 4 GB V8 default and die around file 232 with
-`Ineffective mark-compacts near heap limit`, which is the per-file retention `test:backend`
-pays for with five shards and a heap cap. Four forks peak at 1.5 GB together.
+The fast config differs from the complete one in exactly one setting: `maxWorkers` is 4, not 1.
+One worker exists there because contract and integration files share one database and would
+race on truncate+seed; nothing in the fast run has a database to race on. Both runs give every
+file a fork of its own — vitest 4 removed `singleFork`, under which the complete suite shared
+one process and 299 files in it reached the 4 GB V8 default and died around file 232 with
+`Ineffective mark-compacts near heap limit`; `backend/vitest.shared.ts` says why its nearest
+successor, `isolate: false`, was not taken. Four forks peak at 1.5 GB together.
 
 The 16 exclusions are named individually, with a reason each, in
 `test/service-dependent-unit-tests.ts`; they are unit-scope tests that use a real database

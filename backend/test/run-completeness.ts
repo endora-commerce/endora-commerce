@@ -19,7 +19,7 @@
  * that fails with no failing test is the worst diagnostic there is: the reader
  * has to disbelieve the summary before they can start.
  *
- * The population is the run's own — `onPathsCollected` is what vitest itself
+ * The population is the run's own — `onTestRunStart` carries what vitest itself
  * globbed and filtered — with one correction that is easy to get wrong and was:
  * the shard is applied **inside the pool**, after that hook, so on a
  * `--shard` run the reported list is the whole suite. See
@@ -41,7 +41,7 @@
  */
 import { relative } from 'node:path';
 
-import type { Reporter } from 'vitest/reporters';
+import type { Reporter, TestModule, TestSpecification } from 'vitest/node';
 
 import {
   oomVerdict,
@@ -51,7 +51,11 @@ import {
   type OomVerdict,
 } from './oom-evidence.js';
 
-/** A file vitest reported a result for. `startTime` is null when it collected but never ran. */
+/**
+ * A file vitest reported a result for. `startTime` orders the files that started
+ * — it is the run's own start sequence, not a wall clock — and is null when the
+ * file was queued or collected but never ran.
+ */
 export interface ReportedFile {
   readonly filepath: string;
   readonly startTime: number | null;
@@ -174,11 +178,11 @@ type SequencerLike = { shard?: (specs: { moduleId: string }[]) => unknown };
 
 /**
  * The files **this** run was given, which on a `--shard` run is not the list
- * `onPathsCollected` carries.
+ * `onTestRunStart` carries.
  *
- * Vitest applies the shard **inside the pool** — `sortSpecs` calls
- * `sequencer.shard(specs)` in `createPool`'s `runTests`, well after
- * `onPathsCollected` has reported the whole glob. Measured: a real
+ * Vitest applies the shard **inside the pool** — `createPool`'s
+ * `executeTests` calls `sequencer.shard(specs)`, well after
+ * `onTestRunStart` has reported the whole glob. Measured: a real
  * `--shard=5/5` run reports 1 337 paths to a reporter and hands 267 files to the
  * fork. Comparing against the wrong one turns every green shard into a report
  * of a thousand files that "never ran", which is a worse lie than the silence
@@ -219,17 +223,31 @@ export async function scheduledForThisRun(
 }
 
 /**
+ * The message of an unhandled error as vitest hands it to a reporter: a
+ * serialized `{ message }` object rather than an `Error` instance.
+ */
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
+}
+
+/**
  * Wires the comparison to vitest.
  *
  * It sets `process.exitCode` itself rather than relying on the unhandled error
  * to do it. That is not redundancy for its own sake: `dangerouslyIgnoreUnhandledErrors`
- * is one line away in `vitest.shared.ts` (it is commented out there, with
- * "last resort" beside it), and with it set a dead worker would make this job
+ * is one config line away (`vitest.shared.ts` carried it commented out, as a
+ * "last resort" against vitest 2's pool-shutdown noise, until the vitest 4
+ * upgrade retired it), and with it set a dead worker would make this job
  * **green** with two hundred files unrun. A run that did not execute what it
  * was given is a failed run whatever else the configuration says.
  */
 export class RunCompletenessReporter implements Reporter {
   private collected: readonly string[] = [];
+  private readonly started = new Map<string, number>();
   private ctx: VitestLike = {};
   private root = process.cwd();
   private write: (text: string) => void = (text) => process.stderr.write(text);
@@ -247,13 +265,23 @@ export class RunCompletenessReporter implements Reporter {
     this.oomBaseline = readCgroupMemory();
   }
 
-  onPathsCollected(paths?: string[]): void {
-    this.collected = paths ?? [];
+  onTestRunStart(specifications: ReadonlyArray<TestSpecification>): void {
+    this.collected = specifications.map((spec) => spec.moduleId);
+    this.started.clear();
   }
 
-  async onFinished(
-    files: readonly { filepath: string; result?: { startTime?: number } }[] = [],
-    errors: readonly unknown[] = [],
+  /**
+   * The order files started in. Vitest 4's reported entities carry no start
+   * time of their own, so the sequence is taken here, as each file begins — which
+   * is what "the last file that started" needs and all it needs.
+   */
+  onTestModuleStart(testModule: TestModule): void {
+    this.started.set(testModule.moduleId, this.started.size + 1);
+  }
+
+  async onTestRunEnd(
+    testModules: ReadonlyArray<TestModule> = [],
+    errors: ReadonlyArray<unknown> = [],
   ): Promise<void> {
     const scheduled = await scheduledForThisRun(this.collected, this.ctx);
     if (scheduled === null) {
@@ -267,9 +295,9 @@ export class RunCompletenessReporter implements Reporter {
 
     const run = incompleteRun(
       scheduled,
-      files.map((file) => ({
-        filepath: file.filepath,
-        startTime: file.result?.startTime ?? null,
+      testModules.map((testModule) => ({
+        filepath: testModule.moduleId,
+        startTime: this.started.get(testModule.moduleId) ?? null,
       })),
     );
     if (run === null) return;
@@ -278,7 +306,7 @@ export class RunCompletenessReporter implements Reporter {
       renderIncompleteRun(
         run,
         this.root,
-        errors.map((error) => (error instanceof Error ? error.message : String(error))),
+        errors.map((error) => errorMessage(error)),
         oomVerdict(this.oomBaseline, readCgroupMemory()),
       ),
     );

@@ -1020,7 +1020,7 @@ describe('T076 — what one composition costs, before the 555× multiplier', () 
     // Two, not one: ioredis refuses ordinary commands on a subscribed client,
     // so the pub/sub path needs its own connection (T073). Both are
     // disconnected in `teardownBackendServer` — the number that matters is
-    // concurrent connections, and files run sequentially under `singleFork`.
+    // concurrent connections, and files run sequentially under `maxWorkers: 1`.
     for (const [root, source] of COMPOSITION_SOURCES) {
       const clients = [...codeOnly(source).matchAll(/\bnew Redis\s*\(/g)].length;
       expect(clients, `${root} opens ${clients} Redis client(s)`).toBe(

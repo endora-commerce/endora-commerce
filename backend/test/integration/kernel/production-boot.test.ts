@@ -28,8 +28,8 @@ import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifest
  * (`buildServer`) and worker registration — plus D-38b's lifetime assertion.
  *
  * **The production root is booted in exactly one file, never from a helper.**
- * The suite is `pool: 'forks', singleFork: true, fileParallelism: false`
- * (`backend/vitest.config.ts`), so every file shares one process, serially, and
+ * The suite is `pool: 'forks', maxWorkers: 1, fileParallelism: false`
+ * (`backend/vitest.shared.ts`), so files run one at a time, serially, and
  * `setupBackendServer` already accounts for ~88 % of a booting file's cost. One
  * extra composition is affordable exactly once per suite run; a helper is how it
  * becomes one per file.
