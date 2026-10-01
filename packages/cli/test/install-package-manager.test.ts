@@ -26,14 +26,15 @@
  * strips `packageManager` from a published manifest — so a stranger would have
  * had no pin at all.
  */
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { corepackRunnerFor, runInstall } from '../src/install/index.js';
+import { corepackRunnerFor, pnpmShimEnvironment, runInstall } from '../src/install/index.js';
 import { ownPackageManager, parseReleaseIndex, RELEASE_INDEX_FILE } from '../src/lib/release-index.js';
 import { resolveInstanceHost } from '../src/new-instance/host.js';
 
@@ -124,5 +125,47 @@ describe('the CLI pins the pnpm it falls back to', () => {
     };
     walk(join(CLI_DIR, 'src'));
     expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * A `pnpm` the pipeline's own children can call.
+ *
+ * The instance's scripts chain `pnpm run …` (`setup` is four of them), and a
+ * script's shell finds `pnpm` on `PATH` or not at all — `corepack pnpm@x run
+ * setup` puts nothing there. Measured on `0.100.1`'s first container run, once
+ * the `latest` crash no longer hid it: `[3/5] corepack pnpm@9.15.0 run setup` →
+ * `sh: 1: pnpm: not found`. So when the run reaches pnpm through corepack, its
+ * children get a `pnpm` shim in a directory this run creates and owns, first on
+ * their `PATH` — never `corepack enable`, which writes into Node's directory.
+ */
+describe('the children of a corepack-run pipeline find `pnpm`', () => {
+  it('a `pnpm` on PATH leaves the environment as it is', () => {
+    const base = { PATH: '/usr/bin:/bin' };
+    expect(pnpmShimEnvironment({ command: 'pnpm', prefix: [], label: 'pnpm' }, base)).toBe(base);
+  });
+
+  it('corepack: `pnpm` in a child shell runs `corepack <the pinned pnpm>` with its arguments', () => {
+    const fake = mkdtempSync(join(tmpdir(), 'endora-fake-corepack-'));
+    try {
+      // A `corepack` that only says what it was asked, so the test needs neither
+      // corepack nor a network.
+      writeFileSync(join(fake, 'corepack'), '#!/bin/sh\necho "corepack $*"\n', { mode: 0o755 });
+      const env = pnpmShimEnvironment(corepackRunnerFor('pnpm@9.15.0')!, {
+        ...process.env,
+        PATH: `${fake}${delimiter}/usr/bin${delimiter}/bin`,
+      });
+      const result = spawnSync('sh', ['-c', 'pnpm run generate && pnpm -C backend run migrate'], {
+        env,
+        encoding: 'utf8',
+      });
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout.trim().split('\n')).toEqual([
+        'corepack pnpm@9.15.0 run generate',
+        'corepack pnpm@9.15.0 -C backend run migrate',
+      ]);
+    } finally {
+      rmSync(fake, { recursive: true, force: true });
+    }
   });
 });

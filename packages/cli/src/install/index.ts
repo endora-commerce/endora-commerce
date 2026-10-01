@@ -62,7 +62,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { isAbsolute, join, resolve, sep } from 'node:path';
+import { delimiter, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { parseEnvFile, writeEnvFile } from '../inputs/env-file.js';
 import {
@@ -735,7 +735,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   const storefrontDir = namedStorefrontDir;
   const runner = runners[0]!;
   const dryRun = options.dryRun === true;
-  const run = options.run ?? spawnStep;
+  const run = options.run ?? spawnSteps(runner);
 
   // ── provision, only where nothing of ours resolves (D-271) ───────────────
   // Decided before anything is written, like every other input: an index this
@@ -893,6 +893,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       recommended: provenance.recommended,
       services: wantsServices,
       passwordFromFlag: provenance.fromFlags.has('admin-password'),
+      corepack: runner.command === 'corepack' ? runner : null,
     })) {
       say(line);
     }
@@ -1098,8 +1099,21 @@ function closing(input: {
   readonly services: boolean;
   /** Whether the password was `--admin-password` or typed at the wizard's prompt. */
   readonly passwordFromFlag: boolean;
+  /** The corepack runner this run fell back to, when no `pnpm` was on `PATH`. */
+  readonly corepack: PackageManagerRunner | null;
 }): readonly string[] {
   const lines = ['', input.dryRun ? 'It would then be yours to start:' : 'Done. To start it:'];
+  // The commands below, and the instance's own scripts, call `pnpm` by name.
+  // This run reached it through corepack and gave only its own children a
+  // shim, so the operator's shell still has none: say so before line one.
+  if (input.corepack !== null) {
+    const spec = input.corepack.prefix[0] ?? 'pnpm';
+    lines.push(
+      `  \`pnpm\` is not on your PATH — this run used \`${input.corepack.label}\`. Put that pnpm ` +
+        'on PATH first:',
+      `    npm install -g ${spec}      # or: corepack enable pnpm`,
+    );
+  }
   // One command first (`specs/136-open-source-publication/` GAP-7, FR-060):
   // the supervisor over the per-layer commands below, which stay printed for
   // the operator who wants a layer on its own. A storefront somewhere other
@@ -1189,13 +1203,49 @@ function closing(input: {
   return lines;
 }
 
-/** The default runner: spawn it, inherit the descriptors, answer its code. */
-function spawnStep(step: InstallStep): Promise<number> {
+/**
+ * The environment the pipeline's children run in.
+ *
+ * With `pnpm` on `PATH`, this process's own. Reached through corepack, the
+ * same plus a `pnpm` shim first on `PATH`, in a directory this run creates and
+ * removes on exit: the instance's scripts chain `pnpm run …` (`setup` is four
+ * of them), a script's shell finds `pnpm` on `PATH` or not at all, and
+ * `corepack pnpm@x run setup` puts nothing there — measured as `sh: 1: pnpm:
+ * not found` at `[3/5]` once the pinned fallback got that far. The shim runs
+ * exactly the runner's pinned version. It is not `corepack enable`, which writes
+ * shims into Node's own directory for every later shell (FR-158).
+ */
+export function pnpmShimEnvironment(
+  runner: PackageManagerRunner,
+  base: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+  if (runner.command !== 'corepack') return base;
+  const spec = runner.prefix.join(' ');
+  const dir = mkdtempSync(join(tmpdir(), 'endora-pnpm-'));
+  writeFileSync(join(dir, 'pnpm'), `#!/bin/sh\nexec corepack ${spec} "$@"\n`, { mode: 0o755 });
+  writeFileSync(join(dir, 'pnpm.cmd'), `@corepack ${spec} %*\r\n`);
+  process.once('exit', () => rmSync(dir, { recursive: true, force: true }));
+  const key = Object.keys(base).find((name) => name.toUpperCase() === 'PATH') ?? 'PATH';
+  const path = base[key];
+  return { ...base, [key]: path === undefined || path === '' ? dir : `${dir}${delimiter}${path}` };
+}
+
+/** The default runner for `runner`'s pipeline; the environment is made on first use. */
+function spawnSteps(runner: PackageManagerRunner): StepRunner {
+  let env: NodeJS.ProcessEnv | undefined;
+  return (step) => {
+    env ??= pnpmShimEnvironment(runner, process.env);
+    return spawnStep(step, env);
+  };
+}
+
+/** Spawn one step, inherit the descriptors, answer its code. */
+function spawnStep(step: InstallStep, env: NodeJS.ProcessEnv): Promise<number> {
   return new Promise((resolveCode) => {
     const child = spawn(step.bin, [...step.argv], {
       cwd: step.cwd,
       stdio: 'inherit',
-      env: process.env,
+      env,
     });
     child.on('error', () => resolveCode(127));
     child.on('close', (code) => resolveCode(code ?? 1));

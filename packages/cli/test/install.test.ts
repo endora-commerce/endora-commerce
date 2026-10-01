@@ -668,6 +668,23 @@ describe('GAP-7 — the closing block leads with the one development command', (
     expect(text).not.toContain('--storefront-dir');
   });
 
+  it('reached through corepack, it says to put pnpm on PATH before the commands it prints', async () => {
+    // Every printed command, and the instance's own scripts, call `pnpm`; a run
+    // that found none on PATH must not hand over a block that fails on line one.
+    const root = host();
+    const { run } = recorder();
+    const corepack = { command: 'corepack', prefix: ['pnpm@9.15.0'], label: 'corepack pnpm@9.15.0' };
+    const viaCorepack = (await runInstall(options(root, { run, packageManagers: [corepack] }))).output.join('\n');
+    expect(viaCorepack).toContain('`pnpm` is not on your PATH');
+    expect(viaCorepack).toContain('npm install -g pnpm@9.15.0');
+    expect(viaCorepack.indexOf('npm install -g pnpm@9.15.0')).toBeLessThan(viaCorepack.indexOf('pnpm run dev:all'));
+
+    const onPath = { command: 'pnpm', prefix: [], label: 'pnpm' };
+    const other = host();
+    const viaPath = (await runInstall(options(other, { run, packageManagers: [onPath] }))).output.join('\n');
+    expect(viaPath).not.toContain('is not on your PATH');
+  });
+
   it('a storefront somewhere other than the default sibling is named on that line', async () => {
     const root = checkoutFixture();
     const { run } = recorder();
