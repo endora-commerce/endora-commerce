@@ -29,6 +29,10 @@
  *     administrators hold their roles and the channel sells the products.
  *  3. **`demo reset`** withdraws exactly the demo accounts and links again.
  *
+ * Every run carries `DEFAULT_SALES_CHANNEL_CODE=pl_default`, the paid demo's
+ * configuration: the demo shop adopts the instance's default channel, and an
+ * operator's chosen code is what its storefront is built against.
+ *
  * ## How "installed" is built in a checkout
  *
  * Discovery refuses a workspace link, as module discovery does, so the package
@@ -56,6 +60,8 @@ const SUITE_TIMEOUT_MS = 900_000;
 const RUN = randomBytes(4).toString('hex');
 const SHOP_DB = `dis_${RUN}_shop_test`;
 const INSTANCE_CLI = ['pnpm', 'exec', 'tsx', 'test/fixtures/demo/instance-shaped-cli.ts'];
+/** A default channel code an operator chose, as the paid demo's `pl_default`. */
+const CONFIGURED_CHANNEL_CODE = 'pl_default';
 
 /** The sign-ins the demo advertises, and the role each is meant to hold. */
 const DEMO_ROLE_HOLDERS: Readonly<Record<string, string>> = {
@@ -134,6 +140,7 @@ function emptyInstanceRoot(): string {
 
 interface ShopState {
   readonly roles: Record<string, string | null>;
+  readonly defaultChannelCode: string;
   readonly demoProducts: number;
   readonly soldOnDefaultChannel: number;
   readonly menus: number;
@@ -148,6 +155,9 @@ async function shopState(client: Client): Promise<ShopState> {
       order by u.email`,
     [Object.keys(DEMO_ROLE_HOLDERS)],
   );
+  const [channel] = (
+    await client.query<{ code: string }>(`select code from sales_channels where system_default`)
+  ).rows;
   const [counts] = (
     await client.query<{
       products: string;
@@ -169,6 +179,7 @@ async function shopState(client: Client): Promise<ShopState> {
   ).rows;
   return {
     roles: Object.fromEntries(roles.rows.map((row) => [row.email, row.role_code])),
+    defaultChannelCode: channel!.code,
     demoProducts: Number(counts!.products),
     soldOnDefaultChannel: Number(counts!.sold),
     menus: Number(counts!.menus),
@@ -207,15 +218,22 @@ describe('`demo seed` on a CLI-scaffolded instance', () => {
     shop = new Client({ connectionString: url });
     await shop.connect();
 
+    // The instance's own default channel code, as the paid demo configures
+    // it. The platform's first boot creates the system-default channel under
+    // `DEFAULT_SALES_CHANNEL_CODE`, and the storefront is built against that
+    // same code — so a demo that renamed it would sell its products on a
+    // channel the storefront never asks for.
+    const channel = { DEFAULT_SALES_CHANNEL_CODE: CONFIGURED_CHANNEL_CODE };
+
     // 1 — the ordinary instance: nothing declares a composition.
-    const bare = { DATABASE_URL: url, ENDORA_INSTANCE_ROOT: empty };
+    const bare = { DATABASE_URL: url, ENDORA_INSTANCE_ROOT: empty, ...channel };
     await run('demo reset (baseline)', [...INSTANCE_CLI, 'demo', 'reset'], bare);
     withoutReport = await run('demo seed (no composition)', [...INSTANCE_CLI, 'demo', 'seed'], bare);
     without = await shopState(shop);
     await run('demo reset (no composition)', [...INSTANCE_CLI, 'demo', 'reset'], bare);
 
     // 2 — the instance that asked: the composition package is installed.
-    const asked = { DATABASE_URL: url, ENDORA_INSTANCE_ROOT: installed };
+    const asked = { DATABASE_URL: url, ENDORA_INSTANCE_ROOT: installed, ...channel };
     withReport = await run('demo seed (composition installed)', [...INSTANCE_CLI, 'demo', 'seed'], asked);
     withComposition = await shopState(shop);
 
@@ -271,6 +289,14 @@ describe('`demo seed` on a CLI-scaffolded instance', () => {
     it('sells every demo product on the system-default channel', () => {
       expect(withComposition.demoProducts).toBe(203);
       expect(withComposition.soldOnDefaultChannel).toBe(203);
+    });
+
+    it('keeps the default channel code the operator configured', () => {
+      // The demo adopts the system-default channel as its retail one. It
+      // renamed it `pl_retail` unconditionally, which was harmless in a tree
+      // whose default channel is the platform's fallback `default` and breaks
+      // every storefront built against a code the operator chose.
+      expect(withComposition.defaultChannelCode).toBe(CONFIGURED_CHANNEL_CODE);
     });
 
     it('builds the menu and prices the catalogue, as the host’s demo always did', () => {

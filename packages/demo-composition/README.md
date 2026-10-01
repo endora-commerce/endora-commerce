@@ -29,9 +29,11 @@ pnpm add @endora-commerce/demo-composition
 pnpm run cli demo seed
 ```
 
-The seed is idempotent: rows already there are joined, not duplicated. **It adopts your
-system-default sales channel and renames it `pl_retail`**, so a storefront configured with that
-channel's previous code has to be pointed at the new one.
+The seed is idempotent: rows already there are joined, not duplicated. It adopts your
+system-default sales channel as the demo's retail channel and sets its languages (`pl-PL`,
+`en-US`) and currencies (`PLN`, `EUR`). It keeps the channel's code when you chose one
+(`DEFAULT_SALES_CHANNEL_CODE`), so the storefront built against it keeps finding it, and names it
+`pl_retail` only when it still carries the platform's fallback code, `default`.
 
 No file is written into your tree. The platform finds the package by its `package.json`
 declaration, `"endora": { "type": "demo-composition" }`, the way it finds a module package by

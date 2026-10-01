@@ -262,6 +262,12 @@ export const DEMO_BUYER_PASSWORD = 'ChangeMe!123';
 const DEMO_ORG_TAX_ID = 'PL5210000099';
 /** The demo's two sales channels, by the codes the foundation step assigns. */
 const DEMO_RETAIL_CHANNEL_CODE = 'pl_retail';
+/**
+ * The code the platform's boot reconciler gives the system-default channel when
+ * `DEFAULT_SALES_CHANNEL_CODE` is unset — `default-channel-reconciler.ts`' own
+ * fallback. A channel carrying it is one whose code nobody chose.
+ */
+const PLATFORM_FALLBACK_CHANNEL_CODE = 'default';
 const DEMO_VIP_CHANNEL_CODE = 'pl_b2b_vip';
 const DEMO_MENU_NAME = 'Main navigation';
 
@@ -667,7 +673,15 @@ const FOUNDATION_STEPS: readonly CompositionStep[] = [
           defaultLanguage: 'pl-PL',
           defaultCurrency: 'PLN',
         });
-      retail.code = DEMO_RETAIL_CHANNEL_CODE;
+      // **The code is renamed only when nobody chose it.** An instance's
+      // default channel is created under `DEFAULT_SALES_CHANNEL_CODE`, and its
+      // storefront is built against that same code (`X-Sales-Channel`). In this
+      // repository's host the code is the platform's fallback, `default`, and
+      // renaming it `pl_retail` was harmless; in an instance that chose one —
+      // the paid demo's `pl_default` — the rename sold every demo product on a
+      // channel the storefront never asks for. So a chosen code is kept, and
+      // the demo's own name is given only to a channel that had none of its own.
+      if (retail.code === PLATFORM_FALLBACK_CHANNEL_CODE) retail.code = DEMO_RETAIL_CHANNEL_CODE;
       retail.name = { 'en-US': 'PL Retail', 'pl-PL': 'PL Retail' };
       retail.isPublic = true;
       retail.languages = ['pl-PL', 'en-US'];
