@@ -50,20 +50,20 @@ who wants Endora itself to issue Polish invoices needs the commercial KSeF modul
 <table>
   <tr>
     <td width="50%"><a href="docs/static/img/screenshots/admin-dashboard.png"><img src="docs/static/img/screenshots/admin-dashboard.png" alt="The admin dashboard"></a><br><sub>The admin dashboard</sub></td>
-    <td width="50%"><a href="docs/static/img/screenshots/storefront-catalog.png"><img src="docs/static/img/screenshots/storefront-catalog.png" alt="The storefront category page, with demo data"></a><br><sub>The storefront category page (demo data)</sub></td>
+    <td width="50%"><a href="docs/static/img/screenshots/storefront-home.png"><img src="docs/static/img/screenshots/storefront-home.png" alt="The storefront home page with demo data: hero, key figures and Quick Order"></a><br><sub>The storefront home page (demo data)</sub></td>
   </tr>
   <tr>
     <td width="50%"><a href="docs/static/img/screenshots/admin-product-editor.png"><img src="docs/static/img/screenshots/admin-product-editor.png" alt="The product editor with sales-channel and language scope"></a><br><sub>The product editor with sales-channel and language scope</sub></td>
-    <td width="50%"><a href="docs/static/img/screenshots/product-feed-editor.png"><img src="docs/static/img/screenshots/product-feed-editor.png" alt="The product feed field mapping for Google Merchant"></a><br><sub>The product feed field mapping (Google Merchant)</sub></td>
+    <td width="50%"><a href="docs/static/img/screenshots/storefront-catalog.png"><img src="docs/static/img/screenshots/storefront-catalog.png" alt="The storefront category page, with demo data"></a><br><sub>The storefront category page (demo data)</sub></td>
   </tr>
   <tr>
+    <td width="50%"><a href="docs/static/img/screenshots/admin-cms-page-builder.png"><img src="docs/static/img/screenshots/admin-cms-page-builder.png" alt="The CMS page builder: the component palette, a page on the canvas and the page settings panel"></a><br><sub>The CMS page builder: components, canvas and page settings</sub></td>
     <td width="50%"><a href="docs/static/img/screenshots/admin-command-palette.png"><img src="docs/static/img/screenshots/admin-command-palette.png" alt="The command palette, opened with Cmd+K or Ctrl+K"></a><br><sub>The ⌘K command palette</sub></td>
-    <td width="50%"></td>
   </tr>
 </table>
 
-Some screenshots also show commercial modules from the [Overview](#-overview) list; those are not
-installed from npm.
+The dashboard's sidebar also lists commercial PIM integrations from the [Overview](#-overview)
+list; those are not installed from npm.
 
 ## 🚀 Quick start
 
