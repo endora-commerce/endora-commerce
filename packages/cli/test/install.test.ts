@@ -668,21 +668,50 @@ describe('GAP-7 — the closing block leads with the one development command', (
     expect(text).not.toContain('--storefront-dir');
   });
 
-  it('reached through corepack, it says to put pnpm on PATH before the commands it prints', async () => {
-    // Every printed command, and the instance's own scripts, call `pnpm`; a run
-    // that found none on PATH must not hand over a block that fails on line one.
+  /**
+   * W5.5 against `0.100.1` (run 36868691058): with no `pnpm` on PATH the
+   * closing block asked for a global install *before* its next command, the
+   * stranger ran the next command, and `pnpm run dev:all` exited 127. A printed
+   * command has to run as printed on a machine with only Node and npm, so a
+   * corepack-run install prints the pinned pnpm through `npx`, which puts that
+   * pnpm's `bin` on PATH for everything it starts — the instance's own scripts
+   * call `pnpm -C backend run …`.
+   */
+  it('reached through corepack, every printed pnpm command runs the pinned pnpm through npx', async () => {
     const root = host();
     const { run } = recorder();
     const corepack = { command: 'corepack', prefix: ['pnpm@9.15.0'], label: 'corepack pnpm@9.15.0' };
-    const viaCorepack = (await runInstall(options(root, { run, packageManagers: [corepack] }))).output.join('\n');
-    expect(viaCorepack).toContain('`pnpm` is not on your PATH');
-    expect(viaCorepack).toContain('npm install -g pnpm@9.15.0');
-    expect(viaCorepack.indexOf('npm install -g pnpm@9.15.0')).toBeLessThan(viaCorepack.indexOf('pnpm run dev:all'));
+    const output = (await runInstall(options(root, { run, demo: true, packageManagers: [corepack] }))).output;
+    const text = output.join('\n');
+    expect(text).toContain(`cd ${join(root, 'acme-shop')} && npx --yes pnpm@9.15.0 run dev:all`);
+    expect(text).toContain(`cd ${join(root, 'acme-shop')} && npx --yes pnpm@9.15.0 run start`);
+    expect(text).toContain('`npx --yes pnpm@9.15.0 run cli demo reset`');
+    // No bare `pnpm` command and no precondition line before them.
+    expect(text).not.toMatch(/(^|[\s`])pnpm run /m);
+    expect(text).not.toContain('npm install -g');
+  });
 
+  it('a failed corepack-run step lists the remaining steps in the form that runs as typed', async () => {
+    const root = host();
+    const { run } = recorder({ install: 1 });
+    const corepack = { command: 'corepack', prefix: ['pnpm@9.15.0'], label: 'corepack pnpm@9.15.0' };
+    const result = await runInstall(options(root, { run, packageManagers: [corepack] }));
+    const text = result.output.join('\n');
+    const remaining = text.slice(text.indexOf('Remaining steps, in order:'));
+    expect(remaining).toContain('npx --yes pnpm@9.15.0 run setup');
+    expect(remaining).not.toContain('corepack pnpm@9.15.0 run');
+    // The echo of what ran stays true to what ran.
+    expect(text).toContain('[1/');
+    expect(text).toMatch(/\[1\/\d\] corepack pnpm@9\.15\.0 install/);
+  });
+
+  it('with pnpm on PATH, the printed commands stay plain `pnpm`', async () => {
+    const root = host();
+    const { run } = recorder();
     const onPath = { command: 'pnpm', prefix: [], label: 'pnpm' };
-    const other = host();
-    const viaPath = (await runInstall(options(other, { run, packageManagers: [onPath] }))).output.join('\n');
-    expect(viaPath).not.toContain('is not on your PATH');
+    const text = (await runInstall(options(root, { run, packageManagers: [onPath] }))).output.join('\n');
+    expect(text).toContain(`cd ${join(root, 'acme-shop')} && pnpm run dev:all`);
+    expect(text).not.toContain('npx --yes pnpm@');
   });
 
   it('a storefront somewhere other than the default sibling is named on that line', async () => {

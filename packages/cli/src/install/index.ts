@@ -345,6 +345,20 @@ export function corepackRunnerFor(packageManager: unknown): PackageManagerRunner
 }
 
 /**
+ * How a command run by `runner` is written for a person to type.
+ *
+ * Identity for `pnpm` on PATH. For the corepack fallback, the pinned pnpm
+ * through `npx` instead: `corepack pnpm@x run setup` runs, but puts no `pnpm`
+ * on PATH for the scripts it starts (`setup` chains `pnpm run …`), while `npx`
+ * puts the pinned pnpm's `bin` there — and npm comes with every Node. What
+ * this run *did* is still echoed as it ran; this is only for what it hands over.
+ */
+export function typeable(runner: PackageManagerRunner, command: string): string {
+  if (runner.command !== 'corepack' || !command.startsWith(runner.label)) return command;
+  return `npx --yes ${runner.prefix.join(' ')}${command.slice(runner.label.length)}`;
+}
+
+/**
  * The pnpm this CLI's build recorded, as a corepack runner, or `null`.
  *
  * Read from the release index (`lib/release-index.ts`), which is where
@@ -868,13 +882,16 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       if (step.optional === true) {
         say(
           `      that failed (exit ${String(code)}) and the install is complete without it. ` +
-            `Retry with \`${step.command}\`, and \`pnpm run cli demo reset\` withdraws it again.`,
+            `Retry with \`${typeable(runner, step.command)}\`, and ` +
+            `\`${typeable(runner, `${runner.label} run cli demo reset`)}\` withdraws it again.`,
         );
         continue;
       }
       exitCode = code;
       say(`\n${step.command} failed (exit ${String(code)}). Remaining steps, in order:`);
-      for (const left of steps.slice(done.length)) say(`  ${left.command}   # ${left.purpose}`);
+      for (const left of steps.slice(done.length)) {
+        say(`  ${typeable(runner, left.command)}   # ${left.purpose}`);
+      }
       break;
     }
   } else {
@@ -1103,15 +1120,22 @@ function closing(input: {
   readonly corepack: PackageManagerRunner | null;
 }): readonly string[] {
   const lines = ['', input.dryRun ? 'It would then be yours to start:' : 'Done. To start it:'];
-  // The commands below, and the instance's own scripts, call `pnpm` by name.
-  // This run reached it through corepack and gave only its own children a
-  // shim, so the operator's shell still has none: say so before line one.
+  // Every command below has to run as printed. With `pnpm` on PATH that is
+  // `pnpm`. Without it, this run reached the pinned pnpm through corepack and
+  // only its own children had a shim, so the operator's shell has none — and
+  // a precondition line ("install pnpm first") is skipped by exactly the reader
+  // it is for: W5.5 against `0.100.1` (run 36868691058) ran the next command,
+  // and `pnpm run dev:all` exited 127. So the commands carry the pinned pnpm
+  // themselves, through `npx`, which every Node ships and which puts that
+  // pnpm's `bin` on PATH for everything it starts — the instance's own scripts
+  // call `pnpm -C backend run …`. Not `corepack pnpm@…`: that puts nothing on
+  // PATH, so the first nested script fails the same way.
+  const pnpm =
+    input.corepack === null ? 'pnpm' : `npx --yes ${input.corepack.prefix[0] ?? 'pnpm'}`;
   if (input.corepack !== null) {
-    const spec = input.corepack.prefix[0] ?? 'pnpm';
     lines.push(
-      `  \`pnpm\` is not on your PATH — this run used \`${input.corepack.label}\`. Put that pnpm ` +
-        'on PATH first:',
-      `    npm install -g ${spec}      # or: corepack enable pnpm`,
+      `  (\`pnpm\` is not on your PATH, so these run ${input.corepack.prefix[0] ?? 'pnpm'} through ` +
+        '`npx`, which comes with Node.)',
     );
   }
   // One command first (`specs/136-open-source-publication/` GAP-7, FR-060):
@@ -1130,18 +1154,18 @@ function closing(input: {
       : ((JSON.parse(rootManifest.content) as { scripts?: Record<string, unknown> }).scripts ?? {});
   if (typeof rootScripts['dev:all'] === 'string') {
     lines.push(
-      `  cd ${input.targetDir} && pnpm run dev:all${devAllArgs}   # every layer, one terminal; Ctrl-C stops them`,
+      `  cd ${input.targetDir} && ${pnpm} run dev:all${devAllArgs}   # every layer, one terminal; Ctrl-C stops them`,
       '',
       'Or one layer at a time:',
     );
   }
-  lines.push(`  cd ${input.targetDir} && pnpm run start      # the API, on http://localhost:3001`);
+  lines.push(`  cd ${input.targetDir} && ${pnpm} run start      # the API, on http://localhost:3001`);
   if (input.instance.plan.members.includes('admin')) {
-    lines.push('  pnpm run preview:admin                    # the admin bundle, in a second terminal');
+    lines.push(`  ${pnpm} run preview:admin                    # the admin bundle, in a second terminal`);
   }
   if (input.storefrontDir !== null) {
     lines.push(
-      `  cd ${input.storefrontDir} && pnpm run build && pnpm run start   # the shop`,
+      `  cd ${input.storefrontDir} && ${pnpm} run build && ${pnpm} run start   # the shop`,
     );
   }
   const mail = developmentMailUrl(
@@ -1157,9 +1181,9 @@ function closing(input: {
     `Sign in as ${input.admin.email ?? ''} with the password you ` +
       `${input.passwordFromFlag ? 'passed on the command line' : 'entered above'}.`,
     input.demo
-      ? `Demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`pnpm run cli demo reset\` withdraws it ` +
+      ? `Demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`${pnpm} run cli demo reset\` withdraws it ` +
         'and leaves your own rows alone.'
-      : `No demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`pnpm run cli demo seed\` adds a ` +
+      : `No demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`${pnpm} run cli demo seed\` adds a ` +
         "shop's worth of it, and `demo reset` withdraws it again.",
   );
   // D-270 — the module set is not a question and not an input, so it is not in
@@ -1186,7 +1210,7 @@ function closing(input: {
       'every part this build can write — `--without <member>` and `--no-storefront` leave one ' +
       'out of the next install',
     services: input.services
-      ? 'the development services, started — `pnpm run dev:services:down` stops them'
+      ? `the development services, started — \`${pnpm} run dev:services:down\` stops them`
       : null,
     demo: null,
     'admin-email': null,

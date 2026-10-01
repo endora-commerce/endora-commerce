@@ -15,8 +15,11 @@ Krótka wersja jest w pliku `README.md` repozytorium.
 
 - **Node.js ≥ 22.18** — `package.json` instancji deklaruje ten sam zakres, a instalator odmawia
   startu na starszym Node, zamiast zapisać drzewo, które jego własny manifest odrzuca.
-- **pnpm** — zapewnia go `corepack enable`. Jeśli w `PATH` nie ma ani `pnpm`, ani `corepack`,
-  instalator odmawia i mówi dlaczego.
+- **pnpm** — zapewnia go `corepack enable`. Bez niego instalator i tak działa: uruchamia przez
+  corepack wersję pnpm przypiętą w tym wydaniu, a każde kolejne polecenie wypisuje w postaci, która
+  potrzebuje tylko Node i npm — drugie polecenie to wtedy `npx --yes pnpm@<wersja> run dev:all`.
+  Uruchom to, co wypisze. Jeśli w `PATH` nie ma ani `pnpm`, ani `corepack`, instalator odmawia i
+  mówi dlaczego.
 - **Docker z Compose v2** — dla usług deweloperskich (PostgreSQL, Redis, Meilisearch i
   przechwytywacz poczty Mailpit). Niepotrzebny z `--no-services`, gdy te usługi uruchamiasz sam.
 

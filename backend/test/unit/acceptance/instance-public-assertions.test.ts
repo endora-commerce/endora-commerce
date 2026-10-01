@@ -30,6 +30,8 @@ import {
   evaluateStorefront,
   lockfileEntries,
   publicExitCode,
+  oneShotCommand,
+  printedDevAllCommand,
   strangerCommands,
   strangerEnvironment,
 } from '../../../scripts/acceptance/instance-public-assertions.js';
@@ -257,19 +259,84 @@ describe("the stranger's commands run in a stranger's environment, not the harne
   });
 });
 
+/**
+ * The second command is **the one the one-shot printed**, read from its output,
+ * and never a copy written here. W5.5 against `0.100.1` (run 36868691058) is
+ * why: this file said `cd shop && pnpm run dev:all` while the CLI, on a machine
+ * with no `pnpm`, needed another spelling — so the harness typed a command no
+ * stranger was told to type, and measured its own assumption (exit 127).
+ */
+describe('the second command is the one the one-shot printed', () => {
+  const printed = [
+    'Done. To start it:',
+    '  (`pnpm` is not on your PATH, so these run pnpm@9.15.0 through `npx`, which comes with Node.)',
+    '  cd /tmp/endora-public-x/shop && npx --yes pnpm@9.15.0 run dev:all   # every layer, one terminal; Ctrl-C stops them',
+    '',
+    'Or one layer at a time:',
+    '  cd /tmp/endora-public-x/shop && npx --yes pnpm@9.15.0 run start      # the API, on http://localhost:3001',
+  ].join('\n');
+
+  it('reads the `run dev:all` line, without its comment', () => {
+    expect(printedDevAllCommand(printed)).toBe(
+      'cd /tmp/endora-public-x/shop && npx --yes pnpm@9.15.0 run dev:all',
+    );
+  });
+
+  it('keeps the arguments the line carries', () => {
+    expect(
+      printedDevAllCommand('  cd /s && pnpm run dev:all -- --storefront-dir /f   # every layer'),
+    ).toBe('cd /s && pnpm run dev:all -- --storefront-dir /f');
+  });
+
+  it('answers nothing when the one-shot printed no such line', () => {
+    expect(printedDevAllCommand('endora: something failed\n')).toBeNull();
+  });
+
+  it('types the one-shot, then exactly what it printed', () => {
+    const typed = strangerCommands({
+      packageName: 'create-endora-commerce',
+      version: '0.100.1',
+      dir: 'shop',
+      admin: { email: 'owner@example.com', password: 'pw', firstName: 'Ada', lastName: 'L' },
+      installOutput: printed,
+    });
+    expect(typed).toEqual([
+      oneShotCommand({
+        packageName: 'create-endora-commerce',
+        version: '0.100.1',
+        dir: 'shop',
+        admin: { email: 'owner@example.com', password: 'pw', firstName: 'Ada', lastName: 'L' },
+      }),
+      'cd /tmp/endora-public-x/shop && npx --yes pnpm@9.15.0 run dev:all',
+    ]);
+  });
+
+  it('is one command long when nothing was printed, so the sequence did not reach its end', () => {
+    const typed = strangerCommands({
+      packageName: 'create-endora-commerce',
+      version: '0.100.1',
+      dir: 'shop',
+      admin: { email: 'owner@example.com', password: 'pw', firstName: 'Ada', lastName: 'L' },
+      installOutput: '',
+    });
+    expect(typed).toHaveLength(1);
+  });
+});
+
 describe('P5 — the commands a stranger typed are counted, not described', () => {
   const typed = strangerCommands({
     packageName: 'create-endora-commerce',
     version: '0.100.0',
     dir: 'shop',
     admin: { email: 'owner@example.com', password: 'pw', firstName: 'Ada', lastName: 'L' },
+    installOutput: '  cd /h/shop && pnpm run dev:all   # every layer\n',
   });
 
   it('is the two-command sequence §6.2 names as the target', () => {
     expect(typed).toHaveLength(2);
     expect(typed[0]).toMatch(/^npx --yes create-endora-commerce@0\.100\.0 shop /);
     expect(typed[0]).toContain('--non-interactive');
-    expect(typed[1]).toBe('cd shop && pnpm run dev:all');
+    expect(typed[1]).toBe('cd /h/shop && pnpm run dev:all');
   });
 
   it('passes at two, the target, and at five, 123 SC-001 pass line', () => {
