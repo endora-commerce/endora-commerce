@@ -1,5 +1,14 @@
 # @endora-commerce/mod-shipments
 
+## 0.100.1
+
+### Patch Changes
+
+- Updated dependencies [f988e26]
+  - @endora-commerce/platform@0.100.1
+  - @endora-commerce/contracts@0.100.1
+  - @endora-commerce/email-components@0.100.1
+
 ## 0.8.7
 
 ### Patch Changes

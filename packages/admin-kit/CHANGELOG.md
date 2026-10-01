@@ -1,5 +1,11 @@
 # @endora-commerce/admin-kit
 
+## 0.100.1
+
+### Patch Changes
+
+- @endora-commerce/contracts@0.100.1
+
 ## 0.9.7
 
 ### Patch Changes
