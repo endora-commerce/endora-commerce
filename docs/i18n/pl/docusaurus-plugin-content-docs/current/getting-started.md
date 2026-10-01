@@ -161,6 +161,25 @@ Poczta wysyłana przez instancję w trybie deweloperskim trafia do Mailpit, któ
 pierwsze polecenie, i nigdy nie opuszcza Twojego komputera. `pnpm run dev:services:down` zatrzymuje
 usługi deweloperskie, zachowując ich dane.
 
+## Tworzenie administratora {#creating-an-administrator}
+
+Instalator tworzy administratora, którym się logujesz. Każde kolejne konto — dla współpracownika
+albo w miejsce utraconego — tworzy się z wiersza poleceń i właśnie dlatego ekran logowania panelu
+odsyła tutaj. Polecenie jest wszędzie to samo; sposób jego wywołania zależy od tego, gdzie działa
+platforma:
+
+| Gdzie | Polecenie |
+| --- | --- |
+| Instancja na Twoim komputerze (z jej katalogu głównego) | `pnpm run admin:create -- --email=… --password=… --first-name=… --last-name=…` |
+| Obraz produkcyjny | `node dist/cli.js admin_users create --email=… --password=… --first-name=… --last-name=…`, uruchamiane w kontenerze backendu — zobacz [D1 listy kontrolnej pierwszego wdrożenia](./deployment/first-deployment-checklist.md#d1-utwórz-bootstrap-administratora-potem-go-zawęź) |
+| Klon repozytorium Endora Commerce | `pnpm --filter backend run admin:create -- --email=… --password=… --first-name=… --last-name=…` |
+
+Konto otrzymuje rolę `platform_admin` — wszystkie uprawnienia — chyba że przekażesz `--role=<code>`
+z kodem istniejącej już roli; sama rola powstaje przy pierwszym uruchomieniu. Ponowne uruchomienie
+dla istniejącego adresu e-mail ustawia na nowo hasło, imię i nazwisko oraz rolę tego konta — w ten
+sposób odzyskuje się też utracone hasło. Jeśli nie masz dostępu do powłoki na maszynie, na której
+działa platforma, poproś o utworzenie konta osobę, która ją obsługuje.
+
 ## Czego pierwsze uruchomienie nie daje
 
 **Brak sklepu poza klonem repozytorium.** Sklep jest kopiowany z referencyjnego sklepu w

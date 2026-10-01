@@ -158,6 +158,25 @@ Mail the instance sends in development is caught by Mailpit, whose address the f
 prints, and never leaves your machine. `pnpm run dev:services:down` stops the development services
 and keeps their data.
 
+## Creating an administrator {#creating-an-administrator}
+
+The installer creates the administrator you sign in as. Every other account — a colleague's, or a
+replacement for a lost one — is created from the command line, and the admin's sign-in screen links
+here for that reason. The command is the same everywhere; how you reach it depends on where the
+platform runs:
+
+| Where | Command |
+| --- | --- |
+| An instance, on your machine (from its root) | `pnpm run admin:create -- --email=… --password=… --first-name=… --last-name=…` |
+| A production image | `node dist/cli.js admin_users create --email=… --password=… --first-name=… --last-name=…`, run in the backend container — see [D1 of the first deployment checklist](./deployment/first-deployment-checklist.md#d1-create-the-bootstrap-administrator-then-narrow-it) |
+| A checkout of the Endora Commerce repository | `pnpm --filter backend run admin:create -- --email=… --password=… --first-name=… --last-name=…` |
+
+The account gets the `platform_admin` role — every permission — unless you pass `--role=<code>` naming
+a role that already exists; the role itself is created on the first run. Running the command again
+for an e-mail that already exists resets that account's password, name and role, which is also how
+a lost password is recovered. If you have no shell on the machine the platform runs on, ask whoever
+operates it to create the account for you.
+
 ## What a first run does not give you
 
 **No storefront outside a checkout of the repository.** The storefront is copied from the reference
