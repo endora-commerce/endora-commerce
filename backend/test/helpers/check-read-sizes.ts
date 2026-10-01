@@ -15593,7 +15593,8 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // **`specs/137-open-source-launch/` N4 (the first-publish floor, 123 T7-D1): files 6646 -> 6648.** Measured on a pristine worktree of the branch head, stacked on N3 over `origin/master` 5c3f2cb79 (`setup-worktree.sh`, `build:packages`, `git status --porcelain` empty), whose `[read-size drift]` census named exactly nine entries. Not computed from a delta.
     // **`chore/vitest-4` (vitest 2 -> 4.1.11), merged with `origin/master` after #24: files 6648 -> 6650.** Re-measured on the same pristine worktree of the merge commit, in the same census. The movement is the same two new `.changeset/*.md` files, by the index rather than the disk. Not computed from a delta.
     // **`docs/readme-logo-badges-screens`: files 6650 -> 6656.** Re-measured on the same pristine clone, in the same census. The movement is the branch's six new files by the index: `docs/static/img/logo.svg` and the five README screenshots under `docs/static/img/screenshots/`. Not computed from a delta.
-    files: 6656,
+    // **`docs/readme-screenshots-storefront-cms`: files 6656 -> 6657.** Re-measured on a pristine clone of the branch commit (`setup-worktree.sh`, `build:packages`, `git status --porcelain` empty), up to date with `origin/master`; its `[read-size drift]` census named this entry alone. The movement is one deleted and two added README screenshots under `docs/static/img/screenshots/` (`product-feed-editor.png` out; `storefront-home.png` and `admin-cms-page-builder.png` in). They are `.png`, so `check-nul-bytes` excludes all three as binary and does not move. Not computed from a delta.
+    files: 6657,
     sites: null,
     sources: ['manifest-index'],
     //
