@@ -1,5 +1,15 @@
 # @endora-commerce/page-builder-admin
 
+## 0.100.1
+
+### Patch Changes
+
+- @endora-commerce/admin-kit@0.100.1
+  - @endora-commerce/cms-components@0.100.1
+  - @endora-commerce/contracts@0.100.1
+  - @endora-commerce/email-components@0.100.1
+  - @endora-commerce/page-builder-core@0.100.1
+
 ## 0.9.7
 
 ### Patch Changes
