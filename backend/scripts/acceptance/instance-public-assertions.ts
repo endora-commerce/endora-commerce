@@ -144,6 +144,73 @@ export function cleanMachineRefusals(observed: {
 }
 
 /**
+ * Variables npm or pnpm export into what they run, matched case-insensitively
+ * since npm reads `NPM_CONFIG_*` as well. `npx` exports its whole effective
+ * configuration as `npm_config_*` — including `npm_config_package` — and pnpm
+ * does the same plus `pnpm_config_*`, so a command started under either one
+ * runs with that one's settings rather than the defaults a stranger has.
+ */
+const INHERITED_PACKAGE_MANAGER_PREFIXES = /^(npm|pnpm)_(config|package|lifecycle)_/i;
+const INHERITED_PACKAGE_MANAGER_NAMES: ReadonlySet<string> = new Set([
+  'npm_execpath',
+  'npm_node_execpath',
+  'npm_command',
+  'init_cwd',
+  'node',
+  'color',
+  'pnpm_script_src_dir',
+]);
+
+/**
+ * The user config is the one npm variable kept: {@link cleanMachineRefusals}
+ * judged this machine clean by reading the file it names, so the commands run
+ * afterwards must read that file and no other.
+ */
+const KEPT_PACKAGE_MANAGER_NAMES: ReadonlySet<string> = new Set(['npm_config_userconfig']);
+
+/** A `PATH` entry that `npm exec` / `npm run` prepended for the duration of its child. */
+function isPackageManagerPathEntry(entry: string): boolean {
+  const normalised = entry.replace(/\/+$/, '');
+  return normalised.endsWith('/node_modules/.bin') || normalised.endsWith('/node-gyp-bin');
+}
+
+/**
+ * The environment the stranger's commands run in: the harness's own, minus
+ * everything the `npx` (or pnpm) that started the harness exported into it.
+ *
+ * The workflow starts the harness with `npx --package=tsx@4 -- tsx …`, and
+ * that `npx` exports `npm_config_package=tsx@4`. Inherited by the one-shot's
+ * `npx --yes create-endora-commerce@<version>`, it made npm run
+ * `create-endora-commerce@<version>` as a command inside the tsx package —
+ * exit 127, and nothing measured (run 36834341414). A stranger types those
+ * commands into a shell no package manager started, so every such variable is
+ * dropped, not just the one that broke: configuration, package and lifecycle
+ * variables, npm's exec bookkeeping, and the `node_modules/.bin` directories
+ * it put on `PATH`. `HOME`, the rest of `PATH`, `npm_config_userconfig` and
+ * every unrelated variable are kept.
+ */
+export function strangerEnvironment(
+  inherited: Readonly<Record<string, string | undefined>>,
+): Record<string, string> {
+  const stranger: Record<string, string> = {};
+  for (const [name, value] of Object.entries(inherited)) {
+    if (value === undefined) continue;
+    if (!KEPT_PACKAGE_MANAGER_NAMES.has(name)) {
+      if (INHERITED_PACKAGE_MANAGER_PREFIXES.test(name)) continue;
+      if (INHERITED_PACKAGE_MANAGER_NAMES.has(name.toLowerCase())) continue;
+    }
+    stranger[name] =
+      name === 'PATH'
+        ? value
+            .split(':')
+            .filter((entry) => !isPackageManagerPathEntry(entry))
+            .join(':')
+        : value;
+  }
+  return stranger;
+}
+
+/**
  * What the stranger types, in order — the list P5 counts and the harness runs.
  *
  * Data rather than a sequence of calls, so the count is of the commands that
