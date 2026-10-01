@@ -171,7 +171,7 @@ platforma:
 | Gdzie | Polecenie |
 | --- | --- |
 | Instancja na Twoim komputerze (z jej katalogu głównego) | `pnpm run admin:create -- --email=… --password=… --first-name=… --last-name=…` |
-| Obraz produkcyjny | `node dist/cli.js admin_users create --email=… --password=… --first-name=… --last-name=…`, uruchamiane w kontenerze backendu — zobacz [D1 listy kontrolnej pierwszego wdrożenia](./deployment/first-deployment-checklist.md#d1-create-the-bootstrap-administrator-then-narrow-it) |
+| Obraz produkcyjny | `node dist/cli.js admin_users create --email=… --password=… --first-name=… --last-name=…`, uruchamiane w kontenerze backendu — zobacz [D1 listy kontrolnej pierwszego wdrożenia](./deployment/first-deployment-checklist.md#d1-utwórz-bootstrap-administratora-potem-go-zawęź) |
 | Klon repozytorium Endora Commerce | `pnpm --filter backend run admin:create -- --email=… --password=… --first-name=… --last-name=…` |
 
 Konto otrzymuje rolę `platform_admin` — wszystkie uprawnienia — chyba że przekażesz `--role=<code>`
