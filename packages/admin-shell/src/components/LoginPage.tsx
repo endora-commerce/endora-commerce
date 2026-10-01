@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Input } from './ui/input.js';
 import { Label } from './ui/label.js';
 import { useAuth } from '../lib/auth.js';
-import { loginCopy } from '../i18n/preauth-login-copy.js';
+import { ADMIN_ACCOUNT_HELP_URL, loginCopy } from '../i18n/preauth-login-copy.js';
 import { FederatedSignIn } from './FederatedSignIn.js';
 
 /**
@@ -14,8 +14,12 @@ import { FederatedSignIn } from './FederatedSignIn.js';
  * AuthProvider re-fetches `/admin/me` after a successful POST and the
  * AppShell takes over.
  *
- * Bootstrap the first administrator from the repository root with:
- *   pnpm --filter backend run admin:create -- --email=… --password=… --first-name=… --last-name=…
+ * The first administrator is created from the command line, and the command
+ * depends on where the platform runs — `pnpm --filter backend run admin:create`
+ * in this repository, `pnpm run admin:create` in a scaffolded instance,
+ * `node dist/cli.js admin_users create` in a production image. The hint below
+ * the form therefore names none of them and links to the guide that names all
+ * three.
  */
 export function LoginPage(): ReactNode {
   const { login, verifyMfa, cancelMfa, lastLoginError, status, mfaChallengeId } = useAuth();
@@ -151,11 +155,13 @@ export function LoginPage(): ReactNode {
               displace no control the admin is aiming at. */}
           <FederatedSignIn />
           <p className="text-xs text-muted-foreground">
-            {loginCopy.footerPrefix}{' '}
-            <code className="rounded bg-muted px-1 py-0.5 text-[0.7rem]">
-              pnpm --filter backend run admin:create
-            </code>{' '}
-            {loginCopy.footerSuffix}
+            {loginCopy.noAccount}{' '}
+            <a
+              href={ADMIN_ACCOUNT_HELP_URL}
+              className="rounded-sm font-medium text-foreground underline underline-offset-2 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {loginCopy.noAccountLink}
+            </a>
           </p>
         </CardContent>
       </Card>

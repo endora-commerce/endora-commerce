@@ -135,6 +135,42 @@ function instance(
   return root;
 }
 
+/**
+ * One UI package as pnpm's isolated layout installs it: the real directory in
+ * the virtual store, and a symlink from the `node_modules` of whoever declares
+ * it. `peers` are linked as **siblings** in the store, which is how a dependent
+ * resolves a peer that nobody in the instance declared.
+ */
+function installUiPackage(
+  root: string,
+  name: string,
+  linkFrom: readonly string[],
+  peers: readonly string[] = [],
+): string {
+  const storeRoot = join(root, 'node_modules', '.pnpm', `${name.replace('/', '+')}@1.0.0`, 'node_modules');
+  const dir = join(storeRoot, name);
+  write(
+    join(dir, 'package.json'),
+    JSON.stringify({
+      name,
+      version: '1.0.0',
+      exports: { '.': './dist/index.js', './tailwind.css': './tailwind.css' },
+      peerDependencies: Object.fromEntries(peers.map((peer) => [peer, '^1.0.0'])),
+    }),
+  );
+  write(join(dir, 'tailwind.css'), '@source "./dist";\n');
+  for (const peer of peers) {
+    const peerDir = join(root, 'node_modules', '.pnpm', `${peer.replace('/', '+')}@1.0.0`, 'node_modules', peer);
+    mkdirSync(join(storeRoot, peer, '..'), { recursive: true });
+    symlinkSync(peerDir, join(storeRoot, peer), 'dir');
+  }
+  for (const from of linkFrom) {
+    mkdirSync(join(from, 'node_modules', name, '..'), { recursive: true });
+    symlinkSync(dir, join(from, 'node_modules', name), 'dir');
+  }
+  return dir;
+}
+
 describe('endora generate (instance-tree.md §2.6)', () => {
   it('renders both artefacts into the admin project the `"@/*"` alias names', async () => {
     const root = instance(['blog', 'catalog']);
@@ -150,6 +186,58 @@ describe('endora generate (instance-tree.md §2.6)', () => {
     expect(registry).toContain("moduleId: 'catalog'");
     const stylesheet = readFileSync(result.artefacts[1]!.path, 'utf8');
     expect(stylesheet).toContain(`@import "${SCOPE}/mod-blog/tailwind.css";`);
+  });
+
+  /**
+   * The sign-in screen rendered at the top-left of a scaffolded instance's
+   * admin: `grid min-h-screen place-items-center` is the shell's, and the
+   * shell's stylesheet was never imported. The admin member declares the shell
+   * and the kit and pnpm links them into **its** `node_modules`, not the
+   * root's, so a lookup at the root alone found nothing and skipped them in
+   * silence.
+   */
+  it('imports the shell\'s and the kit\'s sources when only the admin member declares them', async () => {
+    const root = instance(['blog']);
+    const admin = join(root, 'admin');
+    write(
+      join(admin, 'package.json'),
+      JSON.stringify({
+        name: 'acme-admin',
+        dependencies: { [`${SCOPE}/admin-kit`]: '^1.0.0', [`${SCOPE}/admin-shell`]: '^1.0.0' },
+      }),
+    );
+    installUiPackage(root, `${SCOPE}/admin-kit`, [admin]);
+    installUiPackage(root, `${SCOPE}/admin-shell`, [admin], [`${SCOPE}/admin-kit`]);
+    const result = await runGenerate({ cwd: root });
+    const stylesheet = readFileSync(result.artefacts[1]!.path, 'utf8');
+    expect(stylesheet).toContain(`@import "${SCOPE}/admin-shell/tailwind.css";`);
+    expect(stylesheet).toContain(`@import "${SCOPE}/admin-kit/tailwind.css";`);
+  });
+
+  /**
+   * A UI package another UI package needs, which the instance declares nowhere
+   * — `page-builder-core` is a required peer of `page-builder-admin`, so pnpm
+   * installs it into the store and links it into no manifest's `node_modules`.
+   * Its classes render inside the page builder all the same. A bare specifier
+   * does not resolve from the admin project, so the import names the installed
+   * file by a path relative to the artefact, which is regenerated on every
+   * build anyway.
+   */
+  it('imports a UI package reached only as another UI package\'s peer, by path', async () => {
+    const root = instance(['blog']);
+    installUiPackage(root, `${SCOPE}/page-builder-core`, []);
+    installUiPackage(root, `${SCOPE}/page-builder-admin`, [root], [`${SCOPE}/page-builder-core`]);
+    const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>;
+    };
+    manifest.dependencies[`${SCOPE}/page-builder-admin`] = '^1.0.0';
+    write(join(root, 'package.json'), JSON.stringify(manifest));
+    const result = await runGenerate({ cwd: root });
+    const stylesheet = readFileSync(result.artefacts[1]!.path, 'utf8');
+    expect(stylesheet).toContain(`@import "${SCOPE}/page-builder-admin/tailwind.css";`);
+    expect(stylesheet).toContain(
+      `@import "../../node_modules/.pnpm/${SCOPE}+page-builder-core@1.0.0/node_modules/${SCOPE}/page-builder-core/tailwind.css";`,
+    );
   });
 
   it('names `endora generate` as what regenerates them, not this repository\'s script', async () => {

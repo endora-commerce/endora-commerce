@@ -36,8 +36,8 @@
  * `composer:generate`'s committed bytes are unchanged by the move and
  * `overlay:check` is what says so.
  */
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 
 import {
   absolutePathInPackage,
@@ -266,60 +266,129 @@ export function adminRegistryOutputPathIn(root: string): string {
 export interface TailwindSourceEntry {
   /** The npm name, which is also the sort key (R2.1). */
   readonly name: string;
-  /** The specifier the artefact writes — `<name>/tailwind.css`. */
+  /**
+   * What the artefact imports. `<name>/tailwind.css` for a package the admin
+   * project can resolve by name; a path relative to the artefact for one it
+   * cannot — see `composedPackageDirectories`.
+   */
   readonly specifier: string;
 }
 
-/** Every dependency name one manifest declares, or `[]` when it is not there. */
-function declaredDependencyNames(manifestPath: string, exists: PathProbe): readonly string[] {
+/** The names one manifest declares in the given blocks, or `[]` when it is not there. */
+function declaredNames(
+  manifestPath: string,
+  exists: PathProbe,
+  blocks: readonly string[] = ['dependencies'],
+): readonly string[] {
   if (!exists(manifestPath)) return [];
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
-  const declared = manifest['dependencies'];
-  if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) return [];
-  return Object.keys(declared as Record<string, unknown>);
+  const names: string[] = [];
+  for (const block of blocks) {
+    const declared = manifest[block];
+    if (typeof declared !== 'object' || declared === null || Array.isArray(declared)) continue;
+    names.push(...Object.keys(declared as Record<string, unknown>));
+  }
+  return names;
+}
+
+/**
+ * Where `name` resolves from `fromDir`, by Node's own walk: `node_modules/<name>`
+ * in that directory, then in each ancestor. `null` when nothing is installed.
+ *
+ * **The walk starts at the declaring manifest's directory, never at the root
+ * alone.** pnpm links a dependency into the `node_modules` beside the manifest
+ * that declares it, so in a scaffolded instance the shell and the kit — which
+ * the *admin member* declares — live in `admin/node_modules` and nowhere at the
+ * root. Looking only at the root skipped them without a word, and the shell's
+ * own utilities (the sign-in screen's `min-h-screen place-items-center`) were
+ * never compiled.
+ */
+function installedDirectory(name: string, fromDir: string, exists: PathProbe): string | null {
+  let dir = fromDir;
+  for (;;) {
+    const candidate = join(dir, 'node_modules', name);
+    if (exists(join(candidate, 'package.json'))) return candidate;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+/** The real path, so a store-linked package resolves its peers as Node would. */
+function realDirectory(dir: string): string {
+  try {
+    return realpathSync(dir);
+  } catch {
+    return dir;
+  }
+}
+
+/** One package the stylesheet composition reached, and whether the admin can name it. */
+interface ComposedPackage {
+  readonly dir: string;
+  /** Does `<name>/tailwind.css` resolve from the admin project itself? */
+  readonly bare: boolean;
 }
 
 /**
  * The packages this tree composes, resolved to their directories.
  *
- * **A declared dependency is the population**, and it is the one derivation
- * that answers identically in both trees: a bare specifier resolves only
- * through a declared dependency, so a package nothing declares is a package
- * whose stylesheet could not be imported anyway (M10). Nothing keys on a scope,
- * a `mod-` prefix or a directory (D-100).
+ * **A declared dependency is the starting population**, and it is the one
+ * derivation that answers identically in both trees (M10). Nothing keys on a
+ * scope, a `mod-` prefix or a directory (D-100).
  *
  * **Two manifests, unioned, because the two trees put the declaration in
  * different places and both are correct.** Here `manifests:generate` reconciles
  * every contributing module into `admin/package.json`, so the admin's own
  * manifest is the complete answer. An instance is scaffolded as a workspace
- * whose *root* holds the module dependencies and whose admin project is a
- * member of it — pnpm links a root dependency into the root `node_modules`,
- * where the admin's own resolution reaches it. Reading only the admin's
- * manifest there would render an artefact naming nothing, which is the silence
- * this whole contract exists to remove.
+ * whose *root* holds the module dependencies and whose admin member declares
+ * the shell and the kit. **Each is resolved from the directory of the manifest
+ * that declares it** — see `installedDirectory`.
+ *
+ * **Then closed over UI packages' own dependencies and peers.** A package that
+ * ships admin UI renders the components of the UI packages it depends on — the
+ * page builder renders `page-builder-core`'s — and an instance declares those
+ * nowhere: a required peer is installed by pnpm into its store and linked into
+ * no manifest's `node_modules`. The closure descends only through packages that
+ * themselves declare `./tailwind.css`, which keeps it to the UI family instead
+ * of the whole dependency graph. A package so reached that the admin project
+ * cannot resolve by name is marked, and imported by path.
  */
 function composedPackageDirectories(
   root: string,
   exists: PathProbe,
-): ReadonlyMap<string, string> {
+): ReadonlyMap<string, ComposedPackage> {
   const members = workspaceMembers(root, nodeWorkspaceFs());
   const { member } = findAliasMember(members);
-  const names = [
-    ...declaredDependencyNames(join(member.dir, 'package.json'), exists),
-    ...declaredDependencyNames(join(root, 'package.json'), exists),
-  ];
   const byName = new Map(members.map((entry) => [entry.name, entry.dir]));
-  const found = new Map<string, string>();
-  for (const name of names) {
+  const found = new Map<string, ComposedPackage>();
+  const resolveFrom = (name: string, fromDir: string): string | null => {
     // A workspace member first, then the installed copy. The order is the one
     // `check:module-boundary` and `overlay:check` already take: a member's own
     // directory is the declaration this repository can change, and following
     // the link instead would answer from whichever checkout `node_modules` was
     // wired to (issue #255).
-    const memberDir = byName.get(name);
-    const dir = memberDir ?? join(root, 'node_modules', name);
-    if (!exists(join(dir, 'package.json'))) continue;
-    found.set(name, dir);
+    return byName.get(name) ?? installedDirectory(name, fromDir, exists);
+  };
+  const queue: { readonly name: string; readonly from: string }[] = [
+    ...declaredNames(join(member.dir, 'package.json'), exists).map((name) => ({ name, from: member.dir })),
+    ...declaredNames(join(root, 'package.json'), exists).map((name) => ({ name, from: root })),
+  ];
+  for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+    if (found.has(next.name)) continue;
+    const dir = resolveFrom(next.name, next.from);
+    if (dir === null || !exists(join(dir, 'package.json'))) continue;
+    const fromAdmin = resolveFrom(next.name, member.dir);
+    const bare = fromAdmin !== null && realDirectory(fromAdmin) === realDirectory(dir);
+    found.set(next.name, { dir, bare });
+    if (!declaresTailwindSubpath(dir)) continue;
+    const real = realDirectory(dir);
+    for (const name of declaredNames(join(dir, 'package.json'), exists, [
+      'dependencies',
+      'peerDependencies',
+    ])) {
+      queue.push({ name, from: real });
+    }
   }
   return found;
 }
@@ -357,9 +426,9 @@ export function collectTailwindSources(
   exists: PathProbe = existsSync,
 ): readonly TailwindSourceEntry[] {
   const composed = composedPackageDirectories(root, exists);
-  const declaring = new Set<string>();
-  for (const [name, dir] of composed) {
-    if (declaresTailwindSubpath(dir)) declaring.add(name);
+  const declaring = new Map<string, ComposedPackage>();
+  for (const [name, pkg] of composed) {
+    if (declaresTailwindSubpath(pkg.dir)) declaring.set(name, pkg);
   }
   for (const entry of collectAdminContributions(packages, exists)) {
     const name = packageNameOf(entry.specifier);
@@ -373,9 +442,17 @@ export function collectTailwindSources(
         `from the same layer inventory as './admin'.`,
     );
   }
+  // Both ends real, so the relative path does not depend on which of them was
+  // reached through a symlink.
+  const artefactDir = realDirectory(dirname(tailwindRegistryOutputPathIn(root)));
   return [...declaring]
-    .sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
-    .map((name) => ({ name, specifier: `${name}/tailwind.css` }));
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([name, pkg]) => ({
+      name,
+      specifier: pkg.bare
+        ? `${name}/tailwind.css`
+        : relative(artefactDir, join(realDirectory(pkg.dir), 'tailwind.css')).split(sep).join('/'),
+    }));
 }
 
 /** `@endora-commerce/mod-blog/tailwind.css` → `@endora-commerce/mod-blog`. */

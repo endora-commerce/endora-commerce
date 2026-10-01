@@ -17,8 +17,17 @@ export const loginCopy = {
   password: 'Password',
   submitting: 'Signing in…',
   submit: 'Sign in',
-  footerPrefix: 'No account yet? Run',
-  footerSuffix: 'from the repository root.',
+  /**
+   * The hint below the form. It used to name `pnpm --filter backend run
+   * admin:create`, which exists only in this repository's checkout: a
+   * scaffolded instance spells it `pnpm run admin:create`, a production image
+   * `node dist/cli.js admin_users create`, and the person reading a sign-in
+   * screen is usually not the one with a shell at all. So it names the two
+   * routes that are true everywhere and links to the page that spells the
+   * command for each setting.
+   */
+  noAccount: 'No account yet? Ask your platform administrator, or create one from the command line:',
+  noAccountLink: 'see the Getting started guide',
   /**
    * Issue #193 — federated sign-in. `divider` is deliberately just "or": the
    * button carries the whole intent ("Continue with Google"), so a longer rule
@@ -30,6 +39,14 @@ export const loginCopy = {
   federatedGoogle: 'Continue with Google',
   federatedMicrosoft: 'Continue with Microsoft',
 } as const;
+
+/**
+ * Where `noAccountLink` points: the published guide's section on creating an
+ * administrator. The public site rather than an instance's own, because an
+ * instance may build no documentation site at all (`--without docs`).
+ */
+export const ADMIN_ACCOUNT_HELP_URL =
+  'https://docs.commerce.endora.software/getting-started#creating-an-administrator';
 
 export const appBootstrapCopy = {
   loading: 'Loading...',
