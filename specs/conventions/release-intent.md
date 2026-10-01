@@ -91,9 +91,13 @@ this config in `backend/test/unit/release/changeset-flow.test.ts`, which seeds i
 both the `0.x` and the `1.x` regime: under `fixed` the caret regime no longer decides anything,
 which is what the old `linked` table spent a paragraph explaining.
 
-**The changesets that predated `0.100.0` were deleted** (owner, 2026-10-01). `0.100.0` was a
-hand-set of every manifest and consumed none of them, so the nineteen files still pending afterwards
-described work that version already shipped; consuming them would have released it twice.
+**The changesets that predate `0.100.0` are deleted by the release pull request that cuts
+`0.100.1`** (owner, 2026-10-01). `0.100.0` was a hand-set of every manifest and consumed none of
+them, so the nineteen files still pending afterwards describe work that version already shipped;
+consuming them would release it twice. They are deleted there rather than on their own because
+`release:changeset` refuses a branch that deletes changesets and produces no release artefact
+(`vacuous-release`, D-212) — and while they are pending, lockstep plans every package at the
+highest bump among them, `0.101.0`.
 
 **The version step is `pnpm run version:packages`, and it runs locally.** It cuts a
 `release/version-<date>` branch, runs `changeset version`, and refuses two things a bare

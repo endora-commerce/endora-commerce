@@ -82,8 +82,9 @@ at the highest bump pending: after `0.100.0`, a single patch is `0.100.1` everyw
 not cover, and `backend/test/unit/release/changeset-flow.test.ts` measures the group with the
 real CLI.
 
-The changesets pending at `0.100.0` were deleted rather than consumed: that release hand-set every
-version and consumed none, so they described work it had already shipped.
+The changesets pending at `0.100.0` are deleted rather than consumed, by the release pull request
+that cuts `0.100.1`: that release hand-set every version and consumed none, so they describe work
+it already shipped. Until then lockstep plans every package at the highest bump among them.
 
 **Every workspace package under `packages/` is public unless a ruling keeps it private, and
 `access` is `public`** — the owner's publication ruling of 2026-09-05. Not publishing something
