@@ -949,13 +949,13 @@ describe('the tree (§1, §2)', () => {
       const without = nextSteps('/tmp/acme', 'default', DEFAULT_TOPOLOGY, ['settings'], {
         scope: SCOPE,
       }).join('\n');
-      expect(without).toContain(`${SCOPE}demo-composition`);
+      expect(without).toContain(`pnpm add -w ${SCOPE}demo-composition`);
       const asked = nextSteps('/tmp/acme', 'default', DEFAULT_TOPOLOGY, ['settings'], {
         scope: SCOPE,
         demoComposition: true,
       }).join('\n');
       expect(asked).toContain('cli demo seed');
-      expect(asked).not.toContain(`add \`${SCOPE}demo-composition`);
+      expect(asked).not.toContain('pnpm add -w');
     });
 
     it('T2-E — an instance with no `admin_users` is told nothing it cannot run', () => {

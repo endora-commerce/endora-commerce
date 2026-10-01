@@ -12,4 +12,4 @@ The demo adopts the instance's system-default sales channel as its retail channe
 
 `@endora-commerce/platform/demo` — the host-internal subpath no module may name — no longer exports `NO_DEMO_COMPOSITION_NOTICE` or the `DemoCompositionLookup` type; their only consumer outside the platform was the loader this change removes. `DemoCompositionInput` stays, as the argument `createDemoComposition` takes.
 
-To fix an existing instance: `pnpm add @endora-commerce/demo-composition`, then `pnpm run cli demo seed` again. The seed is idempotent, so the rows already there are joined rather than duplicated.
+To fix an existing instance: `pnpm add -w @endora-commerce/demo-composition` at the instance root (it is a pnpm workspace, so plain `pnpm add` refuses), then `pnpm run cli demo seed` again. The seed is idempotent, so the rows already there are joined rather than duplicated.

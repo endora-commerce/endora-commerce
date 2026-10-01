@@ -22,10 +22,11 @@ own rows.
 ## How an instance gets it
 
 Ask for demo data when you scaffold — `endora install --demo` or `endora new instance --demo` —
-and this package joins your module list. To add it to an instance that already exists:
+and this package joins your module list. To add it to an instance that already exists, at the
+instance root — a pnpm workspace, hence `-w`:
 
 ```bash
-pnpm add @endora-commerce/demo-composition
+pnpm add -w @endora-commerce/demo-composition
 pnpm run cli demo seed
 ```
 

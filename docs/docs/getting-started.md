@@ -96,7 +96,7 @@ customers and orders before the first screen; a shop you will sell from wants no
 answer asks again. `--demo` also adds one package to your module list,
 `@endora-commerce/demo-composition`: it is what joins the modules' example rows into one shop —
 the demo products sold on your default channel, the demo administrators holding their roles.
-If you change your mind later, `pnpm add @endora-commerce/demo-composition` and then
+If you change your mind later, `pnpm add -w @endora-commerce/demo-composition` and then
 `pnpm run cli demo seed` add demo data, and `pnpm run cli demo reset` withdraws it, leaving your
 own rows alone.
 

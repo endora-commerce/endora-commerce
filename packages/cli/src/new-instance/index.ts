@@ -763,8 +763,8 @@ export function nextSteps(
       : `pnpm run cli demo seed — optional, and off unless you ask: a shop's worth of example ` +
         `data from every module that declares any, which \`pnpm run cli demo reset\` withdraws ` +
         `again leaving your own rows alone. For the demo shop as a whole — the products sold ` +
-        `on a channel, the demo administrators holding their roles — add ` +
-        `\`${development.scope ?? '@endora-commerce/'}${DEMO_COMPOSITION_PACKAGE}\` first: ` +
+        `on a channel, the demo administrators holding their roles — run ` +
+        `\`pnpm add -w ${development.scope ?? '@endora-commerce/'}${DEMO_COMPOSITION_PACKAGE}\` first: ` +
         `without it each module's rows arrive and nothing joins them. An instance you are going ` +
         `to sell from wants none of it; an instance you are evaluating wants it before the ` +
         `first screen. It is named here rather than written into your tree as a script, which ` +

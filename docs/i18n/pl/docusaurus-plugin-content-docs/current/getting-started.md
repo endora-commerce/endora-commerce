@@ -98,7 +98,7 @@ klientów i zamówień przed pierwszym ekranem; sklep, w którym będziesz sprze
 żadnych. Pusta odpowiedź powoduje ponowne pytanie. `--demo` dodaje też do listy modułów jeden
 pakiet, `@endora-commerce/demo-composition`: to on łączy przykładowe wiersze modułów w jeden sklep
 — produkty demonstracyjne sprzedawane w domyślnym kanale, administratorów demonstracyjnych z
-przypisanymi rolami. Jeśli zmienisz zdanie, `pnpm add @endora-commerce/demo-composition`, a potem
+przypisanymi rolami. Jeśli zmienisz zdanie, `pnpm add -w @endora-commerce/demo-composition`, a potem
 `pnpm run cli demo seed` dodają dane demonstracyjne, a `pnpm run cli demo reset` je wycofuje, nie
 ruszając Twoich własnych wierszy.
 

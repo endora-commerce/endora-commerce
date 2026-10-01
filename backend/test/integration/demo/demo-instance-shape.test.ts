@@ -277,7 +277,9 @@ describe('`demo seed` on a CLI-scaffolded instance', () => {
 
     it('says once that the wiring is missing, and how to get it', () => {
       expect(withoutReport).toContain('No demo composition was found');
-      expect(withoutReport).toContain('pnpm add @endora-commerce/demo-composition');
+      // `-w`: an instance root is a pnpm workspace, and a plain `pnpm add` there
+      // refuses with ERR_PNPM_ADDING_TO_ROOT — measured on a scaffolded instance.
+      expect(withoutReport).toContain('pnpm add -w @endora-commerce/demo-composition');
     });
   });
 

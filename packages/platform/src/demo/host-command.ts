@@ -190,7 +190,8 @@ export const NO_DEMO_COMPOSITION_NOTICE =
   'rows exist, but nothing wires them together — no channel sells the demo products and ' +
   'no demo administrator holds a role. A composition is that wiring, and it belongs to ' +
   'whoever owns the instance, not to the platform. The demo shop\'s own is a package: ' +
-  '`pnpm add @endora-commerce/demo-composition`, then run this command again. An instance ' +
+  '`pnpm add -w @endora-commerce/demo-composition` at the instance root, then run this ' +
+  'command again. An instance ' +
   'without one is an ordinary instance.';
 
 /** What a composition loader is given. */
