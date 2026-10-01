@@ -552,13 +552,20 @@ describe('this checkout', () => {
      * the platform composes would make one process resolve its source and
      * another its `dist`. Nothing composes an admin-ui package, and both
      * frontends resolve it through its own `exports` map in every process.
+     *
+     * **`'demo-composition'` is the fourth value, and it is composed** (2026-10-01).
+     * The platform's operator CLI finds an installed package carrying it and
+     * loads that package's root export into its own process, as it loads a
+     * module package's — which is the whole point of the declaration. So it is
+     * on the module packages' side of the line: one copy, resolved through its
+     * `exports` map by every process.
      */
     const isComposed = (name: string): boolean => {
       const member = members.find((m) => m.name === name);
       const endora = member?.manifest['endora'];
       if (typeof endora !== 'object' || endora === null || Array.isArray(endora)) return false;
       const type = (endora as Record<string, unknown>)['type'];
-      return type === 'platform' || type === 'module';
+      return type === 'platform' || type === 'module' || type === 'demo-composition';
     };
 
     const unmapped = report.packages.filter(

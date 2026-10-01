@@ -101,7 +101,10 @@ const RESIDUE_ROOTS: readonly string[] = [
   // root dies at module resolution and every proof under it fails for a reason
   // that has nothing to do with a moved module tree.
   'packages',
-  'seeds',
+  // `'seeds'` stood here until 2026-10-01, and it went for the reason `'events'`
+  // did: its two files — the demo composition and the attribute helper — moved
+  // into `@endora-commerce/demo-composition`, so `backend/src/seeds/` is gone
+  // and `cpSync` of it is `ENOENT` rather than an empty copy.
   'tenancy',
 ];
 

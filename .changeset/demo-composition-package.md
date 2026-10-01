@@ -10,4 +10,6 @@ It is now the new package `@endora-commerce/demo-composition`. The platform's op
 
 The demo adopts the instance's system-default sales channel as its retail channel and keeps that channel's code when the operator chose one (`DEFAULT_SALES_CHANNEL_CODE`); only the platform's fallback code, `default`, is renamed `pl_retail`, as before. It used to rename any code, which would have moved the demo off the channel a storefront is built against.
 
+`@endora-commerce/platform/demo` — the host-internal subpath no module may name — no longer exports `NO_DEMO_COMPOSITION_NOTICE` or the `DemoCompositionLookup` type; their only consumer outside the platform was the loader this change removes. `DemoCompositionInput` stays, as the argument `createDemoComposition` takes.
+
 To fix an existing instance: `pnpm add @endora-commerce/demo-composition`, then `pnpm run cli demo seed` again. The seed is idempotent, so the rows already there are joined rather than duplicated.

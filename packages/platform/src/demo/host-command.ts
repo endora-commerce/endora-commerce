@@ -210,8 +210,9 @@ export type DemoCompositionLookup =
  * **Locating one is the application's**, and that is the whole of why this is a
  * function type rather than a function: the file lives at a path relative to the
  * *caller's* own source, which is a path in a tree the platform cannot name
- * (`operator-half.md` §1.1). This repository's is
- * `backend/src/demo/composition-loader.ts`; a scaffolded instance supplies none
+ * (`operator-half.md` §1.1). This repository's names
+ * `@endora-commerce/demo-composition` in `backend/src/cli.ts`; a scaffolded
+ * instance supplies none
  * and the dispatcher looks for an installed demo-composition package instead
  * (`installed-composition.ts`), printing {@link NO_DEMO_COMPOSITION_NOTICE} when
  * there is none.

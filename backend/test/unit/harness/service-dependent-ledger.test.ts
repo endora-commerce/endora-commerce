@@ -442,6 +442,12 @@ const SERVICE_BOUND_BEYOND_THE_SCREEN: Readonly<Record<string, string>> = {
     'client it constructs and through `spawn` — neither of which is an import the closure ' +
     'screen can follow. Measured under `BACKEND_TEST_SERVICES=none`: `connect ECONNREFUSED ' +
     '127.0.0.1:1`, the `beforeAll` fails and every case is skipped. Correctly III(c).',
+  'test/integration/demo/demo-instance-shape.test.ts':
+    'The same shape as `demo-shop.test.ts`: it provisions a PostgreSQL database of its own ' +
+    'with `pg` and spawns the migration runner and an instance-shaped operator CLI as child ' +
+    'processes, so it reaches the database through a client it constructs and through ' +
+    '`spawn`. Measured under `BACKEND_TEST_SERVICES=none`: `connect ECONNREFUSED ' +
+    '127.0.0.1:1`, the `beforeAll` fails and all 9 cases are skipped. Correctly III(c).',
 };
 
 function outerTestFiles(): string[] {
