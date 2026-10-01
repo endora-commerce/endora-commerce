@@ -48,6 +48,10 @@
   "peerDependencies": {
     "@endora-commerce/page-builder-core": "workspace:^",
     "@measured/puck": "*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
     "@tiptap/core": "^3.31.3",
     "@tiptap/extension-color": "3.31.3",
     "@tiptap/extension-highlight": "3.31.3",
@@ -57,58 +61,16 @@
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
     "leaflet": "^1.9.4",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "peerDependenciesMeta": {
-    "@tiptap/core": {
-      "optional": true
-    },
-    "@tiptap/extension-color": {
-      "optional": true
-    },
-    "@tiptap/extension-highlight": {
-      "optional": true
-    },
-    "@tiptap/extension-image": {
-      "optional": true
-    },
-    "@tiptap/extension-text-align": {
-      "optional": true
-    },
-    "@tiptap/extension-text-style": {
-      "optional": true
-    },
-    "@tiptap/react": {
-      "optional": true
-    },
-    "@tiptap/starter-kit": {
-      "optional": true
-    },
-    "leaflet": {
-      "optional": true
-    }
-  },
-  "dependencies": {
     "lucide-react": "^1.11.0",
     "react-icons": "^5.5.0"
   },
   "devDependencies": {
     "@endora-commerce/page-builder-core": "workspace:^",
     "@tailwindcss/cli": "4",
-    "@tiptap/core": "^3.31.3",
-    "@tiptap/extension-color": "3.31.3",
-    "@tiptap/extension-highlight": "3.31.3",
-    "@tiptap/extension-image": "3.31.3",
-    "@tiptap/extension-text-align": "3.31.3",
-    "@tiptap/extension-text-style": "3.31.3",
-    "@tiptap/react": "^3.31.3",
-    "@tiptap/starter-kit": "^3.31.3",
     "@types/leaflet": "^1.9.21",
     "@types/node": "^22.9.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "leaflet": "^1.9.4",
     "react-dom": "^19.2.5",
     "tailwindcss": "4",
     "typescript": "^5.9.3",
