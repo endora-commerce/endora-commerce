@@ -25,8 +25,9 @@
  * declared, `admin_users create` included, and nobody could log in to it.
  *
  * What did not move is what genuinely names a path: this repository's generated
- * core index, its own `composeApp`, its `src/seeds/demo-composition.ts` probe,
- * and the one directory holding `apps/`. `backend/src/cli.ts` supplies those
+ * core index, its own `composeApp`, its demo composition (a workspace link the
+ * installed-package discovery refuses, so it is named), and the one directory
+ * holding `apps/`. `backend/src/cli.ts` supplies those
  * four and is otherwise an exit code; a scaffolded instance supplies the last
  * one and is five lines. See `dispatch.ts`' own header.
  *

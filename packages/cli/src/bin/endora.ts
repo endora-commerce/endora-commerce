@@ -61,7 +61,8 @@ const USAGE = `endora — scaffolding and conformance tooling for Endora Commerc
 Usage:
   endora new module <id> --name <text> --description <text> [options]
   endora new instance <dir> [--module <id>...] [--without <member>...] [--deployment <name>]
-                            [--registry <url>] [--topology single-host|three-host] [--dry-run]
+                            [--registry <url>] [--topology single-host|three-host] [--demo]
+                            [--dry-run]
   endora new storefront <dir> [--registry <url>] [--<input> <value>...] [--dry-run]
   endora install [<dir>] [--admin-email <e>] [--admin-password <p>] [--admin-first-name <f>]
                          [--admin-last-name <l>] [--demo | --no-demo] [--without <member>...]
@@ -134,6 +135,12 @@ Options for \`new instance\`:
                                 for a backend, a storefront and an admin that scale
                                 apart. It selects; it records nothing — no file in
                                 the tree carries the value and nothing reads it back
+  --demo                        this instance is for evaluating: add the demo shop's
+                                composition to the module list, so \`pnpm run cli
+                                demo seed\` wires the modules' example rows together
+                                — products sold on the default channel, the demo
+                                administrators holding their roles. It writes no
+                                file; leave it out for an instance you trade from
   --dry-run                     report every file it would write, the resolved
                                 module set with its closure, and every omission;
                                 write nothing
@@ -173,9 +180,11 @@ Options for \`install\`:
                                 deliberately with no default:
                                 an instance you will sell from wants none of it and
                                 one you are evaluating wants it before the first
-                                screen. Seeding runs last and a failure in it does
-                                not fail the install
-  --no-services                 do not start PostgreSQL, Redis, Meilisearch and the
+                                screen. \`--demo\` also adds the demo shop's
+                                composition to the module list, which is what
+                                wires those rows into one shop. Seeding runs last
+                                and a failure in it does not fail the install
+  --no-services                do not start PostgreSQL, Redis, Meilisearch and the
                                 mail catcher, and do not write their addresses into
                                 the instance's \`.env\`. Use it when you run those
                                 services yourself
@@ -607,6 +616,7 @@ async function runNewInstanceCommand(
       ...(asString(parsed.values['topology']) === undefined
         ? {}
         : { topology: asString(parsed.values['topology'])! }),
+      ...(asFlag(parsed.values['demo']) ? { demo: true } : {}),
       dryRun: asFlag(parsed.values['dry-run']),
       cwd,
     });

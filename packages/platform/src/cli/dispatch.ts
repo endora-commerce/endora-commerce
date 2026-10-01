@@ -54,6 +54,7 @@ import {
   parseDemoVerb,
   type DemoCompositionLoader,
 } from '../demo/host-command.js';
+import { installedDemoCompositionLoader } from '../demo/installed-composition.js';
 import { formatDemoReport } from '../demo/report.js';
 import { mustBeNonProduction } from '../demo/guard.js';
 import { runDemo, unwrapDemoFailure } from '../demo/runner.js';
@@ -156,7 +157,14 @@ export interface RunCliOptions {
    * generated composition; an instance takes `@endora-commerce/platform`'s.
    */
   readonly compose?: () => Promise<CliComposition>;
-  /** Where this tree keeps its demo composition, if it has one (§5.6). */
+  /**
+   * Where this tree keeps its demo composition, if it has one (§5.6).
+   *
+   * Absent is an instance's answer: the one installed package declaring
+   * `"endora": { "type": "demo-composition" }`, or none — see
+   * `../demo/installed-composition.ts` for why an instance gets its demo wiring
+   * from a package rather than a file in its tree.
+   */
   readonly demoComposition?: DemoCompositionLoader;
   readonly out?: (chunk: string) => void;
   readonly err?: (chunk: string) => void;
@@ -307,7 +315,13 @@ export async function dispatchCli(options: RunCliOptions): Promise<number> {
       out(demoHelpFor(verb, program));
       return 0;
     }
-    return await runDemoCommand(verb, resolved, compose, options.demoComposition, out);
+    return await runDemoCommand(
+      verb,
+      resolved,
+      compose,
+      options.demoComposition ?? installedDemoCompositionLoader(),
+      out,
+    );
   }
   if (moduleId === undefined || name === undefined) {
     err(`${cliUsage(program)}\nerror: a command is addressed as '<module id> <command>'.\n`);

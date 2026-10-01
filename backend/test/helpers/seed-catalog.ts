@@ -2,7 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Product } from './package-entities.js';
 import { Category } from './package-entities.js';
 import { AttributeSetAttribute } from './package-entities.js';
-import { createAttributeFixture } from '../../src/seeds/attribute-fixtures.js';
+import { createAttributeFixture } from '@endora-commerce/demo-composition';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 
 // Feature 061 — attribute fixtures create the product-host Custom Field
@@ -12,7 +12,7 @@ export {
   createAttributeFixture,
   findAttributeDefinitionByKey,
   findAttributeExtensionByKey,
-} from '../../src/seeds/attribute-fixtures.js';
+} from '@endora-commerce/demo-composition';
 
 /** Fixed UUIDs for the three seeded Products — the RFQ tests reference these directly. */
 export const SEED_PRODUCT_101_ID = '00000000-0000-4000-8000-000000000101';

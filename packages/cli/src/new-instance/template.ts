@@ -263,6 +263,17 @@ export interface PlanInput {
   readonly packageManager: string | undefined;
   /** The resolved module set, each entry carrying its own version. */
   readonly modules: readonly PlannedModulePackage[];
+  /**
+   * The demo composition package and the version it resolved at, when the
+   * instance asked for demo data — `null` (or absent) otherwise.
+   *
+   * One dependency in the module list and nothing else: no file of the tree
+   * names it, so D-216's "no demo artefact" holds for the files and FR-121's
+   * "the demo decision runs a command and writes no file" holds for the tree —
+   * the entry is what the decision *installs*, the way adding any capability
+   * is a line in this manifest.
+   */
+  readonly demoComposition?: { readonly packageName: string; readonly version: string } | null;
   /** `null` when the admin shell does not resolve at the version being installed. */
   readonly adminShellVersion: string | null;
   /** `null` when the admin design system does not resolve. §2.4's other package. */
@@ -791,6 +802,9 @@ export function planInstance(input: PlanInput): InstancePlan {
   dependencies.set(`${input.scope}platform`, `^${input.platformVersion}`);
   for (const module of [...input.modules].sort((a, b) => a.id.localeCompare(b.id))) {
     dependencies.set(module.packageName, `^${module.version}`);
+  }
+  if (input.demoComposition) {
+    dependencies.set(input.demoComposition.packageName, `^${input.demoComposition.version}`);
   }
   // The packages the installed modules declare **optional** — and they are
   // declared **here**, at the root, rather than in the admin member that needs

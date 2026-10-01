@@ -8,7 +8,7 @@
  *
  * **Who holds which role is not this body's.** An `admin_users` row carrying an
  * `admin_roles` id is two modules' rows in one statement — a composition step
- * (§5.1), in `backend/src/seeds/demo-composition.ts`, which runs after every
+ * (§5.1), in `@endora-commerce/demo-composition`, which runs after every
  * module's `seed` and so finds both sides of the assignment already there.
  *
  * Idempotent by an existence probe on the natural key (§2.4): a second run

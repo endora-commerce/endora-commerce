@@ -1,0 +1,16 @@
+{
+  // Emit configuration — the only configuration in this package allowed to
+  // write files. `paths` is cleared and `rootDir` set together, for the TS6059
+  // reason every package's build configuration gives.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    // A compile that failed must ship nothing (feature 080, R11).
+    "noEmitOnError": true
+  },
+  "include": ["src/**/*"],
+  // A co-located test imports `vitest`, a devDependency no consumer installs.
+  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
+}

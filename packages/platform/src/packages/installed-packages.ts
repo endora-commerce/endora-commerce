@@ -325,6 +325,74 @@ function candidatesIn(root: string): string[] {
   return out;
 }
 
+/** One installed package declaring an `endora.type` other than `module`. */
+export interface InstalledTypedPackage {
+  /** The npm package name. */
+  readonly name: string;
+  readonly version: string;
+  /** The package directory as installed, symlinks unfollowed. */
+  readonly directory: string;
+  /** `<directory>/package.json` — the file that declares the type. */
+  readonly manifestPath: string;
+  /** The `node_modules` directory it was found under. */
+  readonly foundUnder: string;
+}
+
+/**
+ * Every installed package whose `package.json` declares `endora.type === type`.
+ *
+ * The module scan's enumeration and its one refusal, for a kind of package that
+ * is not a module: a link out of `node_modules` is a checkout's workspace member
+ * and not something this instance installed, for the same reason
+ * {@link scanNodeModulesRoots} gives. Nearest root wins, as it does there. A
+ * package that cannot be read is not a candidate here — its type is unknown —
+ * and the module scan is the one that reports it.
+ */
+export function scanNodeModulesRootsForType(
+  roots: readonly string[],
+  type: string,
+): readonly InstalledTypedPackage[] {
+  const found = new Map<string, InstalledTypedPackage>();
+  for (const root of roots) {
+    try {
+      if (!statSync(root).isDirectory()) continue;
+    } catch {
+      continue;
+    }
+    for (const directory of candidatesIn(root)) {
+      const manifestPath = join(directory, 'package.json');
+      let parsed: PackageJson;
+      try {
+        parsed = JSON.parse(readFileSync(manifestPath, 'utf8')) as PackageJson;
+      } catch {
+        continue;
+      }
+      const endora = parsed.endora;
+      if (endora === undefined || endora === null || typeof endora !== 'object') continue;
+      if (endora.type !== type) continue;
+      const name = typeof parsed.name === 'string' ? parsed.name : basename(directory);
+      if (found.has(name)) continue;
+      let realPath: string;
+      let realRoot: string;
+      try {
+        realPath = realpathSync(directory);
+        realRoot = realpathSync(root);
+      } catch {
+        continue;
+      }
+      if (!isUnder(realPath, realRoot)) continue;
+      found.set(name, {
+        name,
+        version: typeof parsed.version === 'string' ? parsed.version : '0.0.0',
+        directory,
+        manifestPath,
+        foundUnder: root,
+      });
+    }
+  }
+  return [...found.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /**
  * Scan the given `node_modules` roots for installed Endora module packages.
  *

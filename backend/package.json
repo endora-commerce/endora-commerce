@@ -109,6 +109,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1042.0",
     "@endora-commerce/cms-components": "workspace:^",
     "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/demo-composition": "workspace:*",
     "@endora-commerce/email-components": "workspace:^",
     "@endora-commerce/mod-addresses": "workspace:*",
     "@endora-commerce/mod-admin-actions": "workspace:*",

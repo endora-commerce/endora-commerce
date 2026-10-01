@@ -67,7 +67,7 @@ export const SALES_REPRESENTATIVE_PERMISSIONS: readonly string[] = [
  * **Which account holds which role is not here.** An `admin_users` row carrying
  * an `admin_roles` id is two modules' rows in one statement, so the assignment
  * is a composition step (contract §5.1) and lives in
- * `backend/src/seeds/demo-composition.ts`. This body creates the roles that step
+ * `@endora-commerce/demo-composition`. This body creates the roles that step
  * assigns.
  */
 export const DEMO_ADMIN_ROLES: readonly DemoAdminRoleRow[] = [

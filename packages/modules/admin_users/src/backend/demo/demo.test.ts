@@ -84,7 +84,7 @@ describe('admin_users demo data', () => {
     for (const payload of created) {
       expect(payload).not.toHaveProperty('adminRoleId');
     }
-    // The demo shop's intent is still recorded, so `demo-composition.ts` and a
+    // The demo shop's intent is still recorded, so the demo composition and a
     // reader have one place to look for which account holds which role.
     expect(DEMO_ADMIN_USERS.map((row) => row.roleCode)).toEqual([
       'platform_admin',

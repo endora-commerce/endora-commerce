@@ -787,6 +787,11 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       // run resolved rather than the smallest set. A policy, not a list: which
       // modules that is stays `new instance`'s to derive (FR-143).
       moduleSeed: 'available',
+      // `--demo` is the one answer that changes the module list: the demo
+      // composition joins it, so the seed step below wires the modules' rows
+      // together rather than leaving them side by side (2026-10-01). It writes
+      // no file — the decision still runs a command (FR-121).
+      ...(options.demo === true ? { demo: true } : {}),
       dryRun,
       // The host, when there is one, is only a place to look: every resolution
       // is `new instance`'s, unchanged (D-271 clause 1.1).

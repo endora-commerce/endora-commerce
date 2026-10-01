@@ -167,20 +167,31 @@ export function demoEntriesFrom(entries: readonly ManifestCarrier[]): DemoManife
 }
 
 /**
- * The one sentence §5.6 asks for. It says what is absent and what that means,
- * and enumerates nothing.
+ * The one sentence §5.6 asks for. It says what is absent, what that means and
+ * how an instance asks for one, and enumerates no step.
  *
  * It is the platform's rather than any one tree's because the **dispatcher**
- * prints it: an instance that supplies no composition loader at all is the
- * ordinary case (D-216 — a client scaffolding an instance for their own trading
- * receives no demo artefact unless they ask), and the default has to say so
- * without the instance holding a copy of the sentence.
+ * prints it: an instance that supplies no composition loader and installs no
+ * composition package is the ordinary case (D-216 — a client scaffolding an
+ * instance for their own trading receives no demo artefact unless they ask),
+ * and the default has to say so without the instance holding a copy of the
+ * sentence.
+ *
+ * **It says how to ask, and that was the defect.** Until 2026-10-01 it said
+ * only that an instance without a composition is ordinary — true, and the whole
+ * of what an operator who had just seeded 203 products no channel sold was
+ * told. It names Endora's own composition package so the operator can install
+ * it; naming a package in a sentence is not depending on it, and nothing here
+ * imports it — the dispatcher finds whichever package declares the type
+ * (`installed-composition.ts`), Endora's or the instance owner's own.
  */
 export const NO_DEMO_COMPOSITION_NOTICE =
-  'No demo composition was found in this instance, so only the modules above ran. ' +
-  'A composition is the wiring that spans modules — which categories a menu mirrors, ' +
-  'which channel sells which products — and it belongs to whoever owns the instance, ' +
-  'not to the platform. An instance without one is an ordinary instance.';
+  'No demo composition was found in this instance, so only the modules above ran: their ' +
+  'rows exist, but nothing wires them together — no channel sells the demo products and ' +
+  'no demo administrator holds a role. A composition is that wiring, and it belongs to ' +
+  'whoever owns the instance, not to the platform. The demo shop\'s own is a package: ' +
+  '`pnpm add @endora-commerce/demo-composition`, then run this command again. An instance ' +
+  'without one is an ordinary instance.';
 
 /** What a composition loader is given. */
 export interface DemoCompositionInput {
@@ -201,7 +212,9 @@ export type DemoCompositionLookup =
  * *caller's* own source, which is a path in a tree the platform cannot name
  * (`operator-half.md` §1.1). This repository's is
  * `backend/src/demo/composition-loader.ts`; a scaffolded instance supplies none
- * and gets {@link NO_DEMO_COMPOSITION_NOTICE}.
+ * and the dispatcher looks for an installed demo-composition package instead
+ * (`installed-composition.ts`), printing {@link NO_DEMO_COMPOSITION_NOTICE} when
+ * there is none.
  */
 export type DemoCompositionLoader = (
   input: DemoCompositionInput,

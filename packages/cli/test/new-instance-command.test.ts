@@ -344,6 +344,45 @@ describe('endora new instance, as a process', () => {
     expect(noPlatform.stderr).toContain('@endora-commerce/platform');
   });
 
+  it('`--demo` refuses, naming the package, when the demo composition does not resolve', async () => {
+    // Scaffolding a demo instance without it is the defect of 2026-10-01: a demo
+    // seed that leaves the modules' rows unwired — no channel sells the
+    // products, no demo administrator holds a role. Refused before anything is
+    // written (R5.2), in F6's class, because what is missing is a package.
+    const root = installFixture();
+    const target = join(root, 'acme-shop');
+    const result = await run(['new', 'instance', target, '--demo'], root);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('[F6]');
+    expect(result.stderr).toContain('@endora-commerce/demo-composition');
+    expect(existsSync(target)).toBe(false);
+  });
+
+  it('`--demo` adds the demo composition to the module list and writes no demo file', async () => {
+    const root = installFixture();
+    const dir = join(root, 'node_modules', '@endora-commerce', 'demo-composition');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, 'package.json'),
+      JSON.stringify({
+        name: '@endora-commerce/demo-composition',
+        version: '1.2.5',
+        type: 'module',
+        endora: { type: 'demo-composition' },
+      }),
+      'utf8',
+    );
+    const target = join(root, 'acme-shop');
+    const result = await run(['new', 'instance', target, '--demo'], root);
+    expect(result.code).toBe(0);
+    const manifest = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(manifest.dependencies['@endora-commerce/demo-composition']).toBe('^1.2.5');
+    // D-216: the decision installs a package; no file of the tree is a demo one.
+    expect(result.stdout).not.toMatch(/wrote \S*demo\S* —/i);
+  });
+
   it('§3.2 — with no `--module` it writes the smallest set that composes', async () => {
     const root = installFixture();
     const result = await run(['new', 'instance', join(root, 'acme-shop'), '--dry-run'], root);

@@ -43,13 +43,11 @@ const ALLOW = new Set<string>([
   // cart-service when the legacy keys are stripped.
   'backend/src/modules/orders/services/order-api-intake-service.ts',
 
-  // Comment only — the demo composition invokes the engine migrator (T011)
-  // and writes no legacy rows. It was `backend/src/seeds/dev-catalog-seed.ts`
-  // until feature 113's T211 moved the price-list backfill, and the comment
-  // with it; that file no longer matches the pattern at all. This list has no
-  // stale direction, so a moved entry is re-pointed by whoever moves it or it
-  // silently allows a file that is gone.
-  'backend/src/seeds/demo-composition.ts',
+  // The demo composition's entry stood here — a comment only; it invokes the
+  // engine migrator (T011) and writes no legacy rows. It left on 2026-10-01
+  // with the composition, for `packages/demo-composition/`, which is outside
+  // the trees this audit greps, so it is deleted rather than re-pointed: an
+  // entry for a path the scan never reads would allow nothing and say it did.
 
   // Admin Product editor still reads/writes the legacy default price
   // input. The contract migration will retire it.

@@ -35,7 +35,8 @@
  *  - `resolvedManifestEntries` — this build's **generated** core index;
  *  - `composeApp` — this repository's own composition, with its generated
  *    module list;
- *  - `loadDemoComposition` — the probe for `src/seeds/demo-composition.ts`;
+ *  - `loadDemoComposition` — `@endora-commerce/demo-composition`, which an
+ *    instance's dispatcher finds installed and this workspace has to name;
  *  - `deploymentRoot()` — the one directory holding `apps/`.
  *
  * An instance supplies only the last of those and takes the defaults, which is
