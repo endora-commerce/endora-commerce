@@ -101,6 +101,19 @@ export function installFixture(root: string): void {
     },
     `export const manifest = { id: 'admin_users', dependencies: ['settings'] };\n`,
   );
+  // The demo shop's composition, as a release installs it: the host holds every
+  // package of the release index, and `--demo` declares this one.
+  write(
+    'demo-composition',
+    {
+      name: '@endora-commerce/demo-composition',
+      version: '1.2.4',
+      type: 'module',
+      endora: { type: 'demo-composition' },
+      exports: { '.': { default: './manifest.js' } },
+    },
+    'export function createDemoComposition() { throw new Error("never called here"); }\n',
+  );
 }
 
 /** A host directory: an install of ours, and nothing else. */

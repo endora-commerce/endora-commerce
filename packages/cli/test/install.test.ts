@@ -143,6 +143,19 @@ function installFixture(root: string): void {
     },
     `export const manifest = { id: 'admin_users', dependencies: ['settings'] };\n`,
   );
+  // The demo shop's composition, as a release installs it: every package of
+  // the release index is in the host, this one included.
+  write(
+    'demo-composition',
+    {
+      name: '@endora-commerce/demo-composition',
+      version: '1.2.4',
+      type: 'module',
+      endora: { type: 'demo-composition' },
+      exports: { '.': { default: './manifest.js' } },
+    },
+    'export function createDemoComposition() { throw new Error("never called here"); }\n',
+  );
 }
 
 /** A host directory: an install of ours, and nothing else. */
@@ -471,6 +484,31 @@ describe('FR-121 / FR-126 — the demo decision runs a command and writes no fil
     expect(result.exitCode).toBe(0);
     expect(result.output.join('\n')).toContain('pnpm run cli demo seed');
     expect(result.output.join('\n')).toContain('pnpm run cli demo reset');
+  });
+
+  it('`--demo` puts the demo composition in the module list, at its own version', async () => {
+    // The defect of 2026-10-01: a `--demo` instance seeded every module's rows
+    // and nothing joined them — 203 products no channel sold, administrators
+    // with no role — because the composition was a file in our host and no
+    // instance had one. The answer is one dependency: the platform finds the
+    // installed package by its `endora.type` and runs it.
+    const root = host();
+    const { run } = recorder();
+    await runInstall(options(root, { demo: true, run }));
+    const manifest = JSON.parse(readFileSync(join(root, 'acme-shop', 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(manifest.dependencies['@endora-commerce/demo-composition']).toBe('^1.2.4');
+  });
+
+  it('`--no-demo` leaves it out — an instance a client trades from carries no demo package', async () => {
+    const root = host();
+    const { run } = recorder();
+    await runInstall(options(root, { demo: false, run }));
+    const manifest = JSON.parse(readFileSync(join(root, 'acme-shop', 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(Object.keys(manifest.dependencies)).not.toContain('@endora-commerce/demo-composition');
   });
 
   it('SC-105 / D-216 — a `--demo` run writes the demo vocabulary into no file of the tree', async () => {

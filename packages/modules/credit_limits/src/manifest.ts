@@ -69,7 +69,7 @@ export const manifest = defineModuleManifest({
    * The demo shop does have a granted credit limit, and it is not this module's
    * demo data: a grant's whole content is a reference to an `organizations` row,
    * so it is two modules' rows in one statement and belongs to whoever owns the
-   * instance (§5.1). It is a step of `backend/src/seeds/demo-composition.ts`,
+   * instance (§5.1). It is a step of `@endora-commerce/demo-composition`,
    * guarded on both modules, and this module does not declare `organizations` —
    * §2.3's rule that `demo` may not become a way of acquiring a dependency.
    *

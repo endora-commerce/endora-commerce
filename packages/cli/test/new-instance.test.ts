@@ -650,6 +650,16 @@ describe('the tree (§1, §2)', () => {
     expect(ignore.content).toContain('admin/src/tailwind.generated.css');
   });
 
+  it('an instance that asked for demo data declares the composition, and only then', () => {
+    const asked = planInstance(
+      planInput({ demoComposition: { packageName: `${SCOPE}demo-composition`, version: '1.2.6' } }),
+    );
+    expect(asked.dependencies.get(`${SCOPE}demo-composition`)).toBe('^1.2.6');
+    expect(planInstance(planInput()).dependencies.has(`${SCOPE}demo-composition`)).toBe(false);
+    // Still no demo *file* at any tier: the decision is one dependency (D-216).
+    for (const file of asked.files) expect(file.path).not.toMatch(/demo/i);
+  });
+
   it('D-216 — no demo artefact is written, at any tier', () => {
     const plan = planInstance(planInput());
     for (const file of plan.files) {
@@ -930,6 +940,22 @@ describe('the tree (§1, §2)', () => {
       const steps = nextSteps('/tmp/acme', 'default', DEFAULT_TOPOLOGY, ['settings', 'admin_users']);
       expect(steps.join('\n')).toContain('cli demo seed');
       expect(steps.join('\n')).toContain('cli demo reset');
+    });
+
+    it('the demo step names the composition package an instance without one has to add', () => {
+      // 2026-10-01: a `demo seed` with no composition leaves every module's rows
+      // unwired, and the step used to promise "a shop's worth of example data"
+      // without saying the shop needs a package to hang together.
+      const without = nextSteps('/tmp/acme', 'default', DEFAULT_TOPOLOGY, ['settings'], {
+        scope: SCOPE,
+      }).join('\n');
+      expect(without).toContain(`pnpm add -w ${SCOPE}demo-composition`);
+      const asked = nextSteps('/tmp/acme', 'default', DEFAULT_TOPOLOGY, ['settings'], {
+        scope: SCOPE,
+        demoComposition: true,
+      }).join('\n');
+      expect(asked).toContain('cli demo seed');
+      expect(asked).not.toContain('pnpm add -w');
     });
 
     it('T2-E — an instance with no `admin_users` is told nothing it cannot run', () => {

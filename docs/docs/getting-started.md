@@ -96,8 +96,12 @@ names every recommendation you accepted this way.
 
 **Demo data has no recommendation on purpose.** A shop you are evaluating wants a catalogue,
 customers and orders before the first screen; a shop you will sell from wants none of it. An empty
-answer asks again. If you change your mind later, `pnpm run cli demo seed` adds demo data and
-`pnpm run cli demo reset` withdraws it, leaving your own rows alone.
+answer asks again. `--demo` also adds one package to your module list,
+`@endora-commerce/demo-composition`: it is what joins the modules' example rows into one shop —
+the demo products sold on your default channel, the demo administrators holding their roles.
+If you change your mind later, `pnpm add -w @endora-commerce/demo-composition` and then
+`pnpm run cli demo seed` add demo data, and `pnpm run cli demo reset` withdraws it, leaving your
+own rows alone.
 
 **The administrator is never generated.** The password is the one value you have to remember, so
 nothing makes one up for you, and nothing else creates an account.

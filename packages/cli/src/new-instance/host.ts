@@ -93,6 +93,20 @@ export const PLATFORM_PACKAGE = 'platform';
 export const ADMIN_SHELL_PACKAGE = 'admin-shell';
 
 /**
+ * The demo shop's composition — the wiring between modules' demo rows — which
+ * an instance declares only when it asks for demo data (`--demo`).
+ *
+ * It is a package rather than a file this command writes because D-216 and
+ * FR-121 forbid a demo artefact in a client's tree: asking for demo data adds
+ * this one entry to the module list, and the platform finds it installed by its
+ * `"endora": { "type": "demo-composition" }` declaration. Without it an
+ * instance's `demo seed` runs every module's own rows and nothing that joins
+ * them — the products sold by no channel and the administrators with no role
+ * that a CLI-scaffolded instance shipped with until 2026-10-01.
+ */
+export const DEMO_COMPOSITION_PACKAGE = 'demo-composition';
+
+/**
  * The admin design system, §2.4's other package.
  *
  * Both are named because the member is mounted on both and neither is reachable

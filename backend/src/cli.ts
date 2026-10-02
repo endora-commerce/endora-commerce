@@ -35,7 +35,11 @@
  *  - `resolvedManifestEntries` — this build's **generated** core index;
  *  - `composeApp` — this repository's own composition, with its generated
  *    module list;
- *  - `loadDemoComposition` — the probe for `src/seeds/demo-composition.ts`;
+ *  - the demo composition — `@endora-commerce/demo-composition`, the package an
+ *    instance's dispatcher finds installed by its `endora.type`. This workspace
+ *    names it instead, because here it is a workspace link and the discovery
+ *    refuses a link out of `node_modules` for the reason module discovery does;
+ *    it is the same package, so this repository seeds the demo a client seeds;
  *  - `deploymentRoot()` — the one directory holding `apps/`.
  *
  * An instance supplies only the last of those and takes the defaults, which is
@@ -60,10 +64,10 @@
  * `already-installed`, applying no migration and running no install hook, at
  * exit code 0 (D-157.2/.4). Those five stay hand-built scripts.
  */
+import { createDemoComposition } from '@endora-commerce/demo-composition';
 import { runCli } from '@endora-commerce/platform/cli';
 
 import { composeApp } from './composition.js';
-import { loadDemoComposition } from './demo/composition-loader.js';
 import { resolvedManifestEntries } from './lifecycle/registered-manifests.js';
 import { deploymentRoot } from './overlay/overlay-roots.js';
 
@@ -84,5 +88,5 @@ await runCli({
     process.env['BACKEND_ROLE'] = 'api';
     return await composeApp({ deploymentRoot: deploymentRoot() });
   },
-  demoComposition: loadDemoComposition,
+  demoComposition: async (input) => ({ found: true, composition: createDemoComposition(input) }),
 });

@@ -109,6 +109,23 @@ const SUBJECT = 'google_tag_manager';
  * working.
  */
 const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
+  // ── Empty since 2026-10-01, and the last nine went for a reason of their own ─
+  //
+  // The nine entries that survived feature 113 — `admin_roles`, `admin_users`,
+  // `catalog`, `credit_limits`, `custom_fields`, `customer_accounts`,
+  // `inventory`, `megamenu` and `organizations` — were all held by
+  // `src/seeds/demo-composition.ts` and `src/seeds/attribute-fixtures.ts`, and
+  // the notes below said none of them was expected to drain: a composition
+  // naming modules is a composition root doing its job. That stayed true. What
+  // changed is *where* the composition lives. It was a file only this host had,
+  // so an instance scaffolded by the CLI seeded a demo with nothing wiring it —
+  // products no channel sold, administrators with no role — and it moved into
+  // the `@endora-commerce/demo-composition` package, which an instance installs
+  // and the platform finds by its `endora.type`. The host now names that package
+  // by a bare specifier, which is not a reference into a module's directory, so
+  // every entry went at once. Each is recorded where it stood rather than
+  // quietly deleted, beside the history that explains it.
+  //
   // ── T040b's batches drain this ledger, and a moved module's entry is stale ─
   //
   // Ten entries were deleted together on 2026-08-25, after batches two and
@@ -226,7 +243,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // which names `Product`, `Category` and `AttributeSetAttribute` to write the
   // attributes, the images and the attachments — three blocks that became
   // composition steps with T224 because each writes two modules' rows at once.
-  catalog: ['src/seeds/attribute-fixtures.ts', 'src/seeds/demo-composition.ts'],
+  // `catalog` — **freed on 2026-10-01**, with the eight beside it. Its last reference
+  // was `src/seeds/`, and `src/seeds/` is gone: the composition and the attribute
+  // helper moved into `@endora-commerce/demo-composition`, a package, so the
+  // host reaches them by a bare specifier — see the block at the top.
   // The three modules the dev seed holds and nothing else does. Each is a plain
   // entity import in the seed — a warehouse, a stock level, a delivery method,
   // and the custom-field definition half of a product attribute.
@@ -255,12 +275,18 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // helper, FR-019 — and the substring this scan reads comes in through the row
   // type that helper's own file already names. Both entries retire together,
   // with the test kit (`specs/109-backend-test-kit/`).
-  custom_fields: ['src/seeds/attribute-fixtures.ts', 'src/seeds/demo-composition.ts'],
+  // `custom_fields` — **freed on 2026-10-01**, with the eight beside it. Its last reference
+  // was `src/seeds/`, and `src/seeds/` is gone: the composition and the attribute
+  // helper moved into `@endora-commerce/demo-composition`, a package, so the
+  // host reaches them by a bare specifier — see the block at the top.
   // `inventory` moved with T223 and was re-pointed rather than freed; T226
   // freed the re-pointed half with the reference file. What is left is the
   // composition spreading stock across the warehouse this module's demo body
   // creates — the composition doing its job, and not expected to drain at all.
-  inventory: ['src/seeds/demo-composition.ts'],
+  // `inventory` — **freed on 2026-10-01**, with the eight beside it. Its last reference
+  // was `src/seeds/`, and `src/seeds/` is gone: the composition and the attribute
+  // helper moved into `@endora-commerce/demo-composition`, a package, so the
+  // host reaches them by a bare specifier — see the block at the top.
   // ── Criterion 7's cost, and it is a cost of a decision rather than a defect ─
   //
   // The three entries below came back on 2026-08-25 with !997, and the comment
@@ -304,7 +330,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // composition steps (contract §5.1), and the composition names the entity
   // classes to write them. That is the composition doing its job and is not
   // expected to drain at all.
-  credit_limits: ['src/seeds/demo-composition.ts'],
+  // `credit_limits` — **freed on 2026-10-01**, with the eight beside it. Its last reference
+  // was `src/seeds/`, and `src/seeds/` is gone: the composition and the attribute
+  // helper moved into `@endora-commerce/demo-composition`, a package, so the
+  // host reaches them by a bare specifier — see the block at the top.
   // ── `delivery_methods`, `payment_methods` and `taxes` are **gone** ────────
   //
   // Three entries deleted rather than re-pointed, and they are the first this
@@ -363,7 +392,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // Both are two modules' rows in one statement, so both are composition steps
   // (contract §5.1), and the composition names the entity classes to write
   // them. That is the composition doing its job and is not expected to drain.
-  organizations: ['src/seeds/demo-composition.ts'],
+  // `organizations` — **freed on 2026-10-01**, with the eight beside it. Its last reference
+  // was `src/seeds/`, and `src/seeds/` is gone: the composition and the attribute
+  // helper moved into `@endora-commerce/demo-composition`, a package, so the
+  // host reaches them by a bare specifier — see the block at the top.
 
   // `composition.ts` reaches into `email` once: for the `EmailCradle` type it
   // resolves the mailer with. It disappears when the mailer's consumers resolve
@@ -418,7 +450,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // Both are two modules' rows in one statement, so both are composition steps
   // (contract §5.1), and the composition names the entity classes to write
   // them. That is the composition doing its job and is not expected to drain.
-  admin_roles: ['src/seeds/demo-composition.ts'],
+  // `admin_roles` — **freed on 2026-10-01**, with the eight beside it. Its last reference
+  // was `src/seeds/`, and `src/seeds/` is gone: the composition and the attribute
+  // helper moved into `@endora-commerce/demo-composition`, a package, so the
+  // host reaches them by a bare specifier — see the block at the top.
   // `prompt_actions` (wave 1) — the inverted case, and the reason this ledger is
   // worth keeping. Its `composition.ts` reference was never a leftover of the
   // conversion: three *other* modules contributed into the registry it owns, and
@@ -443,7 +478,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // `modules/<id>/`. The residue this entry described is real and is measured by
   // `harness-parity.test.ts`'s value-import ledger, which counts declarations
   // rather than substrings.
-  customer_accounts: ['src/seeds/demo-composition.ts'],
+  // `customer_accounts` — **freed on 2026-10-01**, with the eight beside it. Its last reference
+  // was `src/seeds/`, and `src/seeds/` is gone: the composition and the attribute
+  // helper moved into `@endora-commerce/demo-composition`, a package, so the
+  // host reaches them by a bare specifier — see the block at the top.
   // `assets_library` (wave 1, T092). `composition.ts` imports the cradle type
   // to annotate the handle it resolves and hands the `catalog`, `cms` and
   // `megamenu` reference resolvers to. Contributing those is a root's job —
@@ -472,7 +510,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // one entry here that was never going to drain — and packaging re-spelled it
   // out of this scan's reach anyway, which is exactly why a substring ledger
   // cannot be the record of a design decision.
-  megamenu: ['src/seeds/demo-composition.ts'],
+  // `megamenu` — **freed on 2026-10-01**, with the eight beside it. Its last reference
+  // was `src/seeds/`, and `src/seeds/` is gone: the composition and the attribute
+  // helper moved into `@endora-commerce/demo-composition`, a package, so the
+  // host reaches them by a bare specifier — see the block at the top.
   // `invoices` (wave 2, T113). `composition.ts` imports the bridge type to
   // annotate what it contributes. The cradle import went with T143c: it existed
   // to reach `invoiceNumberGenerator` for a `CorrectiveInvoiceProvider` the root
@@ -505,7 +546,10 @@ const RESIDUE_LEDGER: Readonly<Record<string, readonly string[]>> = {
   // Both are two modules' rows in one statement, so both are composition steps
   // (contract §5.1), and the composition names the entity classes to write
   // them. That is the composition doing its job and is not expected to drain.
-  admin_users: ['src/seeds/demo-composition.ts'],
+  // `admin_users` — **freed on 2026-10-01**, with the eight beside it. Its last reference
+  // was `src/seeds/`, and `src/seeds/` is gone: the composition and the attribute
+  // helper moved into `@endora-commerce/demo-composition`, a package, so the
+  // host reaches them by a bare specifier — see the block at the top.
   // `settings` needs no entry and gets none, since feature 080's T040b — this
   // module is now **absent** from the ledger, which is the strongest state a
   // key can reach.

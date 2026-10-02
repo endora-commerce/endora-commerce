@@ -1,11 +1,38 @@
 /**
- * This instance's demo composition (feature 113, T211;
+ * The Endora Commerce demo shop's composition (feature 113, T211;
  * `specs/113-module-owned-demo-data/contracts/module-demo-data-layer.md` §5).
  *
  * **§5.1** — *"any demo wiring that touches more than one module's rows is a
- * composition step and MUST NOT live in any module."* These are those steps,
- * lifted out of the developer seed script's 887-line `main()`, which was one
- * function holding both a dozen modules' demo rows and the wiring between them.
+ * composition step and MUST NOT live in any module."* These are those steps:
+ * which channel sells the demo products, which role each demo administrator
+ * holds, the menu over the category tree, the prices, the stock, the demo
+ * buyer, the attributes, the images and the attachments.
+ *
+ * ## Why it is a package, and not a file in the instance
+ *
+ * It was `backend/src/seeds/demo-composition.ts`, and only this repository's
+ * host could reach it: an instance scaffolded by `endora new instance` has no
+ * such file, so its `demo seed` ran every module's own rows and none of this —
+ * 203 products that no channel sold, and administrators with no role, so the
+ * admin sidebar was empty. Three rules decide where it can live instead:
+ *
+ *  - **Not in a module** — §5.1, above.
+ *  - **Not in the platform** — a platform root naming `megamenu` and `catalog`
+ *    is D-52/D-53's one rule with an exception (§5.3).
+ *  - **Not written into a client's tree** — D-216: a client scaffolding an
+ *    instance for their own trading receives no demo artefact, and an instance
+ *    that asks for demo data gets it by *running* something (FR-121) rather than
+ *    by receiving a file that becomes theirs to keep in step with ours.
+ *
+ * A published package meets all three. It names modules, as a composition is
+ * allowed to; it is installed only by an instance that asks for demo data
+ * (`endora install --demo` adds it to the module list, exactly as adding any
+ * capability does); and a fix to it reaches every instance through
+ * `pnpm update` with no file in their tree edited. The platform finds it by its
+ * `package.json` `endora.type` — `"demo-composition"` — the way it finds a
+ * module package by `"module"`, and names neither it nor any module to do so.
+ * This repository's host depends on it like any instance would, so the demo
+ * this repository seeds and the demo a client seeds are the same code.
  *
  * ## Two phases, and one of them is narrow on purpose (§5.5a)
  *
@@ -17,29 +44,18 @@
  * enumerates to place its warehouse. The withdrawals are the exact reverse:
  * the wiring first, the foundation last.
  *
- * ## Why this had to come out before any module moved
+ * ## Every step is a query-shaped read (`research.md` § R3(b))
  *
- * The wiring did not read the database; it read `main()`'s **locals**. The
- * megamenu block held `sections` and `leaves`, produced 120 lines above by the
- * category block; the bridge block held `products` and `productLeaves`. Nothing
- * about an in-memory handoff survives a split into independent seeders, because
- * there is no process in which both halves are in memory — so a module block
- * that left first would strand the local a later step reads. Every step below
- * is therefore rewritten as a **query-shaped read** (`research.md` § R3(b)):
- * it asks the database for what it needs, which is the only thing a
- * composition can do once each module seeds itself.
+ * A step asks the database for what it needs, because there is no process in
+ * which two modules' demo bodies hold their rows in memory at once.
  *
- * ## Why it is not `megamenu`'s demo data, and not the platform's
+ * ## Every module is imported when its step runs, never at load
  *
- * `megamenu` does not declare `catalog` in its `dependencies` and is right not
- * to — a menu item's target is a `{ categoryId }` JSON blob and there is no
- * runtime edge. Making the demo create one would be a **lifecycle** edge
- * created by a demo: it would change the migration order and make `catalog`'s
- * activation control partly `megamenu`'s problem (R3.1, D-3). And this file
- * cannot live in `@endora-commerce/platform` either: a platform root naming
- * `megamenu` and `catalog` is D-52/D-53's one rule with an exception (§5.3).
- * It lives with whoever owns the instance, which in this repository is the host
- * tree (§5.2).
+ * An instance installs the modules it chose. A static import of a module
+ * package this instance does not have would fail the whole composition before
+ * its first guard was asked, so each step loads the packages it names after its
+ * guard has answered — and the guard has already said that every one of them is
+ * present (§5.4). The peer dependencies are optional for the same reason.
  *
  * ## The guard is per step and per module (§5.4)
  *
@@ -49,119 +65,182 @@
  * never a silence: an instance without `megamenu` is an ordinary instance whose
  * shop has no menu, and the operator reads why.
  *
- * The presence oracle is a **parameter**. The composed CLI passes
- * `effectiveState.isPresent`, which is the conjunction of both presence axes.
- * A caller that composed no platform has no registry cache to ask, and a cold
- * cache answers `false` for everything (fail-closed, correctly), so such a
- * caller must pass its own oracle rather than consult one.
+ * The presence oracle is a **parameter**: the dispatcher passes
+ * `effectiveState.isPresent`, the conjunction of both presence axes.
  */
-import type { EntityManager } from '@mikro-orm/postgresql';
-import type { DemoComposition, DemoCompositionResult } from '@endora-commerce/platform/demo';
-import type { DemoCredential } from '@endora-commerce/contracts';
-import { SalesChannel } from '@endora-commerce/platform/kernel';
-import { hashPassword } from '@endora-commerce/platform/kernel';
-import { entityNamed } from '../packages/package-entity-lookup.js';
+import type { EntityManager, Opt } from '@mikro-orm/postgresql';
+import type {
+  DemoComposition,
+  DemoCompositionInput,
+  DemoCompositionResult,
+} from '@endora-commerce/platform/demo';
+import { SalesChannel, hashPassword } from '@endora-commerce/platform/kernel';
+import { entityNamed } from '@endora-commerce/platform/packages';
 import { createAttributeFixture, findAttributeDefinitionByKey } from './attribute-fixtures.js';
-import { entities as catalogEntities } from '@endora-commerce/mod-catalog/backend';
-import { entities as megamenuEntities } from '@endora-commerce/mod-megamenu/backend';
-import {
-  entities as inventoryEntities,
-  DEFAULT_WAREHOUSE_ID,
-} from '@endora-commerce/mod-inventory/backend';
-import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
-import { entities as adminRolesEntities } from '@endora-commerce/mod-admin-roles/backend';
-import { entities as adminUsersEntities } from '@endora-commerce/mod-admin-users/backend';
-import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
-import { entities as organizationsEntities } from '@endora-commerce/mod-organizations/backend';
-import { DefaultPriceListMigrator } from '@endora-commerce/mod-price-lists/backend';
-import { CatalogProductReadService } from '@endora-commerce/mod-catalog/backend';
-// The row shapes for the classes taken off those arrays. A module package
-// publishes its entities as one array and no class by name (D-168), so the
-// *value* comes off the array and the *type* comes from the entity's
-// declaration inside the package's built artefact — the emitted `.d.ts`,
-// because this file is in a build whose `rootDir` is `src/` and a `.ts` outside
-// it is TS6059 even for an `import type`. Nothing is constructed from these:
-// `import type` erases, so there is no second copy of anything (D-160.6.1).
-import type { Category as CategoryRow } from '../../../packages/modules/catalog/dist/backend/entities/category.entity.js';
-import type { Product as ProductRow } from '../../../packages/modules/catalog/dist/backend/entities/product.entity.js';
-import type { Megamenu as MegamenuRow } from '../../../packages/modules/megamenu/dist/backend/entities/megamenu.entity.js';
-import type { MegamenuItem as MegamenuItemRow } from '../../../packages/modules/megamenu/dist/backend/entities/megamenu-item.entity.js';
-import type { MegamenuBinding as MegamenuBindingRow } from '../../../packages/modules/megamenu/dist/backend/entities/megamenu-binding.entity.js';
-import type { StockLevel as StockLevelRow } from '../../../packages/modules/inventory/dist/backend/entities/stock-level.entity.js';
-import type { Warehouse as WarehouseRow } from '../../../packages/modules/inventory/dist/backend/entities/warehouse.entity.js';
-import type { CustomerAccount as CustomerAccountRow } from '../../../packages/modules/customer_accounts/dist/backend/entities/customer-account.entity.js';
-import type { Organization as OrganizationRow } from '../../../packages/modules/organizations/dist/backend/entities/organization.entity.js';
-import type { AdminRole as AdminRoleRow } from '../../../packages/modules/admin_roles/dist/backend/entities/admin-role.entity.js';
-import type { AdminUser as AdminUserRow } from '../../../packages/modules/admin_users/dist/backend/entities/admin-user.entity.js';
-import type { CreditLimit as CreditLimitRow } from '../../../packages/modules/credit_limits/dist/backend/entities/credit-limit.entity.js';
-import type { AttributeSetAttribute as AttributeSetAttributeRow } from '../../../packages/modules/catalog/dist/backend/entities/attribute-set-attribute.entity.js';
-import type { CustomFieldDefinition as CustomFieldDefinitionRow } from '../../../packages/modules/custom_fields/dist/backend/entities/custom-field-definition.entity.js';
 
-const Category = entityNamed<CategoryRow>(
-  catalogEntities,
-  'Category',
-  '@endora-commerce/mod-catalog/backend',
-);
-const Product = entityNamed<ProductRow>(
-  catalogEntities,
-  'Product',
-  '@endora-commerce/mod-catalog/backend',
-);
-const Megamenu = entityNamed<MegamenuRow>(
-  megamenuEntities,
-  'Megamenu',
-  '@endora-commerce/mod-megamenu/backend',
-);
-const MegamenuItem = entityNamed<MegamenuItemRow>(
-  megamenuEntities,
-  'MegamenuItem',
-  '@endora-commerce/mod-megamenu/backend',
-);
-const MegamenuBinding = entityNamed<MegamenuBindingRow>(
-  megamenuEntities,
-  'MegamenuBinding',
-  '@endora-commerce/mod-megamenu/backend',
-);
-const StockLevel = entityNamed<StockLevelRow>(
-  inventoryEntities,
-  'StockLevel',
-  '@endora-commerce/mod-inventory/backend',
-);
-const Warehouse = entityNamed<WarehouseRow>(
-  inventoryEntities,
-  'Warehouse',
-  '@endora-commerce/mod-inventory/backend',
-);
-const CustomerAccount = entityNamed<CustomerAccountRow>(
-  customerAccountsEntities,
-  'CustomerAccount',
-  '@endora-commerce/mod-customer-accounts/backend',
-);
-const Organization = entityNamed<OrganizationRow>(
-  organizationsEntities,
-  'Organization',
-  '@endora-commerce/mod-organizations/backend',
-);
-const AdminRole = entityNamed<AdminRoleRow>(
-  adminRolesEntities,
-  'AdminRole',
-  '@endora-commerce/mod-admin-roles/backend',
-);
-const AdminUser = entityNamed<AdminUserRow>(
-  adminUsersEntities,
-  'AdminUser',
-  '@endora-commerce/mod-admin-users/backend',
-);
-const CreditLimit = entityNamed<CreditLimitRow>(
-  creditLimitsEntities,
-  'CreditLimit',
-  '@endora-commerce/mod-credit-limits/backend',
-);
-const AttributeSetAttribute = entityNamed<AttributeSetAttributeRow>(
-  catalogEntities,
-  'AttributeSetAttribute',
-  '@endora-commerce/mod-catalog/backend',
-);
+/** A sign-in detail the runner prints — the platform's own shape. */
+type DemoCredential = NonNullable<DemoCompositionResult['credentials']>[number];
+
+// ── the rows this composition reads and writes ─────────────────────────────
+//
+// A module package publishes one `entities` array and no entity class by name
+// (D-168), so each class is taken off that array by `entityNamed` and the row
+// type is a parameter. The host used to name it through an `import type` into
+// the module package's built `dist/` — a path in this repository and in no
+// client's install. These are the columns this file touches and nothing else;
+// structural, so the class the array returns satisfies them, with `Opt<>` on
+// every column the entity defaults so `em.create` does not demand it.
+
+interface CategoryRow {
+  id: Opt<string>;
+  slug: string;
+  name: Record<string, string>;
+}
+interface ProductRow {
+  id: Opt<string>;
+  slug: string;
+}
+interface MegamenuRow {
+  id: Opt<string>;
+  name: string;
+  description?: string | null;
+}
+interface MegamenuItemRow {
+  id: Opt<string>;
+  megamenuId: string;
+  parentId: string | null;
+  position: number;
+  kind: string;
+  labels: Record<string, string>;
+  target: Record<string, unknown>;
+}
+interface MegamenuBindingRow {
+  id: Opt<string>;
+  megamenuId: string;
+  salesChannelId: string;
+  language: string;
+  active: boolean;
+}
+interface StockLevelRow {
+  id: Opt<string>;
+  productId: string;
+  warehouseId: string;
+  onHand: number;
+}
+interface WarehouseRow {
+  id: Opt<string>;
+  code: string;
+}
+interface CustomerAccountRow {
+  id: Opt<string>;
+  organizationId: string;
+  email: string;
+  passwordHash: string;
+  passwordSetAt?: Date | null;
+  firstName: string;
+  lastName: string;
+  role: string;
+  emailVerifiedAt?: Date | null;
+}
+interface OrganizationRow {
+  id: Opt<string>;
+  taxId: string | null;
+}
+interface AdminRoleRow {
+  id: Opt<string>;
+  code: string;
+}
+interface AdminUserRow {
+  id: Opt<string>;
+  email: string;
+  adminRoleId?: string | null;
+}
+interface CreditLimitRow {
+  id: Opt<string>;
+  organizationId: string;
+  grantedAmount: string;
+  currency: string;
+}
+interface AttributeSetAttributeRow {
+  id: Opt<string>;
+  attributeSetId: string;
+  customFieldDefinitionId: string;
+  position: number;
+}
+
+// ── the modules, loaded when a step that names them runs ───────────────────
+
+const CATALOG = '@endora-commerce/mod-catalog/backend';
+const MEGAMENU = '@endora-commerce/mod-megamenu/backend';
+const INVENTORY = '@endora-commerce/mod-inventory/backend';
+const CUSTOMER_ACCOUNTS = '@endora-commerce/mod-customer-accounts/backend';
+const ORGANIZATIONS = '@endora-commerce/mod-organizations/backend';
+const ADMIN_ROLES = '@endora-commerce/mod-admin-roles/backend';
+const ADMIN_USERS = '@endora-commerce/mod-admin-users/backend';
+const CREDIT_LIMITS = '@endora-commerce/mod-credit-limits/backend';
+
+async function catalogRows() {
+  const { entities } = await import('@endora-commerce/mod-catalog/backend');
+  return {
+    Category: entityNamed<CategoryRow>(entities, 'Category', CATALOG),
+    Product: entityNamed<ProductRow>(entities, 'Product', CATALOG),
+    AttributeSetAttribute: entityNamed<AttributeSetAttributeRow>(
+      entities,
+      'AttributeSetAttribute',
+      CATALOG,
+    ),
+  };
+}
+
+async function megamenuRows() {
+  const { entities } = await import('@endora-commerce/mod-megamenu/backend');
+  return {
+    Megamenu: entityNamed<MegamenuRow>(entities, 'Megamenu', MEGAMENU),
+    MegamenuItem: entityNamed<MegamenuItemRow>(entities, 'MegamenuItem', MEGAMENU),
+    MegamenuBinding: entityNamed<MegamenuBindingRow>(entities, 'MegamenuBinding', MEGAMENU),
+  };
+}
+
+async function inventoryRows() {
+  const { entities, DEFAULT_WAREHOUSE_ID } = await import('@endora-commerce/mod-inventory/backend');
+  return {
+    StockLevel: entityNamed<StockLevelRow>(entities, 'StockLevel', INVENTORY),
+    Warehouse: entityNamed<WarehouseRow>(entities, 'Warehouse', INVENTORY),
+    DEFAULT_WAREHOUSE_ID,
+  };
+}
+
+async function customerAccountRows() {
+  const { entities } = await import('@endora-commerce/mod-customer-accounts/backend');
+  return {
+    CustomerAccount: entityNamed<CustomerAccountRow>(entities, 'CustomerAccount', CUSTOMER_ACCOUNTS),
+  };
+}
+
+async function organizationRows() {
+  const { entities } = await import('@endora-commerce/mod-organizations/backend');
+  return {
+    Organization: entityNamed<OrganizationRow>(entities, 'Organization', ORGANIZATIONS),
+  };
+}
+
+async function adminRows() {
+  const [roles, users] = await Promise.all([
+    import('@endora-commerce/mod-admin-roles/backend'),
+    import('@endora-commerce/mod-admin-users/backend'),
+  ]);
+  return {
+    AdminRole: entityNamed<AdminRoleRow>(roles.entities, 'AdminRole', ADMIN_ROLES),
+    AdminUser: entityNamed<AdminUserRow>(users.entities, 'AdminUser', ADMIN_USERS),
+  };
+}
+
+async function creditLimitRows() {
+  const { entities } = await import('@endora-commerce/mod-credit-limits/backend');
+  return {
+    CreditLimit: entityNamed<CreditLimitRow>(entities, 'CreditLimit', CREDIT_LIMITS),
+  };
+}
 
 /**
  * The demo shop's own vocabulary, which is this file's to hold.
@@ -169,8 +248,8 @@ const AttributeSetAttribute = entityNamed<AttributeSetAttributeRow>(
  * A composition describes *its* shop, so naming the demo's category slugs below
  * is not the "deterministic-id convention" R3.1 refuses — that one was a
  * *module* computing another module's ids behind the platform's back. This is
- * the instance's own file saying which categories its menu mirrors, in which
- * order, under which labels. The order matters and cannot be recovered from the
+ * the demo shop's own composition saying which categories its menu mirrors, in
+ * which order, under which labels. The order matters and cannot be recovered from the
  * database: the seeded categories carry no `sort_order` and their ids are
  * random, so "read them back sorted" would silently reorder the menu.
  *
@@ -183,6 +262,12 @@ export const DEMO_BUYER_PASSWORD = 'ChangeMe!123';
 const DEMO_ORG_TAX_ID = 'PL5210000099';
 /** The demo's two sales channels, by the codes the foundation step assigns. */
 const DEMO_RETAIL_CHANNEL_CODE = 'pl_retail';
+/**
+ * The code the platform's boot reconciler gives the system-default channel when
+ * `DEFAULT_SALES_CHANNEL_CODE` is unset — `default-channel-reconciler.ts`' own
+ * fallback. A channel carrying it is one whose code nobody chose.
+ */
+const PLATFORM_FALLBACK_CHANNEL_CODE = 'default';
 const DEMO_VIP_CHANNEL_CODE = 'pl_b2b_vip';
 const DEMO_MENU_NAME = 'Main navigation';
 
@@ -363,6 +448,7 @@ function demoProductOrdinal(slug: string): number | null {
 
 /** The demo's simple products, in the order the host block created them. */
 async function demoSimpleProducts(em: EntityManager): Promise<ProductRow[]> {
+  const { Product } = await catalogRows();
   const products = await em.find(Product, {
     slug: { $like: `${DEMO_PRODUCT_SLUG_PREFIX}%` },
   });
@@ -398,15 +484,12 @@ const MENU_LABELS: Readonly<Record<string, Record<string, string>>> = {
 
 const MENU_LANGUAGES: readonly string[] = ['pl-PL', 'en-US'];
 
-export interface DemoCompositionDeps {
-  /** A forked EntityManager, inside the caller's system scope. */
-  readonly em: EntityManager;
-  /**
-   * Effective presence, per §5.4 — the conjunction of both axes, never one of
-   * them, and never re-derived here.
-   */
-  readonly isPresent: (moduleId: string) => boolean;
-}
+/**
+ * What the dispatcher hands this composition: a forked `EntityManager` inside
+ * its system scope, and effective presence per §5.4 — the conjunction of both
+ * axes, never one of them, and never re-derived here.
+ */
+export type DemoCompositionDeps = DemoCompositionInput;
 
 /**
  * One step: what it is called, whose rows it touches, and the two directions.
@@ -500,6 +583,7 @@ function productPlaceholderSvg(leafSlug: string, bgHex: string, index: number): 
 
 /** The categories the menu names, by slug, from the database. */
 async function categoriesBySlug(em: EntityManager): Promise<Map<string, CategoryRow>> {
+  const { Category } = await catalogRows();
   const wanted = MENU_SECTIONS.flatMap((section) => [section.slug, ...section.leaves]);
   const found = await em.find(Category, { slug: { $in: wanted } });
   return new Map(found.map((category) => [category.slug, category]));
@@ -589,7 +673,15 @@ const FOUNDATION_STEPS: readonly CompositionStep[] = [
           defaultLanguage: 'pl-PL',
           defaultCurrency: 'PLN',
         });
-      retail.code = DEMO_RETAIL_CHANNEL_CODE;
+      // **The code is renamed only when nobody chose it.** An instance's
+      // default channel is created under `DEFAULT_SALES_CHANNEL_CODE`, and its
+      // storefront is built against that same code (`X-Sales-Channel`). In this
+      // repository's host the code is the platform's fallback, `default`, and
+      // renaming it `pl_retail` was harmless; in an instance that chose one —
+      // the paid demo's `pl_default` — the rename sold every demo product on a
+      // channel the storefront never asks for. So a chosen code is kept, and
+      // the demo's own name is given only to a channel that had none of its own.
+      if (retail.code === PLATFORM_FALLBACK_CHANNEL_CODE) retail.code = DEMO_RETAIL_CHANNEL_CODE;
       retail.name = { 'en-US': 'PL Retail', 'pl-PL': 'PL Retail' };
       retail.isPublic = true;
       retail.languages = ['pl-PL', 'en-US'];
@@ -661,6 +753,7 @@ const STEPS: readonly CompositionStep[] = [
     name: 'megamenu over the category tree',
     modules: ['megamenu', 'catalog'],
     async apply(em) {
+      const { Megamenu, MegamenuItem, MegamenuBinding } = await megamenuRows();
       // Idempotent by the name this step creates the menu under, on contract
       // §2.4's terms — a composition step is as re-runnable as a module body or
       // it is the one thing that stops a second `endora demo seed` (SC-007).
@@ -756,6 +849,7 @@ const STEPS: readonly CompositionStep[] = [
     name: 'product↔category and channel↔product bridges',
     modules: ['catalog'],
     async apply(em) {
+      const { Product } = await catalogRows();
       const conn = em.getConnection();
       const channel = await systemDefaultChannel(em);
       const products = await em.find(Product, {
@@ -829,6 +923,10 @@ const STEPS: readonly CompositionStep[] = [
     name: 'price-list backfill over the demo catalogue',
     modules: ['price_lists', 'catalog'],
     async apply(em) {
+      const [{ DefaultPriceListMigrator }, { CatalogProductReadService }] = await Promise.all([
+        import('@endora-commerce/mod-price-lists/backend'),
+        import('@endora-commerce/mod-catalog/backend'),
+      ]);
       await new DefaultPriceListMigrator(() => em).run(new CatalogProductReadService(() => em));
     },
     async withdraw(em) {
@@ -854,6 +952,10 @@ const STEPS: readonly CompositionStep[] = [
     name: 'stock spread across the demo warehouses',
     modules: ['inventory', 'catalog'],
     async apply(em) {
+      const [{ Product }, { StockLevel, Warehouse, DEFAULT_WAREHOUSE_ID }] = await Promise.all([
+        catalogRows(),
+        inventoryRows(),
+      ]);
       const krakow = await em.findOne(Warehouse, { code: KRAKOW_WAREHOUSE_CODE });
       const products = await em.find(Product, {});
       let created = 0;
@@ -919,6 +1021,10 @@ const STEPS: readonly CompositionStep[] = [
     ],
     modules: ['customer_accounts', 'organizations'],
     async apply(em) {
+      const [{ Organization }, { CustomerAccount }] = await Promise.all([
+        organizationRows(),
+        customerAccountRows(),
+      ]);
       const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
       if (organization === null) return;
       const existing = await em.findOne(CustomerAccount, { email: DEMO_BUYER_EMAIL });
@@ -944,6 +1050,7 @@ const STEPS: readonly CompositionStep[] = [
       await em.persistAndFlush(buyer);
     },
     async withdraw(em) {
+      const { CustomerAccount } = await customerAccountRows();
       const buyer = await em.findOne(CustomerAccount, { email: DEMO_BUYER_EMAIL });
       if (buyer === null) return;
       await em.removeAndFlush(buyer);
@@ -964,7 +1071,8 @@ const STEPS: readonly CompositionStep[] = [
     name: 'product attributes over the demo catalogue',
     modules: ['catalog', 'custom_fields'],
     async apply(em) {
-      const definitions: CustomFieldDefinitionRow[] = [];
+      const { AttributeSetAttribute } = await catalogRows();
+      const definitions: { readonly id: string }[] = [];
       for (const attribute of DEMO_PRODUCT_ATTRIBUTES) {
         const existing = await findAttributeDefinitionByKey(em, attribute.key);
         if (existing !== null) {
@@ -1240,6 +1348,7 @@ const STEPS: readonly CompositionStep[] = [
     name: 'demo administrators take their roles',
     modules: ['admin_users', 'admin_roles'],
     async apply(em) {
+      const { AdminRole, AdminUser } = await adminRows();
       const roles = await em.find(AdminRole, {
         code: { $in: DEMO_ADMIN_ROLE_ASSIGNMENTS.map((row) => row.roleCode) },
       });
@@ -1259,6 +1368,7 @@ const STEPS: readonly CompositionStep[] = [
       // The link and only the link. The accounts are `admin_users`' to remove
       // and the roles are `admin_roles`' — and unassigning first is what
       // leaves no row referencing a role either of them is about to delete.
+      const { AdminUser } = await adminRows();
       const accounts = await em.find(AdminUser, {
         email: { $in: DEMO_ADMIN_ROLE_ASSIGNMENTS.map((row) => row.email) },
       });
@@ -1279,6 +1389,10 @@ const STEPS: readonly CompositionStep[] = [
     name: 'credit limit granted to the demo organisation',
     modules: ['credit_limits', 'organizations'],
     async apply(em) {
+      const [{ Organization }, { CreditLimit }] = await Promise.all([
+        organizationRows(),
+        creditLimitRows(),
+      ]);
       const organization = await em.findOne(Organization, { taxId: DEMO_ORG_TAX_ID });
       if (organization === null) return;
       const existing = await em.findOne(CreditLimit, { organizationId: organization.id });

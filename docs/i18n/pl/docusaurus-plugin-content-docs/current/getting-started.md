@@ -98,9 +98,12 @@ wymienia każdą rekomendację przyjętą w ten sposób.
 
 **Dane demonstracyjne celowo nie mają rekomendacji.** Sklep, który oceniasz, potrzebuje katalogu,
 klientów i zamówień przed pierwszym ekranem; sklep, w którym będziesz sprzedawać, nie potrzebuje
-żadnych. Pusta odpowiedź powoduje ponowne pytanie. Jeśli zmienisz zdanie, `pnpm run cli demo seed`
-dodaje dane demonstracyjne, a `pnpm run cli demo reset` je wycofuje, nie ruszając Twoich własnych
-wierszy.
+żadnych. Pusta odpowiedź powoduje ponowne pytanie. `--demo` dodaje też do listy modułów jeden
+pakiet, `@endora-commerce/demo-composition`: to on łączy przykładowe wiersze modułów w jeden sklep
+— produkty demonstracyjne sprzedawane w domyślnym kanale, administratorów demonstracyjnych z
+przypisanymi rolami. Jeśli zmienisz zdanie, `pnpm add -w @endora-commerce/demo-composition`, a potem
+`pnpm run cli demo seed` dodają dane demonstracyjne, a `pnpm run cli demo reset` je wycofuje, nie
+ruszając Twoich własnych wierszy.
 
 **Administrator nigdy nie jest generowany.** Hasło to jedyna wartość, którą musisz zapamiętać, więc
 nic go za Ciebie nie wymyśla i nic innego nie tworzy konta.

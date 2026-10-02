@@ -22,7 +22,7 @@
  * ## Why it writes SQL
  *
  * It is a seed, in `backend/scripts/`, outside every module boundary — the same
- * position `src/seeds/demo-composition.ts` holds and for the same reason: a
+ * position the demo composition holds and for the same reason: a
  * fixture composed of a dozen modules' rows is a composition root's job. Plain
  * SQL rather than the entity classes because nothing here needs the unit of
  * work, and because a script that imports eleven module packages to insert

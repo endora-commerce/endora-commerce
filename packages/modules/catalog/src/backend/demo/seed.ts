@@ -13,7 +13,7 @@
  * **The product attributes.** A product attribute is a
  * `custom_field_definitions` row paired 1:1 with a `product_attributes`
  * extension row — two modules' rows in one statement, so a composition step
- * (§5.1), and it stays on `backend/src/seeds/attribute-fixtures.ts`, which is
+ * (§5.1), and it stays on `@endora-commerce/demo-composition`'s attribute helper, which is
  * the one copy of that helper (FR-019) and which says in its own words that a
  * file writing both tables in one call is composition.
  *

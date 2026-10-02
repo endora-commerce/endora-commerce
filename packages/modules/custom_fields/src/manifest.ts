@@ -94,7 +94,7 @@ export const manifest = defineModuleManifest({
    * definitions paired 1:1 with a `catalog` extension row and written in one
    * call (feature 061), so it is two modules' rows in one statement and belongs
    * to whoever owns the instance (§5.1). It is a step of
-   * `backend/src/seeds/demo-composition.ts`, guarded on both modules, and this
+   * `@endora-commerce/demo-composition`, guarded on both modules, and this
    * module does not declare `catalog` — §2.3's rule that `demo` may not become a
    * way of acquiring a dependency.
    *

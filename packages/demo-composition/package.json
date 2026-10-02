@@ -1,0 +1,104 @@
+{
+  "name": "@endora-commerce/demo-composition",
+  "version": "0.100.1",
+  "type": "module",
+  "description": "The Endora Commerce demo shop's composition: the wiring between modules' demo data that no one module may own — which channel sells the demo products, which role each demo administrator holds, the menu, the prices and the stock. Installed only when an instance asks for demo data.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/endora-commerce/endora-commerce.git",
+    "directory": "packages/demo-composition"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "endora": {
+    "type": "demo-composition"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@endora-commerce/mod-admin-roles": "workspace:*",
+    "@endora-commerce/mod-admin-users": "workspace:*",
+    "@endora-commerce/mod-catalog": "workspace:*",
+    "@endora-commerce/mod-credit-limits": "workspace:*",
+    "@endora-commerce/mod-custom-fields": "workspace:*",
+    "@endora-commerce/mod-customer-accounts": "workspace:*",
+    "@endora-commerce/mod-inventory": "workspace:*",
+    "@endora-commerce/mod-megamenu": "workspace:*",
+    "@endora-commerce/mod-organizations": "workspace:*",
+    "@endora-commerce/mod-price-lists": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6",
+    "@mikro-orm/postgresql": "^6"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/mod-admin-roles": {
+      "optional": true
+    },
+    "@endora-commerce/mod-admin-users": {
+      "optional": true
+    },
+    "@endora-commerce/mod-catalog": {
+      "optional": true
+    },
+    "@endora-commerce/mod-credit-limits": {
+      "optional": true
+    },
+    "@endora-commerce/mod-custom-fields": {
+      "optional": true
+    },
+    "@endora-commerce/mod-customer-accounts": {
+      "optional": true
+    },
+    "@endora-commerce/mod-inventory": {
+      "optional": true
+    },
+    "@endora-commerce/mod-megamenu": {
+      "optional": true
+    },
+    "@endora-commerce/mod-organizations": {
+      "optional": true
+    },
+    "@endora-commerce/mod-price-lists": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@endora-commerce/mod-admin-roles": "workspace:*",
+    "@endora-commerce/mod-admin-users": "workspace:*",
+    "@endora-commerce/mod-catalog": "workspace:*",
+    "@endora-commerce/mod-credit-limits": "workspace:*",
+    "@endora-commerce/mod-custom-fields": "workspace:*",
+    "@endora-commerce/mod-customer-accounts": "workspace:*",
+    "@endora-commerce/mod-inventory": "workspace:*",
+    "@endora-commerce/mod-megamenu": "workspace:*",
+    "@endora-commerce/mod-organizations": "workspace:*",
+    "@endora-commerce/mod-price-lists": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6.6.13",
+    "@mikro-orm/postgresql": "^6.6.13",
+    "@types/node": "^22.9.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}

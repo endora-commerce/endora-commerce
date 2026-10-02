@@ -192,6 +192,7 @@ describe('a library package imports no optional peer that no other published pac
 
   it('declares every privately-held runtime import as a dependency, not an optional peer', () => {
     const family = publishedFamily();
+    const modulePackageNames = new Set(family.filter(isModulePackage).map((member) => member.name));
     const unshared: string[] = [];
     for (const member of family.filter((candidate) => !isModulePackage(candidate))) {
       const optional = optionalPeersOf(member);
@@ -203,6 +204,18 @@ describe('a library package imports no optional peer that no other published pac
       );
       for (const name of [...optional].sort()) {
         if (!imported.has(name)) continue;
+        // A peer that is itself a **module package** is the one kind the rule
+        // does not reach, and by derivation rather than by name. The defect
+        // above is a peer nothing installs; a module package is installed by
+        // the instance's own module list — the root manifest, which is where
+        // the module set lives and the only place it may (R3.6), and the reason
+        // `composedOptionalPeers` skips module packages in as many words. So an
+        // optional module peer means "if this instance chose that module", which
+        // is what `@endora-commerce/demo-composition` says of each module a step
+        // of its wires: the step is guarded on the module's presence and loads
+        // the package only then. Making those `dependencies` would install
+        // modules an instance did not choose.
+        if (modulePackageNames.has(name)) continue;
         const sharedBy = family.filter(
           (other) =>
             other.name !== member.name &&
@@ -213,6 +226,11 @@ describe('a library package imports no optional peer that no other published pac
         if (sharedBy.length === 0) unshared.push(`${member.name} → ${name}`);
       }
     }
+    // The exemption above must not be able to swallow the population: a
+    // workspace that classified no module package would exempt nothing, and one
+    // that classified everything as one would exempt the UI peers too.
+    expect(modulePackageNames.size).toBeGreaterThan(0);
+    expect(modulePackageNames.has('@endora-commerce/cms-components')).toBe(false);
     expect(unshared).toEqual([]);
   });
 });

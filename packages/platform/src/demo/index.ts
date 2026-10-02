@@ -64,10 +64,13 @@
  * `test/unit/kernel/published-surface.test.ts` holds the barrel to it in both
  * directions.
  *
- * `host-command.ts` is therefore reachable from outside at three names and not
- * thirteen: the notice and the two composition-loader shapes, which
- * `backend/src/demo/composition-loader.ts` imports because locating a tree's own
- * composition stays that tree's (`operator-half.md` §1.1). `DEMO_HOST_COMMANDS`,
+ * `host-command.ts` is therefore reachable from outside at one name and not
+ * thirteen: `DemoCompositionInput`, the argument a composition is built from,
+ * which `@endora-commerce/demo-composition` takes. The notice and the lookup
+ * shape went on 2026-10-01 with `backend/src/demo/composition-loader.ts`, their
+ * last consumer outside this package: the composition became a package the
+ * dispatcher finds installed (`installed-composition.ts`), so the one tree that
+ * still names it passes an inline loader and needs neither name. `DEMO_HOST_COMMANDS`,
  * `demoEntriesFrom`, `parseDemoVerb` and the rest have one consumer and it is
  * `../cli/dispatch.ts`, one directory over inside this package, which reaches
  * them by relative path and needs no address for them at all.
@@ -78,8 +81,4 @@
 export { mustBeNonProduction, TEST_DATABASE_NAME_PATTERN } from './guard.js';
 export { DEMO_RESET_SCOPE_REASON, DEMO_SEED_SCOPE_REASON } from './scope.js';
 export { runDemo, type DemoComposition, type DemoCompositionResult } from './runner.js';
-export {
-  NO_DEMO_COMPOSITION_NOTICE,
-  type DemoCompositionInput,
-  type DemoCompositionLookup,
-} from './host-command.js';
+export { type DemoCompositionInput } from './host-command.js';

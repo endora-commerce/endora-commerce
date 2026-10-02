@@ -8,7 +8,7 @@
  *
  * **The buyer who belongs to it and the credit limit granted to it are not
  * here.** Each is another module's row against this one's, so each is a
- * composition step (§5.1) in `backend/src/seeds/demo-composition.ts`, which runs
+ * composition step (§5.1) in `@endora-commerce/demo-composition`, which runs
  * after every module's `seed` and finds this organisation waiting.
  *
  * Idempotent by an existence probe on the natural key (§2.4): a second run

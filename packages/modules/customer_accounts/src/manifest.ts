@@ -101,7 +101,7 @@ export const manifest = defineModuleManifest({
    * "create the account, then join it" cannot be written at all. The account and
    * its organisation are created in one statement, which makes them two modules'
    * rows and a composition step (§5.1) — step 5 of
-   * `backend/src/seeds/demo-composition.ts`, which says so in its own words.
+   * `@endora-commerce/demo-composition`, which says so in its own words.
    *
    * `false` rather than absent, because the two are different states: this is a
    * decision that the module owes nothing, not a module nobody has looked at.

@@ -353,6 +353,27 @@ describe('criterion 7 — the type half, compiled', () => {
  */
 const GENERATED = /\.generated\.ts$/;
 
+/**
+ * The demo composition's sources — the host program that left `backend/src`.
+ *
+ * Until 2026-10-01 every `entityNamed` call this criterion reconciles was in
+ * `backend/src/seeds/`, the demo composition and its attribute helper. They
+ * moved into `@endora-commerce/demo-composition` so that an instance scaffolded
+ * by the CLI can run them, and the walk above stopped finding a single lookup —
+ * which its own floor reports as a population that moved. It did move, and it is
+ * still a host program constructing module packages' entity classes, so it is
+ * followed rather than dropped. Its row types are declared beside the calls
+ * rather than imported from a package's emitted declaration, because that path
+ * exists in this repository and in no client's install; the reconciliation
+ * below holds that shape to the same hazard.
+ */
+function compositionSources(): string[] {
+  const dir = join(root, 'packages', 'demo-composition', 'src');
+  return readdirSync(dir)
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+    .map((name) => join(dir, name));
+}
+
 function hostProgramSources(): string[] {
   const out: string[] = [];
   const walk = (dir: string): void => {
@@ -379,6 +400,8 @@ interface EntityReach {
     readonly name: string;
     readonly rowType: string | null;
     readonly array: string | null;
+    /** The third argument's value — the package specifier the class is said to come from. */
+    readonly source: string | null;
   }[];
   /** Relative specifiers naming a module **package's** directory. */
   readonly packageReaches: readonly { readonly specifier: string; readonly typeOnly: boolean }[];
@@ -388,7 +411,26 @@ function readReaches(file: string): EntityReach {
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
   const inTree = new Set<string>();
   const packageReaches: { specifier: string; typeOnly: boolean }[] = [];
-  const lookups: { name: string; rowType: string | null; array: string | null }[] = [];
+  const lookups: {
+    name: string;
+    rowType: string | null;
+    array: string | null;
+    source: string | null;
+  }[] = [];
+  // File-level `const X = '…'` strings, so a source argument passed by name is read.
+  const constants = new Map<string, string>();
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (
+        ts.isIdentifier(declaration.name) &&
+        declaration.initializer !== undefined &&
+        ts.isStringLiteral(declaration.initializer)
+      ) {
+        constants.set(declaration.name.text, declaration.initializer.text);
+      }
+    }
+  }
 
   for (const statement of source.statements) {
     if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
@@ -408,15 +450,30 @@ function readReaches(file: string): EntityReach {
       ts.isIdentifier(node.expression) &&
       node.expression.text === 'entityNamed'
     ) {
-      const [array, name] = node.arguments;
+      const [array, name, from] = node.arguments;
       const typeArgument = node.typeArguments?.[0];
       lookups.push({
+        source:
+          from === undefined
+            ? null
+            : ts.isStringLiteral(from)
+              ? from.text
+              : ts.isIdentifier(from)
+                ? (constants.get(from.text) ?? null)
+                : null,
         name: name !== undefined && ts.isStringLiteral(name) ? name.text : '(not a literal)',
         rowType:
           typeArgument !== undefined && ts.isTypeReferenceNode(typeArgument) && ts.isIdentifier(typeArgument.typeName)
             ? typeArgument.typeName.text
             : null,
-        array: array !== undefined && ts.isIdentifier(array) ? array.text : null,
+        array:
+          array === undefined
+            ? null
+            : ts.isIdentifier(array)
+              ? array.text
+              : ts.isPropertyAccessExpression(array)
+                ? array.getText(source)
+                : null,
       });
     }
     ts.forEachChild(node, visit);
@@ -445,7 +502,7 @@ function importOf(file: string, local: string): { specifier: string; original: s
   return null;
 }
 
-const HOST_REACHES = hostProgramSources()
+const HOST_REACHES = [...hostProgramSources(), ...compositionSources()]
   .map(readReaches)
   .filter((reach) => reach.inTree.length > 0 || reach.lookups.length > 0 || reach.packageReaches.length > 0);
 
@@ -520,6 +577,27 @@ describe("criterion 7 — the population, and every call site's two halves agree
 
         expect(lookup.rowType, `${where} passes no row type — the union would collapse`).not.toBeNull();
         expect(lookup.array, `${where} does not name an imported entities array`).not.toBeNull();
+
+        if (compositionSources().includes(reach.file)) {
+          // The composition's shape: a row type declared beside the call and an
+          // array off a dynamic import. The hazard is the same one — a call
+          // asking for one entity's type while naming another's — so the type
+          // must be named for the class it is asked for, the array must be a
+          // published `entities`, and the package the call names must declare
+          // that class.
+          expect(lookup.rowType, `${where}: the row type names a different class`).toBe(
+            `${lookup.name}Row`,
+          );
+          expect(lookup.array ?? '', `${where}: the array must be a published \`entities\``).toMatch(
+            /(^|\.)entities$/,
+          );
+          const packageName = (lookup.source ?? '').replace(/\/backend$/, '');
+          expect(
+            declaring.get(`${packageName}:${lookup.name}`),
+            `${where}: '${packageName}' declares no entity class named '${lookup.name}'`,
+          ).toBeDefined();
+          continue;
+        }
 
         const rowImport = importOf(reach.file, lookup.rowType ?? '');
         expect(rowImport, `${where}: '${lookup.rowType ?? ''}' is not imported here`).not.toBeNull();

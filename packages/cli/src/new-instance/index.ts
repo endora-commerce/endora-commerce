@@ -70,6 +70,7 @@ import { DOCS_TOOLCHAIN } from './docs-toolchain.js';
 import {
   ADMIN_KIT_PACKAGE,
   ADMIN_SHELL_PACKAGE,
+  DEMO_COMPOSITION_PACKAGE,
   InstanceHostError,
   InstanceInputError,
   resolveInstanceHost,
@@ -119,6 +120,14 @@ export interface NewInstanceOptions {
   readonly without?: readonly string[] | undefined;
   /** Report every file it would write, and write nothing (R5.3). */
   readonly dryRun?: boolean | undefined;
+  /**
+   * The instance asks for demo data — `--demo`, or `endora install --demo`.
+   *
+   * It adds the demo composition package to the module list and writes no file
+   * (D-216, FR-121). Absent is no: an instance a client trades from wants none
+   * of it.
+   */
+  readonly demo?: boolean | undefined;
   readonly cwd?: string | undefined;
   /** Injected so a test drives the manifest lookup without a fixture install. */
   readonly moduleUrl?: string | undefined;
@@ -282,6 +291,26 @@ export async function runNewInstance(
   const adminShell = host.packages.get(`${host.scope}${ADMIN_SHELL_PACKAGE}`);
   const adminKit = host.packages.get(`${host.scope}${ADMIN_KIT_PACKAGE}`);
 
+  // Decided before anything is written (R5.2): an instance that asked for demo
+  // data and cannot be given the composition is refused rather than scaffolded
+  // into the defect this option exists to prevent — a demo whose modules' rows
+  // nothing wires together.
+  const demoComposition =
+    options.demo === true
+      ? host.packages.get(`${host.scope}${DEMO_COMPOSITION_PACKAGE}`)
+      : undefined;
+  if (options.demo === true && demoComposition === undefined) {
+    throw new InstanceHostError(
+      'F6',
+      `demo data was asked for, and ${host.scope}${DEMO_COMPOSITION_PACKAGE} does not resolve ` +
+        `from ${targetDir} or ${cwd}. It is the demo shop's composition — which channel sells ` +
+        `the demo products, which role each demo administrator holds — and without it a demo ` +
+        `seed leaves the modules' rows unwired. Install it beside the directory you are ` +
+        `scaffolding into (\`pnpm add ${host.scope}${DEMO_COMPOSITION_PACKAGE}\`) and run this ` +
+        `command again, or leave demo data out.`,
+    );
+  }
+
   // What this instance reads from its environment (FR-010): the platform's own
   // declaration and the manifest of every module this run installed. Both come
   // off the packages resolved beside the target directory, which is R2.3 — the
@@ -362,6 +391,10 @@ export async function runNewInstance(
         packageName: candidates.get(id)!.packageName,
         version: candidates.get(id)!.version,
       })),
+    demoComposition:
+      demoComposition === undefined
+        ? null
+        : { packageName: demoComposition.name, version: demoComposition.version },
     adminShellVersion: adminShell?.version ?? null,
     adminKitVersion: adminKit?.version ?? null,
     adminRanges: adminRangesOf(adminShell),
@@ -411,6 +444,8 @@ export async function runNewInstance(
       // client's own file does not publish is worse than no step.
       environment: developmentEnvironment(plan, declared),
       mailUrl: developmentMailUrl(developmentDocument(plan)),
+      demoComposition: demoComposition !== undefined,
+      scope: host.scope,
     }),
   };
   if (result.dryRun) return result;
@@ -620,6 +655,10 @@ export interface DevelopmentSteps {
   readonly environment?: ReadonlyMap<string, string>;
   /** Where the mail catcher's own interface is, if this stack runs one. */
   readonly mailUrl?: string | undefined;
+  /** The demo composition package is in this instance's module list. */
+  readonly demoComposition?: boolean;
+  /** The npm scope the instance installs from, for a package the steps name. */
+  readonly scope?: string;
 }
 
 /**
@@ -716,11 +755,20 @@ export function nextSteps(
             `for or starts it with blanks.`,
         ]
       : []),
-    `pnpm run cli demo seed — optional, and off unless you ask: a shop's worth of example ` +
-      `data from every module that declares any, which \`pnpm run cli demo reset\` withdraws ` +
-      `again leaving your own rows alone. An instance you are going to sell from wants none ` +
-      `of it; an instance you are evaluating wants it before the first screen. It is named ` +
-      `here rather than written into your tree as a script, which is D-216's own shape.`,
+    development.demoComposition === true
+      ? `pnpm run cli demo seed — a shop's worth of example data from every module that ` +
+        `declares any, wired together by the demo composition you asked for: the demo ` +
+        `products sold on your default channel, the demo administrators holding their roles. ` +
+        `\`pnpm run cli demo reset\` withdraws it again, leaving your own rows alone.`
+      : `pnpm run cli demo seed — optional, and off unless you ask: a shop's worth of example ` +
+        `data from every module that declares any, which \`pnpm run cli demo reset\` withdraws ` +
+        `again leaving your own rows alone. For the demo shop as a whole — the products sold ` +
+        `on a channel, the demo administrators holding their roles — run ` +
+        `\`pnpm add -w ${development.scope ?? '@endora-commerce/'}${DEMO_COMPOSITION_PACKAGE}\` first: ` +
+        `without it each module's rows arrive and nothing joins them. An instance you are going ` +
+        `to sell from wants none of it; an instance you are evaluating wants it before the ` +
+        `first screen. It is named here rather than written into your tree as a script, which ` +
+        `is D-216's own shape.`,
     `endora new storefront <dir> — the customer-facing storefront, which is its own ` +
       `repository. It shares two \`.env\` values with this one and nothing else.`,
   ];

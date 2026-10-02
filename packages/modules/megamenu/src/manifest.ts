@@ -151,8 +151,8 @@ export const manifest = defineModuleManifest({
     * The demo shop does have a megamenu, and it is not this module's demo data:
     * it mirrors `catalog`'s demo category tree and binds to the demo sales
     * channels, so it is three modules' rows in one step and belongs to whoever
-    * owns the instance (§5.1). It is step 1 of `backend/src/seeds/
-    * demo-composition.ts`.
+    * owns the instance (§5.1). It is step 1 of
+    * `@endora-commerce/demo-composition`.
     *
     * **This block used to add *"and this module does not declare `catalog`"* as
     * §2.3's measured case.** It declares it since

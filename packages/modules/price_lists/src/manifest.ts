@@ -146,7 +146,7 @@ export const manifest = defineModuleManifest({
     *
     * The demo's prices are a backfill over `catalog`'s demo products into this
     * module's default list — two modules' rows in one step, so it is step 3 of
-    * `backend/src/seeds/demo-composition.ts` and not this module's demo data
+    * `@endora-commerce/demo-composition` and not this module's demo data
     * (§5.1). The default list itself is **platform data**: a migration creates
     * it and the platform needs it whether or not anybody ever seeds a demo.
     *

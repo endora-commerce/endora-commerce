@@ -1100,13 +1100,12 @@ export const entities = [
 /**
  * The catalogue read surface a host program needs, published **by name**.
  *
- * `src/seeds/demo-composition.ts` hands a `CatalogProductReadService` to
- * `price_lists`' `DefaultPriceListMigrator`, and `src/seeds/attribute-fixtures.ts`
- * maps a legacy attribute value type onto the unified custom-field model. Both are
- * host programs in the **compiled** build (`node dist/cli.js demo seed`,
- * documented in `deploy/README.md`), so neither may name this package's source: a
- * filesystem path would evaluate the file a second time, and `backend/tsconfig.build.json`
- * sets `rootDir: ./src`, which is TS6059 for a `.ts` outside it even under `import type`.
+ * `@endora-commerce/demo-composition` hands a `CatalogProductReadService` to
+ * `price_lists`' `DefaultPriceListMigrator`, and its attribute helper maps a legacy
+ * attribute value type onto the unified custom-field model. That is a package an
+ * instance installs, so it may name this one by its published door and by nothing
+ * else: a filesystem path would evaluate the file a second time, and in an instance
+ * there is no source to name.
  *
  * D-168 bars an **entity class** from leaving by this door; a service and a pure
  * mapping function are not entities, and `inventory`'s `WarehouseChannelReconciler` /
