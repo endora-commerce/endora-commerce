@@ -223,10 +223,11 @@ thing it is about.
   stale.** So after a change that moves or deletes anything, ask what is **derived** from its
   location, not only what **names** it, and re-derive that in the same merge request.
 - **Changing how many files the tree holds moves a recorded read size**, whether or not you went
-  anywhere near the check estate. Re-measure; never compute from a delta and never widen a band,
-  and read the routed *Static checks and their escape hatches* document § *Measuring a read size*
-  **first** — three traps there have each put a number into the shared record that no clean tree
-  can reproduce, and none of them announces itself. (A path is written here once, in the routing
+  anywhere near the check estate — and inside the band that is **left alone**: the release pull
+  request re-records drift, not yours. Re-record only an entry the band refuses or one your change
+  means to move; then re-measure, never compute from a delta, never widen a band, and read the
+  routed *Static checks and their escape hatches* document **first** — three traps there have each
+  put a number into the shared record that no clean tree can reproduce. (A path is written here once, in the routing
   table, and nowhere else: that is what stops a moved document leaving a wrong address behind.)
 - **A generated artefact left stale is a silent defect, not a crash.** `composer:generate` and
   `manifests:generate` write the registries the platform composes from; an unregistered

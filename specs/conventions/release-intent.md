@@ -99,6 +99,12 @@ consuming them would release it twice. They are deleted there rather than on the
 (`vacuous-release`, D-212) — and while they are pending, lockstep plans every package at the
 highest bump among them, `0.101.0`.
 
+**The release pull request also re-records the read sizes.** After `version:packages`, on the
+release branch, re-measure on a pristine clone and re-record every entry the `[read-size drift]`
+block names, in one commit — ordinary pull requests leave drift inside the band alone
+(`check-estate.md` § *When a read size is re-recorded*), so this is where the record returns to
+`0 drifted`.
+
 **The version step is `pnpm run version:packages`, and it runs locally.** It cuts a
 `release/version-<date>` branch, runs `changeset version`, and refuses two things a bare
 `pnpm changeset:version` cannot: a run with no changeset to consume, and a run that exited 0

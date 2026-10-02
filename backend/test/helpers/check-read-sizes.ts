@@ -48,8 +48,12 @@
  * 10% of themselves, and a band that rounds to zero would fail on the seventh
  * artefact arriving.
  *
- * **Never widen the band to make a run pass.** Re-record the number, in the
- * merge request that changed the population, and say what changed it.
+ * **Never widen the band to make a run pass.** Re-record the number, and say
+ * what changed it — in the pull request that changed the population when the
+ * band refuses the run or the change means to move it, and otherwise in the
+ * release pull request, which re-records every drifted entry at once
+ * (`specs/conventions/check-estate.md` § *When a read size is re-recorded*).
+ * Drift inside the band is expected between releases and is nobody's to chase.
  */
 
 /** The multiplier a run may fall to before the recorded number is a lie. */
