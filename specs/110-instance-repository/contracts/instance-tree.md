@@ -602,7 +602,8 @@ with the first. The refusal's sentence names `--only admin`.
 
 **R7.3** A run without `api` plans no `services`, `setup`, `admin` or `demo` step, asks none of
 their questions, requires none of their flags and **refuses** any of them that is given. The same
-rule covers every flag whose subject the run does not have: `--admin-url` without `api`;
+rule covers every flag whose subject the run does not have: `--admin-url` with neither `api` nor
+`admin` (R7.17);
 `--storefront-url`, `--sales-channel` and `--revalidate-secret` in a run with neither `api` nor
 `storefront`; `--sales-channel` with `api` (the channel is the one that API creates);
 `--without`, `--module`, `--deployment`, `--topology` and `--storefront-dir` in a run that writes
@@ -669,3 +670,46 @@ OS handed out, never a development default.
 | **S5** | the storefront's revalidation route answers S1's secret with success and any other value with a refusal, and the two `.env` files hold the same `REVALIDATE_SECRET` |
 | **S6** | with no `--only`, the planned step ids are the ones recorded before §7 was implemented |
 | **S7** | `--non-interactive`: `--only admin` without `--api-url`, `--only storefront` without its three, `--only storefront --demo` and `--only admin --without admin` each exit 1, name what is missing or contradictory in one refusal, and write nothing |
+
+### §7.5 — one host with paths
+
+D-284 clause 5 names two supported layouts. §7.3 is the first — one address per component. This
+is the second: **one host**, the storefront at `/`, the admin under `/admin`, the API under `/api`.
+
+**R7.16** The API's address in this layout is the host itself. Every route it registers already
+begins with `/api/v1` — one exception, `/assets/file/` — so `/api` is a real mount and nothing is
+stripped or added; `--api-url` and `--storefront-url` stay origins and refuse a path, saying so.
+**R7.17** `--admin-url` may carry a **base path** after its origin: plain segments, no trailing
+slash, no query, no fragment. It is accepted whenever `admin` or `api` is in the run. The path is
+written as `ADMIN_BASE_PATH=<path>/` in `admin/.env`, which the scaffolded Vite configuration
+reads as `base`; the admin shell's router takes its basename from the bundle's base. With no path
+nothing is written. **R7.18** `--public-url <origin>` is `--api-url <origin>`,
+`--storefront-url <origin>` and `--admin-url <origin>/admin`, each applied where the selection has
+a use for it; beside any of the three it is refused. The wizard reaches it through one question
+asked before any address. **R7.19** `ADMIN_BASE_URL` is the admin's whole address, path included;
+`CORS_ALLOWED_ORIGINS` holds origins, each once. **R7.20** Two components at one origin are behind
+something that routes by path, so a port in that origin is nobody's `PORT` (R7.12 does not
+apply). **R7.21** What answers on the host owes this routing, which the closing block states and
+`deploy/nginx.paths.example.conf` is (§2.7): `/api/` and `/assets/file/` to the API, unchanged;
+`/api/revalidate`, exactly, to the storefront; `<base>/` to the admin, with its `index.html` for
+every path it does not hold; everything else to the storefront. The forwarded host carries its
+port. **R7.22** The storefront answers for nothing under `/admin`: its service worker leaves those
+requests to the network.
+
+### §7.6 — acceptance, one host with paths
+
+`acceptance:separate-components --layout paths`. One run with `--public-url`; an nginx container
+answers on one port with the instance's own example.
+
+| # | Assertion |
+| --- | --- |
+| **P1** | the run exits 0; the instance's `.env` holds the host as `PUBLIC_API_BASE_URL` and `STOREFRONT_BASE_URL`, `<host>/admin` as `ADMIN_BASE_URL`, and the host **once** as `CORS_ALLOWED_ORIGINS`; `admin/.env` holds the host as `VITE_API_BASE_URL` and `ADMIN_BASE_PATH=/admin/`; the built `index.html` references nothing outside `/admin/`; the storefront's `PORT` is the one it was given, not the host's |
+| **P2** | through the host: the API's health route is 200; `/api/revalidate` is answered by the storefront, 2xx to the shared secret and 401 to any other; `/assets/file/…` is answered by the API |
+| **P3** | `/admin` redirects to `/admin/`; `/admin/` is the admin's page; a script it references is JavaScript; `/admin/platform/modules`, requested directly, is the admin's page |
+| **P4** | the administrator's sign-in through the host is 200 with a session cookie, and the next request carrying it is 200 where the same request without it is 401 |
+| **P5** | `/` is 200 and a product the catalogue links renders its heading |
+| **P6** | the configuration the proxy ran is `deploy/nginx.paths.example.conf` with `listen`, `server_name` and the proxied addresses replaced, and no other directive changed |
+
+A browser's part — the form, the router, the reload, the customer's session beside the
+administrator's — is not in this script and is proven by hand; the pull request that added this
+section records the run.

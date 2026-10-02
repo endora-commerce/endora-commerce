@@ -44,7 +44,7 @@
  * binding, forwarded, so an instance's `main.tsx` names **one** package and the
  * provider `useAuth` reads is the same one in every process.
  */
-export { AdminRoot } from './AdminRoot.js';
+export { AdminRoot, routerBasename } from './AdminRoot.js';
 export type { AdminRootProps } from './AdminRoot.js';
 export { App } from './App.js';
 export type { AppProps } from './App.js';

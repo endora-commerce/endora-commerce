@@ -1685,7 +1685,8 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   // The admin's whole address: its origin and, where it has one, its base path.
   const adminAddressUrl = `${adminOrigin}${adminBasePath}`;
   // D-284 clause 5 (b): the admin under a path of the host the storefront is at.
-  const pathLayout = adminBasePath !== '' && adminOrigin === storefrontOrigin;
+  const pathLayout =
+    adminBasePath !== '' && (adminOrigin === storefrontOrigin || adminOrigin === apiOrigin);
 
   // FR-153 — generated **once**, for two trees; and, since D-284 clause 3, by a
   // run that stands the API up without the storefront, which is then the side
@@ -1877,6 +1878,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       apiOrigin,
       adminOrigin,
       adminAddressUrl,
+      adminBasePath,
       pathLayout,
       storefrontOrigin,
       adminPort,
@@ -2159,6 +2161,8 @@ function closing(input: {
   readonly adminOrigin: string;
   /** The admin's address with its base path, when it has one. */
   readonly adminAddressUrl: string;
+  /** The base path the admin bundle was built for — `/admin` — or `''`. */
+  readonly adminBasePath: string;
   /** One host with paths (D-284 clause 5 b): the block states the routing. */
   readonly pathLayout: boolean;
   readonly storefrontOrigin: string;
@@ -2196,7 +2200,9 @@ function closing(input: {
   // address is the thing the operator opens next.
   const adminAt =
     input.adminPort !== null && (input.adminPort.moved || !api)
-      ? `, on http://localhost:${String(input.adminPort.port)}`
+      ? `, on http://localhost:${String(input.adminPort.port)}${
+          input.adminBasePath === '' ? '' : `${input.adminBasePath}/`
+        }`
       : '';
   const shopAt =
     input.storefrontPort !== null && (input.storefrontPort.moved || !api)
@@ -2346,7 +2352,7 @@ function closing(input: {
         : "  - the API's CORS_ALLOWED_ORIGINS must contain the admin's and the storefront's " +
             'origins, exactly as a browser sends them — scheme, host, port, no trailing slash.' +
             `${[
-              ...(adminHere ? [` For this admin that is the address it is served at — ${input.adminOrigin} with the command above.`] : []),
+              ...(adminHere && !input.pathLayout ? [` For this admin that is the address it is served at — ${input.adminOrigin} with the command above.`] : []),
               ...(input.storefrontDir === null ? [] : [` For this storefront that is ${input.storefrontOrigin}.`]),
             ].join('')}`,
       '  - the admin bundle and the storefront\'s browser values are bound to the API origin at ' +
@@ -2385,10 +2391,10 @@ function closing(input: {
   // the routing up: it belongs to whatever answers on that host. So it is said,
   // completely, with the two routes that are not where their prefix suggests.
   if (input.pathLayout) {
-    const base = input.adminAddressUrl.slice(input.adminOrigin.length);
+    const base = input.adminBasePath;
     lines.push(
       '',
-      `One host, with paths (${input.storefrontOrigin}) — whatever answers on that host has to route:`,
+      `One host, with paths (${input.adminOrigin}) — whatever answers on that host has to route:`,
       '  /api/ and /assets/file/     to the API, paths unchanged: its routes already begin with /api/v1',
       '  /api/revalidate (exactly)   to the storefront: the one route under /api that is its own',
       `  ${base}/`.padEnd(30) +

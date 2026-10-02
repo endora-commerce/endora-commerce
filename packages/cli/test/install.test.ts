@@ -1779,6 +1779,12 @@ describe('138 FR-023…FR-027 — one host with paths: the storefront at /, the 
       ]),
     );
     expect(result.steps.map((step) => step.id)).toEqual(['install', 'build-admin']);
+    // The block is about this layout on this machine too: where the preview
+    // answers — under the base path — and the routing the one host owes.
+    const text = result.output.join('\n');
+    expect(text).toContain('the admin bundle, on http://localhost:3002/admin/');
+    expect(text).toContain(`One host, with paths (${HOST})`);
+    expect(text).not.toContain('For this admin that is the address it is served at');
   });
 
   it('`--admin-url` with a base path of its own, on the admin alone', async () => {

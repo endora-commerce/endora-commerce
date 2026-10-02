@@ -15,5 +15,13 @@
     "S5": "pass",
     "S6": "pass",
     "S7": "pass"
+  },
+  "expectedPaths": {
+    "P1": "pass",
+    "P2": "pass",
+    "P3": "pass",
+    "P4": "pass",
+    "P5": "pass",
+    "P6": "pass"
   }
 }

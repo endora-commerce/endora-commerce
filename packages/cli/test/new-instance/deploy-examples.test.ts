@@ -619,6 +619,19 @@ describe('138 FR-029 — one host with paths has an example of its own', () => {
     expect(text).toMatch(/location \/ \{\s+proxy_pass http:\/\/127\.0\.0\.1:3000;/);
   });
 
+  it('both examples forward the host with its port, or the storefront refuses its own forms', () => {
+    // Next aborts a Server Action whose `x-forwarded-host` differs from the
+    // request's `Origin`. nginx's `$host` has no port, so behind a proxy on any
+    // port but 80/443 every form on the storefront answered 500 — found by the
+    // first real run of this layout, on a port of its own.
+    for (const path of ['deploy/nginx.paths.example.conf', 'deploy/nginx.example.conf']) {
+      const text = fileAt(withAdmin(), path);
+      expect(text, path).toContain('proxy_set_header X-Forwarded-Host  $http_host;');
+      expect(text, path).toContain('proxy_set_header Host              $http_host;');
+      expect(text, path).not.toMatch(/proxy_set_header (Host|X-Forwarded-Host)\s+\$host;/);
+    }
+  });
+
   it('an instance with no admin member routes nothing to one', () => {
     const text = conf(planInput());
     expect(text).not.toContain('location /admin/');

@@ -10,6 +10,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertP1,
+  assertP2,
+  assertP3,
+  assertP4,
+  assertP5,
+  assertP6,
   assertS1,
   assertS2,
   assertS3,
@@ -20,6 +26,7 @@ import {
   compareToExpected,
   STEP_IDS_BEFORE_138,
   stepIdsOf,
+  type P1Observation,
   type S3Observation,
   type S4Observation,
 } from '../../../scripts/acceptance/separate-components-assertions.js';
@@ -299,5 +306,154 @@ describe('the ratchet — drift against the recorded state, in both directions',
 
   it('an assertion the record names and the run never produced is exit 2', () => {
     expect(compareToExpected([verdict('S1', 'pass')], expected).exitCode).toBe(2);
+  });
+});
+
+/**
+ * P1–P6 — layout (b) of D-284 clause 5: one host with paths
+ * (`specs/138-separate-components/` addendum, FR-032; contract §7.6).
+ */
+describe('P1 — `--public-url` writes one host into all three', () => {
+  const HOST = 'http://localhost:41080';
+  const met: P1Observation = {
+    exitCode: 0,
+    host: HOST,
+    instanceEnv: {
+      PUBLIC_API_BASE_URL: HOST,
+      STOREFRONT_BASE_URL: HOST,
+      ADMIN_BASE_URL: `${HOST}/admin`,
+      CORS_ALLOWED_ORIGINS: HOST,
+    },
+    adminEnv: { VITE_API_BASE_URL: HOST, ADMIN_BASE_PATH: '/admin/' },
+    storefrontEnv: { NEXT_PUBLIC_API_BASE_URL: HOST, NEXT_PUBLIC_SITE_URL: HOST, PORT: '41000' },
+    storefrontPort: 41000,
+    adminIndexReferences: ['/admin/assets/index-abc.js'],
+  };
+
+  it('passes on the observation the contract describes', () => {
+    expect(assertP1(met).status).toBe('pass');
+  });
+
+  it.each<[string, Partial<P1Observation>]>([
+    ['the run failed', { exitCode: 1 }],
+    ['the allow-list names the host twice', { instanceEnv: { ...met.instanceEnv, CORS_ALLOWED_ORIGINS: `${HOST},${HOST}` } }],
+    ['the admin address lost its path', { instanceEnv: { ...met.instanceEnv, ADMIN_BASE_URL: HOST } }],
+    ['the API was given a path', { adminEnv: { ...met.adminEnv, VITE_API_BASE_URL: `${HOST}/api` } }],
+    ['the admin was built for the root', { adminEnv: { VITE_API_BASE_URL: HOST } }],
+    ['the bundle asks for its assets at the root', { adminIndexReferences: ['/assets/index-abc.js'] }],
+    ['the proxy\'s port was taken as the storefront\'s', { storefrontEnv: { ...met.storefrontEnv, PORT: '41080' } }],
+    ['the storefront was not told the host', { storefrontEnv: { ...met.storefrontEnv, NEXT_PUBLIC_SITE_URL: 'http://localhost:3000' } }],
+  ])('is red when %s', (_name, change) => {
+    expect(assertP1({ ...met, ...change }).status).toBe('fail');
+  });
+});
+
+describe('P2 — the API under /api, and the two routes that are not where their prefix suggests', () => {
+  const met = {
+    health: 200,
+    revalidateWithTheSecret: 200,
+    revalidateWithAnother: 401,
+    revalidateAnsweredBy: 'storefront' as const,
+    assetRouteAnsweredBy: 'api' as const,
+  };
+
+  it('passes on the observation the contract describes', () => {
+    expect(assertP2(met).status).toBe('pass');
+  });
+
+  it.each([
+    ['the API does not answer under the host', { health: 502 }],
+    ['/api/revalidate went to the API', { revalidateAnsweredBy: 'api' as const, revalidateWithTheSecret: 404 }],
+    ['the storefront accepts any secret', { revalidateWithAnother: 200 }],
+    ['/assets/file/ went to the storefront', { assetRouteAnsweredBy: 'storefront' as const }],
+  ])('is red when %s', (_name, change) => {
+    expect(assertP2({ ...met, ...change }).status).toBe('fail');
+  });
+});
+
+describe('P3 — the admin under /admin', () => {
+  const met = {
+    bare: { status: 301, location: 'http://localhost:41080/admin/' },
+    index: { status: 200, isAdmin: true },
+    asset: { path: '/admin/assets/index-abc.js', status: 200, contentType: 'application/javascript' },
+    deepLink: { path: '/admin/platform/modules', status: 200, isAdmin: true },
+  };
+
+  it('passes on the observation the contract describes', () => {
+    expect(assertP3(met).status).toBe('pass');
+  });
+
+  it.each([
+    ['/admin does not redirect into the base path', { bare: { status: 200, location: null } }],
+    ['/admin/ is not the admin', { index: { status: 200, isAdmin: false } }],
+    ['an asset is answered with a page', { asset: { ...met.asset, contentType: 'text/html' } }],
+    ['an asset is missing', { asset: { ...met.asset, status: 404 } }],
+    ['a reloaded screen is a 404', { deepLink: { ...met.deepLink, status: 404 } }],
+    ['a reloaded screen is the storefront', { deepLink: { ...met.deepLink, isAdmin: false } }],
+  ])('is red when %s', (_name, change) => {
+    expect(assertP3({ ...met, ...change }).status).toBe('fail');
+  });
+});
+
+describe('P4 — an administrator signs in on the one host', () => {
+  const met = { login: { status: 200, sessionCookie: true }, authenticated: 200, anonymous: 401 };
+
+  it('passes on the observation the contract describes', () => {
+    expect(assertP4(met).status).toBe('pass');
+  });
+
+  it.each([
+    ['the sign-in is refused', { login: { status: 401, sessionCookie: false } }],
+    ['no cookie is set', { login: { status: 200, sessionCookie: false } }],
+    ['the cookie does not authenticate', { authenticated: 401 }],
+    ['the route is open anyway', { anonymous: 200 }],
+  ])('is red when %s', (_name, change) => {
+    expect(assertP4({ ...met, ...change }).status).toBe('fail');
+  });
+});
+
+describe('P5 — the storefront at /', () => {
+  const met = { home: 200, product: { link: '/p/demo-1', status: 200, heading: 'A demo product' } };
+
+  it('passes on the observation the contract describes', () => {
+    expect(assertP5(met).status).toBe('pass');
+  });
+
+  it.each([
+    ['the home page fails', { home: 500 }],
+    ['no product is linked', { product: null }],
+    ['the product renders nothing', { product: { link: '/p/demo-1', status: 200, heading: '' } }],
+  ])('is red when %s', (_name, change) => {
+    expect(assertP5({ ...met, ...change }).status).toBe('fail');
+  });
+});
+
+describe('P6 — the routing is the instance\'s own example, with nothing but the addresses changed', () => {
+  const example = [
+    'server {',
+    '    listen 80;',
+    '    listen [::]:80;',
+    '    server_name example.com;',
+    '    location /api/ {',
+    '        proxy_pass http://127.0.0.1:3001;',
+    '        proxy_set_header X-Forwarded-Host  $http_host;',
+    '    }',
+    '}',
+  ].join('\n');
+  const used = example
+    .replace('    listen 80;\n    listen [::]:80;', '    listen 127.0.0.1:41080;')
+    .replace('example.com', 'localhost')
+    .replace('127.0.0.1:3001', '127.0.0.1:41001');
+
+  it('passes when only listen, server_name and proxy_pass lines differ', () => {
+    expect(assertP6({ example, used }).status).toBe('pass');
+  });
+
+  it('is red when a route was added by hand', () => {
+    expect(assertP6({ example, used: used.replace('location /api/ {', 'location /api/v1/ {') }).status).toBe('fail');
+  });
+
+  it('is red when a header was changed by hand', () => {
+    expect(assertP6({ example, used: used.replace('$http_host', '$host:41080') }).status).toBe('fail');
   });
 });
