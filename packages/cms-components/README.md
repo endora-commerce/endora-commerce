@@ -27,20 +27,20 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 **Third-party**
 
 - `@measured/puck` *
-- `@tiptap/core` ^3.31.3 — *optional*
-- `@tiptap/extension-color` 3.31.3 — *optional*
-- `@tiptap/extension-highlight` 3.31.3 — *optional*
-- `@tiptap/extension-image` 3.31.3 — *optional*
-- `@tiptap/extension-text-align` 3.31.3 — *optional*
-- `@tiptap/extension-text-style` 3.31.3 — *optional*
-- `@tiptap/react` ^3.31.3 — *optional*
-- `@tiptap/starter-kit` ^3.31.3 — *optional*
-- `leaflet` ^1.9.4 — *optional*
 - `react` ^19.0.0
 - `react-dom` ^19.0.0
 
 **Bundled dependencies**
 
+- `@tiptap/core` ^3.31.3
+- `@tiptap/extension-color` 3.31.3
+- `@tiptap/extension-highlight` 3.31.3
+- `@tiptap/extension-image` 3.31.3
+- `@tiptap/extension-text-align` 3.31.3
+- `@tiptap/extension-text-style` 3.31.3
+- `@tiptap/react` ^3.31.3
+- `@tiptap/starter-kit` ^3.31.3
+- `leaflet` ^1.9.4
 - `lucide-react` ^1.11.0
 - `react-icons` ^5.5.0
 
