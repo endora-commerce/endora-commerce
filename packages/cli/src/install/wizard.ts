@@ -370,9 +370,16 @@ export async function askWizard(
   const used = known
     .filter((question) => fromFlags.has(question.id))
     .map((question) => fromFlags.get(question.id)!);
+  // How many questions there are is known only once the parts are: the admin
+  // alone has three, all three components seven. Where the checklist is still
+  // to be answered, a total printed here was the count of the run that selects
+  // everything — "0 of 7" above a run whose `[answers]` line then said
+  // `total=3`. So the total is stated only where the flags already fixed it.
   write(
     `${used.length === 0 ? 'no flags given' : `using ${used.join('; ')}`}; ` +
-      `${String(used.length)} of ${String(known.length)} answers came from flags.\n`,
+      (fromFlags.has('parts')
+        ? `${String(used.length)} of ${String(known.length)} answers came from flags.\n`
+        : `${String(used.length)} answer${used.length === 1 ? '' : 's'} came from flags.\n`),
   );
 
   const gate = new EchoGate(io.output);
@@ -431,8 +438,13 @@ export async function askWizard(
     // Q1 — where. For the storefront alone `<dir>` is the storefront's own
     // directory (138 FR-007), and the question says so when the flags did.
     if (!fromFlags.has('directory')) {
-      const what = !('refusals' in typed) && !typed.writesTree ? 'storefront' : 'instance';
-      const answer = await ask(`Where should the ${what} go? [${RECOMMENDED_DIRECTORY}] `, 'directory');
+      // What `<dir>` holds is the parts question's to decide, and it is asked
+      // second: until then this cannot say "instance" — unchecking the API and
+      // the admin makes the directory the storefront's own.
+      const question = !fromFlags.has('parts')
+        ? 'Which directory should it be written to?'
+        : `Where should the ${!('refusals' in typed) && !typed.writesTree ? 'storefront' : 'instance'} go?`;
+      const answer = await ask(`${question} [${RECOMMENDED_DIRECTORY}] `, 'directory');
       if (answer.length === 0) {
         answers.dir = RECOMMENDED_DIRECTORY;
         recommended.push('directory');
@@ -450,6 +462,14 @@ export async function askWizard(
       const toggleable = rows.filter((row) => row.fixed === null);
       const unchecked = new Set<string>();
       let toggled = false;
+      // Asked of `selection.ts`, which is where "does this selection write an
+      // instance tree" is decided — this file names no component of its own.
+      const writesTree = (): boolean => {
+        const flags = selectionToFlags(rows, unchecked);
+        if (flags === null) return false;
+        const selected = resolveSelection(flags.only, [], flags.storefront);
+        return !('refusals' in selected) && selected.writesTree;
+      };
       for (;;) {
         write('\nWhich parts should this machine run? Type the numbers to toggle, Enter to accept.\n');
         for (const row of rows) {
@@ -458,9 +478,14 @@ export async function askWizard(
             continue;
           }
           const number = toggleable.indexOf(row) + 1;
+          // A member row is about the instance tree. With neither the API nor
+          // the admin checked there is no tree, and a checked `docs` beside a
+          // storefront-only selection promised a member nothing would write.
+          const noTree = row.dispatch === 'member' && !writesTree();
           write(
-            `  ${String(number).padStart(2)}. ${unchecked.has(row.name) ? '[ ]' : '[x]'} ` +
-              `${row.name} — ${row.describes}\n`,
+            `  ${String(number).padStart(2)}. ${unchecked.has(row.name) || noTree ? '[ ]' : '[x]'} ` +
+              `${row.name} — ${row.describes}` +
+              `${noTree ? ' (part of the instance tree, which this selection does not write)' : ''}\n`,
           );
         }
         const answer = await ask('> ', 'parts');

@@ -156,6 +156,19 @@ describe('D-271 — a host is provisioned exactly when the platform does not res
     expect(target.startsWith(hostStep.cwd + sep)).toBe(false);
     expect(hostStep.bin).toBe('pnpm');
     expect(hostStep.argv[0]).toBe('install');
+    // The host is read, never run: no build script of anything in it is needed,
+    // and without the flag pnpm 10 closes the step with an "Ignored build
+    // scripts … run pnpm approve-builds" box about a directory this run deletes.
+    expect(hostStep.argv).toEqual(['install', '--ignore-scripts']);
+    expect(hostStep.command).toBe('pnpm install --ignore-scripts');
+    // The sentence counts what the host installs and says what that is: the
+    // scoped packages of the release. The release also publishes the unscoped
+    // front door, which is not installed here, so "every package of this
+    // release (N)" was one short of the number a reader could check.
+    expect(hostStep.purpose).toContain(
+      `the ${String(INDEX.packages.length)} \`@endora-commerce/*\` packages of this release are installed`,
+    );
+    expect(hostStep.purpose).not.toContain('every package of this release');
   });
 
   it("the host's `package.json` declares every package of the release index, at its indexed version", async () => {

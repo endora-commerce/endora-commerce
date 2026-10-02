@@ -243,6 +243,31 @@ function rootPackageManager(repoRoot: string): string | null {
     : null;
 }
 
+/**
+ * The workspace root's `pnpm.peerDependencyRules`, or `null` when it declares none.
+ *
+ * pnpm reads that field from the **root** manifest and from nowhere else, so
+ * in the checkout it is the root's statement about every member — the
+ * storefront included. A scaffolded storefront is its own root: without the
+ * rules its first install reports, as an unmet peer, a combination the
+ * workspace declares it runs. Carried like `packageManager`, and for the same
+ * reason: it is the root's half of how this application is installed.
+ */
+function rootPeerDependencyRules(repoRoot: string): Record<string, unknown> | null {
+  const path = join(repoRoot, 'package.json');
+  if (!existsSync(path)) return null;
+  let manifest: { pnpm?: { peerDependencyRules?: unknown } };
+  try {
+    manifest = JSON.parse(readFileSync(path, 'utf8')) as typeof manifest;
+  } catch {
+    return null;
+  }
+  const rules = manifest.pnpm?.peerDependencyRules;
+  return typeof rules === 'object' && rules !== null && !Array.isArray(rules)
+    ? (rules as Record<string, unknown>)
+    : null;
+}
+
 /** Rule 1 — the manifest, with every `workspace:` range published. */
 export function rewriteManifest(
   reference: StorefrontReference,
@@ -267,6 +292,14 @@ export function rewriteManifest(
     const to = publishedRange(range.declared, member.version);
     (manifest[range.field] as Record<string, string>)[range.name] = to;
     ranges.push({ field: range.field, name: range.name, from: range.declared, to });
+  }
+  const rules = rootPeerDependencyRules(reference.repoRoot);
+  if (rules !== null) {
+    const own = manifest['pnpm'];
+    manifest['pnpm'] = {
+      ...(typeof own === 'object' && own !== null ? (own as Record<string, unknown>) : {}),
+      peerDependencyRules: rules,
+    };
   }
   return { text: `${JSON.stringify(manifest, null, 2)}\n`, ranges };
 }
@@ -720,7 +753,11 @@ export function planStorefront(
   const plan: StorefrontPlan = {
     files: files.sort((a, b) => a.path.localeCompare(b.path)),
     ranges: manifest.ranges,
-    rewrites,
+    // A file that is omitted is not written, so nothing in it was rewritten:
+    // one of its references may have been retargeted before a later one made
+    // the file an omission, and the report then named a rewrite in a file the
+    // same report said it left out.
+    rewrites: rewrites.filter((rewrite) => !omittedPaths.has(rewrite.file)),
     omitted,
     registry: null,
   };

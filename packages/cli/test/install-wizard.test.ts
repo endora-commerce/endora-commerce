@@ -131,7 +131,7 @@ describe('T4-A — at a terminal, with no flags, it asks §6.2\'s questions in o
     });
     const text = screen();
     const order = [
-      'Where should the instance go?',
+      'Which directory should it be written to?',
       'Which parts should this machine run?',
       'Start PostgreSQL, Redis, Meilisearch and a mail catcher',
       'Install demo data?',
@@ -206,6 +206,9 @@ describe('T4-B / SC-107 — the question set is the flag set, and both reach one
       ...ADMIN,
       nonInteractive: true,
       dockerReachable: true,
+      // The same machine as the wizard's run above: unanswered, this one asked
+      // the real one, and a taken 3001 there put a `PORT` line in one tree only.
+      portInUse: NO_PORT_TAKEN,
       run: recorder().run,
     });
 
@@ -472,6 +475,40 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
     const outcome = await askWizard({}, io, HERE);
     expect(outcome.answers.only).toEqual(['storefront']);
     expect(outcome.answers.without).toEqual([]);
+  });
+
+  it('once neither the API nor the admin is checked, `docs` is shown unchecked and says why', async () => {
+    // It is a member of the instance tree. Left `[x]` beside a storefront-only
+    // selection it promised a documentation site nothing would write.
+    const { io, screen } = terminal(['acme', '1 2', '', 'https://api.example.com', 'https://shop.example.com', '', 's']);
+    await askWizard({}, io, HERE);
+    const renders = screen().split('Which parts should this machine run?');
+    // The first render: every row checked. The second, after `1 2`: the tree is gone.
+    expect(renders[1]).toContain("[x] docs — a documentation site rendering your modules' own pages\n");
+    expect(renders[2]).toContain(
+      "[ ] docs — a documentation site rendering your modules' own pages " +
+        '(part of the instance tree, which this selection does not write)',
+    );
+    expect(renders[2]).not.toContain('[x] docs');
+  });
+
+  it('the first line states a total only where the flags already fixed the selection', async () => {
+    // Before the checklist is answered the number of questions is not known: it
+    // said "0 of 7" above a run whose `[answers]` line then said `total=3`.
+    const { io, screen } = terminal(['acme', '1 3', '', 'https://api.example.com']);
+    await askWizard({}, io, HERE);
+    const first = screen().split('\n')[0]!;
+    expect(first).toBe('no flags given; 0 answers came from flags.');
+    // And the directory question does not call it an instance yet.
+    expect(screen()).toContain('Which directory should it be written to? [./endora-commerce] ');
+    expect(screen()).not.toContain('Where should the instance go?');
+  });
+
+  it('with the parts given as flags, the directory question names what `<dir>` is', async () => {
+    const alone = terminal(['shop', 'https://api.example.com', 'https://shop.example.com', '', 's']);
+    await askWizard({ only: ['storefront'] }, alone.io, HERE);
+    expect(alone.screen()).toContain('Where should the storefront go?');
+    expect(alone.screen().split('\n')[0]).toContain('1 of 6 answers came from flags');
   });
 
   it('the API alone: the three origins are offered, Enter takes each recommendation and writes nothing', async () => {

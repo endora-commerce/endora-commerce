@@ -2,10 +2,16 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
 import { overlayModuleIdsUnder, overlayModulesUnder } from './overlay-runtime.js';
-import { assertOverlayModulesShipNoSchema, overlaySchemaFilesUnder } from './overlay-schema.js';
+import {
+  assertOverlayModulesShipNoSchema,
+  exitOnRefusal,
+  OverlaySchemaError,
+  overlaySchemaFilesUnder,
+  refuseOverlaySchema,
+} from './overlay-schema.js';
 
 /**
  * An overlay module that ships schema stops the process that would have run
@@ -117,5 +123,68 @@ describe('the overlay seam refuses schema before anything is composed or resolve
     const modules = overlayModulesUnder(null, () => []);
     expect(modules.ids()).toEqual([]);
     await expect(modules.manifests()).resolves.toEqual([]);
+  });
+});
+
+describe('an entry point prints the refusal as a sentence, and a defect with its stack', () => {
+  const exiting = (): { restore: () => void } => {
+    const spy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`exit ${String(code)}`);
+    });
+    return { restore: () => spy.mockRestore() };
+  };
+
+  it('`exitOnRefusal` writes the message alone and exits 1', () => {
+    const { restore } = exiting();
+    const err: string[] = [];
+    try {
+      expect(() =>
+        exitOnRefusal(new OverlaySchemaError('[overlay] an overlay module contributes no schema'), (text) =>
+          err.push(text),
+        ),
+      ).toThrow('exit 1');
+    } finally {
+      restore();
+    }
+    expect(err).toEqual(['[overlay] an overlay module contributes no schema\n']);
+  });
+
+  it('`exitOnRefusal` throws anything else again, untouched', () => {
+    const defect = new TypeError('cannot read properties of undefined');
+    const err: string[] = [];
+    expect(() => exitOnRefusal(defect, (text) => err.push(text))).toThrow(defect);
+    expect(err).toEqual([]);
+  });
+
+  it('`refuseOverlaySchema` — what `migrate` calls — refuses the active deployment\'s overlay', () => {
+    const deploymentRoot = overlayRoot({
+      'apps/shop/modules/notice/manifest.js': MANIFEST,
+      'apps/shop/modules/notice/migrations/Migration20260101000000_notice_init.ts': 'export class M {}\n',
+    });
+    const { restore } = exiting();
+    const err: string[] = [];
+    try {
+      expect(() => refuseOverlaySchema(deploymentRoot, { DEPLOYMENT: 'shop' }, (text) => err.push(text))).toThrow(
+        'exit 1',
+      );
+    } finally {
+      restore();
+    }
+    expect(err.join('')).toContain('contributes no schema');
+    expect(err.join('')).toContain(
+      join(deploymentRoot, 'apps/shop/modules/notice/migrations/Migration20260101000000_notice_init.ts'),
+    );
+    expect(err.join('')).not.toMatch(/\n\s+at /);
+  });
+
+  it('`refuseOverlaySchema` says nothing over a clean overlay, another deployment, or none', () => {
+    const deploymentRoot = overlayRoot({
+      'apps/shop/modules/notice/manifest.js': MANIFEST,
+      'apps/other/modules/notice/migrations/x.ts': '',
+    });
+    const err: string[] = [];
+    refuseOverlaySchema(deploymentRoot, { DEPLOYMENT: 'shop' }, (text) => err.push(text));
+    refuseOverlaySchema(deploymentRoot, {}, (text) => err.push(text));
+    expect(err).toEqual([]);
   });
 });

@@ -195,6 +195,18 @@ export async function createAdmin(
     out(`  role : ${role.code} (${role.id})`);
   }
   out('');
-  out('Sign in at the admin panel with the email + password above.');
+  out(signInHint(args.email));
   return 0;
+}
+
+/**
+ * The last line of a successful run.
+ *
+ * It said *"with the email + password above"* — and no password is above: it
+ * is not echoed when it is a flag and cannot be when it arrives on standard
+ * input, which is how `endora install` passes it. So the line names the one
+ * thing this command did print, the e-mail, and says where the other is.
+ */
+export function signInHint(email: string): string {
+  return `Sign in at the admin panel as ${email}, with the password you chose — it is not printed here.`;
 }

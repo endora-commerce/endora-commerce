@@ -390,6 +390,16 @@ async function main(): Promise<number> {
     database = resolved;
     redisUrl = (process.env['REDIS_URL'] ?? '').trim();
     if (redisUrl.length === 0) refuse('REDIS_URL is required and has no default.');
+    // Meilisearch too, and here rather than where the `.env` is written: the
+    // fallback was `http://localhost:7700`, a developer's own search engine,
+    // and a refusal after seventy packages are packed is a refusal too late.
+    if ((process.env['MEILISEARCH_URL'] ?? '').trim().length === 0) {
+      refuse(
+        'MEILISEARCH_URL is required and has no default: the default would be the Meilisearch ' +
+          "of a developer's own stack on this machine. Pass --services to let the one-shot " +
+          'start its own development stack instead.',
+      );
+    }
   }
 
   // ── pack ────────────────────────────────────────────────────────────────
@@ -624,7 +634,7 @@ async function main(): Promise<number> {
     };
     let bootRefusal: Verdict = {
       id: 'L20',
-      title: 'the same tree is refused by the API and by a `module:*` command, with no `generate` run',
+      title: 'the same tree is refused by the API, a `module:*` command and `migrate`, each as a sentence',
       status: 'unmeasured',
       detail: 'no overlay module was written',
     };
@@ -643,19 +653,31 @@ async function main(): Promise<number> {
         env: environment,
         timeoutMs: STEP_TIMEOUT_MS,
       });
+      // And `migrate`, which composes nothing and is handed the deployment root
+      // for exactly this: over such a tree it applied every package's schema,
+      // none of that directory's, and exited 0.
+      const migratedOver = await exec('pnpm', ['run', 'migrate'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS });
       rmSync(migrations, { recursive: true, force: true });
       const refusedAtBoot = (run: { code: number; output: string }): boolean =>
         run.code !== 0 &&
         run.output.includes(join('apps', dirName, 'modules', OVERLAY_MODULE_ID, 'migrations', 'Migration20270101T000000_proof.ts')) &&
         run.output.includes('contributes no schema');
+      // Each prints the refusal as a sentence. A stack frame under it is the
+      // uncaught exception this verdict was first measured against.
+      const runs = [
+        ['start', booted],
+        ['module:status', commanded],
+        ['migrate', migratedOver],
+      ] as const;
+      const notRefused = runs.filter(([, run]) => !refusedAtBoot(run)).map(([name]) => name);
+      const withStack = runs.filter(([, run]) => /\n\s+at .*(?:file:|node:)/.test(run.output)).map(([name]) => name);
       bootRefusal = {
         ...bootRefusal,
-        // The command prints the refusal as a message; a stack frame under it
-        // is the uncaught exception this verdict was first measured against.
-        status: refusedAtBoot(booted) && refusedAtBoot(commanded) && !/\n\s+at .*operator-entry/.test(commanded.output) ? 'pass' : 'fail',
-        detail: `start exit ${String(booted.code)}, module:status exit ${String(commanded.code)}, ${
-          refusedAtBoot(booted) && refusedAtBoot(commanded) ? 'both naming the file' : 'not both naming the file'
-        }${/\n\s+at .*operator-entry/.test(commanded.output) ? ', and the command printed a stack trace' : ''}`,
+        status: notRefused.length === 0 && withStack.length === 0 ? 'pass' : 'fail',
+        detail:
+          `${runs.map(([name, run]) => `${name} exit ${String(run.code)}`).join(', ')}` +
+          (notRefused.length === 0 ? ', each naming the file' : `; not refused by name: ${notRefused.join(', ')}`) +
+          (withStack.length === 0 ? ', none with a stack trace' : `; printed a stack trace: ${withStack.join(', ')}`),
       };
       const named =
         refused.output.includes(`apps/${dirName}/modules/${OVERLAY_MODULE_ID}/migrations/Migration20270101T000000_proof.ts`) &&
@@ -845,6 +867,27 @@ async function main(): Promise<number> {
     }
     verdicts.push(overlayRoute);
     verdicts.push(...lifecycle);
+    // pnpm's own report, in the two installs a stranger watches: the temporary
+    // host and the instance. `0.100.2` printed "Issues with peer dependencies
+    // found" in both, and one of its three causes — a transitive dependency of
+    // somebody else's moving a major — is a fact about the registry on the day
+    // of the install that no manifest in this repository states. Only a fresh
+    // install shows it, so this is where it is held.
+    const peerIssues = install.output
+      .split('\n')
+      .filter((line) => /Issues with peer dependencies found|unmet peer|missing peer/.test(line))
+      .map((line) => line.trim());
+    verdicts.push({
+      id: 'L22',
+      title: 'pnpm reports no peer-dependency issue in the host install or the instance install',
+      status: install.code !== 0 ? 'unmeasured' : peerIssues.length === 0 ? 'pass' : 'fail',
+      detail:
+        install.code !== 0
+          ? 'the one-shot did not succeed'
+          : peerIssues.length === 0
+            ? 'none printed'
+            : peerIssues.slice(0, 6).join(' | '),
+    });
     verdicts.push({
       id: 'L17',
       title: 'the password is in nothing the one-shot printed',

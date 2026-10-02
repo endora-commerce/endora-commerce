@@ -49,6 +49,11 @@
       "@rushstack/node-core-library>ajv": "^8.20.0",
       "serialize-javascript@<7.0.5": "^7.0.5",
       "uuid@<11.1.1": "^11.1.1"
+    },
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "eslint-plugin-jsx-a11y>eslint": "10"
+      }
     }
   }
 }

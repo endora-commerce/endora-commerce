@@ -65,13 +65,13 @@ import {
   resolveDatabaseTarget,
   type AssertionResult,
 } from './assertions.js';
+import { explicitServiceAddresses, MissingServiceAddressError } from './instance-assertions.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = resolve(SCRIPT_DIR, '..', '..');
 const REPO_ROOT = resolve(BACKEND_ROOT, '..');
 const FIXTURE_DIR = join(BACKEND_ROOT, 'acceptance', 'fixture-package');
 const PACKAGE_NAME = '@endora-commerce/mod-acceptance-probe';
-const DEFAULT_DSN = 'postgresql://b2b:b2b@localhost:5432/b2b_acceptance_test';
 const EXPECTATION_FILE = join(BACKEND_ROOT, 'acceptance', 'expected-state.json');
 
 /**
@@ -473,7 +473,16 @@ async function main(): Promise<void> {
   if (ratchet && !existsSync(EXPECTATION_FILE)) {
     refuse(`--against-expectation was asked for and ${EXPECTATION_FILE} does not exist`);
   }
-  const dsn = process.env['ACCEPTANCE_DATABASE_URL'] ?? DEFAULT_DSN;
+  // No default: it would be a developer's own PostgreSQL and Redis on the
+  // machine this runs on, and this run drops a database and fills queues.
+  let addresses: Record<string, string>;
+  try {
+    addresses = explicitServiceAddresses(process.env, ['ACCEPTANCE_DATABASE_URL', 'REDIS_URL']);
+  } catch (error: unknown) {
+    if (error instanceof MissingServiceAddressError) refuse(error.message);
+    throw error;
+  }
+  const dsn = addresses['ACCEPTANCE_DATABASE_URL']!;
   const target = resolveDatabaseTarget(dsn);
   if ('error' in target) refuse(target.error);
 
@@ -573,7 +582,7 @@ async function main(): Promise<void> {
       NODE_ENV: 'test',
       SESSION_COOKIE_SECRET: 'acceptance-secret',
       PUBLIC_API_BASE_URL: process.env['PUBLIC_API_BASE_URL'] ?? 'http://localhost:3001',
-      REDIS_URL: process.env['REDIS_URL'] ?? 'redis://localhost:6379',
+      REDIS_URL: addresses['REDIS_URL']!,
       BACKEND_RUN_WORKERS: 'false',
     };
 

@@ -1,3 +1,4 @@
+import { OverlaySchemaError } from '../overlay/overlay-schema.js';
 import type { ModuleManifest } from '@endora-commerce/contracts';
 import { describe, expect, it } from 'vitest';
 
@@ -229,6 +230,13 @@ describe('the failure path an entry point turns into an exit code', () => {
     const lines: string[] = [];
     expect(cliFailureExitCode(new Error('boom'), (chunk) => lines.push(chunk))).toBe(1);
     expect(lines.join('')).toContain('boom');
+  });
+
+  it('reports a refusal written for the operator as its sentence, with no stack under it', () => {
+    const lines: string[] = [];
+    const refusal = new OverlaySchemaError('[overlay] an overlay module contributes no schema');
+    expect(cliFailureExitCode(refusal, (chunk) => lines.push(chunk))).toBe(1);
+    expect(lines).toEqual(['[overlay] an overlay module contributes no schema\n']);
   });
 
   it('a non-Error is still reported rather than swallowed', () => {

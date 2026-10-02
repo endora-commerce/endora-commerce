@@ -1349,7 +1349,7 @@ function backendWiring(input: PlanInput): readonly PlannedFile[] {
     content: `// The API process. It reads the environment, composes, and listens.
 import { fileURLToPath } from 'node:url';
 
-import { buildServer, composeApp } from '${scope}platform/composition';
+import { buildServer, composeApp, exitOnRefusal } from '${scope}platform/composition';
 
 const port = Number(process.env['PORT'] ?? 3001);
 const sessionCookieSecret = process.env['SESSION_COOKIE_SECRET'] ?? '';
@@ -1364,7 +1364,7 @@ if (sessionCookieSecret === '') {
 // would silently name a directory holding no \`apps/\` at all.
 const deploymentRoot = fileURLToPath(new URL('../..', import.meta.url));
 
-const composition = await composeApp({ deploymentRoot });
+const composition = await composeApp({ deploymentRoot }).catch(exitOnRefusal);
 const app = await buildServer({
   sessionCookieSecret,
   openApi: { title: '${input.name}', version: '0.0.0', serverUrl: \`http://localhost:\${port}\` },
@@ -1393,7 +1393,7 @@ await app.listen({ port, host: '0.0.0.0' });
     content: `// The queue-consumer process (Principle X). Same composition, no listen.
 import { fileURLToPath } from 'node:url';
 
-import { buildServer, composeApp } from '${scope}platform/composition';
+import { buildServer, composeApp, exitOnRefusal } from '${scope}platform/composition';
 
 process.env['BACKEND_ROLE'] = 'worker';
 const sessionCookieSecret = process.env['SESSION_COOKIE_SECRET'] ?? '';
@@ -1404,7 +1404,7 @@ if (sessionCookieSecret === '') {
 
 const deploymentRoot = fileURLToPath(new URL('../..', import.meta.url));
 
-const composition = await composeApp({ deploymentRoot });
+const composition = await composeApp({ deploymentRoot }).catch(exitOnRefusal);
 const app = await buildServer({
   sessionCookieSecret,
   openApi: { title: '${input.name} worker', version: '0.0.0', serverUrl: 'http://localhost' },
@@ -1460,11 +1460,19 @@ export default async function config() {
     path: 'backend/src/migrate.ts',
     kind: 'wiring',
     member: 'backend',
+    // `refuseOverlaySchema` is the one thing here that is not the migrator: the
+    // configuration is built from the installed packages and never looks at
+    // `apps/`, so without it a `migrations/` directory under an overlay module
+    // is applied by nothing and reported by nothing (`overlay-schema.ts`).
     content: `// The schema, in the order the installed manifests compute. MikroORM's own
 // migrator over the configuration beside this file — no second ordering here.
+import { fileURLToPath } from 'node:url';
 import { MikroORM } from '@mikro-orm/postgresql';
+import { refuseOverlaySchema } from '${scope}platform/composition';
 import config from './mikro-orm.config.js';
 
+// An overlay module ships no schema: said here, before anything is migrated.
+refuseOverlaySchema(fileURLToPath(new URL('../..', import.meta.url)));
 const orm = await MikroORM.init(await config());
 try {
   await orm.getMigrator().up();

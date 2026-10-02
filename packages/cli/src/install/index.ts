@@ -84,7 +84,8 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
-import { delimiter, isAbsolute, join, resolve, sep } from 'node:path';
+import { createHash } from 'node:crypto';
+import { basename, delimiter, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { parseEnvFile, writeEnvFile } from '../inputs/env-file.js';
 import {
@@ -345,7 +346,19 @@ export interface InstallOptions {
    * ({@link machinePortProbe}); a test answers without binding anything.
    */
   readonly portInUse?: PortProbe | undefined;
+  /**
+   * What on this machine already belongs to a Compose project of a given name.
+   * Defaults to asking Docker ({@link machineComposeProjectProbe}); a test
+   * answers without a daemon.
+   */
+  readonly composeProjectInUse?: ComposeProjectProbe | undefined;
 }
+
+/**
+ * The containers and volumes that already carry a Compose project name on this
+ * machine — empty when the name is free.
+ */
+export type ComposeProjectProbe = (name: string) => Promise<readonly string[]>;
 
 /** Is this host port taken? */
 export type PortProbe = (port: number) => Promise<boolean>;
@@ -608,6 +621,140 @@ export function machinePortProbe(): PortProbe {
     (await bound(port, '0.0.0.0')) || (await bound(port, '::')) || dockerPublished().has(port);
 }
 
+/**
+ * The project name Compose gives a directory when nobody names one: its
+ * basename, lower-cased, with every character outside `[a-z0-9_-]` dropped and
+ * no leading separator (Compose's own normalisation).
+ */
+export function composeProjectNameOf(dir: string): string {
+  return basename(dir)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '')
+    .replace(/^[_-]+/, '');
+}
+
+/**
+ * The default {@link ComposeProjectProbe}: every container, running or not,
+ * and every volume Docker labels with the project name.
+ *
+ * Volumes as well as containers, because `docker compose down` removes the
+ * containers and keeps the volumes — which is the state `dev:services:down`
+ * leaves, and the one in which a second instance of the same name would start
+ * its PostgreSQL on the first one's data without a container in sight.
+ */
+export function machineComposeProjectProbe(): ComposeProjectProbe {
+  const list = (args: readonly string[]): readonly string[] => {
+    const result = spawnSync('docker', [...args], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+      timeout: 20_000,
+    });
+    if (result.error !== undefined || result.status !== 0) return [];
+    return result.stdout.split('\n').map((line) => line.trim()).filter((line) => line.length > 0);
+  };
+  return async (name) => {
+    const label = `label=com.docker.compose.project=${name}`;
+    return [
+      ...list(['ps', '-a', '--filter', label, '--format', 'container {{.Names}}']),
+      ...list(['volume', 'ls', '--filter', label, '--format', 'volume {{.Name}}']),
+    ];
+  };
+}
+
+/** What the project-name preflight decided. */
+interface ComposeProjectDecision {
+  /** The name this run writes as `COMPOSE_PROJECT_NAME`, or `null` when it writes none. */
+  readonly chosen: string | null;
+  readonly said: string | null;
+  readonly refusal: string | null;
+}
+
+/**
+ * Decide the Compose project the development stack runs as.
+ *
+ * Compose names a project after the directory holding the file, so two
+ * instances both called `shop` — under two parents, or one deleted and written
+ * again — are **one** project: the second `dev:services` adopts the first
+ * one's containers and mounts its volumes, and the new instance migrates
+ * somebody else's database. Nothing says so.
+ *
+ * `decidePorts`' two rules, for a name instead of a port. A name the operator
+ * set (`COMPOSE_PROJECT_NAME` in the target's `.env`) is theirs: taken, it is a
+ * refusal naming what holds it. A name nobody set is the directory's own when
+ * that is free on this machine, and otherwise the directory's name with a
+ * suffix derived from where the instance is, written into `.env` — the file
+ * Compose reads beside `compose.dev.yml`, so `dev:services` and
+ * `dev:services:down` both follow it with neither script changed.
+ */
+async function decideComposeProject(
+  targetDir: string,
+  envFile: ReadonlyMap<string, string>,
+  inUse: ComposeProjectProbe,
+  envPath: string,
+): Promise<ComposeProjectDecision> {
+  const held = (found: readonly string[]): string =>
+    `${found.slice(0, 4).join(', ')}${found.length > 4 ? ` and ${String(found.length - 4)} more` : ''}`;
+  const pinned = envFile.get('COMPOSE_PROJECT_NAME')?.trim();
+  if (pinned !== undefined && pinned.length > 0) {
+    const found = await inUse(pinned);
+    return {
+      chosen: null,
+      said: null,
+      refusal:
+        found.length === 0
+          ? null
+          : `COMPOSE_PROJECT_NAME=${pinned} in ${envPath} is a Compose project this machine ` +
+            `already has (${held(found)}), so this instance's development services would be ` +
+            'those containers and their data. Set it to a name that is free, or remove the ' +
+            'line and this command picks one.',
+    };
+  }
+  const own = composeProjectNameOf(targetDir);
+  const found = await inUse(own);
+  if (found.length === 0) return { chosen: null, said: null, refusal: null };
+  const suffix = createHash('sha256').update(targetDir).digest('hex').slice(0, 6);
+  let candidate = `${own}-${suffix}`;
+  for (let attempt = 2; attempt < 50 && (await inUse(candidate)).length > 0; attempt += 1) {
+    candidate = `${own}-${suffix}-${String(attempt)}`;
+  }
+  if ((await inUse(candidate)).length > 0) {
+    return {
+      chosen: null,
+      said: null,
+      refusal:
+        `a Compose project named ${own} already exists on this machine (${held(found)}) and no ` +
+        `free name was found near ${own}-${suffix}. Set COMPOSE_PROJECT_NAME in ${envPath} to ` +
+        'a name that is free.',
+    };
+  }
+  return {
+    chosen: candidate,
+    refusal: null,
+    said:
+      `a Compose project named ${own} already exists on this machine (${held(found)}), so this ` +
+      `instance's development services run as ${candidate} instead of sharing its containers ` +
+      `and data — COMPOSE_PROJECT_NAME=${candidate} in .env`,
+  };
+}
+
+/** The chosen project name, into the `.env` Compose reads beside `compose.dev.yml`. */
+function writeComposeProject(targetDir: string, name: string): void {
+  const envPath = join(targetDir, '.env');
+  const text = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+  const header = [
+    '',
+    '# COMPOSE_PROJECT_NAME below was CHOSEN by `endora install`: a Compose project named',
+    `# after this directory already existed on this machine when it ran, and two projects of`,
+    '# one name are one project — the same containers and the same volumes. Compose reads',
+    '# this file, so `pnpm run dev:services` and `pnpm run dev:services:down` both use it.',
+  ].join('\n');
+  writeFileSync(
+    envPath,
+    writeEnvFile(`${text.replace(/\n+$/, '')}\n${header}\n`, new Map([['COMPOSE_PROJECT_NAME', name]])),
+    'utf8',
+  );
+}
+
 /** What the port preflight decided. */
 interface PortDecision {
   /** The variables this run sets, because the port each one defaults to is taken. */
@@ -729,14 +876,36 @@ function readTargetEnv(targetDir: string): ReadonlyMap<string, string> {
 }
 
 /**
- * The port the instance's API listens on: `PORT` as the instance resolved it or
- * as its `.env` sets it, and the platform's own default otherwise
- * (`const port = Number(process.env['PORT'] ?? 3001)` in the scaffolded entry).
+ * `PORT` as the operator set it for this instance — resolved as an input, or a
+ * line of the `.env` they placed in the target — or `undefined` when nobody
+ * did. A value somebody set is theirs and is never moved (`decideLayerPort`).
  */
-function apiPortOf(targetDir: string, instance: NewInstanceResult): string {
+function pinnedApiPort(targetDir: string, instance: NewInstanceResult): string | undefined {
   const resolved = instance.resolved.find((entry) => entry.name === 'PORT')?.value;
   const value = resolved ?? readTargetEnv(targetDir).get('PORT');
-  return value !== undefined && /^\d+$/.test(value.trim()) ? value.trim() : '3001';
+  return value !== undefined && /^\d+$/.test(value.trim()) ? value.trim() : undefined;
+}
+
+/**
+ * The API's `PORT`, into the instance's own `.env` — the file the scaffolded
+ * entry is started with, so `start`, `dev` and `dev:all` all listen there.
+ */
+function writeApiPort(targetDir: string, port: number, why: string): void {
+  const envPath = join(targetDir, '.env');
+  const text = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+  const header = [
+    '',
+    '# PORT below was written by `endora install`:',
+    `# ${why}.`,
+    '# It is where the API listens. The admin bundle (VITE_API_BASE_URL in admin/.env) and the',
+    "# storefront's two backend addresses name the same port — change one and change the",
+    '# others to match, and build the admin again.',
+  ].join('\n');
+  writeFileSync(
+    envPath,
+    writeEnvFile(`${text.replace(/\n+$/, '')}\n${header}\n`, new Map([['PORT', String(port)]])),
+    'utf8',
+  );
 }
 
 /**
@@ -837,7 +1006,7 @@ const ADMIN_DEFAULT_PORT = 3002;
 /** The port `next dev` and `next start` fall back to. */
 const STOREFRONT_DEFAULT_PORT = 3000;
 /** The port the scaffolded entry falls back to (`const port = Number(process.env['PORT'] ?? 3001)`). */
-const API_DEFAULT_PORT = '3001';
+const API_DEFAULT_PORT = 3001;
 
 /** Where one layer this run stands up is served on this machine. */
 interface LayerPort {
@@ -1495,6 +1664,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   // a `docker compose` failure two steps into an installed tree.
   const portInUse = options.portInUse ?? machinePortProbe();
   let ports: PortDecision = { chosen: new Map(), said: [], refusals: [] };
+  let composeProject: ComposeProjectDecision = { chosen: null, said: null, refusal: null };
   let instance: NewInstanceResult | null = null;
   // An admin with no API beside it is the one artefact this run exists for
   // (138 FR-006), so a release that cannot write the admin member is a refusal
@@ -1524,8 +1694,18 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       if (document !== undefined) {
         ports = await decidePorts(document, readTargetEnv(targetDir), portInUse, join(targetDir, '.env'));
       }
-      if (ports.refusals.length > 0) {
-        refuseOnPlan('`endora install` cannot start the development services', ports.refusals);
+      composeProject = await decideComposeProject(
+        targetDir,
+        readTargetEnv(targetDir),
+        options.composeProjectInUse ?? machineComposeProjectProbe(),
+        join(targetDir, '.env'),
+      );
+      const refused = [
+        ...ports.refusals,
+        ...(composeProject.refusal === null ? [] : [composeProject.refusal]),
+      ];
+      if (refused.length > 0) {
+        refuseOnPlan('`endora install` cannot start the development services', refused);
       }
     }
     instance = dryRun ? planned : await scaffold(false);
@@ -1548,12 +1728,25 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   }
 
   // ── where each layer this run stands up is served ────────────────────────
-  // The API's port is the instance's own `PORT`. The admin's and the
-  // storefront's were constants (3002, 3000), and on a machine where either is
-  // taken the closing block named an address nothing could listen on.
+  // One rule for all three (`decideLayerPort`): a port somebody set is theirs,
+  // and a default that is taken is replaced by a free one, written where the
+  // layer reads it and said out loud. The API was the exception — a taken 3001
+  // was reported in the closing block and left alone — so on a machine that
+  // already runs something there, the `dev:all` this run printed could not
+  // start the API, and the admin and the storefront it had just built and
+  // written pointed at somebody else's server.
   const assigned = new Set<number>(ports.chosen.values());
-  const apiPort = instance === null ? API_DEFAULT_PORT : apiPortOf(targetDir, instance);
-  if (standsUpApi) assigned.add(Number(apiPort));
+  const apiLayer: LayerPort | null =
+    standsUpApi && instance !== null
+      ? await decideLayerPort(
+          { name: 'the API', fallback: API_DEFAULT_PORT, file: join(targetDir, '.env') },
+          pinnedApiPort(targetDir, instance),
+          { port: loopbackPort(apiUrl), flag: '--api-url' },
+          portInUse,
+          assigned,
+        )
+      : null;
+  const apiPort = String(apiLayer?.port ?? API_DEFAULT_PORT);
   const adminHere = instance !== null && instance.plan.members.includes('admin');
   const adminPort: LayerPort | null = adminHere
     ? await decideLayerPort(
@@ -1631,10 +1824,15 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   }
 
   for (const line of ports.said) say(`  ${dryRun ? 'on a real run: ' : ''}${line}`);
-  for (const layer of [adminPort, storefrontPort]) {
+  if (composeProject.said !== null) say(`  ${dryRun ? 'on a real run: ' : ''}${composeProject.said}`);
+  if (!dryRun && composeProject.chosen !== null) writeComposeProject(targetDir, composeProject.chosen);
+  for (const layer of [apiLayer, adminPort, storefrontPort]) {
     if (layer !== null && layer.said !== null) say(`  ${dryRun ? 'on a real run: ' : ''}${layer.said}`);
   }
   if (!dryRun) writeChosenPorts(targetDir, ports.chosen);
+  if (!dryRun && apiLayer !== null && apiLayer.written !== null) {
+    writeApiPort(targetDir, apiLayer.port, apiLayer.written);
+  }
   const derived =
     dryRun || !wantsServices
       ? []
@@ -1654,7 +1852,8 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   // nobody in.
   if (adminHere && !dryRun) {
     const builtAgainst =
-      apiUrl ?? (standsUpApi && apiPort !== API_DEFAULT_PORT ? `http://localhost:${apiPort}` : undefined);
+      apiUrl ??
+      (standsUpApi && apiPort !== String(API_DEFAULT_PORT) ? `http://localhost:${apiPort}` : undefined);
     const wrote = writeAdminEnv(targetDir, {
       apiOrigin: builtAgainst,
       port:
@@ -1675,10 +1874,14 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     const adminMoved = adminPort?.moved === true;
     const storefrontMoved = storefrontPort?.moved === true;
     const told = new Map<string, string>();
-    if (apiUrl !== undefined) told.set('PUBLIC_API_BASE_URL', apiUrl);
+    // A moved API is not at the development fallback the platform assumes for
+    // its own public origin either, so the address goes with the port.
+    if (apiUrl !== undefined || apiLayer?.moved === true) told.set('PUBLIC_API_BASE_URL', apiOrigin);
     if (adminUrl !== undefined || adminMoved) told.set('ADMIN_BASE_URL', adminOrigin);
     if (storefrontUrl !== undefined || storefrontMoved) told.set('STOREFRONT_BASE_URL', storefrontOrigin);
-    if (told.size > 0) told.set('CORS_ALLOWED_ORIGINS', `${adminOrigin},${storefrontOrigin}`);
+    if (apiUrl !== undefined || adminUrl !== undefined || adminMoved || storefrontUrl !== undefined || storefrontMoved) {
+      told.set('CORS_ALLOWED_ORIGINS', `${adminOrigin},${storefrontOrigin}`);
+    }
     const wrote = writeDeclared(targetDir, told);
     if (wrote.length > 0) {
       say(`  wrote into .env: ${wrote.join(', ')} — where this API and the other two are reached`);
@@ -1830,14 +2033,20 @@ function planHost(input: {
   const npmrc = hostNpmrc(input.registry, scope);
   const dir = mkdtempSync(join(tmpdir(), HOST_DIRECTORY_PREFIX));
   writeHost(dir, read.index, npmrc);
-  const argv = ['install'];
+  // `--ignore-scripts`: the host is a place to read manifests from and is
+  // deleted minutes later, so nothing in it needs building — and pnpm 10, which
+  // runs no dependency's build script unasked, otherwise ends this step with an
+  // "Ignored build scripts … run pnpm approve-builds" box about a directory the
+  // operator will never see again.
+  const argv = ['install', '--ignore-scripts'];
   return {
     id: 'host',
     command: `${input.runner.label} ${argv.join(' ')}`,
     purpose:
-      `nothing of ours is installed beside ${input.targetDir}, so every package of this ` +
-      `release (${String(read.index.packages.length)}) is installed into a temporary host to ` +
-      'read the module manifests from. It is removed when the instance is written.',
+      `nothing of ours is installed beside ${input.targetDir}, so the ` +
+      `${String(read.index.packages.length)} \`${scope}*\` packages of this release are ` +
+      'installed into a temporary host to read the module manifests from. It is removed when ' +
+      'the instance is written.',
     bin: input.runner.command,
     argv: [...input.runner.prefix, ...argv],
     cwd: dir,
