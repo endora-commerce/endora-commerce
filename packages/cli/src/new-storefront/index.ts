@@ -1,8 +1,9 @@
 /**
  * `endora new storefront <dir>` — the command.
  *
- * It copies the reference storefront out of this repository into a directory the
- * client then owns outright, rewrites every declaration that names something
+ * It copies the reference storefront — out of this repository when it is run in
+ * a checkout of it, out of the plan a published CLI carries anywhere else
+ * (`./packaged.ts`) — into a directory the client then owns outright, rewrites every declaration that names something
  * above the storefront's own directory, and **forgets it** (D-195). There is no
  * kit, no shell and no channel back to what it wrote: a scaffold that kept one
  * would be a kit wearing a different name.
@@ -54,9 +55,16 @@ import {
 } from '../inputs/resolve.js';
 import { TOKEN_VARIABLE } from './npmrc.js';
 import {
+  ownPackagedReference,
+  planFromPackaged,
+  readPackagedReference,
+  type PackagedReference,
+} from './packaged.js';
+import {
   addressVariables,
   ENV_EXAMPLE_FILE,
   memberDirectories,
+  NoReferenceStorefrontError,
   resolveReference,
   STOREFRONT_DECLARATION_EXPORT,
   StorefrontHostError,
@@ -91,6 +99,72 @@ export interface NewStorefrontOptions {
   readonly nonInteractive?: boolean | undefined;
   /** Where a prompt is asked. Injected so a test drives it without a pty. */
   readonly promptIo?: PromptIo | undefined;
+  /**
+   * Where the packaged reference is read from when no checkout is above the
+   * working directory. Defaults to the one this CLI's own build wrote into its
+   * `dist`; a test hands in one it built from a fixture, or a directory that
+   * holds none.
+   */
+  readonly packagedReferenceDir?: string | undefined;
+}
+
+/**
+ * Where a run's storefront comes from.
+ *
+ * **A checkout above the working directory wins, and is read exactly as it
+ * always was.** The reference a published CLI carries (`./packaged.ts`) is the
+ * answer only where there is no checkout to read — a stranger's directory, or a
+ * workspace that holds no storefront, which is what an instance is.
+ */
+export type StorefrontSource =
+  | {
+      readonly kind: 'checkout';
+      /** The reference storefront's directory. */
+      readonly dir: string;
+      readonly reference: StorefrontReference;
+    }
+  | {
+      readonly kind: 'packaged';
+      /** The directory holding the packaged plan and its declaration. */
+      readonly dir: string;
+      readonly reference: null;
+      readonly packaged: PackagedReference;
+    };
+
+/**
+ * Resolve it, or refuse.
+ *
+ * Only {@link NoReferenceStorefrontError} falls through to the packaged
+ * reference. A checkout that holds a storefront this command cannot read — git
+ * missing, two candidates — stays the refusal it was: answering it with a
+ * different storefront would be a run whose subject nobody chose.
+ */
+export function resolveStorefrontSource(
+  cwd: string,
+  packagedReferenceDir?: string | undefined,
+): StorefrontSource {
+  try {
+    const reference = resolveReference(cwd);
+    return { kind: 'checkout', dir: reference.dir, reference };
+  } catch (error: unknown) {
+    if (!(error instanceof NoReferenceStorefrontError)) throw error;
+    const own =
+      packagedReferenceDir === undefined
+        ? ownPackagedReference()
+        : (() => {
+            const packaged = readPackagedReference(packagedReferenceDir);
+            return packaged === null ? null : { dir: packagedReferenceDir, packaged };
+          })();
+    if (own === null) {
+      throw new NoReferenceStorefrontError(
+        `${error.message} This build of the CLI carries no packaged reference storefront ` +
+          `either: its \`build\` writes one only from a git checkout that holds the storefront, ` +
+          `and a published release always has it. Install a published ` +
+          `\`@endora-commerce/cli\`, or run this from inside a checkout of the platform repository.`,
+      );
+    }
+    return { kind: 'packaged', dir: own.dir, reference: null, packaged: own.packaged };
+  }
 }
 
 /** Raised when required inputs are missing and this run may not ask (R7.2). */
@@ -99,7 +173,10 @@ export class MissingInputsError extends Error {
 }
 
 export interface NewStorefrontResult {
-  readonly reference: StorefrontReference;
+  /** The checkout's reference storefront, or `null` when the packaged one was written. */
+  readonly reference: StorefrontReference | null;
+  /** Where the files came from. */
+  readonly source: StorefrontSource;
   readonly targetDir: string;
   readonly plan: StorefrontPlan;
   readonly dryRun: boolean;
@@ -129,11 +206,15 @@ export async function runNewStorefront(
         `would either overwrite it or invent a name nobody chose.`,
     );
   }
-  const reference = resolveReference(cwd);
+  const source = resolveStorefrontSource(cwd, options.packagedReferenceDir);
+  const reference = source.reference;
   const targetDir = isAbsolute(options.dir) ? options.dir : resolve(cwd, options.dir);
 
   refuseOccupiedDirectory(targetDir);
-  if (targetDir === reference.dir || targetDir.startsWith(reference.dir + sep)) {
+  if (
+    reference !== null &&
+    (targetDir === reference.dir || targetDir.startsWith(reference.dir + sep))
+  ) {
     throw new StorefrontInputError(
       `${targetDir} is inside the reference storefront this command copies. A scaffold written ` +
         `there would be a copy of itself, and the copy would be part of its own population on ` +
@@ -141,10 +222,16 @@ export async function runNewStorefront(
     );
   }
 
-  const members = memberDirectories(reference.repoRoot);
-  const plan = planStorefront(reference, members, targetDir, {
-    ...(options.registry === undefined ? {} : { registry: options.registry }),
-  });
+  const registry = options.registry === undefined ? {} : { registry: options.registry };
+  const plan =
+    source.kind === 'checkout'
+      ? planStorefront(
+          source.reference,
+          memberDirectories(source.reference.repoRoot),
+          targetDir,
+          registry,
+        )
+      : planFromPackaged(source.packaged, source.dir, registry);
 
   // Validate completely, then write — and the inputs are part of "completely".
   // A tree written before the refusal would be a storefront on disk that cannot
@@ -155,7 +242,7 @@ export async function runNewStorefront(
     nonInteractive: options.nonInteractive === true,
     dryRun,
   });
-  const declared = await loadTreeDeclaration(reference.dir, STOREFRONT_DECLARATION_EXPORT);
+  const declared = await loadTreeDeclaration(source.dir, STOREFRONT_DECLARATION_EXPORT);
   const resolution = planResolution({
     declared,
     // `endora new storefront` writes exactly one member. An input read only by
@@ -182,6 +269,7 @@ export async function runNewStorefront(
     // stopped to ask for a password is not inspectable.
     return {
       reference,
+      source,
       targetDir,
       plan,
       dryRun: true,
@@ -210,12 +298,14 @@ export async function runNewStorefront(
     const target = join(targetDir, file.path);
     mkdirSync(dirname(target), { recursive: true });
     if (file.content !== null) writeFileSync(target, file.content, 'utf8');
+    else if (file.bytes !== undefined) writeFileSync(target, file.bytes);
     else writeFileSync(target, readFileSync(file.source!));
   }
   writeResolvedEnv(targetDir, resolved);
 
   return {
     reference,
+    source,
     targetDir,
     plan,
     dryRun: false,
@@ -243,8 +333,13 @@ export async function runNewStorefront(
  * that declares a variable this build has never heard of is supplied by its own
  * flag with nothing here to update (D-100).
  */
-export async function storefrontInputFlags(cwd: string): Promise<readonly string[]> {
-  return (await storefrontDeclaredInputs(cwd)).map((input) => flagFor(input.name).slice(2));
+export async function storefrontInputFlags(
+  cwd: string,
+  packagedReferenceDir?: string | undefined,
+): Promise<readonly string[]> {
+  return (await storefrontDeclaredInputs(cwd, packagedReferenceDir)).map((input) =>
+    flagFor(input.name).slice(2),
+  );
 }
 
 /**
@@ -267,9 +362,10 @@ export async function storefrontInputFlags(cwd: string): Promise<readonly string
  */
 export async function storefrontDeclaredInputs(
   cwd: string,
+  packagedReferenceDir?: string | undefined,
 ): Promise<readonly EnvironmentInput[]> {
-  const reference = resolveReference(cwd);
-  const declared = await loadTreeDeclaration(reference.dir, STOREFRONT_DECLARATION_EXPORT);
+  const source = resolveStorefrontSource(cwd, packagedReferenceDir);
+  const declared = await loadTreeDeclaration(source.dir, STOREFRONT_DECLARATION_EXPORT);
   return scopeToMembers(declared, ['storefront']);
 }
 
@@ -433,4 +529,4 @@ function nextSteps(
   ];
 }
 
-export { StorefrontHostError, StorefrontInputError };
+export { NoReferenceStorefrontError, StorefrontHostError, StorefrontInputError };

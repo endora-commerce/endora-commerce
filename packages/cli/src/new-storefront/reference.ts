@@ -48,6 +48,17 @@ import { isNextApplication } from '../lib/workspace-packages.js';
 /** Raised when the reference storefront cannot be read. Exit 2. */
 export class StorefrontHostError extends Error {}
 
+/**
+ * Raised when there is no reference storefront **here** to copy: no workspace
+ * above the working directory, or one that holds no Next application.
+ *
+ * It is its own class because it is the one failure that has a second answer —
+ * the reference a published CLI carries (`./packaged.ts`). A checkout that
+ * holds a storefront this command cannot read (git missing, two candidates) is
+ * the plain {@link StorefrontHostError} and is never papered over with it.
+ */
+export class NoReferenceStorefrontError extends StorefrontHostError {}
+
 /** Raised when the author asked for something this command refuses. Exit 1. */
 export class StorefrontInputError extends Error {}
 
@@ -154,15 +165,14 @@ export function trackedFiles(repoRoot: string, storefrontDir: string): readonly 
 export function resolveReference(cwd: string): StorefrontReference {
   const repoRoot = findRepoRoot(cwd);
   if (repoRoot === null) {
-    throw new StorefrontHostError(
-      `no pnpm-workspace.yaml above ${cwd}. \`endora new storefront\` copies the reference ` +
-        `storefront out of a checkout of the platform repository, so it has to be run inside ` +
-        `one. There is nothing for it to copy anywhere else.`,
+    throw new NoReferenceStorefrontError(
+      `no pnpm-workspace.yaml above ${cwd}, so there is no checkout of the platform repository ` +
+        `here to copy the reference storefront out of.`,
     );
   }
   const candidates = nextApplications(repoRoot);
   if (candidates.length === 0) {
-    throw new StorefrontHostError(
+    throw new NoReferenceStorefrontError(
       `${repoRoot} declares no workspace member that is a Next application, so this checkout ` +
         `holds no reference storefront. A member qualifies by declaring \`next\` as a ` +
         `dependency and a \`build\` script that runs it.`,

@@ -145,8 +145,8 @@ Options for \`new instance\`:
                                 module set with its closure, and every omission;
                                 write nothing
 
-\`endora install\` is the one command: it writes the instance (and, from inside a
-checkout of this repository, the storefront beside it), starts the development
+\`endora install\` is the one command: it writes the instance and the storefront
+beside it, starts the development
 services, installs, generates, builds, migrates, installs every module and creates
 the administrator — the sequence \`endora new instance\` prints and nothing else. It
 composes the two \`new\` commands and reimplements neither, and every step is echoed
@@ -192,9 +192,10 @@ Options for \`install\`:
                                 a member of the instance not to write (\`admin\`,
                                 \`docs\`), passed to \`new instance\`; the default is
                                 every member
-  --no-storefront               write the instance alone. The storefront is copied
-                                out of a checkout of this repository, so a run from
-                                anywhere else needs this flag
+  --no-storefront               write the instance alone. Without it the storefront is
+                                written too: copied out of a checkout of this
+                                repository when the run is inside one, and from the
+                                reference storefront this CLI carries anywhere else
   --storefront-dir <path>       where the storefront goes (default: \`<dir>-storefront\`,
                                 a SIBLING — inside the instance it would be swept into
                                 that workspace and become a member of it)
@@ -225,9 +226,11 @@ git-ignored. Run it anywhere inside the instance; it finds the workspace root
 upwards. It reports every package the discovery excluded, because a linked
 package is invisible to this instance's runtime discovery too.
 
-\`endora new storefront\` copies the reference storefront out of this repository
-into a directory you then own outright, and rewrites every declaration in it that
-names something above the storefront's own directory: each \`workspace:\` range
+\`endora new storefront\` copies the reference storefront into a directory you
+then own outright — out of this repository when it is run inside a checkout of
+it, and out of the copy this CLI carries anywhere else (the same files, already
+rewritten, without the reference's own screenshot baselines) — and rewrites
+every declaration in it that names something above the storefront's own directory: each \`workspace:\` range
 into published semver, each configuration file the storefront extends into a
 vendored standalone copy, and each glob naming the workspace's package tree into
 the place a standalone application finds those packages. It keeps no channel back
@@ -440,6 +443,7 @@ async function runNewStorefrontCommand(
   rest: readonly string[],
   cwd: string,
   declaredInputFlags: readonly string[],
+  seams: MainSeams = {},
 ): Promise<number> {
   if (rest.length > 1) {
     process.stderr.write(
@@ -467,6 +471,9 @@ async function runNewStorefrontCommand(
       nonInteractive: asFlag(parsed.values['non-interactive']),
       inputs,
       cwd,
+      ...(seams.packagedReferenceDir === undefined
+        ? {}
+        : { packagedReferenceDir: seams.packagedReferenceDir }),
     });
     const { plan } = result;
     process.stdout.write(
@@ -474,7 +481,11 @@ async function runNewStorefrontCommand(
     );
     process.stdout.write(
       `  ${result.dryRun ? 'would write' : 'wrote'} ${String(plan.files.length)} files, from ` +
-        `${result.reference.dir}\n`,
+        `${
+          result.source.kind === 'checkout'
+            ? result.source.dir
+            : `the reference storefront this CLI carries (${result.source.dir})`
+        }\n`,
     );
     for (const range of plan.ranges) {
       process.stdout.write(
@@ -680,6 +691,7 @@ async function runInstallCommand(
   parsed: Parsed,
   rest: readonly string[],
   cwd: string,
+  seams: MainSeams = {},
 ): Promise<number> {
   if (rest.length > 1) {
     process.stderr.write(
@@ -708,6 +720,9 @@ async function runInstallCommand(
     const result = await runInstall({
       ...(rest[0] === undefined ? {} : { dir: rest[0] }),
       cwd,
+      ...(seams.packagedReferenceDir === undefined
+        ? {}
+        : { packagedReferenceDir: seams.packagedReferenceDir }),
       modules: asList(parsed.values['module']),
       ...(asString(parsed.values['deployment']) === undefined
         ? {}
@@ -835,7 +850,20 @@ async function runDevCommand(
   }
 }
 
-export async function main(argv: readonly string[], cwd: string): Promise<number> {
+/** What a test hands `main` instead of this machine's own answer. */
+export interface MainSeams {
+  /**
+   * Where the packaged reference storefront is read from when no checkout is
+   * above `cwd`. Defaults to the one this CLI's own build wrote into `dist`.
+   */
+  readonly packagedReferenceDir?: string | undefined;
+}
+
+export async function main(
+  argv: readonly string[],
+  cwd: string,
+  seams: MainSeams = {},
+): Promise<number> {
   // The one thing that has to happen **before** the parse: `new storefront`
   // accepts a flag per input the reference storefront declares, and those names
   // are the storefront's. Keyed on the two leading tokens rather than on a
@@ -844,7 +872,7 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
   let declaredInputFlags: readonly string[] = [];
   if (argv[0] === 'new' && argv[1] === 'storefront') {
     try {
-      declaredInputFlags = await storefrontInputFlags(cwd);
+      declaredInputFlags = await storefrontInputFlags(cwd, seams.packagedReferenceDir);
     } catch (error: unknown) {
       if (error instanceof StorefrontHostError || error instanceof DeclarationLoadError) {
         process.stderr.write(`endora: ${error.message}\n`);
@@ -874,7 +902,7 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
   }
 
   if (command === 'install') {
-    return runInstallCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
+    return runInstallCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd, seams);
   }
 
   if (command === 'generate') {
@@ -893,7 +921,7 @@ export async function main(argv: readonly string[], cwd: string): Promise<number
     return 1;
   }
   if (subject === 'storefront') {
-    return runNewStorefrontCommand(parsed, rest, cwd, declaredInputFlags);
+    return runNewStorefrontCommand(parsed, rest, cwd, declaredInputFlags, seams);
   }
   if (subject === 'instance') {
     return runNewInstanceCommand(parsed, rest, cwd);

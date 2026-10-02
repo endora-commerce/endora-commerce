@@ -210,11 +210,15 @@ export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
     summary: 'Create or update an admin user, bootstrapping the platform_admin role.',
     help: `usage: admin_users create --email=<e> --password=<p> --first-name=<f> --last-name=<l>
                           [--role=<code>] [--skip-role-bootstrap]
+       admin_users create --email=<e> --password-stdin --first-name=<f> --last-name=<l>
 
 Idempotent: re-running with the same email updates the password and the role
 assignment. The first admin created gets the \`platform_admin\` role with the
 wildcard \`*\` permission; narrower roles are defined from the Admin UI.
 
+  --password-stdin         read the password from standard input instead of
+                           --password=: an argument shows in a process list
+                           and in the echo of the script that ran it
   --role=<code>            an existing role code (default: platform_admin)
   --skip-role-bootstrap    do not create platform_admin when it is missing`,
     run: async (context) => (await import('./backend/cli/create-admin.js')).createAdmin(context),

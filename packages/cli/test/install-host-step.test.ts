@@ -112,6 +112,7 @@ function emptyOptions(
     storefront: false,
     services: false,
     dockerReachable: true,
+    portInUse: async () => false,
     demo: false,
     releaseIndexFile: indexFile(root),
     ...ADMIN,

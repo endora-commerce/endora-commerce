@@ -750,6 +750,64 @@ function inlineDefaults(document: string): ReadonlyMap<string, string> {
 }
 
 /**
+ * What each expansion of a rendered document **evaluates to** on this machine:
+ * its inline default, unless `overrides` — the `.env` beside the document,
+ * which is the file Compose itself reads — sets the name.
+ *
+ * Only names the document expands are answered, so an unrelated key in that
+ * `.env` reaches nothing. Without this the addresses were composed from the
+ * inline defaults alone, and an instance whose `.env` moved `REDIS_PORT` was
+ * handed `redis://localhost:6379` — on a machine where 6379 is somebody else's
+ * Redis, an instance quietly using a service that is not its own.
+ */
+function effectiveValues(
+  document: string,
+  overrides: ReadonlyMap<string, string>,
+): ReadonlyMap<string, string> {
+  const values = new Map(inlineDefaults(document));
+  for (const name of values.keys()) {
+    const override = overrides.get(name);
+    if (override !== undefined && override.length > 0) values.set(name, override);
+  }
+  return values;
+}
+
+/** One host port the development stack publishes. */
+export interface PublishedPort {
+  /** The variable that moves it, e.g. `POSTGRES_PORT`. */
+  readonly variable: string;
+  /** The port the document publishes when nothing sets the variable. */
+  readonly fallback: number;
+  /** The service that publishes it. */
+  readonly service: string;
+}
+
+/**
+ * Every host port the rendered development document publishes, in file order.
+ *
+ * Read off the document for {@link inlineDefaults}' reason: a caller that
+ * probes these before starting the stack cannot be handed a port the file does
+ * not publish, or miss one a catalogue record gained.
+ */
+export function developmentPublishedPorts(document: string): readonly PublishedPort[] {
+  const found: PublishedPort[] = [];
+  let service = '';
+  let inServices = false;
+  for (const line of document.split('\n')) {
+    if (/^\S/.test(line)) inServices = /^services:\s*$/.test(line);
+    if (!inServices) continue;
+    const name = /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line);
+    if (name !== null) {
+      service = name[1]!;
+      continue;
+    }
+    const port = /^\s+-\s+['"]?\$\{([A-Z0-9_]+):-(\d+)\}:\d+['"]?\s*$/.exec(line);
+    if (port !== null) found.push({ variable: port[1]!, fallback: Number(port[2]), service });
+  }
+  return found;
+}
+
+/**
  * How a **natively running** process reaches the development stack (FR-105).
  *
  * One entry per input the rendered document actually answers, composed from the
@@ -769,8 +827,11 @@ function inlineDefaults(document: string): ReadonlyMap<string, string> {
  * this document is an application, so every reader of these values is a process
  * on the host reaching a published port.
  */
-export function developmentAddresses(document: string): ReadonlyMap<string, string> {
-  const defaults = inlineDefaults(document);
+export function developmentAddresses(
+  document: string,
+  overrides: ReadonlyMap<string, string> = new Map(),
+): ReadonlyMap<string, string> {
+  const defaults = effectiveValues(document, overrides);
   const addresses = new Map<string, string>();
   /** One input, composed only if the document answers every name it needs. */
   const compose = (name: string, needs: readonly string[], build: (of: (key: string) => string) => string): void => {
@@ -794,8 +855,11 @@ export function developmentAddresses(document: string): ReadonlyMap<string, stri
  * {@link developmentAddresses}. It is printed, because a client whose instance
  * sends mail to a port has no way to learn where that mail went.
  */
-export function developmentMailUrl(document: string): string | undefined {
-  const port = inlineDefaults(document).get('MAILPIT_UI_PORT');
+export function developmentMailUrl(
+  document: string,
+  overrides: ReadonlyMap<string, string> = new Map(),
+): string | undefined {
+  const port = effectiveValues(document, overrides).get('MAILPIT_UI_PORT');
   return port === undefined ? undefined : `http://localhost:${port}`;
 }
 

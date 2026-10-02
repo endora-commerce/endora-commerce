@@ -92,17 +92,17 @@ admin, and the storefront when there is one beside the instance, in one terminal
 labelled by its layer; Ctrl-C stops them all. Each layer keeps its own command — the end of the
 first command prints them — and builds and deploys on its own.
 
-What a first run gives you, today:
-
-- **No storefront outside a checkout of this repository.** The storefront is copied from the
-  reference in this repository, so run anywhere else the parts question shows it unchecked and
-  cannot change it, and the instance is written without one.
+The storefront is written beside the instance, in `my-shop-storefront/`, unless you uncheck it: a
+copy of the reference storefront in this repository that travels inside the installer, already made
+standalone, and yours from then on. If a port a development service publishes is already in use —
+another PostgreSQL on `5432` — the installer picks a free one, writes it into the instance's `.env`
+and says so.
 
 With no terminal — in CI, or with `--non-interactive` — it asks nothing and every answer is a
 flag. A missing one is a single refusal naming every flag still owed:
 
 ```bash
-npx create-endora-commerce@latest my-shop --non-interactive --no-storefront --no-demo \
+npx create-endora-commerce@latest my-shop --non-interactive --no-demo \
   --admin-email you@example.com --admin-password "$ADMIN_PASSWORD" \
   --admin-first-name Ada --admin-last-name Lovelace
 ```

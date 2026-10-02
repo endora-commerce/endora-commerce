@@ -57,7 +57,7 @@ import { dirname, join, posix, relative, resolve, sep } from 'node:path';
 
 import { STOREFRONT_DOCKERIGNORE, storefrontDockerfile } from './dockerfile.js';
 import { storefrontGitignore } from './gitignore.js';
-import { installedScopes, normalizeRegistry, npmrcContent, TOKEN_VARIABLE } from './npmrc.js';
+import { normalizeRegistry, npmrcContent, scopesOf, TOKEN_VARIABLE } from './npmrc.js';
 import {
   declaredPackages,
   DEPENDENCY_FIELDS,
@@ -84,6 +84,14 @@ export interface PlannedFile {
   readonly source: string | null;
   /** The text to write, or `null` to copy `source` byte for byte. */
   readonly content: string | null;
+  /**
+   * The bytes to write when there is neither text nor a file to copy them from.
+   *
+   * Only a plan read back from the reference a published CLI carries
+   * (`./packaged.ts`) sets it: a checkout copies a binary from `source`, and a
+   * packaged reference has no file on disk to name.
+   */
+  readonly bytes?: Uint8Array | undefined;
   /** What this run did to it, for the report and for `--dry-run`. */
   readonly note: string | null;
 }
@@ -650,25 +658,10 @@ export function planStorefront(
   const manifest = rewriteManifest(reference, memberDirs);
   assertVendoredImportsDeclared(vendored, reference);
   const omittedPaths = new Set(omitted.map((entry) => entry.path));
-  const registry = options.registry === undefined ? null : normalizeRegistry(options.registry);
-  const rewritten = JSON.parse(manifest.text) as {
-    engines?: { node?: string };
-    packageManager?: string;
-  };
   // The reference's own Dockerfile builds from the platform repository's root;
   // the copy gets one that builds in its own tree (`./dockerfile.ts`).
   const rendered = new Map<string, { content: string; note: string }>([
-    [
-      'Dockerfile',
-      {
-        content: storefrontDockerfile({
-          enginesNode: rewritten.engines?.node,
-          packageManager: rewritten.packageManager,
-          npmrc: registry !== null,
-        }),
-        note: 'rendered to build in this tree rather than from the platform repository root',
-      },
-    ],
+    [DOCKERFILE_PATH, renderedDockerfile(manifest.text, false)],
     [
       '.dockerignore',
       {
@@ -692,7 +685,7 @@ export function planStorefront(
   const files: PlannedFile[] = [];
   for (const file of [...reference.files].sort()) {
     if (omittedPaths.has(file) || rendered.has(file)) continue;
-    if (file === 'package.json') {
+    if (file === MANIFEST_PATH) {
       files.push({
         path: file,
         source: null,
@@ -723,31 +716,88 @@ export function planStorefront(
     files.push({ path, source: null, content: file.content, note: file.note });
   }
 
-  // The registry, when there is one. It is a file the copy gains rather than a
-  // rewrite of one it has: the reference storefront installs from the workspace
-  // and holds no `.npmrc` of its own, so there is nothing here to overwrite —
-  // and a scaffold that already carried one would be a declaration the copy
-  // population, not this option, is answerable for.
-  if (registry !== null) {
-    const scopes = installedScopes(reference.manifest);
-    files.push({
-      path: '.npmrc',
-      source: null,
-      content: npmrcContent(registry, scopes),
-      note:
-        `installs ${scopes.join(', ')} from ${registry}, with the token as ` +
-        `\${${TOKEN_VARIABLE}} — an environment reference pnpm expands at install time, so ` +
-        `this file holds no secret`,
-    });
-  }
-
   assertEachPathOnce(files);
-  return {
+  const plan: StorefrontPlan = {
     files: files.sort((a, b) => a.path.localeCompare(b.path)),
     ranges: manifest.ranges,
     rewrites,
     omitted,
-    registry,
+    registry: null,
+  };
+  return options.registry === undefined ? plan : withRegistry(plan, options.registry);
+}
+
+/** Where the scaffold's manifest and its image recipe are, scaffold-relative. */
+const MANIFEST_PATH = 'package.json';
+const DOCKERFILE_PATH = 'Dockerfile';
+
+/** The scaffold's own Dockerfile, rendered from the manifest the scaffold carries. */
+function renderedDockerfile(
+  manifestText: string,
+  npmrc: boolean,
+): { content: string; note: string } {
+  const rewritten = JSON.parse(manifestText) as {
+    engines?: { node?: string };
+    packageManager?: string;
+  };
+  return {
+    content: storefrontDockerfile({
+      enginesNode: rewritten.engines?.node,
+      packageManager: rewritten.packageManager,
+      npmrc,
+    }),
+    note: 'rendered to build in this tree rather than from the platform repository root',
+  };
+}
+
+/**
+ * The same plan, installing from `registry`.
+ *
+ * The registry is the one answer a plan takes **after** the copy is decided,
+ * and it is a function of the plan alone: the `.npmrc` names the scopes of the
+ * ranges the plan published, and the Dockerfile is rendered from the manifest
+ * the plan carries. That is what lets a plan built once — at this CLI's own
+ * build, for the reference a published tarball carries (`./packaged.ts`) — take
+ * `--registry` at run time with nothing of the checkout in reach, and it is why
+ * {@link planStorefront} goes through here too rather than keeping a second
+ * rendering of the same two files.
+ *
+ * It is a file the copy gains rather than a rewrite of one it has: the
+ * reference storefront installs from the workspace and holds no `.npmrc` of
+ * its own, so there is nothing here to overwrite — and a scaffold that already
+ * carried one would be a declaration the copy population, not this option, is
+ * answerable for ({@link assertEachPathOnce} refuses it).
+ */
+export function withRegistry(plan: StorefrontPlan, registry: string): StorefrontPlan {
+  const endpoint = normalizeRegistry(registry);
+  const manifest = plan.files.find((file) => file.path === MANIFEST_PATH);
+  if (manifest === undefined || manifest.content === null) {
+    throw new StorefrontInputError(
+      `the plan carries no ${MANIFEST_PATH}, so there is no manifest to render the scaffold's ` +
+        `Dockerfile from and \`--registry ${registry}\` cannot be applied to it.`,
+    );
+  }
+  const scopes = scopesOf(plan.ranges.map((range) => range.name));
+  const dockerfile = renderedDockerfile(manifest.content, true);
+  const files: PlannedFile[] = plan.files.map((file) =>
+    file.path === DOCKERFILE_PATH
+      ? { path: file.path, source: null, content: dockerfile.content, note: dockerfile.note }
+      : file,
+  );
+  files.push({
+    path: '.npmrc',
+    source: null,
+    content: npmrcContent(endpoint, scopes),
+    note:
+      `installs ${scopes.join(', ')} from ${endpoint}, with the token as ` +
+      `\${${TOKEN_VARIABLE}} — an environment reference pnpm expands at install time, so ` +
+      `this file holds no secret`,
+  });
+  assertEachPathOnce(files);
+  return {
+    ...plan,
+    files: files.sort((a, b) => a.path.localeCompare(b.path)),
+    registry: endpoint,
   };
 }
 

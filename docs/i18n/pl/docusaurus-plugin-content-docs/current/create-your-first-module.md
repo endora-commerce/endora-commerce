@@ -362,10 +362,9 @@ Trzy kolejne ograniczenia decydują o tym, czym może być pierwszy moduł:
   Endora Commerce. W instancji zatrzymuje się, wskazując brak pliku
   `backend/scripts/generate-module-manifests.ts`. Ten samouczek nie obejmuje ręcznego pisania
   pakietu.
-- **Nie ma sklepu internetowego, w którym można pokazać komunikat**, chyba że instancję utworzono z
-  kopii roboczej repozytorium — zobacz
-  [Czego pierwsze uruchomienie nie daje](./getting-started.md#czego-pierwsze-uruchomienie-nie-daje).
-  Trasa jest tym, co wywołałby sklep.
+- **Ten samouczek nie pokazuje komunikatu w sklepie internetowym.** Sklep, który instalator zapisał
+  obok Twojej instancji, należy do Ciebie i możesz go edytować — zobacz
+  [Sklep](./getting-started.md#sklep) — a trasa jest tym, co by wywołał.
 
 ## Co dalej
 

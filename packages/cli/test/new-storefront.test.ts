@@ -16,7 +16,16 @@
  * source text — never a value the command normally computes (issue #130).
  */
 import { describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -27,18 +36,27 @@ import type { EnvironmentInput } from '@endora-commerce/contracts';
 import { main } from '../src/bin/endora.js';
 import { buildArgFlags, buildInputsFor } from '../src/lib/instance-build-inputs.js';
 import { DECLARATION_FILE } from '../src/inputs/declaration.js';
-import { runNewStorefront } from '../src/new-storefront/index.js';
+import { resolveStorefrontSource, runNewStorefront } from '../src/new-storefront/index.js';
 import {
   addressVariables,
   declaredVariablesOf,
   envExampleDeclarations,
   memberDirectories,
   outwardReferences,
+  NoReferenceStorefrontError,
   resolveReference,
   StorefrontHostError,
   StorefrontInputError,
   workspaceRanges,
 } from '../src/new-storefront/reference.js';
+import {
+  buildPackagedReference,
+  planFromPackaged,
+  readPackagedReference,
+  snapshotBaselines,
+  writePackagedReference,
+  PACKAGED_REFERENCE_FILE,
+} from '../src/new-storefront/packaged.js';
 import {
   authKeys,
   installedScopes,
@@ -981,7 +999,7 @@ describe('the argv layer', () => {
     ).rejects.toThrow(/inside the reference storefront/);
   });
 
-  it('exits 1 with no directory, and 2 outside a checkout', async () => {
+  it('exits 1 with no directory, and 2 where there is neither a checkout nor a packaged reference', async () => {
     const errors: string[] = [];
     const spy = (chunk: string): boolean => {
       errors.push(chunk);
@@ -995,7 +1013,12 @@ describe('the argv layer', () => {
       expect(await main(['new', 'storefront'], REPO_ROOT)).toBe(1);
       const outside = temp('endora-sf-nohost-');
       try {
-        expect(await main(['new', 'storefront', join(outside, 'shop')], outside)).toBe(2);
+        // No checkout above, and a CLI that carries no reference: exit 2.
+        expect(
+          await main(['new', 'storefront', join(outside, 'shop')], outside, {
+            packagedReferenceDir: join(outside, 'no-packaged-reference'),
+          }),
+        ).toBe(2);
       } finally {
         rmSync(outside, { recursive: true, force: true });
       }
@@ -1259,5 +1282,237 @@ describe('a storefront declares which variables its own process reads', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+/**
+ * The reference a published CLI carries (`src/new-storefront/packaged.ts`).
+ *
+ * The property asserted is **equivalence**, not a shape: outside a checkout the
+ * command writes what it writes inside one, file for file and byte for byte,
+ * minus the screenshot baselines it names as omitted. A test of the packaged
+ * plan's own structure would pass over a plan that had drifted from the
+ * transformation it is a recording of.
+ */
+describe('the packaged reference — a storefront written outside a checkout', () => {
+  /** Every file under a directory, relative, with its bytes. */
+  function tree(root: string): Map<string, Buffer> {
+    const found = new Map<string, Buffer>();
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir)) {
+        const path = join(dir, entry);
+        if (statSync(path).isDirectory()) walk(path);
+        else found.set(path.slice(root.length + 1), readFileSync(path));
+      }
+    };
+    walk(root);
+    return found;
+  }
+
+  /** A fixture checkout with text, a binary, a rewrite, and a spec with baselines. */
+  function fixture(): string {
+    return fixtureRepo({
+      storefrontFiles: {
+        'package.json': MANIFEST,
+        'tsconfig.json': '{ "extends": "../tsconfig.base.json" }\n',
+        'app/page.tsx': 'export default () => null;\n',
+        // Not valid UTF-8: it has to survive as bytes, not as a string.
+        'public/icon.png': Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0x80]) as unknown as string,
+        'test/visual/shop.spec.ts': 'export {};\n',
+        'test/visual/shop.spec.ts-snapshots/home-linux.png': Buffer.from([0xff, 0xd8, 0xff]) as unknown as string,
+        // Ends in `-snapshots` and sits beside no file of that name: content.
+        'public/old-snapshots/keep.txt': 'kept\n',
+      },
+    });
+  }
+
+  /** The CLI package a build runs in, inside `root`; and where it writes. */
+  async function packageFrom(root: string, version = '1.4.2'): Promise<string> {
+    const cli = join(root, 'tools', 'cli');
+    mkdirSync(cli, { recursive: true });
+    writeFileSync(join(cli, 'package.json'), JSON.stringify({ name: '@acme/cli', version }));
+    const out = join(temp('endora-sf-packaged-'), 'storefront-reference');
+    const result = await writePackagedReference(cli, out);
+    expect(result.written).toBe(true);
+    return out;
+  }
+
+  it('a baseline is a file under `<spec>-snapshots` beside that spec, and nothing else is', () => {
+    expect(
+      snapshotBaselines([
+        'test/visual/shop.spec.ts',
+        'test/visual/shop.spec.ts-snapshots/home-linux.png',
+        'public/old-snapshots/keep.txt',
+        'app/page.tsx',
+      ]),
+    ).toEqual(['test/visual/shop.spec.ts-snapshots/home-linux.png']);
+  });
+
+  it('writes, outside any checkout, the tree a checkout writes — minus the baselines it names', async () => {
+    const root = fixture();
+    const packaged = await packageFrom(root);
+    const fromCheckout = join(temp('endora-sf-a-'), 'shop');
+    const fromPackage = join(temp('endora-sf-b-'), 'shop');
+    const outside = temp('endora-sf-nowhere-');
+
+    const checkout = await runNewStorefront({ dir: fromCheckout, cwd: root, inputs: FIXTURE_INPUTS });
+    const stranger = await runNewStorefront({
+      dir: fromPackage,
+      cwd: outside,
+      inputs: FIXTURE_INPUTS,
+      packagedReferenceDir: packaged,
+    });
+    expect(checkout.source.kind).toBe('checkout');
+    expect(stranger.source.kind).toBe('packaged');
+    expect(stranger.reference).toBeNull();
+
+    const expected = tree(fromCheckout);
+    const baseline = 'test/visual/shop.spec.ts-snapshots/home-linux.png';
+    expect(expected.has(baseline)).toBe(true);
+    expected.delete(baseline);
+    const written = tree(fromPackage);
+    expect([...written.keys()].sort()).toEqual([...expected.keys()].sort());
+    for (const [path, bytes] of expected) {
+      expect(written.get(path)!.equals(bytes), path).toBe(true);
+    }
+    // The omission is reported, with the command that records the client's own.
+    // One line per directory of them, however many pictures it held.
+    const directory = 'test/visual/shop.spec.ts-snapshots/';
+    expect(stranger.plan.omitted.map((entry) => entry.path)).toContain(directory);
+    expect(stranger.plan.omitted.find((entry) => entry.path === directory)!.reason).toContain(
+      '--update-snapshots',
+    );
+    // Everything else the two runs report is the same report.
+    expect(stranger.plan.ranges).toEqual(checkout.plan.ranges);
+    expect(stranger.plan.rewrites.map(({ file, specifier, to }) => ({ file, specifier, to }))).toEqual(
+      checkout.plan.rewrites.map(({ file, specifier, to }) => ({ file, specifier, to })),
+    );
+    expect(stranger.nextSteps).toEqual(
+      checkout.nextSteps.map((step) => step.replaceAll(fromCheckout, fromPackage)),
+    );
+  });
+
+  it('`--registry` is applied at run time, and writes what a checkout writes for it', async () => {
+    const root = fixture();
+    const packaged = await packageFrom(root);
+    const registry = 'https://registry.example.com/api/v4/packages/npm';
+    const fromCheckout = join(temp('endora-sf-ra-'), 'shop');
+    const fromPackage = join(temp('endora-sf-rb-'), 'shop');
+    await runNewStorefront({ dir: fromCheckout, cwd: root, inputs: FIXTURE_INPUTS, registry });
+    const stranger = await runNewStorefront({
+      dir: fromPackage,
+      cwd: temp('endora-sf-nowhere-'),
+      inputs: FIXTURE_INPUTS,
+      registry,
+      packagedReferenceDir: packaged,
+    });
+    expect(stranger.plan.registry).toBe(`${registry}/`);
+    for (const file of ['.npmrc', 'Dockerfile', 'package.json']) {
+      expect(readFileSync(join(fromPackage, file), 'utf8'), file).toBe(
+        readFileSync(join(fromCheckout, file), 'utf8'),
+      );
+    }
+    expect(readFileSync(join(fromPackage, '.npmrc'), 'utf8')).toContain('@acme:registry=');
+  });
+
+  it('a checkout above the working directory wins over the packaged reference', async () => {
+    const root = fixture();
+    const packaged = await packageFrom(root);
+    expect(resolveStorefrontSource(root, packaged).kind).toBe('checkout');
+    expect(resolveStorefrontSource(temp('endora-sf-nowhere-'), packaged).kind).toBe('packaged');
+  });
+
+  it('a workspace that holds no storefront — an instance — is answered by the packaged reference', async () => {
+    const packaged = await packageFrom(fixture());
+    const instance = temp('endora-sf-instance-');
+    writeFileSync(join(instance, 'pnpm-workspace.yaml'), 'packages:\n  - backend\n');
+    expect(resolveStorefrontSource(instance, packaged).kind).toBe('packaged');
+  });
+
+  it('neither a checkout nor a packaged reference is a refusal that says which build has one', () => {
+    const outside = temp('endora-sf-nowhere-');
+    expect(() => resolveStorefrontSource(outside, join(outside, 'none'))).toThrow(
+      NoReferenceStorefrontError,
+    );
+    expect(() => resolveStorefrontSource(outside, join(outside, 'none'))).toThrow(
+      /carries no packaged reference storefront/,
+    );
+  });
+
+  it('a checkout whose storefront cannot be read is never papered over with the packaged one', async () => {
+    const packaged = await packageFrom(fixture());
+    // Two Next applications: a refusal in a checkout, and it stays one.
+    const root = fixtureRepo({ storefrontFiles: { 'package.json': MANIFEST } });
+    mkdirSync(join(root, 'packages', 'second'), { recursive: true });
+    writeFileSync(
+      join(root, 'packages', 'second', 'package.json'),
+      JSON.stringify({ name: 'second', scripts: { build: 'next build' }, dependencies: { next: '^15.0.0' } }),
+    );
+    expect(() => resolveStorefrontSource(root, packaged)).toThrow(/more than one Next application/);
+  });
+
+  it('a plan built for another CLI version is refused rather than installed', async () => {
+    const packaged = await packageFrom(fixture(), '1.4.2');
+    expect(readPackagedReference(packaged, '1.4.2')).not.toBeNull();
+    expect(() => readPackagedReference(packaged, '1.5.0')).toThrow(/built for CLI 1\.4\.2/);
+    writeFileSync(join(packaged, PACKAGED_REFERENCE_FILE), '{ "format": 99 }');
+    expect(() => readPackagedReference(packaged)).toThrow(StorefrontHostError);
+  });
+
+  it('a build with nothing to derive it from writes none, removes a stale one, and says why', async () => {
+    const nowhere = temp('endora-sf-nogit-');
+    const cli = join(nowhere, 'cli');
+    mkdirSync(cli);
+    writeFileSync(join(cli, 'package.json'), JSON.stringify({ name: '@acme/cli', version: '1.0.0' }));
+    const out = join(nowhere, 'out');
+    mkdirSync(out);
+    writeFileSync(join(out, PACKAGED_REFERENCE_FILE), 'stale');
+    const result = await writePackagedReference(cli, out);
+    expect(result).toMatchObject({ written: false });
+    expect(existsSync(join(out, PACKAGED_REFERENCE_FILE))).toBe(false);
+
+    // A workspace with a storefront and no git: the same answer, never a walk.
+    writeFileSync(join(nowhere, 'pnpm-workspace.yaml'), 'packages:\n  - shop\n');
+    mkdirSync(join(nowhere, 'shop'));
+    writeFileSync(join(nowhere, 'shop', 'package.json'), MANIFEST);
+    const second = await writePackagedReference(cli, out);
+    expect(second.written).toBe(false);
+    expect(existsSync(out)).toBe(false);
+  });
+
+  it('a reference that cannot be made standalone fails the build rather than shipping none', async () => {
+    const root = fixtureRepo({
+      storefrontFiles: {
+        'package.json': MANIFEST,
+        'app/page.tsx': "import x from '../../packages/contracts/src/index';\nexport default x;\n",
+      },
+    });
+    const cli = join(root, 'tools', 'cli');
+    mkdirSync(cli, { recursive: true });
+    writeFileSync(join(cli, 'package.json'), JSON.stringify({ name: '@acme/cli', version: '1.0.0' }));
+    await expect(writePackagedReference(cli, join(root, 'out'))).rejects.toThrow(
+      UnclassifiedReferenceError,
+    );
+  });
+
+  it('this repository: the packaged plan is the checkout plan, minus its baselines, and names no machine path', () => {
+    const reference = resolveReference(REPO_ROOT);
+    const scaffold = join(temp('endora-sf-real-'), 'shop');
+    const checkout = planStorefront(reference, memberDirectories(reference.repoRoot), scaffold);
+    const packaged = buildPackagedReference(REPO_ROOT, '0.0.0-test');
+    const plan = planFromPackaged(packaged, '/packaged');
+    const baselines = new Set(snapshotBaselines(checkout.files.map((file) => file.path)));
+    // The measurement the omission rests on: they are most of the tree.
+    expect(baselines.size).toBeGreaterThan(0);
+    const kept = checkout.files.filter((file) => !baselines.has(file.path));
+    expect(plan.files.map((file) => file.path)).toEqual(kept.map((file) => file.path));
+    for (const file of kept) {
+      const twin = plan.files.find((entry) => entry.path === file.path)!;
+      const expected = file.content !== null ? Buffer.from(file.content, 'utf8') : readFileSync(file.source!);
+      const actual = twin.content !== null ? Buffer.from(twin.content, 'utf8') : Buffer.from(twin.bytes!);
+      expect(actual.equals(expected), file.path).toBe(true);
+      expect(twin.source === null, file.path).toBe(file.source === null);
+    }
+    expect(JSON.stringify(packaged)).not.toContain(REPO_ROOT.replace(/\/$/, ''));
   });
 });
