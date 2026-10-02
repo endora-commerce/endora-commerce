@@ -172,7 +172,9 @@ so the installer checks before it writes anything.
   `PORT` where that layer reads it: the instance's `.env`, `admin/.env`, the storefront's `.env`.
   Everything that names the address follows: the admin is built against the API's new address,
   the storefront's two backend addresses point at it, and the API's `CORS_ALLOWED_ORIGINS` lets
-  the moved admin and storefront in. A `PORT` you set yourself is used as written; if the API's is
+  the moved admin and storefront in. A public address you gave with a flag is never rewritten: with
+  `--api-url` or `--public-url`, only `PORT` moves, and the admin and the storefront are still
+  built against the address you gave. A `PORT` you set yourself is used as written; if the API's is
   busy, the closing summary says so.
 - **The Compose project.** Compose names a project after its directory, so two instances both
   called `shop` would share one set of containers and one database. If a project of that name

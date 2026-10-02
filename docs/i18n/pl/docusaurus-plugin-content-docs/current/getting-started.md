@@ -178,8 +178,10 @@ sytuacja, dlatego instalator sprawdza to, zanim cokolwiek zapisze.
   skąd dana warstwa go czyta: w `.env` instancji, w `admin/.env`, w `.env` sklepu. Wszystko, co
   wskazuje ten adres, zmienia się razem z nim: panel jest budowany pod nowy adres API, wskazują go
   oba adresy backendu w sklepie, a `CORS_ALLOWED_ORIGINS` w API wpuszcza przeniesiony panel
-  i sklep. `PORT`, który ustawisz samodzielnie, jest używany bez zmian; jeśli port API jest
-  zajęty, mówi o tym podsumowanie na końcu.
+  i sklep. Publicznego adresu podanego flagą instalator nigdy nie przepisuje: z `--api-url` albo
+  `--public-url` zmienia się tylko `PORT`, a panel i sklep nadal są budowane pod adres podany
+  flagą. `PORT`, który ustawisz samodzielnie, jest używany bez zmian; jeśli port API
+  jest zajęty, mówi o tym podsumowanie na końcu.
 - **Projekt Compose.** Compose nazywa projekt tak jak jego katalog, więc dwie instancje o nazwie
   `shop` dzieliłyby jeden zestaw kontenerów i jedną bazę danych. Jeśli projekt o tej nazwie ma już
   na tej maszynie kontenery albo wolumeny, usługi deweloperskie dostają własną nazwę
