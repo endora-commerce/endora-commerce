@@ -361,10 +361,13 @@ async function main(): Promise<number> {
       detail: install.code === 0 ? 'exit 0' : `exit ${String(install.code)}: ${tail}`,
     });
     const provisioned = /^\[host\] /m.test(install.output);
+    // The refusal as the CLI prints it — `endora: [F6] …`. A bare `F6` also
+    // matches a content hash in the admin build's output, and did: the chunk
+    // `AttributesManager-C6DF6Wi7.js` turned this verdict red on a green run.
     verdicts.push({
       id: 'L2',
       title: 'it got past resolution by provisioning its own temporary host (D-271)',
-      status: provisioned && !/F6|does not resolve from/.test(install.output) ? 'pass' : 'fail',
+      status: provisioned && !/\[F6\]|does not resolve from/.test(install.output) ? 'pass' : 'fail',
       detail: provisioned ? 'the host step ran' : 'no host step was printed',
     });
     const needed = [packageName, '@endora-commerce/cli', '@endora-commerce/platform'];
