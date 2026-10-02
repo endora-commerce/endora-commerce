@@ -31,7 +31,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `@mikro-orm/core` ^6
 - `@mikro-orm/postgresql` ^6
 - `fastify` ^5
-- `fastify-plugin` ^5
+- `fastify-plugin` ^6
 - `ioredis` ^5
 
 ## What the tarball carries

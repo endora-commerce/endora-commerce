@@ -152,6 +152,15 @@ const PLATFORM_CONTRIBUTIONS: readonly string[] = [
   // contributed on both sides would be the silent overwrite the disjointness
   // assertion below refuses.
   'lifecycleManifestRegistry',
+  // The same movement for the same reason, later: the orchestrator the module
+  // list is served from. The reference deployment contributed it as
+  // `lifecycle.handle.orchestrator`, built from an ORM, two Redis clients, the
+  // audit log and the resolved manifest set — nothing that names a module — and
+  // an instance contributes nothing (R2.4), so `GET /api/v1/admin/modules`
+  // answered 404 in every scaffolded instance and `/platform/modules`, the
+  // screen Principle XVII's operator switch lives on, rendered "Resource not
+  // found". The sum below does not move: one name changed sides.
+  'lifecycleOrchestrator',
   // The tenth actor-shaped name, added by `specs/117-instance-bring-up/`
   // Phase 6. T118b left it in the deployment's `values` with a comment saying
   // it stayed *because* it reads `request.actor` — and T118b is the merge

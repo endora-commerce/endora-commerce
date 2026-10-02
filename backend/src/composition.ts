@@ -25,7 +25,6 @@ import type {
   OrganizationTaxProfilePort,
   TaxServicePort,
 } from '@endora-commerce/contracts';
-import type { ModulePlugin } from '@endora-commerce/platform/composition';
 import { initOrm, closeOrm } from './db/index.js';
 import { type TenantContext } from './tenancy/tenant-context.js';
 import { resolveTenantContext, systemTenantContext } from '@endora-commerce/platform/composition';
@@ -120,14 +119,12 @@ import {
   type ComposeAppOptions,
   type ComposedAppContext,
 } from '@endora-commerce/platform/composition';
-import { lifecycleModuleFromStaticEntries } from '@endora-commerce/platform/lifecycle';
 import { loadDivergenceDeclaration } from './overlay/divergence-loader.js';
 import { resolvedManifestEntries } from './lifecycle/registered-manifests.js';
 // Feature 057 — per-deployment overlay resolution (build/composition-time).
 import { loadOverlayModuleEntries } from './overlay/overlay-runtime.js';
 // Feature 080 — installed extension packages, discovered at runtime (D-155).
 import { loadPackageModuleEntries } from './packages/package-runtime.js';
-import { configuredMigrations } from './db/configured-migrations.js';
 // D-54 — the error envelope takes this map by injection: `src/http` is a
 // kernel-obeying platform peer and may not name a module (D-52). A root may.
 //
@@ -167,19 +164,17 @@ import { configuredMigrations } from './db/configured-migrations.js';
 export type { ComposeAppHandle, ComposeAppOptions };
 
 /**
- * The two seams this deployment fills in during the contribution window.
+ * The seam this deployment fills in during the contribution window.
  *
- * Both need the composed container, and the container does not exist until
- * every module has registered — so the values are written inside the window and
- * read after it closes: `scopedPlugins` when the platform assembles the plugin
- * chain, `buildTenantContext` on the first request. It is the shape
+ * It needs the composed container, and the container does not exist until
+ * every module has registered — so the value is written inside the window and
+ * read after it closes, on the first request. It is the shape
  * `test/helpers/test-server.ts` spells as `let container!: KernelContainer`,
  * one indirection wider because the contributions live in a function of their
- * own rather than in the callback.
+ * own rather than in the callback. `scopedPlugins` was the second seam and
+ * carried one plugin, the lifecycle subscriber, which is `composeApp`'s now.
  */
 interface DeploymentSeams {
-  /** Route plugins mounted **after** the request-scope hook. */
-  readonly scopedPlugins: ModulePlugin[];
   /**
    * The actor → `TenantContext` mapping (Principle XI).
    *
@@ -414,13 +409,12 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // thing that knows a package is here.
   const packageModuleEntries = await loadPackageModuleEntries();
 
-  // The two seams the contribution callback fills in, because both need the
-  // composed container and the container does not exist until every module has
-  // registered. They are a mutable object for the reason the harness's are
-  // `let` (`test/helpers/test-server.ts`): the value is read after the window
-  // closes — `scopedPlugins` when the platform assembles the plugin chain,
-  // `buildTenantContext` on the first request — and never during it.
-  const seams: DeploymentSeams = { scopedPlugins: [] };
+  // The seam the contribution callback fills in, because it needs the composed
+  // container and the container does not exist until every module has
+  // registered. A mutable object for the reason the harness's is `let`
+  // (`test/helpers/test-server.ts`): the value is read after the window closes,
+  // on the first request, and never during it.
+  const seams: DeploymentSeams = {};
 
   return composePlatformApp({
     deploymentRoot,
@@ -473,7 +467,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       }
       return seams.buildTenantContext(request);
     },
-    scopedPlugins: seams.scopedPlugins,
     contribute: (ctx) => contributeReferenceDeployment(ctx, seams),
   });
 }
@@ -498,14 +491,8 @@ async function contributeReferenceDeployment(
   const {
     container,
     em,
-    redis,
-    auditLogService,
-    orm,
-    redisSubscriber,
-    resolvedModules: resolvedRegistry,
     composed: composedModules,
   } = ctx;
-  const { scopedPlugins } = seams;
 
   // `searchCradle` stood here to forward `search`'s full-reindex port into
   // `catalogSearchReindex`. `specs/117-instance-bring-up/` Phase 6 retired the
@@ -1654,55 +1641,20 @@ async function contributeReferenceDeployment(
   // half names a module and a deployment that had to contribute it would be
   // writing the platform's own wiring.
 
-  const lifecycle = lifecycleModuleFromStaticEntries(
-    {
-      orm,
-      redis,
-      redisSubscriber,
-      emFactory: em,
-      auditLog: auditLogService,
-      // Feature 080 (T033, D-155.3(c)) — who owns which migration, merged over
-      // core plus every installed extension package. This root is where it is
-      // known: the orchestrator may not import the ORM config, and the packages
-      // half is a runtime discovery, so the merged value arrives as an
-      // injected value rather than as an import of anything async. Without it
-      // the orchestrator answers from the committed core registry and refuses
-      // a hard uninstall of a module that registry cannot enumerate — which is
-      // exactly the fail-closed a package's `uninstall --hard` needs.
-      migrationOwnership: (await configuredMigrations()).ownership,
-      // Feature 080 (T036a, D-159) — the two reconcilers this root used to hand
-      // over are gone. `_i18n` and `admin_actions` declare a
-      // `lifecycleParticipant` in their own `manifest.ts` and the orchestrator
-      // collects it from the registry below, which is the one shape that also
-      // reaches a `module:*` command (a platform command composes nothing, so
-      // it could resolve neither service) and an installed package.
-      //
-      // **This changes the admin path's behaviour, deliberately** (D-159 §9,
-      // owner's ruling of 2026-08-22). `adminActionsReconciler` was forwarded
-      // through a lambda because it is a gated port and `admin_actions` is
-      // deactivatable, so a switched-off command palette *aborted* the install
-      // of an unrelated module — chosen over the only alternative then on the
-      // table, a backend that would not start. The participant is gated on
-      // nothing, so the install succeeds and the rows are written whether or
-      // not anything is serving them, which is what a projection of manifest
-      // data should do.
-    },
-    // Handed over unmapped: an identity map here is where a field added to
-    // `RegisteredManifestEntry` later gets silently dropped, and one just was.
-    resolvedRegistry,
-  );
-  // Feature 072 (T125) — `_lifecycle` registers its own routes now, through
-  // `ctx.ungatedRoutes`. One name stays a composition's and it genuinely
-  // differs: this deployment boots an orchestrator, and the harness does not,
-  // because it never populates `module_registrations`.
+  // Feature 018 — the lifecycle assembly (the orchestrator behind
+  // `GET /api/v1/admin/modules`, and the subscriber that keeps module presence
+  // fresh) stood here and is `composeApp`'s now. It named no module — an ORM, two
+  // Redis clients, the audit log and the resolved manifest set, all of which the
+  // platform already holds — and an instance contributes nothing (R2.4), so
+  // while this root was its only author every scaffolded instance answered 404
+  // on the Modules screen and never heard a `module:disable` from another
+  // process. `lifecycleOrchestrator` moved to `PLATFORM_CONTRIBUTIONS` with it.
   //
-  // T118 — `lifecycleActivationPropagation` left with the assembly. How a
-  // committed flip propagates is the Command Bus, the registry cache and the
-  // storefront revalidator, none of which is a module, so every deployment gets
-  // the same answer rather than each writing it out.
-  composedModules.contribute({
-    lifecycleOrchestrator: lifecycle.handle.orchestrator,
-  });
+  // What did **not** move is `migrationOwnership`. The served orchestrator
+  // answers `status()` and nothing else — the platform axis is CLI-only — so it
+  // is built without one and refuses a hard uninstall, naming the field, should
+  // a caller ever be added. `backend/src/lifecycle/scripts/uninstall.ts` is the
+  // path that reverts migrations, and it passes its own.
   // `lifecycleManifestRegistry` — the accessor `_i18n` walks to reconcile every
   // module's translation bundles — was contributed here and is `composeApp`'s
   // since `specs/110-instance-repository/` T141. The value is the same
@@ -1715,10 +1667,6 @@ async function contributeReferenceDeployment(
   // contributes nothing at all — R2.4 — so the name resolved to nothing there
   // and the boot died inside `_i18n`'s reconcile. The harness's own
   // contribution stands: it composes by hand and never calls `composeApp`.
-
-  // The boot half only: reconciling first-boot registrations, warming the
-  // registry cache and resuming workers. Its routes are the module's own now.
-  scopedPlugins.push(lifecycle.plugin);
 
   // Feature 043 — prompt assistant for the admin command palette.
   //
