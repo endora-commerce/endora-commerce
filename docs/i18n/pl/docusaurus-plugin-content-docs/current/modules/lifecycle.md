@@ -18,8 +18,12 @@ Wszystko inne, co aplikacja nazywała kiedyś starą ścieżką, nazywa teraz pr
 | Czasownik + ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/admin/modules` | Lista tylko do odczytu: id każdego modułu, stan (`installing` / `installed` / `disabled` / `uninstalled` / `not-installed`), wersja (zarejestrowana kontra ta na dysku), zadeklarowane zależności oraz ewentualne flagi (`orphan`, `pending-upgrade`, `dep-missing`, `dep-disabled`). Uprawnienie: `platform.modules.read`. |
+| `POST /api/v1/admin/modules/:id/activation` | Wyłącznik **operatora** — treść żądania `{"active": true \| false}`. Zapisuje zadeklarowane w manifeście ustawienie aktywacji modułu, a nie rejestr, i to właśnie to wywołanie wykonuje ekran Modules w panelu (`/platform/modules`). Uprawnienie: `platform.modules.activate`. |
 
-Operacje modyfikujące (install, uninstall, enable, disable) są w v1 celowo dostępne wyłącznie z CLI.
+Operacje modyfikujące rejestr (install, uninstall, enable, disable) są w v1 celowo dostępne
+wyłącznie z CLI. Obie osie są niezależne, a moduł jest obecny tylko wtedy, gdy na obu jest
+włączony: `module:enable` / `module:disable` należą do osoby utrzymującej wdrożenie, wyłącznik
+aktywacji — do osoby prowadzącej biznes, i żadna z osi nie nadpisuje drugiej.
 
 ## Komendy CLI
 
@@ -32,6 +36,29 @@ pnpm --filter backend run module:enable <id> [--json]
 pnpm --filter backend run module:disable <id> [--cascade] [--json]
 pnpm --filter backend run module:status [<id>] [--filter=<state>] [--json]
 ```
+
+### W instancji
+
+Instancja — drzewo, które zapisuje `npx create-endora-commerce` — deklaruje te same pięć komend
+w swoim katalogu głównym; przyjmują te same argumenty i zwracają te same kody wyjścia:
+
+```bash
+pnpm run module:install <id> [--dry-run] [--json]     # or: pnpm run module:install --all
+pnpm run module:uninstall <id> [--hard] [--force] [--json]
+pnpm run module:enable <id> [--json]
+pnpm run module:disable <id> [--cascade] [--json]
+pnpm run module:status [<id>] [--filter=<state>] [--json]
+```
+
+Obejmują zarówno pakiety modułów zainstalowane w instancji, jak i jej własne moduły overlay
+w `apps/<deployment>/modules/`. Działające API i worker dowiadują się o zmianie wprowadzonej
+którąkolwiek z tych komend bez restartu. Moduł overlay zawierający katalog `migrations/` albo
+`entities/` zatrzymuje każdą z nich, zanim zostanie otwarta baza danych — zobacz
+[Wzorzec overlay](../architecture/overlay-pattern.md#straże-fail-closed).
+
+W wydaniach do `0.100.2` włącznie komendy `module:enable`, `module:disable` i miękki
+`module:uninstall` wypisywały w instancji sukces i niczego nie zmieniały, a twardy uninstall był
+odrzucany. Zaktualizuj pakiety `@endora-commerce/*` instancji do wydania nowszego niż `0.100.2`.
 
 Kontrakt kodów wyjścia:
 
@@ -139,7 +166,7 @@ Pola manifestu:
 
 Miękki uninstall zachowuje dane: wiersze ustawień są usuwane, wiersz rejestru zostaje ze `state = 'uninstalled'`, schema i tabele danych pozostają nietknięte. Ponowna instalacja tego samego modułu wykorzystuje już nałożone migracje i kończy się w sekundy — ale **nie** przywraca konfiguracji: ustawienia, które sweep usunął, są odtwarzane z wartości domyślnych manifestu, włącznie z wyborem aktywacji modułu. Od wstrzymania modułu bez utraty jego konfiguracji jest `module:disable`.
 
-Twardy uninstall (`--hard`) dodatkowo cofa migracje modułu i usuwa wiersz rejestru. Migracje do cofnięcia są rozwiązywane z `MIGRATION_REGISTRY` (`backend/src/db/migrations-registry.generated.ts`) po zadeklarowanym `moduleId`, sortowane rosnąco i cofane w odwrotnej kolejności — patrz [Database Migrations](../architecture/migrations.md#module-uninstall-migration-revert). Moduł, który nie posiada żadnej zarejestrowanej migracji, loguje ostrzeżenie i nie cofa niczego; twardy uninstall polega wtedy na jego `uninstallHook`.
+Twardy uninstall (`--hard`, poza terminalem wymagający też `--force`) dodatkowo cofa migracje modułu i usuwa wiersz rejestru. W instancji migracje do cofnięcia są odczytywane z rejestru migracji zainstalowanych pakietów — tego samego, z którego budowany jest `mikro-orm.config` instancji — a moduł overlay nie ma żadnych; `pnpm run migrate`, a potem `pnpm run module:install <id>` przywracają twardo odinstalowany moduł, z pustymi tabelami. W tym repozytorium: Migracje do cofnięcia są rozwiązywane z `MIGRATION_REGISTRY` (`backend/src/db/migrations-registry.generated.ts`) po zadeklarowanym `moduleId`, sortowane rosnąco i cofane w odwrotnej kolejności — patrz [Database Migrations](../architecture/migrations.md#module-uninstall-migration-revert). Moduł, który nie posiada żadnej zarejestrowanej migracji, loguje ostrzeżenie i nie cofa niczego; twardy uninstall polega wtedy na jego `uninstallHook`.
 
 ## Jak działa disable (bramkowanie funkcji bez restartu)
 

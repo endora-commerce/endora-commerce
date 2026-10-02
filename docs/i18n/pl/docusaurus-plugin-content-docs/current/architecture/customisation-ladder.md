@@ -15,7 +15,10 @@ Trzy rzeczy sprawiają, że ta lista ma znaczenie, a nie tylko dobrze brzmi:
 
 1. **Każde odchylenie, które piszesz, niesie swój stopień** w własnym wygenerowanym
    raporcie deploymentu (`backend/src/apps/<deployment>/divergence.generated.md`), więc
-   wielokrotne docieranie na wysoki stopień jest mierzalne, a nie anegdotyczne.
+   wielokrotne docieranie na wysoki stopień jest mierzalne, a nie anegdotyczne. Ścieżki
+   na tej stronie są ścieżkami tego repozytorium; w instancji zapisanej przez
+   `npx create-endora-commerce` te same pliki leżą w `apps/<deployment>/` w katalogu
+   głównym instancji, a raport generuje `pnpm run generate`.
 2. **Każda odmowa nazywa stopień poniżej, który działa**, więc jeśli sięgasz za wysoko,
    platforma mówi, gdzie sięgnąć zamiast tego — w chwili, gdy sięgasz.
 3. **Stopień, z którego nie możesz skorzystać, mówi to wprost.** Stopień 3 nie jest

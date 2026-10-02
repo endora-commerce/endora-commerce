@@ -18,8 +18,12 @@ Everything else the application used to name at an old path it now names at `@en
 | Verb + Path | Purpose |
 | --- | --- |
 | `GET /api/v1/admin/modules` | Read-only listing of every module's id, state (`installing` / `installed` / `disabled` / `uninstalled` / `not-installed`), version (registered vs on-disk), declared dependencies, and any flags (`orphan`, `pending-upgrade`, `dep-missing`, `dep-disabled`). Permission: `platform.modules.read`. |
+| `POST /api/v1/admin/modules/:id/activation` | The **operator's** switch — body `{"active": true \| false}`. It writes the module's manifest-declared activation Setting, not the registry, and it is what the admin's Modules screen (`/platform/modules`) calls. Permission: `platform.modules.activate`. |
 
-Mutating operations (install, uninstall, enable, disable) are intentionally CLI-only in v1.
+Mutating operations on the registry (install, uninstall, enable, disable) are intentionally
+CLI-only in v1. The two axes are independent and a module is present only when both say so:
+`module:enable` / `module:disable` belong to whoever runs the deployment, the activation switch to
+whoever runs the business, and neither overwrites the other.
 
 ## CLI commands
 
@@ -32,6 +36,29 @@ pnpm --filter backend run module:enable <id> [--json]
 pnpm --filter backend run module:disable <id> [--cascade] [--json]
 pnpm --filter backend run module:status [<id>] [--filter=<state>] [--json]
 ```
+
+### In an instance
+
+An instance — the tree `npx create-endora-commerce` writes — declares the same five commands at
+its root, and they take the same arguments and return the same exit codes:
+
+```bash
+pnpm run module:install <id> [--dry-run] [--json]     # or: pnpm run module:install --all
+pnpm run module:uninstall <id> [--hard] [--force] [--json]
+pnpm run module:enable <id> [--json]
+pnpm run module:disable <id> [--cascade] [--json]
+pnpm run module:status [<id>] [--filter=<state>] [--json]
+```
+
+They cover the module packages the instance installed and its own overlay modules under
+`apps/<deployment>/modules/` alike. A running API or worker hears a change made by one of these
+commands without a restart. An overlay module that ships a `migrations/` or `entities/` directory
+stops every one of them before a database is opened — see
+[Overlay pattern](../architecture/overlay-pattern.md#fail-closed-guards).
+
+On releases up to and including `0.100.2`, `module:enable`, `module:disable` and a soft
+`module:uninstall` printed success in an instance and changed nothing, and a hard uninstall was
+refused. Upgrade the instance's `@endora-commerce/*` packages past `0.100.2`.
 
 Exit-code contract:
 
@@ -138,7 +165,7 @@ Manifest fields:
 
 Soft-uninstall preserves data: settings rows are removed, the registry row keeps `state = 'uninstalled'`, schema and data tables are untouched. Re-installing the same module reuses already-applied migrations and finishes in seconds — but it does **not** bring the configuration back: the settings the sweep deleted are recreated from the manifest defaults, the module's activation choice included. Pausing a module without losing its configuration is what `module:disable` is for.
 
-Hard-uninstall (`--hard`) additionally reverts the module's migrations and deletes the registry row. The migrations to revert are resolved from `MIGRATION_REGISTRY` (`backend/src/db/migrations-registry.generated.ts`) by their declared `moduleId`, sorted ascending, and reverted in reverse order — see [Database Migrations](../architecture/migrations.md#module-uninstall-migration-revert). A module that owns no registered migration logs a warning and reverts nothing; hard-uninstall then relies on its `uninstallHook`.
+Hard-uninstall (`--hard`, which also requires `--force` outside a terminal) additionally reverts the module's migrations and deletes the registry row. In an instance the migrations to revert are read from the installed packages' own migration registry — the one the instance's `mikro-orm.config` is built from — and an overlay module owns none; `pnpm run migrate` followed by `pnpm run module:install <id>` brings a hard-uninstalled module back, with empty tables. In this repository: The migrations to revert are resolved from `MIGRATION_REGISTRY` (`backend/src/db/migrations-registry.generated.ts`) by their declared `moduleId`, sorted ascending, and reverted in reverse order — see [Database Migrations](../architecture/migrations.md#module-uninstall-migration-revert). A module that owns no registered migration logs a warning and reverts nothing; hard-uninstall then relies on its `uninstallHook`.
 
 ## How disable works (feature gating without restart)
 

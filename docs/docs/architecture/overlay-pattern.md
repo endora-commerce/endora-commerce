@@ -45,6 +45,35 @@ core stays deployment-agnostic and the bare-core build keeps working unchanged.
   against the report **both ways**: a divergence with no sentence fails the
   build, and so does a sentence describing a divergence that is gone.
 
+## In an instance
+
+Everything on this page is written from inside the platform repository, where the reference
+deployment's overlay tree is `backend/src/apps/`. In an **instance** — the tree
+`npx create-endora-commerce` writes — the same pattern has shorter paths and three commands of its
+own:
+
+- **Location** — `apps/<deployment>/modules/<id>/`, at the instance's root, beside
+  `apps/<deployment>/divergence.ts`.
+- **The active deployment** — `DEPLOYMENT=<deployment>` in the instance's `.env`, written by the
+  installer. Unset, the instance starts as the bare platform and none of its overlay modules is
+  composed.
+- **Scaffolding** — `pnpm exec endora new module <id> --name … --description …` writes an overlay
+  module there: `manifest.ts`, `backend.ts` and both `i18n/` bundles. It refuses the flags that
+  ask for what an overlay module cannot be — a table (`--entities`), an admin screen (`--admin`,
+  `--action`), a published port (`--ports`) — naming why. A queue consumer or an event
+  subscription is written by hand in `backend.ts`, with `ctx.worker(…)` and `ctx.subscribe(…)`.
+- **No build** — Node loads the overlay module's TypeScript directly and strips the types, so it
+  is written in the subset stripping accepts: no `enum`, no `namespace`, no constructor parameter
+  property.
+- **The divergence report** — `pnpm run generate` renders
+  `apps/<deployment>/divergence.generated.md`, and exits 1 — after writing the report — while a
+  derived divergence has no sentence in `divergence.ts`, or a sentence describes one that is gone.
+  `pnpm run setup` runs it, so neither slips through.
+- **Lifecycle** — `pnpm run module:install <id>`, `module:enable`, `module:disable`,
+  `module:uninstall` and `module:status` treat an overlay module like any other.
+
+[Create your first Module](../create-your-first-module.md) walks through all of it.
+
 ## What you may override
 
 Every row names a seam. None names a file path, because there is no seam that
@@ -238,8 +267,9 @@ Retired with it: **Conflict** (two overlays targeting one core unit),
 **Unknown target** (an overlay file whose core equivalent does not exist) and
 **Schema override** (an overlay file under a core module's `entities/` or
 `migrations/`). The schema rule itself is *not* retired — an overlay module
-still contributes no schema, and `generate-composer.ts` is what refuses it,
-which is the only place that can say the table would never be created.
+still contributes no schema, and it is refused rather than ignored: by
+`generate-composer.ts` in this repository, and in an instance by the commands
+listed under *Fail-closed guards* below.
 
 **Why it was not repaired instead.** Shadowing a file inside a published package
 is not a coherent operation. The platform composes a module through
@@ -281,10 +311,12 @@ silently — on:
   core, a workspace module package, an installed package or another overlay
   module. The refusal names every claimant's file.
 - **Overlay schema** — an `@Entity()` class or a migration under
-  `backend/src/apps/`, refused by `generate-composer.ts`. In an instance the same
-  refusal is `pnpm run generate`'s: a `migrations/` or `entities/` directory, or an
-  `@Entity()` class, under `apps/<deployment>/modules/` stops the command and names each
-  file.
+  `backend/src/apps/`, refused by `generate-composer.ts`. In an instance a
+  `migrations/` or `entities/` directory, or an `@Entity()` class, under
+  `apps/<deployment>/modules/` is refused, naming each file and the remedy, by
+  `pnpm run generate`, by `pnpm run migrate`, by every `module:*` command and by
+  the API and the worker when they start — so a tree that never ran `generate`
+  still cannot compose a module over a table that does not exist.
 - **Missing manifest** — an overlay module directory carrying no
   `manifest.js`/`manifest.ts`. The refusal names both candidates.
 - **Unregisterable backend** — an overlay module whose `backend.js`/`backend.ts`

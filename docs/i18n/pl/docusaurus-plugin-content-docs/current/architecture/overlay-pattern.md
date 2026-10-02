@@ -44,6 +44,35 @@ deploymentu, a build bare-core działa bez zmian.
   raportem **w obie strony**: divergence bez zdania failuje build, i zdanie opisujące
   divergence, której już nie ma, też.
 
+## W instancji
+
+Wszystko na tej stronie jest pisane z perspektywy repozytorium platformy, w którym drzewo overlay
+wdrożenia referencyjnego to `backend/src/apps/`. W **instancji** — drzewie, które zapisuje
+`npx create-endora-commerce` — ten sam wzorzec ma krótsze ścieżki i trzy własne polecenia:
+
+- **Lokalizacja** — `apps/<deployment>/modules/<id>/` w katalogu głównym instancji, obok
+  `apps/<deployment>/divergence.ts`.
+- **Aktywny deployment** — `DEPLOYMENT=<deployment>` w pliku `.env` instancji, zapisane przez
+  instalator. Bez tej wartości instancja startuje jako sama platforma i żaden z jej modułów
+  overlay nie jest składany.
+- **Szkielet** — `pnpm exec endora new module <id> --name … --description …` zapisuje tam moduł
+  overlay: `manifest.ts`, `backend.ts` i oba pliki `i18n/`. Flagi, które proszą o coś, czym moduł
+  overlay być nie może — tabelę (`--entities`), ekran w panelu (`--admin`, `--action`),
+  opublikowany port (`--ports`) — odrzuca, podając powód. Konsumenta kolejki albo subskrypcję
+  zdarzenia dopisuje się ręcznie w `backend.ts`, przez `ctx.worker(…)` i `ctx.subscribe(…)`.
+- **Bez builda** — Node ładuje TypeScript modułu overlay bezpośrednio i usuwa typy, więc pisze się
+  go w podzbiorze, który to usuwanie akceptuje: bez `enum`, bez `namespace`, bez właściwości
+  deklarowanych w parametrach konstruktora.
+- **Raport divergence** — `pnpm run generate` zapisuje
+  `apps/<deployment>/divergence.generated.md` i kończy się kodem 1 — już po zapisaniu raportu —
+  dopóki wyprowadzona divergence nie ma zdania w `divergence.ts` albo zdanie opisuje taką, której
+  już nie ma. Uruchamia je `pnpm run setup`, więc ani jedno, ani drugie nie przejdzie niezauważone.
+- **Cykl życia** — `pnpm run module:install <id>`, `module:enable`, `module:disable`,
+  `module:uninstall` i `module:status` traktują moduł overlay jak każdy inny.
+
+Całość krok po kroku pokazuje [Utwórz swój pierwszy moduł](../create-your-first-module.md), gdzie
+moduł overlay nazywany jest modułem nakładkowym.
+
 ## Co możesz nadpisać
 
 Każdy wiersz nazywa szew. Żaden nie nazywa ścieżki pliku, bo nie ma szwu, który
@@ -224,8 +253,9 @@ dostaje ciszę.
 Wycofano z tym: **Conflict** (dwa overlay na jedną jednostkę core), **Unknown target**
 (plik overlay bez odpowiednika w core) i **Schema override** (plik overlay pod
 `entities/` albo `migrations/` modułu core). Sama reguła schematu *nie* jest wycofana —
-moduł overlay nadal nie wnosi schematu, a `generate-composer.ts` to odmawia, bo to
-jedyne miejsce, które może powiedzieć, że tabela nigdy by nie powstała.
+moduł overlay nadal nie wnosi schematu i jest to odrzucane, a nie ignorowane: przez
+`generate-composer.ts` w tym repozytorium, a w instancji przez polecenia wymienione
+niżej, w części *Straże fail-closed*.
 
 **Dlaczego nie naprawiono zamiast wycofać.** Shadowowanie pliku wewnątrz opublikowanego
 pakietu nie jest spójną operacją. Platforma komponuje moduł przez
@@ -265,9 +295,11 @@ w ciszy — gdy:
   modułu w workspace, zainstalowany pakiet albo inny moduł overlay. Odmowa wymienia
   plik każdego roszczącego się.
 - **Schemat overlay** — klasa `@Entity()` albo migracja pod `backend/src/apps/`,
-  odmawiane przez `generate-composer.ts`. W instancji tę samą odmowę wydaje
-  `pnpm run generate`: katalog `migrations/` albo `entities/`, albo klasa `@Entity()`, w
-  `apps/<deployment>/modules/` zatrzymuje polecenie i wymienia każdy plik.
+  odrzucane przez `generate-composer.ts`. W instancji katalog `migrations/` albo
+  `entities/`, albo klasa `@Entity()`, w `apps/<deployment>/modules/` odrzucają —
+  wymieniając każdy plik i sposób naprawy — `pnpm run generate`, `pnpm run migrate`,
+  każde polecenie `module:*` oraz API i worker przy starcie. Drzewo, w którym nigdy
+  nie uruchomiono `generate`, i tak nie złoży więc modułu nad tabelą, której nie ma.
 - **Brak manifestu** — katalog modułu overlay bez `manifest.js`/`manifest.ts`.
   Odmowa nazywa oba kandydaty.
 - **Backend nierejestrowalny** — moduł overlay, którego `backend.js`/`backend.ts`
