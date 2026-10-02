@@ -748,6 +748,22 @@ describe('S6 — the backend of a deployed stack receives every generable secret
     });
   }
 
+  /**
+   * The assets signing key is the third of that kind, and the one whose
+   * placeholder did the most harm: `change-me-generate-one` is not hex, so the
+   * signer read it as raw bytes and signed private asset links with a string
+   * every copy of this file shares — no refusal, no warning. Empty is refused
+   * by name at the first signature.
+   */
+  for (const topology of ['single-host', 'three-host'] as const) {
+    it(`${topology}: writes no placeholder for the assets signing key`, () => {
+      for (const { example } of backendFiles(planInput({ topology }))) {
+        expect(example).toMatch(/^ASSETS_LIBRARY_HMAC_KEY=$/m);
+        expect(example).toMatch(/^# [^\n]*\nASSETS_LIBRARY_HMAC_KEY=$/m);
+      }
+    });
+  }
+
   it('a generable secret the static environment does not name is still passed through', () => {
     const declared: EnvironmentInput[] = [
       {

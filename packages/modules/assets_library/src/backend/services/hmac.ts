@@ -37,6 +37,17 @@ export class HmacSigner {
         'ASSETS_LIBRARY_HMAC_KEY is unset. Generate one with `openssl rand -hex 32` and add it to backend/.env.',
       );
     }
+    // A placeholder copied out of an env example is not a key: every copy of
+    // that file shares it. It is not hex either, so the branch below would take
+    // it as raw bytes and sign with it — silently, which is how a deployment
+    // comes to serve private assets behind a public string.
+    if (/^change-me/i.test(envKey.trim())) {
+      throw new Error(
+        'ASSETS_LIBRARY_HMAC_KEY is still the placeholder an env example carried, and a ' +
+          'placeholder is a signing key everybody has. Generate one with ' +
+          '`openssl rand -hex 32` and set it in the environment this process reads.',
+      );
+    }
     // Accept hex or raw — hex is what we document, but tolerate raw for tests.
     const buf = /^[0-9a-fA-F]+$/.test(envKey) && envKey.length % 2 === 0
       ? Buffer.from(envKey, 'hex')

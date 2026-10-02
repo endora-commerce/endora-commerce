@@ -65,7 +65,9 @@ import {
   scanInstalledModulePackages,
   type SkippedInstalledPackage,
 } from '../lib/module-packages.js';
+import { DIVERGENCE_REMEDIES, type DivergenceFindingKind } from '../lib/divergence.js';
 import {
+  overlaySchemaFiles,
   renderInstanceDivergence,
   DivergenceHostError,
   type InstanceDivergence,
@@ -183,6 +185,27 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
       `${join(root, 'node_modules')} is not there, so which modules this instance installed ` +
         `cannot be read and the artefacts would name none. Run \`pnpm install\` first — an ` +
         `empty registry is a bundle with no screens in it, rendered without an error.`,
+    );
+  }
+
+  // Before anything is rendered, and therefore before anything is written
+  // (R5.2): an overlay module that ships schema is refused rather than skipped.
+  // Exit 1 — the remedy is the author's, and it is a directory to move.
+  const schema = overlaySchemaFiles(root);
+  if (schema.length > 0) {
+    throw new GenerateInputError(
+      `an overlay module under \`apps/<deployment>/modules/\` contributes no schema, and ` +
+        `${String(schema.length)} file(s) here are schema:\n` +
+        `${schema.map((file) => `  - ${file}`).join('\n')}\n` +
+        `An overlay module contributes settings, routes, registrations, decorations, ` +
+        `interceptors, permissions and translations — and no \`@Entity()\` class and no ` +
+        `migration. Nothing in this instance would run them: the platform reads entities and ` +
+        `migrations from installed module packages alone, so \`pnpm run migrate\` would apply ` +
+        `none of these, no table would exist, and nothing would say so. Keep small state in ` +
+        `Settings (declare it in the module's manifest). A module that owns a table is a ` +
+        `module package: move the entity and its migration into one, install the packed ` +
+        `tarball, and read it from this overlay module through that package's port. Nothing ` +
+        `was written.`,
     );
   }
 
@@ -445,6 +468,55 @@ export function generateReport(result: GenerateResult): readonly string[] {
     );
   }
   return lines;
+}
+
+/**
+ * Why this run is not a success, or `null` when it is one.
+ *
+ * **The report is written either way** — *"the generator writes the artefact
+ * whatever it found"* is the report contract's, and a client needs the artefact
+ * to see what the finding is about. What an instance lacks is the other half:
+ * in this repository a finding is `check:divergence`'s, which exits 1, and an
+ * instance has no check estate (`instance-tree.md` §2.5). So this command is
+ * the only instrument a client runs, and one that printed a finding and exited
+ * 0 made `pnpm run setup` a green run over a deployment nobody had explained.
+ *
+ * No ledger and no flag to waive it, for the reason the check has none: every
+ * finding is a file the deployment owns and one edit from compliance.
+ */
+export function generateFindingsRefusal(result: GenerateResult): string | null {
+  const findings = result.divergence.flatMap((report) => report.findings);
+  const unreadable = result.divergence.flatMap((report) =>
+    report.unresolvedDeclaration.map((field) => `${report.deployment}: ${field}`),
+  );
+  if (findings.length === 0 && unreadable.length === 0) return null;
+  const lines: string[] = [
+    `the divergence report ${result.dryRun ? 'would be' : 'was'} written, and it is not clean: ` +
+      `${String(findings.length)} finding(s)` +
+      (unreadable.length === 0
+        ? ''
+        : ` and ${String(unreadable.length)} declaration field(s) not written as a literal`) +
+      `. Each is listed above with the file it is about; what each kind asks for:`,
+  ];
+  const kinds = [...new Set(findings.map((finding) => finding.kind))].sort();
+  for (const kind of kinds) {
+    const remedy = (DIVERGENCE_REMEDIES[kind as DivergenceFindingKind] ?? '')
+      // The remedies are written for this repository's layout; an instance's
+      // deployment tree is one level up, beside the backend member.
+      .split('backend/src/apps/')
+      .join('apps/');
+    lines.push(`  [${kind}]`, ...remedy.split('\n').map((line) => `    ${line}`));
+  }
+  if (unreadable.length > 0) {
+    lines.push(
+      `  [unreadable-declaration]`,
+      `    A field of \`apps/<deployment>/divergence.ts\` is not written as a literal, so the`,
+      `    report was derived as though it were absent. Write \`omittedModules\`,`,
+      `    \`decorationOrder\` and \`reasons\` as literals in that file.`,
+    );
+  }
+  lines.push('Fix them and run `pnpm run generate` again.');
+  return lines.join('\n');
 }
 
 /** Is this instance's admin registry the same as the one on disk? */

@@ -15,7 +15,10 @@
  *   `npx --yes create-endora-commerce@<v> shop --non-interactive …`
  *
  * and judges whether the run got past resolution, installed, and left an
- * administrator who can sign in.
+ * administrator who can sign in. Then it does what a client does next: it runs
+ * `endora new module` inside the instance, installs the overlay module that
+ * wrote, and asks its route — with no file of the instance edited by hand, so
+ * an answer is the instance composing its own `apps/<deployment>/`.
  *
  * ## Why it exists beside `tarball`, `registry` and `public`
  *
@@ -78,6 +81,9 @@ const HEALTH_PATH = '/api/v1/_health';
 const LOGIN_PATH = '/api/v1/auth/admin/login';
 const INSTALL_TIMEOUT_MS = 60 * 60_000;
 const BOOT_TIMEOUT_MS = 5 * 60_000;
+const STEP_TIMEOUT_MS = 10 * 60_000;
+/** The overlay module the run scaffolds into the instance it created. */
+const OVERLAY_MODULE_ID = 'proof_notice';
 /** The prefix `endora install` gives its temporary host (`packages/cli/src/install/host.ts`). */
 const HOST_PREFIX = 'endora-install-host-';
 
@@ -392,6 +398,97 @@ async function main(): Promise<number> {
       detail: left.length === 0 ? 'none left' : `left behind: ${left.join(', ')}`,
     });
 
+    // ── the client extends it: an overlay module, with no hand edit ──────
+    //
+    // The tree is exactly as the one-shot left it: nothing below edits `.env`
+    // or `package.json`. So a route that answers is the instance composing its
+    // own `apps/<deployment>/` (the run wrote `DEPLOYMENT`), resolving the
+    // contracts package a manifest imports (the run declared it), and
+    // `endora new module` working where a client stands.
+    const overlayRan = install.code === 0;
+    const scaffold = overlayRan
+      ? await exec(
+          'pnpm',
+          [
+            'exec',
+            'endora',
+            'new',
+            'module',
+            OVERLAY_MODULE_ID,
+            '--name',
+            'Proof notice',
+            '--description',
+            'An overlay module written by the acceptance run.',
+            '--permission',
+            `${OVERLAY_MODULE_ID}:read=View the proof notice`,
+          ],
+          { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS },
+        )
+      : null;
+    verdicts.push({
+      id: 'L7',
+      title: '`endora new module`, run inside the instance, writes an overlay module',
+      status: scaffold === null ? 'unmeasured' : scaffold.code === 0 ? 'pass' : 'fail',
+      detail:
+        scaffold === null
+          ? 'the one-shot did not succeed'
+          : scaffold.code === 0
+            ? `apps/shop/modules/${OVERLAY_MODULE_ID} written`
+            : `exit ${String(scaffold.code)}: ${scaffold.output.trim().split('\n').slice(-6).join(' | ')}`,
+    });
+    const overlayInstalled =
+      scaffold?.code === 0
+        ? await exec('pnpm', ['run', 'module:install', OVERLAY_MODULE_ID], {
+            cwd: target,
+            env: environment,
+            timeoutMs: STEP_TIMEOUT_MS,
+          })
+        : null;
+    const overlayGenerated =
+      overlayInstalled?.code === 0
+        ? await exec('pnpm', ['run', 'generate'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS })
+        : null;
+    verdicts.push({
+      id: 'L8',
+      title: 'the instance installs it and `generate` is clean over it',
+      status:
+        overlayInstalled === null
+          ? 'unmeasured'
+          : overlayInstalled.code === 0 && overlayGenerated?.code === 0
+            ? 'pass'
+            : 'fail',
+      detail:
+        overlayInstalled === null
+          ? 'no overlay module was written'
+          : `module:install exit ${String(overlayInstalled.code)}, generate exit ${String(overlayGenerated?.code ?? 'not run')}`,
+    });
+
+    // An overlay module that ships schema is refused by name, not ignored.
+    // Written and removed before the boot, so the instance that starts below
+    // is the one a client has.
+    let schemaRefusal: Verdict = {
+      id: 'L9',
+      title: 'an overlay module with a `migrations/` directory is refused, with a remedy',
+      status: 'unmeasured',
+      detail: 'no overlay module was written',
+    };
+    if (overlayGenerated?.code === 0) {
+      const migrations = join(target, 'apps', 'shop', 'modules', OVERLAY_MODULE_ID, 'migrations');
+      mkdirSync(migrations, { recursive: true });
+      writeFileSync(join(migrations, 'Migration20270101T000000_proof.ts'), 'export {};\n', 'utf8');
+      const refused = await exec('pnpm', ['run', 'generate'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS });
+      rmSync(migrations, { recursive: true, force: true });
+      const named =
+        refused.output.includes(`apps/shop/modules/${OVERLAY_MODULE_ID}/migrations/Migration20270101T000000_proof.ts`) &&
+        refused.output.includes('module package');
+      schemaRefusal = {
+        ...schemaRefusal,
+        status: refused.code !== 0 && named ? 'pass' : 'fail',
+        detail: `generate exit ${String(refused.code)}, ${named ? 'naming the file and the remedy' : 'without naming the file and the remedy'}`,
+      };
+    }
+    verdicts.push(schemaRefusal);
+
     // ── an administrator signs in ────────────────────────────────────────
     let login: Verdict = {
       id: 'L6',
@@ -425,6 +522,26 @@ async function main(): Promise<number> {
       }
     }
     verdicts.push(login);
+
+    let overlayRoute: Verdict = {
+      id: 'L10',
+      title: "the overlay module's route answers, with no file of the instance edited by hand",
+      status: 'unmeasured',
+      detail: 'the instance did not start with an overlay module installed',
+    };
+    if (overlayGenerated?.code === 0 && login.status !== 'unmeasured' && api?.exitCode === null) {
+      const path = `/api/v1/${OVERLAY_MODULE_ID.replace(/_/g, '-')}`;
+      const reply = await fetch(`http://127.0.0.1:${String(port)}${path}`, {
+        signal: AbortSignal.timeout(20_000),
+      });
+      const body = await reply.text();
+      overlayRoute = {
+        ...overlayRoute,
+        status: reply.status === 200 && body.includes(OVERLAY_MODULE_ID) ? 'pass' : 'fail',
+        detail: `GET ${path} → ${String(reply.status)} ${body.slice(0, 200)}`,
+      };
+    }
+    verdicts.push(overlayRoute);
   } finally {
     if (api !== null) await stopGroup(api);
     if (registry !== null) await registry.close();

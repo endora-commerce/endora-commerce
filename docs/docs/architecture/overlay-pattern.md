@@ -281,7 +281,10 @@ silently — on:
   core, a workspace module package, an installed package or another overlay
   module. The refusal names every claimant's file.
 - **Overlay schema** — an `@Entity()` class or a migration under
-  `backend/src/apps/`, refused by `generate-composer.ts`.
+  `backend/src/apps/`, refused by `generate-composer.ts`. In an instance the same
+  refusal is `pnpm run generate`'s: a `migrations/` or `entities/` directory, or an
+  `@Entity()` class, under `apps/<deployment>/modules/` stops the command and names each
+  file.
 - **Missing manifest** — an overlay module directory carrying no
   `manifest.js`/`manifest.ts`. The refusal names both candidates.
 - **Unregisterable backend** — an overlay module whose `backend.js`/`backend.ts`

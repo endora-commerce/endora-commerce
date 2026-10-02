@@ -33,9 +33,16 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { generateReport, GenerateHostError, runGenerate } from '../src/generate/index.js';
+import { main } from '../src/bin/endora.js';
+
+import {
+  generateReport,
+  GenerateHostError,
+  GenerateInputError,
+  runGenerate,
+} from '../src/generate/index.js';
 import {
   renderInstanceDivergence,
   DivergenceHostError,
@@ -664,5 +671,142 @@ function applyWraps(di) {
     const result = await runGenerate({ cwd: root });
     expect(result.divergence).toHaveLength(1);
     expect(result.divergence[0]?.entries).toBe(0);
+  });
+});
+
+/** Runs the program with both streams captured. */
+async function runProgram(argv: readonly string[], cwd: string) {
+  const out: string[] = [];
+  const err: string[] = [];
+  const stdout = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+    out.push(String(chunk));
+    return true;
+  });
+  const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+    err.push(String(chunk));
+    return true;
+  });
+  try {
+    const code = await main(argv, cwd);
+    return { code, stdout: out.join(''), stderr: err.join('') };
+  } finally {
+    stdout.mockRestore();
+    stderr.mockRestore();
+  }
+}
+
+/**
+ * This repository judges a finding in `check:divergence`, which exits 1, and
+ * renders in a generator that exits 0. An instance has no check estate, so the
+ * command that renders is the only instrument a client runs — and it used to
+ * print the finding and exit 0, which made `pnpm run setup` a green run over a
+ * deployment nobody had explained.
+ */
+describe('a finding fails the command, after the report is written', () => {
+  const UNDECLARED = `export const divergence = { omittedModules: [], decorationOrder: {}, reasons: {} };\n`;
+
+  it('exits 1 on an undeclared divergence, and names the file and the remedy', async () => {
+    const root = instance({ declaration: UNDECLARED });
+    const result = await runProgram(['generate'], root);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toContain('[undeclared-divergence]');
+    expect(result.stderr).toContain('undeclared-divergence');
+    // The remedy names the reader's own file, never this repository's layout.
+    expect(result.stderr).toContain('apps/<deployment>/divergence.ts');
+    expect(result.stderr).not.toContain('backend/src/apps');
+  });
+
+  it('still writes the report: the generator writes whatever it found', async () => {
+    const root = instance({ declaration: UNDECLARED });
+    await runProgram(['generate'], root);
+    const report = readFileSync(join(root, 'apps', 'acme', 'divergence.generated.md'), 'utf8');
+    expect(report).toContain('blogService');
+  });
+
+  it('exits 1 on a declaration it could not read as literals', async () => {
+    const root = instance({
+      declaration: `import { REASONS } from './reasons.js';\nexport const divergence = { reasons: REASONS };\n`,
+    });
+    const result = await runProgram(['generate'], root);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('not written as a literal');
+  });
+
+  it('exits 0 when every divergence has its sentence', async () => {
+    const result = await runProgram(['generate'], instance());
+    expect(result.stderr).toBe('');
+    expect(result.code).toBe(0);
+  });
+
+  it('a dry run reports the same verdict and writes nothing', async () => {
+    const root = instance({ declaration: UNDECLARED });
+    const result = await runProgram(['generate', '--dry-run'], root);
+    expect(result.code).toBe(1);
+    expect(() => readFileSync(join(root, 'apps', 'acme', 'divergence.generated.md'))).toThrow();
+  });
+});
+
+/**
+ * An overlay module contributes no schema (D-106). This repository's generator
+ * refuses one; an instance has no such generator, and the platform's discovery
+ * reads migrations and entities from installed packages alone — so a
+ * `migrations/` directory in an overlay module was ignored, no table was
+ * created, and the first report was a query against a relation that is not
+ * there.
+ */
+describe('overlay schema is refused, not ignored', () => {
+  const overlayDir = (root: string): string =>
+    join(root, 'apps', 'acme', 'modules', 'acme_overlay');
+
+  it('refuses a migration under an overlay module, before anything is written', async () => {
+    const root = instance();
+    write(
+      join(overlayDir(root), 'migrations', 'Migration20260101T000000_acme.ts'),
+      'export class Migration20260101T000000_acme {}\n',
+    );
+    const error = await runGenerate({ cwd: root }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(GenerateInputError);
+    const message = (error as Error).message;
+    expect(message).toContain(
+      'apps/acme/modules/acme_overlay/migrations/Migration20260101T000000_acme.ts',
+    );
+    expect(message).toContain('no schema');
+    // The remedy, in terms an instance has: a module package.
+    expect(message).toContain('module package');
+    expect(() => readFileSync(join(root, 'apps', 'acme', 'divergence.generated.md'))).toThrow();
+  });
+
+  it('refuses a file under an `entities/` directory', async () => {
+    const root = instance();
+    write(join(overlayDir(root), 'entities', 'note.entity.ts'), 'export class Note {}\n');
+    const error = await runGenerate({ cwd: root }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(GenerateInputError);
+    expect((error as Error).message).toContain(
+      'apps/acme/modules/acme_overlay/entities/note.entity.ts',
+    );
+  });
+
+  it('refuses an `@Entity()` class wherever the file sits', async () => {
+    const root = instance();
+    write(
+      join(overlayDir(root), 'note.ts'),
+      `import { Entity } from '@mikro-orm/core';\n@Entity()\nexport class Note {}\n`,
+    );
+    const error = await runGenerate({ cwd: root }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(GenerateInputError);
+    expect((error as Error).message).toContain('apps/acme/modules/acme_overlay/note.ts');
+  });
+
+  it('is exit 1 through the program: the remedy is the operator’s', async () => {
+    const root = instance();
+    write(join(overlayDir(root), 'migrations', 'm.ts'), 'export {};\n');
+    const result = await runProgram(['generate'], root);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('apps/acme/modules/acme_overlay/migrations/m.ts');
+  });
+
+  it('an overlay module with neither is not refused', async () => {
+    const result = await runGenerate({ cwd: instance() });
+    expect(result.divergence).toHaveLength(1);
   });
 });

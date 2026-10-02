@@ -16,7 +16,7 @@ for you today,
 the page says so in a box like this one and gives the way round it:
 
 :::caution Limit today
-Four things on this page are harder than they should be. They are collected in
+Two things on this page are harder than they should be. They are collected in
 [What does not work yet](#what-does-not-work-yet), each with what was observed.
 :::
 
@@ -43,38 +43,66 @@ an **overlay module**: it is added on top of the platform, and no platform file 
 - A terminal in the instance's root directory. Stop `pnpm run dev:all` if it is running (Ctrl-C);
   you start it again in step 7.
 
-## Step 1 — Name your deployment
+## Step 1 — Check the instance knows its deployment
 
-The platform composes your overlay modules only when it knows which deployment it is running as.
-Add one line to the `.env` file in the instance's root:
+The platform composes your overlay modules only when it knows which deployment it is running as,
+and a manifest is written with two helpers from the `@endora-commerce/contracts` package. The
+installer sets both up: `.env` in the instance's root has a `DEPLOYMENT` line naming the directory
+under `apps/`, and `package.json` lists `@endora-commerce/contracts`.
+
+```bash
+grep DEPLOYMENT .env
+grep '@endora-commerce/contracts' package.json
+```
+
+```text
+DEPLOYMENT=my-shop
+    "@endora-commerce/contracts": "0.100.2",
+```
+
+The version is the one your release pins; it is written without a `^` on purpose.
+
+:::note Instances created with release 0.100.2 or earlier
+Those releases wrote neither line. If either command prints nothing, add what is missing:
 
 ```bash
 echo "DEPLOYMENT=my-shop" >> .env
+pnpm add -w "@endora-commerce/contracts@$(node -p "require('./node_modules/@endora-commerce/platform/package.json').dependencies['@endora-commerce/contracts']")"
 ```
 
-The value is the name of the directory under `apps/`. Without this line nothing fails: your module
-is simply not there, and nothing says why.
+The part in `$(…)` prints the exact version of the contracts package your installed platform
+uses, so the two stay on one release. Without `DEPLOYMENT` nothing fails: your module is simply not
+there, and nothing says why.
+:::
 
-## Step 2 — Add the contracts package
+## Step 2 — Scaffold the module
 
-A manifest is written with two helpers from `@endora-commerce/contracts`. The instance does not
-declare that package itself, so add it, at the same version range as the platform:
+One command writes the module's directory, with a manifest, an entry point and both translation
+files. The first argument is the module's id — lower-case letters, digits and underscores — and it
+becomes the directory name.
 
 ```bash
-pnpm add -w "@endora-commerce/contracts@$(node -p "require('./package.json').dependencies['@endora-commerce/platform']")"
+pnpm exec endora new module store_notice \
+  --name "Store notice" \
+  --description "A short notice the shop owner writes and the storefront can display." \
+  --permission "store_notice:read=View the store notice"
 ```
 
-The part in `$(…)` prints the range your `package.json` already has for
-`@endora-commerce/platform` — for example `^0.100.2` — so the two packages stay on one release.
+```text
+endora new module store_notice — an overlay module in apps/my-shop/modules/store_notice.
+  wrote manifest.ts
+  wrote backend.ts
+  wrote i18n/en.json
+  wrote i18n/pl.json
+```
+
+What it wrote already works: a module with an on/off switch, a public route and an admin route
+guarded by the permission. The next three steps turn it into the store notice. Run the command with
+`--dry-run` to read the files without writing them.
 
 ## Step 3 — Write the manifest
 
-Create the module's directory and its manifest. The directory name is the module's id: lower-case
-letters, digits and underscores.
-
-```bash
-mkdir -p apps/my-shop/modules/store_notice/i18n
-```
+Replace the scaffolded manifest with this one. It adds a second Setting, for the notice text.
 
 ```ts title="apps/my-shop/modules/store_notice/manifest.ts"
 import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
@@ -130,6 +158,8 @@ What each part is for:
 
 ## Step 4 — Register the routes
 
+Replace the scaffolded `backend.ts` with this one, which reads the notice from the Setting:
+
 ```ts title="apps/my-shop/modules/store_notice/backend.ts"
 import { z } from 'zod';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -178,7 +208,9 @@ start with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`.
 ## Step 5 — Add the translations
 
 Every user-facing string ships in English and Polish. This module has one: the label of its
-permission, shown when a role is edited. The files are flat `key: text` maps.
+permission, shown when a role is edited. The files are flat `key: text` maps. The scaffold wrote
+both with your English text, so the English file is already right and the Polish one needs its
+translation.
 
 ```json title="apps/my-shop/modules/store_notice/i18n/en.json"
 {
@@ -225,15 +257,16 @@ Then record what your deployment now does differently from the platform:
 pnpm run generate
 ```
 
-Among its output is one line about your module:
+The command stops with an error, and among its output is one line about your module:
 
 ```text
 [undeclared-divergence] apps/my-shop/divergence.ts: no reason for `port-consumed:store_notice:settingsReadPort` — 'store_notice' resolves the port 'settingsReadPort', owned by a composition root
 ```
 
 The instance keeps a report of every place it reaches into the platform, and asks for one sentence
-of your own per entry. Open `apps/my-shop/divergence.ts` and give the reason, under the key the
-message names:
+of your own per entry. The report is written either way; the command fails until every entry has
+its sentence, so an unexplained change cannot slip through `pnpm run setup` unnoticed. Open
+`apps/my-shop/divergence.ts` and give the reason, under the key the message names:
 
 ```ts title="apps/my-shop/divergence.ts"
 export const divergence = {
@@ -246,7 +279,7 @@ export const divergence = {
 } as const;
 ```
 
-Run `pnpm run generate` again: the line is gone, and
+Run `pnpm run generate` again: it succeeds, the line is gone, and
 `apps/my-shop/divergence.generated.md` lists `store_notice` with your sentence. That file is the
 first thing to read when a platform upgrade changes something you relied on.
 
@@ -342,22 +375,24 @@ Checked on releases `0.100.1` and `0.100.2`. Each is a limit of the product toda
 
 | What | What you see | What to do |
 | --- | --- | --- |
-| `DEPLOYMENT` is not written by the installer | The instance has `apps/my-shop/`, but `.env` has no `DEPLOYMENT`, so an overlay module is silently not composed | Step 1 |
-| `@endora-commerce/contracts` is not a dependency of an instance | `ERR_MODULE_NOT_FOUND … '@endora-commerce/contracts'` from your `manifest.ts`, on every command | Step 2 |
 | The Modules screen does not load in an instance | `NOT_FOUND: Resource not found.` and "No modules to show" | The API call in step 8 |
 | `pnpm run module:disable <id>` changes nothing in an instance | It prints `state=disabled`; `pnpm run module:status` still says `installed` and the routes still answer | The API call in step 8 |
+
+An instance created with release `0.100.2` or earlier has two more: its `.env` has no `DEPLOYMENT`
+and its `package.json` does not list `@endora-commerce/contracts`. The note in step 1 has the two
+commands that repair it.
 
 Three more limits decide what your first module can be:
 
 - **An overlay module cannot own a database table.** It contributes settings, routes, permissions
-  and translations, and no entity and no migration. In an instance this is not refused: a
-  `migrations/` or `entities/` directory inside an overlay module is ignored, no table is created,
-  and nothing reports it. Keep small state in Settings, as this module does.
+  and translations, and no entity and no migration. `pnpm run generate` refuses a `migrations/` or
+  `entities/` directory inside an overlay module, naming each file — nothing in an instance would
+  run them, so no table would be created. Keep small state in Settings, as this module does.
 - **A module that needs its own table is a module package**, and so is a module with its own admin
-  screen. `endora new module` scaffolds one — with `--entities` for a table and `--admin` for a
-  screen — but it runs only inside a checkout of the Endora Commerce repository. In an instance it
-  stops, naming `backend/scripts/generate-module-manifests.ts` as missing. This tutorial does not
-  cover writing a package by hand.
+  screen. Inside an instance `endora new module` writes an overlay module, and refuses `--entities`
+  and `--admin` with the reason. It scaffolds a package — with `--entities` for a table and
+  `--admin` for a screen — only inside a checkout of the Endora Commerce repository. This tutorial
+  does not cover writing a package by hand.
 - **There is no storefront to show the notice in** unless your instance was created from a checkout
   of the repository — see
   [What a first run does not give you](./getting-started.md#what-a-first-run-does-not-give-you). The
