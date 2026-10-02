@@ -2,9 +2,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
-import { instanceOperatorRuntime } from './operator-entry.js';
+import { instanceOperatorRuntime, runInstanceOperatorCommand } from './operator-entry.js';
 
 /**
  * The half of an instance's `module:*` entry point that answers with no
@@ -152,5 +152,44 @@ describe('instanceOperatorRuntime', () => {
       env: {},
     });
     expect(runtime.confirm).toBeUndefined();
+  });
+});
+
+describe('runInstanceOperatorCommand', () => {
+  it('prints a refusal raised while resolving the manifest set as one message, and exits 65', async () => {
+    const deploymentRoot = emptyDeploymentRoot();
+    const moduleDir = join(deploymentRoot, 'apps', 'shop', 'modules', 'proof_notice');
+    mkdirSync(join(moduleDir, 'migrations'), { recursive: true });
+    writeFileSync(join(moduleDir, 'migrations', 'Migration20270101T000000_proof.ts'), 'export {};\n');
+    const err: string[] = [];
+    // `process.exit` returns `never`; the sentinel is what stops the function
+    // where a real exit would, so nothing after the refusal can run unnoticed.
+    const exit = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`exit ${String(code)}`);
+    });
+    let ran = false;
+    try {
+      await expect(
+        runInstanceOperatorCommand({
+          deploymentRoot,
+          ormConfig: refusingConfig,
+          env: { DEPLOYMENT: 'shop' },
+          err: (line) => err.push(line),
+          argv: [],
+          run: async () => {
+            ran = true;
+            return 0;
+          },
+        }),
+      ).rejects.toThrow('exit 65');
+    } finally {
+      exit.mockRestore();
+    }
+    expect(ran).toBe(false);
+    expect(err).toHaveLength(1);
+    expect(err[0]).toMatch(/^\[manifest\] \[overlay\] an overlay module contributes no schema/);
+    expect(err[0]).toContain(join(moduleDir, 'migrations', 'Migration20270101T000000_proof.ts'));
+    // A message, not an exception dump.
+    expect(err[0]).not.toMatch(/\n\s+at /);
   });
 });

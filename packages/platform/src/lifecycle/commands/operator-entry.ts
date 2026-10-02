@@ -212,7 +212,22 @@ export async function runInstanceOperatorCommand(
     readonly argv?: readonly string[];
   },
 ): Promise<never> {
-  const { runtime, dispose } = await instanceOperatorRuntime(options);
+  let built: Awaited<ReturnType<typeof instanceOperatorRuntime>>;
+  try {
+    built = await instanceOperatorRuntime(options);
+  } catch (error: unknown) {
+    // A refusal raised while the manifest set is resolved — a module id claimed
+    // twice, an overlay module that ships schema — is an answer for the
+    // operator, written by somebody who knew what the remedy is. Left to
+    // propagate it reaches the terminal as an uncaught exception: the sentence
+    // is there, under a source excerpt and above fifteen frames of this
+    // package's internals. Nothing is open yet (R2.2), so there is nothing to
+    // close; 65 is the code the five bodies give a registry they cannot build.
+    const err = options.err ?? ((line: string) => void process.stderr.write(line));
+    err(`[manifest] ${error instanceof Error ? error.message : String(error)}\n`);
+    process.exit(65);
+  }
+  const { runtime, dispose } = built;
   const argv = options.argv ?? process.argv.slice(2);
   const code = await enterSystemScope('cli: operator command', () => options.run(argv, runtime), {
     entryPoint: 'cli',

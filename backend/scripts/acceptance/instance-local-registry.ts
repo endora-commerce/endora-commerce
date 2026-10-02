@@ -24,7 +24,7 @@
  * operator at the terminal beside them, can do what Principle XVII promises an
  * instance: list the modules, switch one off and have it stay off across a
  * restart, and take one out with `module:disable` / `module:uninstall` and put
- * it back (L11–L16, L18). Those seven are here because this is the only composition
+ * it back (L11–L16, L21). Those seven are here because this is the only composition
  * that is an instance's — `composeApp` with no contribution and the five
  * `module:*` entry points as `endora new instance` renders them — and both
  * defects they were written from were invisible everywhere else: the reference
@@ -623,7 +623,7 @@ async function main(): Promise<number> {
       detail: 'no overlay module was written',
     };
     let bootRefusal: Verdict = {
-      id: 'L17',
+      id: 'L20',
       title: 'the same tree is refused by the API and by a `module:*` command, with no `generate` run',
       status: 'unmeasured',
       detail: 'no overlay module was written',
@@ -646,14 +646,16 @@ async function main(): Promise<number> {
       rmSync(migrations, { recursive: true, force: true });
       const refusedAtBoot = (run: { code: number; output: string }): boolean =>
         run.code !== 0 &&
-        run.output.includes(join('apps', 'shop', 'modules', OVERLAY_MODULE_ID, 'migrations', 'Migration20270101T000000_proof.ts')) &&
+        run.output.includes(join('apps', dirName, 'modules', OVERLAY_MODULE_ID, 'migrations', 'Migration20270101T000000_proof.ts')) &&
         run.output.includes('contributes no schema');
       bootRefusal = {
         ...bootRefusal,
-        status: refusedAtBoot(booted) && refusedAtBoot(commanded) ? 'pass' : 'fail',
+        // The command prints the refusal as a message; a stack frame under it
+        // is the uncaught exception this verdict was first measured against.
+        status: refusedAtBoot(booted) && refusedAtBoot(commanded) && !/\n\s+at .*operator-entry/.test(commanded.output) ? 'pass' : 'fail',
         detail: `start exit ${String(booted.code)}, module:status exit ${String(commanded.code)}, ${
           refusedAtBoot(booted) && refusedAtBoot(commanded) ? 'both naming the file' : 'not both naming the file'
-        }`,
+        }${/\n\s+at .*operator-entry/.test(commanded.output) ? ', and the command printed a stack trace' : ''}`,
       };
       const named =
         refused.output.includes(`apps/${dirName}/modules/${OVERLAY_MODULE_ID}/migrations/Migration20270101T000000_proof.ts`) &&
@@ -681,7 +683,7 @@ async function main(): Promise<number> {
       ['L14', 'the running API hears `module:disable` from the terminal without a restart'],
       ['L15', '`module:enable` restores it, in the registry and in the running API'],
       ['L16', 'a soft `module:uninstall` is persisted, and `module:install` restores it'],
-      ['L18', '`module:uninstall --hard` needs `--force`, then reverts and removes, and `migrate` + `module:install` restore it'],
+      ['L21', '`module:uninstall --hard` needs `--force`, then reverts and removes, and `migrate` + `module:install` restore it'],
     ].map(([id, title]) => ({ id: id!, title: title!, status: 'unmeasured', detail: 'not reached' }));
     const settle = (id: string, pass: boolean, detail: string): void => {
       const index = lifecycle.findIndex((verdict) => verdict.id === id);
@@ -792,7 +794,7 @@ async function main(): Promise<number> {
               `${subject}: uninstall exit ${String(uninstall.code)} then state=${uninstalled}; install exit ${String(install2.code)} then state=${reinstalled}`,
             );
 
-            // ── L18: the destructive half ─────────────────────────────────────
+            // ── L21: the destructive half ─────────────────────────────────────
             // In an instance every module is an installed package, so this is
             // the command that could never succeed while the entry point
             // supplied no migration ownership. `migrate` is what puts back the
@@ -806,7 +808,7 @@ async function main(): Promise<number> {
             const install3 = await operator('module:install', subject);
             const restoredState = await registryState();
             settle(
-              'L18',
+              'L21',
               unforced.code === 64 &&
                 hard.code === 0 &&
                 hard.output.includes('registry row deleted') &&
