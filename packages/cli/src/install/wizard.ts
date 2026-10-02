@@ -149,6 +149,7 @@ export interface WizardAnswers {
   readonly apiUrl?: string | undefined;
   readonly adminUrl?: string | undefined;
   readonly storefrontUrl?: string | undefined;
+  readonly publicUrl?: string | undefined;
   readonly salesChannel?: string | undefined;
   readonly revalidateSecret?: string | undefined;
   readonly services?: boolean | undefined;
@@ -180,6 +181,12 @@ export function answeredByFlags(given: WizardAnswers): ReadonlyMap<QuestionId, s
   if (present(given.adminUrl)) found.set('admin-url', `--admin-url ${given.adminUrl}`);
   if (present(given.storefrontUrl)) {
     found.set('storefront-url', `--storefront-url ${given.storefrontUrl}`);
+  }
+  // One host with paths stands for all three addresses (138 FR-024).
+  if (present(given.publicUrl)) {
+    for (const id of ['api-url', 'admin-url', 'storefront-url'] as const) {
+      found.set(id, `--public-url ${given.publicUrl}`);
+    }
   }
   if (present(given.salesChannel)) found.set('sales-channel', `--sales-channel ${given.salesChannel}`);
   if (present(given.revalidateSecret)) found.set('revalidate-secret', '--revalidate-secret');
@@ -530,7 +537,10 @@ export async function askWizard(
     // flag for exactly that reason.
     if (!fromFlags.has('parts') && !selection.writesTree) answers.without = [];
     const applies = new Set(questionIdsFor(selection));
-    const asks = (id: QuestionId): boolean => applies.has(id) && !fromFlags.has(id);
+    /** Addresses the layout question answered, all at once. */
+    const byLayout = new Set<QuestionId>();
+    const asks = (id: QuestionId): boolean =>
+      applies.has(id) && !fromFlags.has(id) && !byLayout.has(id);
     const standsUpApi = selection.components.includes('api');
 
     /** A required origin: an empty line and a value that is not one both re-ask. */
@@ -557,6 +567,32 @@ export async function askWizard(
         write(`  ${NOT_AN_ORIGIN}\n`);
       }
     };
+
+    // How the three are reached (138 FR-030, D-284 clause 5) — asked of a strict
+    // subset, before any address, and only where no address flag has spoken.
+    // The second layout is one question instead of up to three that must agree.
+    const addressIds = (['api-url', 'admin-url', 'storefront-url'] as const).filter((id) => applies.has(id));
+    if (selection.subset && addressIds.length > 0 && addressIds.every((id) => !fromFlags.has(id)) && !present(given.adminUrl)) {
+      write(
+        '\nHow are the API, the admin and the storefront reached?\n' +
+          '   1. one address each — api.example.com, admin.example.com, shop.example.com\n' +
+          '   2. one address, with paths — the storefront at /, the admin under /admin, the API under /api\n',
+      );
+      for (;;) {
+        const answer = await ask('[1] ', 'api-url');
+        if (answer.length === 0 || answer === '1') break;
+        if (answer !== '2') {
+          write('  type 1 or 2.\n');
+          continue;
+        }
+        answers.publicUrl = await requiredOrigin('The address, e.g. https://example.com: ', 'api-url');
+        for (const id of addressIds) {
+          byLayout.add(id);
+          prompted.push(id);
+        }
+        break;
+      }
+    }
 
     // The other machines (138 FR-018) — asked only of a strict subset, in
     // FR-012…FR-014's order, each skipped when its flag was given.

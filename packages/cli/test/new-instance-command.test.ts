@@ -458,6 +458,7 @@ describe('endora new instance --topology, as a process', () => {
       'README.md',
       'compose.prod.yml',
       'nginx.example.conf',
+      'nginx.paths.example.conf',
     ]);
     expect(readFileSync(join(target, 'deploy', 'compose.prod.yml'), 'utf8')).toContain(
       'services:',

@@ -93,3 +93,64 @@ describe('manifest route', () => {
     expect(body.icons.some((icon: { purpose?: string }) => icon.purpose === 'maskable')).toBe(true);
   });
 });
+
+/**
+ * `specs/138-separate-components/` addendum, FR-031 — one host with paths.
+ *
+ * Where the admin is served under `/admin` on the storefront's own host, this
+ * worker's scope covers it. It has to leave those requests alone, as it leaves
+ * `/api/`: an operator's screen answered with the shop's offline page, or held
+ * in the shop's cache, is the storefront answering for an application that is
+ * not its own. Behavioural, because the property is what the handler *does*.
+ */
+describe('service-worker.js — it answers for the storefront only', () => {
+  function respondsTo(path: string, mode = 'navigate'): boolean {
+    const listeners = new Map<string, (event: unknown) => void>();
+    const scope = {
+      location: new URL('https://example.com/service-worker.js?v=test'),
+      addEventListener: (type: string, listener: (event: unknown) => void): void => {
+        listeners.set(type, listener);
+      },
+      clients: { claim: async (): Promise<void> => undefined, matchAll: async (): Promise<unknown[]> => [] },
+      skipWaiting: async (): Promise<void> => undefined,
+      registration: {},
+    };
+    // The worker is a classic script, so it is evaluated as one.
+    new Function('self', 'caches', 'fetch', 'URL', 'Request', 'Response', swSource)(
+      scope,
+      { open: async () => ({}), keys: async () => [], delete: async () => true, match: async () => undefined },
+      () => new Promise(() => undefined),
+      URL,
+      class {},
+      class {},
+    );
+    let responded = false;
+    listeners.get('fetch')!({
+      request: { method: 'GET', url: `https://example.com${path}`, mode },
+      respondWith: (): void => {
+        responded = true;
+      },
+      waitUntil: (): void => undefined,
+    });
+    return responded;
+  }
+
+  it('answers for a storefront page', () => {
+    expect(respondsTo('/catalog')).toBe(true);
+  });
+
+  it.each(['/admin', '/admin/', '/admin/catalog/products', '/admin/assets/index-abc.js'])(
+    'leaves %s to the network: it is the admin\'s',
+    (path) => {
+      expect(respondsTo(path)).toBe(false);
+    },
+  );
+
+  it('still answers for a storefront path that merely begins with the same letters', () => {
+    expect(respondsTo('/administracja')).toBe(true);
+  });
+
+  it('leaves /api/ alone, as before', () => {
+    expect(respondsTo('/api/v1/storefront/products', 'cors')).toBe(false);
+  });
+});

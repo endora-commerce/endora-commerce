@@ -375,6 +375,173 @@ export function assertS7(cases: readonly S7Case[]): Verdict {
   return verdict('S7', title, problems, `${String(cases.length)} cases, each exit 1 in one refusal with nothing written`);
 }
 
+// ── layout (b): one host with paths (contract §7.6) ────────────────────────
+
+export interface P1Observation {
+  readonly exitCode: number;
+  /** The one public origin the run was given as `--public-url`. */
+  readonly host: string;
+  readonly instanceEnv: Readonly<Record<string, string | undefined>>;
+  readonly adminEnv: Readonly<Record<string, string | undefined>>;
+  readonly storefrontEnv: Readonly<Record<string, string | undefined>>;
+  /** The port the storefront was told to listen on before the run. */
+  readonly storefrontPort: number;
+  /** Every `src`/`href` the built `admin/dist/index.html` references. */
+  readonly adminIndexReferences: readonly string[];
+}
+
+export function assertP1(observed: P1Observation): Verdict {
+  const { host } = observed;
+  const expect = (file: string, env: Readonly<Record<string, string | undefined>>, name: string, value: string): string[] =>
+    env[name] === value ? [] : [`${file}: ${name} is ${env[name] ?? 'not set'}, expected ${value}`];
+  const outside = observed.adminIndexReferences.filter((reference) => reference.startsWith('/') && !reference.startsWith('/admin/'));
+  const problems = [
+    ...(observed.exitCode === 0 ? [] : [`the run exited ${String(observed.exitCode)}`]),
+    ...expect('.env', observed.instanceEnv, 'PUBLIC_API_BASE_URL', host),
+    ...expect('.env', observed.instanceEnv, 'STOREFRONT_BASE_URL', host),
+    ...expect('.env', observed.instanceEnv, 'ADMIN_BASE_URL', `${host}/admin`),
+    ...expect('.env', observed.instanceEnv, 'CORS_ALLOWED_ORIGINS', host),
+    ...expect('admin/.env', observed.adminEnv, 'VITE_API_BASE_URL', host),
+    ...expect('admin/.env', observed.adminEnv, 'ADMIN_BASE_PATH', '/admin/'),
+    ...expect("the storefront's .env", observed.storefrontEnv, 'NEXT_PUBLIC_API_BASE_URL', host),
+    ...expect("the storefront's .env", observed.storefrontEnv, 'NEXT_PUBLIC_SITE_URL', host),
+    ...expect("the storefront's .env", observed.storefrontEnv, 'PORT', String(observed.storefrontPort)),
+    ...(observed.adminIndexReferences.length === 0 ? ['admin/dist/index.html references nothing'] : []),
+    ...(outside.length === 0 ? [] : [`the admin bundle references ${outside.join(', ')} — outside /admin/`]),
+  ];
+  return verdict(
+    'P1',
+    '`--public-url`: one host in all three, the admin built for /admin, the proxy\'s port nobody\'s own',
+    problems,
+    `${host} is the API origin and the storefront's; the admin is ${host}/admin, built with base /admin/; the allow-list holds it once`,
+  );
+}
+
+export interface P2Observation {
+  readonly health: number | null;
+  readonly revalidateWithTheSecret: number;
+  readonly revalidateWithAnother: number;
+  /** Which application answered `POST /api/revalidate` through the host. */
+  readonly revalidateAnsweredBy: 'storefront' | 'api' | 'unknown';
+  /** Which application answered a request under `/assets/file/`. */
+  readonly assetRouteAnsweredBy: 'storefront' | 'api' | 'unknown';
+}
+
+export function assertP2(observed: P2Observation): Verdict {
+  const problems = [
+    ...(observed.health === 200 ? [] : [`/api/v1/_health answered ${String(observed.health)} through the host`]),
+    ...(observed.revalidateAnsweredBy === 'storefront' ? [] : [`/api/revalidate was answered by the ${observed.revalidateAnsweredBy}`]),
+    ...(observed.revalidateWithTheSecret >= 200 && observed.revalidateWithTheSecret < 300
+      ? []
+      : [`/api/revalidate answered the shared secret with ${String(observed.revalidateWithTheSecret)}`]),
+    ...(observed.revalidateWithAnother === 401 || observed.revalidateWithAnother === 403
+      ? []
+      : [`/api/revalidate answered another value with ${String(observed.revalidateWithAnother)}`]),
+    ...(observed.assetRouteAnsweredBy === 'api' ? [] : [`/assets/file/ was answered by the ${observed.assetRouteAnsweredBy}`]),
+  ];
+  return verdict(
+    'P2',
+    'under one host: /api/ and /assets/file/ are the API\'s, /api/revalidate is the storefront\'s',
+    problems,
+    'health 200 under /api; /api/revalidate reached the storefront and honoured only the shared secret; /assets/file/ reached the API',
+  );
+}
+
+export interface P3Observation {
+  readonly bare: { readonly status: number; readonly location: string | null };
+  readonly index: { readonly status: number; readonly isAdmin: boolean };
+  readonly asset: { readonly path: string; readonly status: number; readonly contentType: string };
+  readonly deepLink: { readonly path: string; readonly status: number; readonly isAdmin: boolean };
+}
+
+export function assertP3(observed: P3Observation): Verdict {
+  const problems = [
+    ...(observed.bare.status >= 300 && observed.bare.status < 400 && (observed.bare.location ?? '').endsWith('/admin/')
+      ? []
+      : [`/admin answered ${String(observed.bare.status)} → ${String(observed.bare.location)}, not a redirect to /admin/`]),
+    ...(observed.index.status === 200 && observed.index.isAdmin ? [] : ['/admin/ is not the admin bundle\'s page']),
+    ...(observed.asset.status === 200 && /javascript/.test(observed.asset.contentType)
+      ? []
+      : [`${observed.asset.path} answered ${String(observed.asset.status)} ${observed.asset.contentType}`]),
+    ...(observed.deepLink.status === 200 && observed.deepLink.isAdmin
+      ? []
+      : [`${observed.deepLink.path}, loaded directly, answered ${String(observed.deepLink.status)} and is ${observed.deepLink.isAdmin ? '' : 'not '}the admin`]),
+  ];
+  return verdict(
+    'P3',
+    'the admin under /admin: its page, its assets, and a screen loaded directly',
+    problems,
+    `/admin → /admin/; ${observed.asset.path} is JavaScript; ${observed.deepLink.path} loaded directly is the admin`,
+  );
+}
+
+export interface P4Observation {
+  readonly login: { readonly status: number; readonly sessionCookie: boolean };
+  readonly authenticated: number;
+  readonly anonymous: number;
+}
+
+export function assertP4(observed: P4Observation): Verdict {
+  const problems = [
+    ...(observed.login.status === 200 ? [] : [`the sign-in answered ${String(observed.login.status)}`]),
+    ...(observed.login.sessionCookie ? [] : ['the sign-in set no session cookie']),
+    ...(observed.authenticated === 200 ? [] : [`the request carrying the cookie answered ${String(observed.authenticated)}`]),
+    ...(observed.anonymous === 200 ? ['the same request with no cookie is 200 too'] : []),
+  ];
+  return verdict(
+    'P4',
+    'an administrator signs in through the one host, and the cookie is honoured there',
+    problems,
+    `sign-in 200 with a session cookie; the next request 200 (${String(observed.anonymous)} without it)`,
+  );
+}
+
+export interface P5Observation {
+  readonly home: number | null;
+  readonly product: { readonly link: string; readonly status: number; readonly heading: string } | null;
+}
+
+export function assertP5(observed: P5Observation): Verdict {
+  const problems = [
+    ...(observed.home === 200 ? [] : [`/ answered ${String(observed.home)}`]),
+    ...(observed.product === null
+      ? ['the catalogue links no product']
+      : observed.product.status === 200 && observed.product.heading.trim().length > 0
+        ? []
+        : [`${observed.product.link} answered ${String(observed.product.status)} and rendered no heading`]),
+  ];
+  return verdict(
+    'P5',
+    'the storefront at /, rendering a product of the API behind the same host',
+    problems,
+    `/ 200; ${observed.product?.link ?? ''} renders "${observed.product?.heading ?? ''}"`,
+  );
+}
+
+/**
+ * The proxy this run stood up is the instance's own `deploy/nginx.paths.example.conf`
+ * — with the addresses of this machine put in and **nothing else** changed. A
+ * proof over a configuration written for the proof would say nothing about the
+ * file a client is given.
+ */
+export function assertP6(observed: { readonly example: string; readonly used: string }): Verdict {
+  const routing = (text: string): string[] =>
+    text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#'))
+      .filter((line) => !/^(listen |server_name )/.test(line))
+      .map((line) => line.replace(/^(proxy_pass http:\/\/)[^/;]+/, '$1<address>'));
+  const [left, right] = [routing(observed.example), routing(observed.used)];
+  const differing = left.length === right.length ? left.filter((line, index) => line !== right[index]) : ['a different number of directives'];
+  return verdict(
+    'P6',
+    'the routing proven is the instance\'s own deploy/nginx.paths.example.conf, addresses aside',
+    differing.length === 0 ? [] : [`the configuration used differs from the example in: ${differing.slice(0, 3).join(' | ')}`],
+    `${String(left.length)} directives, identical but for listen, server_name and the proxied addresses`,
+  );
+}
+
 /**
  * The run against the recorded state — `--against-expectation`.
  *

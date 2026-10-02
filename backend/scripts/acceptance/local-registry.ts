@@ -169,11 +169,10 @@ export async function startLocalRegistry(options: {
       response.end();
       return;
     }
-    // An upstream that resets a stream half-way through a body is an `error`
-    // event on this readable, and `pipe` forwards no error: unhandled, it ended
-    // the process — the registry and the run it was serving — over one tarball
-    // a client would simply have fetched again. The response is destroyed
-    // instead, which is a broken download on the client's side and a retry.
+    // An upstream that breaks off mid-body — npmjs resets an HTTP/2 stream now
+    // and then — ends this one response. Unhandled, the stream's `error` is an
+    // uncaught exception: it took a whole acceptance run down, past its
+    // `finally`, with its containers still up. The client retries a torn fetch.
     const body = Readable.fromWeb(reply.body as import('node:stream/web').ReadableStream);
     body.on('error', () => response.destroy());
     body.pipe(response);

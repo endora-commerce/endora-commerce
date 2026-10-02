@@ -163,3 +163,47 @@ describe('the server', () => {
     expect(upstream.paths).toEqual([]);
   });
 });
+
+/**
+ * An upstream that breaks off in the middle of a body. npmjs does it — an
+ * HTTP/2 stream reset under load — and the forwarded stream then emits `error`
+ * with nobody listening, which is an uncaught exception: it took the whole
+ * acceptance run down, past its `finally`, and left its containers running.
+ */
+describe('an upstream that breaks off mid-body', () => {
+  it('fails that one response, and the registry keeps answering', async () => {
+    const upstream: Server = createServer((request, response) => {
+      if (request.url === '/breaks') {
+        response.writeHead(200, { 'content-type': 'application/json', 'content-length': '1000' });
+        response.write('{"partial":');
+        setTimeout(() => response.destroy(), 20);
+        return;
+      }
+      response.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}');
+    });
+    await new Promise<void>((done) => upstream.listen(0, '127.0.0.1', done));
+    running.push({ close: () => new Promise<void>((done) => upstream.close(() => done())) });
+    const registry: LocalRegistry = await startLocalRegistry({
+      tarballs: [],
+      upstream: `http://127.0.0.1:${String((upstream.address() as AddressInfo).port)}`,
+    });
+    running.push(registry);
+
+    const uncaught: unknown[] = [];
+    const onUncaught = (error: unknown): void => void uncaught.push(error);
+    process.on('uncaughtException', onUncaught);
+    try {
+      const broken = await fetch(`${registry.url}/breaks`).then(
+        (response) => response.text().then(() => 'read to the end', () => 'broke off'),
+        () => 'broke off',
+      );
+      expect(broken).toBe('broke off');
+      await new Promise((done) => setTimeout(done, 50));
+      expect(uncaught).toEqual([]);
+      // …and the next request is answered: the process is still there.
+      expect(await (await fetch(`${registry.url}/still-here`)).text()).toBe('{"ok":true}');
+    } finally {
+      process.off('uncaughtException', onUncaught);
+    }
+  });
+});

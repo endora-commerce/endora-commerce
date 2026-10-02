@@ -60,6 +60,7 @@ const STOREFRONT_ALONE: readonly (readonly [string, string])[] = [
   ['Which directory should it be written to?', 'shop\r'],
   ['> ', '1 2\r'],
   ['> ', '\r'],
+  ['[1] ', '\r'],
   ['Where is the API?', 'https://api.example.com\r'],
   ['Where will this storefront be served?', 'https://shop.example.com\r'],
   ['Sales channel code [default]:', '\r'],
@@ -71,7 +72,9 @@ const ADMIN_ALONE: readonly (readonly [string, string])[] = [
   ['Which directory should it be written to?', 'admin\r'],
   ['> ', '1 3\r'],
   ['> ', '\r'],
-  ['Where is the API?', 'https://api.example.com\r'],
+  // One address, with paths: one question instead of the address questions.
+  ['[1] ', '2\r'],
+  ['The address, e.g. https://example.com:', 'https://example.com\r'],
 ];
 
 /**

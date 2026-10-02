@@ -341,7 +341,7 @@ describe('`install --only` and the origins of the other machines', () => {
 
   it('`--help` names the selection, the three origins and the channel', async () => {
     const { stdout } = await run(['--help']);
-    for (const flag of ['--only', '--api-url', '--admin-url', '--storefront-url', '--sales-channel']) {
+    for (const flag of ['--only', '--public-url', '--api-url', '--admin-url', '--storefront-url', '--sales-channel']) {
       expect(stdout, `the usage does not name ${flag}`).toContain(flag);
     }
     expect(stdout).toContain('api, admin, storefront');
@@ -362,7 +362,7 @@ describe('`install --only` and the origins of the other machines', () => {
     expect(result.stderr).toContain('api, admin, storefront');
   });
 
-  it.each(['--api-url', '--admin-url', '--storefront-url'])('`%s` reaches it', async (flag) => {
+  it.each(['--api-url', '--admin-url', '--storefront-url', '--public-url'])('`%s` reaches it', async (flag) => {
     const result = await run([
       'install',
       target(),
@@ -370,10 +370,12 @@ describe('`install --only` and the origins of the other machines', () => {
       '--only',
       'api',
       flag,
-      'https://example.com/a/path',
+      'https://example.com/a/path?x=1',
     ]);
     expect(result.code).toBe(1);
-    expect(result.stderr).toContain(`\`${flag} https://example.com/a/path\` is not an origin`);
+    // An origin for three of them; the admin's may carry a base path, and is
+    // refused as an address that is not one.
+    expect(result.stderr).toContain(`\`${flag} https://example.com/a/path?x=1\` is not an`);
   });
 
   it('`--sales-channel` reaches it', async () => {

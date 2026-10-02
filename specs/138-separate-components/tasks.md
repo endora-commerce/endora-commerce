@@ -113,3 +113,37 @@ but T10 edit the same two files.
 `pnpm -r run typecheck`, `pnpm -r run lint`, `pnpm --filter '!backend' run test`,
 `pnpm --filter backend run test:unit:fast`, the read sizes re-measured if the file count moved,
 and one green `acceptance:separate-components` run.
+
+---
+
+## Addendum — layout (b), one host with paths (spec FR-023…FR-032)
+
+- [x] **T12** Addresses with a base path. `parseAddress(value)` beside `parseOrigin`: an origin,
+  optionally followed by a base path (FR-023).
+  Files: `packages/cli/src/install/selection.ts`. **Test**: `test/install-selection.test.ts`.
+- [x] **T13** `--public-url`, and `--admin-url` for an admin without the API: argv, the decide
+  phase's refusals and requirements (FR-024, FR-025).
+  Files: `src/bin/endora.ts`, `src/install/index.ts`. **Test**: `test/cli.test.ts`,
+  `test/install.test.ts`.
+- [x] **T14** What is written: `ADMIN_BASE_PATH` in `admin/.env`, `ADMIN_BASE_URL` with its
+  path, origins once in the allow-list (FR-026, FR-027).
+  Files: `src/install/index.ts`. **Test**: `test/install.test.ts`.
+- [x] **T15** The admin is buildable for a base path: the scaffolded Vite configuration's `base`,
+  the admin shell's router basename, the two raw links (FR-026).
+  Files: `src/new-instance/template.ts`, `packages/admin-shell/src/AdminRoot.tsx`,
+  `packages/modules/blog/…/BlogCategoryTreePage.tsx`,
+  `packages/modules/catalog/…/ProductsBulkEditDialog.tsx`.
+  **Test**: `test/new-instance.test.ts`, `admin/test/components/AdminRoot.basename.test.tsx`.
+- [x] **T16** The storefront's service worker leaves `/admin` alone (FR-031).
+  Files: `storefront/public/service-worker.js`. **Test**: the storefront's service-worker test.
+- [x] **T17** The deploy example and its README section; `Dockerfile.admin`'s base-path argument
+  (FR-029). Files: `src/new-instance/deploy.ts`.
+  **Test**: `test/new-instance/deploy-examples.test.ts`.
+- [x] **T18** The wizard's layout question and the closing block's routing lines (FR-028,
+  FR-030). Files: `src/install/wizard.ts`, `src/install/index.ts`.
+  **Test**: `test/install-wizard.test.ts`, `test/install.test.ts`.
+- [x] **T19** Acceptance: `--layout paths` — one proxy, one port, P1–P6 as pure functions
+  (FR-032). Files: `backend/scripts/acceptance/separate-components*.ts`.
+  **Test**: the assertions' unit test; then one real run, and the browser proof by hand.
+- [x] **T20** Contract §7.5/§7.6, the install page (English and Polish), changesets.
+

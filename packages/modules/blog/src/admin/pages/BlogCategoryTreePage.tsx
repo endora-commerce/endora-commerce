@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import type { BlogCategoryTreeMove, BlogCategoryTreeNode as TreeNode } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, PageHeader } from '@endora-commerce/admin-kit/ui';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
@@ -129,7 +129,8 @@ export function BlogCategoryTreePage(): ReactNode {
         actions={
           canWrite ? (
             <Button asChild>
-              <a href="/blog/categories/new">{t('categoryTree.newCategory')}</a>
+              {/* The router's link, not a raw `href`: under a base path a raw one leaves the admin. */}
+              <Link to="/blog/categories/new">{t('categoryTree.newCategory')}</Link>
             </Button>
           ) : null
         }

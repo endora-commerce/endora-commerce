@@ -165,6 +165,37 @@ export function parseOrigin(value: string): string | null {
   return url.origin;
 }
 
+/** A public address: an origin, and the base path a component is served under at it. */
+export interface Address {
+  readonly origin: string;
+  /** `''`, or `/segment[/segment…]` — never a trailing slash. */
+  readonly basePath: string;
+  /** `origin + basePath`: the address as a link is built from it. */
+  readonly url: string;
+}
+
+/**
+ * An origin optionally followed by a base path — `https://example.com/admin` —
+ * or `null` (`specs/138-separate-components/` FR-023, D-284 clause 5 b).
+ *
+ * The one component that can be served under a path is the admin: the path is
+ * what its bundle is built for. So the path is held to what a bundler's `base`
+ * and a router's `basename` can both carry without escaping — plain segments,
+ * no trailing slash, no `.` or `..`, nothing percent-encoded — and everything
+ * else is refused rather than normalised: a value that needed normalising was
+ * meant as something else.
+ */
+export function parseAddress(value: string): Address | null {
+  const text = value.trim();
+  const match = /^(https?:\/\/[^/?#\s]+)((?:\/[A-Za-z0-9._~-]+)*)$/i.exec(text);
+  if (match === null) return null;
+  const origin = parseOrigin(match[1]!);
+  if (origin === null) return null;
+  const basePath = match[2]!;
+  if (basePath.split('/').some((segment) => segment === '.' || segment === '..')) return null;
+  return { origin, basePath, url: `${origin}${basePath}` };
+}
+
 /** The sentence a value that is not an origin is refused with. */
 export const NOT_AN_ORIGIN = 'that is not an origin: scheme and host, an optional port, no path.';
 
