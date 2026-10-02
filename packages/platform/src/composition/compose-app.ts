@@ -120,6 +120,7 @@ import {
   resolveManifestEntries,
   type RegisteredManifestEntry,
 } from '../lifecycle/index.js';
+import { lifecycleModuleFromStaticEntries } from '../lifecycle/plugin.js';
 import { activeOverlayModulesRoot } from '../overlay/deployment-roots.js';
 import { overlayModulesUnder } from '../overlay/overlay-runtime.js';
 import {
@@ -888,7 +889,35 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
 
   // The lazily built manifest registry the contribution below hands `_i18n`.
   let manifestRegistry: ReturnType<typeof buildStaticRegistry> | undefined;
+
+  // Feature 018 — the lifecycle assembly: the orchestrator that answers
+  // `GET /api/v1/admin/modules`, and the plugin that arms the
+  // `b2b:module:state-changed` subscriber.
+  //
+  // It is built **here**, for every composition, because nothing in it names a
+  // module: an ORM, two Redis clients, the audit log and the resolved manifest
+  // set. It used to be the reference deployment's contribution, and an instance
+  // contributes nothing (R2.4) — so every scaffolded instance served no module
+  // list (`/platform/modules` answered `NOT_FOUND`, which is the screen
+  // Principle XVII's operator switch lives on) and armed no subscriber, which
+  // left a running API or worker process holding the presence it booted with
+  // until it restarted, whatever `module:disable` or another process's
+  // activation write had done since. The harness is unaffected: it composes by
+  // hand, calls none of this, and keeps `_lifecycle`'s own `undefined` default.
+  //
+  // No `migrationOwnership`, deliberately. What this orchestrator serves is
+  // `status()`; installing, uninstalling, enabling and disabling at deployment
+  // level stay CLI-only, and the `module:*` commands build their own. Without
+  // the field a hard uninstall is refused naming it, which is the right answer
+  // for a path no route reaches.
+  const lifecycle = lifecycleModuleFromStaticEntries(
+    { orm, redis, redisSubscriber, emFactory: em, auditLog: auditLogService },
+    resolvedRegistry,
+  );
   composedModules.contribute({
+    // The contribution `_lifecycle` mounts its module list on. Absent, the list
+    // is not served — which is the harness's composition and no deployment's.
+    lifecycleOrchestrator: lifecycle.handle.orchestrator,
     // Principle X — whether this process runs each module's queue consumers.
     // Only the *flag* was ever a deployment decision; the workers themselves
     // are their modules' own (T143a).
@@ -1194,6 +1223,12 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // Feature 005 — the sales-channel resolver middleware writes the resolved
     // channel into the open request scope, so it mounts after the hook.
     salesChannels.plugin,
+    // The boot half of the lifecycle assembly above: arming the pub/sub
+    // subscriber that keeps the loaded presence fresh. It registers no route —
+    // those are `_lifecycle`'s own, through `ctx.ungatedRoutes` — and it can
+    // never fail a boot: a lost channel means stale, and the cache then
+    // re-reads PostgreSQL on a timer.
+    lifecycle.plugin,
     ...(options.scopedPlugins ?? []),
   ];
 

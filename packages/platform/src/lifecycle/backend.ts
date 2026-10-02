@@ -22,8 +22,10 @@ import { registerModulePresenceStorefrontRoutes } from './routes.storefront.js';
  * absence is a real composition, not a degraded one. The test harness runs no
  * orchestrator on purpose: it never populates `module_registrations`, and a
  * refresh from the database would blank the seeded enabled-set and take every
- * gated route down mid-run. So the orchestrator is a contribution a root makes,
- * and the module list mounts only where one exists.
+ * gated route down mid-run. So the orchestrator is a contribution, and the
+ * module list mounts only where one exists. `composeApp` makes it for every
+ * deployment — the reference one and a scaffolded instance alike — and the
+ * harness, which composes by hand, makes none.
  *
  * **Every route here is ungated, and that is the point of the module.** Gating
  * the presence projection on `_lifecycle`'s own presence is the circle D-36 was
@@ -54,7 +56,8 @@ export interface LifecycleCradle {
     ModulePresenceAdminDeps['activation']
   >;
   /**
-   * Contribution point: absent in a composition that boots no orchestrator, and
+   * Contribution point, filled by `composeApp`: absent in a composition that
+   * boots no orchestrator — the test harness, and nothing an operator runs — and
    * the module list is then not served. The projections still are — rendering a
    * correct navigation must not depend on being able to install anything.
    */

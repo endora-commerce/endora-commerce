@@ -20,6 +20,17 @@
  * wrote, and asks its route — with no file of the instance edited by hand, so
  * an answer is the instance composing its own `apps/<deployment>/`.
  *
+ * And then whether that administrator, and the
+ * operator at the terminal beside them, can do what Principle XVII promises an
+ * instance: list the modules, switch one off and have it stay off across a
+ * restart, and take one out with `module:disable` / `module:uninstall` and put
+ * it back (L11–L16). Those six are here because this is the only composition
+ * that is an instance's — `composeApp` with no contribution and the five
+ * `module:*` entry points as `endora new instance` renders them — and both
+ * defects they were written from were invisible everywhere else: the reference
+ * deployment contributed the orchestrator itself, and every fixture handed the
+ * orchestrator one shared `EntityManager`.
+ *
  * ## Why it exists beside `tarball`, `registry` and `public`
  *
  * It is the only mode that **provisions nothing itself**. `instance.ts`
@@ -84,6 +95,15 @@ const BOOT_TIMEOUT_MS = 5 * 60_000;
 const STEP_TIMEOUT_MS = 10 * 60_000;
 /** The overlay module the run scaffolds into the instance it created. */
 const OVERLAY_MODULE_ID = 'proof_notice';
+const MODULES_PATH = '/api/v1/admin/modules';
+const PRESENCE_PATH = '/api/v1/admin/module-presence';
+/**
+ * How long a running process may take to hear of a change another process
+ * made. The pub/sub round trip is milliseconds; this is the ceiling, and it is
+ * well above the cache's own degraded-mode re-read so a lost notification still
+ * measures green for the right reason rather than red for a slow machine.
+ */
+const PROPAGATION_TIMEOUT_MS = 30_000;
 /** The prefix `endora install` gives its temporary host (`packages/cli/src/install/host.ts`). */
 const HOST_PREFIX = 'endora-install-host-';
 
@@ -235,6 +255,76 @@ async function stopGroup(child: ChildProcess): Promise<void> {
     } catch {
       // gone
     }
+  }
+}
+
+interface PresenceRow {
+  readonly id: string;
+  readonly present: boolean;
+  readonly platformState: string;
+  readonly activated: boolean;
+  readonly deactivatable: boolean;
+}
+
+/** Sign in and answer the session as a `cookie` header value, or the failure. */
+async function signIn(
+  origin: string,
+  admin: { email: string; password: string },
+): Promise<{ status: number; cookie: string; body: string }> {
+  const reply = await fetch(`${origin}${LOGIN_PATH}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email: admin.email, password: admin.password }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const cookie = reply.headers
+    .getSetCookie()
+    .map((entry) => entry.split(';')[0])
+    .join('; ');
+  return { status: reply.status, cookie, body: reply.status === 200 ? '' : (await reply.text()).slice(0, 300) };
+}
+
+async function adminRequest(
+  origin: string,
+  cookie: string,
+  path: string,
+  body?: unknown,
+): Promise<{ status: number; json: unknown; text: string }> {
+  const reply = await fetch(`${origin}${path}`, {
+    method: body === undefined ? 'GET' : 'POST',
+    headers: { cookie, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const text = await reply.text();
+  let json: unknown = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    // not JSON — the status and the text are the answer
+  }
+  return { status: reply.status, json, text: text.slice(0, 300) };
+}
+
+async function presenceOf(origin: string, cookie: string, id: string): Promise<PresenceRow | null> {
+  const reply = await adminRequest(origin, cookie, PRESENCE_PATH);
+  const modules = (reply.json as { modules?: PresenceRow[] } | null)?.modules ?? [];
+  return modules.find((entry) => entry.id === id) ?? null;
+}
+
+/** Poll the running process's presence projection until `accept` holds. */
+async function presenceBecomes(
+  origin: string,
+  cookie: string,
+  id: string,
+  accept: (row: PresenceRow | null) => boolean,
+): Promise<PresenceRow | null> {
+  const deadline = Date.now() + PROPAGATION_TIMEOUT_MS;
+  let last: PresenceRow | null = null;
+  for (;;) {
+    last = await presenceOf(origin, cookie, id);
+    if (accept(last) || Date.now() >= deadline) return last;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 1_000));
   }
 }
 
@@ -499,29 +589,124 @@ async function main(): Promise<number> {
       status: 'unmeasured',
       detail: 'the one-shot did not succeed',
     };
+    const lifecycle: Verdict[] = [
+      ['L11', 'the module list answers 200 with this instance\'s modules'],
+      ['L12', 'an activation switched off through the API is still off after a restart, and comes back'],
+      ['L13', '`module:disable` is persisted: a fresh process reads `disabled`'],
+      ['L14', 'the running API hears `module:disable` from the terminal without a restart'],
+      ['L15', '`module:enable` restores it, in the registry and in the running API'],
+      ['L16', 'a soft `module:uninstall` is persisted, and `module:install` restores it'],
+    ].map(([id, title]) => ({ id: id!, title: title!, status: 'unmeasured', detail: 'not reached' }));
+    const settle = (id: string, pass: boolean, detail: string): void => {
+      const index = lifecycle.findIndex((verdict) => verdict.id === id);
+      lifecycle[index] = { ...lifecycle[index]!, status: pass ? 'pass' : 'fail', detail };
+    };
     if (install.code === 0) {
-      console.log('\n$ pnpm run start');
-      api = spawn('pnpm', ['run', 'start'], {
-        cwd: target,
-        env: environment,
-        stdio: ['ignore', 'inherit', 'inherit'],
-        detached: true,
-      });
-      const health = await waitFor(`http://127.0.0.1:${String(port)}${HEALTH_PATH}`, Date.now() + BOOT_TIMEOUT_MS, api);
-      if (health === null) {
-        login = { ...login, status: 'fail', detail: api.exitCode === null ? 'the API did not answer in time' : `start exited ${String(api.exitCode)}` };
-      } else {
-        const reply = await fetch(`http://127.0.0.1:${String(port)}${LOGIN_PATH}`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email: admin.email, password: admin.password }),
-          signal: AbortSignal.timeout(20_000),
+      const origin = `http://127.0.0.1:${String(port)}`;
+      const boot = async (): Promise<number | null> => {
+        console.log('\n$ pnpm run start');
+        api = spawn('pnpm', ['run', 'start'], {
+          cwd: target,
+          env: environment,
+          stdio: ['ignore', 'inherit', 'inherit'],
+          detached: true,
         });
+        return waitFor(`${origin}${HEALTH_PATH}`, Date.now() + BOOT_TIMEOUT_MS, api);
+      };
+      const health = await boot();
+      if (health === null) {
+        const exitCode = (api as ChildProcess | null)?.exitCode ?? null;
+        login = { ...login, status: 'fail', detail: exitCode === null ? 'the API did not answer in time' : `start exited ${String(exitCode)}` };
+      } else {
+        let session = await signIn(origin, admin);
         login = {
           ...login,
-          status: reply.status === 200 ? 'pass' : 'fail',
-          detail: `health ${String(health)}, login ${String(reply.status)}${reply.status === 200 ? '' : `: ${(await reply.text()).slice(0, 300)}`}`,
+          status: session.status === 200 ? 'pass' : 'fail',
+          detail: `health ${String(health)}, login ${String(session.status)}${session.status === 200 ? '' : `: ${session.body}`}`,
         };
+
+        if (session.status === 200) {
+          // ── L11: the list the Modules screen renders ──────────────────────
+          const list = await adminRequest(origin, session.cookie, MODULES_PATH);
+          const listed = (list.json as { modules?: { id: string; state: string }[] } | null)?.modules ?? [];
+          settle(
+            'L11',
+            list.status === 200 && listed.length > 0,
+            list.status === 200 ? `200, ${String(listed.length)} modules` : `${String(list.status)}: ${list.text}`,
+          );
+
+          // ── L12: the operator axis, across a restart ──────────────────────
+          // The subject is whichever deactivatable module the platform lets go
+          // first: one with a present dependent is refused, and which modules
+          // those are is the manifests' business rather than this file's.
+          const presence = await adminRequest(origin, session.cookie, PRESENCE_PATH);
+          const candidates = ((presence.json as { modules?: PresenceRow[] } | null)?.modules ?? [])
+            .filter((entry) => entry.deactivatable && entry.present)
+            .map((entry) => entry.id);
+          let subject: string | null = null;
+          let refusal = `no deactivatable module among ${String(candidates.length)} candidates`;
+          for (const id of candidates) {
+            const off = await adminRequest(origin, session.cookie, `${MODULES_PATH}/${id}/activation`, { active: false });
+            if (off.status === 200) {
+              subject = id;
+              break;
+            }
+            refusal = `${id}: ${String(off.status)} ${off.text}`;
+          }
+          if (subject === null) {
+            settle('L12', false, `nothing could be switched off — last refusal ${refusal}`);
+          } else {
+            await stopGroup(api!);
+            const again = await boot();
+            session = again === null ? session : await signIn(origin, admin);
+            const afterRestart = again === null ? null : await presenceOf(origin, session.cookie, subject);
+            const on = await adminRequest(origin, session.cookie, `${MODULES_PATH}/${subject}/activation`, { active: true });
+            const restored = await presenceOf(origin, session.cookie, subject);
+            settle(
+              'L12',
+              afterRestart !== null && !afterRestart.activated && !afterRestart.present && on.status === 200 && restored?.present === true,
+              `${subject}: after restart activated=${String(afterRestart?.activated)} present=${String(afterRestart?.present)}; ` +
+                `switched on again ${String(on.status)}, present=${String(restored?.present)}`,
+            );
+
+            // ── L13–L16: the platform axis, from the terminal ────────────────
+            // Each command is a process of its own, and so is each reading of
+            // the registry: what `module:status` prints is what the *next*
+            // process finds in `module_registrations`, which is the question.
+            const operator = (script: string, ...args: string[]): Promise<{ code: number; output: string }> =>
+              exec('pnpm', ['run', script, ...args], { cwd: target, env: environment, timeoutMs: BOOT_TIMEOUT_MS });
+            const registryState = async (): Promise<string> => {
+              const status = await operator('module:status', subject!, '--json');
+              return /"state":\s*"([a-z-]+)"/.exec(status.output)?.[1] ?? `unreadable (exit ${String(status.code)})`;
+            };
+
+            const disable = await operator('module:disable', subject);
+            const disabled = await registryState();
+            settle('L13', disable.code === 0 && disabled === 'disabled', `${subject}: exit ${String(disable.code)}, a fresh process reads state=${disabled}`);
+
+            const heard = await presenceBecomes(origin, session.cookie, subject, (row) => row?.platformState === 'disabled');
+            settle('L14', heard?.platformState === 'disabled' && !heard.present, `${subject}: the running API reports platformState=${String(heard?.platformState)} present=${String(heard?.present)}`);
+
+            const enable = await operator('module:enable', subject);
+            const enabled = await registryState();
+            const back = await presenceBecomes(origin, session.cookie, subject, (row) => row?.present === true);
+            settle(
+              'L15',
+              enable.code === 0 && enabled === 'installed' && back?.present === true,
+              `${subject}: exit ${String(enable.code)}, a fresh process reads state=${enabled}, the running API reports present=${String(back?.present)}`,
+            );
+
+            const uninstall = await operator('module:uninstall', subject);
+            const uninstalled = await registryState();
+            const install2 = await operator('module:install', subject);
+            const reinstalled = await registryState();
+            settle(
+              'L16',
+              uninstall.code === 0 && uninstalled === 'uninstalled' && install2.code === 0 && reinstalled === 'installed',
+              `${subject}: uninstall exit ${String(uninstall.code)} then state=${uninstalled}; install exit ${String(install2.code)} then state=${reinstalled}`,
+            );
+          }
+        }
       }
     }
     verdicts.push(login);
@@ -532,7 +717,7 @@ async function main(): Promise<number> {
       status: 'unmeasured',
       detail: 'the instance did not start with an overlay module installed',
     };
-    if (overlayGenerated?.code === 0 && login.status !== 'unmeasured' && api?.exitCode === null) {
+    if (overlayGenerated?.code === 0 && login.status !== 'unmeasured' && (api as ChildProcess | null)?.exitCode === null) {
       const path = `/api/v1/${OVERLAY_MODULE_ID.replace(/_/g, '-')}`;
       const reply = await fetch(`http://127.0.0.1:${String(port)}${path}`, {
         signal: AbortSignal.timeout(20_000),
@@ -545,6 +730,7 @@ async function main(): Promise<number> {
       };
     }
     verdicts.push(overlayRoute);
+    verdicts.push(...lifecycle);
   } finally {
     if (api !== null) await stopGroup(api);
     if (registry !== null) await registry.close();

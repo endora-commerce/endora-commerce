@@ -1216,4 +1216,132 @@ describe('ModuleLifecycleOrchestrator (unit)', () => {
       expect(em.rows.find((r) => r.moduleId === 'blog')?.state).toBe('uninstalled');
     });
   });
+  /**
+   * The `em` every production caller supplies is a **factory that forks**: the
+   * five `module:*` entry points pass `() => orm.em.fork()`, and `composeApp`
+   * passes `() => forkScopedEm(orm)`. Every fixture above hands over one shared
+   * manager instead, and that is what hid this: an operation that loaded the
+   * registration row through one call of the factory and flushed through
+   * another flushed a unit of work that had never seen the row, so
+   * `module:disable`, `module:enable` and a soft `module:uninstall` printed
+   * their success line, wrote their audit entry, published the state change —
+   * and left `module_registrations` exactly as it was.
+   *
+   * `ForkingStore` models the one property that matters: a fork persists, on
+   * flush, the rows **it** loaded and no others.
+   */
+  describe('a factory that forks on every call — which is every production caller', () => {
+    class ForkingStore {
+      rows: FakeRow[];
+      constructor(seed: FakeRow[]) {
+        this.rows = seed.map((row) => ({ ...row }));
+      }
+      fork(): FakeEm {
+        const store = this;
+        const managed = new Map<FakeRow, FakeRow>();
+        const track = (stored: FakeRow): FakeRow => {
+          const copy = { ...stored };
+          managed.set(copy, stored);
+          return copy;
+        };
+        const fork = new FakeEm();
+        fork.find = async (entity, where = {}) => {
+          const matcher = new FakeEm(store.rows);
+          return (await FakeEm.prototype.find.call(matcher, entity, where)).map(track);
+        };
+        fork.findOne = async (_entity, where) => {
+          const stored = store.rows.find((r) => r.moduleId === where.moduleId);
+          return stored ? track(stored) : null;
+        };
+        fork.flush = async () => {
+          for (const [copy, stored] of managed) Object.assign(stored, copy);
+        };
+        fork.remove = (payload) => {
+          const stored = managed.get(payload);
+          store.rows = store.rows.filter((r) => r !== stored);
+        };
+        fork.removeAndFlush = async (payload) => {
+          fork.remove(payload);
+          await fork.flush();
+        };
+        fork.persistAndFlush = async (payload) => {
+          store.rows.push({ ...payload });
+        };
+        return fork;
+      }
+    }
+
+    function forkingOrchestrator(registry: LoadedManifestRegistry, store: ForkingStore) {
+      return new ModuleLifecycleOrchestrator({
+        orm: {} as never,
+        redis: new FakeRedis() as never,
+        em: () => store.fork() as never,
+        auditLog: new FakeAuditLog() as never,
+        registry,
+        migrationOwnership: migrationOwnershipOf([], registry.modules.keys()),
+        migratorFor: async () => new FakeMigrator() as never,
+      });
+    }
+
+    const row = (moduleId: string, state: string): FakeRow => ({
+      moduleId,
+      state,
+      version: '1.0.0',
+      installedAt: new Date(),
+      lastStateChangeAt: new Date(),
+      lastInstallFailedAt: null,
+      lastInstallError: null,
+    });
+
+    it('disable persists the target row', async () => {
+      const reg = buildRegistry([{ id: 'blog' }]);
+      const store = new ForkingStore([row('blog', 'installed')]);
+
+      const result = await forkingOrchestrator(reg, store).disable('blog', { cascade: false });
+
+      expect(result.state).toBe('disabled');
+      expect(store.rows.find((r) => r.moduleId === 'blog')?.state).toBe('disabled');
+    });
+
+    it('disable --cascade persists the target as well as its dependents', async () => {
+      const reg = buildRegistry([{ id: 'pricing' }, { id: 'quotes', deps: ['pricing'] }]);
+      const store = new ForkingStore([row('pricing', 'installed'), row('quotes', 'installed')]);
+
+      await forkingOrchestrator(reg, store).disable('pricing', { cascade: true });
+
+      expect(store.rows.map((r) => `${r.moduleId}=${r.state}`).sort()).toEqual([
+        'pricing=disabled',
+        'quotes=disabled',
+      ]);
+    });
+
+    it('enable persists the row', async () => {
+      const reg = buildRegistry([{ id: 'blog' }]);
+      const store = new ForkingStore([row('blog', 'disabled')]);
+
+      const result = await forkingOrchestrator(reg, store).enable('blog');
+
+      expect(result.state).toBe('installed');
+      expect(store.rows.find((r) => r.moduleId === 'blog')?.state).toBe('installed');
+    });
+
+    it('a soft uninstall persists state=uninstalled', async () => {
+      const reg = buildRegistry([{ id: 'blog' }]);
+      const store = new ForkingStore([row('blog', 'installed')]);
+
+      const result = await forkingOrchestrator(reg, store).uninstall('blog', { hard: false });
+
+      expect(result.state).toBe('uninstalled');
+      expect(store.rows.find((r) => r.moduleId === 'blog')?.state).toBe('uninstalled');
+    });
+
+    it('a hard uninstall deletes the row', async () => {
+      const reg = buildRegistry([{ id: 'blog' }]);
+      const store = new ForkingStore([row('blog', 'installed')]);
+
+      await forkingOrchestrator(reg, store).uninstall('blog', { hard: true });
+
+      expect(store.rows.some((r) => r.moduleId === 'blog')).toBe(false);
+    });
+  });
 });

@@ -888,17 +888,12 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
       'base URL, so the refusal itself — the message an operator sees on a misconfigured ' +
       'deployment — is exercised by nothing here. `test/unit/config/public-api-base-url.test.ts` ' +
       'covers the resolver over its inputs instead.',
-    configuredMigrations:
-      'Production builds the ordered migration list for the running ORM; the harness migrates ' +
-      'through the test template instead (`test/global-setup.ts`), so a defect in the wiring ' +
-      'between the registry and the ORM config would not fail a test here. The ordering itself ' +
-      'is proved by `test/unit/db/migrations-registry.test.ts` and `migration-order.test.ts`.',
     enterSystemScope:
       'Production wraps its boot-time database work in the system tenant scope; the harness ' +
       'composes inside the scope its own setup already established. A boot step that forgot the ' +
       'scope would therefore fail in production and pass here.',
     lifecycleModuleFromStaticEntries:
-      'Production builds the lifecycle module from the deployment-resolved manifest set; the ' +
+      '`composeApp` builds the lifecycle module from the deployment-resolved manifest set; the ' +
       'harness builds its own registry through `harnessManifestRegistry()` so a test can pin ' +
       'the two axes. A divergence between the resolved set and what the lifecycle module sees ' +
       'is invisible to the suite; `test/unit/_lifecycle/registered-manifests.test.ts` covers ' +
