@@ -743,12 +743,12 @@ function BulkEditSummary(props: BulkEditSummaryProps): ReactNode {
                 .map((r) => (
                   <tr key={r.productId}>
                     <td>
-                      <a
-                        href={`/catalog/products/${r.productId}`}
+                      <Link
+                        to={`/catalog/products/${r.productId}`}
                         style={{ color: 'var(--primary-color, #2563eb)' }}
                       >
                         {r.productId.slice(0, 8)}…
-                      </a>
+                      </Link>
                     </td>
                     <td>{r.status}</td>
                     <td>

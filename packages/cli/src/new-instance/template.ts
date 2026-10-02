@@ -2239,7 +2239,12 @@ export default defineConfig(({ mode }) => {
   // unprefixed variable such as \`PORT\`. Only \`VITE_*\` reaches the bundle.
   const env = loadEnv(mode, process.cwd(), '');
   const port = Number(env['PORT']) || 3002;
+  // The path this admin is served under, with its trailing slash — \`/admin/\`
+  // when it shares a host with the storefront, and the root otherwise. It moves
+  // every asset URL, and the admin shell's router takes its basename from it.
+  const base = env['ADMIN_BASE_PATH'] || '/';
   return {
+    base,
     plugins: [react(), tailwindcss()],
     server: { port, strictPort: true },
     preview: { port, strictPort: true },
