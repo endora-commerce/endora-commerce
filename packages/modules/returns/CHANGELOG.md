@@ -1,5 +1,15 @@
 # @endora-commerce/mod-returns
 
+## 0.100.2
+
+### Patch Changes
+
+- Updated dependencies [54c7417]
+  - @endora-commerce/platform@0.100.2
+  - @endora-commerce/admin-kit@0.100.2
+  - @endora-commerce/contracts@0.100.2
+  - @endora-commerce/email-components@0.100.2
+
 ## 0.100.1
 
 ### Patch Changes
