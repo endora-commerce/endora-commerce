@@ -41,7 +41,7 @@
  * `pnpm run build:packages` must have run, in a git checkout: the CLI's build
  * is what packages the reference storefront.
  *
- * Usage: `pnpm --filter backend run acceptance:separate-components -- [--services] [--keep]`,
+ * Usage: `pnpm --filter backend run acceptance:separate-components [--services] [--keep]`,
  * or the `:ci` form, which compares the run to
  * `backend/acceptance/separate-components-expected-state.json`.
  * Exit **0** met, **1** measured and red, **2** could not be measured.
@@ -273,6 +273,10 @@ const unmeasured = (id: string, title: string, detail: string): Verdict => ({ id
 
 async function main(): Promise<number> {
   const { values } = parseArgs({
+    // pnpm hands a `--` typed before the flags on to the script, where it would
+    // end the options: `pnpm run <script> -- --services` and `pnpm run <script>
+    // --services` are both what people type, and both mean the flag.
+    args: process.argv.slice(2).filter((argument) => argument !== '--'),
     options: {
       keep: { type: 'boolean' },
       services: { type: 'boolean' },
