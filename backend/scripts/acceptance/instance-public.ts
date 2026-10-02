@@ -81,6 +81,9 @@ const HEALTH_PATH = '/api/v1/_health';
 const LOGIN_PATH = '/api/v1/auth/admin/login';
 const INSTALL_TIMEOUT_MS = 45 * 60_000;
 const BOOT_TIMEOUT_MS = 5 * 60_000;
+/** `next dev` compiles a route on its first request, so the first answer is slow. */
+const STOREFRONT_TIMEOUT_MS = 10 * 60_000;
+const CATALOGUE_PATH = '/catalog';
 
 /**
  * What every `sh` and `npm` this harness starts runs with: this process's
@@ -176,6 +179,38 @@ function apiPort(instanceDir: string): number {
     if (match !== null) return Number(match[1]);
   }
   return 3001;
+}
+
+/**
+ * The port the storefront's `dev` listens on: `PORT` off its own `.env` when it
+ * sets one, and Next's default otherwise.
+ */
+function storefrontPort(storefrontDir: string): number {
+  const envPath = join(storefrontDir, '.env');
+  if (existsSync(envPath)) {
+    const match = /^\s*PORT\s*=\s*(\d+)\s*$/m.exec(readFileSync(envPath, 'utf8'));
+    if (match !== null) return Number(match[1]);
+  }
+  return 3000;
+}
+
+/** Ask `url` until it answers 200 or the deadline passes; the last answer is kept. */
+async function fetchWhenReady(
+  url: string,
+  deadline: number,
+): Promise<{ status: number | null; body: string }> {
+  let last: { status: number | null; body: string } = { status: null, body: '' };
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url, { signal: AbortSignal.timeout(120_000) });
+      last = { status: response.status, body: await response.text() };
+      if (response.status === 200) return last;
+    } catch (thrown) {
+      last = { status: null, body: thrown instanceof Error ? thrown.message : String(thrown) };
+    }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 3_000));
+  }
+  return last;
 }
 
 /**
@@ -380,6 +415,17 @@ async function main(): Promise<number> {
       }
     }
 
+    // ── P2: the shop the one-shot wrote, started by that same second command ──
+    const storefrontDir = join(host, `${dirName}-storefront`);
+    const storefrontWritten = existsSync(join(storefrontDir, 'package.json'));
+    let catalogue: { status: number | null; body: string } = { status: null, body: '' };
+    if (storefrontWritten && healthStatus === 200) {
+      catalogue = await fetchWhenReady(
+        `http://127.0.0.1:${String(storefrontPort(storefrontDir))}${CATALOGUE_PATH}`,
+        Date.now() + STOREFRONT_TIMEOUT_MS,
+      );
+    }
+
     results.push(
       evaluateLogin({
         healthStatus,
@@ -393,7 +439,13 @@ async function main(): Promise<number> {
                 install.output.trim().split('\n').slice(-8).join(' | '),
             }),
       }),
-      evaluateStorefront({ written: existsSync(join(host, `${dirName}-storefront`, 'package.json')) }),
+      evaluateStorefront({
+        installed,
+        started: healthStatus === 200,
+        written: storefrontWritten,
+        status: catalogue.status,
+        html: catalogue.body,
+      }),
       evaluateLockfile({
         lockfile: existsSync(join(instanceDir, 'pnpm-lock.yaml'))
           ? readFileSync(join(instanceDir, 'pnpm-lock.yaml'), 'utf8')

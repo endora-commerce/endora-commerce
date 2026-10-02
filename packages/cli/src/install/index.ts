@@ -35,8 +35,9 @@
  * `runNewInstance`'s discipline (R5.2), one layer up and with a third phase.
  * Every precondition is decided before the first byte is written: the target,
  * the Node version, a package-manager runner, a reachable Docker daemon unless
- * `--no-services`, a reference storefront unless `--no-storefront`, and every
- * answer the pipeline will need. They are reported in **one** refusal naming
+ * `--no-services`, a reference storefront unless `--no-storefront` — the
+ * checkout's when there is one above, the one this CLI carries otherwise — and
+ * every answer the pipeline will need. They are reported in **one** refusal naming
  * all of them (FR-157), because a client who has to run a command five times to
  * learn five things has been handed a puzzle.
  *
@@ -62,6 +63,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createServer } from 'node:net';
 import { delimiter, isAbsolute, join, resolve, sep } from 'node:path';
 
 import { parseEnvFile, writeEnvFile } from '../inputs/env-file.js';
@@ -75,6 +77,7 @@ import { ownPackageManager, ownReleaseIndexPath } from '../lib/release-index.js'
 import {
   developmentAddresses,
   developmentMailUrl,
+  developmentPublishedPorts,
   DEV_COMPOSE_PATH,
 } from '../new-instance/deploy.js';
 import {
@@ -85,7 +88,9 @@ import {
 } from '../new-instance/index.js';
 import { probePlatform } from '../new-instance/host.js';
 import {
+  resolveStorefrontSource,
   runNewStorefront,
+  StorefrontHostError,
   type NewStorefrontResult,
 } from '../new-storefront/index.js';
 
@@ -138,7 +143,14 @@ export interface InstallStep {
     | 'admin'
     | 'demo'
     | 'storefront-install';
-  /** The command as an operator would type it, echoed before it runs. */
+  /**
+   * The command as an operator would type it, echoed before it runs.
+   *
+   * It is what is **printed**, and `argv` is what **runs**. They differ in
+   * exactly one step, the administrator's: `argv` says `--password-stdin` and
+   * the password travels on {@link stdin}, while this — the form a person
+   * types — says `--password=` with {@link PASSWORD_PLACEHOLDER} for the value.
+   */
   readonly command: string;
   /** What it is for, in one clause. */
   readonly purpose: string;
@@ -146,6 +158,17 @@ export interface InstallStep {
   readonly bin: string;
   readonly argv: readonly string[];
   readonly cwd: string;
+  /**
+   * What is written to the command's standard input, when it reads one.
+   *
+   * The administrator's password, and nothing else. It is not in `argv`: an
+   * argument is echoed by the package manager that runs the script (twice —
+   * the instance's root script calls the backend's) and logged by the operator
+   * CLI as the reason for the scope it opens, and the first real run of this
+   * command printed the password three times after this file had stopped
+   * printing it once.
+   */
+  readonly stdin?: string | undefined;
   /**
    * A failure here is reported and does not fail the install (FR-126).
    *
@@ -253,7 +276,21 @@ export interface InstallOptions {
    * provisioned (D-271). Defaults to the one its own build wrote into `dist`.
    */
   readonly releaseIndexFile?: string | undefined;
+  /**
+   * Where the packaged reference storefront is read from when no checkout is
+   * above the working directory. Defaults to the one this CLI's own build wrote
+   * into `dist` (`new-storefront/packaged.ts`).
+   */
+  readonly packagedReferenceDir?: string | undefined;
+  /**
+   * Whether a host port is already taken on this machine. Defaults to a probe
+   * ({@link machinePortProbe}); a test answers without binding anything.
+   */
+  readonly portInUse?: PortProbe | undefined;
 }
+
+/** Is this host port taken? */
+export type PortProbe = (port: number) => Promise<boolean>;
 
 /** One way to run `pnpm` on this machine. */
 export interface PackageManagerRunner {
@@ -447,25 +484,197 @@ function occupied(dir: string): string | null {
 }
 
 /**
- * Is there a reference storefront to copy, from where this command is standing?
+ * Why no storefront can be written from where this command is standing, or
+ * `null` when one can.
  *
- * **The finding this function exists for**: `endora new storefront` copies the
- * reference storefront out of a **checkout of the platform repository**
- * (`new-storefront/reference.ts`: *"no pnpm-workspace.yaml above …"*), so an
- * installed CLI standing in an empty directory cannot write one however it is
- * asked. The spec's §7.6 assumes otherwise. The honest answer here is to refuse
- * **before** writing an instance, naming the flag that skips the storefront —
- * fail-closed, with a remedy the client can act on — rather than to write half
- * the trio and fail in the middle of the pipeline.
+ * The storefront comes from the checkout above the working directory when there
+ * is one, and from the reference this CLI's own build packaged everywhere else
+ * (`new-storefront/packaged.ts`) — which is what lets a stranger's `npx` write
+ * one. What is left to refuse is the case neither covers: a checkout whose
+ * storefront cannot be read, or a build of this CLI that packaged none. It is
+ * decided **before** an instance is written — fail-closed, with a remedy the
+ * client can act on — rather than by writing half the trio and failing in the
+ * middle of the pipeline.
  */
-function referenceStorefrontRoot(cwd: string): string | null {
-  let dir = resolve(cwd);
-  for (;;) {
-    if (existsSync(join(dir, 'pnpm-workspace.yaml'))) return dir;
-    const parent = resolve(dir, '..');
-    if (parent === dir) return null;
-    dir = parent;
+function storefrontUnavailable(cwd: string, packagedReferenceDir: string | undefined): string | null {
+  try {
+    resolveStorefrontSource(cwd, packagedReferenceDir);
+    return null;
+  } catch (error: unknown) {
+    if (error instanceof StorefrontHostError) return error.message;
+    throw error;
   }
+}
+
+/**
+ * The default {@link PortProbe}: can this process bind the port, and has
+ * Docker published it?
+ *
+ * Both, because neither sees everything. A bind attempt finds every listening
+ * socket; a Docker daemon running without its userland proxy publishes a port
+ * with a packet-filter rule and no socket at all, so the bind succeeds on a
+ * port `docker compose up` will then be refused. `docker ps` is asked once per
+ * run and a daemon that does not answer contributes nothing.
+ */
+export function machinePortProbe(): PortProbe {
+  let published: ReadonlySet<number> | undefined;
+  const dockerPublished = (): ReadonlySet<number> => {
+    if (published !== undefined) return published;
+    const result = spawnSync('docker', ['ps', '--format', '{{.Ports}}'], {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8',
+      timeout: 20_000,
+    });
+    const ports = new Set<number>();
+    if (result.error === undefined && result.status === 0) {
+      for (const match of result.stdout.matchAll(/:(\d+)->/g)) ports.add(Number(match[1]));
+    }
+    published = ports;
+    return ports;
+  };
+  const bound = (port: number, host: string): Promise<boolean> =>
+    new Promise((answer) => {
+      const server = createServer();
+      server.once('error', (error: NodeJS.ErrnoException) => {
+        // Only "somebody has it" is a yes. A host this machine has no address
+        // family for is not a taken port.
+        answer(error.code === 'EADDRINUSE' || error.code === 'EACCES');
+      });
+      server.listen({ port, host, exclusive: true }, () => server.close(() => answer(false)));
+    });
+  return async (port) =>
+    (await bound(port, '0.0.0.0')) || (await bound(port, '::')) || dockerPublished().has(port);
+}
+
+/** What the port preflight decided. */
+interface PortDecision {
+  /** The variables this run sets, because the port each one defaults to is taken. */
+  readonly chosen: ReadonlyMap<string, number>;
+  /** One sentence per choice, for the operator. */
+  readonly said: readonly string[];
+  /** A port the operator pinned in `.env` and cannot have. */
+  readonly refusals: readonly string[];
+}
+
+/**
+ * Decide the host port of every service the development stack publishes.
+ *
+ * The run used to write the whole instance, install it, and die at
+ * `dev:services` with Docker's *"port is already allocated"* on any machine
+ * that already runs a PostgreSQL or a Redis — the ordinary developer machine.
+ * And composing the addresses from the document's inline defaults regardless
+ * was worse than a failed step: Redis and Meilisearch on their default ports
+ * take no credential, so an instance derived against 6379 would have used
+ * somebody else's.
+ *
+ * Two rules, and they are the whole of it:
+ *
+ *   * **a port the operator set is theirs.** `POSTGRES_PORT=…` in the target's
+ *     `.env` is used as written, and if it is taken that is a refusal naming
+ *     it — never a silent move to another one.
+ *   * **a port nobody set is derived from this machine.** The document's own
+ *     default when it is free; otherwise the next free one from `default +
+ *     10000`, written into the instance's `.env` under the variable
+ *     `compose.dev.yml` already reads, and said out loud. It is FR-105's class
+ *     of value — an address of a container this run starts, on this machine —
+ *     and not an invented input.
+ */
+async function decidePorts(
+  document: string,
+  envFile: ReadonlyMap<string, string>,
+  inUse: PortProbe,
+  envPath: string,
+): Promise<PortDecision> {
+  const chosen = new Map<string, number>();
+  const said: string[] = [];
+  const refusals: string[] = [];
+  const assigned = new Set<number>();
+  for (const { variable, fallback, service } of developmentPublishedPorts(document)) {
+    const pinned = envFile.get(variable);
+    if (pinned !== undefined) {
+      const port = Number(pinned);
+      if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+        refusals.push(`${variable}=${pinned} in ${envPath} is not a TCP port.`);
+      } else if (assigned.has(port) || (await inUse(port))) {
+        refusals.push(
+          `${variable}=${pinned} in ${envPath} is already in use on this machine, so ${service} ` +
+            `could not be published there. Set it to a free port, or remove the line and this ` +
+            `command picks one.`,
+        );
+      } else {
+        assigned.add(port);
+      }
+      continue;
+    }
+    if (!assigned.has(fallback) && !(await inUse(fallback))) {
+      assigned.add(fallback);
+      continue;
+    }
+    let candidate = fallback + 10_000 <= 65_535 ? fallback + 10_000 : 20_000 + (fallback % 10_000);
+    let tries = 0;
+    while (candidate <= 65_535 && tries < 500 && (assigned.has(candidate) || (await inUse(candidate)))) {
+      candidate += 1;
+      tries += 1;
+    }
+    if (candidate > 65_535 || tries >= 500) {
+      refusals.push(
+        `port ${String(fallback)} is already in use on this machine and no free one was found ` +
+          `near ${String(fallback + 10_000)} for ${service}. Set ${variable} in ${envPath} to a ` +
+          `port that is free.`,
+      );
+      continue;
+    }
+    assigned.add(candidate);
+    chosen.set(variable, candidate);
+    said.push(
+      `port ${String(fallback)} is already in use on this machine, so ${service} is published on ` +
+        `${String(candidate)} instead — ${variable}=${String(candidate)} in .env`,
+    );
+  }
+  return { chosen, said, refusals };
+}
+
+/**
+ * The chosen ports, into the instance's own `.env` — the file Compose reads
+ * beside `compose.dev.yml`, so the stack and the addresses derived below are
+ * moved by one line each rather than by two that could disagree.
+ */
+function writeChosenPorts(targetDir: string, chosen: ReadonlyMap<string, number>): void {
+  if (chosen.size === 0) return;
+  const envPath = join(targetDir, '.env');
+  const text = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+  const header = [
+    '',
+    `# ${[...chosen.keys()].join(', ')} below were CHOSEN by \`endora install\`: the port each`,
+    `# one defaults to in ${DEV_COMPOSE_PATH} was already in use on this machine when it ran.`,
+    '# Compose reads this file, so they are where the development services are published;',
+    '# change one here and change the address derived from it above to match.',
+  ].join('\n');
+  writeFileSync(
+    envPath,
+    writeEnvFile(
+      `${text.replace(/\n+$/, '')}\n${header}\n`,
+      new Map([...chosen].map(([name, port]) => [name, String(port)] as const)),
+    ),
+    'utf8',
+  );
+}
+
+/** The target's own `.env`, as an operator placed it or as this run wrote it. */
+function readTargetEnv(targetDir: string): ReadonlyMap<string, string> {
+  const envPath = join(targetDir, '.env');
+  return existsSync(envPath) ? parseEnvFile(readFileSync(envPath, 'utf8')) : new Map();
+}
+
+/**
+ * The port the instance's API listens on: `PORT` as the instance resolved it or
+ * as its `.env` sets it, and the platform's own default otherwise
+ * (`const port = Number(process.env['PORT'] ?? 3001)` in the scaffolded entry).
+ */
+function apiPortOf(targetDir: string, instance: NewInstanceResult): string {
+  const resolved = instance.resolved.find((entry) => entry.name === 'PORT')?.value;
+  const value = resolved ?? readTargetEnv(targetDir).get('PORT');
+  return value !== undefined && /^\d+$/.test(value.trim()) ? value.trim() : '3001';
 }
 
 /**
@@ -487,10 +696,24 @@ function deriveEnvironment(targetDir: string): readonly string[] {
   if (!existsSync(envPath) || !existsSync(composePath)) return [];
   const text = readFileSync(envPath, 'utf8');
   const answered = parseEnvFile(text);
+  // What this instance declares: the placeholders of the `.env` this run
+  // seeded, and — because a `.env` the operator placed first is merged into and
+  // gets no placeholder — the names its `.env.example` lists, which is the same
+  // declaration rendered beside it. Reading the placeholders alone meant an
+  // operator who placed one line (`PORT=…`, a pinned `POSTGRES_PORT=…`) got no
+  // address derived at all, and a `setup` that then had no database to reach.
+  const examplePath = join(targetDir, '.env.example');
+  const example = existsSync(examplePath) ? readFileSync(examplePath, 'utf8') : '';
   const placeholders = new Set(
-    [...text.matchAll(/^\s*#\s*([A-Z][A-Z0-9_]*)\s*=/gm)].map((match) => match[1]!),
+    [
+      ...text.matchAll(/^\s*#\s*([A-Z][A-Z0-9_]*)\s*=/gm),
+      ...example.matchAll(/^\s*#?\s*([A-Z][A-Z0-9_]*)\s*=/gm),
+    ].map((match) => match[1]!),
   );
-  const addresses = [...developmentAddresses(readFileSync(composePath, 'utf8'))].filter(
+  // The file's own values move the addresses: a `*_PORT` this run chose, or one
+  // the operator set, is where Compose publishes the service, so it is where
+  // the address has to point.
+  const addresses = [...developmentAddresses(readFileSync(composePath, 'utf8'), answered)].filter(
     ([name]) => placeholders.has(name) && !answered.has(name),
   );
   if (addresses.length === 0) return [];
@@ -503,7 +726,7 @@ function deriveEnvironment(targetDir: string): readonly string[] {
     `# ${addresses.map(([name]) => name).join(', ')} above were DERIVED by \`endora install\``,
     `# from ${DEV_COMPOSE_PATH} beside this file: they are the addresses of the containers`,
     '# `pnpm run dev:services` starts, on THIS machine. Nothing invented them and nothing',
-    '# asked you — change a published port in that file and they are what it publishes.',
+    '# asked you — they are what that file publishes, with any value this file sets for it.',
     '#',
     '# On a machine that is not a development one they are not the values you want: replace',
     '# each with the address of the service you actually run. They fail closed — a database',
@@ -521,8 +744,8 @@ function deriveEnvironment(targetDir: string): readonly string[] {
 function storefrontInputs(
   instance: NewInstanceResult,
   secret: string,
+  port: string,
 ): Record<string, string> {
-  const port = '3001';
   return {
     NEXT_PUBLIC_API_BASE_URL: `http://localhost:${port}`,
     BACKEND_BASE_URL: `http://localhost:${port}`,
@@ -579,10 +802,11 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
         {
           vocabulary: MEMBER_VOCABULARY,
           storefront: {
-            available: referenceStorefrontRoot(cwd) !== null,
+            available: storefrontUnavailable(cwd, given.packagedReferenceDir) === null,
             reason:
-              'not from here: it is copied out of a checkout of the platform repository, ' +
-              'and there is none above this directory — `endora new storefront` adds it later',
+              'not from here: there is no checkout of the platform repository above this ' +
+              'directory and this build of the CLI carries no reference storefront — ' +
+              '`endora new storefront` adds it later',
           },
         },
       );
@@ -699,12 +923,14 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     );
   }
 
-  if (wantsStorefront && referenceStorefrontRoot(cwd) === null) {
+  const noStorefront = wantsStorefront
+    ? storefrontUnavailable(cwd, options.packagedReferenceDir)
+    : null;
+  if (noStorefront !== null) {
     refusals.add(
-      '`endora new storefront` copies the reference storefront out of a checkout of the ' +
-        `platform repository, and there is none above ${cwd}. Run this from inside a ` +
-        'checkout to get both trees, or pass `--no-storefront` to write the instance alone ' +
-        '— the storefront can be added later with `endora new storefront <dir>`.',
+      `the storefront cannot be written from here: ${noStorefront} Pass \`--no-storefront\` to ` +
+        'write the instance alone — the storefront can be added later with ' +
+        '`endora new storefront <dir>`.',
     );
   }
 
@@ -786,39 +1012,71 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     }
   }
   const without = (options.without ?? []).filter((name) => name.trim().length > 0);
+  const hostKept = (): void => {
+    if (hostStep === null) return;
+    say(
+      `  the temporary host is kept at ${hostStep.cwd} so you can read what it holds; ` +
+        'delete it when you are done.',
+    );
+  };
+  const scaffold = async (dry: boolean): Promise<NewInstanceResult> => {
+    try {
+      return await runNewInstance({
+        dir: targetDir,
+        ...(options.modules === undefined ? {} : { modules: options.modules }),
+        // R6.3b — nothing at all when every member is wanted, so the common case
+        // is the argv a bare `endora new instance <dir>` has.
+        ...(without.length === 0 ? {} : { without }),
+        ...(options.deployment === undefined ? {} : { deployment: options.deployment }),
+        ...(options.registry === undefined ? {} : { registry: options.registry }),
+        ...(options.topology === undefined ? {} : { topology: options.topology }),
+        // D-270 — with no `--module`, every module of the open-source set this
+        // run resolved rather than the smallest set. A policy, not a list: which
+        // modules that is stays `new instance`'s to derive (FR-143).
+        moduleSeed: 'available',
+        // `--demo` is the one answer that changes the module list: the demo
+        // composition joins it, so the seed step below wires the modules' rows
+        // together rather than leaving them side by side (2026-10-01). It writes
+        // no file — the decision still runs a command (FR-121).
+        ...(options.demo === true ? { demo: true } : {}),
+        dryRun: dry,
+        // The host, when there is one, is only a place to look: every resolution
+        // is `new instance`'s, unchanged (D-271 clause 1.1).
+        cwd: hostStep?.cwd ?? cwd,
+      });
+    } catch (error: unknown) {
+      hostKept();
+      throw error;
+    }
+  };
+
+  // ── the ports the development stack will publish ─────────────────────────
+  // Decided on the **plan**, before the first byte of the instance is written:
+  // which ports the stack publishes is a fact of the document `new instance`
+  // renders, so the plan is made once dry to read it. A port the operator
+  // pinned and cannot have is then a refusal with nothing on disk, rather than
+  // a `docker compose` failure two steps into an installed tree.
+  const portInUse = options.portInUse ?? machinePortProbe();
+  let ports: PortDecision = { chosen: new Map(), said: [], refusals: [] };
   let instance: NewInstanceResult;
-  try {
-    instance = await runNewInstance({
-      dir: targetDir,
-      ...(options.modules === undefined ? {} : { modules: options.modules }),
-      // R6.3b — nothing at all when every member is wanted, so the common case
-      // is the argv a bare `endora new instance <dir>` has.
-      ...(without.length === 0 ? {} : { without }),
-      ...(options.deployment === undefined ? {} : { deployment: options.deployment }),
-      ...(options.registry === undefined ? {} : { registry: options.registry }),
-      ...(options.topology === undefined ? {} : { topology: options.topology }),
-      // D-270 — with no `--module`, every module of the open-source set this
-      // run resolved rather than the smallest set. A policy, not a list: which
-      // modules that is stays `new instance`'s to derive (FR-143).
-      moduleSeed: 'available',
-      // `--demo` is the one answer that changes the module list: the demo
-      // composition joins it, so the seed step below wires the modules' rows
-      // together rather than leaving them side by side (2026-10-01). It writes
-      // no file — the decision still runs a command (FR-121).
-      ...(options.demo === true ? { demo: true } : {}),
-      dryRun,
-      // The host, when there is one, is only a place to look: every resolution
-      // is `new instance`'s, unchanged (D-271 clause 1.1).
-      cwd: hostStep?.cwd ?? cwd,
-    });
-  } catch (error: unknown) {
-    if (hostStep !== null) {
-      say(
-        `  the temporary host is kept at ${hostStep.cwd} so you can read what it holds; ` +
-          'delete it when you are done.',
+  if (wantsServices) {
+    const planned = await scaffold(true);
+    const document = planned.plan.files.find((file) => file.path === DEV_COMPOSE_PATH)?.content;
+    if (document !== undefined) {
+      ports = await decidePorts(document, readTargetEnv(targetDir), portInUse, join(targetDir, '.env'));
+    }
+    if (ports.refusals.length > 0) {
+      if (hostStep !== null) rmSync(hostStep.cwd, { recursive: true, force: true });
+      throw new InstallInputError(
+        `\`endora install\` cannot start the development services — ` +
+          `${String(ports.refusals.length)} thing${ports.refusals.length === 1 ? '' : 's'} to settle first:\n` +
+          ports.refusals.map((sentence) => `  - ${sentence}`).join('\n') +
+          `\n\nNothing was written and nothing was started.`,
       );
     }
-    throw error;
+    instance = dryRun ? planned : await scaffold(false);
+  } else {
+    instance = await scaffold(dryRun);
   }
   if (hostStep !== null) {
     rmSync(hostStep.cwd, { recursive: true, force: true });
@@ -835,6 +1093,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
 
   // FR-153 — generated **once**, for two trees. See `revalidateSecret` above.
   const secret = options.revalidateSecret ?? (dryRun ? '<generated on a real run>' : generateSecret());
+  const apiPort = apiPortOf(targetDir, instance);
   let storefront: NewStorefrontResult | null = null;
   if (storefrontDir !== null) {
     storefront = await runNewStorefront({
@@ -842,19 +1101,34 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       cwd,
       dryRun,
       nonInteractive: true,
-      inputs: storefrontInputs(instance, secret),
+      inputs: storefrontInputs(instance, secret, apiPort),
+      ...(options.packagedReferenceDir === undefined
+        ? {}
+        : { packagedReferenceDir: options.packagedReferenceDir }),
     });
     say(
       `  ${dryRun ? 'would write' : 'wrote'} the storefront at ${storefrontDir} — ` +
-        `${String(storefront.plan.files.length)} files`,
+        `${String(storefront.plan.files.length)} files` +
+        (storefront.source.kind === 'packaged'
+          ? ', from the reference storefront this CLI carries'
+          : ''),
     );
+    for (const omission of storefront.plan.omitted) {
+      say(`    omitted ${omission.path} — ${omission.reason}`);
+    }
     say(`  ${storefront.provenance}`);
   }
 
-  const derived = dryRun || !wantsServices ? [] : deriveEnvironment(targetDir);
-  if (derived.length > 0) {
+  for (const line of ports.said) say(`  ${dryRun ? 'on a real run: ' : ''}${line}`);
+  if (!dryRun) writeChosenPorts(targetDir, ports.chosen);
+  const derived =
+    dryRun || !wantsServices
+      ? []
+      : [...ports.chosen.keys(), ...deriveEnvironment(targetDir)];
+  if (derived.length > ports.chosen.size) {
     say(
-      `  derived from ${DEV_COMPOSE_PATH} into .env: ${derived.join(', ')} — the addresses of ` +
+      `  derived from ${DEV_COMPOSE_PATH} into .env: ` +
+        `${derived.slice(ports.chosen.size).join(', ')} — the addresses of ` +
         'the containers the next step starts, on this machine',
     );
   }
@@ -893,9 +1167,22 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
         continue;
       }
       exitCode = code;
-      say(`\n${step.command} failed (exit ${String(code)}). Remaining steps, in order:`);
-      for (const left of steps.slice(done.length)) {
-        say(`  ${typeable(runner, left.command)}   # ${left.purpose}`);
+      // The list starts **at** the step that failed: it did not complete, so a
+      // client who follows the list from its first line has to run it again.
+      // It used to start after it, and following it verbatim skipped the very
+      // step the run died on.
+      say(
+        `\n${step.command} failed (exit ${String(code)}). Remaining steps, in order — the ` +
+          'first is the one that failed:',
+      );
+      for (const left of steps.slice(done.length - 1)) {
+        say(`  cd ${left.cwd} && ${typeable(runner, left.command)}   # ${left.purpose}`);
+      }
+      if (steps.slice(done.length - 1).some((left) => left.id === 'admin')) {
+        say(
+          `  (${PASSWORD_PLACEHOLDER} stands for the administrator password you chose: it is ` +
+            'not printed here, so type it in its place.)',
+        );
       }
       break;
     }
@@ -916,6 +1203,8 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       services: wantsServices,
       passwordFromFlag: provenance.fromFlags.has('admin-password'),
       corepack: runner.command === 'corepack' ? runner : null,
+      apiPort,
+      apiPortBusy: await portInUse(Number(apiPort)),
     })) {
       say(line);
     }
@@ -1004,6 +1293,9 @@ function writeSharedSecret(targetDir: string, secret: string): void {
   );
 }
 
+/** What stands where the administrator's password would be, in everything printed. */
+export const PASSWORD_PLACEHOLDER = '<password>';
+
 /**
  * The pipeline (FR-155).
  *
@@ -1033,13 +1325,16 @@ function plan(input: {
     argv: readonly string[],
     purpose: string,
     optional = false,
+    shown: readonly string[] = argv,
+    stdin?: string,
   ): InstallStep => ({
     id,
-    command: `${runner.label} ${argv.join(' ')}`.trim(),
+    command: `${runner.label} ${shown.join(' ')}`.trim(),
     purpose,
     bin: runner.command,
     argv: [...runner.prefix, ...argv],
     cwd,
+    ...(stdin === undefined ? {} : { stdin }),
     ...(optional ? { optional: true } : {}),
   });
   const steps: InstallStep[] = [
@@ -1075,11 +1370,28 @@ function plan(input: {
         'admin:create',
         '--',
         `--email=${input.admin.email ?? ''}`,
-        `--password=${input.admin.password ?? ''}`,
+        '--password-stdin',
         `--first-name=${input.admin.firstName ?? ''}`,
         `--last-name=${input.admin.lastName ?? ''}`,
       ],
       'the administrator you sign in as. Nothing else creates one',
+      false,
+      // What is **echoed** is the form a person types, with a placeholder where
+      // the password is. The wizard reads it without echo, and the `[n/N]`
+      // line, the dry run and the resumable list then printed it in clear —
+      // into a terminal's scrollback and a CI log alike. A password given as a
+      // flag is masked too: it was typed once, into a place its owner chose,
+      // and a log is not that place.
+      [
+        'run',
+        'admin:create',
+        '--',
+        `--email=${input.admin.email ?? ''}`,
+        `--password=${PASSWORD_PLACEHOLDER}`,
+        `--first-name=${input.admin.firstName ?? ''}`,
+        `--last-name=${input.admin.lastName ?? ''}`,
+      ],
+      input.admin.password ?? '',
     ),
   );
   if (input.demo) {
@@ -1123,6 +1435,10 @@ function closing(input: {
   readonly passwordFromFlag: boolean;
   /** The corepack runner this run fell back to, when no `pnpm` was on `PATH`. */
   readonly corepack: PackageManagerRunner | null;
+  /** The port the instance's API listens on — its own `PORT`, never a constant. */
+  readonly apiPort: string;
+  /** Whether something on this machine already holds that port. */
+  readonly apiPortBusy: boolean;
 }): readonly string[] {
   const lines = ['', input.dryRun ? 'It would then be yours to start:' : 'Done. To start it:'];
   // Every command below has to run as printed. With `pnpm` on PATH that is
@@ -1164,7 +1480,9 @@ function closing(input: {
       'Or one layer at a time:',
     );
   }
-  lines.push(`  cd ${input.targetDir} && ${pnpm} run start      # the API, on http://localhost:3001`);
+  lines.push(
+    `  cd ${input.targetDir} && ${pnpm} run start      # the API, on http://localhost:${input.apiPort}`,
+  );
   if (input.instance.plan.members.includes('admin')) {
     lines.push(`  ${pnpm} run preview:admin                    # the admin bundle, in a second terminal`);
   }
@@ -1173,13 +1491,35 @@ function closing(input: {
       `  cd ${input.storefrontDir} && ${pnpm} run build && ${pnpm} run start   # the shop`,
     );
   }
-  const mail = developmentMailUrl(
-    existsSync(join(input.targetDir, DEV_COMPOSE_PATH))
-      ? readFileSync(join(input.targetDir, DEV_COMPOSE_PATH), 'utf8')
-      : '',
-  );
+  // Only a run that started the development services has a mail catcher to
+  // name. Under `--no-services` the compose file is still in the tree, and this
+  // line used to promise a catcher nothing had started — on a machine where the
+  // port it named could be somebody else's.
+  const mail = input.services
+    ? developmentMailUrl(
+        existsSync(join(input.targetDir, DEV_COMPOSE_PATH))
+          ? readFileSync(join(input.targetDir, DEV_COMPOSE_PATH), 'utf8')
+          : (input.instance.plan.files.find((file) => file.path === DEV_COMPOSE_PATH)?.content ?? ''),
+        readTargetEnv(input.targetDir),
+      )
+    : undefined;
   if (mail !== undefined) {
     lines.push(`  mail this instance sends is caught at ${mail} and leaves your machine never`);
+  }
+  if (!input.services) {
+    lines.push(
+      '  no development services were started (`--no-services`): the instance uses the ' +
+        'PostgreSQL, Redis and other services its `.env` names',
+    );
+  }
+  if (input.apiPortBusy) {
+    lines.push(
+      `  port ${input.apiPort} is in use on this machine right now, so the API cannot start on ` +
+        `it until that stops. To move the API instead, set PORT in ${join(input.targetDir, '.env')}` +
+        (input.storefrontDir === null
+          ? '.'
+          : ` and the same port in the two backend addresses in ${join(input.storefrontDir, '.env')}.`),
+    );
   }
   lines.push(
     '',
@@ -1273,9 +1613,15 @@ function spawnStep(step: InstallStep, env: NodeJS.ProcessEnv): Promise<number> {
   return new Promise((resolveCode) => {
     const child = spawn(step.bin, [...step.argv], {
       cwd: step.cwd,
-      stdio: 'inherit',
+      stdio: step.stdin === undefined ? 'inherit' : ['pipe', 'inherit', 'inherit'],
       env,
     });
+    if (step.stdin !== undefined && child.stdin !== null) {
+      // A child that exits before reading it closes the pipe; that is the
+      // step's own failure to report, not a second one from this write.
+      child.stdin.on('error', () => undefined);
+      child.stdin.end(`${step.stdin}\n`);
+    }
     child.on('error', () => resolveCode(127));
     child.on('close', (code) => resolveCode(code ?? 1));
   });

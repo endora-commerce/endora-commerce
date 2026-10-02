@@ -341,7 +341,7 @@ export async function dispatchCli(options: RunCliOptions): Promise<number> {
     // every `ctx.cradle()` read inside a command would fail to resolve
     // (D-157.7).
     return await enterSystemScope(
-      `cli: ${argv.join(' ')}`,
+      `cli: ${redactedArgv(argv).join(' ')}`,
       async () =>
         // The set the composition was **actually built from**, not the one read
         // above: `contextFor` answers for exactly those ids, so reading the
@@ -408,4 +408,32 @@ export function runCli(options: RunCliOptions): Promise<never> {
   return dispatchCli(options)
     .then((code) => process.exit(code))
     .catch((thrown: unknown) => process.exit(cliFailureExitCode(thrown, err)));
+}
+
+/** A flag whose value is a credential, by its name. */
+const SECRET_FLAG = /^--[^=]*(?:pass(?:word|phrase)?|secret|token|credential|api-?key)[^=]*=/i;
+
+/**
+ * `argv` as it may be written into a log: the value of every flag that names a
+ * credential replaced by `<redacted>`.
+ *
+ * The system scope a command runs in is opened with a **reason**, and the
+ * reason is logged (`tenant.escape_hatch`) so that an operator reading the log
+ * can say which command wrote what. It was the raw argv — and
+ * `admin_users create --password=…` is how the first administrator of every
+ * instance is made, so the one value its owner has to keep was written, in
+ * clear, into the log of the process that created it, and into whatever
+ * collects that log. The flag's **name** stays, because that is the part an
+ * audit needs; the value is nobody's business but its owner's.
+ *
+ * By name rather than by a list of commands: a module this file has never
+ * heard of declares `--api-token=…` and is covered. A value given as a separate
+ * argument (`--password value`) is not recognised and is not redacted — the
+ * module CLI's own grammar is `--flag=value`, and that is the form matched.
+ */
+export function redactedArgv(argv: readonly string[]): readonly string[] {
+  return argv.map((argument) => {
+    const match = SECRET_FLAG.exec(argument);
+    return match === null ? argument : `${match[0]}<redacted>`;
+  });
 }

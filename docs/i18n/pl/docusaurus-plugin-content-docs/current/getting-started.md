@@ -48,10 +48,15 @@ W tej kolejności, wypisując każde polecenie przed jego uruchomieniem:
 2. **Zapisuje instancję** — zwykły workspace pnpm, który należy do Ciebie. Platforma, powłoka panelu
    i każdy moduł przychodzą jako zależności; żaden plik platformy nie jest kopiowany do Twojego
    drzewa.
-3. **Zapisuje sklep** jako osobne repozytorium obok instancji (tylko z wnętrza klonu repozytorium —
-   zob. [Czego pierwsze uruchomienie nie daje](#czego-pierwsze-uruchomienie-nie-daje)).
+3. **Zapisuje sklep** jako osobne repozytorium obok instancji. Jego pliki przychodzą razem z
+   instalatorem: to kopia sklepu referencyjnego, już przygotowana do samodzielnego działania — zob.
+   [Sklep](#sklep).
 4. **Uruchamia usługi deweloperskie** przez `docker compose` i zapisuje ich adresy w pliku `.env`
-   instancji.
+   instancji. Jeśli port, który publikuje któraś z nich, jest już zajęty na Twoim komputerze — na
+   przykład inny PostgreSQL na `5432` — instalator wybiera wolny, zapisuje go w `.env` (na przykład
+   `POSTGRES_PORT=15432`), wyprowadza z niego adres i informuje o tym. Portu, który ustawisz w
+   `.env` samodzielnie, nigdy nie zmienia: jeśli jest zajęty, instalator zatrzymuje się, zanim
+   cokolwiek zapisze.
 5. **Instaluje, generuje, buduje i migruje**, instaluje każdy moduł i tworzy Twojego
    administratora.
 6. **Wgrywa dane demonstracyjne**, jeśli o nie poprosisz. Wgrywanie odbywa się na końcu, a błąd w
@@ -60,7 +65,9 @@ W tej kolejności, wypisując każde polecenie przed jego uruchomieniem:
    odwrócenia.
 
 Krok, który się nie powiedzie, kończy przebieg z własnym kodem wyjścia i wypisuje, co zostało do
-zrobienia, więc możesz dokończyć ręcznie poleceniami, które zostały wyświetlone.
+zrobienia, zaczynając od kroku, który się nie powiódł, więc możesz dokończyć ręcznie. Hasło
+administratora nigdy nie jest wypisywane: tam, gdzie polecenie go wymaga, lista pokazuje
+`<password>`, a Ty wpisujesz w to miejsce swoje.
 
 ### Jakie moduły instaluje
 
@@ -120,7 +127,7 @@ pyta: każda odpowiedź to flaga. Przebieg, któremu którejś brakuje, kończy 
 wymieniającą wszystkie brakujące flagi, zamiast zatrzymać się na pierwszej.
 
 ```bash
-npx create-endora-commerce@latest my-shop --non-interactive --no-storefront --no-demo \
+npx create-endora-commerce@latest my-shop --non-interactive --no-demo \
   --admin-email you@example.com --admin-password "$ADMIN_PASSWORD" \
   --admin-first-name Ada --admin-last-name Lovelace
 ```
@@ -138,7 +145,7 @@ tego nie da się ustalić zestawu modułów), usuwa go i o tym informuje.
 | `--demo` / `--no-demo` | Wgrać przykładowe dane każdego zainstalowanego modułu albo nie. Wymagana; bez wartości domyślnej. |
 | `--no-services` | Nie uruchamiaj PostgreSQL, Redis, Meilisearch ani Mailpit i nie zapisuj ich adresów w `.env`. |
 | `--without <member>` | Nie zapisuj `admin` lub `docs`. Wielokrotnie. |
-| `--no-storefront` | Zapisz samą instancję. Poza klonem repozytorium wymagana w przebiegach nieinteraktywnych. |
+| `--no-storefront` | Zapisz samą instancję, bez sklepu obok niej. |
 | `--storefront-dir <path>` | Gdzie trafia sklep. Domyślnie `<dir>-storefront`; nie może leżeć wewnątrz instancji. |
 | `--module <id>` | Zainstaluj jawnie wskazany zestaw modułów zamiast zestawu open source. Wielokrotnie. |
 | `--deployment <name>` | Katalog w `apps/` na Twoje moduły nakładkowe i wartość `DEPLOYMENT`. Domyślnie: nazwa workspace'u. |
@@ -152,7 +159,7 @@ tego nie da się ustalić zestawu modułów), usuwa go i o tym informuje.
 Uruchom je w katalogu głównym instancji. W jednym terminalu, z każdą linią oznaczoną nazwą warstwy,
 startuje:
 
-- **API** pod `http://localhost:3001`;
+- **API** pod `http://localhost:3001` albo na porcie `PORT` ustawionym w pliku `.env` instancji;
 - **panel** — pakiet zbudowany przez instalację, serwowany na własnym porcie (`3002`, chyba że
   `PORT` panelu mówi inaczej);
 - **sklep**, jeśli jest obok instancji w `<dir>-storefront`. Sklep w innym miejscu wskazujesz przez
@@ -180,20 +187,35 @@ platforma:
 | Obraz produkcyjny | `node dist/cli.js admin_users create --email=… --password=… --first-name=… --last-name=…`, uruchamiane w kontenerze backendu — zobacz [D1 listy kontrolnej pierwszego wdrożenia](./deployment/first-deployment-checklist.md#d1-utwórz-bootstrap-administratora-potem-go-zawęź) |
 | Klon repozytorium Endora Commerce | `pnpm --filter backend run admin:create -- --email=… --password=… --first-name=… --last-name=…` |
 
+`--password-stdin` zamiast `--password=…` odczytuje hasło ze standardowego wejścia, dzięki czemu nie
+trafia ono na listę procesów, do wypisywanego przez menedżer pakietów polecenia skryptu ani do
+historii powłoki — instalator tworzy Twojego administratora właśnie w ten sposób.
+
 Konto otrzymuje rolę `platform_admin` — wszystkie uprawnienia — chyba że przekażesz `--role=<code>`
 z kodem istniejącej już roli; sama rola powstaje przy pierwszym uruchomieniu. Ponowne uruchomienie
 dla istniejącego adresu e-mail ustawia na nowo hasło, imię i nazwisko oraz rolę tego konta — w ten
 sposób odzyskuje się też utracone hasło. Jeśli nie masz dostępu do powłoki na maszynie, na której
 działa platforma, poproś o utworzenie konta osobę, która ją obsługuje.
 
-## Czego pierwsze uruchomienie nie daje
+## Sklep
 
-**Brak sklepu poza klonem repozytorium.** Sklep jest kopiowany z referencyjnego sklepu w
-repozytorium Endora Commerce. Uruchomione gdziekolwiek indziej pytanie o części pokazuje sklep jako
-odznaczony, z podanym powodem, i nie pozwala go zaznaczyć; przebieg nieinteraktywny wymaga
-`--no-storefront`. Instancja, API i panel są bez niego kompletne.
+Instalator zapisuje sklep obok instancji, chyba że odznaczysz go w pytaniu o części albo podasz
+`--no-storefront`. To kopia sklepu referencyjnego, która przychodzi wewnątrz instalatora, więc nie
+wymaga klonu repozytorium Endora Commerce: każdy plik jest już przepisany tak, by działał
+samodzielnie, a pakiety `@endora-commerce/*`, od których zależy, są w wersjach wydania, które
+instalujesz. Od tej chwili to Twoje repozytorium — nic go nie aktualizuje i nic nie raportuje z
+powrotem.
 
-**Dodanie sklepu później** to `endora new storefront <dir>`, uruchamiane z klonu repozytorium. Sklep
+W tej kopii pominięto jedną rzecz, a instalator ją wymienia: wzorcowe zrzuty ekranu sklepu
+referencyjnego do jego testów wizualnych. To obrazy sklepu referencyjnego z maszyny, która je
+zapisała; `pnpm exec playwright test --update-snapshots` zapisuje Twoje własne. Wewnątrz klonu
+repozytorium sklep jest kopiowany z klonu, razem ze zrzutami.
+
+Aby zobaczyć sklep, zbuduj go i uruchom — `pnpm run build && pnpm run start` w katalogu sklepu —
+albo pozwól, by `pnpm run dev:all` uruchomiło go w trybie deweloperskim razem z pozostałymi
+warstwami.
+
+**Dodanie sklepu później** to `endora new storefront <dir>`, uruchamiane skądkolwiek. Sklep
 i instancja muszą dzielić jeden sekret, `REVALIDATE_SECRET` — klucz, którym backend prosi sklep o
 odświeżenie strony z cache. Gdy instalator zapisuje oba drzewa, generuje tę wartość raz i zapisuje
 ją w obu. Gdy sklep dochodzi później, nic tego za Ciebie nie zrobi:

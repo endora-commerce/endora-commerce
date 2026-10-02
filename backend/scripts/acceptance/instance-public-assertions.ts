@@ -226,18 +226,20 @@ export interface OneShotInput {
 /**
  * The first command: the one-shot, every answer a flag.
  *
- * **`--no-storefront` is in it because a stranger has to type it.** `endora
- * install` copies the reference storefront out of a checkout of the platform
- * repository and refuses the storefront anywhere else, naming this flag
- * (`specs/110-instance-repository/contracts/cli-product.md` R3.1c). A clean
- * runner is anywhere else. P2 reports the consequence rather than this list
- * hiding it.
+ * **There is no `--no-storefront` in it, and there used to be.** `endora
+ * install` copied the reference storefront out of a checkout of the platform
+ * repository and refused it anywhere else, naming that flag
+ * (`specs/110-instance-repository/contracts/cli-product.md` R3.1c) — and a clean
+ * runner is anywhere else, so a stranger had to type it and P2 could not be
+ * measured. The CLI now carries the reference storefront it was built from, so
+ * the command a stranger types writes the shop too, and P2 is judged on it. A
+ * published version older than that change refuses this command outright,
+ * which is P1 failing for the reason it should.
  */
 export function oneShotCommand(input: OneShotInput): string {
   return [
     `npx --yes ${input.packageName}@${input.version} ${input.dir}`,
     '--non-interactive',
-    '--no-storefront',
     '--demo',
     `--admin-email ${input.admin.email}`,
     `--admin-password ${input.admin.password}`,
@@ -360,26 +362,49 @@ export function evaluateLogin(observed: {
 
 /** P2. */
 export function evaluateStorefront(observed: {
+  /** Whether the one-shot itself exited 0. */
+  readonly installed: boolean;
+  /** Whether the stranger's second command was typed and the API answered. */
+  readonly started: boolean;
   readonly written: boolean;
   readonly status?: number | null | undefined;
   readonly html?: string | undefined;
 }): PublicAssertionResult {
+  if (!observed.installed) {
+    return {
+      id: 'P2',
+      state: 'unmeasured',
+      detail: 'the one-shot did not finish, so there is no storefront to ask for a catalogue — P1 says why',
+    };
+  }
   if (!observed.written) {
+    // Not `unmeasured` any more: the command was typed without `--no-storefront`
+    // and exited 0, so a missing storefront is the product writing less than it
+    // was asked for.
+    return {
+      id: 'P2',
+      state: 'fail',
+      detail:
+        'the one-shot exited 0 and wrote no storefront beside the instance, though it was typed ' +
+        'without --no-storefront',
+    };
+  }
+  if (!observed.started) {
     return {
       id: 'P2',
       state: 'unmeasured',
       detail:
-        'the one-shot wrote no storefront: outside a checkout of the platform repository it ' +
-        'refuses the storefront and the stranger has to pass --no-storefront ' +
-        '(specs/110-instance-repository/contracts/cli-product.md R3.1c). This waits on ' +
-        '`endora new storefront` running from a published package',
+        'the storefront was written, and the command that starts every layer did not bring the ' +
+        'API up, so the catalogue was never asked for — P1 says why',
     };
   }
   if (observed.status !== 200) {
     return {
       id: 'P2',
       state: 'fail',
-      detail: `the storefront catalogue answered ${String(observed.status ?? 'nothing')}`,
+      detail:
+        `the storefront catalogue answered ${String(observed.status ?? 'nothing')}` +
+        ((observed.html ?? '').length > 0 ? `: ${(observed.html ?? '').slice(0, 300)}` : ''),
     };
   }
   if (!/href="\/p\/[^"]+"/.test(observed.html ?? '')) {

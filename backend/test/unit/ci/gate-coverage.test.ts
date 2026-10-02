@@ -251,6 +251,19 @@ const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
       'there is no verdict for a pipeline to hold one to. Its value-free output is what CI does ' +
       'hold, through its unit test.',
   },
+  '@endora-commerce/cli::prepack': {
+    kind: 'superseded',
+    coveredBy: 'backend::pack-gate',
+    reason:
+      'It is a lifecycle hook of `pnpm pack`, not of a script: it refuses to pack a CLI whose ' +
+      '`dist` carries no reference storefront, so that a build made without git or without the ' +
+      'storefront tree cannot reach a registry. No command line names it, and none could — the ' +
+      'thing that runs it is the packing itself. The `pack-gate` job packs every versionable ' +
+      'package with `pnpm pack`, which runs this hook first, and a package that produced no ' +
+      'tarball is one of the refusals that gate exits 2 on; the publish job packs through the ' +
+      'same hook. So the rule runs wherever a tarball of this package is made, which is the ' +
+      'whole of where it applies.',
+  },
   '<root>::version:packages': {
     kind: 'local-operation',
     reason:

@@ -48,9 +48,17 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   InstallInputError,
+  PASSWORD_PLACEHOLDER,
   runInstall,
   type InstallStep,
 } from '../src/install/index.js';
+import { writePackagedReference } from '../src/new-storefront/packaged.js';
+
+/** No port on this machine is taken — the answer a hermetic case hands in. */
+const NO_PORT_TAKEN = async (): Promise<boolean> => false;
+
+/** A directory that holds no packaged reference storefront. */
+const NO_PACKAGED_REFERENCE = join(tmpdir(), 'endora-no-packaged-reference-here');
 
 const scratch: string[] = [];
 afterEach(() => {
@@ -197,6 +205,13 @@ function options(
     storefront: false,
     services: false,
     dockerReachable: true,
+    // The same reasoning as `dockerReachable`, one probe over: the default asks
+    // this machine which ports are taken, and a developer's laptop running a
+    // PostgreSQL would then write a different `.env` from a CI container.
+    portInUse: NO_PORT_TAKEN,
+    // And the same again: the default is whatever this checkout's last build
+    // left in `dist`, which is not a fact about the command.
+    packagedReferenceDir: NO_PACKAGED_REFERENCE,
     demo: false,
     ...ADMIN,
     ...overrides,
@@ -423,15 +438,23 @@ describe('FR-155 / FR-156 — the pipeline is the printed sequence, and every st
     const { run, steps } = recorder();
     await runInstall(options(root, { run }));
     const admin = steps.find((step) => step.id === 'admin')!;
+    // The password is not an argument: a package manager echoes the script it
+    // runs with its arguments, and the operator CLI logs them. It travels on
+    // the step's standard input.
     expect(admin.argv).toEqual([
       'run',
       'admin:create',
       '--',
       `--email=${ADMIN.adminEmail}`,
-      `--password=${ADMIN.adminPassword}`,
+      '--password-stdin',
       `--first-name=${ADMIN.adminFirstName}`,
       `--last-name=${ADMIN.adminLastName}`,
     ]);
+    expect(admin.stdin).toBe(ADMIN.adminPassword);
+    for (const step of steps) {
+      expect(step.argv.join(' '), step.id).not.toContain(ADMIN.adminPassword);
+      if (step.id !== 'admin') expect(step.stdin, step.id).toBeUndefined();
+    }
   });
 
   it('T3-F — a failing step exits with its own code and prints what is left to do', async () => {
@@ -446,6 +469,50 @@ describe('FR-155 / FR-156 — the pipeline is the printed sequence, and every st
     expect(text).toContain('pnpm run setup');
     expect(text.toLowerCase()).toContain('remaining');
     expect(text).toContain('pnpm run admin:create');
+  });
+
+  it('the resumable list starts at the step that failed, so following it skips nothing', async () => {
+    // It used to start after it: `done` already held the failed step, so a
+    // client who typed the list from its first line never re-ran the one step
+    // the run had died on.
+    const root = host();
+    const { run } = recorder({ services: 125 });
+    const result = await runInstall(options(root, { services: true, run }));
+    const text = result.output.join('\n');
+    const listed = text
+      .slice(text.indexOf('Remaining steps, in order'))
+      .split('\n')
+      .slice(1)
+      .filter((line) => line.startsWith('  cd '));
+    expect(listed.map((line) => /&& (pnpm \S+ \S+)/.exec(line)?.[1])).toEqual([
+      'pnpm run dev:services',
+      'pnpm run setup',
+      'pnpm run admin:create',
+    ]);
+    // Each line names where it runs: the storefront's install is in another tree.
+    for (const line of listed) expect(line).toContain(`cd ${join(root, 'acme-shop')} && `);
+  });
+
+  it('the password is never printed: not in the echo, not in the dry run, not in the resumable list', async () => {
+    const root = host();
+    const { run, steps } = recorder({ setup: 3 });
+    const failed = await runInstall(options(root, { run }));
+    expect(failed.output.join('\n')).not.toContain(ADMIN.adminPassword);
+    expect(failed.output.join('\n')).toContain(`--password=${PASSWORD_PLACEHOLDER}`);
+    // It says what the placeholder is, so the list stays something a client can finish.
+    expect(failed.output.join('\n')).toContain('stands for the administrator password');
+    // What runs is still the value: only what is printed changed.
+    expect(steps).toHaveLength(2);
+
+    const second = host();
+    const ok = recorder();
+    const done = await runInstall(options(second, { run: ok.run }));
+    expect(done.output.join('\n')).not.toContain(ADMIN.adminPassword);
+    expect(ok.steps.find((step) => step.id === 'admin')!.stdin).toBe(ADMIN.adminPassword);
+
+    const third = host();
+    const dry = await runInstall(options(third, { dryRun: true }));
+    expect(dry.output.join('\n')).not.toContain(ADMIN.adminPassword);
   });
 
   it('FR-125 — a dry run names every step, runs none of them and writes nothing', async () => {
@@ -580,6 +647,104 @@ describe('FR-105 — the instance reaches the services this run started', () => 
   });
 });
 
+describe('the ports the development stack publishes are decided before anything is written', () => {
+  /** A probe over a fixed set of taken ports. */
+  const taken =
+    (...ports: readonly number[]) =>
+    async (port: number): Promise<boolean> =>
+      ports.includes(port);
+
+  it('a default port that is taken is moved, written into `.env`, and the address follows it', async () => {
+    const root = host();
+    const { run } = recorder();
+    const result = await runInstall(
+      options(root, { services: true, run, portInUse: taken(5432, 6379, 15432) }),
+    );
+    const env = readFileSync(join(root, 'acme-shop', '.env'), 'utf8');
+    // 15432 is taken too, so the next free one is the answer.
+    expect(env).toMatch(/^POSTGRES_PORT=15433$/m);
+    expect(env).toMatch(/^REDIS_PORT=16379$/m);
+    expect(env).toMatch(/^DATABASE_URL=postgresql:\/\/.*@localhost:15433\//m);
+    // The dangerous one: Redis takes no credential, so an address left on 6379
+    // would be somebody else's Redis, used in silence.
+    expect(env).toMatch(/^REDIS_URL=redis:\/\/localhost:16379$/m);
+    expect(env).not.toMatch(/localhost:6379/);
+    // A port that was free stays the document's own and is not written.
+    expect(env).not.toMatch(/^MEILISEARCH_PORT=/m);
+    expect(env).toMatch(/^MEILISEARCH_URL=http:\/\/localhost:7700$/m);
+    const text = result.output.join('\n');
+    expect(text).toContain('port 5432 is already in use on this machine');
+    expect(text).toContain('POSTGRES_PORT=15433');
+    expect(result.derived).toEqual(expect.arrayContaining(['POSTGRES_PORT', 'REDIS_PORT', 'DATABASE_URL']));
+  });
+
+  it('a port the operator set in `.env` is theirs: free, it moves the address', async () => {
+    const root = host();
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'REDIS_PORT=6400\n', 'utf8');
+    const { run } = recorder();
+    await runInstall(options(root, { services: true, run, portInUse: taken(6379) }));
+    const env = readFileSync(join(target, '.env'), 'utf8');
+    expect(env).toMatch(/^REDIS_URL=redis:\/\/localhost:6400$/m);
+    expect(env.match(/^REDIS_PORT=/gm)).toHaveLength(1);
+  });
+
+  it('a port the operator set and cannot have is a refusal, with nothing written', async () => {
+    const root = host();
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'POSTGRES_PORT=5999\n', 'utf8');
+    const { run, steps } = recorder();
+    const error = await runInstall(
+      options(root, { services: true, run, portInUse: taken(5999) }),
+    ).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    );
+    expect(error).toBeInstanceOf(InstallInputError);
+    expect((error as Error).message).toContain('POSTGRES_PORT=5999');
+    expect((error as Error).message).toContain('Nothing was written');
+    expect(readdirSync(target)).toEqual(['.env']);
+    expect(steps).toEqual([]);
+  });
+
+  it('`--no-services` probes nothing and moves nothing', async () => {
+    const root = host();
+    const { run } = recorder();
+    let asked = 0;
+    const result = await runInstall(
+      options(root, {
+        services: false,
+        run,
+        portInUse: async (port: number) => {
+          // The API's own port is the one question a run without services asks.
+          if (port !== 3001) asked += 1;
+          return false;
+        },
+      }),
+    );
+    expect(asked).toBe(0);
+    expect(readFileSync(join(root, 'acme-shop', '.env'), 'utf8')).not.toMatch(/^[A-Z_]+_PORT=/m);
+    // No mail catcher was started, so none is promised.
+    expect(result.output.join('\n')).not.toContain('is caught at');
+    expect(result.output.join('\n')).toContain('no development services were started');
+  });
+
+  it('the closing block names the API on the instance\'s own PORT, and says when it is taken', async () => {
+    const root = host();
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'PORT=4321\n', 'utf8');
+    const { run } = recorder();
+    const result = await runInstall(options(root, { run, portInUse: taken(4321) }));
+    const text = result.output.join('\n');
+    expect(text).toContain('# the API, on http://localhost:4321');
+    expect(text).not.toContain('localhost:3001');
+    expect(text).toContain('port 4321 is in use on this machine right now');
+  });
+});
+
 describe('FR-143 / FR-161 — it composes the two commands and changes no topology', () => {
   it('T3-B — its source imports the two runners and names no template', () => {
     const source = readFileSync(
@@ -632,20 +797,63 @@ describe('FR-143 / FR-161 — it composes the two commands and changes no topolo
   });
 });
 
-describe('FR-160 — the storefront is a sibling, and this checkout is what it is copied from', () => {
-  it('outside a checkout it is refused before anything is written, naming the flag', async () => {
+describe('FR-160 — the storefront is a sibling, copied from the checkout or from what the CLI carries', () => {
+  it('outside a checkout, with a CLI that carries no reference, it is refused before anything is written', async () => {
     const root = host();
-    // The finding this case records: `endora new storefront` copies the
-    // reference storefront out of a checkout of the platform repository, so an
-    // installed CLI standing in an empty directory cannot write one. The
-    // one-shot refuses in advance rather than writing an instance and failing
-    // half way.
+    // What is left of the finding this case used to record. `endora new
+    // storefront` needed a checkout of the platform repository, so the one-shot
+    // refused the storefront everywhere a stranger stands. A published CLI now
+    // carries the reference; the refusal is for a build that packaged none.
     const error = await runInstall(options(root, { storefront: true })).then(
       () => null,
       (thrown: unknown) => thrown,
     );
     expect((error as Error).message).toContain('--no-storefront');
+    expect((error as Error).message).toContain('carries no packaged reference storefront');
     expect(existsSync(join(root, 'acme-shop'))).toBe(false);
+  });
+
+  it('outside a checkout, the reference the CLI carries is written as the sibling storefront', async () => {
+    // The packaged reference is built from a checkout, exactly as the package's
+    // own `build` does it, and then read from a directory with no workspace
+    // above it — a stranger's.
+    const checkout = checkoutFixture();
+    const packaged = join(temp('endora-install-packaged-'), 'storefront-reference');
+    const cli = join(checkout, 'packages', 'cli');
+    mkdirSync(cli, { recursive: true });
+    writeFileSync(join(cli, 'package.json'), JSON.stringify({ name: '@x/cli', version: '9.9.9' }));
+    expect((await writePackagedReference(cli, packaged)).written).toBe(true);
+
+    const root = host();
+    const { run, steps } = recorder();
+    const result = await runInstall(
+      options(root, { storefront: true, run, packagedReferenceDir: packaged }),
+    );
+    const storefrontDir = join(root, 'acme-shop-storefront');
+    expect(result.storefrontDir).toBe(storefrontDir);
+    expect(result.storefront!.source.kind).toBe('packaged');
+    expect(existsSync(join(storefrontDir, 'app', 'page.tsx'))).toBe(true);
+    // Its own install is a step of the pipeline, in its own repository.
+    expect(steps.at(-1)).toMatchObject({ id: 'storefront-install', cwd: storefrontDir });
+    // One secret, two trees — the property the one-shot exists for holds here too.
+    const secretOf = (text: string): string | undefined =>
+      /^REVALIDATE_SECRET=(.+)$/m.exec(text)?.[1];
+    expect(secretOf(readFileSync(join(storefrontDir, '.env'), 'utf8'))).toBe(
+      secretOf(readFileSync(join(root, 'acme-shop', '.env'), 'utf8')),
+    );
+    expect(result.output.join('\n')).toContain('from the reference storefront this CLI carries');
+  });
+
+  it('the storefront is pointed at the instance\'s own PORT, never at a constant', async () => {
+    const root = checkoutFixture();
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'PORT=4455\n', 'utf8');
+    const { run } = recorder();
+    await runInstall(options(root, { storefront: true, run }));
+    expect(readFileSync(join(root, 'acme-shop-storefront', '.env'), 'utf8')).toMatch(
+      /^NEXT_PUBLIC_API_BASE_URL=http:\/\/localhost:4455$/m,
+    );
   });
 
   it('T3-G — the two trees share one `REVALIDATE_SECRET`, which no sequence of the two commands can do', async () => {
@@ -735,7 +943,7 @@ describe('GAP-7 — the closing block leads with the one development command', (
     const corepack = { command: 'corepack', prefix: ['pnpm@9.15.0'], label: 'corepack pnpm@9.15.0' };
     const result = await runInstall(options(root, { run, packageManagers: [corepack] }));
     const text = result.output.join('\n');
-    const remaining = text.slice(text.indexOf('Remaining steps, in order:'));
+    const remaining = text.slice(text.indexOf('Remaining steps, in order'));
     expect(remaining).toContain('npx --yes pnpm@9.15.0 run setup');
     expect(remaining).not.toContain('corepack pnpm@9.15.0 run');
     // The echo of what ran stays true to what ran.

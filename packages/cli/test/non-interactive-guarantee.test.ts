@@ -306,45 +306,14 @@ describe('`endora install` never blocks, and refuses completely', () => {
     TIMEOUT_MS + 15_000,
   );
 
-  it(
-    'outside a checkout it refuses the storefront in advance, naming the flag that skips it',
-    async () => {
-      const { dir, parent } = target();
-      try {
-        // The finding this case records: `endora new storefront` copies the
-        // reference storefront out of a checkout of the platform repository, so
-        // an installed CLI standing in an empty directory cannot write one. The
-        // one-shot refuses **before** writing an instance rather than failing
-        // half way through the pipeline, and the refusal names the remedy.
-        const result = await run(
-          [
-            'install',
-            dir,
-            '--no-services',
-            '--no-demo',
-            '--admin-email',
-            'owner@example.com',
-            '--admin-password',
-            'a-password-they-remember',
-            '--admin-first-name',
-            'Ada',
-            '--admin-last-name',
-            'Lovelace',
-          ],
-          parent,
-        );
-        expect(result.timedOut).toBe(false);
-        expect(result.code).toBe(1);
-        expect(result.stderr).toContain('--no-storefront');
-        expect(result.stderr).toContain('Nothing was written');
-        const { existsSync } = await import('node:fs');
-        expect(existsSync(dir)).toBe(false);
-      } finally {
-        rmSync(parent, { recursive: true, force: true });
-      }
-    },
-    TIMEOUT_MS + 15_000,
-  );
+  // There was a case here: *outside a checkout it refuses the storefront in
+  // advance, naming the flag that skips it*. Its subject is gone — a built CLI
+  // carries the reference storefront (`src/new-storefront/packaged.ts`), so the
+  // same argv from the same empty directory now proceeds to a real install,
+  // which is not something a spawned unit test may start. What is left of the
+  // refusal — a build that packaged no reference — is asserted in
+  // `install.test.ts` through `packagedReferenceDir`, and the proceeding path
+  // by the `local-registry` acceptance mode.
 
   it(
     'both demo flags at once is a refusal rather than a precedence rule',
