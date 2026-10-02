@@ -1,25 +1,69 @@
 /**
- * Minimal theme override for the B2B Platform docs site.
- * Keep intentionally sparse — visual design is a later concern (Principle IV).
+ * Endora Commerce brand theme for the documentation site.
+ *
+ * Colours only: no layout, no font and no component is overridden. Every value is taken
+ * from, or interpolated between, the tokens the product site (commerce.endora.software)
+ * publishes in its stylesheet:
+ *
+ *   brand-deep #6322c8   brand #7c3aed   brand-light #b794f6   brand-soft #d4bbff
+ *   brand-100  #f4eefe   ink   #1a1226   ink-hover   #2e2340
+ *
+ * Contrast is the constraint the shades were chosen under (WCAG 2.2 AA: 4.5:1 for text,
+ * 3:1 for large text and UI components). The measured ratios are in the pull request that
+ * introduced this file; re-measure when a value here changes.
  */
 
 :root {
-  --ifm-color-primary: #1f6feb;
-  --ifm-color-primary-dark: #1859c5;
-  --ifm-color-primary-darker: #1752ba;
-  --ifm-color-primary-darkest: #124398;
-  --ifm-color-primary-light: #3a83ed;
-  --ifm-color-primary-lighter: #4a8cee;
-  --ifm-color-primary-lightest: #76a6f2;
+  /* brand-deep is the primary; the light shades climb to `brand`, the dark ones are
+     brand-deep darkened by Infima's own 10 / 15 / 30 % steps. */
+  --ifm-color-primary: #6322c8;
+  --ifm-color-primary-dark: #591fb4;
+  --ifm-color-primary-darker: #541daa;
+  --ifm-color-primary-darkest: #45188c;
+  --ifm-color-primary-light: #6b2ad4;
+  --ifm-color-primary-lighter: #7432e1;
+  --ifm-color-primary-lightest: #7c3aed;
   --ifm-code-font-size: 92%;
+
+  /* Code blocks are dark in both colour modes, so one value serves both. The highlighted
+     line goes *darker* than the block (ink at 50 %), which raises the contrast of every
+     token on it instead of spending it; the brand-light bar below is what carries the
+     highlight, so it does not rest on a background shift alone. */
+  --docusaurus-highlighted-code-line-bg: rgba(26, 18, 38, 0.5);
 }
 
 [data-theme='dark'] {
-  --ifm-color-primary: #4a8cee;
-  --ifm-color-primary-dark: #2b79ea;
-  --ifm-color-primary-darker: #1c70e8;
-  --ifm-color-primary-darkest: #135ec7;
-  --ifm-color-primary-light: #699ff2;
-  --ifm-color-primary-lighter: #79a8f3;
-  --ifm-color-primary-lightest: #a6c3f7;
+  /* brand-deep on a dark page is about 2:1, so dark mode starts from brand-light. The
+     light shades climb to brand-soft; the dark ones step toward `brand` and stop halfway,
+     which is as far as text on the dark background stays above 4.5:1. */
+  --ifm-color-primary: #b794f6;
+  --ifm-color-primary-dark: #ae87f5;
+  --ifm-color-primary-darker: #a579f3;
+  --ifm-color-primary-darkest: #9a67f2;
+  --ifm-color-primary-light: #c1a1f9;
+  --ifm-color-primary-lighter: #caaefc;
+  --ifm-color-primary-lightest: #d4bbff;
+}
+
+/*
+ * The navbar is the product site's ink bar in both colour modes. On ink the light-mode
+ * primary is unreadable (about 2:1), so the hover and active colours inside the bar are
+ * brand-soft instead — including the mobile sidebar, which inherits the bar's background.
+ */
+.navbar.navbar--dark,
+.navbar--dark .navbar-sidebar {
+  --ifm-navbar-background-color: #1a1226;
+  --ifm-navbar-link-hover-color: #d4bbff;
+  --ifm-menu-color-active: #d4bbff;
+  --ifm-menu-color-background-hover: #2e2340;
+  --ifm-menu-color-background-active: #2e2340;
+}
+
+/* The footer is `style: 'dark'`; it takes the same ink as the navbar. */
+.footer--dark {
+  --ifm-footer-background-color: #1a1226;
+}
+
+.theme-code-block-highlighted-line {
+  box-shadow: inset 3px 0 0 #b794f6;
 }
