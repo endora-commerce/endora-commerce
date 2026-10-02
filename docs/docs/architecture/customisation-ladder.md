@@ -17,7 +17,10 @@ Three things make this list bite rather than merely read well:
 
 1. **Every divergence you write carries its rung** in your deployment's own
    generated report (`backend/src/apps/<deployment>/divergence.generated.md`), so
-   arriving repeatedly at a high rung is measurable rather than anecdotal.
+   arriving repeatedly at a high rung is measurable rather than anecdotal. The
+   paths on this page are this repository's; in an instance written by
+   `npx create-endora-commerce` the same files sit under `apps/<deployment>/` at
+   the instance's root, and `pnpm run generate` renders the report.
 2. **Every refusal names the rung below that works**, so if you reach too high
    the platform tells you where to reach instead, at the moment you reach.
 3. **A rung you cannot use says so.** Rung 3 is not available to a deployment

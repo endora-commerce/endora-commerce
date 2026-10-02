@@ -7,6 +7,18 @@ slug: /
 
 Welcome. This site documents the **B2B Platform** — a Supplier-operated commerce product that supports both **Quote Request (RFQ)** and **direct-purchase** workflows on a single codebase, with Customer Organizations, multi-user Roles, Credit Limit settlement, a permissioned Admin Panel, and an open API + webhook layer for third-party ERP / PIM / WMS / CRM integrations.
 
+## Start here
+
+1. [Getting started](./getting-started.md) — one command installs an instance on your machine: an
+   API, an admin panel and a storefront. What it asks, what you get and where to sign in.
+2. [Standing the components up separately](./getting-started.md#one-component-per-machine) — the
+   API, the admin and the storefront on machines of their own, under a name each or on one host
+   with paths.
+3. [Create your first Module](./create-your-first-module.md) — a 20-minute tutorial that extends
+   the instance with a module of your own.
+4. [First production deployment checklist](./deployment/first-deployment-checklist.md) — before
+   the instance takes real orders.
+
 ## Who this is for
 
 - **Developers** extending the platform — each module's section below describes its domain, contracts, services, and tests with enough depth to contribute without reverse-engineering the code.
@@ -18,12 +30,13 @@ Both audiences read the same tree. Sections marked _Developers_ vs _Usage_ let y
 
 | Artifact | Location |
 | --- | --- |
-| Dev + prod runbook + hardware requirements | `README.md` at the repository root |
+| Installing an instance | [Getting started](./getting-started.md) |
+| Hardware requirements, and working on Endora Commerce itself | `README.md` at the repository root |
 | Module documentation (you are here) | This site |
 
 ## Quick links
 
-- Live OpenAPI (when the backend is running): `http://localhost:3001/api/v1/_openapi.json`.
+- Live OpenAPI (when the API is running, on its default port): `http://localhost:3001/api/v1/_openapi.json`.
 
 ## Status
 

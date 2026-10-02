@@ -87,16 +87,32 @@ its data — creates your administrator and prints what to run next. Each step p
 runs, so a failure names the command to finish by hand. Leave out `my-shop` and it asks for the
 directory too.
 
-The second is the one development command. It starts the API on `http://localhost:3001`, the
-admin, and the storefront when there is one beside the instance, in one terminal with every line
+The storefront is written beside the instance, in `my-shop-storefront/`, unless you uncheck it: a
+copy of the reference storefront in this repository that travels inside the installer, already made
+standalone, and yours from then on.
+
+The second is the one development command. It starts the three in one terminal with every line
 labelled by its layer; Ctrl-C stops them all. Each layer keeps its own command — the end of the
 first command prints them — and builds and deploys on its own.
 
-The storefront is written beside the instance, in `my-shop-storefront/`, unless you uncheck it: a
-copy of the reference storefront in this repository that travels inside the installer, already made
-standalone, and yours from then on. If a port a development service publishes is already in use —
-another PostgreSQL on `5432` — the installer picks a free one, writes it into the instance's `.env`
-and says so.
+| | Address |
+| --- | --- |
+| Storefront | `http://localhost:3000` |
+| API | `http://localhost:3001` |
+| Admin | `http://localhost:3002` — sign in with the administrator's e-mail and the password you chose |
+| Mailpit (caught e-mail) | `http://localhost:8025` |
+
+A machine that already runs something on one of those ports is the ordinary case. The installer
+checks before it writes: a taken port — a development service's, the API's, the admin's or the
+storefront's — is replaced by a free one, written into the `.env` that layer reads and printed, and
+a second instance of the same directory name gets a Compose project name of its own rather than
+the first one's containers and data.
+
+The same command stands the API, the admin and the storefront up **on machines of their own**
+(`--only api`, `--only admin`, `--only storefront`), under a name each or behind one host with
+paths (`--public-url https://example.com`: the storefront at `/`, the admin under `/admin`, the
+API under `/api`). [Getting started](docs/docs/getting-started.md#one-component-per-machine) has
+the table and what the machines owe each other.
 
 With no terminal — in CI, or with `--non-interactive` — it asks nothing and every answer is a
 flag. A missing one is a single refusal naming every flag still owed:
@@ -123,13 +139,15 @@ Everything past the first run is on the documentation site,
 **[docs.commerce.endora.software](https://docs.commerce.endora.software)** — built from
 [`docs/`](docs/) and from each module package's own `docs/` directory:
 
-- **Installing** — every question, flag and limit of the two commands above:
-  [getting started](docs/docs/getting-started.md).
+- **Installing** — every question and flag of the two commands above, and the components on
+  machines of their own: [getting started](docs/docs/getting-started.md).
 - **Modules** — what each one does, its settings, permissions and admin screens:
   [module reference](docs/docs/modules/README.md).
 - **Going to production** — the [first deployment checklist](docs/docs/deployment/first-deployment-checklist.md)
   and [`deploy/`](deploy/README.md) (topology, secrets, TLS).
-- **Extending it** — the [kernel](docs/docs/architecture/kernel.md), the
+- **Extending it** — [create your first Module](docs/docs/create-your-first-module.md), a
+  20-minute tutorial in the instance you just installed; then the
+  [kernel](docs/docs/architecture/kernel.md), the
   [customisation ladder](docs/docs/architecture/customisation-ladder.md) and
   [per-deployment overlay modules](docs/docs/architecture/overlay-pattern.md).
 - **The API** — a running backend serves its OpenAPI document at `GET /api/v1/_openapi.json`.

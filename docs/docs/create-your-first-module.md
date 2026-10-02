@@ -10,14 +10,12 @@ This tutorial takes a new instance and adds one small module of your own to it: 
 The shop owner types a short message in the admin ("We are closed 24-26 December"), and the
 storefront — or anything else — reads it from an API route. It takes about 20 minutes.
 
-Every command and file on this page was run on an instance created with
-`npx create-endora-commerce@latest`, on releases `0.100.1` and `0.100.2`. Where something does not work
-for you today,
-the page says so in a box like this one and gives the way round it:
+The page describes an instance created with `npx create-endora-commerce@latest` on the release
+after `0.100.2`.
 
-:::caution Limit today
-Two things on this page are harder than they should be. They are collected in
-[What does not work yet](#what-does-not-work-yet), each with what was observed.
+:::note An instance created with release 0.100.2 or earlier
+Four things on this page behave differently there.
+[Instances created with 0.100.2 or earlier](#older-instances) lists them, each with its repair.
 :::
 
 ## What a module is
@@ -62,18 +60,9 @@ DEPLOYMENT=my-shop
 
 The version is the one your release pins; it is written without a `^` on purpose.
 
-:::note Instances created with release 0.100.2 or earlier
-Those releases wrote neither line. If either command prints nothing, add what is missing:
-
-```bash
-echo "DEPLOYMENT=my-shop" >> .env
-pnpm add -w "@endora-commerce/contracts@$(node -p "require('./node_modules/@endora-commerce/platform/package.json').dependencies['@endora-commerce/contracts']")"
-```
-
-The part in `$(…)` prints the exact version of the contracts package your installed platform
-uses, so the two stay on one release. Without `DEPLOYMENT` nothing fails: your module is simply not
-there, and nothing says why.
-:::
+Without `DEPLOYMENT` nothing fails: the instance starts as the bare platform, your module is simply
+not there, and nothing says why. If either command prints nothing, your instance was created by an
+earlier release — see [Instances created with 0.100.2 or earlier](#older-instances).
 
 ## Step 2 — Scaffold the module
 
@@ -291,6 +280,10 @@ Start the instance:
 pnpm run dev:all
 ```
 
+The addresses below are the defaults. If the installer moved a port because it was taken, use the
+address it printed — the API's port is `PORT` in the instance's `.env`, the admin's is `PORT` in
+`admin/.env`.
+
 **The API route.** In a second terminal:
 
 ```bash
@@ -323,16 +316,12 @@ terminal.
 Every module can be switched off by the people running the shop, and a module that is off behaves
 as if it were not installed. Nothing is deleted, and switching it on again brings everything back.
 
-:::caution Limit on `0.100.2` and earlier
-The switch belongs on the admin's **Modules** screen (**System → Modules**). In an instance on
-release `0.100.2` or earlier that screen shows `NOT_FOUND: Resource not found.` and an empty list,
-and `pnpm run module:disable <id>` prints `registry updated: state=disabled` without changing
-anything. Both are repaired in the release after `0.100.2`: upgrade the instance's
-`@endora-commerce/*` packages to get it. The API call below is the one the Modules screen itself
-makes, and it works on every release.
-:::
+**In the admin.** Open **System → Modules** (`/platform/modules`). Every module of the instance is
+listed there, yours included, with what the deployment installed and what your business has
+switched on. Switch **Store notice** off with the control in its row.
 
-Sign in from the terminal, keeping the session cookie in a file:
+**From a terminal.** The call below is the one the Modules screen itself makes. Sign in, keeping
+the session cookie in a file:
 
 ```bash
 curl -c cookies.txt -H 'content-type: application/json' \
@@ -371,25 +360,22 @@ the notice you saved. Delete `cookies.txt` when you are done.
 You wrote no code for any of this. It follows from two things you already did: the `activation`
 line in the manifest, and registering the routes through `ctx.routes`.
 
-## What does not work yet
+There is a second switch, and it belongs to whoever runs the deployment rather than to the shop
+owner: `pnpm run module:disable store_notice` and `pnpm run module:enable store_notice`. It is
+recorded in the module registry rather than in a Setting, a running API hears it without a restart,
+and `pnpm run module:status` shows it. A module is present only when both say so —
+[Module lifecycle](./modules/lifecycle.md) has the rest, including `module:uninstall`.
 
-Checked on releases `0.100.1` and `0.100.2`. Each is a limit of the product today, not of your module.
+## What an overlay module cannot be
 
-| What | What you see | What to do |
-| --- | --- | --- |
-| The Modules screen does not load in an instance on `0.100.2` or earlier | `NOT_FOUND: Resource not found.` and "No modules to show" | Upgrade past `0.100.2`, or the API call in step 8 |
-| `pnpm run module:disable <id>`, `module:enable` and `module:uninstall` change nothing in an instance on `0.100.2` or earlier | It prints `state=disabled`; `pnpm run module:status` still says `installed` and the routes still answer | Upgrade past `0.100.2`, or the API call in step 8 |
-
-An instance created with release `0.100.2` or earlier has two more: its `.env` has no `DEPLOYMENT`
-and its `package.json` does not list `@endora-commerce/contracts`. The note in step 1 has the two
-commands that repair it.
-
-Three more limits decide what your first module can be:
+Three limits decide what your first module can be:
 
 - **An overlay module cannot own a database table.** It contributes settings, routes, permissions
-  and translations, and no entity and no migration. `pnpm run generate` refuses a `migrations/` or
-  `entities/` directory inside an overlay module, naming each file — nothing in an instance would
-  run them, so no table would be created. Keep small state in Settings, as this module does.
+  and translations, and no entity and no migration — nothing in an instance would run them, so no
+  table would be created. A `migrations/` or `entities/` directory inside an overlay module is
+  refused, naming each file, by `pnpm run generate`, by `pnpm run migrate`, by every `module:*`
+  command and by the API and the worker when they start. Keep small state in Settings, as this
+  module does.
 - **A module that needs its own table is a module package**, and so is a module with its own admin
   screen. Inside an instance `endora new module` writes an overlay module, and refuses `--entities`
   and `--admin` with the reason. It scaffolds a package — with `--entities` for a table and
@@ -398,6 +384,31 @@ Three more limits decide what your first module can be:
 - **This tutorial does not show the notice in the storefront.** The storefront the installer wrote
   beside your instance is yours to edit — see [The storefront](./getting-started.md#the-storefront)
   — and the route is what it would call.
+
+## Instances created with 0.100.2 or earlier {#older-instances}
+
+An instance written by release `0.100.1` or `0.100.2` differs from this page in four ways. The
+first two are files the installer did not write, and you repair them by hand; the last two are
+repaired in the platform packages, so they go away when you upgrade the instance's
+`@endora-commerce/*` packages past `0.100.2`.
+
+| What | What you see | What to do |
+| --- | --- | --- |
+| `.env` has no `DEPLOYMENT` line | Your module is not composed, and nothing says why | `echo "DEPLOYMENT=my-shop" >> .env` |
+| `package.json` does not list `@endora-commerce/contracts` | The manifest's import does not resolve | The `pnpm add` command below |
+| `pnpm exec endora new module` refuses inside an instance | It asks for a checkout of the repository | Upgrade, or write the four files of steps 3 to 5 by hand |
+| The Modules screen does not load, and `module:disable`, `module:enable` and `module:uninstall` change nothing | `NOT_FOUND: Resource not found.` and "No modules to show"; the command prints `state=disabled` while `pnpm run module:status` still says `installed` | Upgrade, or use the API call in step 8, which works on every release |
+
+```bash
+pnpm add -w "@endora-commerce/contracts@$(node -p "require('./node_modules/@endora-commerce/platform/package.json').dependencies['@endora-commerce/contracts']")"
+```
+
+The part in `$(…)` prints the exact version of the contracts package your installed platform
+uses, so the two stay on one release.
+
+On those releases `pnpm run generate` also exits 0 with an unexplained entry in the divergence
+report, and it does not refuse a `migrations/` directory in an overlay module: read its output
+rather than its exit code.
 
 ## Where to go next
 
