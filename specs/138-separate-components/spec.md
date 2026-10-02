@@ -2,7 +2,7 @@
 
 **Feature directory**: `specs/138-separate-components/`
 **Created**: 2026-10-02
-**Status**: Draft — awaiting the owner's acceptance of proposed ruling D-284 (below)
+**Status**: Accepted — the owner accepted ruling D-284 on 2026-10-02, with clause 5 amended (below)
 **Input**: owner ruling of 2026-10-02 — *"In the project there should be the possibility of
 standing up the API separately, the Admin UI separately and the Storefront separately — in a more
 complex project each of these instances may be on a different server, so it should be possible to
@@ -154,9 +154,9 @@ same output.
 - Adding a component to a directory that already holds one. `endora install` never merges into a
   non-empty directory, and this feature does not change that.
 
-## Proposed ruling — D-284
+## Ruling — D-284
 
-> **D-284 (proposed, 2026-10-02) — what a run stands up is a third axis, and the tree keeps its
+> **D-284 (accepted by the owner, 2026-10-02, clause 5 as amended by the owner) — what a run stands up is a third axis, and the tree keeps its
 > backend.**
 >
 > 1. `endora install` takes `--only <api|admin|storefront>[,...]`. It selects which components
@@ -174,11 +174,21 @@ same output.
 >    the **API** may originate the value; a run that does not must be given it.
 > 4. Outside the wizard, the questions a selection removes are not required, and a flag
 >    answering one of them is refused rather than ignored.
-> 5. Supported layouts are same-site. Cross-site hosting is not ruled here.
+> 5. Two layouts are supported, and both are same-site: **(a)** subdomains of one registrable
+>    domain — one host name per component; **(b)** one host with paths — the storefront at `/`,
+>    the admin under `/admin`, the API under `/api`. Cross-site hosting is not ruled here.
+
+Clause 5 was proposed as *"Supported layouts are same-site"* and amended by the owner when
+accepting the ruling: *"in 5 I would give the option of subdomains of one domain, or the format
+`domain/admin` for the admin UI and `domain/api` for the API, as both supported solutions."* This
+feature's code implements layout (a). Layout (b) is a follow-up to it: the origin flags refuse a
+path today and the admin bundle has no base path.
 
 ## Open questions
 
-- **Q1 [NEEDS CLARIFICATION]** Must the admin or the storefront be hostable on a **different
+- **Q1 — answered by D-284 clause 5 as amended (2026-10-02):** subdomains of one domain and one
+  host with paths are the two supported layouts; a different registrable domain stays unruled.
+  The question as it was asked: Must the admin or the storefront be hostable on a **different
   registrable domain** from the API (`admin.agency.io` against `api.shop.com`)? The code says no
   today: `packages/modules/admin_users/src/backend/routes.public.ts` and
   `packages/modules/customers/src/backend/routes.register.ts` set host-only `SameSite=Lax`

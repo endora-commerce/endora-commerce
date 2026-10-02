@@ -568,7 +568,7 @@ green before publication and *about* publication after it.
 
 ## §7 — Standing one component up on its own
 
-Added by `specs/138-separate-components/`, under proposed ruling **D-284** (its text is in that
+Added by `specs/138-separate-components/`, under ruling **D-284**, accepted 2026-10-02 (its text is in that
 directory's `spec.md`). Nothing above this section changes: §2's manifest, §4's refusals and
 `endora new instance` itself are untouched. This section is about `endora install`, and it is here
 because the question it settles — *may a tree lack its backend member?* — is this contract's.
