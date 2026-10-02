@@ -76,8 +76,14 @@ weight. The generator refuses both (`generate-composer.ts`), which is the same r
 `module-migrations.md` states. **In a client's instance the refusal is `endora generate`'s**
 (`packages/cli/src/generate/divergence.ts`' `overlaySchemaFiles`): an instance has no composer
 generator and the platform reads entities and migrations from installed packages alone, so
-without it the directory is ignored rather than refused. There the remedy is a module package,
-not a core module — an instance has no core tree to move the table into.
+without it the directory is ignored rather than refused. **And the platform refuses it again
+wherever overlay modules are resolved** (`packages/platform/src/overlay/overlay-schema.ts`, called
+from `overlayModuleIdsUnder`), because `generate` is a command somebody has to run: the API, the
+worker, the operator CLI and the `module:*` commands stop before composing or opening anything.
+The two walks are written twice — the CLI reads an instance without loading the platform — and
+must agree. A bare `migrate` reaches neither: its configuration is handed no deployment root.
+There the remedy is a module package, not a core module — an instance has no core tree to move
+the table into.
 **An extension package is the opposite case and may ship entities and migrations** (D-106.2, an
 owner ruling). A third-party author has no core module, so for a package the same rule would not
 be a constraint to design around but a prohibition on the entire extension-package programme,

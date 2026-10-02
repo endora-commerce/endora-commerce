@@ -93,7 +93,11 @@ export interface OperatorRuntime {
   readonly resources: () => Promise<OperatorResources>;
   /** The instance-resolved manifest set: core ∪ this deployment's overlay ∪ installed packages. */
   readonly entries: readonly RegisteredManifestEntry[];
-  /** `uninstall` only — the migration ownership map, read from the host's generated registry. */
+  /**
+   * `uninstall` only — which module owns which migration. The monorepo's
+   * terminal reads it from the host's committed registry; an instance has none
+   * and `instanceOperatorRuntime` reads it from the installed packages.
+   */
   readonly migrationOwnership?: () => Promise<MigrationOwnership>;
   /**
    * Ask the operator to confirm a destructive step. **Absent means this run

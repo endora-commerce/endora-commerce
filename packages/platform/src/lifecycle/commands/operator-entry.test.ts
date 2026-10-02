@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -97,7 +97,52 @@ describe('instanceOperatorRuntime', () => {
     // makes D-157.2/.4's failure structurally unreachable rather than
     // remembered. Asserted over the built object rather than over the type, so
     // a field added later fails here and not only in review.
-    expect(Object.keys(runtime).sort()).toEqual(['entries', 'err', 'out', 'resources']);
+    expect(Object.keys(runtime).sort()).toEqual([
+      'entries',
+      'err',
+      'migrationOwnership',
+      'out',
+      'resources',
+    ]);
+  });
+
+  it('supplies the migration ownership `uninstall --hard` reverts by, and opens nothing to do it', async () => {
+    const { runtime, dispose } = await instanceOperatorRuntime({
+      deploymentRoot: emptyDeploymentRoot(),
+      ormConfig: refusingConfig,
+      env: {},
+    });
+    // Absent, the orchestrator refuses every hard uninstall — and in an
+    // instance every module is a package, so the command could never succeed.
+    expect(runtime.migrationOwnership).toBeTypeOf('function');
+    const ownership = await runtime.migrationOwnership!();
+    // The platform's own chain is covered; a module nobody installed is not,
+    // and `null` is what the orchestrator refuses on.
+    expect(ownership.migrationNamesFor('core')).not.toBeNull();
+    expect(ownership.migrationNamesFor('not_installed_here')).toBeNull();
+    // `refusingConfig` was never called: the answer is read from `node_modules`.
+    await expect(dispose()).resolves.toBeUndefined();
+  });
+
+  it('answers for this deployment\'s overlay modules: they are covered, and own no migration', async () => {
+    const deploymentRoot = emptyDeploymentRoot();
+    const moduleDir = join(deploymentRoot, 'apps', 'shop', 'modules', 'proof_notice');
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(
+      join(moduleDir, 'manifest.js'),
+      "export const manifest = { id: 'proof_notice', version: '1.0.0', dependencies: [] };\n",
+      'utf8',
+    );
+    const { runtime } = await instanceOperatorRuntime({
+      deploymentRoot,
+      ormConfig: refusingConfig,
+      env: { DEPLOYMENT: 'shop' },
+    });
+    expect(runtime.entries.map((entry) => entry.manifest.id)).toContain('proof_notice');
+    const ownership = await runtime.migrationOwnership!();
+    // An empty list, not `null`: an overlay module contributes no schema, so
+    // there is nothing to revert and the hard uninstall may proceed to its hook.
+    expect(ownership.migrationNamesFor('proof_notice')).toEqual([]);
   });
 
   it('D-217 — nothing supplies `confirm`, so `--hard` cannot be taken past its refusal', async () => {

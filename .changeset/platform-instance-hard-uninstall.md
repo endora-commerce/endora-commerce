@@ -1,0 +1,5 @@
+---
+'@endora-commerce/platform': patch
+---
+
+`module:uninstall <id> --hard --force` works in an instance. `instanceOperatorRuntime` supplied no `migrationOwnership`, so the orchestrator refused every hard uninstall with a message about a constructor argument. It now supplies one, read from the installed packages by the same `discoverConfiguredMigrations` call the instance's `mikro-orm.config.js` makes, so the migrations a hard uninstall reverts are the ones `migrate` applied. An overlay module is covered and owns no migration. A module that is itself a lifecycle participant — `admin_actions`, `_i18n` — can now be hard-uninstalled anywhere: the orchestrator ran the module's own `onModuleHardUninstalled` after reverting its migrations, which deleted from a table that no longer existed and exited 70 with the registration row already removed. The module being removed is no longer asked; every other participant still is. After a hard uninstall, `migrate` recreates the tables and `module:install` re-registers the module.

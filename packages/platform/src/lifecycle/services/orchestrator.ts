@@ -560,7 +560,16 @@ export class ModuleLifecycleOrchestrator {
         // `manifest` is nullable here and the participants are told so: an
         // orphan registration row, whose module this instance no longer has,
         // is exactly the case whose rows nothing else will ever remove.
+        //
+        // The module being removed is not asked to reconcile its own removal:
+        // its migrations were reverted two statements up, so the table its
+        // projection lives in no longer exists. Measured in an instance,
+        // `module:uninstall admin_actions --hard --force` deleted from
+        // `module_actions` after dropping it and exited 70 with the
+        // registration row already gone. Its rows went with its tables; every
+        // other participant still hears about it.
         for (const { moduleId: owner, participant } of participants) {
+          if (owner === moduleId) continue;
           await participant.onModuleHardUninstalled({
             moduleId,
             manifest,

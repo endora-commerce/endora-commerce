@@ -24,7 +24,7 @@
  * operator at the terminal beside them, can do what Principle XVII promises an
  * instance: list the modules, switch one off and have it stay off across a
  * restart, and take one out with `module:disable` / `module:uninstall` and put
- * it back (L11–L16). Those six are here because this is the only composition
+ * it back (L11–L16, L18). Those seven are here because this is the only composition
  * that is an instance's — `composeApp` with no contribution and the five
  * `module:*` entry points as `endora new instance` renders them — and both
  * defects they were written from were invisible everywhere else: the reference
@@ -565,12 +565,39 @@ async function main(): Promise<number> {
       status: 'unmeasured',
       detail: 'no overlay module was written',
     };
+    let bootRefusal: Verdict = {
+      id: 'L17',
+      title: 'the same tree is refused by the API and by a `module:*` command, with no `generate` run',
+      status: 'unmeasured',
+      detail: 'no overlay module was written',
+    };
     if (overlayGenerated?.code === 0) {
       const migrations = join(target, 'apps', 'shop', 'modules', OVERLAY_MODULE_ID, 'migrations');
       mkdirSync(migrations, { recursive: true });
       writeFileSync(join(migrations, 'Migration20270101T000000_proof.ts'), 'export {};\n', 'utf8');
       const refused = await exec('pnpm', ['run', 'generate'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS });
+      // The same tree, met by the two processes that never run `generate`: the
+      // API and a `module:*` command. Each must stop before it composes or
+      // opens anything — an API that came up here would be killed by the
+      // timeout and reported as the failure it is.
+      const booted = await exec('pnpm', ['run', 'start'], { cwd: target, env: environment, timeoutMs: 120_000 });
+      const commanded = await exec('pnpm', ['run', 'module:status', OVERLAY_MODULE_ID], {
+        cwd: target,
+        env: environment,
+        timeoutMs: STEP_TIMEOUT_MS,
+      });
       rmSync(migrations, { recursive: true, force: true });
+      const refusedAtBoot = (run: { code: number; output: string }): boolean =>
+        run.code !== 0 &&
+        run.output.includes(join('apps', 'shop', 'modules', OVERLAY_MODULE_ID, 'migrations', 'Migration20270101T000000_proof.ts')) &&
+        run.output.includes('contributes no schema');
+      bootRefusal = {
+        ...bootRefusal,
+        status: refusedAtBoot(booted) && refusedAtBoot(commanded) ? 'pass' : 'fail',
+        detail: `start exit ${String(booted.code)}, module:status exit ${String(commanded.code)}, ${
+          refusedAtBoot(booted) && refusedAtBoot(commanded) ? 'both naming the file' : 'not both naming the file'
+        }`,
+      };
       const named =
         refused.output.includes(`apps/shop/modules/${OVERLAY_MODULE_ID}/migrations/Migration20270101T000000_proof.ts`) &&
         refused.output.includes('module package');
@@ -581,6 +608,7 @@ async function main(): Promise<number> {
       };
     }
     verdicts.push(schemaRefusal);
+    verdicts.push(bootRefusal);
 
     // ── an administrator signs in ────────────────────────────────────────
     let login: Verdict = {
@@ -596,6 +624,7 @@ async function main(): Promise<number> {
       ['L14', 'the running API hears `module:disable` from the terminal without a restart'],
       ['L15', '`module:enable` restores it, in the registry and in the running API'],
       ['L16', 'a soft `module:uninstall` is persisted, and `module:install` restores it'],
+      ['L18', '`module:uninstall --hard` needs `--force`, then reverts and removes, and `migrate` + `module:install` restore it'],
     ].map(([id, title]) => ({ id: id!, title: title!, status: 'unmeasured', detail: 'not reached' }));
     const settle = (id: string, pass: boolean, detail: string): void => {
       const index = lifecycle.findIndex((verdict) => verdict.id === id);
@@ -704,6 +733,32 @@ async function main(): Promise<number> {
               'L16',
               uninstall.code === 0 && uninstalled === 'uninstalled' && install2.code === 0 && reinstalled === 'installed',
               `${subject}: uninstall exit ${String(uninstall.code)} then state=${uninstalled}; install exit ${String(install2.code)} then state=${reinstalled}`,
+            );
+
+            // ── L18: the destructive half ─────────────────────────────────────
+            // In an instance every module is an installed package, so this is
+            // the command that could never succeed while the entry point
+            // supplied no migration ownership. `migrate` is what puts back the
+            // tables a hard uninstall reverted; `module:install` alone would
+            // run the install hook over relations that are gone.
+            const unforced = await operator('module:uninstall', subject, '--hard');
+            const hard = await operator('module:uninstall', subject, '--hard', '--force');
+            const reverted = /migrations reverted: (.*)/.exec(hard.output)?.[1]?.trim() ?? 'not reported';
+            const gone = await registryState();
+            const migrated = await operator('migrate');
+            const install3 = await operator('module:install', subject);
+            const restoredState = await registryState();
+            settle(
+              'L18',
+              unforced.code === 64 &&
+                hard.code === 0 &&
+                hard.output.includes('registry row deleted') &&
+                gone !== 'installed' &&
+                migrated.code === 0 &&
+                install3.code === 0 &&
+                restoredState === 'installed',
+              `${subject}: without --force exit ${String(unforced.code)}; --hard --force exit ${String(hard.code)}, reverted ${reverted}, then state=${gone}; ` +
+                `migrate exit ${String(migrated.code)}, install exit ${String(install3.code)} then state=${restoredState}`,
             );
           }
         }

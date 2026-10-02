@@ -45,6 +45,7 @@ import { MikroORM, type Options } from '@mikro-orm/postgresql';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { Redis } from 'ioredis';
 
+import { discoverConfiguredMigrations } from '../../db/configured-migrations.js';
 import { enterSystemScope } from '../../kernel/scope.js';
 import { activeOverlayModulesRoot } from '../../overlay/deployment-roots.js';
 import { overlayModulesUnder } from '../../overlay/overlay-runtime.js';
@@ -54,6 +55,7 @@ import {
 } from '../../packages/package-runtime.js';
 import { nodeModulesRootsFor } from '../../packages/installed-packages.js';
 import { resolveManifestEntries, type RegisteredManifestEntry } from '../manifest-registry.js';
+import type { MigrationOwnership } from '../services/migration-ownership.js';
 import type { OperatorResources, OperatorRuntime } from './operator-runtime.js';
 
 /**
@@ -78,6 +80,59 @@ export async function instanceManifestEntries(
     overlay: () => overlayModules.manifests(),
     packages: () => discoverPackageModuleManifests(env),
   });
+}
+
+/**
+ * Which module owns which migration in a tree that ships no committed registry
+ * — the answer `module:uninstall --hard` reverts by.
+ *
+ * ## Why an instance needs its own
+ *
+ * The monorepo's terminal hands the orchestrator the **committed core**
+ * registry and is refused for a package module, which is right there: its
+ * committed registry cannot enumerate a package's chain. An instance has no
+ * committed registry at all — every module it runs is an installed package —
+ * so with nothing supplied the orchestrator refused every `--hard --force`
+ * with *"this orchestrator was given no 'migrationOwnership'"*, a sentence
+ * about a constructor argument the operator cannot act on, and the command
+ * could never succeed.
+ *
+ * ## What it reads
+ *
+ * {@link discoverConfiguredMigrations} over an empty committed half: the same
+ * call, with the same arguments, the instance's own `mikro-orm.config.js`
+ * makes to build the list `migrate` runs. So what a hard uninstall reverts is
+ * read from the registry that applied it, and the two cannot name different
+ * chains. It reads `node_modules` and opens nothing, and it is a thunk
+ * (R2.6): only `uninstall` asks.
+ *
+ * ## Overlay modules
+ *
+ * An overlay module is in the resolved set and in no package, so the
+ * discovered ownership answers `null` for it — *"I cannot say"*, which the
+ * orchestrator refuses on. Here the answer is known: an overlay module
+ * contributes no schema, and a tree in which one does never reaches this
+ * point (`overlay/overlay-schema.ts` refuses it while the entries are
+ * resolved). So each is covered and owns nothing, and its hard uninstall runs
+ * its hook and drops its registration.
+ */
+export async function instanceMigrationOwnership(
+  entries: readonly RegisteredManifestEntry[],
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<MigrationOwnership> {
+  const discovered = (await discoverConfiguredMigrations({ coreEntries: [], manifests: [] }, env))
+    .ownership;
+  const overlayIds = new Set(
+    entries.filter((entry) => entry.origin === 'overlay').map((entry) => entry.manifest.id),
+  );
+  return {
+    coveredModuleIds: new Set([...discovered.coveredModuleIds, ...overlayIds]),
+    migrationNamesFor(moduleId: string): readonly string[] | null {
+      const names = discovered.migrationNamesFor(moduleId);
+      if (names !== null) return names;
+      return overlayIds.has(moduleId) ? [] : null;
+    },
+  };
 }
 
 /** What an instance supplies, and it is two values plus the ambient environment. */
@@ -131,6 +186,7 @@ export async function instanceOperatorRuntime(
         return opened;
       },
       entries,
+      migrationOwnership: () => instanceMigrationOwnership(entries, env),
       out,
       err,
     },
