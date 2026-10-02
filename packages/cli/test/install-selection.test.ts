@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   COMPONENT_VOCABULARY,
+  parseAddress,
   parseOrigin,
   questionIdsFor,
   resolveSelection,
@@ -243,5 +244,41 @@ describe('FR-011 — an origin is scheme, host and an optional port', () => {
     '   ',
   ])('refuses %j', (value) => {
     expect(parseOrigin(value)).toBeNull();
+  });
+});
+
+describe('FR-023 — an address is an origin, optionally with a base path', () => {
+  it.each([
+    ['https://example.com/admin', 'https://example.com', '/admin'],
+    ['https://example.com/back/office', 'https://example.com', '/back/office'],
+    ['http://localhost:8080/admin', 'http://localhost:8080', '/admin'],
+    ['https://admin.example.com', 'https://admin.example.com', ''],
+    ['https://Example.com:443/Admin', 'https://example.com', '/Admin'],
+  ])('accepts %s', (value, origin, basePath) => {
+    expect(parseAddress(value)).toEqual({ origin, basePath, url: `${origin}${basePath}` });
+  });
+
+  it.each([
+    'https://example.com/',
+    'https://example.com/admin/',
+    'https://example.com//admin',
+    'https://example.com/admin?x=1',
+    'https://example.com/admin#top',
+    'https://example.com/../admin',
+    'https://example.com/./admin',
+    'https://example.com/ad min',
+    'https://example.com/admin%2Fx',
+    'https://user:secret@example.com/admin',
+    'ftp://example.com/admin',
+    'example.com/admin',
+    '/admin',
+    '',
+  ])('refuses %j', (value) => {
+    expect(parseAddress(value)).toBeNull();
+  });
+
+  it('an origin is an address with no base path, and `parseOrigin` still refuses a path', () => {
+    expect(parseAddress('https://api.example.com')?.url).toBe(parseOrigin('https://api.example.com'));
+    expect(parseOrigin('https://example.com/admin')).toBeNull();
   });
 });
