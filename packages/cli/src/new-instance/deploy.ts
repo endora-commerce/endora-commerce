@@ -1447,8 +1447,8 @@ export function argDeclarations(
       ...(fallback === undefined
         ? []
         : wrapComment(
-            `Defaults to this instance's own deployment, apps/${fallback}/, so a build that ` +
-              'passes no --build-arg still composes it. Pass an empty value for bare core.',
+            `Defaults to this instance's own deployment, apps/${fallback}/, so a build given ` +
+              'no value for it still composes it. Pass an empty value for bare core.',
           )),
       `ARG ${consumer.buildArg}${fallback === undefined ? '' : `=${fallback}`}`,
       `ENV ${consumer.buildArg}=$${consumer.buildArg}`,

@@ -1769,6 +1769,30 @@ describe('138 — each part on a port of its own', () => {
     expect(line).toContain('pnpm run build:admin');
   });
 
+  it('a moved API port never overwrites `--public-url`: the address is the operator\'s, the port this machine\'s', async () => {
+    const root = host({ admin: true, origins: true });
+    await runInstall(
+      options(root, {
+        publicUrl: 'https://shop.example.com',
+        portInUse: async (port: number) => port === 3001,
+        run: recorder().run,
+      }),
+    );
+    const instance = env(join(root, 'acme-shop', '.env'));
+    // Where the API listens moved; what the world calls it did not.
+    expect(instance).toMatch(/^PORT=13001$/m);
+    expect(instance).toMatch(/^PUBLIC_API_BASE_URL=https:\/\/shop\.example\.com$/m);
+    expect(env(join(root, 'acme-shop', 'admin', '.env'))).toMatch(
+      /^VITE_API_BASE_URL=https:\/\/shop\.example\.com$/m,
+    );
+  });
+
+  it('a loopback `--public-url` names the proxy\'s port, not the API\'s', async () => {
+    const root = host({ admin: true, origins: true });
+    await runInstall(options(root, { publicUrl: 'http://localhost:8080', run: recorder().run }));
+    expect(env(join(root, 'acme-shop', '.env'))).not.toMatch(/^PORT=8080$/m);
+  });
+
   it('a loopback `--api-url` names the port this API listens on', async () => {
     const root = host({ origins: true });
     await runInstall(
