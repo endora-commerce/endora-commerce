@@ -1,5 +1,20 @@
 # @endora-commerce/mod-product-feeds
 
+## 0.101.0
+
+### Patch Changes
+
+- 196f17d: The `basic-ftp` range `@endora-commerce/mod-product-feeds` develops and tests against moves from `^6.2.0` to `^6.2.1`. Nothing in the module's behaviour changes.
+- Updated dependencies [89b0de3]
+- Updated dependencies [667e9e1]
+- Updated dependencies [be758bb]
+- Updated dependencies [d9cf1ad]
+- Updated dependencies [d9cf1ad]
+- Updated dependencies [d919418]
+  - @endora-commerce/platform@0.101.0
+  - @endora-commerce/admin-kit@0.101.0
+  - @endora-commerce/contracts@0.101.0
+
 ## 0.100.2
 
 ### Patch Changes

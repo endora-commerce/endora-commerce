@@ -1,5 +1,16 @@
 # @endora-commerce/page-builder-admin
 
+## 0.101.0
+
+### Patch Changes
+
+- Updated dependencies [89b0de3]
+  - @endora-commerce/cms-components@0.101.0
+  - @endora-commerce/admin-kit@0.101.0
+  - @endora-commerce/contracts@0.101.0
+  - @endora-commerce/email-components@0.101.0
+  - @endora-commerce/page-builder-core@0.101.0
+
 ## 0.100.2
 
 ### Patch Changes

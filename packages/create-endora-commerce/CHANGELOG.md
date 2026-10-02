@@ -1,5 +1,30 @@
 # create-endora-commerce
 
+## 0.101.0
+
+### Patch Changes
+
+- 25b99b2: The two READMEs a reader meets on npmjs now say what the packages do. `create-endora-commerce`'s still said _Not yet published_ and that its command did not resolve; it now shows the two commands, what they write, and links the getting-started page. `@endora-commerce/cli`'s was the generated stub that described "scaffolding and conformance tooling" and nothing else; it now lists `endora install`, `new instance`, `new storefront`, `new module`, `generate`, `dev` and `check` with one line each, and is hand-written from here on — the manifest generator no longer rewrites it.
+- Updated dependencies [40ce6f4]
+- Updated dependencies
+- Updated dependencies [40ce6f4]
+- Updated dependencies [40ce6f4]
+- Updated dependencies [40ce6f4]
+- Updated dependencies [25b99b2]
+- Updated dependencies [be758bb]
+- Updated dependencies [be758bb]
+- Updated dependencies [be758bb]
+- Updated dependencies [5518597]
+- Updated dependencies [be758bb]
+- Updated dependencies [5749604]
+- Updated dependencies [be758bb]
+- Updated dependencies [0ad1d67]
+- Updated dependencies [be758bb]
+- Updated dependencies [d919418]
+- Updated dependencies [be758bb]
+- Updated dependencies [be758bb]
+  - @endora-commerce/cli@0.101.0
+
 ## 0.100.2
 
 ### Patch Changes

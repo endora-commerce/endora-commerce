@@ -1,5 +1,11 @@
 # @endora-commerce/email-components
 
+## 0.101.0
+
+### Patch Changes
+
+- @endora-commerce/page-builder-core@0.101.0
+
 ## 0.100.2
 
 ### Patch Changes
