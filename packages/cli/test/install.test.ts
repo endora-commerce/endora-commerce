@@ -748,6 +748,23 @@ describe('the ports the development stack publishes are decided before anything 
     async (port: number): Promise<boolean> =>
       ports.includes(port);
 
+  it('a dry run\'s closing block names the ports it planned, not the document\'s defaults', async () => {
+    // A dry run writes no `.env`, and the closing block read the mail catcher's
+    // address from that file: it said "mailpit is published on 18025" and, a
+    // few lines down, "mail … is caught at http://localhost:8025".
+    const root = host();
+    const result = await runInstall(
+      options(root, { services: true, dryRun: true, run: recorder().run, portInUse: taken(8025, 3001) }),
+    );
+    const text = result.output.join('\n');
+    expect(text).toContain('mailpit is published on 18025 instead');
+    expect(text).toContain('is caught at http://localhost:18025');
+    expect(text).not.toContain('http://localhost:8025');
+    // The API's own address is the planned one too.
+    expect(text).toContain('# the API, on http://localhost:13001');
+    expect(existsSync(join(root, 'acme-shop'))).toBe(false);
+  });
+
   it('a default port that is taken is moved, written into `.env`, and the address follows it', async () => {
     const root = host();
     const { run } = recorder();

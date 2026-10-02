@@ -158,7 +158,8 @@ function refuseWhatAnOverlayCannotBe(
     [
       input.entities === true,
       '--entities: an overlay module contributes no schema — no `@Entity()` class and no ' +
-        'migration — and `endora generate` refuses one. Keep small state in Settings; a module ' +
+        'migration — and `endora generate`, `migrate`, every `module:*` command and the API ' +
+        'at boot each refuse one. Keep small state in Settings; a module ' +
         'that owns a table is a module package.',
     ],
     [

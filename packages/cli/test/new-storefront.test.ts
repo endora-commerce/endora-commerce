@@ -984,6 +984,22 @@ describe('the scaffolded storefront keeps its secrets out of git', () => {
     expect(manifest.pnpm?.peerDependencyRules).toEqual(root.pnpm.peerDependencyRules);
   });
 
+  it('carries a README: what it is, its values, and how it is run', () => {
+    // A scaffolded storefront had `THEMING.md` and nothing that said how to
+    // start it or which of its values are baked in at build time.
+    const reference = resolveReference(REPO_ROOT);
+    const plan = planStorefront(reference, memberDirectories(reference.repoRoot), '/tmp/a');
+    const readme = plan.files.find((file) => file.path === 'README.md');
+    expect(readme, 'README.md is not in the plan').toBeDefined();
+    const text = readFileSync(join(reference.dir, 'README.md'), 'utf8');
+    for (const named of ['NEXT_PUBLIC_API_BASE_URL', 'BACKEND_BASE_URL', 'REVALIDATE_SECRET', 'PORT', 'pnpm run dev', 'pnpm run build && pnpm run start', 'THEMING.md']) {
+      expect(text, named).toContain(named);
+    }
+    // Every script it names is one the manifest declares.
+    const scripts = (reference.manifest['scripts'] ?? {}) as Record<string, string>;
+    for (const [, script] of text.matchAll(/pnpm run ([a-z:]+)/g)) expect(scripts[script!], script).toBeTypeOf('string');
+  });
+
   it('reports no rewrite in a file it omits', () => {
     // A file left out is not written, so the report naming a rewrite inside it
     // contradicted itself: `test/tailwind-module-package-sources.test.ts` had a

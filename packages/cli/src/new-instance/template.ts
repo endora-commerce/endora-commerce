@@ -1587,7 +1587,7 @@ const README_COMMANDS: readonly (readonly [script: string, argument: string, not
   ['dev:all', '', 'the API, the admin preview and the storefront beside this\ndirectory, in one terminal. Ctrl-C stops all of them'],
   ['dev', '', 'the API, rebuilt and restarted as you edit your overlay'],
   ['module:status', '', 'what is installed, and what the operator has switched on'],
-  ['module:enable', ' <id>', 'the operator\'s switch. A module that is off behaves as\nthough it were never installed'],
+  ['module:enable', ' <id>', 'whether this deployment offers a module. One that is off\nbehaves as though it were never installed'],
   ['module:disable', ' <id>', ''],
   ['module:uninstall', ' <id>', 'the reverse of `module:install`'],
   // `specs/123-oss-install-experience/` G2. `admin:create` is conditional on
@@ -1677,9 +1677,10 @@ shadow, because there is no file.
 \`pnpm exec endora new module <id> --name … --description …\` writes one there: a manifest, an
 entry point with a route, and both translation files. \`.env\` sets \`DEPLOYMENT=${input.deployment}\`,
 which is what makes this instance compose that directory — unset, it starts as the bare platform
-and none of your modules is there. An overlay module owns no database table: \`pnpm run generate\`
-refuses a \`migrations/\` or \`entities/\` directory in one, and a module that needs a table is
-a package.
+and none of your modules is there. An overlay module owns no database table: a \`migrations/\`
+or \`entities/\` directory in one is refused by \`generate\`, by \`migrate\`, by every
+\`module:*\` command and by the API when it starts, each naming the file. A module that needs
+a table is a package.
 
 An overlay module is TypeScript that **nothing in this tree compiles** — Node loads it and
 strips the types as it goes. So it is written in the subset stripping accepts: an \`enum\`, a
@@ -1698,10 +1699,25 @@ A module you will never publish belongs in that directory. A module you intend t
 install into a second instance is a package: \`pnpm pack\`, then install the tarball. A
 \`pnpm link\` is deliberately invisible to the platform's discovery, so it is neither.
 
-## Next
+## The addresses
 
-\`endora new storefront <dir>\` writes the customer-facing storefront. It is a separate
-repository on purpose: it shares two \`.env\` values with this tree and nothing else.
+\`.env\` is where this instance's addresses are, and \`.env.example\` says what each one
+decides. If a port was already in use when \`endora install\` ran, it chose a free one and wrote
+it down with a comment saying so: \`PORT\` here for the API, the \`*_PORT\` lines for the
+development services${members.admin ? ', and `PORT` in `admin/.env` for the admin preview' : ''}. The API allows a browser in by origin, so
+\`CORS_ALLOWED_ORIGINS\` has to name the admin's and the storefront's addresses.
+${members.admin ? `
+In the admin, **Modules** (\`/platform/modules\`) is where an operator switches a module on and
+off; off keeps its data. \`module:enable\` and \`module:disable\` above are the other axis —
+whether this deployment offers the module at all.
+` : ''}
+## The storefront
+
+The customer-facing storefront is a separate repository on purpose: the two share one secret
+(\`REVALIDATE_SECRET\`) and each other's address, and nothing else. \`endora install\` writes
+it beside this directory as \`${input.name}-storefront\` unless it was told not to, and
+\`pnpm run dev:all\` starts it from there. If there is none, \`endora new storefront <dir>\`
+writes one.
 `;
 }
 
