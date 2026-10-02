@@ -563,3 +563,78 @@ lands, A3 is red on purpose and `expected-state.json` names that contract as the
 **A2's two modes are `acceptance:storefront-scaffold`'s**: `tarball` by default, `registry` when
 `ENDORA_NPM_REGISTRY` is set, the assertions identical under both. That is what makes the criterion
 green before publication and *about* publication after it.
+
+---
+
+## §7 — Standing one component up on its own
+
+Added by `specs/138-separate-components/`, under proposed ruling **D-284** (its text is in that
+directory's `spec.md`). Nothing above this section changes: §2's manifest, §4's refusals and
+`endora new instance` itself are untouched. This section is about `endora install`, and it is here
+because the question it settles — *may a tree lack its backend member?* — is this contract's.
+
+### §7.1 — three axes, and none restates another
+
+| Axis | Flag | Its subject |
+| --- | --- | --- |
+| the tree | `--without <member>` | which members the repository holds |
+| the example deployment | `--topology` | which example files `deploy/` holds |
+| **the run** | **`--only <component>[,...]`** | which of `api`, `admin`, `storefront` this run stands up on this machine |
+
+**R7.1** `--only` absent selects all three and is the run this contract described before §7
+existed. **R7.2** `--without backend` stays refused: the module list is the root manifest's
+`dependencies` (§2.1), the admin's registry is derived from what that list installs (§2.6), and a
+tree without the member that composes those packages is a second module list nothing reconciles
+with the first. The refusal's sentence names `--only admin`.
+
+### §7.2 — what each selection writes and runs
+
+| `--only` | Tree at `<dir>` | Storefront | Pipeline, in order |
+| --- | --- | --- | --- |
+| *(absent)*, or all three | yes | sibling | `install`, `services`, `setup`, `admin`, `demo`?, `storefront-install` |
+| `api` | yes, without the admin member | none | `install`, `services`, `setup`, `admin`, `demo`? |
+| `api,admin` | yes | none | as `api` |
+| `api,storefront` | yes, without the admin member | sibling | as `api`, then `storefront-install` |
+| `admin` | yes, **with** the backend member | none | `install`, `build-admin` |
+| `storefront` | **none** | at `<dir>` | `storefront-install` |
+| `admin,storefront` | yes, with the backend member | sibling | `install`, `build-admin`, `storefront-install` |
+
+**R7.3** A run without `api` plans no `services`, `setup`, `admin` or `demo` step, asks none of
+their questions, requires none of their flags and **refuses** any of them that is given.
+**R7.4** `build-admin` is the root script `build:admin` and nothing else; it needs the installed
+workspace and no running service.
+
+### §7.3 — the values that cross a machine boundary
+
+Each is an origin: scheme, host, optional port, no path.
+
+| Flag | Required when | Offered when | Written as |
+| --- | --- | --- | --- |
+| `--api-url` | `api` is not selected | `api` is selected and something else is not | `VITE_API_BASE_URL` in `admin/.env`; `NEXT_PUBLIC_API_BASE_URL` and `BACKEND_BASE_URL` in the storefront's `.env`; `PUBLIC_API_BASE_URL` in the instance's `.env` |
+| `--storefront-url` | `storefront` without `api` | `api` without `storefront` | `NEXT_PUBLIC_SITE_URL` in the storefront's `.env`; `STOREFRONT_BASE_URL` and an entry of `CORS_ALLOWED_ORIGINS` in the instance's |
+| `--admin-url` | never | `api` without `admin` | `ADMIN_BASE_URL` where the instance declares it, and an entry of `CORS_ALLOWED_ORIGINS` |
+| `--sales-channel` | never | `storefront` without `api` — recommendation `default` | `NEXT_PUBLIC_SALES_CHANNEL_CODE` |
+| `--revalidate-secret` | `storefront` without `api` | — | `REVALIDATE_SECRET`, in every tree the run writes that declares it |
+
+**R7.5** An offered value not given writes nothing, and the platform's development fallbacks
+apply. **R7.6** A run that stands up the API without the storefront generates `REVALIDATE_SECRET`
+once when none is given, writes it into the instance's `.env`, names that file and does not print
+the value; a run without the API never generates it. **R7.7** Nothing here overwrites a line the
+operator already answered. **R7.8** The supported layouts are **same-site**: both session cookies
+are host-only and `SameSite=Lax`, so the three public origins share one registrable domain. The
+closing block and `deploy/README.md` say so; nothing checks it.
+
+### §7.4 — acceptance
+
+`acceptance:separate-components`, a script for §6's reason. Every process listens on a port the
+OS handed out, never a development default.
+
+| # | Assertion |
+| --- | --- |
+| **S1** | `--only api`: the tree has no `admin/` and no storefront was written; the planned step ids are `install`, `services`, `setup`, `admin`; the API answers its health route on its own port |
+| **S2** | `--only admin --api-url <S1's origin>`, in a second directory, with no database address in its environment and no service started for it: the step ids are `install`, `build-admin`; `admin/dist` exists; its JavaScript contains S1's origin and does not contain `localhost:3001` |
+| **S3** | from S2's origin, the administrator's sign-in request to S1 is answered with `access-control-allow-origin` equal to that origin, `access-control-allow-credentials: true` and a session cookie, and the next request carrying the cookie is 200; the same preflight from an origin outside the list carries no `access-control-allow-origin` |
+| **S4** | `--only storefront` with S1's origin, its own origin and S1's secret: no instance tree exists; the step ids are `storefront-install`; its `.env` holds the five values of §7.3; built and started on its own port, its home page is 200 and was rendered from S1's data |
+| **S5** | the storefront's revalidation route answers S1's secret with success and any other value with a refusal, and the two `.env` files hold the same `REVALIDATE_SECRET` |
+| **S6** | with no `--only`, the planned step ids are the ones recorded before §7 was implemented |
+| **S7** | `--non-interactive`: `--only admin` without `--api-url`, `--only storefront` without its three, `--only storefront --demo` and `--only admin --without admin` each exit 1, name what is missing or contradictory in one refusal, and write nothing |
