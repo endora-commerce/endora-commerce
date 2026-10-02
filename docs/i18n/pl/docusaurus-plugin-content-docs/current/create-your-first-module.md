@@ -291,12 +291,13 @@ trasę administracyjną z terminala.
 Każdy moduł mogą wyłączyć osoby prowadzące sklep, a wyłączony moduł zachowuje się tak, jakby nie
 był zainstalowany. Nic nie jest usuwane, a ponowne włączenie przywraca wszystko.
 
-:::caution Dzisiejsze ograniczenie
+:::caution Ograniczenie w `0.100.2` i wcześniejszych
 Miejscem tego wyłącznika jest ekran **Modules** panelu administracyjnego (**System → Modules**). W
-instancji ten ekran pokazuje obecnie `NOT_FOUND: Resource not found.` i pustą listę, a
-`pnpm run module:disable <id>` wypisuje `registry updated: state=disabled`, niczego nie zmieniając.
-Dopóki obie rzeczy nie zostaną naprawione, użyj wywołania API, które wykonuje sam ekran Modules —
-jak poniżej.
+instancji w wydaniu `0.100.2` lub wcześniejszym ten ekran pokazuje `NOT_FOUND: Resource not found.`
+i pustą listę, a `pnpm run module:disable <id>` wypisuje `registry updated: state=disabled`,
+niczego nie zmieniając. Obie rzeczy są naprawione w wydaniu następującym po `0.100.2`: zaktualizuj
+pakiety `@endora-commerce/*` instancji, aby je otrzymać. Poniższe wywołanie API jest tym, które
+wykonuje sam ekran Modules, i działa w każdym wydaniu.
 :::
 
 Zaloguj się z terminala, zachowując ciasteczko sesji w pliku:
@@ -347,8 +348,8 @@ modułu.
 | --- | --- | --- |
 | Instalator nie zapisuje `DEPLOYMENT` | Instancja ma `apps/my-shop/`, ale w `.env` nie ma `DEPLOYMENT`, więc moduł nakładkowy po cichu nie jest składany | Krok 1 |
 | `@endora-commerce/contracts` nie jest zależnością instancji | `ERR_MODULE_NOT_FOUND … '@endora-commerce/contracts'` z Twojego `manifest.ts`, przy każdym poleceniu | Krok 2 |
-| Ekran Modules nie wczytuje się w instancji | `NOT_FOUND: Resource not found.` i "No modules to show" | Wywołanie API z kroku 8 |
-| `pnpm run module:disable <id>` niczego nie zmienia w instancji | Wypisuje `state=disabled`; `pnpm run module:status` nadal pokazuje `installed`, a trasy nadal odpowiadają | Wywołanie API z kroku 8 |
+| Ekran Modules nie wczytuje się w instancji w wydaniu `0.100.2` lub wcześniejszym | `NOT_FOUND: Resource not found.` i "No modules to show" | Aktualizacja powyżej `0.100.2` albo wywołanie API z kroku 8 |
+| `pnpm run module:disable <id>`, `module:enable` i `module:uninstall` niczego nie zmieniają w instancji w wydaniu `0.100.2` lub wcześniejszym | Wypisuje `state=disabled`; `pnpm run module:status` nadal pokazuje `installed`, a trasy nadal odpowiadają | Aktualizacja powyżej `0.100.2` albo wywołanie API z kroku 8 |
 
 Trzy kolejne ograniczenia decydują o tym, czym może być pierwszy moduł:
 

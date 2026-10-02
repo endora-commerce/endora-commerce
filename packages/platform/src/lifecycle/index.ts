@@ -130,15 +130,17 @@ export { runInstanceOperatorCommand } from './commands/operator-entry.js';
 // `LifecycleModuleHandle` were here only because the ledger rule then in force
 // demanded **every** name a reached file exports, and with the reach gone
 // nobody asks for them: the generated composition reads `registerModule` off
-// its namespace import and `composition.ts` takes
-// `lifecycleModuleFromStaticEntries`, and that is the whole of it. Parking a
+// its namespace import, and that is the whole of it. Parking a
 // name against a future need is what R5.4 refuses, and
 // `published-surface.test.ts` is what said so — in the phase that changed the
 // specifier, not in the one that would later have wondered why they were here.
 // Phase 7 repeated the exercise across the whole barrel, for 28 more.
 export { registerModule } from './backend.js';
 export { manifest } from './manifest.js';
-export { lifecycleModuleFromStaticEntries } from './plugin.js';
+// `lifecycleModuleFromStaticEntries` left this barrel when `composeApp` took
+// the lifecycle assembly from the reference deployment: its one consumer
+// outside the platform was `backend/src/composition.ts`, and the platform's own
+// caller names `./plugin.js` directly. R5.4.
 export {
   registerLifecycleAdminRoutes,
 } from './routes.admin.js';
