@@ -208,6 +208,8 @@ nothing reports it.
 
 ## Where to go next
 
+- [Create your first Module](./create-your-first-module.md) — a 20-minute tutorial that adds a
+  module of your own to the instance you just installed.
 - [Modules](./modules/README.md) — what each module does, its settings, permissions and screens.
 - [First production deployment checklist](./deployment/first-deployment-checklist.md) — before an
   instance takes real orders.
