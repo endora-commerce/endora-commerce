@@ -65,8 +65,8 @@ the reason goes in `READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE`. The reporter itsel
 nothing read, on an expectation of zero and on a walk **shorter** than its expectation, and
 `backend/test/unit/scripts/check-read-size.test.ts` spawns **every** check and holds
 each printed number to the band recorded in `backend/test/helpers/check-read-sizes.ts`
-(−10% / +50%). Re-record a number when the population legitimately grows; never widen the
-band to make a run pass — **and which entries to re-record is now printed rather than
+(−10% / +50%). Never widen the band to make a run pass; when a number is re-recorded is
+§ *When a read size is re-recorded* below — **and which entries have moved is printed rather than
 remembered**: the same run emits a `[read-size drift]` block naming every recorded entry that
 no longer describes the tree, with the recorded value, the observed one, the signed delta and
 how much of the slack to that edge the move consumed, on a green run as well as a red one
@@ -120,11 +120,37 @@ removing it from the walk. This is the same failure as the two above wearing a t
 **a number measured in a tree whose shape is not the one CI will see** — and the three together
 are why a read size is re-measured rather than reasoned about.
 
-**This record conflicts on nearly every long-lived branch, and the cause is co-movement rather
-than co-location — so sharding it one file per check would not help.** The practice is settled: a
-conflict here is never reconciled, because read sizes are measurements — resolve wholly to the
-incoming side, re-measure on the merged tree in a commit afterwards, and re-measure even the
-entries that merged cleanly. What was *not* settled was why the conflict keeps happening, and the
+### When a read size is re-recorded
+
+**Not in every pull request.** The band is the assertion and the `[read-size drift]` block is a
+report: a run whose numbers sit inside −10% / +50% is green, and it stays green without anybody
+editing the record. Until 2026-10-02 the practice was to re-record every drifted entry in the pull
+request that moved it, and that practice — not the file — is what made this record the most
+frequent conflict in the repository: the whole-repository walks count every file the tree holds,
+so any two open branches that each add one file both rewrite the same entries. Owner ruling of
+2026-10-02:
+
+- **A pull request re-records an entry in two cases only**: the band refuses the run (the test is
+  red), or the change *means* to move that check's population — it adds or changes a check, or
+  moves, adds or deletes a module or a package — where the new number is part of what is being
+  reviewed. It re-records those entries and no others.
+- **Everything else is left drifted.** Adding a spec, a test or a documentation page moves the
+  whole-repository walks by a handful and is not a reason to touch the record.
+- **The release pull request re-records every drifted entry at once**, on the frozen `master` a
+  release is cut from, in one commit that says it is the release sweep
+  (`release-intent.md` § the version step). That is where the record returns to `0 drifted`.
+- **The narrative goes in the commit message**, not into the record: one line per entry in the
+  file is enough to say what the number is.
+
+What this costs is stated rather than hidden: between releases a recorded number may be stale by
+whatever the band allows. What it keeps is the thing the record exists for — a check that goes
+blind falls through the lower edge whatever the recorded value's last digit is.
+
+**This record conflicts on long-lived branches, and the cause is co-movement rather
+than co-location — so sharding it one file per check would not help.** When a conflict does
+happen it is never reconciled, because read sizes are measurements — resolve wholly to the
+incoming side and, for the entries this branch is entitled to re-record under the rule above,
+re-measure on the merged tree in a commit afterwards. What was *not* settled was why the conflict keeps happening, and the
 standing assumption — that one file holding forty-four independent measurements makes any two
 branches collide even when the entries they move are disjoint — is **false**, measured twice on
 2026-09-15. First, forty-four throwaway commits were built per world, each re-recording exactly one

@@ -24,6 +24,7 @@ import {
   workspaceGlobs,
   type ScaffoldHost,
 } from './host.js';
+import { planOverlayModule, resolveOverlayHost } from './overlay.js';
 import {
   buildScaffoldSpec,
   npmNameFor,
@@ -60,10 +61,42 @@ export interface NewModuleResult {
   readonly renderedManifests: readonly string[];
   readonly dryRun: boolean;
   readonly nextSteps: readonly string[];
+  /**
+   * Set when the run stood in an **instance** and wrote an overlay module
+   * (`overlay.ts`), `null` when it wrote a module package.
+   *
+   * For an overlay module `packageDir` is `apps/<deployment>/modules/<id>`,
+   * `packageName` is the module id — there is no npm name — and
+   * `renderedManifests` is empty, because nothing renders a `package.json`.
+   */
+  readonly overlay: { readonly deployment: string } | null;
 }
 
 export async function runNewModule(options: NewModuleOptions): Promise<NewModuleResult> {
   const cwd = options.cwd ?? process.cwd();
+  // An instance first: it is a workspace too, and `resolveHost` would refuse it
+  // for lacking a generator it was never going to have.
+  const instance = resolveOverlayHost(cwd);
+  if (instance !== null) {
+    const plan = planOverlayModule(instance, options);
+    if (options.dryRun !== true) {
+      for (const file of plan.files) {
+        const target = join(plan.moduleDir, file.path);
+        mkdirSync(dirname(target), { recursive: true });
+        writeFileSync(target, file.content, 'utf8');
+      }
+    }
+    return {
+      spec: plan.spec,
+      packageName: plan.spec.id,
+      packageDir: plan.moduleDir,
+      files: plan.files,
+      renderedManifests: [],
+      dryRun: options.dryRun === true,
+      nextSteps: plan.nextSteps,
+      overlay: { deployment: plan.deployment },
+    };
+  }
   const host = resolveHost(cwd);
   const spec = buildScaffoldSpec(options);
   if (options.scope !== undefined && normaliseScope(options.scope) !== host.scope) {
@@ -103,6 +136,7 @@ export async function runNewModule(options: NewModuleOptions): Promise<NewModule
       renderedManifests: [],
       dryRun: true,
       nextSteps: nextStepsFor(host, packageName, packageDir, spec.layers.admin !== null),
+      overlay: null,
     };
   }
 
@@ -130,6 +164,7 @@ export async function runNewModule(options: NewModuleOptions): Promise<NewModule
     renderedManifests: render.wrote,
     dryRun: false,
     nextSteps: nextStepsFor(host, packageName, packageDir, spec.layers.admin !== null),
+    overlay: null,
   };
 }
 

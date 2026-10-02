@@ -265,7 +265,9 @@ w ciszy — gdy:
   modułu w workspace, zainstalowany pakiet albo inny moduł overlay. Odmowa wymienia
   plik każdego roszczącego się.
 - **Schemat overlay** — klasa `@Entity()` albo migracja pod `backend/src/apps/`,
-  odmawiane przez `generate-composer.ts`.
+  odmawiane przez `generate-composer.ts`. W instancji tę samą odmowę wydaje
+  `pnpm run generate`: katalog `migrations/` albo `entities/`, albo klasa `@Entity()`, w
+  `apps/<deployment>/modules/` zatrzymuje polecenie i wymienia każdy plik.
 - **Brak manifestu** — katalog modułu overlay bez `manifest.js`/`manifest.ts`.
   Odmowa nazywa oba kandydaty.
 - **Backend nierejestrowalny** — moduł overlay, którego `backend.js`/`backend.ts`
