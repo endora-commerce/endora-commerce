@@ -91,7 +91,16 @@ function input(
 }
 
 /** The packages an install leaves beside the target, as `pnpm add` writes them. */
-function installFixture(root: string): void {
+function installFixture(
+  root: string,
+  fixture: {
+    readonly origins?: boolean;
+    readonly admin?: boolean;
+    readonly mfa?: boolean;
+    /** Read by `checkoutFixture`: the storefront depends on a workspace package. */
+    readonly scopedDependency?: boolean;
+  } = {},
+): void {
   const scopeDir = join(root, 'node_modules', '@endora-commerce');
   const write = (name: string, manifest: unknown, source: string): void => {
     const dir = join(scopeDir, name);
@@ -127,8 +136,49 @@ function installFixture(root: string): void {
       }),
       input('REVALIDATE_SECRET', { kind: 'required' }, { secret: true }),
       input('SESSION_COOKIE_SECRET', { kind: 'required' }, { secret: true, generable: true }),
+      // The three inputs that name the other two machines
+      // (`specs/138-separate-components/`), as the real platform declares them.
+      ...(fixture.origins === true
+        ? [
+            input('PUBLIC_API_BASE_URL', { kind: 'required' }, { addressOf: 'backend' }),
+            input('CORS_ALLOWED_ORIGINS', { kind: 'required' }),
+            input('STOREFRONT_BASE_URL', { kind: 'required' }, { addressOf: 'storefront' }),
+          ]
+        : []),
     ])};\n`,
   );
+  if (fixture.admin === true) {
+    // §2.4's two packages: with both resolved the instance gets its admin
+    // member, which is what `--only admin` builds.
+    write(
+      'admin-shell',
+      {
+        name: '@endora-commerce/admin-shell',
+        version: '4.5.6',
+        type: 'module',
+        exports: { '.': { default: './manifest.js' } },
+        peerDependencies: {
+          react: '^19.0.0',
+          'react-dom': '^19.0.0',
+          vite: '^7.3.2',
+          '@vitejs/plugin-react': '^5.2.0',
+          tailwindcss: '^4.2.4',
+          '@tailwindcss/vite': '^4.2.4',
+        },
+      },
+      'export {};\n',
+    );
+    write(
+      'admin-kit',
+      {
+        name: '@endora-commerce/admin-kit',
+        version: '4.5.6',
+        type: 'module',
+        exports: { '.': { default: './manifest.js' } },
+      },
+      'export {};\n',
+    );
+  }
   write(
     'mod-settings',
     {
@@ -151,6 +201,28 @@ function installFixture(root: string): void {
     },
     `export const manifest = { id: 'admin_users', dependencies: ['settings'] };\n`,
   );
+  if (fixture.mfa === true) {
+    // The one module that declares `ADMIN_BASE_URL`, as `mfa` does.
+    write(
+      'mod-mfa',
+      {
+        name: '@endora-commerce/mod-mfa',
+        version: '1.2.3',
+        type: 'module',
+        endora: { type: 'module', id: 'mfa' },
+        exports: { '.': { default: './manifest.js' } },
+      },
+      `export const manifest = { id: 'mfa', dependencies: ['settings'], env: ${JSON.stringify(
+        [
+          input(
+            'ADMIN_BASE_URL',
+            { kind: 'optional', without: { en: 'links point at the development admin.', pl: 'x' } },
+            { owner: { kind: 'module', moduleId: 'mfa' }, addressOf: 'admin' },
+          ),
+        ],
+      )} };\n`,
+    );
+  }
   // The demo shop's composition, as a release installs it: every package of
   // the release index is in the host, this one included.
   write(
@@ -167,9 +239,9 @@ function installFixture(root: string): void {
 }
 
 /** A host directory: an install of ours, and nothing else. */
-function host(): string {
+function host(fixture: Parameters<typeof installFixture>[1] = {}): string {
   const root = temp('endora-install-');
-  installFixture(root);
+  installFixture(root, fixture);
   return root;
 }
 
@@ -770,7 +842,7 @@ describe('FR-143 / FR-161 — it composes the two commands and changes no topolo
     const result = await runInstall(options(root, { run }));
     // Feature 122's artefacts are all here: the one-shot changes how many
     // commands write them and nothing about what they are (FR-161).
-    const paths = result.instance.plan.files.map((file) => file.path);
+    const paths = result.instance!.plan.files.map((file) => file.path);
     expect(paths).toContain('deploy/compose.prod.yml');
     expect(paths).toContain('compose.dev.yml');
     expect(paths).toContain('package.json');
@@ -788,11 +860,11 @@ describe('FR-143 / FR-161 — it composes the two commands and changes no topolo
     const result = await runInstall(
       options(root, { run, modules: ['admin_users'], deployment: 'acme', topology: 'three-host' }),
     );
-    expect(result.instance.modules.ids).toContain('admin_users');
-    expect(result.instance.deployment).toBe('acme');
-    expect(result.instance.topology).toBe('three-host');
+    expect(result.instance!.modules.ids).toContain('admin_users');
+    expect(result.instance!.deployment).toBe('acme');
+    expect(result.instance!.topology).toBe('three-host');
     expect(
-      result.instance.plan.files.map((file) => file.path),
+      result.instance!.plan.files.map((file) => file.path),
     ).toContain('deploy/three-host/compose.backend.yml');
   });
 });
@@ -981,6 +1053,629 @@ describe('GAP-7 — the closing block leads with the one development command', (
 });
 
 // ---------------------------------------------------------------------------
+// specs/138-separate-components — one component on its own machine
+// ---------------------------------------------------------------------------
+
+/** The answers a run with `api` owes, and nothing a run without it may carry. */
+function only(
+  root: string,
+  components: string,
+  overrides: Record<string, unknown> = {},
+): Parameters<typeof runInstall>[0] {
+  const api = components.split(',').includes('api');
+  return {
+    dir: join(root, 'acme-shop'),
+    cwd: root,
+    only: components.split(','),
+    nonInteractive: true,
+    dockerReachable: true,
+    portInUse: NO_PORT_TAKEN,
+    packagedReferenceDir: NO_PACKAGED_REFERENCE,
+    ...(api ? { demo: false, services: false, ...ADMIN } : {}),
+    ...overrides,
+  } as Parameters<typeof runInstall>[0];
+}
+
+const refusalOf = async (given: Parameters<typeof runInstall>[0]): Promise<string> => {
+  const error = await runInstall(given).then(
+    () => null,
+    (thrown: unknown) => thrown,
+  );
+  expect(error, 'the run was not refused').toBeInstanceOf(InstallInputError);
+  return (error as Error).message;
+};
+
+const THE_API = 'https://api.example.com';
+const THE_SHOP = 'https://shop.example.com';
+const THE_ADMIN = 'https://admin.example.com';
+
+describe('138 SC-003 — a run with no `--only` plans what it planned before', () => {
+  /**
+   * Recorded on `feat/storefront-from-registry` at `609c03c70`, before `--only`
+   * existed, and unchanged since. The list is the product (FR-155): a step this
+   * feature added to the run that selects nothing would be a different product
+   * under the same command.
+   */
+  const BEFORE_138 = [
+    ['install', 'pnpm install'],
+    ['services', 'pnpm run dev:services'],
+    ['setup', 'pnpm run setup'],
+    [
+      'admin',
+      `pnpm run admin:create -- --email=owner@example.com --password=${PASSWORD_PLACEHOLDER} --first-name=Ada --last-name=Lovelace`,
+    ],
+    ['demo', 'pnpm run cli demo seed'],
+    ['storefront-install', 'pnpm install'],
+  ] as const;
+
+  it('every part, the services and the demo rows: the six steps, in order, as typed', async () => {
+    const root = checkoutFixture();
+    const { run, steps } = recorder();
+    const result = await runInstall(
+      options(root, { storefront: true, services: true, demo: true, run }),
+    );
+    expect(steps.map((step) => [step.id, step.command])).toEqual(BEFORE_138);
+    expect(result.steps.map((step) => step.cwd)).toEqual([
+      ...Array.from({ length: 5 }, () => join(root, 'acme-shop')),
+      join(root, 'acme-shop-storefront'),
+    ]);
+  });
+
+  it('`--only api,admin,storefront` is the same run: the same steps and the same lines', async () => {
+    const bare = checkoutFixture();
+    const named = checkoutFixture();
+    const given = { storefront: undefined, services: true, demo: true };
+    const first = await runInstall(options(bare, { ...given, run: recorder().run }));
+    const second = await runInstall(
+      options(named, { ...given, only: ['api', 'admin', 'storefront'], run: recorder().run }),
+    );
+    // Two lines differ and both are about provenance, not about the run: the
+    // parts answer came from a flag in one and was the recommendation in the
+    // other, and the run says which.
+    const neutral = (result: typeof first, root: string): string[] =>
+      result.output
+        .map((line) => line.replaceAll(root, '<root>'))
+        .filter((line) => !line.includes('[answers]') && !line.includes('every part this build can write'));
+    expect(neutral(second, named)).toEqual(neutral(first, bare));
+    expect(first.answers).toContain('recommended=2 (parts, services)');
+    expect(second.answers).toContain('recommended=1 (services)');
+    expect(second.steps.map((step) => step.id)).toEqual(BEFORE_138.map(([id]) => id));
+  });
+});
+
+describe('138 FR-002 / FR-010 / FR-012 / FR-013 — what a selection requires, and what it refuses', () => {
+  it('`--only admin` needs the API\'s origin, and nothing about a database or an administrator', async () => {
+    const root = host({ admin: true });
+    const message = await refusalOf(only(root, 'admin', { dockerReachable: false }));
+    expect(message).toContain('1 thing to settle first');
+    expect(message).toContain('`--api-url` is required');
+    expect(message).not.toContain('demo');
+    expect(message).not.toContain('administrator');
+    expect(message).not.toContain('Docker');
+    expect(existsSync(join(root, 'acme-shop'))).toBe(false);
+  });
+
+  it('`--only storefront` names its three in one refusal, and writes nothing', async () => {
+    const root = checkoutFixture();
+    const message = await refusalOf(only(root, 'storefront'));
+    expect(message).toContain('3 things to settle first');
+    expect(message).toContain('`--api-url` is required');
+    expect(message).toContain('`--storefront-url` is required');
+    expect(message).toContain('`--revalidate-secret` is required');
+    expect(message).not.toContain('demo');
+    expect(message).not.toContain('administrator');
+    expect(existsSync(join(root, 'acme-shop'))).toBe(false);
+  });
+
+  it('`--only api` still owes the administrator and the demo decision', async () => {
+    const root = host();
+    const message = await refusalOf({
+      dir: join(root, 'acme-shop'),
+      cwd: root,
+      only: ['api'],
+      nonInteractive: true,
+      dockerReachable: true,
+    });
+    expect(message).toContain('--admin-email');
+    expect(message).toContain('--no-demo');
+    expect(message).not.toContain('--api-url` is required');
+  });
+
+  it('a selection that is not one is in the same refusal as everything else', async () => {
+    const root = host();
+    const message = await refusalOf({
+      dir: join(root, 'acme-shop'),
+      cwd: root,
+      only: ['api', 'till'],
+      nonInteractive: true,
+      packageManagers: [],
+    });
+    expect(message).toContain('2 things to settle first');
+    expect(message).toContain('`--only` names till');
+    expect(message).toContain('corepack');
+  });
+
+  it('D7 — a flag for a question the selection removed is refused, never ignored', async () => {
+    const root = checkoutFixture();
+    const storefront = {
+      apiUrl: THE_API,
+      storefrontUrl: THE_SHOP,
+      revalidateSecret: 'the-api-already-holds-this',
+    };
+    expect(await refusalOf(only(root, 'storefront', { ...storefront, demo: true }))).toMatch(
+      /`--demo` answers a question this run does not have/,
+    );
+    expect(
+      await refusalOf(only(root, 'storefront', { ...storefront, services: false, ...ADMIN })),
+    ).toMatch(
+      /`--no-services`, `--admin-email`, `--admin-password`, `--admin-first-name`, `--admin-last-name` answer a question/,
+    );
+    expect(
+      await refusalOf(
+        only(root, 'storefront', {
+          ...storefront,
+          without: ['docs'],
+          modules: ['settings'],
+          deployment: 'acme',
+          topology: 'three-host',
+        }),
+      ),
+    ).toMatch(/`--without`, `--module`, `--deployment`, `--topology` name something this run does not write/);
+    expect(existsSync(join(root, 'acme-shop'))).toBe(false);
+  });
+
+  it('`--only admin` refuses the storefront\'s values and the API\'s, by name', async () => {
+    const root = host({ admin: true });
+    const message = await refusalOf(
+      only(root, 'admin', {
+        apiUrl: THE_API,
+        adminUrl: THE_ADMIN,
+        storefrontUrl: THE_SHOP,
+        salesChannel: 'b2b',
+        revalidateSecret: 'x',
+      }),
+    );
+    for (const flag of ['--admin-url', '--storefront-url', '--sales-channel', '--revalidate-secret']) {
+      expect(message, flag).toContain(`\`${flag}\``);
+    }
+    expect(message).not.toContain('`--api-url`');
+  });
+
+  it('FR-011 — a value that is not an origin is refused, naming the flag and the value', async () => {
+    const root = host({ admin: true });
+    const message = await refusalOf(only(root, 'admin', { apiUrl: 'https://api.example.com/' }));
+    expect(message).toContain('`--api-url https://api.example.com/` is not an origin');
+    expect(message).toContain('scheme and host, an optional port, no path');
+  });
+
+  it('`--only admin` where no admin member can be written is refused before anything is', async () => {
+    // The fixture without the shell and the kit: `new instance` would write a
+    // headless API and say so, which is a tree with nothing to build.
+    const root = host();
+    const message = await refusalOf(only(root, 'admin', { apiUrl: THE_API }));
+    expect(message).toContain('`--only admin`');
+    expect(message).toContain('admin-shell');
+    expect(existsSync(join(root, 'acme-shop'))).toBe(false);
+  });
+});
+
+describe('138 FR-005…FR-009 — the pipeline each selection runs', () => {
+  const ids = (steps: readonly InstallStep[]): string[] => steps.map((step) => step.id);
+
+  it('`api` — the tree without its admin member, and today\'s steps', async () => {
+    const root = host({ admin: true });
+    const { run, steps } = recorder();
+    const result = await runInstall(only(root, 'api', { services: true, run }));
+    expect(ids(steps)).toEqual(['install', 'services', 'setup', 'admin']);
+    expect(result.instance!.plan.members).not.toContain('admin');
+    expect(existsSync(join(root, 'acme-shop', 'admin'))).toBe(false);
+    expect(result.storefrontDir).toBeNull();
+    expect(existsSync(join(root, 'acme-shop-storefront'))).toBe(false);
+  });
+
+  it('`api,admin` — the whole tree, the same steps', async () => {
+    const root = host({ admin: true });
+    const { run, steps } = recorder();
+    const result = await runInstall(only(root, 'api,admin', { demo: true, run }));
+    expect(ids(steps)).toEqual(['install', 'setup', 'admin', 'demo']);
+    expect(result.instance!.plan.members).toContain('admin');
+  });
+
+  it('`api,storefront` — then the storefront\'s own install', async () => {
+    const root = checkoutFixture({ admin: true });
+    const { run, steps } = recorder();
+    const result = await runInstall(only(root, 'api,storefront', { run }));
+    expect(ids(steps)).toEqual(['install', 'setup', 'admin', 'storefront-install']);
+    expect(result.instance!.plan.members).not.toContain('admin');
+    expect(result.storefrontDir).toBe(join(root, 'acme-shop-storefront'));
+  });
+
+  it('`admin` — install, then one build, with the backend member in the tree', async () => {
+    const root = host({ admin: true });
+    const { run, steps } = recorder();
+    const result = await runInstall(
+      only(root, 'admin', { apiUrl: THE_API, dockerReachable: false, run }),
+    );
+    expect(steps.map((step) => [step.id, step.command, step.cwd])).toEqual([
+      ['install', 'pnpm install', join(root, 'acme-shop')],
+      ['build-admin', 'pnpm run build:admin', join(root, 'acme-shop')],
+    ]);
+    expect(result.instance!.plan.members).toEqual(expect.arrayContaining(['backend', 'admin']));
+    expect(existsSync(join(root, 'acme-shop', 'backend', 'package.json'))).toBe(true);
+    expect(result.exitCode).toBe(0);
+  });
+
+  it('`storefront` — no instance tree: `<dir>` is the storefront\'s own directory', async () => {
+    const root = checkoutFixture();
+    const { run, steps } = recorder();
+    const result = await runInstall(
+      only(root, 'storefront', {
+        apiUrl: THE_API,
+        storefrontUrl: THE_SHOP,
+        revalidateSecret: 'the-api-already-holds-this',
+        packageManagers: [{ command: 'pnpm', prefix: [], label: 'pnpm' }],
+        run,
+      }),
+    );
+    expect(steps.map((step) => [step.id, step.cwd])).toEqual([
+      ['storefront-install', join(root, 'acme-shop')],
+    ]);
+    expect(result.instance).toBeNull();
+    expect(result.hostStep).toBeNull();
+    expect(result.storefrontDir).toBe(join(root, 'acme-shop'));
+    expect(existsSync(join(root, 'acme-shop', 'app', 'page.tsx'))).toBe(true);
+    expect(existsSync(join(root, 'acme-shop', 'backend'))).toBe(false);
+    expect(existsSync(join(root, 'acme-shop-storefront'))).toBe(false);
+  });
+
+  it('`admin,storefront` — the tree and its one build, and the storefront beside it', async () => {
+    const root = checkoutFixture({ admin: true });
+    const { run, steps } = recorder();
+    const result = await runInstall(
+      only(root, 'admin,storefront', {
+        apiUrl: THE_API,
+        storefrontUrl: THE_SHOP,
+        revalidateSecret: 'the-api-already-holds-this',
+        run,
+      }),
+    );
+    expect(ids(steps)).toEqual(['install', 'build-admin', 'storefront-install']);
+    expect(result.storefrontDir).toBe(join(root, 'acme-shop-storefront'));
+  });
+
+  it('FR-009 — a dry run reports the same plan for a subset, and writes nothing', async () => {
+    const root = checkoutFixture({ admin: true });
+    const { run, steps } = recorder();
+    const result = await runInstall(
+      only(root, 'admin,storefront', {
+        apiUrl: THE_API,
+        storefrontUrl: THE_SHOP,
+        revalidateSecret: 'the-api-already-holds-this',
+        dryRun: true,
+        run,
+      }),
+    );
+    expect(steps).toEqual([]);
+    expect(ids(result.steps)).toEqual(['install', 'build-admin', 'storefront-install']);
+    const text = result.output.join('\n');
+    expect(text).toContain('pnpm run build:admin');
+    expect(existsSync(join(root, 'acme-shop'))).toBe(false);
+    expect(existsSync(join(root, 'acme-shop-storefront'))).toBe(false);
+  });
+});
+
+describe('138 FR-012…FR-016 — the values that cross a machine boundary', () => {
+  const env = (path: string): Map<string, string> => {
+    const values = new Map<string, string>();
+    for (const line of readFileSync(path, 'utf8').split('\n')) {
+      const match = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(line);
+      if (match !== null) values.set(match[1]!, match[2]!);
+    }
+    return values;
+  };
+
+  it('FR-012 — the admin alone: `VITE_API_BASE_URL` in `admin/.env`, and no secret generated', async () => {
+    const root = host({ admin: true, origins: true });
+    const result = await runInstall(only(root, 'admin', { apiUrl: THE_API, run: recorder().run }));
+    expect(env(join(root, 'acme-shop', 'admin', '.env'))).toEqual(
+      new Map([['VITE_API_BASE_URL', THE_API]]),
+    );
+    // The tree's own `.env` names nothing about the other machines: this run
+    // stands up no API to read it.
+    const instance = env(join(root, 'acme-shop', '.env'));
+    for (const name of ['PUBLIC_API_BASE_URL', 'CORS_ALLOWED_ORIGINS', 'REVALIDATE_SECRET']) {
+      expect(instance.has(name), name).toBe(false);
+    }
+    expect(result.output.join('\n')).not.toContain('REVALIDATE_SECRET');
+  });
+
+  it('FR-013 — the storefront alone: the five values, the secret verbatim', async () => {
+    const root = checkoutFixture();
+    await runInstall(
+      only(root, 'storefront', {
+        apiUrl: THE_API,
+        storefrontUrl: THE_SHOP,
+        salesChannel: 'b2b',
+        revalidateSecret: 'the-api-already-holds-this',
+        run: recorder().run,
+      }),
+    );
+    expect(env(join(root, 'acme-shop', '.env'))).toEqual(
+      new Map([
+        ['NEXT_PUBLIC_API_BASE_URL', THE_API],
+        ['BACKEND_BASE_URL', THE_API],
+        ['NEXT_PUBLIC_SITE_URL', THE_SHOP],
+        ['NEXT_PUBLIC_SALES_CHANNEL_CODE', 'b2b'],
+        ['REVALIDATE_SECRET', 'the-api-already-holds-this'],
+      ]),
+    );
+  });
+
+  it('FR-013 — `--sales-channel` not given is the platform\'s own `default`', async () => {
+    const root = checkoutFixture();
+    await runInstall(
+      only(root, 'storefront', {
+        apiUrl: THE_API,
+        storefrontUrl: THE_SHOP,
+        revalidateSecret: 'x',
+        run: recorder().run,
+      }),
+    );
+    expect(env(join(root, 'acme-shop', '.env')).get('NEXT_PUBLIC_SALES_CHANNEL_CODE')).toBe('default');
+  });
+
+  it('FR-013 — a storefront without the API and without the secret is refused, and no file is written', async () => {
+    const root = checkoutFixture();
+    const message = await refusalOf(
+      only(root, 'storefront', { apiUrl: THE_API, storefrontUrl: THE_SHOP }),
+    );
+    expect(message).toContain('never generates it');
+    expect(existsSync(join(root, 'acme-shop'))).toBe(false);
+  });
+
+  it('FR-014 — the API alone, told all three: its `.env` names the other two machines', async () => {
+    const root = host({ admin: true, origins: true, mfa: true });
+    await runInstall(
+      only(root, 'api', {
+        apiUrl: THE_API,
+        adminUrl: THE_ADMIN,
+        storefrontUrl: THE_SHOP,
+        run: recorder().run,
+      }),
+    );
+    const instance = env(join(root, 'acme-shop', '.env'));
+    expect(instance.get('PUBLIC_API_BASE_URL')).toBe(THE_API);
+    expect(instance.get('ADMIN_BASE_URL')).toBe(THE_ADMIN);
+    expect(instance.get('STOREFRONT_BASE_URL')).toBe(THE_SHOP);
+    expect(instance.get('CORS_ALLOWED_ORIGINS')).toBe(`${THE_ADMIN},${THE_SHOP}`);
+  });
+
+  it('FR-014 — an origin not given stands as its development address in the allow-list', async () => {
+    const root = host({ origins: true });
+    await runInstall(only(root, 'api', { adminUrl: THE_ADMIN, run: recorder().run }));
+    const instance = env(join(root, 'acme-shop', '.env'));
+    expect(instance.get('CORS_ALLOWED_ORIGINS')).toBe(`${THE_ADMIN},http://localhost:3000`);
+    expect(instance.has('PUBLIC_API_BASE_URL')).toBe(false);
+    expect(instance.has('STOREFRONT_BASE_URL')).toBe(false);
+  });
+
+  it('FR-014 — `ADMIN_BASE_URL` is written only where the instance declares it', async () => {
+    const root = host({ origins: true });
+    await runInstall(only(root, 'api', { adminUrl: THE_ADMIN, run: recorder().run }));
+    expect(readFileSync(join(root, 'acme-shop', '.env'), 'utf8')).not.toContain('ADMIN_BASE_URL');
+  });
+
+  it('FR-014 — none given, nothing is written and the development fallbacks apply', async () => {
+    const root = host({ origins: true, mfa: true });
+    await runInstall(only(root, 'api', { run: recorder().run }));
+    const instance = env(join(root, 'acme-shop', '.env'));
+    for (const name of ['PUBLIC_API_BASE_URL', 'ADMIN_BASE_URL', 'STOREFRONT_BASE_URL', 'CORS_ALLOWED_ORIGINS']) {
+      expect(instance.has(name), name).toBe(false);
+    }
+  });
+
+  it('FR-014 — with the admin on the same machine, `--api-url` is in `admin/.env` too', async () => {
+    const root = host({ admin: true, origins: true });
+    await runInstall(only(root, 'api,admin', { apiUrl: THE_API, run: recorder().run }));
+    expect(env(join(root, 'acme-shop', 'admin', '.env')).get('VITE_API_BASE_URL')).toBe(THE_API);
+    expect(env(join(root, 'acme-shop', '.env')).get('PUBLIC_API_BASE_URL')).toBe(THE_API);
+  });
+
+  it('FR-015 — the API without the storefront originates the secret, names its file, never its value', async () => {
+    const root = host({ origins: true });
+    const result = await runInstall(only(root, 'api', { run: recorder().run }));
+    const secret = env(join(root, 'acme-shop', '.env')).get('REVALIDATE_SECRET');
+    expect(secret).toBeDefined();
+    expect(secret!.length).toBeGreaterThan(20);
+    const text = result.output.join('\n');
+    expect(text).not.toContain(secret!);
+    expect(text).toContain(`REVALIDATE_SECRET is in ${join(root, 'acme-shop', '.env')}`);
+    expect(text).toContain('--revalidate-secret');
+  });
+
+  it('FR-015 — `--revalidate-secret` is written verbatim, and still not printed', async () => {
+    const root = host({ origins: true });
+    const result = await runInstall(
+      only(root, 'api', { revalidateSecret: 'a-value-the-operator-chose', run: recorder().run }),
+    );
+    expect(env(join(root, 'acme-shop', '.env')).get('REVALIDATE_SECRET')).toBe(
+      'a-value-the-operator-chose',
+    );
+    expect(result.output.join('\n')).not.toContain('a-value-the-operator-chose');
+  });
+
+  it('FR-016 — a line the operator already answered is never written over', async () => {
+    const root = host({ origins: true });
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(
+      join(target, '.env'),
+      'CORS_ALLOWED_ORIGINS=https://mine.example.com\nREVALIDATE_SECRET=mine\n',
+      'utf8',
+    );
+    await runInstall(
+      only(root, 'api', { adminUrl: THE_ADMIN, storefrontUrl: THE_SHOP, run: recorder().run }),
+    );
+    const instance = env(join(target, '.env'));
+    expect(instance.get('CORS_ALLOWED_ORIGINS')).toBe('https://mine.example.com');
+    expect(instance.get('REVALIDATE_SECRET')).toBe('mine');
+    expect(instance.get('STOREFRONT_BASE_URL')).toBe(THE_SHOP);
+  });
+
+  it('a run with no `--only` and no origin writes none of this — today\'s `.env`', async () => {
+    const root = host({ admin: true, origins: true, mfa: true });
+    await runInstall(options(root, { run: recorder().run }));
+    const instance = env(join(root, 'acme-shop', '.env'));
+    for (const name of ['PUBLIC_API_BASE_URL', 'ADMIN_BASE_URL', 'STOREFRONT_BASE_URL', 'CORS_ALLOWED_ORIGINS', 'REVALIDATE_SECRET']) {
+      expect(instance.has(name), name).toBe(false);
+    }
+    expect(existsSync(join(root, 'acme-shop', 'admin', '.env'))).toBe(false);
+  });
+});
+
+describe('138 — each part on a port of its own', () => {
+  const env = (path: string): string => readFileSync(path, 'utf8');
+  /** 3000 and 3002 are somebody else's on this machine. */
+  const TAKEN = async (port: number): Promise<boolean> => port === 3000 || port === 3002;
+
+  it('a taken admin port is moved, written where Vite reads it, and allowed by the API', async () => {
+    const root = host({ admin: true, origins: true });
+    const result = await runInstall(
+      only(root, 'api,admin', { portInUse: TAKEN, run: recorder().run }),
+    );
+    expect(env(join(root, 'acme-shop', 'admin', '.env'))).toMatch(/^PORT=13002$/m);
+    expect(env(join(root, 'acme-shop', '.env'))).toMatch(
+      /^CORS_ALLOWED_ORIGINS=http:\/\/localhost:13002,http:\/\/localhost:3000$/m,
+    );
+    const text = result.output.join('\n');
+    expect(text).toContain('port 3002 is already in use on this machine');
+    expect(text).toContain('http://localhost:13002');
+  });
+
+  it('a taken storefront port moves the storefront, its own address and the allow-list together', async () => {
+    const root = checkoutFixture({ origins: true });
+    const result = await runInstall(
+      options(root, { storefront: true, portInUse: TAKEN, run: recorder().run }),
+    );
+    const shop = env(join(root, 'acme-shop-storefront', '.env'));
+    expect(shop).toMatch(/^PORT=13000$/m);
+    expect(shop).toMatch(/^NEXT_PUBLIC_SITE_URL=http:\/\/localhost:13000$/m);
+    const instance = env(join(root, 'acme-shop', '.env'));
+    expect(instance).toMatch(/^STOREFRONT_BASE_URL=http:\/\/localhost:13000$/m);
+    expect(instance).toMatch(/^CORS_ALLOWED_ORIGINS=http:\/\/localhost:3002,http:\/\/localhost:13000$/m);
+    expect(result.output.join('\n')).toContain('the shop, on http://localhost:13000');
+  });
+
+  it('free ports move nothing and write no `PORT` line', async () => {
+    const root = checkoutFixture({ admin: true, origins: true });
+    await runInstall(options(root, { storefront: true, run: recorder().run }));
+    expect(env(join(root, 'acme-shop-storefront', '.env'))).not.toMatch(/^PORT=/m);
+    expect(existsSync(join(root, 'acme-shop', 'admin', '.env'))).toBe(false);
+    expect(env(join(root, 'acme-shop', '.env'))).not.toMatch(/^CORS_ALLOWED_ORIGINS=/m);
+  });
+
+  it('an API on a port of its own is where the admin bundle is pointed', async () => {
+    const root = host({ admin: true });
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'PORT=4455\n', 'utf8');
+    await runInstall(options(root, { run: recorder().run }));
+    expect(env(join(target, 'admin', '.env'))).toMatch(
+      /^VITE_API_BASE_URL=http:\/\/localhost:4455$/m,
+    );
+  });
+
+  it('`--registry` reaches the storefront as well as the instance', async () => {
+    const root = checkoutFixture({ scopedDependency: true });
+    await runInstall(
+      options(root, {
+        storefront: true,
+        registry: 'https://registry.example.com/npm/',
+        run: recorder().run,
+      }),
+    );
+    expect(env(join(root, 'acme-shop', '.npmrc'))).toContain('registry.example.com');
+    expect(env(join(root, 'acme-shop-storefront', '.npmrc'))).toContain('registry.example.com');
+  });
+});
+
+describe('138 FR-020 — the closing block is about this machine, and says what the others owe it', () => {
+  const closingOf = (result: { readonly output: readonly string[] }): string => {
+    const text = result.output.join('\n');
+    return text.slice(text.lastIndexOf('Done. To start it:'));
+  };
+
+  it('`admin` — the bundle\'s command only, and the four facts under one heading', async () => {
+    const root = host({ admin: true });
+    const result = await runInstall(only(root, 'admin', { apiUrl: THE_API, run: recorder().run }));
+    const text = closingOf(result);
+    expect(text).toContain(`cd ${join(root, 'acme-shop')} && pnpm run preview:admin`);
+    expect(text).toContain('http://localhost:3002');
+    expect(text).not.toContain('pnpm run start');
+    expect(text).not.toContain('dev:all');
+    expect(text).not.toContain('Sign in as');
+    expect(text).not.toContain('demo');
+    expect(text).not.toContain('mail');
+    expect(text.split('What the other machines owe this one').length - 1).toBe(1);
+    expect(text).toContain('CORS_ALLOWED_ORIGINS');
+    expect(text).toContain('at build time');
+    expect(text).toContain('same-site');
+    expect(text).toContain('SameSite=Lax');
+    expect(text).toContain('the modules this tree installed');
+    expect(text).toContain(THE_API);
+  });
+
+  it('`storefront` — the shop\'s commands only, in its own directory', async () => {
+    const root = checkoutFixture();
+    const result = await runInstall(
+      only(root, 'storefront', {
+        apiUrl: THE_API,
+        storefrontUrl: THE_SHOP,
+        revalidateSecret: 'the-api-already-holds-this',
+        run: recorder().run,
+      }),
+    );
+    const text = closingOf(result);
+    expect(text).toContain(`cd ${join(root, 'acme-shop')} && pnpm run build && pnpm run start`);
+    expect(text).not.toContain('preview:admin');
+    expect(text).not.toContain('dev:all');
+    expect(text).not.toContain('Sign in as');
+    expect(text).toContain('What the other machines owe this one');
+    expect(text).toContain(THE_SHOP);
+    expect(result.output.join('\n')).not.toContain('the-api-already-holds-this');
+  });
+
+  it('`api` — the API\'s command, no admin and no shop, and where the secret is', async () => {
+    const root = host({ admin: true, origins: true });
+    const result = await runInstall(only(root, 'api', { run: recorder().run }));
+    const text = closingOf(result);
+    expect(text).toContain(`cd ${join(root, 'acme-shop')} && pnpm run start`);
+    expect(text).not.toContain('preview:admin');
+    expect(text).not.toContain('the shop');
+    expect(text).toContain('Sign in as owner@example.com');
+    expect(text).toContain('What the other machines owe this one');
+    expect(text).toContain(`REVALIDATE_SECRET is in ${join(root, 'acme-shop', '.env')}`);
+  });
+
+  it('all three — no such heading: nothing is on another machine', async () => {
+    const root = checkoutFixture({ admin: true });
+    const result = await runInstall(options(root, { storefront: true, run: recorder().run }));
+    expect(closingOf(result)).not.toContain('What the other machines owe this one');
+  });
+
+  it('FR-019 — the `[answers]` line counts the questions the selection has', async () => {
+    const admin = host({ admin: true });
+    expect(
+      (await runInstall(only(admin, 'admin', { apiUrl: THE_API, run: recorder().run }))).answers,
+    ).toBe('[answers] resolved: total=3 flags=3 prompted=0 recommended=0 defaulted=0');
+    const api = host();
+    expect((await runInstall(only(api, 'api', { adminUrl: THE_ADMIN, run: recorder().run }))).answers).toBe(
+      '[answers] resolved: total=10 flags=8 prompted=0 recommended=2 (api-url, storefront-url) defaulted=0',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 
@@ -1002,10 +1697,22 @@ function repositoryRoot(): string {
  * purpose — the storefront half's real subject is the shared secret, not the
  * copy, which `new-storefront.test.ts` owns.
  */
-function checkoutFixture(): string {
+function checkoutFixture(fixture: Parameters<typeof installFixture>[1] = {}): string {
   const root = temp('endora-install-checkout-');
-  installFixture(root);
-  writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages:\n  - shop\n');
+  installFixture(root, fixture);
+  writeFileSync(
+    join(root, 'pnpm-workspace.yaml'),
+    `packages:\n  - shop\n${fixture.scopedDependency === true ? '  - packages/*\n' : ''}`,
+  );
+  if (fixture.scopedDependency === true) {
+    // What `--registry` answers for: a scoped package the storefront reaches
+    // through the workspace, which a standalone copy has to fetch.
+    mkdirSync(join(root, 'packages', 'contracts'), { recursive: true });
+    writeFileSync(
+      join(root, 'packages', 'contracts', 'package.json'),
+      `${JSON.stringify({ name: '@endora-commerce/contracts', version: '1.0.0' }, null, 2)}\n`,
+    );
+  }
   writeFileSync(
     join(root, 'package.json'),
     `${JSON.stringify({ name: 'fixture-root', private: true, packageManager: 'pnpm@9.15.0' }, null, 2)}\n`,
@@ -1014,7 +1721,16 @@ function checkoutFixture(): string {
   writeFileSync(
     join(root, 'shop', 'package.json'),
     `${JSON.stringify(
-      { name: 'shop', version: '0.0.0', private: true, scripts: { build: 'next build' }, dependencies: { next: '^15.0.0' } },
+      {
+        name: 'shop',
+        version: '0.0.0',
+        private: true,
+        scripts: { build: 'next build' },
+        dependencies: {
+          next: '^15.0.0',
+          ...(fixture.scopedDependency === true ? { '@endora-commerce/contracts': 'workspace:*' } : {}),
+        },
+      },
       null,
       2,
     )}\n`,
@@ -1034,6 +1750,16 @@ function checkoutFixture(): string {
     consumers: ['storefront'],
     addressOf: 'backend',
   },
+  ...['BACKEND_BASE_URL', 'NEXT_PUBLIC_SITE_URL', 'NEXT_PUBLIC_SALES_CHANNEL_CODE'].map((name) => ({
+    name,
+    describes: { en: 'one of the five values the one-shot owes a storefront.', pl: 'x.' },
+    requirement: { kind: 'required' },
+    secret: false,
+    generable: false,
+    owner: { kind: 'application', application: 'storefront' },
+    consumers: ['storefront'],
+    addressOf: name === 'BACKEND_BASE_URL' ? 'backend' : name === 'NEXT_PUBLIC_SITE_URL' ? 'storefront' : null,
+  })),
   {
     name: 'REVALIDATE_SECRET',
     describes: { en: 'the shared revalidation secret.', pl: 'wspolny sekret.' },

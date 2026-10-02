@@ -329,3 +329,67 @@ describe('the entry guard, and the install shape that made it silent', () => {
     }
   });
 });
+
+/**
+ * `specs/138-separate-components/` T03 — the five flags of a run that stands up
+ * a subset. Each is observed through the refusal `runInstall` makes of a value
+ * only it can judge, so a flag the argv layer dropped would be a run that asks
+ * for it again rather than one that names what was wrong with it.
+ */
+describe('`install --only` and the origins of the other machines', () => {
+  const target = (): string => join(mkdtempSync(join(tmpdir(), 'endora-cli-only-')), 'shop');
+
+  it('`--help` names the selection, the three origins and the channel', async () => {
+    const { stdout } = await run(['--help']);
+    for (const flag of ['--only', '--api-url', '--admin-url', '--storefront-url', '--sales-channel']) {
+      expect(stdout, `the usage does not name ${flag}`).toContain(flag);
+    }
+    expect(stdout).toContain('api, admin, storefront');
+  });
+
+  it('`--only` reaches the command, repeated and comma-separated', async () => {
+    const result = await run([
+      'install',
+      target(),
+      '--non-interactive',
+      '--only',
+      'api,warehouse',
+      '--only',
+      'till',
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('warehouse, till');
+    expect(result.stderr).toContain('api, admin, storefront');
+  });
+
+  it.each(['--api-url', '--admin-url', '--storefront-url'])('`%s` reaches it', async (flag) => {
+    const result = await run([
+      'install',
+      target(),
+      '--non-interactive',
+      '--only',
+      'api',
+      flag,
+      'https://example.com/a/path',
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(`\`${flag} https://example.com/a/path\` is not an origin`);
+  });
+
+  it('`--sales-channel` reaches it', async () => {
+    const result = await run([
+      'install',
+      target(),
+      '--non-interactive',
+      '--only',
+      'admin',
+      '--api-url',
+      'https://api.example.com',
+      '--sales-channel',
+      'b2b',
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('--sales-channel');
+    expect(result.stderr).not.toContain('--api-url');
+  });
+});

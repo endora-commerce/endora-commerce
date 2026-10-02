@@ -61,7 +61,15 @@
  * typing.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { delimiter, isAbsolute, join, resolve, sep } from 'node:path';
@@ -95,13 +103,22 @@ import {
 } from '../new-storefront/index.js';
 
 import { HOST_DIRECTORY_PREFIX, hostNpmrc, readReleaseIndex, writeHost } from './host.js';
-
+import {
+  COMPONENT_VOCABULARY,
+  EVERYTHING,
+  parseOrigin,
+  questionIdsFor,
+  resolveSelection,
+  type Component,
+  type QuestionId,
+  type Selection,
+} from './selection.js';
 import {
   answeredByFlags,
   answersLine,
   askWizard,
+  installQuestions,
   WizardClosedError,
-  type QuestionId,
   type WizardIo,
 } from './wizard.js';
 
@@ -142,6 +159,7 @@ export interface InstallStep {
     | 'setup'
     | 'admin'
     | 'demo'
+    | 'build-admin'
     | 'storefront-install';
   /**
    * The command as an operator would type it, echoed before it runs.
@@ -201,6 +219,34 @@ export interface InstallOptions {
   readonly without?: readonly string[] | undefined;
 
   // --- what this command decides -------------------------------------------
+  /**
+   * The components this run stands up on this machine — `--only`, over `api`,
+   * `admin` and `storefront` (`specs/138-separate-components/`, D-284). Absent
+   * or empty is all three, and the run this command always was. It is
+   * normalised onto `without` and `storefront` by `selection.ts` and restates
+   * neither.
+   */
+  readonly only?: readonly string[] | undefined;
+  /**
+   * The API's public origin — `--api-url`. Required when this run does not
+   * stand the API up; written as the address the admin bundle and the
+   * storefront are built against, and as `PUBLIC_API_BASE_URL` where the API
+   * is this run's.
+   */
+  readonly apiUrl?: string | undefined;
+  /** The admin's public origin — `--admin-url` — for the API's allow-list. */
+  readonly adminUrl?: string | undefined;
+  /**
+   * The storefront's public origin — `--storefront-url`: its own
+   * `NEXT_PUBLIC_SITE_URL`, and the API's `STOREFRONT_BASE_URL` and allow-list.
+   */
+  readonly storefrontUrl?: string | undefined;
+  /**
+   * The Sales Channel a storefront stood up **without** the API sells on —
+   * `--sales-channel`. With the API in the run, the channel is the one that
+   * API creates.
+   */
+  readonly salesChannel?: string | undefined;
   /** Write the storefront repository too. Default yes; `--no-storefront` off. */
   readonly storefront?: boolean | undefined;
   /** Where it goes. Default `<dir>-storefront`, a **sibling** (FR-160). */
@@ -301,9 +347,13 @@ export interface PackageManagerRunner {
 }
 
 export interface InstallResult {
+  /** `<dir>`: the instance's, or — for the storefront alone — the storefront's. */
   readonly targetDir: string;
   readonly storefrontDir: string | null;
-  readonly instance: NewInstanceResult;
+  /** The components this run stood up (`--only`; all three when it was absent). */
+  readonly components: readonly Component[];
+  /** The instance this run wrote, or `null` when it wrote the storefront alone. */
+  readonly instance: NewInstanceResult | null;
   readonly storefront: NewStorefrontResult | null;
   /** The pipeline, in order — the whole of it, whether or not it ran. */
   readonly steps: readonly InstallStep[];
@@ -741,27 +791,190 @@ function deriveEnvironment(targetDir: string): readonly string[] {
 }
 
 /** The storefront's own `.env`, with the values this run owes it (FR-153/154). */
-function storefrontInputs(
-  instance: NewInstanceResult,
-  secret: string,
-  port: string,
-): Record<string, string> {
+function storefrontInputs(input: {
+  readonly instance: NewInstanceResult | null;
+  /** The secret, or `undefined` when this run has none to give. */
+  readonly secret: string | undefined;
+  /** The address a browser calls the API at. */
+  readonly apiOrigin: string;
+  /** The address the storefront's own server calls the API at. */
+  readonly backendOrigin: string;
+  readonly siteOrigin: string;
+  readonly salesChannel: string | undefined;
+}): Record<string, string> {
   return {
-    NEXT_PUBLIC_API_BASE_URL: `http://localhost:${port}`,
-    BACKEND_BASE_URL: `http://localhost:${port}`,
-    NEXT_PUBLIC_SITE_URL: 'http://localhost:3000',
+    NEXT_PUBLIC_API_BASE_URL: input.apiOrigin,
+    BACKEND_BASE_URL: input.backendOrigin,
+    NEXT_PUBLIC_SITE_URL: input.siteOrigin,
     // The platform's own fallback, which is what the instance's default Sales
     // Channel is created with when `DEFAULT_SALES_CHANNEL_CODE` is unset
     // (`kernel/sales-channels/default-channel-reconciler.ts`). A different
     // string here would point the storefront at a channel nothing creates.
-    NEXT_PUBLIC_SALES_CHANNEL_CODE: 'default',
-    REVALIDATE_SECRET: secret,
+    NEXT_PUBLIC_SALES_CHANNEL_CODE: input.salesChannel ?? 'default',
+    ...(input.secret === undefined ? {} : { REVALIDATE_SECRET: input.secret }),
     ...Object.fromEntries(
-      instance.resolved
+      (input.instance?.resolved ?? [])
         .filter((entry) => entry.name === 'DEFAULT_SALES_CHANNEL_CODE')
         .map((entry) => ['NEXT_PUBLIC_SALES_CHANNEL_CODE', entry.value] as const),
     ),
   };
+}
+
+/** The port the admin's Vite configuration falls back to (`new-instance/template.ts`). */
+const ADMIN_DEFAULT_PORT = 3002;
+/** The port `next dev` and `next start` fall back to. */
+const STOREFRONT_DEFAULT_PORT = 3000;
+/** The port the scaffolded entry falls back to (`const port = Number(process.env['PORT'] ?? 3001)`). */
+const API_DEFAULT_PORT = '3001';
+
+/** Where one layer this run stands up is served on this machine. */
+interface LayerPort {
+  readonly port: number;
+  /** `true` when {@link port} is not the layer's default because that one is taken. */
+  readonly moved: boolean;
+  /** What the operator is told, when there is something to tell. */
+  readonly said: string | null;
+}
+
+/**
+ * The port a layer served on this machine listens on.
+ *
+ * `decidePorts`' two rules, for the two layers Compose does not publish: a port
+ * the operator set is theirs and is used as written; a default that is taken is
+ * replaced by the next free one from `default + 10000`, written where that
+ * layer reads it and said out loud. The admin's Vite configuration is
+ * `strictPort`, so a taken 3002 was a preview that would not start; `next`
+ * moves itself to the next free port in silence, which leaves the storefront's
+ * own `NEXT_PUBLIC_SITE_URL` and the API's allow-list naming a port nothing
+ * listens on.
+ */
+async function decideLayerPort(
+  layer: { readonly name: string; readonly fallback: number; readonly file: string },
+  pinned: string | undefined,
+  inUse: PortProbe,
+  assigned: Set<number>,
+): Promise<LayerPort> {
+  if (pinned !== undefined && /^\d+$/.test(pinned.trim())) {
+    const port = Number(pinned.trim());
+    assigned.add(port);
+    return { port, moved: port !== layer.fallback, said: null };
+  }
+  if (!assigned.has(layer.fallback) && !(await inUse(layer.fallback))) {
+    assigned.add(layer.fallback);
+    return { port: layer.fallback, moved: false, said: null };
+  }
+  let candidate = layer.fallback + 10_000;
+  let tries = 0;
+  while (tries < 500 && (assigned.has(candidate) || (await inUse(candidate)))) {
+    candidate += 1;
+    tries += 1;
+  }
+  if (tries >= 500) {
+    return {
+      port: layer.fallback,
+      moved: false,
+      said:
+        `port ${String(layer.fallback)} is already in use on this machine and no free one was ` +
+        `found near ${String(layer.fallback + 10_000)} for ${layer.name}. Set PORT in ` +
+        `${layer.file} to a port that is free before starting it.`,
+    };
+  }
+  assigned.add(candidate);
+  return {
+    port: candidate,
+    moved: true,
+    said:
+      `port ${String(layer.fallback)} is already in use on this machine, so ${layer.name} is ` +
+      `served on http://localhost:${String(candidate)} instead — PORT=${String(candidate)} in ` +
+      layer.file,
+  };
+}
+
+/**
+ * The admin member's own `.env` — the file Vite reads for `dev`, `build` and
+ * `preview` alike (`specs/138-separate-components/plan.md` D5).
+ *
+ * Written by this command and not by the template, so the template's file
+ * manifest is untouched, and only when there is something to say: an API
+ * origin that is not the bundle's compiled-in `http://localhost:3001`, or a
+ * port that is not the configuration's own 3002. The root `.gitignore` covers
+ * `.env` at any depth.
+ */
+function writeAdminEnv(
+  targetDir: string,
+  values: { readonly apiOrigin: string | undefined; readonly port: number | undefined },
+): readonly string[] {
+  const entries = new Map<string, string>();
+  const header: string[] = ['# Written by `endora install`. Vite reads this file for `dev`, `build` and `preview`.'];
+  if (values.apiOrigin !== undefined) {
+    header.push(
+      '#',
+      '# VITE_API_BASE_URL is the API this admin calls. Vite writes it into the bundle when the',
+      '# admin is built, so changing it means `pnpm run build:admin` again, not a restart.',
+    );
+    entries.set('VITE_API_BASE_URL', values.apiOrigin);
+  }
+  if (values.port !== undefined) {
+    header.push(
+      '#',
+      `# PORT is where \`pnpm run preview:admin\` serves the bundle: ${String(ADMIN_DEFAULT_PORT)} was already in use on`,
+      '# this machine when `endora install` ran. The API allows a browser in by origin, so its',
+      '# CORS_ALLOWED_ORIGINS has to name the address this port makes.',
+    );
+    entries.set('PORT', String(values.port));
+  }
+  if (entries.size === 0) return [];
+  const dir = join(targetDir, 'admin');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, '.env'), writeEnvFile(`${header.join('\n')}\n`, entries), 'utf8');
+  return [...entries.keys()];
+}
+
+/**
+ * Values this run was told or decided, into the instance's own `.env` — each
+ * only where the instance **declares** the name and the operator has not
+ * already answered it (FR-014, FR-016).
+ *
+ * Declared is `deriveEnvironment`'s reading: a placeholder in the `.env` this
+ * run seeded, or a name in the `.env.example` rendered beside it. So
+ * `ADMIN_BASE_URL` is written into an instance that installs the module
+ * reading it and into no other, with no list of modules here.
+ */
+function writeDeclared(targetDir: string, values: ReadonlyMap<string, string>): readonly string[] {
+  const envPath = join(targetDir, '.env');
+  if (values.size === 0 || !existsSync(envPath)) return [];
+  const text = readFileSync(envPath, 'utf8');
+  const answered = parseEnvFile(text);
+  const examplePath = join(targetDir, '.env.example');
+  const example = existsSync(examplePath) ? readFileSync(examplePath, 'utf8') : '';
+  const declared = new Set(
+    [
+      ...text.matchAll(/^\s*#\s*([A-Z][A-Z0-9_]*)\s*=/gm),
+      ...example.matchAll(/^\s*#?\s*([A-Z][A-Z0-9_]*)\s*=/gm),
+    ].map((match) => match[1]!),
+  );
+  const writable = [...values].filter(([name]) => declared.has(name) && !answered.has(name));
+  if (writable.length === 0) return [];
+  writeFileSync(envPath, writeEnvFile(text, new Map(writable)), 'utf8');
+  return writable.map(([name]) => name);
+}
+
+/** A storefront's `PORT`, appended to the `.env` its own resolution wrote. */
+function writeStorefrontPort(storefrontDir: string, port: number): void {
+  const envPath = join(storefrontDir, '.env');
+  const text = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+  const header = [
+    '',
+    `# PORT below was CHOSEN by \`endora install\`: ${String(STOREFRONT_DEFAULT_PORT)}, where Next serves by default, was`,
+    '# already in use on this machine when it ran. `pnpm run dev` and `pnpm run start` both',
+    '# read it from this file. NEXT_PUBLIC_SITE_URL above names the same port, and so does',
+    "# the API's allow-list — change one and change the others to match.",
+  ].join('\n');
+  writeFileSync(
+    envPath,
+    writeEnvFile(`${text.replace(/\n+$/, '')}\n${header}\n`, new Map([['PORT', String(port)]])),
+    'utf8',
+  );
 }
 
 /**
@@ -789,12 +1002,21 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       }),
   );
   let options: InstallOptions = given;
-  let provenance: {
+  let wizard: {
     readonly fromFlags: ReadonlyMap<QuestionId, string>;
     readonly prompted: readonly QuestionId[];
     readonly recommended: readonly QuestionId[];
-  };
+  } | null = null;
   if (interactive) {
+    // A selection the flags already got wrong is refused before the first
+    // question: nobody should answer seven of them to be told the first flag
+    // they typed named a component that does not exist.
+    const typed = resolveSelection(given.only, given.without ?? [], given.storefront);
+    if ('refusals' in typed) {
+      const early = new Refusals();
+      for (const sentence of typed.refusals) early.add(sentence);
+      early.throwIfAny();
+    }
     try {
       const outcome = await askWizard(
         given,
@@ -811,25 +1033,47 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
         },
       );
       options = { ...given, ...outcome.answers };
-      provenance = outcome;
+      wizard = outcome;
     } catch (error: unknown) {
       if (error instanceof WizardClosedError) throw new InstallInputError(error.message);
       throw error;
     }
-  } else {
-    // Nothing asked: every answer is a flag, and the two offered questions a
-    // flag did not answer take §6.2's recommendation — *everything*, *yes* —
-    // which is what Phase 3 already did and is now said out loud.
-    const fromFlags = answeredByFlags(given);
-    provenance = {
-      fromFlags,
-      prompted: [],
-      recommended: (['parts', 'services'] as const).filter((id) => !fromFlags.has(id)),
-    };
   }
 
   // ── decide ────────────────────────────────────────────────────────────────
   const refusals = new Refusals();
+  // What this run stands up (`specs/138-separate-components/`). Resolved first:
+  // which answers are owed, which flags answer nothing and whether an instance
+  // is written at all are each a function of it.
+  const resolved = resolveSelection(options.only, options.without ?? [], options.storefront);
+  const selection: Selection | null = 'refusals' in resolved ? null : resolved;
+  if ('refusals' in resolved) for (const sentence of resolved.refusals) refusals.add(sentence);
+  const has = (component: Component): boolean =>
+    selection !== null && selection.components.includes(component);
+  const standsUpApi = has('api');
+  const writesTree = selection?.writesTree ?? true;
+  const named = selection === null ? '' : `\`--only ${selection.components.join(',')}\``;
+
+  // R2.5f (iv) — where each answer came from, over the questions this
+  // selection has (FR-019). Nothing asked: every answer is a flag, and an
+  // offered question a flag did not answer takes its recommendation, which is
+  // what Phase 3 already did and is now said out loud.
+  const questions = installQuestions(selection ?? EVERYTHING);
+  const applicable = new Set(questionIdsFor(selection ?? EVERYTHING));
+  const fromFlags = new Map(
+    [...(wizard?.fromFlags ?? answeredByFlags(given))].filter(([id]) => applicable.has(id)),
+  );
+  const provenance = {
+    fromFlags,
+    prompted: (wizard?.prompted ?? []).filter((id) => applicable.has(id)),
+    recommended:
+      wizard === null
+        ? questions
+            .filter((question) => question.kind === 'offered' && !fromFlags.has(question.id))
+            .map((question) => question.id)
+        : wizard.recommended.filter((id) => applicable.has(id)),
+  };
+
   // A missing directory is one refusal among the others rather than the first
   // and only one: a run with no answers at all is told everything it owes in
   // one message (FR-157, R3.2), and the checks that need a directory are the
@@ -847,24 +1091,31 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
         'invent a name nobody chose.',
     );
   }
-  const wantsStorefront = options.storefront !== false;
-  const wantsServices = options.services !== false;
+  const wantsStorefront = selection?.storefront ?? false;
+  const wantsServices = standsUpApi && options.services !== false;
+  // FR-007 — the storefront alone has no instance to sit beside: `<dir>` is its
+  // own directory.
   const namedStorefrontDir =
     !wantsStorefront || namedDir === null
       ? null
-      : options.storefrontDir === undefined
-        ? `${namedDir}-storefront`
-        : isAbsolute(options.storefrontDir)
-          ? options.storefrontDir
-          : resolve(cwd, options.storefrontDir);
+      : !writesTree
+        ? namedDir
+        : options.storefrontDir === undefined
+          ? `${namedDir}-storefront`
+          : isAbsolute(options.storefrontDir)
+            ? options.storefrontDir
+            : resolve(cwd, options.storefrontDir);
 
-  const declinedRefusal = memberRefusal(options.without ?? []);
-  if (declinedRefusal !== null) refusals.add(declinedRefusal);
+  if (writesTree) {
+    const declinedRefusal = memberRefusal(selection?.without ?? options.without ?? []);
+    if (declinedRefusal !== null) refusals.add(declinedRefusal);
+  }
 
   const inTheWay = namedDir === null ? null : occupied(namedDir);
   if (inTheWay !== null) {
     refusals.add(
-      `${namedDir!} exists and is not empty (${inTheWay}). An instance's files are yours; ` +
+      `${namedDir!} exists and is not empty (${inTheWay}). ` +
+        `${writesTree ? "An instance's" : "A storefront's"} files are yours; ` +
         'this command never merges into a directory. Scaffold into an empty one — a ' +
         'directory holding nothing but a `.env` is the exception, and that file is read as ' +
         'your own answers.',
@@ -875,7 +1126,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   // be swept into its `pnpm-workspace.yaml` globs and become a member of a
   // workspace it is not part of, which is D-230's topology broken by a
   // directory choice.
-  if (namedStorefrontDir !== null && namedStorefrontDir.startsWith(namedDir! + sep)) {
+  if (writesTree && namedStorefrontDir !== null && namedStorefrontDir.startsWith(namedDir! + sep)) {
     refusals.add(
       `--storefront-dir ${namedStorefrontDir} is inside ${namedDir!}. The storefront is its own ` +
         "repository (D-195): written there it would be swept into the instance's workspace " +
@@ -883,7 +1134,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
         'instance — the default is `<dir>-storefront`.',
     );
   }
-  if (namedStorefrontDir !== null) {
+  if (writesTree && namedStorefrontDir !== null) {
     const storefrontInTheWay = occupied(namedStorefrontDir);
     if (storefrontInTheWay !== null) {
       refusals.add(
@@ -928,9 +1179,11 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     : null;
   if (noStorefront !== null) {
     refusals.add(
-      `the storefront cannot be written from here: ${noStorefront} Pass \`--no-storefront\` to ` +
-        'write the instance alone — the storefront can be added later with ' +
-        '`endora new storefront <dir>`.',
+      `the storefront cannot be written from here: ${noStorefront}` +
+        (writesTree
+          ? ' Pass `--no-storefront` to write the instance alone — the storefront can be added ' +
+            'later with `endora new storefront <dir>`.'
+          : ''),
     );
   }
 
@@ -940,37 +1193,159 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     firstName: options.adminFirstName,
     lastName: options.adminLastName,
   };
-  const missingAdmin = (
-    [
-      ['--admin-email', admin.email],
-      ['--admin-password', admin.password],
-      ['--admin-first-name', admin.firstName],
-      ['--admin-last-name', admin.lastName],
-    ] as const
-  ).filter(([, value]) => value === undefined || value.trim().length === 0);
-  if (missingAdmin.length > 0) {
-    // FR-159 — a generated password is not permitted: `generable` requires that
-    // two correct values are interchangeable, and a password the operator has
-    // to remember is not one of those.
-    refusals.add(
-      `the administrator is missing ${missingAdmin.map(([flag]) => flag).join(', ')}. ` +
-        'Nothing else creates one — a freshly migrated instance has no account at all — and ' +
-        'the password is never generated: it is the one value you have to remember.',
-    );
+  if (standsUpApi) {
+    const missingAdmin = (
+      [
+        ['--admin-email', admin.email],
+        ['--admin-password', admin.password],
+        ['--admin-first-name', admin.firstName],
+        ['--admin-last-name', admin.lastName],
+      ] as const
+    ).filter(([, value]) => value === undefined || value.trim().length === 0);
+    if (missingAdmin.length > 0) {
+      // FR-159 — a generated password is not permitted: `generable` requires that
+      // two correct values are interchangeable, and a password the operator has
+      // to remember is not one of those.
+      refusals.add(
+        `the administrator is missing ${missingAdmin.map(([flag]) => flag).join(', ')}. ` +
+          'Nothing else creates one — a freshly migrated instance has no account at all — and ' +
+          'the password is never generated: it is the one value you have to remember.',
+      );
+    }
+
+    if (options.demo === undefined) {
+      // FR-124 — required, by 125 PR-2 option (c) as ruled (D-269).
+      refusals.add(
+        'say whether to install demo data: `--demo` seeds every installed module\'s example ' +
+          'rows, `--no-demo` seeds none. There is deliberately no default — an instance you ' +
+          'are going to sell from wants none of it and one you are evaluating wants it before ' +
+          'the first screen, and picking for you would be picking wrong for one of them.',
+      );
+    }
   }
 
-  if (options.demo === undefined) {
-    // FR-124 — required, by 125 PR-2 option (c) as ruled (D-269).
-    refusals.add(
-      'say whether to install demo data: `--demo` seeds every installed module\'s example ' +
-        'rows, `--no-demo` seeds none. There is deliberately no default — an instance you ' +
-        'are going to sell from wants none of it and one you are evaluating wants it before ' +
-        'the first screen, and picking for you would be picking wrong for one of them.',
-    );
+  // ── the other machines (138 FR-011…FR-013) ───────────────────────────────
+  const originOf = (flag: string, value: string | undefined): string | undefined => {
+    if (value === undefined || value.trim().length === 0) return undefined;
+    const origin = parseOrigin(value);
+    if (origin === null) {
+      refusals.add(
+        `\`${flag} ${value}\` is not an origin: scheme and host, an optional port, no path — ` +
+          'as in `https://api.example.com` or `http://10.0.0.5:3001`.',
+      );
+      return undefined;
+    }
+    return origin;
+  };
+  const given138 = (value: string | undefined): boolean =>
+    value !== undefined && value.trim().length > 0;
+  const apiUrl = originOf('--api-url', options.apiUrl);
+  const adminUrl = originOf('--admin-url', options.adminUrl);
+  const storefrontUrl = originOf('--storefront-url', options.storefrontUrl);
+  const salesChannel = given138(options.salesChannel) ? options.salesChannel!.trim() : undefined;
+  if (selection !== null) {
+    if (!standsUpApi && !given138(options.apiUrl)) {
+      refusals.add(
+        '`--api-url` is required: this run does not stand the API up, so it has to be told ' +
+          'where the API is — its public origin, as in `https://api.example.com`. It is ' +
+          'written into what this run builds, and a wrong one is a rebuild.',
+      );
+    }
+    if (!standsUpApi && wantsStorefront) {
+      if (!given138(options.storefrontUrl)) {
+        refusals.add(
+          "`--storefront-url` is required: the storefront's own public origin, as in " +
+            '`https://shop.example.com`. Every canonical link, the sitemap and robots.txt are ' +
+            'built from it, and with the API on another machine nothing here can derive it.',
+        );
+      }
+      if (!given138(options.revalidateSecret)) {
+        refusals.add(
+          '`--revalidate-secret` is required: the `REVALIDATE_SECRET` the API\'s `.env` already ' +
+            'holds. A run that does not stand the API up never generates it — a second value ' +
+            'would be two halves of a pair that do not match, and neither side would say so.',
+        );
+      }
+    }
+
+    // D7 — a flag for a question the selection removed is refused rather than
+    // ignored: a flag that silently does nothing is the failure `--topology`
+    // already refuses.
+    const plural = (flags: readonly string[], one: string, many: string): string =>
+      `${flags.map((flag) => `\`${flag}\``).join(', ')} ${flags.length === 1 ? one : many}`;
+    if (!standsUpApi) {
+      const noApi = [
+        ...(options.demo === true ? ['--demo'] : options.demo === false ? ['--no-demo'] : []),
+        ...(options.services === false ? ['--no-services'] : []),
+        ...(given138(admin.email) ? ['--admin-email'] : []),
+        ...(given138(admin.password) ? ['--admin-password'] : []),
+        ...(given138(admin.firstName) ? ['--admin-first-name'] : []),
+        ...(given138(admin.lastName) ? ['--admin-last-name'] : []),
+        ...(given138(options.adminUrl) ? ['--admin-url'] : []),
+      ];
+      if (noApi.length > 0) {
+        refusals.add(
+          `${plural(noApi, 'answers', 'answer')} a question this run does not have: ${named} ` +
+            'stands up no API on this machine, so there is no database to seed, no account ' +
+            'to create, no development stack to start and no allow-list to write. Remove ' +
+            `${noApi.length === 1 ? 'it' : 'them'}, or add \`api\` to \`--only\`.`,
+        );
+      }
+    }
+    if (!writesTree) {
+      const noTree = [
+        ...((options.without ?? []).some((name) => name.trim().length > 0) ? ['--without'] : []),
+        ...((options.modules ?? []).some((name) => name.trim().length > 0) ? ['--module'] : []),
+        ...(options.deployment === undefined ? [] : ['--deployment']),
+        ...(options.topology === undefined ? [] : ['--topology']),
+      ];
+      if (noTree.length > 0) {
+        refusals.add(
+          `${plural(noTree, 'names', 'name')} something this run does not write: ${named} ` +
+            'writes the storefront alone, and no instance tree. Remove ' +
+            `${noTree.length === 1 ? 'it' : 'them'}, or add \`api\` or \`admin\` to \`--only\`.`,
+        );
+      }
+      if (options.storefrontDir !== undefined) {
+        refusals.add(
+          `\`--storefront-dir\` was given, and with ${named} the storefront goes to \`<dir>\` ` +
+            'itself — there is no instance for it to sit beside. Name the directory once.',
+        );
+      }
+    }
+    const noStorefrontHere = [
+      ...(!standsUpApi && !wantsStorefront && given138(options.storefrontUrl)
+        ? ['--storefront-url']
+        : []),
+      ...(!standsUpApi && !wantsStorefront && given138(options.salesChannel)
+        ? ['--sales-channel']
+        : []),
+      ...(!standsUpApi && !wantsStorefront && given138(options.revalidateSecret)
+        ? ['--revalidate-secret']
+        : []),
+    ];
+    if (noStorefrontHere.length > 0) {
+      refusals.add(
+        `${plural(noStorefrontHere, 'answers', 'answer')} a question this run does not have: ` +
+          `${named} writes no storefront and stands up no API, and those are the only two ` +
+          `that read ${noStorefrontHere.length === 1 ? 'it' : 'them'}. Remove ` +
+          `${noStorefrontHere.length === 1 ? 'it' : 'them'}, or add \`storefront\` to \`--only\`.`,
+      );
+    }
+    if (standsUpApi && given138(options.salesChannel)) {
+      refusals.add(
+        '`--sales-channel` answers a question this run does not have: the API this run stands ' +
+          'up creates its own default Sales Channel, and a storefront written beside it is ' +
+          'pointed at that one. To change the code, set `DEFAULT_SALES_CHANNEL_CODE` in a ' +
+          '`.env` placed in the target directory before the run.',
+      );
+    }
   }
 
   refusals.throwIfAny();
-  // Both are decided: a missing directory was a refusal above.
+  // All decided: a missing directory and a selection that is not one were
+  // refusals above.
+  const chosen = selection!;
   const targetDir = namedDir!;
   const storefrontDir = namedStorefrontDir;
   const runner = runners[0]!;
@@ -979,18 +1354,21 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
 
   // ── provision, only where nothing of ours resolves (D-271) ───────────────
   // Decided before anything is written, like every other input: an index this
-  // build cannot read, or a `--registry` that is not one, refuses here.
-  const hostStep = planHost({
-    cwd,
-    targetDir,
-    runner,
-    registry: options.registry,
-    releaseIndexFile: options.releaseIndexFile,
-  });
+  // build cannot read, or a `--registry` that is not one, refuses here. A run
+  // that writes no instance reads no module set, so it provisions nothing.
+  const hostStep = writesTree
+    ? planHost({
+        cwd,
+        targetDir,
+        runner,
+        registry: options.registry,
+        releaseIndexFile: options.releaseIndexFile,
+      })
+    : null;
 
   // ── write ─────────────────────────────────────────────────────────────────
   say(`endora install ${targetDir}${dryRun ? ' — dry run, nothing written' : ''}`);
-  const answers = answersLine(provenance);
+  const answers = answersLine(provenance, questions.length);
   say(`  ${answers}`);
   if (hostStep !== null) {
     const keptLine =
@@ -1011,7 +1389,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       );
     }
   }
-  const without = (options.without ?? []).filter((name) => name.trim().length > 0);
+  const without = chosen.without;
   const hostKept = (): void => {
     if (hostStep === null) return;
     say(
@@ -1038,7 +1416,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
         // composition joins it, so the seed step below wires the modules' rows
         // together rather than leaving them side by side (2026-10-01). It writes
         // no file — the decision still runs a command (FR-121).
-        ...(options.demo === true ? { demo: true } : {}),
+        ...(standsUpApi && options.demo === true ? { demo: true } : {}),
         dryRun: dry,
         // The host, when there is one, is only a place to look: every resolution
         // is `new instance`'s, unchanged (D-271 clause 1.1).
@@ -1058,24 +1436,41 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   // a `docker compose` failure two steps into an installed tree.
   const portInUse = options.portInUse ?? machinePortProbe();
   let ports: PortDecision = { chosen: new Map(), said: [], refusals: [] };
-  let instance: NewInstanceResult;
-  if (wantsServices) {
+  let instance: NewInstanceResult | null = null;
+  // An admin with no API beside it is the one artefact this run exists for
+  // (138 FR-006), so a release that cannot write the admin member is a refusal
+  // made on the plan — not a tree with a backend in it and nothing to build.
+  const adminAlone = writesTree && has('admin') && !standsUpApi;
+  if (writesTree && (wantsServices || adminAlone)) {
     const planned = await scaffold(true);
-    const document = planned.plan.files.find((file) => file.path === DEV_COMPOSE_PATH)?.content;
-    if (document !== undefined) {
-      ports = await decidePorts(document, readTargetEnv(targetDir), portInUse, join(targetDir, '.env'));
-    }
-    if (ports.refusals.length > 0) {
+    const refuseOnPlan = (heading: string, sentences: readonly string[]): never => {
       if (hostStep !== null) rmSync(hostStep.cwd, { recursive: true, force: true });
       throw new InstallInputError(
-        `\`endora install\` cannot start the development services — ` +
-          `${String(ports.refusals.length)} thing${ports.refusals.length === 1 ? '' : 's'} to settle first:\n` +
-          ports.refusals.map((sentence) => `  - ${sentence}`).join('\n') +
+        `${heading} — ${String(sentences.length)} thing${sentences.length === 1 ? '' : 's'} ` +
+          'to settle first:\n' +
+          sentences.map((sentence) => `  - ${sentence}`).join('\n') +
           `\n\nNothing was written and nothing was started.`,
       );
+    };
+    if (adminAlone && !planned.plan.members.includes('admin')) {
+      const why = planned.plan.omitted.find((omission) => omission.path.startsWith('admin'));
+      refuseOnPlan('`endora install` cannot build the admin', [
+        `${named} builds the admin bundle, and this release cannot write the admin member` +
+          `${why === undefined ? '' : `: ${why.reason}`}. Nothing else in this selection would ` +
+          'be stood up, so there is nothing to run.',
+      ]);
+    }
+    if (wantsServices) {
+      const document = planned.plan.files.find((file) => file.path === DEV_COMPOSE_PATH)?.content;
+      if (document !== undefined) {
+        ports = await decidePorts(document, readTargetEnv(targetDir), portInUse, join(targetDir, '.env'));
+      }
+      if (ports.refusals.length > 0) {
+        refuseOnPlan('`endora install` cannot start the development services', ports.refusals);
+      }
     }
     instance = dryRun ? planned : await scaffold(false);
-  } else {
+  } else if (writesTree) {
     instance = await scaffold(dryRun);
   }
   if (hostStep !== null) {
@@ -1085,15 +1480,54 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
         (dryRun ? ` — it was provisioned to read the module set; nothing was written to ${targetDir}` : ''),
     );
   }
-  say(
-    `  ${dryRun ? 'would write' : 'wrote'} ${String(instance.plan.files.length)} files across ` +
-      `${instance.plan.members.join(', ')} — ${instance.modules.ids.length} module(s)`,
-  );
-  say(`  ${instance.provenance}`);
+  if (instance !== null) {
+    say(
+      `  ${dryRun ? 'would write' : 'wrote'} ${String(instance.plan.files.length)} files across ` +
+        `${instance.plan.members.join(', ')} — ${instance.modules.ids.length} module(s)`,
+    );
+    say(`  ${instance.provenance}`);
+  }
 
-  // FR-153 — generated **once**, for two trees. See `revalidateSecret` above.
-  const secret = options.revalidateSecret ?? (dryRun ? '<generated on a real run>' : generateSecret());
-  const apiPort = apiPortOf(targetDir, instance);
+  // ── where each layer this run stands up is served ────────────────────────
+  // The API's port is the instance's own `PORT`. The admin's and the
+  // storefront's were constants (3002, 3000), and on a machine where either is
+  // taken the closing block named an address nothing could listen on.
+  const assigned = new Set<number>(ports.chosen.values());
+  const apiPort = instance === null ? API_DEFAULT_PORT : apiPortOf(targetDir, instance);
+  if (standsUpApi) assigned.add(Number(apiPort));
+  const adminHere = instance !== null && instance.plan.members.includes('admin');
+  const adminPort: LayerPort | null = adminHere
+    ? await decideLayerPort(
+        { name: 'the admin', fallback: ADMIN_DEFAULT_PORT, file: join(targetDir, 'admin', '.env') },
+        undefined,
+        portInUse,
+        assigned,
+      )
+    : null;
+  const storefrontPort: LayerPort | null =
+    storefrontDir === null
+      ? null
+      : await decideLayerPort(
+          { name: 'the storefront', fallback: STOREFRONT_DEFAULT_PORT, file: join(storefrontDir, '.env') },
+          readTargetEnv(storefrontDir).get('PORT'),
+          portInUse,
+          assigned,
+        );
+  // What a browser on this machine reaches each layer at, when nobody said
+  // otherwise: the development address, on the port just decided.
+  const apiOrigin = apiUrl ?? `http://localhost:${apiPort}`;
+  const adminOrigin = adminUrl ?? `http://localhost:${String(adminPort?.port ?? ADMIN_DEFAULT_PORT)}`;
+  const storefrontOrigin =
+    storefrontUrl ?? `http://localhost:${String(storefrontPort?.port ?? STOREFRONT_DEFAULT_PORT)}`;
+
+  // FR-153 — generated **once**, for two trees; and, since D-284 clause 3, by a
+  // run that stands the API up without the storefront, which is then the side
+  // the value originates on. A run without the API never generates it: the
+  // refusal above is what it gets instead.
+  const originatesSecret = standsUpApi && (storefrontDir !== null || chosen.subset);
+  const secret =
+    options.revalidateSecret ??
+    (originatesSecret ? (dryRun ? '<generated on a real run>' : generateSecret()) : undefined);
   let storefront: NewStorefrontResult | null = null;
   if (storefrontDir !== null) {
     storefront = await runNewStorefront({
@@ -1101,7 +1535,20 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       cwd,
       dryRun,
       nonInteractive: true,
-      inputs: storefrontInputs(instance, secret, apiPort),
+      // The registry the instance installs from is the one the storefront does:
+      // without it the sibling asked the public registry for packages only the
+      // named one holds.
+      ...(options.registry === undefined ? {} : { registry: options.registry }),
+      inputs: storefrontInputs({
+        instance,
+        secret,
+        apiOrigin,
+        // Its own server reaches an API on the same machine directly; one on
+        // another machine, at the origin it was given (FR-012).
+        backendOrigin: standsUpApi ? `http://localhost:${apiPort}` : apiOrigin,
+        siteOrigin: storefrontOrigin,
+        salesChannel,
+      }),
       ...(options.packagedReferenceDir === undefined
         ? {}
         : { packagedReferenceDir: options.packagedReferenceDir }),
@@ -1117,9 +1564,15 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       say(`    omitted ${omission.path} — ${omission.reason}`);
     }
     say(`  ${storefront.provenance}`);
+    if (!dryRun && storefrontPort?.moved === true && storefrontPort.said !== null) {
+      writeStorefrontPort(storefrontDir, storefrontPort.port);
+    }
   }
 
   for (const line of ports.said) say(`  ${dryRun ? 'on a real run: ' : ''}${line}`);
+  for (const layer of [adminPort, storefrontPort]) {
+    if (layer !== null && layer.said !== null) say(`  ${dryRun ? 'on a real run: ' : ''}${layer.said}`);
+  }
   if (!dryRun) writeChosenPorts(targetDir, ports.chosen);
   const derived =
     dryRun || !wantsServices
@@ -1132,19 +1585,59 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
         'the containers the next step starts, on this machine',
     );
   }
-  if (!dryRun && storefrontDir !== null && options.revalidateSecret === undefined) {
+
+  // ── the admin's own `.env` (138 FR-012, D5) ──────────────────────────────
+  // The origin the bundle is built against, when it is not the one compiled in:
+  // the one this run was told, or this instance's own `PORT` when that is not
+  // the default — an admin built for 3001 against an API on another port signs
+  // nobody in.
+  if (adminHere && !dryRun) {
+    const builtAgainst =
+      apiUrl ?? (standsUpApi && apiPort !== API_DEFAULT_PORT ? `http://localhost:${apiPort}` : undefined);
+    const wrote = writeAdminEnv(targetDir, {
+      apiOrigin: builtAgainst,
+      port: adminPort?.moved === true && adminPort.said !== null ? adminPort.port : undefined,
+    });
+    if (wrote.includes('VITE_API_BASE_URL')) {
+      say(
+        `  wrote VITE_API_BASE_URL=${builtAgainst!} into admin/.env — the API the admin bundle ` +
+          'is built against',
+      );
+    }
+  }
+
+  // ── the other machines, into the API's own `.env` (138 FR-014) ───────────
+  if (standsUpApi && !dryRun) {
+    const adminMoved = adminPort?.moved === true;
+    const storefrontMoved = storefrontPort?.moved === true;
+    const told = new Map<string, string>();
+    if (apiUrl !== undefined) told.set('PUBLIC_API_BASE_URL', apiUrl);
+    if (adminUrl !== undefined || adminMoved) told.set('ADMIN_BASE_URL', adminOrigin);
+    if (storefrontUrl !== undefined || storefrontMoved) told.set('STOREFRONT_BASE_URL', storefrontOrigin);
+    if (told.size > 0) told.set('CORS_ALLOWED_ORIGINS', `${adminOrigin},${storefrontOrigin}`);
+    const wrote = writeDeclared(targetDir, told);
+    if (wrote.length > 0) {
+      say(`  wrote into .env: ${wrote.join(', ')} — where this API and the other two are reached`);
+    }
+  }
+
+  if (!dryRun && standsUpApi && secret !== undefined) {
     writeSharedSecret(targetDir, secret);
-    say(
-      '  generated REVALIDATE_SECRET once and wrote it into both trees — the one value no ' +
-        'sequence of `endora new instance` and `endora new storefront` can agree on',
-    );
+    if (storefrontDir !== null && options.revalidateSecret === undefined) {
+      say(
+        '  generated REVALIDATE_SECRET once and wrote it into both trees — the one value no ' +
+          'sequence of `endora new instance` and `endora new storefront` can agree on',
+      );
+    }
   }
 
   // ── run ───────────────────────────────────────────────────────────────────
   const steps = plan({
-    targetDir,
+    targetDir: writesTree ? targetDir : null,
     storefrontDir,
     runner,
+    api: standsUpApi,
+    buildAdmin: adminAlone,
     services: wantsServices,
     demo: options.demo === true,
     admin,
@@ -1195,6 +1688,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     for (const line of closing({
       targetDir,
       storefrontDir,
+      selection: chosen,
       admin,
       instance,
       dryRun,
@@ -1204,7 +1698,13 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       passwordFromFlag: provenance.fromFlags.has('admin-password'),
       corepack: runner.command === 'corepack' ? runner : null,
       apiPort,
-      apiPortBusy: await portInUse(Number(apiPort)),
+      apiPortBusy: standsUpApi ? await portInUse(Number(apiPort)) : false,
+      apiOrigin,
+      adminOrigin,
+      storefrontOrigin,
+      adminPort,
+      storefrontPort,
+      secretInInstance: standsUpApi && storefrontDir === null && chosen.subset,
     })) {
       say(line);
     }
@@ -1213,6 +1713,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   return {
     targetDir,
     storefrontDir,
+    components: chosen.components,
     instance,
     storefront,
     steps,
@@ -1306,9 +1807,14 @@ export const PASSWORD_PLACEHOLDER = '<password>';
  * two paths two products.
  */
 function plan(input: {
-  readonly targetDir: string;
+  /** The instance's directory, or `null` when this run writes none (138 FR-007). */
+  readonly targetDir: string | null;
   readonly storefrontDir: string | null;
   readonly runner: PackageManagerRunner;
+  /** Whether this run stands the API up: without it, nothing touches a service. */
+  readonly api: boolean;
+  /** Whether the admin bundle is the artefact this run builds on its own. */
+  readonly buildAdmin: boolean;
   readonly services: boolean;
   readonly demo: boolean;
   readonly admin: {
@@ -1337,14 +1843,49 @@ function plan(input: {
     ...(stdin === undefined ? {} : { stdin }),
     ...(optional ? { optional: true } : {}),
   });
-  const steps: InstallStep[] = [
+  const steps: InstallStep[] = [];
+  const storefrontInstall = (): void => {
+    if (input.storefrontDir === null) return;
+    steps.push(
+      step(
+        'storefront-install',
+        input.storefrontDir,
+        ['install'],
+        'the storefront\'s own dependencies, in its own repository',
+      ),
+    );
+  };
+  // 138 FR-007 — the storefront alone: no instance, so no step of one.
+  if (input.targetDir === null) {
+    storefrontInstall();
+    return steps;
+  }
+  steps.push(
     step(
       'install',
       input.targetDir,
       ['install'],
       'the platform, the admin shell and every module you declared, from the registry',
     ),
-  ];
+  );
+  // 138 FR-006 — the admin without the API: one artefact, built from the
+  // installed workspace. `build:admin` is the root script and nothing else
+  // (contract §7 R7.4): it renders the screen registry from the packages the
+  // step above installed and runs Vite, and opens no connection to anything.
+  if (!input.api) {
+    if (input.buildAdmin) {
+      steps.push(
+        step(
+          'build-admin',
+          input.targetDir,
+          ['run', 'build:admin'],
+          'the admin bundle, built against the API origin in admin/.env — no database, no service',
+        ),
+      );
+    }
+    storefrontInstall();
+    return steps;
+  }
   if (input.services) {
     steps.push(
       step(
@@ -1408,16 +1949,7 @@ function plan(input: {
       ),
     );
   }
-  if (input.storefrontDir !== null) {
-    steps.push(
-      step(
-        'storefront-install',
-        input.storefrontDir,
-        ['install'],
-        'the storefront\'s own dependencies, in its own repository',
-      ),
-    );
-  }
+  storefrontInstall();
   return steps;
 }
 
@@ -1425,7 +1957,9 @@ function plan(input: {
 function closing(input: {
   readonly targetDir: string;
   readonly storefrontDir: string | null;
-  readonly instance: NewInstanceResult;
+  /** What this run stood up (138 FR-020): the block is about this machine. */
+  readonly selection: Selection;
+  readonly instance: NewInstanceResult | null;
   readonly dryRun: boolean;
   readonly demo: boolean;
   readonly admin: { readonly email?: string | undefined; readonly password?: string | undefined };
@@ -1439,7 +1973,18 @@ function closing(input: {
   readonly apiPort: string;
   /** Whether something on this machine already holds that port. */
   readonly apiPortBusy: boolean;
+  /** Where a browser reaches each of the three, as this run was told or decided. */
+  readonly apiOrigin: string;
+  readonly adminOrigin: string;
+  readonly storefrontOrigin: string;
+  /** Where the admin and the storefront are served on this machine, when they are. */
+  readonly adminPort: LayerPort | null;
+  readonly storefrontPort: LayerPort | null;
+  /** Whether this run wrote `REVALIDATE_SECRET` for a storefront on another machine. */
+  readonly secretInInstance: boolean;
 }): readonly string[] {
+  const has = (component: Component): boolean => input.selection.components.includes(component);
+  const api = has('api');
   const lines = ['', input.dryRun ? 'It would then be yours to start:' : 'Done. To start it:'];
   // Every command below has to run as printed. With `pnpm` on PATH that is
   // `pnpm`. Without it, this run reached the pinned pnpm through corepack and
@@ -1459,36 +2004,60 @@ function closing(input: {
         '`npx`, which comes with Node.)',
     );
   }
-  // One command first (`specs/136-open-source-publication/` GAP-7, FR-060):
-  // the supervisor over the per-layer commands below, which stay printed for
-  // the operator who wants a layer on its own. A storefront somewhere other
-  // than the default sibling is named, since `dev:all` looks for the default.
-  const defaultStorefront = `${input.targetDir}-storefront`;
-  const devAllArgs =
-    input.storefrontDir !== null && input.storefrontDir !== defaultStorefront
-      ? ` -- --storefront-dir ${input.storefrontDir}`
+  const adminHere = input.adminPort !== null;
+  // A port this run moved is named on the line that starts the layer: the
+  // address is the thing the operator opens next.
+  const adminAt =
+    input.adminPort !== null && (input.adminPort.moved || !api)
+      ? `, on http://localhost:${String(input.adminPort.port)}`
       : '';
-  const rootManifest = input.instance.plan.files.find((file) => file.path === 'package.json');
-  const rootScripts =
-    rootManifest === undefined
-      ? {}
-      : ((JSON.parse(rootManifest.content) as { scripts?: Record<string, unknown> }).scripts ?? {});
-  if (typeof rootScripts['dev:all'] === 'string') {
+  const shopAt =
+    input.storefrontPort !== null && (input.storefrontPort.moved || !api)
+      ? `, on http://localhost:${String(input.storefrontPort.port)}`
+      : '';
+  if (api) {
+    // One command first (`specs/136-open-source-publication/` GAP-7, FR-060):
+    // the supervisor over the per-layer commands below, which stay printed for
+    // the operator who wants a layer on its own. A storefront somewhere other
+    // than the default sibling is named, since `dev:all` looks for the default.
+    const defaultStorefront = `${input.targetDir}-storefront`;
+    const devAllArgs =
+      input.storefrontDir !== null && input.storefrontDir !== defaultStorefront
+        ? ` -- --storefront-dir ${input.storefrontDir}`
+        : '';
+    const rootManifest = input.instance?.plan.files.find((file) => file.path === 'package.json');
+    const rootScripts =
+      rootManifest === undefined
+        ? {}
+        : ((JSON.parse(rootManifest.content) as { scripts?: Record<string, unknown> }).scripts ?? {});
+    // The supervisor is over the layers on **this** machine: where the API is
+    // the only one (138), there is nothing for it to be one command over.
+    const layersHere = 1 + (adminHere ? 1 : 0) + (input.storefrontDir === null ? 0 : 1);
+    if (typeof rootScripts['dev:all'] === 'string' && (!input.selection.subset || layersHere > 1)) {
+      lines.push(
+        `  cd ${input.targetDir} && ${pnpm} run dev:all${devAllArgs}   # every layer, one terminal; Ctrl-C stops them`,
+        '',
+        'Or one layer at a time:',
+      );
+    }
     lines.push(
-      `  cd ${input.targetDir} && ${pnpm} run dev:all${devAllArgs}   # every layer, one terminal; Ctrl-C stops them`,
-      '',
-      'Or one layer at a time:',
+      `  cd ${input.targetDir} && ${pnpm} run start      # the API, on http://localhost:${input.apiPort}`,
     );
-  }
-  lines.push(
-    `  cd ${input.targetDir} && ${pnpm} run start      # the API, on http://localhost:${input.apiPort}`,
-  );
-  if (input.instance.plan.members.includes('admin')) {
-    lines.push(`  ${pnpm} run preview:admin                    # the admin bundle, in a second terminal`);
+    if (adminHere) {
+      lines.push(
+        `  ${pnpm} run preview:admin                    # the admin bundle, in a second terminal${adminAt}`,
+      );
+    }
+  } else if (adminHere) {
+    lines.push(
+      `  cd ${input.targetDir} && ${pnpm} run preview:admin   # the admin bundle${adminAt}`,
+      '  (admin/dist is the whole artefact: any static web server can serve it, answering ' +
+        'every path it does not hold with index.html)',
+    );
   }
   if (input.storefrontDir !== null) {
     lines.push(
-      `  cd ${input.storefrontDir} && ${pnpm} run build && ${pnpm} run start   # the shop`,
+      `  cd ${input.storefrontDir} && ${pnpm} run build && ${pnpm} run start   # the shop${shopAt}`,
     );
   }
   // Only a run that started the development services has a mail catcher to
@@ -1499,14 +2068,14 @@ function closing(input: {
     ? developmentMailUrl(
         existsSync(join(input.targetDir, DEV_COMPOSE_PATH))
           ? readFileSync(join(input.targetDir, DEV_COMPOSE_PATH), 'utf8')
-          : (input.instance.plan.files.find((file) => file.path === DEV_COMPOSE_PATH)?.content ?? ''),
+          : (input.instance?.plan.files.find((file) => file.path === DEV_COMPOSE_PATH)?.content ?? ''),
         readTargetEnv(input.targetDir),
       )
     : undefined;
   if (mail !== undefined) {
     lines.push(`  mail this instance sends is caught at ${mail} and leaves your machine never`);
   }
-  if (!input.services) {
+  if (api && !input.services) {
     lines.push(
       '  no development services were started (`--no-services`): the instance uses the ' +
         'PostgreSQL, Redis and other services its `.env` names',
@@ -1521,30 +2090,96 @@ function closing(input: {
           : ` and the same port in the two backend addresses in ${join(input.storefrontDir, '.env')}.`),
     );
   }
-  lines.push(
-    '',
-    `Sign in as ${input.admin.email ?? ''} with the password you ` +
-      `${input.passwordFromFlag ? 'passed on the command line' : 'entered above'}.`,
-    input.demo
-      ? `Demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`${pnpm} run cli demo reset\` withdraws it ` +
-        'and leaves your own rows alone.'
-      : `No demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`${pnpm} run cli demo seed\` adds a ` +
-        "shop's worth of it, and `demo reset` withdraws it again.",
-  );
+  if (api) {
+    lines.push(
+      '',
+      `Sign in as ${input.admin.email ?? ''} with the password you ` +
+        `${input.passwordFromFlag ? 'passed on the command line' : 'entered above'}.`,
+      input.demo
+        ? `Demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`${pnpm} run cli demo reset\` withdraws it ` +
+          'and leaves your own rows alone.'
+        : `No demo data ${input.dryRun ? 'would be' : 'was'} seeded. \`${pnpm} run cli demo seed\` adds a ` +
+          "shop's worth of it, and `demo reset` withdraws it again.",
+    );
+  }
   // D-270 — the module set is not a question and not an input, so it is not in
   // the `[answers]` or `[inputs]` line; it is a derived value, and the run says
   // what it derived and how to take any of it back. Off is non-destructive
   // (Constitution XVII), which is what makes "everything" the safe default.
-  if (input.instance.modules.defaulted) {
+  if (input.instance !== null && input.instance.modules.defaulted) {
     const count = input.instance.modules.ids.length;
+    if (api) {
+      lines.push(
+        '',
+        `${String(count)} module${count === 1 ? '' : 's'} ${input.dryRun ? 'would be' : 'were'} ` +
+          'installed, because no `--module` was given: every module of the open-source set ' +
+          'this run found, each switched on.',
+        'Switch any of them off in the admin under Modules (/platform/modules). Off keeps its ' +
+          'data, and switching it back on brings it back.',
+      );
+    } else {
+      // No API here, so nothing was installed into a database and nothing is
+      // "switched on": the tree declares the packages the bundle's screens come
+      // from, and which of them are on is the API's to say.
+      lines.push(
+        '',
+        `${String(count)} module package${count === 1 ? '' : 's'} ${input.dryRun ? 'would be' : 'were'} ` +
+          'declared, because no `--module` was given: every module of the open-source set ' +
+          'this run found. The bundle carries their screens; which of them are switched on ' +
+          'is decided at the API it talks to.',
+      );
+    }
+  }
+  // 138 FR-020 — what crosses a machine boundary, said once and under one
+  // heading. Each of the four is a fact nothing on this machine can check: the
+  // other side of it is somewhere else.
+  if (input.selection.subset) {
+    const instanceEnv = join(input.targetDir, '.env');
+    const elsewhere = COMPONENT_VOCABULARY.filter((component) => !has(component));
     lines.push(
       '',
-      `${String(count)} module${count === 1 ? '' : 's'} ${input.dryRun ? 'would be' : 'were'} ` +
-        'installed, because no `--module` was given: every module of the open-source set ' +
-        'this run found, each switched on.',
-      'Switch any of them off in the admin under Modules (/platform/modules). Off keeps its ' +
-        'data, and switching it back on brings it back.',
+      `What the other machines owe this one (${elsewhere.join(' and ')} ${
+        elsewhere.length === 1 ? 'is' : 'are'
+      } not here):`,
+      api
+        ? `  - CORS_ALLOWED_ORIGINS in ${instanceEnv} must contain the admin's and the ` +
+            "storefront's origins, exactly as a browser sends them — scheme, host, port, no " +
+            `trailing slash. This run ${input.dryRun ? 'would leave' : 'left'} it allowing ` +
+            `${input.adminOrigin} and ${input.storefrontOrigin}.`
+        : "  - the API's CORS_ALLOWED_ORIGINS must contain the admin's and the storefront's " +
+            'origins, exactly as a browser sends them — scheme, host, port, no trailing slash' +
+            `${[
+              ...(adminHere ? [` For this admin that is the address it is served at — ${input.adminOrigin} with the command above.`] : []),
+              ...(input.storefrontDir === null ? [] : [` For this storefront that is ${input.storefrontOrigin}.`]),
+            ].join('') || '.'}`,
+      '  - the admin bundle and the storefront\'s browser values are bound to the API origin at ' +
+        'build time (VITE_API_BASE_URL, NEXT_PUBLIC_API_BASE_URL), so a changed origin is a ' +
+        `rebuild, not a restart.${api ? '' : ` This run built against ${input.apiOrigin}.`}`,
+      '  - the three public origins must be same-site — one registrable domain, as in ' +
+        'api.example.com, admin.example.com and shop.example.com — because both session ' +
+        'cookies are host-only and SameSite=Lax. Nothing checks this for you.',
+      adminHere
+        ? '  - this admin shows the screens of the modules this tree installed, so this tree ' +
+            'must declare the module set the API composes: the same release, and the same ' +
+            '`--module` list if the API was given one.'
+        : '  - an admin built on another machine shows the screens of the modules its own tree ' +
+            'installed, so that tree must declare the module set the API composes: the same ' +
+            'release, and the same `--module` list.',
     );
+    if (input.secretInInstance) {
+      lines.push(
+        `  - REVALIDATE_SECRET is in ${instanceEnv}. The storefront's run must be given the same ` +
+          'value (`--revalidate-secret`); it is not printed here. Set STOREFRONT_BASE_URL there ' +
+          'to the storefront\'s origin too, or the API has nowhere to send a revalidation.',
+      );
+    }
+    if (!api && input.storefrontDir !== null) {
+      lines.push(
+        `  - the API's STOREFRONT_BASE_URL must be ${input.storefrontOrigin}, and its ` +
+          'REVALIDATE_SECRET the value this run was given: that pair is how it asks this ' +
+          'storefront to refresh a cached page.',
+      );
+    }
   }
   // R2.5f (iv) — every answer taken as a recommendation, said to be one, with
   // what reverses it. A recommendation nobody is told they accepted is a
@@ -1554,6 +2189,22 @@ function closing(input: {
     parts:
       'every part this build can write — `--without <member>` and `--no-storefront` leave one ' +
       'out of the next install',
+    'api-url': api
+      ? `this API's public origin, left as its development address — \`--api-url\`, or ` +
+        `PUBLIC_API_BASE_URL in ${join(input.targetDir, '.env')}`
+      : null,
+    'admin-url':
+      `the admin's origin, left as ${input.adminOrigin} in the API's allow-list — ` +
+      '`--admin-url`, or CORS_ALLOWED_ORIGINS in the same file',
+    'storefront-url':
+      `the storefront's origin, left as ${input.storefrontOrigin} — \`--storefront-url\`, or ` +
+      'STOREFRONT_BASE_URL and CORS_ALLOWED_ORIGINS in the same file',
+    'sales-channel':
+      input.storefrontDir === null
+        ? null
+        : 'the sales channel `default` — `--sales-channel`, or NEXT_PUBLIC_SALES_CHANNEL_CODE in ' +
+          join(input.storefrontDir, '.env'),
+    'revalidate-secret': null,
     services: input.services
       ? `the development services, started — \`${pnpm} run dev:services:down\` stops them`
       : null,

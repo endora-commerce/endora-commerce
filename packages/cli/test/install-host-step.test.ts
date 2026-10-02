@@ -147,7 +147,7 @@ describe('D-271 — a host is provisioned exactly when the platform does not res
     expect(observed.targetExistedAtHostStep).toBe(false);
     // …and the instance was written afterwards, from the host's packages.
     expect(existsSync(join(target, 'package.json'))).toBe(true);
-    expect(result.instance.modules.ids).toEqual(['admin_users', 'settings']);
+    expect(result.instance!.modules.ids).toEqual(['admin_users', 'settings']);
 
     const hostStep = observed.steps[0]!;
     // Under the OS temp directory, and neither inside nor above the target.
@@ -248,7 +248,7 @@ describe('D-271 — a host is provisioned exactly when the platform does not res
     expect(text).toContain(observed.steps[0]!.cwd);
     expect(text).toMatch(/removed/i);
     // The module set was derived from the host — the reason the dry run needs it.
-    expect(result.instance.modules.ids).toEqual(['admin_users', 'settings']);
+    expect(result.instance!.modules.ids).toEqual(['admin_users', 'settings']);
   });
 
   it('when the platform resolves beside the target, no host step is planned and no index is read', async () => {

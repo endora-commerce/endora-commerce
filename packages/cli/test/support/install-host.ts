@@ -41,7 +41,7 @@ function input(
 }
 
 /** The packages an install leaves beside the target, as `pnpm add` writes them. */
-export function installFixture(root: string): void {
+export function installFixture(root: string, fixture: { readonly admin?: boolean } = {}): void {
   const scopeDir = join(root, 'node_modules', '@endora-commerce');
   const write = (name: string, manifest: unknown, source: string): void => {
     const dir = join(scopeDir, name);
@@ -79,6 +79,38 @@ export function installFixture(root: string): void {
       input('SESSION_COOKIE_SECRET', { kind: 'required' }, { secret: true, generable: true }),
     ])};\n`,
   );
+  if (fixture.admin === true) {
+    // The admin shell and the design system (`instance-tree.md` §2.4): with both
+    // resolved the instance gets its admin member, which `--only admin` builds.
+    write(
+      'admin-shell',
+      {
+        name: '@endora-commerce/admin-shell',
+        version: '4.5.6',
+        type: 'module',
+        exports: { '.': { default: './manifest.js' } },
+        peerDependencies: {
+          react: '^19.0.0',
+          'react-dom': '^19.0.0',
+          vite: '^7.3.2',
+          '@vitejs/plugin-react': '^5.2.0',
+          tailwindcss: '^4.2.4',
+          '@tailwindcss/vite': '^4.2.4',
+        },
+      },
+      'export {};\n',
+    );
+    write(
+      'admin-kit',
+      {
+        name: '@endora-commerce/admin-kit',
+        version: '4.5.6',
+        type: 'module',
+        exports: { '.': { default: './manifest.js' } },
+      },
+      'export {};\n',
+    );
+  }
   write(
     'mod-settings',
     {
@@ -117,9 +149,9 @@ export function installFixture(root: string): void {
 }
 
 /** A host directory: an install of ours, and nothing else. */
-export function host(): string {
+export function host(fixture: Parameters<typeof installFixture>[1] = {}): string {
   const root = temp('endora-install-');
-  installFixture(root);
+  installFixture(root, fixture);
   return root;
 }
 
