@@ -85,7 +85,6 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:net';
@@ -345,18 +344,19 @@ async function presenceBecomes(
   }
 }
 
-/** Temporary hosts `endora install` left in the temp directory since `since`. */
-function hostsLeftBehind(since: number): readonly string[] {
-  return readdirSync(tmpdir())
-    .filter((entry) => entry.startsWith(HOST_PREFIX))
-    .map((entry) => join(tmpdir(), entry))
-    .filter((path) => {
-      try {
-        return statSync(path).mtimeMs >= since;
-      } catch {
-        return false;
-      }
-    });
+/**
+ * The temporary hosts **this run's** one-shot provisioned that are still there.
+ *
+ * Read off the one-shot's own `[host] … # in <path>` line rather than by
+ * scanning the temp directory for anything recent: the temp directory is shared,
+ * and a second acceptance run on the same machine has a host of its own there
+ * for minutes at a time. Scanned, that host was reported as this run's leftover
+ * — measured, with this run's own host named as removed in the same output.
+ */
+function hostsLeftBehind(output: string): readonly string[] {
+  return [...output.matchAll(/^\[host\] .*# in (\S+)\s*$/gm)]
+    .map((match) => match[1]!)
+    .filter((path) => path.includes(HOST_PREFIX) && existsSync(path));
 }
 
 async function main(): Promise<number> {
@@ -437,7 +437,6 @@ async function main(): Promise<number> {
   let target = '';
   const verdicts: Verdict[] = [];
   const notes: string[] = [];
-  const started = Date.now();
   try {
     registry = await startLocalRegistry({ tarballs, upstream: UPSTREAM });
     notes.push(`registry ${registry.url}: ${String(tarballs.length)} local tarballs, everything else from ${UPSTREAM}`);
@@ -541,7 +540,7 @@ async function main(): Promise<number> {
       status: install.output.includes('no `--module` was given') && declared.length > 0 ? 'pass' : install.code === 0 ? 'fail' : 'unmeasured',
       detail: `${String(declared.length)} module packages declared`,
     });
-    const left = hostsLeftBehind(started);
+    const left = hostsLeftBehind(install.output);
     verdicts.push({
       id: 'L5',
       title: 'the temporary host is gone after a successful run',
