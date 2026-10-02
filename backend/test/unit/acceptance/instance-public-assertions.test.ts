@@ -394,26 +394,48 @@ describe('P1 — an administrator logs in', () => {
 });
 
 describe('P2 — with `--demo`, the storefront renders a catalogue', () => {
-  it('is unmeasured while the one-shot writes no storefront outside a checkout, naming why', () => {
-    const result = evaluateStorefront({ written: false });
-    expect(result.state).toBe('unmeasured');
-    expect(result.detail).toMatch(/cli-product\.md/);
+  const RAN = { installed: true, started: true, written: true } as const;
+
+  it('the one-shot is typed without `--no-storefront`: a stranger no longer has to', () => {
+    const command = oneShotCommand({
+      packageName: 'create-endora-commerce',
+      version: '0.101.0',
+      dir: 'shop',
+      admin: { email: 'owner@example.com', password: 'pw', firstName: 'Ada', lastName: 'L' },
+    });
+    expect(command).not.toContain('--no-storefront');
+    expect(command).toContain('--demo');
+  });
+
+  it('a one-shot that exited 0 and wrote no storefront is a failure, not an unmeasured', () => {
+    // It was `unmeasured` while the CLI refused the storefront outside a
+    // checkout. The command is now typed without the flag that skips it, so
+    // nothing written is the product doing less than it was asked.
+    const result = evaluateStorefront({ ...RAN, written: false });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toMatch(/wrote no storefront/);
+  });
+
+  it('is unmeasured when the one-shot failed or nothing started — P1 carries that', () => {
+    expect(evaluateStorefront({ ...RAN, installed: false }).state).toBe('unmeasured');
+    expect(evaluateStorefront({ ...RAN, started: false }).state).toBe('unmeasured');
   });
 
   it('passes when the catalogue answers 200 and links a product', () => {
     expect(
-      evaluateStorefront({ written: true, status: 200, html: '<a href="/p/blue-chair">' }).state,
+      evaluateStorefront({ ...RAN, status: 200, html: '<a href="/p/blue-chair">' }).state,
     ).toBe('pass');
   });
 
   it('fails on a catalogue with no product in it — a demo that seeded nothing', () => {
     expect(
-      evaluateStorefront({ written: true, status: 200, html: '<main>No products</main>' }).state,
+      evaluateStorefront({ ...RAN, status: 200, html: '<main>No products</main>' }).state,
     ).toBe('fail');
   });
 
   it('fails on a storefront that did not answer', () => {
-    expect(evaluateStorefront({ written: true, status: 500, html: '' }).state).toBe('fail');
+    expect(evaluateStorefront({ ...RAN, status: 500, html: '' }).state).toBe('fail');
+    expect(evaluateStorefront({ ...RAN, status: null }).state).toBe('fail');
   });
 });
 

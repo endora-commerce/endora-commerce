@@ -20,6 +20,8 @@
  * uses, so nothing here runs a package manager.
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
@@ -38,11 +40,23 @@ import { runNewInstance } from '../src/new-instance/index.js';
 import { MEMBER_VOCABULARY } from '../src/new-instance/template.js';
 import { main } from '../src/bin/endora.js';
 
-import { ADMIN, cleanScratch, host } from './support/install-host.js';
+import { writePackagedReference } from '../src/new-storefront/packaged.js';
+
+import { ADMIN, cleanScratch, host, temp } from './support/install-host.js';
 
 afterEach(cleanScratch);
 
 const PACKAGE_ROOT = fileURLToPath(new URL('..', import.meta.url));
+
+/** No port on this machine is taken — what a hermetic case answers the probe with. */
+const NO_PORT_TAKEN = async (): Promise<boolean> => false;
+
+/**
+ * A directory holding no packaged reference storefront, so the checklist's
+ * storefront row is what this file's cases were written against rather than
+ * whatever this checkout's last build left in `dist`.
+ */
+const NO_PACKAGED_REFERENCE = join(tmpdir(), 'endora-no-packaged-reference-here');
 
 /** Both descriptors terminals, nothing suppressing the questions. */
 const AT_A_TERMINAL = {
@@ -171,6 +185,8 @@ describe('T4-B / SC-107 — the question set is the flag set, and both reach one
     const wizard = await runInstall({
       cwd: wizardRoot,
       interactivity: AT_A_TERMINAL,
+      portInUse: NO_PORT_TAKEN,
+      packagedReferenceDir: NO_PACKAGED_REFERENCE,
       io,
       dockerReachable: true,
       run: recorder().run,
@@ -248,6 +264,8 @@ describe('T4-E / SC-108 — everything checked passes no `--without` at all', ()
     const wizard = await runInstall({
       cwd: wizardRoot,
       interactivity: AT_A_TERMINAL,
+      portInUse: NO_PORT_TAKEN,
+      packagedReferenceDir: NO_PACKAGED_REFERENCE,
       io,
       run: recorder().run,
     });
@@ -315,6 +333,8 @@ describe('T4-H / FR-149 — a `.env` already in the target answers its inputs', 
       dir: 'acme-shop',
       cwd: root,
       interactivity: AT_A_TERMINAL,
+      portInUse: NO_PORT_TAKEN,
+      packagedReferenceDir: NO_PACKAGED_REFERENCE,
       io,
       run: recorder().run,
     });
@@ -346,6 +366,8 @@ describe('R2.5f (iv) — an Enter answer is a recommendation, counted and revers
     const result = await runInstall({
       cwd: root,
       interactivity: AT_A_TERMINAL,
+      portInUse: NO_PORT_TAKEN,
+      packagedReferenceDir: NO_PACKAGED_REFERENCE,
       io,
       dockerReachable: true,
       run,
@@ -375,7 +397,14 @@ describe('the closing block says where the password came from', () => {
   it('typed at the prompt: it does not claim the command line', async () => {
     const root = host();
     const { io } = terminal(['acme-shop', '', 'n', 'n', ...Object.values(ADMIN)]);
-    const result = await runInstall({ cwd: root, interactivity: AT_A_TERMINAL, io, run: recorder().run });
+    const result = await runInstall({
+      cwd: root,
+      interactivity: AT_A_TERMINAL,
+      portInUse: NO_PORT_TAKEN,
+      packagedReferenceDir: NO_PACKAGED_REFERENCE,
+      io,
+      run: recorder().run,
+    });
     const text = result.output.join('\n');
     expect(text).not.toContain('passed on the command line');
     expect(text).toContain('with the password you entered above');
@@ -387,11 +416,96 @@ describe('the closing block says where the password came from', () => {
     const result = await runInstall({
       cwd: root,
       interactivity: AT_A_TERMINAL,
+      portInUse: NO_PORT_TAKEN,
+      packagedReferenceDir: NO_PACKAGED_REFERENCE,
       io,
       adminPassword: ADMIN.adminPassword,
       run: recorder().run,
     });
     expect(result.output.join('\n')).toContain('with the password you passed on the command line');
+  });
+});
+
+describe('the storefront row, outside a checkout', () => {
+  /** A packaged reference, built from a one-page checkout the way the package's build does it. */
+  async function packagedReference(): Promise<string> {
+    const checkout = temp('endora-wizard-checkout-');
+    writeFileSync(join(checkout, 'pnpm-workspace.yaml'), 'packages:\n  - shop\n');
+    writeFileSync(
+      join(checkout, 'package.json'),
+      JSON.stringify({ name: 'fixture-root', private: true, packageManager: 'pnpm@9.15.0' }),
+    );
+    mkdirSync(join(checkout, 'shop', 'app'), { recursive: true });
+    writeFileSync(
+      join(checkout, 'shop', 'package.json'),
+      JSON.stringify({
+        name: 'shop',
+        version: '0.0.0',
+        private: true,
+        scripts: { build: 'next build' },
+        dependencies: { next: '^15.0.0' },
+      }),
+    );
+    writeFileSync(join(checkout, 'shop', 'app', 'page.tsx'), 'export default () => null;\n');
+    writeFileSync(
+      join(checkout, 'shop', 'environment-inputs.mjs'),
+      `export const STOREFRONT_ENVIRONMENT_INPUTS = [{
+  name: 'NEXT_PUBLIC_API_BASE_URL',
+  describes: { en: 'the backend address.', pl: 'adres backendu.' },
+  requirement: { kind: 'required' },
+  secret: false,
+  generable: false,
+  owner: { kind: 'application', application: 'storefront' },
+  consumers: ['storefront'],
+  addressOf: 'backend',
+}];\n`,
+    );
+    for (const args of [
+      ['init', '-q'],
+      ['add', '-A'],
+      ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'fixture'],
+    ]) {
+      const result = spawnSync('git', args, { cwd: checkout, encoding: 'utf8' });
+      if (result.error) throw new Error(`git ${args.join(' ')}: ${result.error.message}`);
+      if (result.status !== 0) throw new Error(`git ${args.join(' ')}: ${result.stderr}`);
+    }
+    const cli = join(checkout, 'cli');
+    mkdirSync(cli);
+    writeFileSync(join(cli, 'package.json'), JSON.stringify({ name: '@x/cli', version: '9.9.9' }));
+    const out = join(temp('endora-wizard-packaged-'), 'storefront-reference');
+    expect((await writePackagedReference(cli, out)).written).toBe(true);
+    return out;
+  }
+
+  it('a CLI that carries the reference offers it as a toggleable, pre-checked row, and Enter writes it', async () => {
+    const root = host();
+    const { io, screen } = terminal(['acme-shop', '', 'n', 'n', ...Object.values(ADMIN)]);
+    const result = await runInstall({
+      cwd: root,
+      interactivity: AT_A_TERMINAL,
+      portInUse: NO_PORT_TAKEN,
+      packagedReferenceDir: await packagedReference(),
+      io,
+      run: recorder().run,
+    });
+    expect(screen()).toMatch(/^\s+\d+\. \[x\] storefront — /m);
+    expect(result.storefrontDir).toBe(join(root, 'acme-shop-storefront'));
+    expect(existsSync(join(root, 'acme-shop-storefront', 'app', 'page.tsx'))).toBe(true);
+  });
+
+  it('a CLI that carries none shows the row fixed and unchecked, with the reason', async () => {
+    const root = host();
+    const { io, screen } = terminal(['acme-shop', '', 'n', 'n', ...Object.values(ADMIN)]);
+    const result = await runInstall({
+      cwd: root,
+      interactivity: AT_A_TERMINAL,
+      portInUse: NO_PORT_TAKEN,
+      packagedReferenceDir: NO_PACKAGED_REFERENCE,
+      io,
+      run: recorder().run,
+    });
+    expect(screen()).toMatch(/^\s+\[ \] storefront — .*carries no reference storefront/m);
+    expect(result.storefrontDir).toBeNull();
   });
 });
 

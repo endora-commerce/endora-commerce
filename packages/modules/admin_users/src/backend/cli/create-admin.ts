@@ -9,6 +9,10 @@
  *     --last-name=Admin
  *
  * Optional:
+ *   --password-stdin            (read the password from standard input instead
+ *                                of `--password=`: an argument is visible in a
+ *                                process list, in a package manager's echo of
+ *                                the script it runs, and in shell history)
  *   --role=platform_admin       (default — full wildcard permissions)
  *   --role=order_manager        (must already exist in admin_roles)
  *   --skip-role-bootstrap       (don't auto-create platform_admin if missing)
@@ -59,7 +63,23 @@ interface CreateAdminCradle {
   readonly emFactory: () => EntityManager;
 }
 
-export function parseArgs(argv: readonly string[]): ParsedArgs | { error: string } {
+/** The flag that takes the password from standard input. */
+export const PASSWORD_STDIN_FLAG = '--password-stdin';
+
+/** Whether `argv` asks for the password on standard input. */
+export function wantsPasswordFromStdin(argv: readonly string[]): boolean {
+  return argv.includes(PASSWORD_STDIN_FLAG);
+}
+
+/**
+ * @param stdinPassword what standard input held, when `--password-stdin` was
+ *   given. It takes the place of `--password=`; giving both is refused rather
+ *   than resolved by a precedence nobody could guess.
+ */
+export function parseArgs(
+  argv: readonly string[],
+  stdinPassword?: string | undefined,
+): ParsedArgs | { error: string } {
   const map = new Map<string, string>();
   let skipRoleBootstrap = false;
   for (const arg of argv) {
@@ -67,10 +87,20 @@ export function parseArgs(argv: readonly string[]): ParsedArgs | { error: string
       skipRoleBootstrap = true;
       continue;
     }
+    if (arg === PASSWORD_STDIN_FLAG) continue;
     if (!arg.startsWith('--')) continue;
     const eq = arg.indexOf('=');
     if (eq === -1) continue;
     map.set(arg.slice(2, eq), arg.slice(eq + 1));
+  }
+  if (wantsPasswordFromStdin(argv)) {
+    if (map.has('password')) {
+      return { error: `Give the password once: --password=... or ${PASSWORD_STDIN_FLAG}, not both.` };
+    }
+    if (!stdinPassword?.trim()) {
+      return { error: `${PASSWORD_STDIN_FLAG} was given and standard input held no password.` };
+    }
+    map.set('password', stdinPassword);
   }
   for (const key of ['email', 'password', 'first-name', 'last-name']) {
     if (!map.get(key)?.trim()) return { error: `Missing required flag: --${key}=...` };
@@ -87,19 +117,26 @@ export function parseArgs(argv: readonly string[]): ParsedArgs | { error: string
   };
 }
 
-export async function createAdmin({
-  ctx,
-  argv,
-  out,
-  err,
-}: ModuleCliCommandContext<ModuleContext>): Promise<number> {
+/** Everything on standard input, without the line ending a `printf`/`echo` adds. */
+async function readStandardInput(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : (chunk as Buffer));
+  }
+  return Buffer.concat(chunks).toString('utf8').replace(/\r?\n$/, '');
+}
+
+export async function createAdmin(
+  { ctx, argv, out, err }: ModuleCliCommandContext<ModuleContext>,
+  readPassword: () => Promise<string> = readStandardInput,
+): Promise<number> {
   // command-coverage-ignore: the bootstrap CLI that mints the first
   // administrator. It runs with shell access to the deployment and, by
   // construction, before any Admin User exists — so there is no acting
   // principal for the Command Bus to attribute the write to. Every subsequent
   // admin-user write goes through the audited admin_users surface; this one
   // exists so that surface has somebody to sign in to it.
-  const args = parseArgs(argv);
+  const args = parseArgs(argv, wantsPasswordFromStdin(argv) ? await readPassword() : undefined);
   if ('error' in args) {
     err(args.error);
     return 1;

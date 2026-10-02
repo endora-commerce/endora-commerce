@@ -31,10 +31,12 @@
 #
 # The harness prints one line per assertion, P1 … P5, and exits 0 met, 1
 # measured and red, 2 could not be measured. P2 (the storefront renders a
-# catalogue) is unmeasured for as long as `endora install` refuses the
-# storefront outside a checkout of the platform repository
-# (`specs/110-instance-repository/contracts/cli-product.md` R3.1c), so a run
-# that is otherwise green exits 2 until that changes.
+# catalogue) is measured: the CLI carries the reference storefront its build
+# packaged, so the one-shot is typed without `--no-storefront`, writes the shop
+# beside the instance, and the command it prints starts it. Against a published
+# version older than that change the one-shot refuses the storefront, which
+# reads here as P1 failing — the gap
+# `specs/110-instance-repository/contracts/cli-product.md` R3.1c recorded.
 #
 # ## If this workflow is missing from the Actions tab
 #

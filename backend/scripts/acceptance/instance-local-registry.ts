@@ -31,6 +31,14 @@
  * deployment contributed the orchestrator itself, and every fixture handed the
  * orchestrator one shared `EntityManager`.
  *
+ * And, since the CLI carries the reference storefront
+ * (`packages/cli/src/new-storefront/packaged.ts`), it judges whether the
+ * **storefront** the one-shot wrote beside the instance installs, builds,
+ * starts and renders a demo product against that instance's API. That last
+ * part is `public` mode's P2, measured here before anything is published: the
+ * one-shot is typed with `--demo` and **without** `--no-storefront`, from a
+ * directory with no checkout above it.
+ *
  * ## Why it exists beside `tarball`, `registry` and `public`
  *
  * It is the only mode that **provisions nothing itself**. `instance.ts`
@@ -43,18 +51,26 @@
  *
  * ## What it asks of the machine
  *
- * `ACCEPTANCE_DATABASE_URL` naming a **disposable** database (the name must
- * contain `test`; it is dropped and re-created) and `REDIS_URL`, both explicit —
- * there is no default, because the default would be somebody's development
- * database. The instance's development services are not started
- * (`--no-services`): the addresses go into the target's `.env` before the run,
- * the one file a stranger may place there, so the run never binds the ports a
- * development stack on the same machine already holds. `pnpm run
- * build:packages` must have run.
+ * One of two things, and the choice is the caller's:
+ *
+ *   * **default** — `ACCEPTANCE_DATABASE_URL` naming a **disposable** database
+ *     (the name must contain `test`; it is dropped and re-created) and
+ *     `REDIS_URL`, both explicit: there is no default, because the default
+ *     would be somebody's development database. The instance's development
+ *     services are not started (`--no-services`); the addresses go into the
+ *     target's `.env` before the run, the one file a stranger may place there.
+ *   * **`--services`** — nothing but a Docker daemon. The one-shot starts its
+ *     own development stack, exactly as a stranger's run does, on whichever
+ *     host ports are free (`endora install` moves a taken one and says so), in
+ *     a Compose project named after a directory unique to this run; the stack
+ *     is taken down with its volumes afterwards.
+ *
+ * `pnpm run build:packages` must have run, in a git checkout: the CLI's build
+ * is what packages the reference storefront.
  *
  * Usage: `pnpm --filter backend exec tsx scripts/acceptance/instance-local-registry.ts
- * [--package create-endora-commerce] [--keep]`. Exit **0** met, **1** measured
- * and red, **2** could not be measured.
+ * [--package create-endora-commerce] [--services] [--no-storefront] [--keep]`.
+ * Exit **0** met, **1** measured and red, **2** could not be measured.
  */
 
 /* eslint-disable no-console -- CLI: stdout is the interface. */
@@ -69,7 +85,6 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from 'node:fs';
 import { createServer } from 'node:net';
@@ -92,6 +107,7 @@ const HEALTH_PATH = '/api/v1/_health';
 const LOGIN_PATH = '/api/v1/auth/admin/login';
 const INSTALL_TIMEOUT_MS = 60 * 60_000;
 const BOOT_TIMEOUT_MS = 5 * 60_000;
+const STOREFRONT_BUILD_TIMEOUT_MS = 20 * 60_000;
 const STEP_TIMEOUT_MS = 10 * 60_000;
 /** The overlay module the run scaffolds into the instance it created. */
 const OVERLAY_MODULE_ID = 'proof_notice';
@@ -328,33 +344,53 @@ async function presenceBecomes(
   }
 }
 
-/** Temporary hosts `endora install` left in the temp directory since `since`. */
-function hostsLeftBehind(since: number): readonly string[] {
-  return readdirSync(tmpdir())
-    .filter((entry) => entry.startsWith(HOST_PREFIX))
-    .map((entry) => join(tmpdir(), entry))
-    .filter((path) => {
-      try {
-        return statSync(path).mtimeMs >= since;
-      } catch {
-        return false;
-      }
-    });
+/**
+ * The temporary hosts **this run's** one-shot provisioned that are still there.
+ *
+ * Read off the one-shot's own `[host] … # in <path>` line rather than by
+ * scanning the temp directory for anything recent: the temp directory is shared,
+ * and a second acceptance run on the same machine has a host of its own there
+ * for minutes at a time. Scanned, that host was reported as this run's leftover
+ * — measured, with this run's own host named as removed in the same output.
+ */
+function hostsLeftBehind(output: string): readonly string[] {
+  return [...output.matchAll(/^\[host\] .*# in (\S+)\s*$/gm)]
+    .map((match) => match[1]!)
+    .filter((path) => path.includes(HOST_PREFIX) && existsSync(path));
 }
 
 async function main(): Promise<number> {
   const { values } = parseArgs({
-    options: { package: { type: 'string' }, keep: { type: 'boolean' } },
+    options: {
+      package: { type: 'string' },
+      keep: { type: 'boolean' },
+      services: { type: 'boolean' },
+      'no-storefront': { type: 'boolean' },
+    },
   });
   const packageName = (values.package ?? 'create-endora-commerce').trim();
-  const dsn = (process.env['ACCEPTANCE_DATABASE_URL'] ?? '').trim();
-  if (dsn.length === 0) {
-    refuse('ACCEPTANCE_DATABASE_URL is required and has no default: the database it names is dropped.');
+  const withServices = values.services === true;
+  const withStorefront = values['no-storefront'] !== true;
+  let database: { adminUrl: string; databaseName: string; databaseUrl: string } | null = null;
+  let redisUrl = '';
+  if (withServices) {
+    if (spawnSync('docker', ['info', '--format', '{{.ServerVersion}}'], { stdio: 'ignore' }).status !== 0) {
+      refuse('--services was given and no Docker daemon answered.');
+    }
+  } else {
+    const dsn = (process.env['ACCEPTANCE_DATABASE_URL'] ?? '').trim();
+    if (dsn.length === 0) {
+      refuse(
+        'ACCEPTANCE_DATABASE_URL is required and has no default: the database it names is dropped. ' +
+          'Pass --services to let the one-shot start its own development stack instead.',
+      );
+    }
+    const resolved = resolveDatabaseTarget(dsn);
+    if ('error' in resolved) refuse(resolved.error);
+    database = resolved;
+    redisUrl = (process.env['REDIS_URL'] ?? '').trim();
+    if (redisUrl.length === 0) refuse('REDIS_URL is required and has no default.');
   }
-  const database = resolveDatabaseTarget(dsn);
-  if ('error' in database) refuse(database.error);
-  const redisUrl = (process.env['REDIS_URL'] ?? '').trim();
-  if (redisUrl.length === 0) refuse('REDIS_URL is required and has no default.');
 
   // ── pack ────────────────────────────────────────────────────────────────
   const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'endora-local-registry-')));
@@ -375,6 +411,15 @@ async function main(): Promise<number> {
   if (!existsSync(join(REPO_ROOT, 'packages', 'cli', 'dist', 'release-index.json'))) {
     refuse('packages/cli/dist/release-index.json is absent — run `pnpm run build:packages` first');
   }
+  if (
+    withStorefront &&
+    !existsSync(join(REPO_ROOT, 'packages', 'cli', 'dist', 'storefront-reference', 'reference.json'))
+  ) {
+    refuse(
+      'packages/cli/dist/storefront-reference/reference.json is absent — the CLI build writes it ' +
+        'from a git checkout that holds the storefront; run `pnpm run build:packages` in one',
+    );
+  }
   console.log(`[instance-acceptance:local-registry] packing ${String(toPack.length)} packages into ${tarballDir}`);
   const tarballs = toPack.map((dir) => {
     const file = pack(dir, tarballDir);
@@ -385,16 +430,20 @@ async function main(): Promise<number> {
   // ── serve, and type what a stranger types ──────────────────────────────
   let registry: LocalRegistry | null = null;
   let api: ChildProcess | null = null;
+  let shop: ChildProcess | null = null;
+  // Unique to this run: with `--services` the directory's name is the Compose
+  // project's, and two runs on one machine must not share containers.
+  const dirName = withServices ? `shop-${randomBytes(3).toString('hex')}` : 'shop';
+  let target = '';
   const verdicts: Verdict[] = [];
   const notes: string[] = [];
-  const started = Date.now();
   try {
     registry = await startLocalRegistry({ tarballs, upstream: UPSTREAM });
     notes.push(`registry ${registry.url}: ${String(tarballs.length)} local tarballs, everything else from ${UPSTREAM}`);
-    await resetDatabase(database.adminUrl, database.databaseName, true);
+    if (database !== null) await resetDatabase(database.adminUrl, database.databaseName, true);
 
     const work = join(scratch, 'work');
-    const target = join(work, 'shop');
+    target = join(work, dirName);
     mkdirSync(target, { recursive: true });
     const port = await freePort();
     const admin = {
@@ -409,8 +458,12 @@ async function main(): Promise<number> {
     // `--no-storefront` nothing generates it (`input-resolution.md` R4.6
     // permits that only to a run writing both trees), and this run proves the
     // instance boots and signs an administrator in without it.
-    const answers = {
-      ...instanceEnvValues({ databaseUrl: database.databaseUrl, env: { ...process.env, REDIS_URL: redisUrl } }),
+    // With `--services` the only line is the API's port: every address is
+    // derived by the one-shot from the stack it starts.
+    const answers: Record<string, string> = {
+      ...(database === null
+        ? {}
+        : instanceEnvValues({ databaseUrl: database.databaseUrl, env: { ...process.env, REDIS_URL: redisUrl } })),
       PORT: String(port),
     };
     writeFileSync(
@@ -419,14 +472,18 @@ async function main(): Promise<number> {
       'utf8',
     );
     const environment = strangerEnvironment(registry.url, scratch);
+    const choices = [
+      ...(withStorefront ? [] : ['--no-storefront']),
+      ...(withServices ? [] : ['--no-services']),
+      // A storefront with nothing in its catalogue proves nothing about it.
+      withStorefront ? '--demo' : '--no-demo',
+    ];
     const argv = [
       '--yes',
       `${packageName}@${frontDoorTarball.version}`,
-      'shop',
+      dirName,
       '--non-interactive',
-      '--no-storefront',
-      '--no-services',
-      '--no-demo',
+      ...choices,
       '--admin-email',
       admin.email,
       '--admin-password',
@@ -440,7 +497,7 @@ async function main(): Promise<number> {
       cwd: work,
       env: environment,
       timeoutMs: INSTALL_TIMEOUT_MS,
-      shown: `npx --yes ${packageName}@${frontDoorTarball.version} shop --non-interactive --no-storefront --no-services --no-demo --admin-email ${admin.email} --admin-password … --admin-first-name ${admin.firstName} --admin-last-name ${admin.lastName}`,
+      shown: `npx --yes ${packageName}@${frontDoorTarball.version} ${dirName} --non-interactive ${choices.join(' ')} --admin-email ${admin.email} --admin-password … --admin-first-name ${admin.firstName} --admin-last-name ${admin.lastName}`,
     });
     const tail = install.output.trim().split('\n').slice(-12).join(' | ');
 
@@ -483,7 +540,7 @@ async function main(): Promise<number> {
       status: install.output.includes('no `--module` was given') && declared.length > 0 ? 'pass' : install.code === 0 ? 'fail' : 'unmeasured',
       detail: `${String(declared.length)} module packages declared`,
     });
-    const left = hostsLeftBehind(started);
+    const left = hostsLeftBehind(install.output);
     verdicts.push({
       id: 'L5',
       title: 'the temporary host is gone after a successful run',
@@ -526,7 +583,7 @@ async function main(): Promise<number> {
         scaffold === null
           ? 'the one-shot did not succeed'
           : scaffold.code === 0
-            ? `apps/shop/modules/${OVERLAY_MODULE_ID} written`
+            ? `apps/${dirName}/modules/${OVERLAY_MODULE_ID} written`
             : `exit ${String(scaffold.code)}: ${scaffold.output.trim().split('\n').slice(-6).join(' | ')}`,
     });
     const overlayInstalled =
@@ -566,13 +623,13 @@ async function main(): Promise<number> {
       detail: 'no overlay module was written',
     };
     if (overlayGenerated?.code === 0) {
-      const migrations = join(target, 'apps', 'shop', 'modules', OVERLAY_MODULE_ID, 'migrations');
+      const migrations = join(target, 'apps', dirName, 'modules', OVERLAY_MODULE_ID, 'migrations');
       mkdirSync(migrations, { recursive: true });
       writeFileSync(join(migrations, 'Migration20270101T000000_proof.ts'), 'export {};\n', 'utf8');
       const refused = await exec('pnpm', ['run', 'generate'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS });
       rmSync(migrations, { recursive: true, force: true });
       const named =
-        refused.output.includes(`apps/shop/modules/${OVERLAY_MODULE_ID}/migrations/Migration20270101T000000_proof.ts`) &&
+        refused.output.includes(`apps/${dirName}/modules/${OVERLAY_MODULE_ID}/migrations/Migration20270101T000000_proof.ts`) &&
         refused.output.includes('module package');
       schemaRefusal = {
         ...schemaRefusal,
@@ -731,10 +788,105 @@ async function main(): Promise<number> {
     }
     verdicts.push(overlayRoute);
     verdicts.push(...lifecycle);
+    verdicts.push({
+      id: 'L17',
+      title: 'the password is in nothing the one-shot printed',
+      status: install.output.includes(admin.password) ? 'fail' : 'pass',
+      detail: install.output.includes(admin.password) ? 'it was echoed' : 'not echoed',
+    });
+
+    // ── the storefront it wrote renders a demo product ───────────────────
+    if (withStorefront) {
+      const storefrontDir = `${target}-storefront`;
+      const written = existsSync(join(storefrontDir, 'package.json'));
+      const installed = existsSync(join(storefrontDir, 'node_modules', 'next', 'package.json'));
+      verdicts.push({
+        id: 'L18',
+        title: 'outside any checkout, the one-shot wrote the storefront beside the instance and installed it',
+        status: written && installed ? 'pass' : 'fail',
+        detail: !written
+          ? `${storefrontDir} holds no package.json`
+          : installed
+            ? `${storefrontDir}: written, and \`next\` is installed in it`
+            : `${storefrontDir} was written and \`next\` is not installed in it`,
+      });
+      let rendered: Verdict = {
+        id: 'L19',
+        title: 'the storefront builds, starts, and renders a demo product against the instance API',
+        status: 'unmeasured',
+        detail: 'the API is not answering, or the storefront was not installed',
+      };
+      // The lifecycle verdicts above stop and start the API, so "it signed an
+      // administrator in" is not "it is running now": ask it.
+      const apiLive =
+        (api as ChildProcess | null)?.exitCode === null &&
+        (await fetch(`http://127.0.0.1:${String(port)}${HEALTH_PATH}`, { signal: AbortSignal.timeout(20_000) })
+          .then((reply) => reply.status === 200)
+          .catch(() => false));
+      if (written && installed && login.status === 'pass' && apiLive) {
+        // The storefront's own toolchain sets NODE_ENV; a value inherited from
+        // this process would displace it (`declaredVariablesOf`'s header).
+        const { NODE_ENV: _dropped, ...shopEnvironment } = environment;
+        const build = await exec('pnpm', ['run', 'build'], {
+          cwd: storefrontDir,
+          env: shopEnvironment,
+          timeoutMs: STOREFRONT_BUILD_TIMEOUT_MS,
+        });
+        if (build.code !== 0) {
+          rendered = {
+            ...rendered,
+            status: 'fail',
+            detail: `\`pnpm run build\` exited ${String(build.code)}: ${build.output.trim().split('\n').slice(-10).join(' | ')}`,
+          };
+        } else {
+          const shopPort = await freePort();
+          console.log(`\n$ PORT=${String(shopPort)} pnpm run start`);
+          shop = spawn('pnpm', ['run', 'start'], {
+            cwd: storefrontDir,
+            env: { ...shopEnvironment, PORT: String(shopPort) },
+            stdio: ['ignore', 'inherit', 'inherit'],
+            detached: true,
+          });
+          const origin = `http://127.0.0.1:${String(shopPort)}`;
+          const up = await waitFor(`${origin}/catalog`, Date.now() + BOOT_TIMEOUT_MS, shop);
+          if (up !== 200) {
+            rendered = {
+              ...rendered,
+              status: 'fail',
+              detail: shop.exitCode === null ? `/catalog answered ${String(up)}` : `start exited ${String(shop.exitCode)}`,
+            };
+          } else {
+            const catalogue = await (await fetch(`${origin}/catalog`, { signal: AbortSignal.timeout(60_000) })).text();
+            const link = /href="(\/p\/[^"]+)"/.exec(catalogue)?.[1];
+            if (link === undefined) {
+              rendered = { ...rendered, status: 'fail', detail: '/catalog answered 200 and links no product' };
+            } else {
+              const product = await fetch(`${origin}${link}`, { signal: AbortSignal.timeout(60_000) });
+              const html = await product.text();
+              const title = /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(html)?.[1]?.replace(/<[^>]+>/g, '').trim() ?? '';
+              rendered = {
+                ...rendered,
+                status: product.status === 200 && title.length > 0 ? 'pass' : 'fail',
+                detail: `/catalog 200 links ${link}; it answered ${String(product.status)}${title.length > 0 ? ` and renders "${title}"` : ' and renders no heading'}`,
+              };
+            }
+          }
+        }
+      }
+      verdicts.push(rendered);
+    }
   } finally {
+    if (shop !== null) await stopGroup(shop);
     if (api !== null) await stopGroup(api);
     if (registry !== null) await registry.close();
-    await resetDatabase(database.adminUrl, database.databaseName, false).catch(() => undefined);
+    if (withServices && target.length > 0 && existsSync(join(target, 'compose.dev.yml'))) {
+      // From the instance's own directory, so Compose reads the `.env` that
+      // names the ports this run published — and removes this run's project only.
+      spawnSync('docker', ['compose', '-f', 'compose.dev.yml', 'down', '-v'], { cwd: target, stdio: 'inherit' });
+    }
+    if (database !== null) {
+      await resetDatabase(database.adminUrl, database.databaseName, false).catch(() => undefined);
+    }
     if (values.keep === true) notes.push(`kept ${scratch}`);
     else rmSync(scratch, { recursive: true, force: true });
   }

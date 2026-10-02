@@ -5,8 +5,46 @@ import {
   cliFailureExitCode,
   cliUsage,
   dispatchCli,
+  redactedArgv,
   type CliComposition,
 } from './dispatch.js';
+
+describe('the reason a command runs under never carries a credential', () => {
+  it('replaces the value of a flag that names one, and keeps the flag', () => {
+    expect(
+      redactedArgv([
+        'admin_users',
+        'create',
+        '--',
+        '--email=owner@example.com',
+        '--password=a-password-they-remember',
+        '--first-name=Ada',
+      ]),
+    ).toEqual([
+      'admin_users',
+      'create',
+      '--',
+      '--email=owner@example.com',
+      '--password=<redacted>',
+      '--first-name=Ada',
+    ]);
+  });
+
+  it('is keyed on the name, so a module this file has never heard of is covered', () => {
+    expect(redactedArgv(['x', 'y', '--api-token=abc', '--client-secret=def', '--apiKey=ghi'])).toEqual([
+      'x',
+      'y',
+      '--api-token=<redacted>',
+      '--client-secret=<redacted>',
+      '--apiKey=<redacted>',
+    ]);
+  });
+
+  it('leaves everything else exactly as it was typed', () => {
+    const argv = ['settings', 'cache-clear', '--scope=global', '--password-stdin', 'positional'];
+    expect(redactedArgv(argv)).toEqual(argv);
+  });
+});
 
 /**
  * The operator CLI's decidable half (`specs/123-oss-install-experience/` G2,

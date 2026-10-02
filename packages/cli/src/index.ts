@@ -114,11 +114,23 @@ export {
   type GenerateResult,
 } from './generate/index.js';
 export {
+  resolveStorefrontSource,
   runNewStorefront,
   storefrontDeclaredInputs,
   type NewStorefrontOptions,
   type NewStorefrontResult,
+  type StorefrontSource,
 } from './new-storefront/index.js';
+// The reference a published CLI carries, for a caller that has to know whether
+// this build can write a storefront outside a checkout — the acceptance
+// criterion's local-registry mode asks before it types the one-shot.
+export {
+  ownPackagedReferenceDir,
+  PACKAGED_REFERENCE_DIRECTORY,
+  PACKAGED_REFERENCE_FILE,
+  readPackagedReference,
+  type PackagedReference,
+} from './new-storefront/packaged.js';
 // The flag spelling is derived from the variable's name and never written down,
 // so a caller that builds an `endora new storefront` command line takes the
 // derivation rather than re-deriving it — see `storefrontDeclaredInputs`.
@@ -139,6 +151,7 @@ export {
   envExampleDeclarations,
   envExampleDeclarationsOf,
   outwardReferences,
+  NoReferenceStorefrontError,
   resolveReference,
   StorefrontHostError,
   StorefrontInputError,

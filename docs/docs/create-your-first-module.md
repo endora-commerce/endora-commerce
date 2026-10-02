@@ -395,10 +395,9 @@ Three more limits decide what your first module can be:
   and `--admin` with the reason. It scaffolds a package — with `--entities` for a table and
   `--admin` for a screen — only inside a checkout of the Endora Commerce repository. This tutorial
   does not cover writing a package by hand.
-- **There is no storefront to show the notice in** unless your instance was created from a checkout
-  of the repository — see
-  [What a first run does not give you](./getting-started.md#what-a-first-run-does-not-give-you). The
-  route is what a storefront would call.
+- **This tutorial does not show the notice in the storefront.** The storefront the installer wrote
+  beside your instance is yours to edit — see [The storefront](./getting-started.md#the-storefront)
+  — and the route is what it would call.
 
 ## Where to go next
 

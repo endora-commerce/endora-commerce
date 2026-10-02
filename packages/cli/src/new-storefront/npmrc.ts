@@ -119,11 +119,23 @@ export function normalizeRegistry(registry: string): string {
  * *installs* is this one's.
  */
 export function installedScopes(manifest: Record<string, unknown>): readonly string[] {
+  return scopesOf(workspaceRanges(manifest).map((range) => range.name));
+}
+
+/**
+ * The scopes of a list of package names, sorted and de-duplicated.
+ *
+ * The same answer as {@link installedScopes} for a caller that holds the names
+ * and not the manifest they were read off — a plan already built, whose
+ * `workspace:` ranges have become published semver and can no longer be found
+ * by their protocol.
+ */
+export function scopesOf(names: readonly string[]): readonly string[] {
   const scopes = new Set<string>();
-  for (const range of workspaceRanges(manifest)) {
-    if (!range.name.startsWith('@')) continue;
-    const slash = range.name.indexOf('/');
-    if (slash > 0) scopes.add(range.name.slice(0, slash));
+  for (const name of names) {
+    if (!name.startsWith('@')) continue;
+    const slash = name.indexOf('/');
+    if (slash > 0) scopes.add(name.slice(0, slash));
   }
   return [...scopes].sort();
 }

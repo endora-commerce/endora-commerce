@@ -47,10 +47,14 @@ In this order, printing each command before it runs it:
    target untouched.
 2. **Writes the instance** — an ordinary pnpm workspace you own. The platform, the admin shell and
    every module arrive as dependencies; no file of the platform is copied into your tree.
-3. **Writes the storefront**, as its own repository beside the instance (only from inside a
-   checkout of the repository — see [What a first run does not give you](#what-a-first-run-does-not-give-you)).
+3. **Writes the storefront**, as its own repository beside the instance. Its files come with the
+   installer: a copy of the reference storefront, already made standalone — see
+   [The storefront](#the-storefront).
 4. **Starts the development services** with `docker compose` and writes their addresses into the
-   instance's `.env`.
+   instance's `.env`. If a port one of them publishes is already in use on your machine — another
+   PostgreSQL on `5432`, say — the installer picks a free one, writes it into `.env` (for example
+   `POSTGRES_PORT=15432`), derives the address from it and says so. A port you set in `.env`
+   yourself is never moved: if it is taken, the installer stops before it writes anything.
 5. **Installs, generates, builds and migrates**, installs every module, and creates your
    administrator.
 6. **Seeds demo data**, if you asked for it. Seeding runs last, and a failure in it does not fail
@@ -58,8 +62,9 @@ In this order, printing each command before it runs it:
 7. **Prints what to run next**, including every answer it took as a recommendation and how to
    reverse it.
 
-A failing step stops the run with that step's own exit code and prints what is left to do, so you
-can finish by hand with the commands it echoed.
+A failing step stops the run with that step's own exit code and prints what is left to do, starting
+with the step that failed, so you can finish by hand. The administrator's password is never
+printed: where a command needs it, the list shows `<password>` and you type yours in its place.
 
 ### The modules it installs
 
@@ -119,7 +124,7 @@ nothing: every answer is a flag. A run that is missing any of them stops with **
 names every flag still owed, rather than failing on the first.
 
 ```bash
-npx create-endora-commerce@latest my-shop --non-interactive --no-storefront --no-demo \
+npx create-endora-commerce@latest my-shop --non-interactive --no-demo \
   --admin-email you@example.com --admin-password "$ADMIN_PASSWORD" \
   --admin-first-name Ada --admin-last-name Lovelace
 ```
@@ -137,7 +142,7 @@ nothing. Where it needs the release's packages it still installs them into a tem
 | `--demo` / `--no-demo` | Seed every installed module's example data, or not. Required; no default. |
 | `--no-services` | Do not start PostgreSQL, Redis, Meilisearch and Mailpit, and do not write their addresses into `.env`. |
 | `--without <member>` | Do not write `admin` or `docs`. Repeatable. |
-| `--no-storefront` | Write the instance alone. Required outside a checkout of the repository in non-interactive runs. |
+| `--no-storefront` | Write the instance alone, without the storefront beside it. |
 | `--storefront-dir <path>` | Where the storefront goes. Default `<dir>-storefront`; it may not be inside the instance. |
 | `--module <id>` | Install an explicit module set instead of the open-source set. Repeatable. |
 | `--deployment <name>` | The directory under `apps/` for your overlay modules, and the value of `DEPLOYMENT`. Default: the workspace name. |
@@ -150,7 +155,7 @@ nothing. Where it needs the release's packages it still installs them into a tem
 
 Run it from the instance's root. It starts, in one terminal, with each line labelled by its layer:
 
-- the **API** on `http://localhost:3001`;
+- the **API** on `http://localhost:3001`, or on the `PORT` the instance's `.env` sets;
 - the **admin** — the bundle the install built, served on its own port (`3002` unless the admin's
   `PORT` says otherwise);
 - the **storefront**, when there is one beside the instance at `<dir>-storefront`. A storefront
@@ -178,20 +183,34 @@ platform runs:
 | A production image | `node dist/cli.js admin_users create --email=… --password=… --first-name=… --last-name=…`, run in the backend container — see [D1 of the first deployment checklist](./deployment/first-deployment-checklist.md#d1-create-the-bootstrap-administrator-then-narrow-it) |
 | A checkout of the Endora Commerce repository | `pnpm --filter backend run admin:create -- --email=… --password=… --first-name=… --last-name=…` |
 
+`--password-stdin` in place of `--password=…` reads the password from standard input, which keeps
+it out of the process list, the package manager's echo of the script and your shell history — the
+installer creates your administrator that way.
+
 The account gets the `platform_admin` role — every permission — unless you pass `--role=<code>` naming
 a role that already exists; the role itself is created on the first run. Running the command again
 for an e-mail that already exists resets that account's password, name and role, which is also how
 a lost password is recovered. If you have no shell on the machine the platform runs on, ask whoever
 operates it to create the account for you.
 
-## What a first run does not give you
+## The storefront
 
-**No storefront outside a checkout of the repository.** The storefront is copied from the reference
-storefront in the Endora Commerce repository. Run anywhere else, the parts question shows the
-storefront unchecked, with the reason, and does not let you check it; a non-interactive run needs
-`--no-storefront`. The instance, the API and the admin are complete without it.
+The installer writes the storefront beside the instance unless you uncheck it in the parts question
+or pass `--no-storefront`. It is a copy of the reference storefront that travels inside the
+installer, so it needs no checkout of the Endora Commerce repository: every file is already
+rewritten to stand on its own, and the `@endora-commerce/*` packages it depends on are the versions
+of the release you installed. From then on it is your repository — nothing upgrades it and nothing
+reports back.
 
-**Adding a storefront later** is `endora new storefront <dir>`, run from a checkout. The storefront
+One thing is left out of that copy and the installer names it: the reference storefront's
+screenshot baselines for its visual tests. They are pictures of the reference shop on the machine
+that recorded them; `pnpm exec playwright test --update-snapshots` records your own. Inside a
+checkout of the repository the storefront is copied from the checkout instead, baselines included.
+
+To see the shop, build and start it — `pnpm run build && pnpm run start` in the storefront's
+directory — or let `pnpm run dev:all` start it in development mode with the other layers.
+
+**Adding a storefront later** is `endora new storefront <dir>`, run from anywhere. The storefront
 and the instance must share one secret, `REVALIDATE_SECRET` — the key the backend uses to ask the
 storefront to refresh a cached page. When the installer writes both trees it generates that value
 once and writes it into both. When the storefront comes later, nothing does that for you:
