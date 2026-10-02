@@ -41,6 +41,7 @@ import {
   assertNoModuleIdCollisions,
   type ModuleIdClaim,
 } from '../lifecycle/services/module-id-claims.js';
+import { assertOverlayModulesShipNoSchema } from './overlay-schema.js';
 import { listOverlayModuleDirs } from './resolve-overlay.js';
 
 /**
@@ -139,6 +140,9 @@ export function overlayModuleIdsUnder(
   claimsOutsideTheOverlay: readonly ModuleIdClaim[],
 ): string[] {
   const ids = listOverlayModuleDirs(root);
+  // Before the claims are checked and long before anything is imported: a tree
+  // that ships schema is refused whole, whichever seam asked (`overlay-schema.ts`).
+  assertOverlayModulesShipNoSchema(root, ids);
   assertNoModuleIdCollisions([
     ...claimsOutsideTheOverlay,
     ...ids.map((id) => ({

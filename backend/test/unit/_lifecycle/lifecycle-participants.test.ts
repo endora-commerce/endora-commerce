@@ -245,6 +245,28 @@ describe('lifecycle participants — collected from the manifest registry', () =
     expect(paletteish.removed[0]?.em).toBe(em);
   });
 
+  it('does not ask the module being hard-uninstalled to reconcile its own removal', async () => {
+    // Its migrations were reverted a step earlier, so the table its projection
+    // lives in is gone: measured in an instance, `module:uninstall
+    // admin_actions --hard --force` reverted `module_actions`, then ran
+    // admin_actions' own participant, which deleted from it — exit 70 with the
+    // registration row already removed. Every *other* participant still runs:
+    // the module's translation bundles are somebody else's rows.
+    const own = recordingParticipant();
+    const other = recordingParticipant();
+    const registry = buildRegistry(['admin_actions', '_i18n'], [
+      { moduleId: 'admin_actions', participant: own.participant },
+      { moduleId: '_i18n', participant: other.participant },
+    ]);
+    const { orchestrator } = buildOrchestrator(registry);
+
+    await orchestrator.install('admin_actions');
+    await orchestrator.uninstall('admin_actions', { hard: true });
+
+    expect(own.removed).toEqual([]);
+    expect(other.removed.map((e) => e.moduleId)).toEqual(['admin_actions']);
+  });
+
   it('hard-uninstalls an ORPHAN row, whose manifest this instance no longer has', async () => {
     // The case with no other cure: `module:uninstall @vendor/x --hard` followed
     // by `pnpm remove @vendor/x`. Both boot reconcilers iterate the manifest

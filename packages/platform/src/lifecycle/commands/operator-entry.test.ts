@@ -1,10 +1,10 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 
-import { instanceOperatorRuntime } from './operator-entry.js';
+import { instanceOperatorRuntime, runInstanceOperatorCommand } from './operator-entry.js';
 
 /**
  * The half of an instance's `module:*` entry point that answers with no
@@ -97,7 +97,52 @@ describe('instanceOperatorRuntime', () => {
     // makes D-157.2/.4's failure structurally unreachable rather than
     // remembered. Asserted over the built object rather than over the type, so
     // a field added later fails here and not only in review.
-    expect(Object.keys(runtime).sort()).toEqual(['entries', 'err', 'out', 'resources']);
+    expect(Object.keys(runtime).sort()).toEqual([
+      'entries',
+      'err',
+      'migrationOwnership',
+      'out',
+      'resources',
+    ]);
+  });
+
+  it('supplies the migration ownership `uninstall --hard` reverts by, and opens nothing to do it', async () => {
+    const { runtime, dispose } = await instanceOperatorRuntime({
+      deploymentRoot: emptyDeploymentRoot(),
+      ormConfig: refusingConfig,
+      env: {},
+    });
+    // Absent, the orchestrator refuses every hard uninstall — and in an
+    // instance every module is a package, so the command could never succeed.
+    expect(runtime.migrationOwnership).toBeTypeOf('function');
+    const ownership = await runtime.migrationOwnership!();
+    // The platform's own chain is covered; a module nobody installed is not,
+    // and `null` is what the orchestrator refuses on.
+    expect(ownership.migrationNamesFor('core')).not.toBeNull();
+    expect(ownership.migrationNamesFor('not_installed_here')).toBeNull();
+    // `refusingConfig` was never called: the answer is read from `node_modules`.
+    await expect(dispose()).resolves.toBeUndefined();
+  });
+
+  it('answers for this deployment\'s overlay modules: they are covered, and own no migration', async () => {
+    const deploymentRoot = emptyDeploymentRoot();
+    const moduleDir = join(deploymentRoot, 'apps', 'shop', 'modules', 'proof_notice');
+    mkdirSync(moduleDir, { recursive: true });
+    writeFileSync(
+      join(moduleDir, 'manifest.js'),
+      "export const manifest = { id: 'proof_notice', version: '1.0.0', dependencies: [] };\n",
+      'utf8',
+    );
+    const { runtime } = await instanceOperatorRuntime({
+      deploymentRoot,
+      ormConfig: refusingConfig,
+      env: { DEPLOYMENT: 'shop' },
+    });
+    expect(runtime.entries.map((entry) => entry.manifest.id)).toContain('proof_notice');
+    const ownership = await runtime.migrationOwnership!();
+    // An empty list, not `null`: an overlay module contributes no schema, so
+    // there is nothing to revert and the hard uninstall may proceed to its hook.
+    expect(ownership.migrationNamesFor('proof_notice')).toEqual([]);
   });
 
   it('D-217 — nothing supplies `confirm`, so `--hard` cannot be taken past its refusal', async () => {
@@ -107,5 +152,44 @@ describe('instanceOperatorRuntime', () => {
       env: {},
     });
     expect(runtime.confirm).toBeUndefined();
+  });
+});
+
+describe('runInstanceOperatorCommand', () => {
+  it('prints a refusal raised while resolving the manifest set as one message, and exits 65', async () => {
+    const deploymentRoot = emptyDeploymentRoot();
+    const moduleDir = join(deploymentRoot, 'apps', 'shop', 'modules', 'proof_notice');
+    mkdirSync(join(moduleDir, 'migrations'), { recursive: true });
+    writeFileSync(join(moduleDir, 'migrations', 'Migration20270101T000000_proof.ts'), 'export {};\n');
+    const err: string[] = [];
+    // `process.exit` returns `never`; the sentinel is what stops the function
+    // where a real exit would, so nothing after the refusal can run unnoticed.
+    const exit = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`exit ${String(code)}`);
+    });
+    let ran = false;
+    try {
+      await expect(
+        runInstanceOperatorCommand({
+          deploymentRoot,
+          ormConfig: refusingConfig,
+          env: { DEPLOYMENT: 'shop' },
+          err: (line) => err.push(line),
+          argv: [],
+          run: async () => {
+            ran = true;
+            return 0;
+          },
+        }),
+      ).rejects.toThrow('exit 65');
+    } finally {
+      exit.mockRestore();
+    }
+    expect(ran).toBe(false);
+    expect(err).toHaveLength(1);
+    expect(err[0]).toMatch(/^\[manifest\] \[overlay\] an overlay module contributes no schema/);
+    expect(err[0]).toContain(join(moduleDir, 'migrations', 'Migration20270101T000000_proof.ts'));
+    // A message, not an exception dump.
+    expect(err[0]).not.toMatch(/\n\s+at /);
   });
 });
