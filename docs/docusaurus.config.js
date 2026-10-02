@@ -5,6 +5,22 @@
 // to understand how to use a module and the system overall).
 
 const localesConfig = require('./locales.config.json');
+const { themes: prismThemes } = require('prism-react-renderer');
+
+// Palenight is the theme Docusaurus already applied by default, in both colour modes; it is
+// kept, with the three token colours that miss WCAG 2.2 AA (4.5:1) on its own `#292d3e`
+// background lifted until they pass: comments were 2.84:1, tags and deletions 4.41:1,
+// booleans 4.48:1. Same hues, lighter. Appended last, so they win over the entries they
+// repeat. Measured ratios are in the pull request that introduced this block.
+const codeTheme = {
+  ...prismThemes.palenight,
+  styles: [
+    ...prismThemes.palenight.styles,
+    { types: ['comment'], style: { color: '#9aa2c8', fontStyle: 'italic' } },
+    { types: ['tag', 'deleted'], style: { color: '#ff7a92' } },
+    { types: ['boolean'], style: { color: '#ff7a92' } },
+  ],
+};
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -109,10 +125,26 @@ const config = {
     ({
       navbar: {
         title: 'Endora Commerce',
+        // The mark is drawn on its own white tile, as on commerce.endora.software, where it
+        // sits on the ink bar. The navbar is that same ink bar in both colour modes
+        // (`style: 'dark'` plus `src/css/custom.css`), so one file serves both and no
+        // `srcDark` variant is needed. `alt` is deliberately absent: with a navbar title
+        // beside it the theme renders `alt=""`, which keeps a screen reader from announcing
+        // "Endora Commerce" twice in one link — and declares no `logo.alt` message to translate.
+        logo: {
+          src: 'img/logo.svg',
+          width: 32,
+          height: 32,
+        },
+        style: 'dark',
         items: [
           { type: 'docSidebar', sidebarId: 'main', position: 'left', label: 'Docs' },
           { type: 'localeDropdown', position: 'right' },
         ],
+      },
+      prism: {
+        theme: codeTheme,
+        darkTheme: codeTheme,
       },
       footer: {
         style: 'dark',
