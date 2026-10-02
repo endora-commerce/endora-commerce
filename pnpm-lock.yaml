@@ -563,8 +563,8 @@ importers:
         specifier: ^5.12.5
         version: 5.12.5
       fastify-plugin:
-        specifier: ^5.1.0
-        version: 5.1.0
+        specifier: ^6.0.0
+        version: 6.0.0
       file-type:
         specifier: ^22.0.1
         version: 22.0.1
@@ -819,19 +819,19 @@ importers:
         specifier: ^3.31.3
         version: 3.31.3(@tiptap/pm@3.31.3)
       '@tiptap/extension-color':
-        specifier: 3.31.3
+        specifier: ^3.31.3
         version: 3.31.3(@tiptap/extension-text-style@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3)))
       '@tiptap/extension-highlight':
-        specifier: 3.31.3
+        specifier: ^3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
       '@tiptap/extension-image':
-        specifier: 3.31.3
+        specifier: ^3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
       '@tiptap/extension-text-align':
-        specifier: 3.31.3
+        specifier: ^3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
       '@tiptap/extension-text-style':
-        specifier: 3.31.3
+        specifier: ^3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
       '@tiptap/react':
         specifier: ^3.31.3
@@ -1380,8 +1380,8 @@ importers:
         specifier: ^5.12.5
         version: 5.12.5
       fastify-plugin:
-        specifier: ^5.1.0
-        version: 5.1.0
+        specifier: ^6.0.0
+        version: 6.0.0
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
@@ -3784,8 +3784,8 @@ importers:
         specifier: ^5.76.1
         version: 5.76.1
       fastify-plugin:
-        specifier: ^5.1.0
-        version: 5.1.0
+        specifier: ^6.0.0
+        version: 6.0.0
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1
@@ -3881,19 +3881,19 @@ importers:
         specifier: ^3.31.3
         version: 3.31.3(@tiptap/pm@3.31.3)
       '@tiptap/extension-color':
-        specifier: 3.31.3
+        specifier: ^3.31.3
         version: 3.31.3(@tiptap/extension-text-style@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3)))
       '@tiptap/extension-highlight':
-        specifier: 3.31.3
+        specifier: ^3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
       '@tiptap/extension-image':
-        specifier: 3.31.3
+        specifier: ^3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
       '@tiptap/extension-text-align':
-        specifier: 3.31.3
+        specifier: ^3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
       '@tiptap/extension-text-style':
-        specifier: 3.31.3
+        specifier: ^3.31.3
         version: 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))
       '@tiptap/react':
         specifier: ^3.31.3
@@ -9783,6 +9783,9 @@ packages:
 
   fastify-plugin@5.1.0:
     resolution: {integrity: sha512-FAIDA8eovSt5qcDgcBvDuX/v0Cjz0ohGhENZ/wpc3y+oZCY2afZ9Baqql3g/lC+OHRnciQol4ww7tuthOb9idw==}
+
+  fastify-plugin@6.0.0:
+    resolution: {integrity: sha512-fZOty7z3O7vOliF6d8bHE3wiEh1KcNnKEQensSgTk9C1DvN6nRLS++XVd86v33Hw/8u9Un8A1zDrQ8ujcQDHEg==}
 
   fastify@5.12.5:
     resolution: {integrity: sha512-OB2k1dlxs5/NAABqeKV2FUHkSD2BbENsCak8yULVcymn3fHIPDVa9TI3SDnJSWYSllZmSYuZXy2gTnsT+Sut1A==}
@@ -21583,6 +21586,8 @@ snapshots:
       strnum: 2.4.2
 
   fastify-plugin@5.1.0: {}
+
+  fastify-plugin@6.0.0: {}
 
   fastify@5.12.5:
     dependencies:
