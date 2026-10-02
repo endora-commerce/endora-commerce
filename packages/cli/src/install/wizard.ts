@@ -43,6 +43,20 @@ import { createInterface } from 'node:readline';
 
 import type { MemberDeclaration } from '../new-instance/index.js';
 
+import {
+  COMPONENT_VOCABULARY,
+  EVERYTHING,
+  NOT_AN_ORIGIN,
+  parseOrigin,
+  questionIdsFor,
+  resolveSelection,
+  type Component,
+  type QuestionId,
+  type Selection,
+} from './selection.js';
+
+export type { QuestionId } from './selection.js';
+
 /** Where the questions are asked and answered. Injected, so a test drives it. */
 export interface WizardIo {
   readonly input: NodeJS.ReadableStream;
@@ -70,33 +84,57 @@ export interface InstallQuestion {
   readonly kind: 'required' | 'offered';
 }
 
-export type QuestionId =
-  | 'directory'
-  | 'parts'
-  | 'services'
-  | 'demo'
-  | 'admin-email'
-  | 'admin-password'
-  | 'admin-name';
-
 /**
- * §6.2, as data. Seven questions at most, in the order they are asked; the
- * four flag-only rows (`--registry`, `--module`, `--deployment`, `--topology`)
- * are not here because nothing asks them.
+ * Every question this command can ask, by id: the flags that answer it and
+ * whether it must be answered.
+ *
+ * §6.2's seven, and the five `specs/138-separate-components/` adds for a run
+ * that stands up a strict subset. `api-url` is the one whose kind depends on
+ * the selection — required where the API is on another machine, offered where
+ * it is this one — which {@link installQuestions} decides.
  */
-export const INSTALL_QUESTIONS: readonly InstallQuestion[] = [
-  { id: 'directory', flags: ['<dir>'], kind: 'required' },
-  {
-    id: 'parts',
-    flags: ['--without <member>', '--no-storefront', '--storefront-dir <path>'],
+const QUESTION_TABLE: Readonly<Record<QuestionId, Omit<InstallQuestion, 'id'>>> = {
+  directory: { flags: ['<dir>'], kind: 'required' },
+  parts: {
+    flags: ['--only <component>', '--without <member>', '--no-storefront', '--storefront-dir <path>'],
     kind: 'offered',
   },
-  { id: 'services', flags: ['--no-services'], kind: 'offered' },
-  { id: 'demo', flags: ['--demo', '--no-demo'], kind: 'required' },
-  { id: 'admin-email', flags: ['--admin-email'], kind: 'required' },
-  { id: 'admin-password', flags: ['--admin-password'], kind: 'required' },
-  { id: 'admin-name', flags: ['--admin-first-name', '--admin-last-name'], kind: 'required' },
-];
+  'api-url': { flags: ['--api-url'], kind: 'required' },
+  'admin-url': { flags: ['--admin-url'], kind: 'offered' },
+  'storefront-url': { flags: ['--storefront-url'], kind: 'required' },
+  'sales-channel': { flags: ['--sales-channel'], kind: 'offered' },
+  'revalidate-secret': { flags: ['--revalidate-secret'], kind: 'required' },
+  services: { flags: ['--no-services'], kind: 'offered' },
+  demo: { flags: ['--demo', '--no-demo'], kind: 'required' },
+  'admin-email': { flags: ['--admin-email'], kind: 'required' },
+  'admin-password': { flags: ['--admin-password'], kind: 'required' },
+  'admin-name': { flags: ['--admin-first-name', '--admin-last-name'], kind: 'required' },
+};
+
+/**
+ * The questions one selection has, in the order they are asked (138 FR-019).
+ *
+ * The count is a function of the selection: a run that stands up the admin
+ * alone has three, and the `[answers]` line of that run says `total=3`. With
+ * the API in the run the origins of the other machines are **offered** — not
+ * given, the platform's development fallbacks apply; without it they are owed.
+ */
+export function installQuestions(selection: Selection): readonly InstallQuestion[] {
+  const api = selection.components.includes('api');
+  return questionIdsFor(selection).map((id) => ({
+    id,
+    ...QUESTION_TABLE[id],
+    ...(api && (id === 'api-url' || id === 'storefront-url') ? { kind: 'offered' as const } : {}),
+  }));
+}
+
+/**
+ * §6.2, as data — the questions of the run that selects nothing. Seven at
+ * most, in the order they are asked; the four flag-only rows (`--registry`,
+ * `--module`, `--deployment`, `--topology`) are not here because nothing asks
+ * them.
+ */
+export const INSTALL_QUESTIONS: readonly InstallQuestion[] = installQuestions(EVERYTHING);
 
 /** The directory the first question recommends (§6.2 Q1). */
 export const RECOMMENDED_DIRECTORY = './endora-commerce';
@@ -104,9 +142,15 @@ export const RECOMMENDED_DIRECTORY = './endora-commerce';
 /** The answers a run was given, in `InstallOptions`' own vocabulary. */
 export interface WizardAnswers {
   readonly dir?: string | undefined;
+  readonly only?: readonly string[] | undefined;
   readonly without?: readonly string[] | undefined;
   readonly storefront?: boolean | undefined;
   readonly storefrontDir?: string | undefined;
+  readonly apiUrl?: string | undefined;
+  readonly adminUrl?: string | undefined;
+  readonly storefrontUrl?: string | undefined;
+  readonly salesChannel?: string | undefined;
+  readonly revalidateSecret?: string | undefined;
   readonly services?: boolean | undefined;
   readonly demo?: boolean | undefined;
   readonly adminEmail?: string | undefined;
@@ -124,12 +168,21 @@ export interface WizardAnswers {
 export function answeredByFlags(given: WizardAnswers): ReadonlyMap<QuestionId, string> {
   const found = new Map<QuestionId, string>();
   if (given.dir !== undefined && given.dir.trim().length > 0) found.set('directory', given.dir);
+  const only = (given.only ?? []).filter((name) => name.trim().length > 0);
   const parts = [
+    ...(given.only === undefined || given.only.length === 0 ? [] : [`--only ${only.join(',')}`]),
     ...(given.without ?? []).map((member) => `--without ${member}`),
     ...(given.storefront === false ? ['--no-storefront'] : []),
     ...(given.storefrontDir === undefined ? [] : [`--storefront-dir ${given.storefrontDir}`]),
   ];
   if (parts.length > 0) found.set('parts', parts.join(', '));
+  if (present(given.apiUrl)) found.set('api-url', `--api-url ${given.apiUrl}`);
+  if (present(given.adminUrl)) found.set('admin-url', `--admin-url ${given.adminUrl}`);
+  if (present(given.storefrontUrl)) {
+    found.set('storefront-url', `--storefront-url ${given.storefrontUrl}`);
+  }
+  if (present(given.salesChannel)) found.set('sales-channel', `--sales-channel ${given.salesChannel}`);
+  if (present(given.revalidateSecret)) found.set('revalidate-secret', '--revalidate-secret');
   if (given.services === false) found.set('services', '--no-services');
   if (given.demo !== undefined) found.set('demo', given.demo ? '--demo' : '--no-demo');
   if (present(given.adminEmail)) found.set('admin-email', '--admin-email');
@@ -153,67 +206,96 @@ export type MemberRow = Pick<MemberDeclaration, 'describes' | 'fixed'> & { reado
 
 /** One row of the parts checklist. */
 export interface ChecklistRow {
-  /** A member's `--without` name, or `storefront`. */
+  /** A component's `--only` name, or a member's `--without` name. */
   readonly name: string;
   readonly describes: string;
   /** Why the row cannot be toggled, or `null` when it can. */
   readonly fixed: string | null;
-  /** Whether a fixed row is written (the backend) or not (an absent storefront). */
+  /** Whether a fixed row is checked. An unavailable storefront is not. */
   readonly fixedValue: boolean;
-  /** Which mechanism unchecking it reaches (FR-151). */
-  readonly dispatch: 'member' | 'storefront';
+  /**
+   * Which axis unchecking it reaches (138 FR-017): a component is what this
+   * **run** stands up (`--only`), a member is what the **tree** holds
+   * (`--without`).
+   */
+  readonly dispatch: 'component' | 'member';
 }
 
+/** What each component row says it is. */
+const COMPONENT_DESCRIBES: Readonly<Record<Component, string>> = {
+  api: 'the API and the workers — the part every other one talks to',
+  admin: 'the operator interface, built as its own artefact',
+  storefront: 'the shop, as its own repository beside the instance',
+};
+
 /**
- * The checklist's rows: one per member **the template declares**, then the
- * storefront (R6.3a, FR-151).
+ * The checklist's rows: the three components, then every member the template
+ * declares that is not one of them (138 FR-017; R6.3a, FR-151).
  *
  * The member rows are the vocabulary handed in — `MEMBER_VOCABULARY` in a real
- * run — so a member the template gains appears here, pre-checked, with nothing
- * in this file edited. The storefront row is the marked exception: it is not a
- * member, and unchecking it dispatches to `--no-storefront`.
+ * run — less `backend` and `admin`, which the `api` and `admin` component rows
+ * stand for: so a member the template gains appears here, pre-checked, with
+ * nothing in this file edited. The one row that can be fixed is the storefront,
+ * where this build has none to write.
  */
 export function checklistRows(
   vocabulary: readonly MemberRow[],
   storefront: { readonly available: boolean; readonly reason: string },
 ): readonly ChecklistRow[] {
   return [
-    ...vocabulary.map((entry) => ({
-      name: entry.name,
-      describes: entry.describes,
-      fixed: entry.fixed,
-      fixedValue: true,
-      dispatch: 'member' as const,
-    })),
-    {
-      name: 'storefront',
-      describes: 'the shop, as its own repository beside the instance',
-      fixed: storefront.available ? null : storefront.reason,
+    ...COMPONENT_VOCABULARY.map((name) => ({
+      name,
+      describes: COMPONENT_DESCRIBES[name],
+      fixed: name === 'storefront' && !storefront.available ? storefront.reason : null,
       fixedValue: false,
-      dispatch: 'storefront' as const,
-    },
+      dispatch: 'component' as const,
+    })),
+    // A member a component row already stands for has no row of its own: the
+    // one that shares a component's name, and the one that cannot leave the
+    // tree (it is fixed), which is what the first component runs.
+    ...vocabulary
+      .filter(
+        (entry) =>
+          entry.fixed === null && !(COMPONENT_VOCABULARY as readonly string[]).includes(entry.name),
+      )
+      .map((entry) => ({
+        name: entry.name,
+        describes: entry.describes,
+        fixed: entry.fixed,
+        fixedValue: true,
+        dispatch: 'member' as const,
+      })),
   ];
 }
 
 /**
- * What a checklist hands the scaffolders (R6.3b, FR-150, FR-151).
+ * What a checklist hands the command (R6.3b, FR-150, FR-151; 138 FR-017).
  *
- * `--without <member>` for each unchecked member row and **nothing at all**
- * when every row is checked — so the most common business case produces the
- * argv a bare `endora new instance <dir>` produces. The storefront row reaches
- * the other mechanism and never `--without storefront`.
+ * `--without <member>` for each unchecked member row. For the components:
+ * **nothing at all** when every one this build can write is still checked — so
+ * Enter on the untouched list produces the argv a run with no selection flag
+ * has — and `only` naming the checked ones the moment one is unchecked.
+ * `null` when none of the three is checked: there would be nothing to stand up.
  */
 export function selectionToFlags(
   rows: readonly ChecklistRow[],
   unchecked: ReadonlySet<string>,
-): { readonly without: readonly string[]; readonly storefront: boolean } {
+): {
+  readonly without: readonly string[];
+  readonly storefront: boolean;
+  readonly only?: readonly string[];
+} | null {
   const without = rows
     .filter((row) => row.dispatch === 'member' && row.fixed === null && unchecked.has(row.name))
     .map((row) => row.name);
-  const storefrontRow = rows.find((row) => row.dispatch === 'storefront')!;
-  const storefront =
-    storefrontRow.fixed === null ? !unchecked.has(storefrontRow.name) : storefrontRow.fixedValue;
-  return { without, storefront };
+  const components = rows.filter((row) => row.dispatch === 'component');
+  const checked = components
+    .filter((row) => (row.fixed === null ? !unchecked.has(row.name) : row.fixedValue))
+    .map((row) => row.name);
+  if (checked.length === 0) return null;
+  const storefront = checked.includes('storefront');
+  const untouched = components.every((row) => row.fixed !== null || !unchecked.has(row.name));
+  return untouched ? { without, storefront } : { without, storefront, only: checked };
 }
 
 /** What the wizard decided, and where each answer came from. */
@@ -281,12 +363,16 @@ export async function askWizard(
 
   // FR-147 — the flags are reported, once, before the first question; a value
   // typed on the same command line is not a thing to confirm.
-  const used = INSTALL_QUESTIONS.filter((question) => fromFlags.has(question.id)).map(
-    (question) => fromFlags.get(question.id)!,
-  );
+  // The count is over the questions the selection has (138 FR-019): the one the
+  // flags named, and every part where the checklist is still to be answered.
+  const typed = resolveSelection(given.only, given.without ?? [], given.storefront);
+  const known = installQuestions('refusals' in typed ? EVERYTHING : typed);
+  const used = known
+    .filter((question) => fromFlags.has(question.id))
+    .map((question) => fromFlags.get(question.id)!);
   write(
     `${used.length === 0 ? 'no flags given' : `using ${used.join('; ')}`}; ` +
-      `${String(fromFlags.size)} of ${String(INSTALL_QUESTIONS.length)} answers came from flags.\n`,
+      `${String(used.length)} of ${String(known.length)} answers came from flags.\n`,
   );
 
   const gate = new EchoGate(io.output);
@@ -313,7 +399,7 @@ export async function askWizard(
     try {
       const next = await lines.next();
       if (next.done === true) {
-        const flags = INSTALL_QUESTIONS.find((row) => row.id === id)!.flags.join(' / ');
+        const flags = QUESTION_TABLE[id].flags.join(' / ');
         throw new WizardClosedError(
           `the answers stopped before "${question.trim()}" was answered. Pass ${flags} to ` +
             'answer it on the command line, or `--non-interactive` with every answer to ask ' +
@@ -342,9 +428,11 @@ export async function askWizard(
       -readonly [K in keyof WizardAnswers]: WizardAnswers[K];
     } = { ...given };
 
-    // Q1 — where.
+    // Q1 — where. For the storefront alone `<dir>` is the storefront's own
+    // directory (138 FR-007), and the question says so when the flags did.
     if (!fromFlags.has('directory')) {
-      const answer = await ask(`Where should the instance go? [${RECOMMENDED_DIRECTORY}] `, 'directory');
+      const what = !('refusals' in typed) && !typed.writesTree ? 'storefront' : 'instance';
+      const answer = await ask(`Where should the ${what} go? [${RECOMMENDED_DIRECTORY}] `, 'directory');
       if (answer.length === 0) {
         answers.dir = RECOMMENDED_DIRECTORY;
         recommended.push('directory');
@@ -354,15 +442,16 @@ export async function askWizard(
       }
     }
 
-    // Q2 — which parts. The checklist is re-rendered after every toggle, so a
-    // dumb terminal and a test both read the same text.
+    // Q2 — which parts this machine runs (138 FR-017). The checklist is
+    // re-rendered after every toggle, so a dumb terminal and a test both read
+    // the same text.
     if (!fromFlags.has('parts')) {
       const rows = checklistRows(context.vocabulary, context.storefront);
       const toggleable = rows.filter((row) => row.fixed === null);
       const unchecked = new Set<string>();
       let toggled = false;
       for (;;) {
-        write('\nWhich parts do you want? Type the numbers to toggle, Enter to accept.\n');
+        write('\nWhich parts should this machine run? Type the numbers to toggle, Enter to accept.\n');
         for (const row of rows) {
           if (row.fixed !== null) {
             write(`      ${row.fixedValue ? '[x]' : '[ ]'} ${row.name} — ${row.describes} (${row.fixed})\n`);
@@ -375,7 +464,11 @@ export async function askWizard(
           );
         }
         const answer = await ask('> ', 'parts');
-        if (answer.length === 0) break;
+        if (answer.length === 0) {
+          if (selectionToFlags(rows, unchecked) !== null) break;
+          write(`  keep at least one of ${COMPONENT_VOCABULARY.join(', ')}.\n`);
+          continue;
+        }
         const numbers = answer.split(/[\s,]+/).filter((token) => token.length > 0);
         const invalid = numbers.filter((token) => {
           const index = Number(token);
@@ -392,15 +485,115 @@ export async function askWizard(
         }
         toggled = true;
       }
-      const selection = selectionToFlags(rows, unchecked);
-      answers.without = selection.without;
-      answers.storefront = selection.storefront;
+      const flags = selectionToFlags(rows, unchecked)!;
+      answers.without = flags.without;
+      answers.storefront = flags.storefront;
+      if (flags.only !== undefined) answers.only = flags.only;
       if (toggled) prompted.push('parts');
       else recommended.push('parts');
     }
 
+    // What this run stands up, now that the flags and the checklist have both
+    // spoken. A selection the flags got wrong was refused before this wizard
+    // was opened, so anything unresolvable here falls back to every part and
+    // is refused by the command with the rest of its preconditions.
+    const resolved = resolveSelection(answers.only, answers.without ?? [], answers.storefront);
+    const selection = 'refusals' in resolved ? EVERYTHING : resolved;
+    // The member rows are about the instance tree. Where the checklist chose a
+    // selection that writes none, an unchecked member is not a `--without`:
+    // there is no tree for it to be left out of, and the command refuses that
+    // flag for exactly that reason.
+    if (!fromFlags.has('parts') && !selection.writesTree) answers.without = [];
+    const applies = new Set(questionIdsFor(selection));
+    const asks = (id: QuestionId): boolean => applies.has(id) && !fromFlags.has(id);
+    const standsUpApi = selection.components.includes('api');
+
+    /** A required origin: an empty line and a value that is not one both re-ask. */
+    const requiredOrigin = async (question: string, id: QuestionId): Promise<string> => {
+      for (;;) {
+        const origin = parseOrigin(await required(question, id));
+        if (origin !== null) return origin;
+        write(`  ${NOT_AN_ORIGIN}\n`);
+      }
+    };
+    /** An offered origin: Enter takes the recommendation, and writes nothing. */
+    const offeredOrigin = async (question: string, id: QuestionId): Promise<string | undefined> => {
+      for (;;) {
+        const answer = await ask(question, id);
+        if (answer.length === 0) {
+          recommended.push(id);
+          return undefined;
+        }
+        const origin = parseOrigin(answer);
+        if (origin !== null) {
+          prompted.push(id);
+          return origin;
+        }
+        write(`  ${NOT_AN_ORIGIN}\n`);
+      }
+    };
+
+    // The other machines (138 FR-018) — asked only of a strict subset, in
+    // FR-012…FR-014's order, each skipped when its flag was given.
+    if (!standsUpApi) {
+      if (asks('api-url')) {
+        write('\n');
+        answers.apiUrl = await requiredOrigin(
+          'Where is the API? Its public origin, e.g. https://api.example.com: ',
+          'api-url',
+        );
+        prompted.push('api-url');
+      }
+      if (asks('storefront-url')) {
+        answers.storefrontUrl = await requiredOrigin(
+          'Where will this storefront be served? Its public origin, e.g. https://shop.example.com: ',
+          'storefront-url',
+        );
+        prompted.push('storefront-url');
+      }
+      if (asks('sales-channel')) {
+        const answer = await ask('Sales channel code [default]: ', 'sales-channel');
+        if (answer.length === 0) recommended.push('sales-channel');
+        else {
+          answers.salesChannel = answer;
+          prompted.push('sales-channel');
+        }
+      }
+      if (asks('revalidate-secret')) {
+        answers.revalidateSecret = await required(
+          "REVALIDATE_SECRET, as the API's .env has it (not shown): ",
+          'revalidate-secret',
+          true,
+        );
+        prompted.push('revalidate-secret');
+      }
+    } else if (selection.subset) {
+      if (asks('api-url') || asks('admin-url') || asks('storefront-url')) write('\n');
+      if (asks('api-url')) {
+        const origin = await offeredOrigin(
+          'Where is this API reachable from the other machines? [http://localhost:3001] ',
+          'api-url',
+        );
+        if (origin !== undefined) answers.apiUrl = origin;
+      }
+      if (asks('admin-url')) {
+        const origin = await offeredOrigin(
+          'Where will the admin be served? [http://localhost:3002] ',
+          'admin-url',
+        );
+        if (origin !== undefined) answers.adminUrl = origin;
+      }
+      if (asks('storefront-url')) {
+        const origin = await offeredOrigin(
+          'Where will the storefront be served? [http://localhost:3000] ',
+          'storefront-url',
+        );
+        if (origin !== undefined) answers.storefrontUrl = origin;
+      }
+    }
+
     // Q3 — the development services.
-    if (!fromFlags.has('services')) {
+    if (asks('services')) {
       for (;;) {
         const answer = (
           await ask(
@@ -422,7 +615,7 @@ export async function askWizard(
     }
 
     // Q4 — demo data. No Enter answer: 125 PR-2 (c), D-269.
-    if (!fromFlags.has('demo')) {
+    if (asks('demo')) {
       write(
         "\nDemo data is every installed module's example rows. An instance you are evaluating " +
           'wants it; one you will sell from wants none of it.\n',
@@ -439,14 +632,14 @@ export async function askWizard(
 
     // Q5–Q7 — the administrator, one block. Nothing has a default: the
     // password in particular is the one value you have to remember (FR-159).
-    if (!fromFlags.has('admin-email') || !fromFlags.has('admin-password') || !fromFlags.has('admin-name')) {
+    if (asks('admin-email') || asks('admin-password') || asks('admin-name')) {
       write('\nThe administrator you will sign in as:\n');
     }
-    if (!fromFlags.has('admin-email')) {
+    if (asks('admin-email')) {
       answers.adminEmail = await required('Administrator e-mail: ', 'admin-email');
       prompted.push('admin-email');
     }
-    if (!fromFlags.has('admin-password')) {
+    if (asks('admin-password')) {
       answers.adminPassword = await required(
         'Administrator password (not shown): ',
         'admin-password',
@@ -454,7 +647,7 @@ export async function askWizard(
       );
       prompted.push('admin-password');
     }
-    if (!fromFlags.has('admin-name')) {
+    if (asks('admin-name')) {
       if (!present(answers.adminFirstName)) {
         answers.adminFirstName = await required('Administrator first name: ', 'admin-name');
       }
@@ -480,10 +673,13 @@ export async function askWizard(
  * R2.3's disclosure rule, and `defaulted` is `0` for the same reason it is
  * there: nothing here was chosen without a human or a flag choosing it.
  */
-export function answersLine(outcome: Pick<WizardOutcome, 'fromFlags' | 'prompted' | 'recommended'>): string {
+export function answersLine(
+  outcome: Pick<WizardOutcome, 'fromFlags' | 'prompted' | 'recommended'>,
+  total: number = INSTALL_QUESTIONS.length,
+): string {
   const named = outcome.recommended.length === 0 ? '' : ` (${outcome.recommended.join(', ')})`;
   return (
-    `[answers] resolved: total=${String(INSTALL_QUESTIONS.length)} ` +
+    `[answers] resolved: total=${String(total)} ` +
     `flags=${String(outcome.fromFlags.size)} prompted=${String(outcome.prompted.length)} ` +
     `recommended=${String(outcome.recommended.length)}${named} defaulted=0`
   );

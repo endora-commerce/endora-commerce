@@ -475,3 +475,32 @@ describe('`endora dev` — the verb `dev:all` runs', () => {
     expect(`${result.stdout}${result.stderr}`).toMatch(/api exited with code 4/);
   });
 });
+
+/**
+ * The storefront layer of `dev:all` is the storefront's own `dev` script, by
+ * name — so that script has to start under the package manager an instance
+ * uses. It did not: it handed `node` the path `./node_modules/.bin/next`, which
+ * pnpm writes as a **shell** shim, and `node` died on its first line. Every
+ * `dev:all` with a storefront beside the instance ended there, with the API
+ * and the admin stopped along with it.
+ *
+ * Read off the reference storefront's own manifest, because that file is what
+ * every scaffolded storefront carries.
+ */
+describe('the reference storefront starts under pnpm, on the port its `.env` names', () => {
+  const manifest = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../../../storefront/package.json', import.meta.url)), 'utf8'),
+  ) as { scripts: Record<string, string> };
+
+  it.each(['dev', 'start'])('`%s` runs Next\'s own entry through node, never a `.bin` shim', (script) => {
+    const command = manifest.scripts[script]!;
+    expect(command).not.toMatch(/node [^&|]*\.bin\//);
+    expect(command).toContain('node_modules/next/dist/bin/next');
+  });
+
+  it.each(['dev', 'start'])('`%s` loads `.env` before Next binds, so `PORT` there is the port', (script) => {
+    // Next reads `process.env.PORT` before it loads `.env*`, so a `PORT=` line
+    // in the file is ignored unless something puts it in the environment first.
+    expect(manifest.scripts[script]).toContain('node --env-file-if-exists=.env ');
+  });
+});

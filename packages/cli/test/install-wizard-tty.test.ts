@@ -48,6 +48,32 @@ const CONVERSATION: readonly (readonly [string, string])[] = [
   ['Administrator last name:', 'Lovelace\r'],
 ];
 
+/** The secret a storefront-only run is typed, which the screen must never show. */
+const SECRET = 'the-secret-the-api-already-holds';
+
+/**
+ * `specs/138-separate-components/` — the storefront alone. Rows 1 and 2 are
+ * `api` and `admin`; what follows is where the API is, where this storefront is
+ * served, the channel (Enter: `default`) and the shared secret.
+ */
+const STOREFRONT_ALONE: readonly (readonly [string, string])[] = [
+  ['Where should the instance go?', 'shop\r'],
+  ['> ', '1 2\r'],
+  ['> ', '\r'],
+  ['Where is the API?', 'https://api.example.com\r'],
+  ['Where will this storefront be served?', 'https://shop.example.com\r'],
+  ['Sales channel code [default]:', '\r'],
+  ['REVALIDATE_SECRET, as the API', `${SECRET}\r`],
+];
+
+/** The admin alone: rows 1 and 3 off, and one question — where the API is. */
+const ADMIN_ALONE: readonly (readonly [string, string])[] = [
+  ['Where should the instance go?', 'admin\r'],
+  ['> ', '1 3\r'],
+  ['> ', '\r'],
+  ['Where is the API?', 'https://api.example.com\r'],
+];
+
 /**
  * Where util-linux `script` is, resolved on **this** process's `PATH` — the
  * child's is deliberately empty — or `null` when it is not util-linux's.
@@ -68,7 +94,11 @@ interface Run {
 }
 
 /** Drive the command through a pseudo-terminal, answering each question as it appears. */
-function converse(script: string, cwd: string): Promise<Run> {
+function converse(
+  script: string,
+  cwd: string,
+  conversation: readonly (readonly [string, string])[] = CONVERSATION,
+): Promise<Run> {
   return new Promise((resolve) => {
     const command = `'${process.execPath}' '${ENDORA}' install`;
     const child = spawn(script, ['-qfec', command, '/dev/null'], {
@@ -88,8 +118,8 @@ function converse(script: string, cwd: string): Promise<Run> {
     let cursor = 0;
     let answered = 0;
     const answer = (): void => {
-      while (answered < CONVERSATION.length) {
-        const [question, typed] = CONVERSATION[answered]!;
+      while (answered < conversation.length) {
+        const [question, typed] = conversation[answered]!;
         const at = screen.indexOf(question, cursor);
         if (at < 0) return;
         cursor = at + question.length;
@@ -168,6 +198,55 @@ describe('T4-A — spawned', () => {
         expect(run.screen).not.toContain(PASSWORD);
         // FR-147 — the one line before the first question.
         expect(run.screen).toContain('0 of 7 answers came from flags');
+      } finally {
+        rmSync(parent, { recursive: true, force: true });
+      }
+    },
+    TIMEOUT_MS + 15_000,
+  );
+
+  it(
+    '138 — the storefront alone: asked where the others are, the secret unechoed, nothing about an administrator',
+    async () => {
+      const script = scriptPath();
+      expect(script, 'util-linux `script` is not on this machine').not.toBeNull();
+      const parent = mkdtempSync(join(tmpdir(), '138-tty-shop-'));
+      try {
+        const run = await converse(script!, parent, STOREFRONT_ALONE);
+        expect(run.timedOut, `still running after ${String(TIMEOUT_MS)} ms:\n${run.screen}`).toBe(false);
+        expect(run.answered, run.screen).toBe(STOREFRONT_ALONE.length);
+        expect(run.code, run.screen).toBe(1);
+        // The one thing left to settle is the machine's: every answer was read.
+        expect(run.screen).toContain('1 thing to settle first');
+        expect(run.screen).toContain('no package manager');
+        expect(run.screen).not.toContain(SECRET);
+        for (const question of ['Start PostgreSQL', 'Install demo data?', 'Administrator']) {
+          expect(run.screen, question).not.toContain(question);
+        }
+        expect(existsSync(join(parent, 'shop'))).toBe(false);
+      } finally {
+        rmSync(parent, { recursive: true, force: true });
+      }
+    },
+    TIMEOUT_MS + 15_000,
+  );
+
+  it(
+    '138 — the admin alone: one question after the parts, and no Docker precondition',
+    async () => {
+      const script = scriptPath();
+      expect(script, 'util-linux `script` is not on this machine').not.toBeNull();
+      const parent = mkdtempSync(join(tmpdir(), '138-tty-admin-'));
+      try {
+        const run = await converse(script!, parent, ADMIN_ALONE);
+        expect(run.timedOut, `still running after ${String(TIMEOUT_MS)} ms:\n${run.screen}`).toBe(false);
+        expect(run.answered, run.screen).toBe(ADMIN_ALONE.length);
+        expect(run.code, run.screen).toBe(1);
+        expect(run.screen).toContain('1 thing to settle first');
+        expect(run.screen).toContain('no package manager');
+        expect(run.screen).not.toContain('Docker daemon');
+        expect(run.screen).not.toContain('Administrator');
+        expect(existsSync(join(parent, 'admin'))).toBe(false);
       } finally {
         rmSync(parent, { recursive: true, force: true });
       }

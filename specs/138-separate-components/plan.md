@@ -53,7 +53,7 @@ list nothing reconciles. Keeping the member costs a dozen inert wiring files and
 `deploy/Dockerfile.admin` already builds the admin from the whole tree with no service running.
 *Rejected*: a backend-less instance (above); a standalone "admin project" scaffold — a third tree
 shape, a third template, and the same module-list problem.
-*Relation to the refusal*: unchanged, remedy amended — proposed D-284 clause 2.
+*Relation to the refusal*: unchanged, remedy amended — D-284 clause 2.
 
 **D3 — storefront-only writes no instance.** The storefront is its own repository and needs
 nothing from the tree; `<dir>` is its directory. *Rejected*: writing an instance beside it "for

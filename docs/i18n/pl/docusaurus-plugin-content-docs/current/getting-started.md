@@ -56,7 +56,9 @@ W tej kolejności, wypisując każde polecenie przed jego uruchomieniem:
    przykład inny PostgreSQL na `5432` — instalator wybiera wolny, zapisuje go w `.env` (na przykład
    `POSTGRES_PORT=15432`), wyprowadza z niego adres i informuje o tym. Portu, który ustawisz w
    `.env` samodzielnie, nigdy nie zmienia: jeśli jest zajęty, instalator zatrzymuje się, zanim
-   cokolwiek zapisze.
+   cokolwiek zapisze. Panel (`3002`) i sklep (`3000`) są traktowane tak samo: zajęty port zostaje
+   zastąpiony wolnym, zapisany jako `PORT` w `admin/.env` albo w `.env` sklepu i dodany do
+   `CORS_ALLOWED_ORIGINS` w API, żeby przeglądarka nadal była wpuszczana.
 5. **Instaluje, generuje, buduje i migruje**, instaluje każdy moduł i tworzy Twojego
    administratora.
 6. **Wgrywa dane demonstracyjne**, jeśli o nie poprosisz. Wgrywanie odbywa się na końcu, a błąd w
@@ -88,15 +90,17 @@ migracja.
 
 ## O co pyta
 
-W terminalu instalator pyta o to, na co nie odpowiedziały Twoje flagi — **najwyżej siedem pytań**.
-Pytanie, na które odpowiedziała flaga, nie jest zadawane; instalator wymienia takie odpowiedzi raz,
+W terminalu instalator pyta o to, na co nie odpowiedziały Twoje flagi — **siedem pytań**, gdy
+stawia wszystkie części; uruchomienie, które stawia tylko niektóre, pyta zamiast tego o pozostałe
+(zob. [Jeden komponent na maszynę](#one-component-per-machine)). Pytanie, na które odpowiedziała
+flaga, nie jest zadawane; instalator wymienia takie odpowiedzi raz,
 przed pierwszym pytaniem. Enter przyjmuje rekomendację tam, gdzie ona jest, a podsumowanie na końcu
 wymienia każdą rekomendację przyjętą w ten sposób.
 
 | Pytanie | Rekomendacja (Enter) | Flaga, która na nie odpowiada |
 | --- | --- | --- |
 | Gdzie ma trafić instancja | `./endora-commerce` | argument `<dir>` |
-| Które części zapisać | wszystkie | `--without <member>`, `--no-storefront`, `--storefront-dir <path>` |
+| Które części uruchamia ta maszyna | wszystkie | `--only <component>`, `--without <member>`, `--no-storefront`, `--storefront-dir <path>` |
 | Czy uruchomić usługi deweloperskie | tak | `--no-services` |
 | Czy wgrać dane demonstracyjne | **brak** — musisz odpowiedzieć | `--demo` lub `--no-demo` |
 | E-mail administratora | brak | `--admin-email <address>` |
@@ -115,10 +119,13 @@ ruszając Twoich własnych wierszy.
 **Administrator nigdy nie jest generowany.** Hasło to jedyna wartość, którą musisz zapamiętać, więc
 nic go za Ciebie nie wymyśla i nic innego nie tworzy konta.
 
-**Części** to członkowie instancji i sklep. Backend jest zapisywany zawsze. `admin` (panel
-administracyjny) i `docs` (witrynę dokumentacji Twojej instancji) można pominąć przez
-`--without admin` lub `--without docs`. Sklep jest zapisywany jako katalog **obok** instancji,
-domyślnie `<dir>-storefront` — nigdy wewnątrz niej, gdzie wchłonąłby go workspace instancji.
+**Części** to trzy komponenty, które uruchomienie może postawić — `api`, `admin` i `storefront` —
+oraz `docs`, witryna dokumentacji Twojej instancji. Pozostawienie wszystkich wierszy zaznaczonych
+to uruchomienie opisane dotąd na tej stronie. Odznaczenie komponentu jest tym samym, co wskazanie
+pozostałych przez `--only`, i o tym jest sekcja
+[Jeden komponent na maszynę](#one-component-per-machine); `docs` pomija się przez
+`--without docs`. Sklep jest zapisywany jako katalog **obok** instancji, domyślnie
+`<dir>-storefront` — nigdy wewnątrz niej, gdzie wchłonąłby go workspace instancji.
 
 ## Bez pytań
 
@@ -136,20 +143,104 @@ npx create-endora-commerce@latest my-shop --non-interactive --no-demo \
 uruchamia. Tam, gdzie potrzebuje pakietów wydania, nadal instaluje je do katalogu tymczasowego (bez
 tego nie da się ustalić zestawu modułów), usuwa go i o tym informuje.
 
+## Jeden komponent na maszynę {#one-component-per-machine}
+
+W większej instalacji API, panel administracyjny i sklep działają każde na własnym serwerze.
+`--only` wskazuje komponenty, które **to uruchomienie** stawia na **tej maszynie**, a o tym, gdzie
+są pozostałe, uruchomienie dowiaduje się z adresu origin — schemat i host, opcjonalny port, bez
+ścieżki (`https://api.example.com`).
+
+```bash
+# on the API server
+npx create-endora-commerce@latest api --only api --no-demo \
+  --api-url https://api.example.com \
+  --admin-url https://admin.example.com --storefront-url https://shop.example.com \
+  --admin-email you@example.com --admin-password "$ADMIN_PASSWORD" \
+  --admin-first-name Ada --admin-last-name Lovelace
+
+# on the admin server — no database, no service, no administrator
+npx create-endora-commerce@latest admin --only admin --api-url https://api.example.com
+
+# on the storefront server — no instance at all
+npx create-endora-commerce@latest shop --only storefront \
+  --api-url https://api.example.com --storefront-url https://shop.example.com \
+  --revalidate-secret "$REVALIDATE_SECRET"
+```
+
+| `--only` | Zapisane w `<dir>` | Sklep | Co uruchamia | Wymagane poza `<dir>` |
+| --- | --- | --- | --- | --- |
+| *(brak)* albo wszystkie trzy | instancja | obok niej | wszystko z tej strony | administrator, `--demo` albo `--no-demo` |
+| `api` | instancja, bez członka admin | brak | instalacja, usługi, setup, administrator, dane demonstracyjne na życzenie | administrator, `--demo` albo `--no-demo` |
+| `api,admin` | instancja | brak | jak `api` | jak `api` |
+| `api,storefront` | instancja, bez członka admin | obok niej | jak `api`, potem instalacja sklepu | jak `api` |
+| `admin` | instancja, **z** członkiem backend | brak | `pnpm install`, `pnpm run build:admin` | `--api-url` |
+| `storefront` | **sam sklep** — bez instancji | w `<dir>` | `pnpm install` sklepu | `--api-url`, `--storefront-url`, `--revalidate-secret` |
+| `admin,storefront` | instancja, z członkiem backend | obok niej | `pnpm install`, `pnpm run build:admin`, instalacja sklepu | oba wiersze powyżej |
+
+**Bez `api` uruchomienie nie dotyka żadnej bazy danych.** Nie uruchamia żadnej usługi, niczego nie
+migruje, nie tworzy administratora i niczego nie wgrywa — a flagi, które mają sens tylko z API
+(`--demo`, `--no-demo`, `--admin-email` i pozostałe flagi administratora, `--no-services`), odrzuca,
+zamiast je ignorować. Uruchomienie, które nie zapisuje instancji, z tego samego powodu odrzuca
+`--without`, `--module`, `--deployment` i `--topology`.
+
+**Sam panel to to samo drzewo instancji.** Ekrany panelu pochodzą z pakietów modułów, które
+instaluje instancja, więc panel budowany osobno nadal potrzebuje tej listy: uruchomienie zapisuje
+całe drzewo, razem z członkiem backend, wykonuje `pnpm install` i buduje z niego jedną rzecz —
+`admin/dist`. Adres API trafia do `admin/.env` jako `VITE_API_BASE_URL`. Serwuj `admin/dist` przez
+`pnpm run preview:admin` albo dowolnym serwerem plików statycznych, który na nieznane ścieżki
+odpowiada plikiem `index.html`.
+
+**Sam sklep dostaje sekret, nigdy nowy.** `REVALIDATE_SECRET` to jedna wartość przechowywana na
+dwóch maszynach. Uruchomienie z `api` i bez sklepu generuje ją raz (albo zapisuje tę, którą
+podasz), umieszcza w `.env` instancji, mówi, w którym pliku, i jej nie wypisuje. Skopiuj ją stamtąd
+do `--revalidate-secret` na maszynie sklepu. `--sales-channel <code>` wskazuje kanał sprzedaży, na
+którym sprzedaje sklep; pominięty, oznacza `default` — kod, z którym platforma tworzy swój domyślny
+kanał.
+
+### Co maszyny są sobie winne
+
+Podsumowanie uruchomienia, które stawia tylko część komponentów, wypisuje te cztery rzeczy. Żadnej
+z nich nie da się sprawdzić z jednej maszyny.
+
+1. **API wpuszcza przeglądarkę według adresu origin.** `CORS_ALLOWED_ORIGINS` w `.env` API musi
+   zawierać publiczne adresy panelu i sklepu dokładnie tak, jak wysyła je przeglądarka: schemat,
+   host, port, bez końcowego ukośnika. Zapisują to `--admin-url` i `--storefront-url` podane przy
+   uruchomieniu API; adres, którego nie podasz, zostaje przy wartości deweloperskiej
+   (`http://localhost:3002`, `http://localhost:3000`).
+2. **Adres API jest ustalany w chwili budowania panelu i sklepu.** `VITE_API_BASE_URL` i
+   `NEXT_PUBLIC_API_BASE_URL` są zapisywane w paczkach, więc zmiana adresu API oznacza ponowne
+   zbudowanie obu, a nie restart.
+3. **Trzy publiczne adresy muszą być same-site** — w jednej rejestrowalnej domenie, jak
+   `api.example.com`, `admin.example.com` i `shop.example.com`. Ciasteczka sesji mają
+   `SameSite=Lax`, więc przeglądarka nie wysyła ich ze strony w innej witrynie. Nic tego za Ciebie
+   nie sprawdza.
+4. **Panel pokazuje ekrany modułów, które zainstalowało jego własne drzewo.** Zbuduj go z tego
+   samego wydania co API i z tą samą listą `--module`, jeśli API ją dostało.
+
+Gdy podany adres jest adresem `localhost` z portem — `--storefront-url http://localhost:4000` —
+jest to zarazem port, na którym ten komponent jest serwowany na tej maszynie: uruchomienie
+zapisuje go jako `PORT` tam, skąd komponent go odczytuje.
+
 ### Wszystkie flagi
 
 | Flaga | Co robi |
 | --- | --- |
 | `<dir>` | Gdzie trafia instancja. Katalog musi być pusty albo zawierać wyłącznie umieszczony przez Ciebie plik `.env`. |
-| `--admin-email`, `--admin-password`, `--admin-first-name`, `--admin-last-name` | Administrator, jako który się logujesz. Wymagane są wszystkie cztery. |
-| `--demo` / `--no-demo` | Wgrać przykładowe dane każdego zainstalowanego modułu albo nie. Wymagana; bez wartości domyślnej. |
+| `--only <component>` | Które z `api`, `admin`, `storefront` to uruchomienie stawia na tej maszynie. Wielokrotnie albo po przecinku. Brak: wszystkie trzy. |
+| `--api-url <origin>` | Publiczny adres API. Wymagana, gdy w `--only` nie ma `api`; z `api` — to, co API dostaje jako własny publiczny adres. |
+| `--admin-url <origin>` | Gdzie serwowany jest panel — dla `CORS_ALLOWED_ORIGINS` w API. Tylko z `api`. |
+| `--storefront-url <origin>` | Gdzie serwowany jest sklep. Wymagana dla sklepu bez `api`; z `api` — wpis na liście dozwolonych adresów API i `STOREFRONT_BASE_URL`. |
+| `--sales-channel <code>` | Kanał sprzedaży, na którym sprzedaje sklep postawiony bez `api`. Domyślnie `default`. |
+| `--revalidate-secret <secret>` | Sekret wspólny dla API i sklepu. Wymagana dla sklepu bez `api`; w pozostałych przypadkach, gdy jej nie podasz, generowana raz, zapisywana i nigdy nie wypisywana. |
+| `--admin-email`, `--admin-password`, `--admin-first-name`, `--admin-last-name` | Administrator, jako który się logujesz. Wymagane są wszystkie cztery, gdy uruchomienie stawia API. |
+| `--demo` / `--no-demo` | Wgrać przykładowe dane każdego zainstalowanego modułu albo nie. Wymagana, gdy uruchomienie stawia API; bez wartości domyślnej. |
 | `--no-services` | Nie uruchamiaj PostgreSQL, Redis, Meilisearch ani Mailpit i nie zapisuj ich adresów w `.env`. |
 | `--without <member>` | Nie zapisuj `admin` lub `docs`. Wielokrotnie. |
 | `--no-storefront` | Zapisz samą instancję, bez sklepu obok niej. |
 | `--storefront-dir <path>` | Gdzie trafia sklep. Domyślnie `<dir>-storefront`; nie może leżeć wewnątrz instancji. |
 | `--module <id>` | Zainstaluj jawnie wskazany zestaw modułów zamiast zestawu open source. Wielokrotnie. |
 | `--deployment <name>` | Katalog w `apps/` na Twoje moduły nakładkowe i wartość `DEPLOYMENT`. Domyślnie: nazwa workspace'u. |
-| `--registry <url>` | Instaluj `@endora-commerce/*` z tego rejestru. Zapisuje `.npmrc`, który odwołuje się do tokenu przez zmienną środowiskową, nigdy jako wartość. |
+| `--registry <url>` | Instaluj `@endora-commerce/*` z tego rejestru — w instancji i w sklepie. W każdym z nich zapisuje `.npmrc`, który odwołuje się do tokenu przez zmienną środowiskową, nigdy jako wartość. |
 | `--topology single-host` / `three-host` | Który układ maszyn opisują przykładowe pliki wdrożeniowe w `deploy/`. Wybiera pliki; nic go później nie odczytuje. |
 | `--non-interactive` | Nie pytaj o nic, nawet w terminalu. |
 | `--dry-run` | Raportuj każdy plik i każdy krok; nic nie zapisuj do Twojego katalogu i niczego nie uruchamiaj. |
@@ -160,10 +251,11 @@ Uruchom je w katalogu głównym instancji. W jednym terminalu, z każdą linią 
 startuje:
 
 - **API** pod `http://localhost:3001` albo na porcie `PORT` ustawionym w pliku `.env` instancji;
-- **panel** — pakiet zbudowany przez instalację, serwowany na własnym porcie (`3002`, chyba że
-  `PORT` panelu mówi inaczej);
-- **sklep**, jeśli jest obok instancji w `<dir>-storefront`. Sklep w innym miejscu wskazujesz przez
-  `pnpm run dev:all -- --storefront-dir <path>`.
+- **panel** — pakiet zbudowany przez instalację, serwowany na własnym porcie: `3002` albo `PORT` z
+  `admin/.env`, który instalator zapisuje, gdy `3002` był zajęty;
+- **sklep**, jeśli jest obok instancji w `<dir>-storefront` — na `3000` albo na `PORT` z jego
+  własnego `.env`. Sklep w innym miejscu wskazujesz przez
+  `pnpm run dev:all --storefront-dir <path>`.
 
 Ctrl-C zatrzymuje wszystkie, a jeśli któryś się zakończy, pozostałe są zatrzymywane i wskazywany
 jest ten, który się zakończył. Każda warstwa zachowuje własne polecenie — `pnpm run start` dla API,

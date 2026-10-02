@@ -29,11 +29,13 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runInstall, type InstallStep } from '../src/install/index.js';
+import { EVERYTHING, resolveSelection } from '../src/install/selection.js';
 import {
   INSTALL_QUESTIONS,
   answersLine,
   askWizard,
   checklistRows,
+  installQuestions,
   selectionToFlags,
 } from '../src/install/wizard.js';
 import { runNewInstance } from '../src/new-instance/index.js';
@@ -130,7 +132,7 @@ describe('T4-A — at a terminal, with no flags, it asks §6.2\'s questions in o
     const text = screen();
     const order = [
       'Where should the instance go?',
-      'Which parts do you want?',
+      'Which parts should this machine run?',
       'Start PostgreSQL, Redis, Meilisearch and a mail catcher',
       'Install demo data?',
       'Administrator e-mail',
@@ -179,7 +181,8 @@ describe('T4-B / SC-107 — the question set is the flag set, and both reach one
   });
 
   it('the wizard and `--non-interactive` with the same answers write byte-identical trees', async () => {
-    const answersTyped = ['acme-shop', '2', '', 'n', 'y', ...Object.values(ADMIN)];
+    // Rows: 1 api, 2 admin, 3 docs — the storefront is fixed where none can be written.
+    const answersTyped = ['acme-shop', '3', '', 'n', 'y', ...Object.values(ADMIN)];
     const wizardRoot = host();
     const { io } = terminal(answersTyped);
     const wizard = await runInstall({
@@ -208,11 +211,11 @@ describe('T4-B / SC-107 — the question set is the flag set, and both reach one
 
     expect(wizard.exitCode).toBe(0);
     expect(flags.exitCode).toBe(0);
-    const generated = [...wizard.instance.resolved, ...flags.instance.resolved]
+    const generated = [...wizard.instance!.resolved, ...flags.instance!.resolved]
       .filter((entry) => entry.provenance === 'generated')
       .map((entry) => entry.name);
     expect(snapshot(wizard.targetDir, generated)).toEqual(snapshot(flags.targetDir, generated));
-    expect(wizard.instance.plan.members).not.toContain('docs');
+    expect(wizard.instance!.plan.members).not.toContain('docs');
   });
 });
 
@@ -230,7 +233,7 @@ describe('T4-C / FR-147 — a supplied flag is reported, not re-asked', () => {
     expect(first).toContain('--no-services');
     expect(first).toContain('3 of 7 answers came from flags');
     expect(text).not.toContain('Where should the instance go?');
-    expect(text).not.toContain('Which parts do you want?');
+    expect(text).not.toContain('Which parts should this machine run?');
     expect(text).not.toContain('Start PostgreSQL');
   });
 });
@@ -272,38 +275,82 @@ describe('T4-E / SC-108 — everything checked passes no `--without` at all', ()
     const bareRoot = host();
     const bare = await runNewInstance({ dir: 'acme-shop', cwd: bareRoot });
     const paths = (files: readonly { path: string }[]): string[] => files.map((file) => file.path);
-    expect(paths(wizard.instance.plan.files)).toEqual(paths(bare.plan.files));
-    expect(wizard.instance.plan.members).toEqual(bare.plan.members);
-    expect(selectionToFlags(checklistRows(MEMBER_VOCABULARY, NO_STOREFRONT_HERE), new Set()).without).toEqual([]);
+    expect(paths(wizard.instance!.plan.files)).toEqual(paths(bare.plan.files));
+    expect(wizard.instance!.plan.members).toEqual(bare.plan.members);
+    // …and no `only` either: Enter on the untouched list is the argv of a run
+    // with no selection flag (138 FR-017).
+    expect(selectionToFlags(checklistRows(MEMBER_VOCABULARY, NO_STOREFRONT_HERE), new Set())).toEqual({
+      without: [],
+      storefront: false,
+    });
+    expect(
+      selectionToFlags(checklistRows(MEMBER_VOCABULARY, { available: true, reason: '' }), new Set()),
+    ).toEqual({ without: [], storefront: true });
   });
 });
 
-describe('T4-F / FR-152 — no positive selector anywhere, and the backend is a fixed row', () => {
+describe('T4-F / FR-152 — no positive MEMBER selector, and the backend cannot leave the tree', () => {
+  /**
+   * FR-152 refused a positive selector over the tree's members, and that
+   * stands. `--only` (`specs/138-separate-components/`, D-284) is not one: its
+   * vocabulary is the three components a **run** stands up, so a member's name
+   * is refused by it exactly as an invented flag is.
+   */
   it('the flag vocabulary holds no positive member selector', async () => {
-    for (const flag of ['--only', '--with-admin', '--member', '--headless']) {
+    for (const flag of ['--with-admin', '--member', '--headless']) {
       expect(await main(['install', 'x', flag, 'admin'], PACKAGE_ROOT), flag).toBe(1);
+    }
+    for (const member of ['backend', 'docs']) {
+      const selection = resolveSelection([member], [], undefined);
+      expect('refusals' in selection, `--only ${member}`).toBe(true);
     }
   });
 
-  it('`--without backend` stays refused, and the checklist renders the backend unnumbered with its reason', async () => {
+  it('`--without backend` stays refused, and the checklist has no backend row to uncheck', async () => {
     expect(await main(['new', 'instance', 'x', '--without', 'backend'], PACKAGE_ROOT)).toBe(1);
     const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
     await askWizard({}, io, { vocabulary: MEMBER_VOCABULARY, storefront: NO_STOREFRONT_HERE });
-    const backendLine = screen()
-      .split('\n')
-      .find((line) => line.includes('backend —'))!;
-    expect(backendLine).not.toMatch(/\d\./);
-    expect(backendLine).toContain('composes the platform');
+    expect(screen()).not.toContain('backend —');
+    // What the run stands up is the `api` row; unchecking it leaves the member
+    // in the tree (D-284 clause 2), which `selection.ts` decides.
+    expect(screen()).toMatch(/^\s+1\. \[x\] api — /m);
+    const adminAlone = resolveSelection(['admin'], [], undefined);
+    expect('refusals' in adminAlone ? null : adminAlone.without).toEqual([]);
   });
 });
 
-describe('T4-G / FR-151 — the storefront row dispatches to the other mechanism', () => {
-  it('unchecked is `--no-storefront`, never `--without storefront`', () => {
-    const rows = checklistRows(MEMBER_VOCABULARY, { available: true, reason: '' });
-    const selection = selectionToFlags(rows, new Set(['storefront', 'admin']));
-    expect(selection.storefront).toBe(false);
-    expect(selection.without).toEqual(['admin']);
-    expect(selection.without).not.toContain('storefront');
+describe('T4-G / FR-151 — the checklist dispatches each row to its own axis', () => {
+  const rows = checklistRows(MEMBER_VOCABULARY, { available: true, reason: '' });
+
+  it('the rows are the three components, then the members that are not one', () => {
+    expect(rows.map((row) => [row.name, row.dispatch])).toEqual([
+      ['api', 'component'],
+      ['admin', 'component'],
+      ['storefront', 'component'],
+      ['docs', 'member'],
+    ]);
+    expect(rows.every((row) => row.fixed === null)).toBe(true);
+  });
+
+  it('an unchecked component is `only` over the rest, never `--without storefront`', () => {
+    expect(selectionToFlags(rows, new Set(['storefront', 'admin']))).toEqual({
+      without: [],
+      storefront: false,
+      only: ['api'],
+    });
+    expect(selectionToFlags(rows, new Set(['api', 'docs']))).toEqual({
+      without: ['docs'],
+      storefront: true,
+      only: ['admin', 'storefront'],
+    });
+  });
+
+  it('an unchecked member alone is `--without`, and no `only`', () => {
+    expect(selectionToFlags(rows, new Set(['docs']))).toEqual({ without: ['docs'], storefront: true });
+  });
+
+  it('none of the three components is no selection at all', () => {
+    expect(selectionToFlags(rows, new Set(['api', 'admin', 'storefront']))).toBeNull();
   });
 
   it('where no storefront can be written, the row is fixed and says why', async () => {
@@ -319,6 +366,206 @@ describe('T4-G / FR-151 — the storefront row dispatches to the other mechanism
     expect(line).not.toMatch(/\d\./);
     expect(line).toContain('checkout');
     expect(outcome.answers.storefront).toBe(false);
+    // The untouched list is still the run with no selection flag.
+    expect(outcome.answers.only).toBeUndefined();
+  });
+});
+
+/**
+ * `specs/138-separate-components/` T07 — the parts question is about what this
+ * machine runs, and a strict subset is asked where the other machines are.
+ */
+describe('138 FR-017 / FR-018 — one component, and the questions that follow from it', () => {
+  const HERE = { vocabulary: MEMBER_VOCABULARY, storefront: { available: true, reason: '' } };
+  const asked = (text: string, question: string): number => text.split(question).length - 1;
+
+  it('the list is api, admin, storefront, docs — numbered, pre-checked, worded as the plan words it', async () => {
+    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
+    await askWizard({}, io, HERE);
+    expect(screen()).toContain(
+      [
+        'Which parts should this machine run? Type the numbers to toggle, Enter to accept.',
+        '   1. [x] api — the API and the workers — the part every other one talks to',
+        '   2. [x] admin — the operator interface, built as its own artefact',
+        '   3. [x] storefront — the shop, as its own repository beside the instance',
+        '   4. [x] docs — a documentation site rendering your modules\' own pages',
+      ].join('\n'),
+    );
+  });
+
+  it('Enter on everything is the answers of a flagless run: no `only`, and the seven questions', async () => {
+    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
+    const outcome = await askWizard({}, io, HERE);
+    expect(outcome.answers.only).toBeUndefined();
+    expect(outcome.answers).toMatchObject({ without: [], storefront: true, services: true, demo: false });
+    expect(outcome.recommended).toEqual(['directory', 'parts', 'services']);
+    for (const question of ['Where is the API?', 'Where will', 'Sales channel', 'REVALIDATE_SECRET']) {
+      expect(screen(), question).not.toContain(question);
+    }
+  });
+
+  it('none of the three checked re-asks, and says why', async () => {
+    const { io, screen } = terminal(['acme', '1 2 3', '', '1', '', '', '', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
+    const outcome = await askWizard({}, io, HERE);
+    expect(screen()).toContain('  keep at least one of api, admin, storefront.');
+    expect(outcome.answers.only).toEqual(['api']);
+  });
+
+  it('the admin alone: where the API is, and nothing about a database or an administrator', async () => {
+    const { io, screen } = terminal(['acme', '1 3', '', '', 'api.example.com', 'https://api.example.com']);
+    const outcome = await askWizard({}, io, HERE);
+    const text = screen();
+    // An empty required answer re-asks, and so does a value that is not an origin.
+    expect(asked(text, 'Where is the API? Its public origin, e.g. https://api.example.com: ')).toBe(3);
+    expect(text).toContain('  that is not an origin: scheme and host, an optional port, no path.');
+    for (const question of [
+      'Start PostgreSQL',
+      'Install demo data?',
+      'Administrator',
+      'Where will',
+      'Sales channel',
+      'REVALIDATE_SECRET',
+    ]) {
+      expect(text, question).not.toContain(question);
+    }
+    expect(outcome.answers).toMatchObject({ dir: 'acme', only: ['admin'], apiUrl: 'https://api.example.com' });
+    expect(outcome.prompted).toEqual(['directory', 'parts', 'api-url']);
+    expect(outcome.recommended).toEqual([]);
+  });
+
+  it('the storefront alone: the API, its own origin, the channel and the secret', async () => {
+    const answers = ['acme', '1 2', '', 'https://api.example.com', 'https://shop.example.com', '', '', 's3cret-the-api-holds'];
+    const { io, screen } = terminal(answers);
+    const outcome = await askWizard({}, io, HERE);
+    const text = screen();
+    const order = [
+      'Where is the API?',
+      'Where will this storefront be served? Its public origin, e.g. https://shop.example.com: ',
+      'Sales channel code [default]: ',
+      "REVALIDATE_SECRET, as the API's .env has it (not shown): ",
+    ].map((question) => text.indexOf(question));
+    expect(order.every((index) => index >= 0), text).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    // An empty line is not a secret: it was asked twice. That it is read
+    // without echo is a terminal's property, so the spawned case in
+    // `install-wizard-tty.test.ts` is the one that asserts it.
+    expect(asked(text, 'REVALIDATE_SECRET, as the API')).toBe(2);
+    for (const question of ['Start PostgreSQL', 'Install demo data?', 'Administrator']) {
+      expect(text, question).not.toContain(question);
+    }
+    expect(outcome.answers).toMatchObject({
+      only: ['storefront'],
+      apiUrl: 'https://api.example.com',
+      storefrontUrl: 'https://shop.example.com',
+      revalidateSecret: 's3cret-the-api-holds',
+    });
+    expect(outcome.answers.salesChannel).toBeUndefined();
+    expect(outcome.recommended).toEqual(['sales-channel']);
+  });
+
+  it('the storefront alone, with `docs` unchecked too: no `--without` for a tree nobody writes', async () => {
+    // The checklist's member rows are about the instance tree. A selection
+    // that writes none has no member to leave out, and handing the command
+    // `--without docs` would be the wizard producing a flag the command then
+    // refuses — after every question had been answered.
+    const { io } = terminal(['acme', '1 2 4', '', 'https://api.example.com', 'https://shop.example.com', '', 's']);
+    const outcome = await askWizard({}, io, HERE);
+    expect(outcome.answers.only).toEqual(['storefront']);
+    expect(outcome.answers.without).toEqual([]);
+  });
+
+  it('the API alone: the three origins are offered, Enter takes each recommendation and writes nothing', async () => {
+    const { io, screen } = terminal([
+      'acme',
+      '2 3',
+      '',
+      '', // this API: the recommendation
+      'https://admin.example.com/', // not an origin: asked again
+      'https://admin.example.com',
+      '', // the storefront: the recommendation
+      'n',
+      'n',
+      'e@x.io',
+      'pw',
+      'A',
+      'B',
+    ]);
+    const outcome = await askWizard({}, io, HERE);
+    const text = screen();
+    expect(text).toContain('Where is this API reachable from the other machines? [http://localhost:3001] ');
+    expect(asked(text, 'Where will the admin be served? [http://localhost:3002] ')).toBe(2);
+    expect(text).toContain('Where will the storefront be served? [http://localhost:3000] ');
+    expect(text.indexOf('Where will the storefront be served?')).toBeLessThan(text.indexOf('Start PostgreSQL'));
+    expect(outcome.answers).toMatchObject({ only: ['api'], adminUrl: 'https://admin.example.com' });
+    expect(outcome.answers.apiUrl).toBeUndefined();
+    expect(outcome.answers.storefrontUrl).toBeUndefined();
+    expect(outcome.recommended).toEqual(['api-url', 'storefront-url']);
+    expect(outcome.prompted).toContain('admin-url');
+  });
+
+  it('a question whose flag was given is not asked', async () => {
+    const { io, screen } = terminal([]);
+    const outcome = await askWizard(
+      { dir: 'acme', only: ['admin'], apiUrl: 'https://api.example.com' },
+      io,
+      HERE,
+    );
+    const text = screen();
+    expect(text.split('\n')[0]).toContain('3 of 3 answers came from flags');
+    expect(text).not.toContain('Where is the API?');
+    expect(text).not.toContain('Which parts');
+    expect(outcome.prompted).toEqual([]);
+  });
+
+  it('FR-019 — the count of questions is a function of the selection', () => {
+    const count = (only: readonly string[] | undefined): number => {
+      const selection = resolveSelection(only, [], undefined);
+      return installQuestions('refusals' in selection ? EVERYTHING : selection).length;
+    };
+    expect(count(undefined)).toBe(7);
+    expect(count(['admin'])).toBe(3);
+    expect(count(['storefront'])).toBe(6);
+    expect(count(['api'])).toBe(10);
+    // Every one of them has a flag (R2.5f ii).
+    for (const only of [undefined, ['api'], ['admin'], ['storefront']] as const) {
+      const selection = resolveSelection(only, [], undefined);
+      for (const question of installQuestions('refusals' in selection ? EVERYTHING : selection)) {
+        expect(question.flags.length, question.id).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('SC-107 — the wizard and `--non-interactive` write the same admin-only tree', async () => {
+    const wizardRoot = host({ admin: true });
+    // Rows: 1 api, 2 admin, 3 docs — no storefront can be written from here.
+    const { io } = terminal(['acme-shop', '1', '', 'https://api.example.com']);
+    const wizardSteps = recorder();
+    const wizard = await runInstall({
+      cwd: wizardRoot,
+      interactivity: AT_A_TERMINAL,
+      portInUse: NO_PORT_TAKEN,
+      packagedReferenceDir: NO_PACKAGED_REFERENCE,
+      io,
+      dockerReachable: false,
+      run: wizardSteps.run,
+    });
+    const flagsRoot = host({ admin: true });
+    const flags = await runInstall({
+      dir: 'acme-shop',
+      cwd: flagsRoot,
+      only: ['admin'],
+      apiUrl: 'https://api.example.com',
+      nonInteractive: true,
+      portInUse: NO_PORT_TAKEN,
+      run: recorder().run,
+    });
+    expect(wizardSteps.steps.map((step) => step.id)).toEqual(['install', 'build-admin']);
+    const generated = [...wizard.instance!.resolved, ...flags.instance!.resolved]
+      .filter((entry) => entry.provenance === 'generated')
+      .map((entry) => entry.name);
+    expect(snapshot(wizard.targetDir, generated)).toEqual(snapshot(flags.targetDir, generated));
+    expect(wizard.answers).toBe('[answers] resolved: total=3 flags=0 prompted=3 recommended=0 defaulted=0');
+    expect(flags.answers).toBe('[answers] resolved: total=3 flags=3 prompted=0 recommended=0 defaulted=0');
   });
 });
 

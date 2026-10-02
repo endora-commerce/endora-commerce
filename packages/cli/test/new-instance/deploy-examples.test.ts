@@ -566,6 +566,30 @@ describe('T016 — `deploy/README.md` tells one reader how to bring three hosts 
   });
 });
 
+/**
+ * `specs/138-separate-components/` FR-021 — the four facts `endora install`
+ * prints for a run that stands up a strict subset, stated where an operator
+ * laying three machines out by hand reads them.
+ */
+describe('138 FR-021 — the three-host README states what the machines owe each other', () => {
+  it('names the allow-list, the build-time origin, the same-site rule and the module set', () => {
+    const readme = fileAt(withAdmin({ topology: 'three-host' }), 'deploy/README.md');
+    const section = readme.slice(readme.indexOf('## What the three machines owe each other'));
+    expect(section.length).toBeGreaterThan(0);
+    expect(section).toContain('CORS_ALLOWED_ORIGINS');
+    expect(section).toContain('at build time');
+    expect(section).toMatch(/same-site/);
+    expect(section).toContain('SameSite=Lax');
+    expect(section).toContain('module set');
+    expect(section).toContain('--only');
+  });
+
+  it('the single-host README does not: there is one machine', () => {
+    const readme = fileAt(withAdmin({ topology: 'single-host' }), 'deploy/README.md');
+    expect(readme).not.toContain('owe each other');
+  });
+});
+
 describe('what a reviewer checks: no second module list, and no concrete deployment', () => {
   it('no deploy example names a module package', () => {
     for (const topology of TOPOLOGIES) {

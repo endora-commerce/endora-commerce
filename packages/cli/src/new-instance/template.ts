@@ -172,8 +172,11 @@ export function memberRefusal(without: readonly string[]): string | null {
     return (
       '`--without backend` is refused: an instance is the tree that composes the platform, and ' +
       'the backend member is what composes it. If the admin is meant to run on a second host, ' +
-      'keep both members and deploy the built admin there — a machine layout is a fact about ' +
-      'the deployment, not about the repository (`--topology three-host` writes the examples).'
+      'keep both members and build the admin there: ' +
+      '`endora install <dir> --only admin --api-url <origin>` writes this same tree on that ' +
+      'machine and builds the one artefact from it, with no database and no service. A ' +
+      'machine layout is a fact about the deployment, not about the repository ' +
+      '(`--topology three-host` writes the examples).'
     );
   }
   const unknown = names.filter((name) => !vocabulary.includes(name));

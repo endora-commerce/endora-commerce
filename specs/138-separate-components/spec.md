@@ -2,7 +2,7 @@
 
 **Feature directory**: `specs/138-separate-components/`
 **Created**: 2026-10-02
-**Status**: Draft — awaiting the owner's acceptance of proposed ruling D-284 (below)
+**Status**: Accepted — the owner accepted ruling D-284 on 2026-10-02, with clause 5 amended (below)
 **Input**: owner ruling of 2026-10-02 — *"In the project there should be the possibility of
 standing up the API separately, the Admin UI separately and the Storefront separately — in a more
 complex project each of these instances may be on a different server, so it should be possible to
@@ -87,14 +87,17 @@ same output.
   `--sales-channel` (`NEXT_PUBLIC_SALES_CHANNEL_CODE`) is offered with the recommendation
   `default` — the code the platform creates its default Sales Channel with. A run without the API
   **never generates** the secret.
-- **FR-014** When `api` is selected and the selection is not all three, `--api-url`,
-  `--admin-url` and `--storefront-url` are offered. Each one given is written into the instance's
-  `.env`: `PUBLIC_API_BASE_URL` from the first, `ADMIN_BASE_URL` from the second,
-  `STOREFRONT_BASE_URL` from the third, and `CORS_ALLOWED_ORIGINS` as the admin's and the
-  storefront's origins, comma-separated — an origin not given standing as its development address
-  (`http://localhost:3002`, `http://localhost:3000`). None given, nothing is written and the
-  platform's development fallbacks apply, as today. When the admin is also selected, `--api-url`
-  is written as `VITE_API_BASE_URL` in `admin/.env` too.
+- **FR-014** When `api` is selected, `--api-url`, `--admin-url` and `--storefront-url` are
+  **accepted** — in every selection, the one with no `--only` included — and are **asked** only
+  when the selection is not all three: `--api-url` always, `--admin-url` when the admin is not
+  selected, `--storefront-url` when the storefront is not (contract §7.3, R7.9). Each one given is
+  written into the instance's `.env`: `PUBLIC_API_BASE_URL` from the first, `ADMIN_BASE_URL` from
+  the second, `STOREFRONT_BASE_URL` from the third, and `CORS_ALLOWED_ORIGINS` as the admin's and
+  the storefront's origins, comma-separated — an origin not given standing as its development
+  address (`http://localhost:3002`, `http://localhost:3000`, or the port §7.3a decided). None
+  given and no port moved, nothing is written and the platform's development fallbacks apply, as
+  today. When the admin is also selected, `--api-url` is written as `VITE_API_BASE_URL` in
+  `admin/.env` too.
 - **FR-015** When `api` is selected and `storefront` is not, `REVALIDATE_SECRET` is written into
   the instance's `.env` — `--revalidate-secret` verbatim, otherwise generated once — and the
   closing block names the file it is in and says the storefront's run must be given the same
@@ -151,9 +154,9 @@ same output.
 - Adding a component to a directory that already holds one. `endora install` never merges into a
   non-empty directory, and this feature does not change that.
 
-## Proposed ruling — D-284
+## Ruling — D-284
 
-> **D-284 (proposed, 2026-10-02) — what a run stands up is a third axis, and the tree keeps its
+> **D-284 (accepted by the owner, 2026-10-02, clause 5 as amended by the owner) — what a run stands up is a third axis, and the tree keeps its
 > backend.**
 >
 > 1. `endora install` takes `--only <api|admin|storefront>[,...]`. It selects which components
@@ -171,11 +174,21 @@ same output.
 >    the **API** may originate the value; a run that does not must be given it.
 > 4. Outside the wizard, the questions a selection removes are not required, and a flag
 >    answering one of them is refused rather than ignored.
-> 5. Supported layouts are same-site. Cross-site hosting is not ruled here.
+> 5. Two layouts are supported, and both are same-site: **(a)** subdomains of one registrable
+>    domain — one host name per component; **(b)** one host with paths — the storefront at `/`,
+>    the admin under `/admin`, the API under `/api`. Cross-site hosting is not ruled here.
+
+Clause 5 was proposed as *"Supported layouts are same-site"* and amended by the owner when
+accepting the ruling: *"in 5 I would give the option of subdomains of one domain, or the format
+`domain/admin` for the admin UI and `domain/api` for the API, as both supported solutions."* This
+feature's code implements layout (a). Layout (b) is a follow-up to it: the origin flags refuse a
+path today and the admin bundle has no base path.
 
 ## Open questions
 
-- **Q1 [NEEDS CLARIFICATION]** Must the admin or the storefront be hostable on a **different
+- **Q1 — answered by D-284 clause 5 as amended (2026-10-02):** subdomains of one domain and one
+  host with paths are the two supported layouts; a different registrable domain stays unruled.
+  The question as it was asked: Must the admin or the storefront be hostable on a **different
   registrable domain** from the API (`admin.agency.io` against `api.shop.com`)? The code says no
   today: `packages/modules/admin_users/src/backend/routes.public.ts` and
   `packages/modules/customers/src/backend/routes.register.ts` set host-only `SameSite=Lax`

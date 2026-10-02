@@ -232,8 +232,8 @@ describe('`endora install` — every module of the open-source set, by default (
   it('a bare run declares the required and the optional free modules, and no separately licensed one', async () => {
     const root = mixedHost();
     const result = await runInstall(installOptions(root));
-    expect(result.instance.modules.defaulted).toBe(true);
-    expect(result.instance.modules.ids).toEqual(['admin_users', 'returns', 'settings']);
+    expect(result.instance!.modules.defaulted).toBe(true);
+    expect(result.instance!.modules.ids).toEqual(['admin_users', 'returns', 'settings']);
     const manifest = JSON.parse(readFileSync(join(root, 'acme-shop', 'package.json'), 'utf8')) as {
       dependencies: Record<string, string>;
     };
@@ -253,14 +253,14 @@ describe('`endora install` — every module of the open-source set, by default (
     expect(text).toContain('no `--module` was given');
     expect(text).toContain('/platform/modules');
     // Not an input: the `[inputs]` provenance line is untouched (R2.5a).
-    expect(result.instance.provenance).toContain('defaulted=0');
+    expect(result.instance!.provenance).toContain('defaulted=0');
   });
 
   it('`--module` is unchanged: an explicit set, closed, and no default sentence', async () => {
     const root = mixedHost();
     const result = await runInstall(installOptions(root, { modules: ['admin_users'] }));
-    expect(result.instance.modules.defaulted).toBe(false);
-    expect(result.instance.modules.ids).toEqual(['admin_users', 'settings']);
+    expect(result.instance!.modules.defaulted).toBe(false);
+    expect(result.instance!.modules.ids).toEqual(['admin_users', 'settings']);
     expect(result.output.join('\n')).not.toContain('no `--module` was given');
   });
 

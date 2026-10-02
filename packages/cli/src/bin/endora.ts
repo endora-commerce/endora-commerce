@@ -65,7 +65,10 @@ Usage:
                             [--registry <url>] [--topology single-host|three-host] [--demo]
                             [--dry-run]
   endora new storefront <dir> [--registry <url>] [--<input> <value>...] [--dry-run]
-  endora install [<dir>] [--admin-email <e>] [--admin-password <p>] [--admin-first-name <f>]
+  endora install [<dir>] [--only api|admin|storefront[,...]] [--api-url <origin>]
+                         [--admin-url <origin>] [--storefront-url <origin>]
+                         [--sales-channel <code>] [--revalidate-secret <secret>]
+                         [--admin-email <e>] [--admin-password <p>] [--admin-first-name <f>]
                          [--admin-last-name <l>] [--demo | --no-demo] [--without <member>...]
                          [--no-services] [--no-storefront] [--storefront-dir <path>]
                          [--module <id>...] [--deployment <name>] [--registry <url>]
@@ -167,9 +170,16 @@ data. Run where nothing of ours is installed beside the target — from an empty
 directory, or through \`npx\` — it first installs this release's packages into a
 temporary directory to read the module set from, and removes it when done.
 
-At a terminal it asks what the flags below did not answer — at most seven questions,
-and Enter takes the recommendation wherever there is one: every part, the services
-started. The demo question has no recommendation and the administrator has no
+The API, the Admin UI and the storefront can each be stood up on a machine of its
+own: \`--only\` names the components this run stands up here — api, admin, storefront —
+and the run is told where the others are by origin. Without the API it touches no
+database and no service and creates no administrator; the admin alone is the same
+instance tree with one artefact built from it, and the storefront alone writes no
+instance at all. Absent, all three are stood up, as before.
+
+At a terminal it asks what the flags below did not answer — seven questions when it
+stands up every part, and Enter takes the recommendation wherever there is one: every
+part, the services started. The demo question has no recommendation and the administrator has no
 default. Every question has a flag; with \`--non-interactive\`, \`--dry-run\`, a CI
 marker or no terminal it asks nothing, and a missing answer is one refusal naming
 every flag still owed.
@@ -179,6 +189,34 @@ Options for \`install\`:
                                 nothing but a \`.env\` you placed there. Asked at a
                                 terminal (recommending \`./endora-commerce\`),
                                 required everywhere else
+  --only <component>[,<component>...]
+                                the components this run stands up on this machine
+                                (repeatable): \`api\`, \`admin\`, \`storefront\`. Absent,
+                                all three. \`api\` is the instance, migrated, with its
+                                administrator; \`admin\` without \`api\` writes the same
+                                instance tree and runs \`pnpm install\` and \`pnpm run
+                                build:admin\` in it — no database, no service;
+                                \`storefront\` without the other two writes the
+                                storefront at <dir> and no instance. A flag that
+                                answers a question the selection removed is refused
+  --api-url <origin>            the API's public origin — scheme and host, an optional
+                                port, no path. Required when \`api\` is not in
+                                \`--only\`: the admin bundle and the storefront are
+                                built against it. With \`api\`, it is what the API is
+                                told its own public address is
+  --admin-url <origin>          where the admin is served, for the API's allow-list
+                                (\`CORS_ALLOWED_ORIGINS\`). Not given, its development
+                                address stands
+  --storefront-url <origin>     where the storefront is served. Required for a
+                                storefront without \`api\`; with \`api\` it is the
+                                API's allow-list entry and where it sends revalidation
+  --sales-channel <code>        the Sales Channel a storefront stood up without \`api\`
+                                sells on (default: \`default\`, the code the platform
+                                creates its default channel with)
+  --revalidate-secret <secret>  the secret the API and the storefront share. Required
+                                for a storefront without \`api\` — the value the API's
+                                \`.env\` holds. A run with \`api\` generates it once when
+                                it is not given, writes it and never prints it
   --admin-email <address>       the administrator you sign in as. All four are
   --admin-password <secret>     required: nothing else creates an account, and the
   --admin-first-name <text>     password is never generated — it is the one value
@@ -362,6 +400,13 @@ function parse(argv: readonly string[], declaredInputFlags: readonly string[] = 
       'admin-first-name': { type: 'string' },
       'admin-last-name': { type: 'string' },
       'revalidate-secret': { type: 'string' },
+      // `specs/138-separate-components/` — which components this run stands
+      // up, and where the others are.
+      only: { type: 'string', multiple: true },
+      'api-url': { type: 'string' },
+      'admin-url': { type: 'string' },
+      'storefront-url': { type: 'string' },
+      'sales-channel': { type: 'string' },
       demo: { type: 'boolean' },
       'no-demo': { type: 'boolean' },
     },
@@ -755,6 +800,21 @@ async function runInstallCommand(
         : { storefrontDir: asString(parsed.values['storefront-dir'])! }),
       ...(asFlag(parsed.values['no-services']) ? { services: false } : {}),
       without: asList(parsed.values['without']),
+      // Again a key only for a flag that was typed: `--only ''` is a selection
+      // that names nothing and is refused, where no `--only` is all three.
+      ...(parsed.values['only'] === undefined ? {} : { only: asList(parsed.values['only']) }),
+      ...(asString(parsed.values['api-url']) === undefined
+        ? {}
+        : { apiUrl: asString(parsed.values['api-url'])! }),
+      ...(asString(parsed.values['admin-url']) === undefined
+        ? {}
+        : { adminUrl: asString(parsed.values['admin-url'])! }),
+      ...(asString(parsed.values['storefront-url']) === undefined
+        ? {}
+        : { storefrontUrl: asString(parsed.values['storefront-url'])! }),
+      ...(asString(parsed.values['sales-channel']) === undefined
+        ? {}
+        : { salesChannel: asString(parsed.values['sales-channel'])! }),
       ...(demo === undefined ? {} : { demo }),
       ...(asString(parsed.values['admin-email']) === undefined
         ? {}

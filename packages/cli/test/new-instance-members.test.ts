@@ -163,6 +163,18 @@ describe('F10 / F11 — the two refusals, before anything is resolved', () => {
     expect(refusal).toContain('second host');
   });
 
+  /**
+   * `specs/138-separate-components/` FR-004, D-284 clause 2: the refusal
+   * stands and its remedy is amended. The admin on a machine of its own is the
+   * same tree with one artefact built from it, and the sentence says which
+   * command does that.
+   */
+  it('138 FR-004 — the sentence names `endora install --only admin` as the remedy', () => {
+    const refusal = memberRefusal(['backend'])!;
+    expect(refusal).toContain('`endora install <dir> --only admin --api-url <origin>`');
+    expect(refusal).toContain('--topology three-host');
+  });
+
   it('F10 — a name outside the vocabulary is refused naming the vocabulary', () => {
     const refusal = memberRefusal(['search']);
     for (const entry of MEMBER_VOCABULARY) expect(refusal).toContain(entry.name);

@@ -1,0 +1,19 @@
+{
+  "about": [
+    "What `acceptance:separate-components` answers on this tree, per assertion",
+    "(specs/110-instance-repository/contracts/instance-tree.md §7.4; specs/138-separate-components/).",
+    "`acceptance:separate-components:ci` compares a run to this file and fails on drift in EITHER",
+    "direction: a regression is a branch that broke the criterion, an improvement is a record that",
+    "no longer describes the tree. An assertion that could not be measured is exit 2, never a pass."
+  ],
+  "recorded": "2026-10-02",
+  "expected": {
+    "S1": "pass",
+    "S2": "pass",
+    "S3": "pass",
+    "S4": "pass",
+    "S5": "pass",
+    "S6": "pass",
+    "S7": "pass"
+  }
+}
