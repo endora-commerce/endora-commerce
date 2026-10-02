@@ -8,17 +8,16 @@ sidebar_position: 3
 
 Ten samouczek bierze nową instancję i dodaje do niej jeden mały, własny moduł: **komunikat sklepu**.
 Właściciel sklepu wpisuje w panelu administracyjnym krótką wiadomość ("We are closed 24-26
-December"), a sklep internetowy — albo cokolwiek innego — odczytuje ją z trasy API. Zajmuje to około
+December"), a sklep — albo cokolwiek innego — odczytuje ją z trasy API. Zajmuje to około
 20 minut.
 
-Każde polecenie i każdy plik na tej stronie zostały uruchomione na instancji utworzonej poleceniem
-`npx create-endora-commerce@latest`, w wydaniach `0.100.1` i `0.100.2`. Tam, gdzie coś dziś nie działa,
-strona
-mówi to w takiej ramce jak poniższa i podaje obejście:
+Każde polecenie i każdy plik na tej stronie zostały sprawdzone na instancji utworzonej poleceniem
+`npx create-endora-commerce@latest`. Strona opisuje wydanie następujące po `0.100.2`.
 
-:::caution Dzisiejsze ograniczenie
-Dwie rzeczy na tej stronie są trudniejsze, niż powinny. Zebrano je w części
-[Co jeszcze nie działa](#what-does-not-work-yet), każdą razem z tym, co zaobserwowano.
+:::note Instancja utworzona w wydaniu 0.100.2 lub wcześniejszym
+Cztery rzeczy z tej strony działają w niej inaczej. Wymienia je część
+[Instancje utworzone w wydaniu 0.100.2 lub wcześniejszym](#older-instances), każdą razem ze
+sposobem naprawy.
 :::
 
 ## Czym jest moduł
@@ -63,19 +62,10 @@ DEPLOYMENT=my-shop
 
 Wersja jest tą, którą przypina Twoje wydanie; celowo jest zapisana bez `^`.
 
-:::note Instancje utworzone w wydaniu 0.100.2 lub wcześniejszym
-Te wydania nie zapisywały żadnej z tych linii. Jeśli któreś polecenie niczego nie wypisuje, dodaj
-to, czego brakuje:
-
-```bash
-echo "DEPLOYMENT=my-shop" >> .env
-pnpm add -w "@endora-commerce/contracts@$(node -p "require('./node_modules/@endora-commerce/platform/package.json').dependencies['@endora-commerce/contracts']")"
-```
-
-Część w `$(…)` wypisuje dokładną wersję pakietu kontraktów, której używa zainstalowana platforma,
-dzięki czemu oba pakiety pozostają w jednym wydaniu. Bez `DEPLOYMENT` nic nie kończy się błędem:
-modułu po prostu nie ma i nic nie mówi dlaczego.
-:::
+Bez `DEPLOYMENT` nic nie kończy się błędem: instancja startuje jako sama platforma, Twojego modułu
+po prostu nie ma i nic nie mówi dlaczego. Jeśli któreś z poleceń niczego nie wypisuje, instancję
+utworzyło wcześniejsze wydanie — zobacz
+[Instancje utworzone w wydaniu 0.100.2 lub wcześniejszym](#older-instances).
 
 ## Krok 2 — Utwórz szkielet modułu
 
@@ -294,6 +284,10 @@ Uruchom instancję:
 pnpm run dev:all
 ```
 
+Poniższe adresy to wartości domyślne. Jeśli instalator zmienił port, bo był zajęty, użyj adresu,
+który wypisał — port API to `PORT` w pliku `.env` instancji, a port panelu to `PORT`
+w `admin/.env`.
+
 **Trasa API.** W drugim terminalu:
 
 ```bash
@@ -326,16 +320,12 @@ trasę administracyjną z terminala.
 Każdy moduł mogą wyłączyć osoby prowadzące sklep, a wyłączony moduł zachowuje się tak, jakby nie
 był zainstalowany. Nic nie jest usuwane, a ponowne włączenie przywraca wszystko.
 
-:::caution Ograniczenie w `0.100.2` i wcześniejszych
-Miejscem tego wyłącznika jest ekran **Modules** panelu administracyjnego (**System → Modules**). W
-instancji w wydaniu `0.100.2` lub wcześniejszym ten ekran pokazuje `NOT_FOUND: Resource not found.`
-i pustą listę, a `pnpm run module:disable <id>` wypisuje `registry updated: state=disabled`,
-niczego nie zmieniając. Obie rzeczy są naprawione w wydaniu następującym po `0.100.2`: zaktualizuj
-pakiety `@endora-commerce/*` instancji, aby je otrzymać. Poniższe wywołanie API jest tym, które
-wykonuje sam ekran Modules, i działa w każdym wydaniu.
-:::
+**W panelu administracyjnym.** Otwórz **System → Modules** (`/platform/modules`). Ekran wymienia
+każdy moduł instancji, także Twój, i pokazuje, co zainstalowano w tym wdrożeniu, a co włączyła
+Twoja firma. Wyłącz **Store notice** przełącznikiem w jego wierszu.
 
-Zaloguj się z terminala, zachowując ciasteczko sesji w pliku:
+**Z terminala.** Poniższe wywołanie jest tym samym, które wykonuje ekran Modules. Zaloguj się,
+zachowując ciasteczko sesji w pliku:
 
 ```bash
 curl -c cookies.txt -H 'content-type: application/json' \
@@ -371,42 +361,63 @@ Uprawnienie `store_notice:read` zniknęło też z listy uprawnień, które możn
 ponownie tym samym wywołaniem z `{"active":true}`: trasa odpowiada `200`, z zapisanym komunikatem.
 Na koniec usuń `cookies.txt`.
 
-Nie napisano do tego ani linii kodu. Wynika to z dwóch rzeczy, które już zrobiono: linii
+Nie wymagało to ani jednej dodatkowej linii kodu. Wynika z dwóch rzeczy, które już masz: linii
 `activation` w manifeście i rejestracji tras przez `ctx.routes`.
 
-## Co jeszcze nie działa {#what-does-not-work-yet}
+Jest też drugi wyłącznik, który należy nie do właściciela sklepu, lecz do osoby utrzymującej
+wdrożenie: `pnpm run module:disable store_notice` i `pnpm run module:enable store_notice`. Jego
+stan jest zapisywany w rejestrze modułów, a nie w ustawieniu, działające API dowiaduje się o nim
+bez restartu, a pokazuje go `pnpm run module:status`. Moduł jest obecny tylko wtedy, gdy oba
+wyłączniki są włączone — resztę, w tym `module:uninstall`, opisuje
+[Cykl życia modułu](./modules/lifecycle.md).
 
-Sprawdzono w wydaniach `0.100.1` i `0.100.2`. Każda pozycja to dzisiejsze ograniczenie produktu, a nie Twojego
-modułu.
+## Czym moduł nakładkowy być nie może
+
+Trzy ograniczenia decydują o tym, czym może być pierwszy moduł:
+
+- **Moduł nakładkowy nie może mieć własnej tabeli w bazie danych.** Wnosi ustawienia, trasy,
+  uprawnienia i tłumaczenia, ale żadnej encji i żadnej migracji — nic w instancji by ich nie
+  uruchomiło, więc tabela by nie powstała. Katalog `migrations/` albo `entities/` w module
+  nakładkowym jest odrzucany, z nazwą każdego pliku, przez `pnpm run generate`,
+  `pnpm run migrate`, każde polecenie `module:*` oraz przez API i workera przy starcie. Niewielki
+  stan trzymaj w ustawieniach, tak jak ten moduł.
+- **Moduł, który potrzebuje własnej tabeli, jest pakietem modułu** — podobnie jak moduł z własnym
+  ekranem w panelu administracyjnym. W instancji `endora new module` zapisuje moduł nakładkowy,
+  a `--entities` i `--admin` odrzuca, podając powód. Szkielet pakietu — z `--entities` dla tabeli
+  i `--admin` dla ekranu — tworzy tylko w klonie repozytorium Endora Commerce. Ten samouczek nie
+  obejmuje ręcznego pisania pakietu.
+- **Ten samouczek nie pokazuje komunikatu w sklepie.** Sklep, który instalator zapisał obok Twojej
+  instancji, należy do Ciebie i możesz go edytować — zobacz [Sklep](./getting-started.md#sklep) —
+  a ta trasa jest tym, co sklep by wywoływał.
+
+## Instancje utworzone w wydaniu 0.100.2 lub wcześniejszym {#older-instances}
+
+Instancja zapisana przez wydanie `0.100.1` albo `0.100.2` różni się od tej strony w czterech
+miejscach. Dwa pierwsze to pliki, których instalator nie zapisał — naprawiasz je ręcznie. Dwa
+ostatnie naprawiono w pakietach platformy, więc znikają po aktualizacji pakietów
+`@endora-commerce/*` instancji do wydania nowszego niż `0.100.2`.
 
 | Co | Co widzisz | Co zrobić |
 | --- | --- | --- |
-| Ekran Modules nie wczytuje się w instancji w wydaniu `0.100.2` lub wcześniejszym | `NOT_FOUND: Resource not found.` i "No modules to show" | Aktualizacja powyżej `0.100.2` albo wywołanie API z kroku 8 |
-| `pnpm run module:disable <id>`, `module:enable` i `module:uninstall` niczego nie zmieniają w instancji w wydaniu `0.100.2` lub wcześniejszym | Wypisuje `state=disabled`; `pnpm run module:status` nadal pokazuje `installed`, a trasy nadal odpowiadają | Aktualizacja powyżej `0.100.2` albo wywołanie API z kroku 8 |
+| W `.env` nie ma linii `DEPLOYMENT` | Twój moduł nie jest składany i nic nie mówi dlaczego | `echo "DEPLOYMENT=my-shop" >> .env` |
+| `package.json` nie wymienia `@endora-commerce/contracts` | Import w manifeście nie daje się rozwiązać | Polecenie `pnpm add` poniżej |
+| `pnpm exec endora new module` odmawia w instancji | Polecenie szuka klonu repozytorium | Aktualizacja albo ręczne napisanie czterech plików z kroków 3–5 |
+| Ekran Modules się nie wczytuje, a `module:disable`, `module:enable` i `module:uninstall` niczego nie zmieniają | `NOT_FOUND: Resource not found.` i "No modules to show"; polecenie wypisuje `state=disabled`, a `pnpm run module:status` nadal pokazuje `installed` | Aktualizacja albo wywołanie API z kroku 8, które działa w każdym wydaniu |
 
-Instancja utworzona w wydaniu `0.100.2` lub wcześniejszym ma jeszcze dwa: w jej `.env` nie ma
-`DEPLOYMENT`, a jej `package.json` nie wymienia `@endora-commerce/contracts`. Uwaga w kroku 1
-podaje dwa polecenia, które to naprawiają.
+```bash
+pnpm add -w "@endora-commerce/contracts@$(node -p "require('./node_modules/@endora-commerce/platform/package.json').dependencies['@endora-commerce/contracts']")"
+```
 
-Trzy kolejne ograniczenia decydują o tym, czym może być pierwszy moduł:
+Część w `$(…)` wypisuje dokładną wersję pakietu kontraktów, której używa zainstalowana platforma,
+dzięki czemu oba pakiety pozostają w jednym wydaniu.
 
-- **Moduł nakładkowy nie może mieć własnej tabeli w bazie danych.** Wnosi ustawienia, trasy,
-  uprawnienia i tłumaczenia, ale żadnej encji i żadnej migracji. `pnpm run generate` odrzuca katalog
-  `migrations/` albo `entities/` w module nakładkowym i wymienia każdy plik — nic w instancji by ich
-  nie uruchomiło, więc tabela by nie powstała. Niewielki stan trzymaj w ustawieniach, tak jak ten
-  moduł.
-- **Moduł, który potrzebuje własnej tabeli, jest pakietem modułu** — podobnie jak moduł z własnym
-  ekranem w panelu administracyjnym. W instancji `endora new module` zapisuje moduł nakładkowy, a
-  `--entities` i `--admin` odrzuca, podając powód. Szkielet pakietu — z `--entities` dla tabeli i
-  `--admin` dla ekranu — tworzy tylko w kopii roboczej repozytorium Endora Commerce. Ten samouczek
-  nie obejmuje ręcznego pisania pakietu.
-- **Ten samouczek nie pokazuje komunikatu w sklepie internetowym.** Sklep, który instalator zapisał
-  obok Twojej instancji, należy do Ciebie i możesz go edytować — zobacz
-  [Sklep](./getting-started.md#sklep) — a trasa jest tym, co by wywołał.
+W tych wydaniach `pnpm run generate` kończy się też kodem 0 mimo niewyjaśnionego wpisu w raporcie
+rozbieżności i nie odrzuca katalogu `migrations/` w module nakładkowym: czytaj to, co wypisuje,
+a nie jego kod wyjścia.
 
 ## Co dalej
 
-- [Wzorzec nakładki](./architecture/overlay-pattern.md) — wszystko, co może robić moduł nakładkowy,
+- [Wzorzec overlay](./architecture/overlay-pattern.md) — wszystko, co może robić moduł nakładkowy,
   w tym zmiana działania usługi platformy przez `ctx.di.decorate`.
 - [Drabina dostosowań](./architecture/customisation-ladder.md) — po który mechanizm sięgnąć
   najpierw i ile każdy z nich kosztuje przy następnej aktualizacji.

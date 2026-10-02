@@ -98,10 +98,10 @@ zawodzą na dwa różne sposoby:
 - **Sekrety podpisujące i hasła mają placeholder** (`change-me-hex-32`,
   `change-me-base64-32`, `change-me-strong-password` w pierwszym pliku,
   `change-me-generate-one` w drugim). Nic nie sprawdza ich treści, więc wdrożenie, które je
-  zostawi, uruchamia się i podpisuje ciasteczka sesji oraz linki do zasobów kluczem, który
-  każdy może przeczytać w tym repozytorium.
-- **Trzy linie są celowo puste**: `NEWSLETTER_TOKEN_SECRET`,
-  `SETTINGS_SECRET_ENCRYPTION_KEY` i `MFA_SECRET_ENCRYPTION_KEY`. Oba klucze szyfrujące to
+  zostawi, uruchamia się i podpisuje ciasteczka sesji kluczem, który każdy może przeczytać
+  w tym repozytorium.
+- **Cztery linie są celowo puste**: `NEWSLETTER_TOKEN_SECRET`,
+  `SETTINGS_SECRET_ENCRYPTION_KEY`, `MFA_SECRET_ENCRYPTION_KEY` i `ASSETS_LIBRARY_HMAC_KEY`. Oba klucze szyfrujące to
   klucze AES-256 i po zdekodowaniu z base64 muszą mieć dokładnie 32 bajty, czego żaden
   placeholder nie spełnia. Pusta wartość to stan, który backend obsługuje i zgłasza; nadal nie
   jest to gotowa konfiguracja.
@@ -122,7 +122,7 @@ do 48 bajtów, nie 32).
 | `NEWSLETTER_TOKEN_SECRET` | `openssl rand -base64 32` | Działa. Linki potwierdzenia i wypisania z newslettera są podpisywane kluczem `SESSION_COOKIE_SECRET` (`packages/platform/src/composition/newsletter-token-secret.ts`), więc rotacja klucza sesji unieważnia każdy link, który wciąż czeka w skrzynce. Ustaw go, aby oba klucze można było rotować niezależnie. | Każdy niepusty ciąg jest akceptowany jako klucz podpisujący. |
 | `SETTINGS_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Backend startuje i loguje `[settings] SETTINGS_SECRET_ENCRYPTION_KEY is not set`. Sekretnych ustawień i sekretnych pól poświadczeń (np. tokenu API zapisywanego przez moduł) nie da się zapisać ani odczytać, dopóki klucz nie zostanie ustawiony, a backend zrestartowany. | Nie jest sprawdzany przy starcie. Backend uruchamia się **bez ostrzeżenia**, a potem każdy zapis sekretnego ustawienia kończy się błędem `SETTINGS_SECRET_ENCRYPTION_KEY is misconfigured — it must decode to 32 bytes (got N)`, zgłaszanym przez moduł `credentials`. |
 | `MFA_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Moduł `mfa` udostępnia swoje ekrany i odmawia każdej rejestracji, więc żaden administrator nie włączy drugiego składnika (D4). | Gdy `mfa` jest zainstalowany, backend nie startuje: `MFA_SECRET_ENCRYPTION_KEY must decode to 32 bytes (got N)`. |
-| `ASSETS_LIBRARY_HMAC_KEY` | `openssl rand -hex 32` | Backend startuje. Każde żądanie, które podpisuje lub sprawdza link do prywatnego zasobu, kończy się błędem `ASSETS_LIBRARY_HMAC_KEY is unset`. | Wartość, która nie jest hex, jest używana jako surowe bajty, więc placeholder działa i podpisuje linki do zasobów publicznym kluczem. |
+| `ASSETS_LIBRARY_HMAC_KEY` | `openssl rand -hex 32` | Backend startuje. Każde żądanie, które podpisuje lub sprawdza link do prywatnego zasobu, kończy się błędem `ASSETS_LIBRARY_HMAC_KEY is unset`. | Wartość zaczynająca się od `change-me` — placeholder ze starszych przykładowych plików env — jest odrzucana przy pierwszym linku do prywatnego zasobu, tak samo jak brak klucza: `ASSETS_LIBRARY_HMAC_KEY is still the placeholder an env example carried`. Każda inna wartość, która nie jest hex, jest używana jako surowe bajty i przyjmowana. |
 | `MEILI_MASTER_KEY` | `openssl rand -base64 32` | `deploy/compose.prod.yml` uruchamia Meilisearch z `MEILI_ENV: production`, który odmawia startu bez klucza głównego. Backend czyta tę samą wartość jako `MEILISEARCH_API_KEY`. | Meilisearch akceptuje każdy klucz o długości co najmniej 16 bajtów, więc placeholder daje wyszukiwarce publicznie znany klucz. |
 | `POSTGRES_PASSWORD` | `openssl rand -hex 32` (hex, nie base64: wartość trafia bez escapowania do `DATABASE_URL`, gdzie `/` lub `+` psuje URL) | `deploy/compose.prod.yml` przyjmuje wtedy `b2b` (`${POSTGRES_PASSWORD:-b2b}`). | Placeholder działa i jest publicznie znany. |
 | `REVALIDATE_SECRET` | `openssl rand -hex 32` | Zob. B2. | Zob. B2. |

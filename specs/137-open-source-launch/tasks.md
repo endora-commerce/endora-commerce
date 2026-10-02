@@ -51,9 +51,10 @@ Pull requests here merged with no branch protection behind them: the owner merge
   configuration was written to the storefront's own `eslint.config.js` path and replaced it; and an
   empty `NEWSLETTER_TOKEN_SECRET` line crashed the backend at boot.
 - [x] **S1** — **not a defect** (exact pin by design; owner, 2026-09-30): the scaffold pins
-  `@endora-commerce/contracts` to an exact version. Every release publishes all 71 packages in
-  lockstep at one number, so the exact pin always names a version that exists beside the rest of
-  the set, and a caret range could install a second copy of `contracts` next to the one the
+  `@endora-commerce/contracts` to an exact version. Every release publishes every publishable
+  package in lockstep at one number — how many that is is derived, not written here (D-100):
+  `git ls-files 'packages/*/package.json' 'packages/modules/*/package.json' | xargs grep -L '"private": true' | wc -l` —
+  so the exact pin always names a version that exists beside the rest of the set, and a caret range could install a second copy of `contracts` next to the one the
   platform packages pin exactly. No fix, and no longer a precondition of N4[^cli].
 - [x] **P7** (O) The repository variables `.github/workflows/demo.yml` reads — `API_DOMAIN`,
   `STOREFRONT_DOMAIN`, `SALES_CHANNEL_CODE`, `DEFAULT_LOCALE` — set; verified 2026-09-30 by
@@ -121,12 +122,16 @@ Pull requests here merged with no branch protection behind them: the owner merge
 
 - [x] **N1 = T042b**, part (D) `pack-gate` and `boot-gate` on Actions, ahead of N4. Pull request
   #10[^t042b].
-- [ ] **N1b = T042b**, rest (D) `build:docs` on Actions, by **2026-10-06**. It reads
+- [x] **N1b = T042b**, rest (D) `build:docs` on Actions, by **2026-10-06**. **Landed**:
+  `.github/workflows/build-docs.yml`, with `specs/133-docs-site-publication/url-inventory.txt` in
+  this repository; green on `master` on 2026-10-02. It reads
   `specs/133-docs-site-publication/url-inventory.txt`, a pre-migration file this repository does not
   hold; it is published here under D-247's option A — cleaned against the definition — in the same
   pull request as the job[^t042b].
-- [ ] **N2 = T051** (D prepares, O dispatches) The provenance probe on the public repository. A
-  throwaway rehearsal of `publish.yml`; it leaves nothing in the tree. Needs F3[^t051].
+- [x] **N2 = T051** (D prepares, O dispatches) The provenance probe on the public repository. A
+  throwaway rehearsal of `publish.yml`; it leaves nothing in the tree. Needs F3[^t051]. **Ran
+  2026-09-30**: `publish` run 36757740340 on the probe branch, concluded `success`; every release
+  since carries an SLSA provenance attestation on npmjs.
 - [x] **N3** (D) The pull request that takes `create-endora-commerce` out of `private` and makes
   `check:release-intent --publish-registry` accept an unscoped name on the npmjs target[^d267].
   The scope rules take a target: the default mode judges public npmjs, which serves an unscoped
@@ -141,9 +146,12 @@ Pull requests here merged with no branch protection behind them: the owner merge
   36820161561 on `master` `08577d44a`, after the release pull request #29. The first-publish guard's
   network half (`first-publish-preconditions.ts` and its `publish.yml` step) is retired by the pull
   request that ships `0.100.1`; the static floor stays as a permanent rule (nothing reaches public
-  npmjs below `0.100.0`).
-- [ ] **N5** (O) Deprecate the `create-endora-commerce@0.0.1` placeholder; the other reserved
-  names stay reserved[^d267].
+  npmjs below `0.100.0`). **`0.100.1` published 2026-10-01** (`publish` run 36867142874, `master`
+  `8d735e13b`) and **`0.100.2` published 2026-10-02** (`publish` run 36991991245, `master`
+  `ac6340f21`), both with provenance.
+- [x] **N5** (O) Deprecate the `create-endora-commerce@0.0.1` placeholder; the other reserved
+  names stay reserved[^d267]. **Done**: `npm view create-endora-commerce@0.0.1 deprecated` answers
+  *"Placeholder. Use npx create-endora-commerce@latest (0.100.0 or later)."*
 - [ ] **N6 = W5.5** (O dispatches) The first `public`-mode acceptance run against `0.100.0` on a
   GitHub-hosted runner with no registry configuration; then nightly and on every release; then the
   `next` → `latest` promotion[^w55]. **The first run against `0.100.0`** (run 36835214331, on pull
@@ -152,6 +160,14 @@ Pull requests here merged with no branch protection behind them: the owner merge
   a pnpm (12.8.1) whose `bin/pnpm.mjs` the corepack bundled with Node 22.18 (0.33.0) cannot start;
   and `@endora-commerce/platform` named `pino-pretty` as a transport target without declaring it,
   so `dev:all` died at API boot. Both are fixed for `0.100.1`; N6 is re-run against that.
+  **Against `0.100.1`** (run 36868691058, 2026-10-01): P1 failed — the administrator could not sign
+  in — with P3, P4 and P5 passing and P2 unmeasured. **Against `0.100.2`** (run 36994998276,
+  2026-10-02): P1, P3, P4 and P5 pass; **P2 is still unmeasured**, because that release cannot
+  write the storefront outside a checkout and the run types `--no-storefront`, so the job exits 2.
+  The storefront reference the CLI carries has since landed (pull request #48), and the run now
+  types the one-shot without `--no-storefront`; **N6 stays open until a run against a release
+  that carries it measures P2 green**, and the nightly schedule and the `next` → `latest`
+  promotion follow that run.
 - [ ] **N7 = W4.3 + W4.4** (O, D) The free packages leave the private registry's namespace, so a
   consumer resolves them from npmjs. Verified with an authenticated probe: a free name forwards to
   npmjs, a paid name is refused without forwarding for a credential that cannot read it. The paid

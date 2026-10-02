@@ -12,6 +12,18 @@ Ta witryna jest utrzymywana ręcznie w wersjach angielskiej i polskiej. Przy ka�
 
 Witamy. Ta witryna dokumentuje **Platformę B2B** — produkt handlowy obsługiwany przez Dostawcę, który w jednej bazie kodu wspiera zarówno przepływ **Zapytania ofertowe (RFQ)**, jak i **bezpośrednie zakupy**, z Organizacjami Klientów, wieloma użytkownikami i rolami, rozliczeniem Limitu kredytowego, panelem administracyjnym z uprawnieniami oraz otwartą warstwą API + webhooków do integracji z zewnętrznymi ERP / PIM / WMS / CRM.
 
+## Zacznij tutaj
+
+1. [Pierwsze kroki](./getting-started.md) — jedno polecenie instaluje instancję na Twoim
+   komputerze: API, panel administracyjny i sklep. O co pyta instalator, co dostajesz i gdzie się
+   zalogować.
+2. [Komponenty na osobnych maszynach](./getting-started.md#one-component-per-machine) — API, panel
+   i sklep każde na własnej maszynie, każde pod własną nazwą albo na jednym hoście ze ścieżkami.
+3. [Utwórz swój pierwszy moduł](./create-your-first-module.md) — samouczek na 20 minut, który
+   rozszerza instancję o Twój własny moduł.
+4. [Lista kontrolna pierwszego wdrożenia produkcyjnego](./deployment/first-deployment-checklist.md)
+   — zanim instancja przyjmie prawdziwe zamówienia.
+
 ## Dla kogo jest ta dokumentacja
 
 - **Programiści** rozszerzający platformę — sekcja każdego modułu poniżej opisuje jego domenę, kontrakty, usługi i testy z wystarczającą szczegółowością, aby móc wnieść wkład bez reverse engineeringu kodu.
@@ -23,12 +35,13 @@ Obie grupy czytają tę samą strukturę. Sekcje oznaczone _Developers_ vs _Usag
 
 | Artefakt | Lokalizacja |
 | --- | --- |
-| Runbook dev + prod + wymagania sprzętowe | `README.md` w katalogu głównym repozytorium |
+| Instalacja instancji | [Pierwsze kroki](./getting-started.md) |
+| Wymagania sprzętowe i praca nad samym Endora Commerce | `README.md` w katalogu głównym repozytorium |
 | Dokumentacja modułów (jesteś tutaj) | Ta witryna |
 
 ## Szybkie linki
 
-- OpenAPI na żywo (gdy backend działa): `http://localhost:3001/api/v1/_openapi.json`.
+- OpenAPI na żywo (gdy API działa, na domyślnym porcie): `http://localhost:3001/api/v1/_openapi.json`.
 
 ## Status
 

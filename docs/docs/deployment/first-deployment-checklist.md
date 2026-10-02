@@ -97,10 +97,9 @@ usable secret, and they fail in two different ways:
 - **Signing secrets and passwords carry a placeholder** (`change-me-hex-32`,
   `change-me-base64-32`, `change-me-strong-password` in the first file,
   `change-me-generate-one` in the second). Nothing checks their content, so a deployment that
-  keeps them boots and signs session cookies and asset links with a key anyone can read in
-  this repository.
-- **Three lines are left empty on purpose**: `NEWSLETTER_TOKEN_SECRET`,
-  `SETTINGS_SECRET_ENCRYPTION_KEY` and `MFA_SECRET_ENCRYPTION_KEY`. The two encryption keys
+  keeps them boots and signs session cookies with a key anyone can read in this repository.
+- **Four lines are left empty on purpose**: `NEWSLETTER_TOKEN_SECRET`,
+  `SETTINGS_SECRET_ENCRYPTION_KEY`, `MFA_SECRET_ENCRYPTION_KEY` and `ASSETS_LIBRARY_HMAC_KEY`. The two encryption keys
   are AES-256 keys and must base64-decode to exactly 32 bytes, which no placeholder does. Empty
   is a state the backend handles and reports; it is still not a finished configuration.
 
@@ -120,7 +119,7 @@ encryption keys are base64-decoded, so a hex string fails there (64 hex characte
 | `NEWSLETTER_TOKEN_SECRET` | `openssl rand -base64 32` | Works. Newsletter confirmation and unsubscribe links are signed with `SESSION_COOKIE_SECRET` instead (`packages/platform/src/composition/newsletter-token-secret.ts`), so rotating the session key invalidates every link still waiting in an inbox. Set it so the two can rotate independently. | Any non-empty string is accepted as the signing key. |
 | `SETTINGS_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (must decode to 32 bytes) | The backend boots and logs `[settings] SETTINGS_SECRET_ENCRYPTION_KEY is not set`. Secret settings and secret credential fields (for example an API token a module stores) cannot be saved or read until the key is set and the backend restarted. | Not checked at boot. The backend starts **without a warning**, then every save of a secret setting fails with `SETTINGS_SECRET_ENCRYPTION_KEY is misconfigured — it must decode to 32 bytes (got N)`, raised by the `credentials` module. |
 | `MFA_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (must decode to 32 bytes) | The `mfa` module serves its screens and refuses every enrolment, so no administrator can turn on a second factor (D4). | With `mfa` installed, the backend does not boot: `MFA_SECRET_ENCRYPTION_KEY must decode to 32 bytes (got N)`. |
-| `ASSETS_LIBRARY_HMAC_KEY` | `openssl rand -hex 32` | The backend boots. Every request that signs or checks a private asset link fails with `ASSETS_LIBRARY_HMAC_KEY is unset`. | A value that is not hex is used as raw bytes, so a placeholder works and signs asset links with a public key. |
+| `ASSETS_LIBRARY_HMAC_KEY` | `openssl rand -hex 32` | The backend boots. Every request that signs or checks a private asset link fails with `ASSETS_LIBRARY_HMAC_KEY is unset`. | A value starting with `change-me` — the placeholder older env examples carried — is refused at the first private asset link, as an unset key is: `ASSETS_LIBRARY_HMAC_KEY is still the placeholder an env example carried`. Any other value that is not hex is used as raw bytes and accepted. |
 | `MEILI_MASTER_KEY` | `openssl rand -base64 32` | `deploy/compose.prod.yml` runs Meilisearch with `MEILI_ENV: production`, which refuses to start without a master key. The backend reads the same value as `MEILISEARCH_API_KEY`. | Meilisearch accepts any key of at least 16 bytes, so a placeholder gives a publicly known key to the search engine. |
 | `POSTGRES_PASSWORD` | `openssl rand -hex 32` (hex, not base64: the value goes unescaped into `DATABASE_URL`, where a `/` or `+` breaks the URL) | `deploy/compose.prod.yml` falls back to `b2b` (`${POSTGRES_PASSWORD:-b2b}`). | A placeholder works and is publicly known. |
 | `REVALIDATE_SECRET` | `openssl rand -hex 32` | See B2. | See B2. |
