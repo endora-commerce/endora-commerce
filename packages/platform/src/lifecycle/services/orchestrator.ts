@@ -447,7 +447,9 @@ export class ModuleLifecycleOrchestrator {
 
     const lease = await this.acquireLock();
     try {
-      const row = await this.deps.em().findOne(ModuleRegistration, {
+      // One manager for the whole operation — see `operationEm`.
+      const em = this.operationEm();
+      const row = await em.findOne(ModuleRegistration, {
         moduleId,
       });
       if (!row || row.state === 'uninstalled') {
@@ -536,7 +538,6 @@ export class ModuleLifecycleOrchestrator {
       }
 
       // Unregister settings (always — soft and hard both clear settings).
-      const em = this.deps.em();
       const ownedSettings = await em.find(Setting, { ownerModule: moduleId });
       for (const s of ownedSettings) em.remove(s);
       const ownedGroups = await em.find(SettingGroup, {
@@ -618,7 +619,9 @@ export class ModuleLifecycleOrchestrator {
     }
     const lease = await this.acquireLock();
     try {
-      const row = await this.deps.em().findOne(ModuleRegistration, {
+      // One manager for the whole operation — see `operationEm`.
+      const em = this.operationEm();
+      const row = await em.findOne(ModuleRegistration, {
         moduleId,
       });
       if (!row || row.state === 'uninstalled' || row.state === 'installing') {
@@ -645,7 +648,7 @@ export class ModuleLifecycleOrchestrator {
       }
       row.state = 'installed';
       row.lastStateChangeAt = new Date();
-      await this.deps.em().flush();
+      await em.flush();
       await this.deps.auditLog.record({
         actorAdminUserId: null,
         action: 'module.enabled',
@@ -672,7 +675,9 @@ export class ModuleLifecycleOrchestrator {
     }
     const lease = await this.acquireLock();
     try {
-      const row = await this.deps.em().findOne(ModuleRegistration, {
+      // One manager for the whole operation — see `operationEm`.
+      const em = this.operationEm();
+      const row = await em.findOne(ModuleRegistration, {
         moduleId,
       });
       if (!row || row.state === 'uninstalled' || row.state === 'installing') {
@@ -689,7 +694,6 @@ export class ModuleLifecycleOrchestrator {
 
       // Find currently-enabled dependents, over both kinds of edge.
       const directDependents = this.gatingDependentsOf(moduleId);
-      const em = this.deps.em();
       const dependentRows = await em.find(ModuleRegistration, {
         moduleId: { $in: directDependents },
         state: 'installed',
@@ -969,6 +973,32 @@ export class ModuleLifecycleOrchestrator {
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
+
+  /**
+   * The one `EntityManager` a state-changing operation loads **and** flushes
+   * through.
+   *
+   * `deps.em` is a factory, and every production caller's factory **forks**:
+   * the `module:*` entry points pass `() => orm.em.fork()` and `composeApp`
+   * passes `() => forkScopedEm(orm)`. A unit of work persists the entities it
+   * loaded and no others, so an operation that reads the registration row
+   * through one call of the factory and flushes through a second flushes
+   * nothing. `enable`, `disable` and a soft `uninstall` did exactly that: each
+   * printed its success line, wrote its audit entry and published the state
+   * change over a `module_registrations` row that had not moved — and the
+   * cascade's dependents *did* move, because those were loaded by the manager
+   * that flushed, which left a `--cascade` half-applied.
+   *
+   * Nothing caught it because every fixture hands over a single shared manager
+   * (`() => db.em()`, `() => em`), for which two calls are one unit of work.
+   * So an operation takes its manager here, once, and names it; a later
+   * `this.deps.em()` inside the same operation is for a collaborator that owns
+   * its own writes (a hook, the settings reconciler, a read-only probe), never
+   * for a row this operation is about to change.
+   */
+  private operationEm(): EntityManager {
+    return this.deps.em();
+  }
 
   private async acquireLock(): Promise<LifecycleLeaseHandle> {
     try {

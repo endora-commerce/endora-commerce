@@ -323,11 +323,13 @@ terminal.
 Every module can be switched off by the people running the shop, and a module that is off behaves
 as if it were not installed. Nothing is deleted, and switching it on again brings everything back.
 
-:::caution Limit today
-The switch belongs on the admin's **Modules** screen (**System → Modules**). In an instance that
-screen currently shows `NOT_FOUND: Resource not found.` and an empty list, and
-`pnpm run module:disable <id>` prints `registry updated: state=disabled` without changing anything.
-Until both are repaired, use the API call the Modules screen itself makes, as below.
+:::caution Limit on `0.100.2` and earlier
+The switch belongs on the admin's **Modules** screen (**System → Modules**). In an instance on
+release `0.100.2` or earlier that screen shows `NOT_FOUND: Resource not found.` and an empty list,
+and `pnpm run module:disable <id>` prints `registry updated: state=disabled` without changing
+anything. Both are repaired in the release after `0.100.2`: upgrade the instance's
+`@endora-commerce/*` packages to get it. The API call below is the one the Modules screen itself
+makes, and it works on every release.
 :::
 
 Sign in from the terminal, keeping the session cookie in a file:
@@ -375,8 +377,8 @@ Checked on releases `0.100.1` and `0.100.2`. Each is a limit of the product toda
 
 | What | What you see | What to do |
 | --- | --- | --- |
-| The Modules screen does not load in an instance | `NOT_FOUND: Resource not found.` and "No modules to show" | The API call in step 8 |
-| `pnpm run module:disable <id>` changes nothing in an instance | It prints `state=disabled`; `pnpm run module:status` still says `installed` and the routes still answer | The API call in step 8 |
+| The Modules screen does not load in an instance on `0.100.2` or earlier | `NOT_FOUND: Resource not found.` and "No modules to show" | Upgrade past `0.100.2`, or the API call in step 8 |
+| `pnpm run module:disable <id>`, `module:enable` and `module:uninstall` change nothing in an instance on `0.100.2` or earlier | It prints `state=disabled`; `pnpm run module:status` still says `installed` and the routes still answer | Upgrade past `0.100.2`, or the API call in step 8 |
 
 An instance created with release `0.100.2` or earlier has two more: its `.env` has no `DEPLOYMENT`
 and its `package.json` does not list `@endora-commerce/contracts`. The note in step 1 has the two
