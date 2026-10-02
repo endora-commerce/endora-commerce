@@ -542,6 +542,12 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
     'ComposeAppOptions',
     'ComposedAppContext',
   ],
+  // What an entry point does with a refusal the platform wrote for the
+  // operator: `exitOnRefusal` on `composeApp`'s promise in the API and the
+  // worker, `refuseOverlaySchema` in `migrate`, which composes nothing and has
+  // to ask. A scaffolded instance's three wiring files name them; a module has
+  // no process to exit.
+  'overlay/overlay-schema.ts': ['exitOnRefusal', 'refuseOverlaySchema'],
   'http/server.ts': ['buildServer', 'ModulePlugin'],
   'http/interceptors/index.ts': ['ApiInterceptorRegistry'],
   // T119b. `./http` carries `HttpError` — what a module *raises* — and not the

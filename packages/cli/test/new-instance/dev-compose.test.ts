@@ -97,6 +97,7 @@ function deployInput(overrides: Partial<DeployInput> = {}): DeployInput {
     admin: false,
     npmrc: false,
     docs: false,
+    deployment: 'acme-shop',
     enginesNode: '>=22.17.0',
     packageManager: 'pnpm@9.15.0',
     declared: [],

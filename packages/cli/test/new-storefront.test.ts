@@ -69,6 +69,7 @@ import {
   cutForeignJsonPaths,
   packageManagerFor,
   planStorefront,
+  rewriteManifest,
   publishedRange,
   UnclassifiedReferenceError,
 } from '../src/new-storefront/rewrite.js';
@@ -964,6 +965,39 @@ describe('the scaffolded storefront keeps its secrets out of git', () => {
       rmSync(parent, { recursive: true, force: true });
     }
   }, 120_000);
+
+  it('carries the workspace root\'s `pnpm.peerDependencyRules`, which pnpm reads from a root alone', () => {
+    // The checkout lints with eslint 10 and `eslint-plugin-jsx-a11y`, whose
+    // newest release still declares a peer that stops at 9, and says so at its
+    // root. A scaffolded storefront is its own root: without the rule its first
+    // install printed "Issues with peer dependencies found".
+    const reference = resolveReference(REPO_ROOT);
+    const root = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
+      pnpm: { peerDependencyRules: unknown };
+    };
+    expect(root.pnpm.peerDependencyRules).toEqual({
+      allowedVersions: { 'eslint-plugin-jsx-a11y>eslint': '10' },
+    });
+    const manifest = JSON.parse(rewriteManifest(reference, memberDirectories(reference.repoRoot)).text) as {
+      pnpm?: { peerDependencyRules?: unknown };
+    };
+    expect(manifest.pnpm?.peerDependencyRules).toEqual(root.pnpm.peerDependencyRules);
+  });
+
+  it('reports no rewrite in a file it omits', () => {
+    // A file left out is not written, so the report naming a rewrite inside it
+    // contradicted itself: `test/tailwind-module-package-sources.test.ts` had a
+    // glob retargeted and was then omitted for the script it imports.
+    const reference = resolveReference(REPO_ROOT);
+    const plan = planStorefront(reference, memberDirectories(reference.repoRoot), '/tmp/a');
+    const omitted = new Set(plan.omitted.map((entry) => entry.path));
+    expect(omitted.size).toBeGreaterThan(0);
+    expect(plan.rewrites.length).toBeGreaterThan(0);
+    expect(plan.rewrites.filter((rewrite) => omitted.has(rewrite.file)).map((rewrite) => rewrite.file)).toEqual([]);
+    // And every rewrite it does report is in a file it writes.
+    const written = new Set(plan.files.map((file) => file.path));
+    expect(plan.rewrites.filter((rewrite) => !written.has(rewrite.file)).map((rewrite) => rewrite.file)).toEqual([]);
+  });
 
   it('keeps every entry of the reference storefront\'s own `.gitignore`', () => {
     const reference = resolveReference(REPO_ROOT);

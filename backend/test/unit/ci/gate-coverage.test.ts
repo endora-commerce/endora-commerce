@@ -249,6 +249,15 @@ const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
     kind: 'developer-tool',
     reason: 'The full dev stack, across all three applications. It never terminates.',
   },
+  'storefront::start': {
+    kind: 'developer-tool',
+    reason:
+      'It serves the built storefront — `scripts/start-standalone.mjs` finds the standalone ' +
+      'server `next build` emitted, puts the static assets beside it and starts it. It is a ' +
+      'server and never terminates, so there is no verdict for a job to hold a branch to. ' +
+      'What it does is asserted by `storefront/test/standalone-start.test.ts`, which ' +
+      '`test:frontend` runs, and the acceptance run starts a scaffolded storefront with it.',
+  },
   'backend::history:filter': {
     kind: 'local-operation',
     reason:

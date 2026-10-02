@@ -38,7 +38,7 @@ const PASSWORD = 'typed-and-never-shown';
 
 /** Question on the screen → what is typed at it. Order is the order asked. */
 const CONVERSATION: readonly (readonly [string, string])[] = [
-  ['Where should the instance go?', '\r'],
+  ['Which directory should it be written to?', '\r'],
   ['> ', '\r'],
   ['[Y/n]', '\r'],
   ['Install demo data? [y/n]', 'n\r'],
@@ -57,7 +57,7 @@ const SECRET = 'the-secret-the-api-already-holds';
  * served, the channel (Enter: `default`) and the shared secret.
  */
 const STOREFRONT_ALONE: readonly (readonly [string, string])[] = [
-  ['Where should the instance go?', 'shop\r'],
+  ['Which directory should it be written to?', 'shop\r'],
   ['> ', '1 2\r'],
   ['> ', '\r'],
   ['[1] ', '\r'],
@@ -69,7 +69,7 @@ const STOREFRONT_ALONE: readonly (readonly [string, string])[] = [
 
 /** The admin alone: rows 1 and 3 off, and one question — where the API is. */
 const ADMIN_ALONE: readonly (readonly [string, string])[] = [
-  ['Where should the instance go?', 'admin\r'],
+  ['Which directory should it be written to?', 'admin\r'],
   ['> ', '1 3\r'],
   ['> ', '\r'],
   // One address, with paths: one question instead of the address questions.
@@ -200,7 +200,9 @@ describe('T4-A — spawned', () => {
         // §6.2 Q6 — read without echo.
         expect(run.screen).not.toContain(PASSWORD);
         // FR-147 — the one line before the first question.
-        expect(run.screen).toContain('0 of 7 answers came from flags');
+        expect(run.screen).toContain('no flags given; 0 answers came from flags.');
+        // The total is the selection's, and nothing has selected yet.
+        expect(run.screen).not.toMatch(/of \d+ answers came from flags/);
       } finally {
         rmSync(parent, { recursive: true, force: true });
       }
@@ -277,6 +279,7 @@ describe('T4-A — spawned', () => {
           expect(run.screen, `the refusal does not name ${owed}`).toContain(owed);
         }
         expect(run.screen).not.toContain('Where should the instance go?');
+        expect(run.screen).not.toContain('Which directory should it be written to?');
       } finally {
         rmSync(parent, { recursive: true, force: true });
       }

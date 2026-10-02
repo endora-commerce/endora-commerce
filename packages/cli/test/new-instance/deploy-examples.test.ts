@@ -505,6 +505,17 @@ describe('§2 R2.3 and §3 R3.8 — an example Dockerfile per image, with no fou
     }
   });
 
+  it('the backend image defaults `DEPLOYMENT` to the instance\'s own, so a build with no argument is not bare core', () => {
+    // A blank `DEPLOYMENT` composes no overlay module and says nothing, so an
+    // image built without the `--build-arg` looked exactly like an instance
+    // with no overlay. The tree knows which deployment it is.
+    const text = fileAt(withAdmin(), 'deploy/Dockerfile.backend');
+    expect(text).toMatch(/^ARG DEPLOYMENT=acme-shop$/m);
+    expect(text).toMatch(/^ENV DEPLOYMENT=\$DEPLOYMENT$/m);
+    // The admin image reads no deployment, and gains no default for anything.
+    expect(fileAt(withAdmin(), 'deploy/Dockerfile.admin')).not.toMatch(/^ARG [A-Z0-9_]+=/m);
+  });
+
   it('every `ARG` the example declares is a consumer the declaration names', () => {
     for (const [target, path] of dockerfiles) {
       const text = fileAt(withAdmin(), path);

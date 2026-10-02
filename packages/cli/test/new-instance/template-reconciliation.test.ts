@@ -510,7 +510,7 @@ describe('T1 goes red, one proof per finding', () => {
   it('a namespace import names no symbol and is refused as a whole-file reach', () => {
     const files = planWith('backend/src/index.ts', (content) =>
       content.replace(
-        `import { buildServer, composeApp } from '${SCOPE}platform/composition';`,
+        `import { buildServer, composeApp, exitOnRefusal } from '${SCOPE}platform/composition';`,
         `import * as composition from '${SCOPE}platform/composition';`,
       ),
     );

@@ -492,10 +492,20 @@ describe('the reference storefront starts under pnpm, on the port its `.env` nam
     readFileSync(fileURLToPath(new URL('../../../storefront/package.json', import.meta.url)), 'utf8'),
   ) as { scripts: Record<string, string> };
 
-  it.each(['dev', 'start'])('`%s` runs Next\'s own entry through node, never a `.bin` shim', (script) => {
-    const command = manifest.scripts[script]!;
+  it('`dev` runs Next\'s own entry through node, never a `.bin` shim', () => {
+    const command = manifest.scripts['dev']!;
     expect(command).not.toMatch(/node [^&|]*\.bin\//);
     expect(command).toContain('node_modules/next/dist/bin/next');
+  });
+
+  it('`start` runs the server the build emitted, through node — not `next start`, and no `.bin` shim', () => {
+    // The storefront builds with `output: 'standalone'`, and `next start` over
+    // that build says it "does not work" with it. What serves it is the
+    // standalone server, which `scripts/start-standalone.mjs` finds and starts.
+    const command = manifest.scripts['start']!;
+    expect(command).not.toMatch(/node [^&|]*\.bin\//);
+    expect(command).not.toMatch(/\bnext start\b/);
+    expect(command).toContain('scripts/start-standalone.mjs');
   });
 
   it.each(['dev', 'start'])('`%s` loads `.env` before Next binds, so `PORT` there is the port', (script) => {

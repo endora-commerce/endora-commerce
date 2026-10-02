@@ -41,6 +41,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 
+import { activeOverlayModulesRoot } from './deployment-roots.js';
+import { listOverlayModuleDirs } from './resolve-overlay.js';
+
 /** A directory an overlay module may not have, because what it holds is schema. */
 const SCHEMA_DIRECTORIES: ReadonlySet<string> = new Set(['migrations', 'entities']);
 
@@ -89,11 +92,20 @@ export function overlaySchemaFilesUnder(root: string, ids: readonly string[]): r
   return found.sort();
 }
 
+/**
+ * The refusal, as a class of its own — so an entry point can tell an answer
+ * written for the operator from a defect, and print the first as a sentence
+ * and the second with its stack ({@link exitOnRefusal}).
+ */
+export class OverlaySchemaError extends Error {
+  override readonly name = 'OverlaySchemaError';
+}
+
 /** Throw, naming each file and the remedy, when an overlay module ships schema. */
 export function assertOverlayModulesShipNoSchema(root: string, ids: readonly string[]): void {
   const schema = overlaySchemaFilesUnder(root, ids);
   if (schema.length === 0) return;
-  throw new Error(
+  throw new OverlaySchemaError(
     `[overlay] an overlay module contributes no schema, and ${String(schema.length)} file(s) ` +
       `under ${root} are schema:\n` +
       `${schema.map((file) => `  - ${join(root, file)}`).join('\n')}\n` +
@@ -107,4 +119,49 @@ export function assertOverlayModulesShipNoSchema(root: string, ids: readonly str
       `and read it from this overlay module through that package's port. Nothing was ` +
       `composed and nothing was written.`,
   );
+}
+
+/**
+ * `.catch(exitOnRefusal)` on an entry point's composition: a refusal is printed
+ * as its message and the process exits 1; anything else is thrown again,
+ * untouched, so a defect still arrives with its stack.
+ *
+ * The API and the worker of a scaffolded instance compose with a top-level
+ * `await`, and a throw there is an uncaught exception: Node prints the throwing
+ * line of this package's compiled source, then the message, then fifteen frames
+ * of the platform's internals. The sentence the operator needs was in the
+ * middle of that. A `.catch()` method on the entry promise is where an entry
+ * point turns a throw into an exit code (`cli/dispatch.ts`' own reasoning).
+ */
+export function exitOnRefusal(
+  error: unknown,
+  err: (text: string) => void = (text) => void process.stderr.write(text),
+): never {
+  if (!(error instanceof OverlaySchemaError)) throw error;
+  err(`${error.message}\n`);
+  process.exit(1);
+}
+
+/**
+ * The same refusal for an entry point that composes nothing — `migrate`.
+ *
+ * The migrator's configuration is built from the installed packages and never
+ * resolves an overlay module, so `overlayModuleIdsUnder` is not on its path:
+ * `migrate` over a tree whose overlay module ships a `migrations/` directory
+ * applied every package's schema, none of that directory's, and exited 0. This
+ * is the check, called with the one thing the entry point knows and this
+ * package cannot derive — the directory that holds `apps/`.
+ */
+export function refuseOverlaySchema(
+  deploymentRoot: string,
+  env: NodeJS.ProcessEnv = process.env,
+  err: (text: string) => void = (text) => void process.stderr.write(text),
+): void {
+  const root = activeOverlayModulesRoot(deploymentRoot, env);
+  if (root === null) return;
+  try {
+    assertOverlayModulesShipNoSchema(root, listOverlayModuleDirs(root));
+  } catch (error: unknown) {
+    exitOnRefusal(error, err);
+  }
 }

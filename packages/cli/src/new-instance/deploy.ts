@@ -120,6 +120,12 @@ export interface DeployInput {
   readonly npmrc: boolean;
   /** The documentation member was written — it changes the image's install. */
   readonly docs: boolean;
+  /**
+   * The instance's own deployment — the directory under `apps/` this run wrote,
+   * and what its `.env` sets `DEPLOYMENT` to. The backend image defaults its
+   * build argument to it.
+   */
+  readonly deployment: string;
   /** The root manifest's `engines.node`, which the image's tag is read from. */
   readonly enginesNode: string;
   /** The root manifest's `packageManager`, or `undefined`. */
@@ -1421,13 +1427,33 @@ export function buildInvocation(target: BuildTarget, path: string): readonly str
   ];
 }
 
-/** The `ARG`/`ENV` pair per input this target's build reads. */
-export function argDeclarations(target: BuildTarget): readonly string[] {
-  return buildInputsFor(target).flatMap(({ input, consumer }) => [
-    ...wrapComment(input.meaning),
-    `ARG ${consumer.buildArg}`,
-    `ENV ${consumer.buildArg}=$${consumer.buildArg}`,
-  ]);
+/**
+ * The `ARG`/`ENV` pair per input this target's build reads.
+ *
+ * `defaults` gives an argument the value it has when the build passes none.
+ * One input has one: `DEPLOYMENT`, whose absence is silent — a blank value is
+ * bare core, so an image built without `--build-arg DEPLOYMENT=…` composed none
+ * of the overlay modules its own tree carries and looked exactly like an
+ * instance that has none. The tree knows which deployment it is.
+ */
+export function argDeclarations(
+  target: BuildTarget,
+  defaults: ReadonlyMap<string, string> = new Map(),
+): readonly string[] {
+  return buildInputsFor(target).flatMap(({ input, consumer }) => {
+    const fallback = defaults.get(consumer.buildArg);
+    return [
+      ...wrapComment(input.meaning),
+      ...(fallback === undefined
+        ? []
+        : wrapComment(
+            `Defaults to this instance's own deployment, apps/${fallback}/, so a build given ` +
+              'no value for it still composes it. Pass an empty value for bare core.',
+          )),
+      `ARG ${consumer.buildArg}${fallback === undefined ? '' : `=${fallback}`}`,
+      `ENV ${consumer.buildArg}=$${consumer.buildArg}`,
+    ];
+  });
 }
 
 function backendDockerfile(input: DeployInput): string {
@@ -1462,7 +1488,7 @@ function backendDockerfile(input: DeployInput): string {
     '# `build:backend` runs and this image follows with no edit here.',
     'RUN pnpm run build:backend',
     '',
-    ...argDeclarations('backend'),
+    ...argDeclarations('backend', new Map([['DEPLOYMENT', input.deployment]])),
     '',
     'ENV NODE_ENV=production',
     'ENV PORT=3001',

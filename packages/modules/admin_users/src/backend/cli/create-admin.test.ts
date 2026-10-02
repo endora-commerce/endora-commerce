@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { parseArgs, wantsPasswordFromStdin } from './create-admin.js';
+import { parseArgs, signInHint, wantsPasswordFromStdin } from './create-admin.js';
 
 const REST = ['--email=Owner@Example.com', '--first-name=Ada', '--last-name=Lovelace'];
 
@@ -53,5 +53,14 @@ describe('admin_users create — the password', () => {
     expect(parseArgs(REST, 'a-password-they-remember')).toEqual({
       error: 'Missing required flag: --password=...',
     });
+  });
+});
+
+describe('admin_users create — the closing line', () => {
+  it('names the e-mail and points at no password "above": none is printed', () => {
+    const line = signInHint('owner@example.com');
+    expect(line).toContain('owner@example.com');
+    expect(line).not.toMatch(/above/);
+    expect(line).toContain('not printed');
   });
 });
