@@ -33,11 +33,11 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 **Bundled dependencies**
 
 - `@tiptap/core` ^3.31.3
-- `@tiptap/extension-color` 3.31.3
-- `@tiptap/extension-highlight` 3.31.3
-- `@tiptap/extension-image` 3.31.3
-- `@tiptap/extension-text-align` 3.31.3
-- `@tiptap/extension-text-style` 3.31.3
+- `@tiptap/extension-color` ^3.31.3
+- `@tiptap/extension-highlight` ^3.31.3
+- `@tiptap/extension-image` ^3.31.3
+- `@tiptap/extension-text-align` ^3.31.3
+- `@tiptap/extension-text-style` ^3.31.3
 - `@tiptap/react` ^3.31.3
 - `@tiptap/starter-kit` ^3.31.3
 - `leaflet` ^1.9.4
