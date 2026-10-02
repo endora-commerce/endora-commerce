@@ -1493,6 +1493,20 @@ describe('138 FR-012…FR-016 — the values that cross a machine boundary', () 
     expect(text).toContain('--revalidate-secret');
   });
 
+  it('FR-015 — a `.env` the operator placed first gets the secret too: it has no placeholder to fill', async () => {
+    // `new instance` merges into a placed `.env` and writes no placeholder
+    // there; the declaration is then the `.env.example` beside it. Reading the
+    // placeholders alone left the instance without the secret its storefront
+    // was given — in the two-tree run as well.
+    const root = host({ origins: true });
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'PORT=4455\n', 'utf8');
+    const result = await runInstall(only(root, 'api', { run: recorder().run }));
+    expect(env(join(target, '.env')).get('REVALIDATE_SECRET')?.length).toBeGreaterThan(20);
+    expect(result.output.join('\n')).toContain(`REVALIDATE_SECRET is in ${join(target, '.env')}`);
+  });
+
   it('FR-015 — `--revalidate-secret` is written verbatim, and still not printed', async () => {
     const root = host({ origins: true });
     const result = await runInstall(
@@ -1564,6 +1578,53 @@ describe('138 — each part on a port of its own', () => {
     expect(instance).toMatch(/^STOREFRONT_BASE_URL=http:\/\/localhost:13000$/m);
     expect(instance).toMatch(/^CORS_ALLOWED_ORIGINS=http:\/\/localhost:3002,http:\/\/localhost:13000$/m);
     expect(result.output.join('\n')).toContain('the shop, on http://localhost:13000');
+  });
+
+  it('a loopback `--storefront-url` names the port: it is used as given, never moved', async () => {
+    const root = checkoutFixture();
+    const result = await runInstall(
+      only(root, 'storefront', {
+        apiUrl: 'http://localhost:43001',
+        storefrontUrl: 'http://localhost:43000',
+        revalidateSecret: 'x',
+        portInUse: async () => true,
+        run: recorder().run,
+      }),
+    );
+    const shop = env(join(root, 'acme-shop', '.env'));
+    expect(shop).toMatch(/^PORT=43000$/m);
+    expect(shop).toMatch(/^NEXT_PUBLIC_SITE_URL=http:\/\/localhost:43000$/m);
+    const text = result.output.join('\n');
+    expect(text).not.toContain('already in use');
+    expect(text).toContain('the shop, on http://localhost:43000');
+  });
+
+  it('a public `--storefront-url` says nothing about the port this machine serves on', async () => {
+    const root = checkoutFixture();
+    await runInstall(
+      only(root, 'storefront', {
+        apiUrl: THE_API,
+        storefrontUrl: THE_SHOP,
+        revalidateSecret: 'x',
+        run: recorder().run,
+      }),
+    );
+    expect(env(join(root, 'acme-shop', '.env'))).not.toMatch(/^PORT=/m);
+  });
+
+  it('a loopback `--admin-url` is the port the admin beside the API is served on', async () => {
+    const root = host({ admin: true, origins: true });
+    await runInstall(
+      only(root, 'api,admin', {
+        adminUrl: 'http://127.0.0.1:43002',
+        portInUse: TAKEN,
+        run: recorder().run,
+      }),
+    );
+    expect(env(join(root, 'acme-shop', 'admin', '.env'))).toMatch(/^PORT=43002$/m);
+    expect(env(join(root, 'acme-shop', '.env'))).toMatch(
+      /^CORS_ALLOWED_ORIGINS=http:\/\/127\.0\.0\.1:43002,http:\/\/localhost:3000$/m,
+    );
   });
 
   it('free ports move nothing and write no `PORT` line', async () => {

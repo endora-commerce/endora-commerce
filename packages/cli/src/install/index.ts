@@ -834,6 +834,27 @@ interface LayerPort {
   readonly moved: boolean;
   /** What the operator is told, when there is something to tell. */
   readonly said: string | null;
+  /**
+   * Why this run writes `PORT` into the layer's own file, or `null` when it
+   * writes none — the default needs no line, and a port the operator set in
+   * that file is already there.
+   */
+  readonly written: string | null;
+}
+
+/**
+ * The port a **loopback** origin names, or `undefined`.
+ *
+ * `--storefront-url http://localhost:4000` is two statements at once: where a
+ * browser finds the storefront, and — because the host is this machine — which
+ * port it is served on. A public origin says nothing about the second: behind a
+ * proxy the two are unrelated.
+ */
+function loopbackPort(origin: string | undefined): string | undefined {
+  if (origin === undefined) return undefined;
+  const url = new URL(origin);
+  if (!['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) return undefined;
+  return url.port === '' ? undefined : url.port;
 }
 
 /**
@@ -850,18 +871,34 @@ interface LayerPort {
  */
 async function decideLayerPort(
   layer: { readonly name: string; readonly fallback: number; readonly file: string },
+  /** `PORT` as the operator set it in the layer's own file. */
   pinned: string | undefined,
+  /** The port the layer's own loopback origin names, and which flag gave it. */
+  named: { readonly port: string | undefined; readonly flag: string },
   inUse: PortProbe,
   assigned: Set<number>,
 ): Promise<LayerPort> {
   if (pinned !== undefined && /^\d+$/.test(pinned.trim())) {
     const port = Number(pinned.trim());
     assigned.add(port);
-    return { port, moved: port !== layer.fallback, said: null };
+    return { port, moved: port !== layer.fallback, said: null, written: null };
+  }
+  if (named.port !== undefined) {
+    const port = Number(named.port);
+    assigned.add(port);
+    return {
+      port,
+      moved: port !== layer.fallback,
+      said: null,
+      written:
+        port === layer.fallback
+          ? null
+          : `it is the port of the \`${named.flag}\` this run was given`,
+    };
   }
   if (!assigned.has(layer.fallback) && !(await inUse(layer.fallback))) {
     assigned.add(layer.fallback);
-    return { port: layer.fallback, moved: false, said: null };
+    return { port: layer.fallback, moved: false, said: null, written: null };
   }
   let candidate = layer.fallback + 10_000;
   let tries = 0;
@@ -873,6 +910,7 @@ async function decideLayerPort(
     return {
       port: layer.fallback,
       moved: false,
+      written: null,
       said:
         `port ${String(layer.fallback)} is already in use on this machine and no free one was ` +
         `found near ${String(layer.fallback + 10_000)} for ${layer.name}. Set PORT in ` +
@@ -883,6 +921,9 @@ async function decideLayerPort(
   return {
     port: candidate,
     moved: true,
+    written:
+      `${String(layer.fallback)}, the default, was already in use on this machine when ` +
+      '`endora install` ran',
     said:
       `port ${String(layer.fallback)} is already in use on this machine, so ${layer.name} is ` +
       `served on http://localhost:${String(candidate)} instead — PORT=${String(candidate)} in ` +
@@ -902,7 +943,11 @@ async function decideLayerPort(
  */
 function writeAdminEnv(
   targetDir: string,
-  values: { readonly apiOrigin: string | undefined; readonly port: number | undefined },
+  values: {
+    readonly apiOrigin: string | undefined;
+    /** The port to write, with why this run chose it; `undefined` writes none. */
+    readonly port: { readonly value: number; readonly why: string } | undefined;
+  },
 ): readonly string[] {
   const entries = new Map<string, string>();
   const header: string[] = ['# Written by `endora install`. Vite reads this file for `dev`, `build` and `preview`.'];
@@ -917,11 +962,12 @@ function writeAdminEnv(
   if (values.port !== undefined) {
     header.push(
       '#',
-      `# PORT is where \`pnpm run preview:admin\` serves the bundle: ${String(ADMIN_DEFAULT_PORT)} was already in use on`,
-      '# this machine when `endora install` ran. The API allows a browser in by origin, so its',
-      '# CORS_ALLOWED_ORIGINS has to name the address this port makes.',
+      '# PORT is where `pnpm run preview:admin` serves the bundle:',
+      `# ${values.port.why}.`,
+      '# The API allows a browser in by origin, so its CORS_ALLOWED_ORIGINS has to name the',
+      '# address this port makes.',
     );
-    entries.set('PORT', String(values.port));
+    entries.set('PORT', String(values.port.value));
   }
   if (entries.size === 0) return [];
   const dir = join(targetDir, 'admin');
@@ -960,14 +1006,15 @@ function writeDeclared(targetDir: string, values: ReadonlyMap<string, string>): 
 }
 
 /** A storefront's `PORT`, appended to the `.env` its own resolution wrote. */
-function writeStorefrontPort(storefrontDir: string, port: number): void {
+function writeStorefrontPort(storefrontDir: string, port: number, why: string): void {
   const envPath = join(storefrontDir, '.env');
   const text = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
   const header = [
     '',
-    `# PORT below was CHOSEN by \`endora install\`: ${String(STOREFRONT_DEFAULT_PORT)}, where Next serves by default, was`,
-    '# already in use on this machine when it ran. `pnpm run dev` and `pnpm run start` both',
-    '# read it from this file. NEXT_PUBLIC_SITE_URL above names the same port, and so does',
+    '# PORT below was written by `endora install`:',
+    `# ${why}.`,
+    '# `pnpm run dev` and `pnpm run start` both read it from this file. Where',
+    '# NEXT_PUBLIC_SITE_URL above is a localhost address it names the same port, and so does',
     "# the API's allow-list — change one and change the others to match.",
   ].join('\n');
   writeFileSync(
@@ -1500,6 +1547,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     ? await decideLayerPort(
         { name: 'the admin', fallback: ADMIN_DEFAULT_PORT, file: join(targetDir, 'admin', '.env') },
         undefined,
+        { port: loopbackPort(adminUrl), flag: '--admin-url' },
         portInUse,
         assigned,
       )
@@ -1510,6 +1558,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       : await decideLayerPort(
           { name: 'the storefront', fallback: STOREFRONT_DEFAULT_PORT, file: join(storefrontDir, '.env') },
           readTargetEnv(storefrontDir).get('PORT'),
+          { port: loopbackPort(storefrontUrl), flag: '--storefront-url' },
           portInUse,
           assigned,
         );
@@ -1564,8 +1613,8 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       say(`    omitted ${omission.path} — ${omission.reason}`);
     }
     say(`  ${storefront.provenance}`);
-    if (!dryRun && storefrontPort?.moved === true && storefrontPort.said !== null) {
-      writeStorefrontPort(storefrontDir, storefrontPort.port);
+    if (!dryRun && storefrontPort !== null && storefrontPort.written !== null) {
+      writeStorefrontPort(storefrontDir, storefrontPort.port, storefrontPort.written);
     }
   }
 
@@ -1596,7 +1645,10 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       apiUrl ?? (standsUpApi && apiPort !== API_DEFAULT_PORT ? `http://localhost:${apiPort}` : undefined);
     const wrote = writeAdminEnv(targetDir, {
       apiOrigin: builtAgainst,
-      port: adminPort?.moved === true && adminPort.said !== null ? adminPort.port : undefined,
+      port:
+        adminPort === null || adminPort.written === null
+          ? undefined
+          : { value: adminPort.port, why: adminPort.written },
     });
     if (wrote.includes('VITE_API_BASE_URL')) {
       say(
@@ -1704,7 +1756,14 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       storefrontOrigin,
       adminPort,
       storefrontPort,
-      secretInInstance: standsUpApi && storefrontDir === null && chosen.subset,
+      // Said only where it is true: the file holds a value, this run's or
+      // the operator's own.
+      secretInInstance:
+        standsUpApi &&
+        storefrontDir === null &&
+        chosen.subset &&
+        (dryRun || readTargetEnv(targetDir).has('REVALIDATE_SECRET')),
+      storefrontToldToApi: storefrontUrl !== undefined,
     })) {
       say(line);
     }
@@ -1780,18 +1839,15 @@ function planHost(input: {
  * own resolution writes it. The instance's `.env` lists it as a placeholder
  * (the platform declares it `generable: false`, so `new instance` writes no
  * value), and this is where the second half of the pair is filled in.
+ *
+ * **Declared, not "has a placeholder".** A `.env` the operator placed before
+ * the run is merged into and gets no placeholder, so reading the placeholders
+ * alone left exactly that instance without the secret its storefront had been
+ * given — every machine that pinned its API port first. The declaration is then
+ * the `.env.example` rendered beside it, which is what `writeDeclared` reads.
  */
 function writeSharedSecret(targetDir: string, secret: string): void {
-  const envPath = join(targetDir, '.env');
-  if (!existsSync(envPath)) return;
-  const text = readFileSync(envPath, 'utf8');
-  if (!/^\s*#?\s*REVALIDATE_SECRET\s*=/m.test(text)) return;
-  if (parseEnvFile(text).has('REVALIDATE_SECRET')) return;
-  writeFileSync(
-    envPath,
-    writeEnvFile(text, new Map([['REVALIDATE_SECRET', secret]])),
-    'utf8',
-  );
+  writeDeclared(targetDir, new Map([['REVALIDATE_SECRET', secret]]));
 }
 
 /** What stands where the administrator's password would be, in everything printed. */
@@ -1982,6 +2038,8 @@ function closing(input: {
   readonly storefrontPort: LayerPort | null;
   /** Whether this run wrote `REVALIDATE_SECRET` for a storefront on another machine. */
   readonly secretInInstance: boolean;
+  /** Whether `--storefront-url` was given, so the API already knows where it is. */
+  readonly storefrontToldToApi: boolean;
 }): readonly string[] {
   const has = (component: Component): boolean => input.selection.components.includes(component);
   const api = has('api');
@@ -2147,14 +2205,14 @@ function closing(input: {
             `trailing slash. This run ${input.dryRun ? 'would leave' : 'left'} it allowing ` +
             `${input.adminOrigin} and ${input.storefrontOrigin}.`
         : "  - the API's CORS_ALLOWED_ORIGINS must contain the admin's and the storefront's " +
-            'origins, exactly as a browser sends them — scheme, host, port, no trailing slash' +
+            'origins, exactly as a browser sends them — scheme, host, port, no trailing slash.' +
             `${[
               ...(adminHere ? [` For this admin that is the address it is served at — ${input.adminOrigin} with the command above.`] : []),
               ...(input.storefrontDir === null ? [] : [` For this storefront that is ${input.storefrontOrigin}.`]),
-            ].join('') || '.'}`,
+            ].join('')}`,
       '  - the admin bundle and the storefront\'s browser values are bound to the API origin at ' +
         'build time (VITE_API_BASE_URL, NEXT_PUBLIC_API_BASE_URL), so a changed origin is a ' +
-        `rebuild, not a restart.${api ? '' : ` This run built against ${input.apiOrigin}.`}`,
+        `rebuild, not a restart.${api ? '' : ` This run was given ${input.apiOrigin}.`}`,
       '  - the three public origins must be same-site — one registrable domain, as in ' +
         'api.example.com, admin.example.com and shop.example.com — because both session ' +
         'cookies are host-only and SameSite=Lax. Nothing checks this for you.',
@@ -2169,8 +2227,11 @@ function closing(input: {
     if (input.secretInInstance) {
       lines.push(
         `  - REVALIDATE_SECRET is in ${instanceEnv}. The storefront's run must be given the same ` +
-          'value (`--revalidate-secret`); it is not printed here. Set STOREFRONT_BASE_URL there ' +
-          'to the storefront\'s origin too, or the API has nowhere to send a revalidation.',
+          'value (`--revalidate-secret`); it is not printed here.' +
+          (input.storefrontToldToApi
+            ? ''
+            : " Set STOREFRONT_BASE_URL there to the storefront's origin too: it is where the " +
+              'API sends a revalidation, and it stands at the development address.'),
       );
     }
     if (!api && input.storefrontDir !== null) {

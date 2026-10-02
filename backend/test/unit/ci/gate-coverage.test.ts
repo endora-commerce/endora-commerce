@@ -160,6 +160,26 @@ const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
       'to — drift against the committed `backend/acceptance/expected-state.json`, in both ' +
       'directions — and that is the one `acceptance:package-schema` runs.',
   },
+  'backend::acceptance:separate-components': {
+    kind: 'local-operation',
+    reason:
+      'It stands the API, the admin and the storefront up from packed tarballs in three ' +
+      'directories, starts all three and makes them talk to each other by URL ' +
+      '(`specs/138-separate-components/`, contract §7.4). It needs a Docker daemon or a ' +
+      'disposable database, Redis and Meilisearch, binds four ports and takes minutes, and it ' +
+      'exits on the criterion\'s own colour — a developer asking "is it met today". No job ' +
+      'provides those services for it, so no job runs it; it is run by hand before the CLI is ' +
+      'released, as `instance-local-registry.ts` is.',
+  },
+  'backend::acceptance:separate-components:ci': {
+    kind: 'local-operation',
+    reason:
+      'The same run, compared in both directions to ' +
+      '`backend/acceptance/separate-components-expected-state.json` — the form a pipeline can ' +
+      'hold a branch to. It is declared so that the job which eventually provides the ' +
+      'services has a ratchet to run rather than a colour; until a job does, it is the same ' +
+      'local operation as the bare form and is listed here rather than claimed as a gate.',
+  },
   'backend::acceptance:storefront-scaffold': {
     kind: 'superseded',
     coveredBy: 'backend::acceptance:storefront-scaffold:ci',
