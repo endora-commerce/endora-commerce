@@ -1,5 +1,23 @@
 # @endora-commerce/cli
 
+## 0.100.2
+
+### Patch Changes
+
+- fac27a4: `endora generate` now imports the Tailwind sources of every installed package that ships admin UI, not only the ones declared at the instance root. In a scaffolded instance the admin member declares `@endora-commerce/admin-shell` and `@endora-commerce/admin-kit`, and pnpm links them into `admin/node_modules`; the generator looked only in the root `node_modules`, skipped the shell without a word, and its utility classes were never compiled — the sign-in card rendered at the top-left of the page instead of centred. Each declared dependency is now resolved from the directory of the manifest that declares it, and the population is closed over the dependencies and peers of every package that itself declares `./tailwind.css`, so a UI package another one renders (`@endora-commerce/page-builder-core`, `@endora-commerce/email-components`, installed by pnpm as peers and declared by nobody) is scanned too. A package the admin project cannot resolve by name is imported by a path relative to `admin/src/tailwind.generated.css`, which `endora generate` rewrites on every `dev` and `build`. Run `pnpm run generate` (or rebuild the admin) after upgrading.
+- 99cbbcc: `endora install` on a machine without `pnpm` on `PATH` now prints commands that run as printed. It used to tell you to install pnpm globally first and then print `pnpm run dev:all`, which fails with "command not found" when that line is skipped — as the public acceptance run against `0.100.1` showed. Every command it hands over (`dev:all`, `start`, `preview:admin`, the storefront's build and start, the demo seed/reset hint, `dev:services:down`, and the remaining steps after a failure) now runs this release's pinned pnpm through `npx --yes pnpm@<version>`, which needs only Node and npm and puts that pnpm on `PATH` for the instance's own nested scripts. With `pnpm` on `PATH` the commands stay `pnpm …`.
+- 54c7417: `demo seed` on an instance scaffolded by the CLI now builds a working demo shop. Before, it created every module's own demo rows and nothing that joins them: `admin@demo.local` and both sales representatives had no admin role (`/admin/me` answered `permissions: []`, so the admin sidebar was empty), and the 203 demo products were sold on no sales channel, so the storefront listed none. The wiring — roles, channel and category bindings, the menu, prices, stock, the demo buyer, attributes, images, attachments and the credit limit — was a file in the platform repository's own host, which no instance had.
+
+  It is now the new package `@endora-commerce/demo-composition`. The platform's operator CLI finds an installed package declaring `"endora": { "type": "demo-composition" }` when the instance's `cli.ts` passes no `demoComposition` loader, and runs it; with none installed, `demo seed` behaves as before and its notice now names the package to add. `endora install --demo` and the new `endora new instance --demo` add the package to the instance's module list and write no file into the tree.
+
+  The demo adopts the instance's system-default sales channel as its retail channel and keeps that channel's code when the operator chose one (`DEFAULT_SALES_CHANNEL_CODE`); only the platform's fallback code, `default`, is renamed `pl_retail`, as before. It used to rename any code, which would have moved the demo off the channel a storefront is built against.
+
+  `@endora-commerce/platform/demo` — the host-internal subpath no module may name — no longer exports `NO_DEMO_COMPOSITION_NOTICE` or the `DemoCompositionLookup` type; their only consumer outside the platform was the loader this change removes. `DemoCompositionInput` stays, as the argument `createDemoComposition` takes.
+
+  To fix an existing instance: `pnpm add -w @endora-commerce/demo-composition` at the instance root (it is a pnpm workspace, so plain `pnpm add` refuses), then `pnpm run cli demo seed` again. The seed is idempotent, so the rows already there are joined rather than duplicated.
+
+- @endora-commerce/contracts@0.100.2
+
 ## 0.100.1
 
 ### Patch Changes
