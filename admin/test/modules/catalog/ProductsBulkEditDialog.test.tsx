@@ -207,8 +207,12 @@ describe('ProductsBulkEditDialog — interaction', () => {
       },
     });
 
+    // Inside a router, as the dialog always is in the admin: the summary's
+    // product links are the router's, so they stay under the admin's base path.
     renderWithI18n(
-      <ProductsBulkEditDialog productIds={['a', 'b', 'c', 'd']} onClose={vi.fn()} />,
+      <MemoryRouter>
+        <ProductsBulkEditDialog productIds={['a', 'b', 'c', 'd']} onClose={vi.fn()} />
+      </MemoryRouter>,
       BUNDLE,
     );
 
