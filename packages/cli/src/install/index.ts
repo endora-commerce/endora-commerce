@@ -2079,9 +2079,13 @@ function closing(input: {
     // the operator who wants a layer on its own. A storefront somewhere other
     // than the default sibling is named, since `dev:all` looks for the default.
     const defaultStorefront = `${input.targetDir}-storefront`;
+    // No `--` before the flag: pnpm hands everything after the script's name
+    // to the script, the separator included, and `endora dev -- --storefront-dir
+    // <path>` reads the flag as an argument and refuses it. The form with the
+    // separator was printed until the first run that typed it.
     const devAllArgs =
       input.storefrontDir !== null && input.storefrontDir !== defaultStorefront
-        ? ` -- --storefront-dir ${input.storefrontDir}`
+        ? ` --storefront-dir ${input.storefrontDir}`
         : '';
     const rootManifest = input.instance?.plan.files.find((file) => file.path === 'package.json');
     const rootScripts =

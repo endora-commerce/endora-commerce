@@ -1046,9 +1046,10 @@ describe('GAP-7 — the closing block leads with the one development command', (
       run,
       ...ADMIN,
     } as Parameters<typeof runInstall>[0]);
-    expect(result.output.join('\n')).toContain(
-      `pnpm run dev:all -- --storefront-dir ${elsewhere}`,
-    );
+    // As pnpm runs it: no `--`, which pnpm would pass on to `endora dev` as an
+    // argument of its own.
+    expect(result.output.join('\n')).toContain(`pnpm run dev:all --storefront-dir ${elsewhere}`);
+    expect(result.output.join('\n')).not.toContain('dev:all -- ');
   });
 });
 
