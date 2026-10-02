@@ -56,12 +56,12 @@ from; a value with no source is one the command would have to invent, which R2.5
 
 | Path | Kind | Content and source |
 | --- | --- | --- |
-| `package.json` | derived + client's | `name` from `<dir>`'s basename; `private: true`; `packageManager` from the CLI's own declaration; `dependencies` = `@endora-commerce/platform` + the resolved module set (§3), each at `^<version>` taken from the platform version being installed, **plus the packages those modules declare optional** (§2.4); `devDependencies` = the platform's four peers (`@mikro-orm/core`, `@mikro-orm/postgresql`, `fastify`, `zod`) plus `@mikro-orm/migrations`, `tsx`, `typescript`; `scripts` = §2.5 |
+| `package.json` | derived + client's | `name` from `<dir>`'s basename; `private: true`; `packageManager` from the CLI's own declaration; `dependencies` = `@endora-commerce/platform` + the resolved module set (§3), each at `^<version>` taken from the platform version being installed, **plus the packages those modules declare optional** (§2.4), **plus `@endora-commerce/contracts` at the exact version the resolved platform declares for it** — every overlay `manifest.ts` imports it, and it is an exact pin rather than a `^` because the platform packages pin it exactly, so a range could resolve a second copy beside theirs; `devDependencies` = the platform's four peers (`@mikro-orm/core`, `@mikro-orm/postgresql`, `fastify`, `zod`) plus `@mikro-orm/migrations`, `tsx`, `typescript`; `scripts` = §2.5 |
 | `pnpm-workspace.yaml` | wiring | the two members (§2.3, §2.4). **One list, one place** — `instance-repository.md` R5.4 |
 | `tsconfig.json` | client's | standalone. **No `extends` above `<dir>`** (R1.5 there) |
 | `.npmrc` | wiring | written **only** under `--registry`: the scope line and the endpoint, token as `${ENDORA_NPM_TOKEN}`. Never a token. `new-storefront/npmrc.ts` is the writer and is reused verbatim (R5.7) |
-| `.env.example` | client's | **everything this instance reads from its environment** (`specs/123-oss-install-experience/` FR-010): one entry per `INSTANCE_BUILD_INPUTS` member (T103's declaration), each with the meaning and the example that declaration already carries and **no default where the declaration's is `null`**, then one entry per input the **resolved platform** declares (`PLATFORM_ENVIRONMENT_INPUTS`) unioned with the `env` of every module manifest this run installed — each carrying that declaration's own `describes` and its `requirement` sentence, neither rewritten. Scoped to the members this run writes (`specs/118-instance-member-selection/`), and a `generable` secret appears here in **no** case: it is in `.env` instead (R2.5d) |
-| `.env` | client's | the instance's own configuration, written by the command: the secrets it generated filled in, a blank for every other declared input, and a `.env` the operator placed there first merged into rather than rewritten. Git-ignored, so it leaves this tree with nobody but them having seen it. It exists so that the file a client edits is the file their instance reads — `cp .env.example .env` after this command has run would overwrite the generated secrets with empty strings |
+| `.env.example` | client's | **everything this instance reads from its environment** (`specs/123-oss-install-experience/` FR-010): one entry per `INSTANCE_BUILD_INPUTS` member (T103's declaration), each with the meaning and the example that declaration already carries and **no default where the declaration's is `null`** — with one exception, `DEPLOYMENT`, which is written as this run's own deployment (§2.2) because an instance has exactly one and composes it in every build — then one entry per input the **resolved platform** declares (`PLATFORM_ENVIRONMENT_INPUTS`) unioned with the `env` of every module manifest this run installed — each carrying that declaration's own `describes` and its `requirement` sentence, neither rewritten. Scoped to the members this run writes (`specs/118-instance-member-selection/`), and a `generable` secret appears here in **no** case: it is in `.env` instead (R2.5d) |
+| `.env` | client's | the instance's own configuration, written by the command: the secrets it generated filled in, **`DEPLOYMENT=<deployment>` set** (§2.2 — unset is silent: the instance starts as the bare platform and composes none of the overlay modules beside it), a blank for every other declared input, and a `.env` the operator placed there first merged into rather than rewritten. Git-ignored, so it leaves this tree with nobody but them having seen it. It exists so that the file a client edits is the file their instance reads — `cp .env.example .env` after this command has run would overwrite the generated secrets with empty strings |
 | `.gitignore` | derived | the four generated artefacts (§2.6), `node_modules`, `dist`, `.env` |
 | `compose.dev.yml` | derived | the backing services this instance needs on a **development** machine — PostgreSQL, Redis, Meilisearch and a mail catcher — runnable as written: `docker compose -f compose.dev.yml up -d --wait`. Rendered from the **same** service catalogue `deploy/compose.prod.yml` is (`packages/cli/src/new-instance/deploy.ts`'s `services()`, in its `development` mode), so no second statement of what Endora needs to run enters the tree. Every `${NAME}` it expands carries an inline default, so it works in a tree whose `.env` has never been opened; it publishes a host port per service, because the application members run natively from this workspace; and it holds no application service. It is **not** under `deploy/` and **not** at one of Compose's four default filenames — a bare `docker compose up` in this tree finds nothing. Normative: `specs/125-first-mile-install/spec.md` §4.1 (FR-100…FR-112) |
 | `README.md` | client's | what this tree is, what it depends on, **the commands the root manifest declares** — every one of them and no other, rendered from §2.5's own `scripts` so the block cannot name a command the tree lacks or omit one it has — and `endora new storefront` as the next step (R3.4) |
@@ -76,8 +76,32 @@ from; a value with no source is one the command would have to invent, which R2.5
 | `apps/<deployment>/divergence.ts` | client's | the empty declaration — `{ omittedModules: [], decorationOrder: {}, reasons: {} }` — written **out in full with its doc block**, for `backend/src/apps/example/divergence.ts`'s stated reason: *"the mechanism is easier to find than to remember … a field an author never sees is a field they never learn they have"* |
 | `apps/<deployment>/modules/.gitkeep` | client's | the directory an overlay module goes in, present so the answer to *"where do I put my own code"* is visible before the question is asked (`instance-repository.md` §8 R8.3) |
 
-`<deployment>` is `--deployment <name>`, defaulting to the workspace name. It is `DEPLOYMENT`'s
-value and nothing else reads it.
+`<deployment>` is `--deployment <name>`; with no flag, the `DEPLOYMENT` of a `.env` the operator
+placed in the target directory first; with neither, the workspace name. It is `DEPLOYMENT`'s
+value and nothing else reads it — and the run writes that value into `.env` and `.env.example`
+(§2.1), so the directory and the variable come from one value and cannot disagree.
+
+**An overlay module is written here by `endora new module`**, run anywhere inside the instance:
+`apps/<deployment>/modules/<id>/` holding `manifest.ts`, `backend.ts` and both `i18n/` bundles,
+and no `package.json` — an overlay module is not a package. The deployment is the one the
+instance's `.env` names, or the only directory under `apps/`. A flag asking for what an overlay
+module cannot be (`--entities`, `--admin`, `--action`, `--ports`, `--worker`, `--subscriber`,
+`--dir`, `--scope`, `--tenant-scope`) is refused by name before anything is written
+(`packages/cli/src/new-module/overlay.ts`).
+
+**An overlay module contributes no schema, and `endora generate` is what refuses one here**
+(`specs/conventions/overlay-modules.md`, D-106). This repository's composer generator makes that
+refusal; an instance has none, and the platform reads entities and migrations from installed
+packages alone, so a `migrations/` or `entities/` directory under an overlay module — or a source
+declaring an `@Entity()` class — would be ignored in silence. The command exits 1 naming each
+file, before it writes anything.
+
+**A finding in the divergence report is exit 1, after the report is written.** This repository
+judges findings in `check:divergence` and renders in a generator that exits 0; an instance has no
+check estate (§2.5), so `endora generate` is the only instrument a client runs. It writes the
+report whatever it found, prints each finding, and then exits 1 with what each kind asks for —
+a divergence with no sentence in `divergence.ts`, a sentence describing one that is gone, a
+declaration field not written as a literal. There is no ledger and no flag to waive it.
 
 **The deployment's third file is generated and is not in this table** (T138a).
 `pnpm run generate` writes `apps/<deployment>/divergence.generated.md` and `.json`, derived from

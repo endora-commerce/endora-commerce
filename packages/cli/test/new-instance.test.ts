@@ -1609,9 +1609,9 @@ describe('G3 — `.env.example` declares every input the instance reads (FR-010)
   it('an unfilled placeholder is commented out, so writing the file changes nothing', () => {
     const plan = planInstance(planInput({ declared: DECLARED }));
     const env = plan.files.find((file) => file.path === '.env')!.content;
-    // Not one bare assignment: every line that assigns is a value this run
-    // actually has, and this run generated none.
-    expect(declaredNames(env)).toEqual([]);
+    // Every line that assigns is a value this run actually has. It generated
+    // none, and it holds exactly one: the deployment directory it wrote.
+    expect(declaredNames(env)).toEqual(['DEPLOYMENT']);
     expect(env).toContain('#DATABASE_URL=');
   });
 
@@ -1814,3 +1814,122 @@ describe('G3 — the declaration reaches the scaffolder from the packages it res
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// An instance composes its own overlay directory, with no hand edit
+// ---------------------------------------------------------------------------
+
+/**
+ * Two defects a stranger met on `0.100.1` and `0.100.2`, following the first
+ * tutorial: the command wrote `apps/<deployment>/` and no `DEPLOYMENT`, so the
+ * overlay module they put there was not composed and nothing said so; and the
+ * instance did not declare the contracts package every `manifest.ts` is written
+ * with, so the module that was not composed could not have loaded either.
+ */
+describe('the instance composes its own overlay directory', () => {
+  const envOf = (input: PlanInput): string =>
+    planInstance(input).files.find((file) => file.path === '.env')!.content;
+
+  it('the written `.env` names the deployment directory the same run wrote', () => {
+    const plan = planInstance(planInput({ deployment: 'acme' }));
+    expect(plan.files.map((file) => file.path)).toContain('apps/acme/divergence.ts');
+    expect(parseAssignments(envOf(planInput({ deployment: 'acme' }))).get('DEPLOYMENT')).toBe(
+      'acme',
+    );
+  });
+
+  it('a `.env` the operator placed first gains it, and keeps everything else', () => {
+    const env = envOf(
+      planInput({ deployment: 'acme', existingEnv: '# mine\nDATABASE_URL=postgresql://me/mine\n' }),
+    );
+    expect(env).toContain('# mine');
+    expect(parseAssignments(env).get('DATABASE_URL')).toBe('postgresql://me/mine');
+    expect(parseAssignments(env).get('DEPLOYMENT')).toBe('acme');
+  });
+
+  it('the example carries the same value, so a copy of it composes the same tree', () => {
+    const example = envExampleOf(planInput({ deployment: 'acme' }));
+    expect(parseAssignments(example).get('DEPLOYMENT')).toBe('acme');
+  });
+
+  it('with no `--deployment`, a `DEPLOYMENT` the operator placed in `.env` names the directory', async () => {
+    const root = installFixture([
+      PLATFORM,
+      modulePackage('settings', {
+        activation: { nonDeactivatable: true, reason: 'nothing runs without settings' },
+      }),
+    ]);
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'DEPLOYMENT=acme\n', 'utf8');
+    const result = await runNewInstance({ dir: target, cwd: root });
+    expect(result.deployment).toBe('acme');
+    expect(existsSync(join(target, 'apps/acme/modules/.gitkeep'))).toBe(true);
+    expect(parseAssignments(readFileSync(join(target, '.env'), 'utf8')).get('DEPLOYMENT')).toBe(
+      'acme',
+    );
+  });
+
+  it('`--deployment` outranks the file, and the file is corrected rather than left disagreeing', async () => {
+    const root = installFixture([
+      PLATFORM,
+      modulePackage('settings', {
+        activation: { nonDeactivatable: true, reason: 'nothing runs without settings' },
+      }),
+    ]);
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'DEPLOYMENT=acme\n', 'utf8');
+    await runNewInstance({ dir: target, cwd: root, deployment: 'other' });
+    expect(existsSync(join(target, 'apps/other/modules/.gitkeep'))).toBe(true);
+    expect(parseAssignments(readFileSync(join(target, '.env'), 'utf8')).get('DEPLOYMENT')).toBe(
+      'other',
+    );
+  });
+
+  it('the contracts package is a dependency, pinned exactly as the platform pins it', () => {
+    const plan = planInstance(planInput({ contractsVersion: '1.2.3' }));
+    // Exact, never a caret: the platform packages pin contracts exactly, so a
+    // range here could resolve a second copy beside theirs.
+    expect(plan.dependencies.get(`${SCOPE}contracts`)).toBe('1.2.3');
+    const manifest = JSON.parse(
+      plan.files.find((file) => file.path === 'package.json')!.content,
+    ) as { dependencies: Record<string, string> };
+    expect(manifest.dependencies[`${SCOPE}contracts`]).toBe('1.2.3');
+  });
+
+  it('the pin is read off the platform the run resolved', async () => {
+    const root = installFixture([
+      { ...PLATFORM, dependencies: { ...PLATFORM.dependencies, [`${SCOPE}contracts`]: '1.2.0' } },
+      modulePackage('settings', {
+        activation: { nonDeactivatable: true, reason: 'nothing runs without settings' },
+      }),
+    ]);
+    const result = await runNewInstance({ dir: join(root, 'acme-shop'), cwd: root, dryRun: true });
+    expect(result.plan.dependencies.get(`${SCOPE}contracts`)).toBe('1.2.0');
+  });
+
+  it('a `workspace:` declaration is answered by the version that resolved, never written', async () => {
+    const root = installFixture([
+      {
+        ...PLATFORM,
+        dependencies: { ...PLATFORM.dependencies, [`${SCOPE}contracts`]: 'workspace:*' },
+      },
+      { name: 'contracts', version: '4.5.6' },
+      modulePackage('settings', {
+        activation: { nonDeactivatable: true, reason: 'nothing runs without settings' },
+      }),
+    ]);
+    const result = await runNewInstance({ dir: join(root, 'acme-shop'), cwd: root, dryRun: true });
+    expect(result.plan.dependencies.get(`${SCOPE}contracts`)).toBe('4.5.6');
+  });
+});
+
+/** Every uncommented `NAME=value` a `.env` text carries. */
+function parseAssignments(text: string): ReadonlyMap<string, string> {
+  return new Map(
+    [...text.matchAll(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/gm)].map(
+      (match) => [match[1]!, match[2]!] as const,
+    ),
+  );
+}
