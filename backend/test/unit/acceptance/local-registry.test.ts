@@ -127,6 +127,34 @@ describe('the server', () => {
     expect(local.forwarded()).toBe(1);
   });
 
+  it('survives an upstream that drops a body half-way: that request fails, the registry does not', async () => {
+    // Measured: npmjs reset one stream in the middle of a tarball
+    // (`NGHTTP2_PROTOCOL_ERROR`). The body was piped with no error handler, so
+    // the reset was an unhandled `error` event and took down the process — the
+    // registry, and the forty-minute run it was serving.
+    let calls = 0;
+    const flaky: Server = createServer((request, response) => {
+      calls += 1;
+      if (calls === 1) {
+        response.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': '1000' });
+        response.write('half');
+        setTimeout(() => response.destroy(), 20);
+        return;
+      }
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ upstream: request.url }));
+    });
+    await new Promise<void>((resolveListen) => flaky.listen(0, '127.0.0.1', resolveListen));
+    running.push({ close: () => new Promise<void>((resolveClose) => flaky.close(() => resolveClose())) });
+    const local = await registry([], `http://127.0.0.1:${String((flaky.address() as AddressInfo).port)}`);
+
+    // The client sees a broken download, which is what it retries.
+    await expect(fetch(`${local.url}/broken`).then((reply) => reply.arrayBuffer())).rejects.toThrow();
+    // And the registry is still there for the retry.
+    const again = await fetch(`${local.url}/fastify`);
+    expect(await again.json()).toEqual({ upstream: '/fastify' });
+  });
+
   it('refuses every write', async () => {
     const upstream = await fakeUpstream();
     const local = await registry([], upstream.url);

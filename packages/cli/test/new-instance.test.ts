@@ -787,6 +787,23 @@ describe('the tree (§1, §2)', () => {
     expect(wiringLineCount(planInstance(planInput()))).toBeLessThan(250);
   });
 
+  it('every entry point turns a refusal about the overlay into a sentence, `migrate` included', () => {
+    // An overlay module ships no schema. The API and the worker meet that
+    // refusal while composing, and print it instead of an uncaught exception;
+    // `migrate` composes nothing and never met it at all, so it asks directly.
+    const plan = planInstance(planInput());
+    const content = (path: string): string => plan.files.find((file) => file.path === path)!.content;
+    for (const path of ['backend/src/index.ts', 'backend/src/worker.ts']) {
+      expect(content(path), path).toContain('await composeApp({ deploymentRoot }).catch(exitOnRefusal);');
+      expect(content(path), path).toMatch(/import \{[^}]*\bexitOnRefusal\b[^}]*\} from '@endora-commerce\/platform\/composition';/);
+    }
+    const migrate = content('backend/src/migrate.ts');
+    expect(migrate).toContain("import { refuseOverlaySchema } from '@endora-commerce/platform/composition';");
+    // Before the ORM is opened: nothing is migrated over a tree that is refused.
+    expect(migrate.indexOf('refuseOverlaySchema(fileURLToPath(')).toBeGreaterThan(-1);
+    expect(migrate.indexOf('refuseOverlaySchema(fileURLToPath(')).toBeLessThan(migrate.indexOf('MikroORM.init'));
+  });
+
   /**
    * R1.4 again, over the plan a **complete** `--registry` run writes — which is
    * a different plan from the one above, and was measured by nothing.

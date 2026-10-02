@@ -49,6 +49,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   InstallInputError,
   PASSWORD_PLACEHOLDER,
+  composeProjectNameOf,
   runInstall,
   type InstallStep,
 } from '../src/install/index.js';
@@ -267,6 +268,12 @@ const ADMIN = {
  * line is what finally makes the file's opening claim true — *"without a
  * package manager, a Docker daemon or a database anywhere near the test"*.
  */
+/** No Compose project of any name exists on the machine a case runs on, unless it says so. */
+const NO_PROJECT_HELD = async (): Promise<readonly string[]> => [];
+
+/** `pnpm` on `PATH` — what this machine is declared to offer, unless a case says otherwise. */
+const PNPM_ON_PATH = { command: 'pnpm', prefix: [], label: 'pnpm' } as const;
+
 function options(
   root: string,
   overrides: Record<string, unknown> = {},
@@ -284,6 +291,17 @@ function options(
     // And the same again: the default is whatever this checkout's last build
     // left in `dist`, which is not a fact about the command.
     packagedReferenceDir: NO_PACKAGED_REFERENCE,
+    // And once more. Unanswered, every case here spawned `pnpm --version` and
+    // `corepack --version` on the machine running it. On a hosted runner `pnpm`
+    // is corepack's shim, which may go to the network before it answers, and
+    // the 10 s test timeout is shorter than the probe's own 20 s — so a case
+    // about something else entirely ("a case that answers nothing gets no
+    // daemon") timed out once, on nothing it asserts. The answer is the one
+    // every step list in this file is written against: `pnpm`, on `PATH`.
+    packageManagers: [PNPM_ON_PATH],
+    // And Docker's projects: unanswered, a case would ask this machine's daemon
+    // which Compose projects it holds.
+    composeProjectInUse: NO_PROJECT_HELD,
     demo: false,
     ...ADMIN,
     ...overrides,
@@ -421,7 +439,11 @@ describe('FR-157 — it refuses its preconditions before it writes anything', ()
     await expect(
       runInstall(options(root, { services: true, dockerReachable: undefined })),
     ).rejects.toThrow(/--no-services/);
-  });
+    // The one real process this case starts is `docker info`, and the probe
+    // gives it 20 s (`dockerIsReachable`). The timeout below is longer than
+    // that, so a slow Docker CLI is answered by the probe — as a refusal, which
+    // is what is asserted — and never by the test runner.
+  }, 30_000);
 
   /**
    * The probe's own answer, not the seam's: **an exit status of 0 is not a
@@ -781,6 +803,72 @@ describe('the ports the development stack publishes are decided before anything 
     expect(steps).toEqual([]);
   });
 
+  it('a Compose project of this directory\'s name already on the machine is not shared: the stack gets a name of its own', async () => {
+    // Compose names a project after its directory, so a second instance called
+    // `acme-shop` — under another parent, or written again after the first was
+    // deleted — adopted the first one's containers and mounted its volumes.
+    const root = host();
+    const { run } = recorder();
+    const asked: string[] = [];
+    const result = await runInstall(
+      options(root, {
+        services: true,
+        run,
+        composeProjectInUse: async (name: string) => {
+          asked.push(name);
+          return name === 'acme-shop' ? ['container acme-shop-postgres-1', 'volume acme-shop_postgres-data'] : [];
+        },
+      }),
+    );
+    expect(asked[0]).toBe('acme-shop');
+    const written = /^COMPOSE_PROJECT_NAME=(.+)$/m.exec(readFileSync(join(root, 'acme-shop', '.env'), 'utf8'))?.[1];
+    expect(written).toMatch(/^acme-shop-[0-9a-f]{6}$/);
+    const text = result.output.join('\n');
+    expect(text).toContain('a Compose project named acme-shop already exists on this machine');
+    expect(text).toContain('container acme-shop-postgres-1, volume acme-shop_postgres-data');
+    expect(text).toContain(`COMPOSE_PROJECT_NAME=${written!} in .env`);
+    // `dev:services` and `dev:services:down` are untouched: Compose reads the
+    // name from the `.env` beside the file both of them name.
+    const scripts = (
+      JSON.parse(readFileSync(join(root, 'acme-shop', 'package.json'), 'utf8')) as {
+        scripts: Record<string, string>;
+      }
+    ).scripts;
+    expect(scripts['dev:services']).toBe('docker compose -f compose.dev.yml up -d --wait');
+    expect(scripts['dev:services:down']).toBe('docker compose -f compose.dev.yml down');
+  });
+
+  it('a free project name writes nothing, and the name is derived the way Compose derives it', async () => {
+    const root = host();
+    await runInstall(options(root, { services: true, run: recorder().run }));
+    expect(readFileSync(join(root, 'acme-shop', '.env'), 'utf8')).not.toMatch(/^COMPOSE_PROJECT_NAME=/m);
+    expect(composeProjectNameOf('/srv/My Shop.v2')).toBe('myshopv2');
+    expect(composeProjectNameOf('/srv/_Acme-Shop')).toBe('acme-shop');
+  });
+
+  it('a project name the operator pinned is theirs: taken, it is a refusal with nothing written', async () => {
+    const root = host();
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'COMPOSE_PROJECT_NAME=theirs\n', 'utf8');
+    const { run, steps } = recorder();
+    const error = await runInstall(
+      options(root, {
+        services: true,
+        run,
+        composeProjectInUse: async (name: string) => (name === 'theirs' ? ['volume theirs_postgres-data'] : []),
+      }),
+    ).then(
+      () => null,
+      (thrown: unknown) => thrown,
+    );
+    expect(error).toBeInstanceOf(InstallInputError);
+    expect((error as Error).message).toContain('COMPOSE_PROJECT_NAME=theirs');
+    expect((error as Error).message).toContain('volume theirs_postgres-data');
+    expect(readdirSync(target)).toEqual(['.env']);
+    expect(steps).toEqual([]);
+  });
+
   it('`--no-services` probes nothing and moves nothing', async () => {
     const root = host();
     const { run } = recorder();
@@ -789,6 +877,10 @@ describe('the ports the development stack publishes are decided before anything 
       options(root, {
         services: false,
         run,
+        composeProjectInUse: async () => {
+          asked += 1;
+          return [];
+        },
         portInUse: async (port: number) => {
           // The API's own port is the one question a run without services asks.
           if (port !== 3001) asked += 1;
@@ -1631,11 +1723,43 @@ describe('138 — each part on a port of its own', () => {
     );
   });
 
-  it('a taken API port is said, with everything that names it: the storefront and the admin bundle', async () => {
-    const root = checkoutFixture({ admin: true });
+  it('a taken API port moves the API, and everything that names it moves with it', async () => {
+    // It was only reported: the closing block said 3001 was busy and left the
+    // admin bundle and the storefront pointed at whatever held it, so the
+    // `dev:all` this run printed could not start the API.
+    const root = checkoutFixture({ admin: true, origins: true });
     const result = await runInstall(
       options(root, { storefront: true, portInUse: async (port: number) => port === 3001, run: recorder().run }),
     );
+    const instance = env(join(root, 'acme-shop', '.env'));
+    expect(instance).toMatch(/^PORT=13001$/m);
+    expect(instance).toMatch(/^PUBLIC_API_BASE_URL=http:\/\/localhost:13001$/m);
+    // The admin bundle is built against the API's address.
+    expect(env(join(root, 'acme-shop', 'admin', '.env'))).toMatch(
+      /^VITE_API_BASE_URL=http:\/\/localhost:13001$/m,
+    );
+    // The storefront's two backend addresses: the browser's and its own server's.
+    const shop = env(join(root, 'acme-shop-storefront', '.env'));
+    expect(shop).toMatch(/^NEXT_PUBLIC_API_BASE_URL=http:\/\/localhost:13001$/m);
+    expect(shop).toMatch(/^BACKEND_BASE_URL=http:\/\/localhost:13001$/m);
+    const text = result.output.join('\n');
+    expect(text).toContain('port 3001 is already in use on this machine, so the API is served on http://localhost:13001 instead');
+    expect(text).toContain('# the API, on http://localhost:13001');
+    expect(text).not.toContain('localhost:3001');
+    // Nothing is left for the operator to move by hand.
+    expect(text).not.toContain('is in use on this machine right now');
+  });
+
+  it('a `PORT` the operator pinned is never moved: a taken one is said, with everything that names it', async () => {
+    const root = checkoutFixture({ admin: true });
+    const target = join(root, 'acme-shop');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, '.env'), 'PORT=3001\n', 'utf8');
+    const result = await runInstall(
+      options(root, { storefront: true, portInUse: async (port: number) => port === 3001, run: recorder().run }),
+    );
+    expect(env(join(target, '.env')).match(/^PORT=/gm)).toHaveLength(1);
+    expect(env(join(target, '.env'))).toMatch(/^PORT=3001$/m);
     const line = result.output.find((entry) => entry.includes('port 3001 is in use'))!;
     expect(line).toContain(join(root, 'acme-shop', '.env'));
     expect(line).toContain(join(root, 'acme-shop-storefront', '.env'));
@@ -1643,6 +1767,40 @@ describe('138 — each part on a port of its own', () => {
     // is a line in `admin/.env` and a rebuild — not a restart.
     expect(line).toContain('VITE_API_BASE_URL');
     expect(line).toContain('pnpm run build:admin');
+  });
+
+  it('a moved API port never overwrites `--public-url`: the address is the operator\'s, the port this machine\'s', async () => {
+    const root = host({ admin: true, origins: true });
+    await runInstall(
+      options(root, {
+        publicUrl: 'https://shop.example.com',
+        portInUse: async (port: number) => port === 3001,
+        run: recorder().run,
+      }),
+    );
+    const instance = env(join(root, 'acme-shop', '.env'));
+    // Where the API listens moved; what the world calls it did not.
+    expect(instance).toMatch(/^PORT=13001$/m);
+    expect(instance).toMatch(/^PUBLIC_API_BASE_URL=https:\/\/shop\.example\.com$/m);
+    expect(env(join(root, 'acme-shop', 'admin', '.env'))).toMatch(
+      /^VITE_API_BASE_URL=https:\/\/shop\.example\.com$/m,
+    );
+  });
+
+  it('a loopback `--public-url` names the proxy\'s port, not the API\'s', async () => {
+    const root = host({ admin: true, origins: true });
+    await runInstall(options(root, { publicUrl: 'http://localhost:8080', run: recorder().run }));
+    expect(env(join(root, 'acme-shop', '.env'))).not.toMatch(/^PORT=8080$/m);
+  });
+
+  it('a loopback `--api-url` names the port this API listens on', async () => {
+    const root = host({ origins: true });
+    await runInstall(
+      only(root, 'api', { apiUrl: 'http://localhost:43001', portInUse: TAKEN, run: recorder().run }),
+    );
+    const instance = env(join(root, 'acme-shop', '.env'));
+    expect(instance).toMatch(/^PORT=43001$/m);
+    expect(instance).toMatch(/^PUBLIC_API_BASE_URL=http:\/\/localhost:43001$/m);
   });
 
   it('free ports move nothing and write no `PORT` line', async () => {

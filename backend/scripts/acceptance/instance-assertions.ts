@@ -2084,20 +2084,58 @@ export function standInLinksToRemove(
  * R2.5d, and an instance starting with a session key nobody supplied is
  * FR-011's end-to-end evidence.
  *
- * The fallbacks are the platform's own, not this file's opinion. A different
- * address here would configure a probe at somewhere the platform never looks.
+ * ## There is no fallback, and that is the second defect this function closed
+ *
+ * It fell back to `redis://localhost:6379` and `http://localhost:7700` — the
+ * platform's own development addresses — "so a run with no service variables
+ * still starts". On a developer's machine those are the Redis and the
+ * Meilisearch of the stack they are working in, neither takes a credential
+ * there, and the run then wrote its queues and its indexes into them. The
+ * database was never defaulted for exactly this reason (it is dropped); the
+ * other two are refused on the same ground. A job declares all three.
  */
 export function instanceEnvValues(input: {
   readonly databaseUrl: string;
   readonly env: Readonly<Record<string, string | undefined>>;
 }): Record<string, string> {
+  const addresses = explicitServiceAddresses(input.env, ['REDIS_URL', 'MEILISEARCH_URL']);
   return {
     DATABASE_URL: input.databaseUrl,
-    REDIS_URL: input.env['REDIS_URL'] ?? 'redis://localhost:6379',
-    MEILISEARCH_URL: input.env['MEILISEARCH_URL'] ?? 'http://localhost:7700',
+    REDIS_URL: addresses['REDIS_URL']!,
+    MEILISEARCH_URL: addresses['MEILISEARCH_URL']!,
     PUBLIC_API_BASE_URL: 'https://instance.acceptance.invalid',
     NODE_ENV: 'production',
   };
+}
+
+/** A service address an acceptance run was not given. Exit 2 at every entry point. */
+export class MissingServiceAddressError extends Error {
+  override readonly name = 'MissingServiceAddressError';
+  readonly missing: readonly string[];
+
+  constructor(missing: readonly string[]) {
+    super(
+      `${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} required and ` +
+        `${missing.length === 1 ? 'has' : 'have'} no default: the default would be a ` +
+        "developer's own service on this machine — the PostgreSQL, Redis or Meilisearch of the " +
+        'stack they are working in — and this run drops a database, fills queues and writes ' +
+        'indexes. Name a disposable one explicitly.',
+    );
+    this.missing = missing;
+  }
+}
+
+/**
+ * The named addresses, each as the environment gives it — or a
+ * {@link MissingServiceAddressError} naming every one that is absent or blank.
+ */
+export function explicitServiceAddresses(
+  env: Readonly<Record<string, string | undefined>>,
+  names: readonly string[],
+): Record<string, string> {
+  const missing = names.filter((name) => (env[name] ?? '').trim().length === 0);
+  if (missing.length > 0) throw new MissingServiceAddressError(missing);
+  return Object.fromEntries(names.map((name) => [name, env[name]!.trim()]));
 }
 
 export function hostNpmrc(registry: string | null, scope: string): string {

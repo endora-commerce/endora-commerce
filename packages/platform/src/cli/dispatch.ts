@@ -43,6 +43,7 @@ import { effectiveState } from '../kernel/lifecycle/effective-state.js';
 import { ModuleDisabledError } from '../kernel/lifecycle/plugin-helpers.js';
 import { enterSystemScope } from '../kernel/scope.js';
 import { instanceManifestEntries } from '../lifecycle/commands/operator-entry.js';
+import { OverlaySchemaError } from '../overlay/overlay-schema.js';
 import type { RegisteredManifestEntry } from '../lifecycle/index.js';
 import {
   DEMO_HOST_COMMANDS,
@@ -388,6 +389,12 @@ export function cliFailureExitCode(thrown: unknown, err: (chunk: string) => void
         `here (\`module:status\`).\n`,
     );
     return 3;
+  }
+  // A refusal written for the operator is printed as the sentence it is; a
+  // stack under it says "defect", which it is not.
+  if (error instanceof OverlaySchemaError) {
+    err(`${error.message}\n`);
+    return 1;
   }
   err(`${thrown instanceof Error ? (thrown.stack ?? thrown.message) : String(thrown)}\n`);
   return 1;

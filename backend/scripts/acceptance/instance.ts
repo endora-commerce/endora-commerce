@@ -160,7 +160,9 @@ import {
   expectationRefusals,
   formatReport,
   hostNpmrc,
+  explicitServiceAddresses,
   instanceEnvValues,
+  MissingServiceAddressError,
   reconcileFigures,
   standInLinksToRemove,
   type AcceptanceExpectation,
@@ -177,7 +179,6 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const BACKEND_ROOT = resolve(SCRIPT_DIR, '..', '..');
 const REPO_ROOT = resolve(BACKEND_ROOT, '..');
 const EXPECTATION_FILE = join(BACKEND_ROOT, 'acceptance', 'instance-expected-state.json');
-const DEFAULT_DSN = 'postgresql://b2b:b2b@localhost:5432/b2b_instance_acceptance_test';
 const HEALTH_PATH = '/api/v1/_health';
 const PRESENCE_PATH = '/api/v1/storefront/module-presence';
 const OPENAPI_PATH = '/api/v1/_openapi.json';
@@ -1979,7 +1980,19 @@ function adminBundleAssertions(
 async function main(): Promise<void> {
   const againstExpectation = process.argv.includes('--against-expectation');
   const { mode, registry } = resolveMode();
-  const dsn = process.env['ACCEPTANCE_DATABASE_URL'] ?? DEFAULT_DSN;
+  // No default for any of the three: each would be a developer's own service
+  // on the machine this runs on (`instanceEnvValues`' header).
+  let dsn: string;
+  try {
+    dsn = explicitServiceAddresses(process.env, [
+      'ACCEPTANCE_DATABASE_URL',
+      'REDIS_URL',
+      'MEILISEARCH_URL',
+    ])['ACCEPTANCE_DATABASE_URL']!;
+  } catch (error: unknown) {
+    if (error instanceof MissingServiceAddressError) refuse(error.message);
+    throw error;
+  }
   const database = resolveDatabaseTarget(dsn);
   if ('error' in database) refuse(database.error);
 

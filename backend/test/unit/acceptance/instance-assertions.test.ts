@@ -27,6 +27,7 @@ import {
   endoraClosure,
   hostNpmrc,
   instanceEnvValues,
+  MissingServiceAddressError,
   evaluateA1,
   evaluateA3,
   evaluateA4,
@@ -1081,17 +1082,30 @@ describe('the values the run fills into the instance `.env`', () => {
     expect(filled['REDIS_URL']).toBe('redis://redis:6379');
   });
 
-  it('falls back to the platform own address, so a run with no service variables still starts', () => {
-    const filled = instanceEnvValues({ databaseUrl: 'postgresql://x/y', env: {} });
-    // The same address `packages/platform/src/http/health.ts` defaults to. A
-    // different one here would make the run configure a probe at an address the
-    // platform never looks at.
-    expect(filled['MEILISEARCH_URL']).toBe('http://localhost:7700');
-    expect(filled['REDIS_URL']).toBe('redis://localhost:6379');
+  it('refuses a run that names no service address rather than reaching for a developer\'s own', () => {
+    // It fell back to `redis://localhost:6379` and `http://localhost:7700` —
+    // the platform's own development addresses, and on a developer's machine
+    // the Redis and the Meilisearch of the stack they are working in. Neither
+    // takes a credential there, so an acceptance run with no variables wrote
+    // its queues and its indexes into somebody's development services.
+    expect(() => instanceEnvValues({ databaseUrl: 'postgresql://x/y', env: {} })).toThrow(
+      MissingServiceAddressError,
+    );
+    try {
+      instanceEnvValues({ databaseUrl: 'postgresql://x/y', env: { REDIS_URL: 'redis://redis:6379', MEILISEARCH_URL: ' ' } });
+      expect.unreachable();
+    } catch (error: unknown) {
+      expect((error as MissingServiceAddressError).missing).toEqual(['MEILISEARCH_URL']);
+      expect((error as Error).message).toContain('MEILISEARCH_URL');
+      expect((error as Error).message).toContain('no default');
+    }
   });
 
   it('withholds `SESSION_COOKIE_SECRET`, which the command generated and this run must not', () => {
-    const filled = instanceEnvValues({ databaseUrl: 'postgresql://x/y', env: {} });
+    const filled = instanceEnvValues({
+      databaseUrl: 'postgresql://x/y',
+      env: { MEILISEARCH_URL: 'http://meilisearch:7700', REDIS_URL: 'redis://redis:6379' },
+    });
     expect(Object.keys(filled)).not.toContain('SESSION_COOKIE_SECRET');
   });
 });
