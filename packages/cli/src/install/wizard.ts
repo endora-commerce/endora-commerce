@@ -499,6 +499,11 @@ export async function askWizard(
     // is refused by the command with the rest of its preconditions.
     const resolved = resolveSelection(answers.only, answers.without ?? [], answers.storefront);
     const selection = 'refusals' in resolved ? EVERYTHING : resolved;
+    // The member rows are about the instance tree. Where the checklist chose a
+    // selection that writes none, an unchecked member is not a `--without`:
+    // there is no tree for it to be left out of, and the command refuses that
+    // flag for exactly that reason.
+    if (!fromFlags.has('parts') && !selection.writesTree) answers.without = [];
     const applies = new Set(questionIdsFor(selection));
     const asks = (id: QuestionId): boolean => applies.has(id) && !fromFlags.has(id);
     const standsUpApi = selection.components.includes('api');

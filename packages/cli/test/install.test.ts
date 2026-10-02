@@ -1628,6 +1628,20 @@ describe('138 — each part on a port of its own', () => {
     );
   });
 
+  it('a taken API port is said, with everything that names it: the storefront and the admin bundle', async () => {
+    const root = checkoutFixture({ admin: true });
+    const result = await runInstall(
+      options(root, { storefront: true, portInUse: async (port: number) => port === 3001, run: recorder().run }),
+    );
+    const line = result.output.find((entry) => entry.includes('port 3001 is in use'))!;
+    expect(line).toContain(join(root, 'acme-shop', '.env'));
+    expect(line).toContain(join(root, 'acme-shop-storefront', '.env'));
+    // The admin bundle is built against the API's address, so moving the API
+    // is a line in `admin/.env` and a rebuild — not a restart.
+    expect(line).toContain('VITE_API_BASE_URL');
+    expect(line).toContain('pnpm run build:admin');
+  });
+
   it('free ports move nothing and write no `PORT` line', async () => {
     const root = checkoutFixture({ admin: true, origins: true });
     await runInstall(options(root, { storefront: true, run: recorder().run }));

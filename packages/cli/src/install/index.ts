@@ -2149,7 +2149,13 @@ function closing(input: {
         `it until that stops. To move the API instead, set PORT in ${join(input.targetDir, '.env')}` +
         (input.storefrontDir === null
           ? '.'
-          : ` and the same port in the two backend addresses in ${join(input.storefrontDir, '.env')}.`),
+          : ` and the same port in the two backend addresses in ${join(input.storefrontDir, '.env')}.`) +
+        // The bundle carries the API's address: a moved API is a line in the
+        // admin's own `.env` and a rebuild, or the admin signs nobody in.
+        (adminHere
+          ? ` The admin bundle is built against the API's address, so set VITE_API_BASE_URL in ` +
+            `${join(input.targetDir, 'admin', '.env')} to it as well and run \`${pnpm} run build:admin\` again.`
+          : ''),
     );
   }
   if (api) {

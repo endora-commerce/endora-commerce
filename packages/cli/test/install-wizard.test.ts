@@ -463,6 +463,17 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
     expect(outcome.recommended).toEqual(['sales-channel']);
   });
 
+  it('the storefront alone, with `docs` unchecked too: no `--without` for a tree nobody writes', async () => {
+    // The checklist's member rows are about the instance tree. A selection
+    // that writes none has no member to leave out, and handing the command
+    // `--without docs` would be the wizard producing a flag the command then
+    // refuses — after every question had been answered.
+    const { io } = terminal(['acme', '1 2 4', '', 'https://api.example.com', 'https://shop.example.com', '', 's']);
+    const outcome = await askWizard({}, io, HERE);
+    expect(outcome.answers.only).toEqual(['storefront']);
+    expect(outcome.answers.without).toEqual([]);
+  });
+
   it('the API alone: the three origins are offered, Enter takes each recommendation and writes nothing', async () => {
     const { io, screen } = terminal([
       'acme',
