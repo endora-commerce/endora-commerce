@@ -1,5 +1,14 @@
 # create-endora-commerce
 
+## 0.100.2
+
+### Patch Changes
+
+- Updated dependencies [fac27a4]
+- Updated dependencies [99cbbcc]
+- Updated dependencies [54c7417]
+  - @endora-commerce/cli@0.100.2
+
 ## 0.100.1
 
 ### Patch Changes

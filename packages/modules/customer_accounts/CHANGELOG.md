@@ -1,5 +1,17 @@
 # @endora-commerce/mod-customer-accounts
 
+## 0.100.2
+
+### Patch Changes
+
+- 54c7417: Documentation comments only: the demo-data notes in these modules now point at `@endora-commerce/demo-composition`, where the cross-module demo wiring they describe lives, instead of a file path in the platform repository's host. No behaviour or export changes.
+- Updated dependencies [54c7417]
+- Updated dependencies [54c7417]
+  - @endora-commerce/platform@0.100.2
+  - @endora-commerce/mod-organizations@0.100.2
+  - @endora-commerce/admin-kit@0.100.2
+  - @endora-commerce/contracts@0.100.2
+
 ## 0.100.1
 
 ### Patch Changes
