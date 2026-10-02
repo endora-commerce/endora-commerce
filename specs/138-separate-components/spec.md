@@ -87,14 +87,17 @@ same output.
   `--sales-channel` (`NEXT_PUBLIC_SALES_CHANNEL_CODE`) is offered with the recommendation
   `default` — the code the platform creates its default Sales Channel with. A run without the API
   **never generates** the secret.
-- **FR-014** When `api` is selected and the selection is not all three, `--api-url`,
-  `--admin-url` and `--storefront-url` are offered. Each one given is written into the instance's
-  `.env`: `PUBLIC_API_BASE_URL` from the first, `ADMIN_BASE_URL` from the second,
-  `STOREFRONT_BASE_URL` from the third, and `CORS_ALLOWED_ORIGINS` as the admin's and the
-  storefront's origins, comma-separated — an origin not given standing as its development address
-  (`http://localhost:3002`, `http://localhost:3000`). None given, nothing is written and the
-  platform's development fallbacks apply, as today. When the admin is also selected, `--api-url`
-  is written as `VITE_API_BASE_URL` in `admin/.env` too.
+- **FR-014** When `api` is selected, `--api-url`, `--admin-url` and `--storefront-url` are
+  **accepted** — in every selection, the one with no `--only` included — and are **asked** only
+  when the selection is not all three: `--api-url` always, `--admin-url` when the admin is not
+  selected, `--storefront-url` when the storefront is not (contract §7.3, R7.9). Each one given is
+  written into the instance's `.env`: `PUBLIC_API_BASE_URL` from the first, `ADMIN_BASE_URL` from
+  the second, `STOREFRONT_BASE_URL` from the third, and `CORS_ALLOWED_ORIGINS` as the admin's and
+  the storefront's origins, comma-separated — an origin not given standing as its development
+  address (`http://localhost:3002`, `http://localhost:3000`, or the port §7.3a decided). None
+  given and no port moved, nothing is written and the platform's development fallbacks apply, as
+  today. When the admin is also selected, `--api-url` is written as `VITE_API_BASE_URL` in
+  `admin/.env` too.
 - **FR-015** When `api` is selected and `storefront` is not, `REVALIDATE_SECRET` is written into
   the instance's `.env` — `--revalidate-secret` verbatim, otherwise generated once — and the
   closing block names the file it is in and says the storefront's run must be given the same

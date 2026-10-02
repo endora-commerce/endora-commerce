@@ -600,7 +600,13 @@ with the first. The refusal's sentence names `--only admin`.
 | `admin,storefront` | yes, with the backend member | sibling | `install`, `build-admin`, `storefront-install` |
 
 **R7.3** A run without `api` plans no `services`, `setup`, `admin` or `demo` step, asks none of
-their questions, requires none of their flags and **refuses** any of them that is given.
+their questions, requires none of their flags and **refuses** any of them that is given. The same
+rule covers every flag whose subject the run does not have: `--admin-url` without `api`;
+`--storefront-url`, `--sales-channel` and `--revalidate-secret` in a run with neither `api` nor
+`storefront`; `--sales-channel` with `api` (the channel is the one that API creates);
+`--without`, `--module`, `--deployment`, `--topology` and `--storefront-dir` in a run that writes
+no tree. **R7.3a** `--only admin` where the release cannot write the admin member is refused on
+the plan, before anything is written.
 **R7.4** `build-admin` is the root script `build:admin` and nothing else; it needs the installed
 workspace and no running service.
 
@@ -610,9 +616,9 @@ Each is an origin: scheme, host, optional port, no path.
 
 | Flag | Required when | Offered when | Written as |
 | --- | --- | --- | --- |
-| `--api-url` | `api` is not selected | `api` is selected and something else is not | `VITE_API_BASE_URL` in `admin/.env`; `NEXT_PUBLIC_API_BASE_URL` and `BACKEND_BASE_URL` in the storefront's `.env`; `PUBLIC_API_BASE_URL` in the instance's `.env` |
-| `--storefront-url` | `storefront` without `api` | `api` without `storefront` | `NEXT_PUBLIC_SITE_URL` in the storefront's `.env`; `STOREFRONT_BASE_URL` and an entry of `CORS_ALLOWED_ORIGINS` in the instance's |
-| `--admin-url` | never | `api` without `admin` | `ADMIN_BASE_URL` where the instance declares it, and an entry of `CORS_ALLOWED_ORIGINS` |
+| `--api-url` | `api` is not selected | **accepted** whenever `api` is in the run; **asked** when the selection is a strict subset | `VITE_API_BASE_URL` in `admin/.env`; `NEXT_PUBLIC_API_BASE_URL` in the storefront's `.env`, and `BACKEND_BASE_URL` there when the API is on another machine; `PUBLIC_API_BASE_URL` in the instance's `.env` |
+| `--storefront-url` | `storefront` without `api` | **accepted** whenever `api` is in the run; **asked** for `api` without `storefront` | `NEXT_PUBLIC_SITE_URL` in the storefront's `.env`; `STOREFRONT_BASE_URL` and an entry of `CORS_ALLOWED_ORIGINS` in the instance's |
+| `--admin-url` | never | **accepted** whenever `api` is in the run; **asked** for `api` without `admin` | `ADMIN_BASE_URL` where the instance declares it, and an entry of `CORS_ALLOWED_ORIGINS` |
 | `--sales-channel` | never | `storefront` without `api` — recommendation `default` | `NEXT_PUBLIC_SALES_CHANNEL_CODE` |
 | `--revalidate-secret` | `storefront` without `api` | — | `REVALIDATE_SECRET`, in every tree the run writes that declares it |
 
@@ -623,6 +629,30 @@ the value; a run without the API never generates it. **R7.7** Nothing here overw
 operator already answered. **R7.8** The supported layouts are **same-site**: both session cookies
 are host-only and `SameSite=Lax`, so the three public origins share one registrable domain. The
 closing block and `deploy/README.md` say so; nothing checks it.
+
+**R7.9 — accepted is wider than asked.** With `api` in the run the three origin flags are honoured
+in every selection, the one with no `--only` included: a component beside the API can still be
+served at a public origin, and the allow-list has to name it. They are *asked* only of a strict
+subset, and with none given nothing is written, so the run that selects nothing is unchanged.
+**R7.10 — "declares" is the `.env.example`.** A value is written where the instance's `.env` holds
+its placeholder or its `.env.example` names it; a `.env` the operator placed first has no
+placeholders, and R7.6's secret reaches that instance too.
+
+### §7.3a — the port each component is served on
+
+The admin's port (3002) and the storefront's (3000) are decided per run, by `decidePorts`' two
+rules. **R7.11** A default that is free is used and nothing is written. A default that is taken is
+replaced by the next free port from `default + 10000`, written as `PORT` into `admin/.env` or the
+storefront's `.env`, and said; a `PORT` the operator set in the storefront's `.env` is theirs.
+**R7.12** A **loopback** `--admin-url` / `--storefront-url` carrying a port
+(`http://localhost:4000`) names the port that component is served on, and is used as given; a
+public origin says nothing about the port. **R7.13** A port that is not the default is an origin
+that is not the development one, so with `api` in the run it is written into the instance's
+`.env` exactly as a given origin is (`CORS_ALLOWED_ORIGINS`, and `ADMIN_BASE_URL` /
+`STOREFRONT_BASE_URL`), and `NEXT_PUBLIC_SITE_URL` names it. **R7.14** The admin bundle is built
+against the API this run knows: `--api-url`, or — with `api` in the run and the instance's `PORT`
+not 3001 — `http://localhost:<PORT>`, written as `VITE_API_BASE_URL` in `admin/.env`. **R7.15**
+The API's own port is not moved: it is the instance's `PORT`, and a taken one is reported.
 
 ### §7.4 — acceptance
 
