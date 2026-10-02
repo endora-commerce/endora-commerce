@@ -12,7 +12,8 @@ December"), a sklep internetowy — albo cokolwiek innego — odczytuje ją z tr
 20 minut.
 
 Każde polecenie i każdy plik na tej stronie zostały uruchomione na instancji utworzonej poleceniem
-`npx create-endora-commerce@latest`, w wydaniu `0.100.1`. Tam, gdzie coś dziś nie działa, strona
+`npx create-endora-commerce@latest`, w wydaniach `0.100.1` i `0.100.2`. Tam, gdzie coś dziś nie działa,
+strona
 mówi to w takiej ramce jak poniższa i podaje obejście:
 
 :::caution Dzisiejsze ograniczenie
@@ -65,7 +66,7 @@ pnpm add -w "@endora-commerce/contracts@$(node -p "require('./package.json').dep
 ```
 
 Część w `$(…)` wypisuje zakres, który `package.json` już ma dla `@endora-commerce/platform` — na
-przykład `^0.100.1` — dzięki czemu oba pakiety pozostają w jednym wydaniu.
+przykład `^0.100.2` — dzięki czemu oba pakiety pozostają w jednym wydaniu.
 
 ## Krok 3 — Napisz manifest
 
@@ -339,7 +340,7 @@ Nie napisano do tego ani linii kodu. Wynika to z dwóch rzeczy, które już zrob
 
 ## Co jeszcze nie działa {#what-does-not-work-yet}
 
-Sprawdzono w wydaniu `0.100.1`. Każda pozycja to dzisiejsze ograniczenie produktu, a nie Twojego
+Sprawdzono w wydaniach `0.100.1` i `0.100.2`. Każda pozycja to dzisiejsze ograniczenie produktu, a nie Twojego
 modułu.
 
 | Co | Co widzisz | Co zrobić |

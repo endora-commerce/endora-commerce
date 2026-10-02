@@ -11,7 +11,8 @@ The shop owner types a short message in the admin ("We are closed 24-26 December
 storefront — or anything else — reads it from an API route. It takes about 20 minutes.
 
 Every command and file on this page was run on an instance created with
-`npx create-endora-commerce@latest`, release `0.100.1`. Where something does not work for you today,
+`npx create-endora-commerce@latest`, on releases `0.100.1` and `0.100.2`. Where something does not work
+for you today,
 the page says so in a box like this one and gives the way round it:
 
 :::caution Limit today
@@ -64,7 +65,7 @@ pnpm add -w "@endora-commerce/contracts@$(node -p "require('./package.json').dep
 ```
 
 The part in `$(…)` prints the range your `package.json` already has for
-`@endora-commerce/platform` — for example `^0.100.1` — so the two packages stay on one release.
+`@endora-commerce/platform` — for example `^0.100.2` — so the two packages stay on one release.
 
 ## Step 3 — Write the manifest
 
@@ -337,7 +338,7 @@ line in the manifest, and registering the routes through `ctx.routes`.
 
 ## What does not work yet
 
-Checked on release `0.100.1`. Each is a limit of the product today, not of your module.
+Checked on releases `0.100.1` and `0.100.2`. Each is a limit of the product today, not of your module.
 
 | What | What you see | What to do |
 | --- | --- | --- |
