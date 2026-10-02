@@ -10,6 +10,7 @@ const sidebars = {
   main: [
     'intro',
     'getting-started',
+    'create-your-first-module',
     {
       type: 'category',
       key: 'admin-ui',

@@ -210,6 +210,8 @@ zgłasza.
 
 ## Co dalej
 
+- [Utwórz swój pierwszy moduł](./create-your-first-module.md) — samouczek na 20 minut, który dodaje
+  własny moduł do właśnie zainstalowanej instancji.
 - [Moduły](./modules/README.md) — co robi każdy moduł, jego ustawienia, uprawnienia i ekrany.
 - [Lista kontrolna pierwszego wdrożenia produkcyjnego](./deployment/first-deployment-checklist.md) —
   zanim instancja przyjmie prawdziwe zamówienia.
