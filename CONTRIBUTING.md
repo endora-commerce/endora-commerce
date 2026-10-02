@@ -161,9 +161,11 @@ Four things catch people out, and each has a document:
   has a row per finding: what it means, why it exists, and what the escape hatch is if there is
   one. `specs/conventions/check-estate.md` is the rules for changing a check.
 - **You added or deleted files.** That moves recorded *read sizes* — the number of files each
-  check opened — and they are re-measured on a clean checkout, never computed from a delta and
-  never widened to make a run pass. `check-estate.md` § *Measuring a read size* first; the test
-  prints which entries moved.
+  check opened — and the test prints which entries moved. Inside the band (−10% / +50%) you leave
+  them: the release pull request re-records drift. You re-record only an entry the band refuses,
+  or one your change means to move (a new check, a moved module) — on a clean checkout, never
+  computed from a delta, never by widening the band. `check-estate.md` § *When a read size is
+  re-recorded* first.
 - **You changed what a package publishes.** Then the change carries a **changeset**
   (`pnpm changeset`), written for the consumer of the package rather than for the reviewer of
   the branch. `major` is refused while a package is in `0.x` — write `minor`. Where a change

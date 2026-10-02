@@ -217,7 +217,19 @@ export async function runNewInstance(
   refuseOccupiedDirectory(targetDir);
   const name = basename(targetDir);
   assertWorkspaceName(name);
-  const deployment = options.deployment ?? name;
+  // Tier 2 — the `.env` of the **target directory**, never of the working
+  // directory and never of an ancestor (R1.2). A command run inside a checkout
+  // of ours must not silently inherit that checkout's development
+  // configuration, which is how a client's first instance would come to carry
+  // `postgresql://b2b:b2b@localhost:5432/b2b`.
+  const envPath = join(targetDir, '.env');
+  const existingEnv = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+  // The flag, then the operator's own `.env`, then the workspace name. The
+  // middle tier is what stops the two disagreeing: the run writes
+  // `apps/<deployment>/` and `DEPLOYMENT=<deployment>` from this one value, and
+  // a file naming a directory the run did not write is an instance that
+  // composes no overlay module and says nothing.
+  const deployment = options.deployment ?? parseEnvFile(existingEnv).get('DEPLOYMENT') ?? name;
   assertDeploymentName(deployment);
   // F3 — an operator-fixable refusal, decided with the rest of them and before
   // anything is written (R5.2). `single-host` is the default on the owner's own
@@ -288,6 +300,19 @@ export async function runNewInstance(
   const typescriptRange = typescriptRangeOf(host);
   if (typescriptRange !== undefined) declaredRanges.set('typescript', typescriptRange);
 
+  // The contracts pin (see `PlanInput.contractsVersion`): what the platform
+  // itself declares, which in a published or packed platform is the exact
+  // version. A `workspace:` spelling is what a checkout carries and is
+  // unresolvable outside one, so the version that resolved beside it answers.
+  const contractsName = `${host.scope}contracts`;
+  const contractsDeclared = declaredRanges.get(contractsName);
+  const contractsVersion =
+    contractsDeclared !== undefined &&
+    contractsDeclared.length > 0 &&
+    !contractsDeclared.startsWith('workspace:')
+      ? contractsDeclared
+      : (host.packages.get(contractsName)?.version ?? null);
+
   const adminShell = host.packages.get(`${host.scope}${ADMIN_SHELL_PACKAGE}`);
   const adminKit = host.packages.get(`${host.scope}${ADMIN_KIT_PACKAGE}`);
 
@@ -320,14 +345,6 @@ export async function runNewInstance(
     platformEnv,
     modules.ids.map((id) => candidates.get(id)!),
   );
-
-  // Tier 2 — the `.env` of the **target directory**, never of the working
-  // directory and never of an ancestor (R1.2). A command run inside a checkout
-  // of ours must not silently inherit that checkout's development
-  // configuration, which is how a client's first instance would come to carry
-  // `postgresql://b2b:b2b@localhost:5432/b2b`.
-  const envPath = join(targetDir, '.env');
-  const existingEnv = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
 
   // R2.5b's four tiers, through the one module every command resolves with
   // (R5.3) — and this command uses **three** of them. Tier 1 is empty: it takes
@@ -395,6 +412,7 @@ export async function runNewInstance(
       demoComposition === undefined
         ? null
         : { packageName: demoComposition.name, version: demoComposition.version },
+    contractsVersion,
     adminShellVersion: adminShell?.version ?? null,
     adminKitVersion: adminKit?.version ?? null,
     adminRanges: adminRangesOf(adminShell),

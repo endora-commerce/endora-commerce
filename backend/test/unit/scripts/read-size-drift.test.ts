@@ -35,7 +35,7 @@ const UNMEASURED: DriftObservation = { files: null, sites: null, measured: false
 
 /** The report's lines minus the header and the trailing instruction. */
 function entryLines(lines: readonly string[]): readonly string[] {
-  return lines.slice(1).filter((line) => !line.includes('re-record these in'));
+  return lines.slice(1).filter((line) => !line.includes('the release pull request re-records them'));
 }
 
 describe('the drift report names what moved', () => {
@@ -153,20 +153,21 @@ describe('the drift report names what moved', () => {
     expect(lines[0]).toBe('[read-size drift] 0 drifted, 0 agree, 1 not measured, of 1 recorded');
   });
 
-  it('asks for the re-record only when something drifted', () => {
+  it('says who re-records, and only when something drifted', () => {
     const quiet = formatDriftReport(
       { 'backend/scripts/a.ts': record(10, null) },
       new Map([['backend/scripts/a.ts', seen(10, null)]]),
     );
-    expect(quiet.some((line) => line.includes('re-record these in'))).toBe(false);
+    expect(quiet.some((line) => line.includes('the release pull request re-records them'))).toBe(false);
 
     const loud = formatDriftReport(
       { 'backend/scripts/a.ts': record(10, null) },
       new Map([['backend/scripts/a.ts', seen(12, null)]]),
     );
     expect(loud.at(-1)).toBe(
-      '[read-size drift] re-record these in backend/test/helpers/check-read-sizes.ts, ' +
-        'in this merge request, and say what moved them',
+      '[read-size drift] inside the band these are left alone — the release pull request ' +
+        're-records them; re-record here, in backend/test/helpers/check-read-sizes.ts, only an ' +
+        'entry the band refuses or one this change means to move, and say what moved it',
     );
   });
 

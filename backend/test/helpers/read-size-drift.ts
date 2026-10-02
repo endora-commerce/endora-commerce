@@ -56,9 +56,14 @@ export interface DriftObservation {
  */
 export const DRIFT_PREFIX = '[read-size drift]';
 
+// Drift inside the band is not a pull request's to re-record: the release pull
+// request does it, once, on a frozen `master` (`check-estate.md` § *When a read
+// size is re-recorded*). Asking every author for it made the whole-repository
+// walks, which move with any added file, conflict between any two open branches.
 const RE_RECORD =
-  're-record these in backend/test/helpers/check-read-sizes.ts, ' +
-  'in this merge request, and say what moved them';
+  'inside the band these are left alone — the release pull request re-records them; ' +
+  're-record here, in backend/test/helpers/check-read-sizes.ts, only an entry the band ' +
+  'refuses or one this change means to move, and say what moved it';
 
 type DimensionName = 'sites' | 'files';
 

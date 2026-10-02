@@ -41,6 +41,22 @@ describe('HmacSigner', () => {
     expect(signerB.verify({ assetId: 'a', exp, token: tokenA, nowSec: Math.floor(Date.now() / 1000) })).toBe(false);
   });
 
+  it('refuses a placeholder left over from an env example, naming the remedy', () => {
+    // Every `change-me…` an example ever carried is a key every copy of that
+    // file shares. It used to be accepted — read as raw bytes — so a deployment
+    // that copied the example signed private links with a public string.
+    for (const placeholder of [
+      'change-me-in-real-deployments',
+      'change-me-hex-32',
+      'change-me-generate-one',
+      ' Change-Me ',
+    ]) {
+      expect(() => HmacSigner.fromEnv(placeholder), placeholder).toThrow(
+        /ASSETS_LIBRARY_HMAC_KEY is still the placeholder.*openssl rand -hex 32/s,
+      );
+    }
+  });
+
   it('throws when explicitly given an empty key', () => {
     // Passing '' bypasses the env-fallback path: callers who supply an empty
     // string are signalling unconfigured state explicitly.

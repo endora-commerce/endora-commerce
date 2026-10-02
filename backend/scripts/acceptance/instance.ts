@@ -2360,9 +2360,9 @@ async function main(): Promise<void> {
         } else {
           overlayEnvironment = { ...environment, DEPLOYMENT: deployment };
           notes.push(
-            `supplied DEPLOYMENT=${deployment} for A8's steps; the instance's own ` +
-              '`.env.example` declares it and leaves it blank, and blank is bare core — no ' +
-              'overlay module is composed at all',
+            `supplied DEPLOYMENT=${deployment} for A8's steps through the environment as ` +
+              'well; the command writes the same value into the instance\'s own `.env`, so ' +
+              'this is the value the instance already runs as and not one this harness chose',
           );
           results.push(evaluateA8(await measureOverlay(target, deployment, overlayEnvironment)));
         }

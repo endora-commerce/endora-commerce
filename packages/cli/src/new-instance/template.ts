@@ -277,6 +277,22 @@ export interface PlanInput {
    * is a line in this manifest.
    */
   readonly demoComposition?: { readonly packageName: string; readonly version: string } | null;
+  /**
+   * The exact version of the contracts package this instance declares, or
+   * `null` (or absent) when no manifest this run resolved states one.
+   *
+   * An instance's own code is its overlay modules, and every overlay
+   * `manifest.ts` is written with `defineModuleManifest` from the contracts
+   * package — so an instance that does not declare it cannot load the first
+   * module its owner writes (`ERR_MODULE_NOT_FOUND`, on every command).
+   *
+   * **Exact, and deliberately not the `^` every other entry takes.** The
+   * platform packages pin contracts exactly and a release moves the whole set
+   * to one number, so a range here could resolve a second copy beside the one
+   * the platform loaded. The caller reads the value off the platform's own
+   * declaration, which is the pin itself (R2.5a).
+   */
+  readonly contractsVersion?: string | null;
   /** `null` when the admin shell does not resolve at the version being installed. */
   readonly adminShellVersion: string | null;
   /** `null` when the admin design system does not resolve. §2.4's other package. */
@@ -724,6 +740,21 @@ export function envExample(
 }
 
 /**
+ * The build inputs as **this** instance has them: `DEPLOYMENT` defaults to the
+ * directory the same run writes under `apps/`.
+ *
+ * The shared declaration says `null` — a platform with no deployment is a real
+ * state — and that is true of a checkout and not of an instance, which is
+ * scaffolded with exactly one deployment and composes it in every build
+ * (`instance-tree.md` §2.6).
+ */
+function instanceBuildInputs(deployment: string): readonly InstanceBuildInput[] {
+  return INSTANCE_BUILD_INPUTS.map((entry) =>
+    entry.name === 'DEPLOYMENT' ? { ...entry, default: deployment } : entry,
+  );
+}
+
+/**
  * The `.env` this command writes — the generated secrets, and a blank for
  * everything else the instance reads.
  *
@@ -765,6 +796,10 @@ export function envFile(input: PlanInput, admin: boolean): string {
     '# `.env.example` beside this file carries a sentence for each one saying what it',
     '# decides and what leaving it unset costs. Do not copy it over this file.',
     '',
+    '# The deployment this instance runs as: the directory under `apps/` holding your overlay',
+    '# modules. Unset, the instance still starts — as the bare platform, with none of them.',
+    '#DEPLOYMENT=',
+    '',
     '# Required — the instance does not start without these.',
     ...required.map((name) => `#${name}=`),
     '',
@@ -775,7 +810,11 @@ export function envFile(input: PlanInput, admin: boolean): string {
   // The operator's file wins over the seed entirely: if they placed one, this
   // run adds to it and re-orders nothing.
   const base = input.existingEnv.length > 0 ? input.existingEnv : seeded;
-  return writeEnvFile(base, input.generated);
+  // `DEPLOYMENT` is written, not left as a placeholder: this run wrote
+  // `apps/<deployment>/`, so it is a value the command holds rather than one it
+  // would invent — and unset is *silent*, an instance that composes none of the
+  // overlay modules its owner put in the directory beside it.
+  return writeEnvFile(base, new Map([['DEPLOYMENT', input.deployment], ...input.generated]));
 }
 
 /**
@@ -808,6 +847,10 @@ export function planInstance(input: PlanInput): InstancePlan {
   }
   if (input.demoComposition) {
     dependencies.set(input.demoComposition.packageName, `^${input.demoComposition.version}`);
+  }
+  // What an overlay module's `manifest.ts` imports. See `contractsVersion`.
+  if (typeof input.contractsVersion === 'string' && input.contractsVersion.length > 0) {
+    dependencies.set(`${input.scope}contracts`, input.contractsVersion);
   }
   // The packages the installed modules declare **optional** — and they are
   // declared **here**, at the root, rather than in the admin member that needs
@@ -1019,7 +1062,7 @@ export function planInstance(input: PlanInput): InstancePlan {
     path: '.env.example',
     kind: 'client',
     member: 'root',
-    content: envExample(INSTANCE_BUILD_INPUTS, input.declared, admin.written),
+    content: envExample(instanceBuildInputs(input.deployment), input.declared, admin.written),
   });
 
   // The instance's own configuration, holding whatever this run generated
@@ -1622,6 +1665,13 @@ and \`ctx.di.decorate\` from your own overlay module in \`apps/${input.deploymen
 Decoration is the only way an instance changes a platform behaviour — there is no file to
 shadow, because there is no file.
 
+\`pnpm exec endora new module <id> --name … --description …\` writes one there: a manifest, an
+entry point with a route, and both translation files. \`.env\` sets \`DEPLOYMENT=${input.deployment}\`,
+which is what makes this instance compose that directory — unset, it starts as the bare platform
+and none of your modules is there. An overlay module owns no database table: \`pnpm run generate\`
+refuses a \`migrations/\` or \`entities/\` directory in one, and a module that needs a table is
+a package.
+
 An overlay module is TypeScript that **nothing in this tree compiles** — Node loads it and
 strips the types as it goes. So it is written in the subset stripping accepts: an \`enum\`, a
 \`namespace\` or a constructor parameter property raises
@@ -1631,8 +1681,9 @@ because all three type-check cleanly. A union of string literals is the \`enum\`
 Whatever you reach for, \`pnpm run generate\` records it in
 \`apps/${input.deployment}/divergence.generated.md\`: every seam you used, which module owns
 the thing you changed, what that seam costs on the escalation ladder, and the sentence you
-wrote about it in \`divergence.ts\`. A divergence with no sentence is reported; so is a
-sentence describing a divergence that is gone.
+wrote about it in \`divergence.ts\`. A divergence with no sentence is reported, and so is a
+sentence describing a divergence that is gone — and either one fails the command, after the
+report is written, until it is settled.
 
 A module you will never publish belongs in that directory. A module you intend to publish or
 install into a second instance is a package: \`pnpm pack\`, then install the tarball. A
