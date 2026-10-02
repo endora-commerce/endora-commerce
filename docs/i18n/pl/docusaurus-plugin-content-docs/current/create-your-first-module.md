@@ -11,8 +11,8 @@ Właściciel sklepu wpisuje w panelu administracyjnym krótką wiadomość ("We 
 December"), a sklep — albo cokolwiek innego — odczytuje ją z trasy API. Zajmuje to około
 20 minut.
 
-Każde polecenie i każdy plik na tej stronie zostały sprawdzone na instancji utworzonej poleceniem
-`npx create-endora-commerce@latest`. Strona opisuje wydanie następujące po `0.100.2`.
+Strona opisuje instancję utworzoną poleceniem `npx create-endora-commerce@latest` w wydaniu
+następującym po `0.100.2`.
 
 :::note Instancja utworzona w wydaniu 0.100.2 lub wcześniejszym
 Cztery rzeczy z tej strony działają w niej inaczej. Wymienia je część

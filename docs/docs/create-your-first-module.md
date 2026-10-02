@@ -10,8 +10,8 @@ This tutorial takes a new instance and adds one small module of your own to it: 
 The shop owner types a short message in the admin ("We are closed 24-26 December"), and the
 storefront — or anything else — reads it from an API route. It takes about 20 minutes.
 
-Every command and file on this page was run on an instance created with
-`npx create-endora-commerce@latest`. The page describes the release after `0.100.2`.
+The page describes an instance created with `npx create-endora-commerce@latest` on the release
+after `0.100.2`.
 
 :::note An instance created with release 0.100.2 or earlier
 Four things on this page behave differently there.
