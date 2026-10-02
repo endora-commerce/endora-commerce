@@ -52,6 +52,18 @@
  * named when anything fails. It is not a pipeline step: the instance is not
  * left with it, and a checkout or a pre-installed host never plans it.
  *
+ * ## It stands up all three components, or the ones `--only` names
+ *
+ * `specs/138-separate-components/` (D-284): the API, the Admin UI and the
+ * storefront may each be on a machine of its own, so one run can stand up any
+ * non-empty subset and is told where the others are by origin. The selection
+ * is resolved first (`selection.ts`) and everything below is a function of it —
+ * which answers are owed, which flags answer nothing and are refused, whether
+ * an instance is written at all. Without the API no step opens a connection to
+ * anything: the admin alone is this same tree with `build:admin` run in it, and
+ * the storefront alone writes no instance. A run that names no `--only` is the
+ * run this file described before that feature, step for step.
+ *
  * ## Every step prints the command it is about to run (FR-156)
  *
  * So an operator watching can reproduce any step by hand, and a failure names a
