@@ -73,7 +73,11 @@ in the same repository and the same build as core**, so the remedy is always ava
 nothing but a directory: own the table from a core module and read it from the overlay through
 that module's port. A second schema-owning mechanism that buys no capability is not worth its
 weight. The generator refuses both (`generate-composer.ts`), which is the same rule
-`module-migrations.md` states.
+`module-migrations.md` states. **In a client's instance the refusal is `endora generate`'s**
+(`packages/cli/src/generate/divergence.ts`' `overlaySchemaFiles`): an instance has no composer
+generator and the platform reads entities and migrations from installed packages alone, so
+without it the directory is ignored rather than refused. There the remedy is a module package,
+not a core module — an instance has no core tree to move the table into.
 **An extension package is the opposite case and may ship entities and migrations** (D-106.2, an
 owner ruling). A third-party author has no core module, so for a package the same rule would not
 be a constraint to design around but a prohibition on the entire extension-package programme,

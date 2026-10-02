@@ -50,6 +50,7 @@ import {
 import { InstallHostError, InstallInputError, runInstall } from '../install/index.js';
 import { DevHostError, DevInputError, runDev } from '../dev/index.js';
 import {
+  generateFindingsRefusal,
   generateReport,
   GenerateHostError,
   GenerateInputError,
@@ -77,6 +78,13 @@ Usage:
 gated by the operator, discoverable in the command palette and correct on its
 first commit. It does not author the package's package.json: that file is
 rendered by the platform's own manifest generator, so the two cannot disagree.
+
+Inside an instance — the tree \`endora new instance\` wrote — it writes an
+overlay module instead: apps/<deployment>/modules/<id>/, which the instance
+composes with no build. It takes --name, --description, --depends, --permission,
+--activation-setting, --non-deactivatable and --dry-run there, and refuses the
+flags that ask for what an overlay module cannot be (a table, an admin screen, a
+published port), naming why.
 
 Options for \`new module\`:
   --name <text>                 the module's human-readable name (required)
@@ -587,6 +595,12 @@ async function runGenerateCommand(
     process.stdout.write(
       `  ${String(result.modules)} installed module package(s) in the population\n`,
     );
+    // After the report, so the lines it refers to are already on the screen.
+    const refusal = generateFindingsRefusal(result);
+    if (refusal !== null) {
+      process.stderr.write(`endora: ${refusal}\n`);
+      return 1;
+    }
     return 0;
   } catch (error: unknown) {
     if (error instanceof GenerateInputError) {
@@ -985,7 +999,19 @@ export async function main(
       cwd,
     });
 
-    if (result.dryRun) {
+    if (result.overlay !== null) {
+      const where = `apps/${result.overlay.deployment}/modules/${result.spec.id}`;
+      process.stdout.write(
+        `endora new module ${result.spec.id} — an overlay module in ${where}` +
+          `${result.dryRun ? ' — dry run, nothing written' : ''}.\n` +
+          (result.dryRun ? '\n' : ''),
+      );
+      for (const file of result.files) {
+        process.stdout.write(
+          result.dryRun ? `--- ${file.path}\n${file.content}\n` : `  wrote ${file.path}\n`,
+        );
+      }
+    } else if (result.dryRun) {
       process.stdout.write(`endora new module ${result.spec.id} — dry run, nothing written.\n\n`);
       for (const file of result.files) {
         process.stdout.write(`--- ${file.path}\n${file.content}\n`);
@@ -1004,7 +1030,9 @@ export async function main(
       }
     }
 
-    process.stdout.write(`\nNext steps, inside this repository:\n`);
+    process.stdout.write(
+      `\nNext steps, inside this ${result.overlay === null ? 'repository' : 'instance'}:\n`,
+    );
     result.nextSteps.forEach((step, index) => {
       process.stdout.write(`  ${String(index + 1)}. ${step}\n`);
     });

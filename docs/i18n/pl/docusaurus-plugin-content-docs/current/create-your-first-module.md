@@ -17,7 +17,7 @@ strona
 mówi to w takiej ramce jak poniższa i podaje obejście:
 
 :::caution Dzisiejsze ograniczenie
-Cztery rzeczy na tej stronie są trudniejsze, niż powinny. Zebrano je w części
+Dwie rzeczy na tej stronie są trudniejsze, niż powinny. Zebrano je w części
 [Co jeszcze nie działa](#what-does-not-work-yet), każdą razem z tym, co zaobserwowano.
 :::
 
@@ -44,38 +44,67 @@ nakładkowym** (overlay): jest dokładany na wierzch platformy i żaden plik pla
 - Terminala w katalogu głównym instancji. Zatrzymaj `pnpm run dev:all`, jeśli działa (Ctrl-C);
   uruchomisz je ponownie w kroku 7.
 
-## Krok 1 — Nazwij swoje wdrożenie
+## Krok 1 — Sprawdź, czy instancja zna swoje wdrożenie
 
-Platforma składa moduły nakładkowe tylko wtedy, gdy wie, jako które wdrożenie działa. Dodaj jedną
-linię do pliku `.env` w katalogu głównym instancji:
+Platforma składa moduły nakładkowe tylko wtedy, gdy wie, jako które wdrożenie działa, a manifest
+pisze się dwiema funkcjami pomocniczymi z pakietu `@endora-commerce/contracts`. Instalator
+przygotowuje jedno i drugie: plik `.env` w katalogu głównym instancji ma linię `DEPLOYMENT` z nazwą
+katalogu w `apps/`, a `package.json` wymienia `@endora-commerce/contracts`.
+
+```bash
+grep DEPLOYMENT .env
+grep '@endora-commerce/contracts' package.json
+```
+
+```text
+DEPLOYMENT=my-shop
+    "@endora-commerce/contracts": "0.100.2",
+```
+
+Wersja jest tą, którą przypina Twoje wydanie; celowo jest zapisana bez `^`.
+
+:::note Instancje utworzone w wydaniu 0.100.2 lub wcześniejszym
+Te wydania nie zapisywały żadnej z tych linii. Jeśli któreś polecenie niczego nie wypisuje, dodaj
+to, czego brakuje:
 
 ```bash
 echo "DEPLOYMENT=my-shop" >> .env
+pnpm add -w "@endora-commerce/contracts@$(node -p "require('./node_modules/@endora-commerce/platform/package.json').dependencies['@endora-commerce/contracts']")"
 ```
 
-Wartość to nazwa katalogu w `apps/`. Bez tej linii nic nie kończy się błędem: modułu po prostu nie
-ma i nic nie mówi dlaczego.
+Część w `$(…)` wypisuje dokładną wersję pakietu kontraktów, której używa zainstalowana platforma,
+dzięki czemu oba pakiety pozostają w jednym wydaniu. Bez `DEPLOYMENT` nic nie kończy się błędem:
+modułu po prostu nie ma i nic nie mówi dlaczego.
+:::
 
-## Krok 2 — Dodaj pakiet kontraktów
+## Krok 2 — Utwórz szkielet modułu
 
-Manifest pisze się dwiema funkcjami pomocniczymi z `@endora-commerce/contracts`. Instancja sama nie
-deklaruje tego pakietu, więc dodaj go, w tym samym zakresie wersji co platforma:
+Jedno polecenie zapisuje katalog modułu z manifestem, punktem wejścia i oboma plikami tłumaczeń.
+Pierwszy argument to identyfikator modułu — małe litery, cyfry i podkreślenia — i staje się on nazwą
+katalogu.
 
 ```bash
-pnpm add -w "@endora-commerce/contracts@$(node -p "require('./package.json').dependencies['@endora-commerce/platform']")"
+pnpm exec endora new module store_notice \
+  --name "Store notice" \
+  --description "A short notice the shop owner writes and the storefront can display." \
+  --permission "store_notice:read=View the store notice"
 ```
 
-Część w `$(…)` wypisuje zakres, który `package.json` już ma dla `@endora-commerce/platform` — na
-przykład `^0.100.2` — dzięki czemu oba pakiety pozostają w jednym wydaniu.
+```text
+endora new module store_notice — an overlay module in apps/my-shop/modules/store_notice.
+  wrote manifest.ts
+  wrote backend.ts
+  wrote i18n/en.json
+  wrote i18n/pl.json
+```
+
+To, co zostało zapisane, już działa: moduł z wyłącznikiem, trasą publiczną i trasą administracyjną
+chronioną uprawnieniem. Trzy następne kroki zamieniają go w komunikat sklepu. Uruchom polecenie z
+`--dry-run`, aby przeczytać pliki bez ich zapisywania.
 
 ## Krok 3 — Napisz manifest
 
-Utwórz katalog modułu i jego manifest. Nazwa katalogu jest identyfikatorem modułu: małe litery,
-cyfry i podkreślenia.
-
-```bash
-mkdir -p apps/my-shop/modules/store_notice/i18n
-```
+Zastąp manifest ze szkieletu poniższym. Dodaje on drugie ustawienie — na treść komunikatu.
 
 ```ts title="apps/my-shop/modules/store_notice/manifest.ts"
 import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
@@ -131,6 +160,8 @@ Do czego służy każda część:
 
 ## Krok 4 — Zarejestruj trasy
 
+Zastąp plik `backend.ts` ze szkieletu poniższym, który odczytuje komunikat z ustawienia:
+
 ```ts title="apps/my-shop/modules/store_notice/backend.ts"
 import { z } from 'zod';
 import { lazyPort } from '@endora-commerce/platform/kernel';
@@ -180,6 +211,8 @@ konstruktora zatrzymuje start błędem `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`.
 
 Każdy tekst widoczny dla użytkownika jest dostarczany po angielsku i po polsku. Ten moduł ma jeden:
 etykietę swojego uprawnienia, pokazywaną przy edycji roli. Pliki są płaskimi mapami `klucz: tekst`.
+Szkielet zapisał oba z Twoim angielskim tekstem, więc plik angielski jest już gotowy, a polski
+wymaga tłumaczenia.
 
 ```json title="apps/my-shop/modules/store_notice/i18n/en.json"
 {
@@ -226,14 +259,16 @@ Następnie zapisz, co Twoje wdrożenie robi teraz inaczej niż platforma:
 pnpm run generate
 ```
 
-W jego wyniku jest jedna linia o Twoim module:
+Polecenie kończy się błędem, a w jego wyniku jest jedna linia o Twoim module:
 
 ```text
 [undeclared-divergence] apps/my-shop/divergence.ts: no reason for `port-consumed:store_notice:settingsReadPort` — 'store_notice' resolves the port 'settingsReadPort', owned by a composition root
 ```
 
 Instancja prowadzi raport każdego miejsca, w którym sięga do platformy, i prosi o jedno Twoje
-zdanie na każdy wpis. Otwórz `apps/my-shop/divergence.ts` i podaj powód pod kluczem, który wymienia
+zdanie na każdy wpis. Raport jest zapisywany tak czy inaczej; polecenie kończy się błędem, dopóki
+każdy wpis nie ma swojego zdania, więc niewyjaśniona zmiana nie przejdzie niezauważona przez
+`pnpm run setup`. Otwórz `apps/my-shop/divergence.ts` i podaj powód pod kluczem, który wymienia
 komunikat:
 
 ```ts title="apps/my-shop/divergence.ts"
@@ -247,7 +282,7 @@ export const divergence = {
 } as const;
 ```
 
-Uruchom `pnpm run generate` jeszcze raz: linia znika, a
+Uruchom `pnpm run generate` jeszcze raz: polecenie się udaje, linia znika, a
 `apps/my-shop/divergence.generated.md` wymienia `store_notice` razem z Twoim zdaniem. To pierwszy
 plik, do którego warto zajrzeć, gdy aktualizacja platformy zmieni coś, na czym polegasz.
 
@@ -345,23 +380,25 @@ modułu.
 
 | Co | Co widzisz | Co zrobić |
 | --- | --- | --- |
-| Instalator nie zapisuje `DEPLOYMENT` | Instancja ma `apps/my-shop/`, ale w `.env` nie ma `DEPLOYMENT`, więc moduł nakładkowy po cichu nie jest składany | Krok 1 |
-| `@endora-commerce/contracts` nie jest zależnością instancji | `ERR_MODULE_NOT_FOUND … '@endora-commerce/contracts'` z Twojego `manifest.ts`, przy każdym poleceniu | Krok 2 |
 | Ekran Modules nie wczytuje się w instancji | `NOT_FOUND: Resource not found.` i "No modules to show" | Wywołanie API z kroku 8 |
 | `pnpm run module:disable <id>` niczego nie zmienia w instancji | Wypisuje `state=disabled`; `pnpm run module:status` nadal pokazuje `installed`, a trasy nadal odpowiadają | Wywołanie API z kroku 8 |
+
+Instancja utworzona w wydaniu `0.100.2` lub wcześniejszym ma jeszcze dwa: w jej `.env` nie ma
+`DEPLOYMENT`, a jej `package.json` nie wymienia `@endora-commerce/contracts`. Uwaga w kroku 1
+podaje dwa polecenia, które to naprawiają.
 
 Trzy kolejne ograniczenia decydują o tym, czym może być pierwszy moduł:
 
 - **Moduł nakładkowy nie może mieć własnej tabeli w bazie danych.** Wnosi ustawienia, trasy,
-  uprawnienia i tłumaczenia, ale żadnej encji i żadnej migracji. W instancji nie jest to odrzucane:
-  katalog `migrations/` albo `entities/` w module nakładkowym jest ignorowany, tabela nie powstaje i
-  nic tego nie zgłasza. Niewielki stan trzymaj w ustawieniach, tak jak ten moduł.
+  uprawnienia i tłumaczenia, ale żadnej encji i żadnej migracji. `pnpm run generate` odrzuca katalog
+  `migrations/` albo `entities/` w module nakładkowym i wymienia każdy plik — nic w instancji by ich
+  nie uruchomiło, więc tabela by nie powstała. Niewielki stan trzymaj w ustawieniach, tak jak ten
+  moduł.
 - **Moduł, który potrzebuje własnej tabeli, jest pakietem modułu** — podobnie jak moduł z własnym
-  ekranem w panelu administracyjnym. `endora new module` tworzy szkielet takiego pakietu — z
-  `--entities` dla tabeli i `--admin` dla ekranu — ale działa tylko w kopii roboczej repozytorium
-  Endora Commerce. W instancji zatrzymuje się, wskazując brak pliku
-  `backend/scripts/generate-module-manifests.ts`. Ten samouczek nie obejmuje ręcznego pisania
-  pakietu.
+  ekranem w panelu administracyjnym. W instancji `endora new module` zapisuje moduł nakładkowy, a
+  `--entities` i `--admin` odrzuca, podając powód. Szkielet pakietu — z `--entities` dla tabeli i
+  `--admin` dla ekranu — tworzy tylko w kopii roboczej repozytorium Endora Commerce. Ten samouczek
+  nie obejmuje ręcznego pisania pakietu.
 - **Ten samouczek nie pokazuje komunikatu w sklepie internetowym.** Sklep, który instalator zapisał
   obok Twojej instancji, należy do Ciebie i możesz go edytować — zobacz
   [Sklep](./getting-started.md#sklep) — a trasa jest tym, co by wywołał.

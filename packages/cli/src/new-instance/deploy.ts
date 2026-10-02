@@ -1034,8 +1034,13 @@ const RUNTIME_INPUTS: readonly RuntimeInput[] = [
   },
   {
     name: 'ASSETS_LIBRARY_HMAC_KEY',
-    meaning: 'Signs asset URLs. `openssl rand -hex 32`.',
-    example: 'change-me-generate-one',
+    meaning:
+      'Signs the links to private assets. `openssl rand -hex 32`. Empty, the backend boots ' +
+      'and every private asset link is refused, naming this key.',
+    // Empty rather than a placeholder: `change-me-generate-one` is not hex, so
+    // the signer read it as raw bytes and signed with a string every copy of
+    // this file shares. Empty is refused by name at the first signature.
+    example: '',
   },
   {
     name: 'REVALIDATE_SECRET',

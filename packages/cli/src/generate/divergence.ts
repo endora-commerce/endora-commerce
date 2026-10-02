@@ -285,3 +285,58 @@ export function renderInstanceDivergence(input: {
     };
   });
 }
+
+/** A directory an overlay module may not have, because what it holds is schema. */
+const SCHEMA_DIRECTORIES: ReadonlySet<string> = new Set(['migrations', 'entities']);
+
+/** The extensions a source carrying an `@Entity()` class is written in. */
+const SOURCE_FILE = /\.[cm]?[jt]sx?$/;
+
+/**
+ * Every file under a deployment's overlay modules that is **schema** — a file
+ * in a `migrations/` or `entities/` directory, or a source declaring an
+ * `@Entity()` class — relative to the instance root, sorted.
+ *
+ * An overlay module contributes no schema (D-106;
+ * `specs/conventions/overlay-modules.md`). In this repository the composer
+ * generator refuses one. An instance has no such generator, and the platform's
+ * discovery reads entities and migrations from installed **packages** alone, so
+ * without this walk the directory is not refused but *ignored*: `migrate`
+ * applies nothing, no table exists, and the first report is a query against a
+ * relation that is not there.
+ *
+ * The two predicates are that generator's own — a migration under an overlay,
+ * an `@Entity()` class under an overlay — plus the `entities/` directory, which
+ * is where an author puts a class they have not decorated yet.
+ */
+export function overlaySchemaFiles(root: string): readonly string[] {
+  const found: string[] = [];
+  const walk = (dir: string, insideSchemaDirectory: boolean): void => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules') continue;
+        walk(path, insideSchemaDirectory || SCHEMA_DIRECTORIES.has(entry.name));
+        continue;
+      }
+      if (!entry.isFile()) continue;
+      if (
+        insideSchemaDirectory ||
+        (SOURCE_FILE.test(entry.name) && readFileSync(path, 'utf8').includes('@Entity('))
+      ) {
+        found.push(relative(root, path).split(sep).join('/'));
+      }
+    }
+  };
+  for (const deployment of instanceDeployments(root)) {
+    const overlayRoot = join(root, 'apps', deployment, 'modules');
+    for (const moduleId of directoriesUnder(overlayRoot)) walk(join(overlayRoot, moduleId), false);
+  }
+  return found.sort();
+}
