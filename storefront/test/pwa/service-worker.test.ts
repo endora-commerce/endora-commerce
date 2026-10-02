@@ -115,7 +115,7 @@ describe('service-worker.js — it answers for the storefront only', () => {
       skipWaiting: async (): Promise<void> => undefined,
       registration: {},
     };
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- the worker is a classic script; it is evaluated as one.
+    // The worker is a classic script, so it is evaluated as one.
     new Function('self', 'caches', 'fetch', 'URL', 'Request', 'Response', swSource)(
       scope,
       { open: async () => ({}), keys: async () => [], delete: async () => true, match: async () => undefined },
