@@ -258,7 +258,8 @@ zostawia każdy z nich bez zmian.
 
 Gdy podany adres jest adresem `localhost` z portem — `--storefront-url http://localhost:4000` —
 jest to zarazem port, na którym ten komponent działa na tej maszynie: instalator zapisuje go jako
-`PORT` tam, skąd komponent go czyta.
+`PORT` tam, skąd komponent go czyta. Wyjątkiem jest adres `localhost` podany jako `--public-url`:
+jego port należy do reverse proxy, więc żaden komponent go nie zajmuje.
 
 ### Pod jakimi adresami są dostępne
 
@@ -446,7 +447,9 @@ samodzielnie.
 - `deploy/README.md` — kolejność uruchamiania całości i to, co maszyny muszą o sobie wiedzieć.
 - `deploy/Dockerfile.backend` i `deploy/Dockerfile.admin` — przykładowe obrazy dla API (i jego
   konsumentów kolejek) oraz dla zbudowanego panelu. Budują się z katalogu głównego instancji;
-  polecenia i każdy `--build-arg` są w nagłówku każdego z plików.
+  polecenia i każdy `--build-arg` są w nagłówku każdego z plików. Argument `DEPLOYMENT` obrazu
+  backendu ma domyślnie wartość wdrożenia tej instancji, więc obraz zbudowany bez niego i tak
+  składa Twoje moduły nakładkowe; pusta wartość buduje samą platformę.
 - Przykładowy plik Compose i `.env.example` dla układu maszyn wybranego przez `--topology`:
   `single-host` (domyślny) umieszcza wszystkie warstwy na jednej maszynie; `three-host` zapisuje
   po jednym pliku Compose i jednym `.env.example` na maszynę — dla backendu, sklepu i panelu.

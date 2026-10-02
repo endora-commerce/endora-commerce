@@ -250,7 +250,8 @@ each.
 
 When an address you give is a `localhost` one with a port — `--storefront-url
 http://localhost:4000` — it is also the port that component is served on, on this machine: the
-run writes it as `PORT` where the component reads it.
+run writes it as `PORT` where the component reads it. A `localhost` address given as
+`--public-url` is the exception: its port is the reverse proxy's, so no component takes it.
 
 ### How the three are reached
 
@@ -436,7 +437,9 @@ it back. Copy what you need onto the machines you run, and own it from then on.
 - `deploy/README.md` — the order to bring the stack up in, and what the machines owe each other.
 - `deploy/Dockerfile.backend` and `deploy/Dockerfile.admin` — example images for the API (and its
   queue consumers) and for the admin bundle. They build from the instance's root; the commands and
-  every `--build-arg` are in each file's header.
+  every `--build-arg` are in each file's header. The backend image's `DEPLOYMENT` argument
+  defaults to the instance's own deployment, so an image built without it still composes your
+  overlay modules; an empty value builds the bare platform.
 - A Compose example and an `.env.example` for the machine layout you chose with `--topology`:
   `single-host` (the default) puts every layer on one machine; `three-host` writes one Compose
   file and one `.env.example` per machine for a backend, a storefront and an admin.
