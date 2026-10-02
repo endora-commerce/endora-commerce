@@ -131,6 +131,7 @@ describe('§3 R3.1 — an instance carries example deployment files, derived fro
       'deploy/README.md',
       'deploy/compose.prod.yml',
       'deploy/nginx.example.conf',
+      'deploy/nginx.paths.example.conf',
     ]);
   });
 
@@ -157,6 +158,7 @@ describe('§3 R3.1 — an instance carries example deployment files, derived fro
       'deploy/README.md',
       'deploy/compose.prod.yml',
       'deploy/nginx.example.conf',
+      'deploy/nginx.paths.example.conf',
     ]);
     expect(
       deployFilesOf(planInput({ topology: 'three-host' })).map((file) => file.path).sort(),
@@ -544,7 +546,7 @@ describe('T016 — `deploy/README.md` tells one reader how to bring three hosts 
       const absent =
         topology === 'single-host'
           ? ['three-host/compose.backend.yml']
-          : ['compose.prod.yml', 'nginx.example.conf'];
+          : ['compose.prod.yml', 'nginx.example.conf', 'nginx.paths.example.conf'];
       for (const path of absent) expect(readme, `${topology}: ${path}`).not.toContain(path);
     }
   });
@@ -587,6 +589,89 @@ describe('138 FR-021 — the three-host README states what the machines owe each
   it('the single-host README does not: there is one machine', () => {
     const readme = fileAt(withAdmin({ topology: 'single-host' }), 'deploy/README.md');
     expect(readme).not.toContain('owe each other');
+  });
+});
+
+/**
+ * `specs/138-separate-components/` addendum, FR-026 and FR-029 — D-284 clause
+ * 5 (b): one host with paths. The storefront at `/`, the admin under `/admin`,
+ * the API under `/api`.
+ */
+describe('138 FR-029 — one host with paths has an example of its own', () => {
+  const conf = (input: PlanInput): string => fileAt(input, 'deploy/nginx.paths.example.conf');
+  const at = (text: string, needle: string): number => {
+    const index = text.indexOf(needle);
+    expect(index, `the example does not hold ${needle}`).toBeGreaterThan(-1);
+    return index;
+  };
+
+  it('is one server block, routing by path to the three loopback ports', () => {
+    const text = conf(withAdmin());
+    expect(text.split(/^server \{/m).length - 1).toBe(1);
+    // The API's routes already begin with /api/v1: passed on unchanged.
+    expect(text).toMatch(/location \/api\/ \{\s+proxy_pass http:\/\/127\.0\.0\.1:3001;/);
+    expect(text).toMatch(/location \/assets\/file\/ \{\s+proxy_pass http:\/\/127\.0\.0\.1:3001;/);
+    // The one route under /api that is the storefront's own.
+    expect(text).toMatch(/location = \/api\/revalidate \{\s+proxy_pass http:\/\/127\.0\.0\.1:3000;/);
+    // The admin image serves at its own root, so the prefix is stripped here.
+    expect(text).toMatch(/location \/admin\/ \{\s+proxy_pass http:\/\/127\.0\.0\.1:8080\/;/);
+    expect(text).toMatch(/location = \/admin \{\s+return 301 \/admin\/;/);
+    expect(text).toMatch(/location \/ \{\s+proxy_pass http:\/\/127\.0\.0\.1:3000;/);
+  });
+
+  it('both examples forward the host with its port, or the storefront refuses its own forms', () => {
+    // Next aborts a Server Action whose `x-forwarded-host` differs from the
+    // request's `Origin`. nginx's `$host` has no port, so behind a proxy on any
+    // port but 80/443 every form on the storefront answered 500 — found by the
+    // first real run of this layout, on a port of its own.
+    for (const path of ['deploy/nginx.paths.example.conf', 'deploy/nginx.example.conf']) {
+      const text = fileAt(withAdmin(), path);
+      expect(text, path).toContain('proxy_set_header X-Forwarded-Host  $http_host;');
+      expect(text, path).toContain('proxy_set_header Host              $http_host;');
+      expect(text, path).not.toMatch(/proxy_set_header (Host|X-Forwarded-Host)\s+\$host;/);
+    }
+  });
+
+  it('an instance with no admin member routes nothing to one', () => {
+    const text = conf(planInput());
+    expect(text).not.toContain('location /admin/');
+    expect(text).toContain('location /api/');
+  });
+
+  it('is a single-host file: three machines have no one host to put it on', () => {
+    expect(
+      deployFilesOf(withAdmin({ topology: 'three-host' })).some((file) =>
+        file.path.endsWith('nginx.paths.example.conf'),
+      ),
+    ).toBe(false);
+  });
+
+  it('the admin image is built for a base path from a committed file, not a build argument', () => {
+    // The build arguments are the per-instance declaration's and nothing else
+    // (`instance-build-inputs.ts`); a base path is a fact of the tree, so it
+    // lives in the file Vite reads for a production build.
+    const dockerfile = fileAt(withAdmin(), 'deploy/Dockerfile.admin');
+    expect(dockerfile).toContain('admin/.env.production');
+    expect(dockerfile).toContain('ADMIN_BASE_PATH=/admin/');
+    expect(dockerfile).not.toContain('ARG ADMIN_BASE_PATH');
+  });
+
+  it('the scaffolded Vite configuration reads the base path, and defaults to the root', () => {
+    const config = fileAt(withAdmin(), 'admin/vite.config.ts');
+    expect(config).toContain("env['ADMIN_BASE_PATH']");
+    expect(config).toMatch(/base,\n/);
+    expect(config).toContain("|| '/'");
+  });
+
+  it('the README says which file, how the admin is built for it, and what to reserve', () => {
+    const readme = fileAt(withAdmin(), 'deploy/README.md');
+    const section = readme.slice(at(readme, '## One host, with paths'));
+    expect(section).toContain('nginx.paths.example.conf');
+    expect(section).toContain('admin/.env.production');
+    expect(section).toContain('ADMIN_BASE_PATH=/admin/');
+    expect(section).toContain('--public-url');
+    expect(section).toMatch(/reserve/i);
+    expect(section).toContain('/api/revalidate');
   });
 });
 

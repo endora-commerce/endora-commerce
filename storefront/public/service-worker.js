@@ -107,6 +107,11 @@ self.addEventListener('fetch', (event) => {
   // Never cache API/business responses — prices/stock/cart must stay fresh (FR-014).
   if (url.pathname.startsWith('/api/')) return;
 
+  // Never answer for the admin. Where one host serves the storefront at `/` and
+  // the admin under `/admin`, this worker's scope covers both, and an operator's
+  // screen is not the shop's to cache or to replace with its offline page.
+  if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) return;
+
   // With caching disabled, behave like a plain site (network-first, no writes).
   if (!cachingEnabled) {
     event.respondWith(fetch(request).catch(() => fallbackToOffline(request)));

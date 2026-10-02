@@ -1236,7 +1236,10 @@ describe('138 FR-002 / FR-010 / FR-012 / FR-013 — what a selection requires, a
         revalidateSecret: 'x',
       }),
     );
-    for (const flag of ['--admin-url', '--storefront-url', '--sales-channel', '--revalidate-secret']) {
+    // `--admin-url` is the admin's own address, so a run that stands the admin
+    // up has a use for it (FR-025) and it is not among the refused.
+    expect(message).not.toContain('`--admin-url`');
+    for (const flag of ['--storefront-url', '--sales-channel', '--revalidate-secret']) {
       expect(message, flag).toContain(`\`${flag}\``);
     }
     expect(message).not.toContain('`--api-url`');
@@ -1748,6 +1751,139 @@ describe('138 FR-020 — the closing block is about this machine, and says what 
     expect((await runInstall(only(api, 'api', { adminUrl: THE_ADMIN, run: recorder().run }))).answers).toBe(
       '[answers] resolved: total=10 flags=8 prompted=0 recommended=2 (api-url, storefront-url) defaulted=0',
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// specs/138-separate-components, addendum — layout (b): one host with paths
+// ---------------------------------------------------------------------------
+
+describe('138 FR-023…FR-027 — one host with paths: the storefront at /, the admin under /admin, the API under /api', () => {
+  const HOST = 'https://example.com';
+  const env = (path: string): Map<string, string> => {
+    const values = new Map<string, string>();
+    for (const line of readFileSync(path, 'utf8').split('\n')) {
+      const match = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(line);
+      if (match !== null) values.set(match[1]!, match[2]!);
+    }
+    return values;
+  };
+
+  it('`--public-url` on the admin alone: built against the host, for the base path /admin', async () => {
+    const root = host({ admin: true });
+    const result = await runInstall(only(root, 'admin', { publicUrl: HOST, run: recorder().run }));
+    expect(env(join(root, 'acme-shop', 'admin', '.env'))).toEqual(
+      new Map([
+        ['VITE_API_BASE_URL', HOST],
+        ['ADMIN_BASE_PATH', '/admin/'],
+      ]),
+    );
+    expect(result.steps.map((step) => step.id)).toEqual(['install', 'build-admin']);
+    // The block is about this layout on this machine too: where the preview
+    // answers — under the base path — and the routing the one host owes.
+    const text = result.output.join('\n');
+    expect(text).toContain('the admin bundle, on http://localhost:3002/admin/');
+    expect(text).toContain(`One host, with paths (${HOST})`);
+    expect(text).not.toContain('For this admin that is the address it is served at');
+  });
+
+  it('`--admin-url` with a base path of its own, on the admin alone', async () => {
+    const root = host({ admin: true });
+    await runInstall(
+      only(root, 'admin', { apiUrl: THE_API, adminUrl: 'https://example.com/back/office', run: recorder().run }),
+    );
+    expect(env(join(root, 'acme-shop', 'admin', '.env')).get('ADMIN_BASE_PATH')).toBe('/back/office/');
+  });
+
+  it('an admin with no base path writes none: the bundle is the one built before', async () => {
+    const root = host({ admin: true });
+    await runInstall(only(root, 'admin', { apiUrl: THE_API, adminUrl: THE_ADMIN, run: recorder().run }));
+    expect(env(join(root, 'acme-shop', 'admin', '.env')).has('ADMIN_BASE_PATH')).toBe(false);
+  });
+
+  it('`--public-url` on the API: one origin in the allow-list, and the admin\'s address with its path', async () => {
+    const root = host({ origins: true, mfa: true });
+    await runInstall(only(root, 'api', { publicUrl: HOST, run: recorder().run }));
+    const instance = env(join(root, 'acme-shop', '.env'));
+    expect(instance.get('PUBLIC_API_BASE_URL')).toBe(HOST);
+    expect(instance.get('STOREFRONT_BASE_URL')).toBe(HOST);
+    expect(instance.get('ADMIN_BASE_URL')).toBe(`${HOST}/admin`);
+    // Origins, each once: a path is not part of what a browser sends as `Origin`.
+    expect(instance.get('CORS_ALLOWED_ORIGINS')).toBe(HOST);
+  });
+
+  it('`--public-url` on the storefront alone: the API and the shop are one address', async () => {
+    const root = checkoutFixture();
+    await runInstall(
+      only(root, 'storefront', { publicUrl: HOST, revalidateSecret: 'x', run: recorder().run }),
+    );
+    const shop = env(join(root, 'acme-shop', '.env'));
+    expect(shop.get('NEXT_PUBLIC_API_BASE_URL')).toBe(HOST);
+    expect(shop.get('BACKEND_BASE_URL')).toBe(HOST);
+    expect(shop.get('NEXT_PUBLIC_SITE_URL')).toBe(HOST);
+  });
+
+  it('all three behind one proxy on this machine: the proxy\'s port is nobody\'s `PORT`', async () => {
+    const root = checkoutFixture({ admin: true, origins: true });
+    const result = await runInstall(
+      options(root, { storefront: true, publicUrl: 'http://localhost:48080', run: recorder().run }),
+    );
+    const shop = env(join(root, 'acme-shop-storefront', '.env'));
+    expect(shop.has('PORT')).toBe(false);
+    expect(shop.get('NEXT_PUBLIC_SITE_URL')).toBe('http://localhost:48080');
+    expect(shop.get('NEXT_PUBLIC_API_BASE_URL')).toBe('http://localhost:48080');
+    // Its own server still reaches the API beside it directly.
+    expect(shop.get('BACKEND_BASE_URL')).toBe('http://localhost:3001');
+    const admin = env(join(root, 'acme-shop', 'admin', '.env'));
+    expect(admin.has('PORT')).toBe(false);
+    expect(admin.get('ADMIN_BASE_PATH')).toBe('/admin/');
+    expect(env(join(root, 'acme-shop', '.env')).get('CORS_ALLOWED_ORIGINS')).toBe('http://localhost:48080');
+    // FR-028 — the routing the one host owes, said once.
+    const text = result.output.join('\n');
+    expect(text).toContain('One host, with paths (http://localhost:48080)');
+    expect(text).toContain('/api/revalidate');
+    expect(text).toContain('/assets/file/');
+    expect(text).toContain('/admin/');
+    expect(text).toContain('deploy/nginx.paths.example.conf');
+  });
+
+  it('FR-024 — `--public-url` beside one of the three it stands for is refused', async () => {
+    const root = host({ admin: true });
+    const message = await refusalOf(only(root, 'admin', { publicUrl: HOST, apiUrl: THE_API }));
+    expect(message).toContain('`--public-url`');
+    expect(message).toContain('`--api-url`');
+    expect(message).toContain('Pass one');
+  });
+
+  it('FR-024 — `--public-url` is the host: a path on it is refused', async () => {
+    const root = host({ admin: true });
+    const message = await refusalOf(only(root, 'admin', { publicUrl: 'https://example.com/shop' }));
+    expect(message).toContain('`--public-url https://example.com/shop` is not an origin');
+  });
+
+  it('FR-023 — `--api-url` with a path is refused, saying the API\'s routes already begin with /api', async () => {
+    const root = host({ admin: true });
+    const message = await refusalOf(only(root, 'admin', { apiUrl: 'https://example.com/api' }));
+    expect(message).toContain('`--api-url https://example.com/api`');
+    expect(message).toContain('/api/v1');
+    expect(message).toContain('https://example.com');
+  });
+
+  it('FR-023 — `--admin-url` with a trailing slash or a query is refused', async () => {
+    const root = host({ admin: true });
+    for (const value of ['https://example.com/admin/', 'https://example.com/admin?x=1']) {
+      const message = await refusalOf(only(root, 'admin', { apiUrl: THE_API, adminUrl: value }));
+      expect(message).toContain(`\`--admin-url ${value}\``);
+      expect(message).toContain('base path');
+    }
+  });
+
+  it('FR-025 — `--admin-url` is still refused where neither the admin nor the API is stood up', async () => {
+    const root = checkoutFixture();
+    const message = await refusalOf(
+      only(root, 'storefront', { apiUrl: THE_API, storefrontUrl: THE_SHOP, revalidateSecret: 'x', adminUrl: THE_ADMIN }),
+    );
+    expect(message).toContain('`--admin-url`');
   });
 });
 

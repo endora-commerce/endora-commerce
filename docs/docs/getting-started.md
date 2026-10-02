@@ -207,7 +207,8 @@ can be checked from one machine.
    `NEXT_PUBLIC_API_BASE_URL` are written into the bundles, so a changed API origin means building
    both again, not restarting them.
 3. **The three public origins must be same-site** — one registrable domain, as in
-   `api.example.com`, `admin.example.com` and `shop.example.com`. The session cookies are
+   `api.example.com`, `admin.example.com` and `shop.example.com`, or one host with paths
+   ([below](#one-host-with-paths)). The session cookies are
    `SameSite=Lax`, so a browser does not send them from a page on another site. Nothing checks
    this for you.
 4. **An admin shows the screens of the modules its own tree installed.** Build it from the same
@@ -217,6 +218,41 @@ When the address you give is a `localhost` one with a port — `--storefront-url
 http://localhost:4000` — it is also the port that component is served on, on this machine: the
 run writes it as `PORT` where the component reads it.
 
+### One host, with paths {#one-host-with-paths}
+
+The three do not need a name each. The other supported layout is **one host**: the storefront at
+`/`, the admin under `/admin`, the API under `/api`.
+
+```bash
+npx create-endora-commerce@latest my-shop --public-url https://example.com
+```
+
+`--public-url` is the three addresses in one flag — `--api-url https://example.com`,
+`--storefront-url https://example.com` and `--admin-url https://example.com/admin` — and it works
+with `--only` as well, on each machine in turn. It is refused beside any of those three. At a
+terminal, a run that stands up only some components asks which layout you use before it asks any
+address, and the second choice is one question instead of three.
+
+Three things are particular to this layout:
+
+- **The API's address is the host itself**, not `https://example.com/api`. The API's routes already
+  begin with `/api/v1`, so whatever answers on the host passes `/api/` on unchanged. `--api-url`
+  with a path is refused, and says this.
+- **The admin is built for its path.** The run writes `ADMIN_BASE_PATH=/admin/` into `admin/.env`;
+  the admin's asset addresses and its screens' addresses all start there. Like the API origin it
+  is fixed when the admin is built. `--admin-url` takes any base path
+  (`https://example.com/back-office`), not only `/admin`.
+- **Something has to route by path**, and the closing summary lists the routes: `/api/` and
+  `/assets/file/` to the API; `/api/revalidate`, exactly, to the storefront (it is the one route
+  under `/api` that is the storefront's own); `/admin/` to the admin, answering its `index.html`
+  for every path it does not hold; everything else to the storefront. The instance's
+  `deploy/nginx.paths.example.conf` is that routing written out for nginx.
+
+The browser's requests are same-origin in this layout, so `CORS_ALLOWED_ORIGINS` — which the run
+still writes, with the one origin in it — matters only to a client on another origin. A storefront
+page at `/admin` or `/api` can never be reached, so reserve both words in the `cms` module's
+reserved-segments Setting.
+
 ### Every flag
 
 | Flag | What it does |
@@ -224,7 +260,8 @@ run writes it as `PORT` where the component reads it.
 | `<dir>` | Where the instance goes. It must be empty, or hold nothing but a `.env` you placed there. |
 | `--only <component>` | Which of `api`, `admin`, `storefront` this run stands up on this machine. Repeatable, or comma-separated. Absent: all three. |
 | `--api-url <origin>` | The API's public origin. Required without `api` in `--only`; with it, what the API is told its own public address is. |
-| `--admin-url <origin>` | Where the admin is served, for the API's `CORS_ALLOWED_ORIGINS`. Only with `api`. |
+| `--public-url <origin>` | One host with paths: the storefront at `/`, the admin under `/admin`, the API under `/api`. Stands for the three address flags below, and is refused beside any of them. |
+| `--admin-url <origin>[/<path>]` | Where the admin is served. With `api`: its entry in `CORS_ALLOWED_ORIGINS` and `ADMIN_BASE_URL`. With `admin`: the base path the bundle is built for, when the address has one. |
 | `--storefront-url <origin>` | Where the storefront is served. Required for a storefront without `api`; with `api`, the API's allow-list entry and `STOREFRONT_BASE_URL`. |
 | `--sales-channel <code>` | The Sales Channel a storefront stood up without `api` sells on. Default `default`. |
 | `--revalidate-secret <secret>` | The secret the API and the storefront share. Required for a storefront without `api`; otherwise generated once when not given, written and never printed. |

@@ -169,7 +169,13 @@ export async function startLocalRegistry(options: {
       response.end();
       return;
     }
-    Readable.fromWeb(reply.body as import('node:stream/web').ReadableStream).pipe(response);
+    // An upstream that breaks off mid-body — npmjs resets an HTTP/2 stream now
+    // and then — ends this one response. Unhandled, the stream's `error` is an
+    // uncaught exception: it took a whole acceptance run down, past its
+    // `finally`, with its containers still up. The client retries a torn fetch.
+    const body = Readable.fromWeb(reply.body as import('node:stream/web').ReadableStream);
+    body.on('error', () => response.destroy());
+    body.pipe(response);
   };
 
   const server = createServer((request, response) => {

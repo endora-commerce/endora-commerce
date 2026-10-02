@@ -45,9 +45,42 @@ export interface AdminRootProps {
    * cannot name a file in the project that consumes it.
    */
   readonly contributions: readonly AdminRegistryEntry[];
+  /**
+   * The path this admin is served under — `/admin` — when it is not the root.
+   *
+   * Defaults to the bundle's own base ({@link routerBasename} over Vite's
+   * `import.meta.env.BASE_URL`), so a project that builds with
+   * `base: '/admin/'` gets a router under `/admin` with nothing else to set:
+   * one value, the bundler's, moves the asset URLs and the routes together.
+   */
+  readonly basename?: string | undefined;
 }
 
-export function AdminRoot({ contributions }: AdminRootProps): ReactNode {
+/**
+ * The router's basename for a bundler `base`.
+ *
+ * `'/admin/'` is `'/admin'`; the root — `'/'`, the empty string, and Vite's
+ * relative `'./'` — is no basename at all, which is the router this shell has
+ * always mounted.
+ */
+export function routerBasename(base: string | undefined): string | undefined {
+  if (base === undefined || !base.startsWith('/')) return undefined;
+  const trimmed = base.replace(/\/+$/, '');
+  return trimmed.length === 0 ? undefined : trimmed;
+}
+
+/**
+ * The base the bundle was built with. Vite replaces the expression at build
+ * time in the consuming project, exactly as it does `VITE_API_BASE_URL`
+ * (`@endora-commerce/admin-kit`'s api client); outside a Vite build it is
+ * absent and the router sits at the root.
+ */
+function bundleBase(): string | undefined {
+  return (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL;
+}
+
+export function AdminRoot({ contributions, basename }: AdminRootProps): ReactNode {
+  const under = basename ?? routerBasename(bundleBase());
   return (
     <StrictMode>
       {/*
@@ -60,7 +93,7 @@ export function AdminRoot({ contributions }: AdminRootProps): ReactNode {
         spelling at runtime, which is why the peer floor is past the rename;
         `admin/test/components/AdminRoot.transitions.test.tsx` holds it.
       */}
-      <BrowserRouter useTransitions={false}>
+      <BrowserRouter useTransitions={false} {...(under === undefined ? {} : { basename: under })}>
         <AuthProvider>
           <App contributions={contributions} />
         </AuthProvider>

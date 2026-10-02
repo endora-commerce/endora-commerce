@@ -118,6 +118,7 @@ import { HOST_DIRECTORY_PREFIX, hostNpmrc, readReleaseIndex, writeHost } from '.
 import {
   COMPONENT_VOCABULARY,
   EVERYTHING,
+  parseAddress,
   parseOrigin,
   questionIdsFor,
   resolveSelection,
@@ -246,8 +247,20 @@ export interface InstallOptions {
    * is this run's.
    */
   readonly apiUrl?: string | undefined;
-  /** The admin's public origin — `--admin-url` — for the API's allow-list. */
+  /**
+   * The admin's public address — `--admin-url`: an origin, optionally with the
+   * base path the admin is served under (`https://example.com/admin`). For the
+   * API it is the allow-list entry and `ADMIN_BASE_URL`; for the admin, what
+   * the bundle is built for.
+   */
   readonly adminUrl?: string | undefined;
+  /**
+   * One host with paths — `--public-url` (D-284 clause 5 b): the storefront at
+   * `/`, the admin under `/admin`, the API under `/api`. It stands for
+   * `--api-url`, `--storefront-url` and `--admin-url <origin>/admin`, and is
+   * refused beside any of them.
+   */
+  readonly publicUrl?: string | undefined;
   /**
    * The storefront's public origin — `--storefront-url`: its own
    * `NEXT_PUBLIC_SITE_URL`, and the API's `STOREFRONT_BASE_URL` and allow-list.
@@ -957,6 +970,8 @@ function writeAdminEnv(
   targetDir: string,
   values: {
     readonly apiOrigin: string | undefined;
+    /** The base path the bundle is built for, with its trailing slash; `undefined` is `/`. */
+    readonly basePath?: string | undefined;
     /** The port to write, with why this run chose it; `undefined` writes none. */
     readonly port: { readonly value: number; readonly why: string } | undefined;
   },
@@ -970,6 +985,15 @@ function writeAdminEnv(
       '# admin is built, so changing it means `pnpm run build:admin` again, not a restart.',
     );
     entries.set('VITE_API_BASE_URL', values.apiOrigin);
+  }
+  if (values.basePath !== undefined) {
+    header.push(
+      '#',
+      '# ADMIN_BASE_PATH is the path this admin is served under. vite.config.ts reads it as',
+      '# `base`, so every asset URL and the router start there; like the API origin it is fixed',
+      '# when the admin is built, and whatever serves the bundle has to answer under the same path.',
+    );
+    entries.set('ADMIN_BASE_PATH', values.basePath);
   }
   if (values.port !== undefined) {
     header.push(
@@ -1284,26 +1308,96 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   }
 
   // ── the other machines (138 FR-011…FR-013) ───────────────────────────────
-  const originOf = (flag: string, value: string | undefined): string | undefined => {
+  const given138 = (value: string | undefined): boolean =>
+    value !== undefined && value.trim().length > 0;
+  const originOf = (flag: string, value: string | undefined, whyNoPath = ''): string | undefined => {
     if (value === undefined || value.trim().length === 0) return undefined;
     const origin = parseOrigin(value);
     if (origin === null) {
+      const withPath = parseAddress(value);
       refusals.add(
         `\`${flag} ${value}\` is not an origin: scheme and host, an optional port, no path — ` +
-          'as in `https://api.example.com` or `http://10.0.0.5:3001`.',
+          'as in `https://api.example.com` or `http://10.0.0.5:3001`.' +
+          (withPath !== null && whyNoPath.length > 0 ? ` ${whyNoPath} Pass \`${flag} ${withPath.origin}\`.` : ''),
       );
       return undefined;
     }
     return origin;
   };
-  const given138 = (value: string | undefined): boolean =>
-    value !== undefined && value.trim().length > 0;
-  const apiUrl = originOf('--api-url', options.apiUrl);
-  const adminUrl = originOf('--admin-url', options.adminUrl);
-  const storefrontUrl = originOf('--storefront-url', options.storefrontUrl);
+  // ── one host with paths (138 FR-024, D-284 clause 5 b) ───────────────────
+  // `--public-url` stands for the three addresses, so it is expanded here and
+  // everything below reads the three as if they had been typed.
+  const publicOrigin = originOf(
+    '--public-url',
+    options.publicUrl,
+    'It names the one host; the paths are the layout\'s own — the storefront at `/`, the admin ' +
+      'under `/admin`, the API under `/api`.',
+  );
+  if (given138(options.publicUrl)) {
+    const beside = [
+      ...(given138(options.apiUrl) ? ['--api-url'] : []),
+      ...(given138(options.adminUrl) ? ['--admin-url'] : []),
+      ...(given138(options.storefrontUrl) ? ['--storefront-url'] : []),
+    ];
+    if (beside.length > 0) {
+      refusals.add(
+        `\`--public-url\` was given beside ${beside.map((flag) => `\`${flag}\``).join(', ')}, ` +
+          'and it already stands for all three addresses: the storefront at `/`, the admin under ' +
+          '`/admin`, the API under `/api`, on one host. Pass one or the other.',
+      );
+    }
+  }
+  const oneHost = publicOrigin !== undefined;
+  const typed = {
+    apiUrl: oneHost ? publicOrigin : options.apiUrl,
+    // Each applied where the selection has a use for it: the storefront's
+    // address means nothing to a run that stands up the admin alone.
+    storefrontUrl: oneHost
+      ? standsUpApi || wantsStorefront
+        ? publicOrigin
+        : undefined
+      : options.storefrontUrl,
+    adminUrl: oneHost
+      ? standsUpApi || has('admin')
+        ? `${publicOrigin}/admin`
+        : undefined
+      : options.adminUrl,
+  };
+  const apiUrl = originOf(
+    '--api-url',
+    typed.apiUrl,
+    "The API's routes already begin with `/api/v1`, so under one host with paths its address is " +
+      'the host itself.',
+  );
+  const storefrontUrl = originOf(
+    '--storefront-url',
+    typed.storefrontUrl,
+    'The storefront is served at `/`; only the admin can be given a base path.',
+  );
+  // FR-023 — the admin's address may carry the base path its bundle is built for.
+  const adminAddress = ((): ReturnType<typeof parseAddress> => {
+    if (!given138(typed.adminUrl)) return null;
+    const address = parseAddress(typed.adminUrl!);
+    if (address === null) {
+      refusals.add(
+        `\`--admin-url ${typed.adminUrl!}\` is not an address: an origin — scheme and host, an ` +
+          'optional port — and, optionally, the base path the admin is served under, as in ' +
+          '`https://admin.example.com` or `https://example.com/admin`. No trailing slash, no ' +
+          'query and no fragment.',
+      );
+    }
+    return address;
+  })();
+  const adminUrl = adminAddress?.origin;
+  const adminBasePath = adminAddress?.basePath ?? '';
+  // Two components at one origin are behind something that routes by path, so
+  // a port in that origin is the proxy's and not either component's own.
+  const sharedOrigin = (origin: string | undefined): boolean =>
+    origin !== undefined &&
+    [apiUrl, adminUrl, storefrontUrl].filter((other) => other === origin).length > 1;
   const salesChannel = given138(options.salesChannel) ? options.salesChannel!.trim() : undefined;
   if (selection !== null) {
-    if (!standsUpApi && !given138(options.apiUrl)) {
+    if (!standsUpApi && !given138(typed.apiUrl)) {
       refusals.add(
         '`--api-url` is required: this run does not stand the API up, so it has to be told ' +
           'where the API is — its public origin, as in `https://api.example.com`. It is ' +
@@ -1311,7 +1405,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       );
     }
     if (!standsUpApi && wantsStorefront) {
-      if (!given138(options.storefrontUrl)) {
+      if (!given138(typed.storefrontUrl)) {
         refusals.add(
           "`--storefront-url` is required: the storefront's own public origin, as in " +
             '`https://shop.example.com`. Every canonical link, the sitemap and robots.txt are ' +
@@ -1340,7 +1434,9 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
         ...(given138(admin.password) ? ['--admin-password'] : []),
         ...(given138(admin.firstName) ? ['--admin-first-name'] : []),
         ...(given138(admin.lastName) ? ['--admin-last-name'] : []),
-        ...(given138(options.adminUrl) ? ['--admin-url'] : []),
+        // The admin's address is the admin's too (FR-025): only a run with
+        // neither has no use for it.
+        ...(!has('admin') && given138(options.adminUrl) ? ['--admin-url'] : []),
       ];
       if (noApi.length > 0) {
         refusals.add(
@@ -1373,7 +1469,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       }
     }
     const noStorefrontHere = [
-      ...(!standsUpApi && !wantsStorefront && given138(options.storefrontUrl)
+      ...(!standsUpApi && !wantsStorefront && given138(typed.storefrontUrl)
         ? ['--storefront-url']
         : []),
       ...(!standsUpApi && !wantsStorefront && given138(options.salesChannel)
@@ -1559,7 +1655,10 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     ? await decideLayerPort(
         { name: 'the admin', fallback: ADMIN_DEFAULT_PORT, file: join(targetDir, 'admin', '.env') },
         undefined,
-        { port: loopbackPort(adminUrl), flag: '--admin-url' },
+        {
+          port: adminBasePath === '' && !sharedOrigin(adminUrl) ? loopbackPort(adminUrl) : undefined,
+          flag: '--admin-url',
+        },
         portInUse,
         assigned,
       )
@@ -1570,7 +1669,10 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       : await decideLayerPort(
           { name: 'the storefront', fallback: STOREFRONT_DEFAULT_PORT, file: join(storefrontDir, '.env') },
           readTargetEnv(storefrontDir).get('PORT'),
-          { port: loopbackPort(storefrontUrl), flag: '--storefront-url' },
+          {
+            port: sharedOrigin(storefrontUrl) ? undefined : loopbackPort(storefrontUrl),
+            flag: '--storefront-url',
+          },
           portInUse,
           assigned,
         );
@@ -1580,6 +1682,11 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
   const adminOrigin = adminUrl ?? `http://localhost:${String(adminPort?.port ?? ADMIN_DEFAULT_PORT)}`;
   const storefrontOrigin =
     storefrontUrl ?? `http://localhost:${String(storefrontPort?.port ?? STOREFRONT_DEFAULT_PORT)}`;
+  // The admin's whole address: its origin and, where it has one, its base path.
+  const adminAddressUrl = `${adminOrigin}${adminBasePath}`;
+  // D-284 clause 5 (b): the admin under a path of the host the storefront is at.
+  const pathLayout =
+    adminBasePath !== '' && (adminOrigin === storefrontOrigin || adminOrigin === apiOrigin);
 
   // FR-153 — generated **once**, for two trees; and, since D-284 clause 3, by a
   // run that stands the API up without the storefront, which is then the side
@@ -1657,6 +1764,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       apiUrl ?? (standsUpApi && apiPort !== API_DEFAULT_PORT ? `http://localhost:${apiPort}` : undefined);
     const wrote = writeAdminEnv(targetDir, {
       apiOrigin: builtAgainst,
+      basePath: adminBasePath === '' ? undefined : `${adminBasePath}/`,
       port:
         adminPort === null || adminPort.written === null
           ? undefined
@@ -1676,9 +1784,13 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     const storefrontMoved = storefrontPort?.moved === true;
     const told = new Map<string, string>();
     if (apiUrl !== undefined) told.set('PUBLIC_API_BASE_URL', apiUrl);
-    if (adminUrl !== undefined || adminMoved) told.set('ADMIN_BASE_URL', adminOrigin);
+    if (adminUrl !== undefined || adminMoved) told.set('ADMIN_BASE_URL', adminAddressUrl);
     if (storefrontUrl !== undefined || storefrontMoved) told.set('STOREFRONT_BASE_URL', storefrontOrigin);
-    if (told.size > 0) told.set('CORS_ALLOWED_ORIGINS', `${adminOrigin},${storefrontOrigin}`);
+    // Origins, each once (FR-027): a base path is no part of what a browser
+    // sends as `Origin`, and one host with paths is one entry.
+    if (told.size > 0) {
+      told.set('CORS_ALLOWED_ORIGINS', [...new Set([adminOrigin, storefrontOrigin])].join(','));
+    }
     const wrote = writeDeclared(targetDir, told);
     if (wrote.length > 0) {
       say(`  wrote into .env: ${wrote.join(', ')} — where this API and the other two are reached`);
@@ -1765,6 +1877,9 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       apiPortBusy: standsUpApi ? await portInUse(Number(apiPort)) : false,
       apiOrigin,
       adminOrigin,
+      adminAddressUrl,
+      adminBasePath,
+      pathLayout,
       storefrontOrigin,
       adminPort,
       storefrontPort,
@@ -2044,6 +2159,12 @@ function closing(input: {
   /** Where a browser reaches each of the three, as this run was told or decided. */
   readonly apiOrigin: string;
   readonly adminOrigin: string;
+  /** The admin's address with its base path, when it has one. */
+  readonly adminAddressUrl: string;
+  /** The base path the admin bundle was built for — `/admin` — or `''`. */
+  readonly adminBasePath: string;
+  /** One host with paths (D-284 clause 5 b): the block states the routing. */
+  readonly pathLayout: boolean;
   readonly storefrontOrigin: string;
   /** Where the admin and the storefront are served on this machine, when they are. */
   readonly adminPort: LayerPort | null;
@@ -2079,7 +2200,9 @@ function closing(input: {
   // address is the thing the operator opens next.
   const adminAt =
     input.adminPort !== null && (input.adminPort.moved || !api)
-      ? `, on http://localhost:${String(input.adminPort.port)}`
+      ? `, on http://localhost:${String(input.adminPort.port)}${
+          input.adminBasePath === '' ? '' : `${input.adminBasePath}/`
+        }`
       : '';
   const shopAt =
     input.storefrontPort !== null && (input.storefrontPort.moved || !api)
@@ -2229,7 +2352,7 @@ function closing(input: {
         : "  - the API's CORS_ALLOWED_ORIGINS must contain the admin's and the storefront's " +
             'origins, exactly as a browser sends them — scheme, host, port, no trailing slash.' +
             `${[
-              ...(adminHere ? [` For this admin that is the address it is served at — ${input.adminOrigin} with the command above.`] : []),
+              ...(adminHere && !input.pathLayout ? [` For this admin that is the address it is served at — ${input.adminOrigin} with the command above.`] : []),
               ...(input.storefrontDir === null ? [] : [` For this storefront that is ${input.storefrontOrigin}.`]),
             ].join('')}`,
       '  - the admin bundle and the storefront\'s browser values are bound to the API origin at ' +
@@ -2263,6 +2386,26 @@ function closing(input: {
           'storefront to refresh a cached page.',
       );
     }
+  }
+  // 138 FR-028 — one host with paths (D-284 clause 5 b). Nothing here can set
+  // the routing up: it belongs to whatever answers on that host. So it is said,
+  // completely, with the two routes that are not where their prefix suggests.
+  if (input.pathLayout) {
+    const base = input.adminBasePath;
+    lines.push(
+      '',
+      `One host, with paths (${input.adminOrigin}) — whatever answers on that host has to route:`,
+      '  /api/ and /assets/file/     to the API, paths unchanged: its routes already begin with /api/v1',
+      '  /api/revalidate (exactly)   to the storefront: the one route under /api that is its own',
+      `  ${base}/`.padEnd(30) +
+        `to the admin bundle, answering ${base}/index.html for every path it does not hold`,
+      '  everything else             to the storefront',
+      ...(input.instance === null
+        ? []
+        : [`  ${join(input.targetDir, 'deploy/nginx.paths.example.conf')} is that routing, written out.`]),
+      "  A browser's requests are same-origin in this layout, so CORS_ALLOWED_ORIGINS matters only " +
+        'to a client on another origin.',
+    );
   }
   // R2.5f (iv) — every answer taken as a recommendation, said to be one, with
   // what reverses it. A recommendation nobody is told they accepted is a

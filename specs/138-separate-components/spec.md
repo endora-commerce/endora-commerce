@@ -180,9 +180,86 @@ same output.
 
 Clause 5 was proposed as *"Supported layouts are same-site"* and amended by the owner when
 accepting the ruling: *"in 5 I would give the option of subdomains of one domain, or the format
-`domain/admin` for the admin UI and `domain/api` for the API, as both supported solutions."* This
-feature's code implements layout (a). Layout (b) is a follow-up to it: the origin flags refuse a
-path today and the admin bundle has no base path.
+`domain/admin` for the admin UI and `domain/api` for the API, as both supported solutions."* Layout
+(a) is FR-001…FR-022; layout (b) is the addendum below (FR-023…FR-032).
+
+## Addendum — layout (b): one host with paths
+
+Added for D-284 clause 5 (b). Everything above stands; this section adds the second supported
+layout. Tasks T12–T20 in `tasks.md`.
+
+### What the code says (measured on `feat/138-separate-components` at `8af78c8a8`)
+
+| Fact | Where |
+| --- | --- |
+| Every route the API registers is already under `/api/v1/…`, with **one** exception: the public asset route `/assets/file/:assetId` | `packages/modules/*/src/backend/routes*.ts`; `packages/modules/assets_library/src/backend/routes.public.ts` |
+| The storefront serves one route of its own under `/api`: `/api/revalidate`, which the API calls at `STOREFRONT_BASE_URL` | `storefront/app/api/revalidate/route.ts`, `packages/platform/src/http/storefront-revalidator.ts` |
+| The storefront serves nothing under `/admin` or `/assets`; its service worker passes `/api/` through and handles every other same-origin request | `storefront/app/reserved-segments.ts`, `storefront/public/service-worker.js` |
+| The admin mounts `<BrowserRouter>` with no `basename`, and its Vite configuration sets no `base` | `packages/admin-shell/src/AdminRoot.tsx`, `adminViteConfig` in `packages/cli/src/new-instance/template.ts` |
+| Two admin screens link with a raw absolute `href` instead of the router | `packages/modules/blog/src/admin/pages/BlogCategoryTreePage.tsx`, `packages/modules/catalog/src/admin/components/ProductsBulkEditDialog.tsx` |
+| Both session cookies are `Path=/` and carry different names, so one host serves both | `packages/modules/admin_users/src/backend/routes.public.ts`, `packages/modules/customers/src/backend/routes.register.ts` |
+
+### Decisions
+
+**D8 — "the API under `/api`" is a real mount, not a stripped prefix.** The API's routes already
+begin with `/api/v1`, so in layout (b) the API's public origin **is the host**: a proxy passes
+`/api/` to the API unchanged, and `--api-url` stays an origin with no path. *Rejected*: a prefix
+the proxy strips (`/api/api/v1/…` in every URL, and a second address for the same route).
+
+**D9 — the admin is the only component with a base path.** `/admin` is a path the admin is
+*built for* (asset URLs, the router's basename), so it is a build-time value like the API origin.
+
+**D10 — the layout is one flag.** `--public-url <origin>` names the one host; the three addresses
+are derived from it. Typing three URLs that must agree is three chances to disagree.
+
+### Functional requirements
+
+- **FR-023** `--admin-url` accepts a **base path** after the origin: one or more segments of
+  `[A-Za-z0-9._~-]`, no trailing slash, no query, no fragment, no `.`/`..` segment
+  (`https://example.com/admin`). `--api-url` and `--storefront-url` stay origins and refuse a
+  path, each with a sentence saying why (D8; the storefront is served at `/`).
+- **FR-024** `--public-url <origin>` selects layout (b). It is `--api-url <origin>`,
+  `--storefront-url <origin>` and `--admin-url <origin>/admin` in one flag, each applied where the
+  selection has a use for it. Giving it together with any of those three is refused. It satisfies
+  the `--api-url` and `--storefront-url` requirements of FR-012/FR-013.
+- **FR-025** `--admin-url` is accepted whenever `admin` **or** `api` is in the run (it was
+  refused without `api`): for the admin it is the address the bundle is built for.
+- **FR-026** When the admin's address has a base path and the admin member is written,
+  `ADMIN_BASE_PATH=<path>/` is written into `admin/.env`; the scaffolded Vite configuration reads
+  it as `base`, and the admin shell's router takes its basename from the bundle's own base. With
+  no base path nothing is written and the bundle is the one built today.
+- **FR-027** With `api` in the run, `ADMIN_BASE_URL` is the admin's full address, path included;
+  `CORS_ALLOWED_ORIGINS` holds **origins** only, each once — in layout (b) that is one entry.
+- **FR-028** The closing block of a layout (b) run states the routing the one host owes:
+  `/api/` and `/assets/file/` to the API, `/api/revalidate` (exactly) and everything else to the
+  storefront, `/admin/` to the admin with `index.html` as the fallback; and that the browser's
+  requests are same-origin, so the allow-list matters only to a client on another origin.
+- **FR-029** `deploy/` gains `nginx.paths.example.conf` for the single-host topology — one
+  `server` block with those routes — and `deploy/README.md` and `Dockerfile.admin` say how the
+  admin image is built for a base path.
+- **FR-030** The wizard, for a strict subset, asks the layout before any address:
+
+  ```
+  How are the API, the admin and the storefront reached?
+     1. one address each — api.example.com, admin.example.com, shop.example.com
+     2. one address, with paths — the storefront at /, the admin under /admin, the API under /api
+  [1] 
+  ```
+
+  `2` asks one question — `The address, e.g. https://example.com: ` — and none of the three
+  address questions. Enter is `1`, and the questions of FR-018 follow as before. The question is
+  skipped when any address flag was given.
+- **FR-031** The storefront does not answer under `/admin`: its service worker leaves `/admin`
+  requests alone, as it leaves `/api/`. A CMS page slugged `admin` or `api` would be unreachable
+  in this layout; `deploy/README.md` says to reserve both in the `cms` reserved-segments Setting.
+- **FR-032** `acceptance:separate-components --layout paths` stands the three up behind one
+  reverse proxy on one port and proves P1–P6 of contract §7.6.
+
+### Not in this addendum
+
+A base path for the storefront or for the API; a second admin base path chosen by the wizard
+(`--admin-url` takes any); TLS in the example beyond what `nginx.example.conf` already leaves to
+certbot.
 
 ## Open questions
 

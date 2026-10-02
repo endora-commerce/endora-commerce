@@ -1200,11 +1200,11 @@ function nginxBlock(
     '    location / {',
     `        proxy_pass http://${port};`,
     '        proxy_http_version 1.1;',
-    '        proxy_set_header Host              $host;',
+    '        proxy_set_header Host              $http_host;',
     '        proxy_set_header X-Real-IP         $remote_addr;',
     '        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;',
     '        proxy_set_header X-Forwarded-Proto $scheme;',
-    '        proxy_set_header X-Forwarded-Host  $host;',
+    '        proxy_set_header X-Forwarded-Host  $http_host;',
     '        proxy_set_header Upgrade           $http_upgrade;',
     '        proxy_set_header Connection        $connection_upgrade;',
     '        proxy_read_timeout 120s;',
@@ -1230,6 +1230,11 @@ function nginxExample(input: DeployInput): string {
     '#',
     '# The blocks start as plain :80 so certbot has something to attach to. If you',
     '# changed the host ports in .env, change the proxy_pass targets to match.',
+    '#',
+    '# Host and X-Forwarded-Host are $http_host — the name WITH its port, as the',
+    '# browser sent it. The storefront refuses a form submission whose forwarded',
+    '# host differs from the page\'s origin, and on any port but 80 or 443 `$host`',
+    '# alone drops the port and makes them differ.',
     '',
     '# Next.js and the API\'s event streams both need the Connection/Upgrade dance.',
     'map $http_upgrade $connection_upgrade {',
@@ -1259,6 +1264,111 @@ function nginxExample(input: DeployInput): string {
   ]
     .join('\n')
     .replace(/\n+$/, '')}\n`;
+}
+
+/**
+ * The same three loopback ports behind **one** public name, routed by path
+ * (`specs/138-separate-components/` addendum, FR-029; D-284 clause 5 b).
+ *
+ * The order of the blocks is not nginx's — it picks an exact match, then the
+ * longest prefix — it is a reader's: the two routes that are not where their
+ * prefix suggests come first, each with the reason beside it.
+ */
+function nginxPathsExample(input: DeployInput): string {
+  const proxy = (target: string): readonly string[] => [
+    `        proxy_pass http://${target};`,
+    '        proxy_http_version 1.1;',
+    '        proxy_set_header Host              $http_host;',
+    '        proxy_set_header X-Real-IP         $remote_addr;',
+    '        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;',
+    '        proxy_set_header X-Forwarded-Proto $scheme;',
+    '        proxy_set_header X-Forwarded-Host  $http_host;',
+    '        proxy_set_header Upgrade           $http_upgrade;',
+    '        proxy_set_header Connection        $connection_upgrade;',
+    '        proxy_read_timeout 120s;',
+  ];
+  return `${[
+    '# An EXAMPLE reverse-proxy configuration for ONE public name, routed by path:',
+    '#',
+    '#   https://example.com/        the storefront',
+    '#   https://example.com/admin/  the admin',
+    '#   https://example.com/api/    the API',
+    '#',
+    '# It is the alternative to nginx.example.conf, which gives each layer a name of',
+    '# its own. Use one or the other. Like that file it is applied by nothing: copy',
+    '# it, put your own name in, and let certbot rewrite the block in place.',
+    '#',
+    '# What this layout asks of the builds, because both bundles carry their',
+    '# addresses:',
+    '#   - the API origin both frontends are built against is the host itself,',
+    '#     https://example.com — NOT https://example.com/api. The API\'s routes already',
+    '#     begin with /api/v1, so nothing is stripped and nothing is added;',
+    ...(input.admin
+      ? [
+          '#   - the admin is built for the base path: the line `ADMIN_BASE_PATH=/admin/` in',
+          '#     admin/.env.production, committed. Its asset URLs and its router start there.',
+        ]
+      : []),
+    '# `endora install --public-url https://example.com` writes all of that for an',
+    '# instance it stands up.',
+    '#',
+    '# Host and X-Forwarded-Host are $http_host — the name WITH its port. The',
+    '# storefront refuses a form submission whose forwarded host differs from the',
+    '# page\'s origin, and on any port but 80 or 443 `$host` alone drops the port.',
+    '',
+    'map $http_upgrade $connection_upgrade {',
+    '    default upgrade;',
+    "    ''      close;",
+    '}',
+    '',
+    'server {',
+    '    listen 80;',
+    '    listen [::]:80;',
+    '    server_name example.com;',
+    '',
+    '    # Asset uploads and bulk imports go to the API through this name too.',
+    '    client_max_body_size 100m;',
+    '',
+    '    # The one route under /api that is the STOREFRONT\'s own: the API calls it to',
+    '    # refresh a cached page. An exact match wins over the prefix below.',
+    '    location = /api/revalidate {',
+    ...proxy('127.0.0.1:3000'),
+    '    }',
+    '',
+    '    # The API. No trailing slash on proxy_pass: the path is passed on unchanged.',
+    '    location /api/ {',
+    ...proxy('127.0.0.1:3001'),
+    '    }',
+    '',
+    '    # The API\'s one route outside /api: the public address of an uploaded asset.',
+    '    location /assets/file/ {',
+    ...proxy('127.0.0.1:3001'),
+    '    }',
+    '',
+    ...(input.admin
+      ? [
+          '    # The admin. The trailing slash on proxy_pass strips /admin/, because the',
+          '    # admin image serves its bundle at its own root — and answers index.html for',
+          '    # every path it does not hold, which is what makes a reloaded screen work.',
+          '    location = /admin {',
+          '        return 301 /admin/;',
+          '    }',
+          '    location /admin/ {',
+          ...proxy('127.0.0.1:8080/'),
+          '    }',
+          '',
+        ]
+      : [
+          '    # There is deliberately no /admin/ block: this instance was scaffolded',
+          '    # without the admin member, so there is no admin artefact to route to.',
+          '',
+        ]),
+    '    # Everything else is the storefront.',
+    '    location / {',
+    ...proxy('127.0.0.1:3000'),
+    '    }',
+    '}',
+  ].join('\n')}\n`;
 }
 
 // ── the image examples ─────────────────────────────────────────────────────
@@ -1396,6 +1506,11 @@ function adminDockerfile(input: DeployInput): string {
     'COPY . .',
     '',
     ...argDeclarations('admin'),
+    '# The path the bundle is served under is fixed at build time too. It is `/`',
+    '# unless the admin shares a host with the storefront (nginx.paths.example.conf):',
+    '# then commit `admin/.env.production` holding the line `ADMIN_BASE_PATH=/admin/`.',
+    '# Vite reads that file for a production build, it holds no secret, and it is in',
+    '# this build\'s context — where the git-ignored `admin/.env` is not guaranteed to be.',
     '# The layer\'s own build command. It runs `endora generate` first, so the',
     '# registry the bundle is built from is this install\'s.',
     'RUN pnpm run build:admin',
@@ -1451,6 +1566,32 @@ function deployReadme(input: DeployInput, written: readonly string[]): string {
           'change and a new module\'s install hooks are applied before anything serves a request.',
           'Point your host nginx at the loopback ports (see `nginx.example.conf`) and let certbot',
           'handle TLS.',
+          '',
+          '## One host, with paths',
+          '',
+          '`nginx.example.conf` gives each layer a public name of its own. The other supported',
+          'layout puts all three behind **one** name and routes by path — the storefront at `/`,',
+          'the admin under `/admin`, the API under `/api` — and `nginx.paths.example.conf` is that',
+          'routing. Use one file or the other. Three things differ from the per-name layout:',
+          '',
+          '1. **The API origin the frontends are built against is the host itself**',
+          '   (`https://example.com`), not `https://example.com/api`: the API\'s routes already',
+          '   begin with `/api/v1`, so the proxy passes `/api/` on unchanged.',
+          ...(input.admin
+            ? [
+                '2. **The admin is built for its base path**: commit `admin/.env.production` holding',
+                '   `ADMIN_BASE_PATH=/admin/`. Without it the bundle asks for its assets at `/assets/…`,',
+                '   which on this host is not the admin.',
+              ]
+            : ['2. *(This instance has no admin member, so there is no admin to build for a path.)*']),
+          '3. **Two routes are not where their prefix suggests.** `/api/revalidate` is the',
+          '   storefront\'s own route and `/assets/file/` is the API\'s; the example has both.',
+          '',
+          'On this host a storefront page at `/admin` or `/api` can never be reached, so reserve',
+          'both words in the `cms` module\'s reserved-segments Setting before an editor saves a CMS',
+          'page under either. `endora install --public-url https://example.com` writes the',
+          'addresses for this layout into an instance it stands up; here they are the three',
+          'domain variables in `.env`, all set to the one name.',
         ]
       : [
           'Three machines, in this order. The order matters once, on a first bring-up: the',
@@ -1552,6 +1693,9 @@ function describeFile(path: string): string {
   }
   if (path === '.env.example') return 'what that stack reads on every start. Copy to `.env` beside it; `.env` is git-ignored';
   if (path === 'nginx.example.conf') return 'a reverse-proxy block per public name, for the nginx already on the host';
+  if (path === 'nginx.paths.example.conf') {
+    return 'the alternative to it: ONE public name, routed by path — the storefront at `/`, the admin under `/admin`, the API under `/api`';
+  }
   if (path === 'three-host/compose.backend.yml') {
     return 'the backend machine: the database, the cache, the search engine, the migration job and the API. Every stateful service is here';
   }
@@ -1629,6 +1773,7 @@ export function deployFiles(input: DeployInput): readonly DeployFile[] {
       ),
     );
     write('nginx.example.conf', nginxExample(input));
+    write('nginx.paths.example.conf', nginxPathsExample(input));
   } else {
     const hosts: readonly HostName[] = input.admin
       ? ['backend', 'storefront', 'admin']

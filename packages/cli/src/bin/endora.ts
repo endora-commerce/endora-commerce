@@ -65,8 +65,9 @@ Usage:
                             [--registry <url>] [--topology single-host|three-host] [--demo]
                             [--dry-run]
   endora new storefront <dir> [--registry <url>] [--<input> <value>...] [--dry-run]
-  endora install [<dir>] [--only api|admin|storefront[,...]] [--api-url <origin>]
-                         [--admin-url <origin>] [--storefront-url <origin>]
+  endora install [<dir>] [--only api|admin|storefront[,...]] [--public-url <origin>]
+                         [--api-url <origin>] [--admin-url <origin>[/<path>]]
+                         [--storefront-url <origin>]
                          [--sales-channel <code>] [--revalidate-secret <secret>]
                          [--admin-email <e>] [--admin-password <p>] [--admin-first-name <f>]
                          [--admin-last-name <l>] [--demo | --no-demo] [--without <member>...]
@@ -204,9 +205,17 @@ Options for \`install\`:
                                 \`--only\`: the admin bundle and the storefront are
                                 built against it. With \`api\`, it is what the API is
                                 told its own public address is
-  --admin-url <origin>          where the admin is served, for the API's allow-list
-                                (\`CORS_ALLOWED_ORIGINS\`). Not given, its development
-                                address stands
+  --public-url <origin>         one host with paths: the storefront at \`/\`, the admin
+                                under \`/admin\`, the API under \`/api\`. It stands for
+                                \`--api-url <origin>\`, \`--storefront-url <origin>\` and
+                                \`--admin-url <origin>/admin\`, and is refused beside
+                                any of them. What answers on that host has to route
+                                by path; the closing block says how
+  --admin-url <origin>[/<path>] where the admin is served: for the API, its allow-list
+                                entry (\`CORS_ALLOWED_ORIGINS\`) and \`ADMIN_BASE_URL\`;
+                                for the admin, the base path its bundle is built for
+                                (\`https://example.com/admin\`). Not given, its
+                                development address stands
   --storefront-url <origin>     where the storefront is served. Required for a
                                 storefront without \`api\`; with \`api\` it is the
                                 API's allow-list entry and where it sends revalidation
@@ -406,6 +415,7 @@ function parse(argv: readonly string[], declaredInputFlags: readonly string[] = 
       'api-url': { type: 'string' },
       'admin-url': { type: 'string' },
       'storefront-url': { type: 'string' },
+      'public-url': { type: 'string' },
       'sales-channel': { type: 'string' },
       demo: { type: 'boolean' },
       'no-demo': { type: 'boolean' },
@@ -812,6 +822,9 @@ async function runInstallCommand(
       ...(asString(parsed.values['storefront-url']) === undefined
         ? {}
         : { storefrontUrl: asString(parsed.values['storefront-url'])! }),
+      ...(asString(parsed.values['public-url']) === undefined
+        ? {}
+        : { publicUrl: asString(parsed.values['public-url'])! }),
       ...(asString(parsed.values['sales-channel']) === undefined
         ? {}
         : { salesChannel: asString(parsed.values['sales-channel'])! }),

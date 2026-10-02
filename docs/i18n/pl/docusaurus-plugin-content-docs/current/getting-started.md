@@ -211,7 +211,8 @@ z nich nie da się sprawdzić z jednej maszyny.
    `NEXT_PUBLIC_API_BASE_URL` są zapisywane w paczkach, więc zmiana adresu API oznacza ponowne
    zbudowanie obu, a nie restart.
 3. **Trzy publiczne adresy muszą być same-site** — w jednej rejestrowalnej domenie, jak
-   `api.example.com`, `admin.example.com` i `shop.example.com`. Ciasteczka sesji mają
+   `api.example.com`, `admin.example.com` i `shop.example.com`, albo na jednym hoście ze
+   ścieżkami ([poniżej](#one-host-with-paths)). Ciasteczka sesji mają
    `SameSite=Lax`, więc przeglądarka nie wysyła ich ze strony w innej witrynie. Nic tego za Ciebie
    nie sprawdza.
 4. **Panel pokazuje ekrany modułów, które zainstalowało jego własne drzewo.** Zbuduj go z tego
@@ -221,6 +222,41 @@ Gdy podany adres jest adresem `localhost` z portem — `--storefront-url http://
 jest to zarazem port, na którym ten komponent jest serwowany na tej maszynie: uruchomienie
 zapisuje go jako `PORT` tam, skąd komponent go odczytuje.
 
+### Jeden host, ze ścieżkami {#one-host-with-paths}
+
+Te trzy komponenty nie potrzebują osobnych nazw. Drugi obsługiwany układ to **jeden host**: sklep
+pod `/`, panel pod `/admin`, API pod `/api`.
+
+```bash
+npx create-endora-commerce@latest my-shop --public-url https://example.com
+```
+
+`--public-url` to trzy adresy w jednej fladze — `--api-url https://example.com`,
+`--storefront-url https://example.com` i `--admin-url https://example.com/admin` — i działa także
+z `--only`, na każdej maszynie po kolei. Podana obok którejkolwiek z tych trzech jest odrzucana.
+W terminalu uruchomienie, które stawia tylko część komponentów, pyta o układ, zanim zapyta
+o jakikolwiek adres, a drugi wybór to jedno pytanie zamiast trzech.
+
+Trzy rzeczy są właściwe temu układowi:
+
+- **Adresem API jest sam host**, a nie `https://example.com/api`. Ścieżki API i tak zaczynają się
+  od `/api/v1`, więc to, co odpowiada na hoście, przekazuje `/api/` bez zmian. `--api-url` ze
+  ścieżką jest odrzucana i to właśnie mówi.
+- **Panel jest budowany dla swojej ścieżki.** Uruchomienie zapisuje `ADMIN_BASE_PATH=/admin/`
+  w `admin/.env`; adresy zasobów panelu i adresy jego ekranów zaczynają się właśnie tam. Podobnie
+  jak adres API, jest to ustalane w chwili budowania panelu. `--admin-url` przyjmuje dowolną
+  ścieżkę bazową (`https://example.com/back-office`), nie tylko `/admin`.
+- **Coś musi kierować ruch według ścieżki**, a podsumowanie wymienia trasy: `/api/`
+  i `/assets/file/` do API; dokładnie `/api/revalidate` do sklepu (to jedyna trasa pod `/api`
+  należąca do sklepu); `/admin/` do panelu, z `index.html` dla każdej ścieżki, której panel nie
+  ma; wszystko pozostałe do sklepu. Plik `deploy/nginx.paths.example.conf` w instancji to te
+  trasy zapisane dla nginx.
+
+W tym układzie żądania przeglądarki są same-origin, więc `CORS_ALLOWED_ORIGINS` — które
+uruchomienie nadal zapisuje, z tym jednym adresem — ma znaczenie tylko dla klienta z innego
+adresu. Strona sklepu pod `/admin` albo `/api` nigdy nie będzie osiągalna, więc zarezerwuj oba
+słowa w ustawieniu zarezerwowanych segmentów modułu `cms`.
+
 ### Wszystkie flagi
 
 | Flaga | Co robi |
@@ -228,7 +264,8 @@ zapisuje go jako `PORT` tam, skąd komponent go odczytuje.
 | `<dir>` | Gdzie trafia instancja. Katalog musi być pusty albo zawierać wyłącznie umieszczony przez Ciebie plik `.env`. |
 | `--only <component>` | Które z `api`, `admin`, `storefront` to uruchomienie stawia na tej maszynie. Wielokrotnie albo po przecinku. Brak: wszystkie trzy. |
 | `--api-url <origin>` | Publiczny adres API. Wymagana, gdy w `--only` nie ma `api`; z `api` — to, co API dostaje jako własny publiczny adres. |
-| `--admin-url <origin>` | Gdzie serwowany jest panel — dla `CORS_ALLOWED_ORIGINS` w API. Tylko z `api`. |
+| `--public-url <origin>` | Jeden host ze ścieżkami: sklep pod `/`, panel pod `/admin`, API pod `/api`. Zastępuje trzy poniższe flagi adresów; podana obok którejkolwiek z nich jest odrzucana. |
+| `--admin-url <origin>[/<path>]` | Gdzie serwowany jest panel. Z `api`: jego wpis w `CORS_ALLOWED_ORIGINS` i `ADMIN_BASE_URL`. Z `admin`: ścieżka bazowa, dla której budowana jest paczka, jeśli adres ją zawiera. |
 | `--storefront-url <origin>` | Gdzie serwowany jest sklep. Wymagana dla sklepu bez `api`; z `api` — wpis na liście dozwolonych adresów API i `STOREFRONT_BASE_URL`. |
 | `--sales-channel <code>` | Kanał sprzedaży, na którym sprzedaje sklep postawiony bez `api`. Domyślnie `default`. |
 | `--revalidate-secret <secret>` | Sekret wspólny dla API i sklepu. Wymagana dla sklepu bez `api`; w pozostałych przypadkach, gdy jej nie podasz, generowana raz, zapisywana i nigdy nie wypisywana. |

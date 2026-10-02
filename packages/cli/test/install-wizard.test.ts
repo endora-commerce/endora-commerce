@@ -405,14 +405,14 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
   });
 
   it('none of the three checked re-asks, and says why', async () => {
-    const { io, screen } = terminal(['acme', '1 2 3', '', '1', '', '', '', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
+    const { io, screen } = terminal(['acme', '1 2 3', '', '1', '', '', '', '', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
     const outcome = await askWizard({}, io, HERE);
     expect(screen()).toContain('  keep at least one of api, admin, storefront.');
     expect(outcome.answers.only).toEqual(['api']);
   });
 
   it('the admin alone: where the API is, and nothing about a database or an administrator', async () => {
-    const { io, screen } = terminal(['acme', '1 3', '', '', 'api.example.com', 'https://api.example.com']);
+    const { io, screen } = terminal(['acme', '1 3', '', '', '', 'api.example.com', 'https://api.example.com']);
     const outcome = await askWizard({}, io, HERE);
     const text = screen();
     // An empty required answer re-asks, and so does a value that is not an origin.
@@ -434,7 +434,7 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
   });
 
   it('the storefront alone: the API, its own origin, the channel and the secret', async () => {
-    const answers = ['acme', '1 2', '', 'https://api.example.com', 'https://shop.example.com', '', '', 's3cret-the-api-holds'];
+    const answers = ['acme', '1 2', '', '', 'https://api.example.com', 'https://shop.example.com', '', '', 's3cret-the-api-holds'];
     const { io, screen } = terminal(answers);
     const outcome = await askWizard({}, io, HERE);
     const text = screen();
@@ -468,7 +468,7 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
     // that writes none has no member to leave out, and handing the command
     // `--without docs` would be the wizard producing a flag the command then
     // refuses — after every question had been answered.
-    const { io } = terminal(['acme', '1 2 4', '', 'https://api.example.com', 'https://shop.example.com', '', 's']);
+    const { io } = terminal(['acme', '1 2 4', '', '', 'https://api.example.com', 'https://shop.example.com', '', 's']);
     const outcome = await askWizard({}, io, HERE);
     expect(outcome.answers.only).toEqual(['storefront']);
     expect(outcome.answers.without).toEqual([]);
@@ -479,6 +479,7 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
       'acme',
       '2 3',
       '',
+      '', // the layout: one address each
       '', // this API: the recommendation
       'https://admin.example.com/', // not an origin: asked again
       'https://admin.example.com',
@@ -501,6 +502,71 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
     expect(outcome.answers.storefrontUrl).toBeUndefined();
     expect(outcome.recommended).toEqual(['api-url', 'storefront-url']);
     expect(outcome.prompted).toContain('admin-url');
+  });
+
+  it('FR-030 — the layout is asked before any address, and Enter is one address each', async () => {
+    const { io, screen } = terminal(['acme', '1 3', '', '', 'https://api.example.com']);
+    const outcome = await askWizard({}, io, HERE);
+    const text = screen();
+    expect(text).toContain(
+      [
+        'How are the API, the admin and the storefront reached?',
+        '   1. one address each — api.example.com, admin.example.com, shop.example.com',
+        '   2. one address, with paths — the storefront at /, the admin under /admin, the API under /api',
+        '[1] ',
+      ].join('\n'),
+    );
+    expect(text.indexOf('How are the API')).toBeLessThan(text.indexOf('Where is the API?'));
+    expect(outcome.answers.publicUrl).toBeUndefined();
+    expect(outcome.answers.apiUrl).toBe('https://api.example.com');
+  });
+
+  it('FR-030 — "one address, with paths" is one question, and none of the three address questions', async () => {
+    const { io, screen } = terminal([
+      'acme',
+      '2 3', // the API alone
+      '',
+      '3', // not a choice: asked again
+      '2',
+      'https://example.com/shop', // not an origin: asked again
+      'https://example.com',
+      'n',
+      'n',
+      'e@x.io',
+      'pw',
+      'A',
+      'B',
+    ]);
+    const outcome = await askWizard({}, io, HERE);
+    const text = screen();
+    expect(text).toContain('  type 1 or 2.');
+    expect(asked(text, 'The address, e.g. https://example.com: ')).toBe(2);
+    for (const question of ['Where is this API reachable', 'Where will the admin', 'Where will the storefront']) {
+      expect(text, question).not.toContain(question);
+    }
+    expect(outcome.answers).toMatchObject({ only: ['api'], publicUrl: 'https://example.com' });
+    expect(outcome.answers.apiUrl).toBeUndefined();
+    expect(outcome.prompted).toEqual(expect.arrayContaining(['api-url', 'admin-url', 'storefront-url']));
+    expect(outcome.recommended).toEqual([]);
+  });
+
+  it('FR-030 — the storefront alone under one address is still asked the channel and the secret', async () => {
+    const { io, screen } = terminal(['acme', '1 2', '', '2', 'https://example.com', '', 's3cret']);
+    const outcome = await askWizard({}, io, HERE);
+    expect(screen()).not.toContain('Where is the API?');
+    expect(screen()).toContain('Sales channel code [default]: ');
+    expect(outcome.answers).toMatchObject({ publicUrl: 'https://example.com', revalidateSecret: 's3cret' });
+  });
+
+  it('FR-030 — an address flag answers the layout: it is not asked', async () => {
+    const { io, screen } = terminal(['acme', '1 3', '']);
+    await askWizard({ apiUrl: 'https://api.example.com' }, io, HERE);
+    expect(screen()).not.toContain('How are the API');
+    const second = terminal(['acme', '1 3', '']);
+    const outcome = await askWizard({ publicUrl: 'https://example.com' }, second.io, HERE);
+    expect(second.screen()).not.toContain('How are the API');
+    expect(second.screen()).not.toContain('Where is the API?');
+    expect(outcome.answers.publicUrl).toBe('https://example.com');
   });
 
   it('a question whose flag was given is not asked', async () => {
@@ -538,7 +604,7 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
   it('SC-107 — the wizard and `--non-interactive` write the same admin-only tree', async () => {
     const wizardRoot = host({ admin: true });
     // Rows: 1 api, 2 admin, 3 docs — no storefront can be written from here.
-    const { io } = terminal(['acme-shop', '1', '', 'https://api.example.com']);
+    const { io } = terminal(['acme-shop', '1', '', '', 'https://api.example.com']);
     const wizardSteps = recorder();
     const wizard = await runInstall({
       cwd: wizardRoot,
