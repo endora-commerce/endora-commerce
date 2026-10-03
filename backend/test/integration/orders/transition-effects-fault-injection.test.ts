@@ -38,6 +38,11 @@ import { CreditLimit, PaymentMethod } from '../../helpers/package-entities.js';
  *  7. a release keeps failing across the first sweep as well;
  *  8. the owner is switched off under a handler that had found it present.
  *
+ * Every case keeps a second order alive beside the cancelled one, so the stock
+ * counter and the active credit are above zero when the release runs — the
+ * release clamps the counter at zero, and against an empty counter a doubled
+ * decrement cannot be told from a single one.
+ *
  * Points 3 and 5 are the "ran, but nobody wrote that down" case: the release is
  * run a second time by the sweep, which is safe only because both owners'
  * releases are idempotent — and that is asserted here, on the stock counter and
@@ -248,8 +253,15 @@ describe('faults between the commit and the last release strand nothing (spec 14
   ];
 
   it.each(FAULTS)('fault $point', async ({ arm, expectedStatus }) => {
+    // A second, live order that keeps its stock and its credit throughout.
+    // Without it the counter starts at zero, and a release that decremented
+    // twice would be clamped back to zero and look exactly like one that
+    // decremented once: the bystander is what gives "exactly once" something
+    // to be wrong about.
+    const bystander = await place();
     const reservedBefore = await reservedStock();
     const creditBefore = await activeCredit();
+    expect(reservedBefore).toBeGreaterThan(0);
     const orderId = await place();
     expect(await heldAllocations(orderId)).toBe(1);
     expect(await reservation(orderId)).toBe('active');
@@ -279,5 +291,8 @@ describe('faults between the commit and the last release strand nothing (spec 14
     // they were before this order existed, also when a release ran twice.
     expect(await reservedStock()).toBe(reservedBefore);
     expect(await activeCredit()).toBe(creditBefore);
+    // ...and the bystander still holds what it held.
+    expect(await heldAllocations(bystander)).toBe(1);
+    expect(await reservation(bystander)).toBe('active');
   });
 });
