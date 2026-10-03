@@ -20,7 +20,7 @@ calling `sweep()`.
 
 ## Phase 0 — premises (measure; leave nothing in the tree)
 
-- [ ] **T00** Pin today's behaviour before changing it. Write
+- [x] **T00** Pin today's behaviour before changing it. Write
   `backend/test/integration/orders/transition-failure-states.test.ts` with one case per row 1–7 of
   the spec's *What a failure leaves behind today*, asserting the **target** behaviour (SC-001), and
   confirm each is red for the reason the row gives. Inject failures by replacing the port in the
@@ -28,6 +28,12 @@ calling `sweep()`.
   spec's table in this task before going on.
   Files: the test; `specs/142-order-transition-atomicity/spec.md` only if a row is wrong.
   **Test**: itself — seven red cases.
+  *Measured on `af6e32ab3`*: all seven rows reproduce as the table states — row 1 answers 503 with
+  the order `cancelled`, stock and credit held and no announcement; rows 2 and 4 answer 500 in the
+  same state (row 4 with the credit already released); row 3 answers 200 with the allocation held;
+  row 6 lists the moved order under `skipped` as `terminal`; row 7 answers 503 with `paymentStatus
+  = paid`. Row 5 cannot be executed in-process and is represented by every step after the commit
+  failing, with recovery driven by the sweep alone. The table needed no correction.
 
 - [ ] **T01** Verify plan premises 1–4 (*Handoff*): run `check:port-dependencies`,
   `check:entry-presence` and `check:port-catches` against a throwaway branch containing an
