@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -35,5 +35,34 @@ describe.each(PAGES)('migrations page — %s', (page) => {
     const quoted = /\[fk-drift\][\s\S]*?\(transitively\) in (\S+)\.\n/.exec(text)?.[1];
     expect(quoted, 'the page no longer quotes the [fk-drift] message').toBeDefined();
     expect(existsSync(resolve(repositoryRoot, quoted!)), `${quoted} is not on disk`).toBe(true);
+  });
+
+  it('lists, as an owning directory, only a directory holding migrations of that segment', () => {
+    // The segment table is an inventory: three columns, the first headed as a
+    // location. A row that is a worked example of the naming rule and not a
+    // place reads exactly like one that is, so the table carries locations only
+    // and each is checked against the files that are there.
+    const rows = [...text.matchAll(/^\| `([^`]+\/migrations\/)` \| `([a-z0-9]+)` \| `'([a-z0-9_]+)'` \|$/gm)];
+    expect(rows.map((row) => row[2])).toContain('core');
+    const wrong: string[] = [];
+    for (const [, directory, segment] of rows) {
+      const absolute = resolve(repositoryRoot, directory!);
+      const recognizer = new RegExp(`^\\d{8}T\\d{6}_${segment}_[a-z0-9_]+\\.ts$`);
+      if (!existsSync(absolute) || !readdirSync(absolute).some((file) => recognizer.test(file))) {
+        wrong.push(`${directory} holds no <stamp>_${segment}_*.ts`);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it('places the cross-cutting migrations in the platform package, where they are', () => {
+    expect(text).toContain('`packages/platform/src/migrations/`');
+    // The directory they were in before is named once, in the paragraph that
+    // is history: the scan that looked only there, and what replaced it.
+    const stale = text
+      .split(/\n\s*\n/)
+      .filter((paragraph) => paragraph.includes('src/db/migrations/'))
+      .filter((paragraph) => !paragraph.includes('`^\\d+_<moduleId>_`'));
+    expect(stale).toEqual([]);
   });
 });

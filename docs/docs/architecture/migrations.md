@@ -62,7 +62,7 @@ The convention is:
 | Part | Rule |
 |------|------|
 | Timestamp | UTC, fixed width (15 chars), literal `T` at index 8. No `Z`, no separators. Lexicographically sortable. **Unique within its own module** — two modules may legally share a stamp, because a stamp orders nothing outside its module and two package authors cannot coordinate. |
-| `<SEGMENT>` | The owning module id with a leading underscore stripped; the literal `core` for the cross-cutting migrations in `backend/src/db/migrations/`. |
+| `<SEGMENT>` | The owning module id with a leading underscore stripped; the literal `core` for the cross-cutting migrations in `packages/platform/src/migrations/`. |
 | `<SLUG>` | `snake_case` (`[a-z0-9_]+`) describing the change. |
 
 The **class name is derived mechanically** from the filename: strip the extension,
@@ -81,8 +81,13 @@ Segment normalization has exactly two special cases:
 |------------------|-------------|---------------------|
 | `packages/modules/orders/src/migrations/` | `orders` | `'orders'` |
 | `packages/modules/_i18n/src/migrations/` | `i18n` | `'_i18n'` |
-| `packages/platform/src/lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
-| `backend/src/db/migrations/` | `core` | `'core'` |
+| `packages/platform/src/migrations/` | `core` | `'core'` |
+
+Every row is a directory that exists. `_lifecycle` is the other underscore-prefixed module
+and would take the segment `lifecycle` by the same rule, but it has no row because it has
+no migrations directory: the module is part of the platform package, and its one table is
+created by `20260506T200657_core_module_lifecycle_init.ts` among the cross-cutting
+migrations, under the `core` segment.
 
 **The class-name tail must begin with the module's segment**, and that is a rule now,
 not just a consequence of deriving the name from the path. It is what
@@ -103,7 +108,7 @@ costs and how to ship it.
 
 This section is this **repository's own** modules — a workspace member declaring
 `endora: { type: 'module', id }`, a module under the application's source root, or the
-cross-cutting migrations under `backend/src/db/migrations/`. Both commands below need this
+cross-cutting migrations under `packages/platform/src/migrations/`. Both commands below need this
 repository's layout. If you are writing a module that ships as an installed npm package,
 neither is available to you: skip to
 [How to create a migration in an extension package](#how-to-create-a-migration-in-an-extension-package).
@@ -144,7 +149,7 @@ Register it by regenerating the committed registry, and commit both files:
 pnpm --filter backend run composer:generate
 ```
 
-The generator walks `src/db/migrations/` and every module's own `migrations/`
+The generator walks the platform's `packages/platform/src/migrations/` and every module's own `migrations/`
 directory, located the same way the scaffolder locates it, derives each class name from its filename, and refuses — rather than skips — a file it
 cannot place: an unrecognized `.ts` in a migrations directory, a class the file does
 not export, two files deriving the same name, or a migration under

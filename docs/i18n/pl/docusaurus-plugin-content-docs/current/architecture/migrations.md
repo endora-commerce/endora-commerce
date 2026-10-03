@@ -61,7 +61,7 @@ Konwencja wygląda tak:
 | Część | Reguła |
 |------|------|
 | Znacznik czasu | UTC, stała szerokość (15 znaków), litera `T` na pozycji 8. Bez `Z` i bez separatorów. Można go sortować leksykograficznie. **Unikalny w obrębie własnego modułu** — dwa moduły mogą mieć ten sam znacznik, bo znacznik nie porządkuje niczego poza swoim modułem, a autorzy dwóch pakietów nie mogą się koordynować. |
-| `<SEGMENT>` | Identyfikator modułu-właściciela bez początkowego podkreślenia; dosłownie `core` dla migracji przekrojowych w `backend/src/db/migrations/`. |
+| `<SEGMENT>` | Identyfikator modułu-właściciela bez początkowego podkreślenia; dosłownie `core` dla migracji przekrojowych w `packages/platform/src/migrations/`. |
 | `<SLUG>` | `snake_case` (`[a-z0-9_]+`) opisujący zmianę. |
 
 **Nazwa klasy jest wyprowadzana mechanicznie** z nazwy pliku: usuń rozszerzenie, zapisz każdy
@@ -80,8 +80,12 @@ Normalizacja segmentu ma dokładnie dwa przypadki szczególne:
 |------------------|-------------|---------------------|
 | `packages/modules/orders/src/migrations/` | `orders` | `'orders'` |
 | `packages/modules/_i18n/src/migrations/` | `i18n` | `'_i18n'` |
-| `packages/platform/src/lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
-| `backend/src/db/migrations/` | `core` | `'core'` |
+| `packages/platform/src/migrations/` | `core` | `'core'` |
+
+Każdy wiersz to katalog, który istnieje. `_lifecycle` jest drugim modułem z początkowym
+podkreśleniem i według tej samej reguły otrzymałby segment `lifecycle`, ale nie ma wiersza, bo nie
+ma katalogu migracji: moduł jest częścią pakietu platformy, a jego jedyną tabelę tworzy
+`20260506T200657_core_module_lifecycle_init.ts` wśród migracji przekrojowych, w segmencie `core`.
 
 **Końcówka nazwy klasy musi zaczynać się od segmentu modułu** — i jest to teraz reguła, a nie tylko
 skutek wyprowadzania nazwy ze ścieżki. To ona sprawia, że nazwy klas są globalnie unikalne bez
@@ -100,7 +104,7 @@ kosztuje i jak ją wdrożyć, opisuje sekcja „Blok bazowy i zmiana nazwy wykon
 
 Ta sekcja dotyczy **własnych** modułów tego repozytorium — członka workspace, który deklaruje
 `endora: { type: 'module', id }`, modułu w katalogu źródeł aplikacji albo migracji przekrojowych
-w `backend/src/db/migrations/`. Oba poniższe polecenia wymagają struktury tego repozytorium. Jeśli
+w `packages/platform/src/migrations/`. Oba poniższe polecenia wymagają struktury tego repozytorium. Jeśli
 piszesz moduł dostarczany jako instalowany pakiet npm, żadne z nich nie jest dla ciebie dostępne:
 przejdź do sekcji
 [Jak utworzyć migrację w pakiecie rozszerzenia](#jak-utworzyć-migrację-w-pakiecie-rozszerzenia).
@@ -142,7 +146,7 @@ Zarejestruj migrację, generując ponownie zatwierdzony rejestr, i zatwierdź ob
 pnpm --filter backend run composer:generate
 ```
 
-Generator przechodzi po `src/db/migrations/` i po własnym katalogu `migrations/` każdego modułu,
+Generator przechodzi po katalogu platformy `packages/platform/src/migrations/` i po własnym katalogu `migrations/` każdego modułu,
 odnajdywanym tak samo jak przez generator szkieletu, wyprowadza każdą nazwę klasy z nazwy pliku i
 odrzuca — zamiast pomijać — plik, którego nie potrafi przypisać: nierozpoznany plik `.ts` w katalogu
 migracji, klasę, której plik nie eksportuje, dwa pliki dające tę samą nazwę albo migrację w
