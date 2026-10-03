@@ -58,8 +58,8 @@ którymkolwiek z tych poleceń bez restartu. Moduł nakładkowy zawierający kat
 
 W wydaniach do `0.100.2` włącznie polecenia `module:enable`, `module:disable` i miękkie
 `module:uninstall` wypisywały w instancji komunikat o powodzeniu, niczego nie zmieniając, a twarde
-odinstalowanie było odrzucane. Zaktualizuj pakiety `@endora-commerce/*` instancji do wydania
-nowszego niż `0.100.2`.
+odinstalowanie było odrzucane. Zaktualizuj instancję do nowszego wydania — zobacz
+[Aktualizacja instancji](../upgrading-an-instance.md#before-the-command).
 
 Znaczenie kodów wyjścia:
 

@@ -967,6 +967,11 @@ export function planInstance(input: PlanInput): InstancePlan {
     // It is the CLI's, so it is declared exactly when the CLI is on the root's
     // path — the predicate `generate` and the devDependency already share.
     ...(generatesArtefacts ? { 'dev:all': 'endora dev' } : {}),
+    // One release to the next (`specs/140-instance-upgrade/` FR-009): every
+    // package of the release moved to one version in every member and the
+    // storefront beside the instance, then `setup`. The CLI's, so declared
+    // under the same predicate as `dev:all` and `generate`.
+    ...(generatesArtefacts ? { upgrade: 'endora upgrade' } : {}),
     'module:install': 'pnpm -C backend run module:install',
     'module:uninstall': 'pnpm -C backend run module:uninstall',
     'module:enable': 'pnpm -C backend run module:enable',
@@ -1586,6 +1591,7 @@ const README_COMMANDS: readonly (readonly [script: string, argument: string, not
   ['preview:admin', '', 'the admin bundle you just built, served on its own port'],
   ['dev:all', '', 'the API, the admin preview and the storefront beside this\ndirectory, in one terminal. Ctrl-C stops all of them'],
   ['dev', '', 'the API, rebuilt and restarted as you edit your overlay'],
+  ['upgrade', ' [<version>]', 'every package of the release, here and in the storefront, moved\nto one version (the latest by default), then `setup`. Stop the\nAPI first and restart it after'],
   ['module:status', '', 'what is installed, and what the operator has switched on'],
   ['module:enable', ' <id>', 'whether this deployment offers a module. One that is off\nbehaves as though it were never installed'],
   ['module:disable', ' <id>', ''],
@@ -1652,7 +1658,9 @@ copy of no part of it.
 | \`backend/\` | the entry points: a process that listens, a process that consumes queues, an ORM configuration and the operator commands |
 ${members.admin ? '| `admin/` | the operator interface — the admin shell, mounted over the screens your modules ship |\n' : ''}${members.docs ? '| `docs/` | the documentation site — a page per module, written by the module that ships it |\n' : ''}
 ${String(dependencyCount)} packages are declared today. Every one of them is a dependency, so a
-fix in any of them reaches you through \`pnpm update\` with no file in this tree edited.
+fix in any of them reaches you through an upgrade with no file in this tree edited — and an upgrade
+is ${scripts['upgrade'] !== undefined ? '`pnpm run upgrade`' : '`endora upgrade`'}, not \`pnpm update\`: the release moves as one version, and one of these
+packages is pinned exactly so that only one copy of it is ever installed.
 
 ## The commands this tree declares
 

@@ -394,8 +394,8 @@ Trzy ograniczenia decydują o tym, czym może być pierwszy moduł:
 
 Instancja zapisana przez wydanie `0.100.1` albo `0.100.2` różni się od tej strony w czterech
 miejscach. Dwa pierwsze to pliki, których instalator nie zapisał — naprawiasz je ręcznie. Dwa
-ostatnie naprawiono w pakietach platformy, więc znikają po aktualizacji pakietów
-`@endora-commerce/*` instancji do wydania nowszego niż `0.100.2`.
+ostatnie naprawiono w pakietach platformy, więc znikają po aktualizacji instancji do nowszego
+wydania — zobacz [Aktualizacja instancji](./upgrading-an-instance.md#before-the-command).
 
 | Co | Co widzisz | Co zrobić |
 | --- | --- | --- |

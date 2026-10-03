@@ -11,6 +11,7 @@ const sidebars = {
     'intro',
     'getting-started',
     'create-your-first-module',
+    'upgrading-an-instance',
     {
       type: 'category',
       key: 'admin-ui',
