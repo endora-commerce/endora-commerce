@@ -2,7 +2,7 @@
 
 **Feature directory**: `specs/141-module-block-renderers/`
 **Created**: 2026-10-03
-**Status**: Draft — awaiting the owner's acceptance of the open questions at the end
+**Status**: Accepted — the owner answered Q1 and Q2 on 2026-10-03 (see *Owner answers* at the end)
 **Input**: owner decision of 2026-10-03 — *a third-party module can ship its own Page Builder
 renderers*: a module package (first-party, paid or third-party, and an overlay module in an
 instance where feasible) contributes the React component(s) that render its blocks in the
@@ -275,7 +275,7 @@ No persisted entity is added or changed.
 
 ## Open questions
 
-- **Q1 [NEEDS CLARIFICATION] — install weight of a module package in the storefront.** A module
+- **Q1 — install weight of a module package in the storefront.** A module
   package declares its backend runtime (`@endora-commerce/platform`, `@mikro-orm/*`, `fastify`,
   `ioredis`) as **required** peers, so adding one to a storefront makes pnpm auto-install them —
   installed, never bundled (Next bundles only what the storefront layer imports). The plan keeps one
@@ -287,3 +287,11 @@ No persisted entity is added or changed.
   when one run writes both trees, every installed module that publishes `./storefront` is added to
   the storefront's `dependencies`; afterwards the storefront's manifest is its owner's (D-195). The
   owner may prefer the storefront to start with none.
+
+### Owner answers (2026-10-03)
+
+- **Q1:** measure first (task T00). If the measured install weight is unacceptable, apply the
+  generator rule that makes a module package's backend peers optional; do not split a module into
+  two packages.
+- **Q2:** yes — `endora install` seeds the storefront's dependencies once, when one run writes both
+  trees; afterwards the storefront's manifest belongs to its owner. Task T15 is unblocked.

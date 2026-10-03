@@ -170,7 +170,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   **Test**: `packages/cli/test/new-storefront.test.ts` (extend) — the scaffold contains the five
   files and the two scripts in `package.json`, and `blocks:generate` runs clean in it.
 
-- [ ] **T15** Seeding (plan D12 — **only after the owner answers Q2**): when one `endora install`
+- [ ] **T15** Seeding (plan D12 — Q2 answered *yes* by the owner on 2026-10-03): when one `endora install`
   run writes both trees, every installed module publishing `./storefront` joins the storefront's
   `dependencies` at the release's version rule.
   Files: `packages/cli/src/install/index.ts`.
