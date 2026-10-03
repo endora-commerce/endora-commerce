@@ -1,5 +1,0 @@
----
-'@endora-commerce/cli': patch
----
-
-Four things `endora install` and the trees it writes said that were not true. A `--dry-run` on a machine with a taken port named the mail catcher on the document's default port a few lines after saying it would be published on another; the closing block now uses the ports the run planned. The scaffolded instance README told every reader to run `endora new storefront` next, although `endora install` had already written one beside it, named `generate` as the only command that refuses overlay schema (`migrate`, every `module:*` command and the API at boot refuse it too), and called `module:enable` the operator's switch; it now says where the storefront is and when to write one, lists every refusal, describes the Modules screen, and says where a moved port is written down. `endora new module`'s `--entities` refusal carries the same correction. And a scaffolded storefront now has a `README.md`: what it is, which of its `.env` values are fixed at build time, how `dev`, `build` and `start` run, and where theming is documented.

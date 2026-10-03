@@ -1,5 +1,69 @@
 # @endora-commerce/platform
 
+## 0.101.0
+
+### Patch Changes
+
+- 89b0de3: `@endora-commerce/mod-auth` now peers on `fastify-plugin@^6`, and `@endora-commerce/platform` depends on `^6.0.0`. `@fastify/cookie`, `@fastify/cors` and `@fastify/helmet` moved their own dependency to `fastify-plugin@6`, and pnpm gives a peer the project does not declare the highest version in the graph — so every fresh install handed `mod-auth` `6.0.0` and reported `unmet peer fastify-plugin@^5`. `6.0.0` is the same code as `5.1.0` under a renamed entry file, with the deprecated `PluginOptions` type alias removed; nothing here used it. Nothing to do on upgrade unless your project declares `fastify-plugin` itself, in which case move it to `^6`.
+- 667e9e1: Make the module lifecycle work in an instance: the Modules screen loads, a
+  running process hears a change made elsewhere, and `module:disable`,
+  `module:enable` and `module:uninstall` persist what they report.
+
+  **`GET /api/v1/admin/modules` answered 404 in every instance**, so
+  `/platform/modules` rendered "Resource not found". `_lifecycle` mounts that
+  route only where a `lifecycleOrchestrator` is contributed, and the only
+  composition that contributed one was this repository's own reference
+  deployment; an instance calls `composeApp` and contributes nothing. `composeApp`
+  now builds the lifecycle assembly itself, for every deployment. Nothing changes
+  in an instance's files — upgrading the package is the whole fix.
+
+  **A running instance never heard a module state change made by another
+  process.** The same assembly carries the plugin that subscribes to
+  `b2b:module:state-changed`, so in an instance nothing armed it: an API or worker
+  process kept the presence it booted with until it restarted, whatever
+  `module:disable` or an activation written through another API process had done
+  since. It is armed by `composeApp` now.
+
+  **`module:disable`, `module:enable` and a soft `module:uninstall` printed
+  success and changed nothing.** `ModuleLifecycleOrchestrator` read the
+  `module_registrations` row through one call of its `em` factory and flushed
+  through another, and every production factory forks — so the flush belonged to
+  a unit of work that had never loaded the row. The audit entry was written and
+  the state change published over a row that had not moved; with `--cascade` the
+  dependents were disabled and the target was not. Each operation now loads and
+  flushes through one `EntityManager`. This was not specific to an instance: the
+  reference deployment's own `module:*` scripts fork the same way.
+
+  `lifecycleModuleFromStaticEntries` is no longer exported from
+  `@endora-commerce/platform/lifecycle`. That subpath is host-internal — no module
+  may name it — and the function's one consumer outside the package was the
+  reference deployment's composition root, which no longer builds the assembly.
+
+- be758bb: An overlay module that ships schema is now refused by `migrate` as well, and every entry point prints the refusal as a sentence. `migrate` composes nothing, so over a tree with a `migrations/` directory under `apps/<deployment>/modules/` it applied every package's schema, none of that directory's, and exited 0; the API and the worker refused it, as an uncaught exception with a stack trace. `@endora-commerce/platform/composition` now exports `refuseOverlaySchema(deploymentRoot)`, which prints the refusal and exits 1, and `exitOnRefusal`, for `.catch()` on `composeApp`: it prints an `OverlaySchemaError`'s message and exits 1, and rethrows anything else untouched. `endora new instance` writes both into `backend/src/migrate.ts`, `index.ts` and `worker.ts`, and the operator CLI (`runCli`) prints the same refusal without a stack. An instance written by an earlier release gets the clean message and the `migrate` check by adding those three lines by hand; without them it behaves as before.
+- d9cf1ad: `module:uninstall <id> --hard --force` works in an instance. `instanceOperatorRuntime` supplied no `migrationOwnership`, so the orchestrator refused every hard uninstall with a message about a constructor argument. It now supplies one, read from the installed packages by the same `discoverConfiguredMigrations` call the instance's `mikro-orm.config.js` makes, so the migrations a hard uninstall reverts are the ones `migrate` applied. An overlay module is covered and owns no migration. A module that is itself a lifecycle participant — `admin_actions`, `_i18n` — can now be hard-uninstalled anywhere: the orchestrator ran the module's own `onModuleHardUninstalled` after reverting its migrations, which deleted from a table that no longer existed and exited 70 with the registration row already removed. The module being removed is no longer asked; every other participant still is. After a hard uninstall, `migrate` recreates the tables and `module:install` re-registers the module.
+- d9cf1ad: An overlay module that ships schema now stops the process instead of being composed without it. A `migrations/` or `entities/` directory, or a source declaring an `@Entity()` class, under `apps/<deployment>/modules/<id>/` was refused only by `endora generate`; the API, the worker, the operator CLI and the `module:*` commands read entities and migrations from installed packages alone, so they never looked at it, no table existed, and nothing said so. They now exit with an error naming each file and the remedy before a module is composed or a database is opened; a `module:*` command prints it as one `[manifest]` message and exits 65, as it now does for any refusal raised while the manifest set is resolved (a module id claimed twice was an uncaught exception there too). A bare `migrate` is not covered: it is handed no deployment root. If your instance boots today with such a directory, it will refuse to start after this upgrade — move the entity and its migration into a module package.
+- d919418: `npx create-endora-commerce <dir>` (`endora install`) and `endora new storefront <dir>` now write the storefront **outside a checkout of the platform repository**. The CLI's build runs the same `planStorefront` over the reference storefront and ships the finished plan in `dist/storefront-reference/`; where no checkout is above the working directory the commands write that. Inside a checkout nothing changes: the storefront is still copied from the checkout.
+
+  What a consumer sees:
+  - `--no-storefront` is no longer needed anywhere. `endora install <dir>` writes `<dir>-storefront` beside the instance and installs it; the wizard's parts checklist shows the storefront as a toggleable, pre-checked row.
+  - The packaged reference leaves out the reference storefront's Playwright screenshot baselines (8.4 MB of the 10.8 MB tree) and reports that as an omission, with `pnpm exec playwright test --update-snapshots` as the way to record your own. A checkout's scaffold still copies them.
+  - `--registry <url>` is applied at run time to the packaged plan, through the same code a checkout's plan goes through.
+  - `pnpm pack` / `pnpm publish` of this package refuses a `dist` with no packaged reference (`prepack`). A build made without git or without the storefront tree — a container image — still succeeds and writes none.
+
+  `endora install` also changed in four ways:
+  - **Ports.** Before anything is written, it probes the host ports the development stack publishes. A default that is taken is moved to a free one (`POSTGRES_PORT=15432`, …), written into the instance's `.env`, and the derived `DATABASE_URL` / `REDIS_URL` / `MEILISEARCH_URL` / `SMTP_URL` follow it — they used to be composed from the defaults regardless, so the run died at `dev:services` or, worse, pointed at another project's Redis. A `*_PORT` you set in the target's `.env` is never moved: taken, it is a refusal with nothing written. Addresses are now derived when the target already held a `.env`, too.
+  - **The administrator's password is not printed.** The `[n/N]` echo, `--dry-run` and the resumable list show `--password=<password>`, and the step no longer passes the password as an argument at all: it runs `admin:create -- … --password-stdin` and writes the password to the command's standard input (`InstallStep.stdin`). As an argument it was echoed twice by pnpm and once by the operator CLI's own log.
+  - **The resumable list starts at the step that failed** (it started after it), and each line names its directory.
+  - **The closing block** names the API on the instance's own `PORT` rather than `3001`, says when that port is in use, and under `--no-services` no longer promises a mail catcher. The storefront's `NEXT_PUBLIC_API_BASE_URL` and `BACKEND_BASE_URL` use the same `PORT`.
+
+  API: `NewStorefrontResult.reference` is `StorefrontReference | null` (null when the packaged reference was written) and gains `source`; `NewStorefrontOptions` / `InstallOptions` gain `packagedReferenceDir`; `InstallOptions` gains `portInUse`; `runNewStorefront` and `storefrontDeclaredInputs` no longer throw outside a checkout when the CLI carries a reference. New exports: `resolveStorefrontSource`, `StorefrontSource`, `NoReferenceStorefrontError`, `readPackagedReference`, `ownPackagedReferenceDir`, `PackagedReference`.
+
+  `@endora-commerce/mod-admin-users`: `admin_users create` accepts `--password-stdin` in place of `--password=<p>` and reads the password from standard input. Both at once is refused; `--password=` works as before.
+
+  `@endora-commerce/platform`: the operator CLI no longer logs a credential. The reason it opens a command's system scope with (`tenant.escape_hatch`, `cli: <argv>`) was the raw argv, so `admin_users create --password=…` wrote the password into the log; the value of any `--flag=value` whose name contains `password`, `passphrase`, `secret`, `token`, `credential` or `api-key` is now `<redacted>`.
+
+- @endora-commerce/contracts@0.101.0
+
 ## 0.100.2
 
 ### Patch Changes

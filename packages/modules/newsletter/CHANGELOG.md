@@ -1,5 +1,22 @@
 # @endora-commerce/mod-newsletter
 
+## 0.101.0
+
+### Patch Changes
+
+- Updated dependencies [89b0de3]
+- Updated dependencies [667e9e1]
+- Updated dependencies [be758bb]
+- Updated dependencies [d9cf1ad]
+- Updated dependencies [d9cf1ad]
+- Updated dependencies [d919418]
+  - @endora-commerce/platform@0.101.0
+  - @endora-commerce/admin-kit@0.101.0
+  - @endora-commerce/contracts@0.101.0
+  - @endora-commerce/email-components@0.101.0
+  - @endora-commerce/page-builder-admin@0.101.0
+  - @endora-commerce/page-builder-core@0.101.0
+
 ## 0.100.2
 
 ### Patch Changes

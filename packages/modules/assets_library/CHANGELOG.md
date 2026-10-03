@@ -1,5 +1,20 @@
 # @endora-commerce/mod-assets-library
 
+## 0.101.0
+
+### Patch Changes
+
+- 40ce6f4: `ASSETS_LIBRARY_HMAC_KEY` no longer accepts a placeholder as a signing key. A value beginning `change-me` — what the env examples carried — is not hex, so `HmacSigner.fromEnv` read it as raw bytes and signed private asset links with a string every copy of the example shares. It now throws, naming the key and `openssl rand -hex 32`, exactly where an unset key already did. The `deploy/` examples `endora new instance` writes leave the key empty, with the sentence saying what empty costs. A deployment still running on a copied placeholder will have its private asset links refused until a real key is set.
+- Updated dependencies [89b0de3]
+- Updated dependencies [667e9e1]
+- Updated dependencies [be758bb]
+- Updated dependencies [d9cf1ad]
+- Updated dependencies [d9cf1ad]
+- Updated dependencies [d919418]
+  - @endora-commerce/platform@0.101.0
+  - @endora-commerce/admin-kit@0.101.0
+  - @endora-commerce/contracts@0.101.0
+
 ## 0.100.2
 
 ### Patch Changes
