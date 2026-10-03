@@ -1,97 +1,90 @@
 ---
 title: shipments
-description: Retryowalny rekord Shipment i jego cykl życia — odpowiednik dostawy po stronie płatności
+description: Rekord przesyłki z możliwością ponowienia i jego cykl życia — odpowiednik modułu payments po stronie dostawy
 ---
 
 # `shipments`
 
-Rekord `Shipment` i jego cykl życia.
-Odpowiednik dostawy po stronie `payments`: *katalog* metod dostawy i rejestr
-adapterów żyją w [`delivery_methods`](./delivery_methods.md); ten moduł posiada
-first-class, retryowalny `Shipment` oraz ingress `receive_shipment`.
+Rekord przesyłki (`Shipment`) i jego cykl życia. To odpowiednik modułu `payments` po stronie
+dostawy: *katalog* metod dostawy i rejestr adapterów należą do
+[`delivery_methods`](./delivery_methods.md), a ten moduł odpowiada za pełnoprawny, możliwy do
+ponowienia `Shipment` oraz przyjmowanie wyniku `receive_shipment`.
 
 ## Encja
 
-`Shipment` — jedna próba wygenerowania wysyłki wobec Order:
-`orderId`, `deliveryMethodId`, `status` (`pending` → `success` | `failure`, plus
-`pending_manual`), `externalReference`, `providerDetails` (JSONB),
-`failureReason`, `attemptNo`, timestamps. Order może mieć wiele Shipment
-(retry po nieudanym generowaniu; przyszły podział na wiele paczek). `status`
-tutaj to status procesu wysyłki, odrębny od statusu Order, na który mapuje
-metoda.
+`Shipment` — jedna próba utworzenia przesyłki dla zamówienia: `orderId`, `deliveryMethodId`,
+`status` (`pending` → `success` | `failure`, a także `pending_manual`), `externalReference`,
+`providerDetails` (JSONB), `failureReason`, `attemptNo`, znaczniki czasu. Zamówienie może mieć wiele
+przesyłek (ponowienie po nieudanym utworzeniu; w przyszłości podział na kilka paczek). `status`
+oznacza tu stan procesu wysyłki i jest czymś innym niż status zamówienia, na który przekłada go
+metoda dostawy.
 
-### `pending_manual` — przewoźnik nigdy nie został poproszony
+### `pending_manual` — przewoźnik nigdy nie dostał zlecenia
 
-Wysyłka otwiera się jako `pending_manual`, gdy adapter wskazany przez metodę
-dostawy jest dostarczany przez moduł, którego **nie ma** — wyłączony przez
-operatora lub niedostępny w tym wdrożeniu. Rejestr filtruje ten adapter przy
-enumeracji (polityka contribution-point), więc nic nie jest wysyłane: brak
-etykiety, numeru śledzenia, odbioru. Wiersz rejestruje, co się stało, zamiast
-wyglądać jak każda inna wysyłka:
+Przesyłka powstaje w stanie `pending_manual`, gdy adapter wskazany przez metodę dostawy dostarcza
+moduł, którego **nie ma** — wyłączony przez operatora albo niedostępny w tym wdrożeniu. Rejestr
+pomija taki adapter przy przeglądaniu wpisów (zasada dla punktów wpięcia), więc nic nie zostaje
+wysłane: nie ma etykiety, numeru śledzenia ani odbioru. Wiersz zapisuje, co się stało, zamiast
+wyglądać jak każda inna przesyłka:
 
-- `status = 'pending_manual'`, to samo słowo — i ta sama instrukcja dla tego
-  samego operatora — co zwrot, którego platforma nie mogła rozliczyć
-  automatycznie: *człowiek musi to dokończyć*;
-- `failureReason` nazywa moduł, np. `The "my_carrier" module is not
-  switched on here, so the carrier was never asked to create this shipment.
-  Switch the module back on and generate the shipment again.`;
-- wpis audytu `shipment.carrier_not_contacted` na wysyłce, zapisany
-  współtransakcyjnie z wierszem;
-- **brak** e-maila `shipment_created`. Notifier odpowiada
-  `{ sent: false, reason: 'carrier_not_contacted' }` i loguje to — powiadomienie
-  kupującego, że zamówienie wysłano, gdy nic nie przekazano nikomu, jest gorsze
-  niż brak wiadomości, a to nie jest wiadomość, którą można wycofać.
+- `status = 'pending_manual'` — to samo słowo i ta sama instrukcja dla tego samego operatora co przy
+  zwrocie, którego platforma nie mogła rozliczyć automatycznie: *człowiek musi to dokończyć*;
+- `failureReason` wskazuje moduł, np. `The "my_carrier" module is not switched on here, so the
+  carrier was never asked to create this shipment. Switch the module back on and generate the
+  shipment again.`;
+- wpis audytu `shipment.carrier_not_contacted` dla przesyłki, zapisany w tej samej transakcji co
+  wiersz;
+- **brak** e-maila `shipment_created`. Mechanizm powiadomień zwraca
+  `{ sent: false, reason: 'carrier_not_contacted' }` i zapisuje to w logu — poinformowanie
+  kupującego o wysłaniu zamówienia, gdy nic nikomu nie przekazano, jest gorsze niż brak wiadomości,
+  a takiej wiadomości nie da się cofnąć.
 
-Celowo **nie** jest to `failure` — nic nie zostało odrzucone, bo nic nie
-wysłano — i celowo nie zwykłe `pending`, które oznacza przewoźnika, który wie o
-wysyłce, ale jeszcze nie zgłosił wyniku.
+Celowo **nie** jest to `failure` — nic nie zostało odrzucone, bo nic nie wysłano — i celowo nie
+zwykłe `pending`, które oznacza przewoźnika, który wie o przesyłce, ale jeszcze nie zgłosił wyniku.
 
-Metoda dostawy, której klucz adaptera **nikt nigdy nie dostarczył**, pozostaje
-nietknięta: nadal otwiera `pending`, bo nie ma modułu do włączenia, a metoda
-offline zawsze była kończona ręcznie. Oba przypadki rozróżnia
-`ShippingAdapterRegistry.absentOwnerFor`, nie `get()` — które dla obu zwraca
-`undefined`.
+Metoda dostawy, której klucza adaptera **nikt nigdy nie dostarczył**, działa jak dotąd: nadal
+tworzy przesyłkę `pending`, bo nie ma modułu do włączenia, a metodę offline zawsze kończyło się
+ręcznie. Oba przypadki rozróżnia `ShippingAdapterRegistry.absentOwnerFor`, a nie `get()`, które dla
+obu zwraca `undefined`.
 
-**Odzyskanie to akcja operatora, nie automatyczny sweep.** Włączenie modułu
-z powrotem nic nie zmienia w już otwartych wysyłkach; operator generuje wysyłkę
-ponownie (`POST /api/v1/admin/orders/:id/shipments`), co dopisuje nową próbę i
-pyta przewoźnika. Reagowanie na ustawienie aktywacji oznaczałoby, że platforma
-woła przewoźnika o paczki, które operator mógł już obsłużyć ręcznie, bez
-prośby kogokolwiek. Zakładka Delivery zamówienia pokazuje stan, powód i
-przycisk.
+**Odzyskanie to czynność operatora, a nie automatyczne zadanie.** Ponowne włączenie modułu nie
+zmienia już utworzonych przesyłek; operator ponownie generuje przesyłkę
+(`POST /api/v1/admin/orders/:id/shipments`), co dodaje nową próbę i zleca ją przewoźnikowi.
+Reagowanie na zmianę ustawienia aktywacji oznaczałoby, że platforma bez niczyjej prośby zleca
+przewoźnikowi paczki, które operator mógł już obsłużyć ręcznie. Zakładka Delivery zamówienia
+pokazuje stan, powód i przycisk.
 
-Kiedyś był tu drugi endpoint, `POST .../shipments/retry`, i został
-usunięty: dopisywał próbę n+1 i nie kontaktował adaptera w żadnym stanie, więc
-operator, który go użył, dostawał świeży wiersz `pending`, o który nikt nie
-został poproszony. Retry **to** ponowne generowanie — endpoint generate dopisuje
-kolejną próbę, odmawia dopiero po sukcesie i pyta przewoźnika o nią.
+Kiedyś istniał tu drugi endpoint, `POST .../shipments/retry`, i został usunięty: dodawał próbę n+1,
+ale w żadnym stanie nie kontaktował się z adapterem, więc operator, który go użył, dostawał nowy
+wiersz `pending`, o który nikt nie został poproszony. Ponowienie **to** ponowne wygenerowanie —
+endpoint generowania dodaje kolejną próbę, odmawia dopiero po sukcesie i zleca ją przewoźnikowi.
 
 ## Cykl życia
 
-| Zdarzenie | Wyzwalacz | Efekt |
+| Zdarzenie | Co je wywołuje | Skutek |
 | --- | --- | --- |
-| `order_created` | Utworzenie zamówienia (storefront / admin / API) | Odpala się `onOrderCreated` adaptera wysyłki. Adaptery offline to no-op; **żaden** Shipment nie otwiera się tutaj. |
-| `shipment_created` | Admin „Generate shipment” / API | Otwiera się `pending` Shipment (`attemptNo = max+1`); odpala się `onShipmentCreated` adaptera; emitowane jest `shipment.created.v1`, niosąc stan, w jakim otworzył się wiersz. Przy nieobecnym module adaptera wiersz otwiera `pending_manual` i adapter nie jest wołany — zobacz wyżej. |
-| `receive_shipment` | Ingress przewoźnika/adaptera | Rozwiązywany jest Shipment; Order przechodzi na `statusOnSuccess` / `statusOnFailure` metody; emitowane jest `shipment.received.v1` / `shipment.failed.v1`. |
+| `order_created` | Utworzenie zamówienia (storefront / panel / API) | Wywoływane jest `onOrderCreated` adaptera wysyłki. Adaptery offline nic nie robią; przesyłka **nie** powstaje w tym momencie. |
+| `shipment_created` | „Generate shipment” w panelu albo API | Powstaje przesyłka `pending` (`attemptNo = max+1`); wywoływane jest `onShipmentCreated` adaptera; emitowane jest `shipment.created.v1` ze stanem, w jakim powstał wiersz. Gdy modułu adaptera nie ma, wiersz powstaje jako `pending_manual`, a adapter nie jest wywoływany — zobacz wyżej. |
+| `receive_shipment` | Wynik od przewoźnika lub adaptera | Przesyłka zostaje rozstrzygnięta; zamówienie przechodzi do `statusOnSuccess` / `statusOnFailure` metody dostawy; emitowane jest `shipment.received.v1` / `shipment.failed.v1`. |
 
-`receive_shipment` jest **idempotentny**: sukces po terminalnym `success` to
-no-op; failure po sukcesie jest odrzucany (409, bez downgrade); brakująca /
-już rozwiązana referencja jest odrzucana bez psucia rekordów. Nieudane
-generowanie retryuje się przez ponowne generowanie, które otwiera kolejną próbę
-Shipment i pyta przewoźnika, pozostawiając wcześniejsze próby nienaruszone.
+`receive_shipment` jest **idempotentne**: sukces po końcowym `success` niczego nie zmienia; porażka
+po sukcesie jest odrzucana (409, bez cofania statusu); brakujące lub już rozstrzygnięte odwołanie
+jest odrzucane bez uszkadzania rekordów. Nieudane utworzenie ponawia się, generując przesyłkę
+ponownie — powstaje kolejna próba, która trafia do przewoźnika, a wcześniejsze próby pozostają bez
+zmian.
 
-## Publiczne API
+## API publiczne
 
-| Verb + Path | Odbiorca | Cel |
+| Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `POST /api/v1/admin/orders/:id/shipments` | admin (`orders:write`) | Generuj wysyłkę (`shipment_created`) — i retry po nieudanej, generując kolejną próbę |
-| `GET /api/v1/admin/orders/:id/shipments` | admin (`orders:read`) | Pełna historia wysyłek zamówienia |
-| `POST /api/v1/shipments/receive` | ingress adaptera/przewoźnika (admin-guarded dla MVP) | Ingress wyniku `receive_shipment` |
+| `POST /api/v1/admin/orders/:id/shipments` | administrator (`orders:write`) | Wygenerowanie przesyłki (`shipment_created`) — także ponowienie po nieudanej próbie, przez wygenerowanie kolejnej |
+| `GET /api/v1/admin/orders/:id/shipments` | administrator (`orders:read`) | Pełna historia przesyłek zamówienia |
+| `POST /api/v1/shipments/receive` | adapter lub przewoźnik (w MVP chronione jak trasa administracyjna) | Przyjęcie wyniku `receive_shipment` |
 
-## Mapowanie statusu zamówienia
+## Przekładanie na status zamówienia
 
-Przy wyniku `receive_shipment` handler zapisuje `orders.status` bezpośrednio
-(omijając graf stanów `transitionStatus`) na `statusOnSuccess` / `statusOnFailure`
-metody, walidowane przez port `OrderStatusRegistry` należący do
-`delivery_methods`. Emitowane zdarzenia płyną na in-process `EventBus` w
-transakcyjnym zakresie handlera, więc wycofana transakcja nigdy nie dispatchuje.
+Po otrzymaniu wyniku `receive_shipment` handler zapisuje `orders.status` bezpośrednio (z pominięciem
+grafu przejść `transitionStatus`) jako `statusOnSuccess` / `statusOnFailure` metody dostawy,
+sprawdzane przez port `OrderStatusRegistry` należący do `delivery_methods`. Emitowane zdarzenia
+trafiają na działającą w procesie szynę `EventBus` w zakresie transakcji handlera, więc wycofana
+transakcja nigdy niczego nie wysyła.

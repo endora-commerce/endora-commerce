@@ -1,21 +1,21 @@
 ---
-title: Zablokowana blokada cyklu życia modułu
+title: Zawieszona blokada cyklu życia modułu
 ---
 
-# Zablokowana blokada cyklu życia modułu
+# Zawieszona blokada cyklu życia modułu
 
-CLI cyklu życia modułu (`pnpm module:install`, `pnpm module:uninstall`, `pnpm module:enable`,
-`pnpm module:disable`) serializuje każdą operację zmieniającą stan przez jeden klucz Redis.
-Crash procesu może zostawić ten klucz (albo wiersz rejestru pod spodem) w stanie blokującym
-kolejne polecenia. Ten runbook opisuje wykrywanie i odzyskiwanie.
+Polecenia cyklu życia modułu (`pnpm module:install`, `pnpm module:uninstall`, `pnpm module:enable`,
+`pnpm module:disable`) wykonują operacje zmieniające stan po kolei, pilnując tego jednym kluczem w
+Redis. Awaria procesu może zostawić ten klucz (albo wiersz rejestru, który chroni) w stanie
+blokującym kolejne polecenia. Ta instrukcja opisuje, jak to wykryć i naprawić.
 
 ## Objawy
 
 - Polecenie cyklu życia kończy się kodem **75** i komunikatem *"lifecycle lock is held by another process"*.
-- Ponowienie polecenia (po kilku minutach) nadal daje ten sam błąd exit-75, choć żaden inny
-  operator nie powinien nic uruchamiać.
-- `pnpm module:status --json | jq '.modules[] | select(.state == "installing")'` listuje
-  jeden lub więcej modułów utkniętych w `installing`.
+- Ponowienie polecenia (po kilku minutach) nadal kończy się kodem 75, choć żaden inny operator nie
+  powinien niczego uruchamiać.
+- `pnpm module:status --json | jq '.modules[] | select(.state == "installing")'` wypisuje jeden
+  lub więcej modułów, które utknęły w stanie `installing`.
 
 ## Wykrywanie
 
@@ -29,17 +29,17 @@ Możliwe wyniki:
 
 | Wynik | Diagnoza |
 | --- | --- |
-| `(nil)` | Blokada wolna. Exit-75 musi pochodzić ze stale wiersza rejestru `installing` — zob. „Utknięty wiersz rejestru” poniżej. |
-| Niepusta wartość, TTL > 0 (np. `283`) | Inny proces legalnie trzyma blokadę. Poczekaj na wygaśnięcie TTL albo zakończenie holdera. |
-| Niepusta wartość, TTL `-1` (brak TTL) | Anomalia — klucz ustawiony bez wygaśnięcia. Ręczne usunięcie jest bezpieczne. |
-| Niepusta wartość, TTL > 300 sekund | Anomalia — lease przedłużony ponad skonfigurowany sufit. Traktuj jako utknięty. |
+| `(nil)` | Blokada jest wolna. Kod 75 musi wynikać z przeterminowanego wiersza rejestru w stanie `installing` — zobacz „Wiersz rejestru, który utknął w stanie `installing`” niżej. |
+| Wartość niepusta, TTL > 0 (np. `283`) | Blokadę prawidłowo trzyma inny proces. Poczekaj, aż TTL wygaśnie albo proces się zakończy. |
+| Wartość niepusta, TTL `-1` (brak TTL) | Nieprawidłowość — klucz ustawiono bez terminu wygaśnięcia. Można go bezpiecznie usunąć ręcznie. |
+| Wartość niepusta, TTL > 300 sekund | Nieprawidłowość — dzierżawę przedłużono ponad skonfigurowany limit. Traktuj blokadę jako zawieszoną. |
 
-Skonfigurowany TTL to **5 minut**, odświeżany co 60 sekund podczas działania polecenia.
-Wartość obecna dłużej niż ~6 minut wskazuje na crash holdera.
+Skonfigurowany TTL to **5 minut**, odświeżany co 60 sekund, dopóki polecenie działa. Wartość
+obecna dłużej niż ok. 6 minut oznacza, że proces trzymający blokadę uległ awarii.
 
-## Odzyskiwanie — utknięta blokada Redis
+## Naprawa — zawieszona blokada w Redis
 
-**Warunek wstępny**: potwierdź, że żaden operator nie uruchamia aktualnie polecenia cyklu życia.
+**Warunek wstępny**: upewnij się, że żaden operator nie uruchamia teraz polecenia cyklu życia.
 
 ```bash
 # 1. Check active sessions on the box that runs the backend.
@@ -49,13 +49,13 @@ ps -ef | grep -E "tsx.*_lifecycle/scripts" | grep -v grep
 redis-cli del b2b:module:lifecycle:lock
 ```
 
-Po usunięciu ponów oryginalne polecenie cyklu życia.
+Po usunięciu klucza uruchom ponownie pierwotne polecenie cyklu życia.
 
-## Odzyskiwanie — utknięty wiersz rejestru `installing`
+## Naprawa — wiersz rejestru, który utknął w stanie `installing`
 
-Wiersz w `module_registrations` ze `state='installing'` oznacza polecenie, które
-wystartowało, ale nie doszło do `installed` ani `uninstalled`. Polecenia cyklu życia
-odmawiają operacji na module w tym stanie (exit 75 z „stale `installing` record”).
+Wiersz w `module_registrations` ze `state='installing'` oznacza polecenie, które się rozpoczęło, ale
+nie doszło ani do `installed`, ani do `uninstalled`. Polecenia cyklu życia odmawiają działania na
+module w tym stanie (kod 75 z komunikatem „stale `installing` record”).
 
 ```bash
 # Identify the offending row(s).
@@ -65,10 +65,10 @@ psql "$DATABASE_URL" -c \
    where state = 'installing';"
 ```
 
-Jeśli `last_install_failed_at` wiersza jest świeże (w ciągu minut), daj orchestratorowi
-szansę na rollback własnej transakcji — sprawdź ponownie po kilku sekundach.
+Jeśli `last_install_failed_at` w wierszu jest świeże (sprzed kilku minut), daj mechanizmowi cyklu
+życia czas na wycofanie własnej transakcji — sprawdź ponownie po kilku sekundach.
 
-Jeśli wiersz zostaje w `installing` w nieskończoność:
+Jeśli wiersz pozostaje w stanie `installing` bez końca:
 
 ```bash
 # 1. Audit-log the cause if possible.
@@ -94,30 +94,30 @@ psql "$DATABASE_URL" -c \
       and state = 'installing';"
 ```
 
-Następnie ponownie uruchom `pnpm --filter backend run module:install <module-id>`. Ścieżka
-install jest idempotentna — już zastosowane migracje są pomijane, ustawienia uzgadniają się z
-manifestem, a wiersz rejestru przechodzi na `installed`.
+Następnie uruchom ponownie `pnpm --filter backend run module:install <module-id>`. Instalacja jest
+idempotentna — wykonane już migracje są pomijane, ustawienia są uzgadniane z manifestem, a wiersz
+rejestru przechodzi w stan `installed`.
 
 ## Zapobieganie
 
-Orchestrator już obejmuje znane tryby crash (transakcyjny install z revert migracji przy
-błędzie, błędy hooka uninstall, naruszenia zależności). Pozostaje ryzyko zakończenia procesu
-podczas hooka (np. SIGKILL, OOM). Aby je ograniczyć:
+Mechanizm cyklu życia obsługuje już znane rodzaje awarii (transakcyjna instalacja z wycofaniem
+migracji po błędzie, błędy hooka odinstalowania, naruszenie zależności). Pozostaje ryzyko, że proces
+zostanie zakończony w trakcie hooka (np. SIGKILL, brak pamięci). Aby je ograniczyć:
 
-- Uruchamiaj polecenia cyklu życia na hoście z co najmniej udokumentowanym budżetem pamięci
+- Uruchamiaj polecenia cyklu życia na maszynie z co najmniej udokumentowaną ilością pamięci
   (`README.md` § Hardware & system requirements).
-- Unikaj równoległego `module:install` modułu, którego hook install robi ciężką pracę, z
-  innymi ciężkimi operacjami.
-- Dla modułów z hookami dłuższymi niż ~30 sekund preferuj enqueue ciężkiej pracy jako job
-  BullMQ zamiast uruchamiania jej bezpośrednio w hooku install.
+- Nie uruchamiaj `module:install` modułu, którego hook instalacyjny wykonuje ciężką pracę,
+  równolegle z innymi ciężkimi operacjami.
+- W modułach, których hooki trwają dłużej niż ok. 30 sekund, dodawaj ciężką pracę do kolejki jako
+  zadanie BullMQ, zamiast wykonywać ją bezpośrednio w hooku instalacyjnym.
 
 ## Eskalacja
 
-Jeśli powyższe kroki nie odzyskują systemu, zbierz:
+Jeśli powyższe kroki nie pomogą, zbierz:
 
 - Wynik `redis-cli get b2b:module:lifecycle:lock` i `redis-cli ttl b2b:module:lifecycle:lock`.
-- Pełny wiersz `module_registrations` dla dotkniętego modułu.
-- Ostatnie 20 wpisów audit log dla tego modułu (`object_id = '<module-id>'`).
-- Logi aplikacji backend wokół timestampu utkniętego polecenia.
+- Pełny wiersz `module_registrations` dla danego modułu.
+- Ostatnie 20 wpisów dziennika audytu dla tego modułu (`object_id = '<module-id>'`).
+- Logi backendu z okresu wokół czasu uruchomienia polecenia, które utknęło.
 
-Otwórz ticket do zespołu platformy z tym pakietem.
+Zgłoś problem zespołowi platformy, dołączając te informacje.

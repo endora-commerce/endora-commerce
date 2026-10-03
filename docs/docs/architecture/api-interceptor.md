@@ -9,8 +9,9 @@ HTTP endpoint **owned by another module** — gating a request before the handle
 runs, or reshaping a successful response — without editing the target module or
 any shared registry file: cross-module interaction goes
 through documented interfaces only. Reach for it when you need to *extend* an
-endpoint in place; reach for the [overlay pattern](./overlay-pattern.md) when a
-deployment must *replace* a whole unit (service, route, module); reach for the
+endpoint in place; reach for a decoration through the [overlay pattern](./overlay-pattern.md)
+when a deployment must change what a service does — wrapping it, never
+replacing it; reach for the
 in-process `EventBus` when you only need to *react after the fact* and the
 request/response itself must not change.
 
@@ -55,14 +56,15 @@ longer exists. Registration happens during
 composition, in the contributing module's own code:
 
 ```ts
-apiInterceptors.register({
-  module: 'loyalty',                 // owning module id — lifecycle-gates execution
-  id: 'enrich-order-detail',         // unique within the module, kebab-case
-  target: 'GET /api/v1/orders/:id',  // endpoint identity; string or string[]
-  phase: 'post',                     // 'pre' | 'post'
-  order: 100,                        // ascending; default 0
-  handler,                           // phase-specific signature
-});
+ctx.interceptors([
+  {
+    id: 'enrich-order-detail',         // unique within the module, kebab-case
+    target: 'GET /api/v1/orders/:id',  // endpoint identity; string or string[]
+    phase: 'post',                     // 'pre' | 'post'
+    order: 100,                        // ascending; default 0
+    handler,                           // phase-specific signature
+  },
+]);                                    // `module` is stamped from this module's id
 ```
 
 The **endpoint identity** is the string `"<METHOD> /path/pattern"` with params
@@ -113,8 +115,9 @@ contract.
 - **Pre interceptors must not flush persistent state themselves** — a veto
   guarantees "nothing persisted" only if the interceptor itself wrote nothing.
 - **No handler replacement or suppression** — an interceptor cannot swap out or
-  short-circuit an endpoint's implementation. Whole-unit replacement is the
-  [overlay pattern](./overlay-pattern.md)'s job.
+  short-circuit an endpoint's implementation, and nothing else can either: the
+  [overlay pattern](./overlay-pattern.md) offers no seam for replacing a route
+  handler wholesale and points at decorating the service the handler calls.
 - **Chained adjustments are last-writer-wins** — later interceptors see earlier
   interceptors' body/payload adjustments, in execution order.
 - **Latency is the author's responsibility** — interceptor time is request time;
@@ -132,36 +135,38 @@ A `compliance` module gates order placement on another module's endpoint
 (pre + veto), and a `loyalty` module enriches the order detail (post):
 
 ```ts
-// compliance/plugin.ts — pre-gate with veto
-apiInterceptors.register({
-  module: 'compliance',
-  id: 'sanctions-gate',
-  target: 'POST /api/v1/orders',
-  phase: 'pre',
-  handler: async ({ request, body }) => {
-    const verdict = await screening.check(request.raw.actor);
-    if (!verdict.ok) {
-      throw new HttpError(422, ERROR_CODES.COMPLIANCE_SCREENING_FAILED, 'Order blocked by screening');
-    }
-    (body as PlaceOrderRequest).metadata = {
-      ...(body as PlaceOrderRequest).metadata,
-      screeningId: verdict.id,
-    };
+// compliance — registerModule(ctx): pre-gate with veto
+ctx.interceptors([
+  {
+    id: 'sanctions-gate',
+    target: 'POST /api/v1/orders',
+    phase: 'pre',
+    handler: async ({ request, body }) => {
+      const verdict = await screening.check(request.raw.actor);
+      if (!verdict.ok) {
+        throw new HttpError(422, ERROR_CODES.COMPLIANCE_SCREENING_FAILED, 'Order blocked by screening');
+      }
+      (body as PlaceOrderRequest).metadata = {
+        ...(body as PlaceOrderRequest).metadata,
+        screeningId: verdict.id,
+      };
+    },
   },
-});
+]);
 
-// loyalty/plugin.ts — post-enrichment
-apiInterceptors.register({
-  module: 'loyalty',
-  id: 'enrich-order-detail',
-  target: 'GET /api/v1/orders/:id',
-  phase: 'post',
-  order: 100,
-  handler: async ({ payload }) => ({
-    ...(payload as object),
-    loyaltyPoints: await points.forOrder(payload),
-  }),
-});
+// loyalty — registerModule(ctx): post-enrichment
+ctx.interceptors([
+  {
+    id: 'enrich-order-detail',
+    target: 'GET /api/v1/orders/:id',
+    phase: 'post',
+    order: 100,
+    handler: async ({ payload }) => ({
+      ...(payload as object),
+      loyaltyPoints: await points.forOrder(payload),
+    }),
+  },
+]);
 ```
 
 A failing screening returns the standard envelope with the `compliance` code

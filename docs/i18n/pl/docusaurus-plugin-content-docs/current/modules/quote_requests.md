@@ -1,157 +1,149 @@
 ---
 title: quote_requests
-description: Cykl życia RFQ (draft → quote → accept/reject)
+description: Cykl życia zapytania ofertowego (RFQ) — szkic → oferta → akceptacja lub odrzucenie
 ---
 
 # `quote_requests`
 
-Moduł Quote Requests implementuje pętlę negocjacji B2B. Klient
-(lub sales representative w jego imieniu) tworzy szkic Quote Request, druga
-strona go przegląda, każda strona może modyfikować wniosek i wymagać jawnej
-ponownej akceptacji, a zatwierdzony Quote Request można przekształcić w
-zamówienie przez standardowy checkout. Każde przejście trafia do append-only
-event log, więc strona szczegółów klienta i admin renderują tę samą historię
-chronologiczną.
+Moduł zapytań ofertowych (Quote Requests) realizuje pętlę negocjacji B2B. Klient (albo opiekun
+handlowy w jego imieniu) tworzy szkic zapytania ofertowego, druga strona je przegląda, każda ze
+stron może zapytanie zmienić i zażądać jego ponownej, wyraźnej akceptacji, a zatwierdzone zapytanie
+można zamienić w zamówienie przez standardowy proces zamówienia (checkout). Każde przejście jest
+zapisywane w dzienniku zdarzeń, do którego można tylko dopisywać, więc strona szczegółów po stronie
+klienta i ta w panelu administracyjnym pokazują tę samą historię w kolejności chronologicznej.
 
 ## Statusy
 
-Sześć wartości, zastępujących zestaw z ery foundation:
+Sześć wartości, które zastąpiły zestaw z wczesnej wersji platformy:
 
-- `Created from admin` — utworzony przez sales rep / admin, oczekuje akceptacji klienta.
-- `Pending` — wysłany przez klienta, oczekuje odpowiedzi strony wewnętrznej.
-- `Approved` — zatwierdzony przez odpowiedzialną stronę.
-- `Completed` — zamówienie złożone z tego Quote Request.
-- `Canceled` — odrzucony przez którąkolwiek stronę (z opcjonalnym powodem).
-- `Expired` — auto-flip przez expiry worker po upływie skonfigurowanego progu.
+- `Created from admin` — utworzone przez opiekuna handlowego lub administratora, czeka na akceptację
+  klienta.
+- `Pending` — wysłane przez klienta, czeka na odpowiedź strony wewnętrznej.
+- `Approved` — zatwierdzone przez odpowiedzialną stronę.
+- `Completed` — na podstawie tego zapytania złożono zamówienie.
+- `Canceled` — odrzucone przez którąkolwiek ze stron (z opcjonalnym powodem).
+- `Expired` — automatycznie przestawione przez worker wygasania po upływie skonfigurowanego czasu.
 
-`Canceled`, `Completed` i `Expired` są terminalne.
+`Canceled`, `Completed` i `Expired` są statusami końcowymi.
 
 ## Publiczne API
 
-Endpointy klienta wymagają sesji customer; endpointy admin są gated przez
-`rfqs:handle`. Endpointy PATCH-shaped akceptują wersje `If-Match` dla optimistic
-concurrency, a customer accept/reject revision dodatkowo pinuje
-`expectedRevisionNumber`.
+Endpointy klienta wymagają sesji klienta; endpointy administracyjne są chronione uprawnieniem
+`rfqs:handle`. Endpointy wykonujące zmiany (typu PATCH) przyjmują wersję w nagłówku `If-Match` na
+potrzeby optymistycznej kontroli współbieżności, a akceptacja i odrzucenie wersji przez klienta
+dodatkowo wymagają podania `expectedRevisionNumber`.
 
-| Verb + Path | Audience | Cel |
+| Metoda + ścieżka | Odbiorca | Cel |
 | --- | --- | --- |
-| `GET /api/v1/quote-requests` | customer | Lista widocznych Quote Requests (rola org-admin rozszerza widoczność na całą org). |
-| `GET /api/v1/quote-requests/:id` | customer | Szczegóły z opcjonalnym blokiem `comparisonAgainstLastSeen` podczas oczekiwania na akceptację. |
-| `POST /api/v1/quote-requests` | customer | Utworzenie + submit w jednym wywołaniu. |
-| `PATCH /api/v1/quote-requests/:id` | customer | Edycja Pending RFQ, którego strona wewnętrzna jeszcze nie dotknęła. |
-| `POST /api/v1/quote-requests/:id/accept-revision` | customer | Akceptacja najnowszej rewizji (obejmuje też `Created from admin`). |
-| `POST /api/v1/quote-requests/:id/reject-revision` | customer | Odrzucenie najnowszej rewizji z opcjonalnym powodem. |
-| `POST /api/v1/quote-requests/:id/resubmit` | customer | Klon starego Quote Request do nowego Pending po bieżącym cenniku klienta. |
-| `GET /api/v1/admin/quote-requests` | admin | Lista, scoped przez sales-rep assignment + filtrowalna po status / organization. |
-| `GET /api/v1/admin/quote-requests/:id` | admin | Szczegóły z pełną tożsamością aktora w event log. |
-| `POST /api/v1/admin/quote-requests` | admin | Utworzenie w imieniu klienta → status `Created from admin`. |
-| `PATCH /api/v1/admin/quote-requests/:id` | admin | Modyfikacja Pending lub Created from admin RFQ → wymusza ponowną akceptację klienta. |
-| `POST /api/v1/admin/quote-requests/:id/approve` | admin | Approve Pending RFQ. |
-| `POST /api/v1/admin/quote-requests/:id/cancel` | admin | Cancel z opcjonalnym powodem. |
-| `POST /api/v1/admin/quote-requests/:id/assign` | admin | Ustawienie `assignedAdminUserId` (informacyjne). |
-| `GET /api/v1/admin/sales-reps/:adminUserId/organizations` | admin | Widok odwrotny — organizations, za które rep odpowiada, z liczbą otwartych quote requests w każdej. |
-| `GET /api/v1/storefront/settings/quote-requests` | public | Zwraca dwie flagi widoczności storefront. |
+| `GET /api/v1/quote-requests` | klient | Lista widocznych zapytań ofertowych (rola org-admin rozszerza widoczność na całą organizację). |
+| `GET /api/v1/quote-requests/:id` | klient | Szczegóły, z opcjonalnym blokiem `comparisonAgainstLastSeen`, gdy zapytanie czeka na akceptację. |
+| `POST /api/v1/quote-requests` | klient | Utworzenie i wysłanie w jednym wywołaniu. |
+| `PATCH /api/v1/quote-requests/:id` | klient | Edycja zapytania w statusie Pending, którego strona wewnętrzna jeszcze nie ruszyła. |
+| `POST /api/v1/quote-requests/:id/accept-revision` | klient | Akceptacja najnowszej wersji (dotyczy też `Created from admin`). |
+| `POST /api/v1/quote-requests/:id/reject-revision` | klient | Odrzucenie najnowszej wersji z opcjonalnym powodem. |
+| `POST /api/v1/quote-requests/:id/resubmit` | klient | Skopiowanie starego zapytania do nowego, w statusie Pending, według bieżącego cennika klienta. |
+| `GET /api/v1/admin/quote-requests` | administrator | Lista zawężona do przypisań opiekuna handlowego, z filtrami według statusu i organizacji. |
+| `GET /api/v1/admin/quote-requests/:id` | administrator | Szczegóły z pełną tożsamością wykonawców w dzienniku zdarzeń. |
+| `POST /api/v1/admin/quote-requests` | administrator | Utworzenie w imieniu klienta → status `Created from admin`. |
+| `PATCH /api/v1/admin/quote-requests/:id` | administrator | Zmiana zapytania w statusie Pending lub Created from admin → wymaga ponownej akceptacji klienta. |
+| `POST /api/v1/admin/quote-requests/:id/approve` | administrator | Zatwierdzenie zapytania w statusie Pending. |
+| `POST /api/v1/admin/quote-requests/:id/cancel` | administrator | Anulowanie z opcjonalnym powodem. |
+| `POST /api/v1/admin/quote-requests/:id/assign` | administrator | Ustawienie `assignedAdminUserId` (wyłącznie informacyjne). |
+| `GET /api/v1/admin/sales-reps/:adminUserId/organizations` | administrator | Widok odwrotny — organizacje, za które odpowiada opiekun, z liczbą otwartych zapytań w każdej z nich. |
+| `GET /api/v1/storefront/settings/quote-requests` | publiczny | Zwraca dwie flagi widoczności w storefroncie. |
 
-Trzy endpointy przypisujące sales representative *do* organization —
-`GET`, `POST` i `DELETE` pod
-`/api/v1/admin/organizations/:id/sales-reps` — należą do modułu **organizations**
-i są gated przez `organizations:assign-sales-rep`, nie przez `rfqs:handle`.
-Kiedyś były rejestrowane tutaj; podział nie jest kosmetyczny: przypisanie rep
-kwalifikuje organization, więc musi działać, gdy quote requests jest wyłączone,
-i nie może być gated kodem uprawnienia z modułu, który może zniknąć. Jeden
-endpoint pozostały powyżej czyta quote request i jest gated `rfqs:handle` dokładnie
-po to, aby znikał wraz z tym modułem.
+Trzy endpointy przypisujące opiekuna handlowego *do* organizacji — `GET`, `POST` i `DELETE` pod
+`/api/v1/admin/organizations/:id/sales-reps` — należą do modułu **organizations** i są chronione
+uprawnieniem `organizations:assign-sales-rep`, a nie `rfqs:handle`. Kiedyś były rejestrowane tutaj,
+a ten podział nie jest kosmetyczny: przypisanie opiekuna opisuje organizację, więc musi działać
+także wtedy, gdy moduł zapytań ofertowych jest wyłączony, i nie może być chronione kodem uprawnienia
+modułu, który może zniknąć. Jedyny pozostały wyżej endpoint odczytuje zapytania ofertowe i jest
+chroniony przez `rfqs:handle` właśnie po to, by znikał razem z tym modułem.
 
 ## Model widoczności
 
-Sales representative to platform administrator z rolą
-`sales_representative`. Predykat
-`SalesRepAssignmentService.canSeeOrganization(adminUserId, organizationId)`
-centralizuje regułę widoczności:
+Opiekun handlowy to administrator platformy z rolą `sales_representative`. Regułę widoczności
+skupia w jednym miejscu predykat
+`SalesRepAssignmentService.canSeeOrganization(adminUserId, organizationId)`:
 
-1. rola `platform_admin` → widzi każdą organization.
-2. W przeciwnym razie admin widzi organization wtedy i tylko wtedy, gdy wiersz w
-   `organization_sales_rep_assignments` je łączy LUB organization ma zero wierszy
-   w tej tabeli (fallback „unassigned-org” — widoczne dla każdego sales rep).
+1. Rola `platform_admin` → widzi każdą organizację.
+2. W przeciwnym razie administrator widzi organizację wtedy i tylko wtedy, gdy łączy ich wiersz w
+   `organization_sales_rep_assignments` LUB organizacja nie ma w tej tabeli żadnych wierszy
+   (reguła zastępcza dla organizacji bez opiekuna — taką organizację widzi każdy opiekun handlowy).
 
-Klient z rolą `org_admin` we własnej organization widzi każdy Quote Request w
-organization, nie tylko własny.
+Klient z rolą `org_admin` we własnej organizacji widzi każde zapytanie ofertowe tej organizacji, a
+nie tylko własne.
 
 ## Ustawienia
 
-Trzy ustawienia sterują modułem — wszystkie w grupie `quote_requests` i
-konfigurowane przez istniejący moduł settings.
+Modułem sterują trzy ustawienia — wszystkie w grupie `quote_requests`, konfigurowane przez
+istniejący moduł ustawień.
 
-| Code | Type | Default | Effect |
+| Kod | Typ | Wartość domyślna | Działanie |
 | --- | --- | --- | --- |
-| `quote_requests.expiry_days` | integer | `0` | Auto-expire Pending / Created from admin RFQ po N dniach. `0` wyłącza. |
-| `quote_requests.show_add_to_quote_on_card` | boolean | `true` | Przełącza przycisk „Add to quote” na kartach produktów storefront. |
-| `quote_requests.show_add_to_quote_on_pdp` | boolean | `true` | Przełącza przycisk „Add to quote” na stronach szczegółów produktu. |
+| `quote_requests.expiry_days` | integer | `0` | Automatyczne wygaszanie zapytań w statusie Pending lub Created from admin po N dniach. `0` wyłącza wygaszanie. |
+| `quote_requests.show_add_to_quote_on_card` | boolean | `true` | Pokazuje lub ukrywa przycisk „Add to quote” na kartach produktów w storefroncie. |
+| `quote_requests.show_add_to_quote_on_pdp` | boolean | `true` | Pokazuje lub ukrywa przycisk „Add to quote” na stronach produktów. |
 
 ## Zadania w tle
 
-`RfqExpiryWorker.sweep()` uruchamia się co 30 minut przez foundation
-BullMQ scheduler. Czyta `quote_requests.expiry_days` ze snapshotu settings;
-gdy wartość to 0, sweep to no-op. W przeciwnym razie przechodzi każdy Pending i
-Created from admin wiersz, gdzie
-`updated_at < now() - INTERVAL <expiryDays> days`, na `Expired`, zapisuje po
-jednym evencie `expired` per wiersz i rozsyła powiadomienia obu stronom.
+`RfqExpiryWorker.sweep()` jest uruchamiany co 30 minut przez podstawowy harmonogram BullMQ. Odczytuje
+`quote_requests.expiry_days` z migawki ustawień; gdy wartość wynosi 0, nic nie robi. W przeciwnym
+razie przestawia na `Expired` każdy wiersz w statusie Pending lub Created from admin, dla którego
+`updated_at < now() - INTERVAL <expiryDays> days`, zapisuje dla każdego z nich jedno zdarzenie
+`expired` i wysyła powiadomienia obu stronom.
 
 ## Model danych
 
-Trzy tabele nad foundation `quote_requests` i
-`quote_request_items`:
+Trzy tabele uzupełniające podstawowe `quote_requests` i `quote_request_items`:
 
-- `quote_request_revisions` — pełny snapshot per zdarzenie modify.
-- `quote_request_events` — append-only historia (jeden wiersz per przejście stanu
-  lub modyfikacja, z payload discriminated-union).
-- `quote_request_notification_events` — jeden wiersz per odbiorca ×
-  kanał; unique na `(quote_request_id, source_event_id, recipient*,
-  channel)`, więc retry są idempotentne.
+- `quote_request_revisions` — pełna migawka przy każdej zmianie.
+- `quote_request_events` — historia, do której można tylko dopisywać (jeden wiersz na każde
+  przejście stanu lub zmianę, z ładunkiem w postaci unii dyskryminowanej).
+- `quote_request_notification_events` — jeden wiersz na parę odbiorca × kanał; unikalność na
+  `(quote_request_id, source_event_id, recipient*, channel)` sprawia, że ponowienia są
+  idempotentne.
 
-`organization_sales_rep_assignments` — relacja m:n między organizations a admin
-users, z której czyta model widoczności powyżej — **nie** jest jedną z nich:
-należy do modułu `organizations`, który nią kwalifikuje organization, a ten moduł
-sięga po nią przez `organizationSalesRepScopePort` tego modułu.
+`organization_sales_rep_assignments` — relacja wiele-do-wielu między organizacjami a
+administratorami, z której korzysta opisany wyżej model widoczności — **nie** należy do tych tabel:
+jej właścicielem jest moduł `organizations`, dla którego opisuje ona organizację, a moduł zapytań
+ofertowych sięga po nią przez port `organizationSalesRepScopePort` modułu `organizations`.
 
-Kanoniczny wiersz `quote_requests` niesie bieżący stan plus
-`current_revision_number`, `last_customer_seen_revision_number` i
-`awaiting_customer_revision_acceptance`. Diff klienta „co się zmieniło od
-ostatniej wizyty” liczony jest przy odczycie przez porównanie rewizji
-identyfikowanej przez `last_customer_seen_revision_number` z rewizją
-identyfikowaną przez `current_revision_number`.
+Główny wiersz `quote_requests` przechowuje bieżący stan oraz `current_revision_number`,
+`last_customer_seen_revision_number` i `awaiting_customer_revision_acceptance`. Zestawienie dla
+klienta „co się zmieniło od ostatniej wizyty” jest liczone przy odczycie przez porównanie wersji
+wskazywanej przez `last_customer_seen_revision_number` z wersją wskazywaną przez
+`current_revision_number`.
 
-### `sales_channel_id` jest nullable i pozostaje nullable
+### `sales_channel_id` dopuszcza null i tak pozostanie
 
-Każdy wniosek zapisuje sales channel, na którym powstał, z resolved request
-channel. Kolumna jest nullable i pozostanie taka.
+Każde zapytanie zapisuje kanał sprzedaży, w którym powstało, ustalony na podstawie kanału żądania.
+Kolumna dopuszcza wartość null i tak już zostanie.
 
-Dodano ją nullable celowo: deploy, który ją wysłał, nie może zależeć od tego, że
-boot-time default-channel reconciler już zadziałał — to zwykły phased shape:
-dodaj nullable, zacznij pisać, backfill, flip na `NOT NULL`. Środkowego kroku tu
-nie da się wykonać. Nic nie pisało kolumny między migracją, która ją dodała, a
-zmianą, która zaczęła ją wypełniać, więc każdy wniosek z tego okna ma `null`, a
-żaden rekord nie mówi, z którego kanału pochodził. Projekcja system-default
-channel nad tą luką nie odzyskałaby atrybucji — wymyśliłaby ją — a guard
-usuwania sales-channel zacząłby odmawiać kasowania na dowodzie wymyślonym przez
-platformę.
+Dodano ją jako dopuszczającą null celowo: wdrożenie, które ją wprowadziło, nie mogło zakładać, że
+mechanizm ustalający domyślny kanał przy starcie już zadziałał — to zwykły schemat etapowy: dodaj
+kolumnę dopuszczającą null, zacznij ją zapisywać, uzupełnij stare wiersze, zmień na `NOT NULL`.
+Środkowego kroku nie da się tu wykonać. Między migracją, która dodała kolumnę, a zmianą, która
+zaczęła ją wypełniać, nic do niej nie zapisywało, więc każde zapytanie z tego okresu ma `null`, a
+żaden zapis nie mówi, z którego kanału pochodziło. Przypisanie tym wierszom domyślnego kanału
+systemowego nie odtworzyłoby pochodzenia, tylko by je zmyśliło — a zabezpieczenie przed usuwaniem
+kanału sprzedaży zaczęłoby odmawiać usunięcia na podstawie dowodu wymyślonego przez platformę.
 
-Deploy, który naprawdę potrzebuje kolumny non-nullable, usuwa null tail albo bierze
-odpowiedź per wiersz ze źródła, które ją zna. Nie ma skryptu backfill i
-celowo nigdy nie będzie.
+Wdrożenie, które naprawdę potrzebuje kolumny bez wartości null, usuwa wiersze z wartością null albo
+uzupełnia każdy wiersz ze źródła, które zna odpowiedź. Nie ma skryptu uzupełniającego i celowo nigdy
+nie będzie.
 
 ## Powiadomienia
 
-Każde przejście stanu rozsyła przez `RfqNotificationService` do właściwych
-odbiorców (klient przy akcjach admin, sales reps + platform admins przy akcjach
-klienta, obie strony przy expiry). Oba kanały — e-mail i in-account — odpalają.
-Unique constraint na `quote_request_notification_events` gwarantuje once-only
-delivery per (transition, recipient, channel).
+Każde przejście stanu jest rozsyłane przez `RfqNotificationService` do właściwych odbiorców (do
+klienta przy działaniach administratora, do opiekunów handlowych i administratorów platformy przy
+działaniach klienta, do obu stron przy wygaśnięciu). Wysyłane są powiadomienia w obu kanałach —
+e-mail i na koncie klienta. Ograniczenie unikalności w `quote_request_notification_events` gwarantuje
+jednokrotne dostarczenie dla każdej trójki (przejście, odbiorca, kanał).
 
-## Konwersja na zamówienie
+## Zamiana na zamówienie
 
-Gdy zamówienie powstaje z wypełnionym `source_quote_request_id`,
-subscriber wewnątrz modułu przełącza źródłowy Quote Request na `Completed`,
-wypełnia `converted_order_id` i odpala powiadomienie `completed`. Krok tworzenia
-koszyka, który blokuje uzgodnione ceny RFQ w checkout cart, dostarczany jest przez
-istniejące flow cart i checkout.
+Gdy powstaje zamówienie z wypełnionym `source_quote_request_id`, subskrybent wewnątrz modułu
+przestawia źródłowe zapytanie ofertowe na `Completed`, wypełnia `converted_order_id` i wysyła
+powiadomienie `completed`. Krok tworzenia koszyka, który utrwala uzgodnione w zapytaniu ceny w
+koszyku zamówienia, zapewniają istniejące procesy koszyka i zamówienia.

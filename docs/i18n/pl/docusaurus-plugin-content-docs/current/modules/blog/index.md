@@ -1,26 +1,24 @@
 ---
 title: Blog
 sidebar_position: 16
-description: Posty redakcyjne z treścią Page Buildera, taksonomią (Categories + Tags) i feedami storefront
+description: Wpisy redakcyjne z treścią z Page Buildera, kategoriami i tagami oraz listami wpisów w storefroncie
 ---
 
 # Blog
 
-Moduł Blog posiada redakcyjną powierzchnię bloga storefront — Posts,
-Categories i Tags — składane w tym samym drag-and-drop **Page
-Builderze**, który dostarcza [moduł CMS](../cms/index.md). Posty
-dziedziczą kształt pól CMS Page (slug, cykl życia statusu, treść per język,
-meta SEO) i dodają blog-specific affordances: drzewo Category nadrzędnej,
-swobodne Tags, uporządkowane Related Posts i uporządkowane Related
-Products.
+Moduł bloga odpowiada za redakcyjną część storefrontu — wpisy, kategorie i tagi — tworzone w tym
+samym edytorze **Page Builder** (przeciągnij i upuść), który dostarcza [moduł CMS](../cms/index.md).
+Wpisy przejmują budowę pól strony CMS (slug, statusy w cyklu życia, treść w poszczególnych językach,
+meta tagi SEO) i dodają elementy typowe dla bloga: drzewo kategorii nadrzędnych, dowolne tagi oraz
+uporządkowane listy powiązanych wpisów i powiązanych produktów.
 
-| Entity         | Identifier             | Lifecycle                            | Embedded by                                              |
+| Encja         | Identyfikator             | Cykl życia                            | Gdzie się pojawia                                              |
 | -------------- | ---------------------- | ------------------------------------ | -------------------------------------------------------- |
-| **Post**       | `slug` (per channel)   | `draft → published → archived`       | URL `<blog-prefix>/<slug>` on the storefront             |
-| **Category**   | `slug` (per channel)   | `enabled` flag, tree-structured      | URL `<blog-prefix>/<slug>` (siblings of Posts) and tiles |
-| **Tag**        | `code` (global)        | block-on-delete                      | URL `<blog-prefix>/tag/<code>` and per-Post chip strip   |
+| **Wpis**       | `slug` (w obrębie kanału)   | `draft → published → archived`       | Adres `<blog-prefix>/<slug>` w storefroncie             |
+| **Kategoria**   | `slug` (w obrębie kanału)   | flaga `enabled`, struktura drzewa      | Adres `<blog-prefix>/<slug>` (na tym samym poziomie co wpisy) i kafelki |
+| **Tag**        | `code` (globalny)        | blokada usunięcia, gdy jest używany                      | Adres `<blog-prefix>/tag/<code>` i lista tagów przy każdym wpisie   |
 
-## Encje i graf referencji
+## Encje i graf odwołań
 
 ```
    blog_categories  ── parent_id ──┐ self-FK tree (NO ACTION)
@@ -37,41 +35,42 @@ Products.
                                                               blog_post_related_products → catalog.products
 ```
 
-Schemat żyje w całości w `037_blog_init.ts` (jedenaście nowych tabel, wszystkie
-z prefiksem `blog_*`) i nigdy nie dotyka istniejących tabel.
+Cały schemat znajduje się w `037_blog_init.ts` (jedenaście nowych tabel, wszystkie z przedrostkiem
+`blog_*`) i nigdy nie zmienia istniejących tabel.
 
-## URL-e i routing
+## Adresy i trasy
 
-Storefront montuje pojedynczy Next.js catch-all pod
-`storefront/app/(blog)/[[...slug]]/page.tsx`. Matcher czyta
-channel-resolved `blog.url_prefix` z [modułu Settings](../settings/index.md)
-i dispatchuje:
+Storefront ma jedną trasę Next.js przechwytującą wszystkie ścieżki,
+`storefront/app/(blog)/[[...slug]]/page.tsx`. Mechanizm dopasowania odczytuje wyznaczone dla kanału
+`blog.url_prefix` z [modułu ustawień](../settings/index.md) i kieruje żądanie:
 
-| URL pattern (after channel resolution) | Renders                              |
+| Wzorzec adresu (po wyznaczeniu kanału) | Wyświetla                              |
 | -------------------------------------- | ------------------------------------ |
-| `/<prefix>`                            | Indeks bloga — latest N + Categories pierwszego poziomu |
-| `/<prefix>/tag/<code>`                 | Widok Tag — paginowane karty dla Tag |
-| `/<prefix>/<slug>`                     | Strona Category (gdy slug pasuje do `blog_categories.slug`) |
-| `/<prefix>/<slug>`                     | Strona Post (gdy slug pasuje do `blog_posts.slug`) |
+| `/<prefix>`                            | Strona główna bloga — najnowsze wpisy i kategorie pierwszego poziomu |
+| `/<prefix>/tag/<code>`                 | Widok tagu — stronicowane karty wpisów z tym tagiem |
+| `/<prefix>/<slug>`                     | Strona kategorii (gdy slug pasuje do `blog_categories.slug`) |
+| `/<prefix>/<slug>`                     | Strona wpisu (gdy slug pasuje do `blog_posts.slug`) |
 
-Rozwiązywanie dispatch odbywa się w **jednym** wywołaniu backend — `GET /api/v1/blog/by-slug?slug=…` — które zwraca discriminated union (`{ kind: 'category' | 'post', … }`). Dwa kanały MOGĄ używać tego samego slug dla niepowiązanych encji (kontekst kanału rozstrzyga).
+Rozstrzygnięcie odbywa się w **jednym** wywołaniu backendu — `GET /api/v1/blog/by-slug?slug=…` —
+które zwraca unię rozłączną (`{ kind: 'category' | 'post', … }`). Dwa kanały MOGĄ używać tego samego
+sluga dla niezwiązanych encji (rozstrzyga kontekst kanału).
 
-### Unikalność slug
+### Unikalność sluga
 
-Unikalność slug jest egzekwowana **per `(sales_channel, slug)` w unii
-`blog_posts` i `blog_categories`**:
+Slug jest unikalny **w obrębie pary `(sales_channel, slug)`, łącznie dla `blog_posts` i
+`blog_categories`**:
 
-- Partial unique indexes na poziomie DB na każdym wierszu scope (`*_sales_channels`)
-  łapią każdy bug aplikacji omijający check serwisowy.
-- Helper `BlogSlugCollision.assertSlugAvailable` pobiera
-  Postgres `pg_advisory_xact_lock` per `(channel, slug)`, żeby równoległy
-  zapis nie wcisnął duplikatu mimo per-table indexes.
-- Literal `tag` jest zarezerwowany jako slug (kolidowałby ze wzorcem URL
+- Częściowe indeksy unikalne w bazie danych na każdym wierszu zakresu (`*_sales_channels`)
+  wychwytują każdy błąd aplikacji, który ominąłby sprawdzenie w usłudze.
+- Funkcja pomocnicza `BlogSlugCollision.assertSlugAvailable` zakłada blokadę
+  `pg_advisory_xact_lock` Postgresa dla pary `(channel, slug)`, aby równoległy zapis nie wprowadził
+  duplikatu mimo osobnych indeksów w każdej tabeli.
+- Słowo `tag` jest zarezerwowane i nie może być slugiem (kolidowałoby ze wzorcem adresu
   `<prefix>/tag/<code>`).
 
 ## Cykl życia
 
-### Posts
+### Wpisy
 
 ```
 draft ─── publish ────► published ─── unpublish ───► draft
@@ -81,9 +80,9 @@ draft ─── publish ────► published ─── unpublish ───�
                         archived  ◄── unarchive ── (admin)
 ```
 
-`published_at` jest ustawiane przy pierwszym przejściu do `published` i
-zachowywane przez kolejne unpublish / archive (re-publikacja posta
-nie resetuje daty publikacji). Post renderuje się na storefront, gdy:
+`published_at` jest ustawiane przy pierwszym przejściu do `published` i zachowywane przy kolejnych
+wycofaniach z publikacji i archiwizacji (ponowna publikacja wpisu nie zmienia daty publikacji). Wpis
+jest wyświetlany w storefroncie, gdy:
 
 ```
 status = 'published'
@@ -93,77 +92,79 @@ AND requested-channel ∈ post.salesChannels
 AND blog.enabled[channel] = true
 ```
 
-### Categories
+### Kategorie
 
-Categories niosą pojedynczą flagę `enabled` (bez draft / publish). Seedowany
-wiersz `Default` jest chroniony systemowo — admini mogą go przemianować, zmienić
-metadane lub odłączyć od kanałów, ale nie mogą go usunąć.
+Kategorie mają tylko flagę `enabled` (bez szkicu i publikacji). Tworzona przy instalacji kategoria
+`Default` jest chroniona przez system — administratorzy mogą zmienić jej nazwę, metadane albo
+odłączyć ją od kanałów, ale nie mogą jej usunąć.
 
-## Ochrona referencji
+## Ochrona odwołań
 
-Pięć strażników blokuje operacje destrukcyjne:
+Operacje usuwające dane blokuje pięć zabezpieczeń:
 
-1. **Usunięcie Tag z odwołującymi postami** → 409 `BLOG_TAG_IN_USE`.
-2. **Usunięcie Category z odwołującymi postami** → 409 `BLOG_CATEGORY_IN_USE`.
-3. **Usunięcie Category z wierszami potomnymi** → 409 `BLOG_CATEGORY_HAS_CHILDREN`.
-4. **Usunięcie seedowanej Category `Default`** → 409 `BLOG_CATEGORY_PROTECTED`.
-5. **Soft-delete Assetu biblioteki osadzonego w treści Post lub opisie Category** →
+1. **Usunięcie tagu, którego używają wpisy** → 409 `BLOG_TAG_IN_USE`.
+2. **Usunięcie kategorii, do której należą wpisy** → 409 `BLOG_CATEGORY_IN_USE`.
+3. **Usunięcie kategorii, która ma kategorie podrzędne** → 409 `BLOG_CATEGORY_HAS_CHILDREN`.
+4. **Usunięcie kategorii `Default` utworzonej przy instalacji** → 409 `BLOG_CATEGORY_PROTECTED`.
+5. **Usunięcie miękkie pliku z biblioteki osadzonego w treści wpisu lub opisie kategorii** →
    409 `ASSET_REFERENCED` (deskryptory zarejestrowane w
-   [rejestrze referencji Assets Library](../assets-library/index.md#asset-reference-registry)).
+   [rejestrze odwołań biblioteki mediów](../assets-library/index.md#asset-reference-registry)).
 
-Relacja Post-as-Related-Post używa innego kontraktu:
-**detach-on-delete**. Gdy Post jest soft-deletowany, każdy parent Post
-`relatedPostIds` kurczy się atomowo. Admin widzi dialog potwierdzenia
-listujący dotkniętych rodziców (sterowany przez probe
+Powiązanie wpisu jako wpisu powiązanego działa inaczej: **odłączenie przy usunięciu**. Gdy wpis
+zostaje usunięty miękko, lista `relatedPostIds` każdego wpisu, który go wskazywał, atomowo się
+skraca. Administrator widzi okno potwierdzenia z listą tych wpisów (na podstawie
 `/posts/:id/inbound-references`).
 
-Relacja Post-as-Related-Product używa **soft-delete-+-storefront-filter**: soft-deletowany produkt jest niewidoczny przy następnym odczycie storefront; wiersz join pozostaje. Generyczny `ProductReferenceRegistry` może pojawić się w follow-up.
+Powiązanie wpisu z produktem korzysta z **usunięcia miękkiego i filtrowania w storefroncie**:
+produkt usunięty miękko jest niewidoczny przy następnym odczycie w storefroncie, a wiersz łączący
+pozostaje. Ogólny `ProductReferenceRegistry` może powstać w ramach kolejnej zmiany.
 
-## Settings
+## Ustawienia
 
-| Code                  | Type    | Default | Notes                                                |
+| Kod                  | Typ    | Wartość domyślna | Uwagi                                                |
 | --------------------- | ------- | ------: | ---------------------------------------------------- |
-| `blog.enabled`        | boolean | `true`  | Wyłącza namespace per kanał.                         |
-| `blog.url_prefix`     | string  | `blog`  | Pojedynczy segment URL, `^[a-z0-9-]+$`. Zarezerwowane segmenty Next.js są odrzucane. |
-| `blog.latest_count`   | number  | `5`     | Latest posts na indeksie.                            |
-| `blog.posts_per_page` | number  | `12`    | Rozmiar strony na widokach Category i Tag.           |
+| `blog.enabled`        | boolean | `true`  | Wyłącza blog w danym kanale.                         |
+| `blog.url_prefix`     | string  | `blog`  | Jeden segment adresu, `^[a-z0-9-]+$`. Segmenty zarezerwowane przez Next.js są odrzucane. |
+| `blog.latest_count`   | number  | `5`     | Liczba najnowszych wpisów na stronie głównej bloga.                            |
+| `blog.posts_per_page` | number  | `12`    | Liczba wpisów na stronie w widokach kategorii i tagu.           |
 
-Zmiana dowolnego ustawienia `blog.*` usuwa platform-wide cache settings przy
-write seam, potem emituje zdarzenie `EventBus`, które czyści cache storefront
-(zob. Cache strategy poniżej).
+Zmiana dowolnego ustawienia `blog.*` czyści wspólną pamięć podręczną ustawień w miejscu zapisu, a
+potem emituje zdarzenie `EventBus`, które czyści pamięć podręczną storefrontu (zobacz *Strategia
+pamięci podręcznej* niżej).
 
-## Role admin
+## Role w panelu administracyjnym
 
-Dwie role seedują się przy first boot przez `services/seed-roles.ts`:
+Przy pierwszym uruchomieniu `services/seed-roles.ts` tworzy dwie role:
 
-| Code              | Default name      | Permissions                                          |
+| Kod              | Nazwa domyślna      | Uprawnienia                                          |
 | ----------------- | ----------------- | ---------------------------------------------------- |
 | `blog_manager`    | Blog Manager      | `blog.read`, `blog.write`                            |
 | `content_manager` | Content Manager   | `blog.read`, `blog.write`, `cms.read`, `cms.write`   |
 
-Obie są **chronione systemowo**: `AdminRoleService.remove` odmawia delete
-z 409 `ADMIN_ROLE_PROTECTED`. Reconciler zachowuje nazwy edytowane przez admina
-po rebootach i odświeża tylko kanoniczną tablicę permissions,
-gdy odjechała.
+Obie są **chronione przez system**: `AdminRoleService.remove` odmawia ich usunięcia z 409
+`ADMIN_ROLE_PROTECTED`. Mechanizm uzgadniania zachowuje nazwy zmienione przez administratora po
+kolejnych uruchomieniach i odświeża tylko kanoniczną listę uprawnień, gdy się od niej różni.
 
-## Storefront API
+## API storefrontu
 
-| Method | Path                                  | Returns                                                  |
+| Metoda | Ścieżka                                  | Zwraca                                                  |
 | ------ | ------------------------------------- | -------------------------------------------------------- |
-| GET    | `/api/v1/blog/by-channel`             | `BlogIndexResponse` — latest N + Categories pierwszego poziomu |
-| GET    | `/api/v1/blog/by-slug?slug=…`         | Discriminated `BlogBySlugResponse` (category / post)     |
-| GET    | `/api/v1/blog/tag-by-code?code=…`     | `BlogTagByCodeResponse` — paginowane posty dla Tag       |
+| GET    | `/api/v1/blog/by-channel`             | `BlogIndexResponse` — najnowsze wpisy i kategorie pierwszego poziomu |
+| GET    | `/api/v1/blog/by-slug?slug=…`         | `BlogBySlugResponse` w postaci unii rozłącznej (kategoria / wpis)     |
+| GET    | `/api/v1/blog/tag-by-code?code=…`     | `BlogTagByCodeResponse` — stronicowane wpisy z danym tagiem       |
 
 Wszystkie trzy:
 
-- czytają rozwiązany kanał + język z nagłówków requestu (`x-sales-channel`, `x-blog-language` / `accept-language`);
-- czytają ustawienia `blog.*` z channel-aware Settings service;
-- zwracają `404 BLOG_DISABLED` (lub `BLOG_POST_NOT_FOUND` / `BLOG_TAG_NOT_FOUND`), gdy rozwiązany scope nie ma pasującej treści;
-- korzystają z Redis read-through [`BlogCacheService`](#cache-strategy).
+- odczytują wyznaczony kanał i język z nagłówków żądania (`x-sales-channel`, `x-blog-language` /
+  `accept-language`);
+- odczytują ustawienia `blog.*` z usługi ustawień uwzględniającej kanał;
+- zwracają `404 BLOG_DISABLED` (albo `BLOG_POST_NOT_FOUND` / `BLOG_TAG_NOT_FOUND`), gdy w danym
+  zakresie nie ma pasującej treści;
+- korzystają z pamięci podręcznej w Redis przez [`BlogCacheService`](#cache-strategy).
 
-## Strategia cache {#cache-strategy}
+## Strategia pamięci podręcznej {#cache-strategy}
 
-Klucze żyją pod `blog:v1:<channelCode>:<language>:` w czterech kształtach:
+Klucze mają przedrostek `blog:v1:<channelCode>:<language>:` i cztery postacie:
 
 ```
 blog:v1:<channel>:<language>:index
@@ -172,27 +173,28 @@ blog:v1:<channel>:<language>:post:<slug>
 blog:v1:<channel>:<language>:tag:<code>:p<page>
 ```
 
-TTL: 5 minut (zgodnie z cache modułu CMS).
+TTL: 5 minut (tak samo jak w pamięci podręcznej modułu CMS).
 
-Invalidacja:
+Unieważnianie:
 
-| Event                                  | Wipe                                            |
+| Zdarzenie                                  | Co jest czyszczone                                            |
 | -------------------------------------- | ----------------------------------------------- |
-| Zapis Post / Category / Tag            | `BlogCacheService.invalidateAll()`              |
-| Soft-delete lub zapis settings         | `BlogCacheService.invalidateAll()` via EventBus |
+| Zapis wpisu, kategorii lub tagu            | `BlogCacheService.invalidateAll()`              |
+| Usunięcie miękkie albo zapis ustawień         | `BlogCacheService.invalidateAll()` przez EventBus |
 
-Granularne `invalidatePost(channelCode, slug)` i podobne są podpięte
-na klasie cache pod przyszłą chirurgiczną invalidację (coarse
-invalidation jest poprawna w v1; tempo zapisów jest niskie).
+Dokładniejsze `invalidatePost(channelCode, slug)` i podobne metody są już dostępne w klasie pamięci
+podręcznej na potrzeby przyszłego, wybiórczego unieważniania (w v1 czyszczenie całości jest
+poprawne, bo zapisów jest mało).
 
-## Zależności cross-module
+## Zależności od innych modułów
 
-| Module                                       | What the blog reads                                         |
+| Moduł                                       | Co blog z niego odczytuje                                         |
 | -------------------------------------------- | ----------------------------------------------------------- |
-| [Settings](../settings/index.md)             | Cztery ustawienia `blog.*` przez `settings.service.get`     |
-| [Sales Channels](../sales_channels/index.md) | Rozwiązywanie kanału + fallback języka                |
-| [Assets Library](../assets-library/index.md) | Podpisywanie URL assetów + rejestr referencji           |
-| [CMS](../cms/index.md)                       | Envelope Page Buildera (`cmsContentEnvelopeSchema`)         |
-| [Catalog](../catalog.md)                     | Rozwiązywanie kart produktów dla Related Products           |
+| [Ustawienia](../settings/index.md)             | Cztery ustawienia `blog.*` przez `settings.service.get`     |
+| [Kanały sprzedaży](../sales_channels/index.md) | Wyznaczanie kanału i język zastępczy                |
+| [Biblioteka mediów](../assets-library/index.md) | Podpisywanie adresów plików i rejestr odwołań           |
+| [CMS](../cms/index.md)                       | Strukturę treści Page Buildera (`cmsContentEnvelopeSchema`)         |
+| [Katalog](../catalog.md)                     | Karty produktów dla powiązanych produktów           |
 
-Moduł blog nigdy nie importuje wnętrza innego modułu — każdy odczyt cross-module idzie przez udokumentowany port serwisowy.
+Moduł bloga nigdy nie importuje wnętrza innego modułu — każdy odczyt danych innego modułu przechodzi
+przez udokumentowany port usługi.
