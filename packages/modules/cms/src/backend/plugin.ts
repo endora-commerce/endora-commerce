@@ -25,6 +25,7 @@ import { CmsCache } from './services/cms-cache.js';
 import { registerCmsAdminRoutes } from './routes.admin.js';
 import { registerCmsStorefrontRoutes } from './routes.storefront.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 
 export interface ColorPaletteAuditContext {
   actorAdminUserId: string | null;
@@ -39,6 +40,12 @@ export type ColorPaletteWriter = (
 
 export interface CmsModuleOptions {
   emFactory: () => EntityManager;
+  /**
+   * The platform's Command Bus (Constitution XIII): every admin write to a Page
+   * runs through it, so each one is audited in its own transaction. Required —
+   * an optional bus would be a write path whose absent form records nothing.
+   */
+  commandBus: CommandBus;
   /**
    * Required since feature 072 (T093). It was optional, and `routes.admin.ts`
    * defaulted it to `?? (async () => {})` — a permission gate whose absent form
@@ -112,6 +119,7 @@ export function cmsModule(options: CmsModuleOptions): {
   const referenceRegistry = new CmsReferenceRegistry(options.emFactory);
   const pageService = new CmsPageService(
     options.emFactory,
+    options.commandBus,
     () => pageBuilderRegistry.knownNames(),
     cache,
     referenceRegistry,
