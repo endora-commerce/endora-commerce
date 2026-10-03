@@ -121,16 +121,23 @@ export function themeSpecifierOf(packageName, exportsField) {
 }
 
 /**
- * Every installed package that says it defines themes.
+ * Every package installed directly into a `node_modules` directory, with its
+ * parsed manifest.
  *
  * The walk is one level of `node_modules` plus one level into each `@scope`,
  * which is exactly what a direct dependency of this storefront looks like under
- * both pnpm (a symlink per declared dependency) and npm (a flat tree). Nothing
- * here is a list of package names: a theme package is recognised by its own
- * `endora.themes` block, the same way a module package is recognised by its own
- * `endora.type`.
+ * both pnpm (a symlink per declared dependency) and npm (a flat tree).
+ *
+ * **One walk, asked more than one question.** Theme discovery asks *"does this
+ * package declare `endora.themes`?"* and block discovery
+ * (`block-discovery.mjs`) asks *"is it a module publishing a storefront
+ * layer?"*. Two walks of one tree answering two predicates is two places for
+ * the population to come to differ, so both call this.
+ *
+ * `filesRead` counts the manifests that were opened and parsed — what the walk
+ * read, not what a predicate kept.
  */
-export function discoverThemePackages(nodeModulesDir) {
+export function listInstalledPackages(nodeModulesDir) {
   const packages = [];
   let filesRead = 0;
 
@@ -175,23 +182,43 @@ export function discoverThemePackages(nodeModulesDir) {
     }
     if (!real.isDirectory()) continue;
     const manifest = readManifest(candidate.dir);
-    const declared = manifest?.endora?.themes;
-    if (!Array.isArray(declared) || declared.length === 0) continue;
-    const codes = declared.filter((code) => typeof code === 'string' && THEME_CODE_RE.test(code));
+    if (manifest === null || typeof manifest !== 'object') continue;
     packages.push({
       name: typeof manifest.name === 'string' ? manifest.name : candidate.name,
       dir: candidate.dir,
-      declared,
-      codes,
-      specifier: themeSpecifierOf(
-        typeof manifest.name === 'string' ? manifest.name : candidate.name,
-        manifest.exports,
-      ),
+      manifest,
     });
   }
 
   packages.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
   return { packages, filesRead };
+}
+
+/**
+ * Every installed package that says it defines themes.
+ *
+ * Nothing here is a list of package names: a theme package is recognised by its
+ * own `endora.themes` block, the same way a module package is recognised by its
+ * own `endora.type`.
+ */
+export function discoverThemePackages(nodeModulesDir) {
+  const installed = listInstalledPackages(nodeModulesDir);
+  const packages = [];
+
+  for (const { name, dir, manifest } of installed.packages) {
+    const declared = manifest?.endora?.themes;
+    if (!Array.isArray(declared) || declared.length === 0) continue;
+    const codes = declared.filter((code) => typeof code === 'string' && THEME_CODE_RE.test(code));
+    packages.push({
+      name,
+      dir,
+      declared,
+      codes,
+      specifier: themeSpecifierOf(name, manifest.exports),
+    });
+  }
+
+  return { packages, filesRead: installed.filesRead };
 }
 
 // ---------------------------------------------------------------------------

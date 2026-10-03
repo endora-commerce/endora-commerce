@@ -301,6 +301,19 @@
  */
 @import './themes.generated.css';
 
+/*
+ * Page Builder block stylesheets of the module packages this instance has
+ * installed — `specs/141-module-block-renderers/`.
+ *
+ * Generated: `pnpm run blocks:generate` writes `blocks.generated.css` from the
+ * `./blocks.css` subpath of every module package in this storefront's
+ * `node_modules`, so installing a module's blocks is `pnpm add` and nothing
+ * else. Never add an `@import` here by hand. Each stylesheet is finished,
+ * module-scoped CSS that reads this storefront's theme custom properties, so
+ * its position relative to the theme blocks does not matter.
+ */
+@import './blocks.generated.css';
+
 :root.is-dark {
   --bg: #0b0b0d;
   --surface: #131316;

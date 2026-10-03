@@ -134,7 +134,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 4 — storefront
 
-- [ ] **T12** Discovery and generation (contract §5.2): lift the package walk out of
+- [x] **T12** Discovery and generation (contract §5.2): lift the package walk out of
   `theme-discovery.mjs` into an exported `listInstalledPackages`; `block-discovery.mjs` selects
   `endora.type === 'module'` packages declaring `./storefront` / `./blocks.css`;
   `generate-blocks.mjs` writes `lib/page-builder/blocks.generated.ts` and `app/blocks.generated.css`
