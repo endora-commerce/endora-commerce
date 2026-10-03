@@ -271,6 +271,12 @@ for, and — when it keeps failing — that it needs attention.
 Each has a recommended answer; the plan and tasks are written to the recommendations. **Q1 and Q2
 gate implementation** — the tasks that depend on them say so.
 
+**Answered by the owner on 2026-10-03: all six as recommended.** Q1 — proceed and defer (so T11
+stands and T11a is not taken); Q2 — an operator command, dry-run by default; Q3 — no, a known gap
+and its own feature; Q4 — yes, as a minor, with the implementer compile break stated in the
+changeset; Q5 — in, on the order page only; Q6 — no, the dry run stays. The questions are kept
+below as the record of what was decided and why.
+
 1. **With `credit_limits` off, should cancelling (or marking paid) an order placed on credit be
    refused, or proceed and release the credit when the module returns?** An earlier ruling keeps the
    refusal, on the ground that the credit cannot be given back while its owner is absent. With a
