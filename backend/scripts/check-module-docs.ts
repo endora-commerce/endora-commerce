@@ -376,10 +376,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'cites `packages/modules/carts/src/manifest.ts` by address. The file is real and the ' +
     'sentence is worth keeping; the repair is to name the module and the file rather than ' +
     'the path.',
-  'modules/cms/index#ff32c0ae':
-    'cites `packages/modules/cms/src/backend/services/page-builder-registry.ts` by ' +
-    'address. The file is real and the sentence is worth keeping; the repair is to name ' +
-    'the module and the file rather than the path.',
   'modules/comparisons#bb013c49':
     'cites `packages/modules/comparisons/src/manifest.ts` by address. The file is real ' +
     'and the sentence is worth keeping; the repair is to name the module and the file ' +
