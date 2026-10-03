@@ -20,8 +20,6 @@ import {
   type TransactionalSendOutcome,
 } from '@endora-commerce/contracts';
 import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
-import { EMAIL_SAFE_COMPONENT_NAMES } from '@endora-commerce/email-components/schema/component-types';
-import { walkUnknownComponents } from '@endora-commerce/email-components/tree/walk-embeds';
 import type {
   EmailBlockFailureReporter,
   EmailBlockRenderers,
@@ -41,9 +39,13 @@ import type { BrandingService} from './branding.service.js';
 import { type ResolvedBranding } from './branding.service.js';
 import type { EmbedResolver } from './embed-resolver.js';
 import type { EmailDefaultsRegistry } from './email-defaults-registry.js';
+import {
+  FIRST_PARTY_EMAIL_NAMES,
+  unknownEmailComponents,
+  type EmailSafeNames,
+} from './email-safe-components.js';
 import { renderTransactionalEmail } from './render-transactional-email.js';
 
-const KNOWN_COMPONENTS: ReadonlySet<string> = new Set(EMAIL_SAFE_COMPONENT_NAMES);
 
 /**
  * A missing transport is a deployment fact, not a per-message one: it holds for
@@ -101,6 +103,8 @@ export interface TransactionalEmailServiceDeps {
   blockRenderers?: () => EmailBlockRenderers;
   /** Told about a contributed block that threw. The message still renders. */
   onBlockFailure?: EmailBlockFailureReporter;
+  /** The block names saved content may hold. Absent: the first-party set alone. */
+  emailSafeNames?: EmailSafeNames;
 }
 
 export class TransactionalEmailService implements TransactionalEmailSender {
@@ -114,6 +118,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   private readonly auditLog: AuditPort | undefined;
   private readonly blockRenderers: (() => EmailBlockRenderers) | undefined;
   private readonly onBlockFailure: EmailBlockFailureReporter | undefined;
+  private readonly emailSafeNames: EmailSafeNames;
 
   constructor(deps: TransactionalEmailServiceDeps) {
     this.emFactory = deps.emFactory;
@@ -126,6 +131,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
     this.auditLog = deps.auditLog;
     this.blockRenderers = deps.blockRenderers;
     this.onBlockFailure = deps.onBlockFailure;
+    this.emailSafeNames = deps.emailSafeNames ?? FIRST_PARTY_EMAIL_NAMES;
   }
 
   // --- Sending (port) -----------------------------------------------------
@@ -369,12 +375,12 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   // --- Admin: save / reset -----------------------------------------------
 
   private validateContent(content: PuckDataTree): void {
-    const unknown = walkUnknownComponents(content, KNOWN_COMPONENTS);
-    if (unknown.size > 0) {
+    const unknown = unknownEmailComponents(content, this.emailSafeNames());
+    if (unknown.length > 0) {
       throw new HttpError(
         400,
         ERROR_CODES.VALIDATION_FAILED,
-        `Email content contains non-email-safe components: ${[...unknown].join(', ')}`,
+        `Email content contains non-email-safe components: ${unknown.join(', ')}`,
       );
     }
   }

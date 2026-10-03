@@ -149,6 +149,13 @@ export function registerModule(ctx: ModuleContext): void {
                 ctx,
                 'emailBlockRendererRegistry',
               ).renderers(),
+            registeredBlockNames: () =>
+              lazyPort<EmailBlockRendererRegistryPort<EmailBlockRenderer>>(
+                ctx,
+                'emailBlockRendererRegistry',
+              )
+                .listAll()
+                .map((entry) => entry.name),
             onBlockFailure: ({ block, owner, error }) =>
               ctx.log.warn(
                 { block, owner, err: error },
