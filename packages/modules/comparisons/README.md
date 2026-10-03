@@ -37,7 +37,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `@mikro-orm/migrations` ^6
 - `@mikro-orm/postgresql` ^6
 - `@types/pdfmake` ^0
-- `fastify` ^5
+- `fastify` ^5.11.0
 - `lucide-react` ^1 — *optional*
 - `pdfmake` ^0
 - `react` ^19 — *optional*

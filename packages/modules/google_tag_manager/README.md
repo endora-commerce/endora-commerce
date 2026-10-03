@@ -29,7 +29,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 **Third-party**
 
 - `bullmq` ^5
-- `fastify` ^5
+- `fastify` ^5.11.0
 - `ioredis` ^5
 - `zod` ^4
 

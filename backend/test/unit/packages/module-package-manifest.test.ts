@@ -361,6 +361,32 @@ describe('module package manifests are generated (feature 080, T041)', () => {
       expect(manifest['peerDependencies']).toMatchObject({ bullmq: '^5' });
     });
 
+    it('raises a framework peer to its recorded floor, not to the bare major', () => {
+      // An async handler that calls `reply.send()` without `return` crash-loops
+      // a process on Fastify < 5.11 (ERR_HTTP_HEADERS_SENT thrown out of the
+      // onSend hook runner); 5.11.0 catches it. `^5` lets a stranger's install
+      // resolve 5.0–5.10, so the derived peer carries the floor instead.
+      const manifest = manifestOf(
+        widgets({
+          ...BACKEND_ONLY,
+          'src/backend/server.ts': "import fastify from 'fastify';\nexport const f = fastify;\n",
+        }),
+      );
+      expect(manifest['peerDependencies']).toMatchObject({ fastify: '^5.11.0' });
+    });
+
+    it('refuses a floor whose major is not the one the application runs', () => {
+      const files = widgets({
+        ...BACKEND_ONLY,
+        'src/backend/server.ts': "import fastify from 'fastify';\nexport const f = fastify;\n",
+      });
+      const backendPath = `${ROOT}/backend/package.json`;
+      const backend = JSON.parse(files[backendPath]!) as { dependencies: Record<string, string> };
+      backend.dependencies['fastify'] = '^6.0.0';
+      files[backendPath] = JSON.stringify(backend);
+      expect(() => render(files)).toThrow(/fastify[\s\S]*5\.11\.0/);
+    });
+
     it('omits a framework no source imports', () => {
       const manifest = manifestOf(widgets(BACKEND_ONLY));
       expect(manifest['peerDependencies']).not.toHaveProperty('bullmq');

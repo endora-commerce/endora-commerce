@@ -836,6 +836,41 @@ function typesPackageFor(name: string): string {
     : `@types/${name}`;
 }
 
+/**
+ * The lowest version a derived peer may admit, for the few frameworks where
+ * the bare major (`^5`) reaches a release a published package cannot run on.
+ *
+ * Everything else takes the major of what the application runs, which is a
+ * derivation; a floor is not derivable from anything in the tree, so it is
+ * recorded here, once, with the defect that sets it:
+ *
+ *   * **`fastify` ≥ 5.11.0** — on Fastify < 5.11 an async route handler that
+ *     calls `reply.send()` without `return` throws `ERR_HTTP_HEADERS_SENT` as an
+ *     uncaught exception from the onSend hook runner, and the process
+ *     crash-loops. 5.11.0 catches it in `handleResolve` (`lib/hooks.js`).
+ *     Measured on a real socket in
+ *     `backend/test/integration/real-socket-reply-contract.test.ts`; held over
+ *     every published manifest by `test/unit/packages/fastify-peer-floor.test.ts`.
+ *
+ * A floor whose major is not the one the application runs is refused rather
+ * than applied: it would be a stale floor for a major nobody runs any more.
+ */
+const PEER_FLOORS: ReadonlyMap<string, string> = new Map([['fastify', '5.11.0']]);
+
+/** `^${major}`, or `^${floor}` when {@link PEER_FLOORS} records one for `name`. */
+function peerRangeFor(packageName: string, name: string, major: string): string {
+  const floor = PEER_FLOORS.get(name);
+  if (floor === undefined) return `^${major}`;
+  if (majorOf(floor) !== major) {
+    throw new ModulePackageManifestError(
+      `${packageName}: the peer floor recorded for '${name}' is ${floor}, and the application ` +
+        `runs major ${major}. Re-derive the floor for the major the application runs, or drop ` +
+        `it — a floor for another major is one nobody's install reads.`,
+    );
+  }
+  return `^${floor}`;
+}
+
 /** `^6.6.13` → `6`; a range with no readable major is refused by the caller. */
 function majorOf(range: string): string | null {
   const match = /^[^\d]*(\d+)\./.exec(range) ?? /^[^\d]*(\d+)$/.exec(range);
@@ -2066,7 +2101,7 @@ export function renderManifest(input: RenderInput): string {
           `no readable major version, so the peer range cannot be derived from it.`,
       );
     }
-    setPeer(`^${major}`);
+    setPeer(peerRangeFor(input.packageName, name, major));
     devs.set(name, declared);
     // A library whose types are a separate `@types/*` package. Nothing imports
     // that package, so the specifier walk above cannot see it — the compiler
