@@ -105,7 +105,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   **Test**: `packages/admin-kit/src/zones/use-block-contributions.test.tsx` — filters by context,
   stamps the owner, drops a switched-off owner, keeps the factory unevaluated until asked.
 
-- [ ] **T09** The CMS editor composes contributed renderers: load the factories of the descriptor's
+- [x] **T09** The CMS editor composes contributed renderers: load the factories of the descriptor's
   present, context-admitted names (one `Promise.all`), apply `withContributedBlocks`, override
   fields from the contribution over `fieldsFromDescriptor`, and give a declared name with no
   renderer the D8 editor instead of `makeMissingComponentConfig`. Stored names of absent owners keep

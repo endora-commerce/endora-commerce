@@ -24,3 +24,9 @@ export {
 export { fieldsFromDescriptor, type DescriptorFieldSource } from './fields-from-descriptor.js';
 
 export { withBlockBoundary } from './block-boundary.js';
+
+export {
+  editorConfigFromDescriptor,
+  neutralBlockPreview,
+  type DescriptorBlockSource,
+} from './descriptor-editor.js';

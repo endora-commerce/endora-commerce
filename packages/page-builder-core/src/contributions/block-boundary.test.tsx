@@ -3,7 +3,7 @@ import { createElement, type ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-import { withBlockBoundary } from './index.js';
+import { editorConfigFromDescriptor, neutralBlockPreview, withBlockBoundary } from './index.js';
 
 /**
  * `contracts/block-renderers.md` R8.1, as T01 measured it: `<Suspense>` is what
@@ -137,5 +137,57 @@ describe('withBlockBoundary', () => {
     );
     expect(wrapped.label).toBe('Badge');
     expect(wrapped.fields).toBe(fields);
+  });
+});
+
+describe('editorConfigFromDescriptor', () => {
+  const entry = {
+    fields: {
+      text: { type: 'text' as const, label: 'Text' },
+      tone: { type: 'select' as const, options: [{ label: 'Gold', value: 'gold' }] },
+    },
+    defaultProps: { text: 'New badge', tone: 'gold' },
+  };
+
+  it('takes the field set and the default props from the declaration', () => {
+    const render = (): ReactNode => <b>x</b>;
+    const config = editorConfigFromDescriptor(entry, { render } as never);
+    expect(Object.keys(config.fields ?? {})).toEqual(['text', 'tone']);
+    expect(config.defaultProps).toEqual({ text: 'New badge', tone: 'gold' });
+    expect(config.render).toBe(render);
+  });
+
+  it('lets a contributed field override a derived one, key by key', () => {
+    const picker = { type: 'custom', render: () => null };
+    const config = editorConfigFromDescriptor(entry, {
+      render: () => null,
+      fields: { tone: picker, notDeclared: { type: 'text' } },
+    } as never);
+    const fields = config.fields as Record<string, unknown>;
+    expect(fields['tone']).toBe(picker);
+    expect((fields['text'] as { type: string }).type).toBe('text');
+    // The field *set* is the declaration's: a contribution cannot add a field
+    // the manifest does not declare.
+    expect(Object.keys(fields)).toEqual(['text', 'tone']);
+  });
+
+  it('never takes a label or default props from the contribution', () => {
+    const config = editorConfigFromDescriptor({ fields: {} }, {
+      render: () => null,
+      label: 'From the contribution',
+      defaultProps: { smuggled: true },
+    } as never);
+    expect(config.label).toBeUndefined();
+    expect(config.defaultProps).toEqual({});
+  });
+});
+
+describe('neutralBlockPreview', () => {
+  it('names the block and says the sentence it was given', () => {
+    const Preview = neutralBlockPreview('crm.Badge', 'No preview in the editor.');
+    const html = renderToString(createElement(Preview as never, { text: 'stored' }));
+    expect(html).toContain('crm.Badge');
+    expect(html).toContain('No preview in the editor.');
+    expect(html).toContain('role="note"');
   });
 });

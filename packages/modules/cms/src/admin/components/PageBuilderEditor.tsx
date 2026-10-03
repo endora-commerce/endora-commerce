@@ -7,7 +7,6 @@ import '@puckeditor/core/puck.css';
 import '@endora-commerce/cms-components/styles.css';
 import {
   defaultPageBuilderConfig,
-  makeMissingComponentConfig,
   withCmsPageRoot,
   withMissingBlockPlaceholders,
   type CmsRenderEmbeds,
@@ -29,7 +28,15 @@ import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@endora-commerce/admin-kit/ui';
 import { cn } from '@endora-commerce/admin-kit/lib';
 import { useTranslation, useTranslationContext } from '@endora-commerce/admin-kit/i18n';
+import { useBlockContributions } from '@endora-commerce/admin-kit/zones';
 import { cmsClient } from '../api/cms-client.js';
+import {
+  composeDeclaredBlocks,
+  loadBlockEditors,
+  namesToLoad,
+  type DeclaredBlock,
+  type LoadedBlockEditors,
+} from './block-contributions.js';
 import {
   PageBuilderColorPaletteProvider,
   createCategorySlugField,
@@ -155,25 +162,47 @@ interface BlockOption {
   value: string;
 }
 
+/** The descriptor's entries this editor's palette admits (feature 096, T306). */
+function declaredFor(
+  descriptor: CmsPageBuilderDescriptor | null,
+  context: PageBuilderContext,
+): DeclaredBlock[] {
+  return (descriptor?.components ?? []).filter((entry) =>
+    contextAdmits(entry.contexts ?? ['cms'], context),
+  );
+}
+
+/** A contribution that was ignored or failed is the operator's console's to know. */
+function reportBlockContribution(message: string): void {
+  console.warn(message);
+}
+
+const NO_CONTRIBUTED_EDITORS: Pick<LoadedBlockEditors, 'editors' | 'owners'> = {
+  editors: {},
+  owners: {},
+};
+
 function mergeConfig(
   descriptor: CmsPageBuilderDescriptor | null,
   extensionTitle: string,
   blockOptions: BlockOption[],
   context: PageBuilderContext,
   sectionTitle: (ownerModule: string, titleKey: string, fallback: string) => string,
+  contributed: Pick<LoadedBlockEditors, 'editors' | 'owners'>,
+  previewSentence: string,
 ): Config {
   const base = defaultPageBuilderConfig;
 
-  const components: Record<string, ComponentConfig> = {
+  const bundled: Record<string, ComponentConfig> = {
     ...(base.components ?? {}),
   } as Record<string, ComponentConfig>;
 
   // Replace InsertBlock's free-text "Block code" field with a dropdown of the
   // available CMS blocks, so authors pick from a list instead of having to know
   // and type a code by hand.
-  const insertBlock = components['cms.InsertBlock'];
+  const insertBlock = bundled['cms.InsertBlock'];
   if (insertBlock) {
-    components['cms.InsertBlock'] = {
+    bundled['cms.InsertBlock'] = {
       ...insertBlock,
       fields: {
         ...insertBlock.fields,
@@ -186,9 +215,9 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  const button = components['cms.Button'];
+  const button = bundled['cms.Button'];
   if (button) {
-    components['cms.Button'] = {
+    bundled['cms.Button'] = {
       ...button,
       fields: {
         ...button.fields,
@@ -197,9 +226,9 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  const hero = components['cms.Hero'];
+  const hero = bundled['cms.Hero'];
   if (hero) {
-    components['cms.Hero'] = {
+    bundled['cms.Hero'] = {
       ...hero,
       fields: {
         ...hero.fields,
@@ -211,18 +240,18 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  const productCard = components['catalog.ProductCard'];
+  const productCard = bundled['catalog.ProductCard'];
   if (productCard) {
-    components['catalog.ProductCard'] = {
+    bundled['catalog.ProductCard'] = {
       ...productCard,
       fields: { ...productCard.fields, productSlug: createProductSlugField() },
     } as ComponentConfig;
   }
 
   for (const name of ['catalog.ProductGrid', 'catalog.ProductSlider'] as const) {
-    const cfg = components[name];
+    const cfg = bundled[name];
     if (cfg) {
-      components[name] = {
+      bundled[name] = {
         ...cfg,
         fields: {
           ...cfg.fields,
@@ -234,9 +263,9 @@ function mergeConfig(
   }
 
   for (const name of ['catalog.CategoryList', 'catalog.CategoryGrid'] as const) {
-    const cfg = components[name];
+    const cfg = bundled[name];
     if (cfg) {
-      components[name] = {
+      bundled[name] = {
         ...cfg,
         fields: {
           ...cfg.fields,
@@ -247,9 +276,9 @@ function mergeConfig(
     }
   }
 
-  const image = components['cms.Image'];
+  const image = bundled['cms.Image'];
   if (image) {
-    components['cms.Image'] = {
+    bundled['cms.Image'] = {
       ...image,
       fields: {
         ...image.fields,
@@ -260,10 +289,10 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  const imageSlider = components['cms.ImageSlider'];
+  const imageSlider = bundled['cms.ImageSlider'];
   if (imageSlider) {
     const itemsField = imageSlider.fields?.items;
-    components['cms.ImageSlider'] = {
+    bundled['cms.ImageSlider'] = {
       ...imageSlider,
       fields: {
         ...imageSlider.fields,
@@ -314,9 +343,9 @@ function mergeConfig(
   }
 
   for (const name of ['cms.Row', 'cms.Column', 'cms.Hero', 'cms.Testimonial', 'cms.NewsletterSignup'] as const) {
-    const cfg = components[name];
+    const cfg = bundled[name];
     if (cfg) {
-      components[name] = {
+      bundled[name] = {
         ...cfg,
         fields: {
           ...cfg.fields,
@@ -326,9 +355,9 @@ function mergeConfig(
     }
   }
 
-  const testimonial = components['cms.Testimonial'];
+  const testimonial = bundled['cms.Testimonial'];
   if (testimonial) {
-    components['cms.Testimonial'] = {
+    bundled['cms.Testimonial'] = {
       ...testimonial,
       fields: {
         ...testimonial.fields,
@@ -339,10 +368,10 @@ function mergeConfig(
     } as ComponentConfig;
   }
 
-  const logoStrip = components['cms.LogoStrip'];
+  const logoStrip = bundled['cms.LogoStrip'];
   if (logoStrip) {
     const itemsField = logoStrip.fields?.items;
-    components['cms.LogoStrip'] = {
+    bundled['cms.LogoStrip'] = {
       ...logoStrip,
       fields: {
         ...logoStrip.fields,
@@ -369,20 +398,20 @@ function mergeConfig(
   // this palette by construction; it now carries all 74 a platform composes,
   // and an unfiltered sweep would put 39 e-mail and invoice blocks into this
   // editor as missing-renderer placeholders.
-  const declared = (descriptor?.components ?? []).filter((entry) =>
-    contextAdmits(entry.contexts ?? ['cms'], context),
-  );
-  for (const entry of declared) {
-    if (components[entry.name]) continue;
-    // `visible: true` because this is an editing surface: the operator has to be
-    // told which module a block is waiting on. The parameter had no caller until
-    // feature 096's T602 and the placeholder read the `?cms_admin=1` preview
-    // parameter instead, which nothing in this repository sets — so every
-    // placeholder the editor merged rendered an empty span.
-    components[entry.name] = makeMissingComponentConfig(entry.name, entry.ownerModule, {
-      visible: true,
-    });
-  }
+  const declared = declaredFor(descriptor, context);
+  // Feature 141 — every declared block the bundle does not render gets an
+  // editor here: the renderer its module contributes, or one built from its
+  // declared fields with a neutral preview (plan D8). It used to get
+  // `MissingComponentPlaceholder`, whose only fields are the block's name and
+  // owner — a block an operator could insert and never edit.
+  const components = composeDeclaredBlocks({
+    components: bundled,
+    declared,
+    editors: contributed.editors,
+    owners: contributed.owners,
+    previewSentence,
+    report: reportBlockContribution,
+  });
 
   // The sections come from the modules that declared them, resolved and merged
   // by the registry (`contracts/block-definition.md` §1.1 and §4.1.1). The
@@ -492,6 +521,42 @@ export function PageBuilderEditor({
     [descriptor, translateInScope],
   );
 
+  /**
+   * The editor renderers the present modules contribute for the blocks the
+   * descriptor declares (feature 141, contract R4.2). `null` until the
+   * factories have settled: the Puck config is built **after** them, so a
+   * contributed block never flashes as its declared-fields fallback first.
+   * Only the `cms` context has contributions of its own; any other resolves
+   * to none at once.
+   */
+  const blockContributions = useBlockContributions('cms');
+  const [contributedEditors, setContributedEditors] = useState<Pick<
+    LoadedBlockEditors,
+    'editors' | 'owners'
+  > | null>(null);
+  useEffect(() => {
+    if (descriptor === null) return undefined;
+    if (context !== 'cms') {
+      setContributedEditors(NO_CONTRIBUTED_EDITORS);
+      return undefined;
+    }
+    const wanted = namesToLoad(
+      declaredFor(descriptor, context),
+      defaultPageBuilderConfig.components ?? {},
+    );
+    if (!blockContributions.some((contribution) => wanted.has(contribution.name))) {
+      setContributedEditors(NO_CONTRIBUTED_EDITORS);
+      return undefined;
+    }
+    let live = true;
+    void loadBlockEditors(blockContributions, wanted, reportBlockContribution).then((loaded) => {
+      if (live) setContributedEditors(loaded);
+    });
+    return () => {
+      live = false;
+    };
+  }, [descriptor, context, blockContributions]);
+
   const [blockOptions, setBlockOptions] = useState<BlockOption[]>([]);
   const [embeds, setEmbeds] = useState<CmsRenderEmbeds>({ blocks: {}, templates: {} });
   const [error, setError] = useState<string | null>(null);
@@ -600,6 +665,8 @@ export function PageBuilderEditor({
       blockOptions,
       context,
       sectionTitle,
+      contributedEditors ?? NO_CONTRIBUTED_EDITORS,
+      t('pageBuilder.blockPreview.unavailable'),
     );
     const filtered = filterConfigByContext(merged, context);
     // FR-019/FR-020 — a stored block nothing here can render degrades to the
@@ -621,6 +688,7 @@ export function PageBuilderEditor({
     pageContainer,
     context,
     storedBlockNamesKey,
+    contributedEditors,
   ]);
   const lastValidDataRef = useRef(editorData);
   const knownRowIdsRef = useRef<Set<string>>(collectRowIds(editorData));
@@ -871,7 +939,7 @@ export function PageBuilderEditor({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
-      {!descriptor && !error ? (
+      {(!descriptor || contributedEditors === null) && !error ? (
         <p className="text-sm text-muted-foreground">{t('pageBuilder.loadingConfig')}</p>
       ) : null}
       <div
