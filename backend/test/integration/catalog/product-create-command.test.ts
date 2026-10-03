@@ -202,4 +202,71 @@ describe('CatalogAdminService.createProduct — audited via Command Bus [real DB
     expect(squared.slug).toBe('kabel-miedziany');
     expect(cubed.slug).toMatch(/^kabel-miedziany-\d+$/);
   });
+
+  /**
+   * `categoryIds` is a required field of the create request and the create
+   * Command used to ignore it: the product row was written, `product_categories`
+   * was not, and only a later update assigned the categories the caller had
+   * already named. The bridge rows now go through the same reconciliation the
+   * update path uses, inside the Command's transaction.
+   */
+  describe('categoryIds', () => {
+    async function createCategory(slug: string): Promise<string> {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/catalog/categories',
+        payload: { name: { 'en-US': slug }, slug },
+        cookies: adminCookie,
+      });
+      expect(res.statusCode).toBe(201);
+      return (res.json() as { data: { id: string } }).data.id;
+    }
+
+    it('writes the bridge rows with the product and records them on the one audit row', async () => {
+      const a = await createCategory('cmd-create-cat-a');
+      const b = await createCategory('cmd-create-cat-b');
+      const events: string[] = [];
+      const off = h.eventBus.on('product.created.v1', (payload) => {
+        events.push((payload as unknown as { productId: string }).productId);
+      });
+
+      const created = await withSystemScope('create with categories', () =>
+        // A repeated id is one membership, not a primary-key violation.
+        service.createProduct({ ...productRequest('CMD-CREATE-CAT-1'), categoryIds: [a, b, a] }),
+      );
+      off();
+
+      expect((await service.getProductCategoryIds(created.id)).sort()).toEqual([a, b].sort());
+
+      const rows = await h
+        .em()
+        .find(AuditLogEntry, { action: 'product.create', objectId: created.id });
+      expect(rows).toHaveLength(1);
+      const after = rows[0]?.stateAfter as { categoryIds?: string[] } | null;
+      expect([...(after?.categoryIds ?? [])].sort()).toEqual([a, b].sort());
+      expect(events.filter((id) => id === created.id)).toHaveLength(1);
+    });
+
+    it('an unknown category rolls the whole create back — no product, no audit row, no event', async () => {
+      const events: string[] = [];
+      const off = h.eventBus.on('product.created.v1', (payload) => {
+        events.push((payload as unknown as { productId: string }).productId);
+      });
+      const auditRowsBefore = await h.em().count(AuditLogEntry, { action: 'product.create' });
+
+      await expect(
+        withSystemScope('create with an unknown category', () =>
+          service.createProduct({
+            ...productRequest('CMD-CREATE-CAT-MISSING'),
+            categoryIds: ['00000000-0000-4000-8000-00000000dead'],
+          }),
+        ),
+      ).rejects.toThrow();
+      off();
+
+      expect(await h.em().find(Product, { sku: 'CMD-CREATE-CAT-MISSING' })).toHaveLength(0);
+      expect(await h.em().count(AuditLogEntry, { action: 'product.create' })).toBe(auditRowsBefore);
+      expect(events).toHaveLength(0);
+    });
+  });
 });

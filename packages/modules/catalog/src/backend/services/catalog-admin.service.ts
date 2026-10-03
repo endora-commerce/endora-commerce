@@ -349,6 +349,17 @@ export class CatalogAdminService {
         );
         em.persist(product);
         await em.flush();
+        // `categoryIds` is a required field of the create request. The bridge
+        // rows are written here, after the flush that makes the product row
+        // exist for their foreign key and on the Command's own `em`, so they
+        // commit or roll back with the product and `product.created.v1` is
+        // only ever emitted for a product whose categories are already there.
+        // A product that has just been created has no rows to reconcile
+        // against, so an empty list is no statement at all.
+        const categoryIds = [...new Set(req.categoryIds ?? [])];
+        if (categoryIds.length > 0) {
+          await this.#reconcileProductCategories(em, product.id, categoryIds);
+        }
         return {
           result: product,
           after: {
@@ -357,6 +368,7 @@ export class CatalogAdminService {
             status: product.status,
             visibility: product.visibility,
             stockMode: product.stockMode,
+            categoryIds,
           },
         };
       },
@@ -571,41 +583,8 @@ export class CatalogAdminService {
     // `add` (union) semantics compute the union before passing it in
     // (see CatalogBulkUpdateService).
     if (req.categoryIds !== undefined) {
-      const conn = em.getConnection();
-      const txCtx = em.getTransactionContext();
-      const currentRows = (await conn.execute<Array<{ category_id: string }>>(
-        `select category_id from product_categories where product_id = ?`,
-        [product.id],
-        'all',
-        txCtx,
-      )) as Array<{ category_id: string }>;
-      const current = new Set(currentRows.map((r) => r.category_id));
-      const target = new Set(req.categoryIds);
-      const toAdd = req.categoryIds.filter((id) => !current.has(id));
-      const toRemove = [...current].filter((id) => !target.has(id));
-      if (toRemove.length > 0) {
-        const placeholders = toRemove.map(() => '?').join(',');
-        await conn.execute(
-          `delete from product_categories where product_id = ? and category_id in (${placeholders})`,
-          [product.id, ...toRemove],
-          'run',
-          txCtx,
-        );
-      }
-      if (toAdd.length > 0) {
-        const placeholders = toAdd.map(() => '(?,?)').join(',');
-        const params: unknown[] = [];
-        for (const cid of toAdd) {
-          params.push(product.id, cid);
-        }
-        await conn.execute(
-          `insert into product_categories (product_id, category_id) values ${placeholders}`,
-          params,
-          'run',
-          txCtx,
-        );
-      }
-      if (toAdd.length > 0 || toRemove.length > 0) {
+      const changed = await this.#reconcileProductCategories(em, product.id, req.categoryIds);
+      if (changed) {
         changedFields.push('categoryIds');
       }
     }
@@ -645,6 +624,60 @@ export class CatalogAdminService {
       allowedOrganizationIds: [...product.allowedOrganizationIds],
     };
     return { product, stateBefore, stateAfter, changedFields };
+  }
+
+  /**
+   * Makes `product_categories` hold exactly `categoryIds` for one product, on
+   * the caller's `em` and inside its transaction: the current rows are read,
+   * and only the difference is deleted or inserted. Returns whether anything
+   * was written.
+   *
+   * The one writer of that bridge for both the create Command and the update
+   * path, so a product's categories commit, roll back and are audited with the
+   * write that named them. A repeated id is one membership: the bridge's
+   * primary key is the pair, and an unfiltered insert would turn a duplicate
+   * in the request into a constraint violation.
+   */
+  async #reconcileProductCategories(
+    em: EntityManager,
+    productId: string,
+    categoryIds: readonly string[],
+  ): Promise<boolean> {
+    const conn = em.getConnection();
+    const txCtx = em.getTransactionContext();
+    const currentRows = (await conn.execute<Array<{ category_id: string }>>(
+      `select category_id from product_categories where product_id = ?`,
+      [productId],
+      'all',
+      txCtx,
+    )) as Array<{ category_id: string }>;
+    const current = new Set(currentRows.map((r) => r.category_id));
+    const target = new Set(categoryIds);
+    const toAdd = [...target].filter((id) => !current.has(id));
+    const toRemove = [...current].filter((id) => !target.has(id));
+    if (toRemove.length > 0) {
+      const placeholders = toRemove.map(() => '?').join(',');
+      await conn.execute(
+        `delete from product_categories where product_id = ? and category_id in (${placeholders})`,
+        [productId, ...toRemove],
+        'run',
+        txCtx,
+      );
+    }
+    if (toAdd.length > 0) {
+      const placeholders = toAdd.map(() => '(?,?)').join(',');
+      const params: unknown[] = [];
+      for (const cid of toAdd) {
+        params.push(productId, cid);
+      }
+      await conn.execute(
+        `insert into product_categories (product_id, category_id) values ${placeholders}`,
+        params,
+        'run',
+        txCtx,
+      );
+    }
+    return toAdd.length > 0 || toRemove.length > 0;
   }
 
   /**
