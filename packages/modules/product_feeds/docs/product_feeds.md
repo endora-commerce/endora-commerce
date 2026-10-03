@@ -534,4 +534,6 @@ harness also points the taxonomy reconciler at a non-existent directory, so only
   covers SFTP, FTP and HTTP only — see **Delivery** above.
 - Incremental, supplemental or delta feeds — every run regenerates the whole file.
 - Multiple countries or currencies in one file; duplicate the feed instead.
-- A runtime taxonomy download.
+- Adopting a newer taxonomy automatically. The optional check (see
+  [Taxonomy updates](#taxonomy-updates)) downloads and installs a changed revision **inactive**;
+  only an operator's promotion puts it into use.

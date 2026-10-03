@@ -50,7 +50,8 @@ podtytuł.
 ## Przechowywanie
 
 `attribute_sets` (id, unikalny code, name jsonb, is_system bool) i `attribute_set_attributes`
-(złożony klucz główny (set_id, attribute_id)). Systemowy wiersz Default tworzy migracja 017 ze stałym
+(złożony klucz główny (set_id, attribute_id)). Systemowy wiersz Default tworzy migracja
+`20260429T064146_catalog_attribute_sets_init.ts` ze stałym
 UUID `defa0017-0000-4000-8000-000000000000`, aby dane początkowe i testy mogły się do niego
 niezmiennie odwoływać.
 

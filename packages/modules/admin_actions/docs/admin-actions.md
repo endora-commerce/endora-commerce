@@ -7,12 +7,11 @@ description: Module-contributed action registry surfaced in the Admin Command Pa
 
 A registry-backed contribution point that lets every backend module add action buttons to
 the Admin UI's command palette (the `⌘K` / `Ctrl+K` modal — what the operator sees as the
-**Actions** group). Two actions ship hardcoded today (*New product*, *Import products*); those,
-and every future action, are declared once in their owning module's manifest and surfaced
-through this registry.
+**Actions** group). No action is hardcoded: every action, *New product* and *Import products*
+included, is declared once in its owning module's manifest and surfaced through this registry.
 
-The platform side lives at `packages/modules/admin_actions/` and the admin runtime at
-`admin/src/lib/admin-actions/`.
+The platform side is this module, `admin_actions`; the admin runtime is in the admin shell
+package, `@endora-commerce/admin-shell`, under `src/lib/admin-actions/`.
 
 ## What a module declares
 
@@ -151,14 +150,14 @@ Weights are advisory but reviewers expect new actions to land in the appropriate
 ## Icon allowlist
 
 Allowed icon names are an enum in `packages/contracts/src/admin-actions.ts`. Adding a new
-icon is a one-line PR that edits both the enum and the admin's `icon-map.ts`.
+icon is a one-line PR that edits both the enum and the admin shell's `icon-map.ts`
+(`@endora-commerce/admin-shell`, `src/lib/admin-actions/icon-map.ts`).
 
-## v1 seed set
+## Which actions exist
 
-The initial release ships ten actions across nine modules: `catalog/new-product`,
-`import_export/import-products`, `import_export/open-import-export-center`,
-`inventory/open-inventory`, `quote_requests/open-rfq-inbox`, `cms/new-page`,
-`blog/new-post`, `megamenu/edit-megamenu`, `sales_channels/new-sales-channel`,
-`settings/open-settings`. Eight further candidates from the spec were deferred until
-their target admin pages exist (Adjust stock, New draft order, Find order by number,
-New customer, New price list, New promotion, Upload asset, New category).
+The action set is the union of the `actions` arrays in the manifests of the modules your
+instance has installed, so it differs from one instance to the next and this page does not
+list it. The first release seeded ten actions across nine modules; many more modules declare
+actions today. To see the set an instance actually serves, call
+`GET /api/v1/admin/admin-actions` as an operator holding `*`, or search the module manifests
+for `actions:`.

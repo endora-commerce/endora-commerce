@@ -10,22 +10,29 @@ kanału, zarządzanie przypisaniami i odczyt kanału w handlerach żądań.
 
 ## Odczyt wyznaczonego kanału w trasie
 
-Warstwa pośrednia wyznaczająca kanał dodaje do każdego żądania pod `/api/v1/*` pole
-`req.salesChannel` (zserializowany widok `CachedChannel` wyznaczonego wiersza). Korzystaj z typowanej
-funkcji pomocniczej, aby sposób dostępu był wszędzie taki sam:
+Warstwa pośrednia wyznaczająca kanał ustala kanał sprzedaży każdego żądania pod `/api/v1/*` i zapisuje
+go (widok `CachedChannel` wiersza) w zakresie platformy żądania, a nie na obiekcie żądania. Odczytuj
+go funkcjami pomocniczymi publikowanymi przez kernel platformy:
 
 ```ts
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 
-app.get('/api/v1/storefront/products', async (request) => {
-  const channel = getResolvedChannel(request);
+app.get('/api/v1/storefront/products', async () => {
+  const channel = getResolvedChannel();
   return productService.list({ salesChannelId: channel.id });
 });
 ```
 
-Poza obsługą żądania (zadania w tle, skrypty CLI) wywołuj bezpośrednio
-`SalesChannelResolverService.getByCode(code)` albo `getSystemDefault()` przez obiekt udostępniony
-przy kompozycji modułu.
+`getResolvedChannel()` zgłasza błąd (`500`), gdy kanał nie został wyznaczony na danej ścieżce;
+`currentSalesChannel()` z tego samego barrela zwraca wtedy `null`. Żadna z nich nie potrzebuje
+`FastifyRequest`, więc usługa głęboko w łańcuchu wywołań może odczytać kanał bez przekazywania go
+przez parametry. (`getResolvedChannel` nadal przyjmuje argument żądania ze względu na starsze
+wywołania i go ignoruje.)
+
+Poza obsługą żądania (zadania w tle, skrypty CLI) pobierz z kontenera `salesChannelResolutionPort` i
+wywołaj `getByCode(code)` albo `getSystemDefault()`; typuj go jako `SalesChannelResolutionPort` z
+`@endora-commerce/platform/kernel`. Klasa `SalesChannelResolverService`, która za nim stoi, nie jest
+publikowana.
 
 ## Dodawanie do modułu encji zależnej od kanału
 
@@ -37,7 +44,7 @@ Zależność od kanału ma dwie warstwy:
 2. **Usługa** — każda ścieżka odczytu encji, która ma być filtrowana według kanału, przyjmuje
    parametr `salesChannelId` i łączy dane przez tabelę łączącą. Każda ścieżka tworzenia lub
    aktualizacji, która tworzy nową encję, po `persistAndFlush` wywołuje
-   `SalesChannelMembershipService.bindToDefaultIfEmpty(entityType, entity.id)`, aby nowe encje
+   `bindToDefaultIfEmpty(entityType, entity.id)` na `salesChannelMembershipPort`, aby nowe encje
    domyślnie trafiały do domyślnego kanału systemowego.
 
 Następnie dodaj wartość do wyliczenia `ChannelMemberEntityTypeSchema` w kontrakcie i **zadeklaruj
@@ -60,10 +67,12 @@ pozostaje opublikowanym *słownikiem*, podczas gdy o tym, które typy działają
 
 ## Zmiana przypisań
 
-`SalesChannelMembershipService` to jedyne miejsce, które zmienia dane w tabelach łączących.
-Bezpośrednie INSERT / DELETE na `sales_channel_*` z innego miejsca jest zabronione — reguła lint
-`no-unscoped-channel-query` jest zabezpieczeniem (dostarczana jest wyłączona i zostanie włączona, gdy
-wszystkie istniejące wywołania zostaną dostosowane).
+`SalesChannelMembershipService` to jedyne miejsce, które zmienia dane w tabelach łączących. Moduł
+sięga po nie jako wpis kontenera `salesChannelMembershipPort`, typowany jako
+`SalesChannelMembershipPort` z `@endora-commerce/platform/kernel`; sama klasa nie jest publikowana.
+Bezpośrednie INSERT / DELETE na `sales_channel_*` z innego miejsca jest zabronione, a pilnuje tego
+`check:module-boundary`: przypisuje każdą tabelę `sales_channel_*` do jej właściciela na podstawie
+DDL i zgłasza moduł, który zapisuje ją surowym SQL.
 
 ```ts
 const result = await membershipService.addToChannel(channelId, 'product', productId);
@@ -77,8 +86,8 @@ const removed = await membershipService.removeFromChannel(channelId, 'product', 
 
 ## Gwarancja istnienia kanału domyślnego
 
-`DefaultChannelReconciler` wykonuje się przy każdym starcie backendu z `composition.ts` (oraz z
-`test-server.ts` w testach integracyjnych). Trzy przypadki:
+`DefaultChannelReconciler` wykonuje się przy każdym starcie backendu, w kompozycji platformy
+(`packages/platform/src/composition/compose-app.ts`), a więc także w serwerze testów integracyjnych. Trzy przypadki:
 
 1. **Pusta tabela `sales_channels`** — wstawia nowy wiersz z kodem `DEFAULT_SALES_CHANNEL_CODE`
    (zmienna środowiskowa, domyślnie `default`).

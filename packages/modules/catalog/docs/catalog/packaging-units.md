@@ -60,8 +60,11 @@ count.
 
 ## Schema
 
-Table `product_packaging_units` (migration 068): `id`, `product_id`
+Table `product_packaging_units` (migration
+`20260611T140412_catalog_product_packaging_units.ts`): `id`, `product_id`
 (FK → `products`, cascade delete), `name`, `base_quantity`
 (`CHECK >= 1`), `position`, `is_default`, timestamps; `UNIQUE (product_id,
-name)`. Additive snapshot columns: `cart_items` (069), `order_items` (070),
-`quote_request_items` (071).
+name)`. Additive snapshot columns, each added by its owning module:
+`cart_items` (`20260611T140413_carts_cart_item_packaging.ts`), `order_items`
+(`20260611T140414_orders_order_item_packaging.ts`), `quote_request_items`
+(`20260611T140415_quote_requests_qr_item_packaging.ts`).

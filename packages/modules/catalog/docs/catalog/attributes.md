@@ -157,7 +157,7 @@ assigned Attribute Set.
 
 ## Storage
 
-Since migration `102` an attribute is split between the
+Since migration `20260723T230401_catalog_attributes_on_custom_fields.ts` an attribute is split between the
 generic Custom Fields layer that the `custom_fields` module owns and
 a catalog-owned extension row. The API shape above is unchanged — the
 admin surface composes the two back into the legacy form.
@@ -177,8 +177,9 @@ admin surface composes the two back into the legacy form.
 
 - Option rows keyed UNIQUE `(definition_id, value)` with per-locale
   `label`, `label_default`, `is_default`, `sort_order`. The
-  catalog-owned `attribute_options` table (migration `032`) was dropped
-  by migration `102` after its rows moved here.
+  catalog-owned `attribute_options` table (migration
+  `20260505T060113_catalog_attribute_options_and_flags.ts`) was dropped by
+  migration `20260723T230401_catalog_attributes_on_custom_fields.ts` after its rows moved here.
 
 `product_attributes` (owned by `catalog`) — the 1:1 **extension**:
 
@@ -194,7 +195,8 @@ admin surface composes the two back into the legacy form.
   (`pill` = legacy `enum`, `dropdown` = legacy `select`) and
   `numeric_kind varchar(8) NULL` (`number` | `price`).
 - The duplicated definition columns (`key`, `label`, `label_default`,
-  `value_type`, `is_required`) were dropped by migration `102` — the
+  `value_type`, `is_required`) were dropped by migration
+  `20260723T230401_catalog_attributes_on_custom_fields.ts` — the
   definition row is the single source of truth for them.
 
 `products.attribute_values jsonb` carries the per-product map keyed by

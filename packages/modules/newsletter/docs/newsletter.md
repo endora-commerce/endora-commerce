@@ -85,7 +85,7 @@ panel showing subscription status + tags with subscribe/unsubscribe actions.
 
 ## Schema
 
-Migration `083_newsletter_init.ts` creates `newsletter_subscribers`,
+Migration `20260629T200954_newsletter_init.ts` creates `newsletter_subscribers`,
 `newsletter_tags`, `newsletter_subscriber_tags`, `newsletter_custom_fields`,
 `newsletter_suppressions`, `newsletter_email_blocks`(+ channel bridge),
 `newsletter_campaigns`(+ group bridge), `newsletter_send_records`,

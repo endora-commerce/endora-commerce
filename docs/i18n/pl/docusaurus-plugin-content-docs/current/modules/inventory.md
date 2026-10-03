@@ -11,7 +11,8 @@ sprzedaży, alerty o niskim stanie, przedziały dostępności wyświetlane w skl
 zamówienie (backorder), produkty bez śledzenia stanu, powiadomienia o dostępności, import CSV oraz
 zapis alokacji `stock_allocations` dla każdej pozycji zamówienia.
 
-Moduł zastępuje pierwotny model z jednym wspólnym stanem. Migracja 030 zachowuje pierwotną tabelę
+Moduł zastępuje pierwotny model z jednym wspólnym stanem. Migracja
+`20260503T182812_inventory_workflow.ts` zachowuje pierwotną tabelę
 `stock_levels`, ale rozszerza unikalność do `(product_id, variant_id, warehouse_id)`, tworzy magazyn
 `Default` ze stałym UUID `00000000-0000-4000-8000-00000000d017` i przypisuje do niego każdy aktywny
 kanał sprzedaży przez nową tabelę `warehouse_channel_assignments`.
@@ -69,14 +70,15 @@ rodzaj luki, który każda z czterech wcześniejszych poprawek uprawnień znajdo
 | `POST /api/v1/admin/inventory/import` | `inventory:write` | Import stanów z CSV (`?dryRun=true` sprawdza dane bez zapisu) |
 | `PUT /api/v1/admin/inventory` | `inventory:write` | **Wycofywany** zapis w pierwotnym modelu z jednym stanem; deleguje do `StockLevelService.setOnHand` dla magazynu Default |
 | `GET /api/v1/admin/inventory/legacy` | `inventory:read` | **Wycofywana** lista w pierwotnym modelu z jednym stanem |
-| `GET /api/v1/storefront/inventory/display-mode` | — | Publiczny odczyt dla storefrontu: jak kanał pokazuje stan |
 
-Trasy publiczne:
+### Trasy publiczne
 
-| Metoda i ścieżka | Przeznaczenie |
-| --- | --- |
-| `GET /api/v1/storefront/inventory/stock/:id` | Publiczny stan produktu dla storefrontu, z łącznym stanem liczonym tylko z magazynów przypisanych do kanału wywołującego |
-| `POST /api/v1/catalog/products/:id/notify-when-available` | Klient zapisuje się na powiadomienie o ponownej dostępności; zalogowanym e-mail jest wypełniany automatycznie |
+| Metoda i ścieżka | Odbiorca | Przeznaczenie |
+| --- | --- | --- |
+| `GET /api/v1/storefront/inventory/display-mode` | anonimowy | Jak kanał sprzedaży żądania pokazuje stan |
+| `GET /api/v1/storefront/inventory/stock/:id` | anonimowy | Stan produktu z łącznym stanem liczonym tylko z magazynów przypisanych do kanału wywołującego (dodatkowo zawężonych do listy dozwolonych magazynów jego organizacji, jeśli jest ustawiona); `404` dla produktu, którego wywołujący nie może zobaczyć |
+| `POST /api/v1/storefront/inventory/notify-when-available` | anonimowy lub zalogowany | Zapisuje adres e-mail podany w treści żądania na powiadomienie o ponownej dostępności |
+| `POST /api/v1/catalog/products/:id/notify-when-available` | zalogowany klient | Zapisuje adres e-mail konta klienta na powiadomienie o ponownej dostępności |
 
 ## Uprawnienia
 
@@ -95,7 +97,7 @@ modułu.
 automatycznie. Przyznanie ich każdemu, kto ma stare kody, odtworzyłoby nadmierne uprawnienia, które
 ten podział usuwa.
 
-`test/contract/inventory/permission-authority.test.ts` sprawdza oba kierunki i oba stare kody.
+`backend/test/contract/inventory/permission-authority.test.ts` sprawdza oba kierunki i oba stare kody.
 
 ### Wycofywane trasy
 
@@ -172,8 +174,10 @@ limitu kredytowego.
 
 ## Powiadomienia o dostępności
 
-Klient zapisuje się przez endpoint storefrontu `/notify-when-available` (zalogowany; e-mail wypełniany
-automatycznie) albo przez okno w przeglądarce (anonimowy; e-mail w treści żądania). Zapis jest
+Klient zapisuje się przez `POST /api/v1/catalog/products/:id/notify-when-available` (zalogowani
+klienci; używany jest adres e-mail ich konta) albo przez
+`POST /api/v1/storefront/inventory/notify-when-available` (anonimowo lub po zalogowaniu; adres e-mail
+w treści żądania). Zapis jest
 odrzucany z `PRODUCT_UNMANAGED_STOCK`, gdy produkt nie ma śledzenia stanu; ponowny zapis jest
 idempotentny i zwraca istniejący wiersz.
 

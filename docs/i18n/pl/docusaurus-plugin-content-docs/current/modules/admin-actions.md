@@ -7,12 +7,12 @@ description: Rejestr akcji dodawanych przez moduły do palety poleceń w panelu 
 
 Punkt wpięcia oparty na rejestrze, który pozwala każdemu modułowi backendu dodawać przyciski akcji
 do palety poleceń w panelu administracyjnym (okno `⌘K` / `Ctrl+K` — to, co operator widzi jako grupę
-**Actions**). Obecnie dwie akcje są wpisane na stałe (*New product*, *Import products*); one, podobnie
-jak każda przyszła akcja, są deklarowane raz, w manifeście modułu, do którego należą, i udostępniane
-przez ten rejestr.
+**Actions**). Żadna akcja nie jest wpisana na stałe: każda, łącznie z *New product* i *Import
+products*, jest deklarowana raz, w manifeście modułu, do którego należy, i udostępniana przez ten
+rejestr.
 
-Część po stronie platformy znajduje się w `packages/modules/admin_actions/`, a część działająca w
-panelu administracyjnym — w `admin/src/lib/admin-actions/`.
+Częścią po stronie platformy jest ten moduł, `admin_actions`; część działająca w panelu
+administracyjnym znajduje się w pakiecie `@endora-commerce/admin-shell`, w `src/lib/admin-actions/`.
 
 ## Co deklaruje moduł
 
@@ -148,14 +148,13 @@ Wagi są tylko zaleceniem, ale recenzenci oczekują, że nowe akcje trafią do w
 ## Lista dozwolonych ikon
 
 Dozwolone nazwy ikon to typ wyliczeniowy w `packages/contracts/src/admin-actions.ts`. Dodanie nowej
-ikony to jednowierszowa zmiana w tym typie i w `icon-map.ts` panelu administracyjnego.
+ikony to jednowierszowa zmiana w tym typie i w `icon-map.ts` pakietu admin shell
+(`@endora-commerce/admin-shell`, `src/lib/admin-actions/icon-map.ts`).
 
-## Początkowy zestaw akcji (v1)
+## Jakie akcje istnieją
 
-Pierwsze wydanie dostarcza dziesięć akcji w dziewięciu modułach: `catalog/new-product`,
-`import_export/import-products`, `import_export/open-import-export-center`,
-`inventory/open-inventory`, `quote_requests/open-rfq-inbox`, `cms/new-page`, `blog/new-post`,
-`megamenu/edit-megamenu`, `sales_channels/new-sales-channel`, `settings/open-settings`. Osiem
-kolejnych kandydatów ze specyfikacji odłożono do czasu, aż powstaną docelowe strony w panelu
-administracyjnym (Adjust stock, New draft order, Find order by number, New customer, New price list,
-New promotion, Upload asset, New category).
+Zestaw akcji to suma tablic `actions` z manifestów modułów zainstalowanych w Twojej instancji, więc
+różni się między instancjami i ta strona go nie wymienia. Pierwsze wydanie zawierało dziesięć akcji
+w dziewięciu modułach; dziś akcje deklaruje znacznie więcej modułów. Aby zobaczyć zestaw, który
+instancja faktycznie udostępnia, wywołaj `GET /api/v1/admin/admin-actions` jako operator z
+uprawnieniem `*` albo przeszukaj manifesty modułów pod kątem `actions:`.

@@ -52,7 +52,8 @@ theme renders the localized set name as a small subheading.
 
 `attribute_sets` (id, code unique, name jsonb, is_system bool) +
 `attribute_set_attributes` (composite PK on (set_id, attribute_id)).
-The system Default row is seeded by migration 017 with deterministic
+The system Default row is seeded by migration
+`20260429T064146_catalog_attribute_sets_init.ts` with deterministic
 UUID `defa0017-0000-4000-8000-000000000000` so seeds and tests can
 reference it stably.
 

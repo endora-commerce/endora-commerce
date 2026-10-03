@@ -35,7 +35,7 @@ uporządkowane listy powiązanych wpisów i powiązanych produktów.
                                                               blog_post_related_products → catalog.products
 ```
 
-Cały schemat znajduje się w `037_blog_init.ts` (jedenaście nowych tabel, wszystkie z przedrostkiem
+Cały schemat znajduje się w `20260506T081055_blog_init.ts` (jedenaście nowych tabel, wszystkie z przedrostkiem
 `blog_*`) i nigdy nie zmienia istniejących tabel.
 
 ## Adresy i trasy

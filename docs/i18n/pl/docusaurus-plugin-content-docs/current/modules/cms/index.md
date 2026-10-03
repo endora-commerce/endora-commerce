@@ -204,7 +204,7 @@ Cel wydajnościowy: odczyt strony z 5 osadzonymi blokami i 3 osadzonymi szablona
 ## Migracja z dawnego `cms_pages`
 
 Wcześniej `cms_pages` zawierało `path`, `body` (HTML w poszczególnych językach) i wyliczenie
-`status`. Migracja `035_cms_init.ts` dodaje nowy zestaw kolumn (`slug`, `name`, `active`, `content`,
+`status`. Migracja `20260505T130214_cms_init.ts` dodaje nowy zestaw kolumn (`slug`, `name`, `active`, `content`,
 `languages`, `version`, `meta_*`) i idempotentnie uzupełnia każdy wiersz:
 
 - `slug = path`
