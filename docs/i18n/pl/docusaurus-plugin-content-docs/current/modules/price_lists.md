@@ -27,7 +27,7 @@ Posiada:
 
 Legacy tabele `PriceListItem` i `PriceListAssignment` (oraz kolumny
 `code` / `currency` / `priority` / `isDefault` na `price_lists`)
-są utrzymywane przez migrację 031 wyłącznie jako przejściowy shim podczas
+są utrzymywane przez migrację `20260504T125655_price_lists_engine.ts` wyłącznie jako przejściowy shim podczas
 rolloutu expand → migrate → contract. Nowo pisany kod MUSI konsumować
 schemat silnika przez `@endora-commerce/contracts`.
 
@@ -49,7 +49,7 @@ draft ──activate──▶ scheduled ──auto on startsAt──▶ active �
 
 Seedowana lista `Default` (`isSystem = true`) odrzuca każdą zmianę
 stanu, każde usunięcie i każde niepuste `applicationRule`.
-Migracja 031 seeduje też na niej wiersze progów z legacy
+Migracja `20260504T125655_price_lists_engine.ts` seeduje też na niej wiersze progów z legacy
 `attributeValues.defaultPrice` każdego produktu, więc platforma zawsze
 ma użyteczną cenę terminalnego fallbacku.
 
@@ -207,24 +207,26 @@ okno storefront.
 | `GET / POST / DELETE /api/v1/admin/price-lists/:id/assignments{,/:assignmentId}` | Legacy CRUD przypisań |
 | `GET /api/v1/admin/price-lists/preview?productSku=&quantity=&organizationId=&salesChannelCode=` | Legacy preview |
 
-## Notatki migracyjne (031)
+## Notatki migracyjne (przebudowa silnika)
 
-`031_price_lists_engine.ts` wykonuje 8-krokowy reshape transakcyjny:
+Migracja modułu `20260504T125655_price_lists_engine.ts` przebudowuje schemat w jednej transakcji:
 
-1. Pobierz advisory lock, aby równoległe migracje wycofały się czysto.
+1. Pobierz advisory lock ograniczony do transakcji (`pg_advisory_xact_lock`), aby
+   równoległe migracje wykonywały się po kolei; zwalnia się on wraz z końcem transakcji.
 2. Dodaj nowe kolumny na `price_lists` (`type`, `status`, `startsAt`,
    `endsAt`, `modifiedAt`, `isSystem`, `applicationRule` JSONB).
 3. Utwórz trzy nowe tabele (`price_list_products`,
    `price_list_price_brackets`, `price_display_mode_overrides`).
-4. Seeduj listę `Default` deterministycznym UUID.
+4. Seeduj listę `Default` deterministycznym UUID
+   `00000000-0000-4000-8000-00000000d51b`.
 5. Przejdź każdy `Product`, którego `attributeValues` niesie `defaultPrice`
-   (lub `price` jako fallback), i upsertuj jeden wiersz bracketu per waluta
-   wystawiona przez dowolny sales channel. Kopia tożsamości między walutami jest
-   oznaczona w raporcie migracji.
-6. Usuń legacy klucze `attributeValues.defaultPrice` i
-   `attributeValues.price`.
-7. Wyemituj raport do `backend/var/migration-reports/011_price_lists_seed.json`.
-8. Zwolnij advisory lock.
+   (lub `price` jako wartość zastępczą), przypisz go do listy `Default` i wstaw
+   jeden wiersz bracketu na każdą walutę wystawioną przez dowolny kanał
+   sprzedaży, kopiując tę samą kwotę do każdej waluty.
+
+Legacy klucze `attributeValues.defaultPrice` i `attributeValues.price`
+**nie** są usuwane, więc istniejące readery działają dalej, a migracja nie
+zapisuje żadnego pliku raportu.
 
 Migracja jest **addytywna** względem legacy schematu — tabele
 `price_list_items` i `price_list_assignments` oraz kolumny
@@ -234,8 +236,11 @@ pozostają, dopóki readery w `cart-service`, `comparison-service`,
 przejdą na resolver. Follow-up migracja usuwa kolumny legacy, gdy
 audit wyląduje.
 
-Helper migracji (`default-price-list-migration.ts`) jest idempotentny
-i może być ponownie uruchomiony jako komenda naprawcza.
+Ten sam backfill jest dostępny jako usługa `DefaultPriceListMigrator`
+(`src/backend/services/default-price-list-migration.ts` w tym module).
+Jest idempotentna, więc można ją bezpiecznie uruchomić ponownie, i zwraca
+ustrukturyzowany raport wymieniający każdy produkt, którego pojedyncza legacy
+cena została skopiowana do więcej niż jednej waluty.
 
 ## Integracja storefront
 

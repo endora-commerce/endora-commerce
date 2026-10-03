@@ -57,8 +57,10 @@ wrong channel.
 
 **Do (engineer).** Agree one code with the client. Set it in:
 
-- GitLab → Settings → CI/CD → Variables: `SALES_CHANNEL_CODE` (see `.gitlab-ci.yml:17`, used at
-  `.gitlab-ci.yml:645`);
+- the build pipeline's variables: `SALES_CHANNEL_CODE`, which the build passes to the storefront
+  image as `NEXT_PUBLIC_SALES_CHANNEL_CODE`. The mapping is declared once, in
+  `packages/cli/src/lib/instance-build-inputs.ts`; this repository's own build,
+  `.github/workflows/demo.yml`, reads it from a GitHub repository variable;
 - `deploy/.env` on the VPS: `DEFAULT_SALES_CHANNEL_CODE` (see `deploy/.env.prod.example`);
 - if the deployment serves more than one domain, `SALES_CHANNEL_HOST_MAP` as
   `host=channelCode` pairs.
@@ -70,8 +72,9 @@ channel nobody configured.
 
 ### A2. The default locale
 
-**Why.** `NEXT_PUBLIC_DEFAULT_LOCALE` is baked from the CI variable `DEFAULT_LOCALE`
-(`.gitlab-ci.yml:646`). It must name a row in the `languages` table. The migration
+**Why.** `NEXT_PUBLIC_DEFAULT_LOCALE` is baked from the CI variable `DEFAULT_LOCALE` (declared in
+`packages/cli/src/lib/instance-build-inputs.ts`; `.github/workflows/demo.yml` falls back to `en-US`
+when it is unset). It must name a row in the `languages` table. The migration
 `packages/modules/languages/src/migrations/20260425T161557_languages_currencies_init.ts` seeds
 exactly two languages — `en-US` (default) and `pl-PL` — because those were the demo's choice,
 not this client's.

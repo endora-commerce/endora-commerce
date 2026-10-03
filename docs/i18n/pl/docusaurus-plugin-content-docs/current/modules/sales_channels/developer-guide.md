@@ -9,25 +9,27 @@ Jak moduł backendu integruje się z modułem Sales Channels: scope'owanie zapyt
 
 ## Odczyt rozwiązanego kanału wewnątrz route
 
-Middleware resolver dekoruje każdy request pod `/api/v1/*` polem `req.salesChannel` (serializowany widok `CachedChannel` rozwiązanego wiersza). Użyj typowanego helpera, aby utrzymać spójny wzorzec dostępu:
+Middleware resolvera ustala kanał sprzedaży każdego żądania pod `/api/v1/*` i zapisuje go (widok `CachedChannel` wiersza) w zakresie platformy żądania, a nie na obiekcie żądania. Odczytuj go helperami publikowanymi przez kernel platformy:
 
 ```ts
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 
-app.get('/api/v1/storefront/products', async (request) => {
-  const channel = getResolvedChannel(request);
+app.get('/api/v1/storefront/products', async () => {
+  const channel = getResolvedChannel();
   return productService.list({ salesChannelId: channel.id });
 });
 ```
 
-Poza cyklem życia requestu (background jobs, skrypty CLI) wołaj `SalesChannelResolverService.getByCode(code)` lub `getSystemDefault()` bezpośrednio przez handle composition modułu.
+`getResolvedChannel()` rzuca błąd (`500`), gdy resolver nie zadziałał na danej ścieżce; `currentSalesChannel()` z tego samego barrela zwraca wtedy `null`. Żaden z nich nie potrzebuje `FastifyRequest`, więc usługa głęboko w łańcuchu wywołań może odczytać kanał bez przekazywania go przez parametry. (`getResolvedChannel` nadal przyjmuje argument żądania dla starszych wywołań i go ignoruje.)
+
+Poza cyklem życia żądania (zadania w tle, skrypty CLI) pobierz z kontenera `salesChannelResolutionPort` i wywołaj `getByCode(code)` lub `getSystemDefault()`; typuj go jako `SalesChannelResolutionPort` z `@endora-commerce/platform/kernel`. Klasa `SalesChannelResolverService`, która za nim stoi, nie jest publikowana.
 
 ## Dodawanie encji scope'owanej kanałem do modułu
 
 Scope kanału ma dwie warstwy:
 
 1. **Schema** — encja zyskuje relację many-to-many do `sales_channels` przez nową tabelę mostu `sales_channel_<entity>` (composite primary key na obu id, `ON DELETE CASCADE` po obu stronach). Dodaj tabelę w następnej migracji modułu.
-2. **Service** — każda ścieżka odczytu encji, która ma być filtrowana kanałem, przyjmuje parametr `salesChannelId` i joinuje przez tabelę mostu. Każda ścieżka create / update, która tworzy nową encję, woła `SalesChannelMembershipService.bindToDefaultIfEmpty(entityType, entity.id)` po `persistAndFlush`, aby nowo utworzone encje domyślnie trafiały do kanału system default.
+2. **Service** — każda ścieżka odczytu encji, która ma być filtrowana kanałem, przyjmuje parametr `salesChannelId` i joinuje przez tabelę mostu. Każda ścieżka create / update, która tworzy nową encję, woła `bindToDefaultIfEmpty(entityType, entity.id)` na `salesChannelMembershipPort` po `persistAndFlush`, aby nowo utworzone encje domyślnie trafiały do kanału system default.
 
 Następnie dodaj member do enum `ChannelMemberEntityTypeSchema` w kontrakcie i **zadeklaruj most z własnego modułu**: eksportuj triple `{ entityType, table, entityIdColumn }` z `src/backend/index.ts` i zarejestruj go z boot hook —
 
@@ -42,7 +44,7 @@ Dwukierunkowe route admin podchwytują to automatycznie — per-module routes ni
 
 ## Mutowanie członkostw
 
-`SalesChannelMembershipService` jest jedynym mutatorem każdej tabeli mostu. Bezpośredni INSERT / DELETE na `sales_channel_*` z innego miejsca jest zabroniony — reguła lint `no-unscoped-channel-query` to siatka bezpieczeństwa (ships disabled i zostanie włączona, gdy każdy istniejący call site zostanie przeciągnięty).
+`SalesChannelMembershipService` jest jedynym mutatorem każdej tabeli mostu. Moduł sięga po niego jako wpis kontenera `salesChannelMembershipPort`, typowany jako `SalesChannelMembershipPort` z `@endora-commerce/platform/kernel`; sama klasa nie jest publikowana. Bezpośredni INSERT / DELETE na `sales_channel_*` z innego miejsca jest zabroniony, a pilnuje tego `check:module-boundary`: przypisuje każdą tabelę `sales_channel_*` do jej właściciela na podstawie DDL i zgłasza moduł, który zapisuje ją surowym SQL.
 
 ```ts
 const result = await membershipService.addToChannel(channelId, 'product', productId);
@@ -56,7 +58,7 @@ const removed = await membershipService.removeFromChannel(channelId, 'product', 
 
 ## Gwarancja kanału Default
 
-`DefaultChannelReconciler` działa przy każdym bootcie backendu z `composition.ts` (oraz z `test-server.ts` dla testów integracyjnych). Trzy gałęzie:
+`DefaultChannelReconciler` działa przy każdym starcie backendu, w kompozycji platformy (`packages/platform/src/composition/compose-app.ts`), a więc także w serwerze testów integracyjnych. Trzy gałęzie:
 
 1. **Pusta tabela `sales_channels`** — wstawia nowy wiersz `default` z `DEFAULT_SALES_CHANNEL_CODE` (env, default `default`).
 2. **Wiersze istnieją, ale żaden nie ma `system_default = true`** — promuje leksykalnie pierwszy wiersz, z tie-break preferującym wiersz, którego `code = 'default'`.

@@ -197,7 +197,7 @@ Pod Global / bez kanału panel jest read-only, a help string wyjaśnia,
 
 ## Migracja
 
-Jedna migracja `043_product_value_overrides_init.ts` dostarcza wszystko:
+Jedna migracja `20260611T140346_catalog_product_value_overrides_init.ts` dostarcza wszystko:
 
 - dodaje kolumny boolean `channel_scoped` + `language_scoped` do
   `product_attributes` (default `false`);

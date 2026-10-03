@@ -43,7 +43,7 @@ który jest aktualnie domyślny.
 
 ## Bootstrap
 
-Migracja 012 wstawia dwa wiersze, aby quickstart działał bez kroku admin:
+Migracja `20260425T161557_languages_currencies_init.ts` wstawia dwa wiersze, aby quickstart działał bez kroku admin:
 - `en-US` — domyślny, aktywny
 - `pl-PL` — aktywny
 

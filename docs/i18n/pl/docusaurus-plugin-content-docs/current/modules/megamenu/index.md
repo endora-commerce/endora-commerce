@@ -75,7 +75,7 @@ Pozycje Megamenu trzymają miękkie referencje do encji upstream (Categories, CM
 | CMS Block       | `CmsReferenceRegistry`                  | `kind='cms-block-embed' AND blockId = ?` |
 | Category        | (catalog category-reference registry)   | `kind='category-link' AND categoryId = ?` (planned) |
 
-Każda rejestracja to jednolinijkowa zmiana powierzchni podpięta w `composition.ts`. Istniejące `findBlockReferences` / `findTemplateReferences` modułu CMS zostały rozszerzone, żeby konsultować zewnętrzne skanery; `registerMegamenuCmsReferences` modułu megamenu rejestruje tam swój skaner.
+Każda rejestracja to jedno wywołanie we własnym hooku startowym modułu megamenu (`ctx.onBoot` w `src/backend/index.ts` modułu). Istniejące `findBlockReferences` / `findTemplateReferences` modułu CMS zostały rozszerzone, żeby konsultować zewnętrzne skanery; `registerMegamenuCmsReferences` modułu megamenu rejestruje tam swój skaner.
 
 Powierzchnia rejestru referencji kategorii jest planowana dla modułu catalog; dopóki nie wyląduje, ochrona delete kategorii przed referencjami megamenu jest egzekwowana na granicy validatora (megamenu nie może zapisać pozycji wskazującej usuniętą kategorię — check kategorii zwraca `false`, a admin widzi czytelny błąd).
 
@@ -139,7 +139,7 @@ Trigger burger renderuje się poniżej `768px`. Tap otwiera stacked drill-down d
 
 ## Migracja z no-megamenu
 
-Migracja `036_megamenu_init.ts` dodaje trzy nowe tabele i partial unique index. Nie ma seedowanych wierszy; admini first-time tworzą konfigurację przez UI admina.
+Migracja `20260505T193836_megamenu_init.ts` dodaje trzy nowe tabele i partial unique index. Nie ma seedowanych wierszy; admini first-time tworzą konfigurację przez UI admina.
 
 Zamontowany w root layout storefront między `<Header>` a istniejącym Hookiem `header.bottom`. Integracja CMS Hooks pozostaje nienaruszona.
 

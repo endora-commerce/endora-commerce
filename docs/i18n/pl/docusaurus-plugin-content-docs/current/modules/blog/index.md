@@ -37,7 +37,7 @@ Products.
                                                               blog_post_related_products → catalog.products
 ```
 
-Schemat żyje w całości w `037_blog_init.ts` (jedenaście nowych tabel, wszystkie
+Schemat żyje w całości w `20260506T081055_blog_init.ts` (jedenaście nowych tabel, wszystkie
 z prefiksem `blog_*`) i nigdy nie dotyka istniejących tabel.
 
 ## URL-e i routing

@@ -208,8 +208,8 @@ first request that picks up the new value.
 ## Catalog flag
 
 The module relies on a new `is_comparable` boolean column on
-`product_attributes`. Catalog owns the column (migration `028` lives
-under `catalog/migrations/`); the comparisons module reads it through
+`product_attributes`. Catalog owns the column (catalog's migration
+`20260501T185835_catalog_product_attribute_is_comparable.ts`); the comparisons module reads it through
 `CatalogQueryService.comparableAttributeKeys()`.
 
 The Catalog admin UI's `<AttributesManager>` exposes a `Comparable`
@@ -220,7 +220,7 @@ render picks up the change directly from Postgres.
 ## Storage
 
 Two tables, both owned by the comparisons module
-(`027_comparisons_init.ts`):
+(`20260501T185834_comparisons_init.ts`):
 
 - `comparisons` — primary key, 22-char base64url `share_token`
   (`UNIQUE`), exclusive owner column (`customer_account_id` *or*

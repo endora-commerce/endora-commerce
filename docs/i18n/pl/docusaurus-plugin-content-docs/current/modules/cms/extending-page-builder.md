@@ -7,59 +7,86 @@ sidebar_position: 2
 
 Moduł CMS dostarcza wbudowane komponenty — `Row`, `Columns`, `Text`,
 `Heading`, `Button`, `InsertBlock` i inne — ale każdy inny
-moduł backendu może wnosić własne komponenty przez in-process
-service-provider interface (SPI). (`InsertTemplate` pozostaje zarejestrowany dla
-legacy drzew treści, ale nie jest już w palecie drawer.)
-Moduł współtworzący uczestniczy w trzech miejscach:
+moduł backendu może wnosić własne komponenty. (`InsertTemplate` pozostaje
+zarejestrowany dla starszych drzew treści, ale nie ma go już w palecie.)
+W ten sposób bloki wnoszą już moduły CMS, catalog, orders, invoices i
+transactional e-mail. Moduł wnoszący komponent uczestniczy w dwóch miejscach:
 
-1. **Backend descriptor**: rejestruj metadane pól w czasie kompozycji, żeby
-   paleta komponentów admina mogła renderować kontrolki edytora.
-2. **Shared renderer**: dostarcz komponent React do pakietu workspace, od którego
-   zależą admin i storefront (typowo sam `@endora-commerce/cms-components`
-   lub pakiet per moduł re-eksportujący z niego).
-3. **Composition wiring**: przekaż helper rejestracji modułu współtworzącego
-   do composition root platformy przed instancjacją pluginu CMS.
+1. **Deklaracja w manifeście**: zadeklaruj metadane bloku — nazwę, etykiety,
+   kategorię palety, konteksty i edytowalne pola — we własnym `manifest.ts`
+   modułu. Moduł CMS buduje rejestr Page Buildera z manifestów złożonych
+   modułów, więc nie ma żadnego wywołania rejestracji do napisania.
+2. **Współdzielony renderer**: dostarcz komponent React do pakietu workspace,
+   od którego zależą panel administracyjny i storefront (typowo sam
+   `@endora-commerce/cms-components` lub pakiet modułu re-eksportujący z niego).
 
-## 1. Deklaracja deskryptora
+## 1. Deklaracja bloku w manifeście
 
-W `plugin.ts` modułu (lub dedykowanym `register-page-builder.ts`)
-zadeklaruj funkcję przyjmującą registry i rejestrującą komponenty:
+Dodaj `blocks` i `blockCategories` do manifestu modułu:
 
 ```ts
-// the promotions module: src/backend/services/register-page-builder.ts
-import type { PageBuilderRegistry } from '../../cms/services/page-builder-registry.js';
+// the promotions module: src/manifest.ts
+import { defineModuleManifest } from '@endora-commerce/contracts';
 
-export function registerPromotionsPageBuilderComponents(
-  registry: PageBuilderRegistry,
-): void {
-  registry.register('promotions', {
-    components: {
-      PromoBanner: {
-        fields: {
-          headline: { type: 'text', label: 'Headline', required: true },
-          codeInput: { type: 'text', label: 'Promo code' },
-          tone: {
-            type: 'select',
-            label: 'Tone',
-            options: [
-              { label: 'Info', value: 'info' },
-              { label: 'Urgent', value: 'urgent' },
-            ],
-          },
+export const manifest = defineModuleManifest({
+  id: 'promotions',
+  // ...name, version, dependencies...
+  blocks: [
+    {
+      name: 'promotions.PromoBanner',
+      labelKey: 'blocks.promoBanner.label',
+      descriptionKey: 'blocks.promoBanner.description',
+      category: 'promotions',
+      /** Omit email/invoice — this component is storefront-only. */
+      contexts: ['cms'],
+      fields: {
+        headline: { type: 'text', label: 'Headline', required: true },
+        codeInput: { type: 'text', label: 'Promo code' },
+        tone: {
+          type: 'select',
+          label: 'Tone',
+          options: [
+            { label: 'Info', value: 'info' },
+            { label: 'Urgent', value: 'urgent' },
+          ],
         },
-        previewIcon: 'ticket',
-        /** Omit email/invoice — this component is storefront-only. */
-        contexts: ['cms'],
       },
+      previewIcon: 'ticket',
+      weight: 10,
     },
-  });
-}
+  ],
+  blockCategories: [
+    { key: 'promotions', titleKey: 'blocks.category.promotions', contexts: ['cms'] },
+  ],
+});
 ```
+
+Schematy to `BlockDefinitionSchema` i `BlockCategorySchema` w
+`packages/contracts/src/cms.ts`. `defineModuleManifest` odrzuca manifest,
+który łamie jedną z dwóch reguł:
+
+- Nazwa bloku (`name`) ma postać `<module id>.<PascalCaseName>`, a część przed
+  kropką musi być `id` modułu deklarującego. Nazwa jest zapisywana w
+  przechowywanej treści strony i nigdy nie jest przepisywana, więc wybierz ją
+  raz.
+- `category` bloku musi być zadeklarowana w `blockCategories` tego samego
+  manifestu dla każdego kontekstu, który blok wymienia. Kilka modułów może
+  zadeklarować ten sam klucz kategorii; paleta je scala.
+
+`labelKey`, `descriptionKey` i `titleKey` są względne wobec własnego bundla
+i18n modułu deklarującego (`blocks.promoBanner.label`, a nie
+`promotions.blocks.promoBanner.label`). Nic nie może tego sprawdzić w chwili
+definiowania manifestu, więc trzeba o to zadbać ręcznie.
 
 Typy pól pochodzą ze zamkniętego enum zadeklarowanego w
 `packages/contracts/src/cms.ts`: `text | textarea | number | select |
 radio | array | object | external | uuid | richtext`. Te metadane są
 wolne od React; backend nigdy nie importuje renderera.
+
+Blok jest oferowany tylko wtedy, gdy jego moduł jest obecny: rejestr filtruje
+deklaracje według obecności modułu, odpowiadając na
+`GET /api/v1/admin/cms/page-builder/config`, więc wyłączony moduł zabiera
+swoje bloki z palety.
 
 ## 2. Dostarczenie renderera
 
@@ -97,29 +124,28 @@ export const PromoBanner: ComponentConfig<Props> = {
 };
 ```
 
-Podłącz do `defaultPageBuilderConfig`, żeby edytor admin i
-storefront `<Render>` pick-up'owały go:
+Podłącz go do `defaultPageBuilderConfig` pod pełną nazwą bloku, żeby edytor
+w panelu administracyjnym i wywołania `<Render>` w storefroncie go widziały:
 
 ```ts
 // packages/cms-components/src/index.ts
 import { PromoBanner } from './components/PromoBanner.js';
 
-export * from './components/PromoBanner.js';
-
-export const defaultPageBuilderConfig = {
-  // ...existing categories
+export const defaultPageBuilderConfig: Config = {
   components: {
-    Row,
-    Columns,
-    Text,
-    Heading,
-    Button,
-    InsertBlock,
-    InsertTemplate,
-    PromoBanner,
+    // ...the existing 'cms.*' and 'catalog.*' entries
+    'promotions.PromoBanner': definePageBuilderComponent({
+      ...(PromoBanner as unknown as ComponentConfig),
+      contexts: ['cms'],
+    }),
   },
 };
 ```
+
+Renderery CMS to ten jeden bundle (bloki e-mail renderują się w ten sam sposób
+z `@endora-commerce/email-components`). Moduł publikowany poza tym
+repozytorium nie może dodać renderera do żadnego z tych bundli bez zmiany w
+danym pakiecie.
 
 Renderer pominięty w bundle nie psuje admina:
 `PageBuilderEditor` scala deskryptor z lokalnym configiem i
@@ -128,28 +154,14 @@ deskryptor nazywa, a bundle nie eksportuje. Placeholder renderuje
 nic na storefront, chyba że strona ładuje się z parametrem query
 `?cms_admin=1` (tryb podglądu).
 
-## 3. Wiring kompozycji
-
-Wywołaj helper rejestracji z `composition.ts` przed instancjacją modułu CMS:
-
-```ts
-// backend/src/composition.ts
-const cms = cmsModule({ emFactory, requireAdmin });
-registerPromotionsPageBuilderComponents(cms.handle.pageBuilderRegistry);
-```
-
-Plugin modułu CMS czyta registry przy każdym
-`GET /api/v1/admin/cms/page-builder/config`, więc rejestracja po
-skonstruowaniu instancji modułu jest w porządku — edytor podnosi nowy
-komponent przy następnym przeładowaniu admina.
-
 ## Namespacing nazw komponentów
 
-Nazwy komponentów są unikalne w całej platformie. Registry ostrzega i
-nadpisuje przy kolizjach; reviewerzy powinni odrzucać zmiany produkujące
-warning. Konwencją jest prefiks nazw domeną modułu współtworzącego, gdy
-niejednoznaczność jest prawdopodobna (`PromoBanner`, `CatalogProductCard`,
-itd.).
+Nazwy bloków są unikalne w całej platformie, a zapewnia to prefiks z id
+modułu: `cms.Text`, `catalog.ProductCard`, `promotions.PromoBanner`. Dwa
+moduły nie mogą zadeklarować tej samej nazwy — segment właściciela musi być
+id modułu deklarującego — a jeśli kolizja mimo to dotrze do rejestru, rzuca
+on `DuplicateBlockNameError`, zamiast pozwolić, by blok jednego modułu
+zastąpił blok innego.
 
 ## Dostępność kontekstów (`contexts`)
 
@@ -163,10 +175,11 @@ eksponować przez `contexts`:
 | `newsletter` | Kampanie newsletter (alias email-safe set) |
 | `invoice` | Edytor szablonów PDF faktur |
 
-Rejestruj w backend deskryptorze:
+Deklaruj je na bloku w manifeście. `contexts` jest wymagane i musi wymieniać
+co najmniej jedną powierzchnię:
 
 ```ts
-contexts: ['cms'], // default when omitted in registry — CMS-only
+contexts: ['cms'], // CMS-only
 ```
 
 W `@endora-commerce/cms-components` owiń config Puck

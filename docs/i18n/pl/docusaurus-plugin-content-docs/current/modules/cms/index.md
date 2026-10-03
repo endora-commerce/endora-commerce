@@ -197,7 +197,7 @@ Templates zwraca w &lt; 200 ms p95 cold; warm path zwraca w &lt; 5 ms.
 ## Migracja z legacy `cms_pages`
 
 Wcześniej `cms_pages` niosło `path` + `body` (HTML per język) i enum
-`status`. Migracja `035_cms_init.ts` dodaje nowy zestaw kolumn
+`status`. Migracja `20260505T130214_cms_init.ts` dodaje nowy zestaw kolumn
 (`slug`, `name`, `active`, `content`, `languages`, `version`, `meta_*`)
 i idempotentnie backfilluje każdy wiersz:
 

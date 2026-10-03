@@ -89,7 +89,7 @@ jest poza zakresem; gotowość techniczna:
 ## Runbook operatora
 
 1. Ustaw `SETTINGS_SECRET_ENCRYPTION_KEY` (dla sekretów VAPID/FCM) i uruchom
-   `pnpm --filter backend run migration:up` (stosuje `080_pwa_init`).
+   `pnpm --filter backend run migration:up` (stosuje `20260625T144228_pwa_init.ts`).
 2. W **Settings → PWA** ustaw tożsamość + wgraj ikonę, włącz cache/push.
 3. Kliknij **Generate VAPID keys** (lub `POST /api/v1/admin/pwa/vapid/generate`).
 4. Ustaw `NEXT_PUBLIC_BUILD_ID` / `VITE_BUILD_ID` w pipeline deploy.

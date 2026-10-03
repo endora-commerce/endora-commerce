@@ -60,35 +60,48 @@ odczytem bez tenantu.
 **Nie piszesz filtra tenantowego ręcznie** — `em.find(MyEntity, { ...business filters })`
 jest już ograniczone do ambient tenantu.
 
-## Przekraczanie tenantów (escape hatch)
+## Dostęp między tenantami (jawne obejście)
 
-**Jedyny** sankcjonowany sposób odczytu między organizacjami to audytowany, łatwy do
-przeszukania escape hatch:
+**Jedyny** dozwolony sposób odczytu danych wielu organizacji to audytowane, łatwe do wyszukania
+w kodzie obejście. Moduł importuje je z opublikowanego barrela tenancy platformy:
 
 ```ts
-import { withSystemScope, withOrgScope } from '../../tenancy/escape-hatch.js';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
-// odczyt platformowy (raportowanie, uzgadnianie, migracje)
+// odczyt w skali platformy w wykonaniu, które ma już kontekst
+// (raporty, uzgadnianie)
 await withSystemScope('nightly reconciliation', () => em.find(Order, { status: 'paid' }));
-
-// przypięcie do jednej organizacji (job w tle per org)
-await withOrgScope(job.data.organizationId, 'rfq-expiry sweep', () => sweep());
 ```
 
-Oba wymagają niepustego `reason` i emitują wpis audytu. Przeszukanie repozytorium pod
-`withSystemScope|withOrgScope` wymienia każdy dostęp między org.
+`withSystemScope` wymaga niepustego uzasadnienia (`reason`) i emituje jeden wpis audytu obejścia.
+Domyślnie jest to ustrukturyzowana linia `tenant.escape_hatch` na stderr, a nie wiersz
+`audit_log_entries`. Przeszukanie repozytorium pod kątem `withSystemScope` i `enterSystemScope`
+wylicza każdy dostęp do danych wielu organizacji.
 
-## Joby w tle
+`@endora-commerce/platform/tenancy` to jedna z pięciu ścieżek platformy, które moduł może
+importować (`kernel`, `http`, `tenancy`, `commands`, `events`); `check:platform-surface` zgłasza
+moduł importujący jakąkolwiek inną ścieżkę platformy.
 
-Konsumenci kolejek działają odłączeni od żądania, więc domyślnie **nie mają** contextu
-i muszą go ustawić jawnie — w przeciwnym razie zapytanie objęte tenantem
-fail-closed. Owiń przetwarzanie joba w `withSystemScope` (sweep platformowy) lub
-`withOrgScope(orgId, …)` (job per org).
+**Przypięcie pracy do jednej organizacji nie jest dostępne dla modułów.** Platforma implementuje
+`withOrgScope(organizationId, reason, fn)` obok `withSystemScope`
+(`packages/platform/src/tenancy/escape-hatch.ts`), ale funkcji nie ma w opublikowanym barrelu, bo
+w chwili jego wydzielenia nie używał jej żaden moduł. Moduł, który dziś potrzebuje zadania dla
+jednej organizacji, uruchamia je w zakresie systemowym i sam filtruje po `organizationId`.
+
+## Zadania w tle
+
+Konsumenci kolejek działają niezależnie od żądań, więc domyślnie **nie mają** kontekstu i muszą go
+ustawić jawnie — w przeciwnym razie zapytanie do encji objętej izolacją zostanie odrzucone.
+Uruchom zadanie w `enterSystemScope(reason, fn)` z `@endora-commerce/platform/kernel`: otwiera ono
+w jednym kroku systemowy kontekst tenanta i zakres rozwiązywania platformy oraz emituje ten sam
+wpis audytu obejścia co `withSystemScope`. `withSystemScope` służy do poszerzenia wykonania, które
+ma już kontekst, na przykład handlera trasy.
 
 ## Testy
 
-Harness testowy ustawia domyślny context `system` (`test/tenancy-setup.ts`), żeby
-seed/cleanup bezpośrednio przez EM działał bez owijania każdego miejsca; pipeline
-żądań nadal nadpisuje go prawdziwym scoped context, więc zachowanie między tenantami
-jest testowane na serio. Użyj `runWithoutTenantContext(fn)`, aby jawnie asercjonować
-zachowanie fail-closed.
+Środowisko testowe backendu ustawia domyślny kontekst `system` (`backend/test/tenancy-setup.ts`),
+dzięki czemu przygotowanie i sprzątanie danych bezpośrednio przez EntityManager działa bez
+owijania każdego wywołania; obsługa żądań i tak nadpisuje go prawdziwym, zawężonym kontekstem,
+więc zachowanie między tenantami jest testowane naprawdę. Testy hosta mogą wywołać
+`runWithoutTenantContext(fn)` (`packages/platform/src/tenancy/tenant-context.ts`), aby jawnie
+sprawdzić odmowę przy braku kontekstu; tej funkcji nie ma w opublikowanym barrelu.

@@ -10,7 +10,8 @@ per `(product, warehouse)`, powiązanie kanału sprzedaży, alerty niskiego stan
 pasma wyświetlania, backorder + unmanaged + notify-when-available, import CSV
 oraz zapisy `stock_allocations` per linia.
 
-Moduł zastępuje model single-bucket z foundation. Migracja 030 zachowuje
+Moduł zastępuje model single-bucket z foundation. Migracja
+`20260503T182812_inventory_workflow.ts` zachowuje
 tabelę foundation `stock_levels`, ale
 rozszerza kształt unikalności do `(product_id, variant_id, warehouse_id)`,
 seeduje magazyn `Default` z deterministycznym UUID
@@ -72,7 +73,15 @@ znajdowała na stronie modułu.
 | `POST /api/v1/admin/inventory/import` | `inventory:write` | Import CSV stanów (`?dryRun=true` waliduje bez zapisu) |
 | `PUT /api/v1/admin/inventory` | `inventory:write` | **Deprecated** zapis single-bucket foundation; deleguje do `StockLevelService.setOnHand` względem seedowanego magazynu Default |
 | `GET /api/v1/admin/inventory/legacy` | `inventory:read` | **Deprecated** lista single-bucket foundation |
-| `GET /api/v1/storefront/inventory/display-mode` | — | Publiczny odczyt storefront: jaki tryb wyświetlania używa kanał |
+
+### Trasy publiczne
+
+| Metoda i ścieżka | Odbiorca | Przeznaczenie |
+| --- | --- | --- |
+| `GET /api/v1/storefront/inventory/display-mode` | anonimowy | Jaki tryb wyświetlania stanu stosuje kanał sprzedaży żądania |
+| `GET /api/v1/storefront/inventory/stock/:id` | anonimowy | Stan produktu z łącznym stanem liczonym tylko z magazynów przypisanych do kanału wywołującego (dodatkowo zawężonych do listy dozwolonych magazynów jego organizacji, jeśli jest ustawiona); `404` dla produktu, którego wywołujący nie może zobaczyć |
+| `POST /api/v1/storefront/inventory/notify-when-available` | anonimowy lub zalogowany | Zapisuje adres e-mail (podany w treści żądania) na powiadomienie o ponownej dostępności |
+| `POST /api/v1/catalog/products/:id/notify-when-available` | zalogowany klient | Zapisuje adres e-mail konta klienta na powiadomienie o ponownej dostępności |
 
 ## Uprawnienia
 
@@ -91,10 +100,8 @@ którym rozstrzyga się własność uprawnień: per trasa, a nie per moduł.
 `/admin-roles`, gdzie manifest wstawia je automatycznie. Nadanie ich każdemu
 posiadaczowi starych kodów odtworzyłoby nadmierne uprawnienie, które split usuwa.
 
-`test/contract/inventory/permission-authority.test.ts` przypina oba kierunki i
-oba stare kody.
-| `GET /api/v1/storefront/inventory/stock/:id` | Storefront-public stock per produkt ze skumulowanym on-hand sumowanym tylko po magazynach powiązanych z kanałem wywołującego |
-| `POST /api/v1/catalog/products/:id/notify-when-available` | Klient subskrybuje back-in-stock; zalogowani mają e-mail wstępnie wypełniony |
+`backend/test/contract/inventory/permission-authority.test.ts` przypina oba
+kierunki i oba stare kody.
 
 ### Deprecated
 
@@ -170,9 +177,10 @@ zamówienia obok release limitu kredytowego.
 
 ## Notify-when-available
 
-Klient subskrybuje przez endpoint storefront `/notify-when-available` (ścieżka
-zalogowana; e-mail wstępnie wypełniony) lub dialog po stronie klienta (anonimowy;
-e-mail w ciele). Subskrypcja jest odrzucana z `PRODUCT_UNMANAGED_STOCK`, gdy produkt
+Klient zapisuje się przez `POST /api/v1/catalog/products/:id/notify-when-available`
+(zalogowani klienci; używany jest adres e-mail ich konta) albo przez
+`POST /api/v1/storefront/inventory/notify-when-available` (anonimowo lub po
+zalogowaniu; adres e-mail podany w treści żądania). Subskrypcja jest odrzucana z `PRODUCT_UNMANAGED_STOCK`, gdy produkt
 zrezygnował ze śledzenia stocku; idempotentne ponowne subskrypcje zwracają istniejący wiersz.
 
 `AvailabilityWorker.attach(eventBus)` nasłuchuje zdarzeń `inventory.adjusted.v1`.

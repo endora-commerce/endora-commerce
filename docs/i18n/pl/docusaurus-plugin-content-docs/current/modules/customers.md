@@ -97,11 +97,11 @@ Trasy admin są gated przez `customers:read` (odczyty), `customers:manage`
 
 ## Schema
 
-- `060_customer_accounts_lifecycle` — dodaje `customer_group_id`, stan block
+- `20260611T140403_customer_accounts_lifecycle.ts` (należy do `customer_accounts`) — dodaje `customer_group_id`, stan block
   (`blocked_at`, `block_reason`, `block_source`, `blocked_by_*`) oraz stan
   deletion/anonymization (`deletion_requested_by_admin_user_id`,
   `anonymized_at`) do `customer_accounts`.
-- `061_customer_addresses_init` — tabela `customer_addresses` (jeden default
+- `20260611T140404_customers_customer_addresses_init.ts` — tabela `customer_addresses` (jeden default
   per `(customer, kind)`).
 
 Domyślne preferencje płatności/dostawy używają ponownie tabeli

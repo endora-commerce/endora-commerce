@@ -13,7 +13,7 @@ PDP i w koszyku. Trzy rodzaje:
 
 ## Gwarancje na poziomie bazy
 
-Migracja 022 dostarcza trzy ograniczenia, które uniemożliwiają niepoprawne dane
+Migracja `20260429T123726_catalog_product_links.ts` dostarcza trzy ograniczenia, które uniemożliwiają niepoprawne dane
 linków:
 
 - `UNIQUE (source_product_id, target_product_id, kind)` — ta sama para może

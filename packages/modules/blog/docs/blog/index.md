@@ -37,7 +37,7 @@ Products.
                                                               blog_post_related_products → catalog.products
 ```
 
-The schema lives entirely in `037_blog_init.ts` (eleven new tables, all
+The schema lives entirely in `20260506T081055_blog_init.ts` (eleven new tables, all
 prefixed `blog_*`) and never touches existing tables.
 
 ## URLs and routing

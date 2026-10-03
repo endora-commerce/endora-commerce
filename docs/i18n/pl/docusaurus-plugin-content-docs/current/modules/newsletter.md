@@ -89,7 +89,7 @@ strona wypisania (opcjonalny powód) oraz panel konta pokazujący status subskry
 
 ## Schema
 
-Migracja `083_newsletter_init.ts` tworzy `newsletter_subscribers`,
+Migracja `20260629T200954_newsletter_init.ts` tworzy `newsletter_subscribers`,
 `newsletter_tags`, `newsletter_subscriber_tags`, `newsletter_custom_fields`,
 `newsletter_suppressions`, `newsletter_email_blocks`(+ channel bridge),
 `newsletter_campaigns`(+ group bridge), `newsletter_send_records`,

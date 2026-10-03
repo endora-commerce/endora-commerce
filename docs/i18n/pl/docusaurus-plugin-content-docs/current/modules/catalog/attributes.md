@@ -156,7 +156,7 @@ produktu.
 
 ## Magazynowanie
 
-Od migracji `102` atrybut jest podzielony między generyczną
+Od migracji `20260723T230401_catalog_attributes_on_custom_fields.ts` atrybut jest podzielony między generyczną
 warstwę Custom Fields, którą posiada moduł `custom_fields`, a rozszerzenie
 własności katalogu. Kształt API powyżej jest bez zmian — powierzchnia admina
 składa oba z powrotem w legacy form.
@@ -176,8 +176,9 @@ składa oba z powrotem w legacy form.
 
 - Wiersze opcji UNIQUE `(definition_id, value)` z per-locale
   `label`, `label_default`, `is_default`, `sort_order`. Własnościowa tabela
-  katalogu `attribute_options` (migracja `032`) została usunięta
-  migracją `102` po przeniesieniu wierszy tutaj.
+  katalogu `attribute_options` (migracja
+  `20260505T060113_catalog_attribute_options_and_flags.ts`) została usunięta
+  migracją `20260723T230401_catalog_attributes_on_custom_fields.ts` po przeniesieniu wierszy tutaj.
 
 `product_attributes` (własność `catalog`) — 1:1 **rozszerzenie**:
 
@@ -193,7 +194,8 @@ składa oba z powrotem w legacy form.
   (`pill` = legacy `enum`, `dropdown` = legacy `select`) i
   `numeric_kind varchar(8) NULL` (`number` | `price`).
 - Zduplikowane kolumny definicji (`key`, `label`, `label_default`,
-  `value_type`, `is_required`) zostały usunięte migracją `102` — wiersz
+  `value_type`, `is_required`) zostały usunięte migracją
+  `20260723T230401_catalog_attributes_on_custom_fields.ts` — wiersz
   definicji jest jedynym źródłem prawdy dla nich.
 
 `products.attribute_values jsonb` niesie mapę per produkt kluczowaną przez

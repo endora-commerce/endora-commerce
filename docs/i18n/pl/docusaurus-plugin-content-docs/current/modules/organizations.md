@@ -82,8 +82,9 @@ Platform-wide setting `organizations.moderation.mode` (`manual` /
 Gdy status jest inny niż `active`, platforma odmawia składania Order, wysyłki RFQ
 i dodawania linii do koszyka z HTTP 423.
 
-Legacy status `suspended` przemianowano na `blocked` migracją 047
-z breadcrumb audytu na każdym przepisanym wierszu.
+Legacy status `suspended` przemianowano na `blocked` migracją
+`20260611T140349_organizations_consolidation.ts`, która zapisuje wyjaśniający
+`blocked_reason` w każdym przepisanym wierszu (nie zapisuje wpisu w dzienniku audytu).
 
 Endpointy admin:
 
@@ -167,8 +168,9 @@ renderowane jako tabela read-only na stronie szczegółów Organization w admin.
 Promotions: gdy promocja targetuje konkretną Organization
 (`promotions.organization_id` jest ustawione), platforma stosuje regułę
 tylko gdy Organization koszyka jest `active`. Sprawdzenie podpięte jest przez
-opcjonalny argument konstruktora `resolveOrganizationStatus` w
-`PromotionService`; composition.ts przekazuje raw SQL lookup.
+wymagany argument konstruktora `resolveOrganizationStatus` w
+`PromotionService`, który moduł `promotions` podpina do
+`organizationReadPort.loadEffectiveOrganization`.
 
 ### Sales-rep ownership
 
@@ -251,19 +253,20 @@ więc to migracja `name_search`, nie edycja.
 
 ### Migracje
 
-- `047_organizations_consolidation.ts` — dodaje `legal_name`, kolumny walidacji VAT,
+- `20260611T140349_organizations_consolidation.ts` — dodaje `legal_name`, kolumny walidacji VAT,
   kolumny audytu blocked / rejected / approved, optimistic-lock `version`,
   zdenormalizowaną kolumnę `name_search`, trzy allow-list bridges,
   tabelę historii walidacji, indeks B-Tree `organizations_name_search_idx`
   i mapuje każdy wiersz `suspended` na `blocked`.
-- `048_admin_notifications_init.ts` — dodaje tabelę `admin_notifications`
+- `20260611T140350_admin_notifications_init.ts` (należy do `admin_notifications`) — dodaje tabelę `admin_notifications`
   + bridge per-admin `admin_notification_reads`.
-- `049_customer_accounts_organization_optional.ts` — poluzowało
+- `20260611T140351_customer_accounts_organization_optional.ts` (należy do
+  `customer_accounts`) — poluzowało
   `customer_accounts.organization_id` do nullable dla kont guest-style
   **Ten design jest martwy**: zastąpiły go personal organizations,
   a kolumnę ponownie zaostrzono — zobacz
   `customer_accounts`' `20260825T141659_customer_accounts_organization_required`.
-- `089_personal_organizations.ts` — dodaje `organizations.is_personal`
+- `20260717T151403_organizations_personal_organizations.ts` — dodaje `organizations.is_personal`
   i backfill personal organization dla każdego wcześniejszego konta bez org
   (zobacz „Personal organizations” poniżej).
 

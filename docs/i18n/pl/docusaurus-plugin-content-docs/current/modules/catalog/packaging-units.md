@@ -59,8 +59,11 @@ magazynowa i limity per linia są oceniane na wynikowej liczbie sztuk.
 
 ## Schemat
 
-Tabela `product_packaging_units` (migracja 068): `id`, `product_id`
+Tabela `product_packaging_units` (migracja
+`20260611T140412_catalog_product_packaging_units.ts`): `id`, `product_id`
 (FK → `products`, cascade delete), `name`, `base_quantity`
 (`CHECK >= 1`), `position`, `is_default`, timestamps; `UNIQUE (product_id,
-name)`. Additive kolumny snapshot: `cart_items` (069), `order_items` (070),
-`quote_request_items` (071).
+name)`. Addytywne kolumny snapshot, każdą dodaje moduł, który ją posiada:
+`cart_items` (`20260611T140413_carts_cart_item_packaging.ts`), `order_items`
+(`20260611T140414_orders_order_item_packaging.ts`), `quote_request_items`
+(`20260611T140415_quote_requests_qr_item_packaging.ts`).

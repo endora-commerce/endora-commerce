@@ -11,7 +11,8 @@ wiersz `assets` przeżywa nawet usunięcie załącznika.
 
 ## Typy załączników
 
-Słownik `attachment_types` kategoryzuje załączniki. Migracja 021 seeduje cztery
+Słownik `attachment_types` kategoryzuje załączniki. Migracja
+`20260429T112543_catalog_product_attachments.ts` seeduje cztery
 standardowe wiersze ze deterministycznymi UUID, żeby seedy i testy mogły się do
 nich odwoływać stabilnie:
 

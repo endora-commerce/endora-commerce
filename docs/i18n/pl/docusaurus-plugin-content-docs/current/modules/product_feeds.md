@@ -573,4 +573,6 @@ Harness wskazuje też taxonomy reconciler na nieistniejący katalog, więc tylko
   delivery obejmuje tylko SFTP, FTP i HTTP — zobacz **Delivery** powyżej.
 - Incremental, supplemental albo delta feeds — każdy run regeneruje cały plik.
 - Wiele krajów lub walut w jednym pliku; zduplikuj feed zamiast tego.
-- Runtime taxonomy download.
+- Automatyczne przyjęcie nowszej taksonomii. Opcjonalne sprawdzanie (zobacz
+  [Aktualizacje taksonomii](#taxonomy-updates)) pobiera i instaluje zmienioną rewizję jako
+  **nieaktywną**; do użycia wprowadza ją dopiero promocja wykonana przez operatora.

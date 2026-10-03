@@ -15,7 +15,8 @@ backend module reads values through one well-known service.
 
 - **Setting** — a single tunable knob. Carries a name, a globally-unique
   machine code, a value type (`string` / `number` / `boolean` / `json` /
-  `string_list`), a manifest-supplied default value, and a sales-channel
+  `string_list` / `secret` / `credential_ref`), a manifest-supplied default
+  value, and a sales-channel
   scope (empty scope means "applies to every channel").
 - **Setting Value** — an admin-chosen value for a `(setting, sales_channel)`
   pair. Replaces the manifest default for that channel. Resolution order is
@@ -26,14 +27,18 @@ backend module reads values through one well-known service.
 
 ## For module authors — declaring your settings
 
-Each module that wants to register settings or groups exports a sibling
-`manifest.ts` file using the helper from `@endora-commerce/contracts`:
+Each module that wants to register settings or groups builds a settings
+manifest with the helper from `@endora-commerce/contracts` and passes it as the
+`settings` field of its module manifest:
 
 ```ts
 // packages/modules/<your_module>/src/manifest.ts
-import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+} from '@endora-commerce/contracts';
 
-export const settingsManifest = defineModuleSettingsManifest({
+const settings = defineModuleSettingsManifest({
   moduleCode: 'your_module',
   groups: [{ code: 'your_section', name: 'Your section' }],
   settings: [
@@ -47,12 +52,21 @@ export const settingsManifest = defineModuleSettingsManifest({
     },
   ],
 });
+
+export const manifest = defineModuleManifest({
+  id: 'your_module',
+  // ...name, version, dependencies (include 'settings')...
+  settings,
+});
 ```
 
-Append your manifest to the array in `backend/src/composition.ts` — the
-boot-time reconciler walks every entry and inserts any missing rows
-idempotently. Re-running is always safe; admin-chosen values are never
-overwritten.
+There is no list to append to: the settings manifests are collected from the
+module registry (`src/backend/services/registered-settings-manifests.ts` in this module),
+so declaring `settings` on the manifest is the whole registration. The rows
+are written by the manifest reconciler, which inserts any missing groups and
+settings idempotently — at every boot for core and deployment overlay modules,
+and by `module:install` for a module installed as a package. Re-running is
+always safe; admin-chosen values are never overwritten.
 
 ### Reconciler guarantees
 
@@ -62,8 +76,8 @@ overwritten.
 | Re-apply (no changes) | No-op. |
 | Re-apply (added entry) | Only new entries are inserted. |
 | Re-apply (renamed `name`/`description`) | Updated in place. |
-| Re-apply (changed `valueType` or `defaultValue`) | Rejected without `--force` to keep existing per-channel values valid. |
-| Re-apply (entry removed from manifest) | Boot sync ignores the removal — orphan rows are logged but not deleted. Only `modules:uninstall` is destructive. |
+| Re-apply (changed `valueType` or `defaultValue`) | Rejected (`BreakingChangeRejected`) to keep existing per-channel values valid. No CLI flag overrides it. Two changes are accepted: `string` → `secret`, and a new `defaultValue` when the entry lists the stored one in `previousDefaultValues`. |
+| Re-apply (entry removed from manifest) | Boot sync ignores the removal — orphan rows are logged but not deleted. Only `module:uninstall` removes a module's settings. |
 | Setting code conflicts with another module | Reconciliation aborts with a clear error. |
 
 ## For platform admins — editing values
@@ -139,27 +153,29 @@ shared entries for everyone, and every other process converges within the same
 
 ## CLI
 
-Two scripts ship with the backend:
+Settings rows are installed and removed by the module lifecycle commands, not
+by commands of their own:
 
 ```bash
-# Idempotently reconcile a module's manifest into the database.
-pnpm --filter backend run modules:install <module-code> [--force] [--dry-run]
+# Install a module: runs its migrations and reconciles its settings manifest.
+pnpm --filter backend run module:install <module-id> [--dry-run] [--json]
 
-# Remove a module's settings + groups. The flag is required — there is no
-# implicit default. --remove-settings deletes everything owned by the module
-# (cascade-deletes per-channel values); --preserve-settings keeps everything
-# in place so a future re-install picks the rows up unchanged.
-pnpm --filter backend run modules:uninstall <module-code> \
-    (--remove-settings | --preserve-settings)
+# Soft uninstall (default): unregisters the module's settings and marks the
+# module uninstalled; its tables and data stay. --hard also reverts the
+# module's migrations and must be combined with --force.
+pnpm --filter backend run module:uninstall <module-id> [--hard --force] [--json]
 ```
 
-Both commands write `audit_log_entries` rows. `modules:install` exit codes:
-`0` success, `64` misuse, `65` invalid manifest, `66` conflict, `70` internal
-error.
+`--remove-settings` and `--preserve-settings` are still accepted by
+`module:uninstall` for backward compatibility: the first means `--hard --force`,
+the second does nothing. The argument grammar and exit codes belong to
+`@endora-commerce/platform`'s lifecycle commands; the Module Lifecycle page
+lists the exit codes. Both commands write `audit_log_entries` rows.
 
 ## Database
 
-Five tables introduced by migration `024_settings_init.ts`:
+Five tables introduced by the platform migration
+`packages/platform/src/migrations/20260430T101450_core_settings_init.ts`:
 
 - `setting_groups` (with `is_system_protected` for the built-in `general`)
 - `settings` (FK → `setting_groups`, value-type enum, `jsonb` default)

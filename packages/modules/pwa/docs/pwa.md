@@ -86,7 +86,7 @@ binaries is out of scope; the technical readiness is:
 ## Operator runbook
 
 1. Set `SETTINGS_SECRET_ENCRYPTION_KEY` (for VAPID/FCM secrets) and run
-   `pnpm --filter backend run migration:up` (applies `080_pwa_init`).
+   `pnpm --filter backend run migration:up` (applies `20260625T144228_pwa_init.ts`).
 2. In **Settings → PWA**, set identity + upload an icon, toggle caching/push.
 3. Click **Generate VAPID keys** (or `POST /api/v1/admin/pwa/vapid/generate`).
 4. Set `NEXT_PUBLIC_BUILD_ID` / `VITE_BUILD_ID` in the deploy pipeline.

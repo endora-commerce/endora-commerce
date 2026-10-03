@@ -86,7 +86,7 @@ Wiersz rejestru będący **sierotą** — wiersz, którego moduł nie ma manifes
 tym objęty: strażnik czyta manifest, a sprzątanie sierot to jedyna praca, którą uninstall
 wykonuje, a nic innego jej nie robi.
 
-Dawne `pnpm modules:install` / `pnpm modules:uninstall` (liczba mnoga) wypisują komunikat o deprecjacji i przekierowują do formy pojedynczej. Zostaną usunięte w następnym wydaniu minor.
+Skrypty w liczbie mnogiej `modules:install` / `modules:uninstall` już nie istnieją — były wycofywanymi aliasami i zostały usunięte. Używaj poleceń `module:*` w liczbie pojedynczej, opisanych wyżej.
 
 ## Kształt pliku manifestu
 

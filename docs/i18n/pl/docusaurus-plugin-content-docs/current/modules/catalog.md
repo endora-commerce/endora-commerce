@@ -116,8 +116,10 @@ Typy atrybutów select-style (`select`, `enum`, `multiselect`) niosą uporządko
 listę opcji — każdy wiersz kluczowany przez `(definition, value)` z
 per-locale label + fallback + sort order + flagą default. Legacy kolumna
 `enum_values: string[]` JSONB na `product_attributes` została
-wycofana migracją 032 (do własnościowej tabeli katalogu
-`attribute_options`), a migracja 102 przeniosła
+wycofana migracją
+`20260505T060113_catalog_attribute_options_and_flags.ts` (do własnościowej tabeli katalogu
+`attribute_options`), a migracja
+`20260723T230401_catalog_attributes_on_custom_fields.ts` przeniosła
 wiersze do generycznej tabeli `custom_field_options`. Istniejący czytelnicy
 projektują listę opcji z powrotem w legacy formę dla kompatybilności wstecznej
 na granicy API.
@@ -181,7 +183,7 @@ magazynowania i własności jest inny:
   `custom_fields`. Generyczna powierzchnia admin Custom Fields listuje
   definicje produktów read-only i odmawia mutacji z
   `409 host_managed`.
-- **Migracja `102_attributes_on_custom_fields.ts`** wykonała jednorazową
+- **Migracja `20260723T230401_catalog_attributes_on_custom_fields.ts`** wykonała jednorazową
   konwergencję w jednej transakcji: backfill jednej definicji per legacy atrybut
   (key, labels, zmapowany value type, required, deterministyczny sort order),
   przeniosła wiersze `attribute_options`

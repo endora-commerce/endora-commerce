@@ -51,7 +51,8 @@ renderuje zlokalizowaną nazwę zestawu jako mały podnagłówek.
 
 `attribute_sets` (id, code unique, name jsonb, is_system bool) +
 `attribute_set_attributes` (composite PK na (set_id, attribute_id)).
-Systemowy wiersz Default jest seedowany migracją 017 ze deterministycznym UUID
+Systemowy wiersz Default jest seedowany migracją
+`20260429T064146_catalog_attribute_sets_init.ts` ze deterministycznym UUID
 `defa0017-0000-4000-8000-000000000000`, żeby seedy i testy mogły się do niego
 odwoływać stabilnie.
 

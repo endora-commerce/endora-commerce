@@ -198,8 +198,8 @@ request, który widzi nową wartość.
 ## Catalog flag
 
 Moduł polega na nowej kolumnie boolean `is_comparable` na
-`product_attributes`. Catalog posiada kolumnę (migracja `028` pod
-`catalog/migrations/`); moduł comparisons czyta ją przez
+`product_attributes`. Catalog posiada kolumnę (migracja modułu catalog
+`20260501T185835_catalog_product_attribute_is_comparable.ts`); moduł comparisons czyta ją przez
 `CatalogQueryService.comparableAttributeKeys()`.
 
 `<AttributesManager>` w admin UI Catalogu eksponuje checkbox `Comparable`
@@ -210,7 +210,7 @@ bezpośrednio z Postgres.
 ## Storage
 
 Dwie tabele, obie owned przez moduł comparisons
-(`027_comparisons_init.ts`):
+(`20260501T185834_comparisons_init.ts`):
 
 - `comparisons` — primary key, 22-znakowy base64url `share_token`
   (`UNIQUE`), exclusive owner column (`customer_account_id` *or*

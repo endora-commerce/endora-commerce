@@ -28,7 +28,8 @@ Owns:
 
 The legacy `PriceListItem` and `PriceListAssignment` tables (and the
 `code` / `currency` / `priority` / `isDefault` columns on `price_lists`)
-are kept by migration 031 only as a transitional shim during the
+are kept by migration `20260504T125655_price_lists_engine.ts` only as a
+transitional shim during the
 expand → migrate → contract rollout. Newly written code MUST consume
 the engine schema via `@endora-commerce/contracts`.
 
@@ -50,7 +51,7 @@ draft ──activate──▶ scheduled ──auto on startsAt──▶ active �
 
 The seeded `Default` list (`isSystem = true`) refuses every state
 change, every delete, and every non-empty `applicationRule`.
-Migration 031 also seeds bracket rows on it from each
+Migration `20260504T125655_price_lists_engine.ts` also seeds bracket rows on it from each
 product's legacy `attributeValues.defaultPrice`, so the platform always
 has a usable terminal-fallback price.
 
@@ -208,24 +209,27 @@ shared window hold.
 | `GET / POST / DELETE /api/v1/admin/price-lists/:id/assignments{,/:assignmentId}` | Legacy assignments CRUD |
 | `GET /api/v1/admin/price-lists/preview?productSku=&quantity=&organizationId=&salesChannelCode=` | Legacy preview |
 
-## Migration notes (031)
+## Migration notes (engine reshape)
 
-`031_price_lists_engine.ts` runs an 8-step transactional reshape:
+The module's migration `20260504T125655_price_lists_engine.ts` reshapes the schema in one transaction:
 
-1. Acquire an advisory lock so concurrent migrations bail out cleanly.
+1. Take a transaction-scoped advisory lock (`pg_advisory_xact_lock`) so
+   concurrent migrators serialise; it is released when the transaction
+   ends.
 2. Add the new columns on `price_lists` (`type`, `status`, `startsAt`,
    `endsAt`, `modifiedAt`, `isSystem`, `applicationRule` JSONB).
 3. Create the three new tables (`price_list_products`,
    `price_list_price_brackets`, `price_display_mode_overrides`).
-4. Seed the `Default` list with a deterministic UUID.
+4. Seed the `Default` list with the deterministic UUID
+   `00000000-0000-4000-8000-00000000d51b`.
 5. Walk every `Product` whose `attributeValues` carries `defaultPrice`
-   (or `price` as fallback) and upsert one bracket row per currency
-   exposed by any sales channel. Identity copy across currencies is
-   flagged in the migration report.
-6. Strip the legacy `attributeValues.defaultPrice` and
-   `attributeValues.price` keys.
-7. Emit the report to `backend/var/migration-reports/011_price_lists_seed.json`.
-8. Release the advisory lock.
+   (or `price` as fallback), assign it to the `Default` list and insert
+   one bracket row per currency exposed by any sales channel, copying the
+   same amount into every currency.
+
+The legacy `attributeValues.defaultPrice` and `attributeValues.price`
+keys are **not** stripped, so existing readers keep working, and the
+migration writes no report file.
 
 The migration is **additive** to the legacy schema — the
 `price_list_items` and `price_list_assignments` tables and the
@@ -235,8 +239,12 @@ remain in place until the readers in `cart-service`, `comparison-service`,
 resolver. A follow-up migration drops the legacy columns once that
 audit lands.
 
-The migration helper (`default-price-list-migration.ts`) is idempotent
-and can be re-run as a repair command.
+The same backfill is available as a service,
+`DefaultPriceListMigrator`
+(`src/backend/services/default-price-list-migration.ts` in this module).
+It is idempotent, so it is safe to re-run, and it returns a structured report
+that lists every product whose single legacy price was copied into more than
+one currency.
 
 ## Storefront integration
 
