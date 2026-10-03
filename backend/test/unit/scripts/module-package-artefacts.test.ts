@@ -213,6 +213,41 @@ describe('the specifier the generator emits, per origin', () => {
   });
 });
 
+describe('a module package’s entities sit behind one subpath, and prose cannot add a second', () => {
+  it('is not sent to a second subpath by a migration whose comment quotes the decorator', () => {
+    // The incident, whole: a migration's doc comment said what its owner
+    // "declares", decorator and all. The walk read that file as declaring an
+    // entity, took the migration class below the comment for it, and reported
+    // the package as publishing entities behind `./backend` *and*
+    // `./migrations` — an error about an `exports` map that had nothing wrong
+    // with it, naming neither the file nor the comment.
+    const entities = collectEntities(
+      packageSources(alpha, {
+        [ENTITY_FILE]: ENTITY_SOURCE,
+        [MIGRATION_FILE]:
+          "/** The owner declares `@Entity({ tableName: 'alpha_things' })`; this only reads it. */\n" +
+          MIGRATION_SOURCE,
+      }),
+    );
+    expect(entities.map((entity) => entity.className)).toEqual(['AlphaThing']);
+    expect(emitEntitiesRegistry(entities)).toContain(
+      "import { entities as alphaEntities } from '@endora-commerce/mod-alpha/backend';",
+    );
+  });
+
+  it('names both classes and both files when a second subpath really does hold an entity', () => {
+    const entities = collectEntities(
+      packageSources(alpha, {
+        [ENTITY_FILE]: ENTITY_SOURCE,
+        'src/migrations/stray.ts': '@Entity()\nexport class Stray {}\n',
+      }),
+    );
+    expect(() => emitEntitiesRegistry(entities)).toThrow(
+      /AlphaThing in src\/backend\/entities\/alpha-thing\.entity\.ts.*Stray in src\/migrations\/stray\.ts/s,
+    );
+  });
+});
+
 describe('overlay:check’s foreign verdict, exercised both ways (D-155.6)', () => {
   /** The roots a run over the fixture checkout derives — never a hand-written list. */
   const rootsOf = (f: ModulePackageFixture) => permittedRoots(f.root);
