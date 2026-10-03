@@ -464,7 +464,9 @@ const NOT_PUBLISHED: Readonly<Record<string, string>> = {
   ScopeClass: 'unreached — the `scope` field of a row of that registry.',
   ORG_FILTER: 'unreached — the decorators attach the filter; a module never names it.',
   CUSTOMER_FILTER: 'unreached — as above.',
-  withOrgScope: 'unreached — every module reach into the escape hatch is `withSystemScope`.',
+  withOrgScope:
+    'host-only by ruling D-285 (`specs/conventions/module-composition.md` item 10a) — a module ' +
+    'uses `withSystemScope` / `enterSystemScope`; revisit when one needs per-organisation pinned work.',
   setEscapeHatchAuditSink: 'composition — the host wires the escape hatch to the audit sink.',
   EscapeHatchAuditRecord: 'composition — the argument of that sink.',
   EscapeHatchAuditSink: 'composition — the type of that sink.',
@@ -1320,6 +1322,19 @@ describe('the platform’s published surface', () => {
     const exported = barrelExports('kernel/index.ts');
     expect(exported).toContain('AuditPort');
     expect(exported).not.toContain('AuditLogService');
+  });
+
+  /**
+   * D-285, stated on its own for the reason D-160.10 is: the ruling has a test
+   * rather than a row in a list. `withOrgScope` exists in the platform's
+   * `tenancy/escape-hatch.ts` and stays host-only until a module needs work
+   * pinned to one organisation; publishing it is a later ruling's act, which
+   * moves the name out of `NOT_PUBLISHED` and deletes this case.
+   */
+  it('publishes withSystemScope and not withOrgScope (D-285)', () => {
+    const exported = barrelExports('tenancy/index.ts');
+    expect(exported).toContain('withSystemScope');
+    expect(exported).not.toContain('withOrgScope');
   });
 
   /**

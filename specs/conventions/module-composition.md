@@ -201,6 +201,32 @@ never add a "module options" object for something the module can read itself.
    package. **Do not write the roots down**: `check:kernel-boundary` derives them from the
    platform member's own directories (`specs/110-instance-repository/` T118a), so the next one
    is judged by existing.
+10a. **Tenant context a module establishes: `withSystemScope` and `enterSystemScope`, never
+   `withOrgScope` — ruling D-285.** The platform implements both escape-hatch tokens in
+   `packages/platform/src/tenancy/escape-hatch.ts`; the published `@endora-commerce/platform/tenancy`
+   barrel carries one of them, and that is a decision, not an oversight
+   (`backend/test/unit/kernel/published-surface.test.ts`, `NOT_PUBLISHED`).
+
+   > **D-285 (owner, 2026-10-03) — `withOrgScope` stays host-only.**
+   >
+   > 1. `withOrgScope` stays off the published `./tenancy` barrel. The platform and its composition
+   >    roots may call it; a module may not.
+   > 2. A module establishes or widens tenant context only through what the barrels publish:
+   >    `withSystemScope(reason, fn)` from `./tenancy` to widen an execution that already has a
+   >    context, `enterSystemScope(reason, fn)` from `./kernel` to start a detached one (a worker, a
+   >    timer), and the platform's tenancy guard — the `org` / `customerAccount` filters and
+   >    `orgConstraintFor` — for request-scoped work. Work about one organisation runs under a system
+   >    scope and constrains by `organizationId` itself.
+   > 3. This does not amend Principle XI. The escape hatch is still the two greppable, audited
+   >    tokens; this ruling settles which of them the published surface carries.
+   > 4. **Revisit** when a concrete module — first-party, paid or third-party — needs work pinned to
+   >    one organisation that a system scope plus an explicit `organizationId` constraint cannot
+   >    express safely: typically a call into another module's service that relies on the ambient
+   >    `org` filter and takes no organisation id. The acceptance probe's single-org leg waiting on a
+   >    published context runner (`backend/scripts/acceptance/instance-tenancy-probe.ts`) is the same
+   >    condition seen from a test. Publishing it then is an additive change to `./tenancy`, made by a
+   >    later ruling that says it amends this one: the name moves from `NOT_PUBLISHED` to the
+   >    expected set, with a changeset.
 11. **CI** — `pnpm --filter backend run check:port-dependencies`, `check:port-catches`,
    `check:kernel-boundary`, `check:module-boundary`, `check:container-imports`,
    `check:subscribe-seam`, `check:entry-presence`, and

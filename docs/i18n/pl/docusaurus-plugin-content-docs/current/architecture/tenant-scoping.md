@@ -132,8 +132,11 @@ moduł importujący jakąkolwiek inną ścieżkę platformy.
 
 **Przypięcie pracy do jednej organizacji nie jest dostępne dla modułów.** Platforma implementuje
 `withOrgScope(organizationId, reason, fn)` obok `withSystemScope`
-(`packages/platform/src/tenancy/escape-hatch.ts`), ale funkcji nie ma w opublikowanym barrelu, bo
-w chwili jego wydzielenia nie używał jej żaden moduł. Moduł, który dziś potrzebuje zadania dla
+(`packages/platform/src/tenancy/escape-hatch.ts`), ale funkcji nie ma w opublikowanym barrelu:
+decyzja D-285 zostawia ją wyłącznie platformie, dopóki moduł nie będzie potrzebował pracy
+przypiętej do jednej organizacji, której nie da się bezpiecznie wyrazić zakresem systemowym
+z jawnym ograniczeniem do `organizationId` (`specs/conventions/module-composition.md`,
+punkt 10a). Moduł, który dziś potrzebuje zadania dla
 jednej organizacji, uruchamia je w zakresie systemowym i sam filtruje po `organizationId`.
 
 ## Zadania w tle
