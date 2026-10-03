@@ -1,5 +1,65 @@
 # @endora-commerce/platform
 
+## 0.102.0
+
+### Minor Changes
+
+- e7fd44a: Every tenant-scope widening (`withSystemScope`, `withOrgScope`, `enterSystemScope`) is now
+  recorded in `audit_log_entries` with the action `tenant.escape_hatch`, not only as the
+  `tenant.escape_hatch` stderr line. The stderr line is unchanged, except that a scope opened by
+  `enterSystemScope` now carries an `entryPoint` field.
+  - `composeApp` attaches the writer, so every server, worker and composing CLI command in an
+    instance gets it with no change to the instance's code. `ComposeAppHandle` gains
+    `escapeHatchAudit` (`flush()`, `detach()`, `pendingCount`); `dispose()` flushes and detaches
+    it before the ORM closes.
+  - `runInstanceOperatorCommand` (the `module:*` commands of an instance) attaches it as well.
+    An application that builds its own operator runtime can call `attachEscapeHatchAuditWriter`
+    from `@endora-commerce/platform/lifecycle` with a getter for its EntityManager, and
+    `detach()` it before closing the ORM.
+  - Rows are written asynchronously, about every 10 seconds, on a fork of their own, and
+    identical widenings in one window are aggregated into one row that counts them
+    (`state_after.occurrences`). `state_after` also carries the reason, scope, target
+    organization, the module taken from the call stack, the entry point, the actor (with the reason
+    of the scope the caller was already in, e.g. `actor:anonymous`) and up to 20 request ids. A failed write is retried and logged as `tenant.escape_hatch.persist_failed`.
+    Records that cannot be written by shutdown are printed as `tenant.escape_hatch.unpersisted`.
+  - `EscapeHatchAuditRecord` gains an optional `entryPoint`. `setEscapeHatchAuditSink` now
+    returns the sink it replaced.
+
+### Patch Changes
+
+- 3f7f481: The system-default sales channel is created with `en-US`, a language the dictionary holds,
+  instead of the bare `en`, which it never did. The `languages` module seeds `en-US` and `pl-PL`
+  only, and the admin `PATCH /api/v1/admin/sales-channels/:code` validates every listed language
+  against that dictionary — the unchanged `en` included — so in a freshly installed shop adding a
+  language to the default channel answered `409 DICTIONARY_ENTRY_NOT_FOUND`.
+  `DefaultChannelReconciler` (`@endora-commerce/platform`) now falls back to `en-US`, and the
+  channel's display name is keyed by that same code.
+
+  Existing instances are repaired by a new `@endora-commerce/mod-languages` migration,
+  `Migration20261003T115043LanguagesRepairDefaultChannelLanguage`, which runs on the next
+  `endora upgrade` or `pnpm run setup`. It changes only a `sales_channels` row whose `languages` is
+  exactly `["en"]` and whose `default_language` is `en` — the shape the reconciler wrote — and only
+  while `en` is not a dictionary language and `en-US` is. Such a row becomes `["en-US"]` / `en-US`
+  with its `version` bumped by one; its display name is left as it is. A channel whose languages an
+  operator configured, or an instance where `en` was added to the dictionary, is not touched.
+
+- e29093b: The error envelope (`registerErrorEnvelope`) no longer tries to send a response on a reply that
+  has already been sent. An async handler that calls `reply.send()` without `return reply` makes
+  Fastify send twice; the second send's `ERR_HTTP_HEADERS_SENT` reaches the error handler, which
+  used to answer it with a 500 envelope that could not be delivered, so Fastify logged
+  `FST_ERR_REP_ALREADY_SENT` on top of the error that explains the defect. The handler now logs
+  the original error once, at `error` (`error after the reply was sent; nothing more was sent`),
+  and sends nothing. The double-send stays visible in the log; the caller keeps the first,
+  intact response.
+
+  When the headers were sent but the body was not finished (a response cut off half-way by an
+  error), the handler used to fail on `writeHead` and leave the response open, so the caller waited
+  until its own timeout — as Fastify's default handler also does. It now logs the error once and
+  destroys the response, which is what Fastify does when a piped stream fails after its headers:
+  the caller sees the connection close instead of a hanging or seemingly complete body.
+
+- @endora-commerce/contracts@0.102.0
+
 ## 0.101.1
 
 ### Patch Changes

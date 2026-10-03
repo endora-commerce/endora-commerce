@@ -1,5 +1,19 @@
 # @endora-commerce/mod-audit-logs
 
+## 0.102.0
+
+### Patch Changes
+
+- e7fd44a: The audit log shows `tenant.escape_hatch` rows as "Cross-organization access" ("Dostęp między
+  organizacjami" in Polish). The label comes from this module's own bundle.
+- Updated dependencies [3f7f481]
+- Updated dependencies [e29093b]
+- Updated dependencies [e7fd44a]
+- Updated dependencies [d8b4e1b]
+  - @endora-commerce/platform@0.102.0
+  - @endora-commerce/admin-kit@0.102.0
+  - @endora-commerce/contracts@0.102.0
+
 ## 0.101.1
 
 ### Patch Changes
