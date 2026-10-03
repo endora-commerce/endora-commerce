@@ -230,11 +230,29 @@ beside the existing registries.
 
 **R8.1 Storefront and admin canvas**: `withBlockBoundary(config, name, owner)` returns a config
 whose `render` (a) calls the module's `render` inside `try`/`catch` and renders the placeholder on a
-synchronous throw, and (b) wraps the result in a client error boundary that renders the placeholder
-on a throw below it. A server-side throw below the top level is caught by a `<Suspense>` boundary
-around the block, which makes React render the fallback on the server and retry on the client —
-**premise to verify in T01 before anything is built on it**, with `renderToString` (the storefront
-test harness) and with Next's streaming SSR.
+synchronous throw, and (b) wraps the result in a client error boundary **around** a `<Suspense>`
+boundary whose fallback is the placeholder. The two are both needed and the order matters —
+measured in T01 (2026-10-03, React 19.3.0, Next 15.5.27, spikes outside the tree, deleted):
+
+- **(a) Server-side throw below the top level.** Under `renderToString` **and** under
+  `renderToReadableStream`, a component that throws inside `<Suspense fallback={…}>` yields the
+  fallback and both siblings; the render does not throw, and `onError` receives the error. A class
+  error boundary **alone** does not do this — on the server `getDerivedStateFromError` is never
+  consulted and the whole render throws, under both renderers. So `<Suspense>` is what isolates the
+  server and the error boundary is what isolates the client, where React retries the boundary,
+  the renderer throws again, and the error boundary outside the `<Suspense>` renders the placeholder.
+  The client half of that sentence is React's documented behaviour and was **not** observed in a
+  browser by T01.
+- React marks the failed boundary with a `<template>` beside the fallback. A development build
+  writes the error's message and stack into it (`data-msg`, `data-stck`); a production build writes
+  a digest only (`data-dgst`). A test asserting "nothing of the block reached the HTML" must
+  therefore run against what the block **rendered**, not against the error's text.
+- **(b) `tsc` keeps a leading `'use client'`** as the first statement of the emitted `dist/*.js`.
+- **(c) Next 15.5.27, production build**: a page whose `'use client'` boundary statically imports a
+  package's `./storefront` subpath from `node_modules` (ESM `dist`, each file starting with
+  `'use client'`) builds, and `next start` server-renders the block's markup. With the block forced
+  to throw, the response is still `200`, both siblings are in the HTML, the fallback is in the
+  block's place, and the server logs the error with its digest.
 
 **R8.2 E-mail**: §3 R3.4.
 

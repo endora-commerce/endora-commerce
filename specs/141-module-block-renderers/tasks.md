@@ -15,7 +15,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 0 — premises (measure; leave nothing in the tree)
 
-- [ ] **T00** Measure spec Q1. Scaffold a storefront from the packed CLI (`acceptance:storefront-scaffold`'s
+- [x] **T00** Measure spec Q1. Scaffold a storefront from the packed CLI (`acceptance:storefront-scaffold`'s
   tarball route), record `node_modules` size and package count, `pnpm add` one packed first-party
   module tarball (`@endora-commerce/mod-blog`), record again. Write both numbers and the list of
   peers pnpm auto-installed into plan.md's D2 as a measured fact. **If the delta is large, stop and
@@ -23,7 +23,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   Files: `specs/141-module-block-renderers/plan.md` only.
   **Test**: none — a measurement; the throwaway directory is deleted.
 
-- [ ] **T01** Verify contract §8's premises, in a throwaway spike outside the tree: (a) under
+- [x] **T01** Verify contract §8's premises, in a throwaway spike outside the tree: (a) under
   `react-dom/server` `renderToString` **and** `renderToReadableStream`, a component that throws
   inside `<Suspense fallback={…}>` yields the fallback and the siblings, not a thrown render;
   (b) `tsc` keeps a leading `'use client'` in emitted `dist/*.js`; (c) a Next 15 production build

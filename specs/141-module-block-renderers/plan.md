@@ -51,6 +51,36 @@ it is not released with. **Cost accepted, and measured first (T00)**: the storef
 module package's required backend peers (spec Q1). Bundle size is unaffected — Next bundles what
 `./storefront` imports, and `check:block-renderers` keeps that to contract §2.3.
 
+*Measured (T00, 2026-10-03, on `fe0803f2e`; pnpm 9.15.0, Node 22, Linux x64)*: a storefront
+scaffolded by `endora new storefront` outside the repository, with its three release packages
+(`cms-components`, `contracts`, `page-builder-core`) packed and pinned the way
+`acceptance:storefront-scaffold`'s tarball route pins them.
+
+| | `node_modules` (`du -sk`) | entries under `node_modules/.pnpm` | files |
+| --- | --- | --- | --- |
+| scaffold alone | 876 512 KB (856 MB) | 465 | 30 292 |
+| + packed `@endora-commerce/mod-blog` and its required peers | 930 708 KB (909 MB) | 640 | 38 755 |
+| delta | **+54 196 KB (+53 MB, +6.2%)** | **+175** | +8 463 |
+
+The peers pnpm auto-installed on `pnpm add <mod-blog tarball>`: `@mikro-orm/core`,
+`@mikro-orm/migrations`, `@mikro-orm/postgresql`, `fastify`, `ioredis` (`zod`, `react`,
+`@puckeditor/core`, `contracts` and `page-builder-core` were already there) — +127 entries,
++33 MB. `@endora-commerce/platform` was **not** auto-installed in that run, and that is an artefact
+of the measurement rather than a property of the package: the tarball route rewrites the peer range
+to a `file:` specifier, which pnpm reports as a missing peer instead of fetching. It was added
+explicitly to stand in for what a registry install does, and brought its own closure (`bullmq`,
+`argon2` — a native addon with a prebuilt binary —, `pino`, `pino-pretty`, `awilix`, five
+`@fastify/*` plugins, `@asteasolutions/zod-to-openapi`): +48 entries, +21 MB. The largest single
+additions are `lodash` and `luxon` (under 5 MB each, both through `@mikro-orm/*`/`bullmq`).
+
+*Reading*: +6% of an install that is already 856 MB, and it is paid **once** — every further module
+package shares the same backend peers, so the second module costs its own files only. Nothing of it
+reaches the browser bundle. That is not a weight that justifies changing `manifests:generate` for
+every module package, so the generator rule of spec Q1 is **not** applied and the feature proceeds
+on one package per module with required peers. What the number does not cover, and a storefront
+owner may still weigh: `argon2` is a native addon (an install on a platform without a prebuilt
+binary compiles it), and the install prints peer warnings for the optional admin-side peers.
+
 **D3 — The admin reuses the generated contribution registry.**
 *Decision*: `AdminContributions.blocks?` (contract §4); no new artefact.
 *Rationale*: the owner asked to reuse the mechanism admin surfaces already use, and it fits without
