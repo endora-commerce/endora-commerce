@@ -29,8 +29,13 @@
   rewrite writes every `workspace:` member exactly.
 - [x] T011 The local-registry mode holds FR-011 as L24, and `--serve-higher-patch` stages the
   registry's `latest` one patch above the release typed.
-- [ ] T012 Run the local-registry mode with `--services`, with and without
-  `--serve-higher-patch`, and record L22, L23 and L24.
+- [x] T012 Run the local-registry mode with `--services`, with and without
+  `--serve-higher-patch`, and record L22, L23 and L24 — on 2026-10-03 every verdict L1…L24 passed
+  in both runs; with the registry's latest at `0.101.2`, L24 read *74 declarations at 0.101.1,
+  269 lockfile entries at 0.101.1*. The control — the same staged run over the CLI source as it
+  was before FR-011 — failed L24 (`^0.101.1` in the root manifest), L22 (*unmet peer
+  @endora-commerce/contracts@0.101.2: found 0.101.1*) and L23 (the instance had installed
+  `0.101.2`), so the verdict goes red on the defect it was written for.
 
 ## Not proven here
 
