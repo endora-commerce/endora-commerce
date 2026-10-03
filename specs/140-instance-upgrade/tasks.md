@@ -23,6 +23,20 @@
   verdict L1…L23 passed on 2026-10-03, L23 as *exit 0, said so, 4 manifests and lockfiles
   unchanged*.
 
+- [x] T010 FR-011, test first — `packages/cli/test/scaffold-exact-release-pins.test.ts` and the
+  all-exact case in `upgrade.test.ts`; `releaseRange` in `new-instance/template.ts`, used for the
+  root, `admin/`, `docs/` and the composed optional peers (`new-instance/index.ts`); the storefront
+  rewrite writes every `workspace:` member exactly.
+- [x] T011 The local-registry mode holds FR-011 as L24, and `--serve-higher-patch` stages the
+  registry's `latest` one patch above the release typed.
+- [x] T012 Run the local-registry mode with `--services`, with and without
+  `--serve-higher-patch`, and record L22, L23 and L24 — on 2026-10-03 every verdict L1…L24 passed
+  in both runs; with the registry's latest at `0.101.2`, L24 read *74 declarations at 0.101.1,
+  269 lockfile entries at 0.101.1*. The control — the same staged run over the CLI source as it
+  was before FR-011 — failed L24 (`^0.101.1` in the root manifest), L22 (*unmet peer
+  @endora-commerce/contracts@0.101.2: found 0.101.1*) and L23 (the instance had installed
+  `0.101.2`), so the verdict goes red on the defect it was written for.
+
 ## Not proven here
 
 - An upgrade that applies a **new migration** or installs a **new module**: no published release

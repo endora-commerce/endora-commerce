@@ -71,7 +71,7 @@ Two directories, side by side, both yours:
 
 | Directory | What it is |
 | --- | --- |
-| `my-shop/` | The **instance**: `package.json` (the module list), `backend/` (the API's and the worker's entry points), `admin/`, `docs/`, `apps/my-shop/` (your own modules — see [Create your first Module](./create-your-first-module.md)), `deploy/` (example production files), `compose.dev.yml` and `.env`. |
+| `my-shop/` | The **instance**: `package.json` (the module list, every package of the release at exactly the version you installed), `backend/` (the API's and the worker's entry points), `admin/`, `docs/`, `apps/my-shop/` (your own modules — see [Create your first Module](./create-your-first-module.md)), `deploy/` (example production files), `compose.dev.yml` and `.env`. |
 | `my-shop-storefront/` | The **storefront**, a Next.js application with its own `.env`. |
 
 After `pnpm run dev:all`:

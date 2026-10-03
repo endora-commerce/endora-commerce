@@ -24,12 +24,16 @@
  *
  * ## The four rules, and why each is the shape it is
  *
- * 1. **`workspace:` → published semver.** pnpm's own publish semantics, applied
- *    to the version the named package declares: `workspace:*` is that version
- *    exactly, `workspace:^` and `workspace:~` are it with the operator, and
- *    `workspace:<range>` is the range as written. This is the rewrite
- *    publication makes real; until the packages are published a consumer
- *    substitutes a tarball, which is what the acceptance criterion does.
+ * 1. **`workspace:` → the release's exact version.** Every `workspace:` range
+ *    names a member of the platform workspace, which is a package of the
+ *    release this storefront is written from, so it becomes **exactly** the
+ *    version the named package declares, whatever operator the reference wrote
+ *    (`specs/140-instance-upgrade/` M8): a caret would let a later patch of
+ *    half the set install beside the exact `contracts` pin. pnpm's own publish
+ *    semantics are {@link publishedRange}, kept for what it describes; the
+ *    storefront moves forward through the instance's `pnpm run upgrade`. Until
+ *    the packages are published a consumer substitutes a tarball, which is
+ *    what the acceptance criterion does.
  * 2. **Vendor a referenced configuration file, and make the copy standalone.**
  *    One mechanism for all three configuration references. The copy is then
  *    walked for its *own* outward references, and each is dropped when its
@@ -136,6 +140,8 @@ export interface PlanOptions {
  *
  * The version comes from the named package's own manifest, so a repository that
  * has started versioning its packages produces real ranges with no change here.
+ * The storefront scaffold does **not** use it: a scaffold names a release
+ * exactly (rule 1, {@link rewriteManifest}).
  */
 export function publishedRange(declared: string, version: string): string {
   const tail = declared.slice('workspace:'.length);
@@ -268,7 +274,7 @@ function rootPeerDependencyRules(repoRoot: string): Record<string, unknown> | nu
     : null;
 }
 
-/** Rule 1 — the manifest, with every `workspace:` range published. */
+/** Rule 1 — the manifest, with every `workspace:` range at the release's exact version. */
 export function rewriteManifest(
   reference: StorefrontReference,
   memberDirs: readonly string[],
@@ -289,7 +295,9 @@ export function rewriteManifest(
           `cannot install.`,
       );
     }
-    const to = publishedRange(range.declared, member.version);
+    // Exactly the member's version, whatever operator the reference wrote:
+    // every member is a package of the release (rule 1, M8).
+    const to = member.version;
     (manifest[range.field] as Record<string, string>)[range.name] = to;
     ranges.push({ field: range.field, name: range.name, from: range.declared, to });
   }

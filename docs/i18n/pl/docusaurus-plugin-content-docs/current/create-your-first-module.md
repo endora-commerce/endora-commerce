@@ -60,7 +60,8 @@ DEPLOYMENT=my-shop
     "@endora-commerce/contracts": "0.100.2",
 ```
 
-Wersja jest tą, którą przypina Twoje wydanie; celowo jest zapisana bez `^`.
+Wersja jest tą, którą przypina Twoje wydanie; jak każdy pakiet wydania, celowo jest zapisana bez
+`^`.
 
 Bez `DEPLOYMENT` nic nie kończy się błędem: instancja startuje jako sama platforma, Twojego modułu
 po prostu nie ma i nic nie mówi dlaczego. Jeśli któreś z poleceń niczego nie wypisuje, instancję

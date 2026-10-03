@@ -26,9 +26,12 @@ has no `upgrade` command, see [Instances created before the command](#before-the
 `pnpm update` looks like the obvious command and leaves the instance in a state that works
 until it does not, while exiting with `0`:
 
-- `@endora-commerce/contracts` is pinned **exactly** in your `package.json`, so that only one
-  copy of it is ever installed. `pnpm update` moves every other package and leaves that one
-  behind, so two copies are installed and pnpm prints an *unmet peer* warning per module.
+- Your `package.json` pins the packages of the release **exactly**, so the tree installs the same
+  thing on any day and only one copy of each. `pnpm update` never moves an exact pin, so in an
+  instance created by a release after `0.101.x` it changes none of them. In one created by
+  `0.101.x` or earlier only `@endora-commerce/contracts` is exact: `pnpm update` moves every
+  other package and leaves that one behind, so two copies are installed and pnpm prints an
+  *unmet peer* warning per module.
 - Before `1.0.0`, a `^0.101.0` range stops below `0.102.0`, so `pnpm update` cannot reach the
   next minor release at all.
 - It rewrites the ranges of your other dependencies — `"react": "^19"` becomes `"^19.3.0"` —
@@ -128,10 +131,13 @@ change them:
 
 ## An instance that is mixed from the start
 
-An instance created from an older release after a newer patch was published installs the newer
-patch of every package except `@endora-commerce/contracts`, which it pins at the older one; the
-install prints *unmet peer @endora-commerce/contracts* once per module. `pnpm run upgrade` — or,
-before the command, the two commands above — puts every package on one version.
+The installer of `0.101.x` or earlier wrote every package of the release with a `^` except
+`@endora-commerce/contracts`. Run after a newer patch was published, it installed that patch of
+every package except `@endora-commerce/contracts`, which stayed at the older one; the install
+prints *unmet peer @endora-commerce/contracts* once per module. `pnpm run upgrade` — or, before
+the command, the two commands above — puts every package on one version. Later installers write
+every package of the release at exactly the version you install, so a new instance is never
+mixed.
 
 ## Without the CLI
 
