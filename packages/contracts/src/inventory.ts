@@ -504,6 +504,23 @@ export interface InventoryStockReadPort {
     variantId?: string | null;
     salesChannelId: string | null;
   }): Promise<CandidateWarehouse[]>;
+  /**
+   * The allocations still held for the given order items — the rows a
+   * cancellation has not released (`specs/142-order-transition-atomicity/`, D9).
+   *
+   * Asked by `orders`' repair command, which may not read this module's tables:
+   * it knows which orders are cancelled and has to learn which of them still
+   * hold stock before it proposes to release anything. One row per allocation,
+   * so an order item split across warehouses answers more than once. An empty
+   * input answers the empty list without a query.
+   *
+   * Read across organisations: the caller is an operator command listing every
+   * tenant's stranded orders, and an allocation carries no organisation of its
+   * own.
+   */
+  unreleasedAllocationsForOrderItems(
+    orderItemIds: readonly string[],
+  ): Promise<Array<{ orderItemId: string; warehouseId: string; quantity: number }>>;
 }
 
 // --- the bulk import surface -------------------------------------------------

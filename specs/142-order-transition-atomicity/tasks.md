@@ -46,21 +46,21 @@ calling `sweep()`.
 
 ## Phase 1 — shapes
 
-- [ ] **T02** Contracts, additive: `InventoryStockReadPort.unreleasedAllocationsForOrderItems`,
+- [x] **T02** Contracts, additive: `InventoryStockReadPort.unreleasedAllocationsForOrderItems`,
   `CreditLimitReadPort.activeReservationsForOrders`, and `pendingEffects?` on the admin order
   response schema named in T01.
   Files: `packages/contracts/src/inventory.ts`, `credit-limits.ts`, `orders.ts`.
   **Test**: `backend/test/unit/contracts/order-pending-effects.test.ts` — the response schema accepts
   an order with and without `pendingEffects`, refuses an unknown `effect`.
 
-- [ ] **T03** [P] `inventory` implements `unreleasedAllocationsForOrderItems` (rows with
+- [x] **T03** [P] `inventory` implements `unreleasedAllocationsForOrderItems` (rows with
   `released_at is null` for the given order items; empty input → empty output, no query).
   Files: `packages/modules/inventory/src/backend/services/` (the stock read port's implementation),
   `src/backend/index.ts` if the registration needs it.
   **Test**: `backend/test/integration/inventory/unreleased-allocations-read.test.ts` — released rows
   excluded; foreign order items excluded.
 
-- [ ] **T04** [P] `credit_limits` implements `activeReservationsForOrders` (`status = 'active'`).
+- [x] **T04** [P] `credit_limits` implements `activeReservationsForOrders` (`status = 'active'`).
   Files: `packages/modules/credit_limits/src/backend/services/` (the read port's implementation).
   **Test**: `backend/test/integration/credit_limits/active-reservations-read.test.ts` — a released
   reservation excluded; an order with none absent from the answer.
