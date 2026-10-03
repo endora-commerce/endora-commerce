@@ -75,7 +75,12 @@ export function registerModule(ctx: ModuleContext): void {
             revalidator,
             configService,
             invalidateConfig,
-            enqueueRelay: relayQueue ? makeEnqueuer(relayQueue) : undefined,
+            enqueueRelay: relayQueue
+              ? makeEnqueuer(
+                  relayQueue,
+                  async (salesChannelId) => (await configService.getConfig(salesChannelId)).serverSide,
+                )
+              : undefined,
           };
         },
       )

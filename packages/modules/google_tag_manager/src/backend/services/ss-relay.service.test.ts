@@ -32,10 +32,31 @@ function fakeQueue(): {
   return { queue, added };
 }
 
+/** A channel whose server-side tagging is configured: switch on, address set. */
+const serverSideOn = async (): Promise<boolean> => true;
+
 describe('makeEnqueuer (producer, Principle X)', () => {
+  it('enqueues nothing for a channel whose server-side tagging is not configured', async () => {
+    // Any instance with Redis has a queue, so "a queue exists" says nothing
+    // about whether this channel relays. Without this the producer wrote one
+    // job per storefront event for the worker to read the same empty address
+    // and drop — queue churn for a feature nobody switched on.
+    const { queue, added } = fakeQueue();
+    const asked: string[] = [];
+    const accepted = await makeEnqueuer(queue, async (salesChannelId) => {
+      asked.push(salesChannelId);
+      return false;
+    })('chan-1', request, { ip: '203.0.113.7' });
+
+    expect(accepted).toBe(0);
+    expect(added).toHaveLength(0);
+    // Decided per channel, for the channel the request resolved to.
+    expect(asked).toEqual(['chan-1']);
+  });
+
   it('enqueues one job per event, each keyed by its own uuid eventId', async () => {
     const { queue, added } = fakeQueue();
-    const accepted = await makeEnqueuer(queue)('chan-1', request, {});
+    const accepted = await makeEnqueuer(queue, serverSideOn)('chan-1', request, {});
 
     expect(accepted).toBe(2);
     expect(added).toHaveLength(2);
@@ -50,7 +71,7 @@ describe('makeEnqueuer (producer, Principle X)', () => {
 
   it('threads the event id into the params as gtm_event_id for destination dedupe', async () => {
     const { queue, added } = fakeQueue();
-    await makeEnqueuer(queue)('chan-1', request, {});
+    await makeEnqueuer(queue, serverSideOn)('chan-1', request, {});
     for (const entry of added) {
       expect(entry.data.event.params['gtm_event_id']).toBe(entry.data.eventId);
     }
@@ -60,7 +81,7 @@ describe('makeEnqueuer (producer, Principle X)', () => {
 
   it('carries the channel, client, consent, page context and one shared occurredAt', async () => {
     const { queue, added } = fakeQueue();
-    await makeEnqueuer(queue)('chan-1', request, {});
+    await makeEnqueuer(queue, serverSideOn)('chan-1', request, {});
     expect(added[0]!.data).toMatchObject({
       salesChannelId: 'chan-1',
       clientId: '1234567890.1754006400',
@@ -74,7 +95,7 @@ describe('makeEnqueuer (producer, Principle X)', () => {
 
   it('records the server-observed ip and user agent on the job', async () => {
     const { queue, added } = fakeQueue();
-    await makeEnqueuer(queue)('chan-1', request, {
+    await makeEnqueuer(queue, serverSideOn)('chan-1', request, {
       ip: '203.0.113.7',
       userAgent: 'Mozilla/5.0',
     });
