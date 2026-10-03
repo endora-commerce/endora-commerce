@@ -375,7 +375,7 @@ Jeśli polecenie cyklu życia wielokrotnie kończy się kodem 75 („lock-busy�
 redis-cli get b2b:module:lifecycle:lock
 ```
 
-Jeśli wartość jest starsza niż pięć minut, blokada wygasła — powtarzające się błędy 75 przy przeterminowanym kluczu w Redis wskazują na zablokowany wiersz `state='installing'` w `module_registrations`. Sprawdź go przez `pnpm module:status` i wykonaj kroki naprawcze z instrukcji [Zablokowana blokada cyklu życia modułu](../operations/runbooks/module-lifecycle-stuck-lock.md).
+Jeśli wartość jest starsza niż pięć minut, blokada wygasła — powtarzające się błędy 75 przy przeterminowanym kluczu w Redis wskazują na zablokowany wiersz `state='installing'` w `module_registrations`. Sprawdź go przez `pnpm module:status` i wykonaj kroki naprawcze z instrukcji [Zawieszona blokada cyklu życia modułu](../operations/runbooks/module-lifecycle-stuck-lock.md).
 
 ## Testy
 
