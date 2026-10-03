@@ -221,7 +221,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   for A8).
   **Test**: it passes `check:block-renderers` (A1).
 
-- [ ] **T21** The runner and its ratchet (contract §9, A1–A8): reuse `storefront-scaffold.ts`' and
+- [~] **T21** *(partial — A1, A4, A5 package half, A6–A8 storefront halves and A8 e-mail half are measured; A2, A3, A5 platform half and the admin/e-mail halves of A6–A8 are reported `unmeasured` by the runner, see plan.md § Deviations)* The runner and its ratchet (contract §9, A1–A8): reuse `storefront-scaffold.ts`' and
   `package-schema.ts`' packing, local install and instance-probe helpers rather than copying them.
   Files: `backend/scripts/acceptance/block-renderers.ts`, `block-renderers-assertions.ts` (pure),
   `backend/acceptance/block-renderers-expected-state.json`, `backend/package.json`

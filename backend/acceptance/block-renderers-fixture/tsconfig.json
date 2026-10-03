@@ -12,7 +12,10 @@
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": [],
-    "declaration": false,
+    // Declarations are published: a storefront written in TypeScript imports
+    // `./storefront` from its generated registry, and an untyped module is a
+    // compile error there.
+    "declaration": true,
     "declarationMap": false,
     "sourceMap": false,
     "removeComments": false,

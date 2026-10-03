@@ -104,13 +104,33 @@ warstwę e-mail i nic więcej.
 <!-- verbatim-from: backend/acceptance/block-renderers-fixture/package.json -->
 ```json
 "exports": {
-  ".": "./dist/manifest.js",
-  "./backend": "./dist/backend/index.js",
-  "./admin": "./dist/admin/index.js",
-  "./storefront": "./dist/storefront/index.js",
-  "./email": "./dist/email/index.js",
+  ".": {
+    "types": "./dist/manifest.d.ts",
+    "default": "./dist/manifest.js"
+  },
+  "./backend": {
+    "types": "./dist/backend/index.d.ts",
+    "default": "./dist/backend/index.js"
+  },
+  "./admin": {
+    "types": "./dist/admin/index.d.ts",
+    "default": "./dist/admin/index.js"
+  },
+  "./storefront": {
+    "types": "./dist/storefront/index.d.ts",
+    "default": "./dist/storefront/index.js"
+  },
+  "./email": {
+    "types": "./dist/email/index.d.ts",
+    "default": "./dist/email/index.js"
+  },
   "./blocks.css": "./blocks.css",
 ```
+
+Każda warstwa publikuje deklaracje typów obok kodu JavaScript (warunek `types`
+powyżej): storefront napisany w TypeScripcie importuje `./storefront` ze
+swojego wygenerowanego rejestru, a `blocks:generate` odrzuca warstwę bez
+deklaracji, zamiast pozwolić, by dopiero budowanie się na niej wyłożyło.
 
 Przykłady poniżej pochodzą z modułu, na którym platforma sama sprawdza ten
 mechanizm — modułu spoza wszystkich pakietów platformy, który wyświetla jeden

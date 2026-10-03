@@ -105,13 +105,33 @@ module whose blocks are e-mail-only ships the e-mail layer and nothing else.
 <!-- verbatim-from: backend/acceptance/block-renderers-fixture/package.json -->
 ```json
 "exports": {
-  ".": "./dist/manifest.js",
-  "./backend": "./dist/backend/index.js",
-  "./admin": "./dist/admin/index.js",
-  "./storefront": "./dist/storefront/index.js",
-  "./email": "./dist/email/index.js",
+  ".": {
+    "types": "./dist/manifest.d.ts",
+    "default": "./dist/manifest.js"
+  },
+  "./backend": {
+    "types": "./dist/backend/index.d.ts",
+    "default": "./dist/backend/index.js"
+  },
+  "./admin": {
+    "types": "./dist/admin/index.d.ts",
+    "default": "./dist/admin/index.js"
+  },
+  "./storefront": {
+    "types": "./dist/storefront/index.d.ts",
+    "default": "./dist/storefront/index.js"
+  },
+  "./email": {
+    "types": "./dist/email/index.d.ts",
+    "default": "./dist/email/index.js"
+  },
   "./blocks.css": "./blocks.css",
 ```
+
+Each layer publishes its type declarations beside its JavaScript (the `types`
+condition above): a storefront written in TypeScript imports `./storefront`
+from its generated registry, and `blocks:generate` refuses a layer that ships
+none rather than leaving the build to fail on it.
 
 The examples below are the platform's own acceptance fixture — a module
 outside every platform package that draws one block, `acceptance_blocks.Badge`,

@@ -141,6 +141,25 @@ interface Verdict {
  * `quality`.
  */
 const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
+  'backend::acceptance:block-renderers': {
+    kind: 'local-operation',
+    reason:
+      'It builds and packs a synthetic third-party module outside the repository, scaffolds a ' +
+      'storefront, installs both from tarballs and runs `next build` and two probes ' +
+      '(`specs/141-module-block-renderers/`, contract §9). It needs network access to a registry ' +
+      'for the scaffold\'s own dependencies and takes about ten minutes, and it exits on the ' +
+      'criterion\'s own colour — which is 2 today, because six of its thirteen assertions are ' +
+      'reported unmeasured. No job is provisioned for it; it is run by hand.',
+  },
+  'backend::acceptance:block-renderers:ci': {
+    kind: 'local-operation',
+    reason:
+      'The same run, compared in both directions to ' +
+      '`backend/acceptance/block-renderers-expected-state.json` — the form a pipeline can hold a ' +
+      'branch to. It is declared so that the job which eventually runs the criterion has a ' +
+      'ratchet rather than a colour; until a job does, it is the same local operation as the ' +
+      'bare form and is listed here rather than claimed as a gate.',
+  },
   'backend::acceptance:instance': {
     kind: 'superseded',
     coveredBy: 'backend::acceptance:instance:ci',

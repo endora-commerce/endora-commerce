@@ -61,6 +61,21 @@ function targetOf(entry) {
 }
 
 /**
+ * The declaration file an `exports` entry's importer gets its types from, or
+ * `null`: the entry's own `types` condition, or the `.d.ts` TypeScript finds
+ * beside a JavaScript target.
+ */
+function typesOf(entry, dir) {
+  if (entry !== null && typeof entry === 'object' && typeof entry.types === 'string') {
+    return existsSync(join(dir, entry.types)) ? entry.types : null;
+  }
+  const target = targetOf(entry);
+  if (target === null) return null;
+  const sibling = target.replace(/\.[mc]?js$/, '.d.ts');
+  return sibling !== target && existsSync(join(dir, sibling)) ? sibling : null;
+}
+
+/**
  * Every installed module package that contributes to this storefront's Page
  * Builder, and every one that tried to and cannot be composed.
  *
@@ -72,7 +87,9 @@ function targetOf(entry) {
  *    its `exports` map does not declare `./storefront`, so its blocks would
  *    render as placeholders with no error anywhere;
  *  - `missing-layer-file` — a declared subpath whose target is not in the
- *    package, which the bundler would report as a path nobody wrote.
+ *    package, which the bundler would report as a path nobody wrote;
+ *  - `untyped-layer` — a storefront layer that ships no type declarations,
+ *    which this storefront's TypeScript build would refuse as an untyped module.
  */
 export function discoverBlockPackages(nodeModulesDir) {
   const installed = listInstalledPackages(nodeModulesDir);
@@ -117,6 +134,21 @@ export function discoverBlockPackages(nodeModulesDir) {
           (target === null ? ' with no importable target' : ` as ${target}, and that file is not in the package`) +
           `. The generated registry would import it and the build would fail on a path nobody ` +
           `wrote. Reinstall the package, or report it to its author.`,
+      });
+    }
+    // A layer with no type declarations is refused here, with a sentence, rather
+    // than at `next build`, with TS7016: this storefront's registry imports the
+    // layer from a TypeScript file.
+    if (!refused && declaresLayer && typesOf(exportsField[STOREFRONT_LAYER_SUBPATH], dir) === null) {
+      refused = true;
+      findings.push({
+        finding: 'untyped-layer',
+        package: name,
+        message:
+          `package "${name}" publishes "${STOREFRONT_LAYER_SUBPATH}" with no type declarations ` +
+          `— neither a "types" condition nor a .d.ts beside its target. The generated registry ` +
+          `imports the layer from TypeScript, so the build would fail on an untyped module. ` +
+          `Report it to the package's author.`,
       });
     }
     if (refused) continue;

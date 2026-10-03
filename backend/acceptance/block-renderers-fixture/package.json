@@ -5,17 +5,36 @@
   "type": "module",
   "sideEffects": false,
   "description": "Synthetic third-party module used by the block-renderers acceptance criterion (specs/141-module-block-renderers). One Page Builder block, drawn by the module itself on the storefront, in the admin editors and in e-mail. Never published, never composed by a normal build.",
-  "files": ["dist", "i18n", "blocks.css"],
+  "files": [
+    "dist",
+    "i18n",
+    "blocks.css"
+  ],
   "endora": {
     "type": "module",
     "id": "acceptance_blocks"
   },
   "exports": {
-    ".": "./dist/manifest.js",
-    "./backend": "./dist/backend/index.js",
-    "./admin": "./dist/admin/index.js",
-    "./storefront": "./dist/storefront/index.js",
-    "./email": "./dist/email/index.js",
+    ".": {
+      "types": "./dist/manifest.d.ts",
+      "default": "./dist/manifest.js"
+    },
+    "./backend": {
+      "types": "./dist/backend/index.d.ts",
+      "default": "./dist/backend/index.js"
+    },
+    "./admin": {
+      "types": "./dist/admin/index.d.ts",
+      "default": "./dist/admin/index.js"
+    },
+    "./storefront": {
+      "types": "./dist/storefront/index.d.ts",
+      "default": "./dist/storefront/index.js"
+    },
+    "./email": {
+      "types": "./dist/email/index.d.ts",
+      "default": "./dist/email/index.js"
+    },
     "./blocks.css": "./blocks.css",
     "./i18n/*": "./i18n/*",
     "./package.json": "./package.json"
@@ -32,8 +51,14 @@
     "react": "^19"
   },
   "peerDependenciesMeta": {
-    "@endora-commerce/platform": { "optional": true },
-    "@puckeditor/core": { "optional": true },
-    "react": { "optional": true }
+    "@endora-commerce/platform": {
+      "optional": true
+    },
+    "@puckeditor/core": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
   }
 }

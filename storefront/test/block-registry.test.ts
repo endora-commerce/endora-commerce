@@ -67,7 +67,10 @@ function fixture(packages: readonly FixturePackage[]): string {
 const STOREFRONT_LAYER = {
   './storefront': { types: './dist/storefront/index.d.ts', default: './dist/storefront/index.js' },
 };
-const LAYER_FILE = { 'dist/storefront/index.js': 'export const contributions = {};\n' };
+const LAYER_FILE = {
+  'dist/storefront/index.js': 'export const contributions = {};\n',
+  'dist/storefront/index.d.ts': 'export declare const contributions: {};\n',
+};
 
 const both: FixturePackage = {
   name: '@acme/mod-crm',
@@ -170,6 +173,30 @@ describe('discoverBlockPackages', () => {
       'missing-layer-file',
       'missing-layer-file',
     ]);
+  });
+
+  it('refuses a storefront layer that ships no type declarations', () => {
+    // Found by the acceptance criterion: `next build` fails with TS7016 on the
+    // generated registry's import, which names neither the package's author nor
+    // the remedy. The generator says both.
+    const { packages, findings } = discoverBlockPackages(
+      fixture([
+        {
+          ...layerOnly,
+          files: { 'dist/storefront/index.js': 'export const contributions = {};\n' },
+        },
+      ]),
+    );
+    expect(packages).toEqual([]);
+    expect(findings.map((finding) => finding.finding)).toEqual(['untyped-layer']);
+  });
+
+  it('accepts declarations found beside the target, with no types condition', () => {
+    const { packages, findings } = discoverBlockPackages(
+      fixture([{ ...layerOnly, exports: { './storefront': './dist/storefront/index.js' } }]),
+    );
+    expect(findings).toEqual([]);
+    expect(packages.map((pkg) => pkg.storefront)).toEqual(['@acme/mod-loyalty/storefront']);
   });
 
   it('refuses two packages claiming one module id', () => {
