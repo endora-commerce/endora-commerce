@@ -1,6 +1,6 @@
 import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import { Puck, Render, type Config, type ComponentConfig, type Data, type PuckAction } from '@measured/puck';
-import '@measured/puck/puck.css';
+import { Puck, Render, type Config, type ComponentConfig, type Data, type PuckAction } from '@puckeditor/core';
+import '@puckeditor/core/puck.css';
 // Self-contained, prefix-isolated (`cmsc:`) stylesheet for the shared CMS components
 // (feature 041, FR-012b). This is the admin's ONLY change; it carries its own token
 // values + no preflight, so it cannot restyle admin chrome.
@@ -19,7 +19,11 @@ import {
   filterConfigByContext,
   type PageBuilderContext,
 } from '@endora-commerce/page-builder-core';
-import { createPageBuilderEditorPlugin } from '@endora-commerce/page-builder-core/editor';
+import {
+  createPageBuilderEditorPlugin,
+  PUCK_LEGACY_DND,
+  withPuckLegacySideBar,
+} from '@endora-commerce/page-builder-core/editor';
 import { AdminCmsAssetProvider } from './AdminCmsAssetProvider.js';
 import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 import { Alert, AlertDescription } from '@endora-commerce/admin-kit/ui';
@@ -571,7 +575,7 @@ export function PageBuilderEditor({
   }, []);
 
   const viewports = useMemo(() => buildViewports(descriptor), [descriptor]);
-  const plugins = useMemo(() => [createPageBuilderEditorPlugin()], []);
+  const plugins = useMemo(() => withPuckLegacySideBar([createPageBuilderEditorPlugin()]), []);
   /** Holds canvas data across remount until parent `data` catches up (clear / copy-from). */
   const pendingSeedRef = useRef<Data | null>(null);
   const editorData = pendingSeedRef.current ?? data ?? emptyData;
@@ -895,6 +899,7 @@ export function PageBuilderEditor({
                 viewports={viewports}
                 iframe={{ enabled: true, waitForStyles: true }}
                 plugins={plugins}
+                dnd={PUCK_LEGACY_DND}
                 overrides={puckOverrides}
               />
             </PageBuilderColorPaletteProvider>

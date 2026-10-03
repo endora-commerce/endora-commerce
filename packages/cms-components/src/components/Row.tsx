@@ -1,6 +1,6 @@
 'use client';
 
-import { type ComponentConfig, type PuckComponent, type SlotComponent } from '@measured/puck';
+import { type ComponentConfig, type PuckComponent, type SlotComponent } from '@puckeditor/core';
 import type { CSSProperties, ReactElement } from 'react';
 import {
   buildResponsiveNumberVars,

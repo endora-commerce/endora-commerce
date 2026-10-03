@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactElement } from 'react';
-import type { CustomField } from '@measured/puck';
+import type { CustomField } from '@puckeditor/core';
 import { sanitizeEmailHtml } from '@endora-commerce/email-components';
 import { htmlFromTiptap } from '@endora-commerce/cms-components';
 import { Button } from '@endora-commerce/admin-kit/ui';

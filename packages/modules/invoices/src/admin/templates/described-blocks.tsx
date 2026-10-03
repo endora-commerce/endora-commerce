@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactElement } from 'react';
-import type { ComponentConfig, Config, Field } from '@measured/puck';
+import type { ComponentConfig, Config, Field } from '@puckeditor/core';
 import type { InvoiceTemplateBlockField } from '@endora-commerce/contracts';
 import { createColorField, ownerOf } from '@endora-commerce/page-builder-core';
 

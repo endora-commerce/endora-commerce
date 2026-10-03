@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, type MutableRefObject, type ReactElement } from 'react';
-import type { AppState, Data, OnAction, PuckAction } from '@measured/puck';
+import type { AppState, Data, OnAction, PuckAction } from '@puckeditor/core';
 import { shouldRevertPuckAction, EditorCarouselPreviewBridge } from '@endora-commerce/page-builder-core/editor';
 import { usePageBuilderPuck } from '@endora-commerce/page-builder-core/editor';
 

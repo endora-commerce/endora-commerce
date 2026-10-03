@@ -1,6 +1,6 @@
 'use client';
 
-import { Render } from '@measured/puck';
+import { Render } from '@puckeditor/core';
 import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
 import type { BlogContentEnvelope } from '@endora-commerce/contracts';
 

@@ -7,7 +7,7 @@ export const CURRENT_EMAIL_SCHEMA_VERSION = 1 as const;
 /**
  * A single Puck data tree as produced by the email editor for one language.
  * Treated as opaque at this layer — Puck's actual type lives in
- * `@measured/puck`; we round-trip the shape verbatim through the envelope.
+ * `@puckeditor/core`; we round-trip the shape verbatim through the envelope.
  */
 export type PuckDataTree = {
   root?: { props?: Record<string, unknown> };

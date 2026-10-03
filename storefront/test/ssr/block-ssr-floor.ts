@@ -22,7 +22,7 @@ export type PaletteBlock = {
 };
 
 /**
- * The composed palette, in the shape `@measured/puck`'s `Config` presents, plus
+ * The composed palette, in the shape `@puckeditor/core`'s `Config` presents, plus
  * the names a **second author** claims are blocks.
  *
  * **The second author changed with feature 096 and the reason is the design.**

@@ -1,6 +1,6 @@
 'use client';
 
-import { type ComponentConfig, type PuckComponent } from '@measured/puck';
+import { type ComponentConfig, type PuckComponent } from '@puckeditor/core';
 import type { CSSProperties } from 'react';
 import {
   createColorField,

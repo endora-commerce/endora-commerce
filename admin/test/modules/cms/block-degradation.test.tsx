@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { render } from '@testing-library/react';
-import { Puck, usePuck, type Config } from '@measured/puck';
+import { Puck, usePuck, type Config } from '@puckeditor/core';
 import { countBlockNames, isNamespaced, ownerOf } from '@endora-commerce/page-builder-core';
 import {
   defaultPageBuilderConfig,
