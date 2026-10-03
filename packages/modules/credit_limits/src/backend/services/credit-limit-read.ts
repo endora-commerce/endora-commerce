@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CreditLimitReadPort } from '@endora-commerce/contracts';
 import { CreditLimit } from '../entities/credit-limit.entity.js';
+import { CreditLimitReservation } from '../entities/credit-limit-reservation.entity.js';
 
 /**
  * `creditLimitReadPort` — the membership read `organizations` needs to resolve
@@ -33,5 +34,31 @@ export class CreditLimitReadService implements CreditLimitReadPort {
     );
     // Ids, not rows. The consumer gets a value it cannot mutate and flush.
     return rows.map((row) => row.organizationId);
+  }
+
+  /**
+   * The reservations still active for the orders asked about
+   * (`specs/142-order-transition-atomicity/`, D9).
+   *
+   * `status = 'active'` is the predicate `releaseByOrder` decides on, so this
+   * answers exactly the reservations a release would still flip. The
+   * reservation table carries no tenant key of its own (the entity is global,
+   * and says why), so there is no filter here to widen.
+   */
+  async activeReservationsForOrders(
+    orderIds: readonly string[],
+  ): Promise<Array<{ orderId: string; amount: string; currency: string }>> {
+    if (orderIds.length === 0) return [];
+    const rows = await this.emFactory().find(
+      CreditLimitReservation,
+      { orderId: { $in: [...orderIds] }, status: 'active' },
+      { orderBy: { orderId: 'asc' } },
+    );
+    // Values, not rows — and the amount as the decimal string it is stored as.
+    return rows.map((row) => ({
+      orderId: row.orderId,
+      amount: row.amount,
+      currency: row.currency,
+    }));
   }
 }
