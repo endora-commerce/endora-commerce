@@ -167,4 +167,66 @@ describe('the production composition root boots', () => {
 
     expect(health.statusCode).toBe(200);
   });
+
+  /**
+   * Cross-organisation access is audited **in the database** (owner decision of
+   * 2026-10-03, Principle XI). The escape hatch reported every widening to a
+   * sink nothing replaced, so the only record was a stderr line. Asserted here,
+   * on the production root, because the sink is wired by `composeApp` — the
+   * one composition an instance shares with this repository — and the harness
+   * root does not run it.
+   */
+  describe('escape-hatch widenings land in audit_log_entries', () => {
+    async function escapeHatchRows(reason: string): Promise<Array<Record<string, unknown>>> {
+      await composition!.escapeHatchAudit.flush();
+      return composition!.orm.em
+        .fork()
+        .getConnection()
+        .execute(
+          `select action, object_type, object_id, request_id, state_after
+             from audit_log_entries
+            where action = 'tenant.escape_hatch' and state_after->>'reason' = ?
+            order by acted_at`,
+          [reason],
+        );
+    }
+
+    it('records the boot`s own system scope', async () => {
+      const rows = await escapeHatchRows('boot: load module presence');
+
+      expect(rows.length).toBeGreaterThanOrEqual(1);
+      expect(rows[0]).toMatchObject({
+        object_type: 'tenant_scope',
+        object_id: 'system',
+        state_after: { scope: 'system', module: 'platform', entryPoint: 'boot' },
+      });
+    });
+
+    it('records a widening an anonymous HTTP request causes, with its module and request id', async () => {
+      const reason =
+        'comparisons: share-token lookup — a share link is a cross-customer grant, and the token is the authorization';
+      const before = (await escapeHatchRows(reason)).length;
+
+      const response = await app!.inject({
+        method: 'GET',
+        url: '/api/v1/comparisons/share/nosuchtoken42',
+        headers: { 'x-request-id': 'escape-hatch-audit-probe' },
+      });
+      expect(response.statusCode).toBe(404);
+
+      const rows = await escapeHatchRows(reason);
+      expect(rows.length).toBe(before + 1);
+      expect(rows.at(-1)).toMatchObject({
+        object_type: 'tenant_scope',
+        request_id: 'escape-hatch-audit-probe',
+        state_after: {
+          scope: 'system',
+          module: 'comparisons',
+          entryPoint: 'http',
+          occurrences: 1,
+          requestIds: ['escape-hatch-audit-probe'],
+        },
+      });
+    });
+  });
 });

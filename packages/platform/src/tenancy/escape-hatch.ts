@@ -1,3 +1,4 @@
+import type { ScopeEntryPointKind } from '@endora-commerce/contracts';
 import { runWithTenantContext } from './tenant-context.js';
 import { systemTenantContext, orgPinnedTenantContext } from './resolve-tenant-context.js';
 
@@ -8,19 +9,34 @@ import { systemTenantContext, orgPinnedTenantContext } from './resolve-tenant-co
  * scope-widening; the CI check forbids any other means (raw `setFilterParams`
  * / `disableFilter` outside this layer). Every call requires a non-empty
  * `reason` and emits one audit record so cross-org access is observable.
+ *
+ * The record goes to the sink synchronously, in the caller's own async context,
+ * so a sink can read who is asking (`getTenantContext()`, the platform scope's
+ * request meta) before the widened context replaces it. That is what the
+ * persistent sink the platform composes does — `kernel/audit/escape-hatch-audit-writer.ts`.
  */
 
 export interface EscapeHatchAuditRecord {
   readonly scope: 'system' | 'org';
   readonly reason: string;
   readonly organizationId?: string;
+  /**
+   * The class of execution the widening **starts** — present only for
+   * `enterSystemScope`, which opens a scope of its own. `withSystemScope` and
+   * `withOrgScope` widen an execution that already exists, whose entry point a
+   * sink reads from the ambient scope.
+   */
+  readonly entryPoint?: ScopeEntryPointKind;
 }
 
 export type EscapeHatchAuditSink = (record: EscapeHatchAuditRecord) => void;
 
 /**
- * Default sink: one structured line on **stderr**. Composition may replace it
- * with one that writes to AuditLogService (FR-013).
+ * Default sink: one structured line on **stderr**. It is not the only record in
+ * a composed process: `composeApp` and the operator runtimes attach the
+ * persistent writer (`kernel/audit/escape-hatch-audit-writer.ts`), which calls
+ * this sink first and then writes the record to `audit_log_entries` (FR-013;
+ * owner decision of 2026-10-03).
  *
  * stderr and not stdout, since feature 072 (T035): the CLI scripts now open
  * their scope through `enterSystemScope`, which reports here, and several of
@@ -35,9 +51,17 @@ let auditSink: EscapeHatchAuditSink = (record) => {
   );
 };
 
-/** Wire the escape hatch to a real audit sink (e.g. AuditLogService). */
-export function setEscapeHatchAuditSink(sink: EscapeHatchAuditSink): void {
+/**
+ * Wire the escape hatch to a real audit sink (e.g. AuditLogService).
+ *
+ * Returns the sink it replaced, so a caller can chain to it — the persistent
+ * writer keeps the stderr line by calling the previous sink first — and put it
+ * back when it detaches.
+ */
+export function setEscapeHatchAuditSink(sink: EscapeHatchAuditSink): EscapeHatchAuditSink {
+  const previous = auditSink;
   auditSink = sink;
+  return previous;
 }
 
 function requireReason(reason: string): void {

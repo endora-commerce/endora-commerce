@@ -310,9 +310,10 @@ export function enterSystemScope<T>(
   run: (scope: PlatformScope) => T | Promise<T>,
   opts: Omit<EnterPlatformScopeOptions, 'channel'> = {},
 ): Promise<T> {
-  recordEscapeHatchAudit({ scope: 'system', reason });
+  const entryPoint = opts.entryPoint ?? 'worker';
+  recordEscapeHatchAudit({ scope: 'system', reason, entryPoint });
   return enterPlatformScope(systemTenantContext(reason), run, {
-    entryPoint: 'worker',
     ...opts,
+    entryPoint,
   });
 }
