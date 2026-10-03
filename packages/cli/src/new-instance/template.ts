@@ -286,11 +286,13 @@ export interface PlanInput {
    * package — so an instance that does not declare it cannot load the first
    * module its owner writes (`ERR_MODULE_NOT_FOUND`, on every command).
    *
-   * **Exact, and deliberately not the `^` every other entry takes.** The
+   * **Exact**, like every package of the release this instance declares
+   * ({@link releaseRange}), and for the reason the register's S1 gives: the
    * platform packages pin contracts exactly and a release moves the whole set
    * to one number, so a range here could resolve a second copy beside the one
-   * the platform loaded. The caller reads the value off the platform's own
-   * declaration, which is the pin itself (R2.5a).
+   * the platform loaded. It was the only exact entry until M8 showed the same
+   * argument holds for every release package. The caller reads the value off
+   * the platform's own declaration, which is the pin itself (R2.5a).
    */
   readonly contractsVersion?: string | null;
   /** `null` when the admin shell does not resolve at the version being installed. */
@@ -818,6 +820,30 @@ export function envFile(input: PlanInput, admin: boolean): string {
 }
 
 /**
+ * The range a scaffold writes for a package of its own scope it resolved at
+ * `version`: **exactly** `version` when the package belongs to the release
+ * being installed, `^version` when it does not
+ * (`specs/140-instance-upgrade/` M8, owner decision 2026-10-03).
+ *
+ * "Belongs to the release" is `version === releaseVersion`, the platform's own
+ * version, and that is a fact rather than a guess: the run resolves every
+ * package from a host the release index pins exactly, and a release publishes
+ * every package at one number (lockstep, `release-intent.md`). A package at
+ * another number is versioned on its own — a module published outside the
+ * release — and keeps the caret its own releases are made for.
+ *
+ * Exact, because a caret is a statement about **another day's** install. A
+ * scaffold of `0.101.0` written after `0.101.1` was published resolved every
+ * caret to `0.101.1` and the exact `contracts` pin (S1) to `0.101.0`: two
+ * copies of the contracts and one unmet peer per module, in a tree nobody had
+ * touched. Written exactly, a scaffold of X installs X on any day, and moves
+ * forward only through `pnpm run upgrade`, which keeps an exact pin exact.
+ */
+export function releaseRange(version: string, releaseVersion: string): string {
+  return version === releaseVersion ? version : `^${version}`;
+}
+
+/**
  * The plan. Nothing here touches the filesystem, so `--dry-run` reports exactly
  * what a real run writes rather than a second derivation of it (R5.3).
  */
@@ -834,19 +860,20 @@ export function planInstance(input: PlanInput): InstancePlan {
   const docs = declinable('docs', docsMember(input), input);
 
   const dependencies = new Map<string, string>();
-  // Each range is `^` over the version **that package** declares about itself,
-  // and never over another package's. A release is not uniform — 68 of this
-  // repository's packages moved to `0.8.0` on 2026-09-11 and 15 to `0.7.1` —
-  // so a module ranged at the platform's version is a range no registry can
-  // satisfy, which is a failure a client meets at their first install and
-  // nothing in a checkout can see (the tarball acceptance mode overrides every
-  // one of these ranges with a `file:` path).
-  dependencies.set(`${input.scope}platform`, `^${input.platformVersion}`);
+  // Each package is written at the version **that package** declares about
+  // itself, never at another package's: a module at another version than the
+  // platform is a module versioned on its own, and ranging it at the
+  // platform's number is a range no registry can satisfy (measured on the
+  // non-uniform release of 2026-09-11, before lockstep). Whether it is written
+  // exactly or with a caret is {@link releaseRange}'s decision. The tarball
+  // acceptance mode overrides every one of these with a `file:` path.
+  const release = (version: string): string => releaseRange(version, input.platformVersion);
+  dependencies.set(`${input.scope}platform`, release(input.platformVersion));
   for (const module of [...input.modules].sort((a, b) => a.id.localeCompare(b.id))) {
-    dependencies.set(module.packageName, `^${module.version}`);
+    dependencies.set(module.packageName, release(module.version));
   }
   if (input.demoComposition) {
-    dependencies.set(input.demoComposition.packageName, `^${input.demoComposition.version}`);
+    dependencies.set(input.demoComposition.packageName, release(input.demoComposition.version));
   }
   // What an overlay module's `manifest.ts` imports. See `contractsVersion`.
   if (typeof input.contractsVersion === 'string' && input.contractsVersion.length > 0) {
@@ -1321,7 +1348,7 @@ export function devDependenciesFor(
     ['ioredis', input.declaredRanges.get('ioredis') ?? ''],
     ['typescript', input.declaredRanges.get('typescript') ?? ''],
     ...(generates
-      ? ([[`${input.scope}cli`, `^${input.cliVersion}`]] as const)
+      ? ([[`${input.scope}cli`, releaseRange(input.cliVersion, input.platformVersion)]] as const)
       : ([] as const)),
   ];
   // A package whose range no resolved manifest declares is **left out**, not
@@ -1659,8 +1686,9 @@ copy of no part of it.
 ${members.admin ? '| `admin/` | the operator interface — the admin shell, mounted over the screens your modules ship |\n' : ''}${members.docs ? '| `docs/` | the documentation site — a page per module, written by the module that ships it |\n' : ''}
 ${String(dependencyCount)} packages are declared today. Every one of them is a dependency, so a
 fix in any of them reaches you through an upgrade with no file in this tree edited — and an upgrade
-is ${scripts['upgrade'] !== undefined ? '`pnpm run upgrade`' : '`endora upgrade`'}, not \`pnpm update\`: the release moves as one version, and one of these
-packages is pinned exactly so that only one copy of it is ever installed.
+is ${scripts['upgrade'] !== undefined ? '`pnpm run upgrade`' : '`endora upgrade`'}, not \`pnpm update\`. Every package of the release is pinned at exactly
+the version this tree was written from, so the tree installs the same thing on any day and only
+one copy of each package is ever installed; the upgrade moves all of them to one new version.
 
 ## The commands this tree declares
 
@@ -1838,11 +1866,11 @@ function adminMemberPackages(input: PlanInput): {
     return found;
   };
   const dependencies = new Map<string, string>([
-    [`${input.scope}admin-kit`, `^${input.adminKitVersion ?? ''}`],
-    [`${input.scope}admin-shell`, `^${input.adminShellVersion ?? ''}`],
+    [`${input.scope}admin-kit`, releaseRange(input.adminKitVersion ?? '', input.platformVersion)],
+    [`${input.scope}admin-shell`, releaseRange(input.adminShellVersion ?? '', input.platformVersion)],
   ]);
   const devDependencies: (readonly [string, string])[] = [
-    [`${input.scope}cli`, `^${input.cliVersion}`],
+    [`${input.scope}cli`, releaseRange(input.cliVersion, input.platformVersion)],
   ];
   for (const name of ['react', 'react-dom'] as const) {
     const declared = range(name);
@@ -1952,7 +1980,9 @@ function docsFiles(input: PlanInput): readonly PlannedFile[] {
           '@docusaurus/core': input.docsRanges.get('@docusaurus/core')!,
           '@docusaurus/preset-classic': input.docsRanges.get('@docusaurus/preset-classic')!,
         },
-        devDependencies: { [`${input.scope}cli`]: `^${input.cliVersion}` },
+        devDependencies: {
+          [`${input.scope}cli`]: releaseRange(input.cliVersion, input.platformVersion),
+        },
       }),
     },
     {

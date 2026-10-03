@@ -118,6 +118,11 @@ export { runStatusCommand } from './commands/status.js';
 // stay exported from their own file, one relative import away, for the merge
 // request that first gives one of them a consumer out here.
 export { runInstanceOperatorCommand } from './commands/operator-entry.js';
+// The persistent escape-hatch audit sink, for an application's own `module:*`
+// entry points — the ones that build their runtime by hand rather than through
+// `runInstanceOperatorCommand`, which attaches it itself. `composeApp` attaches
+// its own; this is for the processes that never compose.
+export { attachEscapeHatchAuditWriter } from '../kernel/audit/escape-hatch-audit-writer.js';
 
 // --- the module itself, as the generated artefacts name it ----------------
 // Phase 6 made this comment literally true: `composition.generated.ts` and

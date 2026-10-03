@@ -26,10 +26,13 @@ polecenia `upgrade`, zobacz [Instancje utworzone przed tym poleceniem](#before-t
 `pnpm update` wygląda na oczywisty wybór, a zostawia instancję w stanie, który działa — do czasu —
 i kończy się kodem `0`:
 
-- `@endora-commerce/contracts` jest w Twoim `package.json` przypięty do **dokładnej** wersji, żeby
-  zawsze była zainstalowana tylko jedna jego kopia. `pnpm update` przesuwa wszystkie pozostałe
-  pakiety, a ten zostawia, więc instalują się dwie kopie i pnpm wypisuje ostrzeżenie *unmet peer*
-  dla każdego modułu.
+- Twój `package.json` przypina pakiety wydania do **dokładnych** wersji, żeby drzewo instalowało
+  to samo każdego dnia i tylko jedną kopię każdego pakietu. `pnpm update` nigdy nie przesuwa
+  dokładnego przypięcia, więc w instancji utworzonej przez wydanie późniejsze niż `0.101.x` nie
+  zmienia żadnego z nich. W instancji utworzonej przez `0.101.x` lub starsze dokładny jest tylko
+  `@endora-commerce/contracts`: `pnpm update` przesuwa wszystkie pozostałe pakiety, a ten
+  zostawia, więc instalują się dwie kopie i pnpm wypisuje ostrzeżenie *unmet peer* dla każdego
+  modułu.
 - Przed `1.0.0` zakres `^0.101.0` kończy się poniżej `0.102.0`, więc `pnpm update` w ogóle nie
   sięga następnego wydania minor.
 - Przepisuje zakresy Twoich pozostałych zależności — `"react": "^19"` staje się `"^19.3.0"` —
@@ -130,11 +133,13 @@ ich nie zmienia:
 
 ## Instancja niespójna od początku
 
-Instancja utworzona ze starszego wydania już po opublikowaniu nowszego wydania poprawkowego
-instaluje nowsze wydanie poprawkowe każdego pakietu poza `@endora-commerce/contracts`, który
-przypina do starszego; instalacja wypisuje *unmet peer @endora-commerce/contracts* raz na moduł.
+Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
+`@endora-commerce/contracts`. Uruchomiony po opublikowaniu nowszego wydania poprawkowego,
+instalował to wydanie poprawkowe każdego pakietu poza `@endora-commerce/contracts`, który
+zostawał przy starszym; instalacja wypisuje *unmet peer @endora-commerce/contracts* raz na moduł.
 `pnpm run upgrade` — albo, przed tym poleceniem, dwa polecenia powyżej — ustawia wszystkie
-pakiety na jedną wersję.
+pakiety na jedną wersję. Późniejsze instalatory zapisują każdy pakiet wydania dokładnie w wersji,
+którą instalujesz, więc nowa instancja nigdy nie jest niespójna.
 
 ## Bez CLI
 

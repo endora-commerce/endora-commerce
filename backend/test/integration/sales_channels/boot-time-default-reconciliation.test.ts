@@ -56,8 +56,20 @@ describe('boot-time default-channel reconciliation (T021)', () => {
       expect(row.code).toBe('default');
       expect(row.systemDefault).toBe(true);
       expect(row.active).toBe(true);
-      expect(row.languages).toContain('en');
       expect(row.currencies).toContain('EUR');
+
+      // Every language the inserted channel names must be a row of the
+      // languages dictionary, or the channel is born unwritable: the admin
+      // PATCH validates each listed code against that dictionary and answered
+      // `409 DICTIONARY_ENTRY_NOT_FOUND` for the bare `en` this used to insert,
+      // while the dictionary seeds `en-US`.
+      expect(row.languages).toEqual(['en-US']);
+      expect(row.defaultLanguage).toBe('en-US');
+      const known = (await em.execute(
+        'select "code" from "languages" where "code" in (?)',
+        [row.languages],
+      )) as Array<{ code: string }>;
+      expect(known.map((r) => r.code)).toEqual(row.languages);
     } finally {
       await db.rollbackTx();
     }

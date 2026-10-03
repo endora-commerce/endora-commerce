@@ -459,8 +459,8 @@ function nextSteps(
   }`;
   const install =
     plan.registry === null
-      ? `cd ${targetDir} && pnpm install — ${ranges} in the manifest are published semver and ` +
-        `resolve at the public npm registry, which is what this command assumes when it is not ` +
+      ? `cd ${targetDir} && pnpm install — ${ranges} in the manifest name one published ` +
+        `release exactly and resolve at the public npm registry, which is what this command assumes when it is not ` +
         `told otherwise. If your instance installs them from a private registry, scaffold again ` +
         `with \`--registry <url>\`: it writes the \`.npmrc\` for you, with the token as an ` +
         `environment reference and never as a value.`

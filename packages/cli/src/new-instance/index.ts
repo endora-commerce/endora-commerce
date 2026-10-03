@@ -91,6 +91,7 @@ import {
   planInstance,
   wiringLineCount,
   type InstancePlan,
+  releaseRange,
 } from './template.js';
 
 export interface NewInstanceOptions {
@@ -542,8 +543,9 @@ function composedOptionalPeers(
       if (resolved !== undefined) {
         // A `workspace:` range is what a packed sibling carries here and is
         // unresolvable outside a workspace; the version it resolved at is the
-        // fact this run actually has (R2.5a).
-        collected.set(name, `^${resolved.version}`);
+        // fact this run actually has (R2.5a) — written exactly when it is a
+        // package of this release ({@link releaseRange}, M8).
+        collected.set(name, releaseRange(resolved.version, host.platformVersion));
         continue;
       }
       if (typeof range === 'string' && range.length > 0 && !range.startsWith('workspace:')) {
@@ -701,7 +703,8 @@ export function nextSteps(
 ): readonly string[] {
   const addresses = [...(development.environment ?? new Map())];
   return [
-    `cd ${targetDir} && pnpm install — every range in the manifest is published semver. ` +
+    `cd ${targetDir} && pnpm install — every package of the release is pinned at exactly ` +
+      `the version this tree was written from, and every version is published. ` +
       `Nothing in this tree is a copy of ours, so \`pnpm run upgrade\` is how a platform fix ` +
       `reaches you, with no file here edited.`,
     // `specs/125-first-mile-install/` FR-108, and it is first for a reason a

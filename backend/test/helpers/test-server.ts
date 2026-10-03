@@ -1500,10 +1500,13 @@ export async function setupBackendServer(
       );
 
       // Feature 005 — guarantee the system-default Sales Channel exists before
-      // any seed runs. Test-server uses 'en-US' / 'PLN' to match the language /
-      // currency seed above (production uses the 'en' / 'EUR' fallback).
+      // any seed runs. The language is the production fallback on purpose: an
+      // override here is what hid a fallback (`en`) the languages dictionary did
+      // not hold, so every channel PATCH in a fresh shop answered 409 while this
+      // harness stayed green. The currency stays 'PLN' to match the default
+      // currency row seeded above (production falls back to 'EUR').
       await new DefaultChannelReconciler(em, undefined, {
-        bootstrapDefaults: { code: 'default', language: 'en-US', currency: 'PLN' },
+        bootstrapDefaults: { code: 'default', currency: 'PLN' },
       }).run();
 
       if ((options.seed ?? 'us1-catalog') === 'us1-catalog') {

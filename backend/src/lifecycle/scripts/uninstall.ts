@@ -1,6 +1,7 @@
 import { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  attachEscapeHatchAuditWriter,
   runUninstallCommand,
   type OperatorResources,
   type OperatorRuntime,
@@ -30,6 +31,16 @@ import { enterSystemScope } from '../../kernel/scope.js';
  * CLI contract test and `uninstall-hard-needs-force.integration.test.ts` spawn
  * it, and `check:entry-scope` counts it among ten declared programs.
  */
+
+/**
+ * Cross-organisation access is audited in the database (owner decision of
+ * 2026-10-03). This command never composes, so it attaches the writer itself,
+ * before the system scope below is entered, and writes through the database
+ * `resources()` opens — only if it opens one: a run that answered out of argv
+ * alone read no organisation's data, and its record ends on stderr.
+ */
+let auditEm: (() => EntityManager) | undefined;
+const escapeHatchAudit = attachEscapeHatchAuditWriter({ em: () => auditEm?.() });
 
 async function main(): Promise<number> {
   let entries;
@@ -65,6 +76,7 @@ async function main(): Promise<number> {
         lazyConnect: false,
       });
       opened = { orm, em: (): EntityManager => orm.em.fork() as EntityManager, redis };
+      auditEm = opened.em;
       return opened;
     },
     entries,
@@ -83,6 +95,8 @@ async function main(): Promise<number> {
   try {
     return await runUninstallCommand(process.argv.slice(2), runtime);
   } finally {
+    // The audit records first, while the database they are written to is open.
+    await escapeHatchAudit.detach();
     // Close only what was opened: an invocation that answered out of argv, the
     // registry or the `--hard` refusal alone has nothing to close.
     if (opened) {

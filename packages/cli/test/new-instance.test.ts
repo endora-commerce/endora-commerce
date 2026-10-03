@@ -1058,9 +1058,11 @@ describe('the tree (§1, §2)', () => {
     const manifest = JSON.parse(
       plan.files.find((f) => f.path === 'package.json')!.content,
     ) as { dependencies: Record<string, string> };
-    expect(manifest.dependencies[`${SCOPE}platform`]).toBe('^0.8.0');
+    // At the platform's version is the release, written exactly (M8); at
+    // another version is a package versioned on its own, with its caret.
+    expect(manifest.dependencies[`${SCOPE}platform`]).toBe('0.8.0');
     expect(manifest.dependencies[`${SCOPE}mod-addresses`]).toBe('^0.7.1');
-    expect(manifest.dependencies[`${SCOPE}mod-settings`]).toBe('^0.8.0');
+    expect(manifest.dependencies[`${SCOPE}mod-settings`]).toBe('0.8.0');
     // And the plan's own map, which is what `--dry-run` reports, agrees with the
     // file — two derivations of one set is how the report comes to describe a
     // manifest nobody has.
@@ -1323,14 +1325,17 @@ describe('the command (R5.2, R5.3)', () => {
       `${SCOPE}mod-settings`,
       `${SCOPE}platform`,
     ]);
-    // R2.3 — the range is the platform version being installed, not the CLI's.
-    expect(manifest.dependencies[`${SCOPE}platform`]).toBe('^1.2.3');
+    // R2.3 — the version is the platform version being installed, not the
+    // CLI's — and, since M8, written exactly: it is the release.
+    expect(manifest.dependencies[`${SCOPE}platform`]).toBe('1.2.3');
     // …and a module's is **that module package's** own, read off the manifest of
     // the package installed beside the target directory. It was the platform's
     // until this was asserted, which a uniform fixture could not have shown and
     // the tarball acceptance mode cannot show at all: that mode overrides every
     // one of these ranges with a `file:` path, so the first thing that ever
     // resolves them is a client's install against a real registry.
+    // Neither is at the platform's version, so neither is a package of this
+    // release (M8): each keeps the caret its own releases are made for.
     expect(manifest.dependencies[`${SCOPE}mod-settings`]).toBe('^0.7.1');
     expect(manifest.dependencies[`${SCOPE}mod-blog`]).toBe('^0.8.0');
     expect(result.modules.ids).toEqual(['blog', 'settings']);

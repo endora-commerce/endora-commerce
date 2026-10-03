@@ -68,6 +68,16 @@ its own services, then upgraded to `0.101.1` the way a user would.
   linked from *Getting started*; every page that said "upgrade past 0.100.2" links to it, and it
   gives the manual equivalent for an instance whose CLI predates the verb.
 
+- **FR-011** A scaffold of release X — `endora install`, `endora new instance`,
+  `endora new storefront`, and `create-endora-commerce@X` in front of them — writes every package of
+  release X at **exactly** X: the platform, every module, the demo composition, `contracts`, the
+  admin shell and design system, the page-builder and component packages, and the CLI, in the
+  root, `admin/` and `docs/` manifests and in the storefront and its packaged reference
+  (`releaseRange`, `new-storefront/rewrite.ts` rule 1). A package of the scope at another version
+  is versioned on its own and keeps its caret; third-party ranges are untouched. This closes M8
+  (owner decision 2026-10-03) and generalises S1's exact `contracts` pin to the whole release; the
+  tree moves forward only through `pnpm run upgrade`, which keeps an exact pin exact.
+
 ## Out of scope
 
 - Downgrading. Migrations do not run backwards; the verb refuses.

@@ -888,6 +888,13 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
       'base URL, so the refusal itself — the message an operator sees on a misconfigured ' +
       'deployment — is exercised by nothing here. `test/unit/config/public-api-base-url.test.ts` ' +
       'covers the resolver over its inputs instead.',
+    attachEscapeHatchAuditWriter:
+      'Production persists every escape-hatch widening to `audit_log_entries` (owner decision ' +
+      'of 2026-10-03); the harness attaches no writer, so its widenings reach only the stderr ' +
+      'line and no harness-rooted file can see an escape-hatch row. The row a real boot and a ' +
+      'real request write is asserted by `integration/kernel/production-boot.test.ts`, the ' +
+      'operator path by `contract/_lifecycle/cli-status.contract.test.ts`, and the writer ' +
+      "itself by the platform's `escape-hatch-audit-writer.test.ts`.",
     enterSystemScope:
       'Production wraps its boot-time database work in the system tenant scope; the harness ' +
       'composes inside the scope its own setup already established. A boot step that forgot the ' +

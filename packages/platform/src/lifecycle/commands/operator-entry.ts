@@ -46,6 +46,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { Redis } from 'ioredis';
 
 import { discoverConfiguredMigrations } from '../../db/configured-migrations.js';
+import { attachEscapeHatchAuditWriter } from '../../kernel/audit/escape-hatch-audit-writer.js';
 import { enterSystemScope } from '../../kernel/scope.js';
 import { activeOverlayModulesRoot } from '../../overlay/deployment-roots.js';
 import { overlayModulesUnder } from '../../overlay/overlay-runtime.js';
@@ -174,6 +175,13 @@ export async function instanceOperatorRuntime(
   const err = options.err ?? ((line: string) => void process.stderr.write(line));
   const entries = await instanceManifestEntries(options.deploymentRoot, env);
   let opened: OperatorResources | undefined;
+  // Cross-organisation access is audited in the database (owner decision of
+  // 2026-10-03). These commands never compose, so `composeApp`'s writer is not
+  // theirs; this one is attached before the command's own system scope is
+  // entered and writes through the database the command opens — lazily, as
+  // R2.6 requires. A run that never opens one read no organisation's data, and
+  // its records end as `tenant.escape_hatch.not_persisted` lines on stderr.
+  const escapeHatchAudit = attachEscapeHatchAuditWriter({ em: () => opened?.em() });
   return {
     runtime: {
       resources: async (): Promise<OperatorResources> => {
@@ -191,6 +199,7 @@ export async function instanceOperatorRuntime(
       err,
     },
     dispose: async (): Promise<void> => {
+      await escapeHatchAudit.detach();
       if (!opened) return;
       opened.redis.disconnect();
       await opened.orm.close(true);
