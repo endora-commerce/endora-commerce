@@ -1,81 +1,78 @@
 ---
 title: LinkedIn Ads
-description: LinkedIn Insight Tag per kanał sprzedaży, raportujący akcje storefront względem reguł konwersji Campaign Manager
+description: LinkedIn Insight Tag osobno dla każdego kanału sprzedaży, raportujący działania w storefroncie według reguł konwersji z Campaign Managera
 ---
 
 # LinkedIn Ads
 
-Umieszcza **LinkedIn Insight Tag** na storefront per kanał sprzedaży i raportuje
-akcje storefront względem reguł konwersji zdefiniowanych w LinkedIn Campaign
-Manager.
+Umieszcza w storefroncie **LinkedIn Insight Tag**, osobno dla każdego kanału sprzedaży, i raportuje
+działania w storefroncie według reguł konwersji zdefiniowanych w LinkedIn Campaign Managerze.
 
-Id modułu `linkedin_ads`.
+Identyfikator modułu: `linkedin_ads`.
 
-## Konfiguracja (moduł Settings)
+## Konfiguracja (moduł ustawień)
 
-Wszystkie wartości żyją w grupie ustawień **LinkedIn Ads** i są nadpisywalne
-per kanał sprzedaży.
+Wszystkie wartości są w grupie ustawień **LinkedIn Ads** i można je nadpisać dla każdego kanału
+sprzedaży.
 
-| Setting | Type | Default | Meaning |
+| Ustawienie | Typ | Wartość domyślna | Znaczenie |
 | --- | --- | --- | --- |
-| `linkedin_ads.enabled` | boolean | `false` | Master switch dla kanału. |
-| `linkedin_ads.partner_id` | string | `''` | Partner ID Insight Tag z Campaign Manager. |
-| `linkedin_ads.require_consent` | boolean | `true` | Gate'uj całe zachowanie LinkedIn decyzją z cookie bannera. |
-| `linkedin_ads.server_side_enabled` | boolean | `false` | Zarezerwowane pod raportowanie Conversions API (jeszcze nie zaimplementowane). |
-| `linkedin_ads.access_token` | secret | `''` | Token Conversions API. Szyfrowany at rest, write-only — nigdy nie zwracany przez żadne API. |
+| `linkedin_ads.enabled` | boolean | `false` | Główny przełącznik dla kanału. |
+| `linkedin_ads.partner_id` | string | `''` | Partner ID tagu Insight Tag z Campaign Managera. |
+| `linkedin_ads.require_consent` | boolean | `true` | Uzależnia całe działanie LinkedIn od decyzji w banerze cookie. |
+| `linkedin_ads.server_side_enabled` | boolean | `false` | Zarezerwowane dla raportowania przez Conversions API (jeszcze nie zaimplementowane). |
+| `linkedin_ads.access_token` | secret | `''` | Token Conversions API. Szyfrowany w bazie, tylko do zapisu — nigdy nie jest zwracany przez żadne API. |
 
-Kanał jest śledzony tylko gdy master switch jest włączony **i** Partner ID jest
-niepusty. Pusty Partner ID traktowany jest jako „nie skonfigurowano”, nigdy jako
-błąd widoczny dla visitora — wyczyszczenie pola to bezpieczny sposób wyłączenia
-kanału.
+Kanał jest śledzony tylko wtedy, gdy główny przełącznik jest włączony **i** Partner ID nie jest
+pusty. Pusty Partner ID oznacza „nie skonfigurowano” i nigdy nie powoduje błędu widocznego dla
+odwiedzającego — wyczyszczenie tego pola to bezpieczny sposób wyłączenia kanału.
 
-## Zachowanie storefront
+## Działanie w storefroncie
 
-Insight Tag jest wstrzykiwany po stronie klienta, po interakcji, więc nigdy nie
-blokuje first paint. Nic związanego z LinkedIn nie działa — ani skrypt, ani
-cookie, ani request — dopóki visitor nie zaakceptuje cookie bannera, chyba że
-operator wyłączy wymóg consent dla tego kanału. Visitor akceptujący w trakcie
-sesji jest śledzony od tej chwili bez przeładowania strony.
+Insight Tag jest wstawiany po stronie klienta, po interakcji, więc nigdy nie opóźnia pierwszego
+wyświetlenia strony. Dopóki odwiedzający nie zaakceptuje banera cookie, nic związanego z LinkedIn
+nie działa — ani skrypt, ani ciasteczko, ani żądanie — chyba że operator wyłączył wymóg zgody dla
+tego kanału. Odwiedzający, który wyrazi zgodę w trakcie sesji, jest śledzony od tej chwili, bez
+przeładowania strony.
 
-Consent to jedna decyzja storefront, współdzielona z Google Analytics — zawsze
-jeden banner i jedna zapisana odpowiedź.
+Zgoda to jedna decyzja w storefroncie, wspólna z Google Analytics — zawsze jest jeden baner i jedna
+zapisana odpowiedź.
 
-## Mapowania konwersji
+## Mapowanie konwersji
 
-Najpierw zdefiniuj konwersje w Campaign Manager; każda dostaje numeryczne ID
-konwersji. Następnie mapuj akcje storefront na te ID w **Admin → LinkedIn Ads**.
+Najpierw zdefiniuj konwersje w Campaign Managerze; każda dostaje liczbowy identyfikator konwersji.
+Potem przypisz działania w storefroncie do tych identyfikatorów w **Admin → LinkedIn Ads**.
 
-Obsługiwane akcje: product viewed, added to cart, added to quote request,
-added to shopping list, checkout started, Place Order clicked, order completed,
-contact form submitted. Lista jest dokładnie tym, co emituje storefront — nie
-możesz mapować akcji, która nigdy nie mogłaby odpalić.
+Obsługiwane działania: obejrzenie produktu, dodanie do koszyka, dodanie do zapytania ofertowego,
+dodanie do listy zakupów, rozpoczęcie checkoutu, kliknięcie Place Order, złożenie zamówienia,
+wysłanie formularza kontaktowego. Ta lista to dokładnie to, co emituje storefront — nie da się
+przypisać działania, które nigdy nie mogłoby wystąpić.
 
-Mapowanie może targetować jeden kanał sprzedaży lub wszystkie i może być
-wyłączone bez usuwania. Akcja bez włączonego mapowania po prostu nic nie
-raportuje — to normalny stan, nie błędna konfiguracja. Jedna akcja może
-mapować się na kilka ID konwersji; każde raportuje raz.
+Przypisanie może dotyczyć jednego kanału sprzedaży albo wszystkich i można je wyłączyć bez
+usuwania. Działanie bez włączonego przypisania po prostu niczego nie raportuje — to normalny stan,
+a nie błąd konfiguracji. Jedno działanie może być przypisane do kilku identyfikatorów konwersji;
+każdy jest raportowany raz.
 
-Mapowania są serwowane do storefront przez cache'owaną konfigurację per kanał;
-utworzenie, edycja lub usunięcie mapowania natychmiast revaliduje ten cache,
-zamiast czekać na TTL.
+Przypisania trafiają do storefrontu przez konfigurację kanału przechowywaną w pamięci podręcznej;
+utworzenie, edycja lub usunięcie przypisania od razu ją odświeża, zamiast czekać na wygaśnięcie.
 
 ## Uprawnienia
 
-| Code | Grants |
+| Kod | Daje dostęp do |
 | --- | --- |
-| `linkedin_ads:read` | Podgląd mapowań konwersji i strony modułu. |
-| `linkedin_ads:write` | Tworzenie, edycja i usuwanie mapowań konwersji. |
+| `linkedin_ads:read` | Podglądu przypisań konwersji i strony modułu. |
+| `linkedin_ads:write` | Tworzenia, edycji i usuwania przypisań konwersji. |
 
-Oba pojawiają się na `/admin-roles`. Zmiany mapowań są audytowane z operatorem.
+Oba są dostępne na `/admin-roles`. Zmiany przypisań są audytowane wraz z operatorem.
 
-Konwersje raportowane są z przeglądarki przez `lintrk` i tylko gdy visitor
-wyraził zgodę. Akcja zmapowana więcej niż raz raportuje raz na mapowanie.
+Konwersje są raportowane z przeglądarki przez `lintrk` i tylko wtedy, gdy odwiedzający wyraził
+zgodę. Działanie przypisane wielokrotnie jest raportowane raz dla każdego przypisania.
 
 ## Jeszcze nie zaimplementowane
 
-- **Raportowanie po stronie serwera przez Conversions API.** Wyspecyfikowane i
-  gotowe pod ustawienia, więc włączenie później nie wymaga zmiany kontraktu;
-  `linkedin_ads.server_side_enabled` pozostaje wyłączone. Gdy zostanie włączone,
-  ścieżka przeglądarkowa dla zmapowanych konwersji jest tłumiona, żeby każda
-  konwersja miała dokładnie jeden transport.
-- **Retracja konwersji** dla zwróconych lub anulowanych zamówień.
+- **Raportowanie po stronie serwera przez Conversions API.** Opisane w specyfikacji i
+  przygotowane w ustawieniach, więc późniejsze włączenie nie wymaga zmiany kontraktu;
+  `linkedin_ads.server_side_enabled` pozostaje wyłączone. Po włączeniu raportowanie z przeglądarki
+  dla przypisanych konwersji zostanie wstrzymane, aby każda konwersja miała dokładnie jeden kanał
+  przekazania.
+- **Wycofywanie konwersji** dla zwróconych lub anulowanych zamówień.

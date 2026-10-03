@@ -1,92 +1,86 @@
 ---
 title: Meta Ads
-description: Meta Pixel per kanał sprzedaży, ze standardowymi zdarzeniami commerce i opcjonalnymi zdarzeniami niestandardowymi
+description: Meta Pixel osobno dla każdego kanału sprzedaży, ze standardowymi zdarzeniami e-commerce i opcjonalnymi zdarzeniami własnymi
 ---
 
 # Meta Ads
 
-Umieszcza **Meta Pixel** na storefront per kanał sprzedaży i raportuje
-standardowe zdarzenia commerce Meta, z opcjonalnymi zdarzeniami niestandardowymi
-na wierzchu.
+Umieszcza w storefroncie **Meta Pixel**, osobno dla każdego kanału sprzedaży, i raportuje
+standardowe zdarzenia e-commerce Meta, opcjonalnie uzupełnione o zdarzenia własne.
 
-Id modułu `meta_ads`.
+Identyfikator modułu: `meta_ads`.
 
-## Konfiguracja (moduł Settings)
+## Konfiguracja (moduł ustawień)
 
-Wszystkie wartości żyją w grupie ustawień **Meta Ads** i są nadpisywalne per
-kanał sprzedaży.
+Wszystkie wartości są w grupie ustawień **Meta Ads** i można je nadpisać dla każdego kanału
+sprzedaży.
 
-| Setting | Type | Default | Meaning |
+| Ustawienie | Typ | Wartość domyślna | Znaczenie |
 | --- | --- | --- | --- |
-| `meta_ads.enabled` | boolean | `false` | Master switch dla kanału. |
-| `meta_ads.pixel_id` | string | `''` | Pixel ID z Events Manager. |
-| `meta_ads.require_consent` | boolean | `true` | Gate'uj całe zachowanie Meta decyzją z cookie bannera. |
+| `meta_ads.enabled` | boolean | `false` | Główny przełącznik dla kanału. |
+| `meta_ads.pixel_id` | string | `''` | Pixel ID z Events Managera. |
+| `meta_ads.require_consent` | boolean | `true` | Uzależnia całe działanie Meta od decyzji w banerze cookie. |
 
-Kanał jest śledzony tylko gdy master switch jest włączony **i** Pixel ID jest
-niepusty. Pusty Pixel ID to „nie skonfigurowano”, nigdy błąd widoczny dla
-visitora — wyczyszczenie pola to bezpieczny sposób wstrzymania kanału.
+Kanał jest śledzony tylko wtedy, gdy główny przełącznik jest włączony **i** Pixel ID nie jest pusty.
+Pusty Pixel ID oznacza „nie skonfigurowano” i nigdy nie powoduje błędu widocznego dla
+odwiedzającego — wyczyszczenie tego pola to bezpieczny sposób wstrzymania kanału.
 
-## Zachowanie storefront
+## Działanie w storefroncie
 
-Pixel ładuje się asynchronicznie i nigdy nie blokuje first paint. Nic
-związanego z Meta nie działa — ani skrypt, ani cookie, ani request — dopóki
-visitor nie zaakceptuje cookie bannera, chyba że operator wyłączy wymóg consent
-dla tego kanału. Visitor akceptujący w trakcie sesji jest śledzony od tej
-chwili bez przeładowania.
+Piksel wczytuje się asynchronicznie i nigdy nie opóźnia pierwszego wyświetlenia strony. Dopóki
+odwiedzający nie zaakceptuje banera cookie, nic związanego z Meta nie działa — ani skrypt, ani
+ciasteczko, ani żądanie — chyba że operator wyłączył wymóg zgody dla tego kanału. Odwiedzający,
+który wyrazi zgodę w trakcie sesji, jest śledzony od tej chwili, bez przeładowania.
 
-Consent to jedna decyzja storefront, współdzielona z Google Analytics i LinkedIn
-Ads — zawsze jeden banner i jedna zapisana odpowiedź. Każda platforma gate'uje
-się niezależnie: włączenie lub wyłączenie Meta nie wpływa na pozostałe.
+Zgoda to jedna decyzja w storefroncie, wspólna z Google Analytics i LinkedIn Ads — zawsze jest
+jeden baner i jedna zapisana odpowiedź. Każda platforma jest włączana niezależnie: włączenie lub
+wyłączenie Meta nie wpływa na pozostałe.
 
 ## Zdarzenia standardowe
 
-Te odpalają się automatycznie dla akcji storefront, które platforma już emituje,
-z parametrami oczekiwanymi przez Meta do dopasowania katalogu i raportowania ROAS:
+Są wysyłane automatycznie przy działaniach w storefroncie, które platforma już emituje, z
+parametrami, których Meta oczekuje do dopasowania katalogu i raportowania ROAS:
 
-| Akcja storefront | Meta event |
+| Działanie w storefroncie | Zdarzenie Meta |
 | --- | --- |
-| Product viewed | `ViewContent` |
-| Added to cart | `AddToCart` |
-| Checkout started | `InitiateCheckout` |
-| Order completed | `Purchase` |
-| Added to quote request | `Lead` |
-| Contact form submitted | `Lead` |
-| Added to shopping list | *(none)* |
-| Place Order clicked | *(none)* |
+| Obejrzenie produktu | `ViewContent` |
+| Dodanie do koszyka | `AddToCart` |
+| Rozpoczęcie checkoutu | `InitiateCheckout` |
+| Złożenie zamówienia | `Purchase` |
+| Dodanie do zapytania ofertowego | `Lead` |
+| Wysłanie formularza kontaktowego | `Lead` |
+| Dodanie do listy zakupów | *(brak)* |
+| Kliknięcie Place Order | *(brak)* |
 
-Nazwy są ustalone w kodzie, nieedytowalne — optymalizacja Meta i dopasowanie
-katalogu opierają się na tych dokładnych nazwach, więc ich zmiana cicho
-obniżyłaby jakość raportowania.
+Nazwy są ustalone w kodzie i nie da się ich edytować — optymalizacja i dopasowanie katalogu w Meta
+opierają się właśnie na tych nazwach, więc ich zmiana po cichu pogorszyłaby jakość raportowania.
 
-## Zdarzenia niestandardowe
+## Zdarzenia własne
 
-W **Admin → Meta Ads** możesz raportować którąkolwiek z tych akcji storefront
-pod własną nazwą zdarzenia — na przykład „added to quote request” jako
-`SubmitQuote` dla audience B2B.
+W **Admin → Meta Ads** możesz raportować dowolne z tych działań w storefroncie pod własną nazwą
+zdarzenia — na przykład dodanie do zapytania ofertowego jako `SubmitQuote` dla grupy odbiorców B2B.
 
-Zdarzenie niestandardowe jest **addytywne**: zdarzenie standardowe nadal odpala,
-a Twoje odpala obok niego. Nigdy nie zastępuje standardowego, więc dodanie
-zdarzenia audience nie kosztuje raportowania `Purchase`. Dwie akcje bez
-zdarzenia standardowego akceptują mapowania niestandardowe — dokładnie po to
-są.
+Zdarzenie własne jest **dodatkowe**: zdarzenie standardowe nadal jest wysyłane, a twoje — obok
+niego. Nigdy go nie zastępuje, więc dodanie zdarzenia dla grupy odbiorców nie odbiera raportowania
+`Purchase`. Dwa działania bez zdarzenia standardowego przyjmują zdarzenia własne — właśnie po to są.
 
-Mapowanie może targetować jeden kanał sprzedaży lub wszystkie i może być
-wyłączone bez usuwania.
+Przypisanie może dotyczyć jednego kanału sprzedaży albo wszystkich i można je wyłączyć bez
+usuwania.
 
 ## Uprawnienia
 
-| Code | Grants |
+| Kod | Daje dostęp do |
 | --- | --- |
-| `meta_ads:read` | Podgląd zdarzeń niestandardowych i strony modułu. |
-| `meta_ads:write` | Tworzenie, edycja i usuwanie zdarzeń niestandardowych. |
+| `meta_ads:read` | Podglądu zdarzeń własnych i strony modułu. |
+| `meta_ads:write` | Tworzenia, edycji i usuwania zdarzeń własnych. |
 
-Oba pojawiają się na `/admin-roles`. Zmiany są audytowane z operatorem.
+Oba są dostępne na `/admin-roles`. Zmiany są audytowane wraz z operatorem.
 
 ## Jeszcze nie zaimplementowane
 
-- **Conversions API (raportowanie po stronie serwera).** Piksele w przeglądarce
-  są mocno blokowane przez ad-blockery, więc spodziewaj się niedoszacowania
-  konwersji, dopóki to nie wyląduje. Wymaga access tokena i event ID współdzielonego
-  ze zdarzeniem przeglądarkowym do deduplikacji — warto zrobić raz dla obu
-  platform reklamowych.
-- **Retracja konwersji** dla zwróconych lub anulowanych zamówień.
+- **Conversions API (raportowanie po stronie serwera).** Piksele w przeglądarce są często
+  blokowane przez programy blokujące reklamy, więc do czasu wprowadzenia tej funkcji spodziewaj się
+  zaniżonej liczby konwersji. Wymaga tokenu dostępu i identyfikatora zdarzenia wspólnego ze
+  zdarzeniem z przeglądarki, aby usuwać duplikaty — warto zrobić to raz dla obu platform
+  reklamowych.
+- **Wycofywanie konwersji** dla zwróconych lub anulowanych zamówień.

@@ -1,101 +1,98 @@
 ---
 title: returns
-description: Zwroty i reklamacje (RMA) — zgłoszenie, weryfikacja, wysyłki reverse-logistics i rozliczenie na konfigurowalnym grafie statusów
+description: Zwroty i reklamacje (RMA) — zgłoszenie, weryfikacja, przesyłki zwrotne i rozliczenie według konfigurowalnego grafu statusów
 ---
 
 # `returns`
 
-Zwroty i reklamacje (Refunds, RMA). Zarządza cyklem życia sprawy zwrotu lub
-reklamacji wobec zrealizowanego zamówienia — zgłoszenie, weryfikacja i
-przypisanie numeru RMA, wysyłki reverse-logistics oraz rozliczenie (zwrot pieniędzy,
-store credit, wymiana lub naprawa), w tym faktura korygująca. Odzwierciedla
-konfigurowalny workflow grafu statusów modułu `orders`.
+Zwroty i reklamacje (RMA). Obsługuje cykl życia sprawy zwrotu lub reklamacji dotyczącej
+zrealizowanego zamówienia — zgłoszenie, weryfikację i nadanie numeru RMA, przesyłki zwrotne oraz
+rozliczenie (zwrot pieniędzy, środki na koncie w sklepie, wymiana lub naprawa), łącznie z fakturą
+korygującą. Działa na konfigurowalnym grafie statusów, tak jak moduł `orders`.
 
-## Publiczne API
+## API publiczne
 
-Trasy admina są chronione przez `returns:read` (odczyt) / `returns:write` (mutacje).
+Trasy administracyjne są chronione przez `returns:read` (odczyt) i `returns:write` (zmiany).
 
-| Verb + Path | Odbiorca | Cel |
+| Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `GET /api/v1/orders/:orderId/returnable` | customer | Linie do zwrotu + kwalifikacja dla zamówienia |
-| `POST /api/v1/returns` | customer | Otwórz sprawę zwrotu/reklamacji |
-| `GET /api/v1/returns` | customer | Lista spraw wywołującego |
-| `GET /api/v1/returns/:id` | customer | Szczegóły sprawy (tylko komentarze widoczne dla klienta) |
-| `POST /api/v1/returns/:id/comments` | customer | Odpowiedź w sprawie |
-| `POST /api/v1/returns/:id/select-delivery-method` | customer | Wybór metody dostawy zwrotu |
-| `POST /api/v1/returns/:id/cancel` | customer | Wycofanie sprawy |
-| `GET /api/v1/returns/reasons` | customer | Aktywne powody dla formularza storefront |
-| `GET /api/v1/admin/returns` | admin | Lista/filtr/szukanie spraw + liczniki per status |
-| `GET /api/v1/admin/returns/export` | admin | Eksport CSV bieżącego widoku |
-| `POST /api/v1/admin/returns/bulk-transition` | admin | Masowa zmiana statusu (pomija niedozwolone) |
-| `GET /api/v1/admin/returns/:id` | admin | Szczegóły sprawy (w tym komentarze wewnętrzne) |
-| `POST /api/v1/admin/returns/:id/authorize` | admin | Przypisz numer RMA, przejdź do `authorized` |
-| `POST /api/v1/admin/returns/:id/reject` | admin | Odrzucenie z obowiązkowym powodem |
-| `POST /api/v1/admin/returns/:id/transition` | admin | Strzeżone przejście statusu |
-| `GET\|POST /api/v1/admin/returns/:id/settlement` | admin | Prefill / wykonanie rozliczenia |
-| `GET\|POST /api/v1/admin/returns/:id/comments` | admin | Lista / dodanie komentarza (widoczność + notify) |
-| `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | admin | Wysyłki zwrotu |
-| `…/statuses`, `…/transitions`, `…/reasons`, `…/delivery-methods`, `…/list-views` | admin | Konfiguracja + zapisane widoki |
+| `GET /api/v1/orders/:orderId/returnable` | klient | Pozycje, które można zwrócić, i warunki dla zamówienia |
+| `POST /api/v1/returns` | klient | Otwarcie sprawy zwrotu lub reklamacji |
+| `GET /api/v1/returns` | klient | Lista spraw wywołującego |
+| `GET /api/v1/returns/:id` | klient | Szczegóły sprawy (tylko komentarze widoczne dla klienta) |
+| `POST /api/v1/returns/:id/comments` | klient | Odpowiedź w sprawie |
+| `POST /api/v1/returns/:id/select-delivery-method` | klient | Wybór metody dostawy zwrotu |
+| `POST /api/v1/returns/:id/cancel` | klient | Wycofanie sprawy |
+| `GET /api/v1/returns/reasons` | klient | Aktywne powody do formularza w storefroncie |
+| `GET /api/v1/admin/returns` | administrator | Lista spraw z filtrowaniem i wyszukiwaniem oraz licznikami dla każdego statusu |
+| `GET /api/v1/admin/returns/export` | administrator | Eksport bieżącego widoku do CSV |
+| `POST /api/v1/admin/returns/bulk-transition` | administrator | Masowa zmiana statusu (pomija niedozwolone) |
+| `GET /api/v1/admin/returns/:id` | administrator | Szczegóły sprawy (łącznie z komentarzami wewnętrznymi) |
+| `POST /api/v1/admin/returns/:id/authorize` | administrator | Nadanie numeru RMA i przejście do `authorized` |
+| `POST /api/v1/admin/returns/:id/reject` | administrator | Odrzucenie z obowiązkowym powodem |
+| `POST /api/v1/admin/returns/:id/transition` | administrator | Kontrolowana zmiana statusu |
+| `GET\|POST /api/v1/admin/returns/:id/settlement` | administrator | Wstępne wypełnienie / wykonanie rozliczenia |
+| `GET\|POST /api/v1/admin/returns/:id/comments` | administrator | Lista / dodanie komentarza (widoczność i powiadomienie) |
+| `GET\|POST /api/v1/admin/returns/:id/shipments` + `/:shipmentId/receive` | administrator | Przesyłki zwrotne |
+| `…/statuses`, `…/transitions`, `…/reasons`, `…/delivery-methods`, `…/list-views` | administrator | Konfiguracja i zapisane widoki |
 
-## Maszyna statusów (konfigurowalna)
+## Statusy i przejścia (konfigurowalne)
 
-Cykl życia sprawy jest **konfigurowalny w adminie** (`return_statuses` +
-`return_status_transitions`, seedowane przy instalacji). Domyślnie:
+Cykl życia sprawy **konfiguruje się w panelu administracyjnym** (`return_statuses` i
+`return_status_transitions`, wypełniane przy instalacji). Domyślnie:
 
-- **new** (początkowy) → **authorized** → **received** → **resolved** → **closed** (terminalny)
-- **rejected** (terminalny) osiągalny z new/authorized/received; **cancelled** (terminalny) z new/authorized.
+- **new** (początkowy) → **authorized** → **received** → **resolved** → **closed** (końcowy)
+- **rejected** (końcowy) — dostępny z new / authorized / received; **cancelled** (końcowy) — z new /
+  authorized.
 
-Przejścia są egzekwowane; status początkowy jest niemutowalny; statusy terminalne
-nie mają wychodzących krawędzi. Każde przejście emituje szablonowe zdarzenia
-`return.status.*` before/after i trafia do audit log.
+Przejścia są egzekwowane; statusu początkowego nie można zmienić; ze statusów końcowych nie prowadzą
+żadne przejścia. Każde przejście emituje zdarzenia `return.status.*` before/after według szablonu i
+trafia do dziennika audytu.
 
-## Kluczowe zachowania
+## Najważniejsze zachowania
 
-- **Kwalifikacja i okno darmowego zwrotu** — sprawa jest dozwolona, gdy zamówienie
-  osiągnie status kończący realizację; okno darmowego zwrotu
-  (`returns.free_return_days`, domyślnie **14** wg dyrektywy UE (EU) 2023/2673)
-  liczy się od tego momentu i decyduje, kto ponosi koszt wysyłki zwrotnej.
-- **Numeracja RMA** — `${prefix}${sequence}${suffix}` z
-  `returns.rma_number_prefix` / `returns.rma_number_suffix`, przypisywana przy
-  autoryzacji, unikalna i nigdy nieużywana ponownie.
-- **Częściowe / powtarzane zwroty** — ilość per linia do pozostałej kwoty
-  do zwrotu, z wyłączeniem ilości już objętych nienieodrzuconymi /
-  nieanulowanymi sprawami.
-- **Settlement** — domyślny zwrot per linia to kwota zapłacona za zwracaną
-  ilość i nigdy jej nie przekracza. Rozwiązania: refund (pieniądze), credit (doładowuje
-  grant `credit_limits` organizacji), replacement lub repair. Faktura korygująca
-  (`invoices` kind `correction`) jest żądana dla rozliczeń money/credit.
-  Zamówienie, które nigdy nie było fakturowane, nie ma dokumentu VAT do
-  korekty, więc żaden nie wychodzi: rozliczenie się udaje, zwrot jest zapisany
-  na sprawie zwrotu i rekordzie płatności, a wynik podaje
-  `correctiveInvoice: { issued: false, reason: "order_not_invoiced" }`.
-- **Wyłączona bramka płatności odmawia rozliczenia**.
-  Rozwiązania pieniężne przy zamówieniu opłaconym bramką wołają moduł PSP, który
-  przyjął płatność; gdy operator ma ten moduł wyłączony — albo wdrożenie go nie
-  oferuje — rozliczenie odpowiada `503 MODULE_DISABLED` z nazwą modułu i
-  `Retry-After`. Nic się nie przesuwa: sprawa zachowuje status, nie powstaje wiersz
-  `refunds`, nie wychodzi faktura korygująca i nie idzie e-mail do klienta.
-  Włączenie modułu z powrotem to cała naprawa. To odróżnia się od wdrożenia **bez**
-  integracji zwrotu PSP w ogóle, które nadal rozlicza jako `pending_manual`, żeby
-  człowiek wypłacił ręcznie — nie ma tam nic do włączenia.
+- **Uprawnienie do zwrotu i okres bezpłatnego zwrotu** — sprawę można otworzyć, gdy zamówienie
+  osiągnie status kończący realizację; okres bezpłatnego zwrotu (`returns.free_return_days`,
+  domyślnie **14** zgodnie z dyrektywą (UE) 2023/2673) liczy się od tej chwili i decyduje, kto
+  ponosi koszt przesyłki zwrotnej.
+- **Numeracja RMA** — `${prefix}${sequence}${suffix}` z `returns.rma_number_prefix` /
+  `returns.rma_number_suffix`, nadawana przy autoryzacji, unikalna i nigdy nieużywana ponownie.
+- **Zwroty częściowe i wielokrotne** — ilość w każdej pozycji jest ograniczona do pozostałej ilości
+  możliwej do zwrotu, bez ilości objętych już sprawami, które nie zostały odrzucone ani anulowane.
+- **Rozliczenie** — domyślna kwota zwrotu dla pozycji to kwota zapłacona za zwracaną ilość i nigdy
+  jej nie przekracza. Sposoby rozliczenia: zwrot pieniędzy, środki na koncie (zasilają limit
+  kredytowy organizacji w `credit_limits`), wymiana albo naprawa. Przy rozliczeniu pieniędzmi lub
+  środkami na koncie wymagana jest faktura korygująca (`invoices` rodzaju `correction`). Zamówienie,
+  które nigdy nie zostało zafakturowane, nie ma dokumentu VAT do skorygowania, więc korekta nie
+  powstaje: rozliczenie się udaje, zwrot jest zapisany w sprawie i w rekordzie płatności, a wynik
+  zawiera `correctiveInvoice: { issued: false, reason: "order_not_invoiced" }`.
+- **Wyłączona bramka płatności blokuje rozliczenie.** Rozliczenia pieniężne zamówień opłaconych
+  przez bramkę wywołują moduł operatora płatności, który przyjął płatność; gdy operator wyłączył ten
+  moduł — albo wdrożenie go nie oferuje — rozliczenie zwraca `503 MODULE_DISABLED` z nazwą modułu i
+  nagłówkiem `Retry-After`. Nic się nie zmienia: sprawa zachowuje status, nie powstaje wiersz
+  `refunds`, nie jest wystawiana faktura korygująca i nie wychodzi e-mail do klienta. Jedyna
+  potrzebna naprawa to ponowne włączenie modułu. To co innego niż wdrożenie, które w ogóle **nie
+  ma** integracji zwrotów z operatorem płatności — tam rozliczenie nadal kończy się stanem
+  `pending_manual`, aby człowiek wypłacił pieniądze ręcznie, bo nie ma czego włączyć.
 
-## Interfejsy cross-module
+## Interfejsy między modułami
 
-Moduł czyta/wpływa na inne domeny tylko przez udokumentowane porty, nigdy
-wewnętrzne importy:
+Moduł odczytuje i zmienia dane innych domen wyłącznie przez udokumentowane porty, nigdy przez
+importy wnętrza innych modułów:
 
-- `OrderReturnContextPort` (orders) — kwoty zapłacone per linia + czas statusu kończącego realizację.
-- `PaymentRefundPort` (payments) — wykonaj zwrot, odpowiedz `pending_manual`
-  gdy brak integracji PSP, albo odmów, gdy bramka, która przyjęła płatność, jest wyłączona.
-- `CorrectiveInvoicePort` (invoices) — utwórz fakturę `correction`, albo odpowiedz,
-  że żadna nie jest należna, bo zamówienie nie ma faktury do korekty.
-- `CreditTopupPort` (credit_limits) — doładuj grant organizacji.
-- `ShipmentService` (shipments) — opcjonalna wysyłka wymiany wychodząca.
+- `OrderReturnContextPort` (orders) — kwoty zapłacone za każdą pozycję i czas osiągnięcia statusu
+  kończącego realizację.
+- `PaymentRefundPort` (payments) — wykonanie zwrotu, odpowiedź `pending_manual`, gdy nie ma
+  integracji z operatorem płatności, albo odmowa, gdy bramka, która przyjęła płatność, jest
+  wyłączona.
+- `CorrectiveInvoicePort` (invoices) — utworzenie faktury `correction` albo odpowiedź, że korekta nie
+  jest potrzebna, bo zamówienie nie ma faktury.
+- `CreditTopupPort` (credit_limits) — zasilenie limitu kredytowego organizacji.
+- `ShipmentService` (shipments) — opcjonalna przesyłka z towarem na wymianę.
 
 ## Schemat
 
-Migracja `080_returns_init.ts` tworzy `return_cases`, `return_case_items`,
-`return_case_comments`, `return_statuses`, `return_status_transitions`,
-`return_reasons`, `return_delivery_methods`, `refunds`, `return_shipments`,
-`return_case_attachments`, `return_list_saved_views` oraz sekwencję
+Migracja `080_returns_init.ts` tworzy `return_cases`, `return_case_items`, `return_case_comments`,
+`return_statuses`, `return_status_transitions`, `return_reasons`, `return_delivery_methods`,
+`refunds`, `return_shipments`, `return_case_attachments`, `return_list_saved_views` oraz sekwencję
 `return_cases_rma_seq`.
