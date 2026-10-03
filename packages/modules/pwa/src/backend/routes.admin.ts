@@ -1,11 +1,10 @@
-// `request.isMultipart()` and `request.file()` are not on `FastifyRequest`:
-// they are a declaration-merging augmentation `@fastify/multipart` contributes.
-// Inside `backend/src` that augmentation arrived ambiently through the host's
-// own dependency; a package compiles against its own manifest, where an unnamed
-// dependency does not exist, and both reads are TS2339. Type-only, so it
-// declares the shapes and emits nothing — registering the plugin stays the
-// host's job, exactly as before.
-import type {} from '@fastify/multipart';
+// `@fastify/multipart` is registered **here**, by this module, for the one
+// route that reads an upload — see the icon route below. Nothing else does it
+// for us: every other module that parses multipart registers the parser inside
+// its own encapsulated context, deliberately, so none of them reaches these
+// routes. The import also carries the declaration-merging augmentation that
+// puts `request.isMultipart()` and `request.file()` on `FastifyRequest`.
+import multipart from '@fastify/multipart';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import webpush from 'web-push';
@@ -57,6 +56,19 @@ export interface SettingsWritePort {
 
 const StringSchema = z.string();
 const BoolSchema = z.boolean();
+
+/**
+ * The largest icon source the upload route will read, in bytes.
+ *
+ * This is a memory bound and not a product rule: the route buffers the whole
+ * file before `PwaIconService.ingest` decides anything about it, so without a
+ * ceiling an authenticated caller chooses how much this process allocates. What
+ * an icon may *be* — PNG or WebP, square, at least 512 pixels — is the service's
+ * to say. A 512×512 PNG is tens of kilobytes and a generous 2048×2048 master a
+ * couple of megabytes, so 5 MB refuses nothing an operator would upload on
+ * purpose.
+ */
+export const PWA_ICON_MAX_BYTES = 5 * 1024 * 1024;
 
 export interface PwaAdminRoutesDeps {
   requireAdmin: RequireAdminFactory;
@@ -214,42 +226,71 @@ export async function registerPwaAdminRoutes(
   });
 
   // POST /admin/pwa/icon — multipart source upload + sharp rendition derivation.
-  app.post<{ Querystring: { salesChannelId?: string } }>(
-    '/api/v1/admin/pwa/icon',
-    { preHandler: writeGate },
-    async (request, reply) => {
-      if (!request.isMultipart()) {
-        return reply.code(400).send({ error: { code: 'PWA_ICON_INVALID', message: 'Upload requires multipart/form-data with a `file` part.' } });
-      }
-      const file = await request.file();
-      if (!file) {
-        return reply.code(400).send({ error: { code: 'PWA_ICON_INVALID', message: 'Missing `file` part.' } });
-      }
-      const buffer = await file.toBuffer();
-      const salesChannelId = request.query.salesChannelId ?? null;
-      try {
-        const result = await deps.iconService.ingest({
-          salesChannelId,
-          declaredMime: file.mimetype,
-          buffer,
-        });
-        // Record the source asset id on the channel/global config.
-        const actor = deps.resolveAuditContext(request);
-        const channelCode = salesChannelId ? await deps.channelCodeForId(salesChannelId) : null;
-        if (channelCode) {
-          await deps.settingsWrite.setValueForSubset(PWA_SETTING_CODES.ICON_ASSET_ID, [channelCode], result.sourceAssetId, null, actor);
-        } else {
-          await deps.settingsWrite.setValueForAllChannels(PWA_SETTING_CODES.ICON_ASSET_ID, result.sourceAssetId, null, actor);
+  //
+  // In a child context of its own, with the multipart parser registered inside
+  // it: this is the only route of the module that takes an upload, so the
+  // parser and its limits reach nothing else. Without a parser Fastify refuses
+  // a `multipart/form-data` body before the handler runs — which, for a route
+  // whose handler accepts nothing *but* that body, left it with no request it
+  // could answer.
+  await app.register(async (upload) => {
+    await upload.register(multipart, {
+      limits: { files: 1, fields: 10, fileSize: PWA_ICON_MAX_BYTES },
+    });
+
+    upload.post<{ Querystring: { salesChannelId?: string } }>(
+      '/api/v1/admin/pwa/icon',
+      { preHandler: writeGate },
+      async (request, reply) => {
+        if (!request.isMultipart()) {
+          return reply.code(400).send({ error: { code: 'PWA_ICON_INVALID', message: 'Upload requires multipart/form-data with a `file` part.' } });
         }
-        return reply.code(201).send(result);
-      } catch (err) {
-        if (err instanceof PwaIconInvalid) {
-          return reply.code(400).send({ error: { code: err.code, message: err.message } });
+        const file = await request.file();
+        if (!file) {
+          return reply.code(400).send({ error: { code: 'PWA_ICON_INVALID', message: 'Missing `file` part.' } });
         }
-        throw err;
-      }
-    },
-  );
+        let buffer: Buffer;
+        try {
+          buffer = await file.toBuffer();
+        } catch (err) {
+          // The parser's own refusal of a file over `limits.fileSize`. It is a
+          // fact about the upload, so it is answered in this route's refusal
+          // vocabulary rather than left to fall through as a server fault.
+          if ((err as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') {
+            return reply.code(400).send({
+              error: {
+                code: 'PWA_ICON_INVALID',
+                message: `The icon file must not be larger than ${PWA_ICON_MAX_BYTES / (1024 * 1024)} MB.`,
+              },
+            });
+          }
+          throw err;
+        }
+        const salesChannelId = request.query.salesChannelId ?? null;
+        try {
+          const result = await deps.iconService.ingest({
+            salesChannelId,
+            declaredMime: file.mimetype,
+            buffer,
+          });
+          // Record the source asset id on the channel/global config.
+          const actor = deps.resolveAuditContext(request);
+          const channelCode = salesChannelId ? await deps.channelCodeForId(salesChannelId) : null;
+          if (channelCode) {
+            await deps.settingsWrite.setValueForSubset(PWA_SETTING_CODES.ICON_ASSET_ID, [channelCode], result.sourceAssetId, null, actor);
+          } else {
+            await deps.settingsWrite.setValueForAllChannels(PWA_SETTING_CODES.ICON_ASSET_ID, result.sourceAssetId, null, actor);
+          }
+          return reply.code(201).send(result);
+        } catch (err) {
+          if (err instanceof PwaIconInvalid) {
+            return reply.code(400).send({ error: { code: err.code, message: err.message } });
+          }
+          throw err;
+        }
+      },
+    );
+  });
 
   // GET /admin/pwa/subscriptions — subscriber counts for a channel.
   app.get<{ Querystring: { salesChannelId?: string } }>(
