@@ -118,8 +118,10 @@ Select-style attribute types (`select`, `enum`, `multiselect`) carry an
 ordered option list — each row keyed by `(definition, value)` with
 per-locale label + fallback + sort order + default flag. The legacy
 `enum_values: string[]` JSONB column on `product_attributes` was
-decommissioned by migration 032 (into the catalog-owned
-`attribute_options` table), and migration 102 moved the
+decommissioned by migration
+`20260505T060113_catalog_attribute_options_and_flags.ts` (into the catalog-owned
+`attribute_options` table), and migration
+`20260723T230401_catalog_attributes_on_custom_fields.ts` moved the
 rows into the generic `custom_field_options` table. Existing readers
 project the option list back into the legacy form for backward
 compatibility at the API boundary.
@@ -184,7 +186,7 @@ and ownership model is different:
   `custom_fields`. The generic Custom Fields admin surface lists
   product definitions read-only and refuses mutations with
   `409 host_managed`.
-- **Migration `102_attributes_on_custom_fields.ts`** performed the
+- **Migration `20260723T230401_catalog_attributes_on_custom_fields.ts`** performed the
   one-time convergence in a single transaction: backfilled one
   definition per legacy attribute (key, labels, mapped value type,
   required, deterministic sort order), moved `attribute_options` rows

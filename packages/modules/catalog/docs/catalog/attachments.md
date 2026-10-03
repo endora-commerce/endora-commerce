@@ -13,7 +13,7 @@ when an attachment is deleted.
 ## Attachment Types
 
 The `attachment_types` dictionary categorizes attachments. Migration
-021 seeds four standard rows with deterministic UUIDs so seeds and
+`20260429T112543_catalog_product_attachments.ts` seeds four standard rows with deterministic UUIDs so seeds and
 tests can reference them stably:
 
 - `certificate` — Certificate / Certyfikat

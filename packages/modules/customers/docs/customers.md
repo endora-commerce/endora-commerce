@@ -97,11 +97,11 @@ Admin routes are gated by `customers:read` (reads), `customers:manage`
 
 ## Schema
 
-- `060_customer_accounts_lifecycle` — adds `customer_group_id`, block state
+- `20260611T140403_customer_accounts_lifecycle.ts` (owned by `customer_accounts`) — adds `customer_group_id`, block state
   (`blocked_at`, `block_reason`, `block_source`, `blocked_by_*`), and
   deletion/anonymization state (`deletion_requested_by_admin_user_id`,
   `anonymized_at`) to `customer_accounts`.
-- `061_customer_addresses_init` — the `customer_addresses` table (one default
+- `20260611T140404_customers_customer_addresses_init.ts` — the `customer_addresses` table (one default
   per `(customer, kind)`).
 
 Default payment/delivery preferences reuse the `quick_order_default_preferences`

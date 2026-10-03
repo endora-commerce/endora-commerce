@@ -41,7 +41,7 @@ został naruszony w trakcie.
 
 ## Dane początkowe
 
-Migracja 012 wstawia dwa wiersze, aby szybki start działał bez żadnych kroków w panelu:
+Migracja `20260425T161557_languages_currencies_init.ts` wstawia dwa wiersze, aby szybki start działał bez żadnych kroków w panelu:
 - `en-US` — domyślny, aktywny
 - `pl-PL` — aktywny
 

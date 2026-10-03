@@ -108,8 +108,9 @@ języków:
 Atrybuty typu wyboru (`select`, `enum`, `multiselect`) mają uporządkowaną listę opcji — każdy wiersz
 jest identyfikowany przez `(definition, value)` i ma etykiety w poszczególnych językach, etykietę
 zastępczą, kolejność i flagę wartości domyślnej. Dawną kolumnę JSONB `enum_values: string[]` w
-`product_attributes` wycofano migracją 032 (na rzecz tabeli katalogu `attribute_options`), a migracja
-102 przeniosła wiersze do ogólnej tabeli `custom_field_options`. Istniejące miejsca odczytu
+`product_attributes` wycofano migracją `20260505T060113_catalog_attribute_options_and_flags.ts`
+(na rzecz tabeli katalogu `attribute_options`), a migracja
+`20260723T230401_catalog_attributes_on_custom_fields.ts` przeniosła wiersze do ogólnej tabeli `custom_field_options`. Istniejące miejsca odczytu
 odtwarzają na granicy API dawną postać listy opcji ze względu na zgodność wsteczną.
 
 ### Edytowalne SKU
@@ -159,7 +160,7 @@ powyższy endpoint zachowuje swoją postać — ale model przechowywania i włas
   wpisem audytu), korzystając z transakcyjnego API zapisu eksportowanego przez `custom_fields`.
   Ogólny ekran pól niestandardowych w panelu pokazuje definicje produktu tylko do odczytu i odrzuca
   zmiany z `409 host_managed`.
-- **Migracja `102_attributes_on_custom_fields.ts`** jednorazowo połączyła oba modele w jednej
+- **Migracja `20260723T230401_catalog_attributes_on_custom_fields.ts`** jednorazowo połączyła oba modele w jednej
   transakcji: utworzyła po jednej definicji dla każdego dawnego atrybutu (klucz, etykiety,
   przełożony typ wartości, wymagalność, deterministyczna kolejność), przeniosła wiersze
   `attribute_options` do `custom_field_options`, przepisała klucze `attribute_set_attributes` na

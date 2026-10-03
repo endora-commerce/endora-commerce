@@ -92,7 +92,7 @@ importy wnętrza innych modułów:
 
 ## Schemat
 
-Migracja `080_returns_init.ts` tworzy `return_cases`, `return_case_items`, `return_case_comments`,
+Migracja `20260625T144227_returns_init.ts` tworzy `return_cases`, `return_case_items`, `return_case_comments`,
 `return_statuses`, `return_status_transitions`, `return_reasons`, `return_delivery_methods`,
 `refunds`, `return_shipments`, `return_case_attachments`, `return_list_saved_views` oraz sekwencję
 `return_cases_rma_seq`.

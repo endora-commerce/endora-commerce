@@ -84,8 +84,9 @@ organizacja, wartość minimalna, limit kredytowy, stan magazynowy).
 
 ## Dane
 
-- Nowa tabela `quick_order_default_preferences` (migracja 057).
-- Nowa kolumna `product_attributes.quick_searchable` (migracja 058, catalog).
+- Nowa tabela `quick_order_default_preferences` (migracja `20260611T140359_quick_order_default_preferences.ts`).
+- Nowa kolumna `product_attributes.quick_searchable` (migracja `20260611T140400_catalog_attribute_quick_searchable.ts`,
+  należy do `catalog`).
 
 ## Zależności
 

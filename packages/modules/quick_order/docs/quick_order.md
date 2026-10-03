@@ -86,8 +86,9 @@ order (org active, minimum value, credit limit, stock).
 
 ## Data
 
-- New table `quick_order_default_preferences` (migration 057).
-- New column `product_attributes.quick_searchable` (migration 058, catalog).
+- New table `quick_order_default_preferences` (migration `20260611T140359_quick_order_default_preferences.ts`).
+- New column `product_attributes.quick_searchable` (migration `20260611T140400_catalog_attribute_quick_searchable.ts`, owned
+  by `catalog`).
 
 ## Dependencies
 
