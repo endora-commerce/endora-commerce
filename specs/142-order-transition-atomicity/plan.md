@@ -298,18 +298,43 @@ backend/test/integration/orders/…                                             
 
 ## Handoff to `endora-commerce-dev`
 
-Implement from [tasks.md](tasks.md) in order. **Do not start Phase 2 before the owner has answered
-Q1 and Q2.** Four things here are **premises, not measurements** — re-derive each (Phase 0) before
-relying on it:
+Implement from [tasks.md](tasks.md) in order. Q1 and Q2 are answered (spec, *Open questions*).
+The four items below were written as premises; **T01 measured each on `af6e32ab3`**, and what was
+found replaces the premise:
 
-1. that `effectiveState.isPresent('credit_limits')` beside a `refuses-without` edge is accepted by
-   `check:port-dependencies`, `check:entry-presence` and the deactivation-consequence ledger;
-2. that a declared `cliCommands` body can run a Command through `CommandBus.run` with a system
-   actor (find the nearest precedent among the modules that declare `cliCommands`);
-3. that `ctx.worker` with a BullMQ repeatable job is the current shape for a periodic sweep (read
-   the newest worker in `packages/modules/*/src/backend/workers/`, not the oldest);
-4. that the admin order response has one schema `serializeOrder` is checked against — name it in
-   T02.
+1. **Holds.** An `effectiveState.isPresent('credit_limits')` decision in `orders`, placed before a
+   `lazyPort` call on `creditLimitService` (the `refuses-without` edge), with the same shape for
+   `inventory`, was run through `check:port-dependencies` (resolutions 1299 → 1302, `violations=0`,
+   `non-binding-issues=0`), `check:entry-presence` (`violations=0`) and `check:port-catches`
+   (`violations=0`), and through the ledger's own tests
+   (`test/unit/kernel/port-dependency-check.test.ts`,
+   `test/unit/_lifecycle/dead-activation-switches.test.ts`,
+   `test/unit/orders/payments-deactivation-consequence.test.ts`) — all green. D3 and D4 stand.
+   **One thing the measurement also showed**: `check:port-catches` does not see a `catch` around a
+   closure that reaches the port two calls away — a negative control with the
+   `rethrowIfModuleDisabled` line removed stayed at `violations=0`. So the first line of the
+   per-row `catch` in T08 is held by the rule in `module-composition.md` item 7 and by T08's own
+   test, not by that check.
+2. **No precedent exists; the seam does.** None of the declared `cliCommands` bodies runs a Command
+   (`search reindex` and `carts abandonment-sweep` read their own registrations off the cradle;
+   `admin_users create` writes directly and says why). `CommandBus.run` resolves its actor from the
+   ambient tenant context and refuses without one, and the host's command runner establishes none,
+   so the repair body opens `enterSystemScope(…)` (published on `@endora-commerce/platform/kernel`)
+   and reads `commandBus` off the cradle, where `orders` already resolves it. A system actor maps
+   to a `null` admin id on the audit entry (`actorFromContext`). T15's test drives exactly that.
+3. **The current shape is `product_feeds`' reaper** (`workers/feed-run-reaper-worker.ts`, the newest
+   periodic worker): a BullMQ `Worker` whose processor runs inside `enterSystemScope`, a **Job
+   Scheduler** installed with `queue.upsertJobScheduler(id, { … }, { name, data })` rather than a
+   repeatable job, both built only when the host values `processRunsWorkers` and `moduleQueueRedis`
+   say this process consumes queues, and the worker attached with
+   `ctx.worker(worker, { logger: app.log })` inside the `ctx.routes(…)` body. The test kit sets
+   `processRunsWorkers` to `false`, so the shared test server composes no consumer.
+4. **There is no admin-specific schema.** `serializeOrder` returns `Record<string, unknown>` and is
+   checked against nothing at runtime; the one schema describing the shape is `orderSchema` in
+   `packages/contracts/src/orders.ts`, shared by the buyer-facing and the admin reads, which
+   already carries a field present on one family only (`customerCancellable`, buyer reads).
+   `pendingEffects` is added there the same way: optional, documented as admin-only, and T16
+   asserts the buyer-facing response does not carry it.
 
 Also re-derive the spec's failure table against the tree you branch from; every row is a reading of
 `fe0803f2e`. Branch off `origin/master`; regenerate and commit generated artefacts in the same pull

@@ -35,7 +35,7 @@ calling `sweep()`.
   = paid`. Row 5 cannot be executed in-process and is represented by every step after the commit
   failing, with recovery driven by the sweep alone. The table needed no correction.
 
-- [ ] **T01** Verify plan premises 1–4 (*Handoff*): run `check:port-dependencies`,
+- [x] **T01** Verify plan premises 1–4 (*Handoff*): run `check:port-dependencies`,
   `check:entry-presence` and `check:port-catches` against a throwaway branch containing an
   `effectiveState.isPresent('credit_limits')` decision in `orders`; find the `cliCommands` precedent
   that runs a Command; read the newest periodic worker; name the admin order response schema. Record
