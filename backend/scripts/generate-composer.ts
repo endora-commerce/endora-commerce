@@ -83,6 +83,7 @@ import {
   PlatformRootUnresolvableError,
 } from './lib/platform-root.js';
 import { barrelKeyOf, parseBarrel, type BarrelParse } from './lib/platform-surface.js';
+import { entityDeclarations, entityDecoratorMentionLine } from './lib/entity-declarations.js';
 import { declaresRegisterModule } from './lib/module-roots.js';
 import { BASELINE_THROUGH } from '@endora-commerce/platform/db';
 import { BASELINE_MIGRATION_INVENTORY } from '@endora-commerce/platform/migrations';
@@ -1536,6 +1537,11 @@ export interface DiscoveredEntity {
  * `check-entity-tenant-classification.ts` was widened away from. The suffix is
  * still checked, in the other direction: a `.entity.ts` file with no decorator
  * is either a dropped decorator or a misnamed file, and both are worth saying.
+ *
+ * And by the decorator as a **syntax node**, not as its spelling
+ * (`lib/entity-declarations.ts`): a comment or a string that quotes it declares
+ * nothing, and a decorator written with unusual spacing or through a namespace
+ * is still one.
  */
 export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
   const found: DiscoveredEntity[] = [];
@@ -1543,13 +1549,18 @@ export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
   for (const [file, { text: source, owner }] of [...sources].sort(([a], [b]) =>
     a.localeCompare(b),
   )) {
-    const declares = source.includes('@Entity(');
-    if (!declares) {
+    const declarations = entityDeclarations(source, file);
+    if (declarations.length === 0) {
       if (file.endsWith('.entity.ts')) {
+        const mention = entityDecoratorMentionLine(source);
         throw new Error(
           `[composer] ${file} declares no @Entity() class. Either the decorator is missing ` +
             `or the file is misnamed; an entity the registry does not carry is absent from ` +
-            `the ORM metadata and fails at the first query.`,
+            `the ORM metadata and fails at the first query.` +
+            (mention === null
+              ? ''
+              : ` The decorator is spelled on line ${String(mention)}, but in a comment or a ` +
+                `string, which declares nothing.`),
         );
       }
       continue;
@@ -1568,16 +1579,15 @@ export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
           `third-party author has no core module to ship it from.`,
       );
     }
-    let cursor = source.indexOf('@Entity(');
-    while (cursor !== -1) {
-      const match = /export\s+class\s+(\w+)/.exec(source.slice(cursor));
-      const className = match?.[1];
-      if (className === undefined) {
+    for (const declaration of declarations) {
+      if (declaration.kind === 'unreadable') {
         throw new Error(
-          `[composer] ${file} declares @Entity() but the class it decorates could not be read. ` +
+          `[composer] ${file}:${String(declaration.line)} declares @Entity() but the class it ` +
+            `decorates could not be read: ${declaration.reason}. ` +
             `Write it as 'export class <Name>' directly below the decorator.`,
         );
       }
+      const { className } = declaration;
       const previous = byClassName.get(className);
       if (previous !== undefined) {
         throw new Error(
@@ -1587,7 +1597,6 @@ export function collectEntities(sources: SourceTree): DiscoveredEntity[] {
       }
       byClassName.set(className, file);
       found.push({ className, file, owner });
-      cursor = source.indexOf('@Entity(', cursor + 1);
     }
   }
   return found;
@@ -1666,7 +1675,10 @@ function bindingBaseFor(moduleId: string): string {
 export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): string {
   const importLines: string[] = [];
   const listed: string[] = [];
-  const specifierByModule = new Map<string, string>();
+  const specifierByModule = new Map<
+    string,
+    { readonly specifier: string; readonly className: string; readonly file: string }
+  >();
   const emitted = new Set<string>();
   let needsEntityClassLike = false;
 
@@ -1680,15 +1692,23 @@ export function emitEntitiesRegistry(entities: readonly DiscoveredEntity[]): str
     }
     const specifier = specifierFor(entity.file, entity.owner);
     const previous = specifierByModule.get(entity.owner.moduleId);
-    if (previous !== undefined && previous !== specifier) {
+    if (previous !== undefined && previous.specifier !== specifier) {
       throw new Error(
         `[composer] ${entity.owner.name} publishes entities behind two subpaths ` +
-          `('${previous}' and '${specifier}'). D-168 makes a module package's entities one ` +
-          `\`entities\` array on one declared subpath: a second one is a second array, and ` +
-          `the registry cannot import a class by name from either.`,
+          `('${previous.specifier}', for ${previous.className} in ${previous.file}, and ` +
+          `'${specifier}', for ${entity.className} in ${entity.file}). D-168 makes a module ` +
+          `package's entities one \`entities\` array on one declared subpath: a second one is ` +
+          `a second array, and the registry cannot import a class by name from either. Move ` +
+          `the class that is in the wrong directory; the \`exports\` map is not what is wrong.`,
       );
     }
-    specifierByModule.set(entity.owner.moduleId, specifier);
+    if (previous === undefined) {
+      specifierByModule.set(entity.owner.moduleId, {
+        specifier,
+        className: entity.className,
+        file: entity.file,
+      });
+    }
     if (emitted.has(entity.owner.moduleId)) continue;
     emitted.add(entity.owner.moduleId);
     needsEntityClassLike = true;

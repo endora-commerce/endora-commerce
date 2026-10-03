@@ -108,6 +108,171 @@ describe('collectEntities', () => {
   });
 });
 
+/**
+ * What "declares an entity" means is a question about the **syntax tree**, and
+ * the walk used to answer it from the text: a file holding the decorator's
+ * spelling anywhere was read as declaring an entity, and the class was whichever
+ * `export class` came next. So a sentence could do two things a sentence must
+ * not be able to do. In a file with no exported class it threw, naming a class
+ * that "could not be read" in a file that declares none. In a file *with* one —
+ * a service whose doc block says what its owner's entity looks like — it
+ * registered that service as an entity, and that is the direction that emits
+ * instead of refusing.
+ *
+ * Each fixture below is one way text and syntax disagree.
+ */
+describe('collectEntities reads the decorator as syntax, not as text', () => {
+  const classNames = (entries: Record<string, string>): string[] =>
+    collectEntities(tree(entries)).map((entity) => entity.className);
+
+  it('is not triggered by the decorator quoted in a line comment', () => {
+    expect(
+      classNames({
+        'modules/blog/services/post-service.ts': [
+          "// The owner declares `@Entity({ tableName: 'posts' })` and this reads it.",
+          'export class PostService {}',
+        ].join('\n'),
+      }),
+    ).toEqual([]);
+  });
+
+  it('is not triggered by the decorator quoted in a block comment with no class below it', () => {
+    expect(
+      classNames({
+        'modules/blog/migrations/notes.ts': [
+          '/* The table is the one `@Entity()` names on the owning class. */',
+          'export const TABLE = 1;',
+        ].join('\n'),
+      }),
+    ).toEqual([]);
+  });
+
+  it('is not triggered by the decorator in a string or a template literal', () => {
+    expect(
+      classNames({
+        'modules/blog/services/scaffold.ts': [
+          "export const SINGLE = '@Entity()';",
+          'export const DOUBLE = "@Entity({ tableName: \'posts\' })";',
+          'export const TEMPLATE = `@Entity()\nexport class ${name} {}`;',
+          'export class Scaffolder {}',
+        ].join('\n'),
+      }),
+    ).toEqual([]);
+  });
+
+  it('is not triggered by a JSDoc example', () => {
+    expect(
+      classNames({
+        'modules/blog/services/tenancy-reporter.ts': [
+          '/**',
+          ' * Reports every class the ORM persists.',
+          ' *',
+          ' * @example',
+          ' * ```ts',
+          " * @Entity({ tableName: 'posts' })",
+          ' * export class Post {}',
+          ' * ```',
+          ' */',
+          'export class TenancyReporter {}',
+        ].join('\n'),
+      }),
+    ).toEqual([]);
+  });
+
+  it('reads the decorated class and only that one when the same file also quotes the decorator', () => {
+    expect(
+      classNames({
+        'modules/blog/entities/post.entity.ts': [
+          '/** Replaces the helper below, which predates `@Entity()` on this class. */',
+          'export class PostHelper {}',
+          "const HINT = 'write @Entity() above the class';",
+          '@Entity()',
+          'export class Post {}',
+        ].join('\n'),
+      }),
+    ).toEqual(['Post']);
+  });
+
+  it('cannot be escaped by unusual formatting', () => {
+    expect(
+      classNames({
+        'modules/blog/entities/a.ts': '@Entity ()\nexport class SpaceBeforeCall {}',
+        'modules/blog/entities/b.ts': [
+          '@Entity',
+          '(',
+          "  { tableName: 'b' },",
+          ')',
+          'export class CallOnItsOwnLines {}',
+        ].join('\n'),
+        'modules/blog/entities/c.ts': '@ Entity()\nexport class SpaceAfterAt {}',
+        'modules/blog/entities/d.ts':
+          "import * as orm from '@mikro-orm/core';\n@orm.Entity()\nexport class ThroughANamespace {}",
+        'modules/blog/entities/e.ts':
+          '@Entity() /* why */ @Other()\n// a comment between\nexport abstract class Abstract {}',
+        'modules/blog/entities/f.ts': 'export @Entity() class DecoratorAfterExport {}',
+        'modules/blog/entities/g.ts': '@Entity()export class NoWhitespaceAtAll{}',
+      }),
+    ).toEqual([
+      'SpaceBeforeCall',
+      'CallOnItsOwnLines',
+      'SpaceAfterAt',
+      'ThroughANamespace',
+      'Abstract',
+      'DecoratorAfterExport',
+      'NoWhitespaceAtAll',
+    ]);
+  });
+
+  it('reads every decorated class of a file that declares several', () => {
+    expect(
+      classNames({
+        'modules/blog/entities/pair.ts': [
+          '@Entity()',
+          'export class First {}',
+          'export class NotPersisted {}',
+          '@Entity()',
+          'export class Second {}',
+        ].join('\n'),
+      }),
+    ).toEqual(['First', 'Second']);
+  });
+
+  it('does not take a decorator of another name for the entity decorator', () => {
+    expect(
+      classNames({
+        'modules/blog/entities/other.ts':
+          '@EntityListener()\nexport class A {}\n@Embeddable()\nexport class B {}',
+      }),
+    ).toEqual([]);
+  });
+
+  it('names the line of the mention when a `.entity.ts` file only quotes the decorator', () => {
+    expect(() =>
+      collectEntities(
+        tree({
+          'modules/blog/entities/post.entity.ts': [
+            'export class Post {}',
+            '',
+            '// TODO: put @Entity() back',
+          ].join('\n'),
+        }),
+      ),
+    ).toThrow(/declares no @Entity\(\) class.*line 3.*comment or a string/s);
+  });
+
+  it.each([
+    ['a class that is not exported', '\n@Entity()\nclass Post {}\nexport class Later {}'],
+    ['a default export', '\n@Entity()\nexport default class Post {}'],
+    ['a class expression', '\nexport const Post = @Entity() class {};'],
+    ['a class member', 'export class Post {\n  @Entity()\n  field = 1;\n}'],
+    ['a class declared inside a function', 'export function make() {\n  @Entity()\n  class Post {}\n  return Post;\n}'],
+  ])('refuses the decorator on %s, naming the file and the line', (_label, source) => {
+    expect(() =>
+      collectEntities(tree({ 'modules/blog/entities/post.entity.ts': source })),
+    ).toThrow(/modules\/blog\/entities\/post\.entity\.ts:2 .*could not be read/s);
+  });
+});
+
 const MIGRATION_SOURCE = 'export class Migration20260901T101112BlogWidenSlug extends Migration {}';
 
 describe('collectMigrations', () => {
