@@ -179,7 +179,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 5 — the check
 
-- [ ] **T16** `check:block-renderers`: one analysis, two hosts
+- [x] **T16** `check:block-renderers`: one analysis, two hosts
   (`specs/conventions/check-estate.md`). Findings: `foreign-block-name` (a renderer key whose owner
   segment is not `endora.id`), `undeclared-block` (not in the package's own manifest `blocks`, or
   not for that context), `storefront-import` (contract §2.3), `raw-html` (§2.4),
@@ -214,7 +214,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 7 — acceptance
 
-- [ ] **T20** The fixture module, not a workspace member: `backend/acceptance/block-renderers-fixture/`
+- [x] **T20** The fixture module, not a workspace member: `backend/acceptance/block-renderers-fixture/`
   (`@endora-commerce/mod-acceptance-blocks`, `endora.id` `acceptance_blocks`, block
   `acceptance_blocks.Badge` for `cms` + `email`, `./admin`, `./storefront`, `./email`,
   `./blocks.css`, `./backend` registering the e-mail renderer, `en`/`pl` bundles, an `explode` prop

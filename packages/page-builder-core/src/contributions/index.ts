@@ -4,6 +4,7 @@
 
 export type {
   BlockPresence,
+  BlockRenderFunction,
   BlockRenderEnvironment,
   PageBuilderBlockEditorConfig,
   StorefrontBlockConfig,

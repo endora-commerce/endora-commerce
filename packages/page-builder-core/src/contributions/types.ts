@@ -6,6 +6,20 @@
 // neither may acquire a runtime dependency by naming a shape.
 
 import type { ComponentConfig, Field } from '@puckeditor/core';
+import type { ReactNode } from 'react';
+
+/**
+ * A block's `render`, as a module writes it: an ordinary React component over
+ * the block's own props.
+ *
+ * Looser than Puck's `PuckComponent` on purpose. Puck types `render` over the
+ * props *it* adds (`id`, `puck`), and a component whose own props are all
+ * optional — which a block's must be, since stored props are untrusted and may
+ * predate a field — is then refused as having "no properties in common". The
+ * host mounts `render` with the stored props whatever its declared type says.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see the doc block above.
+export type BlockRenderFunction = (props: any) => ReactNode;
 
 /**
  * One block as the **storefront** draws it: a Puck component config whose
@@ -15,8 +29,13 @@ import type { ComponentConfig, Field } from '@puckeditor/core';
  * carries them, and the storefront reads none of them except `defaultProps`,
  * which is merged under the stored props.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- stored props are untrusted whatever a module types them as, and a map of differently-typed blocks has no common props type. A module authors `ComponentConfig<ItsProps>` and assigns it here.
-export type StorefrontBlockConfig = ComponentConfig<any>;
+export type StorefrontBlockConfig = Omit<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- stored props are untrusted whatever a module types them as, and a map of differently-typed blocks has no common props type.
+  ComponentConfig<any>,
+  'render'
+> & {
+  readonly render: BlockRenderFunction;
+};
 
 /** What a module package's `./storefront` layer exports as `contributions`. */
 export interface StorefrontContributions {
@@ -36,8 +55,9 @@ export interface StorefrontContributions {
 export type PageBuilderBlockEditorConfig = Omit<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- as StorefrontBlockConfig.
   ComponentConfig<any>,
-  'fields' | 'label' | 'defaultProps'
+  'fields' | 'label' | 'defaultProps' | 'render'
 > & {
+  readonly render: BlockRenderFunction;
   readonly fields?: Readonly<Record<string, Field>>;
 };
 

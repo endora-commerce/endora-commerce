@@ -1,0 +1,5 @@
+dist/
+# The acceptance runner links the packages this fixture peer-depends on in here
+# before it builds it, so every bare specifier resolves the way a third-party
+# author's install resolves it.
+node_modules/

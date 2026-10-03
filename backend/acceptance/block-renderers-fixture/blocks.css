@@ -1,0 +1,26 @@
+/*
+ * The block stylesheet of `acceptance_blocks` — finished CSS, loaded by the
+ * storefront and by the admin editor.
+ *
+ * Every selector is under a class prefixed with the module id, and the colours
+ * come from the storefront's theme custom properties with literal fallbacks, so
+ * the badge follows the channel's theme and still renders on the admin canvas,
+ * where those properties are not set.
+ */
+.acceptance_blocks-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--r-md, 6px);
+  background: var(--brand-600, #2563eb);
+  color: #ffffff;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+@media (max-width: 640px) {
+  .acceptance_blocks-badge {
+    font-size: 0.8125rem;
+  }
+}
