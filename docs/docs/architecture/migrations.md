@@ -289,9 +289,23 @@ Everything else fails loudly — see *If you get the naming wrong* below.
 
 The execution order is a topological walk of the manifest dependency graph, so a manifest
 `dependencies` entry is **the only thing** that puts your migration after the table it
-references. If your migration adds a foreign key to `orders`, your manifest declares `orders`
-— that, and only that, is what makes the constraint applicable on a fresh database. The
-fixture declares `auth` for exactly this class of reason.
+references. **The predicate is a table reference, not a `references` clause.** A foreign key
+to `orders` is one, and so is a `select`, `insert`, `update` or `delete` that names an `orders`
+table: each needs that table to be there on a fresh database, and your manifest declaring
+`orders` — directly or transitively — is the only thing that guarantees it. The fixture
+declares `auth` for exactly this class of reason.
+
+**A declaration does not license a write.** A migration may not `insert` into, `update` or
+`delete` from a table another module owns, whether or not that module is in your
+`dependencies`: a declaration is a fact about order and presence, and a write is a fact about
+ownership. Rows in another module's table are seeded or corrected by that module's own
+migration, by your module's install hook, or through the owning module's port at boot. Tables
+the platform itself owns need no declaration — the platform is always present and cannot
+appear in a `dependencies` array.
+
+In this repository both rules are enforced by `pnpm --filter backend run check:module-boundary`,
+beside the foreign-key validator described below. As with the `./migrations` array, nothing in
+the host reads an installed package's migration SQL, so in a package they are yours to keep.
 
 There is no other lever. Moving your timestamp cannot do it (see below), and there is no
 per-migration ordering edge.
@@ -520,6 +534,12 @@ table to its owning module (entity `tableName` declarations first, then the expl
 enumerated `backend/test/unit/db/table-owner-overrides.ts` for the bridge tables no
 entity claims), and asserts that the referencing module **transitively declares** the
 referenced module in its manifest `dependencies`.
+
+It reads those two statements and nothing else, so it is the foreign-key half of the rule. A
+`select`, `insert`, `update` or `delete` in a migration that names another module's table is
+judged by `check:module-boundary`, under the two rules given in step 3 of the extension-package
+section above: an undeclared reference is refused, and a write is refused whether declared or
+not.
 
 - It is a **pure unit test**: no database, no ORM bootstrap, runs inside
   `pnpm --filter backend run test:unit` in well under a second.

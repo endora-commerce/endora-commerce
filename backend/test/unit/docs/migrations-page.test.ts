@@ -42,7 +42,9 @@ describe.each(PAGES)('migrations page — %s', (page) => {
     // location. A row that is a worked example of the naming rule and not a
     // place reads exactly like one that is, so the table carries locations only
     // and each is checked against the files that are there.
-    const rows = [...text.matchAll(/^\| `([^`]+\/migrations\/)` \| `([a-z0-9]+)` \| `'([a-z0-9_]+)'` \|$/gm)];
+    const rows = [
+      ...text.matchAll(/^\| `([^`]+\/migrations\/)` \| `([a-z0-9]+)` \| `'([a-z0-9_]+)'` \|$/gm),
+    ];
     expect(rows.map((row) => row[2])).toContain('core');
     const wrong: string[] = [];
     for (const [, directory, segment] of rows) {
@@ -64,5 +66,27 @@ describe.each(PAGES)('migrations page — %s', (page) => {
       .filter((paragraph) => paragraph.includes('src/db/migrations/'))
       .filter((paragraph) => !paragraph.includes('`^\\d+_<moduleId>_`'));
     expect(stale).toEqual([]);
+  });
+
+  it('names, for the cross-module rule, the check that enforces more than foreign keys', () => {
+    // A migration's reach into another module's table is judged twice: the
+    // foreign-key validator reads DDL, and `check:module-boundary` reads every
+    // other statement and refuses a write outright. A page that names only the
+    // first teaches the rule as foreign keys only. Every check the page names
+    // is also held to being a script that exists, so a renamed one reddens here.
+    const named = [
+      ...new Set(
+        [...text.matchAll(/`[^`\n]*\b(check:[a-z][a-z0-9-]*)[^`\n]*`/g)].map((m) => m[1]!),
+      ),
+    ];
+    expect(named).toContain('check:module-boundary');
+    const scripts = new Set(
+      ['package.json', 'backend/package.json'].flatMap((manifest) =>
+        Object.keys(
+          (JSON.parse(read(manifest)) as { scripts?: Record<string, string> }).scripts ?? {},
+        ),
+      ),
+    );
+    expect(named.filter((script) => !scripts.has(script))).toEqual([]);
   });
 });

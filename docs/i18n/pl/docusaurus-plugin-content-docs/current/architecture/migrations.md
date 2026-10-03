@@ -285,9 +285,22 @@ Wszystko inne kończy się głośnym błędem — zobacz *Gdy pomylisz się w na
 
 Kolejność wykonania to przejście topologiczne po grafie zależności manifestów, więc wpis w
 `dependencies` manifestu to **jedyna rzecz**, która umieszcza twoją migrację za tabelą, do której
-się odwołuje. Jeśli twoja migracja dodaje klucz obcy do `orders`, twój manifest deklaruje `orders` —
-to i tylko to sprawia, że ograniczenie da się nałożyć na świeżej bazie danych. Dane testowe
+się odwołuje. **Kryterium jest odwołanie do tabeli, a nie klauzula `references`.** Jest nim klucz
+obcy do `orders`, ale także `select`, `insert`, `update` albo `delete`, które wymieniają tabelę
+`orders`: każde z nich wymaga, żeby ta tabela istniała na świeżej bazie danych, a gwarantuje to
+wyłącznie deklaracja `orders` w twoim manifeście — bezpośrednia albo przechodnia. Dane testowe
 deklarują `auth` właśnie z tego rodzaju powodu.
+
+**Deklaracja nie uprawnia do zapisu.** Migracja nie może wykonywać `insert`, `update` ani `delete`
+na tabeli należącej do innego modułu, niezależnie od tego, czy ten moduł jest w twoich
+`dependencies`: deklaracja mówi o kolejności i obecności, a zapis — o własności. Wiersze w tabeli
+innego modułu zasila albo poprawia własna migracja tego modułu, hook instalacyjny twojego modułu
+albo port modułu-właściciela podczas startu. Tabele należące do samej platformy nie wymagają
+deklaracji — platforma jest zawsze obecna i nie może wystąpić w tablicy `dependencies`.
+
+W tym repozytorium obie reguły egzekwuje `pnpm --filter backend run check:module-boundary`, obok
+opisanego niżej walidatora kluczy obcych. Tak jak w przypadku tablicy `./migrations`, nic w hoście
+nie czyta SQL migracji zainstalowanego pakietu, więc w pakiecie pilnujesz ich samodzielnie.
 
 Nie ma innej dźwigni. Przesunięcie znacznika czasu tego nie zrobi (zobacz niżej), a krawędzi
 kolejności dla pojedynczej migracji nie ma.
@@ -511,6 +524,12 @@ modułu-właściciela (najpierw na podstawie deklaracji `tableName` w encjach, p
 `backend/test/unit/db/table-owner-overrides.ts` dla tabel łączących, do których nie przyznaje się
 żadna encja) i sprawdza, czy moduł odwołujący się **przechodnio deklaruje** moduł, do którego się
 odwołuje, w `dependencies` swojego manifestu.
+
+Czyta te dwie instrukcje i nic więcej, więc jest tą połową reguły, która dotyczy kluczy obcych.
+`select`, `insert`, `update` albo `delete` w migracji, które wymieniają tabelę innego modułu,
+ocenia `check:module-boundary` według dwóch reguł podanych w kroku 3 powyższej sekcji o pakiecie
+rozszerzenia: odwołanie bez deklaracji jest odrzucane, a zapis jest odrzucany niezależnie od
+deklaracji.
 
 - To **czysty test jednostkowy**: bez bazy danych i bez uruchamiania ORM, wykonuje się w ramach
   `pnpm --filter backend run test:unit` w znacznie mniej niż sekundę.
