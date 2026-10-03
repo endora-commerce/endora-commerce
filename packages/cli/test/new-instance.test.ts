@@ -787,6 +787,21 @@ describe('the tree (§1, §2)', () => {
     expect(wiringLineCount(planInstance(planInput()))).toBeLessThan(250);
   });
 
+  it('the README says what is true of an instance today: every refusal of overlay schema, and a storefront that may already be there', () => {
+    const readme = planInstance(planInput()).files.find((file) => file.path === 'README.md')!.content;
+    // `generate` was named as the one refusal; `migrate`, `module:*` and the
+    // boot refuse too.
+    expect(readme).toContain('is refused by `generate`, by `migrate`, by every');
+    expect(readme).not.toContain('`pnpm run generate`\nrefuses a `migrations/`');
+    // `endora install` writes the storefront beside the instance, so "next,
+    // write a storefront" was false for everyone who came that way.
+    expect(readme).not.toContain('## Next');
+    expect(readme).toContain('`endora install` writes\nit beside this directory as `acme-shop-storefront`');
+    expect(readme).toContain('If there is none, `endora new storefront <dir>`');
+    // The CLI pair is the deployment's axis, not the operator's switch.
+    expect(readme).not.toContain("the operator's switch");
+  });
+
   it('every entry point turns a refusal about the overlay into a sentence, `migrate` included', () => {
     // An overlay module ships no schema. The API and the worker meet that
     // refusal while composing, and print it instead of an uncaught exception;

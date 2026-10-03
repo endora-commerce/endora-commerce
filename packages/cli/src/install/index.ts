@@ -2072,6 +2072,7 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       demo: options.demo === true,
       recommended: provenance.recommended,
       services: wantsServices,
+      chosenPorts: ports.chosen,
       passwordFromFlag: provenance.fromFlags.has('admin-password'),
       corepack: runner.command === 'corepack' ? runner : null,
       apiPort,
@@ -2355,6 +2356,8 @@ function closing(input: {
   readonly admin: { readonly email?: string | undefined; readonly password?: string | undefined };
   readonly recommended: readonly QuestionId[];
   readonly services: boolean;
+  /** The service ports this run moved off their defaults, written or — in a dry run — planned. */
+  readonly chosenPorts: ReadonlyMap<string, number>;
   /** Whether the password was `--admin-password` or typed at the wizard's prompt. */
   readonly passwordFromFlag: boolean;
   /** The corepack runner this run fell back to, when no `pnpm` was on `PATH`. */
@@ -2473,7 +2476,14 @@ function closing(input: {
         existsSync(join(input.targetDir, DEV_COMPOSE_PATH))
           ? readFileSync(join(input.targetDir, DEV_COMPOSE_PATH), 'utf8')
           : (input.instance?.plan.files.find((file) => file.path === DEV_COMPOSE_PATH)?.content ?? ''),
-        readTargetEnv(input.targetDir),
+        // The ports this run chose over whatever the file holds: a dry run
+        // writes no `.env`, so read from the file alone the catcher was named
+        // on the document's default port two lines after the run had said it
+        // would be published on another.
+        new Map([
+          ...readTargetEnv(input.targetDir),
+          ...[...input.chosenPorts].map(([name, port]) => [name, String(port)] as const),
+        ]),
       )
     : undefined;
   if (mail !== undefined) {
