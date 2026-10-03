@@ -73,6 +73,7 @@ import {
   oneShotCommand,
   strangerCommands,
   strangerEnvironment,
+  withoutPassword,
   type InstalledManifest,
   type PublicAssertionResult,
 } from './instance-public-assertions.js';
@@ -136,7 +137,7 @@ function typeCommand(
   timeoutMs: number,
 ): Promise<{ code: number; output: string }> {
   return new Promise((resolveResult) => {
-    console.log(`\n$ ${command.split(' --admin-password ')[0]!} …`);
+    console.log(`\n$ ${withoutPassword(command)} …`);
     const child = spawn('sh', ['-c', command], { cwd, env: stranger, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     const keep = (chunk: Buffer): void => {

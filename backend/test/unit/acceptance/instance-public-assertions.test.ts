@@ -22,6 +22,7 @@ import {
   PUBLIC_ASSERTION_CATALOGUE,
   PUBLIC_ASSERTION_IDS,
   PUBLIC_NPM_REGISTRY,
+  adminPasswordFlag,
   cleanMachineRefusals,
   evaluateCommandCount,
   evaluateLicences,
@@ -34,6 +35,7 @@ import {
   printedDevAllCommand,
   strangerCommands,
   strangerEnvironment,
+  withoutPassword,
 } from '../../../scripts/acceptance/instance-public-assertions.js';
 
 const SCRIPTS = fileURLToPath(new URL('../../../scripts/acceptance/', import.meta.url));
@@ -583,4 +585,35 @@ describe('the harness runs on a machine with nothing of ours installed', () => {
       expect(foreign).toEqual([]);
     });
   }
+});
+
+describe('a password that starts with `-` reaches the CLI as a value', () => {
+  // `randomBytes(18).toString('base64url')` starts with `-` one time in 64, and
+  // `--admin-password -x…` is refused by the CLI's parser as an option missing
+  // its value — P1 went red on runs with nothing wrong with them.
+  const password = '-Xy_9-secret';
+
+  it('the one-shot carries it in the `=` form', () => {
+    const command = oneShotCommand({
+      packageName: 'create-endora-commerce',
+      version: '0.102.0',
+      dir: 'shop',
+      admin: { email: 'owner@example.com', password, firstName: 'Ada', lastName: 'L' },
+    });
+    expect(command).toContain(`--admin-password=${password}`);
+    expect(command).not.toContain('--admin-password ');
+    expect(adminPasswordFlag(password)).toBe(`--admin-password=${password}`);
+  });
+
+  it('what is printed stops before it, in either form', () => {
+    expect(withoutPassword(`npx x shop --admin-password=${password} --admin-first-name Ada`)).toBe('npx x shop');
+    expect(withoutPassword(`npx x shop --admin-password ${password}`)).toBe('npx x shop');
+  });
+
+  it('no harness passes the password as an argument of its own', () => {
+    for (const file of ['instance-local-registry.ts', 'instance-public.ts', 'separate-components.ts']) {
+      const source = readFileSync(`${SCRIPTS}${file}`, 'utf8');
+      expect(source, file).not.toMatch(/'--admin-password',/);
+    }
+  });
 });

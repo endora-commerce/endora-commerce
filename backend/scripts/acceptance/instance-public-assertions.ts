@@ -236,13 +236,30 @@ export interface OneShotInput {
  * published version older than that change refuses this command outright,
  * which is P1 failing for the reason it should.
  */
+/**
+ * The password as one argument, `--admin-password=<value>`.
+ *
+ * A random `base64url` password starts with `-` about one time in 64, and as a
+ * separate argument `node:util`'s `parseArgs` — the CLI's parser — reads it as
+ * a flag with its value missing and refuses the command, which turned P1 red
+ * on runs that had nothing wrong with them. The `=` form carries any value.
+ */
+export function adminPasswordFlag(password: string): string {
+  return `--admin-password=${password}`;
+}
+
+/** A typed command cut before its password, for printing: the rest of it is the secret. */
+export function withoutPassword(command: string): string {
+  return command.split(/ --admin-password[= ]/)[0]!;
+}
+
 export function oneShotCommand(input: OneShotInput): string {
   return [
     `npx --yes ${input.packageName}@${input.version} ${input.dir}`,
     '--non-interactive',
     '--demo',
     `--admin-email ${input.admin.email}`,
-    `--admin-password ${input.admin.password}`,
+    adminPasswordFlag(input.admin.password),
     `--admin-first-name ${input.admin.firstName}`,
     `--admin-last-name ${input.admin.lastName}`,
   ].join(' ');
@@ -314,7 +331,7 @@ export function evaluateCommandCount(
     detail:
       `${String(count)} command(s) typed; the pass line is ${String(COMMAND_PASS_LINE)} ` +
       `(123 SC-001) and the target is ${String(COMMAND_TARGET)} (136 SC-004): ` +
-      typed.map((command, index) => `(${String(index + 1)}) ${command.split(' --admin-password ')[0]!}`).join('; '),
+      typed.map((command, index) => `(${String(index + 1)}) ${withoutPassword(command)}`).join('; '),
   };
 }
 

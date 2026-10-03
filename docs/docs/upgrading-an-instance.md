@@ -129,6 +129,19 @@ change them:
 - The `0.100.x` installer did not move a port that was already taken, so check that `.env`
   does not point at another stack's database before you run anything.
 
+### Instances created before 0.102.0 {#puck-rename}
+
+Release `0.102.0` moved the page builder from `@measured/puck` to `@puckeditor/core` — Puck
+renamed its package at 0.21 — and the upgrade does not rename it in your files. After
+`pnpm run upgrade` finishes, replace `"@measured/puck"` with `"@puckeditor/core": "^0.23.0"` in
+every `package.json` that declares it (the instance's root and the storefront's), and in your own
+files — the storefront's `app/`, `components/` and `test/`, and anything of yours under
+`admin/src` or an overlay module — change the imports `'@measured/puck'` to `'@puckeditor/core'`
+and `'@measured/puck/puck.css'` to `'@puckeditor/core/puck.css'`.
+`grep -rl "@measured/puck" --exclude-dir=node_modules .` in each tree finds them. Then run
+`pnpm install` in both. Left as it is, the storefront's `pnpm run build` fails type-checking.
+Stored pages, blocks and templates need no change.
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except
