@@ -185,6 +185,7 @@ import { Migration20260926T230239InvoicesImportIdentity } from '@endora-commerce
 
 // ── languages ───────────────────────────────────────────────────────────────
 import { Migration20260425T161557LanguagesCurrenciesInit } from '@endora-commerce/mod-languages/migrations';
+import { Migration20261003T115043LanguagesRepairDefaultChannelLanguage } from '@endora-commerce/mod-languages/migrations';
 
 // ── linkedin_ads ────────────────────────────────────────────────────────────
 import { Migration20260727T233211LinkedinAdsInit } from '@endora-commerce/mod-linkedin-ads/migrations';
@@ -474,6 +475,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── languages ───────────────────────────────────────────────────────────────
   migration('languages', Migration20260425T161557LanguagesCurrenciesInit),
+  migration('languages', Migration20261003T115043LanguagesRepairDefaultChannelLanguage),
 
   // ── linkedin_ads ────────────────────────────────────────────────────────────
   migration('linkedin_ads', Migration20260727T233211LinkedinAdsInit),

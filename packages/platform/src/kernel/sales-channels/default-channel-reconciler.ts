@@ -46,13 +46,23 @@ export interface DefaultChannelReconciliationResult {
 }
 
 const DEFAULT_CODE_FALLBACK = 'default';
-const DEFAULT_LANGUAGE_FALLBACK = 'en';
+/**
+ * A code the languages dictionary holds on every instance: the `languages`
+ * module's init migration seeds `en-US` (as the default language) and `pl-PL`,
+ * and every channel write validates each listed code against that table. The
+ * fallback was the bare `en` until 2026-10-03, which no dictionary row matched,
+ * so a fresh shop's default channel was born unwritable — every PATCH of its
+ * languages answered `409 DICTIONARY_ENTRY_NOT_FOUND`, because the unchanged
+ * `en` is re-validated with the rest of the list. The `languages` module's
+ * `…RepairDefaultChannelLanguage` migration rewrites the rows created before.
+ */
+const DEFAULT_LANGUAGE_FALLBACK = 'en-US';
 const DEFAULT_CURRENCY_FALLBACK = 'EUR';
 
 export interface DefaultChannelReconcilerOptions {
   /**
    * Used by tests whose `languages` / `currencies` seed differs from the
-   * `en` / `EUR` fallbacks. Production always uses the env-driven
+   * `en-US` / `EUR` fallbacks. Production always uses the env-driven
    * fallbacks (research R-4); these overrides are not exposed in
    * `composition.ts`.
    */
@@ -134,7 +144,8 @@ export class DefaultChannelReconciler {
 
     const channel = em.create(SalesChannel, {
       code,
-      name: { en: 'Default' },
+      // Keyed by the channel's own language, like every name the admin writes.
+      name: { [language]: 'Default' },
       languages: [language],
       defaultLanguage: language,
       currencies: [currency],

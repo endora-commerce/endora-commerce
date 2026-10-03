@@ -34,9 +34,11 @@ import type { EntityManager, MikroORM } from '@mikro-orm/postgresql';
  * not schema — so the seam is here, immediately after `migrator.up()`, which is
  * the point at which this database becomes a platform every test may assume.
  *
- * `en-US` / `PLN` rather than the production `en` / `EUR` fallbacks, matching the
- * language and currency rows `setupBackendServer` seeds, so a fresh database and
- * a warm one describe the same channel.
+ * The language is the production fallback, not an override — an override here
+ * once hid a fallback the languages dictionary did not hold. `PLN` rather than the
+ * production `EUR` fallback, matching the default currency row
+ * `setupBackendServer` seeds, so a fresh database and a warm one describe the
+ * same channel.
  */
 export async function establishPlatformInvariants(orm: MikroORM): Promise<void> {
   const { DefaultChannelReconciler } = await import(
@@ -47,7 +49,7 @@ export async function establishPlatformInvariants(orm: MikroORM): Promise<void> 
   const result = await new DefaultChannelReconciler(
     () => orm.em.fork() as EntityManager,
     undefined,
-    { bootstrapDefaults: { code: 'default', language: 'en-US', currency: 'PLN' } },
+    { bootstrapDefaults: { code: 'default', currency: 'PLN' } },
   ).run();
   if (result.action === 'inserted') {
     process.stdout.write('[test-setup] seeded the system-default sales channel\n');
