@@ -86,7 +86,9 @@ may import (`kernel`, `http`, `tenancy`, `commands`, `events`);
 **Pinning work to one organization is not available to modules.** The platform
 implements `withOrgScope(organizationId, reason, fn)` beside `withSystemScope`
 (`packages/platform/src/tenancy/escape-hatch.ts`), but it is not on the published
-barrel, because no module used it when the barrel was cut. A module that needs a
+barrel: ruling D-285 keeps it host-only until a module needs work pinned to one
+organization that a system scope plus an explicit `organizationId` constraint cannot
+express (`specs/conventions/module-composition.md`, item 10a). A module that needs a
 per-organization job today runs it under a system scope and filters by
 `organizationId` itself.
 
