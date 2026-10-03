@@ -92,7 +92,8 @@ niej odwołuje:
 | Blok CMS       | `CmsReferenceRegistry`                  | `kind='cms-block-embed' AND blockId = ?` |
 | Kategoria        | (rejestr odwołań do kategorii w katalogu)   | `kind='category-link' AND categoryId = ?` (planowane) |
 
-Każda rejestracja to zmiana w jednym wierszu, podłączona w `composition.ts`. Istniejące
+Każda rejestracja to jedno wywołanie we własnym hooku startowym modułu megamenu (`ctx.onBoot` w
+`src/backend/index.ts` modułu). Istniejące
 `findBlockReferences` / `findTemplateReferences` modułu CMS rozszerzono tak, aby sprawdzały
 zewnętrzne skanery; `registerMegamenuCmsReferences` modułu megamenu rejestruje tam swój skaner.
 
@@ -177,7 +178,7 @@ układu obok siebie). Przywracanie pozycji przewinięcia przez przeglądarkę sp
 
 ## Wprowadzenie modułu
 
-Migracja `036_megamenu_init.ts` dodaje trzy nowe tabele i częściowy indeks unikalny. Nie tworzy
+Migracja `20260505T193836_megamenu_init.ts` dodaje trzy nowe tabele i częściowy indeks unikalny. Nie tworzy
 żadnych wierszy; administratorzy tworzą pierwszą konfigurację w panelu.
 
 Megamenu jest umieszczone w głównym układzie storefrontu, między `<Header>` a istniejącym hookiem

@@ -83,7 +83,7 @@ klienta pokazujący stan subskrypcji i tagi, z przyciskami zapisu i wypisania.
 
 ## Schemat
 
-Migracja `083_newsletter_init.ts` tworzy `newsletter_subscribers`, `newsletter_tags`,
+Migracja `20260629T200954_newsletter_init.ts` tworzy `newsletter_subscribers`, `newsletter_tags`,
 `newsletter_subscriber_tags`, `newsletter_custom_fields`, `newsletter_suppressions`,
 `newsletter_email_blocks` (z tabelą łączącą z kanałami), `newsletter_campaigns` (z tabelą łączącą z
 grupami), `newsletter_send_records`, `newsletter_engagement_events`, `newsletter_automations` i

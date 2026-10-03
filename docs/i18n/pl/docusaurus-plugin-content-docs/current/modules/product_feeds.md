@@ -567,4 +567,6 @@ taksonomie do nieistniejącego katalogu, więc dostarczane pliki danych czyta wy
   obejmuje tylko SFTP, FTP i HTTP — zobacz **Dostarczanie** wyżej.
 - Feedy przyrostowe, uzupełniające lub różnicowe — każde generowanie tworzy cały plik od nowa.
 - Wiele krajów lub walut w jednym pliku; zamiast tego zduplikuj feed.
-- Pobieranie taksonomii w czasie działania.
+- Automatyczne przyjęcie nowszej taksonomii. Opcjonalne sprawdzanie (zobacz
+  [Aktualizacje taksonomii](#taxonomy-updates)) pobiera i instaluje zmienioną wersję jako
+  **nieaktywną**; zaczyna ona obowiązywać dopiero po promocji wykonanej przez operatora.

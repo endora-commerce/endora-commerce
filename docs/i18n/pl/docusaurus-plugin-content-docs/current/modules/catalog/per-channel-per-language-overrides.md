@@ -183,7 +183,7 @@ tylko do odczytu, a tekst pomocy wyjaśnia, że nadpisania działają wyłączni
 
 ## Migracja
 
-Wszystko wprowadza jedna migracja, `043_product_value_overrides_init.ts`:
+Wszystko wprowadza jedna migracja, `20260611T140346_catalog_product_value_overrides_init.ts`:
 
 - dodaje do `product_attributes` kolumny logiczne `channel_scoped` i `language_scoped` (domyślnie
   `false`);

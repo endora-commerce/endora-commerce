@@ -85,7 +85,7 @@ techniczna:
 ## Instrukcja dla operatora
 
 1. Ustaw `SETTINGS_SECRET_ENCRYPTION_KEY` (dla sekretów VAPID i FCM) i uruchom
-   `pnpm --filter backend run migration:up` (wykonuje `080_pwa_init`).
+   `pnpm --filter backend run migration:up` (wykonuje `20260625T144228_pwa_init.ts`).
 2. W **Settings → PWA** ustaw tożsamość aplikacji, prześlij ikonę, włącz pamięć podręczną i
    powiadomienia push.
 3. Kliknij **Generate VAPID keys** (albo wywołaj `POST /api/v1/admin/pwa/vapid/generate`).

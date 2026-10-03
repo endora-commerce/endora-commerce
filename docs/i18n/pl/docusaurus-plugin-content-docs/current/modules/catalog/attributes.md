@@ -148,7 +148,7 @@ Produkty konfigurowalne mają wybór wariantu, którego osie pochodzą z atrybut
 
 ## Przechowywanie
 
-Od migracji `102` atrybut jest podzielony między ogólną warstwę pól niestandardowych, należącą do
+Od migracji `20260723T230401_catalog_attributes_on_custom_fields.ts` atrybut jest podzielony między ogólną warstwę pól niestandardowych, należącą do
 modułu `custom_fields`, a rozszerzenie należące do katalogu. Opisana wyżej postać API się nie
 zmieniła — panel składa obie części z powrotem w dawną postać.
 
@@ -163,8 +163,9 @@ zmieniła — panel składa obie części z powrotem w dawną postać.
 `custom_field_options` (należy do `custom_fields`):
 
 - Wiersze opcji z UNIQUE `(definition_id, value)`, z `label` w poszczególnych językach,
-  `label_default`, `is_default`, `sort_order`. Tabela katalogu `attribute_options` (migracja `032`)
-  została usunięta w migracji `102` po przeniesieniu wierszy tutaj.
+  `label_default`, `is_default`, `sort_order`. Tabela katalogu `attribute_options` (migracja
+  `20260505T060113_catalog_attribute_options_and_flags.ts`) została usunięta w migracji
+  `20260723T230401_catalog_attributes_on_custom_fields.ts` po przeniesieniu wierszy tutaj.
 
 `product_attributes` (należy do `catalog`) — **rozszerzenie** 1:1:
 
@@ -178,7 +179,7 @@ zmieniła — panel składa obie części z powrotem w dawną postać.
 - Ustawienia prezentacji: `select_display varchar(16) NULL` (`pill` = dawne `enum`, `dropdown` =
   dawne `select`) i `numeric_kind varchar(8) NULL` (`number` | `price`).
 - Powielone kolumny definicji (`key`, `label`, `label_default`, `value_type`, `is_required`) usunięto
-  w migracji `102` — jedynym źródłem tych danych jest wiersz definicji.
+  w migracji `20260723T230401_catalog_attributes_on_custom_fields.ts` — jedynym źródłem tych danych jest wiersz definicji.
 
 `products.attribute_values jsonb` zawiera mapę wartości produktu z kluczem `key` atrybutu; same
 wartości nigdy stamtąd nie zostały przeniesione. Wartości są zachowywane po stronie serwera nawet
