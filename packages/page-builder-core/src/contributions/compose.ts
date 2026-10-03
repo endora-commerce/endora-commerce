@@ -93,14 +93,17 @@ export function withContributedBlocks(
   };
 }
 
-/** Is `owner` present under `presence`? Undecided presence answers yes. */
+/** Is `owner` present under `presence`? Only a reported absence answers no. */
 export function isOwnerPresent(presence: BlockPresence, owner: string): boolean {
-  return 'all' in presence ? true : presence.ids.includes(owner);
+  return !presence.absent.includes(owner);
 }
 
+/** What a surface passes when presence could not be decided: nobody is reported absent. */
+export const EVERY_BLOCK_OWNER_PRESENT: BlockPresence = { absent: [] };
+
 /**
- * Replace every component whose owner module is not present with the surface's
- * placeholder (Constitution XVII; contract §7).
+ * Replace every component whose owner module is reported not present with the
+ * surface's placeholder (Constitution XVII; contract §7).
  *
  * **Every** component, first-party included — one rule rather than a carve-out
  * for the bundled set. A name that states no owner (one the block-name
@@ -112,14 +115,14 @@ export function withPresence(
   presence: BlockPresence,
   placeholder: (name: string, owner: string) => ComponentConfig,
 ): Config {
-  if ('all' in presence) return config;
-  const present = new Set(presence.ids);
+  if (presence.absent.length === 0) return config;
+  const absent = new Set(presence.absent);
   const source = (config.components ?? {}) as Record<string, ComponentConfig>;
   let changed = false;
   const components: Record<string, ComponentConfig> = {};
   for (const [name, component] of Object.entries(source)) {
     const owner = ownerOf(name);
-    if (owner !== null && !present.has(owner)) {
+    if (owner !== null && absent.has(owner)) {
       components[name] = placeholder(name, owner);
       changed = true;
     } else {

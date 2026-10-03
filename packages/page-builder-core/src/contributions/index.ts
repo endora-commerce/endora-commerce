@@ -13,6 +13,7 @@ export type {
 export { BlockRenderEnvironmentProvider, useBlockRenderEnvironment } from './environment.js';
 
 export {
+  EVERY_BLOCK_OWNER_PRESENT,
   isOwnerPresent,
   withContributedBlocks,
   withPresence,

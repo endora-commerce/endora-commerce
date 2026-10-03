@@ -16,6 +16,8 @@ import { CheckoutHeader } from '../components/checkout/CheckoutHeader';
 import { HeaderSwitch } from '../components/HeaderSwitch';
 import { getActiveMegamenu } from '../lib/api/megamenu';
 import { getServerContext } from '../lib/server-context';
+import { blockPresenceOf } from '../lib/page-builder/presence';
+import { BlockRenderScope } from '../components/BlockRenderScope';
 import { siteUrl } from '../lib/seo/site-url';
 import { StorefrontDocument } from '../lib/theme/StorefrontDocument';
 import { fetchDictionary } from '../lib/dictionary/client';
@@ -124,7 +126,7 @@ export default async function RootLayout({
     );
   }
 
-  const { config, locale, currency, ctx, theme } = await getServerContext();
+  const { config, locale, currency, ctx, theme, modules } = await getServerContext();
   const t = tForLocale(locale);
   // Handed to the <MobileTabBar> client component, which fetches the mini-cart
   // from the browser, so it must be the public, build-time-baked
@@ -187,6 +189,10 @@ export default async function RootLayout({
     // storefront does not have, and deriving that inside the component is what
     // stops a caller from forgetting it (feature 102).
     <StorefrontDocument lang={locale} theme={theme}>
+      {/* Feature 141 — every Page Builder tree below renders the installed
+          modules' blocks under one presence answer: the modules the backend
+          reports as not present, resolved once here. */}
+      <BlockRenderScope presence={blockPresenceOf(modules)} language={locale}>
       <DictionaryProvider
         initialDictionary={dictionary}
         locale={locale}
@@ -291,6 +297,7 @@ export default async function RootLayout({
         platforms={[gaConfig, linkedInConfig, metaConfig, gtmConfig]}
         message={<CookieConsentMessage ctx={ctx} />}
       />
+      </BlockRenderScope>
     </StorefrontDocument>
   );
 }

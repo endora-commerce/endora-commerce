@@ -50,11 +50,21 @@ export interface BlockRenderEnvironment {
 }
 
 /**
- * Which modules are present, as the surface resolved it — serialisable, so a
- * Server Component can hand it across a `'use client'` boundary.
+ * Which modules the surface's presence source reports as **not present** —
+ * serialisable, so a Server Component can hand it across a `'use client'`
+ * boundary, and small: it is the handful an operator switched off, not the
+ * sixty that are on.
  *
- * `{ all: true }` is "could not be decided" (the backend was unreachable, or
- * the surface has no presence source): every block renders from its stored
- * props, which is the storefront's existing degrade-open rule.
+ * **Absent is something the server says, never something inferred.** An owner
+ * the presence source does not list at all — an overlay module's id, which no
+ * manifest index carries — is honoured, exactly as the e-mail registry's
+ * tri-state probe honours it. Inferring absence from "not in the list of
+ * present ids" would switch off every overlay module's block on the storefront.
+ *
+ * An empty list is also the answer when presence could not be decided (the
+ * backend was unreachable): every block renders from its stored props, which
+ * is the storefront's existing degrade-open rule.
  */
-export type BlockPresence = { readonly all: true } | { readonly ids: readonly string[] };
+export interface BlockPresence {
+  readonly absent: readonly string[];
+}

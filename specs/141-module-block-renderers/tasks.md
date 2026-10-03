@@ -148,7 +148,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   package declaring `./storefront` (ignored), a module with `src/storefront` and no subpath (refused);
   the generator's output for the empty population is byte-equal to the committed files.
 
-- [ ] **T13** Composition and the render sites: `lib/page-builder/config.ts`
+- [x] **T13** Composition and the render sites: `lib/page-builder/config.ts`
   (`storefrontPageBuilderConfig({ presence, pageContainer })`, contract R5.2.1),
   `lib/page-builder/local-blocks.tsx` (empty, the client's own); `PageBuilderRender` takes a
   required serialisable `presence` and a `language` and provides `BlockRenderEnvironment`; the five

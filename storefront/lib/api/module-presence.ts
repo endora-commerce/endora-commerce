@@ -22,6 +22,13 @@ export interface ModulePresenceSet {
   isPresent: (moduleId: string) => boolean;
   /** The ids the backend reported present, for callers that need the whole set. */
   presentIds: readonly string[];
+  /**
+   * The ids the backend reported **not** present. Empty when the projection
+   * could not be read: degrade-open means nobody is reported absent, which is
+   * a different statement from "nobody is known" and is what a Page Builder
+   * render boundary needs (`lib/page-builder/presence.ts`).
+   */
+  absentIds: readonly string[];
 }
 
 /**
@@ -34,6 +41,7 @@ export interface ModulePresenceSet {
 const ALL_PRESENT: ModulePresenceSet = {
   isPresent: () => true,
   presentIds: [],
+  absentIds: [],
 };
 
 export async function getModulePresence(
@@ -49,6 +57,7 @@ export async function getModulePresence(
     return {
       isPresent: (moduleId: string): boolean => present.has(moduleId),
       presentIds: [...present],
+      absentIds: res.modules.filter((m) => !m.present).map((m) => m.id),
     };
   } catch {
     return ALL_PRESENT;

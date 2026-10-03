@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react';
-import { Render } from '@puckeditor/core';
-import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
 import type { BlogBySlugCategoryResponse } from '@endora-commerce/contracts';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';
+import { PageBuilderRender } from '../../../components/PageBuilderRender';
 import { CategoryTree } from './CategoryTree';
 import { Pagination } from './Pagination';
 import { PostCard } from './PostCard';
@@ -38,7 +37,7 @@ export function BlogCategoryPage({
         ) : null}
         {description ? (
           <div className="prose prose-slate max-w-none">
-            <Render config={defaultPageBuilderConfig} data={description as never} />
+            <PageBuilderRender data={description} />
           </div>
         ) : null}
       </header>

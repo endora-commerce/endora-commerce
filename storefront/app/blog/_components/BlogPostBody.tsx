@@ -1,8 +1,7 @@
 'use client';
 
-import { Render } from '@puckeditor/core';
-import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
 import type { BlogContentEnvelope } from '@endora-commerce/contracts';
+import { PageBuilderRender } from '../../../components/PageBuilderRender';
 
 /**
  * Renders the active-language tree from a blog Post's Page Builder
@@ -21,7 +20,8 @@ import type { BlogContentEnvelope } from '@endora-commerce/contracts';
  * while the browser renders the full tree, producing a hydration
  * mismatch. Keeping the whole `<Render>` tree on the client (SSR +
  * hydration via the same client code path) avoids the boundary
- * crossing entirely.
+ * crossing entirely. `PageBuilderRender` is that boundary for the whole
+ * storefront, and it is what composes the installed modules' blocks.
  */
 export function BlogPostBody({
   content,
@@ -34,5 +34,5 @@ export function BlogPostBody({
     (content.languages[language] as never) ??
     (Object.values(content.languages)[0] as never);
   if (!data) return null;
-  return <Render config={defaultPageBuilderConfig} data={data} />;
+  return <PageBuilderRender data={data} language={language} />;
 }

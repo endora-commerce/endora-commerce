@@ -3,6 +3,7 @@ import { cmsFieldDescriptorSchema } from '@endora-commerce/contracts/cms';
 import { describe, expect, it } from 'vitest';
 
 import {
+  EVERY_BLOCK_OWNER_PRESENT,
   fieldsFromDescriptor,
   isOwnerPresent,
   withContributedBlocks,
@@ -93,27 +94,37 @@ describe('withPresence', () => {
   const placeholder = (name: string, owner: string): ComponentConfig =>
     block(`placeholder:${name}:${owner}`);
 
-  it('replaces every component whose owner is absent and keeps the present ones', () => {
-    const config = withPresence(base, { ids: ['cms'] }, placeholder);
+  it('replaces every component whose owner is reported absent and keeps the rest', () => {
+    const config = withPresence(base, { absent: ['catalog'] }, placeholder);
     expect(rendererOf(config, 'cms.Text')).toBe(rendererOf(base, 'cms.Text'));
     const replaced = (config.components as Record<string, ComponentConfig>)['catalog.ProductGrid'];
-    expect((replaced?.render as unknown as () => string)()).toBe('placeholder:catalog.ProductGrid:catalog');
+    expect((replaced?.render as unknown as () => string)()).toBe(
+      'placeholder:catalog.ProductGrid:catalog',
+    );
   });
 
-  it('keeps everything when presence could not be decided', () => {
-    expect(withPresence(base, { all: true }, placeholder)).toBe(base);
+  it('keeps everything when nobody is reported absent', () => {
+    expect(withPresence(base, EVERY_BLOCK_OWNER_PRESENT, placeholder)).toBe(base);
+  });
+
+  it('honours an owner the presence source does not know', () => {
+    // An overlay module's id is in no manifest index, so the server lists it
+    // neither as present nor as absent. Absence is reported, never inferred.
+    const overlay = { components: { 'overlay_crm.Banner': block('local') } } as Config;
+    const config = withPresence(overlay, { absent: ['catalog'] }, placeholder);
+    expect(rendererOf(config, 'overlay_crm.Banner')).toBe(rendererOf(overlay, 'overlay_crm.Banner'));
   });
 
   it('leaves a name that states no owner alone', () => {
     const legacy = { components: { LegacyBlock: block('legacy') } } as Config;
-    const config = withPresence(legacy, { ids: [] }, placeholder);
+    const config = withPresence(legacy, { absent: ['cms', 'catalog'] }, placeholder);
     expect(rendererOf(config, 'LegacyBlock')).toBe(rendererOf(legacy, 'LegacyBlock'));
   });
 
   it('answers presence for one owner', () => {
-    expect(isOwnerPresent({ all: true }, 'crm')).toBe(true);
-    expect(isOwnerPresent({ ids: ['crm'] }, 'crm')).toBe(true);
-    expect(isOwnerPresent({ ids: ['cms'] }, 'crm')).toBe(false);
+    expect(isOwnerPresent(EVERY_BLOCK_OWNER_PRESENT, 'crm')).toBe(true);
+    expect(isOwnerPresent({ absent: ['loyalty'] }, 'crm')).toBe(true);
+    expect(isOwnerPresent({ absent: ['crm'] }, 'crm')).toBe(false);
   });
 });
 
