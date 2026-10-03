@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { gateCommands, readWorkflowJobs } from '../../helpers/actions-workflows.js';
+import {
+  gateCommands,
+  pullRequestPaths,
+  readWorkflowJobs,
+} from '../../helpers/actions-workflows.js';
 import { readJobs } from '../../helpers/ci-jobs.js';
 
 /**
@@ -103,16 +107,6 @@ function gitlabChanges(name: string): readonly string[] {
 /** The `on:` block of a workflow, up to the next column-0 key. */
 function triggers(source: string): string {
   return /^on:\s*\n((?:[ \t]+.*\n|\s*\n)*)/m.exec(source)?.[1] ?? '';
-}
-
-/** The `pull_request.paths` filter, quotes dropped, in order. */
-function pullRequestPaths(source: string): readonly string[] {
-  const block = /^ {2}pull_request:\s*\n((?: {4}.*\n|\s*\n)*)/m.exec(triggers(source))?.[1] ?? '';
-  const paths = /^ {4}paths:\s*\n((?: {6}.*\n|\s*\n)*)/m.exec(block)?.[1] ?? '';
-  return paths
-    .split('\n')
-    .map((line) => /^ {6}- '?([^']+?)'?\s*$/.exec(line)?.[1])
-    .filter((entry): entry is string => entry !== undefined);
 }
 
 describe('tranche 1 exists on both hosts', () => {
