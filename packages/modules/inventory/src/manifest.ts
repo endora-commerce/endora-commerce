@@ -260,20 +260,25 @@ export const manifest = defineModuleManifest({
    * both languages.
    *
    * The list is answer-preserving, not a judgement (§6.2 and §6.5): it is exactly
-   * what the prefix chain in `@endora-commerce/mod-i18n` routes here today,
-   * copied from the frozen capture at
+   * what the prefix chain that used to route error codes sent here, copied from
+   * the frozen capture at
    * `backend/test/fixtures/error-code-routing/chain-answers.ts` rather than
-   * re-derived. Re-routing a code to a better owner is
+   * re-derived. That chain is deleted; routing is now built from these
+   * declarations and held to the capture by
+   * `backend/test/unit/kernel/error-code-routing-equality.test.ts`. Re-routing a
+   * code to a better owner is
    * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
    * deliberately not done here.
    *
-   * **Two codes that look like they belong here and do not**, because the chain
-   * is ordered and `catalog`'s rule runs before this module's:
-   * `PRODUCT_UNMANAGED_STOCK` and `PRODUCT_IN_STOCK` are named in the chain's own
-   * `INVENTORY_MISC_ERROR_CODES` set and route to `catalog` regardless, so two of
-   * that set's three members are unreachable. An author who wrote this list from
-   * the chain's source rather than from its answer would have taken two of
-   * `catalog`'s codes.
+   * **Two codes that this module raises and does not declare**:
+   * `PRODUCT_UNMANAGED_STOCK` and `PRODUCT_IN_STOCK`, both thrown by
+   * `availability-notification-service.ts` and by nothing else in the tree.
+   * `catalog` declares them and holds their sentences. That is the capture's
+   * answer — the chain was ordered, it listed both among this module's codes,
+   * and `catalog`'s `PRODUCT_` prefix rule ran first — and it is kept because
+   * ownership follows the noun in the code and never the thrower (D-95.2).
+   * Declaring either here as well would make two claimants, and a code with two
+   * claimants routes to neither.
    *
    * No `tokens`: no code here carries a refusal discriminator, which is derivable
    * from this module's bundles holding no `errors.<CODE>.<token>` key.

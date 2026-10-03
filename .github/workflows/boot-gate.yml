@@ -14,10 +14,14 @@
 #
 # GitLab's two rules, one per trigger: every push to `master`, unfiltered, and a
 # pull request that touches what the image is built from — GitLab's `changes:`
-# list with `.gitlab-ci.yml` replaced by this file. A separate workflow because
-# a `paths` filter applies to a whole workflow; if this check is ever made
-# required (T033), the filter must go in the same change, because a skipped
-# workflow reports no status and would block a pull request outside it forever.
+# list with `.gitlab-ci.yml` replaced by this file. `scripts/` is named whole
+# because `backend/Dockerfile` copies it whole, and the gate's own scripts are
+# under it; `backend/test/unit/ci/boot-gate-image-inputs.test.ts` derives the
+# image's inputs from the Dockerfile and refuses a filter that does not cover
+# them. A separate workflow because a `paths` filter applies to a whole
+# workflow; if this check is ever made required (T033), the filter must go in
+# the same change, because a skipped workflow reports no status and would block
+# a pull request outside it forever.
 #
 # ## Docker, and nothing else
 #
@@ -43,9 +47,7 @@ on:
       - 'tsconfig.base.json'
       - 'backend/Dockerfile'
       - '.dockerignore'
-      - 'scripts/collect-workspace-manifests.sh'
-      - 'scripts/boot-gate.sh'
-      - 'scripts/lib/boot-gate-assert.sh'
+      - 'scripts/**/*'
       - 'deploy/compose.prod.yml'
       - '.github/workflows/boot-gate.yml'
   push:
