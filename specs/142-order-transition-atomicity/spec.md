@@ -42,13 +42,20 @@ status"* as success.
 
 | # | Trigger | Status / audit | Credit | Stock | `.after` events | Caller is told | A repeat |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | Cancel an order placed on credit while `credit_limits` is off | `cancelled`, committed | held | **held — never attempted** | **not emitted** | 503 `MODULE_DISABLED` (the buyer included) | no-op, `already_there` |
+| 1 | Cancel an order placed on credit while `credit_limits` is off | `cancelled`, committed | held | **held — never attempted** | **not emitted** | 503 `MODULE_DISABLED` | no-op, `already_there` |
 | 2 | Cancel; the credit release throws for any other reason (lock timeout, lost connection) | `cancelled`, committed | held | held — never attempted | not emitted | 500 | no-op |
 | 3 | Cancel while `inventory` is off | `cancelled`, committed | released | **held, silently** | emitted | success | no-op — and nothing runs when `inventory` returns |
 | 4 | Cancel; the stock release throws | `cancelled`, committed | released | held | not emitted | 500 | no-op |
 | 5 | The process dies after the flush | `cancelled`, committed | held | held | not emitted | connection reset | no-op |
 | 6 | Any of 1, 2, 4 on the bulk route | as above | as above | as above | as above | the order is listed under `skipped` (or the batch stops with 503) although its status moved | no-op |
 | 7 | Mark paid (payment status) an order placed on credit while `credit_limits` is off | `paymentStatus = paid`, committed | held | — | — | 503 | re-runs the release (this path has no early return) |
+
+*Corrected in T00/T11 (measured)*: row 1 read "503 `MODULE_DISABLED` (the buyer included)". The
+buyer does not reach row 1: an order placed on credit is `deferred`, which the buyer-cancellation
+predicate does not count as "the buyer still owes", so `POST /api/v1/orders/:id/cancel` refuses it
+with a 4xx before the seam, whatever state `credit_limits` is in. The buyer does reach rows 3 and
+4 — an order they may cancel holds stock. The other six rows, and the rest of row 1, reproduced as
+written.
 
 Two of these contradict what the platform tells an operator. `orders`' manifest says of
 `credit_limits` being off: *"an order that drew one can be neither cancelled nor marked paid"* —

@@ -483,6 +483,8 @@ export function commerceModule(options: OrdersModuleOptions) {
           ? { promotionUsageFinalizer: options.promotionUsageFinalizer }
           : {}),
         resolveTaxRate: options.resolveTaxRate,
+        transitionEffects: options.transitionEffects,
+        ...(options.log ? { log: options.log } : {}),
         neighbours: {
           organizationDetails: options.organizationDetails,
           customerAccountRead: options.customerAccountRead,

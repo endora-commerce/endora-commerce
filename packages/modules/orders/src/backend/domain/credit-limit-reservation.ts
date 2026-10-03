@@ -18,10 +18,13 @@
  * port raises `ModuleDisabledError`, so *every* order refused those two
  * transitions rather than only the ones paid on credit.
  *
- * The remedy is not to catch that refusal (AGENTS.md composition item 7): an
- * order that really did draw credit must still refuse, because its credit
- * cannot be given back while the owner is absent. It is to stop asking a
- * question this module already knows the answer to.
+ * The remedy was not to catch that refusal (module-composition item 7) but to
+ * stop asking a question this module already knows the answer to — and that
+ * half stands. What changed since (`specs/142-order-transition-atomicity/`) is
+ * the other half: an order that did draw credit no longer refuses either. Its
+ * release is recorded with the status and waits while the owner is absent, so
+ * this predicate now decides *whether a release is owed*, in
+ * `domain/transition-effects.ts`, rather than whether a port is asked.
  */
 export function mayHoldCreditLimitReservation(order: {
   paymentMethodSnapshot?: { kind?: string } | null;

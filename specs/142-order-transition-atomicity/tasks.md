@@ -33,7 +33,9 @@ calling `sweep()`.
   same state (row 4 with the credit already released); row 3 answers 200 with the allocation held;
   row 6 lists the moved order under `skipped` as `terminal`; row 7 answers 503 with `paymentStatus
   = paid`. Row 5 cannot be executed in-process and is represented by every step after the commit
-  failing, with recovery driven by the sweep alone. The table needed no correction.
+  failing, with recovery driven by the sweep alone. One clause was wrong and is corrected in the
+  spec: the buyer cannot reach row 1 (measured in T11 — the buyer route refuses a credit order
+  before the seam).
 
 - [x] **T01** Verify plan premises 1–4 (*Handoff*): run `check:port-dependencies`,
   `check:entry-presence` and `check:port-catches` against a throwaway branch containing an
@@ -113,14 +115,14 @@ calling `sweep()`.
   `order-transition-port.test.ts`, `status-lifecycle.test.ts`, `customer-cancel.test.ts` and
   `credit_limits/cancel-releases.test.ts` stay green unedited (SC-004).
 
-- [ ] **T10** `inventory` off: nothing new to write beyond T07–T09 — prove it.
+- [x] **T10** `inventory` off: nothing new to write beyond T07–T09 — prove it.
   Files: `packages/modules/orders/src/manifest.ts` only if the `inventoryReservationApplyPort`
   sentence needs a word changed to stay exact.
   **Test**: T00 row 3 green; plus `backend/test/integration/orders/transition-effects-inventory-off.test.ts`
   — cancel while off writes no `inventory` row and leaves `stock.release` blocked; switching on and
   one `sweep()` releases it (FR-008).
 
-- [ ] **T11** *(Q1 = proceed and defer — the recommended answer)* `credit_limits` off: rewrite the
+- [x] **T11** *(Q1 = proceed and defer — the recommended answer)* `credit_limits` off: rewrite the
   `creditLimitService` edge's `whenAbsent` and `reason` in `orders`' manifest to say a cancellation
   or a payment proceeds and the reservation is released when the module returns; update
   `backend/test/integration/orders/credit-release-scoped-to-credit-limit-orders.test.ts`, whose two
@@ -129,6 +131,9 @@ calling `sweep()`.
   deactivation-consequence ledger regenerates.
   **Test**: T00 rows 1 and 7 green as *proceeds, release blocked, released after switch-on and one
   `sweep()`*; the buyer route `POST /api/v1/orders/:id/cancel` answers 200 with the module off.
+  *As built*: the buyer route is asserted with a non-credit order and both owners off (200, stock
+  released after switch-on), and separately that it refuses a credit order identically in both
+  states — the premise that a buyer could be answered 503 for a credit order did not hold.
 
 - [ ] **T11a** *(only if Q1 = refuse; replaces T11)* Before the write in `apply` and in
   `transitionPaymentStatus`, refuse with 503 `MODULE_DISABLED` when
@@ -137,7 +142,7 @@ calling `sweep()`.
   **Test**: T00 rows 1 and 7 green as *refused, and the status, audit log and effects table are
   unchanged*.
 
-- [ ] **T12** `OrderService.transitionPaymentStatus` — D8: `paymentStatus`, audit entry and the
+- [x] **T12** `OrderService.transitionPaymentStatus` — D8: `paymentStatus`, audit entry and the
   `credit.release` row in one transaction, then drain.
   Files: `packages/modules/orders/src/backend/services/order-service.ts`.
   **Test**: T00 row 7; plus a failing credit release leaves `paymentStatus = paid`, one outstanding

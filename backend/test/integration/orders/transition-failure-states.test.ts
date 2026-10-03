@@ -403,6 +403,80 @@ describe('an order transition and its follow-up work cannot come apart (spec 142
     expect((await effects(orderId)).every((e) => e.completed)).toBe(true);
   });
 
+  // --- the payment-status twin (T12) and the buyer (T11) ---------------------------
+
+  it('a credit release that fails on mark-paid leaves the order paid, the caller answered 200, one outstanding row, and is released by the next sweep', async () => {
+    const orderId = await place('credit');
+    failing('creditLimitService', 'releaseByOrder');
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orderId}/payment-status`,
+      payload: { to: 'paid' },
+      ...ADMIN,
+    });
+
+    expect({
+      http: res.statusCode,
+      paymentStatus: (await orderRow(orderId)).payment_status,
+      reservation: await reservation(orderId),
+    }).toEqual({ http: 200, paymentStatus: 'paid', reservation: 'active' });
+    expect(await effects(orderId)).toEqual([
+      { effect: 'credit.release', reason: 'invoice_paid', blocked_on: null, attempts: 1, completed: false },
+    ]);
+
+    await sweep();
+    expect(await reservation(orderId)).toBe('released');
+  });
+
+  it('marking an order that drew no credit paid records no follow-up at all', async () => {
+    const orderId = await place('plain');
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orderId}/payment-status`,
+      payload: { to: 'paid' },
+      ...ADMIN,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(await effects(orderId)).toEqual([]);
+  });
+
+  const buyerCancel = (orderId: string) =>
+    h.app.inject({ method: 'POST', url: `/api/v1/orders/${orderId}/cancel`, ...BUYER });
+
+  it('a buyer cancelling their own order is answered 200 while `credit_limits` and `inventory` are off, and the stock follows when `inventory` returns', async () => {
+    const orderId = await place('plain');
+
+    await withModuleOff('credit_limits', 'deactivated', () =>
+      withModuleOff('inventory', 'deactivated', async () => {
+        const res = await buyerCancel(orderId);
+        expect(res.statusCode, res.body).toBe(200);
+        expect((await orderRow(orderId)).status).toBe('cancelled');
+        expect(await heldAllocations(orderId)).toBe(1);
+      }),
+    );
+
+    await sweep();
+    expect(await heldAllocations(orderId)).toBe(0);
+  });
+
+  it('a buyer cannot cancel an order placed on credit at all, whatever `credit_limits` is — the route refuses before the seam', async () => {
+    const orderId = await place('credit');
+
+    const whileOn = await buyerCancel(orderId);
+    const whileOff = await withModuleOff('credit_limits', 'deactivated', () => buyerCancel(orderId));
+
+    // The same refusal in both states, and it is the buyer predicate's: an
+    // order on credit is `deferred`, which is not "the buyer still owes".
+    expect(whileOff.statusCode).toBe(whileOn.statusCode);
+    expect(whileOn.statusCode).toBeGreaterThanOrEqual(400);
+    expect(whileOn.statusCode).toBeLessThan(500);
+    expect((await orderRow(orderId)).status).toBe('new');
+    expect(await effects(orderId)).toEqual([]);
+  });
+
   // --- the write itself (T09) ---------------------------------------------------
 
   const transitionAudits = async (orderId: string): Promise<number> =>
