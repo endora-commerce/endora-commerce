@@ -10,6 +10,7 @@ import { AdminRegistryProvider } from '../../../packages/admin-shell/src/lib/mod
 import { MODULE_ADMIN_CONTRIBUTIONS } from '../../src/modules.generated.js';
 import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
 import type {
+  AdminBlockContribution,
   AdminModulePresenceResponse,
   AdminZoneContribution,
   ModulePresence,
@@ -227,7 +228,10 @@ export interface SessionWrapperOptions {
    */
   readonly contributions?: readonly {
     readonly moduleId: string;
-    readonly contributions: { readonly zones?: readonly AdminZoneContribution[] };
+    readonly contributions: {
+      readonly zones?: readonly AdminZoneContribution[];
+      readonly blocks?: readonly AdminBlockContribution[];
+    };
   }[];
   /**
    * The generated contribution registry the shell's surfaces should enumerate.

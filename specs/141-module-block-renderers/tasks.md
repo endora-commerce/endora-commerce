@@ -97,7 +97,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 3 — admin
 
-- [ ] **T08** `AdminContributionsProvider` flattens `blocks` with `moduleId`;
+- [x] **T08** `AdminContributionsProvider` flattens `blocks` with `moduleId`;
   `useBlockContributions(context)` returns the present owners' entries (through the same
   `isSurfaceVisible` predicate zones use).
   Files: `packages/admin-kit/src/zones/AdminContributionsProvider.tsx`,

@@ -22,7 +22,7 @@
  * here"*.
  */
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
-import type { AdminZoneContribution } from '@endora-commerce/contracts';
+import type { AdminBlockContribution, AdminZoneContribution } from '@endora-commerce/contracts';
 
 /**
  * One module's zone contributions, keyed by the module that shipped them.
@@ -43,6 +43,17 @@ export interface OwnedZoneContribution extends AdminZoneContribution {
 }
 
 /**
+ * An editor renderer for one Page Builder block, with the module that shipped
+ * it (`specs/141-module-block-renderers/contracts/block-renderers.md` §5.1).
+ *
+ * `module` is the registry entry's key, exactly as for a zone — which is what
+ * lets the reader refuse a block contributed under a name another module owns.
+ */
+export interface OwnedBlockContribution extends AdminBlockContribution {
+  readonly module: string;
+}
+
+/**
  * Flattened contributions, in declaration order.
  *
  * `null` is the "no provider mounted" state and is distinct from "the provider
@@ -53,6 +64,15 @@ export interface OwnedZoneContribution extends AdminZoneContribution {
  * else.
  */
 const AdminContributionsContext = createContext<readonly OwnedZoneContribution[] | null>(null);
+
+/**
+ * The block contributions, flattened the same way and carried beside the zones
+ * rather than in one value with them: a zone mount and an editor read different
+ * populations, and one context would re-render every zone when neither changed.
+ */
+const AdminBlockContributionsContext = createContext<readonly OwnedBlockContribution[] | null>(
+  null,
+);
 
 /** Raised when a zone is rendered outside {@link AdminContributionsProvider}. */
 export class AdminContributionsUnavailableError extends Error {
@@ -69,7 +89,10 @@ export interface AdminContributionsProviderProps {
    */
   readonly entries: readonly {
     readonly moduleId: string;
-    readonly contributions: { readonly zones?: readonly AdminZoneContribution[] };
+    readonly contributions: {
+      readonly zones?: readonly AdminZoneContribution[];
+      readonly blocks?: readonly AdminBlockContribution[];
+    };
   }[];
   readonly children: ReactNode;
 }
@@ -88,11 +111,43 @@ export function AdminContributionsProvider({
       ),
     [entries],
   );
+  const blocks = useMemo(
+    (): readonly OwnedBlockContribution[] =>
+      entries.flatMap((entry) =>
+        (entry.contributions.blocks ?? []).map(
+          (block): OwnedBlockContribution => ({ ...block, module: entry.moduleId }),
+        ),
+      ),
+    [entries],
+  );
   return (
     <AdminContributionsContext.Provider value={flattened}>
-      {children}
+      <AdminBlockContributionsContext.Provider value={blocks}>
+        {children}
+      </AdminBlockContributionsContext.Provider>
     </AdminContributionsContext.Provider>
   );
+}
+
+/**
+ * Every block contribution the provider carries, unfiltered.
+ *
+ * Internal to the `./zones` subpath, for {@link useAdminContributions}'s
+ * reason: the presence filter is `useBlockContributions`', and a second
+ * consumer of the raw list is a second place it could be forgotten.
+ */
+export function useAdminBlockContributions(): readonly OwnedBlockContribution[] {
+  const value = useContext(AdminBlockContributionsContext);
+  if (value === null) {
+    throw new AdminContributionsUnavailableError(
+      'A Page Builder editor was rendered outside <AdminContributionsProvider>. The admin ' +
+        'application mounts it once, with MODULE_ADMIN_CONTRIBUTIONS; a test rendering an ' +
+        'editor mounts it with the contributions under assertion. Reporting "no module ' +
+        'contributes a renderer" here would make a wiring defect indistinguishable from an ' +
+        'empty registry.',
+    );
+  }
+  return value;
 }
 
 /**
