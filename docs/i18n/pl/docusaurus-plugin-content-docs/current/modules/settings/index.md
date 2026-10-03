@@ -15,8 +15,8 @@ odczytuje wartości przez jedną, dobrze znaną usługę.
 
 - **Ustawienie (Setting)** — pojedynczy parametr do regulacji. Ma nazwę, unikalny w całej platformie
   kod maszynowy, typ wartości (`string` / `number` / `boolean` / `json` / `string_list` / `secret` /
-  `credential_ref`), wartość domyślną z manifestu oraz zakres kanałów sprzedaży (pusty zakres oznacza „dotyczy każdego
-  kanału”).
+  `credential_ref`), wartość domyślną z manifestu oraz zakres kanałów sprzedaży (pusty zakres
+  oznacza „dotyczy każdego kanału”).
 - **Wartość ustawienia (Setting Value)** — wartość wybrana przez administratora dla pary
   `(setting, sales_channel)`. Zastępuje w tym kanale wartość domyślną z manifestu. Kolejność
   ustalania wartości jest zawsze taka sama: wartość dla kanału → wartość domyślna z manifestu.
