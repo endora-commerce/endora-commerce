@@ -138,10 +138,18 @@ describe('discoverBlockPackages', () => {
     ]);
   });
 
-  it('ignores a non-module package that declares the same subpaths', () => {
-    const { packages, findings } = discoverBlockPackages(fixture([notAModule]));
+  it('registers nothing from a non-module package that declares the same subpaths, and says so', () => {
+    const { packages, findings, notes } = discoverBlockPackages(fixture([notAModule]));
     expect(packages).toEqual([]);
+    // Not a refusal: the build goes on. But a module package whose manifest
+    // lost its `endora` block must not become placeholders without a word.
     expect(findings).toEqual([]);
+    expect(notes.map((note) => note.package)).toEqual(['some-ui-kit']);
+    expect(notes[0]?.message).toContain('endora');
+  });
+
+  it('says nothing about a package that declares neither subpath', () => {
+    expect(discoverBlockPackages(fixture([backendOnly, { name: 'left-pad' }])).notes).toEqual([]);
   });
 
   it('refuses a sources-shipping module with src/storefront and no ./storefront subpath', () => {
@@ -258,6 +266,7 @@ describe('the generator, as a storefront owner runs it', () => {
     const { status, out, root } = run(fixture([both, layerOnly, notAModule]));
     expect(status).toBe(0);
     expect(out).toContain('[blocks:generate] wrote: modules=2 layers=2 stylesheets=1');
+    expect(out).toContain('[blocks:generate] note: package "some-ui-kit"');
     expect(readFileSync(join(root, 'lib', 'page-builder', 'blocks.generated.ts'), 'utf8')).toContain(
       '@acme/mod-crm/storefront',
     );

@@ -305,13 +305,31 @@ contract and the code are read together.
     `deferred-shared-proof`, with the measurement and the retiring condition in
     `DEFERRED_SHARED_PROOFS`. The rule reads block names and contexts as **literals**; a computed
     renderer key escapes it and is refused again at run time by every surface.
-14. **T21 is partial.** The runner measures A1, A4, the package half of A5, the storefront halves
-    of A6–A8 and the e-mail half of A8 (seven assertions, all passing). A2, A3, the platform half
-    of A5 and the admin and e-mail halves of A6–A8 are reported `unmeasured`, by name: they need a
-    scaffolded instance with a Vite build, and a composed platform with a database and an
-    activation flip, which the runner does not stand up. `endora check` is run over the fixture's
-    built package directory rather than over the unpacked tarball, which carries no build layout.
-    No CI job runs the criterion; both scripts are classified `local-operation`.
+14. **T21 measures every assertion, split by where it is measured.** The storefront half is a
+    scaffolded storefront; the platform half is `acceptance:package-schema`'s arrangement — the
+    tarball installed outside the repository, the real composition root booted against it, the
+    module switched on, off and on again, and the admin's own routes asked for a transactional
+    preview, a newsletter preview and the descriptor; the admin half is an instance scaffolded by
+    `endora new instance`, installed from a **local registry** and built with Vite, with a probe
+    bundled by that instance's own Vite composing the editors from its generated registry. All
+    sixteen pass (2026-10-04). `endora check` is run over the fixture's built package directory
+    rather than over the unpacked tarball, which carries no build layout. The instance is
+    installed from a registry rather than through `pnpm.overrides`: a peer range rewritten to a
+    tarball is one pnpm reports unmet instead of linking, and the admin build then cannot resolve
+    an optional peer. No CI job runs the criterion; both scripts are classified
+    `local-operation`.
+
+**Found by the acceptance run, and repaired here**
+
+14a. **Saved e-mail content was held to a closed list.** `transactional_emails` validated content,
+    e-mail blocks and e-mail templates against the names `email-components` draws itself, so a
+    block another module declared for `email` could be rendered and never saved. The admitted set
+    is now the built-in blocks, every block a composed manifest declares for `email`, and every
+    registered renderer — declared rather than present, so a document holding a switched-off
+    module's node still saves.
+14b. **A package with `./admin` must publish `./tailwind.css`.** `endora generate` refuses an admin
+    layer without it — an existing rule the fixture did not meet. The fixture now ships one, and
+    the documentation states it.
 
 **Not done, and outside the task list**
 
@@ -323,3 +341,6 @@ contract and the code are read together.
     vitest configuration (`esbuild.jsx`) does not transform JSX, so its `.tsx` tests do not run.
     Found by the acceptance probe, which pins Vite for itself; the scaffold defect is not repaired
     here.
+17. A newsletter campaign with no sales channel answers 500 from its preview route: branding is
+    read with an undefined channel id. Found by the platform probe, which gives its campaign a
+    channel; the route is not repaired here.

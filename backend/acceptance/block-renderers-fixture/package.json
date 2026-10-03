@@ -8,7 +8,8 @@
   "files": [
     "dist",
     "i18n",
-    "blocks.css"
+    "blocks.css",
+    "tailwind.css"
   ],
   "endora": {
     "type": "module",
@@ -36,6 +37,7 @@
       "default": "./dist/email/index.js"
     },
     "./blocks.css": "./blocks.css",
+    "./tailwind.css": "./tailwind.css",
     "./i18n/*": "./i18n/*",
     "./package.json": "./package.json"
   },

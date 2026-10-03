@@ -48,7 +48,8 @@ function main(argv) {
     process.exit(2);
   }
 
-  const { packages, findings, filesRead } = discoverBlockPackages(nodeModules);
+  const { packages, findings, notes, filesRead } = discoverBlockPackages(nodeModules);
+  for (const note of notes) process.stderr.write(`[blocks:generate] note: ${note.message}\n`);
   const refusals = [...findings, ...analyseBlockPackages(packages)];
   if (refusals.length > 0) {
     for (const refusal of refusals) {

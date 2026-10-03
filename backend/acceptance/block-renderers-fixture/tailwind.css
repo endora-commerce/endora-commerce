@@ -1,0 +1,9 @@
+/*
+ * Where the admin's Tailwind build finds this package's admin layer. A module
+ * package that publishes `./admin` publishes this beside it: `endora generate`
+ * imports one per package, and refuses a package with an admin layer and none —
+ * its screens would otherwise build with none of the utility classes only it
+ * uses. This module's editor renderer uses no utility class; the declaration is
+ * owed all the same.
+ */
+@source "./dist/admin";

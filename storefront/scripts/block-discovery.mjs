@@ -95,15 +95,36 @@ export function discoverBlockPackages(nodeModulesDir) {
   const installed = listInstalledPackages(nodeModulesDir);
   const packages = [];
   const findings = [];
+  const notes = [];
 
   for (const { name, dir, manifest } of installed.packages) {
-    const endora = manifest.endora;
-    if (endora === null || typeof endora !== 'object' || endora.type !== 'module') continue;
-    const moduleId = endora.id;
-    if (typeof moduleId !== 'string' || !MODULE_ID_RE.test(moduleId)) continue;
-
     const exportsField =
       manifest.exports !== null && typeof manifest.exports === 'object' ? manifest.exports : {};
+    const endora = manifest.endora;
+    const moduleId = endora !== null && typeof endora === 'object' ? endora.id : undefined;
+    const isModule =
+      endora !== null &&
+      typeof endora === 'object' &&
+      endora.type === 'module' &&
+      typeof moduleId === 'string' &&
+      MODULE_ID_RE.test(moduleId);
+    if (!isModule) {
+      // Not a refusal — a package may publish a subpath of this name for its
+      // own reasons — but said: a module package whose manifest lost its
+      // `endora` block would otherwise render placeholders with no word.
+      if (exportsField[STOREFRONT_LAYER_SUBPATH] !== undefined) {
+        notes.push({
+          package: name,
+          message:
+            `package "${name}" exports "${STOREFRONT_LAYER_SUBPATH}" and its package.json declares ` +
+            `no \`endora: { "type": "module", "id": … }\`, so it is not a module package and ` +
+            `nothing was registered from it. If it is meant to draw Page Builder blocks, that ` +
+            `block is what it is missing.`,
+        });
+      }
+      continue;
+    }
+
     const declaresLayer = exportsField[STOREFRONT_LAYER_SUBPATH] !== undefined;
     const declaresStylesheet = exportsField[BLOCK_STYLESHEET_SUBPATH] !== undefined;
 
@@ -164,7 +185,7 @@ export function discoverBlockPackages(nodeModulesDir) {
   packages.sort((a, b) =>
     a.moduleId < b.moduleId ? -1 : a.moduleId > b.moduleId ? 1 : a.name < b.name ? -1 : 1,
   );
-  return { packages, findings, filesRead: installed.filesRead };
+  return { packages, findings, notes, filesRead: installed.filesRead };
 }
 
 /**

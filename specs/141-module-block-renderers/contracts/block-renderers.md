@@ -191,10 +191,10 @@ shape of `theme-discovery.mjs` (D-193/D-195):
 **R5.2.1 Composition order**, each step a pure function with its own test:
 `defaultPageBuilderConfig` → contributed blocks (a name already present is **kept** and the
 contribution logged; a name whose owner segment is not the contributing `moduleId` is dropped and
-logged) → `localBlocks` (same two rules, owner unchecked) → **presence**: every component whose
-`ownerOf(name)` is not present becomes `makeMissingComponentConfig(name, owner)` → every
-contributed/local component is wrapped by `withBlockBoundary` (§8) and gets its `defaultProps`
-merged under stored props.
+logged) → `localBlocks` (same two rules, owner unchecked) → every contributed/local component is
+wrapped by `withBlockBoundary` (§8) and gets its `defaultProps` merged under stored props →
+**presence**, last: every component whose `ownerOf(name)` the backend reports as not present becomes
+`makeMissingComponentConfig(name, owner)`, replacing the wrapped component.
 
 **R5.2.2** All five render sites (`PageBuilderRender.tsx`, `CmsPageRenderer.tsx`,
 `Megamenu/MenuCmsBlockEmbed.tsx`, `BlogPostBody.tsx`, `BlogCategoryPage.tsx`) render through
@@ -237,11 +237,14 @@ beside the existing registries.
 
 ## §8 — Failure isolation
 
-**R8.1 Storefront and admin canvas**: `withBlockBoundary(config, name, owner)` returns a config
-whose `render` (a) calls the module's `render` inside `try`/`catch` and renders the placeholder on a
-synchronous throw, and (b) wraps the result in a client error boundary **around** a `<Suspense>`
-boundary whose fallback is the placeholder. The two are both needed and the order matters —
-measured in T01 (2026-10-03, React 19.3.0, Next 15.5.27, spikes outside the tree, deleted):
+**R8.1 Storefront and admin canvas**: `withBlockBoundary(config, placeholder, options?)` returns a
+config whose `render` mounts the module's `render` **as a component** under a client error boundary
+**around** a `<Suspense>` boundary, with the surface's placeholder as the fallback of both. The
+module's render is not called inside `try`/`catch`: mounted below the boundaries, a throw at its
+top level is a throw below a boundary like any other, and its hooks belong to its own component.
+The placeholder is a parameter because `page-builder-core` sits below the package that owns it.
+The two boundaries are both needed and the order matters — measured in T01 (2026-10-03, React
+19.3.0, Next 15.5.27, spikes outside the tree, deleted):
 
 - **(a) Server-side throw below the top level.** Under `renderToString` **and** under
   `renderToReadableStream`, a component that throws inside `<Suspense fallback={…}>` yields the
@@ -277,7 +280,7 @@ and installs them into directories outside the repository.
 
 | | Assertion | How |
 | --- | --- | --- |
-| A1 | The packed fixture publishes `./admin`, `./storefront`, `./email`, `./blocks.css`, and `endora check` passes `check:block-renderers` on it | `pnpm pack`, then the CLI on the unpacked tarball |
+| A1 | The packed fixture publishes `./admin`, `./storefront`, `./email`, `./blocks.css`, and `endora check` passes `check:block-renderers` on it | `pnpm pack` and the tarball's own manifest and file list; the CLI on the built package directory (an unpacked tarball carries no build layout for `endora check` to read) |
 | A2 | A scaffolded instance with the fixture: `endora generate` names its `./admin` in the admin registry and its `./blocks.css` in the admin stylesheet; `vite build` succeeds and the bundle contains the marker | `endora new instance` + `endora generate` + `pnpm run build:admin` |
 | A3 | The CMS editor composition renders the marker for a document holding the block and exposes the manifest's fields | the admin's editor composition rendered with Puck `<Render>` through `react-dom/server`, descriptor fixture with the block present |
 | A4 | A scaffolded storefront with the fixture added: `blocks:generate` writes one entry; `next build` succeeds; SSR of a document holding the block contains the marker | `endora new storefront` + `pnpm add <tarball>` + build + a probe test run by the storefront's own vitest |

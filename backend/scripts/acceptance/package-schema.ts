@@ -327,7 +327,7 @@ function packFixture(destination: string): string {
  * are the loud case, `MetadataError: Duplicate entity names are not allowed`.
  * The remedy below was always right; only its stated mechanism was wrong.
  */
-function installInto(instance: string, spec: string): void {
+export function installInto(instance: string, spec: string): void {
   mkdirSync(instance, { recursive: true });
   writeFileSync(
     join(instance, 'package.json'),
@@ -390,7 +390,7 @@ function provisionHostPeers(instance: string): void {
 }
 
 /** Step 5 — a disposable database, dropped and rebuilt on every run. */
-async function resetDatabase(dsn: string, adminUrl: string, databaseName: string): Promise<void> {
+export async function resetDatabase(dsn: string, adminUrl: string, databaseName: string): Promise<void> {
   const { Client } = await import('pg');
   const client = new Client({ connectionString: adminUrl });
   try {

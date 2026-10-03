@@ -3,39 +3,38 @@
     "The recorded state of the block-renderers acceptance criterion",
     "(specs/141-module-block-renderers/contracts/block-renderers.md §9).",
     "`acceptance:block-renderers:ci` compares a run to this file and fails on drift in EITHER",
-    "direction: a newly-red assertion fails, and so does a newly-green or newly-measured one",
-    "nobody recorded.",
+    "direction: a newly-red assertion fails, and so does a newly-green one nobody recorded.",
     "",
-    "Seven assertions are measured and pass. Six are recorded `unmeasured`, and that is a",
-    "statement about the runner, not about the feature: A2 and A3 need a scaffolded instance,",
-    "`endora generate` and a Vite build of its admin; the platform half of A5 and the e-mail and",
-    "admin halves of A6-A8 need a composed platform process with a database and an activation",
-    "flip. The runner stands up neither. What those assertions are about is held in-repository",
-    "by unit and component tests - the registry's skip policy, both send paths, the editor",
-    "composition, the block boundary - which is weaker than the criterion asks for: a test",
-    "inside the repository cannot show that a package installed from a tarball is composed.",
-    "Each becomes `pass` or `fail` in the change that teaches the runner to measure it.",
+    "Every assertion is measured and passes, on all three surfaces. A5-A8 are split by where",
+    "they are measured: `-storefront` in a scaffolded storefront built with `next build`,",
+    "`-platform` / `-email` through the admin routes of the real composition root booted against",
+    "the tarball with the module switched on, off and on again, `-admin` in an instance scaffolded",
+    "by `endora new instance`, installed from a local registry and built with Vite, and",
+    "`-package` on the packed e-mail layer alone.",
     "",
-    "A plain `acceptance:block-renderers` therefore exits 2 - 'not fully measured' - while the",
-    "`:ci` form exits 0 when the run agrees with this file. Recorded from a run on 2026-10-03."
+    "The run needs ACCEPTANCE_DATABASE_URL (a database whose name contains `test`) and REDIS_URL,",
+    "and exits 2 without them. Recorded from a run on 2026-10-04."
   ],
   "modes": {
     "tarball": {
       "state": "recorded",
       "assertions": {
         "A1": "pass",
-        "A2": "unmeasured",
-        "A3": "unmeasured",
+        "A2": "pass",
+        "A3": "pass",
         "A4": "pass",
         "A5-package": "pass",
-        "A5-platform": "unmeasured",
+        "A5-platform": "pass",
+        "A6-admin": "pass",
+        "A6-email": "pass",
         "A6-storefront": "pass",
-        "A6-email-admin": "unmeasured",
+        "A7-admin": "pass",
+        "A7-email": "pass",
         "A7-storefront": "pass",
-        "A7-email-admin": "unmeasured",
-        "A8-storefront": "pass",
+        "A8-admin": "pass",
         "A8-email": "pass",
-        "A8-admin": "unmeasured"
+        "A8-package": "pass",
+        "A8-storefront": "pass"
       }
     }
   }

@@ -223,8 +223,8 @@ export function evaluateA5Package(probe: EmailProbe | null): AssertionResult {
 }
 
 /** A8, e-mail half — a throwing renderer contributes nothing, is reported, and the rest renders. */
-export function evaluateA8Email(probe: EmailProbe | null): AssertionResult {
-  const id = 'A8-email';
+export function evaluateA8Package(probe: EmailProbe | null): AssertionResult {
+  const id = 'A8-package';
   if (probe === null) return fail(id, 'the e-mail probe wrote no result');
   if (probe.explodingHtml.includes(`${MARKER}Exploding`) || probe.explodingText.includes(`${MARKER}Exploding`)) {
     return fail(id, 'the renderer that was forced to throw contributed output anyway');
@@ -238,4 +238,212 @@ export function evaluateA8Email(probe: EmailProbe | null): AssertionResult {
     return fail(id, 'the failure was not reported through onBlockError');
   }
   return pass(id, 'the throwing renderer contributed nothing, was reported, and both siblings rendered');
+}
+
+/** One rendered message, as an admin route answered it. */
+export interface RenderedPair {
+  readonly status: number;
+  readonly html: string;
+  readonly text: string;
+}
+
+/** What one platform process, booted after an activation flip, answered. */
+export interface PlatformObservation {
+  readonly active: boolean;
+  /** The descriptor's entry for the block, or `null` when the descriptor does not declare it. */
+  readonly descriptorEntry: Record<string, unknown> | null;
+  readonly descriptorStatus: number;
+  readonly transactional: RenderedPair;
+  readonly transactionalExploding: RenderedPair;
+  readonly newsletter: RenderedPair;
+  /** The campaign's stored content, serialised as the platform returned it. */
+  readonly storedCampaignContent: string;
+  /** Saving transactional content that holds the block: the save route's status. */
+  readonly saveStatus: number;
+}
+
+function rendersMarker(pair: RenderedPair, text: string): boolean {
+  return pair.status === 200 && pair.html.includes(`${MARKER}${text}`) && pair.text.includes(`${MARKER}${text}`);
+}
+
+/**
+ * A5, platform half — the composed platform renders the block in a
+ * transactional preview and in a newsletter preview, HTML and text, and lets
+ * content holding it be saved.
+ */
+export function evaluateA5Platform(on: PlatformObservation | null): AssertionResult {
+  const id = 'A5-platform';
+  if (on === null) return fail(id, 'the platform probe answered nothing with the module on');
+  if (on.saveStatus !== 200) {
+    return fail(id, `saving transactional content holding the block answered ${String(on.saveStatus)}`);
+  }
+  if (!rendersMarker(on.transactional, 'Gold')) {
+    return fail(id, `the transactional preview (${String(on.transactional.status)}) lacks the marker in HTML or text`);
+  }
+  if (!rendersMarker(on.newsletter, 'Gold')) {
+    return fail(id, `the newsletter preview (${String(on.newsletter.status)}) lacks the marker in HTML or text`);
+  }
+  return pass(id, 'a transactional preview and a newsletter preview both carry the marker, in HTML and in text');
+}
+
+/** A6, e-mail half — with the module off both messages still render, without the block. */
+export function evaluateA6Email(off: PlatformObservation | null): AssertionResult {
+  const id = 'A6-email';
+  if (off === null) return fail(id, 'the platform probe answered nothing with the module off');
+  for (const [name, pair] of [['transactional', off.transactional], ['newsletter', off.newsletter]] as const) {
+    if (pair.status !== 200) return fail(id, `the ${name} preview answered ${String(pair.status)} with the module off`);
+    if (pair.html.includes(MARKER) || pair.text.includes(MARKER)) {
+      return fail(id, `the ${name} preview still carries the block with its module off`);
+    }
+  }
+  if (off.saveStatus !== 200) {
+    return fail(id, `saving content that holds the block answered ${String(off.saveStatus)} with the module off — off must be non-destructive`);
+  }
+  return pass(id, 'module off: both previews render without the block, and content holding it still saves');
+}
+
+/** A7, e-mail half — on again both render the block, and the stored campaign never changed. */
+export function evaluateA7Email(
+  on: PlatformObservation | null,
+  off: PlatformObservation | null,
+  again: PlatformObservation | null,
+): AssertionResult {
+  const id = 'A7-email';
+  if (on === null || off === null || again === null) return fail(id, 'a platform phase answered nothing');
+  if (!rendersMarker(again.transactional, 'Gold') || !rendersMarker(again.newsletter, 'Gold')) {
+    return fail(id, 'the block did not render again once its module was switched back on');
+  }
+  if (on.storedCampaignContent === 'null' || on.storedCampaignContent === '') {
+    return fail(id, 'the probe read back no stored campaign content to compare');
+  }
+  if (on.storedCampaignContent !== off.storedCampaignContent || on.storedCampaignContent !== again.storedCampaignContent) {
+    return fail(id, 'the stored campaign content differs between the three phases');
+  }
+  return pass(id, 'on again: both previews carry the marker, and the stored campaign is byte-identical across on, off and on');
+}
+
+/** A8, platform e-mail — a renderer forced to throw costs the message that block only. */
+export function evaluateA8Platform(on: PlatformObservation | null): AssertionResult {
+  const id = 'A8-email';
+  if (on === null) return fail(id, 'the platform probe answered nothing with the module on');
+  const pair = on.transactionalExploding;
+  if (pair.status !== 200) return fail(id, `the message with a throwing block answered ${String(pair.status)}`);
+  if (pair.html.includes(`${MARKER}Exploding`) || pair.text.includes(`${MARKER}Exploding`)) {
+    return fail(id, 'the renderer that was forced to throw contributed output anyway');
+  }
+  for (const sibling of ['Before', 'After']) {
+    if (!pair.html.includes(`${MARKER}${sibling}`)) return fail(id, `the sibling block "${sibling}" is missing`);
+  }
+  return pass(id, 'the composed platform rendered the message without the throwing block and with both siblings');
+}
+
+/** What the admin probe, bundled and run inside the scaffolded instance, wrote. */
+export interface AdminProbe {
+  /** Module ids of the instance's generated registry that contribute a block. */
+  readonly registryModules: readonly string[];
+  /** The CMS editor composition over the descriptor served with the module on. */
+  readonly cmsOn: string;
+  /** The field keys the composed editor exposes for the block. */
+  readonly cmsFields: readonly string[];
+  /** The same stored document over the descriptor served with the module off. */
+  readonly cmsOff: string;
+  /** Whether the off composition offers the block for insertion. */
+  readonly cmsOffInsertable: boolean;
+  readonly cmsAgain: string;
+  /** A sibling, a block forced to throw, a sibling — CMS editor composition. */
+  readonly cmsExploding: string;
+  /** The e-mail editor's canvas component for the block. */
+  readonly emailCanvas: string;
+  readonly documentBefore: string;
+  readonly documentAfter: string;
+}
+
+export interface AdminBuildObservation {
+  /** The instance's generated admin registry, as `endora generate` wrote it. */
+  readonly registry: string;
+  /** The instance's generated admin stylesheet. */
+  readonly stylesheet: string;
+  readonly buildExitCode: number;
+  readonly buildOutput: string;
+  /** Whether any file of the built admin bundle contains the marker. */
+  readonly bundleHasMarker: boolean;
+}
+
+/** A2 — `endora generate` names the fixture's layers, and the admin builds with its renderer in the bundle. */
+export function evaluateA2(observed: AdminBuildObservation): AssertionResult {
+  if (observed.buildExitCode !== 0) {
+    return fail(
+      'A2',
+      `the admin build exited ${String(observed.buildExitCode)}: ` +
+        observed.buildOutput.trim().split('\n').slice(-6).join(' / ').slice(0, 900),
+    );
+  }
+  if (!observed.registry.includes(`'${FIXTURE_PACKAGE}/admin'`)) {
+    return fail('A2', 'the generated admin registry does not import the fixture\'s ./admin');
+  }
+  if (!observed.stylesheet.includes(`${FIXTURE_PACKAGE}/blocks.css`)) {
+    return fail('A2', 'the generated admin stylesheet does not import the fixture\'s ./blocks.css');
+  }
+  if (!observed.bundleHasMarker) return fail('A2', 'the built admin bundle does not contain the marker');
+  return pass('A2', 'endora generate named ./admin and ./blocks.css, the admin built, and its bundle contains the marker');
+}
+
+/** A3 — the CMS editor composition renders the marker and exposes the manifest's fields. */
+export function evaluateA3(probe: AdminProbe | null, on: PlatformObservation | null): AssertionResult {
+  if (probe === null) return fail('A3', 'the admin probe wrote no result');
+  if (on === null || on.descriptorEntry === null) {
+    return fail('A3', 'the platform\'s descriptor does not declare the block with the module on');
+  }
+  if (!probe.registryModules.includes(FIXTURE_MODULE_ID)) {
+    return fail('A3', 'the instance\'s generated registry carries no block contribution of the fixture');
+  }
+  if (!probe.cmsOn.includes(`${MARKER}Gold`)) return fail('A3', 'the CMS editor composition did not render the marker');
+  const declared = Object.keys((on.descriptorEntry['fields'] ?? {}) as Record<string, unknown>).sort();
+  const exposed = [...probe.cmsFields].sort();
+  if (declared.length === 0 || JSON.stringify(declared) !== JSON.stringify(exposed)) {
+    return fail('A3', `the editor exposes [${exposed.join(', ')}], the manifest declares [${declared.join(', ')}]`);
+  }
+  if (!probe.emailCanvas.includes(`${MARKER}Gold`)) {
+    return fail('A3', 'the e-mail editor canvas did not render the marker');
+  }
+  return pass('A3', 'the CMS editor composition and the e-mail canvas render the marker, and the editor exposes the manifest\'s fields');
+}
+
+/** A6, admin half — the descriptor drops the block, the stored node is a placeholder, and it is not insertable. */
+export function evaluateA6Admin(probe: AdminProbe | null, off: PlatformObservation | null): AssertionResult {
+  const id = 'A6-admin';
+  if (probe === null) return fail(id, 'the admin probe wrote no result');
+  if (off === null) return fail(id, 'the platform probe answered nothing with the module off');
+  if (off.descriptorStatus !== 200) return fail(id, `the descriptor answered ${String(off.descriptorStatus)} with the module off`);
+  if (off.descriptorEntry !== null) return fail(id, 'the descriptor still declares the block with its module off');
+  if (probe.cmsOff.includes(MARKER)) return fail(id, 'the editor rendered the block with its module off');
+  if (!probe.cmsOff.includes(FIXTURE_BLOCK)) return fail(id, 'the stored node is not a visible placeholder naming the block');
+  if (probe.cmsOffInsertable) return fail(id, 'the block is still insertable with its module off');
+  return pass(id, 'module off: the descriptor drops the block, the stored node is a named placeholder, and it is not insertable');
+}
+
+/** A7, admin half — on again the editor renders the block; the document it was given is unchanged. */
+export function evaluateA7Admin(probe: AdminProbe | null, again: PlatformObservation | null): AssertionResult {
+  const id = 'A7-admin';
+  if (probe === null) return fail(id, 'the admin probe wrote no result');
+  if (again === null || again.descriptorEntry === null) {
+    return fail(id, 'the descriptor does not declare the block again after the module was switched back on');
+  }
+  if (!probe.cmsAgain.includes(`${MARKER}Gold`)) return fail(id, 'the editor did not render the block again');
+  if (probe.documentBefore === '' || probe.documentBefore !== probe.documentAfter) {
+    return fail(id, 'the stored document changed between the compositions');
+  }
+  return pass(id, 'on again: the editor renders the block and the stored document is byte-identical');
+}
+
+/** A8, admin half — a renderer forced to throw degrades its own block in the editor composition. */
+export function evaluateA8Admin(probe: AdminProbe | null): AssertionResult {
+  const id = 'A8-admin';
+  if (probe === null) return fail(id, 'the admin probe wrote no result');
+  for (const sibling of ['Before', 'After']) {
+    if (!probe.cmsExploding.includes(`${MARKER}${sibling}`)) return fail(id, `the sibling block "${sibling}" is missing`);
+  }
+  if (probe.cmsExploding.includes(`${MARKER}Exploding`)) return fail(id, 'the block forced to throw rendered anyway');
+  if (!probe.cmsExploding.includes(FIXTURE_BLOCK)) return fail(id, 'the failed block is not a placeholder naming it');
+  return pass(id, 'the block forced to throw is a named placeholder and both siblings rendered');
 }

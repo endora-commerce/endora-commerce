@@ -30,7 +30,9 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { AssertionResult } from './assertions.js';
 
 const PACKAGE_NAME = process.env['ACCEPTANCE_PACKAGE_NAME'] ?? '@endora-commerce/mod-acceptance-probe';
-const MODULE_ID = 'acceptance_probe';
+// Overridable so another criterion's package can be installed by this phase
+// (`acceptance:block-renderers` reuses `install`); the default is this one's.
+const MODULE_ID = process.env['ACCEPTANCE_MODULE_ID'] ?? 'acceptance_probe';
 const TABLE = 'acceptance_probe_rows';
 const MIGRATION_CLASS = 'Migration20260821T120000AcceptanceProbeInit';
 const ROUTE = '/api/v1/admin/acceptance-probe/ping';
