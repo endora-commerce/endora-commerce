@@ -25,6 +25,10 @@ three; a package whose blocks are e-mail-only publishes `./email` and no `./stor
 `src/storefront/index.ts` and no `./storefront` subpath is **refused**, not skipped, exactly as
 `./admin` is (R4 of `admin-artefacts.ts`).
 
+**R1.2a** `./storefront` publishes its type declarations — a `types` condition, or a `.d.ts`
+beside its target. The storefront's generated registry imports the layer from TypeScript, and
+`blocks:generate` refuses a layer without them as `untyped-layer` (found by the acceptance run).
+
 **R1.3** `./storefront` and `./email` export an **object**, so a reach into another module's layer
 is a counted boundary reach under D-171 (`packages/cli/src/lib/module-package-subpaths.ts`), as a
 reach into `./admin` is.
@@ -50,6 +54,11 @@ export interface BlockRenderEnvironment {
 }
 export function useBlockRenderEnvironment(): BlockRenderEnvironment;
 ```
+
+> **As implemented** (plan § Deviations 1–3): `render` is typed `BlockRenderFunction`,
+> `(props: any) => ReactNode`; presence crosses the render boundary as
+> `BlockPresence = { absent: string[] }` — the modules the backend **reports** as not present — and
+> `withBlockBoundary` takes the surface's placeholder as a parameter.
 
 **R2.1 Keys.** Every key matches `blockNameRe`, its owner segment equals the package's
 `endora.id`, and its manifest declares that name with `'cms'` in `contexts`.
@@ -216,7 +225,7 @@ and still renders in the admin canvas.
 
 | Surface | Where presence is read | Absent owner |
 | --- | --- | --- |
-| Storefront | `getModulePresence()` (`storefront/lib/api/module-presence.ts`), passed to the render boundary as a serialisable `{ all: true } \| { ids: string[] }` | `makeMissingComponentConfig` → an empty span; the note under `?cms_admin=1` |
+| Storefront | `getModulePresence()` (`storefront/lib/api/module-presence.ts`), passed to the render boundary as a serialisable `{ absent: string[] }` — the ids the backend reports as not present (plan § Deviations 1; the draft read `{ all: true } \| { ids: string[] }`, under which an overlay module's block, whose owner the projection does not list, would never render) | `makeMissingComponentConfig` → an empty span; the note under `?cms_admin=1` |
 | Admin editor | the descriptor (already presence-filtered by the registry) | stored node → `withMissingBlockPlaceholders`; not in the palette |
 | E-mail | `EmailBlockRendererRegistry.renderers()` — policy **skip**, probe `effectiveState.presenceOf` injected at the registration (tri-state: `undefined` — an id no manifest declares, an overlay's — is **honoured**) | no renderer → `''` |
 

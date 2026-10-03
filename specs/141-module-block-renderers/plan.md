@@ -237,3 +237,89 @@ on a thrown error (T01); (2) the storefront install delta of one module package 
 Branch off `origin/master`; regenerate and commit generated artefacts in the same pull request
 (`composer:generate`, `blocks:generate`); one changeset per touched package; no AI attribution in
 commits or pull-request text.
+
+## Deviations recorded during implementation (2026-10-03)
+
+The spec's premises were measured on `a76210cc3` and implemented on `fe0803f2e`. Where the tree or
+a measurement disagreed with the plan, the tree was followed; each case is listed here so the
+contract and the code are read together.
+
+**Shapes**
+
+1. **`BlockPresence` is `{ absent: string[] }`, not `{ all: true } | { ids: string[] }`** (contract
+   §2, §7). The storefront's presence projection lists the modules the *manifest index* knows, and
+   an overlay module's id is not among them. Inferring absence from "not in the list of present
+   ids" would switch off every overlay module's block — the case US5 exists for. Absence is
+   therefore reported, never inferred: an owner the backend does not list is honoured, the same
+   tri-state the e-mail registry's probe has. It is also the smaller payload across the
+   `'use client'` boundary. One consequence is stated in the type: a module package installed in a
+   storefront whose backend does not compose that module is honoured too.
+2. **`withBlockBoundary(config, placeholder, options?)`**, not `(config, name, owner)` (contract
+   §8). `page-builder-core` sits below `cms-components`, which owns the placeholder, so the
+   placeholder is a parameter; the "one export" the plan expected from `cms-components` was not
+   needed. The module's `render` is **mounted as a component** under the two boundaries instead of
+   being called inside `try`/`catch`: a top-level throw is then a throw below the boundary like
+   any other (T01 measured `<Suspense>` isolating it on the server), and the module's hooks belong
+   to its own component rather than to the wrapper.
+3. **`BlockRenderFunction`** — `StorefrontBlockConfig` and `PageBuilderBlockEditorConfig` type
+   `render` as `(props: any) => ReactNode` rather than Puck's `PuckComponent`. Found by the
+   fixture: Puck's type refuses a component whose own props are all optional, which a block's must
+   be.
+4. **`EmailBlockRendererRegistryPort<R>` is generic and lives in `contracts`**; the renderer shape
+   stays in `email-components`, which `contracts` cannot depend on. `register` **reports** a
+   refused name and does not throw — it is called from a boot hook, and one wrong name in one
+   installed package must not stop the platform.
+5. **`fieldsFromDescriptor`**: a declaration says a field is an `array` or an `object` and not of
+   what, so those are edited as JSON; `external` and `uuid` are text until the owning module
+   contributes a picker; `richtext` is a textarea over the stored HTML string.
+
+**Surfaces**
+
+6. **The storefront threads presence once, through `BlockRenderScope` in the root layout**, rather
+   than as a prop to each of the five render sites (T13). Page Builder content is rendered from
+   places with no server context — a megamenu panel inside a client drawer — and the three sites
+   that mounted Puck's `<Render>` themselves now go through `PageBuilderRender`. Presence is still
+   required: a render site with neither a scope nor its own `presence` throws.
+7. **D8 applies to the e-mail editor as well as the CMS editor.** A declared e-mail block with no
+   contributed renderer — an overlay module's, whose renderer exists only in its backend — is
+   editable from its declared fields; it is not previewed.
+8. **The e-mail pane reads the preview sentence from its caller's bundle by context**
+   (`newsletter` or `transactional_emails`), since `page-builder-admin` owns no bundle.
+9. **Two helpers were extracted to make the send paths testable without a database**:
+   `renderTransactionalEmail` (the pure half of `renderWith`) and `emailBlockRendering` in
+   `email-components`, which both producers build their renderer options with.
+10. **`blocks:generate` refuses a storefront layer with no type declarations** (`untyped-layer`).
+    Found by the acceptance run: the generated registry imports the layer from TypeScript, and an
+    untyped module fails `next build` with TS7016. Contract §1 should say a layer publishes its
+    declarations.
+
+**Tests and tooling**
+
+11. T08's test is `admin/test/kit/use-block-contributions.test.tsx`: `admin-kit` has no test runner
+    of its own and its tests are run from the admin application.
+12. `page-builder-core` gains `react-dom` and `@types/react-dom` as **dev** dependencies, for the
+    SSR test of the block boundary. No runtime dependency was added anywhere.
+13. `check:block-renderers`' repository host reads the module packages under `backend/acceptance/`
+    as well as the registered modules — no registered module ships a renderer layer yet, and a
+    rule over an empty subject is green for no reason. Its `residueGuard` is
+    `deferred-shared-proof`, with the measurement and the retiring condition in
+    `DEFERRED_SHARED_PROOFS`. The rule reads block names and contexts as **literals**; a computed
+    renderer key escapes it and is refused again at run time by every surface.
+14. **T21 is partial.** The runner measures A1, A4, the package half of A5, the storefront halves
+    of A6–A8 and the e-mail half of A8 (seven assertions, all passing). A2, A3, the platform half
+    of A5 and the admin and e-mail halves of A6–A8 are reported `unmeasured`, by name: they need a
+    scaffolded instance with a Vite build, and a composed platform with a database and an
+    activation flip, which the runner does not stand up. `endora check` is run over the fixture's
+    built package directory rather than over the unpacked tarball, which carries no build layout.
+    No CI job runs the criterion; both scripts are classified `local-operation`.
+
+**Not done, and outside the task list**
+
+15. `manifests:generate` does not render `./storefront`, `./email` or `./blocks.css` into a
+    workspace module package's `exports` map, so a **first-party** module cannot ship the layers
+    until it does. The fixture's manifest is hand-written, as a third party's is. This belongs with
+    the follow-up that moves the first-party renderers.
+16. A fresh storefront scaffold's unpinned install resolves Vite 8, under which the storefront's
+    vitest configuration (`esbuild.jsx`) does not transform JSX, so its `.tsx` tests do not run.
+    Found by the acceptance probe, which pins Vite for itself; the scaffold defect is not repaired
+    here.
