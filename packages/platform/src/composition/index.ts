@@ -205,9 +205,6 @@ export { DefaultChannelReconciler } from '../kernel/sales-channels/default-chann
 // composition root's to construct.
 export { composeErrorEnvelopeOptions } from '../kernel/i18n/error-envelope-options.js';
 export { AuditLogService } from '../kernel/audit/audit-log-service.js';
-// The type of `ComposeAppHandle.escapeHatchAudit` — the persistent sink every
-// escape-hatch widening is written through (owner decision of 2026-10-03).
-export type { EscapeHatchAuditWriter } from '../kernel/audit/escape-hatch-audit-writer.js';
 
 // --- tenancy: establishing and forking a context --------------------------
 export { forkScopedEm } from '../tenancy/scoped-em.js';

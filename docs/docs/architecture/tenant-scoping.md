@@ -111,7 +111,7 @@ impersonation. The row counts every occurrence:
 | `actor_admin_user_id`, `impersonated_customer_account_id` | the admin who caused the crossing, and the customer they acted for, when there is one |
 | `request_id`, `ip_address`, `user_agent` | set when every occurrence in the row came from one request |
 | `acted_at` | the first occurrence |
-| `state_after` | `scope`, `reason`, `organizationId`, `module`, `entryPoint`, `actor`, `occurrences`, `firstAt`, `lastAt`, up to 20 `requestIds` |
+| `state_after` | `scope`, `reason`, `organizationId`, `module`, `entryPoint`, `occurrences`, `firstAt`, `lastAt`, up to 20 `requestIds`, and `actor`: its kind and id plus `context`, the reason of the scope the caller was already in, such as `actor:anonymous` for an anonymous storefront request |
 
 Aggregation matters because two crossings run on every authenticated storefront
 request: `auth: resolve customer org` and `tenant: resolve customer roll-up flag`.

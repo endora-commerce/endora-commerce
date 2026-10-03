@@ -114,6 +114,12 @@ interface Aggregate {
   readonly entryPoint: string | null;
   readonly actorKind: string | null;
   readonly actorId: string | null;
+  /**
+   * The reason of the context the caller was already in — `actor:anonymous`
+   * for an anonymous storefront request, a worker's own reason for a job.
+   * What tells two `system` actors apart.
+   */
+  readonly actorContext: string | null;
   readonly actorAdminUserId: string | null;
   readonly impersonatedCustomerAccountId: string | null;
   readonly overflow: boolean;
@@ -136,6 +142,12 @@ interface CapturedRecord {
   readonly entryPoint: string | null;
   readonly actorKind: string | null;
   readonly actorId: string | null;
+  /**
+   * The reason of the context the caller was already in — `actor:anonymous`
+   * for an anonymous storefront request, a worker's own reason for a job.
+   * What tells two `system` actors apart.
+   */
+  readonly actorContext: string | null;
   readonly actorAdminUserId: string | null;
   readonly impersonatedCustomerAccountId: string | null;
   readonly requestId: string | null;
@@ -162,11 +174,10 @@ class Writer implements EscapeHatchAuditWriter {
     this.maxPendingKeys = options.maxPendingKeys ?? DEFAULT_MAX_PENDING_KEYS;
     this.log = options.log ?? stderr;
     this.now = options.now ?? ((): Date => new Date());
-    const interval = options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS;
-    this.timer = setInterval(() => void this.flush(), interval);
-    // A pending audit flush must not keep a process alive on its own; the
-    // owner's dispose path flushes explicitly.
-    this.timer.unref();
+    this.timer = armFlushTimer(
+      () => void this.flush(),
+      options.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS,
+    );
   }
 
   get pendingCount(): number {
@@ -193,6 +204,7 @@ class Writer implements EscapeHatchAuditWriter {
         entryPoint: overflow ? null : captured.entryPoint,
         actorKind: overflow ? null : captured.actorKind,
         actorId: overflow ? null : captured.actorId,
+        actorContext: overflow ? null : captured.actorContext,
         actorAdminUserId: overflow ? null : captured.actorAdminUserId,
         impersonatedCustomerAccountId: overflow ? null : captured.impersonatedCustomerAccountId,
         overflow,
@@ -289,6 +301,20 @@ class Writer implements EscapeHatchAuditWriter {
   }
 }
 
+/**
+ * The flush timer. Deliberately **not** inside `enterSystemScope`, which
+ * `check:entry-scope` otherwise asks of every timer: that would report an
+ * escape-hatch widening on every tick, which this writer would then persist,
+ * forever. The write opens its own system tenant context instead
+ * (`writeOnce`), without the hatch. Unref'd: a pending flush must not keep a
+ * process alive on its own; the owner's dispose path flushes explicitly.
+ */
+function armFlushTimer(tick: () => void, intervalMs: number): NodeJS.Timeout {
+  const timer = setInterval(tick, intervalMs);
+  timer.unref();
+  return timer;
+}
+
 function aggregateKey(c: CapturedRecord): string {
   return JSON.stringify([
     c.record.scope,
@@ -298,6 +324,7 @@ function aggregateKey(c: CapturedRecord): string {
     c.entryPoint,
     c.actorKind,
     c.actorId,
+    c.actorContext,
     c.actorAdminUserId,
     c.impersonatedCustomerAccountId,
   ]);
@@ -348,7 +375,7 @@ function stateOf(a: Aggregate): Record<string, unknown> {
     organizationId: a.organizationId,
     module: a.module,
     entryPoint: a.entryPoint,
-    actor: { kind: a.actorKind, id: a.actorId },
+    actor: { kind: a.actorKind, id: a.actorId, context: a.actorContext },
     occurrences: a.occurrences,
     firstAt: a.firstAt.toISOString(),
     lastAt: a.lastAt.toISOString(),
@@ -468,6 +495,7 @@ function capture(record: EscapeHatchAuditRecord, writer: Writer): CapturedRecord
     entryPoint: record.entryPoint ?? scope?.entryPoint ?? null,
     actorKind: actor?.kind ?? null,
     actorId: actor?.id ?? null,
+    actorContext: tenant?.reason ?? null,
     actorAdminUserId:
       impersonation?.realAdminUserId ?? (actor?.kind === 'admin' ? (actor.id ?? null) : null),
     impersonatedCustomerAccountId: impersonation?.impersonatedCustomerAccountId ?? null,

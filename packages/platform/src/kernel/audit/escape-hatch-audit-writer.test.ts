@@ -7,7 +7,7 @@ import {
   type EscapeHatchAuditRecord,
 } from '../../tenancy/escape-hatch.js';
 import { runWithTenantContext } from '../../tenancy/tenant-context.js';
-import { resolveTenantContext } from '../../tenancy/resolve-tenant-context.js';
+import { resolveTenantContext, systemTenantContext } from '../../tenancy/resolve-tenant-context.js';
 import { createRootContainer } from '../container.js';
 import { enterPlatformScope, enterSystemScope } from '../scope.js';
 import {
@@ -145,7 +145,7 @@ describe('every escape-hatch widening becomes an audit row', () => {
     expect(row['requestId']).toBe('req-42');
     expect(row['ipAddress']).toBe('10.0.0.1');
     expect(row.stateAfter).toMatchObject({
-      actor: { kind: 'admin', id: 'admin-1' },
+      actor: { kind: 'admin', id: 'admin-1', context: null },
       entryPoint: 'http',
       requestIds: ['req-42'],
     });
@@ -169,7 +169,26 @@ describe('every escape-hatch widening becomes an audit row', () => {
 
     expect(db.rows[0]?.['actorAdminUserId']).toBe('admin-9');
     expect(db.rows[0]?.['impersonatedCustomerAccountId']).toBe('cust-1');
-    expect(db.rows[0]?.stateAfter['actor']).toEqual({ kind: 'customer', id: 'cust-1' });
+    expect(db.rows[0]?.stateAfter['actor']).toEqual({ kind: 'customer', id: 'cust-1', context: null });
+  });
+
+  it('tells two system actors apart by the context the caller was already in', async () => {
+    observePreviousSink();
+    const db = fakeDb();
+    const writer = attach({ em: db.em, log: () => {} });
+
+    await runWithTenantContext(systemTenantContext('actor:anonymous'), () =>
+      withSystemScope('test: system callers', async () => 1),
+    );
+    await runWithTenantContext(systemTenantContext('newsletter send'), () =>
+      withSystemScope('test: system callers', async () => 1),
+    );
+    await writer.flush();
+
+    expect(db.rows.map((row) => row.stateAfter['actor'])).toEqual([
+      { kind: 'system', id: null, context: 'actor:anonymous' },
+      { kind: 'system', id: null, context: 'newsletter send' },
+    ]);
   });
 
   it('records the entry point a system scope starts', async () => {

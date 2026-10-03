@@ -105,7 +105,7 @@ punkt wejścia, aktora i impersonację. Wiersz liczy każde wystąpienie:
 | `actor_admin_user_id`, `impersonated_customer_account_id` | administrator, który spowodował dostęp, i klient, w którego imieniu działał, jeśli taki jest |
 | `request_id`, `ip_address`, `user_agent` | ustawiane, gdy wszystkie wystąpienia w wierszu pochodzą z jednego żądania |
 | `acted_at` | pierwsze wystąpienie |
-| `state_after` | `scope`, `reason`, `organizationId`, `module`, `entryPoint`, `actor`, `occurrences`, `firstAt`, `lastAt` i do 20 identyfikatorów `requestIds` |
+| `state_after` | `scope`, `reason`, `organizationId`, `module`, `entryPoint`, `occurrences`, `firstAt`, `lastAt`, do 20 identyfikatorów `requestIds` oraz `actor`: rodzaj i identyfikator aktora, a także `context`, czyli uzasadnienie zakresu, w którym wywołujący już działał, na przykład `actor:anonymous` dla anonimowego żądania sklepu |
 
 Agregacja ma znaczenie, bo dwa dostępy odbywają się przy każdym uwierzytelnionym żądaniu sklepu:
 `auth: resolve customer org` i `tenant: resolve customer roll-up flag`. Pole `module` jest
