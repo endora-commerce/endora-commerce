@@ -1,5 +1,11 @@
 # @endora-commerce/cms-components
 
+## 0.101.1
+
+### Patch Changes
+
+- @endora-commerce/page-builder-core@0.101.1
+
 ## 0.101.0
 
 ### Patch Changes
