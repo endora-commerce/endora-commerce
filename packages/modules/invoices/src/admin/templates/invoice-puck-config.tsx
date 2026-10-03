@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
-import type { Config, ComponentConfig } from '@measured/puck';
+import type { Config, ComponentConfig } from '@puckeditor/core';
 import { createColorField, definePageBuilderComponent } from '@endora-commerce/page-builder-core';
 import {
   createImageAssetField,

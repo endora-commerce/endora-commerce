@@ -1,4 +1,4 @@
-import type { Data, PuckAction } from '@measured/puck';
+import type { Data, PuckAction } from '@puckeditor/core';
 import { getZoneItems, shouldRevertPuckAction } from './puck-action-guards.js';
 
 export interface OutlineDropPayload {

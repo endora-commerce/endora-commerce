@@ -1,101 +1,96 @@
 ---
-title: Assets Library
-description: Centralna biblioteka zasobów cyfrowych z wymiennymi adapterami storage, soft-delete i strażnikami ochrony referencji
+title: Biblioteka mediów
+description: Centralna biblioteka plików z wymiennymi adapterami przechowywania, usuwaniem miękkim i ochroną przed usunięciem używanych plików
 ---
 
-# Assets Library
+# Biblioteka mediów
 
-Assets Library to substrat zasobów cyfrowych platformy. Posiada:
+Biblioteka mediów (Assets Library) to warstwa plików cyfrowych platformy. Zapewnia:
 
-- Centralny katalog plików (obrazy, wideo, PDF, dokumenty) wielokrotnie używanych
-  w mediach produktu, załącznikach produktu, głównych obrazach kategorii i stronach CMS.
-- Drzewo folderów do organizacji assetów.
-- Wymienne backendy storage — lokalny filesystem, Amazon S3, GCP Cloud
-  Storage — konfigurowane z Settings, dokładnie jeden aktywny naraz.
-- Widoczność public/private per asset.
-- Ochronę referencji: assetów używanych przez Catalog lub CMS nie można usunąć,
-  dopóki każda referencja nie zostanie odłączona.
+- Centralny katalog plików (obrazów, wideo, PDF, dokumentów) wielokrotnie używanych w mediach
+  produktów, załącznikach produktów, głównych obrazach kategorii i stronach CMS.
+- Drzewo folderów do porządkowania plików.
+- Wymienne mechanizmy przechowywania — lokalny system plików, Amazon S3, GCP Cloud Storage —
+  konfigurowane w ustawieniach; aktywny jest zawsze dokładnie jeden.
+- Widoczność publiczną albo prywatną ustawianą dla każdego pliku.
+- Ochronę odwołań: plików używanych przez katalog lub CMS nie można usunąć, dopóki wszystkie
+  odwołania nie zostaną usunięte.
 
 ## Szybki start
 
-1. **Aktywny adapter** — otwórz Settings → Storage i wybierz jeden z `local`, `s3`
-   lub `gcs`. Domyślnie `local`.
-2. **Local FS** — ustaw `assets.local.base_dir` (domyślnie `var/assets`). Serwer admin
-   tworzy drzewo katalogów w czasie uploadu. Ustaw
-   `assets.local.public_url_base`, gdy backend stoi za innym publicznym hostem (np. CDN lub reverse proxy); zostaw puste, a każdy
-   URL budowany jest na publicznym origin API tego wdrożenia.
-3. **Amazon S3** — ustaw `assets.s3.bucket`, `assets.s3.region`,
-   `assets.s3.access_key_id`, `assets.s3.secret_access_key`. Opcjonalnie:
-   `assets.s3.endpoint` (dla providerów kompatybilnych z S3 jak MinIO),
-   `assets.s3.prefix`, `assets.s3.public_base_url` (prefiks bazowego URL CDN).
-4. **GCP Cloud Storage** — ustaw `assets.gcs.bucket` i albo
-   `assets.gcs.service_account_json` (wklej pełny JSON), albo polegaj na
-   ambient credentials. Opcjonalnie: `assets.gcs.prefix`,
-   `assets.gcs.public_base_url`.
-5. **Test połączenia** — `POST /api/v1/admin/assets/storage/self-check`.
-   Zwraca `{ ok: true }` przy sukcesie lub `{ ok: false, reason: ... }` przy
-   błędnej konfiguracji. Dashboard jest pod `GET /api/v1/admin/assets/storage/state`.
+1. **Aktywny adapter** — otwórz Settings → Storage i wybierz `local`, `s3` albo `gcs`. Domyślnie
+   `local`.
+2. **Lokalny system plików** — ustaw `assets.local.base_dir` (domyślnie `var/assets`). Serwer
+   tworzy strukturę katalogów przy przesyłaniu pliku. Ustaw `assets.local.public_url_base`, gdy
+   backend działa za innym publicznym hostem (np. CDN lub odwrotnym serwerem pośredniczącym); jeśli
+   zostawisz to pole puste, każdy adres jest budowany na podstawie publicznego adresu API tego
+   wdrożenia.
+3. **Amazon S3** — ustaw `assets.s3.bucket`, `assets.s3.region`, `assets.s3.access_key_id` i
+   `assets.s3.secret_access_key`. Opcjonalnie: `assets.s3.endpoint` (dla usług zgodnych z S3, jak
+   MinIO), `assets.s3.prefix`, `assets.s3.public_base_url` (bazowy adres CDN).
+4. **GCP Cloud Storage** — ustaw `assets.gcs.bucket` oraz `assets.gcs.service_account_json` (wklej
+   cały JSON) albo skorzystaj z danych uwierzytelniających dostępnych w środowisku. Opcjonalnie:
+   `assets.gcs.prefix`, `assets.gcs.public_base_url`.
+5. **Test połączenia** — `POST /api/v1/admin/assets/storage/self-check`. Zwraca `{ ok: true }` po
+   powodzeniu albo `{ ok: false, reason: ... }` przy błędnej konfiguracji. Stan przechowywania
+   pokazuje `GET /api/v1/admin/assets/storage/state`.
 
-## Ograniczenia uploadu
+## Ograniczenia przesyłania
 
-Dwa ustawienia bramkują uploady — oba sprawdzane, zanim jakikolwiek bajt dotrze do aktywnego
-adaptera:
+Przesyłanie plików kontrolują dwa ustawienia — oba są sprawdzane, zanim jakikolwiek bajt trafi do
+aktywnego adaptera:
 
-- `assets.allowed_file_types` — lista rozszerzeń plików lub typów MIME
-  (np. `["jpg", "png", "image/jpeg", "application/pdf"]`). Sentinel
-  `["*"]` (domyślnie) wyłącza bramkę. Wildcardi jak `image/*` pasują do każdego
-  MIME pod tym prefiksem. Sprawdzenie uwzględnia zarówno zadeklarowane MIME, jak i
-  MIME wykryte magic-number (file-type) i odrzuca, gdy którekolwiek zawiedzie.
-- `assets.max_file_size_mb` — integer cap w MB. `0` (domyślnie) wyłącza
-  cap.
+- `assets.allowed_file_types` — lista rozszerzeń plików albo typów MIME (np.
+  `["jpg", "png", "image/jpeg", "application/pdf"]`). Specjalna wartość `["*"]` (domyślna) wyłącza
+  to ograniczenie. Wzorce w rodzaju `image/*` pasują do każdego typu MIME z tym przedrostkiem.
+  Sprawdzany jest zarówno zadeklarowany typ MIME, jak i typ wykryty na podstawie zawartości pliku
+  (file-type); plik jest odrzucany, gdy którykolwiek z nich nie pasuje.
+- `assets.max_file_size_mb` — limit rozmiaru w MB (liczba całkowita). `0` (domyślnie) wyłącza limit.
 
-## Widoczność i prywatne URL-e
+## Widoczność i adresy prywatne
 
-Każdy asset ma `visibility ∈ {public, private}`. Publiczne URL-e są stabilne;
-prywatne URL-e są krótkotrwałe (TTL = `assets.private_url_ttl_sec`, domyślnie
-300s) i ponownie wydawane przez admin lub storefront przy każdym odczycie.
+Każdy plik ma `visibility ∈ {public, private}`. Adresy publiczne są stałe; adresy prywatne są ważne
+krótko (TTL = `assets.private_url_ttl_sec`, domyślnie 300 s) i są wydawane na nowo przez panel lub
+storefront przy każdym odczycie.
 
-Dla adaptera **local FS** prywatne URL-e są podpisywane HMAC przez backend.
-Klucz podpisu pochodzi ze zmiennej env `ASSETS_LIBRARY_HMAC_KEY`
-(wygeneruj przez `openssl rand -hex 32`); rotacja unieważnia każdy
-wygasający prywatny URL.
+W adapterze **lokalnego systemu plików** adresy prywatne podpisuje backend kodem HMAC. Klucz
+podpisujący pochodzi ze zmiennej środowiskowej `ASSETS_LIBRARY_HMAC_KEY` (wygeneruj go poleceniem
+`openssl rand -hex 32`); zmiana klucza unieważnia wszystkie jeszcze ważne adresy prywatne.
 
-Dla **S3** i **GCS** prywatne URL-e są podpisywane V4 przez vendor SDK;
-backend nie wymaga nic poza credentials.
+W **S3** i **GCS** adresy prywatne podpisuje (V4) SDK dostawcy; backend nie potrzebuje niczego poza
+danymi uwierzytelniającymi.
 
-## Soft-delete i hard-delete
+## Usuwanie miękkie i trwałe
 
-Usunięcia przechodzą dwuetapowy cykl życia:
+Usuwanie przebiega w dwóch etapach:
 
-1. `DELETE /api/v1/admin/assets/:id` → soft-delete. Ustawia `deletedAt` i
-   `purgeAfterAt = now + assets.soft_delete_retention_days` (domyślnie 30).
-   Asset znika z list i pickerów, ale pozostaje odzyskiwalny
-   przez `POST /api/v1/admin/assets/:id/restore`.
-2. Powtarzający się `HardDeleteAssetWorker` finalizuje po `purgeAfterAt`:
-   usuwa wiersz i prosi adapter o usunięcie pliku źródłowego.
-   Gdy backend nie może usunąć pliku (read-only mount, unieważnione
-   credentials, partycja sieci), wiersz zostaje, a `pendingCleanup` ustawia się na
-   `true`; worker ponawia przy następnym ticku.
+1. `DELETE /api/v1/admin/assets/:id` → usunięcie miękkie. Ustawia `deletedAt` i
+   `purgeAfterAt = now + assets.soft_delete_retention_days` (domyślnie 30). Plik znika z list i list
+   wyboru, ale można go przywrócić przez `POST /api/v1/admin/assets/:id/restore`.
+2. Powtarzające się zadanie `HardDeleteAssetWorker` kończy usuwanie po `purgeAfterAt`: usuwa wiersz i
+   prosi adapter o usunięcie pliku źródłowego. Gdy backend nie może usunąć pliku (zasób tylko do
+   odczytu, unieważnione dane uwierzytelniające, problem z siecią), wiersz zostaje, `pendingCleanup`
+   przyjmuje wartość `true`, a zadanie ponawia próbę w następnym cyklu.
 
-## Ochrona referencji {#asset-reference-registry}
+## Ochrona odwołań {#asset-reference-registry}
 
-Soft-delete jest odrzucany z `409 ASSET_REFERENCED`, gdy którykolwiek z poniższych wskazuje asset:
+Usunięcie miękkie jest odrzucane z `409 ASSET_REFERENCED`, gdy do pliku odwołuje się którekolwiek z
+poniższych:
 
 - `gallery_items.asset_id` (galeria produktu)
 - `product_attachments.asset_id` (załączniki produktu)
-- `products.download_asset_id` (produkty virtual-download)
+- `products.download_asset_id` (produkty do pobrania)
 - `categories.main_image_asset_id` (główny obraz kategorii)
-- `cms_pages.body` zawierający węzeł `{ type: "asset_ref", assetId }`
+- `cms_pages.body` zawierające węzeł `{ type: "asset_ref", assetId }`
 
-Lista referencji jest dołączona do tablicy `details` envelope błędu, żeby
-UI admina mogło pokazać monity „używany przez”.
+Lista odwołań jest dołączana do tablicy `details` w odpowiedzi z błędem, aby panel mógł pokazać, gdzie
+plik jest używany.
 
-## Wymienne adaptery storage
+## Wymienne adaptery przechowywania
 
-Każdy backend implementuje SPI `StorageAdapter` w
-`packages/modules/assets_library/src/backend/services/storage/`. Dodanie czwartego
-backendu (Azure Blob, Backblaze B2, …) to dodanie nowej
-klasy implementującej:
+Każdy mechanizm przechowywania implementuje interfejs `StorageAdapter` w
+`packages/modules/assets_library/src/backend/services/storage/`. Dodanie czwartego mechanizmu (Azure
+Blob, Backblaze B2, …) polega na dodaniu nowej klasy implementującej:
 
 ```ts
 selfCheck(): Promise<{ ok: boolean; reason?: string }>;
@@ -107,17 +102,15 @@ delete({ locator }): Promise<void>;
 setVisibility?({ locator, visibility }): Promise<void>;
 ```
 
-…i rejestracja w `AdapterRegistry.build`. Zob. istniejące
-`LocalFsStorageAdapter`, `S3StorageAdapter` i `GcsStorageAdapter` jako
-szablony.
+…i zarejestrowaniu jej w `AdapterRegistry.build`. Jako wzór posłużą istniejące
+`LocalFsStorageAdapter`, `S3StorageAdapter` i `GcsStorageAdapter`.
 
-## Legacy escape hatch
+## Wyjątek dla starszych plików
 
-Wcześniej istniejące wiersze `assets`, których `storage_url` był URL-em, którego ta platforma nie
-wydała, są tagowane `storage_backend = 'legacy'` w czasie migracji. Legacy
-resolver zwraca URL verbatim dla assetów `public` — rebazując go na
-publicznym origin API, gdy zapisana wartość jest host-relative — i odmawia przełączenia
-ich na `private` (nie możemy podpisać URL-i, których nie wydaliśmy), co na adminie
-powierzchnia się jako
-`409 ASSET_LEGACY_LOCATOR_CANNOT_HARDEN`. Prze-uploaduj przez
-aktywny adapter, żeby zupgrade'ować.
+Istniejące wcześniej wiersze `assets`, których `storage_url` był adresem niewydanym przez tę
+platformę, są przy migracji oznaczane jako `storage_backend = 'legacy'`. Mechanizm odczytu dla
+starszych plików zwraca dla plików `public` adres dosłownie — przenosząc go na publiczny adres API,
+gdy zapisana wartość jest względna wobec hosta — i odmawia przełączenia ich na `private` (nie możemy
+podpisywać adresów, których nie wydaliśmy), co w panelu pojawia się jako
+`409 ASSET_LEGACY_LOCATOR_CANNOT_HARDEN`. Aby przenieść taki plik do nowego mechanizmu, prześlij go
+ponownie przez aktywny adapter.

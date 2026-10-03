@@ -75,11 +75,11 @@
     "@endora-commerce/contracts": "workspace:*"
   },
   "peerDependencies": {
-    "@measured/puck": "*",
+    "@puckeditor/core": "*",
     "react": "^19.0.0"
   },
   "peerDependenciesMeta": {
-    "@measured/puck": {
+    "@puckeditor/core": {
       "optional": true
     },
     "react": {
@@ -87,7 +87,7 @@
     }
   },
   "devDependencies": {
-    "@measured/puck": "*",
+    "@puckeditor/core": "*",
     "@types/react": "^19.2.14",
     "react": "^19.2.5",
     "typescript": "^5.9.3",

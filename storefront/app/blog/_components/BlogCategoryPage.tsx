@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Render } from '@measured/puck';
+import { Render } from '@puckeditor/core';
 import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
 import type { BlogBySlugCategoryResponse } from '@endora-commerce/contracts';
 import { Breadcrumbs } from '../../../components/Breadcrumbs';

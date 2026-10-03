@@ -1,87 +1,80 @@
 ---
 title: languages
-description: Pula obsługiwanych tagów BCP-47 + helper fallback tłumaczeń
+description: Lista obsługiwanych znaczników języków BCP-47 i reguła wartości zastępczej dla tłumaczeń
 ---
 
 # `languages`
 
-Instalacyjna pula obsługiwanych tagów językowych BCP-47. Posiada publiczną
-ścieżkę read `i18n/config`, z której storefront + admin budują pickery
-języków, oraz mały `LocaleService` implementujący regułę fallback tłumaczeń.
+Lista znaczników języków BCP-47 obsługiwanych w danej instalacji. Moduł udostępnia publiczny odczyt
+`i18n/config`, na podstawie którego storefront i panel administracyjny budują wybór języka, oraz
+niewielki `LocaleService` z regułą wartości zastępczej dla tłumaczeń.
 
-## Publiczne API
+## API publiczne
 
-| Verb + Path | Audience | Purpose |
+| Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `GET /api/v1/i18n/config` | storefront / admin | Aktywne języki + waluty + skonfigurowane domyślne |
-| `GET /api/v1/admin/languages` | admin | Pełna lista, w tym nieaktywne wiersze |
-| `PUT /api/v1/admin/languages/:code` | admin | Upsert |
-| `POST /api/v1/admin/languages/:code/default` | admin | Promocja na domyślny (atomowo degraduje poprzedni domyślny) |
-| `DELETE /api/v1/admin/languages/:code` | admin | Usunięcie (odrzucone dla domyślnego) |
+| `GET /api/v1/i18n/config` | storefront / panel | Aktywne języki i waluty oraz skonfigurowane wartości domyślne |
+| `GET /api/v1/admin/languages` | administrator | Pełna lista, łącznie z nieaktywnymi wierszami |
+| `PUT /api/v1/admin/languages/:code` | administrator | Utworzenie lub aktualizacja |
+| `POST /api/v1/admin/languages/:code/default` | administrator | Ustawienie jako domyślnego (w tej samej operacji zdejmuje to oznaczenie z poprzedniego) |
+| `DELETE /api/v1/admin/languages/:code` | administrator | Usunięcie (odrzucane dla języka domyślnego) |
 
-Katalog walut ma ten sam kształt pod `/api/v1/admin/currencies`, a te trasy są
-**`currencies`** — zobacz [currencies](./currencies.md). Były zarejestrowane tutaj do 2026-08-29,
-na `catalog:write`, serwując tabelę innego modułu bez caller'a w tym repozytorium. Co ten
-moduł nadal komponuje, to
-`GET /api/v1/i18n/config`, które odpowiada oboma katalogami i obiema domyślnymi
-w jednym publicznym payloadzie i czyta połowę walutową przez `currencyReadPort`.
+Katalog walut ma taką samą postać pod `/api/v1/admin/currencies`, ale te trasy należą do modułu
+**`currencies`** — zobacz [currencies](./currencies.md). Do 2026-08-29 były rejestrowane tutaj, z
+uprawnieniem `catalog:write`, i obsługiwały tabelę innego modułu, choć nic w tym repozytorium ich
+nie wywoływało. Ten moduł nadal składa `GET /api/v1/i18n/config`, który w jednej publicznej
+odpowiedzi zwraca oba katalogi i obie wartości domyślne, a część dotyczącą walut odczytuje przez
+`currencyReadPort`.
 
-Cztery trasy admin języków powyżej wymuszają `catalog:write`. To sąsiadujące roszczenie
-tego samego rodzaju i nie zostało naprawione.
+Cztery powyższe trasy administracyjne dla języków wymagają `catalog:write`. To podobny problem tego
+samego rodzaju i nie został jeszcze naprawiony.
 
-## Domyślne
+## Wartości domyślne
 
-Dokładnie zero lub jeden wiersz w `languages` ma `is_default = true`,
-wymuszane przez partial unique index na `(is_default) WHERE is_default =
-true`. Ustawienie nowego domyślnego uruchamia parę demote-then-promote w jednej
-transakcji MikroORM, aby partial unique index nigdy nie został naruszony
-w trakcie.
+W tabeli `languages` co najwyżej jeden wiersz ma `is_default = true`, co wymusza częściowy indeks
+unikalny na `(is_default) WHERE is_default = true`. Ustawienie nowego języka domyślnego wykonuje
+zdjęcie oznaczenia ze starego i nadanie go nowemu w jednej transakcji MikroORM, aby indeks nie
+został naruszony w trakcie.
 
-`LanguageService.setDefault()` odrzuca wiersze z `isActive=false`
-(`409 VALIDATION_FAILED`), a ścieżka `remove()` odmawia usunięcia wiersza,
-który jest aktualnie domyślny.
+`LanguageService.setDefault()` odrzuca wiersze z `isActive=false` (`409 VALIDATION_FAILED`), a
+`remove()` odmawia usunięcia wiersza, który jest obecnie domyślny.
 
-## Bootstrap
+## Dane początkowe
 
-Migracja 012 wstawia dwa wiersze, aby quickstart działał bez kroku admin:
+Migracja 012 wstawia dwa wiersze, aby szybki start działał bez żadnych kroków w panelu:
 - `en-US` — domyślny, aktywny
 - `pl-PL` — aktywny
 
-Wartości `label` i `symbol` (waluty) po stronie klienta zapisywane są
-literałami Unicode Postgres `U&'…'`, aby plik źródłowy migracji pozostał
-ASCII-only (artefakty inżynierskie pozostają anglojęzyczne i ASCII-only;
-wiersz runtime odzwierciedla to, co storefront powinien renderować).
+Wartości `label` i `symbol` (dla walut) widoczne dla klientów są zapisane literałami Unicode
+Postgresa `U&'…'`, aby plik migracji pozostał wyłącznie w ASCII (artefakty inżynierskie pozostają po
+angielsku i w ASCII; wiersz w bazie odpowiada temu, co ma wyświetlić storefront).
 
-## Fallback tłumaczeń (`LocaleService`)
+## Wartość zastępcza tłumaczeń (`LocaleService`)
 
-`LocaleService.pickLocalizedValue(record, requestedLocale, defaultLocale?)`
-implementuje łańcuch lookup:
+`LocaleService.pickLocalizedValue(record, requestedLocale, defaultLocale?)` szuka wartości w tej
+kolejności:
 
-1. żądany locale, jeśli obecny w rekordzie.
-2. skonfigurowany domyślny locale, jeśli podany i obecny.
-3. pierwsza obecna wartość w rekordzie.
+1. żądany język, jeśli rekord go zawiera;
+2. skonfigurowany język domyślny, jeśli został podany i rekord go zawiera;
+3. pierwsza wartość obecna w rekordzie;
 4. pusty string.
 
-`resolveRequestLocale(acceptLanguageHeader, activeLocales)` parsuje nagłówek
-`Accept-Language` (z wagami q) i zwraca najwyższy priorytet dopasowania
-z aktywnej puli języków, z fallbackiem language-only, aby
-`en-GB` pasował do `en-US`. Fallback do skonfigurowanego domyślnego, gdy nic
-nie pasuje.
+`resolveRequestLocale(acceptLanguageHeader, activeLocales)` odczytuje nagłówek `Accept-Language`
+(z wagami q) i zwraca najlepiej dopasowany język spośród aktywnych, z dopasowaniem po samym języku,
+dzięki któremu `en-GB` pasuje do `en-US`. Gdy nic nie pasuje, zwraca skonfigurowany język domyślny.
 
-Lookup domyślnego locale jest cache'owany na 60 sekund; mutacje admin wołają
-`invalidateDefault()`, aby cache wyczyścił się natychmiast po zmianie.
+Odczyt języka domyślnego jest przechowywany w pamięci podręcznej przez 60 sekund; zmiany w panelu
+wywołują `invalidateDefault()`, aby pamięć podręczna została wyczyszczona od razu po zmianie.
 
 ## Encje
 
-`Language` — naturalny primary key na kod BCP-47; `label`,
-`isDefault`, `isActive`, `sortOrder`.
+`Language` — naturalny klucz główny w postaci kodu BCP-47; `label`, `isDefault`, `isActive`,
+`sortOrder`.
 
 ## Punkty rozszerzenia
 
-- **Domyślny per Sales Channel** — gdy Sales Channel ma własny
-  język, podepnij resolver przed
-  `LocaleService.resolveRequestLocale()` i użyj domyślnego kanału
+- **Język domyślny dla kanału sprzedaży** — gdy kanał sprzedaży ma własny język, wstaw przed
+  `LocaleService.resolveRequestLocale()` mechanizm wyznaczania i używaj języka domyślnego kanału
   zamiast globalnego.
-- **Translation pull/push** — emituj zdarzenie domenowe, gdy zmienia się pole
-  zlokalizowane, i pozwól integracji konsumować je dla zewnętrznego workflow
-  tłumaczeń.
+- **Wymiana tłumaczeń z systemami zewnętrznymi** — emituj zdarzenie domenowe przy zmianie
+  przetłumaczonego pola i pozwól integracji przekazywać je do zewnętrznego procesu tłumaczeń.

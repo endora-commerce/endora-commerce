@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { Data } from '@measured/puck';
+import type { Data } from '@puckeditor/core';
 import type { NewsletterCustomField, NewsletterEmailBlockSummary } from '@endora-commerce/contracts';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, PageHeader } from '@endora-commerce/admin-kit/ui';

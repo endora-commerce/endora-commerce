@@ -4,58 +4,57 @@ title: Zestawy atrybutów
 
 # Zestawy atrybutów
 
-Zestawy atrybutów grupują definicje `ProductAttribute` w wielokrotnie używane
-schematy. Każdy produkt jest podpięty do dokładnie jednego zestawu; system
-dostarcza zestaw `default`, który stosuje się, gdy admini nie wybiorą innego.
+Zestawy atrybutów grupują definicje `ProductAttribute` w schematy wielokrotnego użytku. Każdy
+produkt jest przypisany do dokładnie jednego zestawu; system dostarcza zestaw `default`, używany,
+gdy administrator nie wybierze innego.
 
-## Po co istnieją
+## Po co są
 
-Bez zestawów każdy produkt niósłby pełny graf atrybutów w `attributeValues`.
-Różne typy produktów (elektronika, odzież, chemia) potrzebują różnych
-atrybutów, ale schemat bazowy traktował każdy klucz jako globalny.
-Zestawy pozwalają adminom kuratorować skupione doświadczenie autorskie
-per kategoria, a storefrontowi renderować ciaśniejszą tabelę atrybutów.
+Bez zestawów każdy produkt miałby w `attributeValues` pełny zestaw atrybutów. Różne rodzaje
+produktów (elektronika, odzież, chemia) potrzebują różnych atrybutów, a podstawowy schemat
+traktował każdy klucz jako globalny. Zestawy pozwalają administratorom przygotować dla każdej
+kategorii formularz z tylko potrzebnymi polami, a storefrontowi — wyświetlić krótszą tabelę
+atrybutów.
 
-## Publiczne API
+## API publiczne
 
-| Verb + Path | Odbiorca | Cel |
+| Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `GET /api/v1/admin/catalog/attribute-sets` | admin | Lista wszystkich zestawów łącznie z `default` |
-| `GET /api/v1/admin/catalog/attribute-sets/:id` | admin | Szczegóły zestawu z przypisanymi atrybutami |
-| `POST /api/v1/admin/catalog/attribute-sets` | admin | Utworzenie własnego zestawu (`code` snake_case, unikalny) |
-| `PATCH /api/v1/admin/catalog/attribute-sets/:id` | admin | Aktualizacja nazwy; systemowy Default jest niemutowalny |
-| `DELETE /api/v1/admin/catalog/attribute-sets/:id` | admin | Usunięcie; odrzuca z 409, gdy jakikolwiek produkt odwołuje się do zestawu |
-| `POST /api/v1/admin/catalog/attribute-sets/:id/attributes` | admin | Przypisanie atrybutów do zestawu |
-| `DELETE /api/v1/admin/catalog/attribute-sets/:id/attributes/:key` | admin | Odpięcie |
+| `GET /api/v1/admin/catalog/attribute-sets` | administrator | Lista wszystkich zestawów, łącznie z `default` |
+| `GET /api/v1/admin/catalog/attribute-sets/:id` | administrator | Szczegóły zestawu z przypisanymi atrybutami |
+| `POST /api/v1/admin/catalog/attribute-sets` | administrator | Utworzenie własnego zestawu (`code` w snake_case, unikalny) |
+| `PATCH /api/v1/admin/catalog/attribute-sets/:id` | administrator | Zmiana nazwy; systemowego zestawu Default nie można zmieniać |
+| `DELETE /api/v1/admin/catalog/attribute-sets/:id` | administrator | Usunięcie; odrzucane z 409, gdy zestawu używa jakikolwiek produkt |
+| `POST /api/v1/admin/catalog/attribute-sets/:id/attributes` | administrator | Przypisanie atrybutów do zestawu |
+| `DELETE /api/v1/admin/catalog/attribute-sets/:id/attributes/:key` | administrator | Odłączenie atrybutu |
 
-Payload tworzenia/aktualizacji produktu akceptuje `attributeSetId`. Gdy pominięty,
-używany jest systemowy Default Set.
+Treść żądania tworzenia i aktualizacji produktu przyjmuje `attributeSetId`. Gdy go nie podano,
+używany jest systemowy zestaw Default.
 
 ## Błędy
 
-| Code | Status | Kiedy |
+| Kod | Status | Kiedy |
 | --- | --- | --- |
 | `ATTRIBUTE_SET_CODE_TAKEN` | 409 | `code` już istnieje |
-| `ATTRIBUTE_SET_IN_USE` | 409 | Usunięcie zablokowane: co najmniej jeden produkt odwołuje się do zestawu |
-| `SYSTEM_ATTRIBUTE_SET_IMMUTABLE` | 409 | Mutacja seedowanego Default Set |
+| `ATTRIBUTE_SET_IN_USE` | 409 | Usunięcie zablokowane: zestawu używa co najmniej jeden produkt |
+| `SYSTEM_ATTRIBUTE_SET_IMMUTABLE` | 409 | Próba zmiany zestawu Default utworzonego przy instalacji |
 | `ATTRIBUTE_SET_NOT_FOUND` | 404 | Brak `:id` |
 | `ATTRIBUTE_NOT_FOUND` | 404 | Brak `:key` przy przypisaniu |
 
-## Integracja ze storefrontem
+## Storefront
 
-`productDetail.attributeSet` niesie `{id, code, name}`, żeby motywy mogły
-renderować etykietę zestawu nad tabelą atrybutów. Motyw referencyjny foundation
-renderuje zlokalizowaną nazwę zestawu jako mały podnagłówek.
+`productDetail.attributeSet` zawiera `{id, code, name}`, aby motywy mogły wyświetlić nazwę zestawu
+nad tabelą atrybutów. Motyw wzorcowy wyświetla przetłumaczoną nazwę zestawu jako niewielki
+podtytuł.
 
-## Magazynowanie
+## Przechowywanie
 
-`attribute_sets` (id, code unique, name jsonb, is_system bool) +
-`attribute_set_attributes` (composite PK na (set_id, attribute_id)).
-Systemowy wiersz Default jest seedowany migracją 017 ze deterministycznym UUID
-`defa0017-0000-4000-8000-000000000000`, żeby seedy i testy mogły się do niego
-odwoływać stabilnie.
+`attribute_sets` (id, unikalny code, name jsonb, is_system bool) i `attribute_set_attributes`
+(złożony klucz główny (set_id, attribute_id)). Systemowy wiersz Default tworzy migracja 017 ze stałym
+UUID `defa0017-0000-4000-8000-000000000000`, aby dane początkowe i testy mogły się do niego
+niezmiennie odwoływać.
 
 ## Dziennik audytu
 
-CRUD AttributeSet zapisuje jeden `AuditLogEntry` na mutację z `stateBefore` i
-`stateAfter`, żeby strona audytu pokazywała, kto co zmienił.
+Każda zmiana zestawu atrybutów zapisuje jeden `AuditLogEntry` ze `stateBefore` i `stateAfter`, aby
+strona audytu pokazywała, kto co zmienił.

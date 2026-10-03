@@ -1,77 +1,102 @@
 ---
-title: Admin usage
+title: Obsługa w panelu administracyjnym
 sidebar_position: 2
 ---
 
-# Admin usage — Sales Channels
+# Obsługa kanałów sprzedaży w panelu administracyjnym
 
-Jak administrator platformy obsługuje moduł Sales Channels z poziomu Admin UI na co dzień. Każda akcja poniżej jest też dostępna przez admin HTTP API modułu.
+Jak administrator platformy na co dzień obsługuje moduł kanałów sprzedaży w panelu
+administracyjnym. Każda opisana tu czynność jest też dostępna przez administracyjne API HTTP modułu.
 
-## Lokalizacja obszaru
+## Gdzie to znaleźć
 
-Sidebar → **Operations → Sales channels**.
+Pasek boczny → **Operations → Sales channels**.
 
-Strona listy pokazuje każdy kanał zarejestrowany na platformie. Kanał system default jest oznaczony odznaką `System default` i jest zawsze obecny (świeżo zainstalowana platforma automatycznie dostaje kanał `default` przy pierwszym bootcie).
+Lista pokazuje wszystkie kanały zarejestrowane w platformie. Domyślny kanał systemowy jest oznaczony
+etykietą `System default` i zawsze istnieje (świeżo zainstalowana platforma przy pierwszym starcie
+automatycznie dostaje kanał `default`).
 
 ## Tworzenie nowego kanału
 
 1. Kliknij **+ New channel**.
-2. Wypełnij:
-   - **Code** — lowercase machine-friendly identifier; immutable after creation.
-   - **Display name** — obecnie pojedynczy string `en-US`; wsparcie wielu locale to follow-up.
-   - **Theme code** *(optional)* — opaque identifier the storefront uses to pick its theme.
-   - **Languages** — rozdzielone przecinkiem lub nową linią. Kody muszą już istnieć w rejestrze języków modułu i18n.
-   - **Default language** — musi być jednym z języków powyżej.
-   - **Currencies** / **Default currency** — ten sam kształt; kody muszą istnieć w rejestrze walut.
-   - **Active** *(default `true`)*.
-3. **Create channel.** System odmawia, gdy code jest już używany albo gdy którykolwiek kod języka / waluty jest nieznany.
+2. Wypełnij pola:
+   - **Code** — identyfikator techniczny małymi literami; po utworzeniu nie można go zmienić.
+   - **Display name** — obecnie jeden tekst w `en-US`; obsługa wielu języków zostanie dodana
+     później.
+   - **Theme code** *(opcjonalne)* — identyfikator, na podstawie którego storefront wybiera motyw.
+   - **Languages** — rozdzielone przecinkami albo w osobnych wierszach. Kody muszą już istnieć w
+     rejestrze języków modułu i18n.
+   - **Default language** — musi być jednym z powyższych języków.
+   - **Currencies** / **Default currency** — tak samo; kody muszą istnieć w rejestrze walut.
+   - **Active** *(domyślnie `true`)*.
+3. Kliknij **Create channel**. System odrzuci operację, gdy kod jest już używany albo którykolwiek kod
+   języka lub waluty jest nieznany.
 
 ## Edycja istniejącego kanału
 
 1. Kliknij `code` kanału na liście.
-2. Strona edycji ładuje jego tożsamość. Wprowadź zmiany; kliknij **Save changes**.
-3. Gdy inny administrator zmienił ten sam kanał między twoim załadowaniem a zapisem, zapis zwraca baner konfliktu 412 z bieżącą wersją. Odśwież stronę, aby pobrać najnowszy stan i ponownie zastosować swoje zmiany.
+2. Strona edycji wczytuje dane kanału. Wprowadź zmiany i kliknij **Save changes**.
+3. Jeśli inny administrator zmienił ten sam kanał między wczytaniem strony a zapisem, zapis zwróci
+   baner konfliktu 412 z bieżącą wersją. Odśwież stronę, aby pobrać aktualny stan, i ponownie
+   wprowadź swoje zmiany.
 
-## Deaktywacja kanału
+## Dezaktywacja kanału
 
-Użyj przycisku **Deactivate** na stronie szczegółów kanału. Deaktywacja jest idempotentna i odwracalna:
+Użyj przycisku **Deactivate** na stronie szczegółów kanału. Dezaktywacja jest idempotentna i
+odwracalna:
 
-- Kanał znika z listy akceptowanych resolvera (requesty storefront / POS wskazujące na niego są odrzucane z `INACTIVE_SALES_CHANNEL`).
-- Jest ukryty w pickerze „Add to channel" na każdej stronie edycji encji.
-- Istniejące członkostwa i historyczne Orders / Quotes nadal się do niego odnoszą.
+- Kanał przestaje być akceptowany przy wyznaczaniu kanału żądania (żądania ze storefrontu lub POS
+  wskazujące ten kanał są odrzucane z `INACTIVE_SALES_CHANNEL`).
+- Kanał znika z listy „Add to channel” na każdej stronie edycji encji.
+- Istniejące przypisania oraz historyczne zamówienia i oferty nadal się do niego odwołują.
 
-Kanału system default nie można deaktywować.
+Domyślnego kanału systemowego nie można dezaktywować.
 
-## Hard-delete kanału
+## Trwałe usunięcie kanału
 
-Przycisk **Delete** jest destrukcyjny. Platforma odmawia operacji, gdy:
+Przycisk **Delete** usuwa dane. Platforma odrzuca tę operację, gdy:
 
-- Kanał jest system default.
-- Jakikolwiek Order lub Quote odnosi się do kanału — te atrybucje są niemutowalne, więc jedyny sposób „uwolnienia" kanału to pozostawienie go (deaktywacja to właściwa odpowiedź).
-- Usunięcie kanału zostawiłoby jedną lub więcej encji (Products, Customers, …) powiązanych z **zerem** kanałów — *chyba że* potwierdzisz prompt rebind-to-Default, wtedy te encje są ponownie wiązane z system default w tej samej transakcji, zanim wiersz kanału zostanie usunięty.
+- kanał jest domyślnym kanałem systemowym;
+- do kanału odwołuje się jakiekolwiek zamówienie lub oferta — tych przypisań nie można zmienić, więc
+  jedynym sposobem na „uwolnienie” kanału jest pozostawienie go (właściwą odpowiedzią jest
+  dezaktywacja);
+- usunięcie kanału zostawiłoby jedną lub więcej encji (produktów, klientów…) przypisanych do **zera**
+  kanałów — *chyba że* potwierdzisz przepisanie ich do kanału domyślnego; wtedy w tej samej
+  transakcji, zanim wiersz kanału zostanie usunięty, encje są przypisywane do domyślnego kanału
+  systemowego.
 
-`ON DELETE CASCADE` tabel mostu usuwa każdy pozostały wiersz członkostwa.
+`ON DELETE CASCADE` tabel łączących usuwa wszystkie pozostałe wiersze przypisań.
 
-## Zarządzanie członkostwem ze strony encji
+## Zarządzanie przypisaniami ze strony encji
 
-Każda strona edycji encji wspierająca członkostwo kanału (na start Products; pozostałe 8 typów to mechaniczny follow-up) pokazuje kartę **Sales channels** na dole:
+Każda strona edycji encji obsługująca przypisania do kanałów (na początek produkty; pozostałe 8 typów
+to mechaniczna praca do wykonania później) ma na dole kartę **Sales channels**:
 
-- Lista pokazuje kanały, w których encja jest obecnie, z odznaką `System default` tam, gdzie to stosowne.
-- Picker listuje kanały, w których encja **nie** jest jeszcze. Wybierz jeden i kliknij **Add**.
-- **Remove** uruchamia inwariant at-least-one-channel — gdy encja ma tylko jeden kanał i potwierdzisz prompt rebind-to-Default, system wiąże ją z system default przed zakończeniem usunięcia.
+- Lista pokazuje kanały, do których encja jest obecnie przypisana, z etykietą `System default` tam,
+  gdzie to potrzebne.
+- Lista wyboru pokazuje kanały, do których encja **nie** jest jeszcze przypisana. Wybierz jeden i
+  kliknij **Add**.
+- **Remove** uruchamia regułę „co najmniej jeden kanał” — gdy encja ma tylko jeden kanał, a ty
+  potwierdzisz przepisanie do kanału domyślnego, system przypisze ją do domyślnego kanału
+  systemowego, zanim zakończy usuwanie.
 
-## Konfiguracja multi-storefront
+## Kilka storefrontów
 
-Aby uruchomić dwa storefronty na tym samym backendzie (np. `serwisA.com` i `serwisB.com`), ustaw zmienną env `SALES_CHANNEL_HOST_MAP` na backendzie:
+Aby uruchomić dwa storefronty na tym samym backendzie (np. `serwisA.com` i `serwisB.com`), ustaw w
+backendzie zmienną środowiskową `SALES_CHANNEL_HOST_MAP`:
 
 ```env
 SALES_CHANNEL_HOST_MAP=serwisA.com=channel-a,serwisB.com=channel-b
 ```
 
-Każdy request storefront rozwiązuje się automatycznie do kanału hosta; nagłówek nie jest potrzebny. Każdy storefront widzi wtedy tylko produkty / klientów / ceny należące do swojego kanału.
+Każde żądanie ze storefrontu jest wtedy automatycznie przypisywane do kanału hosta; nagłówek nie jest
+potrzebny. Każdy storefront widzi wyłącznie produkty, klientów i ceny należące do jego kanału.
 
-## Czego admini nie mogą zrobić
+## Czego administrator nie może zrobić
 
-- Przypisać Order lub Quote Request do innego kanału po utworzeniu. Atrybucja jest niemutowalna; to świadoma gwarancja audytu, nie przeoczenie.
-- Usunąć kanał system default. Reconciler boot-time odtworzy go przy następnym bootcie platformy.
-- Wymusić dwa kanały jako system default jednocześnie. Partial unique index blokuje to na warstwie bazy danych.
+- Przypisać zamówienia ani zapytania ofertowego do innego kanału po utworzeniu. Tego przypisania nie
+  można zmienić; to świadoma gwarancja na potrzeby audytu, a nie przeoczenie.
+- Usunąć domyślnego kanału systemowego. Mechanizm uzgadniania przy starcie odtworzy go przy
+  następnym uruchomieniu platformy.
+- Ustawić dwóch kanałów jednocześnie jako domyślnych. Blokuje to częściowy indeks unikalny w bazie
+  danych.

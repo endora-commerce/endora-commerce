@@ -67,7 +67,7 @@ export const UNRENDERED_CLASS_DEFINITIONS: UnrenderedClassLedger = {
     "the dark-mode class the application sets on `document.documentElement`, never in a class " +
     'attribute — it is a state selector and not a component class',
   'puck-root':
-    "`@measured/puck`'s own root class, rendered by that library rather than by this " +
+    "`@puckeditor/core`'s own root class, rendered by that library rather than by this " +
     'repository; the design system styles it because the host embeds the editor',
   'cms-pb-header-leading':
     'a page-builder header slot whose renderer is the CMS module; it drains with the block',

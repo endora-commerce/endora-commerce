@@ -1,4 +1,4 @@
-import type { Data } from '@measured/puck';
+import type { Data } from '@puckeditor/core';
 
 type PuckItem = { type: string; props: Record<string, unknown> };
 

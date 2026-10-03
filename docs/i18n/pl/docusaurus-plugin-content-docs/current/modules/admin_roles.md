@@ -1,28 +1,28 @@
 ---
 title: admin_roles
-description: Definicje ról admina + uprawnienia per moduł
+description: Role administratorów i uprawnienia poszczególnych modułów
 ---
 
 # `admin_roles`
 
-Definicje ról admina i macierz uprawnień per moduł, którą rola przyznaje.
+Definicje ról administratorów oraz macierz uprawnień modułów, które rola przyznaje.
 
-## Publiczne API
+## API publiczne
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/admin/roles` | Lista ról |
 | `POST /api/v1/admin/roles` | Utworzenie roli z zestawem uprawnień |
 | `PATCH /api/v1/admin/roles/:id` | Aktualizacja roli |
-| `DELETE /api/v1/admin/roles/:id` | Usunięcie (odrzucone, gdy przypisana do aktywnych użytkowników admina) |
+| `DELETE /api/v1/admin/roles/:id` | Usunięcie (odrzucane, gdy rola jest przypisana do aktywnych administratorów) |
 
 ## Model uprawnień
 
-Uprawnienia to stringi w kształcie `module:action` (np. `catalog:write`,
-`integrations:manage`, `audit:read`). `permission-service.ts` udostępnia
-`hasPermission(adminUser, 'module:action')`; pre-handler `requireAdmin(permission?)`
-w `auth/plugin.ts` konsultuje go na każdej gated trasie. Rola może też wymagać
-2FA — `requireAdmin` wymusza wyzwanie 2FA przed wywołaniem handlera trasy.
+Uprawnienia to stringi w postaci `module:action` (np. `catalog:write`, `integrations:manage`,
+`audit:read`). `permission-service.ts` udostępnia `hasPermission(adminUser, 'module:action')`;
+pre-handler `requireAdmin(permission?)` w `auth/plugin.ts` sprawdza je na każdej chronionej trasie.
+Rola może też wymagać 2FA — `requireAdmin` wymusza wtedy weryfikację drugiego składnika, zanim
+wykona się handler trasy.
 
 ## Encje
 
@@ -30,7 +30,7 @@ w `auth/plugin.ts` konsultuje go na każdej gated trasie. Rola może też wymaga
 
 ## Punkty rozszerzenia
 
-- **Niestandardowe stringi uprawnień** — definiuj nowe przy pierwszym użyciu;
-  zestaw uprawnień jest otwarty i nie jest enumerowany po stronie serwera.
-- **Role hierarchiczne** — `permission-service.hasPermission` może rozwiązywać
-  dziedziczone uprawnienia; dziś każda Rola jest płaska.
+- **Własne kody uprawnień** — definiuj nowe przy pierwszym użyciu; zbiór uprawnień jest otwarty i
+  serwer go nie wylicza.
+- **Role hierarchiczne** — `permission-service.hasPermission` mogłoby uwzględniać uprawnienia
+  dziedziczone; dziś każda rola jest płaska.

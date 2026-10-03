@@ -1,76 +1,70 @@
 ---
 title: analytics
-description: Ingest zdarzeń storefront + agregacja w adminie + opcjonalny forwarder GA4
+description: Zbieranie zdarzeń ze storefrontu, zestawienia w panelu administracyjnym i opcjonalne przekazywanie do GA4
 ---
 
 # `analytics`
 
-Append-only log zdarzeń zasilany przez storefront i admin, plus mała ścieżka
-odczytu agregacji dla dashboardu admina. Opcjonalny forwarder GA4 mirroruje
-każde zaingestowane zdarzenie do Google Analytics, gdy jest skonfigurowany.
+Dziennik zdarzeń, do którego można wyłącznie dopisywać, zasilany przez storefront i panel
+administracyjny, oraz niewielka ścieżka odczytu zestawień dla pulpitu w panelu. Jeśli jest
+skonfigurowany, opcjonalny mechanizm przekazywania kopiuje każde zebrane zdarzenie do Google
+Analytics 4.
 
-## Publiczne API
+## API publiczne
 
-| Verb + Path | Audience | Purpose |
+| Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `POST /api/v1/analytics/events` | storefront / admin (no auth) | Ingest batcha zdarzeń (≤ 100) |
-| `GET /api/v1/admin/analytics/summary` | admin (`analytics:read`) | Sumy per typ + breakdown dzienny dla okna |
+| `POST /api/v1/analytics/events` | storefront / panel (bez uwierzytelniania) | Przyjęcie porcji zdarzeń (≤ 100) |
+| `GET /api/v1/admin/analytics/summary` | administrator (`analytics:read`) | Sumy dla każdego typu i rozbicie dzienne w zadanym okresie |
 
 ## Typy zdarzeń
 
-Granica Zod akceptuje stały zestaw:
+Schemat Zod na wejściu przyjmuje stały zbiór:
 
 - `product.viewed`, `category.viewed`
 - `product.added_to_cart`, `cart.abandoned`
 - `order.placed`
 - `search.performed`, `filter.clicked`
 
-Dodanie nowego typu to jedna edycja w
-`packages/contracts/src/analytics.ts`.
+Dodanie nowego typu to jedna zmiana w `packages/contracts/src/analytics.ts`.
 
-## Semantyka ingestu
+## Jak działa przyjmowanie zdarzeń
 
-Storefront wysyła batche; schemat Zod na granicy odrzuca cały batch,
-jeśli którekolwiek zdarzenie jest źle uformowane (storefront nie może
-dryfować unii typów). Walidacja per zdarzenie w serwisie nadal działa, gdy
-pole `properties` jest nieoczekiwane — takie zdarzenia trafiają do tablicy
-`rejected` w odpowiedzi, a reszta batcha ląduje.
+Storefront wysyła zdarzenia porcjami; schemat Zod na wejściu odrzuca całą porcję, jeśli którekolwiek
+zdarzenie jest niepoprawne (dzięki temu storefront nie może odejść od zdefiniowanych typów).
+Walidacja pojedynczego zdarzenia w usłudze nadal działa, gdy pole `properties` ma nieoczekiwaną
+zawartość — takie zdarzenia trafiają do tablicy `rejected` w odpowiedzi, a reszta porcji zostaje
+zapisana.
 
-Endpoint zwraca `202 Accepted` z `{ accepted, rejected[] }`. Każdy zapisany
-wiersz mirroruje `X-Request-Id` z requestu do korelacji między logami.
+Endpoint zwraca `202 Accepted` z `{ accepted, rejected[] }`. Każdy zapisany wiersz zawiera
+`X-Request-Id` z żądania, co pozwala powiązać wpisy w różnych logach.
 
-## Agregacja
+## Zestawienia
 
-`AnalyticsQueryService.summary({ from, to, salesChannelId? })` wykonuje dwa
-zapytania ograniczone oknem (sumy per typ, dzienne sumy per typ) względem
-indeksów `(occurred_at)` i `(type, occurred_at)`. Dashboard nigdy nie
-odpytuje nieograniczonego zakresu.
+`AnalyticsQueryService.summary({ from, to, salesChannelId? })` wykonuje dwa zapytania ograniczone
+do okresu (sumy według typu oraz dzienne sumy według typu), korzystając z indeksów `(occurred_at)`
+i `(type, occurred_at)`. Pulpit nigdy nie pyta o nieograniczony zakres.
 
-## Forwarder GA4
+## Przekazywanie do GA4
 
 `buildForwarderFromEnv(env)` zwraca:
 
 - `Ga4Forwarder` — gdy ustawione są zarówno `ANALYTICS_GA4_MEASUREMENT_ID`, jak i
-  `ANALYTICS_GA4_API_SECRET`. Każdy ingest jest fire-and-forget POST'owany
-  do Measurement Protocol GA4; `client_id` jest bucketowany przez sessionId →
-  customerAccountId → organizationId → `'anonymous'`, żeby GA4 widział spójne
-  ścieżki użytkownika.
-- `NoopForwarder` — w przeciwnym razie. Ingest nigdy nie blokuje na failure
-  forwardera, a zdarzenia źródłowe są trwałe w `analytics_events` niezależnie
-  od tego.
+  `ANALYTICS_GA4_API_SECRET`. Każde zebrane zdarzenie jest wysyłane do Measurement Protocol GA4
+  bez czekania na odpowiedź; `client_id` jest wybierany kolejno z sessionId → customerAccountId →
+  organizationId → `'anonymous'`, aby GA4 widział spójne ścieżki użytkowników.
+- `NoopForwarder` — w przeciwnym razie. Przyjmowanie zdarzeń nigdy nie czeka na błąd
+  przekazywania, a zdarzenia źródłowe i tak są trwale zapisane w `analytics_events`.
 
 ## Encje
 
-`AnalyticsEvent` — `type`, `occurredAt`, `recordedAt`, opcjonalne
-`salesChannelId`, `customerAccountId`, `organizationId`, `sessionId`,
-`properties` (JSONB), `requestId`.
+`AnalyticsEvent` — `type`, `occurredAt`, `recordedAt`, opcjonalnie `salesChannelId`,
+`customerAccountId`, `organizationId`, `sessionId`, `properties` (JSONB), `requestId`.
 
 ## Punkty rozszerzenia
 
-- **Nowi konsumenci** — zaimplementuj interfejs `AnalyticsForwarder` i
-  zarejestruj w composition root (np. PostHog, Mixpanel, wewnętrzny data
-  warehouse).
-- **Pre-agregowane rollup'y** — zapytanie dashboardu jest w porządku przy
-  setkach tysięcy zdarzeń; przy utrzymywanych wolumenach milionowych
-  zmaterializuj tutaj dzienną tabelę rollup i niech indexer składa inserty
-  w nią.
+- **Kolejni odbiorcy** — zaimplementuj interfejs `AnalyticsForwarder` i zarejestruj go w
+  composition root (np. PostHog, Mixpanel, wewnętrzna hurtownia danych).
+- **Wstępnie przeliczone zestawienia** — zapytanie pulpitu wystarcza przy setkach tysięcy zdarzeń;
+  przy stałych wolumenach rzędu milionów utwórz tu dzienną tabelę zestawień i zapisuj do niej przy
+  indeksowaniu.

@@ -1,6 +1,11 @@
 'use client';
 
 export { createPageBuilderEditorPlugin } from './editor/page-builder-plugin.js';
+export {
+  PUCK_LEGACY_DND,
+  PUCK_LEGACY_VIEWPORTS,
+  withPuckLegacySideBar,
+} from './editor/puck-legacy-layout.js';
 export { PageBuilderOutline } from './editor/page-builder-outline.js';
 export { PageBuilderComponentOverlay } from './editor/page-builder-component-overlay.js';
 export {

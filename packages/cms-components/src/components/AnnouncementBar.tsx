@@ -1,6 +1,6 @@
 'use client';
 
-import { type ComponentConfig, type PuckComponent } from '@measured/puck';
+import { type ComponentConfig, type PuckComponent } from '@puckeditor/core';
 import { createColorField, withHideOn } from '@endora-commerce/page-builder-core';
 import type { AnnouncementBarProps } from '../schema/component-types.js';
 

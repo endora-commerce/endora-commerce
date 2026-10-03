@@ -1,84 +1,78 @@
 ---
-title: Prompt Actions (AI assistant)
-description: Tryb poleceń naturalnych w palecie poleceń admina, z jawnym krokiem podglądu i potwierdzenia przed każdą zmianą
+title: Asystent AI (Prompt Actions)
+description: Polecenia w języku naturalnym w palecie poleceń panelu administracyjnego, z jawnym podglądem i potwierdzeniem przed każdą zmianą
 ---
 
-# Prompt Actions (AI assistant)
+# Asystent AI (Prompt Actions)
 
-Moduł `prompt_actions` dodaje tryb poleceń naturalnych do palety poleceń
-admina (`⌘K` / `Ctrl+K`). Operator opisuje, czego chce, po polsku lub
-po angielsku — platforma interpretuje instrukcję, pokazuje dokładnie, co
-zamierza zmienić, i wykonuje to dopiero po wyraźnym potwierdzeniu.
+Moduł `prompt_actions` dodaje do palety poleceń panelu administracyjnego (`⌘K` / `Ctrl+K`) tryb
+poleceń w języku naturalnym. Operator opisuje, czego chce, po polsku albo po angielsku — platforma
+interpretuje polecenie, pokazuje dokładnie, co zamierza zmienić, i wykonuje to dopiero po wyraźnym
+potwierdzeniu.
 
-Przykładowe prompty:
+Przykładowe polecenia:
 
 - *Dla produktu „Bolts 0193" zwiększ stan magazynowy w magazynie „Default" na 120 sztuk*
 - *Assign every product with "Helmets" in its name to the "Helmets" category*
 
-## Jak to działa (widok operatora)
+## Jak to działa (z perspektywy operatora)
 
-1. Otwórz paletę i wybierz **Ask the assistant…** (widoczne tylko gdy funkcja
-   jest włązczona, skonfigurowana i masz uprawnienie *Use the prompt
-   assistant*).
-2. Wpisz instrukcję i wyślij. Asystent rozwiązuje nazwy („Bolts
-   0193", „Default") do konkretnych rekordów przez wyszukiwania read-only.
-3. Pojawia się **karta planu**: dokładne operacje, bieżąca wartość, liczba
-   dotkniętych rekordów i próbka dla zmian masowych. Nic jeszcze nie zostało
-   zmienione.
-4. **Confirm** wykonuje plan, **Cancel** zostawia wszystko nietknięte. Plany
-   wygasają po 10 minutach bez potwierdzenia.
-5. Wynik raportuje per-item. Uruchomienia masowe powyżej 50 rekordów idą w
-   tle; jeśli zamkniesz paletę, przy następnym otwarciu pojawi się notice,
-   dopóki nie zobaczysz wyniku.
+1. Otwórz paletę i wybierz **Ask the assistant…** (widoczne tylko wtedy, gdy funkcja jest włączona
+   i skonfigurowana, a ty masz uprawnienie *Use the prompt assistant*).
+2. Wpisz polecenie i wyślij. Asystent zamienia nazwy („Bolts 0193", „Default”) na konkretne
+   rekordy, korzystając wyłącznie z wyszukiwań tylko do odczytu.
+3. Pojawia się **karta planu**: dokładne operacje, bieżąca wartość, liczba rekordów, których dotyczy
+   zmiana, i próbka przy zmianach masowych. Na tym etapie nic jeszcze nie zostało zmienione.
+4. **Confirm** wykonuje plan, **Cancel** niczego nie zmienia. Niepotwierdzone plany wygasają po 10
+   minutach.
+5. Wynik jest raportowany dla każdej pozycji osobno. Operacje masowe obejmujące ponad 50 rekordów
+   działają w tle; jeśli zamkniesz paletę, przy następnym otwarciu zobaczysz powiadomienie, dopóki
+   nie obejrzysz wyniku.
 
-Gdy instrukcja jest niejednoznaczna, asystent zadaje jedno pytanie doprecyzowujące
-(z konkretnymi kandydatami) zamiast zgadywać. Nieobsługiwane prośby i brak
-uprawnień są raportowane wprost — nic się nie zmienia.
+Gdy polecenie jest niejednoznaczne, asystent zadaje jedno pytanie doprecyzowujące (z konkretnymi
+propozycjami), zamiast zgadywać. Nieobsługiwane prośby i brak uprawnień są zgłaszane wprost — nic
+się wtedy nie zmienia.
 
-## Model bezpieczeństwa
+## Bezpieczeństwo
 
-- Model może wołać tylko **kurated tool catalogue** zarejestrowany w kodzie —
-  nie może uruchamiać SQL, dowolnych endpointów ani wymyślać operacji. Narzędzia,
-  do których operator nie ma uprawnienia, w ogóle nie są pokazywane modelowi.
-- Mutacje **nigdy nie są wykonywane podczas interpretacji**: trafiają do planu;
-  każda operacja planu ponownie sprawdza live permission operatora w momencie
-  wykonania.
-- Wszystko na karcie planu jest **server-computed** (nazwy, liczniki, bieżące
-  wartości). Proza modelu nigdy nie jest wyświetlana, a wyniki narzędzi traktuje
-  się ściśle jako dane — produkt nazwany jak instrukcja nie może zmienić
-  zachowania asystenta.
-- Każde wykonanie zapisuje wpisy audytu: podsumowanie `prompt_action.execute`
-  (z oryginalnym promptem, providerem i modelem) plus własne wiersze audytu
-  modułów pod spodem (np. `stock_level.adjust`). Odmowy uprawnień audytuje
-  `prompt_action.refused`. Wykonania pojawiają się też na karcie Recent Activity
-  dashboardu.
+- Model może wywoływać tylko **wybrany katalog narzędzi** zarejestrowany w kodzie — nie może
+  uruchamiać SQL, wywoływać dowolnych endpointów ani wymyślać operacji. Narzędzia, do których
+  operator nie ma uprawnień, w ogóle nie są pokazywane modelowi.
+- Zmiany **nigdy nie są wykonywane podczas interpretacji**: trafiają do planu, a każda operacja z
+  planu w chwili wykonania ponownie sprawdza bieżące uprawnienia operatora.
+- Wszystko na karcie planu **oblicza serwer** (nazwy, liczby, bieżące wartości). Tekst wygenerowany
+  przez model nigdy nie jest wyświetlany, a wyniki narzędzi są traktowane wyłącznie jako dane —
+  produkt nazwany jak polecenie nie może zmienić zachowania asystenta.
+- Każde wykonanie zapisuje wpisy audytu: podsumowanie `prompt_action.execute` (z oryginalnym
+  poleceniem, dostawcą i modelem) oraz własne wpisy audytu modułów, które wykonały zmianę (np.
+  `stock_level.adjust`). Odmowy z powodu uprawnień audytuje `prompt_action.refused`. Wykonania
+  pojawiają się też na karcie Recent Activity na pulpicie.
 
 ## Konfiguracja (administrator platformy)
 
-Settings → grupa **Prompt actions (AI assistant)**:
+Ustawienia → grupa **Prompt actions (AI assistant)**:
 
-| Setting | Default | Meaning |
+| Ustawienie | Wartość domyślna | Znaczenie |
 |---------|---------|---------|
-| `prompt_actions.enabled` | `false` | Kill switch platformy. Gdy off, paleta zachowuje się jak bez modułu. |
-| `prompt_actions.provider` | `anthropic` | Provider LLM: `anthropic` (Claude), `google` (Gemini) lub `openai` (GPT). |
-| `prompt_actions.model` | `claude-sonnet-4-6` | ID modelu dla wybranego providera. |
-| `prompt_actions.api_key` | *(unset)* | Credential providera. **Write-only secret**: szyfrowany at rest, nigdy nie zwracany przez API settings po zapisie. |
-| `prompt_actions.bulk_limit` | `500` | Maksymalna liczba rekordów, które jeden prompt może dotknąć; większe plany są blokowane na podglądzie. |
+| `prompt_actions.enabled` | `false` | Główny wyłącznik w platformie. Gdy wyłączony, paleta działa tak, jakby modułu nie było. |
+| `prompt_actions.provider` | `anthropic` | Dostawca modelu językowego: `anthropic` (Claude), `google` (Gemini) albo `openai` (GPT). |
+| `prompt_actions.model` | `claude-sonnet-4-6` | Identyfikator modelu u wybranego dostawcy. |
+| `prompt_actions.api_key` | *(nieustawione)* | Dane uwierzytelniające u dostawcy. **Sekret tylko do zapisu**: szyfrowany w bazie i nigdy nie zwracany przez API ustawień po zapisaniu. |
+| `prompt_actions.bulk_limit` | `500` | Największa liczba rekordów, które może zmienić jedno polecenie; większe plany są blokowane już na etapie podglądu. |
 
-Zmiany konfiguracji obowiązują przy następnym prompcie — bez restartu. Backend
-potrzebuje `SETTINGS_SECRET_ENCRYPTION_KEY` w środowisku, żeby przechować klucz
-API (patrz root README, *Environment variables*).
+Zmiany konfiguracji obowiązują od następnego polecenia — bez restartu. Aby zapisać klucz API, backend
+potrzebuje w środowisku zmiennej `SETTINGS_SECRET_ENCRYPTION_KEY` (zobacz główny README, sekcja
+*Environment variables*).
 
-Przyznaj operatorom uprawnienie **Use the prompt assistant** (`prompt_actions:use`)
-na ekranie Roles. Każda planowana operacja wymaga dodatkowo tego samego uprawnienia
-co ręczna akcja (np. `catalog:write` przy zmianie stocku), więc asystent nigdy
-nie przekroczy tego, co operator mógłby zrobić ręcznie.
+Przyznaj operatorom uprawnienie **Use the prompt assistant** (`prompt_actions:use`) na ekranie ról.
+Każda zaplanowana operacja wymaga dodatkowo tego samego uprawnienia co odpowiadająca jej czynność
+ręczna (np. `catalog:write` przy zmianie stanu magazynowego), więc asystent nigdy nie zrobi więcej,
+niż operator mógłby zrobić ręcznie.
 
-## Rozszerzanie katalogu (autorzy modułów)
+## Rozszerzanie katalogu (dla autorów modułów)
 
-Moduły dokładają narzędzia w czasie kompozycji przez port
-`PromptActionToolRegistry` — ten sam wzorzec adapter registry co u providerów
-płatności i wysyłki. Narzędzie deklaruje:
+Moduły dodają narzędzia podczas kompozycji przez port `PromptActionToolRegistry` — ten sam wzorzec
+rejestru adapterów co przy dostawcach płatności i wysyłki. Narzędzie deklaruje:
 
 ```ts
 {
@@ -94,22 +88,21 @@ płatności i wysyłki. Narzędzie deklaruje:
 }
 ```
 
-Reguły (egzekwowane przy rejestracji, gdzie możliwe): kropkowe id z prefiksem
-modułu właściciela; resolvery są side-effect-free i capują wyniki (≤ 20);
-mutacje muszą implementować `preview()` z uczciwymi, server-computed
-licznikami i próbkami; narzędzia wyłączonych modułów znikają z katalogu
-automatycznie.
+Reguły (egzekwowane przy rejestracji, tam gdzie to możliwe): identyfikator z kropką i przedrostkiem
+modułu-właściciela; narzędzia wyszukujące nie mają skutków ubocznych i ograniczają liczbę wyników
+(≤ 20); narzędzia zmieniające dane muszą implementować `preview()` z rzetelnymi liczbami i próbkami
+obliczonymi przez serwer; narzędzia wyłączonych modułów automatycznie znikają z katalogu.
 
-## Katalog narzędzi v1
+## Katalog narzędzi w wersji 1
 
-| Tool | Kind | Permission |
+| Narzędzie | Rodzaj | Uprawnienie |
 |------|------|------------|
-| `catalog.search_products` | resolver | `catalog:read` |
-| `catalog.search_categories` | resolver | `catalog:read` |
-| `inventory.search_warehouses` | resolver | `catalog:read` |
-| `inventory.set_stock_level` | mutation | `catalog:write` |
-| `catalog.assign_products_to_category` | mutation | `catalog:write` |
+| `catalog.search_products` | wyszukiwanie | `catalog:read` |
+| `catalog.search_categories` | wyszukiwanie | `catalog:read` |
+| `inventory.search_warehouses` | wyszukiwanie | `catalog:read` |
+| `inventory.set_stock_level` | zmiana | `catalog:write` |
+| `catalog.assign_products_to_category` | zmiana | `catalog:write` |
 
-Masowe przypisania kategorii powyżej 50 produktów idą istniejącą kolejką
-`catalog.bulk-operation` (ten sam worker co ekran bulk-edit), więc duże prompty
-nigdy nie blokują procesu API.
+Masowe przypisania do kategorii obejmujące ponad 50 produktów trafiają do istniejącej kolejki
+`catalog.bulk-operation` (ten sam worker co ekran masowej edycji), więc duże polecenia nigdy nie
+blokują procesu API.

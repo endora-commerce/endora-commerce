@@ -1,6 +1,6 @@
 'use client';
 
-import type { PuckComponent } from '@measured/puck';
+import type { PuckComponent } from '@puckeditor/core';
 import { useMemo } from 'react';
 import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import type { RichContentProps } from '../schema/component-types.js';

@@ -1,7 +1,7 @@
 'use client';
 
 import { lazy, Suspense, type ReactElement } from 'react';
-import { type ComponentConfig } from '@measured/puck';
+import { type ComponentConfig } from '@puckeditor/core';
 import type { JSONContent } from '@tiptap/core';
 import type { RichContentProps } from '../schema/component-types.js';
 import { BOX_BORDER_FIELD, BOX_MARGIN_FIELD, BOX_PADDING_FIELD, DEFAULT_BOX_PROPS } from '../fields/shared-fields.js';

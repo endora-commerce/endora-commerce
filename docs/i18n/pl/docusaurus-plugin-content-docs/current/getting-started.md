@@ -472,7 +472,7 @@ wolno wgrać.
 - [Moduły](./modules/README.md) — co robi każdy moduł, jego ustawienia, uprawnienia i ekrany.
 - [Cykl życia modułu](./modules/lifecycle.md) — instalowanie, włączanie, wyłączanie
   i odinstalowywanie modułu z wiersza poleceń.
-- [Aktualizacja instancji](./upgrading-an-instance.md) — przeniesienie instancji i jej sklepu na
+- [Aktualizacja instancji](./upgrading-an-instance.md) — przeniesienie instancji i jej storefrontu na
   nowe wydanie poleceniem `pnpm run upgrade`.
 - [Drabina dostosowań](./architecture/customisation-ladder.md) i
   [moduły nakładkowe](./architecture/overlay-pattern.md) — zmiana zachowania bez edytowania

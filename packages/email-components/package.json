@@ -43,13 +43,13 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@measured/puck": "*",
+    "@puckeditor/core": "*",
     "@endora-commerce/page-builder-core": "workspace:^",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "peerDependenciesMeta": {
-    "@measured/puck": {
+    "@puckeditor/core": {
       "optional": true
     },
     "react": {
@@ -61,7 +61,7 @@
   },
   "devDependencies": {
     "@endora-commerce/page-builder-core": "workspace:^",
-    "@measured/puck": "*",
+    "@puckeditor/core": "*",
     "@types/react": "^19.2.14",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

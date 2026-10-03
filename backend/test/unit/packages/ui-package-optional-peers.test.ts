@@ -30,7 +30,7 @@ import { nodeManifestFs } from '../../../scripts/lib/module-package-manifest.js'
  * ## The rule, and why it is "shared" rather than a list
  *
  * A peer exists so a host and several packages bind **one** copy: React, the
- * page builder's `@measured/puck`, the router. Those are named by many
+ * page builder's `@puckeditor/core`, the router. Those are named by many
  * published packages — module packages included, which the CLI always reads —
  * so an instance that composes any of them declares them. A name that only one
  * package in the whole published estate mentions shares nothing with anyone,

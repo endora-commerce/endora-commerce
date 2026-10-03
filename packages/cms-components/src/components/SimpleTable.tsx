@@ -1,6 +1,6 @@
 'use client';
 
-import { type ComponentConfig, type Field, type PuckComponent, FieldLabel } from '@measured/puck';
+import { type ComponentConfig, type Field, type PuckComponent, FieldLabel } from '@puckeditor/core';
 import { withHideOn } from '@endora-commerce/page-builder-core';
 import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import type {

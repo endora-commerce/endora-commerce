@@ -54,7 +54,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'Where it is published is a second question, and batch 16 — which moves **both** ' +
     'endpoints — answered the near half of it: `cms` publishes the component on its own ' +
     '`./admin-ui`, which is D-191\'s exit and `credentials`\' from batch 10. The kit ' +
-    'refuses it on R7 (it is a `@measured/puck` host, and the kit is what all 66 module ' +
+    'refuses it on R7 (it is a `@puckeditor/core` host, and the kit is what all 66 module ' +
     'packages compile against) and `@endora-commerce/page-builder-admin` refuses it on ' +
     'ownership: that package holds the files naming `cms` **nowhere**, and this one calls ' +
     '`cmsClient`, reads `useTranslation(\'cms\')` and lays the CMS page container out.\n\n' +
@@ -89,7 +89,7 @@ export const entries: Readonly<Record<string, LedgerEntry>> = {
     'Where it is published is a second question, and batch 16 — which moves **both** ' +
     'endpoints — answered the near half of it: `cms` publishes the component on its own ' +
     '`./admin-ui`, which is D-191\'s exit and `credentials`\' from batch 10. The kit ' +
-    'refuses it on R7 (it is a `@measured/puck` host, and the kit is what all 66 module ' +
+    'refuses it on R7 (it is a `@puckeditor/core` host, and the kit is what all 66 module ' +
     'packages compile against) and `@endora-commerce/page-builder-admin` refuses it on ' +
     'ownership: that package holds the files naming `cms` **nowhere**, and this one calls ' +
     '`cmsClient`, reads `useTranslation(\'cms\')` and lays the CMS page container out.\n\n' +

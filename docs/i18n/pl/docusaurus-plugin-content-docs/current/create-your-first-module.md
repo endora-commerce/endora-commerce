@@ -417,7 +417,7 @@ a nie jego kod wyjścia.
 
 ## Co dalej
 
-- [Wzorzec overlay](./architecture/overlay-pattern.md) — wszystko, co może robić moduł nakładkowy,
+- [Wzorzec nakładki](./architecture/overlay-pattern.md) — wszystko, co może robić moduł nakładkowy,
   w tym zmiana działania usługi platformy przez `ctx.di.decorate`.
 - [Drabina dostosowań](./architecture/customisation-ladder.md) — po który mechanizm sięgnąć
   najpierw i ile każdy z nich kosztuje przy następnej aktualizacji.

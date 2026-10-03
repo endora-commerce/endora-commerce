@@ -16,7 +16,7 @@
  * The kit refuses it for two reasons of **shape** that survive repairing every
  * reach: R7, because every file here is a Puck component or field factory and
  * the kit is what all 66 module packages' admin layers compile against, so
- * `@measured/puck` would sit behind the admin design system for every one of
+ * `@puckeditor/core` would sit behind the admin design system for every one of
  * them; and R5, because the kit publishes what the admin already uses rather
  * than arriving as a barrel.
  *

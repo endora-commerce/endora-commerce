@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
-import type { CustomField } from '@measured/puck';
+import type { CustomField } from '@puckeditor/core';
 import { useColorPalette } from '../color-palette/context.js';
 import { PuckFieldLabel } from './puck-field-label.js';
 import {

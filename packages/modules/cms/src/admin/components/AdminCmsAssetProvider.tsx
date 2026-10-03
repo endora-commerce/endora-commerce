@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { Data } from '@measured/puck';
+import type { Data } from '@puckeditor/core';
 import { CmsRenderProvider, walkAssetIds, type CmsRenderEmbeds } from '@endora-commerce/cms-components';
 import { fetchAssetDetail } from '@endora-commerce/admin-kit/components';
 import { apiBaseUrl, toAbsoluteAssetUrl } from '@endora-commerce/admin-kit/lib';

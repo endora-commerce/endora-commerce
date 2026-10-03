@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, type ReactElement } from 'react';
-import type { Field } from '@measured/puck';
-import { FieldLabel } from '@measured/puck';
+import type { Field } from '@puckeditor/core';
+import { FieldLabel } from '@puckeditor/core';
 import { createColorField } from '@endora-commerce/page-builder-core';
 import type { BackgroundKind, BackgroundValue, MediaSourceKind } from '@endora-commerce/page-builder-core';
 import { createImageAssetField, createImageUrlField, createVideoAssetField, inputClassName } from '@endora-commerce/page-builder-admin';

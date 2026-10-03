@@ -1,204 +1,176 @@
 ---
 title: catalog
-sidebar_label: Catalog
+sidebar_label: Katalog
 description: Produkty, warianty, kategorie, atrybuty, kanały sprzedaży
 ---
 
 # `catalog`
 
-Katalog produktów: Products, ProductVariants, Categories,
-ProductAttributes i SalesChannels. Posiada wszystkie ścieżki odczytu, od
-których zależy storefront, oraz powierzchnię autorską po stronie admina.
+Katalog produktów: produkty (Products), warianty (ProductVariants), kategorie (Categories), atrybuty
+(ProductAttributes) i kanały sprzedaży (SalesChannels). Odpowiada za wszystkie ścieżki odczytu, z
+których korzysta storefront, oraz za edycję katalogu w panelu administracyjnym.
 
-## Publiczne API
+## API publiczne
 
-Trasy admina są chronione przez `catalog:read` (list / get) /
-`catalog:write` (mutacje).
+Trasy administracyjne są chronione przez `catalog:read` (lista i odczyt) i `catalog:write` (zmiany).
 
-| Verb + Path | Odbiorca | Cel |
+| Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `GET /api/v1/catalog/products` | storefront / API key | Lista/szukaj/filtruj produkty w aktywnym Sales Channel |
-| `GET /api/v1/catalog/products/:idOrSlug` | storefront | Szczegóły produktu (cena pominięta na niepublicznych Sales Channels) |
+| `GET /api/v1/catalog/products` | storefront / klucz API | Lista, wyszukiwanie i filtrowanie produktów w aktywnym kanale sprzedaży |
+| `GET /api/v1/catalog/products/:idOrSlug` | storefront | Szczegóły produktu (bez ceny w niepublicznych kanałach sprzedaży) |
 | `GET /api/v1/catalog/categories` | storefront | Zagnieżdżone drzewo kategorii |
-| `GET /api/v1/catalog/filters` | storefront | Atrybuty filtrowalne dla aktywnego Sales Channel |
-| `GET /api/v1/catalog/sitemap.xml` | crawlers | Mapa witryny SEO |
-| `GET /api/v1/admin/catalog/products?includeArchived` | admin | Lista produktów admin (z draftami; wiersze zarchiwizowane opt-in) |
-| `GET /api/v1/admin/catalog/products/:id` | admin | Szczegóły produktu |
-| `POST /api/v1/admin/catalog/products` | admin | Utworzenie produktu (`type` niemutowalne po utworzeniu; `sku` edytowalne) |
-| `PATCH /api/v1/admin/catalog/products/:id` | admin | Aktualizacja (łącznie z `sku`); zapisuje wiersz audytu ze stateBefore / stateAfter; odmawia z `409 sku_in_use`, gdy nowe SKU należy już do innego produktu |
-| `DELETE /api/v1/admin/catalog/products/:id` | admin | Archiwizacja (soft) |
-| `GET /api/v1/admin/catalog/attributes` | admin | Lista atrybutów |
-| `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Payload pickera — każdy atrybut z żądaną flagą |
-| `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Odczyt pojedynczego atrybutu |
-| `POST /api/v1/admin/catalog/attributes` | admin | Utworzenie atrybutu (akceptuje nowe flagi + inline `options[]` dla typów select-style) |
-| `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition` (re-emituje `attribute.updated.v1`) |
-| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Usunięcie; odmawia z `409 attribute_in_use_by_set`, dopóki jakikolwiek Attribute Set nadal się odwołuje |
-| `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Lista wierszy opcji dla atrybutów select/enum/multiselect |
-| `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Dołączenie opcji |
-| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | admin | Patch label / labelDefault / isDefault / sortOrder (option `value` niemutowalne) |
-| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | admin | Usunięcie; odmawia z `409 option_in_use`, dopóki jakikolwiek produkt niesie wartość |
-| `POST /api/v1/admin/catalog/attribute-set-preview` | admin | Podgląd, które atrybuty Set będą edytowane / ukryte, gdy operator przełączy Attribute Set produktu |
-| `GET /api/v1/admin/catalog/categories` | admin | Płaska lista, UI składa w drzewo |
-| `POST /api/v1/admin/catalog/categories` | admin | Utworzenie (rodzic musi istnieć) |
-| `PATCH /api/v1/admin/catalog/categories/:id` | admin | Aktualizacja; reparenting przechodzi łańcuch nowego rodzica, żeby odmówić cykli (409) |
-| `DELETE /api/v1/admin/catalog/categories/:id` | admin | Soft-delete; odrzuca z 409, gdy aktywne dziecko nadal odwołuje się do wiersza |
-| `PUT /api/v1/catalog/products/by-sku/:sku` | API key | Idempotentny upsert (sync PIM) |
+| `GET /api/v1/catalog/filters` | storefront | Atrybuty, po których można filtrować w aktywnym kanale sprzedaży |
+| `GET /api/v1/catalog/sitemap.xml` | roboty wyszukiwarek | Mapa witryny dla SEO |
+| `GET /api/v1/admin/catalog/products?includeArchived` | administrator | Lista produktów w panelu (ze szkicami; wiersze zarchiwizowane na żądanie) |
+| `GET /api/v1/admin/catalog/products/:id` | administrator | Szczegóły produktu |
+| `POST /api/v1/admin/catalog/products` | administrator | Utworzenie produktu (`type` nie można zmienić po utworzeniu; `sku` można edytować) |
+| `PATCH /api/v1/admin/catalog/products/:id` | administrator | Aktualizacja (łącznie z `sku`); zapisuje wpis audytu ze stateBefore / stateAfter; odrzuca z `409 sku_in_use`, gdy nowe SKU należy już do innego produktu |
+| `DELETE /api/v1/admin/catalog/products/:id` | administrator | Archiwizacja (usunięcie miękkie) |
+| `GET /api/v1/admin/catalog/attributes` | administrator | Lista atrybutów |
+| `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | administrator | Dane do listy wyboru — wszystkie atrybuty z żądaną flagą |
+| `GET /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Odczyt jednego atrybutu |
+| `POST /api/v1/admin/catalog/attributes` | administrator | Utworzenie atrybutu (przyjmuje nowe flagi i `options[]` bezpośrednio w treści dla typów wyboru) |
+| `PATCH /api/v1/admin/catalog/attributes/:key` | administrator | Natychmiastowa zmiana `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition` (ponownie emituje `attribute.updated.v1`) |
+| `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Usunięcie; odrzucane z `409 attribute_in_use_by_set`, dopóki odwołuje się do niego jakikolwiek zestaw atrybutów |
+| `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Lista opcji atrybutów typu select/enum/multiselect |
+| `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Dodanie opcji |
+| `PATCH /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Zmiana label / labelDefault / isDefault / sortOrder (wartości `value` opcji nie można zmienić) |
+| `DELETE /api/v1/admin/catalog/attribute-options/:optionId` | administrator | Usunięcie; odrzucane z `409 option_in_use`, dopóki którykolwiek produkt ma tę wartość |
+| `POST /api/v1/admin/catalog/attribute-set-preview` | administrator | Podgląd, które atrybuty będą edytowalne, a które ukryte, gdy operator zmieni zestaw atrybutów produktu |
+| `GET /api/v1/admin/catalog/categories` | administrator | Płaska lista, z której panel buduje drzewo |
+| `POST /api/v1/admin/catalog/categories` | administrator | Utworzenie (kategoria nadrzędna musi istnieć) |
+| `PATCH /api/v1/admin/catalog/categories/:id` | administrator | Aktualizacja; przy zmianie kategorii nadrzędnej sprawdzany jest łańcuch nowej kategorii nadrzędnej, aby odrzucić cykle (409) |
+| `DELETE /api/v1/admin/catalog/categories/:id` | administrator | Usunięcie miękkie; odrzucane z 409, gdy odwołuje się do niej aktywna kategoria podrzędna |
+| `PUT /api/v1/catalog/products/by-sku/:sku` | klucz API | Idempotentne utworzenie lub aktualizacja (synchronizacja PIM) |
 
 ## Encje
 
-`Product`, `ProductVariant`, `Category`, `ProductAttribute`,
-`SalesChannel`, plus mosty M:N
+`Product`, `ProductVariant`, `Category`, `ProductAttribute`, `SalesChannel` oraz tabele łączące
 `product_categories`, `sales_channel_products`, `product_assets`.
 
 ## Emitowane zdarzenia
 
-`product.created.v1`, `product.updated.v1`, `product.archived.v1`,
-`attribute.updated.v1`. Konsumowane przez indeksator wyszukiwania i bridgowane do
-subskrybentów webhook.
+`product.created.v1`, `product.updated.v1`, `product.archived.v1`, `attribute.updated.v1`.
+Odbiera je indeksowanie wyszukiwarki i są przekazywane subskrybentom webhooków.
 
 ## Punkty rozszerzenia
 
-- **Ceny per Sales Channel** — serwis query dostaje kontekst SalesChannel;
-  nowe gating (np. katalogi per segment klienta) dodajesz przez kompozycję w
+- **Ceny w poszczególnych kanałach sprzedaży** — usługa zapytań dostaje kontekst kanału sprzedaży;
+  nowe ograniczenia (np. katalogi dla segmentów klientów) dodaje się przez kompozycję w
   `catalog-query.service.ts`.
-- **Unikalność slug** — slug jest unikalny we wszystkich Sales Channels domyślnie;
-  nadpisz slugifier w `catalog-admin.service.ts`, jeśli kolizje locale staną się
-  problemem.
+- **Unikalność sluga** — slug jest domyślnie unikalny we wszystkich kanałach sprzedaży; jeśli kolizje
+  między językami staną się problemem, nadpisz mechanizm tworzenia slugów w
+  `catalog-admin.service.ts`.
 
-## Powierzchnie struktury i kompozycji produktu
+## Struktura i kompozycja produktu
 
-Katalog urósł o kilka powierzchni capability, każda ma własną stronę:
+Katalog zyskał kilka dodatkowych możliwości, każda z własną stroną:
 
-- [Zestawy atrybutów](./catalog/attribute-sets.md) — wielokrotnie używane schematy
-  atrybutów przypięte do Products, z systemowym Default
-- [Galeria produktu](./catalog/gallery-and-labels.md) — galeria obrazu / wideo
-  z invariantami etykiet Base / Small / Thumbnail egzekwowanymi na poziomie bazy
-- [Załączniki](./catalog/attachments.md) — pliki do pobrania
-  (certyfikaty, specyfikacje techniczne, ...) ze słownikiem typów
-- [Powiązania produktów](./catalog/product-links.md) — Related, Up-sell,
-  Cross-sell napędzające cross-merchandising na PDP i w koszyku
-- [Produkty złożone](./catalog/composite-products.md) — `grouped`
-  (stałe dzieci), `bundle` (konfigurowalne sloty), `virtual` (dostawa
-  cyfrowa)
+- [Zestawy atrybutów](./catalog/attribute-sets.md) — wielokrotnego użytku schematy atrybutów
+  przypisywane do produktów, z systemowym zestawem Default
+- [Galeria produktu](./catalog/gallery-and-labels.md) — galeria zdjęć i filmów z regułami
+  oznaczeń Base / Small / Thumbnail pilnowanymi przez bazę danych
+- [Załączniki](./catalog/attachments.md) — pliki do pobrania (certyfikaty, specyfikacje techniczne,
+  …) ze słownikiem typów
+- [Powiązania produktów](./catalog/product-links.md) — produkty powiązane, droższe zamienniki i
+  produkty uzupełniające, wyświetlane na stronie produktu i w koszyku
+- [Produkty złożone](./catalog/composite-products.md) — `grouped` (stałe produkty podrzędne),
+  `bundle` (konfigurowalne miejsca w zestawie), `virtual` (dostawa cyfrowa)
 
-Obsługiwanych jest teraz pięć typów produktu: `simple`, `configurable`,
-`grouped`, `bundle`, `virtual`. `simple` i `configurable` to pierwotna
-para; pozostałe trzy dodano później.
+Obsługiwanych jest pięć typów produktu: `simple`, `configurable`, `grouped`, `bundle`, `virtual`.
+`simple` i `configurable` to pierwotna para; pozostałe trzy dodano później.
 
-## Rozszerzenia atrybutów na ścieżkach odczytu Catalog
+## Rozszerzenia atrybutów na ścieżkach odczytu katalogu
 
-Prace nad atrybutami dodały powierzchnię operacyjną, której storefront
-potrzebuje do renderowania bogatych informacji o produkcie, a moduły search /
-promotions potrzebują do rozwiązywania zapytań klientów. Dedykowana strona
-[Atrybuty](./catalog/attributes.md) opisuje w pełni powierzchnię autorską
-atrybutów — ta sekcja tylko podsumowuje, co zmieniło się na ścieżkach odczytu
-Catalog.
+Prace nad atrybutami dodały elementy, których storefront potrzebuje do wyświetlania rozbudowanych
+informacji o produkcie, a moduły wyszukiwarki i promocji — do obsługi zapytań klientów. Edycję
+atrybutów w pełni opisuje osobna strona [Atrybuty](./catalog/attributes.md); ta sekcja tylko
+podsumowuje, co zmieniło się na ścieżkach odczytu katalogu.
 
 ### Nowe flagi atrybutów
 
-`ProductAttribute` dostaje cztery flagi behawioralne + pozycję numeryczną +
-fallback etykiety per locale:
+`ProductAttribute` ma cztery flagi zachowania, pozycję liczbową i zastępczą etykietę dla brakujących
+języków:
 
-- `isPromoRule` (boolean) — kwalifikacja pickera dla wariantu kryterium `attribute`
-  edytora Promotion Rule
-- `isVisibleOnProductPage` (boolean) — pokaż atrybut na zakładce storefront PDP
-  „Parametry produktu”, gdy produkt niesie wartość
-- `isRequired` (boolean) — egzekwowane przy zapisie produktu, gdy atrybut jest
-  częścią Attribute Set produktu
-- `filterPosition` (number) — klucz sortowania sidebar filtrów storefront
-  (niższe wcześniej; remisy łamane etykietą)
-- `labelDefault` (string) — fallback, gdy aktywny locale nie ma pasującego klucza
-  w per-locale JSONB `label`
+- `isPromoRule` (boolean) — atrybut jest dostępny na liście wyboru w kryterium `attribute` edytora
+  reguł promocji
+- `isVisibleOnProductPage` (boolean) — atrybut jest pokazywany na zakładce „Parametry produktu” na
+  stronie produktu w storefroncie, gdy produkt ma jego wartość
+- `isRequired` (boolean) — wymagany przy zapisie produktu, gdy atrybut należy do zestawu atrybutów
+  produktu
+- `filterPosition` (number) — klucz sortowania w panelu filtrów storefrontu (mniejsze wartości
+  wyżej; remisy rozstrzyga etykieta)
+- `labelDefault` (string) — wartość zastępcza, gdy w JSONB `label` brakuje klucza dla aktywnego
+  języka
 
 ### Listy opcji
 
-Typy atrybutów select-style (`select`, `enum`, `multiselect`) niosą uporządkowaną
-listę opcji — każdy wiersz kluczowany przez `(definition, value)` z
-per-locale label + fallback + sort order + flagą default. Legacy kolumna
-`enum_values: string[]` JSONB na `product_attributes` została
-wycofana migracją 032 (do własnościowej tabeli katalogu
-`attribute_options`), a migracja 102 przeniosła
-wiersze do generycznej tabeli `custom_field_options`. Istniejący czytelnicy
-projektują listę opcji z powrotem w legacy formę dla kompatybilności wstecznej
-na granicy API.
+Atrybuty typu wyboru (`select`, `enum`, `multiselect`) mają uporządkowaną listę opcji — każdy wiersz
+jest identyfikowany przez `(definition, value)` i ma etykiety w poszczególnych językach, etykietę
+zastępczą, kolejność i flagę wartości domyślnej. Dawną kolumnę JSONB `enum_values: string[]` w
+`product_attributes` wycofano migracją 032 (na rzecz tabeli katalogu `attribute_options`), a migracja
+102 przeniosła wiersze do ogólnej tabeli `custom_field_options`. Istniejące miejsca odczytu
+odtwarzają na granicy API dawną postać listy opcji ze względu na zgodność wsteczną.
 
 ### Edytowalne SKU
 
-`sku` produktu jest mutowalne. Wewnętrzne kanoniczne odwołanie dla każdego
-linku cross-module (assets, links, pozycje RFQ, ...) to UUID `Product.id`,
-który nigdy się nie zmienia. Aktualizacja SKU zapisuje wiersz audytu i
-odmawia z `409 sku_in_use`, gdy nowa wartość należy już do innego produktu.
+`sku` produktu można zmieniać. Wewnętrznym, stałym odwołaniem we wszystkich powiązaniach między
+modułami (pliki, powiązania produktów, pozycje zapytań ofertowych, …) jest UUID `Product.id`, który
+nigdy się nie zmienia. Zmiana SKU zapisuje wpis audytu i jest odrzucana z `409 sku_in_use`, gdy nowa
+wartość należy już do innego produktu.
 
-### Zamiana Attribute Set
+### Zmiana zestawu atrybutów
 
-Gdy operator przypisze inny Attribute Set do Product, formularz admina
-re-renderuje się, pokazując tylko atrybuty nowego Set. Wartości atrybutów
-poza nowym Set pozostają w kolumnie JSONB po stronie serwera
-— powrót do poprzedniego zestawu je z powrotem eksponuje. Endpoint
-`attribute-set-preview` pozwala edytorowi ostrzec operatora, które pola
-zostaną ukryte vs. zachowane, zanim potwierdzi.
+Gdy operator przypisze produktowi inny zestaw atrybutów, formularz w panelu wyświetla się ponownie
+tylko z atrybutami nowego zestawu. Wartości atrybutów spoza nowego zestawu pozostają po stronie
+serwera w kolumnie JSONB — powrót do poprzedniego zestawu znów je pokazuje. Endpoint
+`attribute-set-preview` pozwala edytorowi ostrzec operatora przed potwierdzeniem, które pola zostaną
+ukryte, a które zachowane.
 
-### Powierzchnia odczytu cross-module
+### Odczyty przez inne moduły
 
-Dwie metody na `CatalogQueryService` przekraczają granice modułów (udokumentowane
-porty serwisowe):
+Dwie metody `CatalogQueryService` są używane ponad granicami modułów (udokumentowane porty usług):
 
-- `comparableAttributeKeys(): string[]` — Compare
-- `promoRuleAttributeKeys(): string[]` + `getAttributeWithOptions(key)`
-  — Promotions
-- `buildVisibleAttributesProjection()` — wewnętrzne, używane przez odpowiedź
-  szczegółów PDP do złożenia payloadu `visibleAttributes[]`
+- `comparableAttributeKeys(): string[]` — porównywarka
+- `promoRuleAttributeKeys(): string[]` i `getAttributeWithOptions(key)` — promocje
+- `buildVisibleAttributesProjection()` — wewnętrzna, używana przez odpowiedź ze szczegółami
+  produktu do zbudowania `visibleAttributes[]`
 
-## Atrybuty jako rozszerzenia Custom Field
+## Atrybuty jako rozszerzenie pól niestandardowych {#atrybuty-jako-rozszerzenia-custom-field}
 
-Magazyn definicji atrybutów zbiegł się z generyczną warstwą Custom
-Fields, którą posiada moduł `custom_fields`, w kształcie adaptera, a nie
-przepisania. Na powierzchni HTTP
-nic się nie zmieniło — każdy endpoint powyżej zachowuje kształt — ale model
-magazynowania i własności jest inny:
+Przechowywanie definicji atrybutów połączono z ogólną warstwą pól niestandardowych modułu
+`custom_fields` przez adapter, a nie przez przepisanie. W API HTTP nic się nie zmieniło — każdy
+powyższy endpoint zachowuje swoją postać — ale model przechowywania i własności jest inny:
 
-- **Atrybut produktu to rozszerzenie katalogu definicji Custom Field hosta
-  produktu.** Generyczna tożsamość (`key`, per-locale `label` +
-  `labelDefault`, `valueType`, `required`) żyje na wierszu
-  `custom_field_definitions` z `entity_type = 'product'`. Tabela
-  `product_attributes` pozostaje, przebudowana jako cienki wiersz rozszerzenia 1:1
-  (`custom_field_definition_id` UNIQUE FK) niosący tylko flagi behawioralne
-  katalogu (`isSearchable`, `isFilterable`,
-  `isVariantAxis`, `displayAsSlider`, `isComparable`,
-  `quickSearchable`, `isPromoRule`, `filterPosition`,
-  `isVisibleOnProductPage`, `channelScoped`, `languageScoped`,
-  `massEditable`) plus dwa refinements prezentacji (`selectDisplay`,
-  `numericKind`), które zachowują bezstratnie legacy rozróżnienia `enum`/`select` i
-  `number`/`price`. **Flagi pozostają własnością katalogu**
-  — generyczny core nigdy ich nie interpretuje.
-- **Opcje żyją w `custom_field_options`.** Własnościowa tabela katalogu
-  `attribute_options` zniknęła; listy opcji to zwykłe wiersze opcji Custom Field
-  na definicji hosta produktu.
-- **Jedna powierzchnia zapisu: `/catalog/attributes`.** Mutacje atrybutów i
-  opcji to Commands katalogu tworzące/aktualizujące/usuwające definicję i
-  rozszerzenie razem w jednej transakcji (jeden wiersz audytu), używając
-  transakcyjnego apply seam eksportowanego przez
-  `custom_fields`. Generyczna powierzchnia admin Custom Fields listuje
-  definicje produktów read-only i odmawia mutacji z
-  `409 host_managed`.
-- **Migracja `102_attributes_on_custom_fields.ts`** wykonała jednorazową
-  konwergencję w jednej transakcji: backfill jednej definicji per legacy atrybut
-  (key, labels, zmapowany value type, required, deterministyczny sort order),
-  przeniosła wiersze `attribute_options`
-  do `custom_field_options`, re-keyowała `attribute_set_attributes` na
-  id definicji, dodała `custom_field_definition_id` /
-  `select_display` / `numeric_kind` do `product_attributes`, usunęła
-  zduplikowane kolumny (`key`, `label`, `label_default`,
-  `value_type`, `is_required`) i usunęła `attribute_options`. Migracja
-  jest odwracalna (`down()` przywraca legacy kształt) i
-  abortuje głośno przy kolizji reserved-key.
-- **Wartości atrybutów się nie przeniosły** — `products.attribute_values`,
-  `product_variants.variant_attribute_values` i
-  `product_value_overrides` zachowują kształt i własność katalogu
-  (host posiada swoje dane).
+- **Atrybut produktu to rozszerzenie katalogu dla definicji pola niestandardowego encji produktu.**
+  Ogólna tożsamość (`key`, `label` w poszczególnych językach i `labelDefault`, `valueType`,
+  `required`) jest w wierszu `custom_field_definitions` z `entity_type = 'product'`. Tabela
+  `product_attributes` pozostaje, przebudowana jako cienki wiersz rozszerzenia 1:1 (klucz obcy
+  `custom_field_definition_id` z UNIQUE), zawierający tylko flagi zachowania katalogu
+  (`isSearchable`, `isFilterable`, `isVariantAxis`, `displayAsSlider`, `isComparable`,
+  `quickSearchable`, `isPromoRule`, `filterPosition`, `isVisibleOnProductPage`, `channelScoped`,
+  `languageScoped`, `massEditable`) oraz dwa ustawienia prezentacji (`selectDisplay`, `numericKind`),
+  które bez strat zachowują dawne rozróżnienia `enum`/`select` i `number`/`price`. **Flagi pozostają
+  własnością katalogu** — ogólny rdzeń nigdy ich nie interpretuje.
+- **Opcje są w `custom_field_options`.** Tabeli katalogu `attribute_options` już nie ma; listy opcji
+  to zwykłe opcje pola niestandardowego w definicji encji produktu.
+- **Jedno miejsce zapisu: `/catalog/attributes`.** Zmiany atrybutów i opcji to polecenia katalogu,
+  które tworzą, aktualizują lub usuwają definicję i rozszerzenie razem w jednej transakcji (z jednym
+  wpisem audytu), korzystając z transakcyjnego API zapisu eksportowanego przez `custom_fields`.
+  Ogólny ekran pól niestandardowych w panelu pokazuje definicje produktu tylko do odczytu i odrzuca
+  zmiany z `409 host_managed`.
+- **Migracja `102_attributes_on_custom_fields.ts`** jednorazowo połączyła oba modele w jednej
+  transakcji: utworzyła po jednej definicji dla każdego dawnego atrybutu (klucz, etykiety,
+  przełożony typ wartości, wymagalność, deterministyczna kolejność), przeniosła wiersze
+  `attribute_options` do `custom_field_options`, przepisała klucze `attribute_set_attributes` na
+  identyfikatory definicji, dodała do `product_attributes` kolumny `custom_field_definition_id` /
+  `select_display` / `numeric_kind`, usunęła powielone kolumny (`key`, `label`, `label_default`,
+  `value_type`, `is_required`) i usunęła `attribute_options`. Migrację można cofnąć (`down()`
+  przywraca dawną postać), a przy kolizji z zarezerwowanym kluczem przerywa się z wyraźnym błędem.
+- **Wartości atrybutów nie zostały przeniesione** — `products.attribute_values`,
+  `product_variants.variant_attribute_values` i `product_value_overrides` zachowują postać i
+  pozostają własnością katalogu (encja jest właścicielem swoich danych).
 
-Wewnętrzni konsumenci (search, quick order, comparisons, bulk edit,
-port promotions, edytor scope) czytają atrybuty przez
-eksportowany przez katalog `CatalogAttributeReadService`, który składa
-definicję i rozszerzenie w legacy-shaped
-`CatalogAttributeView`.
+Wewnętrzni odbiorcy (wyszukiwarka, szybkie zamówienie, porównywarka, masowa edycja, port promocji,
+edytor zakresu) odczytują atrybuty przez eksportowany przez katalog `CatalogAttributeReadService`,
+który łączy definicję i rozszerzenie w `CatalogAttributeView` o dawnej postaci.

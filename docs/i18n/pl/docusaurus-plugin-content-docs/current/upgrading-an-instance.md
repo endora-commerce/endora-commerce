@@ -1,6 +1,6 @@
 ---
 title: Aktualizacja instancji
-description: Przeniesienie instancji Endora Commerce i jej sklepu z jednego wydania na następne jednym poleceniem — co zmienia, czego nie rusza, co uruchomić ponownie i co zrobić w instancji, której CLI nie zna jeszcze tego polecenia.
+description: Przeniesienie instancji Endora Commerce i jej storefrontu z jednego wydania na następne jednym poleceniem — co zmienia, czego nie rusza, co uruchomić ponownie i co zrobić w instancji, której CLI nie zna jeszcze tego polecenia.
 sidebar_position: 4
 ---
 
@@ -38,12 +38,12 @@ i kończy się kodem `0`:
 
 ## Zanim zaczniesz
 
-- **Zrób commit**, żeby aktualizacja była jednym diffem do przeczytania i cofnięcia: `package.json`
-  każdego członka, `pnpm-lock.yaml` i dwa takie same pliki sklepu.
+- **Zatwierdź (commit) bieżący stan**, żeby aktualizacja była jednym diffem do przeczytania
+  i cofnięcia: `package.json` każdego członka, `pnpm-lock.yaml` i te same dwa pliki storefrontu.
 - **Zrób kopię zapasową bazy danych.** `setup` wykonuje migracje nowego wydania, a migracje nie
-  działają wstecz. Z tego samego powodu polecenie odmawia wersji starszej niż zainstalowana.
-- **Zatrzymaj API i jego konsumentów kolejek**, żeby nic nie obsługiwało żądań w czasie zmiany
-  schematu.
+  działają wstecz. Z tego samego powodu polecenie odrzuca wersję starszą niż zainstalowana.
+- **Zatrzymaj API i jego workery (konsumentów kolejek)**, żeby nic nie obsługiwało żądań w czasie
+  zmiany schematu.
 - **Podejrzyj wynik** poleceniem `pnpm run upgrade --dry-run`: każdy zakres, który by przesunęło,
   każdy wpis pliku blokady, który by usunęło, i każde polecenie, które by uruchomiło. Niczego nie
   zapisuje i niczego nie uruchamia.
@@ -52,14 +52,14 @@ i kończy się kodem `0`:
 
 1. Najpierw wszystko sprawdza: że działa w instancji, że platforma jest zainstalowana, że wersja
    istnieje i że **każdy** pakiet wydania zadeklarowany w Twoich manifestach jest opublikowany
-   w tej wersji. Każdy problem trafia do jednego komunikatu i nic nie zostaje zapisane.
+   w tej wersji. Każdy problem trafia do jednej odmowy i nic nie zostaje zapisane.
 2. W każdym `package.json` instancji — w katalogu głównym, w `backend/`, `admin/` i `docs/` —
-   oraz w sklepie obok niej przesuwa każdy pakiet wydania na nową wersję. Dokładne przypięcie
-   pozostaje dokładne, a `^` pozostaje `^`. Żadna inna linia się nie zmienia.
+   oraz w storefroncie obok niej przesuwa każdy pakiet wydania na nową wersję. Dokładne
+   przypięcie pozostaje dokładne, a `^` pozostaje `^`. Żadna inna linia się nie zmienia.
 3. W każdym `pnpm-lock.yaml` usuwa wpisy, które wskazują pakiet wydania w innej wersji, żeby pnpm
    rozwiązał je ponownie — także peery, które zainstalował sam.
-4. Uruchamia `pnpm install` i `pnpm run setup` w instancji, a potem `pnpm install` w sklepie.
-   Każde polecenie jest wypisywane, zanim się wykona.
+4. Uruchamia `pnpm install` i `pnpm run setup` w instancji, a potem `pnpm install` w repozytorium
+   storefrontu. Każde polecenie jest wypisywane, zanim się wykona.
 
 Jeśli instancja jest już w żądanej wersji, polecenie to mówi i niczego nie zmienia.
 
@@ -71,17 +71,17 @@ Jeśli instancja jest już w żądanej wersji, polecenie to mówi i niczego nie 
   wymieniony w wyniku.
 - **Zależności, która nie jest zakresem wersji** — `file:`, `link:`, `workspace:`, tag. Zostaje
   wymieniona i zachowana.
-- **Własnych plików sklepu.** Sklep to Twoje repozytorium; przesuwają się tylko jego pakiety
-  wydania. `--no-storefront` zostawia go całkowicie w spokoju, a `--storefront-dir <path>`
-  wskazuje sklep, który nie leży obok instancji.
+- **Własnych plików storefrontu.** Storefront to Twoje repozytorium; przesuwają się tylko jego
+  pakiety wydania. `--no-storefront` zostawia go całkowicie w spokoju, a
+  `--storefront-dir <path>` wskazuje storefront, który nie leży obok instancji.
 
 ## Po zakończeniu
 
 Na koniec polecenie wymienia, co uruchomić ponownie:
 
 ```bash
-pnpm run start                                   # API i jego konsumenci kolejek
-pnpm run preview:admin                           # setup przebudował paczkę panelu
+pnpm run start                                   # API i jego workery
+pnpm run preview:admin                           # setup zbudował panel od nowa
 cd ../my-shop-storefront && pnpm run build && pnpm run start
 ```
 
@@ -123,21 +123,23 @@ ich nie zmienia:
 - Dwóch plików, których instalator `0.100.x` nie zapisał — linii `DEPLOYMENT` w `.env` i zależności
   `@endora-commerce/contracts`. Zobacz
   [Instancje utworzone w wydaniu 0.100.2 lub wcześniejszym](./create-your-first-module.md#older-instances).
-- Instalator `0.100.x` nie zapisywał sklepu poza klonem repozytorium. Utwórz go poleceniem
+- Instalator `0.100.x` nie zapisywał storefrontu poza klonem repozytorium. Utwórz go poleceniem
   `endora new storefront` — zobacz [Sklep](./getting-started.md#sklep).
 - Instalator `0.100.x` nie zmieniał zajętego portu, więc zanim cokolwiek uruchomisz, sprawdź, czy
   `.env` nie wskazuje bazy danych innego środowiska.
 
 ## Instancja niespójna od początku
 
-Instancja utworzona ze starszego wydania już po opublikowaniu nowszej poprawki instaluje nowszą
-poprawkę każdego pakietu poza `@endora-commerce/contracts`, który przypina do starszej; instalacja
-wypisuje *unmet peer @endora-commerce/contracts* raz na moduł. `pnpm run upgrade` — albo, przed
-tym poleceniem, dwa polecenia powyżej — ustawia wszystkie pakiety na jedną wersję.
+Instancja utworzona ze starszego wydania już po opublikowaniu nowszego wydania poprawkowego
+instaluje nowsze wydanie poprawkowe każdego pakietu poza `@endora-commerce/contracts`, który
+przypina do starszego; instalacja wypisuje *unmet peer @endora-commerce/contracts* raz na moduł.
+`pnpm run upgrade` — albo, przed tym poleceniem, dwa polecenia powyżej — ustawia wszystkie
+pakiety na jedną wersję.
 
 ## Bez CLI
 
-To, co robi polecenie, można zrobić ręcznie: w każdym `package.json` instancji i sklepu ustaw
-każdy pakiet `@endora-commerce/*` należący do wydania na nową wersję, zachowując `^` i dokładne
-przypięcia; usuń `pnpm-lock.yaml` i uruchom `pnpm install` (co przesuwa też Twoje pozostałe
-zależności w ramach ich zakresów); potem uruchom `pnpm run setup`, a w sklepie `pnpm install`.
+To, co robi polecenie, można zrobić ręcznie: w każdym `package.json` instancji i storefrontu
+ustaw każdy pakiet `@endora-commerce/*` należący do wydania na nową wersję, zachowując `^`
+i dokładne przypięcia; usuń `pnpm-lock.yaml` i uruchom `pnpm install` (co przesuwa też Twoje
+pozostałe zależności w ramach ich zakresów); potem uruchom `pnpm run setup`, a w repozytorium
+storefrontu `pnpm install`.

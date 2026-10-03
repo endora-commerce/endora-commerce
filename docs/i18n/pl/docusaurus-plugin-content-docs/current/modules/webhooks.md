@@ -1,50 +1,47 @@
 ---
 title: webhooks
-description: Subskrypcje zdarzeń wychodzących z podpisem HMAC
+description: Subskrypcje zdarzeń wychodzących podpisywanych HMAC
 ---
 
 # `webhooks`
 
-Subskrypcje zdarzeń wychodzących z podpisem HMAC. Zdarzenia domenowe na
-in-process event bus są bridgowane do kolejki BullMQ; worker podpisuje i POST'uje
-każdą dostawę na URL subskrybenta.
+Subskrypcje zdarzeń wychodzących podpisywanych HMAC. Zdarzenia domenowe z działającej w procesie
+szyny zdarzeń są przekazywane do kolejki BullMQ; worker podpisuje każdą wysyłkę i wysyła ją
+żądaniem POST na adres URL subskrybenta.
 
-## Publiczne API
+## API publiczne
 
-| Verb + Path | Purpose |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/admin/webhooks` | Lista subskrypcji |
-| `POST /api/v1/admin/webhooks` | Utworzenie — secret zwracany raz |
+| `POST /api/v1/admin/webhooks` | Utworzenie — sekret jest zwracany tylko raz |
 | `PATCH /api/v1/admin/webhooks/:id` | Aktualizacja (status, eventTypes, url) |
 | `DELETE /api/v1/admin/webhooks/:id` | Usunięcie |
-| `GET /api/v1/admin/webhooks/deliveries` | Ostatnie dostawy (filtrowalne po statusie) |
-| `POST /api/v1/admin/webhooks/deliveries/:id/replay` | Replay dostawy `failed` / `dead_lettered` |
+| `GET /api/v1/admin/webhooks/deliveries` | Ostatnie wysyłki (z filtrowaniem według statusu) |
+| `POST /api/v1/admin/webhooks/deliveries/:id/replay` | Ponowienie wysyłki `failed` / `dead_lettered` |
 
-## Kontrakt dostawy
+## Kontrakt wysyłki
 
-Nagłówki: `Content-Type: application/json`,
-`X-Webhook-Event-Id`, `X-Webhook-Event-Type`,
-`X-Webhook-Signature-256`, `X-Webhook-Attempt`. Odbiorcy MUSZĄ weryfikować
-podpis przez `timingSafeEqual` i deduplikować po id zdarzenia.
-Sekcja *Subscribing to webhooks* w przewodniku Integrations Endora niesie
-przykład weryfikacji.
+Nagłówki: `Content-Type: application/json`, `X-Webhook-Event-Id`, `X-Webhook-Event-Type`,
+`X-Webhook-Signature-256`, `X-Webhook-Attempt`. Odbiorcy MUSZĄ weryfikować podpis przez
+`timingSafeEqual` i usuwać duplikaty według identyfikatora zdarzenia. Przykład weryfikacji zawiera
+sekcja *Subscribing to webhooks* w przewodniku po integracjach Endory.
 
-## Model retry
+## Ponawianie
 
-Do 8 prób na dostawę, exponential backoff od 1 s, timeout 10 s per próba.
-Ostatnia próba → `dead_lettered`. Endpoint replay kopiuje wiersz
-failed/dead-lettered do świeżej dostawy `pending`.
+Do 8 prób na wysyłkę, z wykładniczo rosnącym odstępem od 1 s i limitem czasu 10 s na próbę. Po
+ostatniej próbie wysyłka przechodzi w stan `dead_lettered`. Endpoint ponowienia kopiuje wiersz
+`failed` / `dead_lettered` jako nową wysyłkę `pending`.
 
 ## Encje
 
-`Webhook` (name, url, eventTypes, secret, status), `WebhookDelivery`
-(wiersz audytu per próba).
+`Webhook` (name, url, eventTypes, secret, status), `WebhookDelivery` (wiersz audytu dla każdej
+próby).
 
 ## Punkty rozszerzenia
 
-- **Niestandardowy schemat podpisu** — `webhook-delivery-worker.ts#process` to
-  jedyne miejsce, gdzie ustawiane są nagłówki HMAC; zamień na inny format
-  podpisu lub dodaj wariant JWS tutaj.
-- **Polityka scope subskrypcji** — `webhook-service.ts#create` dziś akceptuje
-  dowolny typ zdarzenia; nałóż autoryzację (np. tylko wybrane integracje
-  mogą subskrybować `payment.*`) przez wstrzyknięcie callbacku polityki.
+- **Własny schemat podpisu** — `webhook-delivery-worker.ts#process` to jedyne miejsce, w którym
+  ustawiane są nagłówki HMAC; tam zmienisz format podpisu albo dodasz wariant JWS.
+- **Zasady dotyczące zakresu subskrypcji** — `webhook-service.ts#create` przyjmuje dziś dowolny typ
+  zdarzenia; ogranicz to (np. tak, by `payment.*` mogły subskrybować tylko wybrane integracje),
+  wstrzykując funkcję sprawdzającą.
