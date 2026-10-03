@@ -148,14 +148,14 @@ calling `sweep()`.
   **Test**: T00 row 7; plus a failing credit release leaves `paymentStatus = paid`, one outstanding
   row, a 200, and is released by the next `sweep()`.
 
-- [ ] **T13** The sweep worker: BullMQ repeatable job every 60 s calling `sweep()` under
+- [x] **T13** The sweep worker: BullMQ repeatable job every 60 s calling `sweep()` under
   `withSystemScope`, registered through `ctx.worker`, in the shape T01 found.
   Files: `packages/modules/orders/src/backend/workers/transition-effect-sweep-worker.ts`,
   `packages/modules/orders/src/backend/index.ts`.
   **Test**: `…/workers/transition-effect-sweep-worker.test.ts` — the processor calls `sweep` once per
   job inside a system scope; `check:subscribe-seam` stays green.
 
-- [ ] **T14** Callers that explained the old behaviour: delete the now-false comment and the
+- [x] **T14** Callers that explained the old behaviour: delete the now-false comment and the
   rationale built on it in `prompt-tools.ts` (bulk tool) and re-read `classifySkip` in `routes.ts`
   — a moved order can no longer be reported `skipped`. Keep both `rethrowIfModuleDisabled` calls.
   Files: `packages/modules/orders/src/backend/prompt-tools.ts`, `routes.ts`.

@@ -90,6 +90,11 @@ import { OrderTransitionPortService } from './services/order-transition-port.js'
 import { releaseOrderAllocations } from './services/order-allocation-release.js';
 import { createOrderTransitionEffectHandlers } from './services/order-transition-effect-handlers.js';
 import { OrderTransitionEffectService } from './services/order-transition-effect-service.js';
+import {
+  buildTransitionEffectSweepWorker,
+  createTransitionEffectSweepQueue,
+  ensureTransitionEffectSweepSchedule,
+} from './workers/transition-effect-sweep-worker.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './email-templates/order-confirmation.default.js';
 import { ADMIN_CREATED_ORDER_DEFAULT, ORDER_COMMENT_DEFAULT, REORDER_CREATED_DEFAULT } from './email-templates/secondary-defaults.js';
 import { ordersPromptTools } from './prompt-tools.js';
@@ -244,6 +249,17 @@ export interface OrdersCradle {
    * (`specs/142-order-transition-atomicity/`).
    */
   readonly orderTransitionEffectService: OrderTransitionEffectService;
+  /**
+   * Whether this process runs queue consumers (Principle X) — the platform's
+   * one module-agnostic answer, `false` in the test kit.
+   */
+  readonly processRunsWorkers: boolean;
+  /**
+   * The connection a module may build a BullMQ queue on. A different name from
+   * `redis` on purpose (see that field): `undefined` is a composition saying it
+   * wants no queues, and the sweep worker is then not built.
+   */
+  readonly moduleQueueRedis: Redis | undefined;
   readonly orders: ReturnType<typeof commerceModule>;
   /**
    * Owned by `prompt_actions`: the assistant's tool catalogue. An ungated
@@ -932,6 +948,34 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     await cradle().orders(app);
+
+    // The sweep that retries outstanding order follow-ups
+    // (`specs/142-order-transition-atomicity/`, D6). `ctx.worker` applies
+    // `defineModuleWorker('orders', …)`, which is what puts the consumer in the
+    // registry the platform reconciles and stops.
+    //
+    // Attached here rather than at registration for the reason every worker in
+    // the tree is: this is where `app.log` exists, and a `BACKEND_ROLE=worker`
+    // process reaches it — it builds the server to register module plugins and
+    // never listens. Built only where the host says this process consumes
+    // queues and offers a connection to build one on; the shared test server
+    // says neither, and drives `sweep()` directly.
+    const { processRunsWorkers, moduleQueueRedis } = cradle();
+    if (processRunsWorkers && moduleQueueRedis !== undefined) {
+      const sweepQueue = createTransitionEffectSweepQueue(moduleQueueRedis);
+      app.addHook('onClose', async () => {
+        await sweepQueue.close();
+      });
+      ctx.worker(
+        buildTransitionEffectSweepWorker({
+          redis: moduleQueueRedis,
+          effects: cradle().orderTransitionEffectService,
+          log: ctx.log,
+        }),
+        { logger: app.log },
+      );
+      await ensureTransitionEffectSweepSchedule(sweepQueue);
+    }
   });
 
   /**
