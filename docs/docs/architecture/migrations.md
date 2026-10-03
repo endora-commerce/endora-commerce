@@ -144,8 +144,8 @@ Register it by regenerating the committed registry, and commit both files:
 pnpm --filter backend run composer:generate
 ```
 
-The generator walks `src/db/migrations/` and every `src/modules/<id>/migrations/`,
-derives each class name from its filename, and refuses — rather than skips — a file it
+The generator walks `src/db/migrations/` and every module's own `migrations/`
+directory, located the same way the scaffolder locates it, derives each class name from its filename, and refuses — rather than skips — a file it
 cannot place: an unrecognized `.ts` in a migrations directory, a class the file does
 not export, two files deriving the same name, or a migration under
 `src/apps/<deployment>/` (overlay modules cannot ship migrations, so registering one
