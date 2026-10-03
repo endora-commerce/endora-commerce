@@ -32,7 +32,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 **Third-party**
 
 - `@mikro-orm/postgresql` ^6
-- `fastify` ^5
+- `fastify` ^5.11.0
 - `react` ^19 — *optional*
 - `react-router-dom` ^7 — *optional*
 - `zod` ^4

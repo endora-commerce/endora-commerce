@@ -36,7 +36,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `@mikro-orm/core` ^6
 - `@mikro-orm/migrations` ^6
 - `@mikro-orm/postgresql` ^6
-- `fastify` ^5
+- `fastify` ^5.11.0
 - `lucide-react` ^1 — *optional*
 - `react` ^19 — *optional*
 - `react-router-dom` ^7 — *optional*

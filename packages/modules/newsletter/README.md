@@ -41,7 +41,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `@mikro-orm/postgresql` ^6
 - `bullmq` ^5
 - `echarts` ^6 — *optional*
-- `fastify` ^5
+- `fastify` ^5.11.0
 - `ioredis` ^5
 - `nodemailer` ^10
 - `react` ^19 — *optional*

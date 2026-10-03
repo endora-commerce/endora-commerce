@@ -46,7 +46,7 @@
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
     "bullmq": "^5",
-    "fastify": "^5",
+    "fastify": "^5.11.0",
     "ioredis": "^5",
     "zod": "^4"
   },

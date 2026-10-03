@@ -52,7 +52,7 @@
     "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
-    "fastify": "^5",
+    "fastify": "^5.11.0",
     "lucide-react": "^1",
     "react": "^19"
   },

@@ -31,7 +31,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 
 **Third-party**
 
-- `fastify` ^5
+- `fastify` ^5.11.0
 - `lucide-react` ^1 — *optional*
 - `react` ^19 — *optional*
 
