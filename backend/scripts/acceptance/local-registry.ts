@@ -128,6 +128,10 @@ export async function startLocalRegistry(options: {
   const served: string[] = [];
   let forwarded = 0;
   let baseUrl = '';
+  // One per forwarded request, from the moment it is sent until the client's
+  // response is closed. Aborting is what tells the upstream this registry has
+  // stopped reading; nothing else does (see the note in `answer`).
+  const inFlight = new Set<AbortController>();
 
   const answer = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -157,11 +161,26 @@ export async function startLocalRegistry(options: {
       return;
     }
     forwarded += 1;
+    // The upstream request lives exactly as long as the client's response.
+    // `pipe` ends the destination when the source ends and does nothing in the
+    // other direction: a client that stopped reading — pnpm abandons a download
+    // it no longer needs — left the upstream request open with its body unread,
+    // and `close()` left it open too. Against npmjs the socket under that
+    // request then kept this process's event loop alive after `close()` had
+    // resolved — for 60 s and for 240 s in two measurements, and for however
+    // long the upstream chooses: nothing on this side bounded it.
+    const upstreamRequest = new AbortController();
+    inFlight.add(upstreamRequest);
+    response.once('close', () => {
+      inFlight.delete(upstreamRequest);
+      upstreamRequest.abort();
+    });
     const accept = request.headers['accept'];
     const reply = await fetch(`${upstream}${url.pathname}${url.search}`, {
       method: request.method,
       headers: accept === undefined ? {} : { accept },
       redirect: 'follow',
+      signal: upstreamRequest.signal,
     });
     const type = reply.headers.get('content-type');
     response.writeHead(reply.status, type === null ? {} : { 'content-type': type });
@@ -193,6 +212,8 @@ export async function startLocalRegistry(options: {
     forwarded: () => forwarded,
     close: () =>
       new Promise<void>((resolveClose) => {
+        for (const upstreamRequest of inFlight) upstreamRequest.abort();
+        inFlight.clear();
         server.closeAllConnections();
         server.close(() => resolveClose());
       }),
