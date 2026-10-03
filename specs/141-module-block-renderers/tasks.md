@@ -163,7 +163,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   `storefront/` only by `lib/page-builder/config.ts`. Keep `test/ssr/block-degradation.test.tsx`
   and `blocks.test.tsx` green.
 
-- [ ] **T14** The scaffold carries it: the new storefront files are in the copy population with
+- [x] **T14** The scaffold carries it: the new storefront files are in the copy population with
   `local-blocks.tsx` as the client's own; rebuild the packaged reference.
   Files: `packages/cli/src/new-storefront/rewrite.ts` (only if a rule must classify the new files),
   the CLI build's packaged reference.
