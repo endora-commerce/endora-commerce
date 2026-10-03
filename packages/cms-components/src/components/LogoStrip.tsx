@@ -1,6 +1,6 @@
 'use client';
 
-import { type ComponentConfig, type PuckComponent } from '@measured/puck';
+import { type ComponentConfig, type PuckComponent } from '@puckeditor/core';
 import { PB_DATA_METADATA, withHideOn } from '@endora-commerce/page-builder-core';
 import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import type { LogoStripItem, LogoStripProps } from '../schema/component-types.js';

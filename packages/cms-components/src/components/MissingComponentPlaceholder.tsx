@@ -1,4 +1,4 @@
-import { type ComponentConfig } from '@measured/puck';
+import { type ComponentConfig } from '@puckeditor/core';
 
 /**
  * Placeholder rendered in place of a Page Builder component whose React

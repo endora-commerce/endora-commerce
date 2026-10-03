@@ -1,6 +1,6 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 
@@ -20,7 +20,7 @@ import { nodeManifestFs } from '../../../scripts/lib/module-package-manifest.js'
  * onSend hook runner, and the process crash-loops. 5.11.0 added a try/catch in
  * `handleResolve` (`lib/hooks.js`), so the server survives the same handler —
  * measured against a real socket in
- * `test/integration/real-socket-reply-contract.test.ts`. This repository's
+ * `test/contract/real-socket-reply-contract.test.ts`. This repository's
  * lockfile resolves 5.12.5, which is why nothing here ever showed it; a
  * published `fastify: "^5"` peer let a third-party install resolve 5.0–5.10.
  *
@@ -52,6 +52,21 @@ export function minimumOf(range: string): readonly [number, number, number] | nu
   const part = (value: string | undefined): number =>
     value === undefined || value === 'x' || value === '*' ? 0 : Number(value);
   return [Number(match[1]), part(match[2]), part(match[3])];
+}
+
+/** Every non-test `.ts` source under `roots`, skipping installs and build output. */
+function sourceFiles(roots: readonly string[]): string[] {
+  const found: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) found.push(full);
+    }
+  };
+  for (const root of roots) walk(root);
+  return found;
 }
 
 function admitsBelowFloor(range: string): boolean {
@@ -108,6 +123,27 @@ describe('fastify is never declared below 5.11.0 to a consumer', () => {
     expect(declaring).toContain('@endora-commerce/platform');
     expect(declaring.length).toBeGreaterThan(10);
     expect(below).toEqual([]);
+  });
+
+  it('in the runtime version check of any fastify-plugin wrapper', () => {
+    // `fastify-plugin`'s `fastify:` option is a semver range Fastify checks at
+    // `register` time (`checkVersion` in `lib/plugin-utils.js`). It is a second
+    // statement of the same floor, read by the running process rather than by
+    // the installer, so a wrapper declaring `5.x` accepts the very releases the
+    // manifest refuses. The floor's one source of truth is `PEER_FLOORS` in
+    // `scripts/lib/module-package-manifest.ts`, which a module package cannot
+    // import; this sweep is what holds the literals to it instead.
+    const declared: string[] = [];
+    for (const file of sourceFiles([join(repoRoot!, 'packages'), join(repoRoot!, 'backend', 'src')])) {
+      const source = readFileSync(file, 'utf8');
+      if (!source.includes("from 'fastify-plugin'")) continue;
+      for (const match of source.matchAll(/\bfastify:\s*['"]([^'"]+)['"]/g)) {
+        declared.push(`${relative(repoRoot!, file)} fastify: ${match[1]}`);
+      }
+    }
+    // Not judging an empty population: the auth plugin declares one.
+    expect(declared.some((entry) => entry.startsWith('packages/modules/auth/'))).toBe(true);
+    expect(declared.filter((entry) => admitsBelowFloor(entry.split('fastify: ')[1]!))).toEqual([]);
   });
 
   describe('in what a scaffolded instance declares', () => {

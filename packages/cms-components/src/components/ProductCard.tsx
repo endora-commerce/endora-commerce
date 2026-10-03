@@ -1,6 +1,6 @@
 'use client';
 
-import { type ComponentConfig, type Field, type PuckComponent } from '@measured/puck';
+import { type ComponentConfig, type Field, type PuckComponent } from '@puckeditor/core';
 import { PB_RESPONSIVE_METADATA, withHideOn } from '@endora-commerce/page-builder-core';
 import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import type { CmsProductCardProps } from '../schema/component-types.js';

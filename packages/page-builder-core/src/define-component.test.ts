@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Config } from '@measured/puck';
+import type { Config } from '@puckeditor/core';
 import { filterConfigByContext } from './define-component.js';
 
 const sampleConfig: Config = {

@@ -1,8 +1,8 @@
 'use client';
 
 import { useMemo, useState, type ReactElement } from 'react';
-import type { Field } from '@measured/puck';
-import { FieldLabel } from '@measured/puck';
+import type { Field } from '@puckeditor/core';
+import { FieldLabel } from '@puckeditor/core';
 import {
   CMS_ICON_CATALOG,
   humanizeIconName,

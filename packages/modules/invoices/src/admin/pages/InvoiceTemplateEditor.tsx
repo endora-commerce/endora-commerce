@@ -1,13 +1,18 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Puck, type Data } from '@measured/puck';
-import '@measured/puck/puck.css';
+import { Puck, type Data } from '@puckeditor/core';
+import '@puckeditor/core/puck.css';
 import { apiBaseUrl, apiClient, ApiError, cn } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, PageHeader, SaveButtonGroup } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { PageBuilderHeaderActions } from '@endora-commerce/page-builder-admin';
 import { PageBuilderOverlayBridge } from '@endora-commerce/page-builder-admin';
 import { countBlockNames } from '@endora-commerce/page-builder-core';
+import {
+  PUCK_LEGACY_DND,
+  PUCK_LEGACY_VIEWPORTS,
+  withPuckLegacySideBar,
+} from '@endora-commerce/page-builder-core/editor';
 import { invoicePuckConfig, invoicePuckPalette } from '../templates/invoice-puck-config.js';
 import {
   withDescribedInvoiceBlocks,
@@ -33,7 +38,7 @@ const LANGUAGE = 'pl-PL';
  * (feature 091).
  */
 const API_BASE = apiBaseUrl;
-const invoiceBuilderPlugin = createInvoiceBuilderEditorPlugin();
+const invoiceBuilderPlugins = withPuckLegacySideBar([createInvoiceBuilderEditorPlugin()]);
 
 /**
  * This module's own config: the namespaced renderer map plus its one derived
@@ -260,7 +265,9 @@ export function InvoiceTemplateEditor(): ReactNode {
                   config={puckConfig}
                   data={draft}
                   onChange={setDraft}
-                  plugins={[invoiceBuilderPlugin]}
+                  plugins={invoiceBuilderPlugins}
+                  viewports={PUCK_LEGACY_VIEWPORTS}
+                  dnd={PUCK_LEGACY_DND}
                   overrides={{
                     headerActions: () => (
                       <PageBuilderHeaderActions

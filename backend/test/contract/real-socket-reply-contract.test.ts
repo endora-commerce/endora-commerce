@@ -29,6 +29,13 @@ import { fileURLToPath } from 'node:url';
  *   version, or a hook of ours, that lets the throw escape again would put every
  *   handler missing its `return` back into a crash loop, so the survival is
  *   asserted rather than assumed.
+ * - **The error handler adds nothing to it.** The caught throw reaches the
+ *   platform's error handler on a reply that has already ended. It used to
+ *   answer it like any unknown error, with a 500 envelope that could not be
+ *   sent, and Fastify logged `FST_ERR_REP_ALREADY_SENT` on top of the error
+ *   worth reading. The handler now logs the original error once and sends
+ *   nothing (`packages/platform/src/http/error-envelope-sent-reply.test.ts`
+ *   pins it in-process); this file pins it over the full `buildServer` stack.
  *
  * Whether a process survives is observed in a clean CHILD process:
  * `reply-return-probe.ts` boots the real `buildServer` stack over a real socket,
@@ -75,6 +82,10 @@ describe('real-socket reply contract (ERR_HTTP_HEADERS_SENT guard)', () => {
     const run = runProbe('buggy');
     // The second send reached `writeHead` after the headers were flushed.
     expect(run.output).toContain('ERR_HTTP_HEADERS_SENT');
+    // ...logged once by the error handler, which sends nothing on the ended
+    // reply — a 500 attempted on top of it is what `FST_ERR_REP_ALREADY_SENT`
+    // reports.
+    expect(run.output).not.toContain('FST_ERR_REP_ALREADY_SENT');
     // ...and the stack contained it: the process did not crash and the client
     // got the first, intact reply. A non-zero exit here means the throw escaped
     // as an uncaught exception again — the production crash loop.

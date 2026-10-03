@@ -6,7 +6,7 @@
 /**
  * A single Puck data tree as produced by the editor for one language.
  * Treated as opaque at this layer — Puck's actual type lives in
- * `@measured/puck` and may change across pre-1.0 bumps; we round-trip the
+ * `@puckeditor/core` and may change across pre-1.0 bumps; we round-trip the
  * shape verbatim through the envelope.
  */
 export type PuckDataTree = {

@@ -1,4 +1,4 @@
-import type { Data } from '@measured/puck';
+import type { Data } from '@puckeditor/core';
 import type { EmailTemplateDetail, EmailTemplateSummary } from '@endora-commerce/contracts';
 import { emptyPageBuilderData, isEmptyPageBuilderData } from '../chrome/page-builder-data.js';
 import {

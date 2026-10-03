@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, type ReactElement } from 'react';
-import { ActionBar, useGetPuck } from '@measured/puck';
+import { ActionBar, useGetPuck } from '@puckeditor/core';
 import { Minus, Plus } from 'lucide-react';
 import { resolveResponsiveNumber } from '@endora-commerce/page-builder-core';
 import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';

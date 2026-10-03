@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactElement, ReactNode } from 'react';
-import type { Config } from '@measured/puck';
+import type { Config } from '@puckeditor/core';
 
 /** Matches the storefront shell (`max-w-[1360px] px-[24px]`). */
 export const CMS_PAGE_MAX_WIDTH_PX = 1360;

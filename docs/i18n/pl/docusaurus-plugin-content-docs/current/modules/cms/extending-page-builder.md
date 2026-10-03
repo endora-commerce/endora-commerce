@@ -66,7 +66,7 @@ pakiecie modułu dla panelu lub storefrontu) i wyeksportuj go z punktu wejścia 
 
 ```tsx
 // packages/cms-components/src/components/PromoBanner.tsx
-import type { ComponentConfig } from '@measured/puck';
+import type { ComponentConfig } from '@puckeditor/core';
 
 interface Props {
   headline: string;

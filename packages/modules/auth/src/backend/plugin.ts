@@ -218,7 +218,11 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
 
 export const authPlugin = fastifyPlugin(authPluginImpl, {
   name: 'b2b-auth',
-  fastify: '5.x',
+  // The same floor every published manifest peers on (`PEER_FLOORS` in
+  // `backend/scripts/lib/module-package-manifest.ts`): below 5.11 an async
+  // handler missing its `return` crash-loops the process. Held to it by
+  // `backend/test/unit/packages/fastify-peer-floor.test.ts`.
+  fastify: '^5.11.0',
 });
 
 /*

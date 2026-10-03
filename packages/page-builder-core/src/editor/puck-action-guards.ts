@@ -1,4 +1,4 @@
-import type { Data, PuckAction } from '@measured/puck';
+import type { Data, PuckAction } from '@puckeditor/core';
 import { extractRootContent, isPuckItem, toPuckItemArray, type PuckItem } from './outline-data.js';
 
 /** Parent component id from a Puck zone compound id (`{parentId}:{slotName}`). */

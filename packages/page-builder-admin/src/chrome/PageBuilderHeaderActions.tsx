@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import type { Data } from '@measured/puck';
+import type { Data } from '@puckeditor/core';
 import { Copy, Eraser, FileInput, Maximize2, Minimize2, Save } from 'lucide-react';
 import { slugify } from '@endora-commerce/contracts';
 import { Button, Input, Label, Select } from '@endora-commerce/admin-kit/ui';

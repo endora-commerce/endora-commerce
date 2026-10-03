@@ -52,7 +52,7 @@ pliku osadzonego we właściwościach (`props`) komponentu CMS jest odrzucane w 
 
 ## Tworzenie treści w Page Builderze
 
-Page Builder jest zbudowany na **Puck** (`@measured/puck`), a komponenty dostarcza
+Page Builder jest zbudowany na **Puck** (`@puckeditor/core`), a komponenty dostarcza
 `@endora-commerce/cms-components`. Domyślne komponenty układu i treści:
 
 | Komponent       | Przeznaczenie                                                                |

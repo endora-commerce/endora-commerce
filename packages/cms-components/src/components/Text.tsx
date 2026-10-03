@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { type ComponentConfig, type PuckComponent } from '@measured/puck';
+import { type ComponentConfig, type PuckComponent } from '@puckeditor/core';
 import {
   resolveTextAlignForTier,
   responsiveTextAlignClass,

@@ -377,15 +377,6 @@ const MISFILED_INTEGRATION_TESTS: Readonly<Record<string, MisfiledIntegrationTes
       'is `test/unit/quote_requests/status-migration.test.ts` and that the migration\'s SQL ' +
       'half is exercised by every boot — so what is here is the pure half, twice.',
   },
-  'test/integration/real-socket-reply-contract.test.ts': {
-    scope: 'contract',
-    reason:
-      'Spawns a probe that serves the real `buildServer` stack over a real socket and asserts ' +
-      'the reply contract `inject` cannot see. It is genuinely more than a unit test, and it ' +
-      'is still not III(c): what it exercises is a socket, not the database, and III(c) is ' +
-      'defined by the database. The honest destination is `test/contract/`, and this entry ' +
-      'is the place to argue otherwise if the mover disagrees.',
-  },
 };
 
 /**

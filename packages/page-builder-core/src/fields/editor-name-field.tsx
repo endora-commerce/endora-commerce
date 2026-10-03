@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { Field } from '@measured/puck';
+import type { Field } from '@puckeditor/core';
 import { PuckFieldLabel } from './puck-field-label.js';
 
 const inputClassName = '_Input-input_bsxfo_26';

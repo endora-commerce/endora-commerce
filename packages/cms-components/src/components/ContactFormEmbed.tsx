@@ -1,6 +1,6 @@
 'use client';
 
-import { type ComponentConfig, type PuckComponent } from '@measured/puck';
+import { type ComponentConfig, type PuckComponent } from '@puckeditor/core';
 import { withHideOn } from '@endora-commerce/page-builder-core';
 import { usePreviewBreakpointTier } from '@endora-commerce/page-builder-core/client';
 import type { ContactFormEmbedProps } from '../schema/component-types.js';

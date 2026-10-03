@@ -70,7 +70,7 @@ package's entry point:
 
 ```tsx
 // packages/cms-components/src/components/PromoBanner.tsx
-import type { ComponentConfig } from '@measured/puck';
+import type { ComponentConfig } from '@puckeditor/core';
 
 interface Props {
   headline: string;

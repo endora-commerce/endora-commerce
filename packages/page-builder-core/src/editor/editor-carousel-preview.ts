@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useGetPuck } from '@measured/puck';
+import { useGetPuck } from '@puckeditor/core';
 import { usePageBuilderPuck } from './use-page-builder-puck.js';
 import {
   getEditorCarouselPageFromUi,

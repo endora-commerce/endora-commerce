@@ -1,5 +1,5 @@
 import { createContext, useContext, type ReactElement, type ReactNode } from 'react';
-import { FieldLabel } from '@measured/puck';
+import { FieldLabel } from '@puckeditor/core';
 import { SETTINGS_SCOPE_LABELS, type SettingsScope } from '../types/responsive.js';
 import { setStoredScope } from './settings-scope-store.js';
 import { useComponentScope } from './use-component-scope.js';
