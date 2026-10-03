@@ -216,11 +216,10 @@ mirrors; the asset-ref scan covers `body` for backward compatibility.
 
 ## Extending the Page Builder
 
-Other backend modules contribute components via the SPI in
-`packages/modules/cms/src/backend/services/page-builder-registry.ts`. See the
-[Extending the Page Builder](./extending-page-builder) guide for the
-end-to-end workflow: descriptor declaration, renderer shipping, and
-composition wiring.
+Other modules declare their blocks in their own manifest and ship the renderers
+in their own package. See the
+[Extending the Page Builder](./extending-page-builder) guide: the manifest
+declaration, the three renderer layers and the block stylesheet.
 
 ## Error codes
 
