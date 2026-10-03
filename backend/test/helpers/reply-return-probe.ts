@@ -1,19 +1,26 @@
 /**
- * Child-process probe for the `ERR_HTTP_HEADERS_SENT` crash class.
+ * Child-process probe for the `ERR_HTTP_HEADERS_SENT` double-send class.
  *
  * Boots the REAL production middleware stack (`buildServer`) over a REAL socket
  * and hits a probe route once. Run with one argument:
  *
  *   tsx reply-return-probe.ts buggy   → async handler calls reply.send() WITHOUT
  *                                        `return reply`; the async onSend hooks
- *                                        trigger a double-send → ERR_HTTP_HEADERS_SENT
- *                                        thrown as an uncaught exception → the
- *                                        process exits non-zero.
- *   tsx reply-return-probe.ts fixed   → handler returns the reply; clean exit 0.
+ *                                        open a window in which Fastify sends the
+ *                                        reply a second time, and the second
+ *                                        `writeHead` throws ERR_HTTP_HEADERS_SENT.
+ *   tsx reply-return-probe.ts fixed   → handler returns the reply; one send.
  *
- * Driven by real-socket-reply-contract.test.ts. We need a clean child process
- * because vitest's worker installs its own uncaughtException handling, which
- * swallows the crash — exactly the way `app.inject()` hides it from the suite.
+ * Whether that throw kills the process depends on Fastify: up to 5.10 it
+ * escaped as an uncaught exception (exit non-zero — the original prod crash
+ * loop); from 5.11.0 the onSend hook runner catches it and routes it to the
+ * error handler, which logs it. The probe reports both halves so the driving
+ * test can tell them apart: the exit code says whether the process survived,
+ * the logger output (stdout) says whether a double-send happened, and the
+ * `REPLY_PROBE_RESULT` line says what the client actually received.
+ *
+ * Driven by real-socket-reply-contract.test.ts, which runs it as a separate
+ * process because a crash is only observable as that process's exit code.
  */
 import type { FastifyInstance } from 'fastify';
 import { buildServer } from '@endora-commerce/platform/composition';
@@ -50,7 +57,8 @@ const app = await buildServer({
 await app.listen({ port: 0, host: '127.0.0.1' });
 const { port } = app.server.address() as { port: number };
 const res = await fetch(`http://127.0.0.1:${port}/api/v1/_probe`);
-await res.text();
+const receivedBody = await res.text();
+process.stdout.write(`\nREPLY_PROBE_RESULT ${JSON.stringify({ status: res.status, body: receivedBody })}\n`);
 // Give the post-response tick time to throw (buggy) before we exit cleanly.
 await new Promise((r) => setTimeout(r, 250));
 await app.close();
