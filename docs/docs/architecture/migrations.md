@@ -531,7 +531,7 @@ A failure reads:
 [fk-drift] undeclared cross-module foreign key:
   orders.order_placement_intents → api_keys
   module "orders" references module "api_keys" but does not declare it
-  (transitively) in backend/src/modules/orders/manifest.ts.
+  (transitively) in packages/modules/orders/src/manifest.ts.
 
   Fix one of:
     (a) add 'api_keys' to `dependencies` in orders/manifest.ts  ← usually this
