@@ -1,89 +1,84 @@
 ---
 title: api_keys
-description: Poświadczenia integracyjne typu bearer token
+description: Dane uwierzytelniające integracji w postaci tokenu bearer
 ---
 
 # `api_keys`
 
-Klucze API ze scope'owanym bearer tokenem do integracji machine-to-machine. Plaintext
-tokenu pokazywany jest raz przy utworzeniu; przechowywany jest tylko hash SHA-256.
-Klucz może dodatkowo nieść **powiązanie dystrybutora**
-(Organization + Sales Channel + service Customer Account) oraz opcjonalną datę wygaśnięcia,
-czyniąc go poświadczeniem partnerskim dla przestrzeni `/api/v1/external/*`,
-którą w pełni dokumentuje przewodnik integracyjny *Partner API access*.
+Klucze API z tokenem bearer o określonym zakresie, przeznaczone do integracji między systemami.
+Token w postaci jawnej jest pokazywany tylko raz, przy utworzeniu; przechowywany jest wyłącznie jego
+skrót SHA-256. Klucz może dodatkowo mieć **powiązanie z dystrybutorem** (organizacja, kanał sprzedaży
+i techniczne konto klienta) oraz opcjonalną datę ważności — staje się wtedy danymi uwierzytelniającymi
+partnera dla przestrzeni `/api/v1/external/*`, którą w pełni opisuje przewodnik integracyjny
+*Partner API access*.
 
-## Publiczne API
+## API publiczne
 
-| Verb + Path | Audience | Purpose |
+| Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `GET /api/v1/admin/api-keys` | admin | Lista kluczy + timestampy last-used, binding, expiry |
-| `POST /api/v1/admin/api-keys` | admin | Utworzenie; zwraca surowy bearer **raz** |
-| `DELETE /api/v1/admin/api-keys/:id` | admin | Unieważnienie |
+| `GET /api/v1/admin/api-keys` | administrator | Lista kluczy z datą ostatniego użycia, powiązaniem i datą ważności |
+| `POST /api/v1/admin/api-keys` | administrator | Utworzenie; zwraca token bearer **tylko raz** |
+| `DELETE /api/v1/admin/api-keys/:id` | administrator | Unieważnienie |
 
-Wywołania external uwierzytelniają się przez `Authorization: Bearer sk_live_…`.
-`requireApiKey(scope)` i `requireBoundApiKey(scope)` to pre-handlery Fastify
-eksponowane przez plugin `api_keys`; powierzchnie tras bramkują się nimi
-(`requireApiKey('catalog:write')`,
+Wywołania z zewnątrz uwierzytelniają się nagłówkiem `Authorization: Bearer sk_live_…`.
+`requireApiKey(scope)` i `requireBoundApiKey(scope)` to pre-handlery Fastify udostępniane przez
+plugin `api_keys`; trasy są nimi chronione (`requireApiKey('catalog:write')`,
 `requireBoundApiKey('orders:write')` itd.).
 
-## Enum scope
+## Wyliczenie zakresów
 
-Tworzenie waliduje scope'y względem typowanego katalogu w
+Przy tworzeniu zakresy są sprawdzane względem typowanego katalogu w
 `packages/contracts/src/api-keys.ts` (`apiKeyScopeSchema`):
 
-| Scope | Meaning |
+| Zakres | Znaczenie |
 | --- | --- |
-| `catalog:read` | Odczyty PIM (unbound) i powierzchnia external catalog (bound) |
-| `catalog:write` | PIM by-SKU upsert — **tylko klucze unbound** |
-| `orders:read` | Odczyty external order — **tylko klucze bound** |
-| `orders:write` | Przyjmowanie external order — **tylko klucze bound** |
+| `catalog:read` | Odczyty PIM (klucz niepowiązany) i zewnętrzne API katalogu (klucz powiązany) |
+| `catalog:write` | Zapis PIM według SKU — **tylko klucze niepowiązane** |
+| `orders:read` | Odczyt zamówień przez zewnętrzne API — **tylko klucze powiązane** |
+| `orders:write` | Przyjmowanie zamówień przez zewnętrzne API — **tylko klucze powiązane** |
 
-Egzekucja pozostaje membership-based, więc legacy free-text scope'y na istniejących
-kluczach pozostają czytelne i egzekwowalne — walidowane jest tylko tworzenie.
+Egzekwowanie nadal sprawdza tylko obecność zakresu na liście, więc dawne, dowolnie zapisane zakresy
+w istniejących kluczach nadal są odczytywane i egzekwowane — walidacji podlega tylko tworzenie.
 
-## Model binding
+## Powiązanie
 
-Binding jest all-or-none i **niemutowalny po utworzeniu** (cykl życia token-shown-once;
-rebinding = revoke + nowy klucz). Reguły tworzenia, walidowane server-side i odzwierciedlone
-inline w formularzu admin:
+Powiązanie obejmuje wszystkie pola albo żadne i **nie można go zmienić po utworzeniu** (token jest
+pokazywany tylko raz; zmiana powiązania = unieważnienie i nowy klucz). Reguły tworzenia, sprawdzane
+po stronie serwera i pokazywane od razu w formularzu w panelu:
 
-| Rule | Detail |
+| Reguła | Szczegóły |
 | --- | --- |
-| B1 | Dowolny scope `orders:*` ⇒ binding wymagany |
-| B2 | Binding obecny ⇒ `catalog:write` zabronione (zapisy PIM pozostają tylko unbound) |
-| B3 | Service Customer Account musi być aktywny i należeć do powiązanej Organization |
-| B4 | Organization i Sales Channel muszą istnieć (kanał nie musi być aktywny przy tworzeniu — klucz po prostu fail-closed, gdy jest nieaktywny) |
-| B5 | `expiresAt`, gdy obecne, musi być przyszłym instantem |
+| B1 | Dowolny zakres `orders:*` ⇒ powiązanie jest wymagane |
+| B2 | Klucz powiązany ⇒ `catalog:write` jest zabronione (zapisy PIM pozostają wyłącznie dla kluczy niepowiązanych) |
+| B3 | Techniczne konto klienta musi być aktywne i należeć do powiązanej organizacji |
+| B4 | Organizacja i kanał sprzedaży muszą istnieć (kanał nie musi być aktywny przy tworzeniu — klucz po prostu odmawia działania, dopóki kanał jest nieaktywny) |
+| B5 | `expiresAt`, jeśli podane, musi wskazywać chwilę w przyszłości |
 
-W czasie requestu klucz bound wyprowadza tenant context single-org i przypięty
-sales channel (jawny nagłówek `X-Sales-Channel` wskazujący inny kanał
-jest odrzucany z `403 API_KEY_CHANNEL_MISMATCH`). Klucz unbound zachowuje
-legacy system context i rozwiązywanie header/host/default channel.
+W trakcie żądania klucz powiązany ustawia kontekst tenanta ograniczony do jednej organizacji i
+przypięty kanał sprzedaży (jawny nagłówek `X-Sales-Channel` wskazujący inny kanał jest odrzucany z
+`403 API_KEY_CHANNEL_MISMATCH`). Klucz niepowiązany zachowuje dotychczasowy kontekst systemowy i
+wyznaczanie kanału z nagłówka, hosta albo kanału domyślnego.
 
-## Wygaśnięcie
+## Ważność
 
-`expiresAt` jest opcjonalne i dotyczy obu trybów klucza. Gdy instant minie,
-`authenticate` odrzuca klucz z `401 UNAUTHORIZED` — ta sama odmowa co przy
-unieważnionym kluczu.
+`expiresAt` jest opcjonalne i dotyczy obu rodzajów kluczy. Po upływie tej chwili `authenticate`
+odrzuca klucz z `401 UNAUTHORIZED` — tak samo jak klucz unieważniony.
 
 ## Encje
 
-`ApiKey` (name, keyHash, lastFour, scopes, status, lastUsedAt oraz nullable
-kolumny binding/expiry `organizationId`, `salesChannelId`,
-`customerAccountId`, `expiresAt`).
+`ApiKey` (name, keyHash, lastFour, scopes, status, lastUsedAt oraz opcjonalne kolumny powiązania i
+ważności: `organizationId`, `salesChannelId`, `customerAccountId`, `expiresAt`).
 
-## Poza zakresem / zachowanie bramki
+## Odmowy
 
-- Zły scope ⇒ `403 API_KEY_OUT_OF_SCOPE` + wiersz audytu `api_key.out_of_scope`.
-- Klucz unbound na endpoincie bound-only ⇒ `403 API_KEY_NOT_BOUND` + wiersz audytu
+- Brak wymaganego zakresu ⇒ `403 API_KEY_OUT_OF_SCOPE` i wpis audytu `api_key.out_of_scope`.
+- Klucz niepowiązany na endpoincie wymagającym powiązania ⇒ `403 API_KEY_NOT_BOUND` i wpis audytu
   `api_key.not_bound`.
-- Niedopasowanie kanału ⇒ `403 API_KEY_CHANNEL_MISMATCH` + wiersz audytu
-  `api_key.channel_mismatch`.
+- Niezgodny kanał ⇒ `403 API_KEY_CHANNEL_MISMATCH` i wpis audytu `api_key.channel_mismatch`.
 
 ## Punkty rozszerzenia
 
-- **Nowe scope'y** — rozszerz `apiKeyScopeSchema` w `@endora-commerce/contracts` i bramkuj
-  nową powierzchnię w miejscu wywołania; serwis jest scope-name-agnostic w czasie
-  egzekucji.
-- **Rate limit per klucz** — `api-key-service.authenticate` zwraca id klucza;
-  nałóż licznik per klucz w pre-handlerze lub downstream middleware.
+- **Nowe zakresy** — rozszerz `apiKeyScopeSchema` w `@endora-commerce/contracts` i chroń nową trasę
+  w miejscu wywołania; przy egzekwowaniu usługa nie zależy od nazw zakresów.
+- **Limit żądań dla klucza** — `api-key-service.authenticate` zwraca identyfikator klucza; dodaj
+  licznik dla każdego klucza w pre-handlerze albo w dalszej warstwie pośredniej.

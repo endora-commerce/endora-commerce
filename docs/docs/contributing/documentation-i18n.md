@@ -131,6 +131,16 @@ Steps 1–2 are file edits; step 3 is the local guard.
 Preserve code fences, inline code, URLs, file paths, CLI commands, JSON/YAML
 literals, HTTP methods/paths and module ids unchanged in Polish prose.
 
+### Polish terminology
+
+Write Polish pages with the terms in
+[Documentation-site terminology](./translations.md#documentation-site-terminology)
+— one glossary for the Admin UI and this site, so that an overlay module is a
+*moduł nakładkowy* on every page rather than on some. Translate the meaning,
+not the sentence: Polish word order, no English verb with a Polish ending, and
+a loanword only where the glossary keeps one. If a term you need is missing,
+add its row in the same pull request.
+
 ## Generated English artefacts
 
 `pnpm --filter backend run composer:generate` emits **English only** for:

@@ -1,134 +1,128 @@
 ---
-title: Pola niestandardowe dla encji rdzeniowych
+title: Pola niestandardowe dla encji rdzenia
 ---
 
 # Pola niestandardowe
 
-Operatorzy mogą dodawać pola do encji rdzeniowych **w czasie wdrożenia — jako dane, nigdy migracja schematu ani deploy kodu**.
-Warstwa Custom Fields to generyczny, **niezależny od encji hosta** moduł, który ponownie używa
-*projektu* `product_attributes` katalogu (typowane definicje, listy opcji,
-etykiety per locale) jako możliwości cross-cutting — bez osadzania jakiejkolwiek
-troski specyficznej dla hosta w rdzeniu.
+Operatorzy mogą dodawać pola do encji rdzenia **po wdrożeniu — jako dane, nigdy jako migrację
+schematu czy wdrożenie kodu**. Warstwa pól niestandardowych to ogólny moduł, **niezależny od
+encji**, który przejmuje *projekt* `product_attributes` z katalogu (typowane definicje, listy opcji,
+etykiety dla poszczególnych języków) jako możliwość przekrojową — bez umieszczania w swoim rdzeniu
+czegokolwiek specyficznego dla encji, do której pola należą.
 
-## Obsługiwane encje hosta
+## Obsługiwane encje
 
-Pola niestandardowe są dostępne na **Category, Order, Organization, CustomerAccount,
-QuoteRequest i Product**. Każda encja hosta niesie addytywny JSONB
-worek wartości (`{ [definitionKey]: value }`); host posiada tę kolumnę i jej zapisy.
-Dla większości hostów worek to kolumna `customFieldValues`; host produktu wiąże się
-z istniejącą kolumną `products.attribute_values` (patrz wiązanie value-probe
-poniżej). Atrybuty produktu zbiegły się na tej warstwie jako **adapter**, nie
-przepisanie: generyczna warstwa posiada tożsamość każdego atrybutu
-(klucz, etykiety per locale, typ wartości, required, opcje), podczas gdy katalog trzyma
-flagi zachowania na własnej tabeli rozszerzenia 1:1 (`product_attributes`) i
-pozostaje jedyną powierzchnią zapisu (patrz „Typy encji zarządzane przez hosta” poniżej).
+Pola niestandardowe są dostępne dla encji **Category, Order, Organization, CustomerAccount,
+QuoteRequest i Product**. Każda z tych encji ma dodatkowy zbiór wartości w JSONB
+(`{ [definitionKey]: value }`); właścicielem tej kolumny i zapisów do niej jest moduł encji. W
+większości encji jest to kolumna `customFieldValues`; produkt korzysta zamiast tego z istniejącej
+już kolumny `products.attribute_values` (zobacz *Powiązanie sprawdzania wartości* niżej). Atrybuty
+produktu zostały połączone z tą warstwą przez **adapter**, a nie przepisane: ogólna warstwa jest
+właścicielem tożsamości każdego atrybutu (klucz, etykiety dla poszczególnych języków, typ wartości,
+wymagalność, opcje), a katalog przechowuje flagi zachowania we własnej tabeli rozszerzenia 1:1
+(`product_attributes`) i pozostaje jedynym miejscem zapisu (zobacz *Encje zarządzane przez własny
+moduł* niżej).
 
 ## Jak to działa
 
-- **Definicje to dane.** Pole to wiersz w `custom_field_definitions`
-  (`@GlobalEntity`): `entityType`, `key`, zlokalizowana `label` (z fallbackiem domyślnym),
-  `valueType`, flaga `required` i — dla typów select — lista wierszy
-  `custom_field_options`. Dodanie, edycja lub usunięcie pola to zmiana
-  danych przez powierzchnię admin; **bez migracji, bez deployu**.
-- **Sześć typów wartości**: `text`, `number`, `boolean`, `date`, `select`
-  (jedna opcja), `multiselect` (wiele opcji).
-- **Walidowane przy każdym zapisie.** Gdy rekord hosta jest tworzony lub edytowany,
-  generyczna warstwa waliduje przychodzący worek względem definicji i **odrzuca
-  per pole** przy każdym naruszeniu (zły typ, brak required, nieznana opcja,
-  poza zakresem) z błędem specyficznym dla pola. Host potem persystuje wartości
-  we własnej kolumnie `customFieldValues`.
-- **Odczyt obok pól natywnych.** Wartości wracają wszędzie tam, gdzie rekord jest
-  czytany (szczegóły admin + odpowiednie odpowiedzi API).
+- **Definicje to dane.** Pole to wiersz w `custom_field_definitions` (`@GlobalEntity`):
+  `entityType`, `key`, przetłumaczona `label` (z wartością domyślną), `valueType`, flaga `required`
+  i — dla typów wyboru — lista wierszy `custom_field_options`. Dodanie, edycja lub usunięcie pola to
+  zmiana danych w panelu administracyjnym; **bez migracji i bez wdrożenia**.
+- **Sześć typów wartości**: `text`, `number`, `boolean`, `date`, `select` (jedna opcja),
+  `multiselect` (wiele opcji).
+- **Walidacja przy każdym zapisie.** Gdy rekord encji jest tworzony lub edytowany, ogólna warstwa
+  sprawdza przesłane wartości względem definicji i **odrzuca każde pole osobno** przy każdym
+  naruszeniu (zły typ, brak wymaganej wartości, nieznana opcja, wartość spoza zakresu), z błędem
+  wskazującym pole. Następnie moduł encji zapisuje wartości we własnej kolumnie
+  `customFieldValues`.
+- **Odczyt razem z polami wbudowanymi.** Wartości są zwracane wszędzie tam, gdzie odczytywany jest
+  rekord (szczegóły w panelu administracyjnym i odpowiednie odpowiedzi API).
 
 ## Podział odpowiedzialności
 
-Generyczna warstwa posiada **definicje + walidację**; host posiada **persystencję
-+ audyt**:
+Ogólna warstwa odpowiada za **definicje i walidację**; moduł encji — za **zapis i audyt**:
 
-- Moduł custom-fields nigdy nie zapisuje do tabeli hosta i nie audytuje zapisu hosta. Host persystuje własny rekord i audytuje własny
-  zapis, wołając generyczną warstwę tylko do walidacji wartości i odczytu definicji —
-  więc granice modułów pozostają nienaruszone i nie ma podwójnego audytowania.
-- Mutacje definicji / opcji same są wrażliwymi zapisami i działają przez
-  **Command Bus**; moduł rejestruje swoje uprawnienia
-  (`custom_fields:read`, `custom_fields:write`) i uczestniczy w cyklu życia
-  modułu.
+- Moduł pól niestandardowych nigdy nie zapisuje do tabeli innej encji i nie audytuje jej zapisów.
+  Moduł encji zapisuje własny rekord i audytuje własny zapis, a ogólną warstwę wywołuje tylko po to,
+  by zwalidować wartości i odczytać definicje — dzięki temu granice modułów pozostają nienaruszone i
+  nie ma podwójnego audytu.
+- Zmiany definicji i opcji same są wrażliwymi zapisami i przechodzą przez **Command Bus**; moduł
+  rejestruje swoje uprawnienia (`custom_fields:read`, `custom_fields:write`) i uczestniczy w cyklu
+  życia modułów.
 
-## Typy encji zarządzane przez hosta (`managedBy`)
+## Encje zarządzane przez własny moduł (`managedBy`)
 
-Rejestr encji (`custom-field-registry.ts`) wspiera generyczną
-możliwość `managedBy` na wpisie hosta: `{ moduleId, labelKey, route }`. Gdy
-ustawiona, definicje tego hosta są autorowane przez nazwany moduł przez własną
-powierzchnię, a generyczna powierzchnia admin staje się **tylko do odczytu** dla tego typu
-encji: `POST` / `PATCH` / `DELETE` na `/api/v1/admin/custom-fields/definitions*`
-są odrzucane z `409 host_managed`, a strona Custom Fields w admin renderuje
-encję tylko do odczytu z informacją linkującą do zarządzającej powierzchni. Odmowa
-jest sterowana rejestrem — generyczny rdzeń sprawdza tylko obecność markera,
-nigdy który moduł zarządza (brak identyfikatora hosta w logice rdzenia).
+Rejestr encji (`custom-field-registry.ts`) obsługuje ogólną właściwość `managedBy` we wpisie encji:
+`{ moduleId, labelKey, route }`. Gdy jest ustawiona, definicje dla tej encji tworzy wskazany moduł
+we własnym interfejsie, a ogólny ekran administracyjny staje się dla tego typu encji **tylko do
+odczytu**: `POST` / `PATCH` / `DELETE` na `/api/v1/admin/custom-fields/definitions*` są odrzucane z
+`409 host_managed`, a strona pól niestandardowych w panelu pokazuje encję tylko do odczytu, z
+informacją i odnośnikiem do ekranu, który nią zarządza. O odmowie decyduje rejestr — ogólny rdzeń
+sprawdza tylko obecność znacznika, nigdy to, który moduł zarządza encją (w logice rdzenia nie ma
+identyfikatora żadnej encji).
 
-Host produktu jest pierwszym użytkownikiem: `managedBy` wskazuje stronę modułu katalogu
-`/catalog/attributes`, która pozostaje jedyną powierzchnią zapisu atrybutów
-produktu.
+Pierwszym użytkownikiem jest produkt: `managedBy` wskazuje stronę `/catalog/attributes` modułu
+katalogu, która pozostaje jedynym miejscem zapisu atrybutów produktu.
 
-## Wiązanie value-probe (`{table, column}`)
+## Powiązanie sprawdzania wartości (`{table, column}`)
 
-Strażniki zmian generycznej warstwy (`hasStoredValues`, `isOptionInUse` — za
-odmowami `value_type_locked` i `option_in_use`) sondują worek wartości hosta przez
-introspkcję JSONB tylko do odczytu. Cel sondy to per-encja **wiązanie storage**
-`{ table, column }`: większość hostów wiąże się z kolumną `custom_field_values`,
-podczas gdy host produktu wiąże się z `products.attribute_values`. Wiązanie
-to czyste metadane storage — żadna logika hosta nie żyje w module generycznym.
+Zabezpieczenia zmian w ogólnej warstwie (`hasStoredValues`, `isOptionInUse` — stojące za odmowami
+`value_type_locked` i `option_in_use`) sprawdzają zbiór wartości encji przez odczyt JSONB tylko do
+odczytu. Miejsce sprawdzania to dla każdej encji **powiązanie z kolumną** `{ table, column }`:
+większość encji korzysta z kolumny `custom_field_values`, a produkt z
+`products.attribute_values`. To powiązanie to wyłącznie metadane o przechowywaniu — w ogólnym
+module nie ma żadnej logiki konkretnej encji.
 
-## Szew apply transakcyjny (commandy hosta)
+## Transakcyjne API zapisu definicji (polecenia modułu encji)
 
-Moduły hosta zarządzające definicjami swojej encji (per `managedBy`) mutują
-je przez eksportowane `CustomFieldDefinitionApplyApi`
-(`applyCreate` / `applyUpdate` / `applyDelete` + warianty opcji). Każda
-funkcja apply działa na **EntityManager dostarczonym przez wywołującego**, egzekwuje generyczne
-niezmienniki (duplikat klucza, reguły opcji, blokada typu wartości, option-in-use) i
-wykonuje **brak audytu i brak publikacji cache** — command hosta posiada transakcję,
-zapisuje jeden wiersz audytu i publikuje unieważnienie cache definicji
-po commit. To utrzymuje `custom_fields` jedynym pisarzem swoich
-tabel, pozwalając commandowi hosta utrzymać definicję + własne
-wiersze spójnie atomowo (Command Bus nie nestuje się).
+Moduły zarządzające definicjami własnej encji (przez `managedBy`) zmieniają je przez eksportowane
+`CustomFieldDefinitionApplyApi` (`applyCreate` / `applyUpdate` / `applyDelete` oraz warianty dla
+opcji). Każda z tych funkcji działa na **EntityManagerze dostarczonym przez wywołującego**, pilnuje
+ogólnych niezmienników (powtórzony klucz, reguły opcji, blokada typu wartości, opcja w użyciu) i
+**niczego nie audytuje ani nie publikuje unieważnienia pamięci podręcznej** — polecenie modułu
+encji zarządza transakcją, zapisuje jeden wiersz audytu i po zatwierdzeniu publikuje unieważnienie
+pamięci podręcznej definicji. Dzięki temu `custom_fields` pozostaje jedynym modułem zapisującym do
+swoich tabel, a polecenie modułu encji może atomowo utrzymać spójność definicji i własnych wierszy
+(Command Bus nie obsługuje zagnieżdżania).
 
-## Nota zbieżności: atrybuty produktu
+## Uwaga o połączeniu: atrybuty produktu
 
-Zbieżność następuje jako **adapter**, nie przepisanie: atrybuty produktu stały się
-definicjami Custom Field na hoście `product`, a katalog trzyma wiersz rozszerzenia 1:1
-(`product_attributes`) dla flag zachowania i dopracowań prezentacji. Generyczny rdzeń zyskał tylko trzy niezależne od encji szwy
-opisane powyżej (wpis rejestru `product` z `managedBy`, wiązanie sondy
-`{table, column}` i szew apply) — zero logiki katalogu. Widok po stronie katalogu i wynik migracji są na
-[stronie modułu katalogu](../modules/catalog.md#atrybuty-jako-rozszerzenia-custom-field).
+Połączenie odbyło się przez **adapter**, a nie przez przepisanie: atrybuty produktu stały się
+definicjami pól niestandardowych dla encji `product`, a katalog przechowuje wiersz rozszerzenia 1:1
+(`product_attributes`) z flagami zachowania i ustawieniami prezentacji. Ogólny rdzeń zyskał tylko
+trzy opisane wyżej punkty rozszerzenia niezależne od encji (wpis `product` w rejestrze z
+`managedBy`, powiązanie sprawdzania `{table, column}` i API zapisu definicji) — bez żadnej logiki
+katalogu. Spojrzenie od strony katalogu i wynik migracji opisuje
+[strona modułu katalogu](../modules/catalog.md#atrybuty-jako-rozszerzenia-custom-field).
 
-## Zakres tenantów (dziedziczony)
+## Izolacja tenantów (dziedziczona)
 
-**Wartości** custom-field żyją w kolumnach hosta, więc dziedziczą zakres tenantów rekordu hosta
-za darmo: wartości na Order / Organization / Customer / QuoteRequest
-należącym do org są zamknięte w tym samym tenantcie co rekord hosta —
-generyczna warstwa nie dodaje nowej ścieżki scope. **Definicje** należą do
-platformy (albo, jeśli scoped, do organizacji) spójnie z tym, jak scoped jest encja
-hosta.
+**Wartości** pól niestandardowych są przechowywane w kolumnach encji, więc bez dodatkowej pracy
+dziedziczą izolację tenantów rekordu: wartości w zamówieniu, organizacji, kliencie czy zapytaniu
+ofertowym należącym do organizacji są ograniczone do tego samego tenanta co rekord — ogólna warstwa
+nie dodaje nowej ścieżki zawężania. **Definicje** należą do platformy (albo, jeśli są zawężone, do
+organizacji), zgodnie z tym, jak zawężona jest sama encja.
 
-## Flagi możliwości hosta (punkt rozszerzenia)
+## Flagi możliwości encji (punkt rozszerzenia)
 
-Pole może nieść **nieprzezroczysty** obiekt `config` — flagi możliwości hosta takie jak
-„filterable” albo „search-indexed”. Generyczny rdzeń **przechowuje, ale nigdy nie czyta go dla znaczenia**:
-moduł *hosta* interpretuje flagę przez własny udokumentowany
-punkt rozszerzenia (np. filtrowanie Category podnosi flagę `filterable`; możliwości Product
-zostają na `product_attributes`). To trzyma troski tylko-katalogowe poza
-generycznym rdzeniem — dokładnie ta rot, przed którą chroni ten podział, gdzie
-`product_attributes` narastało `isVariantAxis` / `isPromoRule` / `filterPosition`,
-aż przestało być wielokrotnego użytku.
+Pole może mieć **nieprzezroczysty** obiekt `config` — flagi możliwości encji, takie jak
+„filterable” czy „search-indexed”. Ogólny rdzeń **przechowuje go, ale nigdy nie interpretuje**:
+flagę interpretuje moduł *encji* przez własny, udokumentowany punkt rozszerzenia (np. filtrowanie
+kategorii korzysta z flagi `filterable`; możliwości produktu pozostają w `product_attributes`). Dzięki
+temu sprawy dotyczące wyłącznie katalogu nie trafiają do ogólnego rdzenia — to dokładnie ten rozrost,
+przed którym chroni ten podział: `product_attributes` obrastało w `isVariantAxis` / `isPromoRule` /
+`filterPosition`, aż przestało nadawać się do ponownego użycia.
 
-## Retencja danych
+## Przechowywanie danych
 
-Usunięcie definicji pola **nie** czyści zapisanych wartości: przestarzałe wartości są
-zachowane uśpione (nie pokazywane, nie czytane), zamiast agresywnego usuwania, więc
-pomyłkowe usunięcie jest odwracalne, a zapisy hosta nigdy nie kaskadują w utratę danych.
+Usunięcie definicji pola **nie** usuwa zapisanych wartości: nieaktualne wartości są zachowywane w
+uśpieniu (nie są pokazywane ani odczytywane), zamiast być od razu kasowane, więc pomyłkowe usunięcie
+da się cofnąć, a zapisy encji nigdy nie prowadzą kaskadowo do utraty danych.
 
 ## Dodawanie pola niestandardowego
 
-Zdefiniuj je z powierzchni custom-field w admin dla docelowego typu encji
-(klucz + zlokalizowana etykieta + typ wartości + required + opcje). Potem renderuje się na
-każdym rekordzie tego typu, a wartość round-tripuje przez ścieżki create/edit/read hosta —
-bez zmiany kodu.
+Zdefiniuj pole na ekranie pól niestandardowych w panelu administracyjnym, dla wybranego typu encji
+(klucz, przetłumaczona etykieta, typ wartości, wymagalność, opcje). Od tej chwili pole pojawia się
+w każdym rekordzie tego typu, a jego wartość jest zapisywana i odczytywana przez zwykłe ścieżki
+tworzenia, edycji i odczytu encji — bez zmiany kodu.

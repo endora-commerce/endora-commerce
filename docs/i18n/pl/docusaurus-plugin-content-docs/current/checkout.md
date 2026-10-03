@@ -3,57 +3,81 @@ sidebar_position: 20
 title: Checkout
 ---
 
-# Checkout (Kasa)
+# Checkout (składanie zamówienia)
 
-Checkout to przepływ sklepu, który zamienia niepusty **Cart** w **Order**. Zalogowany Klient potwierdza adres wysyłki i rozliczeniowy, wybiera metodę wysyłki i płatności, opcjonalnie stosuje kupon i dodaje komentarz, a następnie składa zamówienie. Po sukcesie koszyk staje się `completed`, tworzone jest Order w statusie oczekującym metody płatności (pokazywanym kupującemu jako *New*), a kupujący trafia na **Success Page**; po błędzie koszyk pozostaje nietknięty, a kupujący trafia na **Failure Page** z przyciskiem ponowienia.
+Checkout to proces w sklepie, który zamienia niepusty **koszyk** w **zamówienie**. Zalogowany klient
+potwierdza adres dostawy i adres do faktury, wybiera metodę dostawy i płatności, opcjonalnie stosuje
+kupon i dodaje komentarz, a potem składa zamówienie. Po powodzeniu koszyk otrzymuje stan
+`completed`, powstaje zamówienie w statusie oczekiwania na wybraną metodę płatności (kupujący widzi
+go jako *New*), a kupujący trafia na **stronę sukcesu**; po błędzie koszyk pozostaje bez zmian, a
+kupujący trafia na **stronę błędu** z przyciskiem ponowienia.
 
-Ta strona opisuje dwa aspekty istotne dla operatora, które najczęściej wymagają konfiguracji: **biznesowy Order ID** oraz **listy kwalifikujących się metod**.
+Ta strona opisuje dwie rzeczy, które operator najczęściej musi skonfigurować: **numer zamówienia
+widoczny dla klienta** oraz **listy dostępnych metod**.
 
-## Biznesowy Order ID
+## Numer zamówienia widoczny dla klienta
 
 Każde zamówienie ma dwa identyfikatory:
 
-- `id` — wewnętrzny UUID w bazie danych. Używany w kluczach obcych, narzędziach admina i logach. **Nigdy nie jest pokazywany Klientowi.**
-- `businessId` — **biznesowy Order ID widoczny dla klienta**, wyświetlany na Success Page, w e-mailu z potwierdzeniem zamówienia oraz na liście i w widoku szczegółowym zamówienia w sklepie.
+- `id` — wewnętrzny UUID w bazie danych. Używany w kluczach obcych, narzędziach panelu
+  administracyjnego i logach. **Nigdy nie jest pokazywany klientowi.**
+- `businessId` — **numer zamówienia widoczny dla klienta**, pokazywany na stronie sukcesu, w e-mailu
+  z potwierdzeniem zamówienia oraz na liście i w szczegółach zamówienia w sklepie.
 
-Biznesowy Order ID jest generowany przy składaniu zamówienia jako:
+Numer zamówienia jest tworzony przy składaniu zamówienia według wzoru:
 
 ```
 <prefix><sequence><suffix>
 ```
 
-- `<sequence>` pochodzi z dedykowanej, monotonicznej sekwencji Postgres (`orders_business_id_seq`). Nigdy się nie resetuje, więc ID jest globalnie unikalne niezależnie od późniejszej zmiany prefix/suffix.
-- `<prefix>` i `<suffix>` są **konfigurowalne w panelu admina** i rozwiązywane per Sales Channel.
+- `<sequence>` pochodzi z osobnej, stale rosnącej sekwencji Postgresa (`orders_business_id_seq`).
+  Nigdy nie jest zerowana, więc numer jest unikalny globalnie, niezależnie od późniejszych zmian
+  przedrostka i przyrostka.
+- `<prefix>` i `<suffix>` **konfiguruje się w panelu administracyjnym**, osobno dla każdego kanału
+  sprzedaży.
 
-### Konfiguracja prefix / suffix
+### Ustawienie przedrostka i przyrostka
 
-W Admin Settings UI otwórz grupę **Orders** i edytuj:
+W ustawieniach w panelu administracyjnym otwórz grupę **Orders** i zmień:
 
-| Setting | Default | Example |
+| Ustawienie | Wartość domyślna | Przykład |
 |---------|---------|---------|
-| `orders.business_id.prefix` | `` (empty) | `ORD-` |
-| `orders.business_id.suffix` | `` (empty) | `-2026` |
+| `orders.business_id.prefix` | `` (pusta) | `ORD-` |
+| `orders.business_id.suffix` | `` (pusta) | `-2026` |
 
-Przy wartościach domyślnych biznesowy Order ID to sam numer (np. `1042`).
-Przy przykładowych wartościach staje się `ORD-1042-2026`. Obie ustawienia mają zakres Sales Channel, więc różne kanały mogą używać różnych formatów.
+Przy wartościach domyślnych numer zamówienia to sama liczba (np. `1042`). Przy przykładowych
+wartościach to `ORD-1042-2026`. Oba ustawienia można określić osobno dla kanału sprzedaży, więc
+różne kanały mogą mieć różne formaty.
 
-Zmiana wartości wpływa **wyłącznie na zamówienia złożone później** — istniejące biznesowe Order ID są niezmienne.
+Zmiana wartości dotyczy **wyłącznie zamówień złożonych później** — numery istniejących zamówień się
+nie zmieniają.
 
-## Kwalifikujące się metody wysyłki i płatności
+## Dostępne metody dostawy i płatności
 
-Sekcje metod wysyłki i płatności w checkout wyświetlają dokładnie te metody, które są:
+W checkoucie w sekcjach metod dostawy i płatności wyświetlane są dokładnie te metody, które:
 
-1. **active** (status `Active` w Admin UI),
-2. przypisane do bieżącego **Sales Channel** kupującego,
-3. dozwolone dla **Organization** kupującego oraz
-4. zaakceptowane przez walidator `validateUseOnStorefront` adaptera.
+1. są **aktywne** (status `Active` w panelu administracyjnym),
+2. są przypisane do bieżącego **kanału sprzedaży** kupującego,
+3. są dozwolone dla **organizacji** kupującego oraz
+4. zostały zaakceptowane przez walidator `validateUseOnStorefront` adaptera.
 
-Te reguły należą do modułów Payment Method i Shipping Method; checkout tylko renderuje i przesyła wybór kupującego. Dopłata metody (`additionalPrice` dla płatności, `cost` dla wysyłki) jest uwzględniana w sumie zamówienia i w e-mailu potwierdzającym.
+Za te reguły odpowiadają moduły metod płatności i metod dostawy; checkout tylko wyświetla metody i
+przesyła wybór kupującego. Dopłata do metody (`additionalPrice` dla płatności, `cost` dla dostawy)
+jest wliczana do wartości zamówienia i pokazywana w e-mailu z potwierdzeniem.
 
 ## Kupony
 
-Kupon wprowadzony w checkout jest stosowany do **cart**, który jest źródłem prawdy odczytywanym przez transakcję składania zamówienia. Rabat widać w podsumowaniu checkout przed złożeniem zamówienia i jest zapisywany na Order (`promotionCode` + `discountTotal`) oraz w e-mailu potwierdzającym. Jednocześnie może być aktywny co najwyżej jeden kupon; nowy kod zastępuje poprzedni.
+Kupon wpisany w checkoucie jest stosowany do **koszyka**, który jest źródłem danych dla transakcji
+składania zamówienia. Rabat widać w podsumowaniu checkoutu przed złożeniem zamówienia, a potem jest
+zapisywany w zamówieniu (`promotionCode` i `discountTotal`) i pokazywany w e-mailu z potwierdzeniem.
+Aktywny może być najwyżej jeden kupon naraz; nowy kod zastępuje poprzedni.
 
 ## Obsługa błędów
 
-Składanie zamówienia odbywa się w jednej transakcji bazy danych. Jeśli się nie powiedzie — pusty koszyk, brak towaru w linii, niedozwolona/nieaktywna metoda, adres, którego kupujący już nie posiada, organizacja, która nie może transakcjonować, lub błąd inicjacji bramki płatności — transakcja jest wycofywana, **koszyk pozostaje bez zmian**, a Order nie jest tworzone. Kupujący trafia na Failure Page z komunikatem dopasowanym do przyczyny i przyciskiem *Try again*. Płatność odrzucona **po** utworzeniu zamówienia (np. nieudany callback bramki) jest obsługiwana na Order w cyklu życia płatności, a nie przez ponowne uruchomienie checkout.
+Składanie zamówienia odbywa się w jednej transakcji bazy danych. Jeśli się nie powiedzie — pusty
+koszyk, brak towaru w którejś pozycji, niedozwolona lub nieaktywna metoda, adres, którego kupujący
+już nie ma, organizacja, która nie może składać zamówień, albo błąd przy rozpoczęciu płatności w
+bramce — transakcja jest wycofywana, **koszyk pozostaje bez zmian**, a zamówienie nie powstaje.
+Kupujący trafia na stronę błędu z komunikatem dopasowanym do przyczyny i przyciskiem *Try again*.
+Płatność odrzucona **po** utworzeniu zamówienia (np. nieudane powiadomienie zwrotne z bramki) jest
+obsługiwana w zamówieniu, w ramach cyklu życia płatności, a nie przez ponowne uruchomienie checkoutu.

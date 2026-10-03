@@ -100,7 +100,8 @@ auditable event is captured elsewhere, and always with a one-line reason.
 ## Coverage check (CI-enforced)
 
 `scripts/check-command-coverage.ts` statically flags, per method **and per route
-handler**, in every `.ts` file under `src/modules/` and `src/apps/`, a sensitive mutation
+handler**, in every `.ts` file under a root a module's source can live in — every module
+package, the application tree and the overlay tree, derived by `resolveModuleLayout()` — a sensitive mutation
 (`persist*`, `nativeUpdate`, `nativeDelete`, `remove*`, `flush`) that is neither audited
 nor escape-hatched, and the **double-audit** shape (a unit that both runs a Command and
 audits by hand). A unit counts as covered when it runs a Command, defines a Command

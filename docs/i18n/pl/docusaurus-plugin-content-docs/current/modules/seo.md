@@ -1,74 +1,70 @@
 ---
 title: seo
-description: Resolver meta-tagów + cache'owana mapa witryny XML
+description: Wyznaczanie meta tagów i mapa witryny XML z pamięcią podręczną
 ---
 
 # `seo`
 
-Rozwiązywanie meta-tagów per strona oraz publiczna mapa witryny XML.
+Wyznaczanie meta tagów dla każdej strony oraz publiczna mapa witryny XML.
 
-## Publiczne API
+## API publiczne
 
-| Verb + Path | Audience | Purpose |
+| Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `GET /api/v1/catalog/sitemap.xml` | crawlers | Cache'owana mapa witryny XML; przy przeterminowaniu przechodzi do inline regenerate |
-| `POST /api/v1/admin/seo/sitemap/regenerate` | admin (`catalog:write`) | Wymuszenie świeżej budowy |
-| `GET /api/v1/admin/seo/sitemap/status` | admin | Znacznik czasu ostatniej generacji + rozmiar + liczba URL |
-| `GET /api/v1/admin/seo/meta/:entityType/:entityId` | admin | Rozwiązane meta + wiersz override dla (entity, locale) |
-| `PUT /api/v1/admin/seo/meta/:entityType/:entityId` | admin | Upsert override (per locale) |
-| `DELETE /api/v1/admin/seo/meta/:entityType/:entityId` | admin | Usunięcie override (resolver wraca do outputu reguły) |
+| `GET /api/v1/catalog/sitemap.xml` | roboty wyszukiwarek | Mapa witryny XML z pamięci podręcznej; gdy jest nieaktualna, jest generowana od razu w trakcie żądania |
+| `POST /api/v1/admin/seo/sitemap/regenerate` | administrator (`catalog:write`) | Wymuszenie ponownego wygenerowania |
+| `GET /api/v1/admin/seo/sitemap/status` | administrator | Czas ostatniego wygenerowania, rozmiar i liczba adresów URL |
+| `GET /api/v1/admin/seo/meta/:entityType/:entityId` | administrator | Wyznaczone meta tagi i wiersz nadpisania dla (encja, język) |
+| `PUT /api/v1/admin/seo/meta/:entityType/:entityId` | administrator | Utworzenie lub aktualizacja nadpisania (dla danego języka) |
+| `DELETE /api/v1/admin/seo/meta/:entityType/:entityId` | administrator | Usunięcie nadpisania (wracają wartości wyznaczane z reguły) |
 
-## Rozwiązywanie meta-tagów
+## Wyznaczanie meta tagów
 
 `MetaTagResolverService.resolve({ entityType, entityId, locale })` zwraca
-`{ title, description, openGraph, source, locale }`. Kolejność rozwiązywania:
+`{ title, description, openGraph, source, locale }`. Kolejność:
 
-1. Wyszukanie wiersza override per-(entity, locale).
-2. Gdy pole jest ustawione w override, użycie go dosłownie.
-3. W przeciwnym razie fallback do reguły wyprowadzonej z encji (nazwa Product +
-   opis, nazwa Category + auto-summary).
-4. Fallback locale per pole: gdy Product nie ma tekstu `pl-PL`, reguła
-   używa `en-US`, potem dowolnego dostępnego locale.
+1. Wyszukanie wiersza nadpisania dla pary (encja, język).
+2. Jeśli pole jest ustawione w nadpisaniu, zostaje użyte dosłownie.
+3. W przeciwnym razie używana jest reguła wyprowadzona z encji (nazwa i opis produktu, nazwa
+   kategorii i automatyczne podsumowanie).
+4. Wartość zastępcza języka dla każdego pola: gdy produkt nie ma tekstu w `pl-PL`, reguła używa
+   `en-US`, a potem dowolnego dostępnego języka.
 
-Title i description są obcinane przy 60 / 160 znakach z wielokropkiem.
-Obcinanie żyje w jednym helperze, więc zmiany budżetu SEO następują w
-jednym miejscu.
+Tytuł i opis są skracane do 60 / 160 znaków z wielokropkiem. Skracanie odbywa się w jednej funkcji
+pomocniczej, więc zmiany limitów SEO wprowadza się w jednym miejscu.
 
 ## Mapa witryny
 
-`SitemapGeneratorService.regenerate()` przechodzi aktywne produkty z
-publiczną widocznością, niezarchiwizowane i nieusunięte kategorie, stempluje
-bezwzględne URL względem `STOREFRONT_BASE_URL` i zapisuje payload XML do
-singletonowego wiersza `sitemap_cache`.
+`SitemapGeneratorService.regenerate()` przechodzi przez aktywne produkty z publiczną widocznością
+oraz niezarchiwizowane i nieusunięte kategorie, buduje bezwzględne adresy URL względem
+`STOREFRONT_BASE_URL` i zapisuje treść XML w jednym wierszu `sitemap_cache`.
 
-Trasa publiczna (`GET /catalog/sitemap.xml`) zwraca cache'owany payload;
-gdy wiersz jest starszy niż `staleAfterMs` (domyślnie 6 h), regeneruje
-inline. Nagłówek `Cache-Control: public, max-age=3600` jest ustawiany na
-odpowiedzi, aby poprawnie zachowujące się CDN trzymały payload przez godzinę.
+Trasa publiczna (`GET /catalog/sitemap.xml`) zwraca treść z pamięci podręcznej; gdy wiersz jest
+starszy niż `staleAfterMs` (domyślnie 6 h), mapa jest generowana od razu w trakcie żądania.
+Odpowiedź ma nagłówek `Cache-Control: public, max-age=3600`, więc poprawnie działające CDN
+przechowują ją przez godzinę.
 
-## Filtrowanie tylko dla anonimowych
+## Tylko to, co widzi anonimowy użytkownik
 
-Mapa witryny wyklucza:
+Mapa witryny pomija:
 - produkty ze `status != 'active'`
 - produkty z `visibility != 'public'`
-- zarchiwizowane (`archivedAt`) i soft-deleted (`deletedAt`) wiersze
-- soft-deleted kategorie
+- wiersze zarchiwizowane (`archivedAt`) i usunięte miękko (`deletedAt`)
+- kategorie usunięte miękko
 
-Kontrakt jest prosty: tylko to, co anonimowy Customer może zobaczyć, jest
-kiedykolwiek eksponowane crawlerom.
+Zasada jest prosta: robotom wyszukiwarek udostępnia się wyłącznie to, co może zobaczyć anonimowy
+klient.
 
 ## Encje
 
-`SeoMetaOverride` (entityType, entityId, locale, title?, description?,
-ogTitle?, ogDescription?, ogImageUrl?), `SitemapCache` (singleton key,
-payload, urlCount, byteSize, generatedAt).
+`SeoMetaOverride` (entityType, entityId, locale, title?, description?, ogTitle?, ogDescription?,
+ogImageUrl?), `SitemapCache` (pojedynczy klucz, treść, urlCount, byteSize, generatedAt).
 
 ## Punkty rozszerzenia
 
-- **Strony CMS** — gdy moduł CMS zostanie dostarczony, podłącz jego slug + body
-  do `MetaTagResolverService.loadRuleSource()` i
-  `SitemapGeneratorService.regenerate()`.
-- **Indeks map witryn** — dla katalogów > 50 000 URL, podziel na mapy per sekcja
-  i emituj `<sitemapindex>` z trasy tego modułu.
-- **Zaplanowana regeneracja** — podłącz powtarzalny BullMQ w produkcyjnym
-  composition root, który wywołuje `regenerate()` nocnie.
+- **Strony CMS** — gdy powstanie moduł CMS, podłącz jego slug i treść do
+  `MetaTagResolverService.loadRuleSource()` i `SitemapGeneratorService.regenerate()`.
+- **Indeks map witryny** — dla katalogów powyżej 50 000 adresów URL podziel mapę na mapy dla
+  poszczególnych sekcji i zwracaj `<sitemapindex>` z trasy tego modułu.
+- **Generowanie według harmonogramu** — w produkcyjnym composition root podłącz powtarzalne zadanie
+  BullMQ, które co noc wywołuje `regenerate()`.

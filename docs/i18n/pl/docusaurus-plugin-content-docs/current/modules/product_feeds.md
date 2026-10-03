@@ -1,372 +1,365 @@
 ---
-title: Product Feeds
-description: Feed'y produktowe w kształcie providera per kanał sprzedaży — zaplanowana generacja, tokenizowane URL pull i push SFTP/FTP/HTTP
+title: Feedy produktowe
+description: Feedy produktowe w formacie dostawcy dla każdego kanału sprzedaży — generowanie według harmonogramu, adresy URL z tokenem do pobierania oraz wysyłka przez SFTP/FTP/HTTP
 ---
 
-# Product Feeds
+# Feedy produktowe
 
-Moduł `product_feeds` zamienia katalog jednego kanału sprzedaży
-w **plik feedu w kształcie providera** — dokument XML Google Merchant Center,
-katalog Meta, płaski plik marketplace — publikuje go pod **stabilnym,
-tokenizowanym URL**, który provider pobiera anonimowo, i regeneruje go według
-harmonogramu per feed.
+Moduł `product_feeds` zamienia katalog jednego kanału sprzedaży w **plik feedu w formacie
+dostawcy** — dokument XML dla Google Merchant Center, katalog Meta, plik płaski dla marketplace'u —
+publikuje go pod **stałym adresem URL z tokenem**, który dostawca pobiera anonimowo, i generuje go
+ponownie według harmonogramu ustawionego osobno dla każdego feedu.
 
-Feed'y opuszczają platformę dwiema drogami. **Pull** to pierwotna i nadal
-domyślna: provider pobiera tokenizowany URL albo administrator pobiera plik.
-**Push** pojawił się później — każdy udany run może też wysłać plik na
-serwer partnera przez SFTP, FTP lub HTTP. Obie drogi są niezależne, więc feed
-może robić obie.
+Feedy opuszczają platformę na dwa sposoby. **Pobieranie** (pull) jest sposobem pierwotnym i nadal
+domyślnym: dostawca pobiera adres URL z tokenem albo administrator pobiera plik. **Wysyłka** (push)
+pojawiła się później — każde udane generowanie może też wysłać plik na serwer partnera przez SFTP,
+FTP lub HTTP. Oba sposoby są od siebie niezależne, więc feed może korzystać z obu.
 
 ## Dla operatorów
 
 ### Z czego składa się feed
 
-Feed to cztery wybory i nic więcej w momencie tworzenia:
+Przy tworzeniu feed to cztery wybory i nic więcej:
 
-| Choice | Meaning |
+| Wybór | Znaczenie |
 | --- | --- |
-| **Template** | Które pola niesie plik, w jakiej kolejności i w jakim formacie (XML, CSV, TSV). |
-| **Sales channel** | Który katalog feed publikuje. To też scope'uje ceny i linki. |
-| **Language** | Które tłumaczenie nazw, opisów i ścieżek kategorii jest zapisywane. |
-| **Name** | Jak go rozpoznasz. Publiczny URL pochodzi z feedu, nie z nazwy. |
+| **Szablon** | Jakie pola zawiera plik, w jakiej kolejności i w jakim formacie (XML, CSV, TSV). |
+| **Kanał sprzedaży** | Który katalog publikuje feed. Od kanału zależą też ceny i linki. |
+| **Język** | W którym tłumaczeniu zapisywane są nazwy, opisy i ścieżki kategorii. |
+| **Nazwa** | Po czym rozpoznasz feed. Publiczny adres URL wynika z feedu, a nie z nazwy. |
 
-Wszystko inne — kryteria, harmonogram, prezentacja ceny, cennik, kraj podatku —
-ma działający default i jest edytowane później na karcie **Settings** feedu.
+Wszystko inne — kryteria, harmonogram, sposób prezentacji ceny, cennik, kraj opodatkowania — ma
+działającą wartość domyślną i można to zmienić później na karcie **Settings** feedu.
 
 ### Tworzenie pierwszego feedu
 
-1. Przejdź do **Sales channels → Product feeds** i naciśnij **New feed**.
-2. Wybierz szablon **Google Merchant Center**, kanał, na którym sprzedajesz ten
-   katalog, i język. Ekran pokazuje pochodne ustawienia (waluta, prezentacja
-   ceny) w miarę wyboru.
-3. Zapisz, potem naciśnij **Generate now** na stronie feedu.
-4. Gdy run się zakończy, karta **Feed link** pokazuje URL. Skopiuj go do
-   Merchant Center jako scheduled fetch.
+1. Przejdź do **Sales channels → Product feeds** i kliknij **New feed**.
+2. Wybierz szablon **Google Merchant Center**, kanał, w którym sprzedajesz ten katalog, oraz język.
+   W trakcie wybierania ekran pokazuje ustawienia, które z tego wynikają (walutę, sposób prezentacji
+   ceny).
+3. Zapisz, a następnie kliknij **Generate now** na stronie feedu.
+4. Gdy generowanie się zakończy, karta **Feed link** pokaże adres URL. Wklej go w Merchant Center
+   jako zaplanowane pobieranie.
 
-Do pierwszego udanego runu **celowo nie ma URL na ekranie**: link odpowiadający
-`404` jest gorszy niż brak linku.
+Do pierwszego udanego generowania **celowo nie ma na ekranie adresu URL**: link, który odpowiada
+`404`, jest gorszy niż brak linku.
 
-### Pięć dostarczonych szablonów
+### Pięć dostarczanych szablonów
 
-Nie są równoważne, a różnica widać przed wyborem.
+Nie są równoważne, a różnicę widać, zanim wybierzesz któryś z nich.
 
-| Template | Format | Granularity | State |
+| Szablon | Format | Szczegółowość | Stan |
 | --- | --- | --- | --- |
-| Google Merchant Center | XML (RSS 2.0 + `g:`) | Per variant | **Ready to use** |
-| Meta catalogue | XML | Per variant | **Ready to use** |
-| Amazon flat file | TSV | Per product | **Starting point** |
-| eBay | CSV | Per product | **Starting point** |
-| Allegro | CSV | Per product | **Starting point** |
+| Google Merchant Center | XML (RSS 2.0 + `g:`) | Dla każdego wariantu | **Gotowy do użycia** |
+| Katalog Meta | XML | Dla każdego wariantu | **Gotowy do użycia** |
+| Plik płaski Amazon | TSV | Dla każdego produktu | **Punkt wyjścia** |
+| eBay | CSV | Dla każdego produktu | **Punkt wyjścia** |
+| Allegro | CSV | Dla każdego produktu | **Punkt wyjścia** |
 
-„Ready to use” oznacza, że lista pól jest kompletna dla wymaganego zestawu
-providera. „Starting point” oznacza, że szablon niesie tylko tożsamość, cenę,
-dostępność, link i obraz — pola, których każdy marketplace potrzebuje — i
-oczekuje się, że dodasz atrybuty własne marketplace w edytorze szablonu. Trzy
-marketplace'y są szkieletami, bo ta wersja nie ma integracji API z nimi, więc
-ich dokładny wymagany zestaw zależy od konta.
+„Gotowy do użycia” oznacza, że lista pól obejmuje cały zestaw pól wymaganych przez danego dostawcę.
+„Punkt wyjścia” oznacza, że szablon zawiera tylko identyfikator, cenę, dostępność, link i zdjęcie —
+pola potrzebne każdemu marketplace'owi — a atrybuty specyficzne dla danego marketplace'u należy
+dodać samodzielnie w edytorze szablonu. Trzy szablony marketplace'ów są dostarczane jako szkielety,
+bo ta wersja nie ma integracji z ich API, więc dokładny zestaw wymaganych pól zależy od konta.
 
-Szablonów systemowych nie można edytować. **Duplicate** jeden i edytuj kopię;
-oryginał zostaje taki, jak wysłała platforma, a usunięty szablon systemowy
-wraca przy następnym starcie.
+Szablonów systemowych nie można edytować. Użyj **Duplicate** i edytuj kopię; oryginał pozostaje
+taki, jakim dostarczyła go platforma, a usunięty szablon systemowy zostaje przywrócony przy
+następnym uruchomieniu.
 
-### Budowanie lub edycja szablonu
+### Tworzenie i edycja szablonu
 
-**Sales channels → Feed templates → New template** lub **Duplicate**. Edytor to
-wizualna lista pól wyjściowych: każdy wiersz to *nazwa wyjściowa ← źródło*, z
-opcjonalnym fallbackiem i flagą „required by the provider”.
+**Sales channels → Feed templates → New template** albo **Duplicate**. Edytor to wizualna lista pól
+wyjściowych: każdy wiersz ma postać *nazwa wyjściowa ← źródło*, z opcjonalną wartością zastępczą i
+flagą „wymagane przez dostawcę”.
 
-- **Bindingi są wybierane, nigdy wpisywane.** Picker źródła listuje to, co jest
-  w tej instalacji — pola produktu, atrybuty i pola niestandardowe, obrazy,
-  ceny, ścieżki kategorii, kategorię providera. Źródło, którego bieżący format
-  wyjściowy nie wyrazi, jest pokazane jako disabled **z powodem**, nie ukryte.
-- **Zmiana kolejności działa samą klawiaturą.** Złap wiersz `Space`, przesuń
-  `↑`/`↓` lub `Alt+↑/↓`, upuść `Space`, anuluj `Escape`. Każdy ruch jest
-  ogłaszany. Na urządzeniach dotykowych każdy wiersz ma jawne przyciski ruchu, a
-  długie listy oferują **⋮ → Move to position…**.
-- **Podgląd ewaluuje draft.** Wybierz przykładowy produkt i zobacz per pole
-  wartość, jaką niósłby plik, skąd pochodzi (źródło lub fallback) i czy item
-  zostałby wyemitowany czy pominięty. Nic nie zapisuje — ani run, ani wpis audytu.
-- **Problemy są pokazywane ciągle**, w pasku nad listą. **Save** nigdy nie jest
-  disabled z powodu problemu walidacji; mówi zamiast tego, co jest nie tak.
-- Usunięcie pola wymaganego przez providera pyta o potwierdzenie raz, nazywając
-  konsekwencję. Ani cicho akceptowane, ani blokowane.
+- **Powiązania się wybiera, a nie wpisuje.** Lista źródeł pokazuje to, co istnieje w tej instalacji
+  — pola produktu, atrybuty i pola niestandardowe, zdjęcia, ceny, ścieżki kategorii, kategorię
+  dostawcy. Źródło, którego bieżący format wyjściowy nie potrafi wyrazić, jest pokazywane jako
+  nieaktywne **wraz z powodem**, a nie ukrywane.
+- **Kolejność można zmieniać samą klawiaturą.** Chwyć wiersz klawiszem `Space`, przesuń go
+  strzałkami `↑`/`↓` lub `Alt+↑/↓`, upuść klawiszem `Space`, anuluj klawiszem `Escape`. Każde
+  przesunięcie jest ogłaszane czytnikowi ekranu. Na urządzeniach dotykowych każdy wiersz ma osobne
+  przyciski przesuwania, a długie listy oferują **⋮ → Move to position…**.
+- **Podgląd ocenia wersję roboczą.** Wybierz przykładowy produkt i zobacz dla każdego pola wartość,
+  którą zawierałby plik, jej pochodzenie (źródło lub wartość zastępcza) oraz to, czy pozycja
+  zostałaby wysłana, czy pominięta. Podgląd niczego nie zapisuje — ani generowania, ani wpisu w
+  dzienniku audytu.
+- **Problemy są pokazywane na bieżąco**, na pasku nad listą. Przycisk **Save** nigdy nie jest
+  wyłączany z powodu błędu walidacji; zamiast tego mówi, co jest nie tak.
+- Usunięcie pola wymaganego przez dostawcę wymaga jednego potwierdzenia, w którym podana jest
+  konsekwencja. Taka zmiana nie jest ani po cichu akceptowana, ani blokowana.
 
-Szablony migrują między instalacjami jako JSON: **Export…** na szablonie,
-**Import** na liście szablonów. Dokument nie niesie id, timestampów, tokenów ani
-powiązań feedów, więc dwukrotny export niezmienionego szablonu daje pliki
-bajt-identyczne. Pole, którego źródło nie istnieje w docelowej instalacji,
-importuje się jako **unbound** i jest raportowane; feed na szablonie z unbound
-polami fail'uje run, wymieniając każde z nich, zamiast publikować plik z dziurami.
+Szablony przenosi się między instalacjami jako JSON: **Export…** przy szablonie, **Import** na
+liście szablonów. Dokument nie zawiera identyfikatorów, znaczników czasu, tokenów ani powiązań z
+feedami, więc dwukrotny eksport niezmienionego szablonu daje pliki identyczne co do bajtu. Pole,
+którego źródło nie istnieje w docelowej instalacji, jest importowane jako **niepowiązane** i
+zgłaszane; generowanie feedu opartego na szablonie z niepowiązanymi polami kończy się błędem, który
+wymienia każde z nich, zamiast publikować plik z lukami.
 
-### Zawężenie feedu do części katalogu
+### Zawężanie feedu do części katalogu
 
-Region **Criteria** na karcie Settings to ten sam rule builder co w promocjach i
-cennikach. Pusta reguła oznacza „każdy eligible product tego kanału”. Kryterium
-kategorii obejmuje całe poddrzewo.
+Sekcja **Criteria** na karcie Settings to ten sam kreator reguł, którego używają promocje i cenniki.
+Pusta reguła oznacza „każdy kwalifikujący się produkt tego kanału”. Kryterium kategorii obejmuje
+całe jej poddrzewo.
 
-Panel pokazuje **live match count** podczas edycji. Liczba liczona jest z tych
-samych cen i tego samego channel scoping, którego użyje następny run — to liczba
-itemów, które run rozważy, nie szacunek.
+Podczas edycji panel pokazuje **bieżącą liczbę dopasowań**. Jest ona liczona na podstawie tych
+samych cen i tego samego zawężenia do kanału, których użyje następne generowanie, więc to liczba
+pozycji, które generowanie weźmie pod uwagę — a nie szacunek.
 
-Dwie rzeczy, których reguła nigdy nie zrobi:
+Dwóch rzeczy reguła nigdy nie zrobi:
 
-- **poszerzy feedu.** Aktywny, nie zarchiwizowany, członek kanału tego feedu i
-  widoczny dla anonimowego visitora to floor, którego żadne kryterium nie podniesie.
-  „Widoczny dla anonimowego visitora” to cała odpowiedź, nie tylko przełącznik
-  `public`: produkt publiczny **ale** zarezerwowany dla nazwanych organizacji
-  zostaje poza feedem, bo plik pobiera Google, a link, którego nikt spoza tych
-  organizacji nie może otworzyć, reklamuje 404 — i istnienie asortymentu obiecanego
-  komuś innemu na wyłączność;
-- **cicho dopasuje wszystko.** Kryterium nazywające atrybut, który został usunięty,
-  fail'uje run błędem konfiguracji, zamiast cicho dopasować cały katalog.
+- **nie poszerzy feedu.** Produkt aktywny, niezarchiwizowany, należący do kanału tego feedu i
+  widoczny dla anonimowego odwiedzającego — to minimum, którego żadne kryterium nie obniży.
+  „Widoczny dla anonimowego odwiedzającego” to pełny warunek, a nie tylko przełącznik `public`:
+  produkt publiczny, **ale** zarezerwowany dla wskazanych organizacji, nie trafia do feedu, bo plik
+  pobiera Google, a link, którego nikt spoza tych organizacji nie otworzy, reklamuje stronę 404 — i
+  zdradza istnienie asortymentu, który ktoś inny dostał na wyłączność;
+- **nie dopasuje po cichu wszystkiego.** Kryterium wskazujące atrybut, który został w międzyczasie
+  usunięty, kończy generowanie błędem konfiguracji, zamiast po cichu dopasować cały katalog.
 
-Gdy reguła nic nie dopasuje, run kończy się jako `empty`, a **wcześniej opublikowany
-plik dalej serwuje**. Panel ostrzega przed zapisem, nie po.
+Jeśli reguła nic nie dopasuje, generowanie kończy się stanem `empty`, a **wcześniej opublikowany
+plik jest nadal udostępniany**. Panel ostrzega o tym przed zapisem, a nie po nim.
 
 ### Mapowanie kategorii (Google i Meta)
 
-Obaj providerzy rozumieją własną taksonomię produktów. Platforma dostarcza te
-taksonomie (5 595 kategorii Google, 2 967 Meta, każda po angielsku i po polsku),
-więc generacja feedu nigdy nie zależy od dotarcia do Google ani Meta.
+Obaj dostawcy posługują się własną taksonomią produktów. Platforma dostarcza te taksonomie
+(5 595 kategorii Google i 2 967 kategorii Meta, każdą po angielsku i po polsku), więc generowanie
+feedu nigdy nie zależy od połączenia z Google ani Meta.
 
-Otwórz ekran mapowania z command palette (⌘K / CTRL+K → *Feed category mapping*).
-Mapuj kategorię sklepu na węzeł providera, a każde potomne dziedziczy, chyba że
-ma własne mapowanie; gdy stosuje się kilka przypisanych kategorii, wygrywa
-najgłębiej zmapowana, deterministycznie. Pasek coverage pokazuje, ile kategorii
-jest zmapowanych, odziedziczonych lub niezmapowanych.
+Ekran mapowania otworzysz z palety poleceń (⌘K / CTRL+K → *Feed category mapping*). Zmapuj kategorię
+sklepu na węzeł dostawcy, a każda kategoria podrzędna to odziedziczy, chyba że ma własne
+mapowanie; gdy zastosowanie ma kilka przypisanych kategorii, wygrywa — deterministycznie — najgłębsza
+zmapowana. Pasek pokrycia pokazuje, ile kategorii jest zmapowanych, ile dziedziczy mapowanie, a ile
+nie ma go wcale.
 
-- **Niezmapowana** kategoria to nie błąd: pole jest pomijane, a item nadal
-  emitowany, z ostrzeżeniem na run, żebyś mógł go znaleźć.
-- Gdy nowsza rewizja taksonomii wchodzi w użycie, a węzeł, który mapowałeś, już
-  nie istnieje, mapowanie zostaje i jest oznaczone **stale** — nigdy nie
-  przepisywane na guess i nigdy nie usuwane. Ekran listuje stale mappings do
-  review. Rewizja wchodzi w użycie dopiero po promocji w
-  [Taxonomy updates](#taxonomy-updates); instalacja samej rewizji nic nie zmienia.
-- Powyżej 1 000 kategorii sklepu ekran przechodzi z drzewa na stronicowaną płaską
-  listę grupowaną po rodzicu, z tymi samymi wierszami i tym samym paskiem coverage.
+- Kategoria **bez mapowania** nie jest błędem: pole jest pomijane, a pozycja i tak trafia do pliku,
+  z ostrzeżeniem w generowaniu, żebyś mógł ją odnaleźć.
+- Gdy zacznie obowiązywać nowsza wersja taksonomii, a zmapowany przez Ciebie węzeł już nie istnieje,
+  mapowanie zostaje zachowane i oznaczone jako **nieaktualne** — nigdy nie jest zastępowane
+  zgadywaniem ani usuwane. Ekran wyświetla nieaktualne mapowania do przejrzenia. Wersja zaczyna
+  obowiązywać dopiero wtedy, gdy zatwierdzisz ją na ekranie
+  [Aktualizacje taksonomii](#taxonomy-updates); sama instalacja wersji niczego nie zmienia.
+- Powyżej 1 000 kategorii sklepu ekran zamiast drzewa pokazuje stronicowaną płaską listę
+  pogrupowaną według kategorii nadrzędnej, z tymi samymi wierszami i tym samym paskiem pokrycia.
 
 ### Aktualizacje taksonomii {#taxonomy-updates}
 
-Google i Meta reorganizują listy kategorii raz lub dwa razy w roku. Platforma może
-sprawdzić nowszą listę i ją zainstalować — a instalacja **nic nie zmienia**, dopóki
-tego nie powiesz.
+Google i Meta reorganizują swoje listy kategorii raz lub dwa razy w roku. Platforma potrafi
+sprawdzić, czy jest nowsza lista, i ją zainstalować — a zainstalowanie jej **niczego nie zmienia**,
+dopóki tego nie zatwierdzisz.
 
-**Domyślnie wyłączone, a wyłączone to w pełni wspierany stan.** Przy wyłączonym
-przełączniku platforma nie robi żadnego requestu wychodzącego: ani scheduled check,
-ani manual check, ani probe przy boot. Wiele instalacji celowo działa tak, a
-air-gapped musi. Włączenie to jedno ustawienie na ekranie, który nazywa dokładne
-adresy kontaktowane przed przełączeniem.
+**Domyślnie sprawdzanie jest wyłączone, a stan wyłączony jest w pełni obsługiwany.** Przy
+wyłączonym przełączniku platforma nie wysyła żadnych żądań na zewnątrz: nie ma sprawdzania według
+harmonogramu, sprawdzania ręcznego ani próby połączenia przy starcie. Wiele instalacji celowo działa
+w ten sposób, a instalacja odcięta od sieci (air-gapped) musi tak działać. Włączenie to jedno
+ustawienie na ekranie, który przed przełączeniem podaje dokładne adresy, z którymi platforma będzie
+się łączyć.
 
-**Włączenie.** *Settings → Taxonomy updates* (`product_feeds_taxonomy`):
+**Włączanie.** *Settings → Taxonomy updates* (`product_feeds_taxonomy`):
 
-| Setting | What it does |
+| Ustawienie | Działanie |
 | --- | --- |
-| Check for new taxonomy revisions | Master switch. Domyślnie wyłączony. |
-| When to check | Cron interpretowany w **UTC**. Domyślnie poniedziałek 04:00. Listy zmieniają się raz lub dwa razy w roku, więc częstsze sprawdzanie nic nie daje. |
-| Google / Meta category list (English, Polish) | Cztery adresy do pobrania. Wskaż wewnętrzne mirror lub proxy, jeśli platforma nie może dotrzeć do providerów bezpośrednio — to wspierana odpowiedź za deployment za proxy. Tylko `https`. |
-| Category lists kept per provider | Ile rewizji zatrzymać. Lista w użyciu, najnowsza, o której nikt nie zdecydował, i każda lista, na którą wskazuje mapowanie, nigdy nie są usuwane, niezależnie od tej wartości. |
+| Check for new taxonomy revisions | Główny przełącznik. Domyślnie wyłączony. |
+| When to check | Wyrażenie cron interpretowane w strefie **UTC**. Domyślnie poniedziałek, 04:00. Te listy zmieniają się raz lub dwa razy w roku, więc częstsze sprawdzanie nic nie daje. |
+| Google / Meta category list (English, Polish) | Cztery adresy, z których pobierane są pliki. Jeśli platforma nie może połączyć się z dostawcami bezpośrednio, wskaż wewnętrzną kopię lub serwer proxy — to obsługiwane rozwiązanie dla wdrożenia za serwerem proxy. Tylko `https`. |
+| Category lists kept per provider | Ile wersji przechowywać. Lista używana, najnowsza lista, o której nikt jeszcze nie zdecydował, oraz każda lista zawierająca kategorię, na którą wskazuje któreś z Twoich mapowań, nigdy nie są usuwane, niezależnie od tej wartości. |
 
-**Co robi check.** Pobiera oba pliki językowe dla providera, sprawdza, czy to
-naprawdę lista kategorii, i porównuje z tym, co już masz. Gdy lista jest
-rzeczywiście inna, instaluje ją **inactive**: feedy dalej używają listy, której
-używały, status żadnego mapowania się nie zmienia, a jedyny widoczny efekt to
-nowy wiersz na *Product feeds → Taxonomy updates* (⌘K / CTRL+K → *Taxonomy
-updates*). Gdy plik się nie zmienił, nic nie powstaje.
+**Co robi sprawdzenie.** Pobiera oba pliki językowe dostawcy, sprawdza, czy rzeczywiście są listą
+kategorii, i porównuje je z tym, co już masz. Jeśli lista faktycznie się różni, zostaje zainstalowana
+jako **nieaktywna**: Twoje feedy nadal korzystają z dotychczasowej listy, status żadnego mapowania
+się nie zmienia, a jedynym widocznym skutkiem jest nowy wiersz na ekranie *Product feeds → Taxonomy
+updates* (⌘K / CTRL+K → *Taxonomy updates*). Jeśli plik się nie zmienił, nic nie powstaje.
 
-**Czytanie checku.** Ekran listuje każdy check z wynikiem i, gdy coś poszło nie
-tak, powodem mówiącym **czyja to strona problemu**:
+**Jak czytać wynik sprawdzenia.** Ekran wyświetla każde sprawdzenie z jego wynikiem, a gdy coś
+poszło nie tak — z powodem sformułowanym tak, by było jasne, **po czyjej stronie leży problem**:
 
-| Reason | What it means |
+| Powód | Znaczenie |
 | --- | --- |
-| `transport` | Ten serwer nie dotarł do providera — zwykle brak internetu wychodzącego albo proxy/firewall. Wskaż adres źródła na proxy lub wewnętrzną kopię. |
-| `not_found` | Provider nie publikuje już pliku pod tym adresem. Znajdź aktualny w ich dokumentacji i zaktualizuj ustawienie. To jedyny failure podnoszący powiadomienie — raz na przejście w failure, nie raz na check. |
-| `http_status` | Provider odpowiedział błędem. Zwykle tymczasowo po ich stronie; następny check retry'uje. |
-| `not_taxonomy` | Adres zwrócił stronę WWW — często login albo komunikat proxy. Otwórz w przeglądarce, żeby zobaczyć, co faktycznie serwuje. |
-| `empty` / `truncated` / `too_large` | Pobranie puste, ucięte albo większe niż platforma zaakceptuje. Nic nie zainstalowano. |
-| `no_nodes` / `implausible` | Plik pobrany, ale nie odczytano kategorii albo zdecydowanie za mało. Nic nie zainstalowano. |
-| `incomplete_languages` | Jeden język pobrany, drugi nie. Lista instaluje się tylko gdy oba są kompletne. |
+| `transport` | Ten serwer nie mógł połączyć się z dostawcą — zwykle z powodu braku dostępu do internetu, serwera proxy lub zapory sieciowej. Wskaż jako adres źródła serwer proxy lub wewnętrzną kopię pliku. |
+| `not_found` | Dostawca nie publikuje już pliku pod tym adresem. Znajdź aktualny adres w jego dokumentacji i zaktualizuj ustawienie. To jedyny błąd, który wywołuje powiadomienie — raz przy przejściu w stan błędu, a nie przy każdym sprawdzeniu. |
+| `http_status` | Dostawca odpowiedział błędem. Zwykle jest to chwilowy problem po jego stronie; następne sprawdzenie spróbuje ponownie. |
+| `not_taxonomy` | Pod adresem jest strona internetowa — często ekran logowania albo komunikat serwera proxy. Otwórz adres w przeglądarce, żeby zobaczyć, co faktycznie zwraca. |
+| `empty` / `truncated` / `too_large` | Pobrany plik był pusty, niekompletny albo większy, niż platforma akceptuje. Nic nie zostało zainstalowane. |
+| `no_nodes` / `implausible` | Plik został pobrany, ale nie udało się odczytać z niego żadnych kategorii albo odczytano ich zdecydowanie za mało. Nic nie zostało zainstalowane. |
+| `incomplete_languages` | Plik w jednym języku został pobrany, a w drugim nie. Lista jest instalowana tylko wtedy, gdy oba pliki są kompletne. |
 
-**We wszystkich tych przypadkach feedy są nietknięte** i dalej używają już
-zainstalowanej listy. Failed check nigdy nie fail'uje run generacji, nigdy nie
-fail'uje boot i nigdy nie retry'uje w burzy — następny scheduled check to retry,
-a *Check now* jest dla niecierpliwych.
+**W każdym z tych przypadków feedy pozostają nienaruszone** i nadal korzystają z już zainstalowanej
+listy. Nieudane sprawdzenie nigdy nie powoduje błędu generowania ani startu i nigdy nie ponawia
+prób lawinowo — ponowną próbą jest następne zaplanowane sprawdzenie, a przycisk *Check now* jest dla
+niecierpliwych.
 
-**Promocja.** Rewizja wchodzi w użycie dopiero po promocji, a do przycisku promote
-dojdziesz tylko przez impact preview. Preview liczone jest z realnych danych i
-mówi, co faktycznie musisz wiedzieć: ile mapowań wymagałoby nowej kategorii, ile
-znów zaczęłoby działać i — liczba, która ma znaczenie — ile kategorii sklepu
-**przestałoby wysyłać kategorię providera w ogóle**, licząc te dziedziczące przez
-przodka. Promocja jest audytowana, atomowa i odwracalna: powrót do wcześniejszej
-listy to ta sama akcja względem wcześniejszego wiersza.
+**Zatwierdzanie.** Wersja zaczyna obowiązywać dopiero po zatwierdzeniu, a do przycisku zatwierdzenia
+można dojść wyłącznie przez podgląd skutków. Podgląd jest liczony na Twoich rzeczywistych danych i
+mówi to, co naprawdę musisz wiedzieć: ile Twoich mapowań wymagałoby wskazania nowej kategorii, ile
+znowu zaczęłoby działać i — co najważniejsze — ile kategorii sklepu **w ogóle przestałoby wysyłać
+kategorię dostawcy**, łącznie z tymi, które dziedziczą mapowanie po kategorii nadrzędnej.
+Zatwierdzenie jest audytowane, atomowe i odwracalne: powrót do wcześniejszej listy to ta sama akcja
+wykonana na wcześniejszym wierszu.
 
-Request niesie impact pokazany na preview, więc gdy kolega edytuje mapowania,
-gdy preview jest otwarte, promocja jest odrzucona, a liczby przeliczane. Nic w
-tym mechanizmie nie może zmienić emisji feedu bez przeczytania ekranu i naciśnięcia
-przycisku.
+Żądanie przenosi liczby, które zobaczyłeś w podglądzie, więc jeśli ktoś inny zmieni mapowania, gdy
+Twój podgląd jest otwarty, zatwierdzenie zostanie odrzucone, a liczby przeliczone. W tym mechanizmie
+nic nie może zmienić zawartości feedu bez tego, by ktoś przeczytał ten ekran i kliknął przycisk.
 
 ### Harmonogram
 
-Na karcie Settings wybierz preset (hourly, every 4 hours, daily, …) albo
-**Custom** z 5-polnym cronem i strefą IANA. Custom expression jest echo'owany
-prostym językiem („Every 4 hours, at minute 0”), a następne wystąpienie zawsze
-pokazane.
+Na karcie Settings wybierz gotowe ustawienie (co godzinę, co 4 godziny, codziennie…) albo **Custom**
+z pięciopolowym wyrażeniem cron i strefą czasową IANA. Własne wyrażenie jest powtarzane prostym
+językiem („Co 4 godziny, w minucie 0”), a najbliższe uruchomienie jest zawsze widoczne.
 
-- Tick przychodzący, gdy poprzedni run jeszcze trwa, jest **skipped, with a
-  reason** — nigdy nie kolejkowany za nim. Skipped ticki są szare na liście runów.
-- Admin ostrzega, gdy średni czas runu feedu zbliża się do interwału.
-- Wyłączenie feedu zatrzymuje harmonogram i publiczny URL.
-- Postgres jest source of truth dla harmonogramów; kolejka to derived index
-  odbudowany przy starcie, więc flushed Redis nic nie traci.
+- Uruchomienie, które przypada, gdy poprzednie generowanie wciąż trwa, jest **pomijane z podaniem
+  powodu** — nigdy nie trafia do kolejki za nim. Pominięte uruchomienia są wyszarzone na liście
+  generowań.
+- Panel ostrzega, gdy średni czas generowania feedu zbliża się do odstępu między uruchomieniami.
+- Wyłączenie feedu zatrzymuje zarówno harmonogram, jak i publiczny adres URL.
+- Źródłem prawdy o harmonogramach jest Postgres; kolejka to indeks pochodny odbudowywany przy
+  starcie, więc wyczyszczenie Redisa niczego nie traci.
 
-### Link i jego rotacja
+### Link i jego wymiana
 
-Publiczny URL zawiera losowy token. Karta **Feed link** pokazuje go w całości,
-gdy feed ma live token, z przyciskiem copy, żeby móc go ponownie skopiować przy
-każdej rekonfiguracji providera.
+Publiczny adres URL zawiera losowy token. Karta **Feed link** pokazuje go w całości, gdy tylko feed
+ma ważny token, razem z przyciskiem kopiowania, żebyś mógł skopiować go ponownie przy każdej zmianie
+konfiguracji u dostawcy.
 
-Przechowywane są dwie rzeczy: hash tokena — jedyne, z czym porównuje publiczny
-endpoint — i sam token szyfrowany at rest pod `SETTINGS_SECRET_ENCRYPTION_KEY` —
-ten sam klucz, którego używają sekrety settings i credentials. Zaszyfrowana kopia
-czytana jest tylko gdy administrator otwiera feed, nigdy w publicznym requeście.
+Przechowywane są dwie rzeczy: skrót (hash) tokena, który jako jedyny jest porównywany przez publiczny
+endpoint, oraz sam token, zaszyfrowany kluczem `SETTINGS_SECRET_ENCRYPTION_KEY` — tym samym, którego
+używają już sekrety ustawień i dane uwierzytelniające. Zaszyfrowana kopia jest odczytywana tylko
+wtedy, gdy administrator otwiera feed, nigdy przy publicznym żądaniu.
 
-Każdy posiadający link może czytać plik z cenami. Traktuj go jak credential:
-udostępnij providerowi, który go potrzebuje, i rotuj przy wycieku.
+Każdy, kto ma link, może odczytać plik, a plik zawiera Twoje ceny. Traktuj link jak dane
+uwierzytelniające: udostępnij go dostawcy, który go potrzebuje, i wymień go, jeśli wycieknie.
 
-- Na deployment **bez `SETTINGS_SECRET_ENCRYPTION_KEY`** i dla linków wydanych
-  przed tą wersją platformy karta pokazuje tylko początek tokena. Rotuj, żeby
-  dostać kopiowalny.
-- **Rotate** wydaje nowy URL i unieważnia stary **natychmiast**, bez grace period.
-  Provider nadal na starym URL przestaje dostawać aktualizacje, dopóki nie wkleisz
-  nowego.
-- **Revoke** zostawia feed bez publicznego URL i usuwa przechowywaną kopię tokena
-  wraz z hashem. Pobranie przez administratora dalej działa.
-- URL serwuje `Cache-Control: private` i wspiera `If-None-Match`, więc revalidation
-  providera jest tania.
-- Endpoint jest rate limited (domyślnie 60 requestów/minutę); providerzy pobierają
-  kilka razy dziennie.
+- We wdrożeniu **bez `SETTINGS_SECRET_ENCRYPTION_KEY`** oraz w przypadku linków wydanych przed tą
+  wersją platformy karta pokazuje tylko początek tokena. Wymień link, żeby dostać taki, który można
+  skopiować.
+- **Rotate** wydaje nowy adres URL i unieważnia stary **natychmiast**, bez okresu przejściowego.
+  Dostawca, który wciąż ma skonfigurowany stary adres, przestaje dostawać aktualizacje, dopóki nie
+  wkleisz nowego.
+- **Revoke** zostawia feed bez publicznego adresu URL i usuwa przechowywaną kopię tokena razem z jego
+  skrótem. Pobieranie pliku przez administratora nadal działa.
+- Adres URL zwraca nagłówek `Cache-Control: private` i obsługuje `If-None-Match`, więc ponowna
+  weryfikacja po stronie dostawcy jest tania.
+- Endpoint ma limit żądań (domyślnie 60 na minutę); dostawcy pobierają plik kilka razy dziennie.
 
-Pobranie wygenerowanego pliku w adminie wymaga uprawnienia **Manage product feeds**,
-nie tylko **View product feeds** — plik zawiera ceny.
+Pobranie wygenerowanego pliku w panelu administracyjnym wymaga uprawnienia **Manage product feeds**,
+a nie tylko **View product feeds** — plik zawiera Twoje ceny.
 
-### Czytanie runu
+### Jak czytać wynik generowania
 
-Każda generacja produkuje wiersz run z licznikami: considered, emitted, skipped,
-warnings. Otwórz jeden, żeby zobaczyć problemy per item, **grouped by reason**, ze
-SKU każdego itemu i CSV exportem pełnej listy.
+Każde generowanie tworzy wiersz z licznikami: rozważone, wysłane, pominięte, ostrzeżenia. Otwórz go,
+żeby zobaczyć problemy z poszczególnymi pozycjami, **pogrupowane według powodu**, z SKU każdej
+pozycji, której dotyczą, i eksportem pełnej listy do CSV.
 
-| Reason | What it means |
+| Powód | Znaczenie |
 | --- | --- |
-| `missing_price` | Brak ceny dla waluty feedu i cennika. |
-| `missing_image` | Produkt nie ma publicznie osiągalnego obrazu. |
-| `private_image_asset` | Obrazy istnieją, ale nie są publiczne, więc nie opublikowano stabilnego URL. |
-| `missing_required_field` | Pole wymagane przez providera rozwiązało się pusto bez fallbacku — item pominięty. |
-| `missing_translation` | Język feedu nie miał wartości; użyto języka fallback. |
-| `unresolvable_link` | Brak skonfigurowanego URL storefront dla kanału. |
-| `unmapped_provider_category` | Brak mapowania kategorii; pole pominięte. |
-| `stale_provider_category_mapping` | Zmapowany węzeł nie istnieje w zainstalowanej rewizji. |
-| `zero_tax_rate_on_gross_feed` | Feed brutto nie znalazł reguły podatku dla kraju podatku. |
+| `missing_price` | Nie znaleziono ceny dla waluty i cennika feedu. |
+| `missing_image` | Produkt nie ma publicznie dostępnego zdjęcia. |
+| `private_image_asset` | Zdjęcia istnieją, ale nie są publiczne, więc nie można było opublikować stałego adresu URL. |
+| `missing_required_field` | Pole wymagane przez dostawcę okazało się puste i nie miało wartości zastępczej — pozycja została pominięta. |
+| `missing_translation` | Brak wartości w języku feedu; użyto języka zastępczego. |
+| `unresolvable_link` | Kanał nie ma skonfigurowanego adresu URL storefrontu. |
+| `unmapped_provider_category` | Nie zastosowano żadnego mapowania kategorii; pole zostało pominięte. |
+| `stale_provider_category_mapping` | Zmapowany węzeł nie istnieje w zainstalowanej wersji taksonomii. |
+| `zero_tax_rate_on_gross_feed` | Feed z cenami brutto nie znalazł reguły podatkowej dla swojego kraju opodatkowania. |
 
-Failure to co innego niż problemy itemów: kończą run i nic nie publikują.
+Błędy generowania to coś innego niż problemy z pozycjami: kończą generowanie i niczego nie publikują.
 
-| Failure | Meaning |
+| Błąd | Znaczenie |
 | --- | --- |
-| `channel_unavailable` | Kanał feedu brakuje albo jest wyłączony. Nic nie publikowane — feed nigdy nie poszerza się na cały katalog. |
-| `unbound_template_fields` | Szablon ma pola bound to nothing (zwykle po imporcie). |
-| `unknown_attribute` | Kryteria nazywają atrybut, który już nie istnieje. |
-| `skip_threshold_exceeded` | Ponad połowa considered items została pominięta, więc dobry plik nie zastąpił złego. |
-| `storage_unavailable` | Backend storage odrzucił plik. |
-| `worker_lost` | Worker umarł w trakcie run; claim zwolniony, partial file usunięty. |
+| `channel_unavailable` | Kanał feedu nie istnieje lub jest wyłączony. Nic nie zostaje opublikowane — feed nigdy nie rozszerza się na cały katalog. |
+| `unbound_template_fields` | Szablon ma pola niepowiązane z żadnym źródłem (zwykle po imporcie). |
+| `unknown_attribute` | Kryteria wskazują atrybut, który już nie istnieje. |
+| `skip_threshold_exceeded` | Pominięto ponad połowę rozważonych pozycji, więc dobry plik nie został zastąpiony złym. |
+| `storage_unavailable` | Magazyn plików odrzucił plik. |
+| `worker_lost` | Worker przestał działać w trakcie generowania; blokada została zwolniona, a częściowy plik usunięty. |
 
-Powiadomienie administratora podnoszone jest, gdy run fail'uje — **raz na
-przejście w failure**, nie raz na tick, więc feed zepsuty przez dzień nie zapełnia
-dzwonka.
+Gdy generowanie kończy się błędem, administrator dostaje powiadomienie — **raz przy przejściu w stan
+błędu**, a nie przy każdym uruchomieniu, więc feed zepsuty od doby nie zapełnia listy powiadomień.
 
 ### Uprawnienia
 
-| Code | Grants |
+| Kod | Daje dostęp do |
 | --- | --- |
-| `product_feeds:read` | Podgląd feedów, szablonów, historii runów, issues i mapowań kategorii. |
-| `product_feeds:write` | Tworzenie i edycja feedów i szablonów, generacja, rotacja lub revoke linku, mapowanie kategorii, pobieranie wygenerowanych plików. |
+| `product_feeds:read` | Przeglądania feedów, szablonów, historii generowań, problemów i mapowań kategorii. |
+| `product_feeds:write` | Tworzenia i edycji feedów i szablonów, generowania, wymiany lub unieważniania linku, mapowania kategorii i pobierania wygenerowanych plików. |
 
-Administrator read-only widzi każdy ekran z kontrolkami zapisu **widocznymi, ale
-disabled**, każda z wyjaśnieniem — nigdy ukrytymi.
+Administrator z dostępem tylko do odczytu widzi każdy ekran, a kontrolki zapisu są **widoczne, ale
+nieaktywne** i każda wyjaśnia dlaczego — nigdy nie są ukrywane.
 
-### Settings
+### Ustawienia
 
 W **Settings → Product feeds**:
 
-| Setting | Default | Effect |
+| Ustawienie | Wartość domyślna | Działanie |
 | --- | --- | --- |
-| Generated files kept per feed | 3 | Starsze pliki usuwane po udanym run; opublikowany zawsze zachowany. |
-| Maximum concurrent feed generations | 2 | Per worker process. |
-| Skipped-item share that fails a run | 0.5 | Powyżej tej frakcji run fail'uje zamiast publikować. |
-| Stale run timeout (minutes) | 30 | Run bez heartbeat przez ten czas traktowany jako lost. |
-| Recorded issues per run | 1000 | Cap na zapisane problemy per item; overflow raportowany. |
-| Public feed requests per minute | 60 | Rate limit na anonimowy URL. |
-| Category-mapping tree limit | 1000 | Powyżej tego ekran mapowania używa stronicowanej płaskiej listy. |
+| Generated files kept per feed | 3 | Starsze pliki są usuwane po udanym generowaniu; opublikowany plik jest zawsze zachowywany. |
+| Maximum concurrent feed generations | 2 | Na proces workera. |
+| Skipped-item share that fails a run | 0.5 | Powyżej tego udziału generowanie kończy się błędem zamiast publikacji. |
+| Stale run timeout (minutes) | 30 | Generowanie, które przez ten czas nie dało znaku życia, jest uznawane za utracone. |
+| Recorded issues per run | 1000 | Limit zapisanych problemów z pozycjami; nadmiar jest zgłaszany. |
+| Public feed requests per minute | 60 | Limit żądań do anonimowego adresu URL. |
+| Category-mapping tree limit | 1000 | Powyżej tej liczby ekran mapowania używa stronicowanej płaskiej listy. |
 
 ---
 
 ### Dostarczanie feedu na serwer partnera
 
-Google i Meta same pobierają link, więc większość feedów nic tu nie potrzebuje.
-Marketplace i integracje ERP zwykle chcą odwrotnie: plik wrzucony na serwer, który
-poll'ują. To konfiguruje karta **Delivery** feedu.
+Google i Meta same pobierają link, więc większość feedów nie wymaga tu żadnych ustawień.
+Marketplace'y i integracje z systemami ERP zwykle oczekują czegoś odwrotnego: pliku umieszczonego na
+serwerze, który regularnie sprawdzają. Właśnie to konfiguruje karta **Delivery** feedu.
 
-Feed niesie **co najwyżej jeden** target delivery, a delivery włącza się i wyłącza
-niezależnie od targetu — możesz skonfigurować partnera teraz i zacząć wysyłać w
-przyszłym tygodniu albo zatrzymać wysyłkę bez utraty ustawień.
+Feed ma **najwyżej jeden** serwer docelowy, a dostarczanie włącza się i wyłącza niezależnie od jego
+konfiguracji — możesz więc skonfigurować partnera teraz i zacząć wysyłkę w przyszłym tygodniu albo
+wstrzymać wysyłkę bez utraty ustawień.
 
-| Protocol | What it does | Fields |
+| Protokół | Działanie | Pola |
 | --- | --- | --- |
-| **SFTP** | Upload przez SSH. Ten do preferowania. | Host, port, user, password **or** private key, directory |
-| **FTP** | Upload przez FTP, prosząc najpierw o FTPS. | Host, port, user, password, directory |
-| **HTTP Server / API / GraphQL** | `POST` pliku na URL. | Request URL, headers |
+| **SFTP** | Przesyła plik przez SSH. Zalecany wybór. | Host, port, użytkownik, hasło **lub** klucz prywatny, katalog |
+| **FTP** | Przesyła plik przez FTP, najpierw próbując FTPS. | Host, port, użytkownik, hasło, katalog |
+| **HTTP Server / API / GraphQL** | Wysyła plik metodą `POST` pod adres URL. | Adres URL żądania, nagłówki |
 
-Ostatnie trzy to **jeden mechanizm z trzema nazwami**. Dokumentacja partnera może
-nazywać endpoint API albo GraphQL; platforma wysyła ten sam request, a wybór
-zmienia tylko etykietę na ekranie.
+Trzy ostatnie to **jeden mechanizm pod trzema nazwami**. Dokumentacja partnera może nazywać jego
+endpoint API albo endpointem GraphQL; platforma i tak wysyła to samo żądanie, a wybór zmienia tylko
+etykietę na ekranie.
 
-#### Kiedy następuje delivery
+#### Kiedy następuje dostarczenie
 
-Po run, który **opublikuje się pomyślnie**, i tylko wtedy. Failed run, empty run
-albo run skipped, bo poprzedni jeszcze trwał, nic nie wysyła — plik, który partner
-już ma, nadal jest aktualny, a ponowne wysłanie ogłosiłoby zmianę, która nie
-nastąpiła.
+Po generowaniu, które **zakończyło się udaną publikacją**, i tylko wtedy. Generowanie zakończone
+błędem, puste albo pominięte, bo poprzednie jeszcze trwało, niczego nie wysyła — plik, który partner
+już ma, jest nadal aktualny, a ponowne wysłanie zapowiadałoby zmianę, która nie nastąpiła.
 
-Gdy upload fail'uje, run pozostaje successful, a opublikowany link działa. Delivery
-retry'owane jest kilka razy z rosnącym opóźnieniem; gdy nadal fail'uje, zatrzymuje
-się i administrator dostaje powiadomienie. Każda próba — udana czy nie — jest na
-liście pod kartą, z powodem.
+Jeśli przesyłanie się nie powiedzie, generowanie pozostaje udane, a opublikowany link nadal działa.
+Dostarczenie jest ponawiane kilka razy z rosnącym odstępem; jeśli nadal się nie udaje, ponawianie
+ustaje, a administrator dostaje powiadomienie. Każda próba — udana czy nie — jest widoczna na liście
+pod kartą, razem z powodem.
 
 #### Sekrety
 
-Hasła, klucze prywatne i nagłówki, których nazwa mówi, że niosą token (`Authorization`,
-`X-Api-Key` i podobne), przechowywane są szyfrowane i **nigdy nie pokazywane
-ponownie**. Zapisany sekret wygląda jako `[redacted]`, a pozostawienie go tak
-zachowuje go — edycja ścieżki katalogu nie może cicho skasować hasła.
+Hasła, klucze prywatne i każdy nagłówek, którego nazwa wskazuje, że zawiera token (`Authorization`,
+`X-Api-Key` i podobne), są przechowywane w postaci zaszyfrowanej i **nigdy nie są ponownie
+pokazywane**. Zapisany sekret wyświetla się jako `[redacted]`, a pozostawienie tej wartości bez zmian
+go zachowuje — dzięki temu zmiana ścieżki katalogu nie może po cichu skasować hasła.
 
-#### Dwa odmowy warte znajomości
+#### Dwie odmowy, o których warto wiedzieć
 
-- **`http://` jest odrzucane dla protokołów HTTP.** Nagłówek uwierzytelniający
-  idzie z requestem, więc adres musi być `https://`.
-- **Adresy prywatne i wewnętrzne są odrzucane**, w tym `169.254.169.254` i cokolwiek
-  w Twojej sieci. Feed niesie cały katalog z cenami; platforma wyśle go tylko tam,
-  gdzie osiągalny z publicznego internetu.
+- **Dla protokołów HTTP adres `http://` jest odrzucany.** Nagłówek uwierzytelniający jest wysyłany
+  razem z żądaniem, więc adres musi zaczynać się od `https://`.
+- **Adresy prywatne i wewnętrzne są odrzucane**, w tym `169.254.169.254` i wszystko w Twojej własnej
+  sieci. Feed zawiera cały katalog z cenami; platforma wyśle go tylko tam, dokąd da się dotrzeć z
+  publicznego internetu.
 
-Sam FTP jest plaintext by design. Platforma prosi każdy serwer FTP o TLS i spada
-na plain FTP tylko gdy odmówi, ale jeśli partner oferuje SFTP, wybierz SFTP.
+Sam protokół FTP z założenia przesyła dane bez szyfrowania. Platforma prosi każdy serwer FTP o TLS i
+wraca do zwykłego FTP tylko wtedy, gdy serwer odmówi, ale jeśli partner udostępnia SFTP, wybierz SFTP.
 
-#### Test connection
+#### Test połączenia
 
-**Test connection** dowodzi, że target jest osiągalny i credentials działają, bez
-wysyłania feedu. Na SFTP i FTP zapisuje i natychmiast usuwa jeden mały plik, bo
-katalog, do którego nie można pisać, to failure, którego test sam connect
-przegapiłby. Rate limited per feed.
+**Test connection** sprawdza, czy serwer docelowy jest osiągalny i czy dane uwierzytelniające
+działają, bez wysyłania feedu. W przypadku SFTP i FTP zapisuje i od razu usuwa jeden mały plik, bo
+katalog bez prawa zapisu to właśnie ten błąd, którego test samego połączenia by nie wykrył. Test ma
+limit wywołań dla każdego feedu.
 
 ## Dla inżynierów
 
-### Shape
+### Struktura
 
 ```
 packages/modules/product_feeds/src/backend/
@@ -382,10 +375,10 @@ packages/modules/product_feeds/src/backend/
 └── routes.public.ts   GET /api/v1/public/product-feeds/:token
 ```
 
-Kontrakty w `packages/contracts/src/product-feeds.ts`; warstwa admin w
-`packages/modules/product_feeds/src/admin/`.
+Kontrakty znajdują się w `packages/contracts/src/product-feeds.ts`; warstwa panelu
+administracyjnego — w `packages/modules/product_feeds/src/admin/`.
 
-### Pipeline generacji
+### Potok generowania
 
 ```
 selection (ids only, keyset on products.id)
@@ -396,34 +389,35 @@ selection (ids only, keyset on products.id)
 → publish by flipping ONE pointer, after put() resolves
 ```
 
-Cztery właściwości, za które ten pipeline odpowiada:
+Cztery właściwości, za które odpowiada ten potok:
 
-- **Nic nie buforuje.** Źródło itemów to async generator, serializery emitują
-  jeden chunk per item, adapter storage konsumuje `Readable`, a `em.clear()` działa
-  po każdym batchu — w pętli selection i hydration, bo `emFactory()` fork'uje, a
-  manager żyjący przez cały run trzyma każdy dotknięty wiersz. Zmierzone przy
-  100 000 produktach: 38 MB XML w 205 s ze szczytowym live heap **+18.5 MB** ponad
-  baseline, rosnąc ~107 bajtów na dodatkowy item
+- **Nic nie jest buforowane.** Źródłem pozycji jest generator asynchroniczny, serializatory emitują
+  jeden fragment na pozycję, adapter magazynu plików przyjmuje `Readable`, a `em.clear()` jest
+  wywoływane po każdej partii — zarówno w pętli selekcji, jak i w pętli hydratacji, bo `emFactory()`
+  tworzy fork, a EntityManager żyjący przez całe generowanie trzyma każdy wiersz, którego dotknął.
+  Pomiar dla 100 000 produktów: 38 MB XML w 205 s, ze szczytowym zużyciem sterty **+18,5 MB** ponad
+  poziom bazowy, rosnącym o około 107 bajtów na każdą kolejną pozycję
   (`backend/test/perf/product_feeds/generation-100k.test.ts`, `PERF_RUN=true`).
-- **Problem na poziomie itemu nigdy nie abortuje run.** Skipy i ostrzeżenia
-  zapisywane per item; tylko failure konfiguracji kończy run.
-- **Publikacja to jeden flip pointera po ukończeniu obiektu.** Failed, empty albo
-  over-threshold run nigdy nie dotyka `published_artefact_id`.
-- **Overlap jest odrzucany, nie kolejkowany.** Claim to warunkowy `UPDATE` na
-  `product_feeds.current_run_id`; przegrany zapisuje `skipped(already_running)`.
+- **Problem z pojedynczą pozycją nigdy nie przerywa generowania.** Pominięcia i ostrzeżenia są
+  zapisywane dla każdej pozycji; generowanie kończy tylko błąd konfiguracji.
+- **Publikacja to jedno przestawienie wskaźnika po skompletowaniu obiektu.** Generowanie zakończone
+  błędem, puste albo przekraczające próg pominięć nigdy nie zmienia `published_artefact_id`.
+- **Nakładające się generowania są odrzucane, a nie kolejkowane.** Przejęcie generowania to
+  warunkowy `UPDATE` na `product_feeds.current_run_id`; przegrany zapisuje
+  `skipped(already_running)`.
 
-Pozostały wzrost pamięci powyżej to nie itemy: to lista id członkostwa kanału,
-materializowana przed pagingiem (~90 bajtów na produkt w kanale). To O(kanał), nie
-O(feed).
+Pozostały przyrost pamięci opisany wyżej nie pochodzi od pozycji: to lista identyfikatorów członków
+kanału, materializowana przed stronicowaniem (około 90 bajtów na produkt w kanale). To O(kanał), a
+nie O(feed).
 
-### Delivery
+### Dostarczanie
 
-Delivery to **efekt uboczny po publikacji**, podpięty na tym samym seam co retention
-i powiadomienie o failed run: `deliverArtefact` to opcjonalny port na
-`FeedGenerationDeps`, wywoływany na gałęzi publishing i nigdzie indziej. To
-placement wymagania — run, który nie opublikował, nie może deliver'ować — i to,
-co trzyma failure delivery z dala od run, który już się skończył, zanim upload
-został podjęty.
+Dostarczanie to **efekt uboczny po publikacji**, podpięty w tym samym punkcie rozszerzenia co
+retencja i powiadomienie o nieudanym generowaniu: `deliverArtefact` to opcjonalny port w
+`FeedGenerationDeps`, wywoływany w gałęzi publikacji i nigdzie indziej. To umiejscowienie jest
+samym wymaganiem — generowanie, które niczego nie opublikowało, nie może niczego dostarczyć — i
+zarazem tym, co oddziela błąd dostarczenia od generowania, które w chwili próby przesłania już się
+zakończyło.
 
 ```
 run publishes  →  deliverArtefact?(feedId, runId, artefactId)   [port, optional]
@@ -433,126 +427,125 @@ run publishes  →  deliverArtefact?(feedId, runId, artefactId)   [port, optiona
                           → record attempt
 ```
 
-Bez Redis port deliver'uje **inline** zamiast enqueue'ować. Single-process deployment
-inaczej pozwoliłby operatorowi skonfigurować target, nie widzieć błędu i nigdy nie
-dostać delivery.
+Bez Redisa port dostarcza plik **od razu, w tym samym procesie**, zamiast umieszczać zadanie w
+kolejce. W przeciwnym razie wdrożenie jednoprocesowe pozwoliłoby operatorowi skonfigurować serwer
+docelowy, nie zobaczyć żadnego błędu i nigdy niczego nie dostarczyć.
 
-Dwie tabele, obie owned by module: `product_feed_deliveries` (jeden wiersz per feed,
-wymuszony unique index) i `product_feed_delivery_attempts` (append-only, bounded per
-feed).
+Dwie tabele, obie należące do modułu: `product_feed_deliveries` (jeden wiersz na feed, wymuszony
+indeksem unikalnym) i `product_feed_delivery_attempts` (tylko dopisywanie, z limitem na feed).
 
-**Nie ma kolumny secret.** `credential_code` wskazuje konfigurację modułu `credentials`,
-który own'uje encryption at rest i masking on read; podział secret/non-secret headers
-robi `isSecretDeliveryHeader` w packages contracts, celowo regułą, nie checkboxem
-operatora. `credentials` jest więc zależnością *service* w manifeście, nie
-FK-driven.
+**Nie ma kolumny z sekretem.** `credential_code` wskazuje konfigurację modułu `credentials`, który
+odpowiada za szyfrowanie danych w bazie i maskowanie przy odczycie; podział na nagłówki z sekretem i
+bez niego wykonuje `isSecretDeliveryHeader` w pakiecie kontraktów — celowo na podstawie reguły, a nie
+pola wyboru dla operatora. `credentials` jest więc w manifeście zależnością *usługową*, a nie
+wynikającą z klucza obcego.
 
-Transport SPI (`services/delivery/delivery-adapter.interface.ts`) bierze `Readable`,
-nigdy `Buffer`, z tego samego powodu co serializery — i to overlay seam dla
-bespoke protocol partnera. `HttpDeliveryAdapter` reużywa reguły adresów z
-`taxonomy-source-url.ts` zamiast je kopiować: dwa SSRF guardy w jednym module to
-jeden guard naprawiany i jeden nie.
+Interfejs SPI transportu (`services/delivery/delivery-adapter.interface.ts`) przyjmuje `Readable`,
+nigdy `Buffer`, z tego samego powodu co serializatory — i jest punktem rozszerzenia dla modułu
+nakładkowego, który chce obsłużyć niestandardowy protokół partnera. `HttpDeliveryAdapter` korzysta z
+reguł adresów z `taxonomy-source-url.ts`, zamiast je kopiować: dwa zabezpieczenia przed SSRF w
+jednym module to jedno, które zostanie naprawione, i drugie, które nie zostanie.
 
-Nic zapisane na attempt nie jest credential. `target` to redacted display form, a
-każda wiadomość failure przechodzi przez `delivery-redaction.ts`, który jest
-**value-driven** — dostaje dokładne sekrety w grze i usuwa te stringi, zamiast
-zgadywać, jak wygląda hasło.
+Nic, co jest zapisywane przy próbie dostarczenia, nie jest daną uwierzytelniającą. `target` to
+postać do wyświetlenia z ukrytymi sekretami, a każdy komunikat o błędzie przechodzi przez
+`delivery-redaction.ts`, które działa **na podstawie wartości** — dostaje dokładnie te sekrety,
+których dotyczy operacja, i usuwa te ciągi znaków, zamiast zgadywać, jak wygląda hasło.
 
-Test harness wstrzykuje adaptery odmawiające każdego send, z tego samego powodu,
-co fetcher taksonomii, który nie może fetch'ować: żaden test w tym repozytorium nie
-może upload'ować katalogu z cenami gdziekolwiek.
+Środowisko testowe wstrzykuje adaptery, które odmawiają każdej wysyłki, z tego samego powodu, dla
+którego wstrzykuje moduł pobierania taksonomii niezdolny do pobierania: żaden test w tym
+repozytorium nie może nigdzie wysłać katalogu z cenami.
 
-### Channel scoping
+### Zawężenie do kanału
 
-Członkostwo czytane jest **tylko** przez wstrzyknięty port
-`SalesChannelMembershipService.listEntityIdsForChannel`; moduł nigdy nie odpytuje
-bridge table `sales_channel_*`. Floor eligibility, reguła operatora i keyset cursor
-składane są jako jawny `$and` — nigdy object spread, który cicho drop'uje zduplikowany
-klucz `id` i kiedyś całkowicie drop'ował channel scoping dla kryteriów kategorii.
+Przynależność do kanału jest odczytywana **wyłącznie** przez wstrzyknięty port
+`SalesChannelMembershipService.listEntityIdsForChannel`; moduł nigdy nie odpytuje tabel łączących
+`sales_channel_*`. Minimalne warunki kwalifikacji, reguła operatora i kursor stronicowania (keyset)
+są łączone jawnym `$and` — nigdy rozwinięciem obiektu, które po cichu gubi zdublowany klucz `id` i
+kiedyś całkowicie wyłączyło zawężenie do kanału dla kryteriów kategorii.
 
-Nie ma gałęzi fail-open: nierozwiązywalny lub nieaktywny kanał podnosi
-`ChannelUnavailableError`, a run fail'uje closed.
-`backend/test/integration/product_feeds/channel-isolation.test.ts` to regression net,
-i ćwiczy też publiczny URL, bo ten endpoint jest nieuwierzytelniony.
+Nie ma gałęzi, która przepuszczałaby w razie wątpliwości: kanał, którego nie da się ustalić albo
+który jest nieaktywny, zgłasza `ChannelUnavailableError`, a generowanie kończy się odmową.
+Zabezpieczeniem przed regresją jest `backend/test/integration/product_feeds/channel-isolation.test.ts`,
+który sprawdza też publiczny adres URL, bo ten endpoint nie wymaga uwierzytelnienia.
 
-### Auditing
+### Audyt
 
-Każdy zapis operatora to Command: `product_feeds.feed.create|update|delete|duplicate`,
-`product_feeds.token.rotate|revoke`, `product_feeds.run.start`,
-`product_feeds.template.create|update|duplicate|delete|import`,
+Każdy zapis wykonywany przez operatora jest poleceniem (Command):
+`product_feeds.feed.create|update|delete|duplicate`, `product_feeds.token.rotate|revoke`,
+`product_feeds.run.start`, `product_feeds.template.create|update|duplicate|delete|import`,
 `product_feeds.taxonomy_mapping.set`, `product_feeds.taxonomy_revision.promote` i
-`product_feeds.taxonomy_check.start`. Każdy zapisuje dokładnie jeden wpis audytu
-przypisany do działającego administratora; cały import szablonu to jeden wpis, nie
-jeden per pole.
+`product_feeds.taxonomy_check.start`. Każde z nich zapisuje dokładnie jeden wpis w dzienniku audytu,
+przypisany do administratora, który je wykonał; cały import szablonu to jeden wpis, a nie jeden na
+pole.
 
-Ostatnie dwa warto czytać razem. Promocja rewizji taksonomii to **jedyny** zapis w
-mechanizmie refresh zmieniający emisję feedu, więc to Command; ręczne start check
-audytowane jest, bo zapisuje, kto poprosił platformę o request wychodzący, dokładnie
-jak `product_feeds.run.start` zapisuje, kto poprosił o generację.
+Dwa ostatnie warto czytać razem. Zatwierdzenie wersji taksonomii to **jedyny** zapis w mechanizmie
+aktualizacji, który zmienia zawartość feedu, dlatego jest poleceniem; ręczne uruchomienie
+sprawdzenia jest audytowane, bo zapisuje, kto poprosił platformę o wysłanie żądania na zewnątrz —
+dokładnie tak, jak `product_feeds.run.start` zapisuje, kto zlecił generowanie.
 
-Praca maszynowa — scheduled run, retention sweep, reaper, projekcja harmonogramu do
-Redis, instalacja taksonomii i **scheduled taxonomy check wraz z inactive revision,
-którą może zainstalować** — **nic nie zapisuje**, a każdy taki zapis niesie marker
-`command-coverage-ignore: <reason>`, żeby static checker był uczciwy. Scheduled check
-to praca maszynowa właśnie dlatego, że nie może zmienić outputu: wiersz audytu na
-tygodniowy check na każdej instalacji zakopałby decyzje operatora w szumie, a tabela
-historii checków jest bogatszym zapisem niż wpis audytu. Przypięte przez
-`backend/test/integration/product_feeds/command-coverage.test.ts`.
+Praca maszynowa — generowanie według harmonogramu, czyszczenie starych plików, zwalnianie
+porzuconych generowań, odwzorowanie harmonogramów w Redisie, instalacja taksonomii oraz
+**sprawdzenie taksonomii według harmonogramu razem z nieaktywną wersją, którą może zainstalować** —
+**niczego nie zapisuje** w dzienniku audytu, a każdy taki zapis ma znacznik
+`command-coverage-ignore: <reason>`, żeby kontrola statyczna pozostała rzetelna. Sprawdzenie według
+harmonogramu jest pracą maszynową właśnie dlatego, że nie może zmienić wyniku: wiersz audytu dla
+każdego cotygodniowego sprawdzenia w każdej instalacji zagrzebałby faktyczne decyzje operatora w
+szumie, a tabela historii sprawdzeń jest pełniejszym zapisem niż wpis w dzienniku audytu. Pilnuje
+tego `backend/test/integration/product_feeds/command-coverage.test.ts`.
 
-### Taksonomie providerów
+### Taksonomie dostawców
 
-Rewizja dociera do bazy dokładnie dwiema drogami, obie produkują ten sam rodzaj
-wiersza.
+Wersja taksonomii trafia do bazy danych dokładnie na dwa sposoby i oba tworzą ten sam rodzaj wiersza.
 
-**Bundled z platformą.** Rewizje są na dysku pod
-`data/taxonomies/<providerCode>/<revision>/<language>.txt` i instalowane przez boot
-reconciler w jednej transakcji per rewizja. Ta ścieżka nie otwiera socketu i nigdy
-nie otwierała. Instalacja bieżącego dropu (8 562 węzłów w czterech plikach) trwa
-~**2 sekundy**; potem pliki nie są otwierane, bo baza jest pytana pierwsza. Bundled
-revision oznaczana current tylko gdy provider nie ma jeszcze current revision — na
-świeżej bazie to każda pierwsza instalacja, na długo żyjącej upgrade platformy nie
-może cicho zastąpić rewizji wybranej przez operatora.
+**Dostarczana z platformą.** Wersje są zapisane na dysku w
+`data/taxonomies/<providerCode>/<revision>/<language>.txt` i instaluje je przy starcie mechanizm
+uzgadniający, w jednej transakcji na wersję. Ta ścieżka nie otwiera żadnego połączenia sieciowego i
+nigdy nie otwierała. Instalacja bieżącego zestawu (8 562 węzły w czterech plikach) trwa około
+**2 sekund**; potem pliki nie są już otwierane, bo najpierw sprawdzana jest baza danych. Dostarczona
+wersja jest oznaczana jako bieżąca tylko wtedy, gdy dostawca nie ma jeszcze bieżącej wersji — w
+świeżej bazie dotyczy to każdej pierwszej instalacji, a w długo działającej oznacza, że aktualizacja
+platformy nie może po cichu zastąpić wersji wybranej przez operatora.
 
-**Pobrana od providera.** Opcjonalny check, **domyślnie wyłączony**, pobiera
-opublikowane pliki providera i instaluje zmienioną rewizję **inactive** (zobacz
-[Taxonomy updates](#taxonomy-updates)). Nie może sama stać się rewizją w force.
+**Pobierana od dostawcy.** Opcjonalne sprawdzenie, **domyślnie wyłączone**, pobiera pliki
+opublikowane przez dostawcę i instaluje zmienioną wersję jako **nieaktywną** (zobacz
+[Aktualizacje taksonomii](#taxonomy-updates)). Taka wersja nie może sama zacząć obowiązywać.
 
-**Generacja nigdy nie zależy od dotarcia do providera.** Run czyta rewizję
-w force z Postgres i nikogo nie kontaktuje, więc provider down, wolny albo serwujący
-nonsens daje failed *check*, nigdy failed ani zmieniony *run* — a instalacja z
-wyłączonym przełącznikiem w ogóle nie robi requestu wychodzącego.
+**Generowanie nigdy nie zależy od połączenia z dostawcą.** Generowanie odczytuje obowiązującą wersję
+z Postgresa i z nikim się nie łączy, więc dostawca niedostępny, powolny albo zwracający bzdury daje
+nieudane *sprawdzenie*, nigdy nieudane ani zmienione *generowanie* — a instalacja z wyłączonym
+przełącznikiem w ogóle nie wysyła żądań na zewnątrz.
 
-Instalacja bez bundled data boot'uje normalnie: ekran mapowania raportuje brak
-taksonomii, a `g:google_product_category` rozwiązuje się jako unmapped, co pomija
-pole i nadal emituje item.
+Instalacja bez dostarczonych danych uruchamia się normalnie: ekran mapowania informuje, że nie
+zainstalowano żadnej taksonomii, a `g:google_product_category` jest traktowane jako niezmapowane, co
+pomija to pole, ale pozycja i tak trafia do pliku.
 
-Provenance, zmierzone rozmiary i **otwarte pytanie licencyjne** dla bundled vendor
-files są w
-`packages/modules/product_feeds/src/backend/data/taxonomies/PROVENANCE.md`. Usunięcie
-katalogu rewizji providera to cały back-out; bez zmian kodu.
+Pochodzenie dostarczanych plików dostawców, ich zmierzone rozmiary i **otwarte pytanie o licencję**
+opisuje `packages/modules/product_feeds/src/backend/data/taxonomies/PROVENANCE.md`. Wycofanie danych
+sprowadza się do usunięcia katalogu wersji danego dostawcy; kodu nie trzeba zmieniać.
 
 ### Kolejki
 
-Dwie powierzchnie BullMQ, rejestrowane tylko gdy `BACKEND_ROLE !== 'api'`:
+Dwa elementy BullMQ, rejestrowane tylko wtedy, gdy `BACKEND_ROLE !== 'api'`:
 
-- `product_feeds.generate` — jeden job per run; worker claim'uje, heartbeat per batch,
-  generuje, publikuje, potem egzekwuje retention. Idempotent under redelivery.
-- module-wide sweep co 5 minut zwalniający claimy, których heartbeat wygasł, oznaczając
-  run `failed(worker_lost)` i usuwając partial object.
+- `product_feeds.generate` — jedno zadanie na generowanie; worker je przejmuje, po każdej partii
+  sygnalizuje, że działa, generuje plik, publikuje go, a następnie stosuje retencję. Zadanie jest
+  idempotentne przy ponownym dostarczeniu.
+- wspólne dla modułu czyszczenie co 5 minut, które zwalnia przejęcia bez aktualnego sygnału życia,
+  oznacza generowanie jako `failed(worker_lost)` i usuwa częściowy obiekt.
 
-Harmonogramy per feed to BullMQ Job Schedulers keyed `feed:<id>`; reconciler przy
-staracie upsert'uje każdy enabled scheduled feed i usuwa każdy scheduler `feed:*` bez
-live counterpart.
+Harmonogramy poszczególnych feedów to BullMQ Job Schedulers o kluczach `feed:<id>`; mechanizm
+uzgadniający przy starcie tworzy lub aktualizuje harmonogram każdego włączonego feedu z
+harmonogramem i usuwa każdy harmonogram `feed:*`, który nie ma już odpowiednika.
 
-### Storage
+### Przechowywanie plików
 
-Artefakty idą przez adapter storage Assets Library, ale pod własnym prefiksem
-locator modułu (`product-feeds/…`), zawsze **private**, i nigdy jako wiersze `Asset`:
-to nie media biblioteki, nie mogą pojawić się w asset browser i nie są osiągalne
-publicznym URL assetu. Publiczna trasa feedu stream'uje sam obiekt — to sprawia, że
-rotacja tokena faktycznie revoke'uje dostęp.
+Pliki przechodzą przez adapter magazynu plików modułu Biblioteka mediów (Assets Library), ale pod
+własnym prefiksem tego modułu (`product-feeds/…`), zawsze jako **prywatne** i nigdy jako wiersze
+`Asset`: nie są mediami biblioteki, nie mogą pojawiać się w przeglądarce mediów i nie mogą być
+dostępne pod publicznym adresem URL zasobu. Publiczna trasa feedu przesyła strumieniowo sam obiekt —
+dzięki temu wymiana tokena rzeczywiście odbiera dostęp.
 
-### Testowanie
+### Testy
 
 ```bash
 pnpm --filter backend exec vitest run test/unit/product_feeds
@@ -561,16 +554,17 @@ pnpm --filter backend exec vitest run test/integration/product_feeds
 PERF_RUN=true pnpm --filter backend exec vitest run test/perf/product_feeds
 ```
 
-Wspólny test harness celowo wire'uje ten moduł **bez Redis i BullMQ** — uruchamia się
-raz per plik testu w jednym fork, a połączenia kolejki wcześniej brały setki plików
-na „too many clients”. Testy wołają `productFeeds.generation.generateNow(...)` bezpośrednio.
-Harness wskazuje też taxonomy reconciler na nieistniejący katalog, więc tylko
-`taxonomy-bundled-data.test.ts` czyta shipped data files.
+Wspólne środowisko testowe celowo łączy ten moduł **bez Redisa i bez BullMQ** — uruchamia się raz na
+plik testowy w jednym procesie potomnym, a połączenia z kolejką już wcześniej wyłączały w nim setki
+plików błędem „too many clients”. Testy wywołują bezpośrednio
+`productFeeds.generation.generateNow(...)`. Środowisko testowe kieruje też mechanizm uzgadniający
+taksonomie do nieistniejącego katalogu, więc dostarczane pliki danych czyta wyłącznie
+`taxonomy-bundled-data.test.ts`.
 
 ### Celowo poza zakresem tej wersji
 
-- Delivery e-mail i marketplace-specific APIs (Amazon SP-API, eBay, Allegro). Push
-  delivery obejmuje tylko SFTP, FTP i HTTP — zobacz **Delivery** powyżej.
-- Incremental, supplemental albo delta feeds — każdy run regeneruje cały plik.
-- Wiele krajów lub walut w jednym pliku; zduplikuj feed zamiast tego.
-- Runtime taxonomy download.
+- Dostarczanie e-mailem i API konkretnych marketplace'ów (Amazon SP-API, eBay, Allegro). Wysyłka
+  obejmuje tylko SFTP, FTP i HTTP — zobacz **Dostarczanie** wyżej.
+- Feedy przyrostowe, uzupełniające lub różnicowe — każde generowanie tworzy cały plik od nowa.
+- Wiele krajów lub walut w jednym pliku; zamiast tego zduplikuj feed.
+- Pobieranie taksonomii w czasie działania.

@@ -1,178 +1,164 @@
 ---
-title: Kernel — granica, zakresy i kolejność kompozycji
+title: Jądro — granica, zakresy i kolejność kompozycji
 ---
 
-# Kernel
+# Jądro
 
-Każdy moduł komponuje się przez kontener Awilix. **Kernel**
-(`packages/platform/src/kernel/`) posiada kontener, szwy, przez które moduł się
-rejestruje, oraz garść usług wspierających niemal każdy moduł. Ta strona
-obejmuje trzy rzeczy, które musisz znać, zanim napiszesz lub zmienisz moduł:
-**co kernel może i czego nie może zawierać**, **jak dociera się do stanu per-request**
-oraz **kiedy rejestracje i hooki faktycznie się wykonują**.
+Każdy moduł jest składany przez kontener Awilix. **Jądro** (kernel,
+`packages/platform/src/kernel/`) jest właścicielem kontenera, punktów rozszerzenia, przez które
+moduł się rejestruje, oraz kilku usług, na których opiera się niemal każdy moduł. Ta strona omawia
+trzy rzeczy, które musisz wiedzieć, zanim napiszesz lub zmienisz moduł: **co jądro może zawierać,
+a czego nie**, **jak dociera się do stanu związanego z żądaniem** oraz **kiedy twoje rejestracje i
+hooki faktycznie się wykonują**.
 
-To ostatnie nie jest dekoracja. Kolejność kompozycji złapała trzy konwersje
-modułów, za każdym razem tak samo, i za każdym razem
-wyglądało to jak brakująca rejestracja, a nie błąd kolejności.
+Ta ostatnia kwestia nie jest ozdobnikiem. Kolejność kompozycji zaskoczyła autorów trzech
+przenoszonych modułów, za każdym razem w ten sam sposób, i za każdym razem wyglądało to na
+brakującą rejestrację, a nie na błąd kolejności.
 
 ## Granica
 
-**Kernel posiada kształty i infrastrukturę platformy. Nigdy nie posiada zachowania
-domenowego.**
+**Jądro jest właścicielem kształtów i infrastruktury platformy. Nigdy nie jest właścicielem
+zachowania domenowego.**
 
-| W kernelu | Dlaczego |
+| W jądrze | Dlaczego |
 | --- | --- |
-| `container.ts`, `compose.ts`, `module-context.ts`, `scope.ts` | Sama maszyna kompozycji |
-| `ports/` — `require-admin`, `organizations`, `settings`, `sales-channel` | **Typy**; moduł-właściciel rejestruje implementację |
-| `audit/` | Każdy audytowany zapis przechodzi przez jednego pisarza |
-| `settings/`, `sales-channels/` | Odczyt settings i rozwiązanie kanału wspierają zachowanie w niemal każdym module, więc żaden nie może być bramkowany na którymkolwiek z nich |
-| `lifecycle/` | Maszyna obecności: cache rejestru, resolver aktywacji, łącznik effective-state i opakowania bramkujące, przez które przechodzą trasy, workery i subskrybenci każdego modułu |
-| `lazy-port.ts` | Jak moduł czyta port innego modułu bez jego zamrożenia |
+| `container.ts`, `compose.ts`, `module-context.ts`, `scope.ts` | Sam mechanizm kompozycji |
+| `ports/` — `require-admin`, `organizations`, `settings`, `sales-channel` | **Typy**; implementację rejestruje moduł, który jest ich właścicielem |
+| `audit/` | Każdy audytowany zapis przechodzi przez jeden mechanizm zapisu |
+| `settings/`, `sales-channels/` | Odczyt ustawień i rozstrzyganie kanału sprzedaży są potrzebne niemal każdemu modułowi, więc żadne z nich nie może zależeć od obecności jednego konkretnego modułu |
+| `lifecycle/` | Mechanizm obecności: pamięć podręczna rejestru, rozstrzyganie aktywacji, łączenie stanu efektywnego i wrappery blokujące, przez które przechodzą trasy, workery i subskrybenci każdego modułu |
+| `lazy-port.ts` | Jak moduł odczytuje port innego modułu, nie zamrażając go |
 
-Reguła, która z tego wynika: **kernel nie może importować z `src/modules/` ani
-`src/apps/`** — moduł→kernel jest zawsze dozwolony, kernel→moduł nigdy.
-`src/apps/` też jest po stronie zakazanej: moduł overlay to zwykły uczestnik
-lifecycle, a dekoracja to kod per-deployment, więc kernel sięgający w którekolwiek
-z nich to kernel różniący się per deployment.
+Wynika z tego reguła: **jądro nie może importować z `src/modules/` ani `src/apps/`** — import
+moduł→jądro jest zawsze dozwolony, jądro→moduł nigdy. `src/apps/` też jest po stronie zakazanej:
+moduł nakładkowy jest zwykłym uczestnikiem cyklu życia, a dekoracja to kod konkretnego wdrożenia,
+więc jądro, które sięga do któregokolwiek z nich, byłoby jądrem różnym w każdym wdrożeniu.
 
-### Peers kernela przestrzegają tej samej reguły
+### Sąsiednie katalogi jądra podlegają tej samej regule
 
-`src/http`, `src/events` i `src/tenancy` to **peers platformy przestrzegający kernela**,
-i żaden z nich nie może importować `src/modules/` ani `src/apps/`.
+`src/http`, `src/events` i `src/tenancy` to **katalogi platformy podlegające regułom jądra** i
+żaden z nich również nie może importować z `src/modules/` ani `src/apps/`.
 
-| Peer | Czym jest | Dlaczego przestrzega |
+| Katalog | Czym jest | Dlaczego podlega regule |
 | --- | --- | --- |
-| `src/events/` | Jeden plik 81 linii: bus in-process oparty na `AsyncLocalStorage`, generyczny względem mapy zdarzeń, importujący tylko `node:async_hooks` | Brak rzeczownika domenowego w całym pliku |
-| `src/tenancy/` | Straż izolacji tenantów: nazwy kolumn jako stringi, fragmenty `where` nad nieprzezroczystym polem, czysta funkcja actor→`TenantContext` | Pięć encji kernela bierze `@GlobalEntity()` stąd — warstwa persistence kernela bez tego nie istnieje |
-| `src/http/` | Bootstrap Fastify, koperta błędu, rejestracja OpenAPI, kodowanie kursora, rejestr interceptorów | Cztery pliki kernela biorą `HttpError` stąd **jako wartość** |
+| `src/events/` | Jeden plik, 81 wierszy: działająca w procesie szyna zdarzeń oparta na `AsyncLocalStorage`, generyczna względem mapy zdarzeń, importująca tylko `node:async_hooks` | Nie ma w nim ani jednego pojęcia domenowego |
+| `src/tenancy/` | Zabezpieczenie izolacji tenantów: nazwy kolumn jako stringi, fragmenty `where` dla nieprzezroczystego pola, czysta funkcja użytkownik→`TenantContext` | Pięć encji jądra bierze stąd `@GlobalEntity()` — bez tego warstwa trwałości jądra nie istnieje |
+| `src/http/` | Uruchomienie Fastify, struktura błędów, rejestracja OpenAPI, kodowanie kursorów, rejestr interceptorów | Cztery pliki jądra biorą stąd `HttpError` **jako wartość** |
 
-Nie są opcjonalne dla kernela; bez nich się nie kompiluje. Zależność, bez której
-kernel nie może się skompilować, a która sama może importować moduł, to kernel
-importujący moduły z jednym dodatkowym skokiem — w terminach pakietów cykl
-`kernel → http → mod-i18n → kernel`, a tutejszy warunek wstępny mówi, że pakiety
-nie są cykliczne.
+Nie są dla jądra opcjonalne; bez nich się nie kompiluje. Zależność, bez której jądro się nie
+skompiluje, a która sama mogłaby importować moduł, oznacza jądro importujące moduły o jeden krok
+dalej — w kategoriach pakietów to cykl `kernel → http → mod-i18n → kernel`, a przyjętym tu
+warunkiem jest, że pakiety nie tworzą cykli.
 
-### Tematem jest teraz cały pakiet, nie lista peers
+### Regułą objęty jest teraz cały pakiet, a nie lista katalogów
 
-Wcześniejsze sformułowanie reguły peerów zostawiło trzy katalogi na zewnątrz —
-`src/db` „nazywa każdy moduł z konstrukcji”, `src/overlay` to „rozwiązanie
-per-deployment”, a `src/commands` siedzi *nad* kernelem, co to sformułowanie
-oznaczyło jako „prawdziwy otwarty punkt, który trzeba zamknąć”. Wszystkie trzy
-były katalogami **aplikacji**, gdy to
-pisano, i każde założenie poszło z relokacją: `packages/platform/src/db/`
-nie importuje modułu (wygenerowane rejestry zostały w `backend/src`), `overlay/`
-platformy to loader biorący root overlay i roszczenia id jako parametry, a ten
-punkt jest zamknięty.
+Wcześniejsze sformułowanie reguły pomijało trzy katalogi — o `src/db` mówiło, że „z założenia
+wymienia każdy moduł”, o `src/overlay`, że to „rozstrzyganie dla konkretnego wdrożenia”, a
+`src/commands` leżało *nad* jądrem, co tamto sformułowanie oznaczało jako „prawdziwą otwartą
+kwestię do zamknięcia”. Kiedy to pisano, wszystkie trzy były katalogami **aplikacji**, a każde z
+tych założeń zniknęło wraz z przeniesieniem: `packages/platform/src/db/` nie importuje żadnego
+modułu (wygenerowane rejestry zostały w `backend/src`), `overlay/` platformy to loader, który
+przyjmuje katalog nakładki i zgłoszone identyfikatory jako parametry, a tamta kwestia jest
+zamknięta.
 
-Więcej: argument, na którym spoczywa reguła peerów, zmienił kształt. *Jeden
-dodatkowy skok* liczył skoki między katalogami źródłowymi, które mogły stać się
-**różnymi pakietami**. Nie stały się: `@endora-commerce/platform` kompiluje
-każdy katalog pod `packages/platform/src` w jeden artefakt (`rootDir: ./src`,
-`files: ["dist"]`) za jednym blokiem `dependencies`, a każdy pakiet modułu od
-niego zależy. Specifier modułu gdziekolwiek pod `packages/platform/src` zamyka
-cykl przy **zerze** skoków, niezależnie od katalogu, który go pisze, a odpowiedzią
-jest pakiet, a nie dłuższa lista peers.
+Co więcej, zmienił się sam argument, na którym opiera się ta reguła. *Jeden dodatkowy krok*
+liczył kroki między katalogami źródłowymi, które mogły stać się **różnymi pakietami**. Nie stały
+się: `@endora-commerce/platform` kompiluje wszystkie swoje katalogi do jednego artefaktu
+(`rootDir: ./src`, `files: ["dist"]`) z jednym blokiem `dependencies`, a każdy pakiet modułu od
+niego zależy. Import modułu w dowolnym miejscu `packages/platform/src` zamyka więc cykl w **zero**
+krokach, niezależnie od tego, który katalog go zawiera — a odpowiedzią jest cały pakiet, a nie
+dłuższa lista katalogów.
 
-**Ta reguła jest egzekwowana.** `backend/scripts/check-kernel-boundary.ts` niesie
-trzy reguły nad jedną zasadą. **Reguła A** odmawia relacji ORM z kernela do
-modułu. **Reguła B**, poszerzona dwukrotnie od napisania, odmawia specifiere
-importu nazywającego moduł z dowolnego pliku pod **rootem platformy**.
-**Reguła C** odmawia go gdziekolwiek w domknięciu importu transitive kernela,
-ilekolwiek skoków stamtąd.
+**Ta reguła jest egzekwowana.** `backend/scripts/check-kernel-boundary.ts` realizuje tę jedną
+zasadę trzema regułami. **Reguła A** odrzuca relację ORM z jądra do modułu. **Reguła B**,
+dwukrotnie rozszerzana od czasu napisania, odrzuca import wskazujący moduł z dowolnego pliku w
+**katalogu platformy**. **Reguła C** odrzuca taki import w dowolnym miejscu przechodniego
+domknięcia importów jądra, niezależnie od liczby kroków.
 
-**Rooty Reguły B są wyprowadzane i nigdzie nie są zapisane** — to katalogi
-członka workspace deklarującego `endora: { type: "platform" }`, więc następny
-katalog platformy jest oceniany przez istniejące. Były czteroelementowym
-literałem aż do wylądowania tego wyprowadzenia, przy platformie, która urosła do
-czternastu katalogów:
-dziesięć było poza regułą w ogóle, w tym `composition/`, gdzie mieszka
-`composeApp`. Mapa `exports` platformy to oczywista alternatywa wyprowadzenia
-i **celowo nie jest używana** — odpowiada na *co konsument może nazwać*, a
-`src/demo/` to prawdziwy katalog platformy bez własnego subpath — ale służy jako
-niezależne potwierdzenie checka, więc opublikowany subpath nie nazywający
-żadnego przechodzonego katalogu to exit 2.
+**Katalogi reguły B są wyprowadzane i nigdzie nie są zapisane** — to katalogi członka workspace,
+który deklaruje `endora: { type: "platform" }`, więc kolejny katalog platformy jest oceniany już
+przez to, że istnieje. Do czasu wprowadzenia tego wyprowadzenia była to czteroelementowa lista
+wpisana na stałe, przy platformie, która urosła do czternastu katalogów: dziesięć z nich było
+całkowicie poza regułą, w tym `composition/`, gdzie znajduje się `composeApp`. Oczywistą
+alternatywą byłoby wyprowadzanie z mapy `exports` platformy i **celowo** z niej nie korzystamy —
+odpowiada ona na pytanie *co konsument może importować*, a `src/demo/` to prawdziwy katalog
+platformy bez własnej ścieżki eksportu — ale służy kontroli jako niezależne potwierdzenie, więc
+opublikowana ścieżka, która nie wskazuje żadnego sprawdzanego katalogu, kończy się kodem 2.
 
-**Reguła B odmawia obu pisowni adresu modułu**: względnego specifiere do
-`src/modules/` lub `src/apps/` oraz **gołej nazwy npm** pakietu modułu. Druga
-przyszła z tym samym poszerzeniem, na własnym warunku wycofania checka — mówił, że goły specifier
-nie może dotrzeć do modułu, bo pakiet modułu nie istniał — a od tamtej pory
-`backend/src/modules/` trzyma tylko `README.md`, więc goła nazwa to jedyna
-pozostała pisownia.
+**Reguła B odrzuca oba sposoby zapisania adresu modułu**: ścieżkę względną do `src/modules/` lub
+`src/apps/` oraz **samą nazwę pakietu npm** modułu. Druga część pojawiła się przy tym samym
+rozszerzeniu, zgodnie z warunkiem wycofania zapisanym w samej kontroli — mówił on, że import po
+nazwie pakietu nie może trafić do modułu, bo pakiety modułów nie istniały — a od tamtej pory
+`backend/src/modules/` zawiera tylko `README.md`, więc nazwa pakietu to jedyny sposób zapisu, jaki
+pozostał.
 
-B i C celowo nie są redundantne, i każda pokrywa ślepy punkt drugiej: B to
-populacja, a jeden peer został kiedyś pominięty dokładnie dlatego, że nigdy nie
-trafił na listę; C nie ma populacji do utraty, ale jest ślepa na pliki peerów, do
-których kernel obecnie nie dociera. B w komunikacie nazywa linię, C nazywa
-łańcuch.
+Reguły B i C celowo nie są zbędnym powtórzeniem — każda pokrywa martwy punkt drugiej: B działa na
+określonym zbiorze plików, a jeden katalog został kiedyś pominięty właśnie dlatego, że nikt go nie
+wpisał na listę; C nie ma zbioru, który mogłaby zgubić, ale nie widzi plików sąsiednich katalogów,
+do których jądro dziś nie sięga. Komunikat reguły B wskazuje wiersz, komunikat reguły C — łańcuch
+importów.
 
-Obie widzą każdy kształt specifiere — `import`, `import type`,
-`export … from`, dynamiczne `import()`, `require()` oraz inline
-`import('…').Type`, który własna konfiguracja ESLint repozytorium zachęca.
-Import tylko typu to naruszenie jak każde inne: znika z bundla, ale nie z
-`package.json`, a `prefer: 'type-imports'` ESLinta inaczej by przepierał
-naruszenia obok reguły automatycznie.
+Obie widzą każdą postać importu — `import`, `import type`, `export … from`, dynamiczne `import()`,
+`require()` oraz adnotację `import('…').Type` w treści, do której zachęca konfiguracja ESLint
+samego repozytorium. Import samego typu to naruszenie jak każde inne: znika z bundla, ale nie z
+`package.json`, a reguła ESLint `prefer: 'type-imports'` w przeciwnym razie automatycznie
+przemycałaby naruszenia obok kontroli.
 
-Cztery importy szły kiedyś z `src/kernel/` do `src/modules/`:
-`module-context.ts` brał trzy opakowania bramkujące, `ports/provide.ts` brał
-`ModuleDisabledError` i `effectiveState`, a `ports/organizations.ts`
-type-importował klasę encji `Organization`. Relokacja maszyny obecności —
-`plugin-helpers.ts`, `registry-cache.ts`, `effective-state.ts`,
-`activation-resolver.ts` i `module-registration.entity.ts` — do
-`src/kernel/lifecycle/` rozwiązała pierwsze trzy. Czwarte rozwiązało się, gdy
-port wziął strukturalny snapshot zamiast klasy encji, a wraz z nim jeden import
-peer (`src/http/error-envelope.ts` sięgający `_i18n` po mapę tłumaczeń błędów,
-teraz wstrzykiwaną).
+Kiedyś z `src/kernel/` do `src/modules/` prowadziły cztery importy: `module-context.ts` brał trzy
+wrappery blokujące, `ports/provide.ts` brał `ModuleDisabledError` i `effectiveState`, a
+`ports/organizations.ts` importował typ klasy encji `Organization`. Przeniesienie mechanizmu
+obecności — `plugin-helpers.ts`, `registry-cache.ts`, `effective-state.ts`,
+`activation-resolver.ts` i `module-registration.entity.ts` — do `src/kernel/lifecycle/` usunęło
+pierwsze trzy. Czwarty zniknął, gdy port zaczął przyjmować strukturalny obraz organizacji zamiast
+klasy encji, a wraz z nim zniknął jedyny import z sąsiedniego katalogu (`src/http/error-envelope.ts`
+sięgał do `_i18n` po mapę tłumaczeń błędów, która teraz jest wstrzykiwana).
 
-`KERNEL_MODULE_IMPORTS_TO_DRAIN` jest więc **pusty** i zostaje jako dwukierunkowy
-grzyb: niezledgerowany import psuje build **oraz** wpis ledgera, który już nie
-opisuje importu, też go psuje. Wpis to dług z właścicielem, nigdy stałe
-zwolnienie.
+`KERNEL_MODULE_IMPORTS_TO_DRAIN` jest więc **pusta** i pozostaje zapadką działającą w obie strony:
+niezarejestrowany import przerywa build **i** wpis w rejestrze, który nie opisuje już żadnego
+importu, też go przerywa. Wpis to dług z właścicielem, a nigdy stałe zwolnienie.
 
-Jedno ograniczenie reguły pozostaje, celowe i podane w nagłówku skryptu:
-współlokalizowany `*.test.ts` pod rootem platformy nie jest skanowany, bo test
-może importować fixture i nie jest artefaktem, o który chodzi pakowaniu.
+Reguła ma jedno ograniczenie, celowe i opisane w nagłówku skryptu: plik `*.test.ts` leżący obok
+kodu w katalogu platformy nie jest sprawdzany, bo test może importować dane testowe i nie jest
+artefaktem, który interesuje proces pakowania.
 
-Najpierw próbowano prozy, i nie wytrzymała. `kernel/index.ts`, `tenancy/index.ts`
-i `http/interceptors/registry.ts` wszystkie deklarują tę regułę w komentarzu
-nagłówkowym; wszystkie trzy były prawdziwe, wszystkie trzy nieegzekwowane, a
-plik, który ją złamał, i tak ją złamał. To argument za checkiem.
+Najpierw próbowano opisu słownego i to nie wystarczyło. `kernel/index.ts`, `tenancy/index.ts` i
+`http/interceptors/registry.ts` opisują tę regułę w komentarzu nagłówkowym; wszystkie trzy opisy
+były prawdziwe, żaden nie był egzekwowany, a jedyny plik, który ją łamał, i tak ją złamał. To jest
+argument za kontrolą.
 
-`ports/organizations.ts` pokazuje podział najwyraźniej. Kernel deklaruje
-`OrganizationReadPort` — `loadEffectiveOrganization`, `assertCanTransact`,
-`loadCartApprovalPolicy` — bo niemal każdy moduł musi czytać Organization.
-**Nie implementuje go.** `organizations` rejestruje
-`OrganizationContextService` pod tą nazwą, więc kształt jest platform-wide,
-a zachowanie zostaje w module, który posiada tabelę.
+`ports/organizations.ts` najlepiej pokazuje ten podział. Jądro deklaruje `OrganizationReadPort` —
+`loadEffectiveOrganization`, `assertCanTransact`, `loadCartApprovalPolicy` — bo niemal każdy moduł
+musi odczytać organizację. **Nie** implementuje go. Moduł `organizations` rejestruje pod tą nazwą
+`OrganizationContextService`, więc kształt jest wspólny dla całej platformy, a zachowanie zostaje w
+module, który jest właścicielem tabeli.
 
-Port typuje wartości zwrotne strukturalnym `OrganizationSnapshot`
-należącym do kernela — `{ id, status }`, z `OrganizationStatus` z
-`@endora-commerce/contracts` — zamiast klasy encji `Organization` modułu. To
-cała powierzchnia, którą konsumenci portu używają: `promotions` czyta `status`,
-a `carts` i `orders` odrzucają wartość zwrotną w ogóle, bo chcą rzutu.
-TypeScript jest strukturalny, więc `OrganizationContextService` spełnia port
-zwracając swoją encję, **bez warstwy mapowania i bez zmiany implementacji**.
+Wartości zwracane przez port mają typ strukturalnego `OrganizationSnapshot` należącego do jądra —
+`{ id, status }`, z `OrganizationStatus` pochodzącym z `@endora-commerce/contracts` — a nie klasy
+encji `Organization` z modułu. Tylko z tego korzystają wywołujący port: `promotions` odczytuje
+`status`, a `carts` i `orders` całkowicie ignorują zwracaną wartość, bo zależy im na rzuconym
+wyjątku. TypeScript typuje strukturalnie, więc `OrganizationContextService` zwracający encję
+spełnia wymagania portu **bez warstwy mapowania i bez zmiany implementacji**.
 
-**Encja zostaje w `organizations`, na stałe.** Relokacja jak `SalesChannel`
-nie przenosi: `sales_channels` nie wysyła migracji, a jego tabela była już
-`core`, podczas gdy `organizations` wysyła osiem migracji piszących tabelę
-`organizations`, z czego sześć tworzy też tabele należące do modułu. Uczciwe
-wykonanie to podział sześciu migracji, rename ośmiu zastosowanych klas i
-skoordynowany rebuild bazy — dla portu konsumującego dwie właściwości
-24-właściwościowej encji. `src/tenancy` to precedens, który czyni snapshot
-słusznym, a nie tylko tanim: egzekwuje izolację tenantów znając Organization
-jako UUID w kolumnie i nigdy jako klasę.
+**Encja zostaje w `organizations` na stałe.** Przeniesienie jej tak, jak przeniesiono
+`SalesChannel`, nie ma tu zastosowania: `sales_channels` nie ma żadnych migracji, a jego tabela
+już należała do `core`, natomiast `organizations` ma osiem migracji, które wszystkie zapisują
+tabelę `organizations`, a sześć z nich tworzy też tabele należące do modułu. Uczciwe wykonanie
+oznaczałoby podział sześciu migracji, zmianę nazw ośmiu już wykonanych klas i skoordynowaną
+przebudowę bazy danych — po to, by obsłużyć port, który korzysta z dwóch z 24 właściwości encji.
+`src/tenancy` to precedens, który sprawia, że obraz strukturalny jest rozwiązaniem właściwym, a nie
+tylko tanim: wymusza izolację tenantów, znając organizację jako UUID w kolumnie, a nigdy jako
+klasę.
 
-## Rejestracja: trzy szwy
+## Rejestracja: trzy punkty rozszerzenia
 
-`backend.ts` modułu eksportuje `registerModule(ctx)`. Są trzy sposoby
-włożenia czegoś do kontenera, a wybór złego to najczęstszy komentarz review.
+Plik `backend.ts` modułu eksportuje `registerModule(ctx)`. Coś można umieścić w kontenerze na trzy
+sposoby, a wybór niewłaściwego to najczęstsza uwaga w przeglądach kodu.
 
-### `ctx.di.providePort(name, registration)` — port, który posiadasz
+### `ctx.di.providePort(name, registration)` — port, którego jesteś właścicielem
 
-Użyj dla usługi, którą rozwiązują inne moduły. `providePort` owija rejestrację
-w **bramkę transient**, która sprawdza effective state modułu, więc wywołujący
-dostaje kopertę 503 `MODULE_DISABLED` zamiast półwykonanej operacji, gdy
-moduł jest wyłączony.
+Używaj go dla usługi, którą pobierają inne moduły. `providePort` opakowuje rejestrację
+**przejściową blokadą**, która sprawdza stan efektywny modułu, więc gdy moduł jest wyłączony,
+wywołujący dostaje odpowiedź 503 `MODULE_DISABLED`, a nie operację wykonaną do połowy.
 
 ```ts
 ctx.di.providePort(
@@ -182,540 +168,509 @@ ctx.di.providePort(
 );
 ```
 
-### `ctx.di.register({...})` — własne usługi i punkty wkładu
+### `ctx.di.register({...})` — własne usługi i punkty wpięcia
 
-Użyj dla usług rozwiązywanych tylko przez twój moduł oraz **punktów wkładu**:
-nazwy, którą domyślnie ustawiasz sensownie, a root kompozycji może nadpisać.
+Używaj go dla usług, które pobiera tylko twój moduł, oraz dla **punktów wpięcia** (contribution
+points): nazw, którym nadajesz rozsądną wartość domyślną, a które composition root może nadpisać.
 
 ```ts
-// Domyślnie: kompozycja bez poczty wychodzącej nic nie wysyła, co jest spójne.
+// Default: a composition with no outbound mail sends nothing, which is coherent.
 cartAbandonmentNotifier: ctx.asFunction(() => undefined).singleton(),
 ```
 
-Punkt wkładu to szew **root↔moduł** i tylko to. Moduł nie może pisać nazwy,
-którą posiada inny moduł — `ctx.di.register` rości każdy klucz, który pisze,
-a kernel rzuca `DuplicateRegistrationError` przy drugim pisarzu. Powód nie jest
-mechaniczny: root siedzi poza grafem zależności manifestu i nie ma tablicy
-`dependencies`, która mogłaby zapisać krawędź, więc wkład roota to jedyny zapis,
-którego nie da się wyrazić jako port. Krawędź moduł↔moduł zawsze może być,
-i dlatego musi być.
+Punkt wpięcia to punkt rozszerzenia **między composition root a modułem** i tylko to. Moduł nie
+może zapisać nazwy należącej do innego modułu — `ctx.di.register` zajmuje każdy klucz, który
+zapisuje, a jądro rzuca `DuplicateRegistrationError` przy drugim zapisie. Powód nie jest
+techniczny: composition root leży poza grafem zależności manifestów i nie ma tablicy
+`dependencies`, w której dałoby się zapisać krawędź, więc wkład composition root to jedyny zapis,
+którego nie da się wyrazić jako portu. Krawędź moduł↔moduł zawsze się da, więc zawsze tak musi być.
 
-**Szew biegnie jedną stroną, a kernel to mówi.** Moduł nie może
-pisać nazwy, którą dostarcza **root kompozycji**: `ctx.di.register` i
-`ctx.di.providePort` rzucają `ForeignRegistrationError` dla nazwy, którą
-kontener już trzyma, a żaden moduł nie rości. Ten zbiór jest wyprowadzany przy
-każdej kompozycji i nigdzie nie jest zapisany — nazwa bez właściciela modułu to
-nazwa zarejestrowana przez root — więc root, który zaczyna lub przestaje
-dostarczać jedną, zmienia odpowiedź w tym samym przebiegu. Dopóki to nie
-wylądowało, `registerValues` nie rościł własności, a `claim` rzucał tylko dla
-*innego* modułu, więc dowolny moduł mógł zarejestrować `commandBus`,
-zostać właścicielem i potem legalnie go dekorować: reguła dekoracji była
-zamkiem od frontu domu, którego boczne drzwi były otwarte. Nie ma wyjątku
-overlay, celowo. Deployment zmienia, do czego rozwiązuje się nazwa dostarczana
-przez root, przez `ctx.di.decorate` z własnego modułu overlay, co utrzymuje core
-delegujący przez wrap; przejęcie nazwy wprost odcina to dla każdego konsumenta
-naraz, a zastąpienie musi być *bardziej* jednoznacznym aktem.
+**Ten punkt rozszerzenia działa w jedną stronę i jądro to egzekwuje.** Moduł nie może też zapisać
+nazwy dostarczanej przez **composition root**: `ctx.di.register` i `ctx.di.providePort` rzucają
+`ForeignRegistrationError` dla nazwy, która już jest w kontenerze, a nie została zajęta przez żaden
+moduł. Ten zbiór jest wyprowadzany przy każdej kompozycji i nigdzie nie jest zapisany — nazwa bez
+modułu-właściciela to nazwa zarejestrowana przez composition root — więc composition root, który
+zaczyna lub przestaje ją dostarczać, zmienia odpowiedź w tym samym uruchomieniu. Zanim to
+wprowadzono, `registerValues` nie zajmowało żadnych nazw, a `claim` rzucało wyjątek tylko dla
+*innego modułu*, więc dowolny moduł mógł zarejestrować `commandBus`, stać się jego właścicielem i
+odtąd legalnie go dekorować: reguła dekoracji była zamkiem w drzwiach frontowych domu z otwartymi
+drzwiami bocznymi. Celowo nie ma tu wyjątku dla nakładki. Wdrożenie zmienia to, co otrzymuje się
+pod nazwą dostarczaną przez composition root, przez `ctx.di.decorate` w swoim module nakładkowym,
+dzięki czemu rdzeń nadal deleguje przez opakowanie; przejęcie nazwy wprost odcięłoby to od razu
+wszystkim konsumentom, a zastąpienie musi być czynnością *bardziej* jawną.
 
-### `lazyPort<T>(ctx, 'name')` — czytanie cudzego portu
+### `lazyPort<T>(ctx, 'name')` — odczyt cudzego portu
 
-**Nigdy nie czytaj portu innego modułu do singletona.** `providePort` zwraca
-bramkę transient; strict mode Awilix odmawia dłuższej rejestracji, która by ją
-schwytała, i słusznie — schwycona bramka odpowiadałaby dalej po wyłączeniu
-modułu.
+**Nigdy nie zapisuj portu innego modułu w singletonie.** `providePort` zwraca przejściową
+blokadę; tryb ścisły Awilix nie pozwala rejestracji o dłuższym czasie życia jej przechwycić i ma
+rację — przechwycona blokada odpowiadałaby nadal po wyłączeniu modułu.
 
 ```ts
-// Rozwiązuje przy każdym wywołaniu przekazywanej metody, więc bramka zostaje żywa.
+// Resolves on every forwarded method call, so the gate stays live.
 pricingService: lazyPort<PricingService>(ctx, 'pricingService'),
 ```
 
-**„Nie do singletona” znaczy „nie podczas wiązania”, koniec** — i dwa miejsca,
-które wyglądają na zwolnione, nie są. **Root kompozycji** nie ma `ctx`, więc
-nie może wołać `lazyPort`, ale odczyt bramkowanego portu na top level
-`composeApp()` to to samo zamrożenie z gorszym promieniem: odczyt następuje po
-`loadModulePresence()`, więc moduł wyłączony przez operatora rzuca
-`ModuleDisabledError` z kompozycji, a `index.ts` zamienia to w
-`process.exit(1)`. Kolejny start operatora ginie, a panel, z którego by to
-cofnął, jest nieosiągalny. Root odkłada tak samo jak `lifecycleManifestRegistry`
-— thunk rozwiązywany tam, gdzie używana jest wartość:
+**„Nie w singletonie” oznacza „nie podczas łączenia aplikacji”, bez wyjątków** — a dwa miejsca,
+które wyglądają na zwolnione z tej reguły, wcale nie są. **Composition root** nie ma `ctx`, więc
+nie może wywołać `lazyPort`, ale odczyt blokowanego portu na najwyższym poziomie `composeApp()` to
+to samo zamrożenie o gorszych skutkach: odczyt następuje po `loadModulePresence()`, więc moduł
+wyłączony przez operatora rzuca `ModuleDisabledError` z kompozycji, a `index.ts` zamienia to w
+`process.exit(1)`. Następny start, który wykona operator, się nie powiedzie, a panel, w którym
+mógłby to cofnąć, będzie niedostępny. Composition root odracza odczyt tak samo, jak robi to
+`lifecycleManifestRegistry` — przez funkcję wywoływaną tam, gdzie wartość jest potrzebna:
 
 ```ts
-// Nie `container.cradle.searchReindexPort`: rozwiązywane, gdy prosisz o reindex.
+// Not `container.cradle.searchReindexPort`: resolved when the reindex is asked for.
 catalogSearchReindex: async () => searchCradle().searchReindexPort.reindexAll(),
 ```
 
-Odroczenie to minimum, nie cel. Jeśli to, co root odkłada, to **usługa, którą
-właściciel mógłby zbudować**, odpowiedzią nie jest lepszy thunk — to
-właściciel rejestrujący ją, a root forwardujący na tę nazwę. Każda usługa
-zbudowana przez root jest niebramkowana, cokolwiek root z nią zrobi, więc
-odpowiada po wyłączeniu modułu, a oba rooty budują ją nieco inaczej wcześniej
-czy później. `ROOT_MODULE_VALUE_IMPORTS` to miejsce pomiaru; liczba usług,
-które root konstruuje, to zero i zostaje zero.
+Odroczenie to minimum, a nie cel. Jeśli to, co composition root odracza, jest **usługą, którą
+mógłby zbudować moduł-właściciel**, odpowiedzią nie jest lepsza funkcja odraczająca, tylko
+rejestracja usługi przez właściciela i przekazanie przez composition root wywołań do tej nazwy.
+Każda usługa zbudowana w composition root jest nieblokowana, cokolwiek root z nią zrobi, więc
+odpowiada nadal po wyłączeniu modułu, a dwa composition rooty prędzej czy później zbudują ją
+nieco inaczej. Mierzy to `ROOT_MODULE_VALUE_IMPORTS`; liczba usług budowanych przez composition
+root wynosi zero i tak ma zostać.
 
-**Body `ctx.routes`** to drugie. `defineModuleRoutes` bramkuje *żądania*;
-sama rejestracja działa przy effective state modułu wewnątrz `buildServer`. Destrukturyzacja
-własnego bramkowanego portu tam pyta bramkę, gdy aplikacja jest wiązana, i
-wyłączenie modułu zatrzymuje start backendu zamiast jego tras. Weź przez
-`lazyPort` — w handlerze bramka jest otwarta z konstrukcji, więc nic innego się
-nie zmienia.
+Drugim takim miejscem jest **treść `ctx.routes`**. `defineModuleRoutes` blokuje *żądania*; sama
+rejestracja wykonuje się w `buildServer` niezależnie od stanu efektywnego modułu. Pobranie tam
+własnego blokowanego portu pyta więc blokadę w trakcie łączenia aplikacji, a wyłączenie modułu
+uniemożliwia start backendu, zamiast wyłączyć jego trasy. Pobieraj port przez `lazyPort` — wewnątrz
+handlera blokada jest z założenia otwarta, więc nic innego się nie zmienia.
 
-Oba były kiedyś żywe w drzewie; właściwość jest przypięta przez
+Oba przypadki były kiedyś obecne w drzewie; tę właściwość utrwala
 `backend/test/integration/kernel/deactivated-boot.test.ts`.
 
-Dwie reguły łatwe do przeoczenia:
+Dwie kolejne reguły, które łatwo przeoczyć:
 
-- **Nazwa musi być literałem string.** `backend/scripts/check-port-dependencies.ts`
-  czyta je statycznie; zmienna lub helper `port(ctx, name)` ukrywa rozwiązanie
-  przed checkiem. Dokładnie ten helper ukrył kiedyś czternaście
-  rozwiązań, z których kilka żaden root nie rejestrował, a check raportował czysto,
-  podczas gdy pipeline mediów cicho nic nie produkował.
-- **Zadeklaruj zależność.** Jeśli twój moduł rozwiązuje port należący do `X`,
-  `X` należy do `manifest.dependencies`. Ta deklaracja czyni krawędź realną dla
-  lifecycle, kolejności migracji i operatora wyłączającego `X`. Check portów psuje
-  build bez tego.
+- **Nazwa musi być literałem tekstowym.** `backend/scripts/check-port-dependencies.ts` odczytuje
+  je statycznie; zmienna albo funkcja pomocnicza `port(ctx, name)` ukrywa przed nim pobranie
+  portu. Właśnie taka funkcja ukryła kiedyś czternaście pobrań portów, z których kilku nie
+  rejestrował żaden composition root, a kontrola przechodziła bez uwag, podczas gdy przetwarzanie
+  mediów po cichu nic nie wytwarzało.
+- **Zadeklaruj zależność.** Jeśli twój moduł pobiera port należący do `X`, `X` musi być w twoim
+  `manifest.dependencies`. Ta deklaracja sprawia, że krawędź istnieje dla cyklu życia, dla
+  kolejności migracji i dla operatora, który wyłącza `X`. Bez niej kontrola portów przerywa build.
 
 ## Dwa kształty krawędzi moduł↔moduł
 
-| Kształt | Kto rozwiązuje | Bramkowany? | Kiedy | Użyj, gdy |
+| Kształt | Kto pobiera | Blokowane? | Kiedy | Kiedy używać |
 | --- | --- | --- | --- | --- |
-| **Pull** — konsument rozwiązuje port dostawcy | konsument | tak — `ctx.di.providePort` | per call | konsument potrzebuje **odpowiedzi** |
-| **Push przy starcie** — współtwórca rozwiązuje rejestr hosta w `ctx.onBoot` i woła mutator | współtwórca | **nie** — `ctx.di.register` | raz | współtwórca musi dodać **deskryptor** do zbioru, który host enumeruje |
+| **Pobranie (pull)** — konsument pobiera port dostawcy | konsument | tak — `ctx.di.providePort` | przy każdym wywołaniu | konsument potrzebuje **odpowiedzi** |
+| **Wkład przy starcie (push)** — moduł wnoszący wkład pobiera rejestr hosta w `ctx.onBoot` i wywołuje metodę dodającą | moduł wnoszący wkład | **nie** — `ctx.di.register` | raz | moduł musi dodać **deskryptor** do zbioru, który host przegląda |
 
-Większość krawędzi to pull. Kształt push służy rejestrom — domyślne e-maile
-transakcyjne, rejestry referencji, tabele adapterów — gdzie moduł wnosi coś,
-co host później przechodzi.
+Większość krawędzi to pobrania. Kształt „push” służy rejestrom — domyślnym e-mailom
+transakcyjnym, rejestrom referencji, tabelom adapterów — w których moduł dodaje coś, co host
+później przegląda.
 
-**Rejestr wkładu nigdy nie jest bramkowanym portem.** Reguła:
+**Rejestr wkładów nigdy nie jest blokowanym portem.** Reguła:
 
-> Rejestracja, której cały kontrakt brzmi *„dodaj nieaktywny deskryptor do tabeli,
-> którą host później przechodzi”*, to `ctx.di.register` i **nigdy** nie jest
-> bramkowana. Rejestracja, która liczy, decyduje, deszyfruje, wysyła, obciąża
-> lub zapisuje w imieniu modułu-właściciela, to `providePort` i fail-closed.
+> Rejestracja, której cały kontrakt brzmi *„dodaj bierny deskryptor do tabeli, którą host później
+> przegląda”*, to `ctx.di.register` i **nigdy** nie jest blokowana. Rejestracja, która w imieniu
+> modułu-właściciela coś oblicza, rozstrzyga, odszyfrowuje, wysyła, obciąża lub zapisuje, to
+> `providePort` i w razie wątpliwości odmawia.
 
-Powód jest mechaniczny, nie stylistyczny. Hooki boot działają niezależnie od
-effective state (patrz reguła 4 poniżej), a bramkowany port rzuca
-`ModuleDisabledError` przy rozwiązaniu — więc bramkowanie rejestru oznacza, że
-hook boot każdego współtwórcy rzuca w momencie, gdy operator wyłącza **hosta**,
-i platforma nie startuje. `transactional_emails` ma siedmiu współtwórców;
-`cms` ma jednego. Operator zepsuł następny start przełącznikiem, z którego
-miał prawo skorzystać, a crash nazywał moduł, którego nie dotknął. (`transactional_emails`
-od tego zadeklarowało się non-deactivatable, więc ten konkretny
-przełącznik zniknął; reguła się nie zmieniła, `cms` nadal ją ćwiczy, a rejestr
-zostaje niebramkowany, bo argument dotyczy kształtu szwu wkładu, nie tego, kto
-może wyłączyć hosta.) `check-port-dependencies.ts` odmawia kształtu teraz, w
-obu miejscach, gdzie może ugryźć: bramkowany port rozwiązany w hooku `ctx.onBoot`
-i jeden zdestrukturyzowany w body `ctx.routes`.
+Powód jest techniczny, a nie stylistyczny. Hooki startowe wykonują się niezależnie od stanu
+efektywnego (zobacz regułę 4 niżej), a blokowany port rzuca `ModuleDisabledError` przy pobraniu —
+więc zablokowanie rejestru oznacza, że hook startowy każdego wnoszącego wkład modułu rzuci wyjątek
+w chwili, gdy operator wyłączy **host**, i platforma nie wystartuje. `transactional_emails` ma
+siedmiu takich wnoszących, `cms` — jednego. Operator zepsuł następny start, korzystając z
+przełącznika, do którego miał prawo, a błąd wskazywał moduł, którego nawet nie dotknął.
+(`transactional_emails` zadeklarował się od tego czasu jako niewyłączalny, więc ten konkretny
+przełącznik zniknął; reguła się nie zmieniła, `cms` nadal z niej korzysta, a rejestr pozostaje
+nieblokowany, bo argument dotyczy kształtu punktu wpięcia, a nie tego, kto może wyłączyć host).
+`check-port-dependencies.ts` odrzuca teraz ten kształt w obu miejscach, w których może zaszkodzić:
+blokowany port pobierany w hooku `ctx.onBoot` i pobierany w treści `ctx.routes`.
 
-Nic nie wycieka przez pozostawienie rejestru niebramkowanym, bo obie połowy są
-rozdzielalne: `credentials` oddaje `configurationTypeRegistry` swobodnie
-i trzyma `credentialsService` — który deszyfruje — jako port; `transactional_emails`
-oddaje `emailDefaultsPort` i trzyma `templateEmailPort`, który wysyła.
+Pozostawienie rejestru bez blokady niczego nie ujawnia, bo obie części da się rozdzielić:
+`credentials` udostępnia swój `configurationTypeRegistry` bez ograniczeń, a `credentialsService` —
+który odszyfrowuje — pozostaje portem; `transactional_emails` udostępnia `emailDefaultsPort`, a
+`templateEmailPort`, który wysyła, pozostaje portem.
 
-**Host odpowiada na pytanie obecności zamiast tego, przy enumeracji.** To
-właściwe miejsce: czy deskryptor powinien być żywy, zależy od **współtwórcy**,
-a bramka na rejestracji hosta w ogóle tego nie wyraża. Każdy rejestr zapisuje
-id modułu-współtwórcy przy każdym wpisie i deklaruje, **per rejestr**, czy wpis
-jest honorowany, gdy jego właściciel jest nieobecny. Domyślnie: nie honorowany.
-Honorowanie wymaga napisanego powodu przy klasie.
+**Zamiast tego host odpowiada na pytanie o obecność — przy przeglądaniu wpisów.** To właściwe
+miejsce: to, czy deskryptor ma działać, zależy od modułu, który go **wniósł**, a blokada na
+rejestracji hosta w ogóle nie potrafi tego wyrazić. Każdy rejestr zapisuje więc przy każdym wpisie
+identyfikator modułu, który go wniósł, i deklaruje — **osobno dla każdego rejestru** — czy wpis
+jest respektowany, gdy jego właściciela nie ma. Domyślnie nie jest. Respektowanie wymaga
+pisemnego uzasadnienia w klasie.
 
-Dwie odpowiedzi są legitymne, a która jest słuszna, zależy od tego, czym jest wpis:
+Uprawnione są dwie odpowiedzi, a która jest właściwa, zależy od tego, czym jest wpis:
 
-- **Skip** — dla wkładów *powierzchniowych*: interceptor, akcja palety,
-  element storefrontu, grupa settings. Wyłączony moduł nie może wnosić niczego,
-  co użytkownik widzi, więc `ctx.interceptors` stempluje `module: id`, a dispatch
-  pomija wpisy, których właściciel nie jest włączony.
-- **Honour** — dla *integralnościowych*: rejestry referencji odmawiające delete.
-  Wyłączony `blog` nadal posiada posty osadzające asset, a pominięcie jego
-  skanera pozwoliłoby operatorowi usunąć asset, który wraca uszkodzony, gdy
-  `blog` wróci — dane utracone akcją, którą reguła aktywacji nazywa odwracalną.
-  `EmailDefaultsRegistry` honoruje z innego powodu, napisanego przy klasie: jego
-  wiersze są seedowane z osi **platformy**, więc skip nie usunąłby wiersza,
-  tylko stworzyłby jeden z pustym szablonem.
+- **Pomiń** — dla wkładów będących *elementami interfejsu*: interceptora, akcji palety poleceń,
+  elementu storefrontu, grupy ustawień. Wyłączony moduł nie może dodawać niczego, co widzi
+  użytkownik, więc `ctx.interceptors` zapisuje `module: id`, a wykonanie pomija wpisy, których
+  właściciel nie jest włączony.
+- **Respektuj** — dla wkładów chroniących *integralność danych*: rejestrów referencji, które
+  blokują usunięcie. Wyłączony `blog` nadal jest właścicielem wpisów osadzających plik, a
+  pominięcie jego skanera pozwoliłoby operatorowi usunąć plik, który po ponownym włączeniu `blog`
+  okazałby się uszkodzony — utrata danych w wyniku działania, które reguła o modułach
+  przełączanych przez operatora uznaje za odwracalne. `EmailDefaultsRegistry` respektuje wpisy z
+  innego powodu, zapisanego w klasie: jego wiersze są tworzone na podstawie osi **platformy**, więc
+  pominięcie nie usunęłoby wiersza, tylko utworzyłoby wiersz z pustym szablonem.
 
-Wszystkie cztery rejestry skonwertowane pod tą regułą honorują, każdy z powodem
-na miejscu; polityki są przypięte przez
-`backend/test/unit/kernel/contribution-seams.test.ts`
+Wszystkie cztery rejestry przeniesione na tę regułę respektują wpisy, każdy z uzasadnieniem na
+miejscu; zasady te utrwala `backend/test/unit/kernel/contribution-seams.test.ts`
 (`emailDefaultsPort`, `assetReferenceRegistry`, `cmsReferenceRegistry`,
 `megamenuReferenceRegistry`).
 
-**Dwa kolejne rejestry deklarują odwrotną politykę i są opracowanym przykładem
-*skip***. `PaymentAdapterRegistry` i
-`ShippingAdapterRegistry` stemplują moduł-współtwórcę przy każdym wpisie i
-dzielą powierzchnię według pytającego: `get`, `resolve` i `list` filtrują po
-effective state właściciela — kupujący nigdy nie widzi metody płatności, która
-nie może przyjąć ich pieniędzy, a `resolve` podnosi zwykły `ModuleDisabledError` —
-podczas gdy `entry`, `ownerOf`, `isRegistered` i `listAll` celowo nie filtrują,
-bo ekran admin nadal pokazuje wiersz *i* powód niedostępności. Wyłączenie modułu
-to nie odinstalowanie. Sonda obecności jest wstrzykiwana w singleton procesu
-(`payment_methods/services/registry-singleton.ts`) zamiast wypalanej w klasę,
-więc rejestr, który test buduje dla siebie, nadal odpowiada o adapterach,
-które test zarejestrował.
+**Dwa kolejne rejestry deklarują zasadę przeciwną i są wzorcowym przykładem *pomijania*.**
+`PaymentAdapterRegistry` i `ShippingAdapterRegistry` zapisują przy każdym wpisie moduł, który go
+wniósł, i dzielą swoje API według tego, kto pyta: `get`, `resolve` i `list` filtrują według stanu
+efektywnego właściciela — kupujący nigdy nie zobaczy metody płatności, która nie może przyjąć jego
+pieniędzy, a `resolve` rzuca zwykły `ModuleDisabledError` — natomiast `entry`, `ownerOf`,
+`isRegistered` i `listAll` celowo nie filtrują, bo ekran administracyjny nadal pokazuje wiersz
+*oraz* powód, dla którego jest niedostępny. Wyłączenie modułu to nie jego odinstalowanie. Sprawdzanie
+obecności jest wstrzykiwane w singletonie procesu (`payment_methods/services/registry-singleton.ts`),
+a nie wbudowane w klasę, więc rejestr zbudowany przez test na własny użytek nadal odpowiada o
+adapterach, które ten test zarejestrował.
 
-Trzeci rejestr tej rodziny, `gatewayRefundRegistry`
-(`payments/services/gateway-refund-registry.js`), to opracowany przykład
-*innego okablowania*, jakie bierze szew wkładu: `stripe`,
-`tpay`, `payu` i `autopay` **importują singleton** i wrzucają swój handler
-refund, więc żadne rozwiązanie kontenera nie istnieje, które check mógłby zobaczyć.
-Teraz zapisuje moduł-współtwórcę i deklaruje **skip**, a grunt warto zachować,
-bo to argument, z którym spotyka się każda polityka po stronie pieniędzy:
-wyłączona bramka nie może obciążać ani refundować przez API PSP, a skip nie
-zdejmuje obowiązku — `PaymentRefundProvider` zapisuje `pending_manual` nazywając
-moduł, który jest off, co dostaje deployment, który nigdy nie zainstalował
-bramki. Sonda obecności jest podłączona w singletonie
-(`payments/services/registry-singleton.ts`), nie w klasie, z powodu, który podaje
-bliźniak: rejestr, który test buduje dla siebie, musi nadal odpowiadać o
-handlerach, które test zarejestrował.
+Trzeci rejestr z tej rodziny, `gatewayRefundRegistry`
+(`payments/services/gateway-refund-registry.js`), to wzorcowy przykład *innego sposobu podłączenia*
+punktu wpięcia: `stripe`, `tpay`, `payu` i `autopay` **importują singleton** i dodają do niego swój
+handler zwrotów, więc nie istnieje pobranie z kontenera, które mogłaby zobaczyć jakakolwiek
+kontrola. Rejestr zapisuje teraz moduł, który wniósł wpis, i deklaruje **pomijanie**, a
+uzasadnienie warto zachować, bo z tym argumentem spotyka się każda zasada dotycząca pieniędzy:
+wyłączona bramka płatności nie może obciążać ani zwracać środków przez API swojego operatora
+płatności, a pominięcie nie usuwa zobowiązania — `PaymentRefundProvider` zapisuje
+`pending_manual`, wskazując wyłączony moduł, czyli dokładnie to, co dostaje wdrożenie, które nigdy
+tej bramki nie zainstalowało. Sprawdzanie obecności jest podłączone w singletonie
+(`payments/services/registry-singleton.ts`), a nie w klasie, z tego samego powodu co u bliźniaczego
+rejestru: rejestr zbudowany przez test na własny użytek musi nadal odpowiadać o handlerach, które
+ten test zarejestrował.
 
-**Trzy kolejne skonwertowano później i nie dostały jednej odpowiedzi, bo
-„zadeklaruj politykę” to pytanie, a nie sweep.** `ConfigurationTypeRegistry`
-(`credentials`) deklaruje **skip**, na gruncie, który kolumna skip już daje:
-typ konfiguracji to to, co ekran credentials oferuje do skonfigurowania i względem
-czego walidowany jest zapis, więc capability wyłączone przez operatora nie jest
-ani oferowane, ani tworzalne, a `resolve` podnosi `ModuleDisabledError` nazywając
-współtwórcę. Współtwórca był już zapisany — deskryptor niesie `ownerModule` —
-więc host miał id i po prostu go nie konsultował. Podział to adapter registries:
-`entry`, `ownerOf`, `isRegistered` i `listAll` zostają ślepe na obecność, a
-ścieżki, które je czytają, to te, które *renderują* przechowywaną konfigurację
-i te, które redagują ją do snapshotu audytu, które muszą wiedzieć, która wartość
-była sekretem. Sonda to trójstanowy `effectiveState.presenceOf`, nie `isPresent`:
-ten rejestr to szew, przez który overlay lub moduł zewnętrzny wciska typ, więc
-`ownerModule` może być stringiem, którego żaden manifest nie deklaruje, a
-zlanie „unknown id” z „absent” odfiltrowałoby punkt rozszerzenia.
+**Trzy kolejne przeniesiono później i nie dostały jednej odpowiedzi, bo „zadeklaruj zasadę” to
+pytanie, a nie hurtowa zmiana.** `ConfigurationTypeRegistry` (`credentials`) deklaruje
+**pomijanie**, z uzasadnieniem, które daje już kolumna „pomiń”: typ konfiguracji to to, co ekran
+danych uwierzytelniających oferuje do skonfigurowania i względem czego walidowany jest zapis, więc
+możliwość wyłączona przez operatora nie jest ani oferowana, ani możliwa do utworzenia, a `resolve`
+rzuca `ModuleDisabledError` wskazujący moduł, który ją wniósł. Ten moduł był już zapisany —
+deskryptor zawiera `ownerModule` — więc host znał identyfikator, tylko z niego nie korzystał. Podział
+jest taki sam jak w rejestrach adapterów: `entry`, `ownerOf`, `isRegistered` i `listAll` pozostają
+niewrażliwe na obecność, a korzystają z nich ścieżki, które *wyświetlają* zapisaną konfigurację, i
+te, które usuwają z niej sekrety na potrzeby migawki audytu — te muszą nadal wiedzieć, które
+wartości były sekretami. Sprawdzaniem obecności jest tu trójstanowe `effectiveState.presenceOf`, a
+nie `isPresent`: ten rejestr to punkt rozszerzenia, przez który moduł nakładkowy lub zewnętrzny
+dodaje typ, więc `ownerModule` może być stringiem, którego nie deklaruje żaden manifest, a
+utożsamienie „nieznanego identyfikatora” z „nieobecnym” usunęłoby cały punkt rozszerzenia.
 
-Dwa rejestry statusów zamówienia — `payment_methods:paymentOrderStatusRegistry`
-i bliźniaczy z `delivery_methods` — deklarują **honour**, a powód jest taki, że
-nie ma czego skipować. Ledger klasyfikuje je jako szwy wkładu, bo `payments` i
-`shipments` czytają je przez granicę modułu, ale żaden moduł do nich nie
-wnosi: zbiór opcji to `orderStatusSchema`, ustalony w compile time. Odczyty to
-straże, nie powierzchnie — `has` jest pytane, zanim zamówienie przejdzie w
-status, który nazwa settlement — więc skip zostawiłby opłacone lub wysłane
-zamówienie cicho w starym statusie, a każdy kod w tabeli to jeden, w którym
-live orders już są. Polityka jest strukturalna, a nie obiecana: klasa nie bierze
-wejścia obecności, więc żaden odczyt nie może upuścić statusu bez zmiany polityki
-najpierw. To, co operator traci wyłączając te moduły, niesie tam, gdzie należy —
-każdy moduł zamyka własny katalog na własnym szwie, a `orders` deklaruje zdanie,
-które dialog potwierdzenia wyrenderuje.
-## Ledger konsekwencji deaktywacji
+Dwa rejestry statusów zamówień — `payment_methods:paymentOrderStatusRegistry` i jego bliźniak w
+`delivery_methods` — deklarują **respektowanie**, bo nie ma tu czego pomijać. Rejestr skutków
+klasyfikuje je jako punkty wpięcia, bo `payments` i `shipments` odczytują je ponad granicą modułu,
+ale żaden moduł niczego do nich nie dodaje: zbiór opcji to `orderStatusSchema`, ustalony w czasie
+kompilacji. Odczyty są zabezpieczeniami, a nie elementami interfejsu — `has` jest wywoływane, zanim
+zamówienie zostanie przeniesione do statusu wskazanego przez rozliczenie — więc pomijanie
+zostawiłoby opłacone lub wysłane zamówienie po cichu w starym statusie, a każdy kod w tabeli to
+status, w którym są już działające zamówienia. Ta zasada wynika ze struktury, a nie z obietnicy:
+klasa nie przyjmuje żadnej informacji o obecności, więc nie da się sprawić, by jakikolwiek odczyt
+pominął status, bez wcześniejszej zmiany zasady. To, co operator traci, wyłączając te moduły,
+opisano tam, gdzie trzeba — każdy moduł zamyka swój katalog we własnym punkcie rozszerzenia, a
+`orders` deklaruje zdanie, które wyświetli okno potwierdzenia.
 
-Odmowa przy flipie lifecycle staje się świadomym potwierdzeniem, więc platforma
-może spocząć z **obecnym modułem zależnym od nieobecnego**. Każdy
-szew między nimi potrzebuje odpowiedzi na „co się dzieje?”, a operator proszony
-o akceptację flipu potrzebuje tej samej odpowiedzi, z nazwą, przed zapisem. Jest
-jeden artefakt dla obu, i to jest jego sens, a nie oszczędność:
-`lifecycle/services/deactivation-ledger.ts`.
+## Rejestr skutków wyłączenia
 
-`buildDeactivationLedger` przypisuje każdej krawędzi cross-module, której właściciela
-operator może wyłączyć, jeden z czterech wyników:
+Odmowa w chwili przełączenia modułu w cyklu życia zmienia się w świadome potwierdzenie, więc
+platforma może ustabilizować się w stanie, w którym **obecny moduł zależy od nieobecnego**. Każdy
+punkt styku między nimi potrzebuje wtedy odpowiedzi na pytanie „co się stanie?”, a operator
+proszony o zaakceptowanie przełączenia potrzebuje tej samej odpowiedzi, z nazwami, zanim zmiana
+zostanie zapisana. Dla obu celów istnieje jeden artefakt — i to jest jego sensem, a nie
+oszczędnością: `lifecycle/services/deactivation-ledger.ts`.
 
-| Wynik | Mechanizm |
+`buildDeactivationLedger` przypisuje każdej krawędzi między modułami, której właściciela operator
+może wyłączyć, jeden z czterech skutków:
+
+| Skutek | Mechanizm |
 | --- | --- |
-| **fails closed** | odczyt w czasie wywołania bramkowanego portu lub rejestru, którego host *skipuje* wpis nieobecnego właściciela — wywołujący nic nie dostaje z powrotem, co jest tą samą odpowiedzią docierającą przy enumeracji zamiast przy porcie. Własny wpis `nonBindingDependencies` zależnego kind `refuses-without` dociera do tego samego wyniku i niesie zdanie dla operatora |
-| **degrades** | własny wpis `nonBindingDependencies` zależnego kind `degrades-without`; jego `whenAbsent` to zdanie pokazywane operatorowi |
-| **contributes** | push przy starcie do niebramkowanej tabeli, którą host filtruje, lub host, który celowo *honouruje* wpis nieobecnego właściciela |
-| **schema-only** | krawędź `dependencies` bez odczytu kontenera pod spodem: deaktywacja nie zrzuca tabel, więc klucz obcy zostaje ważny |
+| **odmowa (fails closed)** | odczyt blokowanego portu w chwili wywołania albo odczyt rejestru, którego host *pomija* wpis nieobecnego właściciela — wywołujący nic nie dostaje, czyli otrzymuje tę samą odpowiedź, tyle że przy przeglądaniu wpisów zamiast przy porcie. Ten sam skutek daje wpis modułu zależnego w jego `nonBindingDependencies` rodzaju `refuses-without`, który dodatkowo przekazuje zdanie dla operatora |
+| **degradacja (degrades)** | wpis modułu zależnego w jego `nonBindingDependencies` rodzaju `degrades-without`; jego `whenAbsent` to zdanie wyświetlane operatorowi |
+| **wkład (contributes)** | wkład wnoszony przy starcie do nieblokowanej tabeli, którą host filtruje, albo host, który celowo *respektuje* wpis nieobecnego właściciela |
+| **tylko schemat (schema-only)** | krawędź `dependencies` bez żadnego odczytu z kontenera: wyłączenie nie usuwa tabel, więc klucz obcy pozostaje prawidłowy |
 
-### `refuses-without` — mówienie „fail-closed” bez wiązania operatora
+### `refuses-without` — powiedzieć „odmawia”, nie wiążąc operatora
 
-Fail-closed to wynik, który platforma wnioskuje, gdy bramkowany port jest czytany
-w czasie wywołania i nic o tym nie deklarowano. Do ruling ownera z 2026-08-25
-był też *jedynym* wynikiem, którego zależny **nie mógł powiedzieć**: dwie
-pisownie „czytam to i nie mam fallbacku” to `dependencies` i
-`acknowledgedDependencies`, i obie wiążą lifecycle. Dla zależnego, który sam
-deklaruje `activation.nonDeactivatable`, to zamienia kontrolkę aktywacji **właściciela**
-w martwy przełącznik — operator go przełącza, odmowa przy flipie nazywa moduł,
-który nigdy nie zniknie, i nic się nie dzieje. Kontrolka, która kłamie, jest
-gorszą odpowiedzią niż którakolwiek alternatywa.
+Odmowa to skutek, który platforma wnioskuje, gdy blokowany port jest odczytywany w chwili wywołania
+i nic o nim nie zadeklarowano. Do decyzji właściciela z 2026-08-25 był to też *jedyny* skutek,
+którego moduł zależny nie mógł **wyrazić**: dwa sposoby zapisania „odczytuję to i nie mam
+zastępstwa” to były `dependencies` i `acknowledgedDependencies`, a oba wiążą cykl życia. Dla modułu
+zależnego, który sam deklaruje `activation.nonDeactivatable`, zamienia to przełącznik aktywacji
+**właściciela** w martwy przełącznik — operator go przełącza, odmowa wskazuje moduł, który nigdy
+nie zniknie, i nic się nie dzieje. Przełącznik, który kłamie, jest gorszy od obu alternatyw.
 
-`nonBindingDependencies` ma więc trzeci kind. `refuses-without` mówi: operacja
-odpowiada 503 `MODULE_DISABLED`, reszta deklarującego modułu działa dalej, a
-kontrolka aktywacji właściciela nadal działa. Klasyfikuje `fails-closed` — to
-sam zachowanie, które bramka już produkuje — a jego `whenAbsent` to to, co
-dialog potwierdzenia operatora renderuje zamiast domyślnego tłumaczenia platformy:
+`nonBindingDependencies` ma więc trzeci rodzaj. `refuses-without` oznacza: operacja odpowiada 503
+`MODULE_DISABLED`, reszta deklarującego modułu działa dalej, a przełącznik aktywacji właściciela
+nadal działa. Jest klasyfikowany jako `fails-closed` — to samo zachowanie, które już daje blokada —
+a jego `whenAbsent` jest tym, co okno potwierdzenia dla operatora wyświetli zamiast przetłumaczonego
+domyślnego komunikatu platformy:
 
 ```
 orders — unavailable: checkout cannot take an order, because no payment
 method is available
 ```
 
-Trzy rzeczy trzymają to uczciwie, i żadna to słowo autora:
+Uczciwość tej deklaracji zapewniają trzy rzeczy i żadna z nich nie jest słowem autora:
 
-- **Nazwa musi być rejestracją `di.providePort`.** Niebramkowana rejestracja
-  nadal się rozwiązuje lub rozwiązuje do niczego; w obu przypadkach nic nie
-  odmawia. `check-port-dependencies.ts` raportuje `refusal-over-an-ungated-name` —
-  lustro `contribution-over-a-gated-port`, i oba raz mówią jedno: pull z trybem
-  awarii potrzebuje bramki, nieaktywny push nie może siedzieć za jedną.
-- **Manifest deklarujący nie może wiązać właściciela.** `dependencies` i
-  `acknowledgedDependencies` to dokładnie to, z czego `ModuleGatingGraph` buduje
-  odmowę przy flipie, więc wpis twierdzący, że kontrolka właściciela nadal działa
-  obok jednego z nich, to manifest mówiący obie rzeczy naraz. Reguła „jedna
-  krawędź, jedno roszczenie, w jednym miejscu” `defineModuleManifest` odmawia
-  pierwsza; check ponownie wyprowadza ten sam fakt dla manifestu zbudowanego bez
-  helpera (`refusal-over-a-bound-owner`).
-- **Musi nieść `whenAbsent`.** Bez niego wpis klasyfikuje dokładnie jak brak wpisu,
-  więc zdanie to całość tego, co deklaracja kupuje (`refusal-without-a-sentence`).
+- **Nazwa musi być rejestracją `di.providePort`.** Nieblokowana rejestracja dalej się rozwiązuje
+  albo nie rozwiązuje się do niczego; w żadnym przypadku nic nie odmawia.
+  `check-port-dependencies.ts` zgłasza wtedy `refusal-over-an-ungated-name` — lustrzane odbicie
+  `contribution-over-a-gated-port` — a oba razem mówią jedną rzecz: pobranie, które może się nie
+  udać, potrzebuje blokady, a bierny wkład nie może się za nią znajdować.
+- **Deklarujący manifest nie może wiązać właściciela.** `dependencies` i
+  `acknowledgedDependencies` są dokładnie tym, z czego `ModuleGatingGraph` buduje odmowę przy
+  przełączeniu, więc wpis twierdzący, że przełącznik właściciela nadal działa, obok jednego z nich
+  oznacza manifest, który mówi jednocześnie dwie sprzeczne rzeczy. Najpierw odrzuca to reguła
+  `defineModuleManifest` „jedna krawędź, jedno stwierdzenie, w jednym miejscu”; kontrola
+  wyprowadza ten sam fakt ponownie dla manifestu zbudowanego bez tej funkcji
+  (`refusal-over-a-bound-owner`).
+- **Wpis musi zawierać `whenAbsent`.** Bez niego wpis jest klasyfikowany dokładnie tak jak jego
+  brak, więc zdanie to wszystko, co deklaracja daje (`refusal-without-a-sentence`).
 
-Czwarta jest strukturalna, a nie checkowana: bramkowany port rozwiązany przy boot
-lub przy wiązaniu to `gated-port-before-first-request`, które ledger przypisuje
-**zanim** skonsultuje jakąkolwiek deklarację, więc żaden wpis tego nie ratuje.
+Czwarta rzecz wynika ze struktury, a nie z kontroli: blokowany port pobierany przy starcie albo
+podczas łączenia aplikacji to `gated-port-before-first-request`, który rejestr przypisuje **zanim**
+sprawdzi jakąkolwiek deklarację, więc żaden wpis go nie uratuje.
 
-Pisz zdanie dla operatora, który je przeczyta — *co* odmawia, w terminach
-capability, nigdy „port rzuca”.
+Pisz to zdanie dla operatora, który je przeczyta — *co* odmawia, w kategoriach funkcji, nigdy
+„port rzuca wyjątek”.
 
-Krawędź bez żadnego jest raportowana po kształcie, a `check-port-dependencies.ts`
-psuje build. Są trzy, każda to *fail-open*, a nie fail-closed: **schwytana**
-rejestracja cross-module, czytana raz przy konstrukcji i odpowiadająca na zawsze;
-odczyt **niebramkowanego rejestru, którego właściciel nie deklaruje polityki**;
-oraz **bramkowany port rozwiązany przed pierwszym żądaniem**. Krawędzie do modułu,
-którego platforma odmawia wyłączenia, nie niosą wpisu w ogóle — flip nie może
-nastąpić, więc nie ma stanu do opisania.
+Krawędź, która nie dostała żadnego skutku, jest zgłaszana według kształtu, a
+`check-port-dependencies.ts` przerywa wtedy build. Są trzy takie kształty, każdy oznacza
+*przepuszczanie w razie wątpliwości* (fail-open), a nie odmowę: **przechwycona** rejestracja innego
+modułu, odczytana raz przy konstrukcji i odpowiadająca już zawsze; odczyt **nieblokowanego
+rejestru, którego właściciel nie zadeklarował zasady**; oraz **blokowany port pobrany przed
+pierwszym żądaniem**. Krawędzie prowadzące do modułu, którego platforma nie pozwala wyłączyć, nie
+mają żadnego wpisu — przełączenie nie może nastąpić, więc nie ma stanu do opisania.
 
-`deactivationConsequencesFor` projektuje te same wpisy na wiersze widziane przez
-operatora — i ta projekcja to połowa, która **nie** wyszła. Jedyny caller dziś to
-`check-port-dependencies.ts`, w czasie buildu; dialog potwierdzenia i koperta 409
-`MODULE_DEACTIVATION_UNCONFIRMED` są nadal w locie, a dzisiejszy dialog to goły
-`window.confirm` nazywający moduł i nic więcej
-(`admin/src/modules/platform/ModuleActivationControl.tsx`). Ustalone z wyprzedzeniem
-jest, że jest **jedna** funkcja dla obu do wołania, więc gdy wylądują, zbiór id
-w dialogu i zbiór id w `details.consequences` nie mogą się rozjechać: będą tym
-samym wyrażeniem ocenionym dwa razy, a nie dwiema listami, które ktoś utrzymuje
-w sync. Dwie niezależne kalkulacje „co przestanie działać” by się rozjechały, a
-ta z CI byłaby kopią, której nikt nie czyta — dlatego klasyfikacja krawędzi to
-nawet teraz nie księgowość CI. Pisz wpis dla operatora, który go przeczyta, nie
-dla checka.
+`deactivationConsequencesFor` przekształca te same wpisy w wiersze widoczne dla operatora — i ta
+część **nie została jeszcze** dostarczona. Dziś jej jedynym wywołującym jest
+`check-port-dependencies.ts`, w czasie budowania; okno potwierdzenia i odpowiedź 409
+`MODULE_DEACTIVATION_UNCONFIRMED` są jeszcze w przygotowaniu, a dzisiejsze okno to zwykłe
+`window.confirm`, które podaje nazwę modułu i nic więcej
+(`admin/src/modules/platform/ModuleActivationControl.tsx`). Ustalone z góry jest to, że będzie
+**jedna** funkcja wywoływana przez oba miejsca, aby po ich wprowadzeniu zbiór identyfikatorów w
+oknie i zbiór w `details.consequences` nie mogły się rozjechać: będą tym samym wyrażeniem
+obliczonym dwa razy, a nie dwiema listami, które ktoś utrzymuje w zgodności. Dwa niezależne
+obliczenia tego, „co przestanie działać”, rozjechałyby się, a to w CI byłoby kopią, której nikt nie
+czyta — dlatego klasyfikacja krawędzi nie jest buchalterią dla CI nawet dziś. Pisz wpis dla
+operatora, który go przeczyta, a nie dla kontroli.
 
-Dwie tabele niosą stały dług, obie dwukierunkowe jak każdy ledger tutaj.
-`CONTRIBUTION_POLICY_STATED` nazywa rejestry, których host zdecydował, z decyzją
-jako wartością, więc czytelnik nie musi otwierać klasy.
-`REGISTRY_POLICIES_UNSTATED` nazywa te, które nie zdecydowały, każdy z tym, co by
-go opróżniło — i wpis tam usprawiedliwia **jeden** kształt dla **jednej** nazwy,
-bo capture nad tą samą nazwą to inna awaria z inną naprawą.
+Stały dług przechowują dwie tabele, obie działające w obie strony jak każdy inny rejestr w tym
+repozytorium. `CONTRIBUTION_POLICY_STATED` wymienia rejestry, których host podjął decyzję, z tą
+decyzją jako wartością, więc czytelnik nie musi otwierać klasy. `REGISTRY_POLICIES_UNSTATED`
+wymienia te, które jeszcze nie podjęły decyzji, każdy z opisem, co by go usunęło z listy — a wpis
+na tej liście usprawiedliwia **jeden** kształt dla **jednej** nazwy, bo przechwycenie tej samej
+nazwy to inny błąd z inną poprawką.
 
-**Nie owijaj wywołania portu w goły `catch`.** `lazyPort` rozwiązuje wewnątrz
-przekazywanego wywołania, więc `ModuleDisabledError` wychodzi w miejscu wywołania,
-a `try { … } catch { return null }` cicho zamienia fail-closed w fail-open. Gdzie
-degrade naprawdę należy, włóż go **w implementację właściciela** i wyraź w typie
-zwrotnym portu — `allowedIdsFor(): Promise<string[] | null>` zwracające `null` dla
-„brak restrykcji” to wzorzec.
+**Nie obejmuj wywołania portu gołym `catch`.** `lazyPort` rozwiązuje port wewnątrz przekazanego
+wywołania, więc `ModuleDisabledError` pojawia się w miejscu wywołania, a
+`try { … } catch { return null }` po cichu zamienia odmowę w przepuszczanie. Tam, gdzie
+degradacja naprawdę ma sens, umieść ją **wewnątrz implementacji właściciela** i wyraź w typie
+zwracanym przez port — wzorcem jest `allowedIdsFor(): Promise<string[] | null>` zwracające `null`
+jako „brak ograniczeń”.
 
-**Ta reguła też jest egzekwowana**, przez `backend/scripts/check-port-catches.ts`.
-Warto wiedzieć, co znalazł sweep, który ją uzbroił, bo trzy rodzaje,
-które rozdziela, to trzy odpowiedzi na komentarz review o `catch`. Z 51 bloków
-`try` sięgających bramkowanego portu, 27 już re-throwowało, a 24 nie, i te 24 to:
+**Ta reguła też jest egzekwowana**, przez `backend/scripts/check-port-catches.ts`. Warto wiedzieć,
+co znalazł przegląd, który ją uruchomił, bo trzy rodzaje, które rozróżnia, to trzy odpowiedzi na
+uwagę w przeglądzie kodu dotyczącą `catch`. Spośród 51 bloków `try` sięgających do blokowanego
+portu 27 już rzucało wyjątek dalej, a 24 nie, i te 24 to były:
 
-- **defensywne** — `catch` nad portem, którego typ zwrotny *już* mówi „nic nie
-  stosuje”. `resolveLinePrice` odpowiada `null`; `taxRateFor` odpowiada
-  `{ source: 'none' }` (wariant bez stawki — `rate: 0`, które czytało się jak
-  odpowiedź, od tego czasu zniknęło); `applyToCart` odpowiada
-  `discountTotal: 0`. `catch` nic nie kupił poza możliwością ukrycia 503, a jeden
-  zapisał ukrytą odpowiedź w cache z TTL, więc powrót `price_lists` tego nie
-  kończył. **Usuń go.**
-- **degrade należący do właściciela** — patrz akapit wyżej.
-- **wąska tolerancja, która jest poprawna** — per-item failure importu zapisany jako
-  issue, kompensacyjny cleanup na ścieżce rollback, hit typeahead degradujący do
-  zwykłego summary. Te zostawiają `catch` i dodają
-  `rethrowIfModuleDisabled(error)` jako pierwszą linię. Powód: odpowiedź obecności
-  dotyczy **całej operacji**, nigdy jednego elementu: `pim_ergonode` kiedyś
-  raportował każdy atrybut, wariant, obraz i relację w źródle jako osobno zepsute
-  i kończył run „sukcesem”, gdy jedynym prawdziwym zdaniem było, że `catalog` był
-  wyłączony.
+- **zabezpieczenia na wszelki wypadek** — `catch` wokół portu, którego typ zwracany *już* mówi
+  „nic nie ma zastosowania”. `resolveLinePrice` zwraca `null`; `taxRateFor` zwraca
+  `{ source: 'none' }` (wariant bez stawki — `rate: 0`, przez które dało się to odczytać jako
+  odpowiedź, już zniknęło); `applyToCart` zwraca `discountTotal: 0`. `catch` nie dawał nic poza
+  możliwością ukrycia odpowiedzi 503, a jeden z nich zapisywał ukrytą odpowiedź w pamięci
+  podręcznej z TTL, więc powrót `price_lists` jej nie kończył. **Usuń go.**
+- **degradacja, która należy do właściciela** — zobacz akapit wyżej.
+- **wąska, poprawna tolerancja** — błąd importu pojedynczej pozycji zapisany jako problem,
+  sprzątanie kompensujące na ścieżce wycofania, podpowiedź w wyszukiwarce, która degraduje się do
+  zwykłego podsumowania. Takie miejsca zachowują `catch` i dodają `rethrowIfModuleDisabled(error)`
+  jako pierwszy wiersz. Powód: odpowiedź o obecności dotyczy **całej operacji**, nigdy jednej
+  pozycji. `pim_ergonode` zgłaszał kiedyś każdy atrybut, wariant, obraz i relację ze źródła jako
+  osobno uszkodzone i kończył przebieg „sukcesem”, podczas gdy jedynym prawdziwym zdaniem było to,
+  że `catalog` został wyłączony.
 
-Zachowany `catch` mówi dlaczego w komentarzu, a „defensywne” nie jest dlaczego.
+Zachowany `catch` mówi w komentarzu, dlaczego istnieje, a „na wszelki wypadek” nie jest
+uzasadnieniem.
 
-Dwa szczegóły, które check czyni explicite. **Warunkowy** re-throw
-(`catch (e) { if (rare) throw e; }`) to naruszenie: `ModuleDisabledError`
-rozszerza `HttpError`, więc test `statusCode === 409` przepuszcza go przez
-przypadek, a nie decyzję. A **callback timera** w ogóle nie może re-throw —
-zamiast tego pyta `effectiveState.isPresent`, zanim wystartuje, co uwalnia jego
-`catch`, by logował prawdziwe awarie, które inaczej znikałyby obok odpowiedzi
-obecności.
+Kontrola jawnie rozstrzyga dwa szczegóły. **Warunkowe** rzucenie wyjątku dalej
+(`catch (e) { if (rare) throw e; }`) jest naruszeniem: `ModuleDisabledError` dziedziczy po
+`HttpError`, więc test `statusCode === 409` przepuszcza go przypadkiem, a nie z decyzji. A
+**funkcja wywoływana przez timer** w ogóle nie może rzucić wyjątku dalej — zamiast tego przed
+rozpoczęciem pyta `effectiveState.isPresent`, dzięki czemu jej `catch` może zapisywać w logu
+prawdziwe błędy, które inaczej zniknęłyby obok odpowiedzi o obecności.
 
-Jedna rzecz celowo dozwolona: `catch` może przekazać błąd **delegatowi, który go
-re-throwuje** — helper kończący na `throw <własny parametr>`
-(`toCatalogHttpError(…): never`) lub wołający zawężenie w imieniu callera
-(`ReturnEmailNotifier#contained`). Osiem miejsc w drzewie jest tak napisanych i
-wszystkie osiem są poprawne.
+Jedną rzecz kontrola celowo dopuszcza: `catch` może przekazać błąd **funkcji, która rzuci go
+dalej** — funkcji pomocniczej kończącej się `throw <its own parameter>`
+(`toCatalogHttpError(…): never`) albo takiej, która w imieniu wywołującego wykonuje zawężenie
+(`ReturnEmailNotifier#contained`). W drzewie jest osiem takich miejsc i wszystkie są poprawne.
 
-### Co check może zobaczyć
+### Co widzi kontrola
 
-Reguła dotyczy `catch`; ślepe punkty dotyczyły **jak port dociera**. Obie czytały
-czysto przez miesiące:
+Reguła dotyczy `catch`; martwe punkty dotyczyły tego, **jak port trafia na miejsce**. Oba poniższe
+przypadki przez miesiące przechodziły bez uwag:
 
-- `catch` wokół **holdera**, a nie rozwiązania —
-  `new CartPricingRecompute(em, lazyPort(ctx, 'pricingService'), cache)` docierany
-  później jako `deps.cartPricingRecompute.recompute(…)`. Trzy siedziały na
-  `GET /api/v1/cart` i renderowały pełny koszyk wyceniony ze starych snapshotów z
-  wyłączonym `price_lists`;
-- port, który **root wnosi** —
+- `catch` wokół **obiektu przechowującego** port, a nie wokół jego pobrania —
+  `new CartPricingRecompute(em, lazyPort(ctx, 'pricingService'), cache)`, wywoływane później jako
+  `deps.cartPricingRecompute.recompute(…)`. Trzy takie miejsca obsługiwały `GET /api/v1/cart` i przy
+  wyłączonym `price_lists` wyświetlały pełny koszyk z cenami z nieaktualnych migawek;
+- port **wnoszony przez composition root** —
   `registerValues(container, { shipmentEmailSender: () => emailCradle().transactionalEmailSenderAccessor() })`,
-  rozwiązywany przez moduł jako zwykła nazwa cradle bez literału `lazyPort`
-  gdziekolwiek na ścieżce. Pięć notifierów e-mail było niewidocznych z tego
-  powodu, a licznik czytał `catches=42 violations=0` przed i po ich naprawie.
+  pobierany przez moduł jako zwykła nazwa z kontenera, bez literału `lazyPort` gdziekolwiek na tej
+  ścieżce. Z tego powodu pięć modułów wysyłających powiadomienia e-mail było niewidocznych, a
+  licznik pokazywał `catches=42 violations=0` zarówno przed ich naprawą, jak i po niej.
 
-To jeden defekt, i zamykają go jednym mechanizmem: tabela aliasów to
-**punkt stały nad wartościami niosącymi port**, a nie skan literałów `lazyPort`.
-Wartość niesie bramkę, jeśli jest rozwiązaniem, jeśli jest z niego zbudowana,
-jeśli jest przekazana fabryce, lub jeśli jest closure, którego body czyta jeden;
-każda nazwa, do której taka wartość jest związana, staje się aliasem, i to
-karmi następną rundę. Holder to jedna runda tej pętli, a klucz rejestracji roota
-to druga. Poszerzenie przesunęło drzewo z `catches=42 violations=0` do
-`catches=94 violations=24`.
+To jeden błąd i zamyka go jeden mechanizm: tabela aliasów jest **punktem stałym po wartościach
+niosących port**, a nie wyszukiwaniem literałów `lazyPort`. Wartość niesie blokadę, jeśli jest
+pobraniem portu, jeśli została z niego zbudowana, jeśli przekazano ją do fabryki albo jeśli jest
+domknięciem, którego treść go odczytuje; każda nazwa, z którą taka wartość jest powiązana, staje się
+aliasem, a to zasila kolejną rundę. Obiekt przechowujący to jedna runda tej pętli, a klucz
+rejestracji composition root — kolejna. Po rozszerzeniu wynik dla drzewa zmienił się z
+`catches=42 violations=0` na `catches=94 violations=24`.
 
-Co **nie** niesie, jest równie load-bearing, i każde wykluczenie było opłacone
-fałszywymi pozytywami: **wynik** wywołania (`proxy.applyToCart(…)` to bramkowane
-wywołanie, zniżka, którą zwraca, to dane), **literał obiektu** (torba deps to
-rekord — zbrudzenie go czyniło `this.deps.<anything>()` wywołaniem portu, 39 w
-jednym runie), i **odczyt pola z portu**. Uruchom z `PORT_CATCH_WHY=1`, by zobaczyć
-każdy alias z miejscem, które go wprowadziło.
+Równie istotne jest to, co **nie** niesie blokady, a każde wyłączenie zostało okupione fałszywymi
+alarmami: **wynik** wywołania (`proxy.applyToCart(…)` to blokowane wywołanie, a zwracany rabat to
+dane), **literał obiektu** (worek zależności to rekord — oznaczenie go sprawiało, że każde
+`this.deps.<anything>()` było wywołaniem portu, 39 razy w jednym przebiegu) oraz **pole odczytane z
+portu**. Uruchom z `PORT_CATCH_WHY=1`, aby zobaczyć każdy alias wraz z miejscem, które go
+wprowadziło.
 
-**Alias jest widoczny tam, gdzie jego binding, i nigdzie indziej.**
-`const` jest file-scoped, bo jest. **Klucz obiektu deps** jest module-scoped, bo
-klasa odbierająca czyta go jako `this.deps.<key>` z innego pliku, a nazwa
-właściwości nie jest leksykalnym bindingiem, który ktoś może shadowować.
-**Parametr konstruktora lub funkcji** ma zakres pliku, który go *deklaruje* — kiedyś
-miał zakres modułu, w którym siedział call site, co nie jest ani miejscem, gdzie
-parametr jest w scope, ani — gdy callee żyje w innym module — miejscem, gdzie
-można go w ogóle czytać. Rejestracja kontenera roota jest widoczna wszędzie, bo
-nazwa kontenera jest globalna z konstrukcji.
+**Alias jest widoczny tam, gdzie jest jego wiązanie, i nigdzie indziej.** `const` ma zasięg pliku,
+bo taki ma w kodzie. **Klucz obiektu zależności** ma zasięg modułu, bo klasa, która go otrzymuje,
+odczytuje go jako `this.deps.<key>` w innym pliku, a nazwa właściwości nie jest wiązaniem
+leksykalnym, które ktokolwiek mógłby przesłonić. **Parametr konstruktora lub funkcji** ma zasięg
+pliku, który go *deklaruje* — kiedyś miał zasięg modułu, w którym leżało wywołanie, czyli ani
+miejsca, w którym parametr jest widoczny, ani — gdy wywoływana funkcja jest w innym module —
+miejsca, z którego w ogóle można go odczytać. Rejestracja w kontenerze wykonana przez composition
+root jest widoczna wszędzie, bo nazwa w kontenerze jest z definicji globalna.
 
-Koszt błędu w tym był zmierzony i to nie szum. Budując `orderTransitionPort`,
-autor nazwał parametr konstruktora `transitionService`;
-niezwiązany lokal tej pisowni w `orders/prompt-tools.ts` stał się raportowanym
-naruszeniem bez własnej zmiany kodu, a autor wyczyścił go przez rename parametru.
-Rename ukrył `catch`, który jest prawdziwym fail-open — `OrderTransitionService.apply`
-flushuje zmianę statusu, a potem uruchamia hook side-effects sięgający portu
-release `credit_limits`, więc bulk change statusu raportował `failed` dla zamówień,
-których status już się przesunął. **Fałszywy pozytyw, który autor może wyczyścić
-tylko przez rename czegoś innego, nie dodaje tylko szumu; przesuwa kod.** Dwa
-dokładnie tego kształtu stały w `pim_ergonode` i poszły z fixem: parametr
-`walkStream(…, handle)` roszczący niezwiązaną właściwość cradle w `backend.ts`
-oraz parametr `categoryPathOf(id, byId)` roszczący lokal `new Map(…)` w
-schedule reconciler. Drugi niósł wpis ledgera.
+Koszt pomyłki w tej sprawie zmierzono i nie jest to szum. Przy budowie `orderTransitionPort` autor
+nazwał parametr konstruktora `transitionService`; niezwiązana zmienna lokalna o tej samej nazwie w
+`orders/prompt-tools.ts` stała się zgłaszanym naruszeniem bez żadnej zmiany we własnym kodzie, a
+autor usunął zgłoszenie, zmieniając nazwę parametru. Ta zmiana nazwy ukryła `catch`, który
+naprawdę przepuszcza w razie wątpliwości — `OrderTransitionService.apply` zatwierdza zmianę
+statusu, a potem wykonuje hook skutków ubocznych sięgający do portu zwalniania limitu w
+`credit_limits`, więc masowa zmiana statusu zgłaszała `failed` dla zamówień, których status już się
+zmienił. **Fałszywy alarm, który autor może usunąć tylko zmieniając nazwę czegoś innego, nie tylko
+dodaje szumu; on przesuwa kod.** W `pim_ergonode` były jeszcze dwa przypadki dokładnie tego
+kształtu i zniknęły razem z poprawką: parametr `walkStream(…, handle)` przejmujący niezwiązaną
+właściwość kontenera w `backend.ts` oraz parametr `categoryPathOf(id, byId)` przejmujący lokalne
+`new Map(…)` w mechanizmie uzgadniania harmonogramu. Ten drugi miał nawet wpis w rejestrze.
 
-Na scoping nałożone jest to, że **goły identyfikator rozwiązuje leksykalnie**: bliższy
-binding, który *manifestnie* nie trzyma portu — literał, obiekt lub tablica
-non-portów, `new`, którego argumenty to one — ukrywa szerszy alias. „Manifestnie”
-to load-bearing słowo. Analiza carriage celowo under-approxymuje, więc
-`carries` odpowiadające „nie” znaczy albo „nie port”, albo „nie da się tego
-śledzić”, i tylko pierwsze może shadowować: `catalog` binduje
-`const customFields = this.#requireCustomFields()`, które trzyma bramkowany port
-`custom_fields` przez wywołanie, którego analiza nie śledzi, a odczyt tego jako
-shadow zabrał sześć miejsc `catch` z populacji. Wywołanie, identyfikator, dostęp
-do właściwości, closure, binding destructuring, import, zmienna `catch` i parametr
-bez defaultu shadowują więc nic — kierunek wątpliwości to „raportuj”.
+Ponadto **sam identyfikator rozwiązuje się leksykalnie**: bliższe wiązanie, które *w oczywisty
+sposób* nie przechowuje portu — literał, obiekt lub tablica bez portów, `new` z takimi argumentami
+— przesłania szerszy alias. Kluczowe jest słowo „w oczywisty sposób”. Analiza przenoszenia celowo
+zaniża wynik, więc odpowiedź „nie” z `carries` oznacza albo „to nie port”, albo „nie umiem tego
+prześledzić”, a przesłaniać może tylko to pierwsze: `catalog` wiąże
+`const customFields = this.#requireCustomFields()`, co przechowuje blokowany port `custom_fields`
+przez wywołanie, którego analiza nie śledzi, a potraktowanie tego jako przesłonięcia usunęło ze
+zbioru sześć miejsc z `catch`. Wywołanie, identyfikator, dostęp do właściwości, domknięcie,
+wiązanie przez destrukturyzację, import, zmienna `catch` i parametr bez wartości domyślnej niczego
+więc nie przesłaniają — w razie wątpliwości „zgłoś”.
 
-**Stara reguła miała argument bezpieczeństwa i przeżywa tam, gdzie faktycznie
-została zrobiona.** Została zrobiona o tabeli `gatesOf` — merge *bramek* po nazwie,
-co może tylko dodawać właścicieli i więc tylko utrudniać `OWNER LOCKED`. Ta
-tabela jest nietknięta, a `gatesIn` celowo shadow-blind z tego samego powodu.
-Argument nigdy nie był o **widoczności aliasów** i nie przenosi się na nią: szerszy
-alias nie dodaje właścicieli do miejsca, wymyśla miejsce.
+**Stara reguła miała argument bezpieczeństwa i obowiązuje on tam, gdzie naprawdę go
+sformułowano.** Dotyczył tabeli `gatesOf` — łączenia *blokad* po nazwie, które może tylko dodawać
+właścicieli, a więc tylko utrudniać spełnienie `OWNER LOCKED`. Ta tabela jest nietknięta, a
+`gatesIn` z tego samego powodu celowo ignoruje przesłanianie. Tego argumentu nigdy nie
+sformułowano w odniesieniu do **widoczności** aliasów i nie da się go na nią przenieść: szerszy
+alias nie dodaje właścicieli do miejsca, tylko wymyśla miejsce.
 
-`PORT_CATCHES_TO_DRAIN` trzyma miejsca, gdzie pochłonięcie odpowiedzi jest nadal
-najmniej złym zachowaniem, każde z powodem, w trzech kształtach, które wpisy
-nazywają:
+`PORT_CATCHES_TO_DRAIN` zawiera miejsca, w których pochłonięcie odpowiedzi jest nadal najmniej złym
+zachowaniem, każde z uzasadnieniem, w trzech kształtach nazwanych przez wpisy:
 
-- **after the fact** — strzeżone wywołanie działa, gdy operacja, do której należy,
-  już się commitowała (merge koszyka przy zakończonym logowaniu, bookkeeping
-  dostarczenia webhooka). Re-throw raportowałby failure dla pracy, która się
-  udała, i przy retry zrobiłby ją ponownie. Wpis webhook jest **permanentny** i
-  mówi to: to self-edge, jedyna osiągalna odpowiedź obecności to flip *między*
-  próbą HTTP a rekordem, a obie alternatywy — duplicate delivery albo sonda przed
-  flip — są gorsze;
-- **degrade, na który właściciel powinien odpowiadać** — caller słusznie serwuje
-  bez modułu, więc `rethrowIfModuleDisabled` byłby *złą*
-  naprawą. Odpowiedź należy do typu zwrotnego wkładu lub wpisu
-  `nonBindingDependencies`, i wszystkie trzy wpisy tego kształtu przeniosły się
-  tam: powiadomienie dzwonka odpowiada `'recorded' | 'not-present'` z recordera
-  decydującego obecność przed bramką, dostępność katalogu to zadeklarowana krawędź
-  `degrades-without` sondowana we wkładzie, który ją rozwiązuje, a
-  listing Meilisearch fallbackuje do Postgres, bo `useMeili` pyta przed query,
-  a nie łapie potem;
-- **boot hook** — odpowiedzi obecności nie ma callera, który by dotarł, więc jest
-  *decydowana* na górze hooka, pierwsza i poza każdym `try`. Poza, bo
-  `runBootHooks` **nie** łapie — re-throwuje, więc `ModuleDisabledError` w środku
-  albo abortuje boot, albo dzieli jeden cichy no-op z transient failure (patrz
-  *Faza boot re-throwuje* poniżej; ten punkt mówił kiedyś odwrotnie).
-  `product_feeds` i `pim_ergonode` reconcilują harmonogramy tak; co zostaje
-  ledgerowane, to `catch` pod sondą, który pochłania zwykły failure, żeby
-  niebootowalne API nigdy nie kosztowało więcej niż drifted schedule — zawężenie
-  tych dwóch do re-throw próbowano i cofnięto, bo zmieniło to, z czym harness
-  bootuje. Hook, który **contributuje** — deskryptor wrzucony do rejestru hosta
-  filtrującego po obecności właściciela — nie dostaje sondy, bo sonda oznaczałaby,
-  że moduł włączony w runtime nic nie wniósł aż do następnego restartu.
+- **po fakcie** — chronione wywołanie wykonuje się, gdy operacja, do której należy, jest już
+  zatwierdzona (scalenie koszyka po udanym logowaniu, ewidencja dostarczania webhooków). Rzucenie
+  wyjątku dalej zgłosiłoby błąd pracy, która się udała, a przy ponowieniu wykonałoby ją jeszcze
+  raz. Wpis dotyczący webhooków jest **stały** i mówi to wprost: to krawędź do samego siebie,
+  jedyna możliwa odpowiedź o obecności to przełączenie *między* próbą HTTP a zapisem, a obie
+  alternatywy — podwójne dostarczenie albo sprawdzenie wykonane przed przełączeniem — są gorsze;
+- **degradacja, za którą powinien odpowiadać właściciel** — wywołujący słusznie działa dalej bez
+  modułu, więc `rethrowIfModuleDisabled` byłoby *złą* poprawką. Odpowiedź należy do typu
+  zwracanego przez wkład albo do wpisu `nonBindingDependencies`, i wszystkie trzy wpisy o tym
+  kształcie zostały tam przeniesione: powiadomienie w panelu zwraca `'recorded' | 'not-present'`
+  z mechanizmu zapisu, który rozstrzyga obecność przed blokadą, dostępność w katalogu to
+  zadeklarowana krawędź `degrades-without` sprawdzana we wkładzie, który ją rozwiązuje, a listowanie
+  z Meilisearch przechodzi na Postgresa, bo `useMeili` pyta przed zapytaniem, zamiast łapać wyjątek
+  po nim;
+- **hook startowy** — odpowiedź o obecności nie ma do kogo trafić, więc jest *rozstrzygana* na
+  początku hooka, jako pierwsza i poza każdym `try`. Poza, bo `runBootHooks` **nie** łapie
+  wyjątków — rzuca je dalej, więc `ModuleDisabledError` rzucony w środku albo przerwałby start,
+  albo dzieliłby jedno ciche „nic nie rób” z przejściowym błędem (zobacz *Faza startu rzuca
+  wyjątki dalej* niżej; ten punkt mówił kiedyś coś przeciwnego). `product_feeds` i `pim_ergonode`
+  tak właśnie uzgadniają swoje harmonogramy; w rejestrze zostaje `catch` pod sprawdzeniem, który
+  pochłania zwykły błąd, aby niemożliwe do uruchomienia API nigdy nie kosztowało więcej niż
+  rozjechany harmonogram — próbowano zawęzić oba do rzucania dalej i wycofano to, bo zmieniało, z
+  czym startuje środowisko testowe. Hook, który **wnosi wkład** — deskryptor dodawany do rejestru
+  hosta filtrującego według obecności właściciela — nie dostaje sprawdzenia, bo oznaczałoby to, że
+  moduł włączony w czasie działania nie wnosiłby niczego aż do następnego restartu.
 
-Czwarta odpowiedź jest **wyprowadzana, a nie pisana**: gdy każda bramka, którą
-alias miejsca niesie, należy do modułu deklarującego `activation.nonDeactivatable`,
-check raportuje `OWNER LOCKED`, a wpis ledgera nad tym czyta stale. `catch`
-nadal jest i nadal jest nazwany — nadal połyka każdy inny błąd — ale nie ma
-odpowiedzi obecności do dotarcia, więc nie ma czego drainować. Wyliczanie z
-manifestów przy każdym runie to sens: właściciel, który odblokowuje moduł,
-ponownie czerwieni każde miejsce spoczywające na tym locku w tym samym runie, bez
-edycji ledgera, gdzie ręcznie napisane „locked” w stringu powodu poszłoby stale w
-ciszy.
+Czwarta odpowiedź jest **wyprowadzana, a nie pisana**: gdy każda blokada niesiona przez alias w
+danym miejscu należy do modułu, którego manifest deklaruje `activation.nonDeactivatable`, kontrola
+zgłasza to miejsce jako `OWNER LOCKED`, a wpis w rejestrze dla niego staje się nieaktualny. `catch`
+nadal tam jest i nadal jest nazwany — nadal pochłania wszystkie inne błędy — ale nie ma odpowiedzi
+o obecności, która mogłaby do niego dotrzeć, więc nie ma czego usuwać. Sens tkwi w obliczaniu tego
+z manifestów przy każdym uruchomieniu: właściciel, który odblokuje moduł, w tym samym przebiegu i
+bez zmiany rejestru ponownie oznacza na czerwono każde miejsce, które opierało się na tej blokadzie,
+podczas gdy ręcznie wpisane „zablokowane” w uzasadnieniu po cichu by się zdezaktualizowało.
 
-## Zakres requestu
+## Zakres żądania
 
-Stan per-request żyje w scope kernela (`scope.ts`), docierany przez
-`ctx.cradle<C>()` wewnątrz requestu. Jest **deklarowany, nie ambient**: usługa
-dostaje to, czego potrzebuje, zamiast pytać runtime.
+Stan związany z żądaniem znajduje się w zakresie jądra (`scope.ts`), dostępnym w trakcie żądania
+przez `ctx.cradle<C>()`. Jest **deklarowany, a nie pobierany z otoczenia**: usługa dostaje to,
+czego potrzebuje, zamiast pytać o to środowisko uruchomieniowe.
 
-To celowe odwrócenie. Drzewo kiedyś eksponowało `getEm()` nad MikroORM
-`RequestContext`, lookup oparty na AsyncLocalStorage: usługa docierała do
-EntityManager requestu pytając runtime, więc to, czego mogła dotknąć, było
-niewidoczne w sygnaturze i nietestowalne bez live request scope. Każdy moduł
-bierze teraz explicite `emFactory`, a `getEm()` usunięto, żeby właściwość
-trzymała się z konstrukcji.
+To celowe odwrócenie wcześniejszego podejścia. Drzewo udostępniało kiedyś `getEm()` oparte na
+`RequestContext` z MikroORM, czyli wyszukiwaniu opartym na `AsyncLocalStorage`: usługa dostawała
+EntityManager żądania, pytając o niego środowisko, więc to, do czego miała dostęp, było
+niewidoczne w jej sygnaturze i nie dawało się przetestować bez działającego zakresu żądania. Dziś
+każdy moduł przyjmuje jawne `emFactory`, a `getEm()` zostało usunięte, więc ta właściwość wynika z
+samej konstrukcji.
 
-`enterSystemScope(reason, fn, { entryPoint })` to szew dla pracy bez requestu
-za nią — reconciles przy starcie, entry pointy CLI, workery. Istnieje, żeby
-zapytania tenant-scoped miały jawny, audytowalny escape hatch zamiast
-implicit.
+`enterSystemScope(reason, fn, { entryPoint })` to punkt rozszerzenia dla pracy, za którą nie stoi
+żadne żądanie — uzgadniania przy starcie, punktów wejścia CLI, workerów. Istnieje po to, by
+zapytania do danych objętych izolacją tenantów miały jawne, audytowalne obejście, a nie ukryte.
 
-## `ctx.log` — dokąd idzie linia logu modułu
+## `ctx.log` — dokąd trafia wpis w logu modułu
 
-`ctx.log` to własny logger platformy, związany z modułem. Każda linia, którą
-pisze, niesie `module: '<your module id>'`, i niesie `reqId`, gdy pisana jest
-podczas requestu, a autor nie nazywa żadnego z nich.
+`ctx.log` to własny logger platformy, powiązany z modułem. Każdy zapisany przez niego wiersz
+zawiera `module: '<your module id>'`, a jeśli powstaje w trakcie żądania — także `reqId`, i autor
+nie musi podawać żadnego z nich.
 
-Kiedyś nie było ani jednego. Destynacja wybierana jest przez root kompozycji,
-kompozycja działa przed `buildServer`, więc każdy root przekazywał to, co mógł
-nazwać tak wcześnie: `composition.ts` przekazywał globalny `console`, a harness
-testowy no-op. Ostrzeżenie modułu było więc niestrukturyzowane, nieskorelowane
-z requestem, który je spowodował, poza strumieniem pino, który deployment wysyła
-— i oba rooty nie zgadzały się, które z tych dwóch „nic” to jest, co jest
-dokładnie klasą driftu, dla której istnieje `harness-parity.test.ts`.
+Kiedyś nie było ani jednego, ani drugiego. Miejsce docelowe wybiera composition root, kompozycja
+odbywa się przed `buildServer`, więc każdy composition root przekazywał to, co był w stanie wskazać
+na tak wczesnym etapie: `composition.ts` przekazywał globalne `console`, a środowisko testowe —
+logger, który nic nie robił. Ostrzeżenie modułu było więc nieustrukturyzowane, niepowiązane z
+żądaniem, które je spowodowało, i poza strumieniem pino, który zbiera wdrożenie — a oba composition
+rooty nie zgadzały się nawet co do tego, który z tych dwóch braków to jest, czyli był to dokładnie
+ten rodzaj rozjazdu, dla którego istnieje `harness-parity.test.ts`.
 
-Oba rooty przekazują teraz `platformLogger()`, który jest **late-bound**: czyta
-destynację per linia zamiast ją capture'ować. `buildServer` podpina własną
-instancję pino aplikacji w momencie, gdy istnieje, i odpina przy `onClose`.
-To jedno miejsce attach dla wszystkich czterech entry pointów — `index.ts`,
-`worker.ts` (buduje serwer, którego nigdy nie listenuje, dokładnie po to, by
-pluginy modułów się zarejestrowały), harness testowy i runtime overlay — więc
-żaden root nie może tego zapomnieć i oba nie mogą znów się rozjechać.
+Oba composition rooty przekazują teraz `platformLogger()`, który jest **wiązany późno**: odczytuje
+miejsce docelowe przy każdym wierszu, zamiast je zapamiętywać. `buildServer` podłącza własną
+instancję pino aplikacji w chwili, gdy ona powstaje, i odłącza ją w `onClose`. To jedno miejsce
+podłączenia dla wszystkich czterech punktów wejścia — `index.ts`, `worker.ts` (który buduje serwer,
+choć nigdy nie nasłuchuje, właśnie po to, by zarejestrowały się pluginy modułów), środowiska
+testowego i środowiska uruchomieniowego nakładki — więc żaden composition root nie może o nim
+zapomnieć i oba nie mogą się w tej kwestii ponownie rozjechać.
 
-Request id czytany jest ze `requestMeta` scope platformy, nie z `request.log`.
-Fastify `request.log` to `app.log.child({ reqId })` i nic więcej, więc linia z
-`reqId` łączy się z własnymi liniami `req`/`res` Fastify identycznie; czytanie id
-ze scope kupuje korelację na dowolnej głębokości bez przekazywania `request` —
-i — load-bearing połowa — **nic nie retencjonuje**, gdzie capture requestu w
-scope przypiąłby go tak długo, jak żyje jakikolwiek async resource stworzony
-wewnątrz tego scope (patrz notatki retencji w `scope.ts`).
+Identyfikator żądania jest odczytywany z `requestMeta` zakresu platformy, a nie z `request.log`.
+`request.log` w Fastify to `app.log.child({ reqId })` i nic więcej, więc wiersz zawierający `reqId`
+łączy się z własnymi wierszami `req`/`res` Fastify dokładnie tak samo; odczyt identyfikatora z
+zakresu daje powiązanie na dowolnej głębokości wywołań bez przekazywania `request`, a — co
+najważniejsze — **niczego nie przetrzymuje**, podczas gdy zapamiętanie żądania w zakresie
+trzymałoby je tak długo, jak żyje dowolny zasób asynchroniczny utworzony w tym zakresie (zobacz
+uwagi o przetrzymywaniu w `scope.ts`).
 
-**Poza requestem nie ma request id, a linia nadal jest pisana.** Boot hook działa
-przed `buildServer` w obu rootach, więc dociera do console fallback — gdzie linia
-boot zawsze szła i gdzie czyta się boot failure. Worker, timer lub subscriber
-EventBus działa po zbudowaniu aplikacji, więc dociera do pino aplikacji. Proces,
-który komponuje moduły i nie buduje serwera, też dociera do fallback. Fallback to
-prawdziwy write i nigdy no-op: zamiana niestrukturyzowanej linii w dropped byłaby
-gorszą platformą niż ta, którą to zastąpiło.
+**Poza żądaniem nie ma identyfikatora żądania, a wiersz i tak zostaje zapisany.** Hook startowy
+wykonuje się w obu composition rootach przed `buildServer`, więc trafia do zastępczego `console` —
+tam, gdzie zawsze trafiały wiersze ze startu i gdzie odczytuje się błędy startu. Worker, timer
+albo subskrybent `EventBus` działa po zbudowaniu aplikacji, więc trafia do instancji pino
+aplikacji. Proces, który składa moduły, ale nie buduje serwera, też trafia do wersji zastępczej.
+Wersja zastępcza naprawdę zapisuje i nigdy nie jest pustą operacją: zamiana nieustrukturyzowanego
+wiersza na zgubiony byłaby gorszą platformą niż ta, którą to zastąpiło.
 
-`ctx.log` jest więc bezpieczny do trzymania. Cztery moduły oddają go usłudze
-trzymającej go przez życie procesu (`invoices`, `payments`, `pwa`, `shipments`),
-a destynacja i korelacja requestu czytane są per linia.
+Można więc bezpiecznie przechowywać `ctx.log`. Cztery moduły przekazują go usłudze, która trzyma go
+przez cały czas życia procesu (`invoices`, `payments`, `pwa`, `shipments`), a zarówno miejsce
+docelowe, jak i powiązanie z żądaniem są odczytywane przy każdym wierszu.
 
-## Kolejność kompozycji — przeczytaj to, zanim napiszesz boot hook
+## Kolejność kompozycji — przeczytaj, zanim napiszesz hook startowy
 
-Kompozycja działa w **jednym przebiegu** po wygenerowanej liście modułów, a każdy
-boot hook działa raz, po każdej rejestracji i każdym wkładzie roota:
+Kompozycja wykonuje się w **jednym przebiegu** po wygenerowanej liście modułów, a każdy hook
+startowy wykonuje się raz, po wszystkich rejestracjach i wszystkich wkładach composition root:
 
 ```
 load module presence                 (PostgreSQL, awaited, fatal)
@@ -726,94 +681,89 @@ the Fastify app is built             (plugin bodies run)
 registryCache.watch()                (Redis, non-fatal)
 ```
 
-Kiedyś działały dwa przebiegi, podzielone listą `EARLY_PASS_MODULE_IDS`, żeby
-ręcznie okablowany kod modułu roota mógł siedzieć *między* nimi. Nie ma już
-ręcznego kodu modułu w żadnym rootcie, a to, co split nadal kupował, zmierzono:
-13 z 26 członków nie było wymuszonych przez nic, a powód kolejności tras w
-nagłówku był fałszywy (hook `onRequest` roota dodany przez plugin `fastify-plugin`
-zarejestrowany *po* encapsulated child nadal działa dla tras tego childa). Jeden
-przebieg spełnia każde ograniczenie kolejności dla wszystkich modułów naraz, czego
-żaden podział zbioru modułów nie może, więc `composition-passes.ts` usunięto.
+Kiedyś były dwa przebiegi, rozdzielone listą `EARLY_PASS_MODULE_IDS`, aby ręcznie podłączony kod
+modułów w composition root mógł znaleźć się *między* nimi. W żadnym composition root nie ma już
+ręcznie podłączonego kodu modułów, a to, co ten podział jeszcze dawał, zmierzono: 13 z 26 jego
+elementów nie było przez nic wymuszonych, a powód związany z kolejnością tras, podany w jego
+nagłówku, był fałszywy (główny hook `onRequest` dodany przez plugin `fastify-plugin` zarejestrowany
+*po* hermetycznym pluginie potomnym i tak wykonuje się dla tras tego potomka). Jeden przebieg
+spełnia naraz wszystkie ograniczenia kolejności dla wszystkich modułów, czego nie potrafi żaden
+podział zbioru modułów, więc `composition-passes.ts` usunięto.
 
-Cztery konsekwencje, w kolejności, w której gryzą:
+Cztery konsekwencje, w kolejności, w jakiej dają o sobie znać:
 
-**0. Obecność modułu ładowana jest przed pierwszą rejestracją modułu.**
-`loadModulePresence()` działa jako krok kompozycji w `composeApp()`, bo każda
-bramka downstream — rozwiązanie portu w boot hooku, decyzja pause
-`defineModuleWorker`, handler `subscribeForModule` — pyta ten sam cache
-in-memory, i większość pyta, zanim istnieje jakakolwiek trasa HTTP. Load żył
-kiedyś w body pluginu `_lifecycle`, tj. wewnątrz `buildServer`, po
-wszystkim na diagramie powyżej: cache odpowiadał „not installed” dla każdego
-modułu i backend nie startował.
+**0. Obecność modułów jest wczytywana, zanim zarejestruje się pierwszy moduł.**
+`loadModulePresence()` wykonuje się jako krok kompozycji w `composeApp()`, bo każda blokada dalej —
+pobranie portu w hooku startowym, decyzja `defineModuleWorker` o wstrzymaniu, handler
+`subscribeForModule` — pyta tę samą pamięć podręczną, a większość pyta, zanim powstanie
+jakakolwiek trasa HTTP. Wczytywanie odbywało się kiedyś w treści pluginu `_lifecycle`, czyli wewnątrz
+`buildServer`, po wszystkim, co pokazuje powyższy schemat: pamięć podręczna odpowiadała „nie
+zainstalowany” dla każdego modułu i backend się nie uruchamiał.
 
-Dwie połowy, celowo różne co do rodzaju. **Load** czyta PostgreSQL, jest awaited
-i fatal — `initOrm()` już czyni osiągalną bazę warunkiem wstępnym bootu, więc
-to nie dodaje trybu awarii. **Watch** subskrybuje kanał powiadomień Redis, jest
-uzbrojony po kompozycji i nigdy nie może zepsuć bootu: utrata oznacza *stale*, a
-PostgreSQL — authority — nadal jest.
+Dwie części celowo różnego rodzaju. **Wczytanie** czyta PostgreSQL, jest oczekiwane i jego błąd
+jest krytyczny — `initOrm()` i tak czyni dostępną bazę danych warunkiem startu, więc nie dodaje to
+nowego sposobu awarii. **Obserwowanie** subskrybuje kanał powiadomień w Redis, jest włączane po
+kompozycji i nigdy nie może przerwać startu: jego utrata oznacza *nieaktualne dane*, a PostgreSQL —
+źródło prawdy — nadal jest dostępny.
 
-Odczyt obecności przed load rzuca `ModulePresenceNotLoadedError`. To ani jedna z
-dwóch odpowiedzi: `false` to to, co zbiło platformę, a `true` uruchomiłoby pracę
-wyłączonego modułu.
+Odczyt obecności przed wczytaniem rzuca `ModulePresenceNotLoadedError`. To nie jest żadna z dwóch
+odpowiedzi: `false` to dokładnie to, co położyło platformę, a `true` uruchomiłoby pracę wyłączonego
+modułu.
 
-**1. Boot hook może rozwiązać cokolwiek.** Każdy moduł zarejestrował się, zanim
-pierwszy hook działa, więc `ctx.onBoot` dociera do każdej rejestracji i każdego
-wkładu roota. Kolejność rejestracji jest bez znaczenia z konstrukcji: `composeModules`
-ustawia `registering = true` na cały call (`kernel/compose.ts`), a
-`ctx.cradle()` odmawia rozwiązania, gdy jest ustawione, więc moduł nie obserwuje,
-które moduły zarejestrowały się przed nim. Jeśli `registerModule` potrzebuje
-wartości w czasie rejestracji, nie potrzebuje — weź ją leniwie (`lazyPort`, getter
-lub cradle w miejscu użycia).
+**1. Hook startowy może pobrać cokolwiek.** Gdy wykonuje się pierwszy hook, wszystkie moduły są już
+zarejestrowane, więc `ctx.onBoot` ma dostęp do każdej rejestracji i każdego wkładu composition
+root. Kolejność rejestracji z założenia nie ma znaczenia: `composeModules` ustawia
+`registering = true` na czas całego wywołania (`kernel/compose.ts`), a `ctx.cradle()` odmawia
+pobierania, dopóki ta flaga jest ustawiona, więc moduł nie może zaobserwować, które moduły
+zarejestrowały się przed nim. Jeśli wydaje ci się, że twoje `registerModule` potrzebuje wartości w
+chwili rejestracji — to nie potrzebuje: pobierz ją leniwie (`lazyPort`, getter albo kontener w
+miejscu użycia).
 
-**2. Boot hooki działają przed każdym body pluginu.** Body pluginów działają, gdy
-budowany jest Fastify app, po `runBootHooks()`. Wkład push-at-boot zawsze ląduje
-przed reconcile hosta w body pluginu — z konstrukcji, nie szczęściem.
+**2. Hooki startowe wykonują się przed treścią każdego pluginu.** Treści pluginów wykonują się
+podczas budowania aplikacji Fastify, po `runBootHooks()`. Wkład wnoszony przy starcie zawsze trafia
+więc do hosta, zanim ten wykona uzgadnianie w treści swojego pluginu — z założenia, a nie
+szczęśliwym trafem.
 
-**3. Wkład roota ma dokładnie jeden legalny slot**: po
-`composeModules(MODULES, …)` i przed `runBootHooks()`. Wcześniej własny default
-modułu go nadpisuje — `registerValues` to goły
-`container.register`, bez ledgera własności, więc wygrywa ostatni pisarz; później
-boot hook mógł już przeczytać ten default. Okno ma znaczenie tylko dla wartości
-czytanych *przy konstrukcji*; cokolwiek czytane per request lub per call jest
-niewrażliwe — ale nie polegaj na tym bez powiedzenia. **Wartość hosta**, której
-żaden moduł nie defaultuje (`redis`, `eventBus`, `commandBus`, `auditLogService`,
-flagi `*RunWorkers`) nie ma takiego okna i rejestrowana jest tam, gdzie wartość
-powstaje.
+**3. Wkład composition root ma dokładnie jedno dozwolone miejsce**: po
+`composeModules(MODULES, …)`, a przed `runBootHooks()`. Wcześniej — nadpisze go wartość domyślna
+modułu, bo `registerValues` to zwykłe `container.register` bez rejestru właścicieli, więc wygrywa
+ostatni zapis; później — hook startowy mógł już odczytać wartość domyślną. To okno ma znaczenie
+tylko dla wartości odczytywanych *przy konstrukcji*; to, co odczytuje się przy każdym żądaniu lub
+wywołaniu, jest na nie niewrażliwe — ale nie polegaj na tym, nie mówiąc tego wprost. **Wartość
+hosta**, której żaden moduł nie ustawia domyślnie (`redis`, `eventBus`, `commandBus`,
+`auditLogService`, flagi `*RunWorkers`), nie ma takiego okna i jest rejestrowana tam, gdzie powstaje.
 
-Ten slot to **metoda**, nie konwencja: `composeModules`
-zwraca `ComposedModules`, a wkład to
-`composedModules.contribute({ name: value })`. Obie krawędzie okna idą ze
-kształtem, a nie z pamięci czytelnika — wczesna, bo nie ma obiektu do wołania,
-dopóki każdy moduł się nie zarejestrował, późna, bo `runBootHooks()` je zamyka,
-a późniejsze wołanie rzuca `ContributionWindowClosedError` cytując tę regułę.
-Zamknięte przez *start* fazy boot, nie jej koniec: hooki działają w kolejności
-rejestracji, więc wkład z wnętrza jednego jest już niewidoczny dla każdego hooka,
-który działał przed nim. Pisanie `registerValues(container, …)` po
-`composeModules` cicho otworzyłoby okno, więc `test/contract/kernel/harness-parity.test.ts`
-odmawia tego w obu rootach — nad call pozostaje poprawne, i tam należy wartość
-hosta.
+To miejsce jest **metodą**, a nie konwencją: `composeModules` zwraca `ComposedModules`, a wkład to
+`composedModules.contribute({ name: value })`. Obie granice okna wynikają z kształtu, a nie z
+pamięci czytelnika — wczesna, bo dopóki wszystkie moduły się nie zarejestrują, nie ma obiektu, na
+którym można by ją wywołać; późna, bo `runBootHooks()` zamyka okno, a późniejsze wywołanie rzuca
+`ContributionWindowClosedError` cytujący tę regułę. Okno zamyka się na *początku* fazy startu, a
+nie na jej końcu: hooki wykonują się w kolejności rejestracji, więc wkład wniesiony z wnętrza
+jednego z nich jest już niewidoczny dla wszystkich hooków wykonanych wcześniej. Zapis
+`registerValues(container, …)` po `composeModules` po cichu otworzyłby okno ponownie, więc
+`test/contract/kernel/harness-parity.test.ts` odrzuca go w obu composition rootach — przed
+wywołaniem pozostaje poprawny i tam właśnie należy wartość hosta.
 
-**4. Boot hooki działają niezależnie od effective state.** `runBootHooks()` nie
-konsultuje obecności modułu, więc hook wyłączonego modułu nadal działa. Dwie
-konsekwencje, a druga kiedyś była tu zbyt wąsko podana.
+**4. Hooki startowe wykonują się niezależnie od stanu efektywnego.** `runBootHooks()` nie sprawdza
+obecności modułów, więc hook wyłączonego modułu też się wykonuje. Wynikają z tego dwie
+konsekwencje, a druga była tu kiedyś opisana zbyt wąsko.
 
-Nigdy nie rozwiązuj **bramkowanego portu** z boot hooka: bramka ma prawdziwą
-odpowiedź „nie” w tym momencie, a odpowiedzenie nią zabija boot. Jeśli nazwa to
-rejestr wkładu, nie powinna była być portem — patrz reguła rejestrów wkładu
-wyżej.
+Nigdy nie pobieraj **blokowanego portu** w hooku startowym: blokada ma w tym momencie prawdziwą
+odpowiedź „nie”, a udzielenie jej przerywa start. Jeśli ta nazwa to rejestr wkładów, w ogóle nie
+powinna być portem — zobacz regułę dotyczącą rejestrów wkładów wyżej.
 
-Jeśli hook wrzuca deskryptor do rejestru innego modułu, **host**
-decyduje, czy wpis jest live, przy enumeracji, po id modułu-współtwórcy, które
-zapisuje. „Host musi filtrować” to jedna z dwóch słusznych odpowiedzi, nie reguła:
-*skip* pasuje do wkładów powierzchniowych — jak `ctx.interceptors` stempluje
-`module: id` i dispatch pomija wpisy, których właściciel nie jest włączony — a
-*honour* pasuje do integralnościowych, gdzie skip pozwoliłby cicho osierocić dane
-nieobecnego modułu. Stanow, które, per rejestr, z powodem.
+Jeśli twój hook dodaje deskryptor do rejestru innego modułu, o tym, czy wpis jest aktywny,
+decyduje **host** — przy przeglądaniu wpisów, na podstawie zapisanego identyfikatora modułu, który
+go wniósł. „Host musi filtrować” to jedna z dwóch poprawnych odpowiedzi, a nie reguła: *pomijanie*
+pasuje do wkładów będących elementami interfejsu — tak jak `ctx.interceptors` zapisuje
+`module: id`, a wykonanie pomija wpisy, których właściciel nie jest włączony — a *respektowanie* do
+wkładów chroniących integralność danych, gdzie pominięcie pozwoliłoby po cichu osierocić dane
+nieobecnego modułu. Zadeklaruj, którą wybierasz, osobno dla każdego rejestru, z uzasadnieniem.
 
-### Faza boot re-throwuje
+### Faza startu rzuca wyjątki dalej
 
-`runBootHooks` owija każdy hook, przypisuje failure modułowi, który go
-zarejestrował, i **re-throwuje**:
+`runBootHooks` opakowuje każdy hook, przypisuje błąd modułowi, który go zarejestrował, i **rzuca go
+dalej**:
 
 <!-- verbatim-from: packages/platform/src/kernel/compose.ts -->
 
@@ -826,280 +776,264 @@ try {
 }
 ```
 
-Dokumentacja mówiła odwrotnie przez miesiące — ta strona w dwóch miejscach i
-ledger `check-port-catches.ts` — a twierdzenie było load-bearing:
-dwa miejsca boot-hook były ledgerowane zamiast naprawione w przekonaniu, że kernel
-centralnie połyka throw. Blok powyżej cytowany jest, a nie opisany, z tego powodu;
-`check:doc-snippets` psuje tę stronę, jeśli przestaje pasować do źródła.
+Dokumentacja przez miesiące twierdziła coś przeciwnego — ta strona w dwóch miejscach i rejestr
+`check-port-catches.ts` — a to twierdzenie miało realne skutki: dwa miejsca w hookach startowych
+zapisano w rejestrze zamiast je naprawić, w przekonaniu, że jądro centralnie pochłania wyjątki.
+Dlatego powyższy blok jest cytatem, a nie opisem; `check:doc-snippets` przerywa build tej strony,
+jeśli przestanie zgadzać się ze źródłem.
 
-Re-throw to ustalone zachowanie. Boot hook działa podczas
-kompozycji, zanim istnieje Fastify app: nie ma requestu do odpowiedzi i
-degradowanej powierzchni do serwowania, więc połknięty failure oznaczałby start
-platformy z kompozycją inną niż mówi kod — brakujący adapter płatności,
-nieskaner referencji assetów, domyślny e-mail, którego nikt nie pushował — i
-milczenie. `index.ts` zamienia throw w `process.exit(1)`, a
-`test/integration/kernel/boot-failure.test.ts` przypina obie połowy: błąd nazywa
-moduł i fazę, i żaden częściowo skomponowany serwer nigdy nie listenuje.
+Rzucanie dalej to zachowanie przyjęte decyzją. Hook startowy wykonuje się podczas kompozycji,
+zanim powstanie aplikacja Fastify: nie ma żądania, na które trzeba odpowiedzieć, ani okrojonej
+funkcjonalności, którą można by udostępnić, więc pochłonięty błąd oznaczałby, że platforma startuje
+z kompozycją inną niż ta, którą opisuje kod — bez adaptera płatności, bez zarejestrowanego skanera
+referencji do plików, bez domyślnego e-maila, którego nikt nie dodał — i nic o tym nie mówi.
+`index.ts` zamienia wyjątek w `process.exit(1)`, a `test/integration/kernel/boot-failure.test.ts`
+utrwala obie części: błąd wskazuje moduł i fazę, a częściowo złożony serwer nigdy nie zaczyna
+nasłuchiwać.
 
-Zagrożenie argumentujące za łapaniem — moduł wyłączony przez operatora biorący
-boot ze sobą — zamknięte jest strukturalnie, a nie przez `catch`. Bramkowany port
-rozwiązany z boot hooka odmawia
-`check:port-dependencies` (`gated-port-at-boot`), a każdy rejestr wkładu zostaje
-niebramkowanym `ctx.di.register` z tego samego powodu, więc flip
-przełącznika przez operatora nie podnosi `ModuleDisabledError` podczas kompozycji.
-Co zostaje, to hook, którego własna praca pada — prawdziwy failure; moduł chcący
-węższej tolerancji pisze ją **wewnątrz** własnego hooka i mówi dlaczego, jak
-helper `reconcile` `product_feeds`. Ten helper nie jest redundantny względem
-decyzji kernela — to jedyne stojące między drifted schedule a martwym bootem.
+Zagrożenie, które przemawiałoby za łapaniem wyjątków — moduł wyłączony przez operatora, który
+pociąga za sobą start — jest wyeliminowane strukturalnie, a nie przez `catch`. Blokowany port
+pobierany w hooku startowym jest odrzucany przez `check:port-dependencies`
+(`gated-port-at-boot`), a każdy rejestr wkładów pozostaje z tego samego powodu nieblokowanym
+`ctx.di.register`, więc operator przełączający moduł nie może spowodować `ModuleDisabledError`
+podczas kompozycji. Zostaje hook, którego własna praca się nie udaje, czyli prawdziwy błąd; moduł,
+który chce węższej tolerancji, implementuje ją **wewnątrz** własnego hooka i uzasadnia, tak jak robi
+to funkcja pomocnicza `reconcile` w `product_feeds`. Ta funkcja nie powtarza decyzji jądra — to
+jedyne, co stoi między rozjechanym harmonogramem a nieudanym startem.
 
-### Kompozycja bez wymaganego modułu nie dociera do fazy boot
+### Kompozycja bez wymaganego modułu nie dochodzi do fazy startu
 
-`activation.nonDeactivatable` strzeże **wycofania**: orchestrator lifecycle
-odmawia disable lub uninstall modułu, który to deklaruje, soft i hard, bez
-`--force`. Późniejsza reguła dodała dwa **stany początkowe**, które analiza
-manifestu może
-zobaczyć — moduł, którego ten deployment nigdy nie wysłał, a który nazywa inny
-manifest, oraz taki z wierszem `module_registrations`, którego boot reconciler nie
-naprawi — i odmawia obu z `loadModulePresence`, zanim czytany jest rejestr.
+`activation.nonDeactivatable` chroni przed **wycofaniem**: mechanizm cyklu życia odmawia wyłączenia
+lub odinstalowania modułu, który to deklaruje, zarówno miękkiego, jak i twardego, bez `--force`.
+Późniejsza reguła dodała dwa **stany początkowe**, które widać w analizie manifestów — moduł,
+którego to wdrożenie nigdy nie dostarczyło, a który wskazuje inny manifest, oraz moduł z wierszem
+w `module_registrations`, którego mechanizm uzgadniania przy starcie nie naprawi — i odrzuca oba w
+`loadModulePresence`, zanim zostanie odczytany rejestr.
 
-Żaden nie widział stanu, który faktycznie psuje first boot. `invoices`
-grandfatheruje wzorzec numeracji z hooka `ctx.onBoot`, którego zapis idzie przez
-port `settings`, a `NumberingConfigurationService` celowo re-throwuje
-`ModuleDisabledError` — zapis to cały sens hooka. Platforma bez `settings` więc
-nie degradowała, tylko wychodziła, mówiąc:
+Żadna z tych reguł nie widziała stanu, który naprawdę psuje pierwszy start. `invoices` przenosi
+swój dotychczasowy wzorzec numeracji w hooku `ctx.onBoot`, którego zapis przechodzi przez port
+`settings`, a `NumberingConfigurationService` celowo rzuca `ModuleDisabledError` dalej — zapis to
+cały sens tego hooka. Platforma bez `settings` nie degradowała się więc, tylko kończyła działanie z
+komunikatem:
 
 ```
 [kernel] module 'invoices' failed in its boot hook: Module 'settings' is currently disabled.
 ```
 
-Zły moduł i brak remedium. Nigdy nie widziano, bo na każdej bazie, gdzie platforma
-bootowała raz, grandfather write już się stał i hook nie ma czego robić; tylko
-genuinely first boot dociera do portu.
+Niewłaściwy moduł i żadnej wskazówki, jak to naprawić. Nikt wcześniej tego nie widział, bo w każdej
+bazie, na której platforma choć raz wystartowała, zapis przeniesienia już się odbył i hook nie ma
+nic do zrobienia; do portu dociera tylko naprawdę pierwszy start.
 
-Owner ruled, że `settings` jest zbyt ważne, by było absent z deploymentu, więc
-odpowiedzią jest uczynienie absence nieosiągalnym, a nie tolerancja `invoices`.
-`composeModules` odmawia **zanim pierwszy moduł się zarejestruje**, gdy
-kompozycja wymaga modułu, którego brakuje:
+Właściciel zdecydował, że `settings` jest zbyt ważny, by mogło go zabraknąć we wdrożeniu, więc
+rozwiązaniem jest uczynienie jego braku niemożliwym, a nie nauczenie `invoices` tolerowania go.
+`composeModules` odmawia **zanim zarejestruje się pierwszy moduł**, gdy brakuje modułu wymaganego
+przez kompozycję:
 
-- wymagany zbiór to `requiredModulesFrom(manifests)`, wyprowadzany przez każdy
-  root z manifestów, które komponuje, i przekazywany composerowi jako dane —
-  composer dostaje trzy pola per moduł i nie może czytać manifestu. Nie ma listy
-  nigdzie, więc wycofanie locka zmienia tę odmowę w tym samym runie;
-- **„wymagany do zainstalowania” i „nie można wyłączyć” to ten sam zbiór, przez
-  wyprowadzenie i decyzję.** Manifest nie potrzebuje drugiego pola: autor, który
-  napisał *„platforma nie może działać bez tego”*, odpowiedział obiema pytaniami
-  jednym zdaniem, i to zdanie drukuje odmowa;
-- dwa findingi, bo mają różne remedia. `absent` znaczy skomponowany, a presence
-  mówi inaczej → `module:enable <id>`. `not-composed` znaczy manifesty deklarują,
-  a nic nie zarejestrowało → skomponowana lista modułów i indeks manifestu się
-  nie zgadzają, więc `composer:generate` i rebuild. Tylko composer widzi drugie:
-  `loadModulePresence` działa przed pierwszą rejestracją modułu, więc indeks
-  manifestu i skomponowana lista, które się nie zgadzają, oba wyglądają poprawnie
-  dla niego.
+- zbiór wymaganych modułów to `requiredModulesFrom(manifests)`, wyprowadzany przez każdy
+  composition root z manifestów, które składa, i przekazywany do mechanizmu kompozycji jako dane —
+  mechanizm kompozycji dostaje trzy pola dla każdego modułu i nie może czytać manifestów. Nigdzie
+  nie ma listy, więc zdjęcie blokady zmienia tę odmowę w tym samym przebiegu;
+- **„wymagany do instalacji” i „nie da się wyłączyć” to ten sam zbiór, z wyprowadzenia i z
+  decyzji.** Manifest nie potrzebuje drugiego pola: autor, który napisał *„platforma nie działa bez
+  tego”*, odpowiedział jednym zdaniem na oba pytania i właśnie to zdanie wypisuje odmowa;
+- dwa rodzaje zgłoszeń, bo mają różne rozwiązania. `absent` oznacza, że moduł został złożony, a
+  obecność mówi co innego → `module:enable <id>`. `not-composed` oznacza, że manifesty go deklarują,
+  a nic go nie zarejestrowało → lista złożonych modułów nie zgadza się z indeksem manifestów, więc
+  trzeba uruchomić `composer:generate` i zbudować ponownie. Drugi przypadek widzi tylko mechanizm
+  kompozycji: `loadModulePresence` wykonuje się, zanim zarejestruje się pierwszy moduł, więc
+  rozbieżne indeks manifestów i lista złożonych modułów oba wyglądają dla niego poprawnie.
 
-Trzy odmowy spoczywają teraz na jednej deklaracji manifestu, a reguła zamykająca
-trzyma je trzema — *„dzielą deklarację i nie dzielą nic więcej: ani call
-site, ani typ błędu, ani komunikat”*. `assertDeactivatable` odmawia **transition,
-o który prosił operator**, i odpowiada kopertą HTTP; `assertLockedModulesPresent`
-odmawia **deployment złożony źle**, z manifestów, zanim dotknięta jest baza;
-`assertRequiredModulesPresent` odmawia **kompozycji, która dotarłaby do fazy boot
-bez wymaganego modułu**, z tego, co faktycznie zarejestrowano i co mówi presence.
+Na jednej deklaracji w manifeście opierają się teraz trzy odmowy, a reguła domykająca utrzymuje je
+jako trzy — *„dzielą deklarację i nic więcej: ani miejsca wywołania, ani typu błędu, ani
+komunikatu”*. `assertDeactivatable` odrzuca **przejście, o które poprosił operator**, i odpowiada
+na nie odpowiedzią HTTP; `assertLockedModulesPresent` odrzuca **źle złożone wdrożenie**, na
+podstawie manifestów, zanim dotknie bazy danych; `assertRequiredModulesPresent` odrzuca
+**kompozycję, która doszłaby do fazy startu bez wymaganego modułu**, na podstawie tego, co
+faktycznie zostało zarejestrowane i co faktycznie mówi obecność.
 
-Jedna absence, której nie widzi, jest taka: moduł w ogóle
-niewysłany zabiera manifest ze sobą, więc *„czy był locked?”* nie ma odpowiedzi
-na tym szwie. Ten przypadek zostaje z `assertLockedModulesPresent`, które pyta
-z deklaracji modułów, które zostały.
+Jedyny brak, którego nie widzi, to ten: moduł, który w ogóle nie został dostarczony, zabiera ze
+sobą swój manifest, więc na pytanie *„czy był zablokowany?”* nie ma w tym miejscu odpowiedzi. Ten
+przypadek pozostaje w gestii `assertLockedModulesPresent`, który pyta o to deklaracje modułów, które
+zostały.
 
-`test/integration/kernel/required-module-absent.test.ts` komponuje produkcyjny
-root z wycofanym `settings` na osi platformy i przypina zdanie, które czyta
-źle złożony deployment; `test/integration/kernel/deactivated-boot.test.ts` to
-jego lustro i nie wycofuje już locked modułu, bo ten stan jest teraz odmawiany
-z designu.
+`test/integration/kernel/required-module-absent.test.ts` składa produkcyjny composition root z
+`settings` wycofanym na osi platformy i utrwala zdanie, które przeczyta źle zbudowane wdrożenie;
+`test/integration/kernel/deactivated-boot.test.ts` jest jego lustrzanym odbiciem i nie wycofuje już
+zablokowanego modułu, bo ten stan jest teraz z założenia odrzucany.
 
-### Jedna rzecz, którą root nadal musi zrobić w kolejności
+### Jedyna rzecz, którą composition root nadal musi zrobić we właściwej kolejności
 
-`EventBus.dispatch` awaituje handlery w **kolejności rejestracji**, więc
-`composeSalesChannelsKernel` — który podpina invalidator cache kanału sprzedaży —
-jest komponowany **przed** `composeModules(MODULES, …)` w obu rootach. Moduł
-subskrybujący `sales_channels.identity_changed` przed nim uruchamia handler na
-wartości sprzed zapisu.
+`EventBus.dispatch` czeka na swoje handlery w **kolejności rejestracji**, więc
+`composeSalesChannelsKernel` — który podłącza unieważnianie pamięci podręcznej kanałów sprzedaży —
+jest w obu composition rootach składany **przed** `composeModules(MODULES, …)`. Moduł, który
+zasubskrybowałby `sales_channels.identity_changed` przed nim, wykonałby swój handler na wartości
+sprzed zapisu.
 
-**Cache settings był drugą połową tego zdania i już nią nie jest.**
-Warto przeczytać dlaczego, bo ta sama naprawa jest dostępna dla pozostałego.
-Kompozycja invalidatora pierwsza była działającym układem spoczywającym na dwóch
-wypadkach. Po pierwsze, drop docierał do `SharedDropMarks.begin` synchronicznie,
-więc był na czas tylko, gdy był handlerem *zero* — a wszystkie 65 modułów
-rejestruje się w jednym przebiegu, którego kolejność jest bez znaczenia z designu,
-więc nic nie zachowywało tej pozycji i nic by nie raportowało jej ruchu. Era
-dwuprzebiegowa już zapisała symptom, pierwszy raz, gdy `meta_ads` i `linkedin_ads`
-poszły przed nim. Po drugie, gorzej, `emit()` **wewnątrz** scope `EventBus.run`
-jest buforowany, aż funkcja scope wróci — a `CommandBus.run` otwiera dokładnie
-jeden per Command — więc żadna kolejność rejestracji nie uratowałaby zapisu i
-read-back w jednym command.
+**Kiedyś drugą połową tego zdania była pamięć podręczna ustawień, ale już nie jest.** Warto
+przeczytać dlaczego, bo ta sama naprawa jest dostępna dla pozostałego przypadku. Składanie
+unieważniania jako pierwszego było działającym układem opartym na dwóch przypadkach. Po pierwsze,
+usunięcie wpisu docierało do `SharedDropMarks.begin` synchronicznie, więc zdążało tylko dopóki było
+handlerem *zerowym* — a wszystkie 65 modułów rejestruje się teraz w jednym przebiegu, którego
+kolejność z założenia nie ma znaczenia, więc nic nie zachowywało tej pozycji i nic nie zgłosiłoby
+jej zmiany. Era dwóch przebiegów zanotowała już objaw, gdy po raz pierwszy przesunięto przed nie
+`meta_ads` i `linkedin_ads`. Po drugie, i gorzej: `emit()` **wewnątrz** zakresu `EventBus.run` jest
+buforowane, dopóki funkcja zakresu się nie zakończy — a `CommandBus.run` otwiera dokładnie jeden
+taki zakres na polecenie — więc żadna kolejność rejestracji nie uratowałaby zapisu i ponownego
+odczytu w ramach jednego polecenia.
 
-Naprawą nie była trzecia korekta kolejności. `SettingsAdminService` —
-jedyne miejsce, gdzie zmienia się wartość setting lub grupa — woła teraz
-`SettingsCacheInvalidation` i **awaituje go**, po flush i przed emit. Drop jest
-częścią zapisu, więc nic na busie nie może być wcześnie ani późno dla niego;
-`attachSettingsCacheInvalidator` usunięto, a powód, dla którego pięć modułów
-cytowało go w komentarzach („mój handler re-czyta setting, a invalidator jest
-prede mną”), jest teraz prawdziwy z konstrukcji. Odrzucone alternatywy warto
-nazwać: przypięcie kolejności checkiem czyni zależność explicite, ale ją zostawia;
-tier priorytetu EventBus czyni kolejność koncepcją platformy, którą każdy
-przyszły listener musi rościć — i żadna nie adresuje przypadku buffered scope.
+Naprawa nie była trzecią poprawką kolejności. `SettingsAdminService` — jedyne miejsce, w którym
+zmienia się wartość lub grupa ustawień — wywołuje teraz `SettingsCacheInvalidation` i **czeka na
+nie**, po zatwierdzeniu zmian, a przed wyemitowaniem zdarzenia. Usunięcie z pamięci podręcznej jest
+częścią zapisu, więc nic na szynie nie może być względem niego za wcześnie ani za późno;
+`attachSettingsCacheInvalidator` usunięto, a uzasadnienie, które pięć modułów podawało w
+komentarzach („mój handler ponownie odczytuje ustawienie, a unieważnianie jest przede mną”), jest
+teraz prawdziwe z samej konstrukcji. Warto nazwać odrzucone alternatywy: utrwalenie kolejności
+kontrolą czyni zależność jawną, ale jej nie usuwa; poziomy priorytetu w `EventBus` uczyniłyby
+kolejność pojęciem platformy, które musiałby deklarować każdy przyszły słuchacz; a żadna z nich w
+ogóle nie rozwiązuje przypadku buforowanego zakresu.
 
-Cache kanału sprzedaży nadal subskrybuje, więc reguła kolejności powyżej nadal
-wiąże ten root. Opróżnienie go tą samą drogą to osobna zmiana.
+Pamięć podręczna kanałów sprzedaży nadal subskrybuje zdarzenia, więc powyższa reguła kolejności
+nadal obowiązuje ten composition root. Usunięcie jej w ten sam sposób to osobna zmiana.
 
-Każda subskrypcja modułu w drzewie przechodzi przez `ctx.subscribe`, i to jest
-teraz egzekwowane, a nie proszone. Moduł mógł kiedyś subskrybować gołym
-`eventBus.on` z body pluginu: kolejność invalidatora nadal chroniła taki handler,
-ale effective state modułu nie, bo tylko `subscribeForModule` go konsultuje.
-Trasy i workery miały check szwu, subskrypcje nie, więc dwadzieścia dwa
-nagromadziły się w dziewięciu modułach, podczas gdy taski konwersji każdego
-modułu czytały done — a subscriber **pisze**, co czyni go gorszą połową luki:
-faktura wystawiona, numerowana i e-mailowana, quote request flipped na Completed,
-push do urządzenia klienta, lista zakupów utworzona — wszystko dla modułu, który
-operator uważał za off.
+Każda subskrypcja modułu w drzewie przechodzi przez `ctx.subscribe` i jest to teraz egzekwowane, a
+nie tylko zalecane. Moduł mógł kiedyś subskrybować przez zwykłe `eventBus.on` w treści pluginu:
+opisana wyżej kolejność unieważniania nadal chroniła taki handler, ale stan efektywny modułu już
+nie, bo sprawdza go tylko `subscribeForModule`. Trasy i workery miały swoje kontrole punktów
+rozszerzenia, a subskrypcje żadnej, więc w dziewięciu modułach nazbierały się dwadzieścia dwie
+takie subskrypcje, podczas gdy zadania przenoszenia każdego z tych modułów były oznaczone jako
+wykonane — a subskrybent **zapisuje**, co czyni go gorszą połową tej luki: faktura wystawiona,
+ponumerowana i wysłana e-mailem, zapytanie ofertowe przestawione na Completed, powiadomienie push
+dostarczone na urządzenie klienta, lista zakupów utworzona — wszystko dla modułu, który operator
+uważał za wyłączony.
 
-`pnpm --filter backend run check:subscribe-seam` to grzyb. Czyta własne źródła
-modułu pod kątem wywołania na receiverze w kształcie event bus, i niesie
-`BARE_SUBSCRIPTIONS_TO_DRAIN`, **pusty** dwukierunkowy ledger: niezledgerowana
-goła subskrypcja psuje build, i wpis ledgera, który już nie opisuje jednej, też
-psuje. Kernel celowo poza zakresem — komponuje przed jakimkolwiek modułem i nie
-ma effective state do bramkowania, więc invalidator cache kanału sprzedaży
-subskrybuje bezpośrednio, co jest faktem kolejności, od którego zależy akapit
-powyżej.
+Zapadką jest `pnpm --filter backend run check:subscribe-seam`. Szuka w źródłach modułu wywołań na
+obiekcie o kształcie szyny zdarzeń i zawiera `BARE_SUBSCRIPTIONS_TO_DRAIN`, **pusty** rejestr
+działający w obie strony: niezarejestrowana bezpośrednia subskrypcja przerywa build, a wpis w
+rejestrze, który już żadnej nie opisuje, też. Jądro jest celowo poza zakresem — składa się przed
+jakimkolwiek modułem i nie ma stanu efektywnego, od którego mogłoby zależeć, więc unieważnianie
+pamięci podręcznej kanałów sprzedaży subskrybuje bezpośrednio, a od tego faktu zależy kolejność
+opisana w poprzednim akapicie.
 
-### Entry point bez callera decyduje obecność
+### Punkt wejścia bez wywołującego sam rozstrzyga obecność
 
-Szew trasy bramkuje requesty; **body** pluginu to nie request. Działa przy boot
-niezależnie od effective state modułu, więc timer startowany tam nadal strzela
-po wyłączeniu modułu przez operatora — `price_lists` nadal flipował
-`scheduled → active` i `active → expired` co pięć minut, co zmieniało to, co
-klienci płacą. Callback timera też nie ma dokąd throw *to*, więc
-`ModuleDisabledError` nie propaguje się stamtąd: podniesiony tam albo jest
-połknięty przez `catch` na transient failures, albo zabija tick.
+Punkt rozszerzenia trasy blokuje żądania; **treść** pluginu nie jest żądaniem. Wykonuje się przy
+starcie niezależnie od stanu efektywnego modułu, więc uruchomiony w niej timer działa dalej po
+wyłączeniu modułu przez operatora — `price_lists` co pięć minut przestawiał `scheduled → active` i
+`active → expired`, co zmienia ceny, jakie płacą klienci. Funkcja wywoływana przez timer nie ma
+też *dokąd* rzucić wyjątku, więc `ModuleDisabledError` nie może się z niej wydostać: rzucony tam
+zostaje albo pochłonięty przez `catch` przeznaczony dla przejściowych błędów, albo zatrzymuje
+cykl. Funkcja timera **rozstrzyga** więc sama — `if (!effectiveState.isPresent('<id>')) return;`,
+na samym początku i poza każdym `try`, aby wyłączony moduł i nieudany cykl nigdy nie dzieliły
+jednego cichego „nic nie rób”. Tam, gdzie timer *jest* pętlą, jak w samoplanującym się cyklu
+reindeksacji `search`, gałąź „wyłączony” planuje kolejne wywołanie i pomija pracę; powrót bez
+ponownego zaplanowania zatrzymałby harmonogram na cały czas życia procesu.
 
-Callback **decyduje** więc — `if (!effectiveState.isPresent('<id>'))
-return;`, pierwsze i poza każdym `try`, żeby wyłączony moduł i failed tick
-nigdy nie dzielili jednego cichego no-op. Gdzie timer *jest* pętlą, jak w
-self-rescheduling reindex tick `search`, gałąź off re-armuje i pomija pracę;
-return bez re-arm zatrzymałby scheduler na życie procesu.
+Zapadką jest `pnpm --filter backend run check:entry-presence` — nazywała się
+`check:timer-presence`, dopóki zbiór nie przestał składać się z samych timerów — a to, co widzi,
+jest węższe niż reguła: `setInterval`, `setTimeout`, którego funkcja ponownie uruchamia timer albo
+wywołuje funkcję, która go uruchomiła, handler cyklu życia `process.on` oraz hook `ctx.onBoot` — we
+własnych źródłach modułu. Jednorazowy termin wewnątrz operacji, która już ma wywołującego, jest poza
+zakresem. Dwa pierwsze kształty są zdefiniowane w `backend/scripts/lib/repeating-timers.ts` i
+korzysta z nich także `check-entry-scope.ts`. Tamta kontrola klasyfikowała swoje punkty wejścia
+oparte na interwałach, wyszukując `setInterval(`, więc pętla reindeksacji `search` była poza
+liczonym zbiorem, a luka pozostawała niewidoczna za liczbą, która się nie zmieniała. Dwa detektory
+tego samego kształtu to przepis na rozjazd; reguły pozostają osobne — jedna pyta, czy funkcja
+rozstrzyga obecność, druga, czy miejsce otwiera zakres — ale mechanizm rozpoznawania jest jeden.
 
-`pnpm --filter backend run check:entry-presence` to grzyb — było
-`check:timer-presence`, dopóki populacja przestała być timerami — a to, co
-widzi, jest węższe niż reguła: `setInterval`, `setTimeout`, którego callback
-re-armuje timer lub woła z powrotem funkcję, która go uzbroiła, handler lifecycle
-`process.on` i hook `ctx.onBoot` — we własnych źródłach modułu. Jednorazowy
-deadline wewnątrz operacji, która już ma callera, jest poza zakresem.
-Pierwsze dwa kształty żyją w `backend/scripts/lib/repeating-timers.ts` i są
-czytane też przez `check-entry-scope.ts`. Ten check klasyfikował
-entry pointy interval grepując `setInterval(`, więc reindex loop `search` był
-poza populacją, którą liczył, a luka tam zostawała niewidoczna za liczbą,
-która się nie ruszała. Dwa detektory jednego kształtu to sposób, w jaki driftują;
-reguły zostają osobno — jeden pyta, czy callback decyduje obecność, drugi czy
-miejsce otwiera scope — ale recognizer jest jeden.
+#### Zakres ocenia się dla każdego miejsca, bo ocena całego pliku to alternatywa
 
-#### Scope odpowiadany jest per site, bo odpowiedź na poziomie pliku to dysjunkcja
+`check-entry-scope.ts` klasyfikował kiedyś **pliki**, a plik był oznaczany jako `scoped`, gdy tylko
+*jeden* z jego punktów wejścia był poprawny. To nie jest słabość teoretyczna:
+`kernel/lifecycle/registry-cache.ts` odświeżał `module_registrations` i `settings` z handlera Redis
+pub/sub w ogóle bez zakresu, a kontrola uznawała plik za objęty zakresem dzięki poprawnie
+opakowanemu `setInterval` 130 wierszy niżej. Sześć plików w tym drzewie ma więcej niż jeden punkt
+wejścia, a to dokładnie tam alternatywa może któryś ukryć.
 
-`check-entry-scope.ts` klasyfikował kiedyś **pliki**, a plik raportował
-`scoped`, gdy *jeden* z jego entry pointów był poprawny. To nie teoretyczna
-słabość: `kernel/lifecycle/registry-cache.ts` odświeżał
-`module_registrations` i `settings` z handlera Redis pub/sub bez scope w ogóle,
-a check nazywał plik scoped z poprawnie owiniętego `setInterval` 130 linii
-niżej. Sześć plików w tym drzewie ma więcej niż jeden entry point, co jest
-dokładnie miejscem, gdzie dysjunkcja może ukryć jeden.
+Zbiorem są więc **miejsca**. Sześć klas: skrypt CLI i zadeklarowany program pozostają na poziomie
+pliku — punktem wejścia jest wykonanie najwyższego poziomu w tym pliku — a każde
+`new Worker(...)`, każdy powtarzający się timer, każde `x.on('message', …)` i każde
+`process.on/once(...)` to osobne miejsce. Dwie z tych klas są nowe, a jedna zamyka lukę, której
+nie mogła zamknąć żadna klasa na poziomie pliku: `kernel/container.ts` instaluje w całym procesie
+zwalnianie zasobów przy `SIGINT`/`SIGTERM`, a nie leży w żadnym katalogu `scripts/`, nie jest
+zadeklarowanym programem, nie tworzy `Worker` i nie uruchamia timera — kontrola klasyfikująca pliki
+nie miała go gdzie umieścić, więc handler nie był zwolniony z reguły, tylko w ogóle nieobecny. Dwa
+miejsca na poziomie pliku są oceniane na podstawie pliku **bez** funkcji miejsc znajdujących się w
+nim, więc program nie może zostać uznany za objęty zakresem dzięki `enterSystemScope` otwieranemu
+przez jego Worker.
 
-Populacja to więc **sites**. Sześć klas: skrypt CLI i zadeklarowany program
-zostają file-level — entry to własne top-level execution pliku — a każdy
-`new Worker(...)`, każdy repeating timer, każde `x.on('message', …)` i każde
-`process.on/once(...)` to osobny site. Dwie z tych klas są nowe, a jedna zamyka
-lukę, której żadna klasa file-level nie mogła: `kernel/container.ts`
-instaluje process-wide disposal `SIGINT`/`SIGTERM`, i nie jest pod żadnym
-katalogiem `scripts/`, nie jest zadeklarowanym programem, nie konstruuje `Worker`
-i nie startuje timera — check klasyfikujący pliki nie miał gdzie go włożyć, więc
-handler nie był exempt, był absent. Dwa file-level sites pytane są nad plikiem
-**minus** callbacki sites wewnątrz niego, więc program nie czyta się jako scoped
-z `enterSystemScope`, który otwiera jego Worker.
+Miejsce jest objęte zakresem, gdy `enterSystemScope` / `enterPlatformScope` jest wywoływane w jego
+własnej funkcji albo **o jeden krok** dalej, w funkcji zdefiniowanej w tym samym pliku — na tę samą
+głębokość `check-port-catches` śledzi `this.<method>()`. Przekazanie identyfikatora funkcji nie jest
+tym krokiem: w `new Worker(QUEUE, processor, …)` `processor` *jest* funkcją miejsca. Dwa kroki,
+zaimportowana funkcja delegowana i delegowanie przez `this.<method>()` są poza zasięgiem analizy i
+wszystkie trzy są uznawane za **nieobjęte zakresem** — w tę stronę musi się mylić martwy punkt.
 
-Site jest scoped, gdy `enterSystemScope` / `enterPlatformScope` wołane jest w
-własnym callbacku, lub **jeden hop** do funkcji bound w tym samym pliku — głębokość,
-do której `check-port-catches` śledzi `this.<method>()`. Binding identifier
-callback nie jest tym hopem: w `new Worker(QUEUE, processor, …)` `processor` *jest*
-callbackiem. Dwa hopy, imported delegate i delegate `this.<method>()` są poza tym,
-co analiza widzi, i wszystkie trzy czytają się jako **unscoped**, co jest
-kierunkiem, w którym blind spot musi failować.
+`NO_SCOPE_NEEDED` ma klucze takie jak rejestry `check-entry-presence` —
+`<file>:<enclosing name>:<construct>`, niezależne od numeru wiersza, działające w obie strony — a
+jeden klucz może obejmować dwa miejsca, które dzielą wszystkie trzy części (`index.ts` rejestruje
+`SIGINT` i `SIGTERM` w jednej funkcji). Nie oczekuje się, że ten rejestr się opróżni: wpis mówi,
+dlaczego miejsce *słusznie* działa bez zakresu, i co by temu zaprzeczyło. Wzorcowym przykładem są
+trzy handlery pamięci podręcznej i połączeń: handler pub/sub, który tylko usuwa zapamiętaną `Map`,
+nie potrzebuje zakresu, bo ponowne wypełnienie następuje na stosie następnego wywołującego, a wpis
+mówi to jako warunek zaprzeczający: **w dniu, w którym zacznie ponownie wczytywać zamiast usuwać,
+błąd wróci**.
 
-`NO_SCOPE_NEEDED` kluczowany jest jak ledgery `check-entry-presence` —
-`<file>:<enclosing name>:<construct>`, line-independent, two-way — i jeden klucz
-może pokryć dwa sites dzielące wszystkie trzy (`index.ts` rejestruje `SIGINT` i
-`SIGTERM` w jednej funkcji). Nie oczekuje się, że będzie pusty: wpis mówi, dlaczego
-site jest *słusznie* unscoped, z tym, co by to obaliło. Trzy handlery cache-and-connection
-w nim to worked example — handler pub/sub, który tylko dropuje cached `Map`, nie
-potrzebuje scope, bo refill dzieje się na stacku następnego callera, i wpis mówi
-to jako falsifier: **w dniu, gdy reload zamiast drop, defekt wraca**.
+`TIMERS_WITHOUT_PRESENCE` i `BOOT_HOOKS_WITHOUT_PRESENCE` działają w obie strony jak rejestry
+powyżej, ale w przeciwieństwie do nich nie oczekuje się, że się opróżnią: wpis mówi, dlaczego
+miejsce słusznie działa dalej, gdy jego moduł jest wyłączony — podtrzymywanie dzierżawy blokady
+cyklu życia należy do polecenia, które tę blokadę trzyma, a `_lifecycle` jest niewyłączalny.
 
-`TIMERS_WITHOUT_PRESENCE` i `BOOT_HOOKS_WITHOUT_PRESENCE` są dwukierunkowe jak
-ledgery powyżej, ale w przeciwieństwie do nich nie oczekuje się, że będą puste:
-wpis mówi, dlaczego site słusznie działa, gdy moduł jest off — heartbeat lease
-lifecycle lock należy do command trzymającego lock, a `_lifecycle` jest
-non-deactivatable.
+#### Hook startowy należy do tego zbioru, a jednego jego kształtu nie naprawia sprawdzenie obecności
 
-#### Boot hook jest w tej populacji, a jeden jego kształt nie naprawia się sondą
+Nic w jądrze nie rozstrzyga obecności za hook startowy (zobacz *Faza startu rzuca wyjątki dalej*
+wyżej), więc hook, który **wykonuje pracę**, ma ten sam obowiązek co funkcja timera:
+`if (!effectiveState.isPresent('<own id>')) return;`, na samym początku i poza każdym `try`.
+`product_feeds` przy każdym wdrożeniu zapisywał w Redis klucze harmonogramu BullMQ, mimo że moduł
+był wyłączony; `pim_ergonode` robił to samo ze swoim harmonogramem importu, `inventory` tworzył
+wiersze przypisań magazynów do kanałów, `blog` tworzył kategorię i dwie role, a `cms` uzgadniał
+swoje domyślne hooki.
 
-Nic w kernelu nie decyduje obecności dla boot hooka (patrz *Faza boot re-throwuje*
-wyżej), więc hook, który **robi pracę**, niesie ten sam obowiązek co callback
-timera: `if (!effectiveState.isPresent('<own id>')) return;`, pierwsze i poza
-każdym `try`. `product_feeds` pisał klucze schedulera BullMQ do Redis przy każdym
-deploy z modułem off; `pim_ergonode` robił to samo dla harmonogramu importu,
-`inventory` tworzył wiersze przypisań magazyn/kanał, `blog` seedował kategorię i
-dwie role, `cms` reconcilował seedowane Hooks.
+Hook, który tylko **wnosi wkład** — dodaje bierny deskryptor do rejestru innego modułu — **nie
+może** sprawdzać obecności. Host filtruje takie wpisy według modułu, który je wniósł, przy
+przeglądaniu, więc nieobecny moduł i tak nic go nie kosztuje, a sprawdzenie oznaczałoby, że moduł
+ponownie włączony przez operatora w czasie działania nie wnosiłby niczego aż do następnego restartu.
 
-Hook, który tylko **contributuje** — wrzuca nieaktywny deskryptor do rejestru
-innego modułu — **nie** może sondować. Host filtruje je po współtwórcy przy
-enumeracji, więc nieobecny współtwórca już nic nie kosztuje, a sonda oznaczałaby,
-że moduł, który operator włącza z powrotem w runtime, nic nie wnosi aż do
-następnego restartu.
+Hook, który robi **jedno i drugie**, trzeba rozdzielić, zanim którakolwiek z tych odpowiedzi będzie
+miała zastosowanie, a kontrola zgłasza go jako osobny rodzaj (`mixed-boot-hook`) z zaleceniem
+„najpierw go rozdziel”. To nie jest kwestia stylu. `blog` i `cms` rejestrowały skaner referencji do
+plików obok własnej pracy, a `assets_library` sprawdza ten rejestr przed każdym miękkim usunięciem —
+zasada przeglądania tego rejestru to *respektowanie* wpisów nieobecnego modułu właśnie dlatego, że
+wiersze wyłączonego modułu nadal osadzają pliki. Dodaj sprawdzenie do połączonego hooka, a
+wdrożenie startujące z wyłączonym `blog` nie będzie miało skanera bloga: biblioteka usunie wtedy
+plik, do którego odwołuje się wpis na blogu, a operator zobaczy szkodę jako uszkodzony obraz po
+ponownym włączeniu modułu. Dwa z pięciu hooków wykonujących pracę w drzewie były mieszane — dlatego
+kontrola, której jedyną radą byłoby „dodaj sprawdzenie na początku”, uczyłaby złej naprawy w 40%
+znalezionych przypadków. `backend/test/integration/blog/asset-reference-while-off.test.ts` i jego
+odpowiednik dla `cms` utrwalają ten skutek: składają moduł **gdy jest wyłączony** i sprawdzają, że
+pliku, do którego jest odwołanie, nadal nie da się usunąć.
 
-Hook robiący **obie** rzeczy jest splitowany, zanim zastosuje się którakolwiek
-odpowiedź, a check raportuje to jako własny kind (`mixed-boot-hook`) z „split it
-first” jako remedium. To nie stylistyka. `blog` i `cms` każdy rejestrował scanner
-asset-reference obok własnej pracy, a `assets_library` konsultuje ten rejestr
-przed każdym soft-delete — polityka enumeracji rejestru to *honoured*, gdy
-współtwórca absent, bo wiersze wyłączonego modułu nadal osadzają assety. Sondowanie
-połączonego hooka przy deploy z `blog` off daje brak blog scanner: Library usuwa
-wtedy asset referencjonowany przez post bloga, a operator spotyka szkodę jako
-zepsuty obraz po włączeniu modułu. Dwa z pięciu working hooks w drzewie były
-mixed, dlatego check, którego jedyna rada to „add probe at top”, uczyłby złej
-naprawy w 40% tego, co znajduje.
-`backend/test/integration/blog/asset-reference-while-off.test.ts` i bliźniak `cms`
-przypinają konsekwencję: komponują moduł **gdy jest off** i asertują, że
-referencjonowany asset nadal nie może być usunięty.
+Moduł, którego manifest deklaruje `activation.nonDeactivatable`, jest poza zbiorem hooków
+startowych — nie ma stanu, w którym jego hooki wykonują się pod jego nieobecność. To wyprowadzenie
+znajduje się w `backend/scripts/lib/switchable-modules.ts` i jest wspólne z `OWNER LOCKED` w
+`check-port-catches`, więc właściciel, który zdejmie blokadę, w tym samym przebiegu ponownie oznacza
+na czerwono obie kontrole, bez edycji żadnego rejestru.
 
-Moduł deklarujący `activation.nonDeactivatable` jest poza populacją boot-hook —
-nie ma stanu, w którym jego hooki działają, gdy jest absent. To wyprowadzenie
-żyje w `backend/scripts/lib/switchable-modules.ts` i jest współdzielone z
-`OWNER LOCKED` `check-port-catches`, więc właściciel wycofujący lock
-ponownie czerwieni oba checki w tym samym runie, bez edycji ledgera.
+### Pamięć podręczna oparta na obecności porównuje generację, a nie powiadomienie
 
-### Cache nad obecnością porównuje generację, nie powiadomienie
+`b2b:module:state-changed` ogłasza zmianę, której wpływ na `registryCache` wymaga jeszcze
+odczytu z PostgreSQL: nowe mapy instaluje `refreshFromDb`, a ta funkcja jest `async`. Konsument,
+który zapamiętuje cokolwiek wyprowadzonego z obecności i czyści to zapamiętanie **w subskrybencie**,
+odbudowuje więc dane z obecności *sprzed* zmiany i trzyma wynik do następnego komunikatu — który
+może nigdy nie nadejść. Dokładnie tak robił `admin_actions`: żądanie palety poleceń, które trafiło
+w to okno, na stałe zapamiętywało akcje wyłączonego modułu, a błąd nie zależał od tego, który z
+dwóch handlerów `on('message')` zarejestrowano pierwszy, bo okno otwiera asynchroniczność
+odświeżania, a nie kolejność słuchaczy. To ta sama rodzina co opisane wyżej unieważnienia pamięci
+podręcznej — unieważnienie, którego poprawność zależy od kolejności wysyłki.
 
-`b2b:module:state-changed` ogłasza zmianę, której efekt na `registryCache` jest
-jeszcze round-trip PostgreSQL stąd: `refreshFromDb` instaluje nowe mapy i jest
-`async`. Konsument memoizujący cokolwiek wyprowadzone z obecności i dropujący
-memo **w subscriberze** rebuilduje więc z obecności *przed* zmianą i trzyma
-wynik aż do następnej wiadomości — która może nigdy nie nadejść. `admin_actions`
-robiło dokładnie to: request palety lądujący w oknie cache'ował
-akcje wyłączonego modułu na stałe, a defekt był niezależny od tego, który z dwóch
-handlerów `on('message')` zarejestrowano pierwszy, bo okno otwiera asynchroniczność
-refresh, a nie kolejność listenerów. To ta sama rodzina co invalidacje cache
-powyżej — invalidation, której poprawność jest funkcją kolejności dispatch.
-
-Odpowiedzią kernela jest **pull**, `effectiveState.presenceVersion()`: licznik,
-który cache rejestru przesuwa, gdy completed load instaluje obecność różniącą się
-od poprzedniej. Konsument zapisuje numer, pod którym snapshot był zbudowany, i
-porównuje przy każdym odczycie:
+Odpowiedzią jądra jest **pobieranie**, `effectiveState.presenceVersion()`: licznik, który pamięć
+podręczna rejestru zwiększa, gdy zakończone wczytanie instaluje obecność o treści innej niż
+poprzednia. Konsument zapamiętuje numer, przy którym zbudował migawkę, i porównuje go przy każdym
+odczycie:
 
 ```ts
 const version = this.presence.version();
@@ -1109,60 +1043,58 @@ if (version !== this.cachedPresenceVersion) {
 }
 ```
 
-Nic się nie rejestruje, więc nie ma kolejności do zepsucia, a usługa zbudowana po
-refresh nadal czyta właściwy numer. Przesuwa się na **content**, nie na refresh
-count: każdy proces refreshuje przy każdej zmianie stanu, a degraded timer co
-pięć sekund, więc counter per refresh dropowałby memo za każdym razem i czynił
-bezwartościowym podczas outage Redis. Trzymaj subscriber, jeśli nadal zasługuje —
-pokrywa inputy, których obecność nie rusza, jak install przepisujący wiersze
-`module_actions` lub bundle tłumaczeń — ale nie może być tym, na czym spoczywa
+Nic się nie rejestruje, więc nie ma kolejności, którą można pomylić, a usługa utworzona po
+odświeżeniu nadal odczytuje właściwy numer. Licznik zmienia się przy zmianie **treści**, a nie
+liczby odświeżeń: każdy proces odświeża dane przy każdej zmianie stanu, a timer trybu awaryjnego
+odświeża co pięć sekund, więc licznik zwiększany przy każdym odświeżeniu czyściłby zapamiętanie za
+każdym razem i czynił je bezużytecznym podczas awarii Redis. Zostaw subskrybenta, jeśli nadal się
+przydaje — obejmuje dane wejściowe, których obecność nie zmienia, np. instalację, która przepisuje
+wiersze `module_actions` albo pakiety tłumaczeń — ale nie może to być element, na którym opiera się
 poprawność odpowiedzi.
 
-### Pisanie rationale kolejności, które nie gnije
+### Jak pisać uzasadnienie kolejności, które się nie zdezaktualizuje
 
-Zlanie dwóch przebiegów unieważniło nic w kodzie i piętnaście komentarzy w nim
-— plus dwa rationale już raz skorygowane. To nie problem porządku: trzy razy w
-tej pracy implementer czytał jedno z nich, wierzył i spędzał sesję na defekcie,
-którego nie było. Wychodzą dwie reguły, i dotyczą każdego wyjaśnienia *kiedy*
-coś się dzieje.
+Połączenie dwóch przebiegów w jeden nie unieważniło niczego w kodzie, za to unieważniło piętnaście
+komentarzy — i dwa uzasadnienia, które już raz poprawiano. To nie jest kwestia porządku: trzy razy
+w ramach tej zmiany osoba implementująca przeczytała jeden z nich, uwierzyła mu i spędziła sesję
+nad błędem, który nie istniał. Wynikają z tego dwie reguły, które dotyczą każdego wyjaśnienia,
+*kiedy* coś się dzieje.
 
-**Nazwij mechanizm, nie współrzędne.** Rationale „accessor nie jest przypisany
-aż `composition.ts:3240`, a hooki działają o `:2122`” psuje się, gdy którykolwiek
-numer się ruszy, i nic tego nie mówi: żaden test nie obejmuje komentarza, a
-czytelnik nie ma powodu wątpić w liczbę. To samo rationale jako „orchestrator
-budowany jest po skomponowaniu modułów, więc accessor odpowiada `undefined` podczas
-rejestracji” przeżywa każdą edycję, która nie zmienia mechanizmu — a jeśli
-mechanizm się zmieni, zdanie wyraźnie dotyczy rzeczy, która się zmieniła. Gdzie
-referencja naprawdę pomaga, niech będzie **symbolem** lub **plikiem plus symbolem**
-(guard `registering` `compose.ts`, `installGatingGraph` `presence-load.ts`), nigdy
-numerem linii.
+**Nazywaj mechanizm, a nie współrzędne.** Uzasadnienie w rodzaju „akcesor jest przypisywany dopiero
+w `composition.ts:3240`, a hooki wykonują się w `:2122`” staje się błędne w chwili, gdy zmieni się
+którakolwiek liczba, i nic o tym nie informuje: żaden test nie obejmuje komentarza, a czytelnik nie
+ma powodu wątpić w liczbę. To samo uzasadnienie zapisane jako „orkiestrator jest budowany po
+złożeniu modułów, więc akcesor zwraca `undefined` podczas rejestracji” przetrwa każdą zmianę, która
+nie zmienia mechanizmu — a jeśli mechanizm się zmieni, widać, że zdanie dotyczy właśnie tego, co
+się zmieniło. Tam, gdzie odwołanie naprawdę pomaga, niech będzie **symbolem** albo **plikiem i
+symbolem** (zabezpieczenie `registering` w `compose.ts`, `installGatingGraph` w
+`presence-load.ts`), nigdy numerem wiersza.
 
-**Nie pisz counterfactual w czasie przeszłym.** „Reconcile tutaj znalazłby pusty
-rejestr i raportował success” czyta się jak raport incydentu; następny czytelnik
-bierze to jako dowód, że platforma kiedyś tak psuła, i szuka outage. Jeśli zagrożenie
-jest hipotetyczne, powiedz to w pierwszym zdaniu — `test/unit/_i18n/reconcile-timing.test.ts`
-otwiera „everything below is about a move that was never made” dokładnie z tego
-powodu, po akapicie pod nim, który już kiedyś wprowadził w błąd. Jeśli zagrożenie
-jest realne i przeszłe, nazwij decyzję lub commit, który je zamknął, w tym samym
-tchem, jak `api_keys/backend.ts` z emerytowanym wpisem `EARLY_PASS_MODULE_IDS`.
+**Nie pisz hipotetycznego scenariusza w czasie przeszłym.** „Uzgadnianie w tym miejscu nie
+znalazłoby rejestru i zgłosiłoby sukces” brzmi jak raport z incydentu; następny czytelnik uzna to
+za dowód, że platforma kiedyś tak się zepsuła, i zacznie szukać awarii. Jeśli zagrożenie jest
+hipotetyczne, powiedz to w pierwszym zdaniu — `test/unit/_i18n/reconcile-timing.test.ts` zaczyna
+się od „wszystko poniżej dotyczy przeniesienia, którego nigdy nie wykonano” właśnie z tego powodu,
+po tym jak akapit pod spodem już raz kogoś wprowadził w błąd. Jeśli zagrożenie jest prawdziwe i
+przeszłe, w tym samym zdaniu wskaż decyzję albo commit, który je usunął, tak jak robi to
+`api_keys/backend.ts` przy wycofanym wpisie `EARLY_PASS_MODULE_IDS`.
 
-To samo dotyczy ledgerów w `check-port-dependencies.ts`: sweep staleness strzela,
-gdy właściciel **rejestruje nazwę**, co nie jest tym samym faktem co konwersja
-właściciela, więc powód „still hand-wired” gnije bez psucia buildu. Pisz powód
-każdego wpisu jako stwierdzenie o nazwie.
-## Praca install-time: jedyny szew to `manifest.ts`
+To samo dotyczy rejestrów w `check-port-dependencies.ts`: sprawdzanie aktualności uruchamia się,
+gdy właściciel **zarejestruje nazwę**, a to nie ten sam fakt co przeniesienie właściciela na nowy
+mechanizm, więc uzasadnienie zapisane jako „nadal podłączane ręcznie” dezaktualizuje się, nie
+przerywając żadnego buildu. Zapisuj uzasadnienie każdego wpisu jako stwierdzenie o nazwie.
 
-`ctx.onBoot` to jedyny lifecycle hook, który niesie `ModuleContext`. Nie ma
-`ctx.onInstall` ani `ctx.onUninstall`: istniały kiedyś, composition
-sink je zbierał, i nikt ich nigdy nie uruchomił, więc je usunięto. Powód
-jest strukturalny, a nie porządek. Kernel komponuje **działający proces**;
-orchestrator lifecycle zarządza **inwentarzem deploymentu**, i tylko pierwszy
-z nich ma kontener. `module:install` buduje statyczny rejestr z
-`REGISTERED_MANIFESTS`, otwiera ORM i Redis, i nigdy nie woła
-`composeApp` — więc hook przekazany kontenerowi nie mógłby odpalić nawet w
-zasadzie, bez komponowania wszystkich 65 modułów, żeby zainstalować jeden.
+## Praca przy instalacji: jedynym punktem rozszerzenia jest `manifest.ts`
 
-Moduł potrzebujący pracy install-time eksportuje ją z `manifest.ts`:
+`ctx.onBoot` to jedyny hook cyklu życia dostępny w `ModuleContext`. Nie ma `ctx.onInstall` ani
+`ctx.onUninstall`: kiedyś istniały, mechanizm kompozycji je zbierał, ale nic ich nigdy nie
+wykonywało, więc zostały usunięte. Powód jest strukturalny, a nie porządkowy. Jądro składa
+**działający proces**; mechanizm cyklu życia zarządza **inwentarzem wdrożenia**, a kontener ma
+tylko pierwszy z nich. `module:install` buduje statyczny rejestr z `REGISTERED_MANIFESTS`, otwiera
+ORM i Redis i nigdy nie wywołuje `composeApp` — więc hook przekazany do kontenera nie mógłby się
+wykonać nawet w teorii, chyba że składałoby się wszystkie 65 modułów po to, by zainstalować jeden.
+
+Moduł, który potrzebuje pracy przy instalacji, eksportuje ją ze swojego `manifest.ts`:
 
 ```ts
 // packages/modules/custom_fields/src/manifest.ts
@@ -1173,54 +1105,51 @@ export const uninstallHook: ModuleUninstallHook = async (ctx) => {
 };
 ```
 
-`backend/scripts/generate-composer.ts` wykrywa export i emituje go do
-`backend/src/manifest-index.generated.ts`, jedynego wygenerowanego rejestru
-manifestów; rejestru nigdy nie edytujesz. Ten sam generator emituje composer,
-`db/entities-registry.generated.ts` i `db/migrations-registry.generated.ts`
-z tego samego tree walk — jedna komenda, więc dwa artefakty odświeżane dwiema
-komendami nie mogą znów driftować. Uruchom
-`pnpm --filter backend run composer:generate` i commituj wynik.
+`backend/scripts/generate-composer.ts` wykrywa ten eksport i zapisuje go w
+`backend/src/manifest-index.generated.ts`, jedynym generowanym rejestrze manifestów; rejestru nigdy
+nie edytujesz ręcznie. Ten sam generator na podstawie tego samego przejścia po drzewie tworzy
+composer, `db/entities-registry.generated.ts` i `db/migrations-registry.generated.ts` — jedno
+polecenie, więc dwa artefakty odświeżane dwoma poleceniami nie mogą się już rozjechać. Uruchom
+`pnpm --filter backend run composer:generate` i zatwierdź wynik.
 
-Sześć właściwości, wszystkie load-bearing i żadna oczywista z sygnatury hooka.
-Są przypięte przez
+Sześć właściwości, wszystkie istotne i żadna nieoczywista z samej sygnatury hooka. Utrwala je
 `backend/test/unit/_lifecycle/orchestrator.test.ts`.
 
-**1. Hook jest idempotentny z kontraktu, nie z konwencji.** To nie „raz per
-deployment”. Failed install parkuje wiersz rejestru na `uninstalled`, więc
-następny `module:install` uruchamia hook ponownie; tak samo cykl soft-uninstall →
-install. Pisz go tak, by drugi run był no-op.
+**1. Hook jest idempotentny z kontraktu, a nie z konwencji.** To nie jest „raz na wdrożenie”.
+Nieudana instalacja zostawia wiersz rejestru w stanie `uninstalled`, więc następne
+`module:install` wykona hook ponownie; tak samo cykl miękkie odinstalowanie → instalacja. Pisz go
+tak, by drugie wykonanie niczego nie zmieniało.
 
-**2. Padający install hook abortuje install.** Orchestrator revertuje każdą
-migrację zastosowaną *w tym runie*, w reverse, ustawia wiersz na `uninstalled` z
-`lastInstallError`, audytuje `module.install_failed` i podnosi
-`LifecycleError('install-failed')` — exit CLI 70. Nie połykaj błędów w hooku, żeby
-„być bezpiecznym”: głośne padanie *jest* bezpiecznym zachowaniem i jedynym,
-które zostawia instancję w stanie sprzed install.
+**2. Błąd hooka instalacyjnego przerywa instalację.** Mechanizm cyklu życia cofa w odwrotnej
+kolejności każdą migrację wykonaną *w tym przebiegu*, ustawia wiersz na `uninstalled` z
+`lastInstallError`, zapisuje w audycie `module.install_failed` i rzuca
+`LifecycleError('install-failed')` — kod wyjścia CLI 70. Nie pochłaniaj błędów w hooku „dla
+bezpieczeństwa”: głośny błąd *jest* bezpiecznym zachowaniem i jedynym, które zostawia instancję w
+stanie sprzed instalacji.
 
-**3. Padający uninstall hook abortuje uninstall i nic nie usuwa.** Hook działa
-przed sweep settings, przed revert migracji i przed dotknięciem wiersza rejestru,
-więc throw zostawia moduł dokładnie tak, jak był.
+**3. Błąd hooka odinstalowującego przerywa odinstalowanie i niczego nie usuwa.** Hook wykonuje się
+przed usunięciem ustawień, przed cofnięciem migracji i zanim zostanie zmieniony wiersz rejestru,
+więc wyjątek zostawia moduł dokładnie w poprzednim stanie.
 
-**4. `ctx.hard` rozróżnia soft od destructive.** Soft uninstall znaczy „ten
-deployment nie niesie już modułu”; jest odwracalny i nie może zrzucać wierszy.
-Hard uninstall znaczy, że schema też idzie. Destructive cleanup żyje za
+**4. `ctx.hard` odróżnia odinstalowanie miękkie od niszczącego.** Miękkie odinstalowanie oznacza
+„to wdrożenie już nie zawiera tego modułu”; jest odwracalne i nie może usuwać wierszy. Twarde
+odinstalowanie oznacza, że znika też schemat. Niszczące sprzątanie umieszcza się za
 `if (!ctx.hard) return;`.
 
-**5. Żaden hook nie odpala przy aktywacji ani deaktywacji, i żaden nie może tam
-być dodany.** To operator axis obecności modułu — `module:enable`,
-`module:disable` i Setting aktywacji `/platform/modules` zostawiają oba hooki
-nietknięte. Off jest odwracalny i nic nie zrzuca; uninstall nie jest i jest.
+**5. Żaden z hooków nie wykonuje się przy aktywacji ani dezaktywacji i nie wolno ich tam dodawać.**
+To oś obecności należąca do operatora — `module:enable`, `module:disable` i ustawienie aktywacji
+na `/platform/modules` nie uruchamiają żadnego z tych hooków. Wyłączenie jest odwracalne i niczego
+nie usuwa; odinstalowanie nie jest odwracalne i usuwa.
 
-**6. Kontekst hooka to `{ em, redis, log, module }` — plus `hard` przy
-uninstall — i nie może nieść usług.** Hook potrzebujący współpracownika
-konstruuje go z `em`. Nic nie rozwiązuje się z kontenera tutaj, bo w procesie,
-który go uruchamia, nie ma kontenera.
+**6. Kontekst hooka to `{ em, redis, log, module }` — plus `hard` przy odinstalowaniu — i nie może
+zawierać usług.** Hook, który potrzebuje współpracownika, tworzy go z `em`. Nic nie jest tu
+pobierane z kontenera, bo w procesie, który wykonuje hook, nie ma kontenera.
 
-## Komendy operatora: deklaracja, którą host uruchamia
+## Polecenia operatora: deklaracja, którą wykonuje host
 
-Komenda operatora modułu — reindex, sweep, bootstrap — to export `cliCommands`
-tego samego `manifest.ts`, w którym żyją install hooks, a host ją woła. Nigdy
-nie jest skryptem bootstrapping platformy dla siebie.
+Polecenie operatora należące do modułu — reindeksacja, porządkowanie, inicjalizacja — to eksport
+`cliCommands` z tego samego pliku `manifest.ts`, w którym są hooki instalacyjne, a wywołuje je
+host. Nigdy nie jest to skrypt, który sam uruchamia platformę.
 
 ```ts
 // packages/modules/search/src/manifest.ts
@@ -1238,386 +1167,365 @@ pnpm --filter backend run cli -- --list          # every command this instance o
 pnpm --filter backend run cli -- search reindex  # or the alias: pnpm search:reindex
 ```
 
-Ten sam tree walk i ten sam `detectHookExport`, który niosą `installHook`,
-podnoszą to, więc dociera do core, per-deployment overlay module i
-**zainstalowanego pakietu rozszerzenia** na identycznych warunkach — co jest
-całym powodem kształtu. Plik pod `node_modules` nie może nazwać specifiere
-rozwiązującego do `backend/src/composition.ts` instancji, a core script
-nazywający jeden to cykl moduł → root → moduł. Wywołanie więc się odwraca:
-`backend/src/cli.ts` komponuje raz i woła moduł. To one-to-one z Magento 2, gdzie
-moduł wysyła klasę command plus deklarację pod `CommandListInterface`, a
-`bin/magento` bootstrappuje aplikację i konstruuje command z wstrzykniętymi
+To samo przejście po drzewie i ta sama funkcja `detectHookExport`, które obsługują `installHook`,
+wykrywają też ten eksport, więc działa on tak samo dla rdzenia, modułu nakładkowego wdrożenia i
+**zainstalowanego pakietu rozszerzenia** — i to jest jedyny powód takiego kształtu. Plik w
+`node_modules` nie może zaimportować niczego, co prowadziłoby do `backend/src/composition.ts`
+instancji, a skrypt rdzenia, który by to zrobił, tworzy cykl moduł → composition root → moduł.
+Wywołanie jest więc odwrócone: `backend/src/cli.ts` składa aplikację raz i wywołuje moduł. To
+dokładny odpowiednik Magento 2, gdzie moduł dostarcza klasę polecenia i deklarację w
+`CommandListInterface`, a `bin/magento` uruchamia aplikację i tworzy polecenie ze wstrzykniętymi
 zależnościami.
 
-Pięć rzeczy, które są decyzjami, a nie detalem:
+Pięć rzeczy, które są decyzjami, a nie szczegółami:
 
-**1. Body żyje w `packages/modules/<id>/src/backend/cli/<name>.ts`, a
-deklaracja `await import()`uje je.** Wygenerowany indeks manifestów importowany
-jest przez każdy statyczny check script i przez `src/db/configured-migrations.ts`;
-statyczny import klienta Meilisearch lub grafu usług zależnego od ORM pociągnąłby
-go do wszystkich. To reguła, którą już followuje `lifecycleParticipant`.
+**1. Implementacja leży w `packages/modules/<id>/src/backend/cli/<name>.ts`, a deklaracja ładuje ją
+przez `await import()`.** Wygenerowany indeks manifestów importuje każdy skrypt kontroli statycznej
+i `src/db/configured-migrations.ts`; statyczny import klienta Meilisearch albo grafu usług
+zależnych od ORM wciągnąłby go do nich wszystkich. Tę samą regułę stosuje już
+`lifecycleParticipant`.
 
-**2. Handler dostaje `ModuleContext`, nie cradle.** Rozwiązuje z
-`lazyPort<T>(ctx, 'literalName')`, znak w znak to, co pisze `backend.ts`, więc
-`check:port-dependencies` widzi krawędź cross-module. Odczyt
-`scope.cradle.someForeignPort` to niezadeklarowana krawędź raportująca czysto —
-failure, który dał helper `port(ctx, name)`, gdzie czternaście rozwiązań
-chowało się za zmienną. Czytanie **własnej** rejestracji modułu z
-`ctx.cradle<T>()` jest OK i czasem konieczne: `lazyPort` zwraca proxy
-odpowiadające każdej właściwości funkcją, żeby forwardować wywołanie metody, więc
-nested reach jak `handle.indexer.reindexAll()` type-checkuje, a potem pada z
-*"is not a function"*.
+**2. Handler dostaje `ModuleContext`, a nie kontener.** Pobiera porty przez
+`lazyPort<T>(ctx, 'literalName')`, znak w znak tak, jak pisze się to w `backend.ts`, więc
+`check:port-dependencies` widzi krawędź między modułami. Odczyt `scope.cradle.someForeignPort` to
+niezadeklarowana krawędź, która przechodzi kontrolę bez uwag — ten sam błąd, który powodowała
+funkcja `port(ctx, name)`, za której zmienną ukryło się czternaście pobrań portów. Odczyt
+rejestracji **własnego** modułu przez `ctx.cradle<T>()` jest w porządku, a czasem konieczny:
+`lazyPort` zwraca proxy, które na każdą właściwość odpowiada funkcją, aby móc przekazać wywołanie
+metody, więc zagnieżdżony odczyt w rodzaju `handle.indexer.reindexAll()` przechodzi kontrolę typów,
+a potem kończy się błędem *„is not a function”*.
 
-**3. Obecność decyduje host, zanim istnieje context.** Command nie ma trasy do
-bramkowania, workera do owinięcia ani rozwiązania portu, na którym wisi transient
-gate, więc **deklaracja** to szew:
-własne `cli/module-commands.ts` platformy — `@endora-commerce/platform/cli`,
-docierane przez aplikację przez re-export shim w `src/cli/module-commands.ts`
-— woła `requireModuleEnabled` dla modułu
-deklarującego command — pierwsze, poza każdym `try`, zanim poprosi o context.
-Autor modułu nie pisze check obecności i nie może go zapomnieć, bo do tego
-właśnie służy bramka. Pytane jest id deklarującego
-modułu i nigdy właściciela: ta odpowiedź należy do bramki `providePort` właściciela,
-a pytanie dwa razy to sposób, w jaki te dwie zaczynają się nie zgadzać.
+**3. O obecności decyduje host, zanim powstanie kontekst.** Polecenie nie ma trasy do zablokowania,
+workera do opakowania ani pobrania portu, na którym można zawiesić przejściową blokadę, więc
+punktem rozszerzenia jest **deklaracja**: własny plik platformy `cli/module-commands.ts` —
+`@endora-commerce/platform/cli`, z którego aplikacja korzysta przez plik reeksportujący
+`src/cli/module-commands.ts` — wywołuje `requireModuleEnabled` dla modułu, który zadeklarował
+polecenie — jako pierwsze, poza każdym `try`, zanim poprosi o kontekst. Autor modułu nie pisze
+sprawdzenia obecności i nie może o nim zapomnieć, a to właśnie jest zadanie blokady. Pytanie
+dotyczy identyfikatora modułu deklarującego, nigdy właściciela portu: ta odpowiedź należy do
+blokady `providePort` właściciela, a pytanie o nią dwa razy to prosta droga do tego, by obie
+odpowiedzi się rozjechały.
 
-**4. `--list` i `--help` odpowiadane są, zanim cokolwiek się otworzy.** To
-pytania o *deklarację*, więc host czyta
-`resolvedManifestEntries()` — tylko manifesty, bez bazy — i odpowiada. Dlatego
-`help` to właściwość danych na deklaracji, a nie coś, co body drukuje:
-credential `audit_logs read` to dostęp hosta, nie działający connection string,
-więc musi móc powiedzieć, co robi, zanim to zrobi.
+**4. Na `--list` i `--help` host odpowiada, zanim cokolwiek otworzy.** To pytania o *deklarację*,
+więc host odczytuje `resolvedManifestEntries()` — tylko manifesty, bez bazy danych — i odpowiada.
+Dlatego `help` jest właściwością danych w deklaracji, a nie czymś, co wypisuje implementacja:
+uprawnieniem `audit_logs read` jest dostęp do hosta, a nie działający adres połączenia, więc
+polecenie musi umieć powiedzieć, co robi, zanim będzie w stanie to zrobić.
 
-**5. Pięć komend `module:*` to inna rodzina i nie mogą się konwertować.**
-`install`, `uninstall`, `enable`, `disable` i `status` działają **na**
-platformie, a nie z nią. Kompozycja uruchamia `reconcileExistingModules`, który
-wstawia `state='installed'` dla każdego wysłanego manifestu bez wiersza — więc
-komponujące `module:install X` znalazłoby `X` już installed i zwróciło
-`already-installed`, bez migracji, reconcile setting ani install hook, z exit code 0.
-Komenda platformy musi móc działać na platformie, która jeszcze nie jest w stanie,
-który komenda ma stworzyć.
+**5. Pięć poleceń `module:*` to inna rodzina i nie wolno ich przenosić na ten mechanizm.**
+`install`, `uninstall`, `enable`, `disable` i `status` działają **na** platformie, a nie z jej
+pomocą. Kompozycja wykonuje `reconcileExistingModules`, które wstawia `state='installed'` dla
+każdego dostarczonego manifestu bez wiersza — więc `module:install X` wykonujące kompozycję
+zastałoby `X` już zainstalowany i zwróciło `already-installed`, nie wykonując żadnej migracji, nie
+uzgadniając żadnego ustawienia i nie uruchamiając hooka instalacyjnego, z kodem wyjścia 0.
+Polecenie platformy musi działać na platformie, która jeszcze nie jest w stanie, który to polecenie
+ma dopiero utworzyć.
 
-Warto powiedzieć, co komponowanie **kosztuje**, żeby nie odkryć tego późno: każdy
-boot hook działa (są idempotentnymi zbiegami, więc to latency i szum logu, a nie
-nowy stan), padający bierze command down nazywając własny moduł, a environment
-deploymentu staje się warunkiem wstępnym — osiągalny PostgreSQL i, w produkcji,
-skonfigurowany public origin. Czego **nie** kosztuje: queue consumer ani timer:
-każde `ctx.worker(` i każdy timer modułu siedzi w body `ctx.routes(…)` działającym
-przy rejestracji Fastify, a ten proces nigdy nie buduje serwera.
+Warto powiedzieć, ile kompozycja **kosztuje**, żeby nie odkrywać tego za późno: wykonuje się każdy
+hook startowy (to idempotentne doprowadzanie do stanu docelowego, więc kosztem jest czas i szum w
+logach, a nie nowy stan), błąd któregokolwiek przerywa polecenie ze wskazaniem jego modułu, a
+środowisko wdrożenia staje się warunkiem wstępnym — dostępny PostgreSQL, a na produkcji
+skonfigurowany publiczny adres. Kompozycja **nie** uruchamia natomiast konsumentów kolejek ani
+timerów: każde wywołanie `ctx.worker(` i każdy timer modułu znajduje się w treści `ctx.routes(…)`,
+która wykonuje się przy rejestracji w Fastify, a ten proces nigdy nie buduje serwera.
 
-## Checki
+## Kontrole
 
-| Skrypt | Czego odmawia |
+| Skrypt | Co odrzuca |
 | --- | --- |
-| `check-kernel-boundary.ts` | relacji ORM z kernela do modułu lub z modułu do innego modułu; **oraz** specifiere importu pod `src/kernel/**` rozwiązującego do `src/modules/` lub `src/apps/` — każdy kształt, `import type` włącznie. Niesie `KERNEL_MODULE_IMPORTS_TO_DRAIN`, dwukierunkowy grzyb trzymający jedną krawędź, którą eskalowano zamiast naprawić |
-| `check-port-dependencies.ts` | nazwy rozwiązanej, której nikt nie posiada; właściciela spoza dependencies manifestu resolvera; singletona capture'ującego bramkowany port — **włącznie z tym, który moduł sam dostarcza**; **bramkowanego portu rozwiązanego z hooka `ctx.onBoot` lub body `ctx.routes`**; roota shadowującego port modułu; obliczonej nazwy portu; **oraz krawędzi do switchable modułu bez zdefiniowanego zachowania, gdy ten moduł jest off** (ledger konsekwencji deaktywacji powyżej) |
-| `check-port-catches.ts` | `catch` wokół wywołania bramkowanego portu, który nie przepuszcza `ModuleDisabledError` — bezwarunkowy re-throw, `rethrowIfModuleDisabled`, nazwanie błędu lub delegate re-throwujący go. Śledzi port przez holder i przez wkład roota. Niesie `PORT_CATCHES_TO_DRAIN`, dwukierunkowy grzyb, i wyprowadza `OWNER LOCKED` z manifestów dla miejsca, którego każda bramka ma `nonDeactivatable` owner |
-| `check-container-imports.ts` | importu `awilix` bezpośrednio przez moduł zamiast przez `ModuleContext` |
-| `check-entry-scope.ts` | **site** entry point non-HTTP bez ustanowionego scope. Sześć klas: skrypt CLI i plik `package.json` w `src/` uruchamiany jako własny proces — oba file-level, po jednym site, własne top-level execution pliku — plus jeden site per `new Worker(...)`, per repeating timer, per `x.on('message', …)` i per `process.on/once(...)`. Klasa timer to *kształt*, nie konstruktor: czyta `lib/repeating-timers.ts`, współdzielone z `check-entry-presence.ts`, więc `setTimeout`, który callback re-armuje, liczy się. Drugie źródło populacji to w ogóle nie kształt: klasy kształtów napisano z tego, co drzewo trzymało w tamtym czasie, a `src/seeds/dev-catalog-seed.ts` — top-level `main()` truncating i repopulating tabel dziesięciu modułów — nie było żadnym z nich, więc `unscoped=0` nic o nim nie mówiło. **Populacja to sites, nie pliki** — patrz poniżej. Linia drukuje `sites=` i `files=`, żeby poszerzenie, które nie ruszyło rozmiaru populacji, było widoczne jako nie ruszyło niczego |
-| `check-channel-resolution.ts` | surowego odczytu nagłówka `x-sales-channel` poza resolverem; powierzchni storefront re-rozwiązującej kanał requestu; odczytu settings, którego argument kanału może być stringiem nie będącym uuid kanału; id kanału wymyślonego default parameter lub fallbackiem `randomUUID()`. Działa `--enforce` w CI |
-| `test/contract/kernel/harness-parity.test.ts` | driftu między dwoma rootami kompozycji jako explicite ledger — włącznie `ROOT_MODULE_VALUE_IMPORTS`: każdy import **wartości** roota z `src/modules/**`, kluczowany po właścicielu, z tym, co musi się stać, by drainować, i „no root constructs a module-owned service” względem nazwanej allow-list |
+| `check-kernel-boundary.ts` | relację ORM z jądra do modułu albo z modułu do innego modułu; **oraz** każdy import w `src/kernel/**` prowadzący do `src/modules/` lub `src/apps/` — w każdej postaci, łącznie z `import type`. Zawiera `KERNEL_MODULE_IMPORTS_TO_DRAIN`, zapadkę działającą w obie strony, przechowującą jedyną krawędź, którą przekazano do decyzji zamiast naprawić |
+| `check-port-dependencies.ts` | pobieraną nazwę, której nikt nie jest właścicielem; właściciela, którego nie ma w zależnościach manifestu modułu pobierającego; singleton przechwytujący blokowany port — **także port dostarczany przez ten sam moduł**; **blokowany port pobierany w hooku `ctx.onBoot` albo w treści `ctx.routes`**; composition root przesłaniający port modułu; nazwę portu obliczaną w kodzie; **oraz krawędź do modułu, który można wyłączyć, bez określonego zachowania na czas jego wyłączenia** (rejestr skutków wyłączenia opisany wyżej) |
+| `check-port-catches.ts` | `catch` wokół wywołania blokowanego portu, który nie przepuszcza `ModuleDisabledError` — przez bezwarunkowe rzucenie dalej, `rethrowIfModuleDisabled`, jawne wskazanie tego błędu albo funkcję, która rzuca go dalej. Śledzi port przez obiekt przechowujący i przez wkład composition root. Zawiera `PORT_CATCHES_TO_DRAIN`, zapadkę działającą w obie strony, i wyprowadza z manifestów `OWNER LOCKED` dla miejsca, w którym każda blokada ma właściciela `nonDeactivatable` |
+| `check-container-imports.ts` | moduł importujący `awilix` bezpośrednio zamiast przez `ModuleContext` |
+| `check-entry-scope.ts` | **miejsce** wejścia spoza HTTP, które nie otwiera zakresu. Sześć klas: skrypt CLI i plik w `src/`, który `package.json` uruchamia jako osobny proces — oba na poziomie pliku, po jednym miejscu, wykonanie najwyższego poziomu w pliku — oraz po jednym miejscu na każde `new Worker(...)`, każdy powtarzający się timer, każde `x.on('message', …)` i każde `process.on/once(...)`. Klasa timera to *kształt*, a nie konstruktor: korzysta z `lib/repeating-timers.ts`, wspólnego z `check-entry-presence.ts`, więc liczy się też `setTimeout`, który funkcja ponownie uruchamia. Drugie źródło zbioru w ogóle nie jest kształtem: klasy kształtów spisano z tego, co drzewo zawierało w danym momencie, a `src/seeds/dev-catalog-seed.ts` — `main()` na najwyższym poziomie, czyszczące i ponownie wypełniające tabele kilkunastu modułów — nie pasował do żadnej, więc `unscoped=0` nic o nim nie mówiło. **Zbiorem są miejsca, a nie pliki** — zobacz niżej. Wynik wypisuje `sites=` i `files=`, aby rozszerzenie, które nie zmieniło liczebności zbioru, było widoczne jako takie, które niczego nie zmieniło |
+| `check-channel-resolution.ts` | bezpośredni odczyt nagłówka `x-sales-channel` poza mechanizmem rozstrzygania; element storefrontu ponownie rozstrzygający kanał żądania; odczyt ustawienia, którego argument kanału może być stringiem niebędącym UUID kanału; identyfikator kanału wymyślony przez parametr domyślny albo zastępczy `randomUUID()`. W CI działa z `--enforce` |
+| `test/contract/kernel/harness-parity.test.ts` | rozjazd między dwoma composition rootami, w postaci jawnego rejestru — łącznie z `ROOT_MODULE_VALUE_IMPORTS`: każdym importem **wartości**, który composition root bierze z `src/modules/**`, z kluczem według właściciela i opisem, co musi się stać, by go usunąć, oraz regułą „żaden composition root nie tworzy usługi należącej do modułu” z nazwaną listą wyjątków |
 
-Ta tabela to własne checki kernela. **Cały** inventory — włącznie
+Ta tabela obejmuje kontrole samego jądra. **Pełny** inwentarz — łącznie z
 `check-command-coverage.ts`, `check-subscribe-seam.ts`, `check-doc-snippets.ts`,
-`check-error-translations.ts`, `check-entity-tenant-classification.ts`,
-`overlay:check`, dwa shell checki bez toolchain i bramkę footprint pdfmake —
-jest wyliczony w `backend/test/unit/scripts/check-inventory.test.ts`,
-który pada, gdy istnieje skrypt `check-*` bez wpisu, i gdy wpis nazywa skrypt,
-którego nie ma. Przeczytaj następną sekcję, zanim dodasz jeden.
+`check-error-translations.ts`, `check-entity-tenant-classification.ts`, `overlay:check`, dwiema
+kontrolami powłoki niewymagającymi narzędzi i kontrolą rozmiaru pdfmake — wylicza
+`backend/test/unit/scripts/check-inventory.test.ts`, który kończy się błędem, gdy istnieje skrypt
+`check-*` bez wpisu albo gdy wpis wskazuje skrypt, którego nie ma. Zanim dodasz nową kontrolę,
+przeczytaj następną sekcję.
 
-Check czyta trzy kształty rozwiązania, a trzeci wymagał drugiego przebiegu, żeby
-być poprawnym: parametr cradle fabryki (destructured lub nazwany),
-inline `ctx.cradle<C>()`, i **którykolwiek z nich związany najpierw z lokalem** —
-`const cradle = ctx.cradle<C>()` i `const cradle = (): C => ctx.cradle<C>()`.
-Piętnaście modułów używało jednej z dwóch form aliasu i każdy odczyt przez nie
-był niewidoczny, włącznie z bramkowanymi portami destructured w body `ctx.routes`.
-Gdzie alias jest czytany, decyduje werdykt, dokładnie jak inline read: `cradle().x`
-wewnątrz fabryki `asFunction` to **capture**, bo body fabryki działa, gdy Awilix
-konstruuje rejestrację.
+Kontrola rozpoznaje trzy postacie pobrania, a trzecia wymagała drugiego podejścia: parametr
+kontenera w fabryce (destrukturyzowany albo nazwany), `ctx.cradle<C>()` w treści oraz **każde z
+nich najpierw przypisane do zmiennej lokalnej** — `const cradle = ctx.cradle<C>()` i
+`const cradle = (): C => ctx.cradle<C>()`. Piętnaście modułów korzystało z jednej z tych dwóch
+postaci aliasu, a każdy odczyt przez nie był niewidoczny, łącznie z blokowanymi portami
+destrukturyzowanymi w treści `ctx.routes`. O wyniku decyduje miejsce odczytu aliasu, dokładnie tak
+jak przy odczycie bezpośrednim: `cradle().x` w fabryce `asFunction` to **przechwycenie**, bo treść
+fabryki wykonuje się, gdy Awilix tworzy rejestrację.
 
-Check portów niesie cztery allow-listy, wszystkie mające drainować, a nie rosnąć:
-`HOST_REGISTERED_PORTS` (root rejestrujący w imieniu modułu), potem
-`WIRING_RESOLUTIONS_TO_DRAIN` — bramkowane porty nadal destructured w body
-`ctx.routes`, gdy check nauczył się widzieć kształt, **teraz
-puste** — `ALIAS_HIDDEN_RESOLUTIONS`, odczyty ukryte aliasem, których naprawa to
-decyzja manifestu z konsekwencją widoczną dla operatora, a nie one-liner,
-**też puste**, odkąd `commerceModule` dostał accessor konstruktora,
-oraz `REGISTRY_POLICIES_UNSTATED`, dług polityki ledgera. **Nowy** wpis psuje
-build.
+Kontrola portów ma cztery listy wyjątków i wszystkie mają się kurczyć, a nie rosnąć:
+`HOST_REGISTERED_PORTS` (composition root rejestrujący w imieniu modułu),
+`WIRING_RESOLUTIONS_TO_DRAIN` — blokowane porty wciąż destrukturyzowane w treści `ctx.routes` w
+chwili, gdy kontrola nauczyła się widzieć ten kształt, **dziś pusta** —
+`ALIAS_HIDDEN_RESOLUTIONS`, odczyty ukryte przez alias, których naprawa jest decyzją w manifeście
+ze skutkiem widocznym dla operatora, a nie poprawką w jednym wierszu, **też pusta**, odkąd
+`commerceModule` dostał akcesory w konstruktorze — oraz `REGISTRY_POLICIES_UNSTATED`, dług zasad
+w rejestrze skutków. **Nowy** wpis przerywa build.
 
-Czytaj rozmiar pierwszej listy z jej historią. Napisana jako residue konwersji
-i drainowała tak — każdy wpis, którego właściciel się skonwertował, usunięto, a
-check pada, gdy jeden przeżyje właściciela. **Ile wpisów zostało, nie jest tu
-zapisane**: ten akapit mówił *„28"* i nazywał cztery bridge, z których trzy od
-tego czasu emerytowano, więc to był count faktu wyprowadzonego i lista ruchomej
-populacji w jednym zdaniu.
-`HOST_REGISTERED_PORTS` w `backend/scripts/check-port-dependencies.ts`
-odpowiada na obie. Dwa kształty to większość tego, co zostało — *kto pyta*
-(`customerContextResolver`, `cartActorResolver`, `adminAuditActorResolver` i reszta
-rodziny actor, gdzie produkcja czyta `request.actor`, a harness `request.testActor`)
-i *czy ta kompozycja uruchamia tego konsumenta*
-(`pwaRunWorkers`, `searchRunWorkers`, `webhooksRunWorkers`). Trzeci kształt —
-*bridge, który root składa przez granice, do których moduł nie może sięgać* —
-jest drainowany, jeden właściciel na raz, do portów, które właściciel
-publikuje.
+Liczebność pierwszej listy czytaj z uwzględnieniem jej historii. Powstała jako pozostałość po
+przenoszeniu modułów i tak też była opróżniana — każdy wpis, którego właściciel został
+przeniesiony, usunięto, a kontrola kończy się błędem, gdy wpis przetrwa swojego właściciela. **Ile
+wpisów zostało, nie jest tu zapisane**: ten akapit mówił *„28”* i wymieniał cztery mosty, z których
+trzy zostały od tego czasu wycofane, czyli w jednym zdaniu podawał liczbę wyprowadzanego faktu i
+listę zmieniającego się zbioru. Na oba pytania odpowiada `HOST_REGISTERED_PORTS` w
+`backend/scripts/check-port-dependencies.ts`. Większość pozostałych wpisów to dwa kształty — *kto
+pyta* (`customerContextResolver`, `cartActorResolver`, `adminAuditActorResolver` i reszta rodziny
+użytkowników, gdzie produkcja odczytuje `request.actor`, a środowisko testowe `request.testActor`)
+oraz *czy ta kompozycja uruchamia tego konsumenta* (`pwaRunWorkers`, `searchRunWorkers`,
+`webhooksRunWorkers`). Trzeci kształt — *most, który composition root składa ponad granicami, przez
+które moduł nie może sięgać* — jest usuwany, po jednym właścicielu naraz, na rzecz portów
+publikowanych przez właściciela.
 
-Dwa sposoby, w jakie wpis tutaj gnije bez psucia buildu, i oba warto znać, zanim
-mu zaufasz. Kilka komentarzy per-entry nadal mówi „still hand-wired” o module,
-który się skonwertował: sygnał staleness strzela tylko, gdy właściciel sam
-rejestruje port. A wpis, którego nazwy **żaden root już nie wnosi**, jest
-niewidoczny dla każdego findingu tej tabeli — sweep `unsupplied` pyta, czy jakiś
-moduł nadal *rozwiązuje* niezarejestrowaną nazwę, więc emerytowany bridge
-zostawia opis wkładu, którego nie ma. `returnsBridge` siedział tu tydzień tak.
-Usuń wpis w merge request, który emerytuje nazwę.
+Wpis może się tu zdezaktualizować na dwa sposoby, nie przerywając buildu, i warto znać oba, zanim
+któremuś zaufasz. Kilka komentarzy przy wpisach nadal mówi „nadal podłączane ręcznie” o module,
+który został przeniesiony: sygnał nieaktualności pojawia się dopiero wtedy, gdy właściciel sam
+zarejestruje port. A wpis, którego nazwy **nie dostarcza już żaden composition root**, jest
+niewidoczny dla wszystkich zgłoszeń tej tabeli — sprawdzenie `unsupplied` pyta, czy jakiś moduł
+nadal *pobiera* niezarejestrowaną nazwę, więc wycofany most zostawia opis wkładu, którego już nie
+ma. Tak przez tydzień przetrwał tu `returnsBridge`. Usuń wpis w tym samym pull requeście, który
+wycofuje nazwę.
 
-Porty
-należące do modułu `nonDeactivatable` nie są na tej liście i nigdy nie będą:
-wyłączenie jest wyliczane z manifestów, bo bramka, której orchestrator odmawia
-zamknięcia na obu osiach, nie ma stanu, w którym może rzucić. Drugie wyłączenie
-nie jest już skryptu: krawędź, której nie da się zadeklarować, bo deklaracja
-zamknęłaby cykl manifestu, deklarowana jest w manifeście modułu rozwiązującego jako
-`acknowledgedDependencies` — `organizations`
-rozwiązujące `addressService` to worked example, bo `addresses` deklaruje
-`organizations`, a tenancy root musi zainstalować pierwszy. Siedzi w manifeście,
-a nie tutaj, bo odmowa zależności flip-time lifecycle czyta tę samą
-deklarację: gdy krawędzie żyły tylko w tym skrypcie, operator
-mógł wyłączyć właściciela acknowledged portu pod live resolution i nic nie
-odmawiało flipu. Przykład, który to znalazł, to
-`catalog` rozwiązujący `price_lists:pricingService`; `price_lists` od tego czasu
-stał się core, więc ten konkretny flip zamknięty deklaracją właściciela —
-ale mechanizm nie dotyczy tego, które moduły akurat są core, a krawędź nadal
-deklarowana jest tam, gdzie obaj czytelnicy widzą.
+Portów należących do modułu `nonDeactivatable` nie ma na tej liście i nigdy nie będzie: to
+zwolnienie jest obliczane z manifestów, bo blokada, której mechanizm cyklu życia nie pozwala
+zamknąć na żadnej osi, nie ma stanu, w którym mogłaby rzucić wyjątek. Drugie zwolnienie nie należy
+już do skryptu: krawędź, której nie da się zadeklarować, bo deklaracja zamknęłaby cykl manifestów,
+deklaruje się w manifeście modułu pobierającego jako `acknowledgedDependencies` — wzorcowym
+przykładem jest `organizations` pobierające `addressService`, bo `addresses` deklaruje
+`organizations`, a moduł bazowy izolacji tenantów musi zostać zainstalowany jako pierwszy. Deklaracja
+jest w manifeście, a nie tutaj, bo z tej samej deklaracji korzysta odmowa przy przełączaniu modułu
+w cyklu życia: dopóki krawędzie istniały tylko w tym skrypcie, operator mógł wyłączyć właściciela
+uznanego portu pod działającym pobraniem i nic nie odmawiało przełączenia. Przypadkiem, który to
+ujawnił, było pobieranie `price_lists:pricingService` przez `catalog`; `price_lists` stał się od
+tego czasu częścią rdzenia, więc to konkretne przełączenie zamyka deklaracja samego właściciela —
+ale mechanizm nie zależy od tego, które moduły akurat należą do rdzenia, a krawędź nadal jest
+zadeklarowana tam, gdzie widzą ją obaj odbiorcy.
 
-### Pisanie checka, który może zrobić się czerwony
+### Jak napisać kontrolę, która potrafi zgłosić błąd
 
-Sześć checków okazało się słabszych niż własny opis w jeden tydzień. Jeden
-chodził po `*.entity.ts` i inspektował dekoratory relacji, podczas gdy nagłówek
-mówił o importach; jeden nie widział module-local cradle alias, a poszerzenie
-przesunęło 0 naruszeń na 21 w 17 modułach; jeden scanner dopasowywał **4 z 492**
-enforcement sites, bo `\.` w regex nie było opcjonalne; subskrypcje EventBus nie
-miały grzyba, dopóki nie nagromadziło się dwadzieścia dwa — liczba, którą ta
-strona podała poprawnie 190 linii wcześniej i błędnie tu przez tydzień, co jest
-sposobem, w jaki zła liczba przeżywa: dokument sprzeczny sam ze sobą czyta się
-jak dwóch autorów, a nie błąd. Żaden z nich nie był nieuwagą, i żaden się nie
-ogłosił: **zielony wynik nie da się odróżnić od checka, który patrzył w nic**,
-i nic w repozytorium nie wymuszało rozróżnienia. Wychodzi osiem reguł.
+W ciągu jednego tygodnia okazało się, że sześć kontroli jest słabszych niż ich własny opis. Jedna
+przeglądała `*.entity.ts` i sprawdzała dekoratory relacji, choć jej nagłówek mówił o importach;
+jedna nie widziała lokalnego w module aliasu kontenera, a jej rozszerzenie zamieniło 0 naruszeń w
+21 w 17 modułach; jeden skaner dopasowywał **4 z 492** miejsc egzekwowania, bo `\.` w jego
+wyrażeniu regularnym nie był opcjonalny; subskrypcje `EventBus` w ogóle nie miały zapadki, dopóki
+nie nazbierało się ich dwadzieścia dwie — ta liczba była na tej stronie podana poprawnie 190
+wierszy wcześniej, a tu przez tydzień błędnie, i właśnie tak przetrwa błędna liczba: dokument,
+który sam sobie przeczy, wygląda na dzieło dwóch autorów, a nie na błąd. Żaden z tych przypadków
+nie był niedbałością i żaden nie dał o sobie znać: **zielonego wyniku nie da się odróżnić od
+kontroli, która niczego nie obejrzała**, a nic w repozytorium nie wymuszało tego rozróżnienia.
+Wynika z tego osiem reguł.
 
-**Weź input jako parametr.** Check, którego analiza czyta dysk, może działać tylko
-na drzewie, a na czystym drzewie zgadza się z funkcją zwracającą `[]`.
+**Przyjmuj dane wejściowe jako parametr.** Kontrolę, której analiza czyta dysk, można uruchomić
+tylko na drzewie, a na czystym drzewie daje ten sam wynik co funkcja zwracająca `[]`.
 `checkSubscribeSeam({ sources })`, `checkDocument(doc, read)` i
-`compareArtifact(path, expected, read)` biorą to, co czytają, więc testy prowadzą
-je nad źródłami, których repozytorium nie zawiera — jedyny sposób, by zobaczyć
-regułę odpalającą na kształcie, dla którego została napisana. Trzymaj CLI jako
-cienki `main` dostarczający prawdziwego readera.
+`compareArtifact(path, expected, read)` przyjmują to, co czytają, więc ich testy mogą uruchamiać je
+na źródłach, których w repozytorium nie ma — a to jedyny sposób, by zobaczyć, że reguła reaguje na
+kształt, dla którego ją napisano. CLI niech będzie cienką funkcją `main`, która dostarcza
+prawdziwy mechanizm odczytu.
 
-**Fixture wchodzi na górze analizy.** „Robi się czerwony na syntetycznym fixture”
-samo w sobie nie wystarcza, a counter-example był sam guard: wpis inventory dla
-`check-entry-scope` podawał `violationsOf` **pre-classified record**, więc
-dowodził ostatniej funkcji w łańcuchu, podczas gdy classifier — zepsuta część —
-nigdy nie działał. Ten classifier greppował `setInterval(`, nie widział
-self-rescheduling `setTimeout`, a live luka siedziała za nim tak długo,
-jak proof czytał zielono. **Fixture wchodzący poniżej defektu
-nie może go złapać.** Proof więc startuje od tego, co check czyta w prawdziwym
-runie — source text, mapa plików, wstrzyknięty reader, fixture tree na dysku —
-i każdy etap, którego check jest właścicielem, population filter i classifier
-włącznie, działa w drodze do asercji. Każdy wpis inventory deklaruje
-`enters: 'top'` dokładnie z tego powodu, a cokolwiek innego idzie do
-`PROOFS_ENTERING_BELOW` z tym, co podniosłoby je.
+**Dane testowe wchodzą na samym początku analizy.** „Zgłasza błąd na syntetycznych danych” samo w
+sobie nie wystarcza, a kontrprzykładem było samo zabezpieczenie: wpis inwentarza dla
+`check-entry-scope` przekazywał do `violationsOf` **wcześniej sklasyfikowany rekord**, więc
+dowodził działania ostatniej funkcji w łańcuchu, a klasyfikator — czyli właśnie zepsuta część —
+nigdy się nie wykonywał. Ten klasyfikator szukał `setInterval(`, nie widział samoplanującego się
+`setTimeout` i przez cały czas, gdy dowód był zielony, kryła się za nim prawdziwa luka. **Dane
+testowe wchodzące poniżej błędu nie mogą go wykryć.** Dowód zaczyna się więc od tego, co kontrola
+czyta w prawdziwym przebiegu — tekstu źródłowego, mapy plików, wstrzykniętego mechanizmu odczytu,
+drzewa danych testowych na dysku — a w drodze do asercji wykonuje się każdy etap należący do
+kontroli, łącznie z filtrem zbioru i klasyfikatorem. Każdy wpis inwentarza deklaruje właśnie w tym
+celu `enters: 'top'`, a wszystko inne trafia do `PROOFS_ENTERING_BELOW` z opisem, czego trzeba, by
+to podnieść.
 
-**Dowód zestawu kształtów, nie jednego istniejącego, gdy pisano.** Proof może
-wejść na górze i nadal testować jedną z pięciu pisowni, a potem cztery piąte
-checku mogą oślepnąć za piątym czerwonym. `check-subscribe-seam`
-nazywa trzy sygnały, a jego fixture — `eventBus.on('inventory.adjusted.v1', …)` —
-spełniał dwa naraz, więc żaden nie mógł paść sam; `check-entry-presence`
-nazywał trzy konstrukty i dowodził `setInterval`; `check-channel-resolution`
-nazywa cztery sygnały i dowodził jeden. Gdzie nagłóvek checka wylicza zbiór,
-inventory niesie jeden proof per member, każdy fixture zawężony tak, by mógł
-tripować tylko sygnał, po który nazwany, i każdy asertujący **kind** findingu,
-a nie goły count.
+**Dowodź całego zbioru kształtów, a nie tego jednego, który istniał w chwili pisania.** Dowód może
+wchodzić na samym początku i nadal sprawdzać jeden z pięciu sposobów zapisu, a wtedy cztery piąte
+kontroli może oślepnąć za czerwonym wynikiem piątego. `check-subscribe-seam` wymienia trzy sygnały,
+a jego dane testowe — `eventBus.on('inventory.adjusted.v1', …)` — spełniały dwa z nich naraz, więc
+żaden nie mógł zawieść osobno; `check-entry-presence` wymieniała trzy konstrukcje, a dowodziła
+`setInterval`; `check-channel-resolution` wymienia cztery sygnały, a dowodziła jednego. Tam, gdzie
+nagłówek kontroli wylicza zbiór, inwentarz zawiera po jednym dowodzie dla każdego elementu, każdy z
+danymi zawężonymi tak, by mogły uruchomić tylko sygnał, od którego pochodzi nazwa, i każdy sprawdza
+**rodzaj** zgłoszenia, a nie samą liczbę.
 
-**Uczyń zakres skanu właściwością reguły, nie nazwy pliku.** Dwa checki wyliczały
-`*.entity.ts`. Nic w repozytorium nie egzekwuje tego suffixu, więc encja
-zadeklarowana w `entities/index.ts` nie była *unclassified* dla nich — była
-unread, a unread i clean drukują tę samą linię. Chodź po drzewie, pre-filtruj na
-to, o czym reguła (`@Entity(`, dekorator relacji), i niech parse decyduje.
+**Zakres skanowania niech będzie właściwością reguły, a nie nazwy pliku.** Dwie kontrole wyliczały
+`*.entity.ts`. Nic w repozytorium nie wymusza tego przyrostka, więc encja zadeklarowana w
+`entities/index.ts` nie była dla nich *niesklasyfikowana* — była nieprzeczytana, a nieprzeczytane i
+czyste dają ten sam wiersz wyniku. Przechodź po drzewie, filtruj wstępnie po tym, czego dotyczy
+reguła (`@Entity(`, dekorator relacji), a decyzję zostaw parserowi.
 
-**Nie leksuj ręcznie.** Prawie każdy check source-level zaczyna ignorując
-komentarze, a napisany jako uporządkowana para regexów ten krok jest zły w obu
-kolejnościach. Block-comments-first, linia `//` kończąca się globem trasy otwiera
-block comment biegnący do następnego prawdziwego terminatora: `harness-parity.test.ts`
-stracił **1135 z 2767 linii harnessa** tak, a `runBootHooks(`,
-`errorEnvelope` i `resolvePreferredLanguage` były niewidoczne dla każdej
-asercji `not.toContain` w pliku — zielono, bo tekst zniknął.
-Line-comments-first otwiera symetryczną dziurę: `//` w block comment zabiera
-własny terminator tego bloku, a opener biegnie dalej. W obu kolejnościach token
-komentarza w **string literal** — `'/*'` w teście wildcard-MIME `assets_library`,
-`'image/*, */*;q=0.5'` w nagłówku Accept `pim_ergonode` — otwiera lub zamyka
-komentarz, którego nie ma. Jest więc jedna implementacja,
-`backend/scripts/lib/source-text.ts`, pytająca parser, które spany są komentarzami,
-zamiast porządkować dwa przebiegi; `typescript` jest już inputem dziewiętnastu
-checków, a scanner wiedzący, czym jest string literal, nie ma kolejności do
-zepsucia. Blankuje zamiast usuwać, więc numer linii w wyniku nadal jest numerem
-linii w źródle. Gdzie konsument chce więcej niż usunięte komentarze, czytaj
-węzły wprost — `check-diacritic-folds` robi to, bo cztery pliki celowo cytują
-zły one-liner, a implementacja text-level raportowałaby dokumentację napisana,
-by zapobiec defektowi, a `check-entry-scope` też to robi: niósł czwartą
-kopię tej pary regex, a jego per-site rewrite pyta syntax tree o każde pytanie,
-które kiedyś zadawał tekstowi, więc kopia zniknęła, a nie została przekonwertowana.
-Jego pozostały text pass to **pre-filter** decydujący, które 54 z 1458 plików
-docierają do parsera, i celowo over-inclusive — komentarz cytujący `new Worker(...)`
-kosztuje jeden parse i nie może kosztować findingu.
+**Nie pisz własnego analizatora leksykalnego.** Niemal każda kontrola na poziomie źródeł zaczyna od
+pominięcia komentarzy, a zapisany jako uporządkowana para wyrażeń regularnych ten krok jest błędny
+w obu kolejnościach. Gdy najpierw usuwa się komentarze blokowe, wiersz `//` kończący się wzorcem
+trasy otwiera komentarz blokowy, który ciągnie się do następnego prawdziwego zakończenia:
+`harness-parity.test.ts` stracił w ten sposób **1135 z 2767 wierszy** środowiska testowego, a
+`runBootHooks(`, `errorEnvelope` i `resolvePreferredLanguage` były niewidoczne dla każdej asercji
+`not.toContain` w pliku — zielone, bo tekstu nie było. Gdy najpierw usuwa się komentarze
+jednowierszowe, otwiera się symetryczna dziura: `//` wewnątrz komentarza blokowego zabiera ze sobą
+jego zakończenie, a komentarz ciągnie się dalej. A w obu kolejnościach znak komentarza wewnątrz
+**literału tekstowego** — `'/*'` w teście wieloznacznych typów MIME w `assets_library`,
+`'image/*, */*;q=0.5'` w nagłówku Accept w `pim_ergonode` — otwiera lub zamyka komentarz, którego
+nie ma. Jest więc jedna implementacja, `backend/scripts/lib/source-text.ts`, która pyta parser,
+które fragmenty są komentarzami, zamiast układać dwa przebiegi; `typescript` jest już danymi
+wejściowymi dla dziewiętnastu kontroli, a skaner, który wie, czym jest literał tekstowy, nie ma
+kolejności do pomylenia. Zamienia komentarze na puste znaki zamiast je usuwać, więc numer wiersza w
+wyniku nadal jest numerem wiersza w źródle. Gdy potrzeba czegoś więcej niż usunięcia komentarzy,
+czytaj bezpośrednio węzły — robi tak `check-diacritic-folds`, właśnie dlatego, że cztery pliki
+celowo cytują błędny jednowierszowy kod, a implementacja na poziomie tekstu zgłaszałaby
+dokumentację napisaną po to, by temu błędowi zapobiec, i robi tak też `check-entry-scope`: miała
+czwartą kopię tej pary wyrażeń regularnych, a jej przepisanie na ocenę każdego miejsca zadaje
+drzewu składni każde pytanie, które wcześniej zadawała tekstowi, więc kopia zniknęła, a nie
+została przerobiona. Jej pozostały przebieg tekstowy to **filtr wstępny**, który decyduje, które
+54 z 1458 plików trafią do parsera, i celowo jest zbyt szeroki — komentarz cytujący
+`new Worker(...)` kosztuje jedno parsowanie i nie może kosztować zgłoszenia.
 
-**Daj „nic nie przeczytano” własny exit code.** Exit 2, odróżniony od clean (0)
-i od znalezionych naruszeń (1), gdy lista plików, routing table lub resolution
-count wraca pusta w drzewie mającym setki. To nie defensive coding:
-`pnpm --filter backend run i18n:hardcoded` rozwiązywał default root względem
-working directory, nie znalazł pliku z `backend/` i drukował „0 finding(s) across
-0 file(s)" z exit 0 tak długo, jak istniał. `check-pdfmake-footprint.sh` wychodził
-0, gdy pdfmake nie był zainstalowany, więc jedyny stan, w którym nic nie mierzył,
-był też stanem, w którym raportował budżet spełniony.
+**Daj stanowi „nic nie przeczytano” własny kod wyjścia.** Kod 2, różny od braku naruszeń (0) i od
+znalezionych naruszeń (1), zawsze gdy lista plików, tabela tras albo liczba pobrań okaże się pusta
+w drzewie, w którym jest ich setki. To nie jest programowanie defensywne:
+`pnpm --filter backend run i18n:hardcoded` rozwiązywało swój domyślny katalog względem katalogu
+roboczego, nie znajdowało żadnego pliku z `backend/` i przez cały czas swojego istnienia wypisywało
+„0 finding(s) across 0 file(s)” z kodem 0. `check-pdfmake-footprint.sh` kończył się kodem 0, gdy
+pdfmake nie był zainstalowany, więc jedyny stan, w którym niczego nie mierzył, był jednocześnie
+stanem, w którym zgłaszał dotrzymanie budżetu.
 
-**Drukuj, co przeczytałeś, nie tylko co znalazłeś — i drukuj *krótki* przypadek,
-nie tylko pusty.** Exit 2 odpowiada „input był pusty”. Nie odpowiada „input był
-7% siebie”, co faktycznie się zdarza: 1364 z 1469 plików `.ts` pod `backend/src`
-żyje w `src/modules`, więc przeniesienie tego drzewa zostawia osiem checków
-czytających pozostałe 105 plików, nie znajdujących nic złego w nich i drukujących
-`violations=0`. Ten sam kształt dotarł do siedmiu członków —
-definicja populacji wykluczająca live entry point, plik ukrywający site
-w środku, spread omijający excess property checking,
-comment stripper jedzący 41% pliku przed match i populacja zdefiniowana
-obecnością samej rzeczy checkowanej, więc jej brak był niewykrywalny. Każdy
-z nich to check, którego output mówił, co znalazł, i nigdy, co przeczytał. Każdy
-check więc drukuje jedną linię w jednej gramatyce, z
-`backend/scripts/lib/read-size.ts` lub jego shell twin `scripts/lib/read-size.sh`:
+**Wypisuj to, co przeczytałeś, a nie tylko to, co znalazłeś — i wypisuj przypadek *zbyt mały*, a
+nie tylko pusty.** Kod 2 odpowiada na „dane wejściowe były puste”. Nie odpowiada na „dane wejściowe
+to 7% samych siebie”, a to właśnie się zdarza: 1364 z 1469 plików `.ts` w `backend/src` leży w
+`src/modules`, więc przeniesienie tego drzewa zostawia osiem kontroli czytających pozostałe 105
+plików, nieznajdujących w nich nic złego i wypisujących `violations=0`. Ten sam kształt objął
+siedem przypadków — definicję zbioru, która pomijała działający punkt wejścia, plik, który ukrywał
+w sobie miejsce, operator rozproszenia omijający sprawdzanie nadmiarowych właściwości,
+usuwanie komentarzy, które zjadało 41% pliku przed dopasowaniem, oraz zbiór zdefiniowany przez
+obecność dokładnie tego, co było sprawdzane, przez co nie dało się wykryć jego braku. Każda z nich
+była kontrolą, której wynik mówił, co znalazła, i nigdy nie mówił, co przeczytała. Każda kontrola
+wypisuje więc jeden wiersz w jednej gramatyce, z `backend/scripts/lib/read-size.ts` albo jego
+odpowiednika dla powłoki, `scripts/lib/read-size.sh`:
 
 ```
 [entry-scope] read: files=1459 sites=47 sources=manifest-index:65/65,package-scripts:18/18
 [nul-bytes]   read: files=8288 sources=self-reported
 ```
 
-`files` to to, co walk **otworzył** — nigdy pliki, w których wylądował finding,
-bo te ruszają się z findingami i nie odpowiadają na pytanie; `sites` to drobniejsza
-populacja, gdzie check ma jedną, bo defekty site-level powyżej to dokładnie
-przypadek, gdzie file count stał w miejscu, a site count się ruszył; a `sources` to
-**niezależne** wyprowadzenie, względem którego rozmiar jest uzgadniany, bo check
-liczący własną populację i potem ją raportujący powiedział to samo dwa razy.
-Dla module walk to wyprowadzenie to wygenerowany indeks manifestów, przez
-`scripts/lib/module-population.ts` — każdy zarejestrowany moduł musi dać source,
-co jest podłogą, dla której nikt nie musi wybierać liczby. Gdzie naprawdę nie ma
-żadnego, token to literal `self-reported`, a powód żyje w
-`READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE`. Reporter odmawia trzech kształtów
-z exit 2 — nic nie przeczytano, oczekiwanie zera i walk krótszy niż oczekiwanie
-— a `backend/test/unit/scripts/check-read-size.test.ts` spawnuje każdy check i
-trzyma wydrukowane liczby w paśmie zapisanym w
-`backend/test/helpers/check-read-sizes.ts` (−10% / +50%, asymetrycznie celowo:
-dolna krawędź to kierunek defektu, górna tylko zatrzymuje record przed staniem
-się stale, gdy drzewo rośnie).
+`files` to to, co przejście **otworzyło** — nigdy pliki, w których znalazło się zgłoszenie, bo ta
+liczba zmienia się wraz ze zgłoszeniami i nie odpowiada na pytanie; `sites` to drobniejszy zbiór,
+jeśli kontrola go ma, bo opisane wyżej błędy na poziomie miejsc to dokładnie przypadek, w którym
+liczba plików stała w miejscu, a liczba miejsc się zmieniła; a `sources` to **niezależne**
+wyprowadzenie, z którym porównywana jest liczebność, bo kontrola, która sama oblicza swój zbiór i
+potem go zgłasza, powiedziała to samo dwa razy. Dla przejścia po modułach tym wyprowadzeniem jest
+wygenerowany indeks manifestów, przez `scripts/lib/module-population.ts` — każdy zarejestrowany
+moduł musi wnieść źródło, a to dolna granica, dla której nikt nie musi wybierać liczby. Tam, gdzie
+naprawdę go nie ma, wartością jest dosłownie `self-reported`, a powód znajduje się w
+`READ_SIZE_WITHOUT_AN_INDEPENDENT_SOURCE`. Mechanizm raportowania odrzuca z kodem 2 trzy kształty —
+nic nie przeczytano, oczekiwanie równe zeru i przejście krótsze niż oczekiwanie — a
+`backend/test/unit/scripts/check-read-size.test.ts` uruchamia każdą kontrolę i porównuje wypisane
+liczby z przedziałem zapisanym w `backend/test/helpers/check-read-sizes.ts` (−10% / +50%, celowo
+niesymetrycznie: dolna granica to kierunek błędu, a górna tylko zapobiega dezaktualizacji zapisu,
+gdy drzewo rośnie).
 
-**To pasmo ratchetuje ślepotę i nie może ratchetować staleness, więc ten sam run
-drukuje obok drift report.** Zapisana wartość poszła źle trzy razy w dziesięć dni,
-dwa razy cicho, i każda siedziała wygodnie w paśmie: na `check-admin-surface`
-podłoga jest 241 sites poniżej rekordu, więc drain batch ruszający o 41 nigdy
-nie może być odmówiony. Run miał liczbę za każdym razem — parsował, porównywał,
-znajdował in-band i odrzucał. Teraz mówi to
-zamiast, w `afterAll`, przy każdym runie, zielonym czy czerwonym, jeden blok
-`[read-size drift]` nazywający każdy zapisany wpis, który już nie opisuje drzewa,
-z zapisaną wartością, obserwowaną, signed delta i tym, ile slacku do krawędzi
-zużył ten ruch. Nagłówek to spis —
-`3 drifted, 32 agree, 0 not measured, of 35 recorded` — bo raport mówiący nic,
-gdy nic nie driftowało, nie da się odróżnić od raportu, który nie działał,
-co jest defektem nieujawnionego odczytu przybywającym w instrument zbudowany,
-by na niego odpowiedzieć; wpis, którego run nie zmierzył, nazwany jest
-*not measured* i nigdy nie
-liczony jako agreeing. Nie dodaje asercji i żadnej nie osłabia. Istnieje, bo
-obie preskrypcje w sile — re-record w merge request, który ruszył, i czytaj liczbę
-z merged tree — zakładają, że autor wie, *które* wpisy jego zmiana ruszyła, a to
-mapowanie to kalkulacja, którą każdy check wykonuje, a nie coś, co checklist może
-powiększyć. Formatter to `backend/test/helpers/read-size-drift.ts`, a jego
-gramatyka jest normatywna.
+**Ten przedział jest zapadką na ślepotę, ale nie na dezaktualizację, więc ten sam przebieg wypisuje
+obok raport odchyleń.** Zapisana wartość okazała się błędna trzy razy w ciągu dziesięciu dni, dwa
+razy po cichu, i za każdym razem mieściła się swobodnie w przedziale: w `check-admin-surface`
+dolna granica jest 241 miejsc poniżej zapisu, więc zmiana o 41 wprowadzona przez porcję poprawek
+nigdy nie zostanie odrzucona. Przebieg za każdym razem znał tę liczbę — sparsował ją, porównał,
+stwierdził, że mieści się w przedziale, i wyrzucił. Teraz zamiast tego ją wypisuje, w `afterAll`,
+w każdym przebiegu, zielonym czy czerwonym: jeden blok `[read-size drift]` wskazujący każdy zapisany
+wpis, który nie opisuje już drzewa, z wartością zapisaną, zaobserwowaną, różnicą ze znakiem i
+informacją, jaką część zapasu do granicy ta zmiana zużyła. Nagłówek to spis —
+`3 drifted, 32 agree, 0 not measured, of 35 recorded` — bo raportu, który nic nie mówi, gdy nic
+się nie zmieniło, nie da się odróżnić od raportu, który się nie wykonał, a to byłby błąd
+nieujawnionego odczytu, który pojawia się w samym narzędziu zbudowanym, by na niego odpowiedzieć;
+wpis, którego przebieg nie mógł zmierzyć, jest wskazywany jako *not measured* i nigdy nie jest
+liczony jako zgodny. Raport nie dodaje żadnej asercji i żadnej nie osłabia. Istnieje, bo obie
+obowiązujące zasady — zapisz wartość ponownie w pull requeście, który ją zmienił, i odczytaj liczbę
+ze scalonego drzewa — zakładają, że autor wie, *które* wpisy zmieniła jego zmiana, a to
+przyporządkowanie jest obliczeniem, które wykonuje każda kontrola, a nie czymś, co można rozszerzyć
+listą kontrolną. Formatowaniem zajmuje się `backend/test/helpers/read-size-drift.ts`, a jego
+gramatyka jest wiążąca.
 
-**Ledger jest two-way albo allow-list.** Niezledgerowane naruszenie pada,
-*i* wpis, który już nie opisuje naruszenia, pada. Druga połowa to ta, która gnije:
-`PORT_CATCHES_TO_DRAIN`, `BARE_SUBSCRIPTIONS_TO_DRAIN`,
-`UNTRANSLATED_ERROR_CODES` i `HARDCODED_STRINGS_BASELINE` sweepują stale entries,
-a każdy wpis niesie powód jako stwierdzenie o nazwanej rzeczy — patrz „Pisanie
-rationale kolejności, które nie gnije” wyżej, dlaczego „still hand-wired” nim
-nie jest. **Escape hatch w checku też jest ledgerem**: `command-coverage-ignore`
-miało 185 wpisów i zero sweep przez długi czas, więc ignore napisany dla zapisu,
-który się przeniósł, nadal exemptował metodę, która już nie potrzebowała exempt,
-a następny zapis dodany tam dziedziczył exempt. Gdy stały dług jest zbyt duży na
-powód per wpis — 274 hard-coded strings w 47 ekranach admin — wpis staje się
-**plikiem**, a wartość **liczbą**, co ratchetuje w obie strony bez proszenia
-nikogo o napisanie tego samego zdania 274 razy.
+**Rejestr działa w obie strony albo jest listą wyjątków.** Niezarejestrowane naruszenie przerywa
+build, *a* wpis, który nie opisuje już naruszenia, też. To ta druga połowa się psuje:
+`PORT_CATCHES_TO_DRAIN`, `BARE_SUBSCRIPTIONS_TO_DRAIN`, `UNTRANSLATED_ERROR_CODES` i
+`HARDCODED_STRINGS_BASELINE` są sprawdzane pod kątem nieaktualnych wpisów, a każdy wpis ma
+uzasadnienie zapisane jako stwierdzenie o tym, co wskazuje — dlaczego „nadal podłączane ręcznie”
+nim nie jest, wyjaśnia sekcja „Jak pisać uzasadnienie kolejności, które się nie zdezaktualizuje”
+wyżej. **Jawne wyłączenie w kontroli też jest rejestrem**: `command-coverage-ignore` miał 185
+wpisów i przez długi czas nikt nie sprawdzał ich aktualności, więc wyłączenie napisane dla zapisu,
+który potem przeniesiono, nadal zwalniało metodę, która tego już nie potrzebowała, a następny
+dodany tam zapis dziedziczył zwolnienie. Gdy stały dług jest zbyt duży, by każdy wpis miał
+uzasadnienie — 274 teksty wpisane na stałe na 47 ekranach panelu — wpisem staje się **plik**, a
+wartością liczba, co działa jako zapadka w obie strony i nie wymaga pisania tego samego zdania 274
+razy.
 
-**Check w żadnym jobie CI jest gorszy niż brak checka**, bo istnienie implikuje
-pokrycie. Dwa nie działały nigdzie przez długi czas, a jeden cytowano jako *the*
-gate reguły English-only dla stringów user-facing — twierdzenie, którego
-repozytorium nie wspierało. Powód, dla którego check jest unwired, prawie
-nigdy nie brzmi „właściwość przestała mieć znaczenie”: to stały dług (zrób grzyb)
-albo założenie environment, którego nikt nie przeczytał ponownie (bramka pdfmake
-miała niby potrzebować zainstalowanego `node_modules`, który job `quality` musiałby
-dodać, a ten job ma go w `before_script` od zawsze). Pole `job` inventory to
-miejsce, gdzie ta decyzja jest zapisana, a `none` musi być uzasadnione w wpisie.
+**Kontrola, której nie uruchamia żadne zadanie CI, jest gorsza niż brak kontroli**, bo samo jej
+istnienie sugeruje pokrycie. Dwie przez długi czas nie działały nigdzie, a jedną z nich przywoływano
+jako *tę* kontrolę, która pilnuje reguły tylko angielskiego w tekstach dla użytkowników —
+twierdzenie, którego repozytorium nie potwierdzało. Powodem, dla którego kontrola nie jest
+podłączona, prawie nigdy nie jest „ta właściwość przestała mieć znaczenie”: to stały dług (zamień
+go w zapadkę) albo założenie dotyczące środowiska, którego nikt nie sprawdził ponownie (o kontroli
+pdfmake mówiono, że wymaga zainstalowanego `node_modules`, które musiałoby dodać zadanie `quality`,
+a to zadanie od zawsze instaluje je w `before_script`). Tę decyzję zapisuje się w polu `job`
+inwentarza, a wartość `none` trzeba we wpisie uzasadnić.
 
-Punkt egzekucji to `backend/test/unit/scripts/check-inventory.test.ts`. Wylicza
-każdy skrypt `check-*`, i dla każdego **uruchamia własną analizę checka, od góry,
-nad syntetycznym naruszeniem każdego kształtu, który twierdzi, że odmawia, i
-asertuje, że wraca finding tego kind**. To celowo więcej niż „istnieje companion
-test file”: plik pod ścieżką nic nie dowodzi, co jest failure, o który chodzi
-całej tej sekcji. Companion test nazwany w wpisie to miejsce na detail kształtu —
-asercja na message, ledger, exit code — podczas gdy inventory trzyma kształt
-przed zniknięciem, gdy ten plik jest edytowany. Inventory przypina też, który job
-CI uruchamia każdy check i porównuje z `.gitlab-ci.yml`, więc check cicho
-opuszczający job musi to powiedzieć, a także czy check ujawnia
-rozmiar tego, co przeczytał, z liczbami w
-`backend/test/helpers/check-read-sizes.ts` i dwukierunkowym `READ_SIZE_DEFERRED`
-dla wszystkiego, co tego nie robi.
+Miejscem egzekwowania jest `backend/test/unit/scripts/check-inventory.test.ts`. Wylicza każdy
+skrypt `check-*` i dla każdego **uruchamia własną analizę kontroli, od jej początku, na
+syntetycznym naruszeniu każdego kształtu, który kontrola deklaruje, że odrzuca, i sprawdza, że
+wraca zgłoszenie tego rodzaju**. To celowo więcej niż „istnieje towarzyszący plik testu”: plik pod
+jakąś ścieżką niczego nie dowodzi, a o tym właśnie jest cała ta sekcja. Towarzyszący test wskazany
+we wpisie to miejsce na szczegóły kształtu — asercję na komunikacie, rejestr, kod wyjścia — a
+inwentarz pilnuje, by kształt nie zniknął przy edycji tamtego pliku. Inwentarz utrwala też, które
+zadanie CI uruchamia każdą kontrolę, i porównuje to z `.gitlab-ci.yml`, więc kontrola, która po
+cichu opuszcza zadanie, musi to zadeklarować, oraz to, czy kontrola ujawnia, ile przeczytała —
+same liczby są w `backend/test/helpers/check-read-sizes.ts`, a to, co ich nie ujawnia, trafia do
+działającego w obie strony `READ_SIZE_DEFERRED`.
 
-### Benchmark asertuje, że coś zmierzył, zanim asertuje, jak długo to trwało
+### Benchmark najpierw sprawdza, że coś zmierzył, a dopiero potem, ile to trwało
 
-Sekcja powyżej dotyczy reguły, która nie widzi. Ta dotyczy tego samego defektu w
-**pomiarze**, i łatwiej ją przeoczyć, bo liczba, którą benchmark drukuje, nigdy
-nie jest *błędna* — po prostu nie dotyczy rzeczy, dla której ktoś ją czyta.
-`test/perf/catalog-list.bench.ts` seedowało syntetyczny korpus należący do żadnego
-kanału sprzedaży, więc `filterByChannel` dropowało każdy wiersz (channel scoping
-fail-closed), a strona, którą mierzyło, zawierała zero summaries. Raportowało
-p95 7 ms i było zielone od dnia, gdy wylądowało channel scoping; z korpusem
-bound do kanału ten sam odczyt mierzy 13–18 ms, cała różnica to per-summary work,
-który nigdy nie działał. **Budżet spełniony mierząc nic i budżet
-spełniony będąc szybkim wyglądają identycznie w CI.**
+Poprzednia sekcja dotyczy reguły, która nie widzi. Ta dotyczy tego samego błędu w **pomiarze** i
+łatwiej go przeoczyć, bo liczba wypisywana przez benchmark nigdy nie jest *błędna* — po prostu nie
+dotyczy tego, po co ktoś ją czyta. `test/perf/catalog-list.bench.ts` tworzył syntetyczny zbiór
+danych, który nie należał do żadnego kanału sprzedaży, więc `filterByChannel` odrzucał każdy
+wiersz (zawężanie do kanału odmawia w razie wątpliwości), a mierzona strona zawierała zero
+podsumowań. Zgłaszał p95 równe 7 ms i był zielony od dnia wprowadzenia zawężania do kanału; po
+przypisaniu danych do kanału ten sam odczyt trwa 13–18 ms, a cała różnica to praca na
+podsumowaniach, która nigdy się nie wykonywała. **Budżet dotrzymany dlatego, że nic nie mierzono, i
+budżet dotrzymany dlatego, że jest szybko, wyglądają w CI identycznie.**
 
-Pytanie do benchmarku więc brzmi jak do checka: *gdyby rzecz mierzona cicho
-nic nie robiła, czy to zauważy?* Wychodzą cztery reguły.
+Benchmarkowi trzeba więc zadać to samo pytanie co kontroli: *gdyby mierzona rzecz po cichu nic nie
+robiła, czy by to zauważył?* Wynikają z tego cztery reguły.
 
-**Liczy pracę, w tej samej pętli, która mierzy czas, i asertuje count pierwszy.**
-Nie smoke test w sąsiednim pliku — timed run sam niesie dowód: summaries per page,
-projected attributes, cart lines served, up-sell candidates returned, products
-emitted, carts swept, registry entries resolved. Asertuj ten count **przed**
-asercją latency, żeby run mierzący nic padał mówiąc to, a nie padając na budżet
-z niewyjaśnionym marginesem — albo gorzej, przechodząc.
+**Licz pracę w tej samej pętli, która ją mierzy, i najpierw sprawdzaj tę liczbę.** Nie test dymny w
+sąsiednim pliku — sam mierzony przebieg ma zawierać dowód: podsumowania na stronę, rzutowane
+atrybuty, obsłużone pozycje koszyka, zwróconych kandydatów do sprzedaży dodatkowej, wygenerowane
+produkty, przetworzone koszyki, rozwiązane wpisy rejestru. Sprawdzaj tę liczbę **przed** asercją
+czasu, aby przebieg, który nic nie zmierzył, kończył się błędem, który to mówi, a nie
+przekroczeniem budżetu o niewyjaśnioną wartość — albo, co gorsza, jego dotrzymaniem.
 
-**Drukuj, co zmierzono obok czasu trwania.** Każda linia `[perf/*]` niesie własny
-mianownik, bo czytelnik logu benchmarku zwykle porównuje dwa runy tygodnie apart,
-a p95, które spadło o połowę, bo fixture przestał produkować wiersze, jest
-nieodróżnialne od p95, które spadło o połowę, bo kod przyspieszył.
+**Wypisuj obok czasu to, co zmierzono.** Każdy wiersz `[perf/*]` zawiera własny mianownik, bo osoba
+czytająca log benchmarku zwykle porównuje dwa przebiegi oddalone o tygodnie, a p95, które spadło o
+połowę, bo dane testowe przestały dawać wiersze, jest nie do odróżnienia od p95, które spadło o
+połowę, bo kod przyspieszył.
 
-**Konsumuj wynik.** Microbenchmark odrzucający return value mierzy wywołanie, które
-V8 może wyeliminować. `enabled-check.bench.ts` liczyło odpowiedzi zamiast tego,
-a uczciwa liczba wyszła wyżej niż ta raportowana — co jest korektą, nie regresją.
+**Korzystaj z wyniku.** Mikrobenchmark, który odrzuca zwracaną wartość, mierzy wywołanie, które V8
+może całkowicie wyeliminować. `enabled-check.bench.ts` zaczął zamiast tego liczyć odpowiedzi, a
+uczciwa liczba okazała się wyższa niż ta, którą wcześniej zgłaszał — i to jest poprawka, a nie
+regresja.
 
-**Warunek wstępny scenariusza to asercja, nie komentarz.** „Cold path” to było
-`redis.del` na two-layer cache: per-process LRU przed Redis nadal odpowiadał,
-więc cold scenario mierzyła warm i obie drukowały 0.1 ms. Pętla teraz dropuje
-obie warstwy i asertuje miss cache przed startem. Gdzie fixture czyni pomiar
-realnym — channel membership, wiersze `product_links` dla up-sell strip — seed
-go, potem asertuj, że endpoint go zwrócił.
+**Warunek wstępny scenariusza to asercja, a nie komentarz.** „Zimna ścieżka” była wywołaniem
+`redis.del` na dwuwarstwowej pamięci podręcznej: lokalna dla procesu pamięć LRU przed Redis nadal
+odpowiadała, więc scenariusz zimny mierzył ciepły i oba wypisywały 0,1 ms. Pętla usuwa teraz obie
+warstwy i przed startem sprawdza, że pamięć podręczna zgłasza chybienie. Tam, gdzie to dane testowe
+sprawiają, że pomiar jest prawdziwy — przynależność do kanału, wiersze `product_links` dla paska
+sprzedaży dodatkowej — utwórz je, a potem sprawdź, że endpoint je zwrócił.
 
-Gdzie guard potem robi budżet czerwony, **raportuj; nie podnoś budżetu**. Rozróżnienie
-„jesteśmy wolniejsi niż mówiliśmy” od „nigdy tego nie mierzyliśmy” to cała
-wartość guarda, a liczba przesunięta, by zrobić build zielonym, niszczy obie.
+Jeśli zabezpieczenie wykaże wtedy przekroczenie budżetu, **zgłoś to; nie podnoś budżetu**.
+Odróżnienie „jesteśmy wolniejsi, niż deklarowaliśmy” od „nigdy tego nie mierzyliśmy” to cała
+wartość tego zabezpieczenia, a liczba przesunięta po to, by build był zielony, niszczy oba.
 
-Jedna caveat ta sama incydent ujawnił: te benchmarki są gated na `PERF_RUN`
-i **żaden job CI go nie ustawia**, więc nic w pipeline nigdy nie wykonało jednego.
-`test/perf/catalog/visible-attributes.bench.ts` rzucało zamiast mierzyć od dnia,
-gdy wylądowało channel scoping, a `pnpm --filter backend run test:perf`
-to jedyne, co by to powiedziało. Uruchom lokalnie, gdy dotykasz hot path; scheduled
-job to stały dług.
+Jedno zastrzeżenie, które ujawnił ten sam incydent: te benchmarki zależą od `PERF_RUN`, a **żadne
+zadanie CI go nie ustawia**, więc w pipeline nigdy nie wykonał się żaden z nich.
+`test/perf/catalog/visible-attributes.bench.ts` od wprowadzenia zawężania do kanału rzucał
+wyjątek, zamiast mierzyć czas, a jedynym, co by to wykazało, jest
+`pnpm --filter backend run test:perf`. Uruchamiaj go lokalnie, gdy zmieniasz gorącą ścieżkę;
+zadanie uruchamiane według harmonogramu to stały dług.

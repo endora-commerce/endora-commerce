@@ -1,59 +1,55 @@
 ---
-title: Dictionary
+title: Słowniki
 sidebar_position: 1
-description: Seedowane dane referencyjne — Countries, Currencies, Languages — z możliwością reorder w adminie
+description: Dane słownikowe tworzone przy instalacji — kraje, waluty, języki — z możliwością zmiany kolejności w panelu
 ---
 
-# Dictionary
+# Słowniki
 
-Moduł Dictionary to rejestr platformy dla kodów krajów, walut i języków.
-Daje operatorom jeden Admin UI dla wspólnych danych referencyjnych używanych
-przez adresy, reguły podatkowe, magazyny, kanały sprzedaży, promocje,
-powiązania megamenu i scope języków bloga.
+Moduł słowników to rejestr platformy dla kodów krajów, walut i języków. Daje operatorom jeden ekran
+w panelu administracyjnym dla wspólnych danych słownikowych, z których korzystają adresy, reguły
+podatkowe, magazyny, kanały sprzedaży, promocje, przypisania megamenu i języki bloga.
 
-Moduł nie zastępuje legacy powierzchni HTTP Languages i Currencies.
-Te endpointy pozostają dla kompatybilności wstecznej, podczas gdy nowa praca
-admin i storefront powinna czytać przez moduł Dictionary.
+Moduł nie zastępuje dawnych API HTTP dla języków i walut. Te endpointy pozostają ze względu na
+zgodność wsteczną, ale nowy kod w panelu i storefroncie powinien odczytywać dane przez moduł
+słowników.
 
-## Workflow operatora
+## Praca operatora
 
 Otwórz `Admin -> Operations -> Dictionary`. Strona ma trzy zakładki:
 
-- **Countries** — kod ISO kraju, flaga active, widoczność na storefront,
-  etykieta domyślna, etykiety zlokalizowane i dozwolone języki dla każdego kraju.
-- **Currencies** — kod ISO waluty, symbol, precyzja dziesiętna, flaga active,
-  widoczność na storefront, etykieta domyślna i etykiety zlokalizowane.
-- **Languages** — kod języka BCP-47, nazwa natywna, flaga active, widoczność
-  na storefront, etykieta domyślna i etykiety zlokalizowane.
+- **Countries** — kod ISO kraju, flaga aktywności, widoczność w storefroncie, etykieta domyślna,
+  etykiety w poszczególnych językach i dozwolone języki dla każdego kraju.
+- **Currencies** — kod ISO waluty, symbol, liczba miejsc po przecinku, flaga aktywności, widoczność
+  w storefroncie, etykieta domyślna i etykiety w poszczególnych językach.
+- **Languages** — kod języka BCP-47, nazwa w danym języku, flaga aktywności, widoczność w
+  storefroncie, etykieta domyślna i etykiety w poszczególnych językach.
 
-Dezaktywacja wpisu blokuje nowe zapisy wybierające ten kod, ale historyczne
-rekordy mogą nadal czytać istniejącą wartość. To zamierzone: zamówienia,
-adresy, scope treści i rekordy konfiguracji muszą pozostać audytowalne po
-wycofaniu kodu z aktywnego użycia.
+Dezaktywacja wpisu blokuje nowe zapisy z tym kodem, ale istniejące rekordy nadal mogą go odczytywać.
+To zamierzone: zamówienia, adresy, zakresy treści i rekordy konfiguracji muszą pozostać możliwe do
+skontrolowania także po wycofaniu kodu z bieżącego użycia.
 
-Etykiety zlokalizowane edytuje się z każdego wiersza. Odczyty rejestru
-storefront wybierają żądane locale, gdy jest obecne, i fallback do etykiety
-domyślnej, gdy brakuje tłumaczenia.
+Etykiety w poszczególnych językach edytuje się w każdym wierszu. Odczyt dla storefrontu wybiera
+żądany język, jeśli jest dostępny, a gdy tłumaczenia brakuje — etykietę domyślną.
 
-## Rejestr storefront
+## Rejestr dla storefrontu
 
-Klienci storefront czytają połączony rejestr przez:
+Storefront odczytuje połączony rejestr przez:
 
 ```http
 GET /api/v1/dictionary?locale=pl-PL
 ```
 
-Odpowiedź zawiera tylko wpisy aktywne i widoczne na storefront. Jest cache'owana
-w Redis, gdy Redis jest dostępny. Zapisy admin i endpoint invalidacji cache
-operatora czyszczą ten rejestr.
+Odpowiedź zawiera tylko wpisy aktywne i widoczne w storefroncie. Gdy Redis jest dostępny, jest
+przechowywana w jego pamięci podręcznej. Zapisy w panelu i endpoint unieważniania pamięci podręcznej
+dla operatora czyszczą ten rejestr.
 
-Używaj rejestru do pickerów UI zamiast twardo zakodowanych list krajów, walut
-lub języków. Moduł dostarcza współdzielone komponenty picker dla admin i
-storefront.
+Korzystaj z rejestru w listach wyboru zamiast wpisanych na stałe list krajów, walut czy języków.
+Moduł dostarcza wspólne komponenty list wyboru dla panelu i storefrontu.
 
-## Port walidatora
+## Port walidacji
 
-Konsumenci backend dostają współdzielony walidator z composition root:
+Kod backendu dostaje wspólny mechanizm walidacji z composition root:
 
 ```ts
 dictionaryValidator: dictionaries.handle.validator
@@ -65,24 +61,23 @@ Port udostępnia:
 - `validateCurrencyCode(code, mode)`
 - `validateLanguageCode(code, mode)`
 
-Użyj `create-or-change` przy nowym przypisaniu kodu. Użyj `unchanged` tylko gdy
-update zachowuje ten sam historyczny kod już zapisany na rekordzie. Nieznane
-kody są zawsze odrzucane. Nieaktywne kody są odrzucane przy nowych przypisaniach
-i akceptowane tylko dla niezmienionych wartości historycznych.
+Używaj `create-or-change` przy nowym przypisaniu kodu, a `unchanged` tylko wtedy, gdy aktualizacja
+zachowuje ten sam kod historyczny, który już jest zapisany w rekordzie. Nieznane kody są zawsze
+odrzucane. Nieaktywne kody są odrzucane przy nowych przypisaniach i akceptowane tylko dla
+niezmienionych wartości historycznych.
 
-Walidator ma krótki in-process LRU. Zapisy Dictionary invalidują LRU i cache
-rejestru Redis razem.
+Mechanizm walidacji ma krótką pamięć podręczną LRU w procesie. Zapisy w słownikach unieważniają
+razem LRU i pamięć podręczną rejestru w Redis.
 
 ## Punkty rozszerzenia
 
-Gdy moduł przechowuje kod kraju, waluty lub języka:
+Gdy moduł przechowuje kod kraju, waluty albo języka:
 
-1. Przyjmij walidator przez opcje plugin modułu.
-2. Waliduj na granicy serwisu przed zapisem.
-3. Konwertuj `DictionaryReferenceError` na odpowiedź `409` ze ścieżką pola.
-4. Zachowaj odczyty historyczne; nie kaskaduj edycji wierszy konsumentów, gdy
-   wpis słownika jest dezaktywowany.
+1. Przyjmij mechanizm walidacji przez opcje pluginu modułu.
+2. Sprawdzaj kod w usłudze przed zapisem.
+3. Zamieniaj `DictionaryReferenceError` na odpowiedź `409` ze ścieżką pola.
+4. Zachowuj odczyty historyczne; nie zmieniaj kaskadowo wierszy innych modułów, gdy wpis słownika
+   zostaje dezaktywowany.
 
-Settings obecnie nie ma typowanego rodzaju wartości setting country/currency/language,
-więc opcja walidatora słownika jest zarezerwowana pod przyszłe settings
-sterowane metadanymi.
+Ustawienia nie mają dziś typowanego rodzaju wartości dla kraju, waluty ani języka, więc opcja
+walidacji słownikowej jest zarezerwowana dla przyszłych ustawień opisywanych metadanymi.

@@ -1,85 +1,80 @@
 ---
-title: Credentials
-description: Wielokrotnego użytku typowane konfiguracje poświadczeń (LLM, adapter e-mail) referencjonowane z ustawień
+title: Dane uwierzytelniające (Credentials)
+description: Typowane konfiguracje danych uwierzytelniających wielokrotnego użytku (modele językowe, adapter e-mail), do których odwołują się ustawienia
 ---
 
-# Credentials
+# Dane uwierzytelniające (Credentials)
 
-Moduł `credentials` pozwala operatorowi zdefiniować **wielokrotnego
-użytku konfigurację poświadczeń raz** i referencjonować ją z wielu miejsc. Zamiast
-wpisywać klucz API ponownie w ustawieniach asystenta AI, embeddera wyszukiwania
-i newslettera, tworzysz jedną konfigurację *Primary LLM* i wskazujesz nią każde
-ustawienie. Zmień klucz raz — każdy konsument pobiera nową wartość bez dalszych
-edycji.
+Moduł `credentials` pozwala operatorowi **raz zdefiniować konfigurację danych uwierzytelniających**
+i odwoływać się do niej z wielu miejsc. Zamiast wpisywać ten sam klucz API w ustawieniach asystenta
+AI, mechanizmu wektoryzacji wyszukiwarki i newslettera, tworzysz jedną konfigurację *Primary LLM* i
+wskazujesz ją w każdym z tych ustawień. Zmieniasz klucz raz — każde miejsce, które z niego korzysta,
+dostaje nową wartość bez dalszych zmian.
 
-Pola tajne (klucze API, hasła) są **szyfrowane w spoczynku**, **write-only na
-granicy** (nigdy nie zwracane w plaintext), **maskowane przy każdym odczycie** i
-**redagowane w logu audytu**. Każde utworzenie / edycja / usunięcie jest audytowane
-przez Command Bus.
+Pola z sekretami (klucze API, hasła) są **szyfrowane w bazie**, na granicy API **dostępne tylko do
+zapisu** (nigdy nie są zwracane jawnym tekstem), **maskowane przy każdym odczycie** i **ukrywane w
+dzienniku audytu**. Każde utworzenie, zmiana i usunięcie jest audytowane przez Command Bus.
 
-## Dla Product Ownerów i operatorów
+## Dla właścicieli produktu i operatorów
 
-### Czym jest konfiguracja poświadczeń
+### Czym jest konfiguracja danych uwierzytelniających
 
-Konfiguracja to nazwana, zakodowana instancja **typu konfiguracji**. Dwa typy
- są dostarczane out of the box:
+Konfiguracja to nazwana instancja **typu konfiguracji**, z własnym kodem. Od razu dostępne są dwa
+typy:
 
-- **LLM** — dostawcy **GPT** (OpenAI), **Gemini** (Google), **Claude**
-  (Anthropic) i **DeepSeek**. Pola: **API Key** (tajne, wymagane),
-  **Model** (wymagany), **Base URL** (opcjonalny).
-- **Email adapter** — dostawcy **SMTP**, **Amazon SES** i **SendGrid**.
-  Każdy dostawca ma własny zestaw pól z dokładnie jednym polem tajnym
-  (SMTP `password`, SES `secretAccessKey`, SendGrid `apiKey`).
+- **LLM** — dostawcy **GPT** (OpenAI), **Gemini** (Google), **Claude** (Anthropic) i **DeepSeek**.
+  Pola: **API Key** (sekret, wymagane), **Model** (wymagane), **Base URL** (opcjonalne).
+- **Email adapter** — dostawcy **SMTP**, **Amazon SES** i **SendGrid**. Każdy dostawca ma własny
+  zestaw pól z dokładnie jednym sekretem (SMTP `password`, SES `secretAccessKey`, SendGrid `apiKey`).
 
-Wybrany typ i dostawca decydują, które pola pokazuje formularz.
+Wybrany typ i dostawca decydują, jakie pola pokazuje formularz.
 
 ### Tworzenie konfiguracji
 
-1. Otwórz **Credentials** w sidebarze admina (widoczne z uprawnieniem
-   `credentials:read`).
+1. Otwórz **Credentials** na pasku bocznym panelu (widoczne z uprawnieniem `credentials:read`).
 2. Kliknij **New configuration**.
-3. Wybierz **Type** (np. *LLM*) i **Provider** (np. *Claude*). Formularz
-   przeładuje się na pola tego dostawcy.
-4. Wypełnij **Name** (np. `Primary LLM`) i **Code** (stabilny identyfikator
-   jak `primary-llm` — to referencjonują ustawienia), potem pola
-   (API Key, Model, …).
-5. **Save.** Konfiguracja pojawia się na liście; każde pole tajne pokazuje się jako
-   **set** — nigdy wartość.
+3. Wybierz **Type** (np. *LLM*) i **Provider** (np. *Claude*). Formularz pokaże pola tego
+   dostawcy.
+4. Wypełnij **Name** (np. `Primary LLM`) i **Code** (stały identyfikator, np. `primary-llm` — do
+   niego odwołują się ustawienia), a potem pozostałe pola (API Key, Model, …).
+5. Kliknij **Save.** Konfiguracja pojawia się na liście; każdy sekret jest pokazywany jako **set** —
+   nigdy jako wartość.
 
-Edycja działa tak samo. Przy edycji **typ i dostawca są zablokowane** (nie
-można ich zmienić — utwórz nową konfigurację). Pozostawienie pola tajnego
-**pustego zachowuje zapisane sekret**; wpisanie nowej wartości je zastępuje.
+Edycja działa tak samo. Przy edycji **typ i dostawca są zablokowane** (nie można ich zmienić —
+utwórz nową konfigurację). Pozostawienie **pustego** pola sekretu **zachowuje zapisany sekret**;
+wpisanie nowej wartości go zastępuje.
 
-### Użycie konfiguracji z ustawienia
+### Korzystanie z konfiguracji w ustawieniu
 
-Niektóre ustawienia są typu **"credential reference"**, ograniczone do jednego
-typu konfiguracji. Takie ustawienie renderuje się jako **picker pasujących
-konfiguracji** plus przycisk **Preview**:
+Niektóre ustawienia są typu **„credential reference”** i są ograniczone do jednego typu konfiguracji.
+Takie ustawienie wyświetla się jako **lista wyboru pasujących konfiguracji** z przyciskiem
+**Preview**:
 
-1. Otwórz **Settings** i znajdź ustawienie credential-reference (np. *LLM credentials*
-   asystenta AI).
-2. Wybierz konfigurację z dropdownu — oferowane są tylko konfiguracje właściwego typu.
-3. Kliknij **Preview**, aby zobaczyć referencjonowaną konfigurację read-only (sekrety
-   zamaskowane) bez opuszczania strony.
+1. Otwórz **Settings** i znajdź ustawienie z odwołaniem do danych uwierzytelniających (np. *LLM
+   credentials* asystenta AI).
+2. Wybierz konfigurację z listy — dostępne są tylko konfiguracje właściwego typu.
+3. Kliknij **Preview**, aby bez opuszczania strony zobaczyć wskazaną konfigurację w trybie tylko do
+   odczytu (z zamaskowanymi sekretami).
 
-Przypisz **tę samą** konfigurację do kilku ustawień, aby ją wielokrotnie użyć. Zaktualizuj
-klucz konfiguracji raz, a wszystkie rozwiążą nową wartość.
+Aby wykorzystać konfigurację wielokrotnie, wskaż **tę samą** konfigurację w kilku ustawieniach. Gdy
+raz zmienisz klucz w konfiguracji, wszystkie te ustawienia dostaną nową wartość.
 
 ### Bezpieczeństwo
 
-- **Usunięcie jest blokowane, dopóki istnieje referencja.** Próba usunięcia konfiguracji,
-  na którą nadal wskazuje ustawienie, kończy się jasnym komunikatem wymieniającym
-  dokładnie, które ustawienia trzeba najpierw odłączyć.
-- **Osierocone konfiguracje** (których typ nie jest już dostępny) są pokazywane
-  read-only („unavailable”) i nigdy nie crashują ekranu.
-- **Plaintext nigdy nie opuszcza serwera** — lista, szczegóły i podgląd maskują
-  sekrety; tylko ścieżka konsumenta po stronie serwera deszyfruje, w pamięci, do użycia.
+- **Usunięcie jest blokowane, dopóki istnieje odwołanie.** Próba usunięcia konfiguracji, którą nadal
+  wskazuje jakieś ustawienie, kończy się jasnym komunikatem z listą ustawień, które trzeba najpierw
+  odłączyć.
+- **Osierocone konfiguracje** (których typ nie jest już dostępny) są pokazywane tylko do odczytu
+  („unavailable”) i nigdy nie powodują awarii ekranu.
+- **Jawna wartość sekretu nigdy nie opuszcza serwera** — lista, szczegóły i podgląd maskują sekrety;
+  odszyfrowuje je, w pamięci i tylko na potrzeby użycia, wyłącznie kod korzystający z nich po stronie
+  serwera.
 
-## Dla developerów
+## Dla programistów
 
 ### Model
 
-Typ konfiguracji to **deskryptor rejestrowany kodem** (nie wiersze bazy):
+Typ konfiguracji to **opis rejestrowany w kodzie** (a nie wiersze w bazie):
 
 ```ts
 interface ConfigurationTypeDescriptor {
@@ -100,20 +95,18 @@ interface FieldDefinition {
 }
 ```
 
-Zapisana konfiguracja przechowuje `typeCode` + `providerCode` + worek `values`
-(pola tajne trzymają koperty AES-256-GCM, pola nietajne trzymają zwykłe
-skalary) w tabeli `credential_configurations` (`@GlobalEntity`,
-platform-global).
+Zapisana konfiguracja przechowuje `typeCode`, `providerCode` i zbiór wartości `values` (sekrety jako
+zaszyfrowane struktury AES-256-GCM, pozostałe pola jako zwykłe wartości proste) w tabeli
+`credential_configurations` (`@GlobalEntity`, wspólnej dla całej platformy).
 
-Rdzeń credentials **jest agnostyczny typowo**: czyta
-deskryptor tylko po to, by renderować pola, wyprowadzić walidator zapisu i
-dowiedzieć się, które pola są tajne. Nigdy nie rozgałęzia się po konkretnym
-`typeCode` / `providerCode` — znaczenie dostawcy żyje u konsumenta.
+Rdzeń modułu **nie zależy od konkretnych typów**: odczytuje opis tylko po to, by wyświetlić pola,
+wyprowadzić walidację zapisu i ustalić, które pola są sekretami. Nigdy nie zawiera osobnej logiki dla
+konkretnego `typeCode` / `providerCode` — znaczenie dostawcy zna kod, który z konfiguracji korzysta.
 
 ### Rejestracja nowego typu (punkt rozszerzenia)
 
-Rejestruj ze ścieżki install dowolnego modułu przez process-wide singleton — **bez
-zmiany rdzenia credentials** (overlay-safe):
+Typ rejestruje się podczas instalacji dowolnego modułu, przez singleton wspólny dla całego procesu —
+**bez zmiany rdzenia modułu credentials** (bezpieczne także dla modułów nakładkowych):
 
 ```ts
 import { configurationTypeRegistry } from '@core/modules/credentials/services/registry-singleton.js';
@@ -135,12 +128,12 @@ configurationTypeRegistry.register({
 });
 ```
 
-Typ natychmiast pojawia się w pickerze typów admina (`GET
-/api/v1/admin/credentials/types`) i można go utworzyć.
+Typ od razu pojawia się na liście typów w panelu (`GET /api/v1/admin/credentials/types`) i można
+tworzyć jego konfiguracje.
 
 ### Typ wartości ustawienia `credential_ref`
 
-Aby ustawienie referencjonowało konfigurację, zadeklaruj je w manifeście ustawień modułu:
+Aby ustawienie mogło wskazywać konfigurację, zadeklaruj je w manifeście ustawień modułu:
 
 ```ts
 {
@@ -152,13 +145,13 @@ Aby ustawienie referencjonowało konfigurację, zadeklaruj je w manifeście usta
 }
 ```
 
-`configurationType` jest **wymagane** dla ustawień `credential_ref` i zabronione
-inaczej. Zapisana wartość to po prostu **code** konfiguracji.
+`configurationType` jest **wymagane** w ustawieniach `credential_ref`, a w pozostałych — zabronione.
+Zapisywaną wartością jest po prostu **kod** konfiguracji.
 
-### Rozwiązywanie referencji (strona konsumenta)
+### Odczyt wskazanej konfiguracji (po stronie korzystającego kodu)
 
-Rozwiązywanie to **wywołanie serwisu po stronie serwera** (nigdy odpowiedź HTTP) —
-jedyna ścieżka zwracająca odszyfrowane sekrety, tylko do użycia w pamięci:
+Odczyt to **wywołanie usługi po stronie serwera** (nigdy odpowiedź HTTP) — jedyna ścieżka zwracająca
+odszyfrowane sekrety, wyłącznie do użycia w pamięci:
 
 ```ts
 const code = await settings.get('prompt_actions.llm_credentials'); // → 'primary-llm'
@@ -167,34 +160,29 @@ if (cred.status !== 'ok') throw new Error('LLM not configured'); // fail closed
 callProvider(cred.providerCode, cred.values.apiKey, cred.values.model);
 ```
 
-`resolve` zwraca wynik dyskryminowany:
+`resolve` zwraca wynik w postaci unii rozłącznej:
 
 - `{ status: 'ok', typeCode, providerCode, values }` — sekrety odszyfrowane;
-- `{ status: 'not_configured' }` — referencja jest nieustawiona/pusta;
-- `{ status: 'unavailable', reason: 'missing' | 'inert_type' }` — usunięty
-  code lub niezarejestrowany typ.
+- `{ status: 'not_configured' }` — odwołanie nie jest ustawione albo jest puste;
+- `{ status: 'unavailable', reason: 'missing' | 'inert_type' }` — usunięty kod albo niezarejestrowany
+  typ.
 
-Konsument nigdy nie dostaje obcej konfiguracji ani plaintext sekretu
-przez wire.
+Korzystający kod nigdy nie dostaje przez sieć konfiguracji innego typu ani jawnej wartości sekretu.
 
-### Integralność usuwania
+### Spójność przy usuwaniu
 
-`CredentialsService.delete` najpierw woła
-`SettingsService.listReferencesToConfiguration(code)` (jedyny kanał, przez który
-credentials dociera do settings). Niepusty wynik blokuje
-usunięcie z `409 CREDENTIAL_IN_USE`, niosąc `{ referencedBy: [{ settingCode,
-salesChannelCode? }] }`.
+`CredentialsService.delete` najpierw wywołuje `SettingsService.listReferencesToConfiguration(code)`
+(jedyny sposób, w jaki moduł credentials sięga do ustawień). Niepusty wynik blokuje usunięcie z
+`409 CREDENTIAL_IN_USE` i zwraca `{ referencedBy: [{ settingCode, salesChannelCode? }] }`.
 
 ### Sekrety i konfiguracja
 
-Pola tajne używają platformowego kodeka koperty AES-256-GCM kluczowanego istniejącą
-zmienną env **`SETTINGS_SECRET_ENCRYPTION_KEY`** — bez nowego sekretu do
-provisioning. Zapis sekretu bez klucza kończy się fail closed
-(`SETTING_SECRET_KEY_MISSING`); start ostrzega, jeśli klucz jest nieustawiony.
+Sekrety są szyfrowane wspólnym mechanizmem platformy (AES-256-GCM) z kluczem z istniejącej zmiennej
+środowiskowej **`SETTINGS_SECRET_ENCRYPTION_KEY`** — nie trzeba przygotowywać nowego sekretu. Zapis
+sekretu bez klucza jest odrzucany (`SETTING_SECRET_KEY_MISSING`); przy starcie pojawia się
+ostrzeżenie, jeśli klucz nie jest ustawiony.
 
 ### Uprawnienia
 
-- `credentials:read` — podgląd konfiguracji i katalogu typów (sekrety
-  zamaskowane).
-- `credentials:write` — tworzenie / edycja / usuwanie konfiguracji, w tym
-  zapis pól tajnych.
+- `credentials:read` — podgląd konfiguracji i katalogu typów (z zamaskowanymi sekretami).
+- `credentials:write` — tworzenie, edycja i usuwanie konfiguracji, łącznie z zapisem sekretów.

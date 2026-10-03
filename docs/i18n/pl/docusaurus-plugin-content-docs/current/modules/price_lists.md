@@ -1,35 +1,31 @@
 ---
 title: price_lists
-description: Cenniki klienta / grupy / domyślne z progami ilościowymi + korektami per kategoria
+description: Cenniki dla klienta, grupy i domyślne, z progami ilościowymi i korektami dla kategorii
 ---
 
 # `price_lists`
 
-Silnik cen — reshape na oryginalnym fundamencie cenowym.
-Posiada:
+Mechanizm cen — przebudowany na pierwotnych podstawach wyznaczania cen. Obejmuje:
 
-- **CustomerGroup** — adresowalny zbiór Organizations współdzielących cennik.
-- **PriceList** — nazwany artefakt cenowy ze statusem cyklu życia
-  (`draft`, `scheduled`, `active`, `expired`), `type` (`base` lub
-  `sale`), opcjonalnym oknem aktywności (`startsAt` / `endsAt`) oraz
-  AST `applicationRule` decydującym, któremu klientowi / org / kanałowi
-  lista ma zastosowanie.
-- **PriceListProduct** — przypisanie Product do PriceList ze złożonym PK.
-- **PriceListPriceBracket** — wiersz ze złożonym PK
-  `(priceListId, productId, currencyCode, minQuantity)` niosący
-  cenę jednostkową per waluta dla progu ilości. Luki między progami są
-  dozwolone; resolver przechodzi do listy następnego priorytetu.
-- **PriceDisplayModeOverride** — wiersz ze złożonym PK
-  `(scope, targetId)` nadpisujący łańcuch trybu wyświetlania resolvera w
-  zakresie Organization / Category / Product. Korzeń łańcucha to dwa
-  klucze Settings (`pricing.default_display_mode`,
+- **CustomerGroup** — grupa organizacji korzystających ze wspólnego cennika.
+- **PriceList** — nazwany cennik ze statusem w cyklu życia (`draft`, `scheduled`, `active`,
+  `expired`), typem `type` (`base` albo `sale`), opcjonalnym okresem obowiązywania (`startsAt` /
+  `endsAt`) oraz regułą `applicationRule` w postaci drzewa, która decyduje, którego klienta,
+  organizacji lub kanału dotyczy cennik.
+- **PriceListProduct** — przypisanie produktu do cennika, ze złożonym kluczem głównym.
+- **PriceListPriceBracket** — wiersz ze złożonym kluczem głównym
+  `(priceListId, productId, currencyCode, minQuantity)`, zawierający cenę jednostkową w danej walucie
+  dla progu ilościowego. Luki między progami są dozwolone; mechanizm wyznaczania przechodzi wtedy do
+  cennika o następnym priorytecie.
+- **PriceDisplayModeOverride** — wiersz ze złożonym kluczem głównym `(scope, targetId)`, który
+  nadpisuje łańcuch trybu wyświetlania cen na poziomie organizacji, kategorii lub produktu. Początkiem
+  łańcucha są dwa klucze ustawień (`pricing.default_display_mode`,
   `pricing.unauthenticated_display_mode`).
 
-Legacy tabele `PriceListItem` i `PriceListAssignment` (oraz kolumny
-`code` / `currency` / `priority` / `isDefault` na `price_lists`)
-są utrzymywane przez migrację 031 wyłącznie jako przejściowy shim podczas
-rolloutu expand → migrate → contract. Nowo pisany kod MUSI konsumować
-schemat silnika przez `@endora-commerce/contracts`.
+Dawne tabele `PriceListItem` i `PriceListAssignment` (oraz kolumny `code` / `currency` / `priority` /
+`isDefault` w `price_lists`) są utrzymywane przez migrację 031 wyłącznie jako tymczasowa warstwa
+zgodności na czas przejścia „rozszerz → przenieś → zawęź”. Nowy kod MUSI korzystać ze schematu
+mechanizmu cen przez `@endora-commerce/contracts`.
 
 ## Cykl życia
 
@@ -39,23 +35,22 @@ draft ──activate──▶ scheduled ──auto on startsAt──▶ active �
   └──── draftify ───────┴────── draftify ──────────────┴────── activate (resets) ┘
 ```
 
-- `activate` przełącza listę `draft` (lub `expired`) na `scheduled`, gdy
-  ustawione jest przyszłe `startsAt`, inaczej wprost na `active`.
-- `draftify` zwraca każdą listę nie-systemową do `draft`.
-- `PriceListStatusWorker.sweep()` wykonuje dwie przejścia sterowane zegarem
-  (`scheduled → active` przy `startsAt`, `active → expired` przy `endsAt`).
-  W produkcji wywoływany jest powtarzalnym jobem BullMQ co 5 min; w testach
-  ten sam `sweep()` jest wystawiony przez `POST /api/v1/admin/price-lists-engine/internal/sweep`.
+- `activate` przestawia cennik `draft` (albo `expired`) na `scheduled`, gdy ustawiono przyszłe
+  `startsAt`, a w przeciwnym razie od razu na `active`.
+- `draftify` przywraca każdy cennik niesystemowy do `draft`.
+- `PriceListStatusWorker.sweep()` wykonuje dwa przejścia zależne od czasu (`scheduled → active` w
+  chwili `startsAt`, `active → expired` w chwili `endsAt`). Na produkcji wywołuje go co 5 minut
+  powtarzalne zadanie BullMQ; w testach to samo `sweep()` jest dostępne przez
+  `POST /api/v1/admin/price-lists-engine/internal/sweep`.
 
-Seedowana lista `Default` (`isSystem = true`) odrzuca każdą zmianę
-stanu, każde usunięcie i każde niepuste `applicationRule`.
-Migracja 031 seeduje też na niej wiersze progów z legacy
-`attributeValues.defaultPrice` każdego produktu, więc platforma zawsze
-ma użyteczną cenę terminalnego fallbacku.
+Cennik `Default` tworzony przy instalacji (`isSystem = true`) odrzuca każdą zmianę stanu, każde
+usunięcie i każdą niepustą `applicationRule`. Migracja 031 tworzy w nim też progi na podstawie
+dawnego `attributeValues.defaultPrice` każdego produktu, więc platforma zawsze ma użyteczną cenę
+ostatecznej wartości zastępczej.
 
-## Application Rule (AST)
+## Reguła stosowania (drzewo)
 
-Kolumna JSONB `applicationRule` przechowuje discriminated union:
+Kolumna JSONB `applicationRule` przechowuje unię rozłączną:
 
 ```ts
 type ApplicationRule =
@@ -72,22 +67,19 @@ type ApplicationRule =
     };
 ```
 
-Ograniczenia (egzekwowane client-side w rule builderze i przez
-normaliser warstwy serwisu):
+Ograniczenia (egzekwowane w kreatorze reguł po stronie klienta i przez normalizację w usłudze):
 
-- Głębokość ≤ 5 zagnieżdżonych grup.
-- Listy wartości per kryterium są deduplikowane; kody walut uppercased.
-- Puste grupy są odrzucane; gdy korzeń kończy pusty, zastępowany jest
-  `{ kind: 'all' }` — ale `{ kind: 'all' }` jest dozwolone tylko na
-  systemowej liście `Default`. Każda inna lista z pustą regułą jest
-  odrzucana przy aktywacji (`400 empty_rule_on_non_default`).
-- Nieznane target ID (channel / customer-group / organization /
-  category) są odrzucane z `400 unknown_target { type, values }`.
+- Najwyżej 5 poziomów zagnieżdżonych grup.
+- Listy wartości w kryterium są pozbawiane duplikatów; kody walut — zamieniane na wielkie litery.
+- Puste grupy są odrzucane; jeśli korzeń zostaje pusty, jest zastępowany przez `{ kind: 'all' }` —
+  ale `{ kind: 'all' }` jest dozwolone tylko w systemowym cenniku `Default`. Każdy inny cennik z
+  pustą regułą jest odrzucany przy aktywacji (`400 empty_rule_on_non_default`).
+- Nieznane identyfikatory celów (kanału, grupy klientów, organizacji, kategorii) są odrzucane z
+  `400 unknown_target { type, values }`.
 
-## Resolver
+## Wyznaczanie ceny
 
-`PricingService.resolveEngine({ product, variantId?, context })`
-zwraca:
+`PricingService.resolveEngine({ product, variantId?, context })` zwraca:
 
 ```ts
 {
@@ -100,177 +92,161 @@ zwraca:
 
 Algorytm:
 
-1. Załaduj każdą listę cenową ze `status='active'`.
-2. Oceń `applicationRule` każdej listy względem kontekstu
-   rozwiązywania; zachowaj dopasowania, partycjonuj po `type`.
-3. Dla każdej partycji przejdź **łańcuch priorytetów**:
-   - Poziom 1: jawne dopasowanie organization.
-   - Poziom 2: jawne dopasowanie customer-group.
-   - Poziom 3: jawne dopasowanie category.
-   - Poziom 4: jawne dopasowanie sales-channel.
-   - Poziom 5: każda inna pasująca lista.
-4. Wybierz zwycięzcę per poziom przez `tieBreak()` — najpierw najnowsze
-   `modifiedAt`, potem leksykograficznie `name` ASC.
-5. Wyszukaj bracket dla `(productId, currencyCode, quantity)`. Gdy
-   brak bracketu (luka), przechodź do listy następnego priorytetu w
-   tej samej partycji; lista Default jest zawsze na poziomie 5 partycji
-   Base i służy jako terminalny floor.
-6. Rozwiąż tryb wyświetlania niezależnie przez
-   `displayModeResolver(product, organization, customerKind)` wzdłuż
-   łańcucha Settings → Organization → Category → Product.
+1. Wczytaj wszystkie cenniki ze `status='active'`.
+2. Sprawdź `applicationRule` każdego cennika względem kontekstu; zachowaj pasujące i podziel je
+   według `type`.
+3. W każdej grupie przejdź **łańcuch priorytetów**:
+   - Poziom 1: jawne dopasowanie do organizacji.
+   - Poziom 2: jawne dopasowanie do grupy klientów.
+   - Poziom 3: jawne dopasowanie do kategorii.
+   - Poziom 4: jawne dopasowanie do kanału sprzedaży.
+   - Poziom 5: każdy inny pasujący cennik.
+4. Na każdym poziomie wybierz zwycięzcę przez `tieBreak()` — najpierw najnowsze `modifiedAt`, potem
+   `name` rosnąco.
+5. Znajdź próg dla `(productId, currencyCode, quantity)`. Jeśli progu nie ma (luka), przejdź do
+   cennika o następnym priorytecie w tej samej grupie; cennik Default jest zawsze na poziomie 5 grupy
+   Base i stanowi ostateczne minimum.
+6. Niezależnie wyznacz tryb wyświetlania przez
+   `displayModeResolver(product, organization, customerKind)` w łańcuchu ustawienia → organizacja →
+   kategoria → produkt.
 
-Determinizm: te same wejścia → te same wyjścia (bez zegara, bez losowości, całkowita
-kolejność tie-break). Resolver jest konsumowany przez storefront
-(`GET /api/v1/storefront/products/:id/resolved-price`) oraz ścieżki
-koszyka i składania zamówienia.
+Determinizm: te same dane wejściowe → ten sam wynik (bez zegara, bez losowości, pełny porządek przy
+remisach). Z mechanizmu korzysta storefront (`GET /api/v1/storefront/products/:id/resolved-price`)
+oraz koszyk i składanie zamówienia.
 
 ## Tryby wyświetlania
 
-Cztery wartości: `gross_only`, `net_only`, `both`, `none`. Pierwsze trzy
-kontrolują układ kolumn na każdej powierzchni storefront z ceną;
-`none` ukrywa każdy element ceny i zastępuje Add-to-cart istniejącym
-CTA Quote Request. Endpointy linii koszyka i
-składania zamówienia dodatkowo odrzucają linię z
-`400 product_quote_only`, gdy rozwiązany tryb to `none` dla krotki
-`(product, organization, channel)` — defence in depth.
+Cztery wartości: `gross_only`, `net_only`, `both`, `none`. Pierwsze trzy decydują o kolumnach cen we
+wszystkich miejscach storefrontu, które pokazują cenę; `none` ukrywa wszystkie elementy ceny i
+zastępuje przycisk Add-to-cart istniejącym przyciskiem zapytania ofertowego. Endpointy pozycji koszyka
+i składania zamówienia dodatkowo odrzucają pozycję z `400 product_quote_only`, gdy dla trójki
+`(product, organization, channel)` wyznaczony tryb to `none` — jako druga linia obrony.
 
-## Publiczne API
+## API publiczne
 
-### Endpointy silnika (admin)
+### Endpointy mechanizmu cen (panel administracyjny)
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/admin/price-lists-engine?status=&type=&search=` | Lista list w kształcie silnika z opcjonalnymi filtrami |
-| `POST /api/v1/admin/price-lists-engine` | Utworzenie listy draft |
-| `GET /api/v1/admin/price-lists-engine/:id` | Odczyt jednej listy |
-| `PATCH /api/v1/admin/price-lists-engine/:id` | Aktualizacja name / type / dates / applicationRule |
-| `POST /api/v1/admin/price-lists-engine/:id/activate` | Cykl życia → scheduled lub active |
+| `GET /api/v1/admin/price-lists-engine?status=&type=&search=` | Lista cenników z opcjonalnymi filtrami |
+| `POST /api/v1/admin/price-lists-engine` | Utworzenie cennika w stanie `draft` |
+| `GET /api/v1/admin/price-lists-engine/:id` | Odczyt jednego cennika |
+| `PATCH /api/v1/admin/price-lists-engine/:id` | Zmiana nazwy, typu, dat albo applicationRule |
+| `POST /api/v1/admin/price-lists-engine/:id/activate` | Cykl życia → scheduled albo active |
 | `POST /api/v1/admin/price-lists-engine/:id/draftify` | Cykl życia → draft |
-| `POST /api/v1/admin/price-lists-engine/:id/duplicate` | Klon (resetuje daty i status) |
-| `GET /api/v1/admin/price-lists-engine/:id/products` | Rejestr + progi per waluta |
-| `PUT /api/v1/admin/price-lists-engine/:id/products` | Zamiana rejestru (delta) |
-| `POST /api/v1/admin/price-lists-engine/:id/products` | Dołączenie jednego produktu |
-| `DELETE /api/v1/admin/price-lists-engine/:id/products/:productId` | Usunięcie (kaskada bracketów) |
-| `GET /api/v1/admin/price-lists-engine/:id/products/:productId/brackets` | Odczyt bracketów jednego produktu |
-| `PUT /api/v1/admin/price-lists-engine/:id/products/:productId/brackets` | Zamiana bracketów (`{ bracketsByCurrency }`) |
-| `POST /api/v1/admin/price-lists-engine/:id/products/:productId/brackets/copy` | Kopia tożsamości jednej waluty do N innych |
-| `POST /api/v1/admin/price-lists-engine/internal/sweep` | Tick workera tylko do testów |
+| `POST /api/v1/admin/price-lists-engine/:id/duplicate` | Kopia (z wyzerowanymi datami i statusem) |
+| `GET /api/v1/admin/price-lists-engine/:id/products` | Lista produktów z progami w poszczególnych walutach |
+| `PUT /api/v1/admin/price-lists-engine/:id/products` | Zamiana listy produktów (różnicowo) |
+| `POST /api/v1/admin/price-lists-engine/:id/products` | Dodanie jednego produktu |
+| `DELETE /api/v1/admin/price-lists-engine/:id/products/:productId` | Usunięcie (razem z progami) |
+| `GET /api/v1/admin/price-lists-engine/:id/products/:productId/brackets` | Odczyt progów jednego produktu |
+| `PUT /api/v1/admin/price-lists-engine/:id/products/:productId/brackets` | Zamiana progów (`{ bracketsByCurrency }`) |
+| `POST /api/v1/admin/price-lists-engine/:id/products/:productId/brackets/copy` | Skopiowanie progów jednej waluty bez zmian do N innych |
+| `POST /api/v1/admin/price-lists-engine/internal/sweep` | Jeden przebieg workera, tylko na potrzeby testów |
 
-### Pickery rule-buildera (admin)
+### Listy wyboru w kreatorze reguł (panel administracyjny)
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/admin/pricing/rule-targets/sales-channels` | Opcje kanałów dla rule buildera |
-| `GET /api/v1/admin/pricing/rule-targets/customer-groups` | Opcje customer-group |
-| `GET /api/v1/admin/pricing/rule-targets/organizations?search=&limit=` | Paginowane opcje org |
+| `GET /api/v1/admin/pricing/rule-targets/sales-channels` | Kanały do kreatora reguł |
+| `GET /api/v1/admin/pricing/rule-targets/customer-groups` | Grupy klientów |
+| `GET /api/v1/admin/pricing/rule-targets/organizations?search=&limit=` | Stronicowana lista organizacji |
 | `GET /api/v1/admin/pricing/rule-targets/categories` | Pełne drzewo kategorii |
-| `GET /api/v1/admin/pricing/rule-targets/currencies` | Waluty wystawione przez dowolny sales channel |
+| `GET /api/v1/admin/pricing/rule-targets/currencies` | Waluty dostępne w którymkolwiek kanale sprzedaży |
 
-### Admin trybów wyświetlania
+### Tryby wyświetlania (panel administracyjny)
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/admin/pricing/display-mode-overrides?scope=` | Lista nadpisań |
-| `GET /api/v1/admin/pricing/display-mode-overrides/:scope/:targetId` | Odczyt jednego |
-| `PUT /api/v1/admin/pricing/display-mode-overrides/:scope/:targetId` | Upsert (`{ mode }` lub `{ mode: 'inherit' }` do usunięcia) |
+| `GET /api/v1/admin/pricing/display-mode-overrides/:scope/:targetId` | Odczyt jednego nadpisania |
+| `PUT /api/v1/admin/pricing/display-mode-overrides/:scope/:targetId` | Utworzenie lub aktualizacja (`{ mode }`, albo `{ mode: 'inherit' }`, aby usunąć) |
 
-### Panel powiązanych cenników (admin)
+### Panel powiązanych cenników (panel administracyjny)
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/admin/products/:productId/price-lists` | Wszystkie listy cenowe, w których produkt uczestniczy, z podsumowaniem bracketów per waluta i deep-linkiem |
+| `GET /api/v1/admin/products/:productId/price-lists` | Wszystkie cenniki, w których jest produkt, z podsumowaniem progów w poszczególnych walutach i linkiem do cennika |
 
-### Storefront (public)
+### Storefront (publiczne)
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | Base + Sale + tryb wyświetlania per klient |
-| `GET /api/v1/storefront/pricing/display-mode/:productId` | Tylko tryb wyświetlania (używany przez koszyk i powierzchnie batch rozwiązujące cenę osobno) |
+| `GET /api/v1/storefront/products/:id/resolved-price?quantity=&currency=&variantId=` | Cena podstawowa, promocyjna i tryb wyświetlania dla klienta |
+| `GET /api/v1/storefront/pricing/display-mode/:productId` | Sam tryb wyświetlania (dla koszyka i miejsc, które wyznaczają ceny zbiorczo i osobno) |
 
-Oba odczyty storefront są rozwiązywane **dla oglądającego**: biorą sesję
-kupującego, gdy jest, i odpowiadają jak publiczne, gdy jej nie ma. Wyprowadzają
-tego oglądającego jedną funkcją, więc tryb wyświetlania w rozwiązanej cenie i ten
-z tego endpointu nie mogą się różnić dla tego samego
-wywołującego — kiedyś mogły, i zalogowany kupujący czytał netto na
-stronie produktu i brutto w koszyku, gdzie `pricing.default_display_mode` i
-`pricing.unauthenticated_display_mode` były ustawione inaczej. Odpowiedź rozwiązana
-dla Organization niesie `Cache-Control: private, no-store`; anonimowa
-nie jest stemplowana i pozostaje reprezentacją, którą trzyma crawler i współdzielone
-okno storefront.
+Oba odczyty w storefroncie są wyznaczane **dla oglądającego**: korzystają z sesji kupującego, gdy
+istnieje, a gdy jej nie ma, odpowiadają tak jak dla anonimowego użytkownika. Oglądającego ustala
+jedna funkcja, więc tryb wyświetlania w wyznaczonej cenie i ten z tego endpointu nie mogą się różnić
+dla tego samego wywołującego — kiedyś mogły, i zalogowany kupujący widział cenę netto na stronie
+produktu, a brutto w koszyku, gdy `pricing.default_display_mode` i
+`pricing.unauthenticated_display_mode` miały różne wartości. Odpowiedź wyznaczona dla organizacji ma
+nagłówek `Cache-Control: private, no-store`; odpowiedź anonimowa go nie ma i pozostaje tą wersją,
+którą przechowują roboty wyszukiwarek i wspólna pamięć podręczna storefrontu.
 
-### Legacy (nadal serwowane, dopóki każdy reader nie zmigruje)
+### Dawne API (nadal dostępne, dopóki wszystkie miejsca odczytu nie zostaną przeniesione)
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET / PUT / DELETE /api/v1/admin/price-lists{,/:code,/:id}` | Legacy CRUD nad starym kształtem |
-| `GET / POST / DELETE /api/v1/admin/price-lists/:id/items{,/:itemId}` | Legacy CRUD pozycji |
-| `GET / POST / DELETE /api/v1/admin/price-lists/:id/assignments{,/:assignmentId}` | Legacy CRUD przypisań |
-| `GET /api/v1/admin/price-lists/preview?productSku=&quantity=&organizationId=&salesChannelCode=` | Legacy preview |
+| `GET / PUT / DELETE /api/v1/admin/price-lists{,/:code,/:id}` | Dawne zarządzanie cennikami w starej postaci |
+| `GET / POST / DELETE /api/v1/admin/price-lists/:id/items{,/:itemId}` | Dawne zarządzanie pozycjami |
+| `GET / POST / DELETE /api/v1/admin/price-lists/:id/assignments{,/:assignmentId}` | Dawne zarządzanie przypisaniami |
+| `GET /api/v1/admin/price-lists/preview?productSku=&quantity=&organizationId=&salesChannelCode=` | Dawny podgląd |
 
-## Notatki migracyjne (031)
+## Uwagi o migracji (031)
 
-`031_price_lists_engine.ts` wykonuje 8-krokowy reshape transakcyjny:
+`031_price_lists_engine.ts` wykonuje w transakcji przebudowę w 8 krokach:
 
-1. Pobierz advisory lock, aby równoległe migracje wycofały się czysto.
-2. Dodaj nowe kolumny na `price_lists` (`type`, `status`, `startsAt`,
-   `endsAt`, `modifiedAt`, `isSystem`, `applicationRule` JSONB).
-3. Utwórz trzy nowe tabele (`price_list_products`,
-   `price_list_price_brackets`, `price_display_mode_overrides`).
-4. Seeduj listę `Default` deterministycznym UUID.
-5. Przejdź każdy `Product`, którego `attributeValues` niesie `defaultPrice`
-   (lub `price` jako fallback), i upsertuj jeden wiersz bracketu per waluta
-   wystawiona przez dowolny sales channel. Kopia tożsamości między walutami jest
-   oznaczona w raporcie migracji.
-6. Usuń legacy klucze `attributeValues.defaultPrice` i
-   `attributeValues.price`.
-7. Wyemituj raport do `backend/var/migration-reports/011_price_lists_seed.json`.
-8. Zwolnij advisory lock.
+1. Zakłada blokadę doradczą (advisory lock), aby równoległe migracje wycofały się bez szkody.
+2. Dodaje nowe kolumny w `price_lists` (`type`, `status`, `startsAt`, `endsAt`, `modifiedAt`,
+   `isSystem`, `applicationRule` JSONB).
+3. Tworzy trzy nowe tabele (`price_list_products`, `price_list_price_brackets`,
+   `price_display_mode_overrides`).
+4. Tworzy cennik `Default` ze stałym UUID.
+5. Przechodzi przez każdy `Product`, którego `attributeValues` zawiera `defaultPrice` (albo, w razie
+   jego braku, `price`), i zapisuje po jednym progu dla każdej waluty dostępnej w którymkolwiek kanale
+   sprzedaży. Skopiowanie tej samej kwoty do różnych walut jest oznaczane w raporcie migracji.
+6. Usuwa dawne klucze `attributeValues.defaultPrice` i `attributeValues.price`.
+7. Zapisuje raport do `backend/var/migration-reports/011_price_lists_seed.json`.
+8. Zwalnia blokadę doradczą.
 
-Migracja jest **addytywna** względem legacy schematu — tabele
-`price_list_items` i `price_list_assignments` oraz kolumny
-`code`/`currency`/`priority`/`isDefault` na `price_lists`
-pozostają, dopóki readery w `cart-service`, `comparison-service`,
-`catalog-query`, `search-query` i `product-link.service` nie
-przejdą na resolver. Follow-up migracja usuwa kolumny legacy, gdy
-audit wyląduje.
+Migracja jest **dodatkiem** względem dawnego schematu — tabele `price_list_items` i
+`price_list_assignments` oraz kolumny `code`/`currency`/`priority`/`isDefault` w `price_lists`
+pozostają, dopóki miejsca odczytu w `cart-service`, `comparison-service`, `catalog-query`,
+`search-query` i `product-link.service` nie przejdą na nowy mechanizm. Dawne kolumny usunie kolejna
+migracja, gdy zakończy się przegląd.
 
-Helper migracji (`default-price-list-migration.ts`) jest idempotentny
-i może być ponownie uruchomiony jako komenda naprawcza.
+Funkcja pomocnicza migracji (`default-price-list-migration.ts`) jest idempotentna i można ją
+uruchomić ponownie jako polecenie naprawcze.
 
-## Integracja storefront
+## Storefront
 
-- `GET /api/v1/storefront/products/:id/resolved-price` jest konsumowany przez
-  `storefront/lib/api/pricing.ts` (`getResolvedPrice` /
-  `getResolvedPricesBulk`); wrapper bulk rozgałęzia na endpoint
-  pojedynczy z ograniczoną współbieżnością, dopóki nie wyląduje backend POST batch.
-- `BaseSalePriceBlock`, `PriceTag` i `ProductCard` konsumują
-  kopertę `resolvedPrice`; `displayMode === 'none'` ukrywa każdy element
-  ceny i pokazuje `QuoteRequestCta` (routing przez
-  `AddToRfqForm`).
-- PDP pobiera resolver równolegle ze stockiem i zamienia wiersz
-  Add-to-cart na QuoteRequest CTA, gdy tryb to `none`.
+- Z `GET /api/v1/storefront/products/:id/resolved-price` korzysta `storefront/lib/api/pricing.ts`
+  (`getResolvedPrice` / `getResolvedPricesBulk`); wersja zbiorcza wywołuje endpoint dla pojedynczych
+  produktów z ograniczoną współbieżnością, dopóki w backendzie nie powstanie zbiorczy endpoint POST.
+- `BaseSalePriceBlock`, `PriceTag` i `ProductCard` korzystają ze struktury `resolvedPrice`;
+  `displayMode === 'none'` ukrywa wszystkie elementy ceny i pokazuje `QuoteRequestCta` (prowadzący
+  do `AddToRfqForm`).
+- Strona produktu pobiera cenę równolegle ze stanem magazynowym i zamienia wiersz Add-to-cart na
+  przycisk zapytania ofertowego, gdy tryb to `none`.
 
-## Integracja admin
+## Panel administracyjny
 
-- `/price-lists` (lista silnika) i `/price-lists/:id` (edytor z
-  zakładkami Details / Products & brackets / Application rule).
-- `/price-lists/display-modes` — przeglądarka nadpisań plus dwa
-  klucze settings `pricing.*`.
-- `DisplayModeOverrideRow` jest osadzony w edytorze Organization,
-  drzewie Categories EditForm oraz LinkedPriceListsPanel, który
-  zastępuje stary `PricingPlaceholder` w edytorze produktu katalogu.
+- `/price-lists` (lista cenników) i `/price-lists/:id` (edytor z zakładkami Details / Products &
+  brackets / Application rule).
+- `/price-lists/display-modes` — przegląd nadpisań oraz dwa klucze ustawień `pricing.*`.
+- `DisplayModeOverrideRow` jest osadzony w edytorze organizacji, w formularzu edycji drzewa kategorii
+  i w panelu LinkedPriceListsPanel, który zastępuje dawny `PricingPlaceholder` w edytorze produktu.
 
 ## Punkty rozszerzenia
 
-- **Cache LRU in-memory** wokół resolvera
-  (odroczone — 60-s okno revalidate storefront wystarcza na
-  MVP). Bookkeeping: każda ścieżka zapisu w `PriceListService`
-  powinna emitować `pricing.invalidate.v1`.
-- **Swap cart-service / order-placement** — foundation cart i
-  ścieżki składania zamówienia nadal czytają `attributeValues.defaultPrice`.
-  Następna iteracja wprowadza `PricingService.resolveLinePrice()`
-  i podmienia konstruktor cart-service na zależność od niego; check
-  defence-in-depth dla `displayMode === 'none'` ląduje w tej samej zmianie.
-- **Podłączenie workera statusów BullMQ** — `PriceListStatusWorker.sweep()` jest
-  gotowy, ale rejestracja repeatable job BullMQ (na wzór
-  workera wygaśnięcia RFQ) czeka w follow-up.
+- **Pamięć podręczna LRU w procesie** wokół mechanizmu wyznaczania cen (odłożona — 60-sekundowe okno
+  odświeżania storefrontu wystarcza na MVP). Do zrobienia: każda ścieżka zapisu w
+  `PriceListService` powinna emitować `pricing.invalidate.v1`.
+- **Przejście koszyka i składania zamówień na nowy mechanizm** — pierwotny koszyk i składanie
+  zamówień nadal odczytują `attributeValues.defaultPrice`. Następna wersja wprowadzi
+  `PricingService.resolveLinePrice()` i uzależni od niego konstruktor `cart-service`; w tej samej
+  zmianie pojawi się dodatkowe sprawdzenie `displayMode === 'none'`.
+- **Podłączenie workera statusów do BullMQ** — `PriceListStatusWorker.sweep()` jest gotowy, ale
+  rejestracja powtarzalnego zadania BullMQ (wzorem workera wygasania zapytań ofertowych) czeka na
+  kolejną zmianę.

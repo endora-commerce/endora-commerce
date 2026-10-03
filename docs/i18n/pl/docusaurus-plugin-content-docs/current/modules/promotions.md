@@ -1,96 +1,88 @@
 ---
 title: promotions
-description: Rabaty procentowe / kwotowe / darmowa dostawa na poziomie koszyka z filtrami kwalifikacji
+description: Rabaty na poziomie koszyka — procentowe, kwotowe i darmowa dostawa — z warunkami, które muszą być spełnione
 ---
 
 # `promotions`
 
-Moduł promotions to konfigurowalny silnik rabatów oparty na regułach,
-zbudowany na oryginalnym slajsie cart-discount. **Promotion**
-łączy kwalifikującą **Rule** z **Action**; silnik ocenia każdą aktywną promocję
-wobec koszyka, stosuje pasujące w kolejności priorytetu i pokazuje wynik w koszyku
-oraz na złożonym zamówieniu.
+Moduł promocji to konfigurowalny silnik rabatów oparty na regułach, zbudowany na pierwotnym
+mechanizmie rabatów w koszyku. **Promocja** łączy **regułę**, która określa, kiedy promocja
+obowiązuje, z **akcją**; silnik sprawdza każdą aktywną promocję względem koszyka, stosuje pasujące w
+kolejności priorytetu i pokazuje wynik w koszyku oraz w złożonym zamówieniu.
 
 ## Pojęcia
 
-- **Rule** — typowane AST (`all` | `condition` | `group`) nad wbudowanymi polami
-  koszyka (suma koszyka, metoda płatności, metoda dostawy, kraj dostawy,
-  kod pocztowy dostawy, organization, customer group, kategoria produktu) oraz
-  atrybutami produktów kwalifikujących do promo. Warunki niosą operator
-  (`eq`/`neq`/`gt`/`gte`/`lt`/`lte`/`between`/`in`/`notIn`/`contains`/
-  `startsWith`) i wartości; grupy łączą dzieci przez `AND`/`OR` (max głębokość
-  5). Regułę można napisać inline lub odwołać się do biblioteki **named-rule**
-  (`promotion_rules`).
-- **Action** — jeden skonfigurowany efekt z rejestru. Wbudowane:
-  `free_delivery`, `percentage_off_cart`, `amount_off_cart`,
-  `buy_x_get_y_free` (cel najtańszy/najdroższy), `spend_x_percent_off`,
-  `spend_x_amount_off`, `every_nth_product_percent_off`, `buy_x_units_y_free`,
-  `buy_x_units_percent_off`, `buy_x_units_amount_off`. Inne moduły rejestrują
+- **Reguła** — typowane drzewo (`all` | `condition` | `group`) oparte na wbudowanych polach koszyka
+  (wartość koszyka, metoda płatności, metoda dostawy, kraj dostawy, kod pocztowy dostawy,
+  organizacja, grupa klientów, kategoria produktu) oraz atrybutach produktów, które mogą być
+  używane w promocjach. Warunki mają operator
+  (`eq`/`neq`/`gt`/`gte`/`lt`/`lte`/`between`/`in`/`notIn`/`contains`/`startsWith`) i wartości;
+  grupy łączą elementy podrzędne przez `AND`/`OR` (najwyżej 5 poziomów). Regułę można zapisać
+  bezpośrednio w promocji albo odwołać się do biblioteki **nazwanych reguł** (`promotion_rules`).
+- **Akcja** — jeden skonfigurowany skutek z rejestru. Wbudowane: `free_delivery`,
+  `percentage_off_cart`, `amount_off_cart`, `buy_x_get_y_free` (gratis najtańszy albo najdroższy
+  produkt), `spend_x_percent_off`, `spend_x_amount_off`, `every_nth_product_percent_off`,
+  `buy_x_units_y_free`, `buy_x_units_percent_off`, `buy_x_units_amount_off`. Inne moduły rejestrują
   dodatkowe typy akcji przez `PromotionActionRegistry.register(...)`.
-- **Priority & stacking** — kwalifikujące promocje stosują się w kolejności
-  `priority` DESC (deterministyczny tie-break: `createdAt`, potem `id`). Promocja
-  z flagą `stopFurther` zatrzymuje promocje niższego priorytetu. Rabaty nigdy nie
-  spychają linii, subtotalu, dostawy ani sumy poniżej zera.
-- **Coupons** — promocja może mieć kupony (`promotion_coupons`): pojedynczy
-  określony kod lub wygenerowana partia (`coupon_batches`). Promocja z kuponem
-  stosuje się tylko przy podanym pasującym kodzie. Legacy kolumna `promotions.code`
-  nadal jest honorowana.
-- **Usage limits** — opcjonalne limity globalne / per-organization / per-customer.
-  Partie kuponów wybierają zakres `per_coupon` vs `shared_batch` dla globalnej
-  puli. Użycie liczy się tylko przy udanym złożeniu zamówienia.
-- **Statistics** — `promotion_usages` rejestruje każde sfinalizowane wykorzystanie
-  z denormalizowanymi wymiarami, agregowanymi w sumy + rozbicia po kliencie,
-  customer group, organization i sales channel.
+- **Priorytet i łączenie** — pasujące promocje są stosowane w kolejności malejącego `priority`
+  (remisy rozstrzyga deterministycznie `createdAt`, a potem `id`). Promocja z flagą `stopFurther`
+  wstrzymuje promocje o niższym priorytecie. Rabaty nigdy nie obniżają poniżej zera wartości
+  pozycji, sumy częściowej, dostawy ani całego zamówienia.
+- **Kupony** — promocja może mieć kupony (`promotion_coupons`): jeden konkretny kod albo
+  wygenerowaną partię (`coupon_batches`). Promocja z kuponem obowiązuje tylko po podaniu pasującego
+  kodu. Dawna kolumna `promotions.code` nadal jest uwzględniana.
+- **Limity użycia** — opcjonalne limity globalne, dla organizacji i dla klienta. Partie kuponów mają
+  zakres `per_coupon` albo `shared_batch` dla puli globalnej. Użycie liczy się dopiero po
+  skutecznym złożeniu zamówienia.
+- **Statystyki** — `promotion_usages` zapisuje każde wykorzystanie promocji wraz z danymi do analizy
+  i sumuje je w podziale na klientów, grupy klientów, organizacje i kanały sprzedaży.
 
-## Przepływ stosowania
+## Stosowanie promocji
 
-1. `PromotionService.applyToCart(snapshot)` ładuje aktywne promocje, rozwiązuje
-   podany kod kuponu, miękko wyklucza wyczerpane promocje, ocenia każdą regułę,
-   uruchamia akcję przez rejestr na bieżących sumach i zwraca skorygowane sumy
-   plus rozbicie per promocja.
-2. Ścieżka odczytu koszyka woła to przy każdym odczycie, więc koszyk pokazuje
-   rzeczywistą kwotę rabatu i `appliedPromotions[]`.
-3. Przy składaniu zamówienia serwis zamówień przelicza stosowanie, stempluje
-   `order_applied_promotions` + `orders.discount_total` i **finalizuje
-   użycie** w transakcji składania.
+1. `PromotionService.applyToCart(snapshot)` wczytuje aktywne promocje, odnajduje podany kod kuponu,
+   pomija promocje z wyczerpanym limitem, sprawdza każdą regułę, wykonuje akcję przez rejestr na
+   bieżących sumach i zwraca skorygowane sumy wraz z rozbiciem na promocje.
+2. Odczyt koszyka wywołuje to przy każdym odczycie, więc koszyk pokazuje rzeczywistą kwotę rabatu i
+   `appliedPromotions[]`.
+3. Przy składaniu zamówienia usługa zamówień ponownie oblicza rabaty, zapisuje
+   `order_applied_promotions` i `orders.discount_total` oraz **zapisuje wykorzystanie** w transakcji
+   składania zamówienia.
 
-## Finalizacja użycia (odporna na wyścigi)
+## Zapisywanie wykorzystania (odporne na wyścigi)
 
-`finalizeUsage` działa w transakcji składania zamówienia. Każdy licznik w
-zakresie jest podbijany przez `UPDATE promotion_usage_counters SET count =
-count + 1 WHERE (scope_type, scope_key) = … AND count < :limit`. Zero
-zmienionych wierszy oznacza osiągnięty limit, więc rzucany jest
-`409 promotion_unavailable` i całe składanie się wycofuje. Dwa koszyki w wyścigu
-o ostatnie użycie nigdy nie mogą oba wygrać.
+`finalizeUsage` działa w transakcji składania zamówienia. Każdy licznik w danym zakresie jest
+zwiększany przez `UPDATE promotion_usage_counters SET count = count + 1 WHERE (scope_type, scope_key) = … AND count < :limit`.
+Brak zmienionych wierszy oznacza, że limit został osiągnięty, więc rzucany jest
+`409 promotion_unavailable` i całe składanie zamówienia jest wycofywane. Dwa koszyki rywalizujące o
+ostatnie użycie nigdy nie wygrają obydwa.
 
-## Publiczne API (admin, gated przez `promotions:read|write|delete`)
+## API publiczne (panel administracyjny, chronione przez `promotions:read|write|delete`)
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET/POST/PUT/DELETE /api/v1/admin/promotions[/:id]` | CRUD promocji |
+| `GET/POST/PUT/DELETE /api/v1/admin/promotions[/:id]` | Zarządzanie promocjami |
 | `GET /api/v1/admin/promotions/action-types` | Katalog akcji dla edytora |
-| `GET /api/v1/admin/promotions/rule-targets/attributes` | Atrybuty kwalifikujące do promo |
-| `POST /api/v1/admin/promotions/preview` | Stosuj wobec `CartSnapshot` |
-| `GET/POST /api/v1/admin/promotions/:id/coupons` | Zarządzanie pojedynczym kuponem |
-| `POST /api/v1/admin/promotions/:id/coupon-batches` | Generator masowy |
-| `GET .../coupon-batches/:batchId/export` | Eksport CSV wygenerowanych kodów |
-| `GET /api/v1/admin/promotions/:id/stats` | Statystyki użycia |
-| `GET/POST/PUT/DELETE /api/v1/admin/promotion-rules[/:id]` | Biblioteka named-rule |
+| `GET /api/v1/admin/promotions/rule-targets/attributes` | Atrybuty, których można używać w promocjach |
+| `POST /api/v1/admin/promotions/preview` | Podgląd zastosowania dla `CartSnapshot` |
+| `GET/POST /api/v1/admin/promotions/:id/coupons` | Zarządzanie pojedynczymi kuponami |
+| `POST /api/v1/admin/promotions/:id/coupon-batches` | Generowanie kuponów hurtowo |
+| `GET .../coupon-batches/:batchId/export` | Eksport wygenerowanych kodów do CSV |
+| `GET /api/v1/admin/promotions/:id/stats` | Statystyki wykorzystania |
+| `GET/POST/PUT/DELETE /api/v1/admin/promotion-rules[/:id]` | Biblioteka nazwanych reguł |
 
-Realizacja kuponu na storefront idzie przez istniejące endpointy kuponu koszyka
-(`POST /api/v1/cart/coupon`), które rozwiązują kod przez tabelę kuponów lub
-legacy kolumnę.
+Kupony w storefroncie realizuje się przez istniejące endpointy kuponu w koszyku
+(`POST /api/v1/cart/coupon`), które odnajdują kod w tabeli kuponów albo w dawnej kolumnie.
 
 ## Uprawnienia
 
-- `promotions:read` — podgląd promocji, reguł, kuponów, statystyk.
-- `promotions:write` — tworzenie + edycja promocji i reguł, zarządzanie kuponami.
+- `promotions:read` — podgląd promocji, reguł, kuponów i statystyk.
+- `promotions:write` — tworzenie i edycja promocji i reguł, zarządzanie kuponami.
 - `promotions:delete` — usuwanie promocji i reguł.
 
-## Uwaga wydajnościowa
+## Wydajność
 
-Wycena koszyka ładuje aktywne promocje jednym indeksowanym zapytaniem plus
-lookup kuponów/liczników. W docelowej skali platformy to wystarcza; Redis cache
-kandydatów per channel (invalidowany przez pub/sub cyklu życia modułu) to
-udokumentowana kolejna optymalizacja, gdy profilowanie pokaże gorące obciążenie
-per request — celowo odroczone pod YAGNI do tego momentu.
+Wyznaczanie cen w koszyku wczytuje aktywne promocje jednym indeksowanym zapytaniem oraz odczytem
+kuponów i liczników. W docelowej skali platformy to wystarcza; pamięć podręczna kandydatów dla
+kanału w Redis (unieważniana przez pub/sub cyklu życia modułów) to udokumentowana kolejna
+optymalizacja, gdy profilowanie wykaże duże obciążenie na każde żądanie — zgodnie z YAGNI celowo
+odłożona do tego czasu.

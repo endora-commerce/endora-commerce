@@ -1,15 +1,18 @@
 ---
-title: Developer guide
+title: Przewodnik dla programistów
 sidebar_position: 3
 ---
 
-# Developer guide — Sales Channels
+# Kanały sprzedaży — przewodnik dla programistów
 
-Jak moduł backendu integruje się z modułem Sales Channels: scope'owanie zapytań przez rozwiązany kanał, zarządzanie członkostwami i odczyt kontekstu kanału z handlerów requestów.
+Jak moduł backendu współpracuje z modułem kanałów sprzedaży: zawężanie zapytań do wyznaczonego
+kanału, zarządzanie przypisaniami i odczyt kanału w handlerach żądań.
 
-## Odczyt rozwiązanego kanału wewnątrz route
+## Odczyt wyznaczonego kanału w trasie
 
-Middleware resolver dekoruje każdy request pod `/api/v1/*` polem `req.salesChannel` (serializowany widok `CachedChannel` rozwiązanego wiersza). Użyj typowanego helpera, aby utrzymać spójny wzorzec dostępu:
+Warstwa pośrednia wyznaczająca kanał dodaje do każdego żądania pod `/api/v1/*` pole
+`req.salesChannel` (zserializowany widok `CachedChannel` wyznaczonego wiersza). Korzystaj z typowanej
+funkcji pomocniczej, aby sposób dostępu był wszędzie taki sam:
 
 ```ts
 import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
@@ -20,16 +23,26 @@ app.get('/api/v1/storefront/products', async (request) => {
 });
 ```
 
-Poza cyklem życia requestu (background jobs, skrypty CLI) wołaj `SalesChannelResolverService.getByCode(code)` lub `getSystemDefault()` bezpośrednio przez handle composition modułu.
+Poza obsługą żądania (zadania w tle, skrypty CLI) wywołuj bezpośrednio
+`SalesChannelResolverService.getByCode(code)` albo `getSystemDefault()` przez obiekt udostępniony
+przy kompozycji modułu.
 
-## Dodawanie encji scope'owanej kanałem do modułu
+## Dodawanie do modułu encji zależnej od kanału
 
-Scope kanału ma dwie warstwy:
+Zależność od kanału ma dwie warstwy:
 
-1. **Schema** — encja zyskuje relację many-to-many do `sales_channels` przez nową tabelę mostu `sales_channel_<entity>` (composite primary key na obu id, `ON DELETE CASCADE` po obu stronach). Dodaj tabelę w następnej migracji modułu.
-2. **Service** — każda ścieżka odczytu encji, która ma być filtrowana kanałem, przyjmuje parametr `salesChannelId` i joinuje przez tabelę mostu. Każda ścieżka create / update, która tworzy nową encję, woła `SalesChannelMembershipService.bindToDefaultIfEmpty(entityType, entity.id)` po `persistAndFlush`, aby nowo utworzone encje domyślnie trafiały do kanału system default.
+1. **Schemat** — encja dostaje relację wiele-do-wielu z `sales_channels` przez nową tabelę łączącą
+   `sales_channel_<entity>` (złożony klucz główny z obu identyfikatorów, `ON DELETE CASCADE` po obu
+   stronach). Dodaj tę tabelę w kolejnej migracji modułu.
+2. **Usługa** — każda ścieżka odczytu encji, która ma być filtrowana według kanału, przyjmuje
+   parametr `salesChannelId` i łączy dane przez tabelę łączącą. Każda ścieżka tworzenia lub
+   aktualizacji, która tworzy nową encję, po `persistAndFlush` wywołuje
+   `SalesChannelMembershipService.bindToDefaultIfEmpty(entityType, entity.id)`, aby nowe encje
+   domyślnie trafiały do domyślnego kanału systemowego.
 
-Następnie dodaj member do enum `ChannelMemberEntityTypeSchema` w kontrakcie i **zadeklaruj most z własnego modułu**: eksportuj triple `{ entityType, table, entityIdColumn }` z `src/backend/index.ts` i zarejestruj go z boot hook —
+Następnie dodaj wartość do wyliczenia `ChannelMemberEntityTypeSchema` w kontrakcie i **zadeklaruj
+tabelę łączącą we własnym module**: wyeksportuj trójkę `{ entityType, table, entityIdColumn }` z
+`src/backend/index.ts` i zarejestruj ją w hooku startowym —
 
 ```ts
 ctx.onBoot(() => {
@@ -38,11 +51,19 @@ ctx.onBoot(() => {
 });
 ```
 
-Dwukierunkowe route admin podchwytują to automatycznie — per-module routes nie są potrzebne. Platforma celowo nie trzyma mapy mostów: kiedyś trzymała, total over the enum, co oznaczało, że wywołanie członkostwa dla membera, którego moduł instancja nigdy nie zainstalowała, uruchamiało SQL wobec relacji, której nie ma. Member, którego żaden moduł nie zarejestrował, odmawia teraz z `503 MODULE_DISABLED` zanim dotknie bazy, a enum pozostaje opublikowanym *słownikiem*, podczas gdy rejestr decyduje, które membery są live.
+Dwukierunkowe trasy administracyjne uwzględnią ją automatycznie — osobne trasy w modułach nie są
+potrzebne. Platforma celowo nie przechowuje mapy tabel łączących: kiedyś ją miała, obejmującą całe
+wyliczenie, co oznaczało, że wywołanie dotyczące typu encji, którego modułu instancja nigdy nie
+zainstalowała, wykonywało SQL na nieistniejącej tabeli. Typ encji, którego nie zarejestrował żaden
+moduł, jest teraz odrzucany z `503 MODULE_DISABLED`, zanim cokolwiek trafi do bazy, a wyliczenie
+pozostaje opublikowanym *słownikiem*, podczas gdy o tym, które typy działają, decyduje rejestr.
 
-## Mutowanie członkostw
+## Zmiana przypisań
 
-`SalesChannelMembershipService` jest jedynym mutatorem każdej tabeli mostu. Bezpośredni INSERT / DELETE na `sales_channel_*` z innego miejsca jest zabroniony — reguła lint `no-unscoped-channel-query` to siatka bezpieczeństwa (ships disabled i zostanie włączona, gdy każdy istniejący call site zostanie przeciągnięty).
+`SalesChannelMembershipService` to jedyne miejsce, które zmienia dane w tabelach łączących.
+Bezpośrednie INSERT / DELETE na `sales_channel_*` z innego miejsca jest zabronione — reguła lint
+`no-unscoped-channel-query` jest zabezpieczeniem (dostarczana jest wyłączona i zostanie włączona, gdy
+wszystkie istniejące wywołania zostaną dostosowane).
 
 ```ts
 const result = await membershipService.addToChannel(channelId, 'product', productId);
@@ -54,25 +75,34 @@ const removed = await membershipService.removeFromChannel(channelId, 'product', 
 // throws ENTITY_WOULD_HAVE_ZERO_CHANNELS if it would orphan the entity AND fallbackToDefault is false.
 ```
 
-## Gwarancja kanału Default
+## Gwarancja istnienia kanału domyślnego
 
-`DefaultChannelReconciler` działa przy każdym bootcie backendu z `composition.ts` (oraz z `test-server.ts` dla testów integracyjnych). Trzy gałęzie:
+`DefaultChannelReconciler` wykonuje się przy każdym starcie backendu z `composition.ts` (oraz z
+`test-server.ts` w testach integracyjnych). Trzy przypadki:
 
-1. **Pusta tabela `sales_channels`** — wstawia nowy wiersz `default` z `DEFAULT_SALES_CHANNEL_CODE` (env, default `default`).
-2. **Wiersze istnieją, ale żaden nie ma `system_default = true`** — promuje leksykalnie pierwszy wiersz, z tie-break preferującym wiersz, którego `code = 'default'`.
-3. **Dokładnie jeden wiersz ma już `system_default = true`** — no-op.
+1. **Pusta tabela `sales_channels`** — wstawia nowy wiersz z kodem `DEFAULT_SALES_CHANNEL_CODE`
+   (zmienna środowiskowa, domyślnie `default`).
+2. **Wiersze istnieją, ale żaden nie ma `system_default = true`** — ustawia jako domyślny pierwszy
+   wiersz w kolejności leksykograficznej, przy remisie preferując wiersz z `code = 'default'`.
+3. **Dokładnie jeden wiersz ma już `system_default = true`** — nic nie robi.
 
-Reconciler nigdy nie degraduje, nie usuwa i nie edytuje tożsamości. Kod poza tym modułem zakłada, że default istnieje; jeśli piszesz kod infra-level uruchamiany przed reconcilerem, najpierw wołaj `DefaultChannelReconciler.run()`.
+Mechanizm uzgadniania nigdy nie odbiera oznaczenia, nie usuwa i nie zmienia danych kanału. Kod spoza
+tego modułu zakłada, że kanał domyślny istnieje; jeśli piszesz kod infrastruktury uruchamiany przed
+mechanizmem uzgadniania, najpierw wywołaj `DefaultChannelReconciler.run()`.
 
-## Optimistic concurrency dla edycji tożsamości
+## Optymistyczna kontrola współbieżności przy edycji kanału
 
-Kolumna integer `version` na `sales_channels` rośnie dokładnie o 1 przy każdej udanej aktualizacji tożsamości. Endpoint PATCH wymaga, aby `expectedVersion` klienta zgadzało się z bieżącą `version` wiersza, mismatch → HTTP 412 `STALE_SALES_CHANNEL_WRITE` z bieżącą `version` w envelope błędu, aby klient mógł odświeżyć i ponowić.
+Kolumna całkowitoliczbowa `version` w `sales_channels` rośnie dokładnie o 1 przy każdej udanej
+aktualizacji danych kanału. Endpoint PATCH wymaga, aby `expectedVersion` od klienta było równe
+bieżącej `version` wiersza; przy niezgodności zwraca HTTP 412 `STALE_SALES_CHANNEL_WRITE` z bieżącą
+`version` w odpowiedzi z błędem, aby klient mógł odświeżyć dane i spróbować ponownie.
 
-Operacje add / remove członkostwa są idempotentne z definicji i nie bumpują `version` kanału.
+Dodawanie i usuwanie przypisań jest z definicji idempotentne i nie zwiększa `version` kanału.
 
-## Hooki audytu
+## Audyt
 
-Każda zmiana tożsamości, zmiana cyklu życia i zmiana członkostwa zapisuje jeden wiersz `audit_log_entries` synchronicznie w tej samej transakcji. Kody akcji są w `@endora-commerce/contracts`:
+Każda zmiana danych kanału, zmiana w cyklu życia i zmiana przypisań zapisuje synchronicznie, w tej
+samej transakcji, jeden wiersz w `audit_log_entries`. Kody akcji są w `@endora-commerce/contracts`:
 
 ```ts
 import { SALES_CHANNEL_AUDIT_ACTIONS } from '@endora-commerce/contracts';
@@ -83,25 +113,41 @@ await auditLogService.record({
 });
 ```
 
-Używaj stałych — nigdy nie hardcoduj stringów — aby przyszły rename enum / typu propagował się czysto.
+Korzystaj ze stałych — nigdy nie wpisuj stringów na stałe — aby przyszła zmiana nazwy w wyliczeniu
+lub typie poprawnie objęła wszystkie miejsca.
 
-## Unieważnianie cache
+## Unieważnianie pamięci podręcznej
 
-`SalesChannelsCache` (process-local LRU + Redis) trzyma `CachedChannel` per `code`. Cache jest unieważniany przy każdej zmianie tożsamości / cyklu życia przez istniejący `EventBus`:
+`SalesChannelsCache` (lokalna dla procesu pamięć LRU i Redis) przechowuje `CachedChannel` dla każdego
+`code`. Pamięć podręczna jest unieważniana przy każdej zmianie danych lub cyklu życia przez istniejącą
+szynę `EventBus`:
 
-- `sales_channels.identity_changed` → usuwa jeden wpis po code.
-- `sales_channels.lifecycle_changed` → usuwa jeden wpis, albo wszystkie wpisy, gdy ustawiono `invalidateAll: true` (używane przy hard delete).
+- `sales_channels.identity_changed` → usuwa jeden wpis według kodu.
+- `sales_channels.lifecycle_changed` → usuwa jeden wpis albo wszystkie, gdy ustawiono
+  `invalidateAll: true` (używane przy trwałym usunięciu).
 
-Oba najpierw usuwają wspólny wpis Redis, potem lokalny, z kluczem oznaczonym na całą operację, aby równoległy odczyt nie mógł ponownie przypiąć kanału sprzed zmiany — i aby nieudane usunięcie Redis pozostawiało odczyty z fallthrough do PostgreSQL zamiast serwować wartość, którą unieważnienie miało usunąć. `EventBus` jest in-process, więc druga instancja zbiega przez 30 s okno warstwy lokalnej.
+Oba najpierw usuwają wspólny wpis w Redis, potem lokalny, z kluczem oznaczonym na czas całej
+operacji, aby równoległy odczyt nie mógł ponownie zapamiętać kanału sprzed zmiany — i aby nieudane
+usunięcie w Redis kierowało odczyty do PostgreSQL, zamiast zwracać wartość, którą unieważnienie
+miało usunąć. `EventBus` działa w procesie, więc druga instancja dochodzi do aktualnego stanu w
+30-sekundowym oknie warstwy lokalnej.
 
-Lookupi członkostwa idą bezpośrednio przez MikroORM (bez warstwy cache); jeśli potrzebujesz ich szybciej, dodaj warstwę Redis kluczowaną po `(entityType, entityId)` z krótkim TTL — hooki są już na miejscu.
+Odczyty przypisań idą bezpośrednio przez MikroORM (bez pamięci podręcznej); jeśli potrzebujesz ich
+szybciej, dodaj warstwę Redis z kluczem `(entityType, entityId)` i krótkim TTL — hooki są już na
+miejscu.
 
-## Testowanie kodu channel-aware
+## Testowanie kodu zależnego od kanału
 
-Użyj istniejącego harnessu `setupBackendServer()` — bootuje pełny stack ze świeżym kanałem `default` zreconcilowanym względem seeda testowego (`en-US` / `PLN`). Dla testów na poziomie raw DB użyj `setupTestDb()` i sam wołaj `DefaultChannelReconciler.run()`, opcjonalnie nadpisując bootstrap defaults, gdy seed testowy ma inne kody języka/waluty.
+Korzystaj z istniejącego środowiska `setupBackendServer()` — uruchamia ono cały stos ze świeżym
+kanałem `default`, uzgodnionym względem danych testowych (`en-US` / `PLN`). W testach bezpośrednio na
+bazie danych użyj `setupTestDb()` i sam wywołaj `DefaultChannelReconciler.run()`, opcjonalnie
+nadpisując wartości początkowe, gdy dane testowe mają inne kody języka lub waluty.
 
-Istniejący precedens repozytorium dla testów integracyjnych channel-aware (transactional rollback, parametryzowane typy encji, fixture raw-SQL odłączone od klas encji modułu-właściciela) jest w:
+Wzorcowe testy integracyjne zależne od kanału w tym repozytorium (wycofywanie transakcji,
+parametryzowane typy encji, dane testowe w surowym SQL niezależne od klas encji modułu-właściciela):
 
-- `backend/test/integration/sales_channels/bidirectional-membership-every-bridge.test.ts` — table-driven po wszystkich 9 mostach.
-- `backend/test/integration/sales_channels/at-least-one-channel-invariant.test.ts` — egzekwowanie inwariantu at-least-one-channel.
+- `backend/test/integration/sales_channels/bidirectional-membership-every-bridge.test.ts` — test
+  tabelaryczny dla wszystkich 9 tabel łączących.
+- `backend/test/integration/sales_channels/at-least-one-channel-invariant.test.ts` — egzekwowanie
+  reguły „co najmniej jeden kanał”.
 - `backend/test/contract/sales_channels/admin-membership.contract.test.ts` — pokrycie po stronie HTTP.
