@@ -1,7 +1,9 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  type ModuleCliCommand,
 } from '@endora-commerce/contracts';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * Orders module — manifest.
@@ -227,6 +229,22 @@ export const manifest = defineModuleManifest({
         'order whose `paymentMethodSnapshot.kind` says it drew credit owes a release. ' +
         '`credit_limit_reservations_order_fk` obliges `credit_limits` to declare this module, ' +
         'so `dependencies` was never available.',
+    },
+    {
+      moduleId: 'credit_limits',
+      name: 'creditLimitReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'the order repair command cannot see which orders still hold credit, and says so ' +
+        'instead of listing them',
+      reason:
+        'The `transition-effects-repair` operator command asks which cancelled or paid ' +
+        'orders still hold an active reservation before it proposes to release anything ' +
+        '(`specs/142-order-transition-atomicity/`, D9) — this module may not read ' +
+        '`credit_limit_reservations` itself. A read on a `di.providePort` name, behind ' +
+        '`effectiveState.isPresent`: with the owner absent the command reports credit ' +
+        'holdings as not examined and still repairs stock. `dependencies` was never ' +
+        'available, for the reason given on `creditLimitService` above.',
     },
     {
       moduleId: 'promotions',
@@ -793,3 +811,21 @@ export const manifest = defineModuleManifest({
     { key: 'order', titleKey: 'blocks.category.order', contexts: ['email'], weight: 20 },
   ],
 });
+
+/**
+ * The operator command this module declares
+ * (`specs/142-order-transition-atomicity/`, D9).
+ *
+ * A declaration the host runs, not a script that bootstraps the host: the body
+ * is `await import()`ed so that a manifest — loaded by every process that
+ * composes the platform and by the check scripts — stays light.
+ */
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'transition-effects-repair',
+    summary:
+      'List cancelled or paid orders still holding stock or credit; with --apply, release it.',
+    run: async (context) =>
+      (await import('./backend/cli/transition-effects-repair.js')).transitionEffectsRepair(context),
+  },
+];

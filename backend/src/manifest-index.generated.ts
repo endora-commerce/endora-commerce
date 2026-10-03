@@ -73,7 +73,7 @@ import { manifest as manifest35 } from '@endora-commerce/mod-megamenu';
 import { manifest as manifest36 } from '@endora-commerce/mod-meta-ads';
 import { manifest as manifest37 } from '@endora-commerce/mod-mfa';
 import { manifest as manifest38 } from '@endora-commerce/mod-newsletter';
-import { manifest as manifest39 } from '@endora-commerce/mod-orders';
+import { manifest as manifest39, cliCommands as cliCommands39 } from '@endora-commerce/mod-orders';
 import { manifest as manifest40 } from '@endora-commerce/mod-organizations';
 import { manifest as manifest41 } from '@endora-commerce/mod-payment-methods';
 import { manifest as manifest42 } from '@endora-commerce/mod-payments';
@@ -152,7 +152,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'meta_ads', manifest: manifest36, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-meta-ads') },
   { id: 'mfa', manifest: manifest37, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-mfa') },
   { id: 'newsletter', manifest: manifest38, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-newsletter') },
-  { id: 'orders', manifest: manifest39, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-orders') },
+  { id: 'orders', manifest: manifest39, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-orders'), cliCommands: cliCommands39 },
   { id: 'organizations', manifest: manifest40, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-organizations') },
   { id: 'payment_methods', manifest: manifest41, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-payment-methods') },
   { id: 'payments', manifest: manifest42, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-payments') },

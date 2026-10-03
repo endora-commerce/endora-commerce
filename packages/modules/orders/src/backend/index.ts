@@ -12,6 +12,7 @@ import type {
   CartReadPort,
   CartWritePort,
   CatalogProductReadPort,
+  CreditLimitReadPort,
   CustomerAccountReadPort,
   DeliveryMethodReadPort,
   EmailDefaultsRegistryPort,
@@ -90,6 +91,7 @@ import { OrderTransitionPortService } from './services/order-transition-port.js'
 import { releaseOrderAllocations } from './services/order-allocation-release.js';
 import { createOrderTransitionEffectHandlers } from './services/order-transition-effect-handlers.js';
 import { OrderTransitionEffectService } from './services/order-transition-effect-service.js';
+import { OrderTransitionEffectRepairService } from './services/order-transition-effect-repair-service.js';
 import {
   buildTransitionEffectSweepWorker,
   createTransitionEffectSweepQueue,
@@ -249,6 +251,7 @@ export interface OrdersCradle {
    * (`specs/142-order-transition-atomicity/`).
    */
   readonly orderTransitionEffectService: OrderTransitionEffectService;
+  readonly orderTransitionEffectRepairService: OrderTransitionEffectRepairService;
   /**
    * Whether this process runs queue consumers (Principle X) — the platform's
    * one module-agnostic answer, `false` in the test kit.
@@ -451,6 +454,36 @@ export function registerModule(ctx: ModuleContext): void {
             creditLimit: () => creditLimit,
             releaseStock: (orderId) => releaseOrderAllocations(emFactory, reservationApply, orderId),
           }),
+        });
+      })
+      .singleton(),
+  });
+
+  /**
+   * The operator's repair of orders an earlier version left holding stock or
+   * credit (`specs/142-order-transition-atomicity/`, D9), read off the cradle
+   * by the `transition-effects-repair` command.
+   *
+   * It asks the two owners what orders still hold through their **read** ports
+   * — `inventoryStockReadPort`, already an edge of this module, and
+   * `creditLimitReadPort`, declared `degrades-without` for this one use. Each
+   * is behind an accessor the service calls only after
+   * `effectiveState.isPresent(<owner>)` answered yes: with an owner off, its
+   * holdings are reported as not examined, which is the degrade the manifest
+   * declares.
+   */
+  ctx.di.register({
+    orderTransitionEffectRepairService: ctx
+      .asFunction(({ emFactory, commandBus, orderTransitionEffectService }: OrdersCradle) => {
+        const stockRead = lazyPort<InventoryStockReadPort>(ctx, 'inventoryStockReadPort');
+        const creditRead = lazyPort<CreditLimitReadPort>(ctx, 'creditLimitReadPort');
+        return new OrderTransitionEffectRepairService({
+          emFactory,
+          commandBus,
+          effects: orderTransitionEffectService,
+          isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+          stockRead: () => stockRead,
+          creditRead: () => creditRead,
         });
       })
       .singleton(),

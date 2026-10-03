@@ -163,7 +163,7 @@ calling `sweep()`.
 
 ## Phase 3 — repair and visibility
 
-- [ ] **T15** The repair command (plan D9): candidates paged from `orders`' tables, holdings from
+- [x] **T15** The repair command (plan D9): candidates paged from `orders`' tables, holdings from
   T03/T04, dry run by default, `--apply` through one audited Command per page, absent owner reported
   as not examined.
   Files: `packages/modules/orders/src/backend/cli/transition-effects-repair.ts`,

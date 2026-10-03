@@ -5,7 +5,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { withModuleOff } from '../../helpers/off-state.js';
+import { withModuleOff, withModulesDeactivated } from '../../helpers/off-state.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import {
   SEED_ADDRESS_BILLING_ID,
@@ -449,14 +449,12 @@ describe('an order transition and its follow-up work cannot come apart (spec 142
   it('a buyer cancelling their own order is answered 200 while `credit_limits` and `inventory` are off, and the stock follows when `inventory` returns', async () => {
     const orderId = await place('plain');
 
-    await withModuleOff('credit_limits', 'deactivated', () =>
-      withModuleOff('inventory', 'deactivated', async () => {
-        const res = await buyerCancel(orderId);
-        expect(res.statusCode, res.body).toBe(200);
-        expect((await orderRow(orderId)).status).toBe('cancelled');
-        expect(await heldAllocations(orderId)).toBe(1);
-      }),
-    );
+    await withModulesDeactivated(['credit_limits', 'inventory'], async () => {
+      const res = await buyerCancel(orderId);
+      expect(res.statusCode, res.body).toBe(200);
+      expect((await orderRow(orderId)).status).toBe('cancelled');
+      expect(await heldAllocations(orderId)).toBe(1);
+    });
 
     await sweep();
     expect(await heldAllocations(orderId)).toBe(0);
