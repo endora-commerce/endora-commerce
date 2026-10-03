@@ -28,6 +28,7 @@ and flag.
 | `endora new module <id>` | Inside an instance: an overlay module under `apps/<deployment>/modules/<id>/`. Inside a checkout of the platform repository: a module package. |
 | `endora generate` | Renders the files an instance's admin and docs are built from, and its divergence report. An instance runs it as `pnpm run generate`. |
 | `endora dev` | The API, the admin preview and the storefront in one terminal. An instance runs it as `pnpm run dev:all`. |
+| `endora upgrade [<version>]` | Moves every package of the release to one version in the instance and its storefront, then runs `setup`. An instance runs it as `pnpm run upgrade`. |
 | `endora check [path]` | Evaluates the platform's static checks against one module package. |
 
 `endora --help` prints every flag of every command, from the release you are running.

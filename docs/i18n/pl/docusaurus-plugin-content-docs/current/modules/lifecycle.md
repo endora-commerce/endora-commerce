@@ -58,7 +58,8 @@ którąkolwiek z tych komend bez restartu. Moduł overlay zawierający katalog `
 
 W wydaniach do `0.100.2` włącznie komendy `module:enable`, `module:disable` i miękki
 `module:uninstall` wypisywały w instancji sukces i niczego nie zmieniały, a twardy uninstall był
-odrzucany. Zaktualizuj pakiety `@endora-commerce/*` instancji do wydania nowszego niż `0.100.2`.
+odrzucany. Zaktualizuj instancję do nowszego wydania — zobacz
+[Aktualizacja instancji](../upgrading-an-instance.md#before-the-command).
 
 Kontrakt kodów wyjścia:
 

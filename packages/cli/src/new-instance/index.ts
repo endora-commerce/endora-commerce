@@ -702,7 +702,7 @@ export function nextSteps(
   const addresses = [...(development.environment ?? new Map())];
   return [
     `cd ${targetDir} && pnpm install — every range in the manifest is published semver. ` +
-      `Nothing in this tree is a copy of ours, so \`pnpm update\` is how a platform fix ` +
+      `Nothing in this tree is a copy of ours, so \`pnpm run upgrade\` is how a platform fix ` +
       `reaches you, with no file here edited.`,
     // `specs/125-first-mile-install/` FR-108, and it is first for a reason a
     // client would otherwise meet as an error: `migrate` is four lines below and

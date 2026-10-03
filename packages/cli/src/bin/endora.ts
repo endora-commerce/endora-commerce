@@ -49,6 +49,7 @@ import {
 } from '../new-instance/index.js';
 import { InstallHostError, InstallInputError, runInstall } from '../install/index.js';
 import { DevHostError, DevInputError, runDev } from '../dev/index.js';
+import { runUpgrade, UpgradeHostError, UpgradeInputError } from '../upgrade/index.js';
 import {
   generateFindingsRefusal,
   generateReport,
@@ -76,6 +77,7 @@ Usage:
                          [--topology single-host|three-host] [--non-interactive] [--dry-run]
   endora generate [--dry-run]
   endora dev [--storefront-dir <path>] [--no-storefront]
+  endora upgrade [<version>] [--storefront-dir <path>] [--no-storefront] [--dry-run]
   endora --help
 
 \`endora new module\` writes a module package that is composed by the platform,
@@ -117,7 +119,7 @@ Options for \`new module\`:
 deployment: one workspace, one module list, and a copy of nothing. It is not a
 fork of the platform and holds no file of it — the platform, the admin shell and
 every module arrive as dependencies, so a fix in any of them reaches you through
-\`pnpm update\` with no file in your tree edited.
+\`endora upgrade\` with no file in your tree edited.
 
 Options for \`new instance\`:
   <dir>                         where to write. Required; it must be empty, or
@@ -271,6 +273,27 @@ Options for \`dev\`:
   --storefront-dir <path>       where the storefront is (default: \`<dir>-storefront\`
                                 beside the instance, when it exists)
   --no-storefront               start the API and the admin preview only
+
+\`endora upgrade\` is what an instance's \`pnpm run upgrade\` runs: it moves every package
+of the release this CLI belongs to — the platform, every module, the admin shell,
+the contracts — to one version, in every member of the instance and in the
+storefront beside it, then installs and runs the instance's own \`setup\` (generate,
+build, migrate, install any module the release adds). An exact pin stays exact and
+a caret stays a caret; a package that is not part of the release — a paid module, a
+third-party library — is left as written and named. Every precondition is checked
+before anything is written, every command is printed before it runs, and a failure
+exits with that step's own code and prints what is left. Already at the version, it
+says so and does nothing. It never goes back: migrations do not run backwards.
+
+Options for \`upgrade\`:
+  [<version>]                   the release to move to, exactly (\`0.102.0\`). Absent,
+                                the registry's latest
+  --storefront-dir <path>       where the storefront is (default: \`<dir>-storefront\`
+                                beside the instance, when it exists)
+  --no-storefront               leave every storefront alone
+  --dry-run                     report every range it would move, every lockfile
+                                entry it would drop and every command; write nothing
+                                and run nothing
 
 \`endora generate\` renders the two files an instance's admin project is built
 from and commits neither: the contribution registry of the module packages this
@@ -937,6 +960,52 @@ async function runDevCommand(
   }
 }
 
+/**
+ * `endora upgrade [<version>]` — the argv half of an instance's
+ * `pnpm run upgrade` (`specs/140-instance-upgrade/`). The pipeline's output is
+ * the operator's: every command it runs inherits the terminal.
+ */
+async function runUpgradeCommand(
+  parsed: Parsed,
+  rest: readonly string[],
+  cwd: string,
+): Promise<number> {
+  if (rest.length > 1) {
+    process.stderr.write(
+      `endora: \`upgrade\` takes one version at most; got ${rest.join(', ')}.\n`,
+    );
+    return 1;
+  }
+  const storefrontDir = asString(parsed.values['storefront-dir']);
+  if (asFlag(parsed.values['no-storefront']) && storefrontDir !== undefined) {
+    process.stderr.write(
+      'endora: `--no-storefront` and `--storefront-dir` were both given, and they are two ' +
+        'answers to one question. Pass one.\n',
+    );
+    return 1;
+  }
+  try {
+    const result = await runUpgrade({
+      cwd,
+      version: rest[0],
+      storefront: asFlag(parsed.values['no-storefront']) ? false : storefrontDir,
+      dryRun: asFlag(parsed.values['dry-run']),
+      echo: (line: string) => void process.stdout.write(`${line}\n`),
+    });
+    return result.exitCode;
+  } catch (error: unknown) {
+    if (error instanceof UpgradeInputError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 1;
+    }
+    if (error instanceof UpgradeHostError) {
+      process.stderr.write(`endora: ${error.message}\n`);
+      return 2;
+    }
+    throw error;
+  }
+}
+
 /** What a test hands `main` instead of this machine's own answer. */
 export interface MainSeams {
   /**
@@ -1000,10 +1069,15 @@ export async function main(
     return runDevCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
   }
 
+  if (command === 'upgrade') {
+    return runUpgradeCommand(parsed, [subject, ...rest].filter((v) => v !== undefined), cwd);
+  }
+
   if (command !== 'new') {
     process.stderr.write(
       `endora: unknown command "${command}". This build provides \`new module\`, ` +
-        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\`, \`dev\` and \`check\`.\n`,
+        `\`new instance\`, \`new storefront\`, \`install\`, \`generate\`, \`dev\`, \`upgrade\` and ` +
+        `\`check\`.\n`,
     );
     return 1;
   }

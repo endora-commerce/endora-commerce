@@ -58,7 +58,8 @@ stops every one of them before a database is opened — see
 
 On releases up to and including `0.100.2`, `module:enable`, `module:disable` and a soft
 `module:uninstall` printed success in an instance and changed nothing, and a hard uninstall was
-refused. Upgrade the instance's `@endora-commerce/*` packages past `0.100.2`.
+refused. Upgrade the instance to a later release — see
+[Upgrading an instance](../upgrading-an-instance.md#before-the-command).
 
 Exit-code contract:
 

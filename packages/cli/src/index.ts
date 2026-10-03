@@ -54,6 +54,22 @@ export {
   type ScaffoldHost,
 } from './new-module/host.js';
 export {
+  compareVersions,
+  pruneLockfile,
+  rewriteManifestText,
+  rewriteRange,
+  runUpgrade,
+  UpgradeHostError,
+  UpgradeInputError,
+  type FilePlan as UpgradeFilePlan,
+  type LeftAlone,
+  type RangeChange,
+  type RegistryProbe,
+  type UpgradeOptions,
+  type UpgradeResult,
+  type UpgradeStep,
+} from './upgrade/index.js';
+export {
   runNewInstance,
   type NewInstanceOptions,
   type NewInstanceResult,
