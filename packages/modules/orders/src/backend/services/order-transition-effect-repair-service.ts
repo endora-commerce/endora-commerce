@@ -95,7 +95,20 @@ interface CandidateRow {
 export class OrderTransitionEffectRepairService {
   constructor(private readonly deps: OrderTransitionEffectRepairDeps) {}
 
-  async run(options: { apply: boolean; pageSize?: number }): Promise<RepairReport> {
+  /**
+   * `only` restricts the run to the named orders; `except` leaves the named
+   * orders out — for an order whose stock counter an operator has already
+   * corrected by hand, which the dry run lists like any other because its
+   * allocation row is still unreleased.
+   */
+  async run(options: {
+    apply: boolean;
+    pageSize?: number;
+    only?: readonly string[];
+    except?: readonly string[];
+  }): Promise<RepairReport> {
+    const only = options.only ?? [];
+    const except = options.except ?? [];
     const pageSize = options.pageSize ?? REPAIR_DEFAULT_PAGE_SIZE;
     const stockOwner = ownerOfEffect('stock.release');
     const creditOwner = ownerOfEffect('credit.release');
@@ -112,7 +125,10 @@ export class OrderTransitionEffectRepairService {
 
     if (stockExaminable || creditExaminable) {
       for (;;) {
-        const page = await this.candidates(after, pageSize, stockExaminable, creditExaminable);
+        const page = await this.candidates(after, pageSize, stockExaminable, creditExaminable, {
+          only,
+          except,
+        });
         if (page.length === 0) break;
         after = page[page.length - 1]!.id;
         examined += page.length;
@@ -164,7 +180,12 @@ export class OrderTransitionEffectRepairService {
     pageSize: number,
     stock: boolean,
     credit: boolean,
+    filter: { readonly only: readonly string[]; readonly except: readonly string[] },
   ): Promise<CandidateRow[]> {
+    const marks = (ids: readonly string[]): string => ids.map(() => '?').join(', ');
+    const onlyClause = filter.only.length > 0 ? `and o."id" in (${marks(filter.only)})` : '';
+    const exceptClause =
+      filter.except.length > 0 ? `and o."id" not in (${marks(filter.except)})` : '';
     return this.deps.emFactory().execute<CandidateRow[]>(
       `select * from (
          select o."id", o."business_id", o."organization_id", o."status", o."payment_status",
@@ -181,11 +202,13 @@ export class OrderTransitionEffectRepairService {
            from "orders" o
           where o."id" > ?
             and (o."status" = 'cancelled' or o."payment_status" = 'paid')
+            ${onlyClause}
+            ${exceptClause}
        ) c
        where c."wants_stock" or c."wants_credit"
        order by c."id"
        limit ?`,
-      [stock, credit, after, pageSize],
+      [stock, credit, after, ...filter.only, ...filter.except, pageSize],
     );
   }
 

@@ -16,6 +16,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { CreditLimit, PaymentMethod } from '../../helpers/package-entities.js';
+import { enterSystemScope } from '../../../src/kernel/scope.js';
 import { transitionEffectsRepair } from '../../../../packages/modules/orders/dist/backend/cli/transition-effects-repair.js';
 
 /**
@@ -29,9 +30,8 @@ import { transitionEffectsRepair } from '../../../../packages/modules/orders/dis
  * release used to leave behind.
  *
  * The command body is driven as the host drives it: with a `ModuleContext`
- * whose cradle is the composed container's, and with **no ambient tenant
- * context** — the body has to establish its own, or the Command Bus refuses the
- * applied write.
+ * whose cradle is the composed container's, inside the system scope the host's
+ * dispatcher opens around every module command.
  */
 
 const BUYER = { cookies: { b2b_session: 'stub-customer-session' } };
@@ -135,12 +135,16 @@ describe('orders transition-effects-repair (spec 142, US3)', () => {
   async function repair(...argv: string[]): Promise<{ exit: number; out: string[] }> {
     const out: string[] = [];
     const ctx = { cradle: () => h.container.cradle } as unknown as ModuleContext;
-    const exit = await transitionEffectsRepair({
-      ctx,
-      argv,
-      out: (line) => out.push(line),
-      err: (line) => out.push(line),
-    });
+    // The host's dispatcher runs every module command inside a system scope
+    // over its composition; the body opens none of its own.
+    const exit = await enterSystemScope('cli: orders transition-effects-repair', () =>
+      transitionEffectsRepair({
+        ctx,
+        argv,
+        out: (line) => out.push(line),
+        err: (line) => out.push(line),
+      }),
+    );
     return { exit, out };
   }
 
@@ -281,5 +285,41 @@ describe('orders transition-effects-repair (spec 142, US3)', () => {
     // Left for the next run rather than lost.
     expect(summaryOf((await repair('--apply')).out)).toContain('released=1');
     expect(await heldAllocations(orderId)).toBe(0);
+  });
+
+  it('--except leaves a named order out and --order repairs only the named one', async () => {
+    // Two stranded orders; an operator has already corrected the counter for
+    // the first by hand, so it must not be released a second time.
+    const corrected = await place('plain', 2);
+    const untouched = await place('plain', 1);
+    await strand(corrected, 'status', 'cancelled');
+    await strand(untouched, 'status', 'cancelled');
+
+    const dry = await repair(`--except=${corrected}`);
+    expect(dry.out.some((line) => line.includes(untouched))).toBe(true);
+    expect(dry.out.some((line) => line.includes(corrected))).toBe(false);
+
+    const applied = await repair('--apply', `--except=${corrected}`);
+    expect(summaryOf(applied.out)).toContain('stranded=1 recorded=1 released=1');
+    expect(await heldAllocations(untouched)).toBe(0);
+    expect(await heldAllocations(corrected)).toBe(1);
+
+    // Named explicitly, it is repaired — and nothing else is looked at.
+    const one = await repair('--apply', `--order=${corrected}`);
+    expect(summaryOf(one.out)).toContain('examined=1 stranded=1 recorded=1 released=1');
+    expect(await heldAllocations(corrected)).toBe(0);
+  });
+
+  it('refuses an argument it does not know, and an id that is not one, before doing anything', async () => {
+    const orderId = await place('plain');
+    await strand(orderId, 'status', 'cancelled');
+
+    for (const argv of [['--aply'], ['--order=ORD-1'], [`--order=${orderId}`, `--except=${orderId}`]]) {
+      const refused = await repair('--apply', ...argv);
+      expect(refused.exit).toBe(2);
+    }
+    expect(await heldAllocations(orderId)).toBe(1);
+
+    expect(summaryOf((await repair('--apply')).out)).toContain('released=1');
   });
 });

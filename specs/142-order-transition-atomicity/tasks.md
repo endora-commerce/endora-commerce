@@ -191,7 +191,7 @@ calling `sweep()`.
   Files: as named; `check:module-docs`.
   **Test**: `pnpm --filter docs run build`.
 
-- [ ] **T19** Release intent: one changeset each for `@endora-commerce/contracts`,
+- [x] **T19** Release intent: one changeset each for `@endora-commerce/contracts`,
   `@endora-commerce/mod-orders`, `@endora-commerce/mod-inventory`,
   `@endora-commerce/mod-credit-limits` — **minor**. The `contracts` one states that an implementer
   of `InventoryStockReadPort` or `CreditLimitReadPort` must add a method; the `mod-orders` one states
@@ -200,7 +200,7 @@ calling `sweep()`.
   Files: `.changeset/*.md`, the read-size record.
   **Test**: `pnpm --filter backend run check:release-intent -- --since origin/master`.
 
-- [ ] **T20** Acceptance: T00's seven cases green; SC-002 as
+- [x] **T20** Acceptance: T00's seven cases green; SC-002 as
   `backend/test/integration/orders/transition-effects-fault-injection.test.ts` (a failure at each
   point between the commit and the last release; after the cause is removed, two `sweep()` calls
   leave nothing held); then `typecheck`, `lint`, `check:naming`, `check:language`, the `quality`

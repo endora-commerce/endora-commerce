@@ -6,6 +6,8 @@
  * Usage:
  *   pnpm --filter backend run cli orders transition-effects-repair
  *   pnpm --filter backend run cli orders transition-effects-repair --apply
+ *   pnpm --filter backend run cli orders transition-effects-repair --apply --except=<order id>
+ *   pnpm --filter backend run cli orders transition-effects-repair --apply --order=<order id>
  *
  * Without `--apply` it is a dry run: it prints every order found holding stock
  * allocations or a credit reservation it should have released, with what each
@@ -17,19 +19,28 @@
  * Run it once after upgrading from a version in which a failed or refused
  * release could leave an order cancelled while still holding stock or credit.
  * The dry run first — a release changes reserved-stock counters and available
- * credit, and anything corrected by hand since should be seen before it is
- * applied.
+ * credit.
+ *
+ * **What the dry run cannot show.** It lists what each order's own rows say it
+ * holds. It cannot tell whether an operator has already corrected the stock
+ * counter by hand for that order: the allocation row is still unreleased, so
+ * the order is listed, and applying it lowers the counter a second time —
+ * reserving less than live orders actually hold. `--except=<order id>`
+ * (repeatable) leaves such an order out; `--order=<order id>` (repeatable)
+ * repairs only the orders named. Both take the order's id as the list prints
+ * it in brackets.
  *
  * A switched-off `inventory` or `credit_limits` cannot be asked what orders
  * hold; the command says so and exits successfully for the rest.
  *
- * The scope is established here: the host's command runner sets no tenant
- * context, this reads every organization's orders, and the Command Bus —
- * through which the applied write is audited — refuses to run without one. A
- * system actor is recorded on the audit entry as no admin user.
+ * No scope is opened here: the host's dispatcher runs every module command
+ * inside a system scope over its own composition, which is what this needs —
+ * it reads every organization's orders, and the Command Bus, through which the
+ * applied write is audited, refuses to run without a tenant context. A system
+ * actor is recorded on the audit entry as no admin user.
  */
 import type { ModuleCliCommandContext } from '@endora-commerce/contracts';
-import { enterSystemScope, type ModuleContext } from '@endora-commerce/platform/kernel';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type {
   OrderTransitionEffectRepairService,
   RepairReport,
@@ -82,21 +93,55 @@ export function describeRepairReport(report: RepairReport): string[] {
   return lines;
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export interface RepairArguments {
+  readonly apply: boolean;
+  readonly only: readonly string[];
+  readonly except: readonly string[];
+}
+
+/** `--apply`, `--order=<id>` and `--except=<id>`; anything else is refused. */
+export function parseRepairArguments(argv: readonly string[]): RepairArguments | { error: string } {
+  let apply = false;
+  const only: string[] = [];
+  const except: string[] = [];
+  for (const arg of argv) {
+    if (arg === '--') continue;
+    if (arg === '--apply') {
+      apply = true;
+      continue;
+    }
+    const match = /^--(order|except)=(.+)$/.exec(arg);
+    if (!match) return { error: `Unknown argument: ${arg}` };
+    if (!UUID.test(match[2]!)) {
+      return { error: `--${match[1]} takes an order id (a UUID), got: ${match[2]}` };
+    }
+    (match[1] === 'order' ? only : except).push(match[2]!.toLowerCase());
+  }
+  if (only.length > 0 && except.length > 0) {
+    return { error: 'Give --order or --except, not both.' };
+  }
+  return { apply, only, except };
+}
+
 export async function transitionEffectsRepair({
   ctx,
   argv,
   out,
+  err,
 }: ModuleCliCommandContext<ModuleContext>): Promise<number> {
-  const apply = argv.includes('--apply');
+  const args = parseRepairArguments(argv);
+  if ('error' in args) {
+    err(`[orders transition-effects-repair] ${args.error}`);
+    return 2;
+  }
   // A cradle read rather than `lazyPort`: the name is this module's own plain
   // registration, so spelling it as a port would suggest a presence gate it
   // does not carry. Presence for this module was decided by the host before
   // this body ran; the two owners' presence is decided inside the service.
   const service = ctx.cradle<TransitionEffectsRepairCradle>().orderTransitionEffectRepairService;
-  const report = await enterSystemScope(
-    `orders: transition-effects-repair${apply ? ' --apply' : ' (dry run)'}`,
-    () => service.run({ apply }),
-  );
+  const report = await service.run(args);
   for (const line of describeRepairReport(report)) out(line);
   return 0;
 }

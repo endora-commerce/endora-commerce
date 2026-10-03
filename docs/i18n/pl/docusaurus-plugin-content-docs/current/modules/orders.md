@@ -112,9 +112,21 @@ wpis audytu na stronę zamówień; to, czego nie uda się dokończyć, ponawia z
 uruchomienie niczego już nie znajduje.
 
 **Po aktualizacji uruchom raz przebieg próbny** i przeczytaj listę, zanim ją zastosujesz:
-zwolnienie zmienia liczniki zarezerwowanego stanu i dostępny limit, a wszystko, co w międzyczasie
-poprawiono ręcznie, zostanie zwolnione ponad tę poprawkę (licznik stanu nigdy nie spada poniżej
-zera). Naprawa nigdy nie uruchamia się sama.
+zwolnienie zmienia liczniki zarezerwowanego stanu i dostępny limit. Naprawa nigdy nie uruchamia się
+sama.
+
+**Czego przebieg próbny nie pokaże.** Wypisuje to, co według własnych wierszy zamówienia zamówienie
+trzyma. Jeśli ktoś już ręcznie poprawił licznik stanu dla któregoś z tych zamówień, zamówienie
+nadal jest na liście — jego rezerwacja nie jest oznaczona jako zwolniona — a zastosowanie naprawy
+obniży licznik po raz drugi, więc zarezerwowane będzie mniej, niż faktycznie trzymają aktywne
+zamówienia (licznik nigdy nie spada poniżej zera, co ukrywa błąd, zamiast mu zapobiec). Takie
+zamówienie pomiń albo napraw tylko wskazane zamówienia; obie opcje przyjmują identyfikator
+zamówienia wypisany na liście w nawiasie i można je powtarzać:
+
+```bash
+pnpm --filter backend run cli orders transition-effects-repair --apply --except=<identyfikator zamówienia>
+pnpm --filter backend run cli orders transition-effects-repair --apply --order=<identyfikator zamówienia>
+```
 
 Jeśli `inventory` lub `credit_limits` jest wyłączony, polecenie nie może zapytać tego modułu, co
 trzymają zamówienia. Informuje o tym, naprawia resztę i należy je uruchomić ponownie po włączeniu

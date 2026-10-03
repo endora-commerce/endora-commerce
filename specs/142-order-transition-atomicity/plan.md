@@ -318,10 +318,13 @@ found replaces the premise:
 2. **No precedent exists; the seam does.** None of the declared `cliCommands` bodies runs a Command
    (`search reindex` and `carts abandonment-sweep` read their own registrations off the cradle;
    `admin_users create` writes directly and says why). `CommandBus.run` resolves its actor from the
-   ambient tenant context and refuses without one, and the host's command runner establishes none,
-   so the repair body opens `enterSystemScope(…)` (published on `@endora-commerce/platform/kernel`)
-   and reads `commandBus` off the cradle, where `orders` already resolves it. A system actor maps
-   to a `null` admin id on the audit entry (`actorFromContext`). T15's test drives exactly that.
+   ambient tenant context and refuses without one — and the host supplies one: the dispatcher
+   (`packages/platform/src/cli/dispatch.ts`) runs every module command inside `enterSystemScope`
+   over its own composition. So the repair body opens no scope of its own and reads `commandBus`
+   off the cradle, where `orders` already resolves it; a system actor maps to a `null` admin id on
+   the audit entry (`actorFromContext`). *This answer first said the host establishes no context;
+   that was read off `runModuleCommand` alone, one frame below the dispatcher, and review corrected
+   it.*
 3. **The current shape is `product_feeds`' reaper** (`workers/feed-run-reaper-worker.ts`, the newest
    periodic worker): a BullMQ `Worker` whose processor runs inside `enterSystemScope`, a **Job
    Scheduler** installed with `queue.upsertJobScheduler(id, { … }, { name, data })` rather than a
@@ -381,6 +384,29 @@ the reason. None changes D1–D10's substance.
 10. **Strings: the notice's are in `orders`' own bundle**, as the plan says, although the rest of
     the order page still reads the legacy `core` namespace.
 11. **Read sizes were not re-recorded (T19).** They are re-recorded at release now; the bands held.
+13. **A claim is a committed lease, not a row lock (D6) — changed after review.** D6 claims rows
+    with `select … for update skip locked` held around the handler. That holds one pooled
+    connection per attempt while the release opens a second, and with more concurrent cancellations
+    than the pool has connections every claim waits on a connection only another waiting claim
+    could free. Measured through HTTP on a pool of 10: 30 at once took 123 s, 20 committed
+    cancellations were answered 500 and no release completed. The claim is now one committed
+    statement stamping `claimed_until` (a column of the same new table), the handler runs with
+    nothing of the queue's open, and one statement records the outcome; the same 30 take under four
+    seconds, all answered 200, all released. A lease nobody hands back expires after five minutes,
+    and the stock release locks its order row for its own short transaction, so a second run
+    overlapping a slow first one cannot decrement twice. The bulk `blocked_on` statements no longer
+    have a held row lock to wait behind. `transition-effects-pool-pressure.test.ts` is the test.
+14. **A response that cannot be read back after the commit is answered as a success.** The 500s
+    above came from the status route's own reads for the response body. The three routes that reply
+    after a committed transition answer what was written (`id`, `businessId`, `status`,
+    `paymentStatus`) with `meta.partial` when the full order cannot be read (FR-002).
+15. **A returned owner's rows are due at once (FR-008).** The statement that clears `blocked_on`
+    also brings `next_attempt_at` forward, so a row that had failed before its owner went away
+    drains in the first sweep after the owner returns rather than after its old back-off.
+16. **The repair takes `--order=<id>` and `--except=<id>`.** The dry run cannot show that an
+    operator already corrected a stock counter by hand for a listed order; the filters are how such
+    an order is left out.
+
 12. **Test-first was kept unevenly, and this is the honest account.** Run red before the
     implementation existed: T00's seven cases, T02, T03, T04 and T06 — and through T00, the
     mechanism tasks T09–T12, whose acceptance is those seven cases going green. Written before the

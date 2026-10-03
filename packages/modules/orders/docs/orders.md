@@ -116,10 +116,22 @@ once, and writes one audit entry per page of orders; anything that does not
 complete is retried by the sweep. Running it again finds nothing left.
 
 **Run the dry run once after upgrading**, and read the list before applying it:
-a release changes reserved-stock counters and available credit, and anything
-that was corrected by hand in the meantime will be released on top of that
-correction (a stock counter is never driven below zero). The repair never runs
-by itself.
+a release changes reserved-stock counters and available credit. The repair
+never runs by itself.
+
+**What the dry run cannot show.** It lists what each order's own rows say the
+order holds. If somebody has already corrected a stock counter by hand for one
+of those orders, the order is still listed — its allocation row is unreleased —
+and applying it lowers the counter a second time, so less stock is reserved than
+live orders actually hold (the counter is never driven below zero, which hides
+the error rather than preventing it). Leave such an order out, or repair only
+the orders you name; both options take the order id the list prints in
+brackets and may be repeated:
+
+```bash
+pnpm --filter backend run cli orders transition-effects-repair --apply --except=<order id>
+pnpm --filter backend run cli orders transition-effects-repair --apply --order=<order id>
+```
 
 If `inventory` or `credit_limits` is switched off, the command cannot ask that
 module what orders hold. It says so, repairs the rest, and should be run again

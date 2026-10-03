@@ -260,6 +260,12 @@ for, and — when it keeps failing — that it needs attention.
 - **Releasing a credit reservation when the *lifecycle* status becomes `paid`.** Only the payment
   status does that today; this feature keeps it so and records the asymmetry.
 - **Refunding money on cancellation.** No refund is on this seam today and none is added.
+- **The settlement port's own `paid` write** *(known gap, recorded during review)*.
+  `OrderPaymentStatusApplyPort.applyPaymentStatus`, which `payments` calls inside its settlement
+  transaction, can still set `paymentStatus = 'paid'` on an order placed on credit without locking
+  the order and without recording a `credit.release` follow-up. It predates this feature and is
+  outside FR-005, which covers the admin payment-status change; the reservation of such an order is
+  found and released by the repair command.
 
 ## Success Criteria
 
