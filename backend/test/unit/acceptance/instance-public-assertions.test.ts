@@ -569,8 +569,15 @@ describe('the harness runs on a machine with nothing of ours installed', () => {
   // `npx tsx`, so neither file may import a workspace package — the first one
   // that did would make the mode need `pnpm install` of this repository, and
   // a machine that has done that is not a stranger's.
-  for (const file of ['instance-public.ts', 'instance-public-assertions.ts']) {
-    it(`${file} imports only node builtins and its sibling`, () => {
+  //
+  // `process-teardown.ts` is the harness's second sibling — how it stops what it
+  // started and bounds its own exit — and is held to the same rule here, so the
+  // property stays true of everything the harness loads rather than of the two
+  // files it began with. The workflow's sparse checkout is the whole
+  // `backend/scripts/acceptance` directory, so a sibling is present there.
+  const SIBLINGS = ['./instance-public-assertions.js', './process-teardown.js'];
+  for (const file of ['instance-public.ts', 'instance-public-assertions.ts', 'process-teardown.ts']) {
+    it(`${file} imports only node builtins and its siblings`, () => {
       const source = readFileSync(`${SCRIPTS}${file}`, 'utf8');
       const specifiers = [...source.matchAll(/^\s*import\s[^'"]*['"]([^'"]+)['"]/gm)].map(
         (match) => match[1]!,
@@ -579,8 +586,7 @@ describe('the harness runs on a machine with nothing of ours installed', () => {
       // a regex that stopped matching, not a file with no dependencies.
       if (file === 'instance-public.ts') expect(specifiers.length).toBeGreaterThan(1);
       const foreign = specifiers.filter(
-        (specifier) =>
-          !specifier.startsWith('node:') && specifier !== './instance-public-assertions.js',
+        (specifier) => !specifier.startsWith('node:') && !SIBLINGS.includes(specifier),
       );
       expect(foreign).toEqual([]);
     });
