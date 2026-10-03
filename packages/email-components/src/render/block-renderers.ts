@@ -86,3 +86,38 @@ export function renderContributedBlock(
     return '';
   }
 }
+
+/** One contributed block that threw while a message was being rendered. */
+export interface EmailBlockFailure {
+  readonly block: string;
+  /** The module the block name states as its owner, or `null` if it states none. */
+  readonly owner: string | null;
+  readonly error: unknown;
+}
+
+/** Told about each {@link EmailBlockFailure}; a send path logs it. */
+export type EmailBlockFailureReporter = (failure: EmailBlockFailure) => void;
+
+/**
+ * The renderer options for one render, from a table of contributed renderers
+ * and a reporter.
+ *
+ * Both e-mail producers build their options here so that a failure is reported
+ * the same way whichever sent the message: the block, and the module its name
+ * states as its owner — which is what an operator needs to know whom to ask.
+ * The owner is read off the name (`<module>.<Name>`) rather than looked up,
+ * because this file knows no registry.
+ */
+export function emailBlockRendering(
+  blockRenderers: EmailBlockRenderers | undefined,
+  report?: EmailBlockFailureReporter,
+): EmailBlockRenderingOptions {
+  if (blockRenderers === undefined) return {};
+  return {
+    blockRenderers,
+    onBlockError: (block, error) => {
+      const separator = block.indexOf('.');
+      report?.({ block, owner: separator > 0 ? block.slice(0, separator) : null, error });
+    },
+  };
+}

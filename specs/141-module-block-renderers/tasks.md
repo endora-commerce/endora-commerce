@@ -73,7 +73,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 2 — e-mail (backend)
 
-- [ ] **T06** `EmailBlockRendererRegistry` in `email`: `register(ownerModuleId, renderers)` (a
+- [x] **T06** `EmailBlockRendererRegistry` in `email`: `register(ownerModuleId, renderers)` (a
   name whose owner segment differs from `ownerModuleId` is refused at registration), `renderers()`
   filtered by the injected tri-state `presenceOf` (policy **skip**; `undefined` honoured), and
   `listAll()` presence-blind. Registered with `ctx.di.register`, ungated; the probe wired the way
@@ -83,7 +83,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   **Test**: `packages/modules/email/src/backend/services/email-block-renderer-registry.test.ts`;
   add the registry and its policy to `backend/test/unit/kernel/contribution-seams.test.ts`.
 
-- [ ] **T07** Both send paths use it: `transactional_emails`' `renderWith` and `newsletter`'s
+- [x] **T07** Both send paths use it: `transactional_emails`' `renderWith` and `newsletter`'s
   `renderNewsletterEmail` pass `renderers()` and an `onBlockError` that logs
   `{ block, owner: ownerOf(block) }` through the module logger.
   Files: `packages/modules/transactional_emails/src/backend/services/transactional-email.service.ts`,

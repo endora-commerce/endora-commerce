@@ -1,8 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { EmailDeliveryRecorder, EmailMailerPort } from '@endora-commerce/contracts';
-import type { ModuleContext } from '@endora-commerce/platform/kernel';
+import type {
+  EmailBlockRendererRegistryPort,
+  EmailDeliveryRecorder,
+  EmailMailerPort,
+} from '@endora-commerce/contracts';
+import { effectiveState, type ModuleContext } from '@endora-commerce/platform/kernel';
 
 import { resolveSmtpUrlFromEnv } from './resolve-smtp-url.js';
+import { EmailBlockRendererRegistry } from './services/email-block-renderer-registry.js';
 import { ConsoleMailer } from './services/mailer.js';
 import { PersistentEmailDeliveryRecorder } from './services/email-delivery-recorder.js';
 import { RecordingMailer } from './services/recording-mailer.js';
@@ -54,6 +59,12 @@ export interface EmailCradle {
    * it — which is the whole of what Phase P changes here.
    */
   readonly emailMailer: EmailMailerPort;
+  /**
+   * E-mail block renderers the composed modules contribute (feature 141). A
+   * contribution registry: registered, never provided as a port. The policy
+   * for an absent contributor is stated at the class.
+   */
+  readonly emailBlockRendererRegistry: EmailBlockRendererRegistryPort;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -86,6 +97,22 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ emailTransport, emailDeliveryRecorder }: EmailCradle): EmailMailerPort =>
           new RecordingMailer(emailTransport, emailDeliveryRecorder),
+      )
+      .singleton(),
+
+    /**
+     * `specs/141-module-block-renderers/` — the contributed e-mail block
+     * seam, a **contribution registry** and a plain `di.register` on purpose:
+     * a contributor pushes its renderers from `ctx.onBoot`, which runs whatever
+     * any module's effective state is. Presence is answered per render, keyed
+     * on the contributor recorded with each block — `presenceOf` rather than
+     * `isPresent`, because an overlay module's id is one no manifest declares
+     * and collapsing "unknown" into "absent" would filter the seam away.
+     */
+    emailBlockRendererRegistry: ctx
+      .asFunction(
+        (): EmailBlockRendererRegistryPort =>
+          new EmailBlockRendererRegistry((moduleId) => effectiveState.presenceOf(moduleId), ctx.log),
       )
       .singleton(),
   });

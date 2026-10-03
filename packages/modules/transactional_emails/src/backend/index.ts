@@ -1,6 +1,12 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
-import type { TemplateEmailPort, ModuleManifest, TransactionalEmailSender } from '@endora-commerce/contracts';
+import type {
+  EmailBlockRendererRegistryPort,
+  TemplateEmailPort,
+  ModuleManifest,
+  TransactionalEmailSender,
+} from '@endora-commerce/contracts';
+import type { EmailBlockRenderer } from '@endora-commerce/email-components/render/block-renderers';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
@@ -134,6 +140,20 @@ export function registerModule(ctx: ModuleContext): void {
               ctx,
               'emailDeliveryRecorder',
             ),
+            // Feature 141 — the e-mail block renderers the composed modules
+            // contributed. `email` owns the table, registers it ungated and is
+            // non-deactivatable; `renderers()` is called per render, which is
+            // where a switched-off contributor's blocks are left out.
+            blockRenderers: () =>
+              lazyPort<EmailBlockRendererRegistryPort<EmailBlockRenderer>>(
+                ctx,
+                'emailBlockRendererRegistry',
+              ).renderers(),
+            onBlockFailure: ({ block, owner, error }) =>
+              ctx.log.warn(
+                { block, owner, err: error },
+                'a contributed e-mail block failed to render; the message was rendered without it',
+              ),
             resolveAssetUrl: (assetId: string) => cradle().transactionalEmailAssetUrl(assetId),
             requireAdmin: (permission?: string) => async (req, reply) =>
               cradle().requireAdmin(permission ?? '')(req, reply),

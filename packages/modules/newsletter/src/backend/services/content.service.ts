@@ -1,3 +1,8 @@
+import {
+  emailBlockRendering,
+  type EmailBlockFailureReporter,
+  type EmailBlockRenderers,
+} from '@endora-commerce/email-components/render/block-renderers';
 import { renderEmailHtml } from '@endora-commerce/email-components/render/render-email-html';
 import { renderEmailText } from '@endora-commerce/email-components/render/render-email-text';
 import { renderDirectives } from '@endora-commerce/email-components/directives/directive-engine';
@@ -30,6 +35,21 @@ export interface RenderInput {
   embeds?: EmailEmbeds;
   accentColor?: string;
   context: RenderContext;
+}
+
+/**
+ * What every render of one composition shares
+ * (`specs/141-module-block-renderers/`).
+ */
+export interface NewsletterBlockRendering {
+  /**
+   * The e-mail block renderers the composed modules contributed, **read per
+   * render**: the table leaves out a module an operator switched off, so a
+   * function is what makes a flip take effect on the next message.
+   */
+  readonly blockRenderers?: () => EmailBlockRenderers;
+  /** Told about a contributed block that threw; the message still renders. */
+  readonly onBlockFailure?: EmailBlockFailureReporter;
 }
 
 export interface RenderedNewsletterEmail {
@@ -67,7 +87,10 @@ export async function withEmailBranding(
  * are escaped; text values are raw. Missing variables resolve to empty strings
  * (the engine never throws), so no literal `{{...}}` ever ships (FR-028).
  */
-export function renderNewsletterEmail(input: RenderInput): RenderedNewsletterEmail {
+export function renderNewsletterEmail(
+  input: RenderInput,
+  rendering: NewsletterBlockRendering = {},
+): RenderedNewsletterEmail {
   const embeds = input.embeds ?? EMPTY_EMBEDS;
   const directiveCtx: Record<string, unknown> = {
     ...input.context.variables,
@@ -75,11 +98,10 @@ export function renderNewsletterEmail(input: RenderInput): RenderedNewsletterEma
     ...(input.context.webviewUrl !== undefined ? { webviewUrl: input.context.webviewUrl } : {}),
   };
 
-  const htmlOpts = input.accentColor !== undefined
-    ? { embeds, accentColor: input.accentColor }
-    : { embeds };
-  const rawHtml = renderEmailHtml(input.content, htmlOpts);
-  const rawText = renderEmailText(input.content, { embeds });
+  const contributed = emailBlockRendering(rendering.blockRenderers?.(), rendering.onBlockFailure);
+  const accent = input.accentColor !== undefined ? { accentColor: input.accentColor } : {};
+  const rawHtml = renderEmailHtml(input.content, { embeds, ...accent, ...contributed });
+  const rawText = renderEmailText(input.content, { embeds, ...accent, ...contributed });
 
   return {
     subject: renderDirectives(input.subject, directiveCtx),
@@ -89,8 +111,10 @@ export function renderNewsletterEmail(input: RenderInput): RenderedNewsletterEma
 }
 
 export class NewsletterContentService {
+  constructor(private readonly rendering: NewsletterBlockRendering = {}) {}
+
   /** Render a campaign/automation email for one recipient. */
   render(input: RenderInput): RenderedNewsletterEmail {
-    return renderNewsletterEmail(input);
+    return renderNewsletterEmail(input, this.rendering);
   }
 }

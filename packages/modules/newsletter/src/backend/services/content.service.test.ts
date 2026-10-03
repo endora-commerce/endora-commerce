@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { renderNewsletterEmail, withEmailBranding } from './content.service.js';
+import { describe, it, expect, vi } from 'vitest';
+import type { EmailBlockRenderers } from '@endora-commerce/email-components/render/block-renderers';
+import {
+  NewsletterContentService,
+  renderNewsletterEmail,
+  withEmailBranding,
+} from './content.service.js';
 
 /**
  * A minimal Puck-style content tree the email renderer understands: a single
@@ -112,5 +117,71 @@ describe('withEmailBranding', () => {
     const out = await withEmailBranding(vars, null);
     expect(out.variables).toBe(vars);
     expect(out.accentColor).toBeUndefined();
+  });
+});
+
+/**
+ * `specs/141-module-block-renderers/` FR-009, FR-012, FR-015 — a campaign that
+ * contains a module's contributed block.
+ */
+describe('NewsletterContentService with contributed block renderers', () => {
+  const context = {
+    variables: { subscriber: { firstName: 'Ada' } },
+    unsubscribeUrl: 'https://shop.example/newsletter/unsubscribe?token=abc',
+  };
+  const content = {
+    root: { props: {} },
+    content: [
+      { type: 'transactional_emails.EmailText', props: { id: 't1', text: 'Hi {{var subscriber.firstName}}' } },
+      { type: 'crm.Badge', props: { id: 'b1', text: 'Gold' } },
+    ],
+    zones: {},
+  };
+  const badge: EmailBlockRenderers = {
+    'crm.Badge': {
+      html: (props: { text?: string }) =>
+        `<tr><td>crm-badge:${String(props.text)} {{var subscriber.firstName}}</td></tr>`,
+      text: (props: { text?: string }) => `crm-badge-text:${String(props.text)}\n`,
+    },
+  };
+
+  it('renders a registered block in HTML and text, with its directives resolved', () => {
+    const service = new NewsletterContentService({ blockRenderers: () => badge });
+    const out = service.render({ subject: 'News', content, context });
+    expect(out.html).toContain('crm-badge:Gold Ada');
+    expect(out.text).toContain('crm-badge-text:Gold');
+  });
+
+  it('renders nothing of the block when its owner is reported absent', () => {
+    const service = new NewsletterContentService({ blockRenderers: () => ({}) });
+    const out = service.render({ subject: 'News', content, context });
+    expect(out.html).toContain('Hi Ada');
+    expect(out.html).not.toContain('crm-badge');
+    expect(out.text).not.toContain('crm-badge');
+  });
+
+  it('still renders the message when a renderer throws, and reports the block with its owner', () => {
+    const boom = new Error('boom');
+    const onBlockFailure = vi.fn();
+    const service = new NewsletterContentService({
+      blockRenderers: () => ({
+        'crm.Badge': {
+          html: () => {
+            throw boom;
+          },
+        },
+      }),
+      onBlockFailure,
+    });
+    const out = service.render({ subject: 'News', content, context });
+    expect(out.html).toContain('Hi Ada');
+    expect(out.text).toContain('Hi Ada');
+    expect(onBlockFailure).toHaveBeenCalledWith({ block: 'crm.Badge', owner: 'crm', error: boom });
+  });
+
+  it('renders as before when constructed with nothing', () => {
+    const out = new NewsletterContentService().render({ subject: 'News', content, context });
+    expect(out.html).toContain('Hi Ada');
+    expect(out.html).not.toContain('crm-badge');
   });
 });

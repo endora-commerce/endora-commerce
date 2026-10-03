@@ -1,3 +1,7 @@
+import type {
+  EmailBlockFailureReporter,
+  EmailBlockRenderers,
+} from '@endora-commerce/email-components/render/block-renderers';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@endora-commerce/contracts';
@@ -46,6 +50,10 @@ export interface TransactionalEmailsModuleOptions {
   resolveAssetUrl?: AssetUrlResolver;
   /** Settings admin service used to persist branding values (US2). */
   settingsAdmin?: SettingsAdminPort;
+  /** Contributed e-mail block renderers, read per render (feature 141). */
+  blockRenderers?: () => EmailBlockRenderers;
+  /** Told about a contributed block that threw while a message rendered. */
+  onBlockFailure?: EmailBlockFailureReporter;
   /** Exposes the sender back to composition so owning modules can send. */
   exposeSender?: (sender: TransactionalEmailService) => void;
   /** Exposes branding so newsletter (and others) can inject logoUrl/accent. */
@@ -78,6 +86,8 @@ export function transactionalEmailsModule(
       ...(options.mailer ? { mailer: options.mailer } : {}),
       ...(options.deliveryRecorder ? { deliveryRecorder: options.deliveryRecorder } : {}),
       ...(options.auditLog ? { auditLog: options.auditLog } : {}),
+      ...(options.blockRenderers ? { blockRenderers: options.blockRenderers } : {}),
+      ...(options.onBlockFailure ? { onBlockFailure: options.onBlockFailure } : {}),
     });
 
     const blocks = new EmailBlockService(options.emFactory, options.auditLog);

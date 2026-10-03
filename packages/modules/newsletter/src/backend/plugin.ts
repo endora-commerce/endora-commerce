@@ -14,7 +14,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { NewsletterTokenHelper } from './services/token.helper.js';
 import { NewsletterOptInService } from './services/opt-in.service.js';
 import { NewsletterSubscriberService, type NewsletterLinkBuilder } from './services/subscriber.service.js';
-import { NewsletterContentService } from './services/content.service.js';
+import {
+  NewsletterContentService,
+  type NewsletterBlockRendering,
+} from './services/content.service.js';
 import { NewsletterAudienceResolver } from './services/audience-resolver.js';
 import { NewsletterCampaignDispatchService } from './services/campaign-dispatch.service.js';
 import { NewsletterCampaignService } from './services/campaign.service.js';
@@ -136,6 +139,12 @@ export interface NewsletterModuleOptions {
   resolveEmailBranding?: (
     salesChannelId: string | null,
   ) => Promise<{ logoUrl: string; accentColor: string }>;
+  /**
+   * The e-mail block renderers the composed modules contributed, and where a
+   * failing one is reported (`specs/141-module-block-renderers/`). Read per
+   * render, so a module switched off contributes nothing to the next message.
+   */
+  blockRendering?: NewsletterBlockRendering;
 }
 
 /**
@@ -146,7 +155,7 @@ export interface NewsletterModuleOptions {
 export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach {
   const tokens = new NewsletterTokenHelper(options.tokenSecret);
   const optIn = new NewsletterOptInService(options.settings, tokens);
-  const content = new NewsletterContentService();
+  const content = new NewsletterContentService(options.blockRendering ?? {});
   const audience = new NewsletterAudienceResolver(options.emFactory);
   const providers = new NewsletterProviderRegistry(
     options.settings,
