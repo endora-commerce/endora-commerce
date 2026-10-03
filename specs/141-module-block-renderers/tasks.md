@@ -53,7 +53,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   renderer yields `''` and one `onBlockError` call naming the block; text derived when `text` is
   absent; `defaultProps` applied; a slot renders through the host.
 
-- [ ] **T04** [P] `@endora-commerce/page-builder-core/contributions` (contract §2, §4, §5.2.1):
+- [x] **T04** [P] `@endora-commerce/page-builder-core/contributions` (contract §2, §4, §5.2.1):
   `StorefrontBlockConfig`, `StorefrontContributions`, `PageBuilderBlockEditorConfig`,
   `BlockRenderEnvironment` + provider + `useBlockRenderEnvironment`; pure
   `withContributedBlocks(config, entries)` (keep existing name, drop owner mismatch, report both),
@@ -64,7 +64,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   and reported; foreign owner dropped and reported; absent owner replaced, present kept,
   `{ all: true }` keeps all; every `cmsFieldDescriptorSchema` type maps to a Puck field.
 
-- [ ] **T05** `withBlockBoundary` (contract §8, as T01 measured it) and the `defaultProps` merge.
+- [x] **T05** `withBlockBoundary` (contract §8, as T01 measured it) and the `defaultProps` merge.
   Files: `packages/page-builder-core/src/contributions/block-boundary.tsx` (new).
   **Test**: `packages/page-builder-core/src/contributions/block-boundary.test.tsx` — SSR
   (`renderToString`, node environment, the storefront harness's convention): a sync throw, a throw

@@ -39,6 +39,10 @@
       "types": "./dist/fields/hide-on-field.d.ts",
       "default": "./dist/fields/hide-on-field.js"
     },
+    "./contributions": {
+      "types": "./dist/contributions/index.d.ts",
+      "default": "./dist/contributions/index.js"
+    },
     "./client": {
       "types": "./dist/client.d.ts",
       "default": "./dist/client.js"
@@ -89,7 +93,9 @@
   "devDependencies": {
     "@puckeditor/core": "*",
     "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   }

@@ -23,7 +23,7 @@ export default mergeConfig(
     test: {
       name: 'page-builder-core',
       environment: 'node',
-      include: ['src/**/*.test.ts'],
+      include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     },
   }),
 );
