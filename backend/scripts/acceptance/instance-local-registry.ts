@@ -33,7 +33,13 @@
  *
  * And whether the instance's own `pnpm run upgrade`, asked for the release it
  * already is, says so and changes nothing (L23, `specs/140-instance-upgrade/`
- * FR-007) — the one upgrade a single packed release can stage.
+ * FR-007) — the one upgrade a single packed release can stage — and whether
+ * the scaffold names every package of the release at exactly the release, in
+ * the instance's root, `admin/` and `docs/` manifests and the storefront's, with
+ * both installs resolving them at it alone (L24, M8). `--serve-higher-patch`
+ * serves every package a second time at the next patch, so the registry's
+ * `latest` is newer than the release typed: the condition under which a caret
+ * once installed half the set at the next patch.
  *
  * And, since the CLI carries the reference storefront
  * (`packages/cli/src/new-storefront/packaged.ts`), it judges whether the
@@ -73,7 +79,7 @@
  * is what packages the reference storefront.
  *
  * Usage: `pnpm --filter backend exec tsx scripts/acceptance/instance-local-registry.ts
- * [--package create-endora-commerce] [--services] [--no-storefront] [--keep]`.
+ * [--package create-endora-commerce] [--services] [--no-storefront] [--serve-higher-patch] [--keep]`.
  * Exit **0** met, **1** measured and red, **2** could not be measured.
  */
 
@@ -102,7 +108,7 @@ import { nodeWorkspaceFs, workspaceMembers } from '@endora-commerce/cli/lib/work
 
 import { resolveDatabaseTarget } from './assertions.js';
 import { instanceEnvValues } from './instance-assertions.js';
-import { startLocalRegistry, tarballFrom, type LocalRegistry } from './local-registry.js';
+import { startLocalRegistry, tarballFrom, type LocalRegistry, type PackedTarball } from './local-registry.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..', '..');
@@ -363,6 +369,97 @@ function hostsLeftBehind(output: string): readonly string[] {
     .filter((path) => path.includes(HOST_PREFIX) && existsSync(path));
 }
 
+/** `x.y.z` → `x.y.(z+1)`, dropping a pre-release tag. */
+function nextPatch(version: string): string {
+  const [major, minor, patch] = version.split('-')[0]!.split('.').map(Number);
+  return `${String(major)}.${String(minor)}.${String((patch ?? 0) + 1)}`;
+}
+
+/**
+ * The same package at the next patch: its manifest's `version`, and every
+ * exact pin on a sibling of the release, moved one patch on — what the next
+ * patch release of the whole set looks like to a registry. Re-packed with the
+ * system `tar`, because the bytes must hold the manifest the packument serves.
+ */
+function higherPatchOf(
+  tarball: PackedTarball,
+  dir: string,
+  releaseNames: ReadonlySet<string>,
+): PackedTarball {
+  const work = mkdtempSync(join(tmpdir(), 'endora-patch-'));
+  try {
+    const source = join(dir, tarball.file);
+    if (spawnSync('tar', ['xzf', source, '-C', work]).status !== 0) {
+      throw new Error(`could not unpack ${source}`);
+    }
+    const manifestPath = join(work, 'package', 'package.json');
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
+    const from = tarball.version;
+    const to = nextPatch(from);
+    manifest['version'] = to;
+    for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies']) {
+      const entries = manifest[field] as Record<string, string> | undefined;
+      if (entries === undefined) continue;
+      for (const [name, spec] of Object.entries(entries)) {
+        if (releaseNames.has(name) && spec === from) entries[name] = to;
+      }
+    }
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+    const file = join(dir, tarball.file.replace(/\.tgz$/, `-next-patch.tgz`));
+    if (spawnSync('tar', ['czf', file, '-C', work, 'package']).status !== 0) {
+      throw new Error(`could not pack ${file}`);
+    }
+    return tarballFrom(file, readFileSync(file));
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Every place a release package is not at exactly `version`: a declaration in
+ * the root, `admin/`, `docs/` or the storefront manifest, or a resolution in
+ * either lockfile (`specs/140-instance-upgrade/` M8).
+ */
+function releasePinOffenders(
+  target: string,
+  withStorefront: boolean,
+  releaseNames: ReadonlySet<string>,
+  version: string,
+): { readonly offenders: readonly string[]; readonly declared: number; readonly resolved: number } {
+  const storefront = `${target}-storefront`;
+  const manifests = [
+    join(target, 'package.json'),
+    join(target, 'admin', 'package.json'),
+    join(target, 'docs', 'package.json'),
+    ...(withStorefront ? [join(storefront, 'package.json')] : []),
+  ].filter((file) => existsSync(file));
+  const offenders: string[] = [];
+  let declared = 0;
+  for (const file of manifests) {
+    const manifest = JSON.parse(readFileSync(file, 'utf8')) as Record<string, Record<string, string> | undefined>;
+    for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+      for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
+        if (!releaseNames.has(name)) continue;
+        declared += 1;
+        if (spec !== version) offenders.push(`${file}: ${name} ${spec}`);
+      }
+    }
+  }
+  let resolved = 0;
+  for (const lock of [join(target, 'pnpm-lock.yaml'), ...(withStorefront ? [join(storefront, 'pnpm-lock.yaml')] : [])]) {
+    if (!existsSync(lock)) {
+      offenders.push(`${lock}: absent`);
+      continue;
+    }
+    for (const match of readFileSync(lock, 'utf8').matchAll(/(@[a-z0-9-]+\/[a-z0-9._-]+)@(\d+\.\d+\.\d+[^()\s':]*)/g)) {
+      if (!releaseNames.has(match[1]!)) continue;
+      resolved += 1;
+      if (match[2] !== version) offenders.push(`${lock}: ${match[1]!}@${match[2]!}`);
+    }
+  }
+  return { offenders: [...new Set(offenders)], declared, resolved };
+}
+
 async function main(): Promise<number> {
   const { values } = parseArgs({
     options: {
@@ -370,11 +467,16 @@ async function main(): Promise<number> {
       keep: { type: 'boolean' },
       services: { type: 'boolean' },
       'no-storefront': { type: 'boolean' },
+      'serve-higher-patch': { type: 'boolean' },
     },
   });
   const packageName = (values.package ?? 'create-endora-commerce').trim();
   const withServices = values.services === true;
   const withStorefront = values['no-storefront'] !== true;
+  // `specs/140-instance-upgrade/` M8: serve every package a second time at the
+  // next patch, so the registry's `latest` is newer than the release the
+  // one-shot is typed at — the day-after-a-patch condition the defect needed.
+  const servesHigherPatch = values['serve-higher-patch'] === true;
   let database: { adminUrl: string; databaseName: string; databaseUrl: string } | null = null;
   let redisUrl = '';
   if (withServices) {
@@ -452,7 +554,17 @@ async function main(): Promise<number> {
   const verdicts: Verdict[] = [];
   const notes: string[] = [];
   try {
-    registry = await startLocalRegistry({ tarballs, upstream: UPSTREAM });
+    const releaseNames = new Set(tarballs.map((tarball) => tarball.name));
+    const patched = servesHigherPatch
+      ? tarballs.map((tarball) => higherPatchOf(tarball, tarballDir, releaseNames))
+      : [];
+    if (patched.length > 0) {
+      notes.push(
+        `also serving every package at ${patched[0]!.version}: the registry's latest is newer than ` +
+          `the ${frontDoorTarball.version} the one-shot is typed at`,
+      );
+    }
+    registry = await startLocalRegistry({ tarballs: [...tarballs, ...patched], upstream: UPSTREAM });
     notes.push(`registry ${registry.url}: ${String(tarballs.length)} local tarballs, everything else from ${UPSTREAM}`);
     if (database !== null) await resetDatabase(database.adminUrl, database.databaseName, true);
 
@@ -562,6 +674,28 @@ async function main(): Promise<number> {
       detail: left.length === 0 ? 'none left' : `left behind: ${left.join(', ')}`,
     });
 
+    // ── every release package at exactly the release, in both trees (M8) ──
+    //
+    // `specs/140-instance-upgrade/` M8: a scaffold of X names every package of
+    // release X at exactly X — root, `admin/`, `docs/` and the storefront — and
+    // both installs resolve them at X only. With `--serve-higher-patch` the
+    // registry's latest is newer, which is the condition under which a caret
+    // installed half the set at the next patch.
+    const releaseVersion = frontDoorTarball.version;
+    const pinned = install.code === 0 ? releasePinOffenders(target, withStorefront, releaseNames, releaseVersion) : null;
+    verdicts.push({
+      id: 'L24',
+      title: 'every release package is written at exactly the release, and installed at it alone, in both trees',
+      status: pinned === null ? 'unmeasured' : pinned.offenders.length === 0 ? 'pass' : 'fail',
+      detail:
+        pinned === null
+          ? 'the one-shot did not succeed'
+          : pinned.offenders.length === 0
+            ? `${String(pinned.declared)} declarations at ${releaseVersion}, ${String(pinned.resolved)} lockfile ` +
+              `entries at ${releaseVersion}${servesHigherPatch ? ' while the registry\'s latest is the next patch' : ''}`
+            : pinned.offenders.slice(0, 8).join(' | '),
+    });
+
     // ── the upgrade to the release it already is, is a no-op that says so ──
     //
     // `specs/140-instance-upgrade/` FR-007, through the root script the
@@ -578,7 +712,13 @@ async function main(): Promise<number> {
     const beforeUpgrade = install.code === 0 ? snapshot() : [];
     const upgrade =
       install.code === 0
-        ? await exec('pnpm', ['run', 'upgrade'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS })
+        ? await exec(
+            'pnpm',
+            // Named when the registry's latest is the staged patch; otherwise
+            // the bare command, which asks the registry for its latest.
+            ['run', 'upgrade', ...(servesHigherPatch ? [releaseVersion] : [])],
+            { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS },
+          )
         : null;
     const afterUpgrade = upgrade === null ? [] : snapshot();
     const changedByUpgrade = untouched.filter(

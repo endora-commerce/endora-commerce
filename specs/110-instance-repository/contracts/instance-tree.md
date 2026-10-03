@@ -56,7 +56,7 @@ from; a value with no source is one the command would have to invent, which R2.5
 
 | Path | Kind | Content and source |
 | --- | --- | --- |
-| `package.json` | derived + client's | `name` from `<dir>`'s basename; `private: true`; `packageManager` from the CLI's own declaration; `dependencies` = `@endora-commerce/platform` + the resolved module set (§3), each at `^<version>` taken from the platform version being installed, **plus the packages those modules declare optional** (§2.4), **plus `@endora-commerce/contracts` at the exact version the resolved platform declares for it** — every overlay `manifest.ts` imports it, and it is an exact pin rather than a `^` because the platform packages pin it exactly, so a range could resolve a second copy beside theirs; `devDependencies` = the platform's four peers (`@mikro-orm/core`, `@mikro-orm/postgresql`, `fastify`, `zod`) plus `@mikro-orm/migrations`, `tsx`, `typescript`; `scripts` = §2.5 |
+| `package.json` | derived + client's | `name` from `<dir>`'s basename; `private: true`; `packageManager` from the CLI's own declaration; `dependencies` = `@endora-commerce/platform` + the resolved module set (§3), each at the version that package resolved at — **exactly**, when that is the release being installed (the platform's version), and `^<version>` for a package versioned on its own (`specs/140-instance-upgrade/` FR-011, M8) — **plus the packages those modules declare optional** (§2.4), under the same rule, **plus `@endora-commerce/contracts` at the exact version the resolved platform declares for it** — every overlay `manifest.ts` imports it, and the platform packages pin it exactly, so a range could resolve a second copy beside theirs; the same argument is why every release package is exact: a caret let a later patch of half the set install beside the pin; `devDependencies` = the platform's four peers (`@mikro-orm/core`, `@mikro-orm/postgresql`, `fastify`, `zod`) plus `@mikro-orm/migrations`, `tsx`, `typescript`; `scripts` = §2.5 |
 | `pnpm-workspace.yaml` | wiring | the two members (§2.3, §2.4). **One list, one place** — `instance-repository.md` R5.4 |
 | `tsconfig.json` | client's | standalone. **No `extends` above `<dir>`** (R1.5 there) |
 | `.npmrc` | wiring | written **only** under `--registry`: the scope line and the endpoint, token as `${ENDORA_NPM_TOKEN}`. Never a token. `new-storefront/npmrc.ts` is the writer and is reused verbatim (R5.7) |
@@ -494,7 +494,7 @@ instead** (R2.4).
 | F5 | the registry configuration cannot be read, or `--registry` is not a URL | **2** |
 | F6 | the platform version cannot be resolved, so no range can be written | **2** |
 | F7 | a resolved package's manifest cannot be read or parsed | **2** |
-| F8 | the CLI cannot determine its own version, so `^<version>` has no source | **2** |
+| F8 | the CLI cannot determine its own version, so its own `devDependencies` entry has no source | **2** |
 
 F5–F8 are **2 rather than 1** for the reason the estate states everywhere: a run that could not
 read its input has said nothing, and a scaffold written from values it could not read is worse than

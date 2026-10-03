@@ -483,6 +483,41 @@ describe('runUpgrade — already there is a no-op that says so (FR-007)', () => 
   });
 });
 
+describe('runUpgrade — over a scaffold that names its release exactly (M8 fixed)', () => {
+  it('moves every exact pin to the new version and keeps it exact, in every member and the storefront', async () => {
+    const t = tree();
+    // What a scaffold writes since M8: every release package at exactly X.
+    for (const file of [
+      join(t.instance, 'package.json'),
+      join(t.instance, 'admin', 'package.json'),
+      join(t.storefront, 'package.json'),
+    ]) {
+      writeFileSync(file, read(file).replace(/"\^0\.1\.0"/g, '"0.1.0"'), 'utf8');
+    }
+    const runner = recorder();
+    const result = await runUpgrade({
+      cwd: t.instance,
+      version: '0.2.0',
+      registry: registry(['0.1.0', '0.2.0']),
+      releaseIndexFile: t.index,
+      run: runner.run,
+    });
+    expect(result.exitCode).toBe(0);
+    for (const file of [
+      join(t.instance, 'package.json'),
+      join(t.instance, 'admin', 'package.json'),
+      join(t.storefront, 'package.json'),
+    ]) {
+      for (const [name, range] of Object.entries(deps(file))) {
+        if (!name.startsWith(SCOPE) || name === `${SCOPE}mod-inpost`) continue;
+        expect(range, `${file}: ${name}`).toBe('0.2.0');
+      }
+    }
+    expect(deps(join(t.instance, 'package.json'))[`${SCOPE}mod-inpost`]).toBe('^0.10.0');
+    expect(runner.ran.map((step) => step.id)).toEqual(['install', 'setup', 'storefront-install']);
+  });
+});
+
 describe('runUpgrade — a scaffold of an older release, already mixed (M8)', () => {
   it('reports the release the manifest names, and repairs the pin a caret overtook', async () => {
     // `create-endora-commerce@0.101.0` run after 0.101.1 was out writes

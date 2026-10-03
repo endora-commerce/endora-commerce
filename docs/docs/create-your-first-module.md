@@ -58,7 +58,8 @@ DEPLOYMENT=my-shop
     "@endora-commerce/contracts": "0.100.2",
 ```
 
-The version is the one your release pins; it is written without a `^` on purpose.
+The version is the one your release pins; like every package of the release, it is written without
+a `^` on purpose.
 
 Without `DEPLOYMENT` nothing fails: the instance starts as the bare platform, your module is simply
 not there, and nothing says why. If either command prints nothing, your instance was created by an

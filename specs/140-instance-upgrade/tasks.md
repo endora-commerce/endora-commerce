@@ -23,6 +23,15 @@
   verdict L1…L23 passed on 2026-10-03, L23 as *exit 0, said so, 4 manifests and lockfiles
   unchanged*.
 
+- [x] T010 FR-011, test first — `packages/cli/test/scaffold-exact-release-pins.test.ts` and the
+  all-exact case in `upgrade.test.ts`; `releaseRange` in `new-instance/template.ts`, used for the
+  root, `admin/`, `docs/` and the composed optional peers (`new-instance/index.ts`); the storefront
+  rewrite writes every `workspace:` member exactly.
+- [x] T011 The local-registry mode holds FR-011 as L24, and `--serve-higher-patch` stages the
+  registry's `latest` one patch above the release typed.
+- [ ] T012 Run the local-registry mode with `--services`, with and without
+  `--serve-higher-patch`, and record L22, L23 and L24.
+
 ## Not proven here
 
 - An upgrade that applies a **new migration** or installs a **new module**: no published release

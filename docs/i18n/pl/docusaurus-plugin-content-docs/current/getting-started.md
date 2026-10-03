@@ -74,7 +74,7 @@ Dwa katalogi obok siebie, oba Twoje:
 
 | Katalog | Co to jest |
 | --- | --- |
-| `my-shop/` | **Instancja**: `package.json` (lista modułów), `backend/` (punkty wejścia API i workera), `admin/`, `docs/`, `apps/my-shop/` (Twoje własne moduły — zobacz [Utwórz swój pierwszy moduł](./create-your-first-module.md)), `deploy/` (przykładowe pliki produkcyjne), `compose.dev.yml` i `.env`. |
+| `my-shop/` | **Instancja**: `package.json` (lista modułów; każdy pakiet wydania dokładnie w wersji, którą instalujesz), `backend/` (punkty wejścia API i workera), `admin/`, `docs/`, `apps/my-shop/` (Twoje własne moduły — zobacz [Utwórz swój pierwszy moduł](./create-your-first-module.md)), `deploy/` (przykładowe pliki produkcyjne), `compose.dev.yml` i `.env`. |
 | `my-shop-storefront/` | **Sklep** — aplikacja Next.js z własnym plikiem `.env`. |
 
 Po `pnpm run dev:all`:
