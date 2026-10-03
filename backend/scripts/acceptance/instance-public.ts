@@ -77,6 +77,7 @@ import {
   type InstalledManifest,
   type PublicAssertionResult,
 } from './instance-public-assertions.js';
+import { armExitWatchdog, stopProcessGroup, trackProcessGroup } from './process-teardown.js';
 
 const HEALTH_PATH = '/api/v1/_health';
 const LOGIN_PATH = '/api/v1/auth/admin/login';
@@ -273,25 +274,6 @@ function installedManifests(instanceDir: string, packageName: string): Installed
   return manifests;
 }
 
-/** Stop a process group started with `detached: true`, politely and then not. */
-async function stopGroup(child: ChildProcess): Promise<void> {
-  if (child.pid === undefined || child.exitCode !== null) return;
-  const exited = new Promise<void>((done) => child.once('close', () => done()));
-  try {
-    process.kill(-child.pid, 'SIGINT');
-  } catch {
-    return;
-  }
-  const timeout = new Promise<'timeout'>((done) => setTimeout(() => done('timeout'), 30_000));
-  if ((await Promise.race([exited, timeout])) === 'timeout') {
-    try {
-      process.kill(-child.pid, 'SIGKILL');
-    } catch {
-      // gone
-    }
-  }
-}
-
 async function main(): Promise<number> {
   const { values } = parseArgs({
     options: {
@@ -387,12 +369,14 @@ async function main(): Promise<number> {
     }
     if (installed && printedNext) {
       console.log(`\n$ ${typed[1]!}`);
-      devAll = spawn('sh', ['-c', typed[1]!], {
-        cwd: host,
-        env: stranger,
-        stdio: ['ignore', 'inherit', 'inherit'],
-        detached: true,
-      });
+      devAll = trackProcessGroup(
+        spawn('sh', ['-c', typed[1]!], {
+          cwd: host,
+          env: stranger,
+          stdio: ['ignore', 'inherit', 'inherit'],
+          detached: true,
+        }),
+      );
       const port = apiPort(instanceDir);
       healthStatus = await waitFor(
         `http://127.0.0.1:${String(port)}${HEALTH_PATH}`,
@@ -459,7 +443,7 @@ async function main(): Promise<number> {
       evaluateCommandCount(installed ? typed : typed.slice(0, 1), installed && printedNext),
     );
   } finally {
-    if (devAll !== null) await stopGroup(devAll);
+    if (devAll !== null) await stopProcessGroup(devAll);
     const compose = join(instanceDir, 'compose.dev.yml');
     if (existsSync(compose)) {
       spawnSync('docker', ['compose', '-f', compose, 'down', '-v'], { cwd: instanceDir, stdio: 'inherit' });
@@ -471,4 +455,4 @@ async function main(): Promise<number> {
   return publicExitCode(results);
 }
 
-process.exitCode = await main();
+armExitWatchdog(await main());
