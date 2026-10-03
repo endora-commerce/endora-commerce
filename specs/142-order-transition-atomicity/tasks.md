@@ -172,12 +172,12 @@ calling `sweep()`.
   **Test**: `backend/test/integration/orders/transition-effects-repair.test.ts` — spec US3 scenarios
   1–4; a second `--apply` writes nothing; an audit entry exists for the applied page.
 
-- [ ] **T16** [P] `serializeOrder` fills `pendingEffects` from outstanding rows.
+- [x] **T16** [P] `serializeOrder` fills `pendingEffects` from outstanding rows.
   Files: `packages/modules/orders/src/backend/routes.ts`.
   **Test**: `backend/test/contract/orders/admin-order-pending-effects.test.ts` — absent when none;
   present with `blockedOn` when waiting; the customer-facing order response does **not** carry it.
 
-- [ ] **T17** The notice on the admin order page, `pl` + `en`.
+- [x] **T17** The notice on the admin order page, `pl` + `en`.
   Files: `packages/modules/orders/src/admin/pages/OrderDetail.tsx`,
   `packages/modules/orders/i18n/en.json`, `pl.json`.
   **Test**: the page's component test beside it — notice rendered for a waiting effect naming the
