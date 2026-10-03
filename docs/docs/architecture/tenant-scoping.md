@@ -64,32 +64,47 @@ is already confined to the ambient tenant.
 ## Crossing tenants (the escape hatch)
 
 The **only** sanctioned way to read across organizations is the audited, greppable
-escape hatch:
+escape hatch. A module imports it from the platform's published tenancy barrel:
 
 ```ts
-import { withSystemScope, withOrgScope } from '../../tenancy/escape-hatch.js';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
-// platform-wide read (reporting, reconciliation, migrations)
+// platform-wide read inside an execution that already has a context
+// (reporting, reconciliation)
 await withSystemScope('nightly reconciliation', () => em.find(Order, { status: 'paid' }));
-
-// pin to one organization (per-org background job)
-await withOrgScope(job.data.organizationId, 'rfq-expiry sweep', () => sweep());
 ```
 
-Both require a non-empty `reason` and emit an audit record. A repository-wide grep
-for `withSystemScope|withOrgScope` enumerates every cross-org access.
+`withSystemScope` requires a non-empty `reason` and emits one escape-hatch audit
+record. By default that record is a structured `tenant.escape_hatch` line on stderr,
+not an `audit_log_entries` row. A repository-wide grep for `withSystemScope` and
+`enterSystemScope` enumerates every cross-org access.
+
+`@endora-commerce/platform/tenancy` is one of the five platform subpaths a module
+may import (`kernel`, `http`, `tenancy`, `commands`, `events`);
+`check:platform-surface` reports a module that imports any other platform subpath.
+
+**Pinning work to one organization is not available to modules.** The platform
+implements `withOrgScope(organizationId, reason, fn)` beside `withSystemScope`
+(`packages/platform/src/tenancy/escape-hatch.ts`), but it is not on the published
+barrel, because no module used it when the barrel was cut. A module that needs a
+per-organization job today runs it under a system scope and filters by
+`organizationId` itself.
 
 ## Background jobs
 
 Queue consumers run detached from any request, so they carry **no** context by
 default and must establish one explicitly — otherwise a tenant-scoped query
-fail-closes. Wrap job processing in `withSystemScope` (system-wide sweep) or
-`withOrgScope(orgId, …)` (per-org job).
+fail-closes. Start the job under `enterSystemScope(reason, fn)` from
+`@endora-commerce/platform/kernel`: it opens a system tenant context and the
+platform resolution scope in one step, and emits the same escape-hatch audit
+record as `withSystemScope`. Use `withSystemScope` to widen an execution that
+already has a context, such as a request handler.
 
 ## Tests
 
-The test harness sets a default `system` context (`test/tenancy-setup.ts`) so
-direct-EM seeding/cleanup works without wrapping every site; the request pipeline
-still overrides it with the real scoped context, so cross-tenant behavior is
-exercised for real. Use `runWithoutTenantContext(fn)` to assert fail-closed
-behavior explicitly.
+The backend test harness sets a default `system` context
+(`backend/test/tenancy-setup.ts`) so direct-EM seeding/cleanup works without
+wrapping every site; the request pipeline still overrides it with the real scoped
+context, so cross-tenant behavior is exercised for real. Host tests can call
+`runWithoutTenantContext(fn)` (`packages/platform/src/tenancy/tenant-context.ts`)
+to assert fail-closed behavior explicitly; it is not on the published barrel.

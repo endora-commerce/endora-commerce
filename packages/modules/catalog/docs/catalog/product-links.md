@@ -13,7 +13,7 @@ PDP and cart. Three kinds:
 
 ## DB-level guarantees
 
-Migration 022 ships three constraints that make incorrect link data
+Migration `20260429T123726_catalog_product_links.ts` ships three constraints that make incorrect link data
 impossible:
 
 - `UNIQUE (source_product_id, target_product_id, kind)` — same pair can

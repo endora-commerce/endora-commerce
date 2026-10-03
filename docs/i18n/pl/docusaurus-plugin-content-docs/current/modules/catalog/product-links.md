@@ -13,7 +13,7 @@ produktu i w koszyku. Trzy rodzaje:
 
 ## Gwarancje na poziomie bazy danych
 
-Migracja 022 wprowadza trzy ograniczenia, które uniemożliwiają zapisanie niepoprawnych powiązań:
+Migracja `20260429T123726_catalog_product_links.ts` wprowadza trzy ograniczenia, które uniemożliwiają zapisanie niepoprawnych powiązań:
 
 - `UNIQUE (source_product_id, target_product_id, kind)` — ta sama para może wystąpić raz dla
   każdego rodzaju, nigdy dwa razy dla tego samego rodzaju

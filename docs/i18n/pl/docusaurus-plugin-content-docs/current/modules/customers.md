@@ -90,10 +90,10 @@ Trasy administracyjne są chronione przez `customers:read` (odczyt), `customers:
 
 ## Schemat
 
-- `060_customer_accounts_lifecycle` — dodaje do `customer_accounts` kolumny `customer_group_id`,
+- `20260611T140403_customer_accounts_lifecycle.ts` (należy do `customer_accounts`) — dodaje do `customer_accounts` kolumny `customer_group_id`,
   stan blokady (`blocked_at`, `block_reason`, `block_source`, `blocked_by_*`) oraz stan usunięcia i
   anonimizacji (`deletion_requested_by_admin_user_id`, `anonymized_at`).
-- `061_customer_addresses_init` — tabela `customer_addresses` (jeden adres domyślny dla każdej pary
+- `20260611T140404_customers_customer_addresses_init.ts` — tabela `customer_addresses` (jeden adres domyślny dla każdej pary
   `(customer, kind)`).
 
 Domyślne preferencje płatności i dostawy korzystają z istniejącej tabeli

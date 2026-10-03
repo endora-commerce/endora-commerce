@@ -11,7 +11,7 @@ załącznika.
 
 ## Typy załączników
 
-Słownik `attachment_types` dzieli załączniki na kategorie. Migracja 021 tworzy cztery standardowe
+Słownik `attachment_types` dzieli załączniki na kategorie. Migracja `20260429T112543_catalog_product_attachments.ts` tworzy cztery standardowe
 wiersze o stałych UUID, aby dane początkowe i testy mogły się do nich niezmiennie odwoływać:
 
 - `certificate` — Certificate / Certyfikat

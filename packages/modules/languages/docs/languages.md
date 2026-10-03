@@ -44,7 +44,7 @@ row that is currently the default.
 
 ## Bootstrap
 
-Migration 012 inserts two rows so quickstart works without an admin step:
+Migration `20260425T161557_languages_currencies_init.ts` inserts two rows so quickstart works without an admin step:
 - `en-US` — default, active
 - `pl-PL` — active
 

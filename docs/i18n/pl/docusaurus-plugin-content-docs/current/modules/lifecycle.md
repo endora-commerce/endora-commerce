@@ -87,7 +87,7 @@ zapisane. Jeśli deklaracja jest dla danego modułu błędna, poprawia się mani
 objęty: zabezpieczenie odczytuje manifest, a sprzątanie osieroconych wierszy to jedyne zadanie
 odinstalowania, którego nie wykonuje nic innego.
 
-Dawne polecenia `pnpm modules:install` / `pnpm modules:uninstall` (w liczbie mnogiej) wypisują ostrzeżenie o wycofaniu i przekazują wywołanie do wersji w liczbie pojedynczej. Zostaną usunięte w następnym wydaniu minor.
+Polecenia w liczbie mnogiej `modules:install` / `modules:uninstall` już nie istnieją — były wycofywanymi aliasami i zostały usunięte. Używaj opisanych wyżej poleceń `module:*` w liczbie pojedynczej.
 
 ## Postać pliku manifestu
 

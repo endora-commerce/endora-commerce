@@ -14,9 +14,9 @@ odczytuje wartości przez jedną, dobrze znaną usługę.
 ## Pojęcia
 
 - **Ustawienie (Setting)** — pojedynczy parametr do regulacji. Ma nazwę, unikalny w całej platformie
-  kod maszynowy, typ wartości (`string` / `number` / `boolean` / `json` / `string_list`), wartość
-  domyślną z manifestu oraz zakres kanałów sprzedaży (pusty zakres oznacza „dotyczy każdego
-  kanału”).
+  kod maszynowy, typ wartości (`string` / `number` / `boolean` / `json` / `string_list` / `secret` /
+  `credential_ref`), wartość domyślną z manifestu oraz zakres kanałów sprzedaży (pusty zakres
+  oznacza „dotyczy każdego kanału”).
 - **Wartość ustawienia (Setting Value)** — wartość wybrana przez administratora dla pary
   `(setting, sales_channel)`. Zastępuje w tym kanale wartość domyślną z manifestu. Kolejność
   ustalania wartości jest zawsze taka sama: wartość dla kanału → wartość domyślna z manifestu.
@@ -26,14 +26,17 @@ odczytuje wartości przez jedną, dobrze znaną usługę.
 
 ## Dla autorów modułów — deklarowanie ustawień
 
-Każdy moduł, który chce zarejestrować ustawienia lub grupy, eksportuje plik `manifest.ts` obok swojego
-kodu, korzystając z funkcji pomocniczej z `@endora-commerce/contracts`:
+Każdy moduł, który chce zarejestrować ustawienia lub grupy, buduje manifest ustawień funkcją
+pomocniczą z `@endora-commerce/contracts` i przekazuje go jako pole `settings` manifestu modułu:
 
 ```ts
 // packages/modules/<your_module>/src/manifest.ts
-import { defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+} from '@endora-commerce/contracts';
 
-export const settingsManifest = defineModuleSettingsManifest({
+const settings = defineModuleSettingsManifest({
   moduleCode: 'your_module',
   groups: [{ code: 'your_section', name: 'Your section' }],
   settings: [
@@ -47,11 +50,21 @@ export const settingsManifest = defineModuleSettingsManifest({
     },
   ],
 });
+
+export const manifest = defineModuleManifest({
+  id: 'your_module',
+  // ...name, version, dependencies (include 'settings')...
+  settings,
+});
 ```
 
-Dodaj manifest do tablicy w `backend/src/composition.ts` — mechanizm uzgadniający uruchamiany przy
-starcie przechodzi przez każdy wpis i idempotentnie wstawia brakujące wiersze. Ponowne uruchomienie
-jest zawsze bezpieczne; wartości wybrane przez administratora nigdy nie są nadpisywane.
+Nie ma listy, do której trzeba coś dopisać: manifesty ustawień są zbierane z rejestru modułów
+(`src/backend/services/registered-settings-manifests.ts` w tym module), więc zadeklarowanie
+`settings` w manifeście to cała rejestracja. Wiersze zapisuje mechanizm uzgadniający manifest, który
+idempotentnie wstawia brakujące grupy i ustawienia — przy każdym starcie dla modułów rdzenia i
+modułów nakładkowych wdrożenia, a przez `module:install` dla modułu zainstalowanego jako pakiet.
+Ponowne uruchomienie jest zawsze bezpieczne; wartości wybrane przez administratora nigdy nie są
+nadpisywane.
 
 ### Gwarancje mechanizmu uzgadniającego
 
@@ -61,8 +74,8 @@ jest zawsze bezpieczne; wartości wybrane przez administratora nigdy nie są nad
 | Ponowne zastosowanie (bez zmian) | Nic się nie dzieje. |
 | Ponowne zastosowanie (dodany wpis) | Wstawiane są tylko nowe wpisy. |
 | Ponowne zastosowanie (zmienione `name`/`description`) | Aktualizacja w miejscu. |
-| Ponowne zastosowanie (zmienione `valueType` lub `defaultValue`) | Odrzucane bez `--force`, żeby istniejące wartości dla kanałów pozostały poprawne. |
-| Ponowne zastosowanie (wpis usunięty z manifestu) | Synchronizacja przy starcie pomija usunięcie — osierocone wiersze są odnotowywane w logu, ale nie są usuwane. Destrukcyjne jest tylko `modules:uninstall`. |
+| Ponowne zastosowanie (zmienione `valueType` lub `defaultValue`) | Odrzucane (`BreakingChangeRejected`), żeby istniejące wartości dla kanałów pozostały poprawne. Żadna flaga CLI tego nie omija. Przyjmowane są dwie zmiany: `string` → `secret` oraz nowa `defaultValue`, gdy wpis wymienia zapisaną wartość w `previousDefaultValues`. |
+| Ponowne zastosowanie (wpis usunięty z manifestu) | Synchronizacja przy starcie pomija usunięcie — osierocone wiersze są odnotowywane w logu, ale nie są usuwane. Ustawienia modułu usuwa tylko `module:uninstall`. |
 | Kod ustawienia koliduje z innym modułem | Uzgadnianie zostaje przerwane z czytelnym błędem. |
 
 ## Dla administratorów platformy — edycja wartości
@@ -133,26 +146,27 @@ uzgadnia się w tym samym oknie 30 s.
 
 ## Wiersz poleceń
 
-Z backendem dostarczane są dwa skrypty:
+Wiersze ustawień instalują i usuwają polecenia cyklu życia modułu, a nie osobne polecenia:
 
 ```bash
-# Idempotently reconcile a module's manifest into the database.
-pnpm --filter backend run modules:install <module-code> [--force] [--dry-run]
+# Install a module: runs its migrations and reconciles its settings manifest.
+pnpm --filter backend run module:install <module-id> [--dry-run] [--json]
 
-# Remove a module's settings + groups. The flag is required — there is no
-# implicit default. --remove-settings deletes everything owned by the module
-# (cascade-deletes per-channel values); --preserve-settings keeps everything
-# in place so a future re-install picks the rows up unchanged.
-pnpm --filter backend run modules:uninstall <module-code> \
-    (--remove-settings | --preserve-settings)
+# Soft uninstall (default): unregisters the module's settings and marks the
+# module uninstalled; its tables and data stay. --hard also reverts the
+# module's migrations and must be combined with --force.
+pnpm --filter backend run module:uninstall <module-id> [--hard --force] [--json]
 ```
 
-Oba polecenia zapisują wiersze w `audit_log_entries`. Kody wyjścia `modules:install`: `0` — sukces,
-`64` — błędne użycie, `65` — nieprawidłowy manifest, `66` — konflikt, `70` — błąd wewnętrzny.
+`module:uninstall` nadal przyjmuje `--remove-settings` i `--preserve-settings` ze względu na zgodność
+wsteczną: pierwsza flaga oznacza `--hard --force`, druga nic nie robi. Gramatyka argumentów i kody
+wyjścia należą do poleceń cyklu życia `@endora-commerce/platform`; kody wyjścia wymienia strona Module
+Lifecycle. Oba polecenia zapisują wiersze w `audit_log_entries`.
 
 ## Baza danych
 
-Pięć tabel wprowadzonych migracją `024_settings_init.ts`:
+Pięć tabel wprowadzonych migracją platformy
+`packages/platform/src/migrations/20260430T101450_core_settings_init.ts`:
 
 - `setting_groups` (z `is_system_protected` dla wbudowanej grupy `general`)
 - `settings` (klucz obcy → `setting_groups`, typ wyliczeniowy dla typu wartości, wartość domyślna w

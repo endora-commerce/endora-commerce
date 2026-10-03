@@ -75,7 +75,7 @@ Megamenu items hold soft references to upstream entities (Categories, CMS Pages,
 | CMS Block       | `CmsReferenceRegistry`                  | `kind='cms-block-embed' AND blockId = ?` |
 | Category        | (catalog category-reference registry)   | `kind='category-link' AND categoryId = ?` (planned) |
 
-Each registration is a one-line surface change wired in `composition.ts`. The CMS module's existing `findBlockReferences` / `findTemplateReferences` were extended to consult external scanners; the megamenu module's `registerMegamenuCmsReferences` registers its scanner there.
+Each registration is one call in the megamenu module's own boot hook (`ctx.onBoot` in the module's `src/backend/index.ts`). The CMS module's existing `findBlockReferences` / `findTemplateReferences` were extended to consult external scanners; the megamenu module's `registerMegamenuCmsReferences` registers its scanner there.
 
 The category-reference registry surface is planned for the catalog module; until it lands, category-delete protection from megamenu references is enforced at the validator boundary (a megamenu cannot save an item pointing at a deleted category — the category check returns `false` and the admin sees a clear error).
 
@@ -139,7 +139,7 @@ Burger trigger renders below `768px`. Tapping opens a stacked drill-down drawer;
 
 ## Migration from no-megamenu
 
-The migration `036_megamenu_init.ts` adds three new tables and the partial unique index. There are no seeded rows; first-time admins create a configuration through the admin UI.
+The migration `20260505T193836_megamenu_init.ts` adds three new tables and the partial unique index. There are no seeded rows; first-time admins create a configuration through the admin UI.
 
 Mounted in the storefront's root layout between `<Header>` and the existing `header.bottom` Hook. The CMS Hooks integration is unaffected.
 

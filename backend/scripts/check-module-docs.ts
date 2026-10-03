@@ -356,10 +356,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'a template telling an author where to put a file. It spelled ' +
     '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
     'is derived and a page that restates it goes stale in silence.',
-  'modules/admin-actions#db356b46':
-    'the page states `admin_actions`\'s own package directory. The generated reference ' +
-    'page carries the package that ships a module, so the sentence can link that instead ' +
-    'of restating it.',
   'modules/assets-library/index#f1724269':
     'cites `packages/modules/assets_library/src/backend/services/storage` by address. The ' +
     'file is real and the sentence is worth keeping; the repair is to name the module and ' +

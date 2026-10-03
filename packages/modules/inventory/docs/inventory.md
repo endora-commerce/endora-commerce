@@ -10,8 +10,8 @@ on-hand and reserved counters, sales-channel binding, low-stock alerts,
 display bands, backorder + unmanaged + notify-when-available, CSV import,
 and per-line `stock_allocations` writes.
 
-This module replaces the foundation's single-bucket model. Migration 030
-keeps the foundation `stock_levels` table but
+This module replaces the foundation's single-bucket model. Migration
+`20260503T182812_inventory_workflow.ts` keeps the foundation `stock_levels` table but
 extends its uniqueness shape to `(product_id, variant_id, warehouse_id)`,
 seeds a `Default` warehouse with the deterministic UUID
 `00000000-0000-4000-8000-00000000d017`, and pairs every active sales
@@ -72,7 +72,15 @@ permission repairs each found in a module page.
 | `POST /api/v1/admin/inventory/import` | `inventory:write` | CSV stock import (`?dryRun=true` validates without writing) |
 | `PUT /api/v1/admin/inventory` | `inventory:write` | **Deprecated** foundation single-bucket write; delegates to `StockLevelService.setOnHand` against the seeded Default warehouse |
 | `GET /api/v1/admin/inventory/legacy` | `inventory:read` | **Deprecated** foundation single-bucket list |
-| `GET /api/v1/storefront/inventory/display-mode` | — | Storefront-public read: which display mode the channel uses |
+
+### Public routes
+
+| Verb + Path | Audience | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/storefront/inventory/display-mode` | anonymous | Which display mode the request's sales channel uses |
+| `GET /api/v1/storefront/inventory/stock/:id` | anonymous | Per-product stock with cumulative on-hand summed only over the caller's channel-bound warehouses (narrowed further by the caller's Organization warehouse allow-list when one is set); `404` for a product the caller may not see |
+| `POST /api/v1/storefront/inventory/notify-when-available` | anonymous or signed-in | Subscribe an e-mail address (in the body) to a back-in-stock signal |
+| `POST /api/v1/catalog/products/:id/notify-when-available` | signed-in customer | Subscribe the customer's own e-mail address to a back-in-stock signal |
 
 ## Permissions
 
@@ -92,10 +100,8 @@ There is **no data migration**: a role that reached these screens through
 `/admin-roles`, where the manifest puts them automatically. Granting them to
 every holder of the old codes would reproduce the over-grant the split removes.
 
-`test/contract/inventory/permission-authority.test.ts` pins both directions and
-both old codes.
-| `GET /api/v1/storefront/inventory/stock/:id` | Storefront-public per-product stock with cumulative on-hand summed only over the caller's channel-bound warehouses |
-| `POST /api/v1/catalog/products/:id/notify-when-available` | Customer subscribes to back-in-stock; signed-in callers have email pre-filled |
+`backend/test/contract/inventory/permission-authority.test.ts` pins both
+directions and both old codes.
 
 ### Deprecated
 
@@ -157,7 +163,7 @@ The order-placement path writes one `stock_allocations` row per order item. Canc
 
 ## Notify-when-available
 
-The customer subscribes via either the storefront `/notify-when-available` endpoint (signed-in path; email pre-filled) or the customer-side dialog (anonymous; email supplied in the body). Subscription is refused with `PRODUCT_UNMANAGED_STOCK` when the product has opted out of stock tracking, and idempotent re-subscribes return the existing row.
+The customer subscribes through either `POST /api/v1/catalog/products/:id/notify-when-available` (signed-in customers; their account's e-mail address is used) or `POST /api/v1/storefront/inventory/notify-when-available` (anonymous or signed-in; the e-mail address is supplied in the body). Subscription is refused with `PRODUCT_UNMANAGED_STOCK` when the product has opted out of stock tracking, and idempotent re-subscribes return the existing row.
 
 `AvailabilityWorker.attach(eventBus)` listens for `inventory.adjusted.v1` events. Fan-out fires only when *cumulative across warehouses* crosses 0 → > 0 — single-warehouse top-ups that don't bring the cumulative above zero never trigger emails.
 
