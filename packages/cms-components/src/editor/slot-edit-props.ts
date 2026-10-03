@@ -1,4 +1,4 @@
-import type { DragAxis } from '@measured/puck';
+import type { DragAxis } from '@puckeditor/core';
 
 /** Shared Puck slot props for layout components in editing mode. */
 export interface LayoutSlotEditProps {

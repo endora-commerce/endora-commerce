@@ -1,7 +1,7 @@
 import '@endora-commerce/cms-components/styles.css';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Puck, type Config, type ComponentConfig, type Data, type PuckAction } from '@measured/puck';
-import '@measured/puck/puck.css';
+import { Puck, type Config, type ComponentConfig, type Data, type PuckAction } from '@puckeditor/core';
+import '@puckeditor/core/puck.css';
 import { Eye, Monitor, Smartphone, X } from 'lucide-react';
 import {
   applyEmailRowLayoutPreset,
@@ -31,8 +31,11 @@ import {
 } from '@endora-commerce/page-builder-core';
 import {
   hasInvalidColumnPlacement,
+  PUCK_LEGACY_DND,
+  PUCK_LEGACY_VIEWPORTS,
   shouldRevertPuckAction,
   toPuckItemArray,
+  withPuckLegacySideBar,
 } from '@endora-commerce/page-builder-core/editor';
 import type { CmsPageBuilderDescriptor } from '@endora-commerce/contracts';
 import { Button } from '@endora-commerce/admin-kit/ui';
@@ -73,7 +76,7 @@ export type EmailPreviewWidth = 600 | 320;
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 const CANVAS_WIDTH: EmailPreviewWidth = 600;
-const emailBuilderPlugin = createEmailBuilderEditorPlugin();
+const emailBuilderPlugins = withPuckLegacySideBar([createEmailBuilderEditorPlugin()]);
 
 function collectEmailRowIds(data: Data): Set<string> {
   const ids = new Set<string>();
@@ -843,7 +846,9 @@ export function EmailEditorPane({
                   data={data ?? emptyData}
                   onChange={handleEditorChange}
                   onAction={handlePuckAction}
-                  plugins={[emailBuilderPlugin]}
+                  plugins={emailBuilderPlugins}
+                  viewports={PUCK_LEGACY_VIEWPORTS}
+                  dnd={PUCK_LEGACY_DND}
                   overrides={{
                     drawerItem: ({
                       name,

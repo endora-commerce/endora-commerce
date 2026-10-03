@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { Data } from '@measured/puck';
+import type { Data } from '@puckeditor/core';
 import type { EmailBlockDetail, EmailTemplateDetail } from '@endora-commerce/contracts';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, Label, PageHeader, SaveButtonGroup, Select } from '@endora-commerce/admin-kit/ui';

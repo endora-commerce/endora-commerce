@@ -493,7 +493,7 @@ export async function runNewInstance(
  * It is derived rather than listed because a list is wrong the moment a module
  * grows a screen. Measured before it existed, on the acceptance criterion's own
  * run: `@endora-commerce/page-builder-core` resolved, its
- * `@measured/puck` peer did not — pnpm does not auto-install an optional peer —
+ * Puck peer (`@measured/puck` at the time) did not — pnpm does not auto-install an optional peer —
  * and Vite bound the import to an `__vite-optional-peer-dep:` stub, so the
  * scaffolded admin failed to bundle on a package the client had installed.
  *

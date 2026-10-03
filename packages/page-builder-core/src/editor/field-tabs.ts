@@ -1,4 +1,4 @@
-import type { Field, Fields } from '@measured/puck';
+import type { Field, Fields } from '@puckeditor/core';
 import { EDITOR_NAME_FIELD_KEY } from '../types/editor-chrome.js';
 import { isDataField, isItemsField, isResponsiveField } from '../types/responsive.js';
 import type { SettingsTab } from './settings-tab-store.js';

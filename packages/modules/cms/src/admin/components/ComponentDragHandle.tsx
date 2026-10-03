@@ -1,7 +1,7 @@
 'use client';
 
 import { useLayoutEffect, useRef, type PointerEvent, type ReactElement } from 'react';
-import { registerOverlayPortal, useGetPuck } from '@measured/puck';
+import { registerOverlayPortal, useGetPuck } from '@puckeditor/core';
 import { GripVertical } from 'lucide-react';
 import {
   getSlotZoneItemCount,

@@ -1,4 +1,4 @@
-import type { Fields } from '@measured/puck';
+import type { Fields } from '@puckeditor/core';
 import type { CategoryGridProps, CategoryListProps, ProductGridProps, ProductSliderProps } from '../schema/component-types.js';
 
 export function resolveProductSourceFields(

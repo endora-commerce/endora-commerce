@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, type ReactElement } from 'react';
-import { ActionBar } from '@measured/puck';
+import { ActionBar } from '@puckeditor/core';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import {
   carouselEditorPageCount,

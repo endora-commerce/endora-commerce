@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { type ComponentConfig, type PuckComponent } from '@measured/puck';
+import { type ComponentConfig, type PuckComponent } from '@puckeditor/core';
 import type { CmsProductSummary } from '../schema/catalog-types.js';
 import {
   PB_RESPONSIVE_METADATA,
