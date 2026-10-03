@@ -1,5 +1,11 @@
 # @endora-commerce/cli
 
+## 0.101.1
+
+### Patch Changes
+
+- @endora-commerce/contracts@0.101.1
+
 ## 0.101.0
 
 ### Minor Changes

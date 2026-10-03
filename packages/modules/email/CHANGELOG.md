@@ -1,5 +1,13 @@
 # @endora-commerce/mod-email
 
+## 0.101.1
+
+### Patch Changes
+
+- Updated dependencies [69a3717]
+  - @endora-commerce/platform@0.101.1
+  - @endora-commerce/contracts@0.101.1
+
 ## 0.101.0
 
 ### Patch Changes

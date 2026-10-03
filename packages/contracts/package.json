@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/contracts",
-  "version": "0.101.0",
+  "version": "0.101.1",
   "type": "module",
   "description": "Source-of-truth Zod schemas shared across backend, storefront, admin (Principle V). The backend regenerates its live OpenAPI document from these at startup.",
   "license": "MIT",

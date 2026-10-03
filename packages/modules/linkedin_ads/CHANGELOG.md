@@ -1,5 +1,15 @@
 # @endora-commerce/mod-linkedin-ads
 
+## 0.101.1
+
+### Patch Changes
+
+- 69a3717: The `fastify` peer is now `^5.11.0` instead of `^5`, so an install can no longer resolve Fastify 5.0–5.10. On those versions an async route handler that calls `reply.send()` without `return` throws `ERR_HTTP_HEADERS_SENT` as an uncaught exception from Fastify's onSend hook runner, and the process crash-loops; Fastify 5.11.0 catches that error and the server keeps running. An instance scaffolded by `endora new instance` now declares `fastify@^5.11.0` as well. Nothing to do on upgrade unless your project pins Fastify below 5.11 — move it to `^5.11.0` (the repository itself runs 5.12.5).
+- Updated dependencies [69a3717]
+  - @endora-commerce/platform@0.101.1
+  - @endora-commerce/admin-kit@0.101.1
+  - @endora-commerce/contracts@0.101.1
+
 ## 0.101.0
 
 ### Patch Changes
