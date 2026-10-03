@@ -22,6 +22,7 @@ import {
   updateOrderStatusRequestSchema,
 } from '@endora-commerce/contracts';
 import type {
+  OrderPendingEffect,
   AssetReadPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
@@ -53,6 +54,7 @@ import type { CustomerOrderCancellationService } from './services/order-cancella
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
+import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
 import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -890,7 +892,7 @@ export async function registerOrderRoutes(
       ]);
       return {
         data: {
-          ...(await serializeOrder(em, order)),
+          ...(await serializeAdminOrder(em, order)),
           organization: organization
             ? {
                 id: organization.id,
@@ -948,7 +950,7 @@ export async function registerOrderRoutes(
         adminUserId ? { kind: 'admin', adminUserId } : { kind: 'system', source: 'checkout' },
         body.reason ?? null,
       );
-      return { data: await serializeOrder(emFactory(), order) };
+      return { data: await serializeAdminOrder(emFactory(), order) };
     },
   );
 
@@ -1031,7 +1033,7 @@ export async function registerOrderRoutes(
     async (request) => {
       const body = adminOrderPaymentStatusTransitionSchema.parse(request.body);
       const order = await orderService.transitionPaymentStatus(request.params.id, body.to);
-      return { data: await serializeOrder(emFactory(), order) };
+      return { data: await serializeAdminOrder(emFactory(), order) };
     },
   );
 
@@ -1273,5 +1275,37 @@ async function serializeOrder(
     // undefined → null.
     nextAction: order.nextAction ?? null,
     ...(capabilities ? { customerCancellable: capabilities.customerCancellable } : {}),
+  };
+}
+
+/**
+ * The admin order response: the order, plus the follow-ups it still owes
+ * (`specs/142-order-transition-atomicity/`, D10, FR-019).
+ *
+ * `pendingEffects` is carried **only when something is outstanding** — a stock
+ * or credit release that has not completed, because it failed and is being
+ * retried or because the module that owns it is switched off. An order that
+ * owes nothing carries no field at all.
+ *
+ * A function of its own rather than a flag on `serializeOrder`, so that the
+ * buyer-facing reads cannot acquire the field by passing an argument: a
+ * release the platform is still retrying is an operator's concern and changes
+ * nothing a buyer can do.
+ */
+async function serializeAdminOrder(em: EntityManager, order: Order): Promise<Record<string, unknown>> {
+  const outstanding = await em.find(
+    OrderTransitionEffect,
+    { orderId: order.id, completedAt: null },
+    { orderBy: { effect: 'asc', createdAt: 'asc' } },
+  );
+  const pendingEffects: OrderPendingEffect[] = outstanding.map((row) => ({
+    effect: row.effect,
+    blockedOn: row.blockedOn ?? null,
+    attempts: row.attempts,
+    lastAttemptAt: row.lastAttemptAt ? row.lastAttemptAt.toISOString() : null,
+  }));
+  return {
+    ...(await serializeOrder(em, order)),
+    ...(pendingEffects.length > 0 ? { pendingEffects } : {}),
   };
 }
