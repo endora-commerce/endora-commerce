@@ -42,7 +42,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   refuses a non-namespaced name, `invoice`, `newsletter`; an `AdminContributions` with no `blocks`
   still type-checks.
 
-- [ ] **T03** [P] E-mail renderer contract and host hook (contract §3): `EmailBlockRenderer(s)`,
+- [x] **T03** [P] E-mail renderer contract and host hook (contract §3): `EmailBlockRenderer(s)`,
   `EmailBlockRenderContext`; `renderEmailHtml` / `renderEmailText` take `blockRenderers` and
   `onBlockError`, consult them only in `default:`, merge `defaultProps` under props, give
   `renderSlot` the host's own node renderer, and derive text from HTML when `text` is absent.

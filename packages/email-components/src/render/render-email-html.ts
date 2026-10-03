@@ -30,6 +30,10 @@ import {
   EMAIL_ORDER_BLOCK_MARGIN_DEFAULT,
   EMAIL_ORDER_LABELED_FIELDS,
 } from '../schema/component-types.js';
+import {
+  renderContributedBlock,
+  type EmailBlockRenderingOptions,
+} from './block-renderers.js';
 import { escapeAttr, escapeHtml } from './escape-html.js';
 import { orderSummaryColumnLabels } from './order-labels.js';
 import { emailHtmlToPlainText, sanitizeEmailHtml } from './sanitize-email-html.js';
@@ -44,7 +48,7 @@ export interface EmailRenderEmbeds {
   templates: Record<string, PuckDataTree>;
 }
 
-export interface RenderEmailHtmlOptions {
+export interface RenderEmailHtmlOptions extends EmailBlockRenderingOptions {
   embeds?: EmailRenderEmbeds;
   accentColor?: string;
   maxDepth?: number;
@@ -66,6 +70,7 @@ interface RenderCtx {
   maxDepth: number;
   tree: PuckDataTree;
   language: string;
+  contributed: EmailBlockRenderingOptions;
 }
 
 const DEFAULT_ACCENT = '#1f2937';
@@ -817,7 +822,14 @@ function renderNode(node: PuckNode, ctx: RenderCtx): string {
     case 'transactional_emails.EmailInsertTemplate':
       return renderEmbed('templates', str(p, 'code'), ctx);
     default:
-      return '';
+      // Only here: a name a `case` above answers never reaches a contribution.
+      return renderContributedBlock(node.type, p, ctx.contributed, (renderer, props) =>
+        renderer.html(props, {
+          language: ctx.language,
+          accentColor: ctx.accent,
+          renderSlot: (nodes) => renderNodes(asNodes(Array.isArray(nodes) ? nodes : []), ctx),
+        }),
+      );
   }
 }
 
@@ -853,6 +865,10 @@ export function renderEmailHtml(
     maxDepth: opts.maxDepth ?? DEFAULT_MAX_DEPTH,
     tree: safeTree,
     language: opts.language ?? 'en-US',
+    contributed: {
+      ...(opts.blockRenderers ? { blockRenderers: opts.blockRenderers } : {}),
+      ...(opts.onBlockError ? { onBlockError: opts.onBlockError } : {}),
+    },
   };
   const body = renderNodes(treeContent(safeTree), ctx);
   return opts.document === false ? body : wrapDocument(body);
