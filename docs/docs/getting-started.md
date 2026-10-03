@@ -396,8 +396,9 @@ The installer writes the storefront beside the instance unless you uncheck it in
 or pass `--no-storefront`. It is a copy of the reference storefront that travels inside the
 installer, so it needs no checkout of the Endora Commerce repository: every file is already
 rewritten to stand on its own, and the `@endora-commerce/*` packages it depends on are the versions
-of the release you installed. From then on it is your repository — nothing upgrades it and nothing
-reports back.
+of the release you installed. From then on it is your repository and nothing reports back. Only
+its `@endora-commerce/*` packages are upgraded, by the instance's `pnpm run upgrade` — see
+[Upgrading an instance](./upgrading-an-instance.md).
 
 One thing is left out of that copy and the installer names it: the reference storefront's
 screenshot baselines for its visual tests. They are pictures of the reference shop on the machine
@@ -460,6 +461,8 @@ to generate, the settings only you can choose, and the seeds that must not run.
 - [Modules](./modules/README.md) — what each module does, its settings, permissions and screens.
 - [Module lifecycle](./modules/lifecycle.md) — installing, enabling, disabling and uninstalling a
   module from the command line.
+- [Upgrading an instance](./upgrading-an-instance.md) — moving the instance and its storefront to
+  a new release with `pnpm run upgrade`.
 - [Customisation ladder](./architecture/customisation-ladder.md) and
   [overlay modules](./architecture/overlay-pattern.md) — changing behaviour without editing the
   platform.

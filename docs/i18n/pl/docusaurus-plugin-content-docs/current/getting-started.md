@@ -405,8 +405,9 @@ Instalator zapisuje sklep obok instancji, chyba że odznaczysz go w pytaniu o cz
 `--no-storefront`. To kopia sklepu referencyjnego dostarczana razem z instalatorem, więc nie wymaga
 klonu repozytorium Endora Commerce: każdy plik jest już przepisany tak, by działał samodzielnie,
 a pakiety `@endora-commerce/*`, od których zależy, są w wersjach z wydania, które instalujesz. Od
-tej chwili to Twoje repozytorium — nic go nie aktualizuje i nic nie wysyła żadnych informacji
-z powrotem.
+tej chwili to Twoje repozytorium i nic nie wysyła żadnych informacji z powrotem. Aktualizowane są
+tylko jego pakiety `@endora-commerce/*` — przez `pnpm run upgrade` w instancji; zobacz
+[Aktualizacja instancji](./upgrading-an-instance.md).
 
 W tej kopii pominięto jedną rzecz, a instalator ją wymienia: wzorcowe zrzuty ekranu sklepu
 referencyjnego, używane w jego testach wizualnych. To obrazy sklepu referencyjnego z maszyny, na
@@ -471,6 +472,8 @@ wolno wgrać.
 - [Moduły](./modules/README.md) — co robi każdy moduł, jego ustawienia, uprawnienia i ekrany.
 - [Cykl życia modułu](./modules/lifecycle.md) — instalowanie, włączanie, wyłączanie
   i odinstalowywanie modułu z wiersza poleceń.
+- [Aktualizacja instancji](./upgrading-an-instance.md) — przeniesienie instancji i jej storefrontu na
+  nowe wydanie poleceniem `pnpm run upgrade`.
 - [Drabina dostosowań](./architecture/customisation-ladder.md) i
   [moduły nakładkowe](./architecture/overlay-pattern.md) — zmiana zachowania bez edytowania
   platformy.

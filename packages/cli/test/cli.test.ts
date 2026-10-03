@@ -395,3 +395,44 @@ describe('`install --only` and the origins of the other machines', () => {
     expect(result.stderr).not.toContain('--api-url');
   });
 });
+
+/**
+ * `endora upgrade` through argv (`specs/140-instance-upgrade/`). The verb's
+ * decisions are `upgrade.test.ts`'s; here only that the argv layer reaches it
+ * and classifies what it throws.
+ */
+describe('`upgrade`', () => {
+  it('`--help` names it', async () => {
+    const { stdout } = await run(['--help']);
+    expect(stdout).toContain('endora upgrade [<version>]');
+  });
+
+  it('takes one version at most', async () => {
+    const result = await run(['upgrade', '0.102.0', '0.103.0']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('one version');
+  });
+
+  it('refuses `--no-storefront` beside `--storefront-dir`', async () => {
+    const result = await run(['upgrade', '--no-storefront', '--storefront-dir', 'x']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('two answers to one question');
+  });
+
+  it('refuses a range in place of a version, exit 1', async () => {
+    const result = await run(['upgrade', '^0.102.0', '--dry-run']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('is not a release version');
+  });
+
+  it('outside an instance is exit 2', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'endora-cli-upgrade-'));
+    try {
+      const result = await run(['upgrade', '0.102.0', '--dry-run'], dir);
+      expect(result.code).toBe(2);
+      expect(result.stderr).toContain('no `pnpm-workspace.yaml`');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

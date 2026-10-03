@@ -114,6 +114,11 @@ paths (`--public-url https://example.com`: the storefront at `/`, the admin unde
 API under `/api`). [Getting started](docs/docs/getting-started.md#one-component-per-machine) has
 the table and what the machines owe each other.
 
+A later release is one command in the instance — `pnpm run upgrade` moves every package of the
+release, in the instance and its storefront, to one version and runs the migrations.
+[Upgrading an instance](docs/docs/upgrading-an-instance.md) says what it changes and what it
+leaves alone.
+
 With no terminal — in CI, or with `--non-interactive` — it asks nothing and every answer is a
 flag. A missing one is a single refusal naming every flag still owed:
 

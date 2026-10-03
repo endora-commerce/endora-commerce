@@ -389,8 +389,8 @@ Three limits decide what your first module can be:
 
 An instance written by release `0.100.1` or `0.100.2` differs from this page in four ways. The
 first two are files the installer did not write, and you repair them by hand; the last two are
-repaired in the platform packages, so they go away when you upgrade the instance's
-`@endora-commerce/*` packages past `0.100.2`.
+repaired in the platform packages, so they go away when you upgrade the instance to a later
+release — see [Upgrading an instance](./upgrading-an-instance.md#before-the-command).
 
 | What | What you see | What to do |
 | --- | --- | --- |

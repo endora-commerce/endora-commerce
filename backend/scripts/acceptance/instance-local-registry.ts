@@ -31,6 +31,10 @@
  * deployment contributed the orchestrator itself, and every fixture handed the
  * orchestrator one shared `EntityManager`.
  *
+ * And whether the instance's own `pnpm run upgrade`, asked for the release it
+ * already is, says so and changes nothing (L23, `specs/140-instance-upgrade/`
+ * FR-007) — the one upgrade a single packed release can stage.
+ *
  * And, since the CLI carries the reference storefront
  * (`packages/cli/src/new-storefront/packaged.ts`), it judges whether the
  * **storefront** the one-shot wrote beside the instance installs, builds,
@@ -556,6 +560,48 @@ async function main(): Promise<number> {
       title: 'the temporary host is gone after a successful run',
       status: install.code !== 0 ? 'unmeasured' : left.length === 0 ? 'pass' : 'fail',
       detail: left.length === 0 ? 'none left' : `left behind: ${left.join(', ')}`,
+    });
+
+    // ── the upgrade to the release it already is, is a no-op that says so ──
+    //
+    // `specs/140-instance-upgrade/` FR-007, through the root script the
+    // scaffold declares and the registry this run serves, whose `latest` of
+    // the platform is the version just installed. Measured on the tree exactly
+    // as the one-shot left it, before anything below edits it: the manifests
+    // and lockfiles of both repositories must come out byte-identical.
+    const untouched = [
+      join(target, 'package.json'),
+      join(target, 'pnpm-lock.yaml'),
+      ...(withStorefront ? [join(`${target}-storefront`, 'package.json'), join(`${target}-storefront`, 'pnpm-lock.yaml')] : []),
+    ];
+    const snapshot = (): string[] => untouched.map((file) => (existsSync(file) ? readFileSync(file, 'utf8') : ''));
+    const beforeUpgrade = install.code === 0 ? snapshot() : [];
+    const upgrade =
+      install.code === 0
+        ? await exec('pnpm', ['run', 'upgrade'], { cwd: target, env: environment, timeoutMs: STEP_TIMEOUT_MS })
+        : null;
+    const afterUpgrade = upgrade === null ? [] : snapshot();
+    const changedByUpgrade = untouched.filter(
+      (_file, index) => upgrade !== null && afterUpgrade[index] !== beforeUpgrade[index],
+    );
+    const saysSo = upgrade !== null && upgrade.output.includes(`already at ${frontDoorTarball.version} — nothing to do`);
+    verdicts.push({
+      id: 'L23',
+      title: '`pnpm run upgrade` on an instance already at the release is a no-op that says so',
+      status:
+        upgrade === null
+          ? 'unmeasured'
+          : upgrade.code === 0 && saysSo && changedByUpgrade.length === 0
+            ? 'pass'
+            : 'fail',
+      detail:
+        upgrade === null
+          ? 'the one-shot did not succeed'
+          : `exit ${String(upgrade.code)}, ${saysSo ? 'said so' : 'did not say so'}, ` +
+            (changedByUpgrade.length === 0
+              ? `${String(untouched.length)} manifests and lockfiles unchanged`
+              : `changed: ${changedByUpgrade.join(', ')}`) +
+            (upgrade.code === 0 && saysSo ? '' : `: ${upgrade.output.trim().split('\n').slice(-6).join(' | ')}`),
     });
 
     // ── the client extends it: an overlay module, with no hand edit ──────
