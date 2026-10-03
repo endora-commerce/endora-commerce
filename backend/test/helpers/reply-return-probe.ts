@@ -14,7 +14,7 @@
  * Whether that throw kills the process depends on Fastify: up to 5.10 it
  * escaped as an uncaught exception (exit non-zero — the original prod crash
  * loop); from 5.11.0 the onSend hook runner catches it and routes it to the
- * error handler, which logs it. The probe reports both halves so the driving
+ * error handler, which logs it once and sends nothing on the ended reply. The probe reports both halves so the driving
  * test can tell them apart: the exit code says whether the process survived,
  * the logger output (stdout) says whether a double-send happened, and the
  * `REPLY_PROBE_RESULT` line says what the client actually received.

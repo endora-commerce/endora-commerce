@@ -849,7 +849,7 @@ function typesPackageFor(name: string): string {
  *     uncaught exception from the onSend hook runner, and the process
  *     crash-loops. 5.11.0 catches it in `handleResolve` (`lib/hooks.js`).
  *     Measured on a real socket in
- *     `backend/test/integration/real-socket-reply-contract.test.ts`; held over
+ *     `backend/test/contract/real-socket-reply-contract.test.ts`; held over
  *     every published manifest by `test/unit/packages/fastify-peer-floor.test.ts`.
  *
  * A floor whose major is not the one the application runs is refused rather

@@ -195,6 +195,18 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
   app.setErrorHandler((error, request: FastifyRequest, reply: FastifyReply) => {
     const requestId = request.id;
 
+    // The reply already went out — typically a handler that sent without
+    // `return reply`, whose second send threw `ERR_HTTP_HEADERS_SENT`. No
+    // envelope can reach the client any more, and sending one only makes
+    // Fastify log `FST_ERR_REP_ALREADY_SENT` over the error worth reading. Log
+    // that one, once, and send nothing (error-envelope-sent-reply.test.ts).
+    // `sent` is `writableEnded`; `headersSent` also covers a body still being
+    // written, which an envelope could not be appended to either.
+    if (reply.sent || reply.raw.headersSent) {
+      request.log.error({ err: error }, 'error after the reply was sent; nothing more was sent');
+      return;
+    }
+
     // Fastify wraps Zod validation errors from the Zod type provider — detect them via
     // the helper exposed by @fastify/type-provider-zod, then fall back to a plain ZodError.
     if (hasZodFastifySchemaValidationErrors(error)) {
