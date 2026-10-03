@@ -6,7 +6,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { withModuleOff, withModulesDeactivated } from '../../helpers/off-state.js';
+import { withModuleOff } from '../../helpers/off-state.js';
+import { withModulesDeactivated } from '../../helpers/modules-deactivated.js';
 import {
   SEED_ADDRESS_BILLING_ID,
   SEED_ADDRESS_DELIVERY_ID,

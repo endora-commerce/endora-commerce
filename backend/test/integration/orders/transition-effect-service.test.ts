@@ -53,6 +53,7 @@ describe('OrderTransitionEffectService (spec 142, T08)', () => {
   const credit = vi.fn<OrderTransitionEffectHandlers['credit.release']>();
   const warn = vi.fn();
   let absent = new Set<string>();
+  const seededOrderIds: string[] = [];
 
   const service = (): OrderTransitionEffectService =>
     new OrderTransitionEffectService({
@@ -72,8 +73,16 @@ describe('OrderTransitionEffectService (spec 142, T08)', () => {
     credit.mockReset().mockResolvedValue(done({ ok: true }));
     warn.mockReset();
     absent = new Set();
-    // Each case starts from an empty queue, so a sweep sees only its own rows.
-    await h.em().getConnection().execute(`delete from "order_transition_effects"`);
+    // Each case starts with no row of an earlier case outstanding, so a sweep
+    // sees only its own. Scoped to the orders this file seeded — the table is
+    // shared with whatever else the run has cancelled.
+    if (seededOrderIds.length > 0) {
+      await h.em().getConnection().execute(
+        `delete from "order_transition_effects"
+          where "order_id" in (${seededOrderIds.map(() => '?').join(', ')})`,
+        seededOrderIds,
+      );
+    }
   });
 
   afterAll(async () => {
@@ -110,6 +119,7 @@ describe('OrderTransitionEffectService (spec 142, T08)', () => {
       placedAt: new Date(),
     });
     await em.persistAndFlush(order);
+    seededOrderIds.push(order.id);
     return order.id;
   }
 

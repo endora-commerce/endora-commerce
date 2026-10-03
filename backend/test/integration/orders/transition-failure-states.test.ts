@@ -5,7 +5,8 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { withModuleOff, withModulesDeactivated } from '../../helpers/off-state.js';
+import { withModuleOff } from '../../helpers/off-state.js';
+import { withModulesDeactivated } from '../../helpers/modules-deactivated.js';
 import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import {
   SEED_ADDRESS_BILLING_ID,

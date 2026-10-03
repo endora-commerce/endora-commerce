@@ -131,6 +131,7 @@ describe('collectModuleCommands — the declaration is enumerable', () => {
       'audit_logs read',
       'carts abandonment-sweep',
       'cms block-names',
+      'orders transition-effects-repair',
       'search reindex',
       'settings cache-clear',
     ]);
