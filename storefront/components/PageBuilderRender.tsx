@@ -1,6 +1,6 @@
 'use client';
 
-import { Render } from '@measured/puck';
+import { Render } from '@puckeditor/core';
 import type { CSSProperties, ReactNode } from 'react';
 import { breakpointCssVars, type PageBuilderBreakpoints } from '@endora-commerce/page-builder-core';
 import { defaultPageBuilderConfig, withCmsPageRoot } from '@endora-commerce/cms-components';

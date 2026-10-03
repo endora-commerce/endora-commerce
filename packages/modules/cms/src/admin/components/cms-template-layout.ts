@@ -1,4 +1,4 @@
-import type { Data } from '@measured/puck';
+import type { Data } from '@puckeditor/core';
 import type { CmsTemplateDetail, CmsTemplateSummary } from '@endora-commerce/contracts';
 import { cmsClient } from '../api/cms-client.js';
 import { emptyPageBuilderData, isEmptyPageBuilderData } from '@endora-commerce/page-builder-admin';

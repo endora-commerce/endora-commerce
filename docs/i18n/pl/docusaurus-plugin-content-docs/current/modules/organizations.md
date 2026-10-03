@@ -1,311 +1,279 @@
 ---
 title: organizations
-description: Customer Organizations, rejestracja, zaproszenia
+description: Organizacje klientów, rejestracja, zaproszenia
 ---
 
 # `organizations`
 
-Customer Organizations — rejestracja, weryfikacja e-mail, zarządzanie członkami,
-zaproszenia i stan suspension. Pierwszy użytkownik rejestrującej Organization
-staje się jej `organization_admin`.
+Organizacje klientów — rejestracja, weryfikacja e-mailem, zarządzanie członkami, zaproszenia i
+zawieszanie. Pierwszy użytkownik rejestrujący organizację zostaje jej administratorem
+(`organization_admin`).
 
-## Publiczne API
+## API publiczne
 
-Trasy tylko dla Org-Admin wymuszane są po stronie serwera przez helper
-`assertOrganizationAdmin`. Trasy admin (`/api/v1/admin/*`) są gated przez
+Trasy dostępne tylko dla administratora organizacji są chronione po stronie serwera funkcją
+`assertOrganizationAdmin`. Trasy administracyjne platformy (`/api/v1/admin/*`) są chronione przez
 `customers:manage`.
 
-| Verb + Path | Audience | Cel |
+| Metoda i ścieżka | Kto | Przeznaczenie |
 | --- | --- | --- |
-| `POST /api/v1/organizations/register` | anon | Rejestracja Org + pierwszego członka, wysyłka weryfikacji e-mail |
-| `POST /api/v1/auth/email-verification/verify` | anon | Realizacja tokenu weryfikacji |
-| `POST /api/v1/auth/customer/login` | anon | Logowanie klienta → ustawia cookie `b2b_session`; scala anonimowy cart |
-| `POST /api/v1/auth/customer/logout` | customer | Zniszczenie sesji |
-| `POST /api/v1/auth/password-reset/request` | anon | Zawsze 202 (obrona przed enumeracją kont) |
-| `POST /api/v1/auth/password-reset/confirm` | anon | Realizacja tokenu resetu z e-maila |
-| `GET /api/v1/me` | customer | Bieżący klient + jego organization, plus `impersonation: { impersonatorAdminUserId }`, gdy admin działa jako kupujący |
-| `POST /api/v1/me/password` | customer | Zmiana hasła (odmowa przy złym `currentPassword`) |
-| `GET /api/v1/organizations/mine/members` | org admin | Lista członków |
-| `DELETE /api/v1/organizations/mine/members/:id` | org admin | Usunięcie członka (guard last-admin) |
-| `PATCH /api/v1/organizations/mine/members/:id/role` | org admin | Promote / demote (guard last-admin) |
-| `GET /api/v1/organizations/mine/invitations` | org admin | Lista oczekujących zaproszeń |
-| `POST /api/v1/organizations/mine/invitations` | org admin | Zaproszenie nowego użytkownika; e-mail z linkiem realizacji przez wstrzyknięty Mailer |
-| `DELETE /api/v1/organizations/mine/invitations/:id` | org admin | Unieważnienie oczekującego zaproszenia |
-| `POST /api/v1/organizations/invitations/:token/accept` | anon | Realizacja zaproszenia, utworzenie Customer Account |
-| `GET /api/v1/organizations/mine/addresses` | customer | Lista adresów dostawy / rozliczeniowych |
-| `POST /api/v1/organizations/mine/addresses` | customer | Utworzenie adresu |
-| `PATCH /api/v1/organizations/mine/addresses/:id` | customer | Aktualizacja |
-| `DELETE /api/v1/organizations/mine/addresses/:id` | customer | Usunięcie |
-| `GET /api/v1/admin/organizations` | admin | Lista z `filter[status]` / `filter[vatStatus]` / `q` |
-| `GET /api/v1/admin/organizations/:id` | admin | Org + skład członków (`updatedAt`, members z `lastLoginAt`) |
-| `PATCH /api/v1/admin/organizations/:id` | admin | Aktualizacja name / `status` / `vatStatus`; opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT` gdy nieaktualne |
-| `POST /api/v1/admin/organizations/:id/members/invite` | admin | Zaproszenie e-mailem + rola (platform-scope) |
-| `POST /api/v1/admin/organizations/:id/members` | admin | Bezpośrednie utworzenie członka z hasłem |
-| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | admin | Zmiana roli; opcjonalne `expectedUpdatedAt` per member |
-| `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | admin | Soft-remove członka (guard last-admin) |
-| `POST /api/v1/admin/organizations/:id/recover-admin-access` | admin | Break-glass — awans istniejącego członka do `organization_admin` |
+| `POST /api/v1/organizations/register` | anonimowy | Rejestracja organizacji i jej pierwszego członka, wysłanie e-maila weryfikacyjnego |
+| `POST /api/v1/auth/email-verification/verify` | anonimowy | Użycie tokenu weryfikacyjnego |
+| `POST /api/v1/auth/customer/login` | anonimowy | Logowanie klienta → ustawia ciasteczko `b2b_session`; łączy koszyk anonimowy |
+| `POST /api/v1/auth/customer/logout` | klient | Zakończenie sesji |
+| `POST /api/v1/auth/password-reset/request` | anonimowy | Zawsze 202 (ochrona przed sprawdzaniem, czy konto istnieje) |
+| `POST /api/v1/auth/password-reset/confirm` | anonimowy | Użycie tokenu resetu z e-maila |
+| `GET /api/v1/me` | klient | Bieżący klient i jego organizacja oraz `impersonation: { impersonatorAdminUserId }`, gdy administrator działa jako kupujący |
+| `POST /api/v1/me/password` | klient | Zmiana hasła (odrzucana przy błędnym `currentPassword`) |
+| `GET /api/v1/organizations/mine/members` | administrator organizacji | Lista członków |
+| `DELETE /api/v1/organizations/mine/members/:id` | administrator organizacji | Usunięcie członka (z ochroną ostatniego administratora) |
+| `PATCH /api/v1/organizations/mine/members/:id/role` | administrator organizacji | Nadanie lub odebranie roli administratora (z ochroną ostatniego administratora) |
+| `GET /api/v1/organizations/mine/invitations` | administrator organizacji | Lista oczekujących zaproszeń |
+| `POST /api/v1/organizations/mine/invitations` | administrator organizacji | Zaproszenie nowego użytkownika; e-mail z linkiem wysyła wstrzyknięty mechanizm poczty |
+| `DELETE /api/v1/organizations/mine/invitations/:id` | administrator organizacji | Unieważnienie oczekującego zaproszenia |
+| `POST /api/v1/organizations/invitations/:token/accept` | anonimowy | Przyjęcie zaproszenia, utworzenie konta klienta |
+| `GET /api/v1/organizations/mine/addresses` | klient | Lista adresów dostawy i do faktury |
+| `POST /api/v1/organizations/mine/addresses` | klient | Utworzenie adresu |
+| `PATCH /api/v1/organizations/mine/addresses/:id` | klient | Aktualizacja |
+| `DELETE /api/v1/organizations/mine/addresses/:id` | klient | Usunięcie |
+| `GET /api/v1/admin/organizations` | administrator | Lista z `filter[status]` / `filter[vatStatus]` / `q` |
+| `GET /api/v1/admin/organizations/:id` | administrator | Organizacja z listą członków (`updatedAt`, członkowie z `lastLoginAt`) |
+| `PATCH /api/v1/admin/organizations/:id` | administrator | Zmiana nazwy, `status` lub `vatStatus`; opcjonalne `expectedUpdatedAt` → `409 VERSION_CONFLICT`, gdy dane są nieaktualne |
+| `POST /api/v1/admin/organizations/:id/members/invite` | administrator | Zaproszenie e-mailem z rolą (z poziomu platformy) |
+| `POST /api/v1/admin/organizations/:id/members` | administrator | Bezpośrednie utworzenie członka z hasłem |
+| `PATCH /api/v1/admin/organizations/:id/members/:customerAccountId/role` | administrator | Zmiana roli; opcjonalne `expectedUpdatedAt` członka |
+| `DELETE /api/v1/admin/organizations/:id/members/:customerAccountId` | administrator | Usunięcie miękkie członka (z ochroną ostatniego administratora) |
+| `POST /api/v1/admin/organizations/:id/recover-admin-access` | administrator | Procedura awaryjna — nadanie istniejącemu członkowi roli `organization_admin` |
 
-Skonfiguruj **`SMTP_URL`** w środowisku backend, aby poczta wychodząca używała SMTP
-zamiast loggera konsoli.
+Ustaw **`SMTP_URL`** w środowisku backendu, aby poczta była wysyłana przez SMTP, a nie wypisywana do
+konsoli.
 
 ## Encje
 
-`Organization`, `OrganizationInvitation`, `EmailVerificationToken`. Unikalność
-Tax-ID wymuszana jest na poziomie DB; duplikaty rejestracji zwracają
-`409 ORGANIZATION_TAX_ID_EXISTS`.
+`Organization`, `OrganizationInvitation`, `EmailVerificationToken`. Unikalności NIP pilnuje baza
+danych; powtórna rejestracja zwraca `409 ORGANIZATION_TAX_ID_EXISTS`.
 
-## Emitowane eventy
+## Emitowane zdarzenia
 
-`organization.registered.v1`, `organization.verified.v1`,
-`organization.suspended.v1`, `organization.member_invited.v1`,
-`organization.member_role_changed.v1`.
+`organization.registered.v1`, `organization.verified.v1`, `organization.suspended.v1`,
+`organization.member_invited.v1`, `organization.member_role_changed.v1`.
 
 ## Punkty rozszerzenia
 
-- **Verification dispatch** — `email-verification-service.ts` wystawia
-  wymienialny interfejs mailera; zamień dev-mode console mailer na prawdziwy
-  driver SMTP/SendGrid w produkcyjnym composition.
-- **Last-admin guard** — zakodowany w `role-service.ts#changeRole` i
-  `invitation-service.ts#revoke`; dodawaj tu nowe miejsca wywołań „musi zostać
-  co najmniej jeden admin”.
+- **Wysyłka weryfikacji** — `email-verification-service.ts` udostępnia wymienny interfejs wysyłki
+  poczty; w kompozycji produkcyjnej zastąp wypisywanie do konsoli prawdziwym sterownikiem SMTP lub
+  SendGrid.
+- **Ochrona ostatniego administratora** — zapisana w `role-service.ts#changeRole` i
+  `invitation-service.ts#revoke`; nowe miejsca, w których „musi zostać co najmniej jeden
+  administrator”, dodawaj właśnie tam.
 
-## Commercial party i moderacja
+## Organizacja jako strona transakcji i jej moderacja
 
-Organization jest first-class commercial party. Ta sekcja opisuje powierzchnię
-runtime.
+Organizacja jest pełnoprawną stroną transakcji handlowych. Ta sekcja opisuje, jak to działa.
 
-### Status cyklu życia (`pending_verification` → `active` → `blocked` / `rejected`)
+### Status (`pending_verification` → `active` → `blocked` / `rejected`)
 
-Każda nowo zarejestrowana Organization startuje w `pending_verification`.
-Platform-wide setting `organizations.moderation.mode` (`manual` /
-`auto`) kontroluje, czy admin musi ręcznie zatwierdzić przed transakcją.
-Gdy status jest inny niż `active`, platforma odmawia składania Order, wysyłki RFQ
-i dodawania linii do koszyka z HTTP 423.
+Każda nowo zarejestrowana organizacja zaczyna w stanie `pending_verification`. Ustawienie dla całej
+platformy `organizations.moderation.mode` (`manual` / `auto`) decyduje, czy przed pierwszą
+transakcją administrator musi ją ręcznie zatwierdzić. Gdy status jest inny niż `active`, platforma
+odrzuca składanie zamówień, wysyłanie zapytań ofertowych i dodawanie pozycji do koszyka z HTTP 423.
 
-Legacy status `suspended` przemianowano na `blocked` migracją
-`20260611T140349_organizations_consolidation.ts`, która zapisuje wyjaśniający
-`blocked_reason` w każdym przepisanym wierszu (nie zapisuje wpisu w dzienniku audytu).
+Dawny status `suspended` zmieniono na `blocked` w migracji
+`20260611T140349_organizations_consolidation.ts`, która w każdym przepisanym wierszu zapisuje
+wyjaśniający `blocked_reason` (nie tworzy wpisu w dzienniku audytu).
 
-Endpointy admin:
+Endpointy administracyjne:
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `POST /api/v1/admin/organizations/:id/approve` | Przejście `pending_verification` → `active` |
-| `POST /api/v1/admin/organizations/:id/reject` | Przejście `pending_verification` → `rejected` (terminal) |
-| `POST /api/v1/admin/organizations/:id/block` | Przejście `active` → `blocked` (dźwignia operatora) |
+| `POST /api/v1/admin/organizations/:id/reject` | Przejście `pending_verification` → `rejected` (końcowe) |
+| `POST /api/v1/admin/organizations/:id/block` | Przejście `active` → `blocked` (decyzja operatora) |
 | `POST /api/v1/admin/organizations/:id/unblock` | Przejście `blocked` → `active` |
 
-Każde body niesie `expectedVersion: number` (token optimistic-lock z kolumny
-`organizations.version`) i jest owinięte w
-`em.transactional`. Nieaktualne `expectedVersion` zwraca `409
-VERSION_CONFLICT` z `currentVersion` w body. Naruszenie guard statusu (np.
-approve już active org) zwraca `422
-VALIDATION_FAILED`.
+Każda treść żądania zawiera `expectedVersion: number` (token blokady optymistycznej z kolumny
+`organizations.version`), a operacja jest wykonywana w `em.transactional`. Nieaktualne
+`expectedVersion` zwraca `409 VERSION_CONFLICT` z `currentVersion` w treści. Niedozwolone przejście
+statusu (np. zatwierdzenie już aktywnej organizacji) zwraca `422 VALIDATION_FAILED`.
 
-Bramka po stronie klienta: storefront dostaje zlokalizowany komunikat
-„dlaczego nie możesz transakcjonować” przez pola
-`organization.canTransact` + `organization.moderationMessage` z `GET /api/v1/me`.
-Strony cart i checkout renderują `<OrganizationModerationBanner>`
-nad formularzem, gdy `canTransact === false`.
+Po stronie klienta: storefront dostaje przetłumaczony komunikat „dlaczego nie możesz składać
+zamówień” w polach `organization.canTransact` i `organization.moderationMessage` z `GET /api/v1/me`.
+Strony koszyka i checkoutu wyświetlają nad formularzem `<OrganizationModerationBanner>`, gdy
+`canTransact === false`.
 
-### Powiadomienia admin
+### Powiadomienia w panelu
 
-Mały moduł `admin_notifications` posiada powierzchnię dzwonka. Przy każdej nowej
-rejestracji Organization `OrgRegistrationNotifier` zapisuje jedno broadcast
-notification (`audience='all_admins'`,
-`kind='organization.registered'`) i wysyła jeden e-mail per wpis w ustawieniu
-`organizations.notifications.new_registration_recipients`.
-Dzwonek odpytuje co 30 s przez
-`GET /api/v1/admin/notifications`.
+Za powiadomienia w panelu (ikonę dzwonka) odpowiada niewielki moduł `admin_notifications`. Przy
+każdej nowej rejestracji organizacji `OrgRegistrationNotifier` zapisuje jedno powiadomienie dla
+wszystkich (`audience='all_admins'`, `kind='organization.registered'`) i wysyła po jednym e-mailu na
+każdy adres z ustawienia `organizations.notifications.new_registration_recipients`. Panel odpytuje
+`GET /api/v1/admin/notifications` co 30 s.
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/admin/notifications` | Stronicowany feed, per-admin `isRead` resolution |
-| `POST /api/v1/admin/notifications/:id/read` | Oznaczenie jednego wpisu jako read |
-| `POST /api/v1/admin/notifications/mark-all-read` | Oznaczenie wszystkich widocznych jako read |
+| `GET /api/v1/admin/notifications` | Stronicowana lista z `isRead` wyznaczanym dla każdego administratora |
+| `POST /api/v1/admin/notifications/:id/read` | Oznaczenie jednego powiadomienia jako przeczytanego |
+| `POST /api/v1/admin/notifications/mark-all-read` | Oznaczenie wszystkich widocznych jako przeczytane |
 
-### Per-organization commercial scoping
+### Ograniczenia handlowe organizacji
 
-Trzy allow-list bridges kontrolują, czego Organization może użyć przy
-checkout:
+Trzy listy dozwolonych wartości określają, z czego organizacja może korzystać w checkoucie:
 
-- `organization_payment_methods` (pivot: `(organization_id, payment_method_id)`)
-- `organization_delivery_methods` (pivot: `(organization_id, delivery_method_id)`)
-- `organization_warehouses` (pivot: `(organization_id, warehouse_id)`)
+- `organization_payment_methods` (tabela łącząca `(organization_id, payment_method_id)`)
+- `organization_delivery_methods` (tabela łącząca `(organization_id, delivery_method_id)`)
+- `organization_warehouses` (tabela łącząca `(organization_id, warehouse_id)`)
 
-**Pusta lista ⇒ obowiązują domyślne platformy.** Niepusta filtruje storefront
-`GET /api/v1/payment-methods`, `GET /api/v1/delivery-methods`
-oraz endpointy stock inventory przecięte z przypisaniem Organization
-wywołującego.
+**Pusta lista ⇒ obowiązują ustawienia domyślne platformy.** Niepusta lista filtruje w storefroncie
+`GET /api/v1/payment-methods`, `GET /api/v1/delivery-methods` oraz endpointy stanów magazynowych,
+ograniczając je do części wspólnej z przypisaniami organizacji wywołującego.
 
-Endpointy admin:
+Endpointy administracyjne:
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/admin/organizations/:id/restrictions` | Odczyt trzech allow-list + `version` org |
+| `GET /api/v1/admin/organizations/:id/restrictions` | Odczyt trzech list i `version` organizacji |
 | `PUT /api/v1/admin/organizations/:id/restrictions` | Atomowa zamiana wszystkich trzech |
-| `PATCH .../restrictions/payment-methods` | Chirurgiczne `{ add?, remove? }` |
+| `PATCH .../restrictions/payment-methods` | Wybiórcza zmiana `{ add?, remove? }` |
 | `PATCH .../restrictions/delivery-methods` | To samo |
 | `PATCH .../restrictions/warehouses` | To samo |
 
-Storefront preflight:
+Wstępne sprawdzenie w storefroncie:
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `POST /api/v1/storefront/checkout/preflight` | Zwraca `{ canTransact, allowedPaymentMethodIds, allowedDeliveryMethodIds, assignedWarehouseIds }` albo 423, gdy org nie może transakcjonować |
+| `POST /api/v1/storefront/checkout/preflight` | Zwraca `{ canTransact, allowedPaymentMethodIds, allowedDeliveryMethodIds, assignedWarehouseIds }` albo 423, gdy organizacja nie może składać zamówień |
 
-### Applicable price lists + promotion targeting
+### Cenniki obowiązujące organizację i promocje dla organizacji
 
-`OrganizationEffectivePriceListsService.listApplicable(orgId)` ponownie używa
-istniejącego `application-rule-evaluator` z modułu `price_lists`
-do wyliczenia każdego Price List aktualnie stosowanego do Organization,
-każdego z tablicą `reasons[]`
-(`direct_organization_match` / `customer_group_match` /
-`sales_channel_inheritance` / `segment_rule_match`). Udostępnione na
-`GET /api/v1/admin/organizations/:id/applicable-price-lists` i
-renderowane jako tabela read-only na stronie szczegółów Organization w admin.
+`OrganizationEffectivePriceListsService.listApplicable(orgId)` korzysta z istniejącego
+`application-rule-evaluator` z modułu `price_lists`, aby wyliczyć wszystkie cenniki obecnie
+obowiązujące organizację, każdy z tablicą `reasons[]` (`direct_organization_match` /
+`customer_group_match` / `sales_channel_inheritance` / `segment_rule_match`). Wynik jest dostępny pod
+`GET /api/v1/admin/organizations/:id/applicable-price-lists` i wyświetlany jako tabela tylko do
+odczytu na stronie szczegółów organizacji w panelu.
 
-Promotions: gdy promocja targetuje konkretną Organization
-(`promotions.organization_id` jest ustawione), platforma stosuje regułę
-tylko gdy Organization koszyka jest `active`. Sprawdzenie podpięte jest przez
-wymagany argument konstruktora `resolveOrganizationStatus` w
-`PromotionService`, który moduł `promotions` podpina do
+Promocje: gdy promocja jest skierowana do konkretnej organizacji (`promotions.organization_id` jest
+ustawione), platforma stosuje ją tylko wtedy, gdy organizacja koszyka ma status `active`. Sprawdzenie
+jest podłączone przez wymagany argument konstruktora `resolveOrganizationStatus` w
+`PromotionService`, który moduł `promotions` podłącza do
 `organizationReadPort.loadEffectiveOrganization`.
 
-### Sales-rep ownership
+### Przypisanie handlowców
 
-`organization_sales_rep_assignments` (pivot: `(organization_id,
-admin_user_id)`) wiąże sales reps z organizations. Gdy rola admin
-wywołującego to `sales_representative`, listy admin Orders i RFQ
-filtrowane są do org, które rep posiada. Platform admins
-widzą wszystko.
+`organization_sales_rep_assignments` (tabela łącząca `(organization_id, admin_user_id)`) wiąże
+handlowców z organizacjami. Gdy rola administratora wywołującego to `sales_representative`, listy
+zamówień i zapytań ofertowych w panelu są ograniczane do organizacji przypisanych temu handlowcowi.
+Administratorzy platformy widzą wszystko.
 
-Trzy endpointy utrzymują relację, a ten moduł je posiada i
-rejestruje:
+Tę relację obsługują trzy endpointy, należące do tego modułu i przez niego rejestrowane:
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `GET /api/v1/admin/organizations/:id/sales-reps` | Lista rep przypisanych do organization. |
-| `POST /api/v1/admin/organizations/:id/sales-reps` | Przypisanie rep. |
+| `GET /api/v1/admin/organizations/:id/sales-reps` | Lista handlowców przypisanych do organizacji. |
+| `POST /api/v1/admin/organizations/:id/sales-reps` | Przypisanie handlowca. |
 | `DELETE /api/v1/admin/organizations/:id/sales-reps/:adminUserId` | Usunięcie przypisania. |
 
-Są gated przez `organizations:assign-sales-rep`. Do 2026-08 były
-rejestrowane przez moduł quote-requests i gated przez
-`rfqs:handle`, co oznaczało, że wyłączenie quote requests usuwało też
-możliwość przypisania sales representative — a kod gating ekranu znikał z
-macierzy ról. Przypisanie rep kwalifikuje organization, więc należy tu, z kodem,
-który ten moduł deklaruje. Jeden endpoint, który został po stronie quote-requests,
-to odwrotne listowanie,
-`GET /api/v1/admin/sales-reps/:adminUserId/organizations`:
-raportuje, ile quote requests jest otwartych per organization — to fakt tamtego
-modułu.
+Są chronione przez `organizations:assign-sales-rep`. Do 2026-08 rejestrował je moduł zapytań
+ofertowych i chronił je `rfqs:handle`, co oznaczało, że wyłączenie zapytań ofertowych odbierało też
+możliwość przypisywania handlowców — a kod chroniący ten ekran znikał z macierzy ról. Przypisanie
+handlowca dotyczy organizacji, więc należy do tego modułu, z kodem, który ten moduł deklaruje. Po
+stronie zapytań ofertowych pozostał jeden endpoint, listowanie w odwrotnym kierunku,
+`GET /api/v1/admin/sales-reps/:adminUserId/organizations`: podaje, ile zapytań ofertowych jest
+otwartych w każdej organizacji — a to fakt dotyczący tamtego modułu.
 
-Inne moduły czytają relację przez
-`organizationSalesRepScopePort` tego modułu,
-nigdy przez bezpośrednie zapytanie do pivot.
+Inne moduły odczytują tę relację przez `organizationSalesRepScopePort` tego modułu, nigdy przez
+bezpośrednie zapytanie do tabeli łączącej.
 
-### Walidacja VAT-ID / NIP
+### Walidacja numeru VAT i NIP
 
-Dwa produkcyjne klienty HTTP implementują port `VatValidator`:
+Port `VatValidator` mają dwie produkcyjne implementacje klienta HTTP:
 
-- `ViesClient` → `POST` na endpoint VIES REST
-  (`/check-vat-number`). Timeout 5 s; pojedynczy abort przy błędzie sieci.
-- `MinisterstwoFinansowClient` → `GET` na `wl-api.mf.gov.pl/api/search/nip/{nip}`.
-  Throttle 10 rps in-process; 7-dniowy cache key na `(nip, today)` wbudowany
-  w historię po stronie serwisu `OrganizationTaxIdValidation`
-  (jeden wiersz per próba).
+- `ViesClient` → `POST` na endpoint REST VIES (`/check-vat-number`). Limit czasu 5 s; jedno
+  przerwanie przy błędzie sieci.
+- `MinisterstwoFinansowClient` → `GET` na `wl-api.mf.gov.pl/api/search/nip/{nip}`. Ograniczenie do
+  10 żądań na sekundę w procesie; 7-dniowa pamięć podręczna z kluczem `(nip, today)`, oparta na
+  historii w usłudze `OrganizationTaxIdValidation` (jeden wiersz na próbę).
 
-`OrganizationTaxIdValidationService` auto-wybiera provider per
-prefix tax-id (polski 10-cyfrowy → MF; inny prefix ISO-2 → VIES;
-reszta → tylko format). Gdy `applyAutoFill=true` ORAZ wynik to
-`validated`, `legalName` org jest aktualizowane i `version`
-rośnie, aby następna edycja admin respektowała optimistic-lock.
+`OrganizationTaxIdValidationService` sam wybiera dostawcę na podstawie przedrostka numeru (polski
+10-cyfrowy → MF; inny dwuliterowy przedrostek ISO → VIES; pozostałe → tylko sprawdzenie formatu). Gdy
+`applyAutoFill=true` ORAZ wynik to `validated`, `legalName` organizacji jest aktualizowane, a
+`version` rośnie, aby następna edycja w panelu uwzględniała blokadę optymistyczną.
 
-Wszystkie adaptery degradują bezpiecznie przy awarii providera:
-`outcome: 'deferred'`. Zapis org nigdy nie pada przez problem zewnętrzny.
+Wszystkie adaptery bezpiecznie obsługują awarię dostawcy: `outcome: 'deferred'`. Zapis organizacji
+nigdy nie kończy się błędem z powodu problemu zewnętrznego.
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `POST /api/v1/admin/organizations/:id/vat-validations` | Jedna próba walidacji (`providerHint`, `applyAutoFill`) |
-| `GET /api/v1/admin/organizations/:id/vat-validations` | Lista historii, najnowsze pierwsze |
+| `GET /api/v1/admin/organizations/:id/vat-validations` | Historia, od najnowszych |
 
-### Picker primitive + wyszukiwanie bez diakrytyków
+### Lista wyboru i wyszukiwanie bez polskich znaków
 
-Panel admin dostarcza wielokrotnego użytku `<OrganizationPicker>` (single-select)
-i `<OrganizationPickerMulti>` (multi-select) na istniejącym
-`<Combobox>`. Korzystają z `GET /api/v1/admin/organizations?q=`, gdzie
-parametr `q` jest bez diakrytyków: zapytanie `lodz` znajduje
-„Bauhaus Łódź” przez zdenormalizowaną kolumnę `name_search` wypełnianą
-hookami `@BeforeCreate` / `@BeforeUpdate` encji Organization.
-`normalizeOrganizationName` to fold plus polityka whitespace, której wymaga
-kolumna. Sam fold to `foldDiacritics`
-(`packages/contracts/src/text-normalization.ts`), współdzielony z panelem admin: dekompozycja NFD, strip combining marks, potem jawna tabela dla
-precomposed Latin letters, których NFD nie rozdziela (`ł`/`Ł`, `ø`/`Ø`, `đ`/`Đ`, `ð`/`Ð`, `þ`/`Þ`, `ß`, `æ`,
-`œ`). Zmiana tej tabeli składa nowe wiersze inaczej niż stare,
-więc to migracja `name_search`, nie edycja.
+Panel dostarcza komponenty wielokrotnego użytku `<OrganizationPicker>` (wybór jednej organizacji) i
+`<OrganizationPickerMulti>` (wybór wielu), zbudowane na istniejącym `<Combobox>`. Korzystają z
+`GET /api/v1/admin/organizations?q=`, gdzie parametr `q` nie wymaga znaków diakrytycznych: zapytanie
+`lodz` znajduje „Bauhaus Łódź” dzięki zdenormalizowanej kolumnie `name_search`, wypełnianej przez hooki
+`@BeforeCreate` / `@BeforeUpdate` encji Organization. `normalizeOrganizationName` to usunięcie
+diakrytyków i reguły dotyczące odstępów, których wymaga ta kolumna. Samo usuwanie diakrytyków to
+`foldDiacritics` (`packages/contracts/src/text-normalization.ts`), wspólne z panelem: rozkład NFD,
+usunięcie znaków łączących, a potem jawna tabela dla liter łacińskich, których NFD nie rozkłada
+(`ł`/`Ł`, `ø`/`Ø`, `đ`/`Đ`, `ð`/`Ð`, `þ`/`Þ`, `ß`, `æ`, `œ`). Zmiana tej tabeli sprawi, że nowe
+wiersze będą przekształcane inaczej niż stare, więc wymaga migracji `name_search`, a nie zwykłej
+edycji.
 
 ### Nowe ustawienia (zadeklarowane w manifeście)
 
-| Code | Type | Default | Purpose |
+| Kod | Typ | Wartość domyślna | Przeznaczenie |
 | --- | --- | --- | --- |
-| `organizations.moderation.mode` | `string` enum | `'manual'` | `manual` ⇒ pending_verification; `auto` ⇒ active przy rejestracji |
-| `organizations.notifications.new_registration_recipients` | `json` array | `[]` | Odbiorcy e-mail powiadomień o nowej Organization |
+| `organizations.moderation.mode` | wyliczenie `string` | `'manual'` | `manual` ⇒ pending_verification; `auto` ⇒ active od razu po rejestracji |
+| `organizations.notifications.new_registration_recipients` | tablica `json` | `[]` | Adresy e-mail powiadamiane o nowej organizacji |
 
 ### Migracje
 
-- `20260611T140349_organizations_consolidation.ts` — dodaje `legal_name`, kolumny walidacji VAT,
-  kolumny audytu blocked / rejected / approved, optimistic-lock `version`,
-  zdenormalizowaną kolumnę `name_search`, trzy allow-list bridges,
-  tabelę historii walidacji, indeks B-Tree `organizations_name_search_idx`
-  i mapuje każdy wiersz `suspended` na `blocked`.
-- `20260611T140350_admin_notifications_init.ts` (należy do `admin_notifications`) — dodaje tabelę `admin_notifications`
-  + bridge per-admin `admin_notification_reads`.
-- `20260611T140351_customer_accounts_organization_optional.ts` (należy do
-  `customer_accounts`) — poluzowało
-  `customer_accounts.organization_id` do nullable dla kont guest-style
-  **Ten design jest martwy**: zastąpiły go personal organizations,
-  a kolumnę ponownie zaostrzono — zobacz
-  `customer_accounts`' `20260825T141659_customer_accounts_organization_required`.
-- `20260717T151403_organizations_personal_organizations.ts` — dodaje `organizations.is_personal`
-  i backfill personal organization dla każdego wcześniejszego konta bez org
-  (zobacz „Personal organizations” poniżej).
+- `20260611T140349_organizations_consolidation.ts` — dodaje `legal_name`, kolumny walidacji VAT, kolumny audytu
+  blokady, odrzucenia i zatwierdzenia, `version` do blokady optymistycznej, zdenormalizowaną kolumnę
+  `name_search`, trzy tabele list dozwolonych, tabelę historii walidacji, indeks B-Tree
+  `organizations_name_search_idx` i zamienia każdy wiersz `suspended` na `blocked`.
+- `20260611T140350_admin_notifications_init.ts` (należy do `admin_notifications`) — dodaje tabelę `admin_notifications` i tabelę łączącą
+  `admin_notification_reads` dla każdego administratora.
+- `20260611T140351_customer_accounts_organization_optional.ts` (należy do `customer_accounts`) — dopuściła `NULL` w
+  `customer_accounts.organization_id` dla kont gościnnych. **To rozwiązanie jest martwe**: zastąpiły
+  je organizacje prywatne, a kolumnę ponownie zaostrzono — zobacz
+  `20260825T141659_customer_accounts_organization_required` w `customer_accounts`.
+- `20260717T151403_organizations_personal_organizations.ts` — dodaje `organizations.is_personal` i tworzy organizację prywatną
+  dla każdego wcześniej istniejącego konta bez organizacji (zobacz „Organizacje prywatne” niżej).
 
-### Personal organizations (B2C)
+### Organizacje prywatne (B2C)
 
-Organization to jedyny koncept tenant platformy. Klient B2C /
-indywidualny **nie** jest przypadkiem null-org: każda samodzielna rejestracja
-klienta provisionuje single-member **personal
-organization** (`is_personal = true`). Organization i
-konto zapisywane są **w jednej transakcji**, przez moduł właściciela wiersza
-konta, na obu ścieżkach tworzenia — self-registration i federated sign-in.
-To oznacza:
+Organizacja jest jedynym pojęciem tenanta w platformie. Klient B2C, czyli osoba fizyczna, **nie** jest
+przypadkiem „bez organizacji”: każda samodzielna rejestracja klienta tworzy jednoosobową
+**organizację prywatną** (`is_personal = true`). Organizacja i konto są zapisywane **w jednej
+transakcji**, przez moduł, który jest właścicielem wiersza konta, na obu ścieżkach tworzenia konta —
+przy samodzielnej rejestracji i przy logowaniu przez zewnętrznego dostawcę tożsamości. Oznacza to, że:
 
-- **Transakcje bez zmian.** `organization_id` jest `NOT NULL`,
-  więc ordering, RFQ, credit, invoices i adresy nie potrzebują ścieżki null-org — a
-  kolumna, nie guard, odmawia: MikroORM stosuje tenant filter do
-  `SELECT` / `UPDATE` / `DELETE`, nie do `INSERT`.
-- **Izolacja strukturalna.** Tenant guard izoluje każdą
-  personal org jako własnego tenant — dwóch klientów B2C nigdy nie widzi
-  swoich danych, bez specjalnego null-org case.
-- **Domyślne dla indywidualnych.** `status = active`, `vat_status = vat_exempt`,
-  `name` z imienia klienta (fallback na local-part e-maila),
-  oraz syntetyczny 32-hex `tax_id` z id konta (kolumna
-  globalnie `UNIQUE`; osoba fizyczna nie ma firmowego tax id).
-- **Niewidoczne w admin B2B.** Personal org domyślnie wykluczone z
-  listy/pickerów admin, nie mogą dostać sales rep i nie wchodzą
-  w kolejkę moderacji (tworzone jako `active`). Lista admin org
-  akceptuje `?includePersonal=true`, aby je pokazać w razie potrzeby.
-- **Gate per channel.** Samodzielna (B2C) rejestracja kontrolowana per
-  sales channel ustawieniem `customers.allow_registration_without_organization`;
-  kanał tylko B2B odmawia rejestracji i nic nie provisionuje. Nazwa ustawienia
-  to relikt wcześniejszego designu — gate'uje rejestrację poza *firmową* organization,
-  nie rejestrację bez organization.
-- **Odłączenie członka od firmy przenosi go tutaj.** Admin
-  `DELETE /api/v1/admin/customers/:id/organization` kiedyś pisał
-  `organization_id = NULL`; teraz provisionuje (lub odnajduje)
-  personal organization klienta i przenosi go tam, zachowując
-  audit verb `customer_account.organization_unassigned`.
+- **Transakcje działają bez zmian.** `organization_id` ma `NOT NULL`, więc zamówienia, zapytania
+  ofertowe, limity kredytowe, faktury i adresy nie potrzebują ścieżki „bez organizacji” — a odmowę
+  zapewnia kolumna, a nie zabezpieczenie w kodzie: MikroORM stosuje filtr tenanta do `SELECT` /
+  `UPDATE` / `DELETE`, ale nie do `INSERT`.
+- **Izolacja wynika ze struktury.** Zabezpieczenie izolacji tenantów traktuje każdą organizację
+  prywatną jako osobnego tenanta — dwóch klientów B2C nigdy nie widzi swoich danych, bez żadnego
+  szczególnego przypadku dla braku organizacji.
+- **Wartości domyślne dla osób fizycznych.** `status = active`, `vat_status = vat_exempt`, `name` z
+  imienia i nazwiska klienta (albo z części adresu e-mail przed `@`) oraz syntetyczny 32-znakowy
+  szesnastkowy `tax_id` utworzony z identyfikatora konta (kolumna ma globalne `UNIQUE`, a osoba
+  fizyczna nie ma firmowego NIP).
+- **Niewidoczne na ekranach B2B w panelu.** Organizacje prywatne są domyślnie pomijane na listach i
+  listach wyboru w panelu, nie można przypisać do nich handlowca i nie trafiają do kolejki moderacji
+  (powstają jako `active`). Lista organizacji w panelu przyjmuje `?includePersonal=true`, aby je w
+  razie potrzeby pokazać.
+- **Dostępność zależna od kanału.** Samodzielną rejestrację (B2C) w każdym kanale sprzedaży włącza
+  ustawienie `customers.allow_registration_without_organization`; kanał tylko dla B2B odrzuca
+  rejestrację i niczego nie tworzy. Nazwa ustawienia to pozostałość po wcześniejszym rozwiązaniu —
+  dotyczy rejestracji poza organizacją *firmową*, a nie rejestracji bez organizacji.
+- **Odłączenie członka od firmy przenosi go tutaj.** `DELETE /api/v1/admin/customers/:id/organization`
+  w panelu zapisywało kiedyś `organization_id = NULL`; teraz tworzy (albo odnajduje) organizację
+  prywatną klienta i przenosi go do niej, zachowując w audycie akcję
+  `customer_account.organization_unassigned`.
 
-Firmowe (B2B) organizations pozostają nietknięte — invariant single-member
-(`assertMembershipAllowed`) odrzuca tylko dodanie drugiego członka do
-personal org.
+Organizacje firmowe (B2B) pozostają bez zmian — reguła jednoosobowości (`assertMembershipAllowed`)
+odrzuca tylko dodanie drugiego członka do organizacji prywatnej.

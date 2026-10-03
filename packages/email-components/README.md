@@ -25,7 +25,7 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 
 **Third-party**
 
-- `@measured/puck` * — *optional*
+- `@puckeditor/core` * — *optional*
 - `react` ^19.0.0 — *optional*
 - `react-dom` ^19.0.0 — *optional*
 

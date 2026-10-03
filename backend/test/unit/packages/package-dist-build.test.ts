@@ -985,7 +985,7 @@ describe('the built declarations are real types, not `any`', () => {
  * `skipLibCheck` is `false` here — with it on, the error is invisible, which is exactly how
  * a published defect of this shape survives. Diagnostics are then filtered to the probed
  * packages' **own** files: a strict consumer with no `@types/node` also reports a
- * `NodeJS`-namespace reference inside `@measured/puck`, and this asserts a property of what
+ * `NodeJS`-namespace reference inside `@puckeditor/core`, and this asserts a property of what
  * *this repository emits*, not of its transitive declaration graph. The filter is derived
  * from the package directories under test, never a list of tolerated files.
  */

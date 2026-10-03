@@ -1,206 +1,202 @@
 ---
 title: inventory
-description: Poziomy stanów, rezerwacje, powiadomienia o dostępności
+description: Stany magazynowe, rezerwacje, powiadomienia o dostępności
 ---
 
 # `inventory`
 
-Moduł wielomagazynowego stanu: tożsamość magazynu, liczniki on-hand i reserved
-per `(product, warehouse)`, powiązanie kanału sprzedaży, alerty niskiego stanu,
-pasma wyświetlania, backorder + unmanaged + notify-when-available, import CSV
-oraz zapisy `stock_allocations` per linia.
+Moduł stanów magazynowych w wielu magazynach: dane magazynów, liczniki stanu fizycznego (on-hand) i
+zarezerwowanego (reserved) dla każdej pary `(product, warehouse)`, przypisanie magazynów do kanałów
+sprzedaży, alerty o niskim stanie, przedziały dostępności wyświetlane w sklepie, sprzedaż na
+zamówienie (backorder), produkty bez śledzenia stanu, powiadomienia o dostępności, import CSV oraz
+zapis alokacji `stock_allocations` dla każdej pozycji zamówienia.
 
-Moduł zastępuje model single-bucket z foundation. Migracja
-`20260503T182812_inventory_workflow.ts` zachowuje
-tabelę foundation `stock_levels`, ale
-rozszerza kształt unikalności do `(product_id, variant_id, warehouse_id)`,
-seeduje magazyn `Default` z deterministycznym UUID
-`00000000-0000-4000-8000-00000000d017` i paruje każdy aktywny kanał
-sprzedaży z tym magazynem przez nową tabelę
-`warehouse_channel_assignments`.
+Moduł zastępuje pierwotny model z jednym wspólnym stanem. Migracja
+`20260503T182812_inventory_workflow.ts` zachowuje pierwotną tabelę
+`stock_levels`, ale rozszerza unikalność do `(product_id, variant_id, warehouse_id)`, tworzy magazyn
+`Default` ze stałym UUID `00000000-0000-4000-8000-00000000d017` i przypisuje do niego każdy aktywny
+kanał sprzedaży przez nową tabelę `warehouse_channel_assignments`.
 
 ## Encje modułu
 
-| Entity | Cel |
+| Encja | Przeznaczenie |
 | --- | --- |
-| `Warehouse` | Tożsamość lokalizacji magazynowej (nazwa, code, flaga active, kontakt, adres) |
-| `StockLevel` | Wiersz `(product_id, variant_id, warehouse_id)` z `on_hand` + `reserved` |
-| `WarehouseChannelAssignment` | Powiązanie m:n magazyn ↔ kanał sprzedaży; co najwyżej jedno `is_default = true` per kanał |
-| `InventoryThreshold` | Progi pasma wyświetlania w scope `global` / `category` / `product` |
-| `StockAllocation` | Jeden wiersz per `(order_item, warehouse)` — pochodzenie fulfilmentu + wsparcie release |
-| `AvailabilityNotification` | Klient lub anonimowy e-mail zapisany na sygnał back-in-stock |
+| `Warehouse` | Dane magazynu (nazwa, kod, flaga aktywności, kontakt, adres) |
+| `StockLevel` | Wiersz `(product_id, variant_id, warehouse_id)` z `on_hand` i `reserved` |
+| `WarehouseChannelAssignment` | Przypisanie wiele-do-wielu magazyn ↔ kanał sprzedaży; najwyżej jedno `is_default = true` na kanał |
+| `InventoryThreshold` | Progi przedziałów dostępności w zakresie `global` / `category` / `product` |
+| `StockAllocation` | Jeden wiersz na parę `(order_item, warehouse)` — skąd realizowana jest pozycja i podstawa zwolnienia rezerwacji |
+| `AvailabilityNotification` | Zapis klienta albo anonimowego adresu e-mail na powiadomienie o ponownej dostępności |
 
-## Ustawienia (Module Settings)
+## Ustawienia modułu
 
 Siedem kluczy w grupie `inventory`:
 
-| Code | Type | Default | Notes |
+| Kod | Typ | Wartość domyślna | Uwagi |
 | --- | --- | --- | --- |
-| `inventory.display_mode` | string | `band` | Wyświetlanie storefront: `exact` / `band` / `available_or_not` |
+| `inventory.display_mode` | string | `band` | Sposób pokazywania stanu w storefroncie: `exact` / `band` / `available_or_not` |
 | `inventory.fulfilment_strategy` | string | `default_first` | `any` / `default_first` / `lowest_stock_first` / `highest_stock_first` / `defined_order` |
-| `inventory.fulfilment_strategy_warehouse_order` | json | `[]` | Kolejność obchodu dla strategii `defined_order` |
-| `inventory.global_threshold_high` | number | `100` | Skumulowany on-hand od którego produkt jest „high stock” |
-| `inventory.global_threshold_medium` | number | `20` | Od którego „medium” |
-| `inventory.global_threshold_low` | number | `1` | Od którego „low”; poniżej out-of-stock |
-| `inventory.low_stock_alert_recipient_email` | string | `''` | Puste fallbackuje do env `INVENTORY_LOW_STOCK_RECIPIENT` |
+| `inventory.fulfilment_strategy_warehouse_order` | json | `[]` | Kolejność magazynów dla strategii `defined_order` |
+| `inventory.global_threshold_high` | number | `100` | Łączny stan, od którego produkt ma „wysoki stan” |
+| `inventory.global_threshold_medium` | number | `20` | Od którego ma „średni stan” |
+| `inventory.global_threshold_low` | number | `1` | Od którego ma „niski stan”; poniżej jest niedostępny |
+| `inventory.low_stock_alert_recipient_email` | string | `''` | Gdy puste, używana jest zmienna środowiskowa `INVENTORY_LOW_STOCK_RECIPIENT` |
 
-## Publiczne API
+## API publiczne
 
-Trasy admina są chronione przez `inventory:read` (odczyt) / `inventory:write` (zapis) —
-własne kody modułu od 2026-08-29. Wszystkie 21 wcześniej wymuszało `orders:read`
-i `catalog:write`; zobacz **Permissions** poniżej.
+Trasy administracyjne są chronione przez `inventory:read` (odczyt) i `inventory:write` (zapis) —
+własne kody modułu od 2026-08-29. Wcześniej wszystkie 21 tras wymagało `orders:read` i
+`catalog:write`; zobacz **Uprawnienia** niżej.
 
-Tabela wymienia wszystkie 21 miejsc admina. Wymieniała dziesięć do 2026-08-29 i
-pomijała zapis progów per-(product, warehouse) oraz obie trasy backward-compatibility
-foundation — to rodzaj luki, którą każda z czterech poprzednich napraw uprawnień
-znajdowała na stronie modułu.
+Tabela wymienia wszystkie 21 tras administracyjnych. Do 2026-08-29 wymieniała dziesięć i pomijała
+zapis progów dla par (produkt, magazyn) oraz obie trasy zachowane dla zgodności wstecznej — to ten
+rodzaj luki, który każda z czterech wcześniejszych poprawek uprawnień znajdowała na stronie modułu.
 
-| Verb + Path | Permission | Purpose |
+| Metoda i ścieżka | Uprawnienie | Przeznaczenie |
 | --- | --- | --- |
-| `GET /api/v1/admin/inventory` | `inventory:read` | KPI landing: śledzone produkty, łączny on-hand, liczba out-of-stock, liczba low-stock, sumy per magazyn |
-| `GET /api/v1/admin/inventory/levels` | `inventory:read` | Roster per produkt ze skumulowanym on-hand, rozbiciem per magazyn, pasmem wyświetlania |
-| `PUT /api/v1/admin/inventory/levels` | `inventory:write` | Ustaw absolutny on-hand dla `(productId, warehouseId, variantId?)`; emituje `inventory.adjusted.v1` |
-| `PUT /api/v1/admin/inventory/warehouse-low-stock-thresholds` | `inventory:write` | Progi low-stock per-(product, warehouse) |
-| `GET /api/v1/admin/inventory/low-stock` | `inventory:read` | Produkty, których skumulowany on-hand jest at-or-below `lowStockThreshold` |
-| `GET /api/v1/admin/inventory/thresholds` | `inventory:read` | Odczyt globalnych / per-kategoria / per-produkt progów pasma wyświetlania |
-| `PATCH /api/v1/admin/inventory/thresholds` | `inventory:write` | Aktualizacja |
+| `GET /api/v1/admin/inventory` | `inventory:read` | Wskaźniki na stronę główną: śledzone produkty, łączny stan, liczba produktów niedostępnych i z niskim stanem, sumy dla magazynów |
+| `GET /api/v1/admin/inventory/levels` | `inventory:read` | Lista produktów z łącznym stanem, rozbiciem na magazyny i przedziałem dostępności |
+| `PUT /api/v1/admin/inventory/levels` | `inventory:write` | Ustawienie bezwzględnego stanu dla `(productId, warehouseId, variantId?)`; emituje `inventory.adjusted.v1` |
+| `PUT /api/v1/admin/inventory/warehouse-low-stock-thresholds` | `inventory:write` | Progi niskiego stanu dla par (produkt, magazyn) |
+| `GET /api/v1/admin/inventory/low-stock` | `inventory:read` | Produkty, których łączny stan jest równy `lowStockThreshold` albo niższy |
+| `GET /api/v1/admin/inventory/thresholds` | `inventory:read` | Odczyt progów przedziałów dostępności — globalnych, dla kategorii i dla produktów |
+| `PATCH /api/v1/admin/inventory/thresholds` | `inventory:write` | Aktualizacja progów |
 | `GET /api/v1/admin/warehouses[/:id]` | `inventory:read` | Lista i szczegóły magazynów |
-| `POST/PATCH/DELETE /api/v1/admin/warehouses[/:id]` | `inventory:write` | CRUD magazynów; odmawia delete, gdy magazyn jest domyślny kanału lub trzyma stock |
-| `GET /api/v1/admin/sales-channels/:id/warehouses` | `inventory:read` | Magazyny powiązane z kanałem |
-| `POST/PATCH/DELETE /api/v1/admin/sales-channels/:id/warehouses[/:assignmentId]` | `inventory:write` | Powiązanie kanał ↔ magazyn z co najwyżej jednym default per kanał |
-| `GET /api/v1/admin/inventory/availability-notifications` | `inventory:read` | Admin przegląda kolejkę back-in-stock |
-| `PATCH /api/v1/admin/inventory/availability-notifications/:id` | `inventory:write` | Anuluje subskrypcję |
-| `POST /api/v1/admin/inventory/import` | `inventory:write` | Import CSV stanów (`?dryRun=true` waliduje bez zapisu) |
-| `PUT /api/v1/admin/inventory` | `inventory:write` | **Deprecated** zapis single-bucket foundation; deleguje do `StockLevelService.setOnHand` względem seedowanego magazynu Default |
-| `GET /api/v1/admin/inventory/legacy` | `inventory:read` | **Deprecated** lista single-bucket foundation |
+| `POST/PATCH/DELETE /api/v1/admin/warehouses[/:id]` | `inventory:write` | Zarządzanie magazynami; usunięcie jest odrzucane, gdy magazyn jest domyślny dla kanału albo ma stan |
+| `GET /api/v1/admin/sales-channels/:id/warehouses` | `inventory:read` | Magazyny przypisane do kanału |
+| `POST/PATCH/DELETE /api/v1/admin/sales-channels/:id/warehouses[/:assignmentId]` | `inventory:write` | Przypisanie kanał ↔ magazyn, z najwyżej jednym magazynem domyślnym na kanał |
+| `GET /api/v1/admin/inventory/availability-notifications` | `inventory:read` | Podgląd kolejki powiadomień o ponownej dostępności |
+| `PATCH /api/v1/admin/inventory/availability-notifications/:id` | `inventory:write` | Anulowanie zapisu na powiadomienie |
+| `POST /api/v1/admin/inventory/import` | `inventory:write` | Import stanów z CSV (`?dryRun=true` sprawdza dane bez zapisu) |
+| `PUT /api/v1/admin/inventory` | `inventory:write` | **Wycofywany** zapis w pierwotnym modelu z jednym stanem; deleguje do `StockLevelService.setOnHand` dla magazynu Default |
+| `GET /api/v1/admin/inventory/legacy` | `inventory:read` | **Wycofywana** lista w pierwotnym modelu z jednym stanem |
 
 ### Trasy publiczne
 
 | Metoda i ścieżka | Odbiorca | Przeznaczenie |
 | --- | --- | --- |
-| `GET /api/v1/storefront/inventory/display-mode` | anonimowy | Jaki tryb wyświetlania stanu stosuje kanał sprzedaży żądania |
+| `GET /api/v1/storefront/inventory/display-mode` | anonimowy | Jak kanał sprzedaży żądania pokazuje stan |
 | `GET /api/v1/storefront/inventory/stock/:id` | anonimowy | Stan produktu z łącznym stanem liczonym tylko z magazynów przypisanych do kanału wywołującego (dodatkowo zawężonych do listy dozwolonych magazynów jego organizacji, jeśli jest ustawiona); `404` dla produktu, którego wywołujący nie może zobaczyć |
-| `POST /api/v1/storefront/inventory/notify-when-available` | anonimowy lub zalogowany | Zapisuje adres e-mail (podany w treści żądania) na powiadomienie o ponownej dostępności |
+| `POST /api/v1/storefront/inventory/notify-when-available` | anonimowy lub zalogowany | Zapisuje adres e-mail podany w treści żądania na powiadomienie o ponownej dostępności |
 | `POST /api/v1/catalog/products/:id/notify-when-available` | zalogowany klient | Zapisuje adres e-mail konta klienta na powiadomienie o ponownej dostępności |
 
 ## Uprawnienia
 
-`inventory:read` i `inventory:write`, własne modułu od 2026-08-29.
+`inventory:read` i `inventory:write`, należące do modułu od 2026-08-29.
 
-Wcześniej wszystkie 21 tras admina wymuszało kody dwóch innych modułów — dziewięć
-odczytów na `orders:read` i dwanaście zapisów na `catalog:write`. Kto mógł edytować
-opis produktu, mógł tworzyć, przemianowywać i usuwać magazyn, przepisywać stan,
-uruchamiać import CSV przez stock każdego produktu i wiązać lub odpinać magazyn od
-kanału sprzedaży; a kto mógł czytać zamówienia, mógł enumerować każdy magazyn i adres
-na nim. Żaden kod nie nazywa danych, których dotyka — to dyskryminator, na
-którym rozstrzyga się własność uprawnień: per trasa, a nie per moduł.
+Wcześniej wszystkie 21 tras administracyjnych wymagało kodów dwóch innych modułów — dziewięć odczytów
+`orders:read`, a dwanaście zapisów `catalog:write`. Kto mógł edytować opis produktu, mógł tworzyć,
+zmieniać nazwy i usuwać magazyny, nadpisywać stany, uruchamiać import CSV obejmujący stany wszystkich
+produktów i przypisywać magazyny do kanałów sprzedaży lub je odłączać; a kto mógł czytać zamówienia,
+mógł wyliczyć wszystkie magazyny i ich adresy. Żaden z tych kodów nie opisuje danych, do których daje
+dostęp — a właśnie to rozstrzyga, kto jest właścicielem uprawnienia: osobno dla każdej trasy, a nie dla
+modułu.
 
-**Nie ma migracji danych**: rola, która docierała do tych ekranów przez
-`catalog:write` lub `orders:read`, dostaje nowe kody explicite na
-`/admin-roles`, gdzie manifest wstawia je automatycznie. Nadanie ich każdemu
-posiadaczowi starych kodów odtworzyłoby nadmierne uprawnienie, które split usuwa.
+**Nie ma migracji danych**: rola, która miała dostęp do tych ekranów dzięki `catalog:write` albo
+`orders:read`, musi jawnie dostać nowe kody na `/admin-roles`, gdzie manifest dodaje je
+automatycznie. Przyznanie ich każdemu, kto ma stare kody, odtworzyłoby nadmierne uprawnienia, które
+ten podział usuwa.
 
-`backend/test/contract/inventory/permission-authority.test.ts` przypina oba
-kierunki i oba stare kody.
+`backend/test/contract/inventory/permission-authority.test.ts` sprawdza oba kierunki i oba stare kody.
 
-### Deprecated
+### Wycofywane trasy
 
-Dwie trasy foundation są starsze niż powierzchnia per-magazyn powyżej i zawsze
-adresują seedowany magazyn Default. Nic w platformie nie woła żadnej z nich
-— żaden ekran admina, żaden call klienta API admina, żaden seed, żaden skrypt — więc
-istnieją dla własnej integracji wdrożenia i nic więcej. Nie buduj na nich.
+Dwie pierwotne trasy są starsze niż opisane wyżej API dla wielu magazynów i zawsze dotyczą magazynu
+Default utworzonego przy instalacji. Nic w platformie nie wywołuje żadnej z nich — żaden ekran panelu,
+żadne wywołanie klienta API panelu, żadne dane początkowe, żaden skrypt — więc istnieją wyłącznie dla
+własnych integracji wdrożeń. Nie opieraj na nich nowego kodu.
 
-| Verb + Path | Purpose | Replacement |
+| Metoda i ścieżka | Przeznaczenie | Zastępstwo |
 | --- | --- | --- |
-| `PUT /api/v1/admin/inventory` | Ustaw absolutny on-hand dla `(productId, variantId?)` w magazynie Default | `PUT /api/v1/admin/inventory/levels`, który bierze explicite `warehouseId` |
-| `GET /api/v1/admin/inventory/legacy` | Płaskie wiersze `stock_levels`, najnowsze pierwsze, opcjonalnie filtrowane `productId` | `GET /api/v1/admin/inventory/levels` dla wszystkiego oprócz `variantId` i `updatedAt`, których nie niesie |
+| `PUT /api/v1/admin/inventory` | Ustawienie bezwzględnego stanu dla `(productId, variantId?)` w magazynie Default | `PUT /api/v1/admin/inventory/levels`, który przyjmuje jawne `warehouseId` |
+| `GET /api/v1/admin/inventory/legacy` | Płaskie wiersze `stock_levels`, od najnowszych, z opcjonalnym filtrem `productId` | `GET /api/v1/admin/inventory/levels` — zawiera wszystko oprócz `variantId` i `updatedAt` |
 
-`PUT` deleguje teraz do tego samego serwisu co
-`PUT .../levels`, więc emituje `inventory.adjusted.v1` i odpowiada `404` dla
-nieznanego produktu zamiast pisać wiersz stocku dla niego. Zostanie usunięty, gdy
-log dostępu produkcyjnego lub właściciel wdrożenia potwierdzi, że nic tego nie woła.
+`PUT` deleguje teraz do tej samej usługi co `PUT .../levels`, więc emituje `inventory.adjusted.v1` i
+dla nieznanego produktu odpowiada `404`, zamiast zapisywać dla niego wiersz stanu. Zostanie usunięty,
+gdy logi dostępu z produkcji albo właściciel wdrożenia potwierdzą, że nic go nie wywołuje.
 
-## Flagi per produkt
+## Flagi produktu
 
-Pięć nowych pól żyje na `products` i przechodzi przez `PATCH /api/v1/admin/catalog/products/:id`:
+Pięć nowych pól w `products`, zapisywanych przez `PATCH /api/v1/admin/catalog/products/:id`:
 
-- `manageStock` (default `true`) — gdy `false`, storefront traktuje produkt jako zawsze dostępny, a ścieżki koszyka/zamówienia pomijają rezerwację całkowicie.
-- `backorderEnabled` (default `false`) — gdy `true`, checkout przy zerowym stocku jest akceptowany; powstały wiersz `stock_allocations` ma flagę `is_backorder = true`.
-- `lowStockThreshold` — opcjonalna liczba całkowita; gdy null, produkt jest zwolniony z alertów low-stock.
-- `fulfilmentStrategy` — per-produktowe nadpisanie globalnej strategii.
-- `fulfilmentStrategyWarehouseOrder` — gdy strategia to `defined_order`, uporządkowana lista UUID magazynów do obchodu.
+- `manageStock` (domyślnie `true`) — gdy `false`, storefront traktuje produkt jako zawsze dostępny, a
+  koszyk i zamówienia w ogóle pomijają rezerwację.
+- `backorderEnabled` (domyślnie `false`) — gdy `true`, checkout przy zerowym stanie jest akceptowany;
+  powstały wiersz `stock_allocations` ma `is_backorder = true`.
+- `lowStockThreshold` — opcjonalna liczba całkowita; gdy null, produkt nie wywołuje alertów o niskim
+  stanie.
+- `fulfilmentStrategy` — nadpisanie strategii globalnej dla produktu.
+- `fulfilmentStrategyWarehouseOrder` — przy strategii `defined_order` uporządkowana lista UUID
+  magazynów.
 
-## Rozwiązywanie pasma wyświetlania
+## Wyznaczanie przedziału dostępności
 
-Potrójne lookup `(product, category[], global)` działa per-klucz (high / medium / low),
-więc produkt może nadpisać tylko `low`, dziedzicząc `high` i `medium` z globalnego
-domyślnego. Resolver żyje w
-`packages/modules/inventory/src/backend/services/threshold-resolver.ts` i jest czystą
-funkcją z pełnym pokryciem testów jednostkowych.
+Wyszukiwanie progów w trzech zakresach `(product, category[], global)` odbywa się osobno dla każdego
+klucza (high / medium / low), więc produkt może nadpisać tylko `low`, dziedzicząc `high` i `medium` z
+wartości globalnych. Mechanizm znajduje się w
+`packages/modules/inventory/src/backend/services/threshold-resolver.ts` i jest czystą funkcją w pełni
+pokrytą testami jednostkowymi.
 
-Resolver pasma wyświetlania w
-`packages/modules/inventory/src/backend/services/display-band-resolver.ts` mapuje
-skumulowany on-hand na jedno z `high | medium | low | out_of_stock | available`
-(`available` to specjalne wiadro dla `manageStock = false`).
+Mechanizm w `packages/modules/inventory/src/backend/services/display-band-resolver.ts` przypisuje
+łącznemu stanowi jeden z przedziałów `high | medium | low | out_of_stock | available` (`available` to
+osobna kategoria dla `manageStock = false`).
 
-## Strategie fulfilmentu
+## Strategie realizacji
 
-Pięć strategii żyje w `fulfilment-strategy-resolver.ts`:
+Pięć strategii znajduje się w `fulfilment-strategy-resolver.ts`:
 
-| Strategy | Behaviour |
+| Strategia | Działanie |
 | --- | --- |
-| `any` | Wybierz pierwszy magazyn (lex po code), który zaspokoi linię w całości |
-| `default_first` | Jedyna strategia dzieląca linię między magazyny; magazyn domyślny pierwszy, reszta lex po code |
-| `lowest_stock_first` | Magazyn z najmniejszym wystarczającym `available` (lex tie-break) |
-| `highest_stock_first` | Magazyn z największym `available` (lex tie-break) |
-| `defined_order` | Obchodź skonfigurowaną listę id magazynów w kolejności; pierwszy wystarczający wygrywa |
+| `any` | Wybiera pierwszy magazyn (według kodu, leksykograficznie), który w całości pokrywa pozycję |
+| `default_first` | Jedyna strategia, która dzieli pozycję między magazyny; najpierw magazyn domyślny, potem pozostałe według kodu |
+| `lowest_stock_first` | Magazyn z najmniejszym wystarczającym `available` (remisy według kodu) |
+| `highest_stock_first` | Magazyn z największym `available` (remisy według kodu) |
+| `defined_order` | Przechodzi skonfigurowaną listę magazynów w podanej kolejności; wygrywa pierwszy wystarczający |
 
-Gdy `backorderEnabled = true`, wszystkie pięć strategii pozwala linii przejść z resztą
-oznaczoną jako backorder względem magazynu first-choice.
+Gdy `backorderEnabled = true`, każda z pięciu strategii pozwala złożyć zamówienie, a brakująca część
+jest oznaczana jako sprzedaż na zamówienie w magazynie pierwszego wyboru.
 
-Ścieżka składania zamówienia zapisuje jeden wiersz `stock_allocations` per pozycja.
-Anulowanie uruchamia `OrderService.releaseAllocations(orderId)`, który dekrementuje
-`stock_levels.reserved` per alokacja i stempluje `released_at`.
+Składanie zamówienia zapisuje jeden wiersz `stock_allocations` dla każdej pozycji. Anulowanie
+uruchamia `OrderService.releaseAllocations(orderId)`, które dla każdej alokacji zmniejsza
+`stock_levels.reserved` i zapisuje `released_at`.
 
-## Kontrakt reserve / release
+## Rezerwacja i zwolnienie
 
-`OrderService.placeOrder` otwiera `SELECT … FOR UPDATE` per wiersz
-`(product_id, variant_id, warehouse_id)` w transakcji składania. Magazyn domyślny
-jest rozwiązywany z `warehouse_channel_assignments` dla kanału sprzedaży zamówienia.
-Równolegli składający serializują się; przegrany podnosi `409 STOCK_UNAVAILABLE`,
-chyba że `backorderEnabled = true` na produkcie — wtedy linia przechodzi z
-`is_backorder = true`.
+`OrderService.placeOrder` w transakcji składania zamówienia wykonuje `SELECT … FOR UPDATE` na każdym
+wierszu `(product_id, variant_id, warehouse_id)`. Magazyn domyślny jest wyznaczany z
+`warehouse_channel_assignments` dla kanału sprzedaży zamówienia. Równoczesne zamówienia są
+wykonywane po kolei; to, które przegra, kończy się `409 STOCK_UNAVAILABLE`, chyba że produkt ma
+`backorderEnabled = true` — wtedy pozycja przechodzi z `is_backorder = true`.
 
-`releaseAllocations(orderId)` jest idempotentne — już zwolnione wiersze są
-odfiltrowane przez `released_at IS NULL`. Uruchamia się automatycznie przy anulowaniu
-zamówienia obok release limitu kredytowego.
+`releaseAllocations(orderId)` jest idempotentne — już zwolnione wiersze są pomijane dzięki
+`released_at IS NULL`. Uruchamia się automatycznie przy anulowaniu zamówienia, razem ze zwolnieniem
+limitu kredytowego.
 
-## Notify-when-available
+## Powiadomienia o dostępności
 
-Klient zapisuje się przez `POST /api/v1/catalog/products/:id/notify-when-available`
-(zalogowani klienci; używany jest adres e-mail ich konta) albo przez
-`POST /api/v1/storefront/inventory/notify-when-available` (anonimowo lub po
-zalogowaniu; adres e-mail podany w treści żądania). Subskrypcja jest odrzucana z `PRODUCT_UNMANAGED_STOCK`, gdy produkt
-zrezygnował ze śledzenia stocku; idempotentne ponowne subskrypcje zwracają istniejący wiersz.
+Klient zapisuje się przez `POST /api/v1/catalog/products/:id/notify-when-available` (zalogowani
+klienci; używany jest adres e-mail ich konta) albo przez
+`POST /api/v1/storefront/inventory/notify-when-available` (anonimowo lub po zalogowaniu; adres e-mail
+w treści żądania). Zapis jest
+odrzucany z `PRODUCT_UNMANAGED_STOCK`, gdy produkt nie ma śledzenia stanu; ponowny zapis jest
+idempotentny i zwraca istniejący wiersz.
 
-`AvailabilityWorker.attach(eventBus)` nasłuchuje zdarzeń `inventory.adjusted.v1`.
-Fan-out odpala tylko, gdy *skumulowany przez magazyny* przekracza 0 → > 0 — doładowania
-pojedynczego magazynu, które nie podnoszą skumulowanego powyżej zera, nigdy nie
-triggerują e-maili.
+`AvailabilityWorker.attach(eventBus)` nasłuchuje zdarzeń `inventory.adjusted.v1`. Powiadomienia są
+rozsyłane tylko wtedy, gdy stan *łączny we wszystkich magazynach* zmienia się z 0 na > 0 — uzupełnienie
+jednego magazynu, które nie podnosi stanu łącznego powyżej zera, nigdy nie wywołuje e-maili.
 
-## Alerty low-stock
+## Alerty o niskim stanie
 
-`LowStockAlertService.attach(eventBus)` nasłuchuje tego samego zdarzenia. Gdy skumulowany
-on-hand przechodzi z powyżej `lowStockThreshold` produktu na at-or-below, jeden e-mail
-idzie do odbiorcy skonfigurowanego przez `inventory.low_stock_alert_recipient_email`.
-Detektor jest platform-wide, nie per-kanał.
+`LowStockAlertService.attach(eventBus)` nasłuchuje tego samego zdarzenia. Gdy łączny stan spada
+powyżej `lowStockThreshold` produktu do tej wartości albo poniżej, wysyłany jest jeden e-mail do
+odbiorcy z `inventory.low_stock_alert_recipient_email`. Wykrywanie działa dla całej platformy, a nie
+osobno dla kanałów.
 
-## Reconciler przy starcie
+## Uzgadnianie przy starcie
 
-`WarehouseChannelReconciler` działa przy starcie PO `DefaultChannelReconciler`, więc
-każdy aktywny kanał sprzedaży kończy sparowany z co najmniej jednym magazynem i
-dokładnie jednym przypisaniem `is_default`. Reconciler jest idempotentny i obsługuje
-przypadek kanałów utworzonych po migracji.
+`WarehouseChannelReconciler` wykonuje się przy starcie PO `DefaultChannelReconciler`, dzięki czemu
+każdy aktywny kanał sprzedaży ma co najmniej jeden przypisany magazyn i dokładnie jedno przypisanie
+`is_default`. Uzgadnianie jest idempotentne i obsługuje kanały utworzone po migracji.
 
 ## Stałe
 

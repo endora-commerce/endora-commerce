@@ -1,60 +1,58 @@
 ---
 title: payments
-description: Dispatch sterowników płatności + zdarzenia rozliczenia
+description: Obsługa sterowników płatności i zdarzenia rozliczeń
 ---
 
 # `payments`
 
-Dispatch sterowników płatności + zdarzenia rozliczenia. Moduł posiada port
-sterownika (`gateway-adapter-port.ts`) oraz konkretne sterowniki w drzewie;
-adaptery per vendor żyją w dedykowanych modułach integracyjnych.
+Obsługa sterowników płatności i zdarzenia rozliczeń. Moduł jest właścicielem portu sterownika
+(`gateway-adapter-port.ts`) i wbudowanych sterowników; adaptery poszczególnych dostawców znajdują
+się w osobnych modułach integracyjnych.
 
 ## Sterowniki
 
-| Driver | Zachowanie |
+| Sterownik | Zachowanie |
 | --- | --- |
-| `bank-transfer-driver.ts` | Zwraca `NextAction.kind='awaiting_transfer'`; rozliczenie następuje poza systemem, gdy operator oznacza zamówienie jako opłacone |
+| `bank-transfer-driver.ts` | Zwraca `NextAction.kind='awaiting_transfer'`; rozliczenie następuje poza systemem, gdy operator oznaczy zamówienie jako opłacone |
 | `pickup-driver.ts` | `NextAction.kind='none'` przy płatności przy odbiorze |
 | `credit-limit-driver.ts` | Wywołuje `CreditLimitService.reserve` w transakcji składania zamówienia |
-| `gateway-adapter-port.ts` | Interfejs stub dla zewnętrznych bramek; implementacje per vendor żyją poza rdzeniem |
+| `gateway-adapter-port.ts` | Interfejs dla zewnętrznych bramek płatności; implementacje poszczególnych dostawców są poza rdzeniem |
 
-## Publiczne API
+## API publiczne
 
-Trzy trasy admina, chronione własnymi kodami uprawnień modułu:
+Trzy trasy administracyjne, chronione własnymi kodami uprawnień modułu:
 
-| Verb + Path | Uprawnienie | Cel |
+| Metoda i ścieżka | Uprawnienie | Przeznaczenie |
 | --- | --- | --- |
-| `GET /api/v1/admin/orders/:id/payments` | `payments:read` | Pełna historia płatności jednego zamówienia, w tym payload providera każdej próby |
-| `POST /api/v1/admin/orders/:id/payments/retry` | `payments:write` | Otwiera kolejną próbę `Payment` na zamówieniu |
-| `POST /api/v1/payments/receive` | `payments:write` | Ingress rozliczenia `receive_payment`: deklaruje, że płatność się powiodła lub nie |
+| `GET /api/v1/admin/orders/:id/payments` | `payments:read` | Pełna historia płatności jednego zamówienia, łącznie z danymi od operatora płatności dla każdej próby |
+| `POST /api/v1/admin/orders/:id/payments/retry` | `payments:write` | Otwiera kolejną próbę płatności (`Payment`) dla zamówienia |
+| `POST /api/v1/payments/receive` | `payments:write` | Przyjęcie rozliczenia `receive_payment`: zgłasza, że płatność się udała albo nie |
 
-Para jest celowa. Odczyt historii płatności zamówienia to praca supportu i
-finansów; otwarcie retry i deklaracja rozliczenia to operacje pieniężne,
-a organizacja operatora rozdziela te dwie role. Nie ma trzeciego kodu dla
-ingressu rozliczenia, mimo że to najbardziej niebezpieczna z trzech tras, bo
-trasa jest przejściowa do momentu podpisanej ścieżki auth webhooków PSP — zobacz
-uzasadnienie w `manifest.ts`.
+Podział na dwa kody jest celowy. Odczyt historii płatności zamówienia to praca działu obsługi
+klienta i finansów; otwarcie kolejnej próby i zgłoszenie rozliczenia to operacje na pieniądzach, a
+organizacja operatora rozdziela te role. Dla przyjęcia rozliczenia nie ma trzeciego kodu, choć to
+najbardziej ryzykowna z trzech tras, bo jest to trasa przejściowa, która zostanie zastąpiona
+podpisanym uwierzytelnianiem webhooków od operatorów płatności — zobacz uzasadnienie w
+`manifest.ts`.
 
-Dopóki `payments` tego nie zadeklarował, wszystkie trzy trasy były chronione przez
-`catalog:read` i `catalog:write`, więc operator, który mógł edytować produkt,
-mógł też czytać payload providera każdej płatności i oznaczać dowolną płatność
-jako rozliczoną. **Po aktualizacji: rola, która czytała dane płatności przez
-`catalog:read`, musi dostać `payments:read` explicite na `/admin-roles`** — nie ma
-migracji, bo nadanie `payments:read` każdemu posiadaczowi `catalog:read` odtworzyłoby
-dokładnie nadmierne uprawnienie, które ta zmiana usuwa.
+Zanim `payments` zadeklarował własne kody, wszystkie trzy trasy chronione były przez
+`catalog:read` i `catalog:write`, więc operator, który mógł edytować produkt, mógł też czytać dane
+od operatora płatności dla każdej płatności i oznaczać dowolną płatność jako rozliczoną. **Po
+aktualizacji rola, która odczytywała dane płatności dzięki `catalog:read`, musi jawnie dostać
+`payments:read` na `/admin-roles`** — nie ma migracji, bo przyznanie `payments:read` każdemu, kto ma
+`catalog:read`, odtworzyłoby dokładnie te nadmierne uprawnienia, które ta zmiana usuwa.
 
-Ciało ingressu ogranicza `providerDetails` do płaskiej mapy skalarów
-(`operatorProviderDetailsSchema`): kolumna jest persystowana verbatim i serwowana
-w całości z powrotem, więc to, co operator może do niej zapisać, jest ograniczone
-naszym schematem, a nie payloadem wywołującego. Integracje bramek budują payload
-w kodzie i nie podlegają temu ograniczeniu.
+Treść żądania przyjęcia rozliczenia ogranicza `providerDetails` do płaskiej mapy wartości prostych
+(`operatorProviderDetailsSchema`): kolumna jest zapisywana dosłownie i zwracana w całości, więc to,
+co operator może w niej zapisać, ogranicza nasz schemat, a nie treść przesłana przez wywołującego.
+Integracje bramek płatności budują te dane w kodzie i to ograniczenie ich nie dotyczy.
 
-Poza trasami zamówienia konsumują sterowniki przez
-`order-service.ts#placeOrder()`, a mutacje statusu płatności w adminie idą przez
+Poza tymi trasami sterowniki są używane przez zamówienia, przez `order-service.ts#placeOrder()`, a
+zmiany statusu płatności w panelu administracyjnym przechodzą przez
 `/api/v1/admin/orders/:id/payment-status`, którego właścicielem jest `orders`.
 
-Retry kupującego (`POST /api/v1/orders/:orderId/payments/retry`) to trasa
-klienta i autoryzuje przez `requireCustomer`, nie przez uprawnienie.
+Ponowienie płatności przez kupującego (`POST /api/v1/orders/:orderId/payments/retry`) to trasa
+klienta i jest autoryzowane przez `requireCustomer`, a nie przez uprawnienie.
 
 ## Emitowane zdarzenia
 
@@ -62,8 +60,7 @@ klienta i autoryzuje przez `requireCustomer`, nie przez uprawnienie.
 
 ## Punkty rozszerzenia
 
-- **Nowa bramka** — zaimplementuj `gateway-adapter-port.ts`, zarejestruj
-  sterownik w composition root, wystaw konfigurację przez moduł
-  `integrations`.
-- **Hooki fraud / 3DS** — włóż przed wywołaniem `reserve` sterownika,
-  zanim transakcja składania zamówienia się zatwierdzi.
+- **Nowa bramka płatności** — zaimplementuj `gateway-adapter-port.ts`, zarejestruj sterownik w
+  composition root i udostępnij konfigurację przez moduł `integrations`.
+- **Ochrona przed nadużyciami i 3DS** — wstaw je przed wywołaniem `reserve` sterownika, zanim
+  zostanie zatwierdzona transakcja składania zamówienia.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { resolveAllData, type ComponentConfig, type Config, type Data } from '@measured/puck';
+import { resolveAllData, type ComponentConfig, type Config, type Data } from '@puckeditor/core';
 import type { ReactElement } from 'react';
 import {
   withDescribedInvoiceBlocks,

@@ -4,66 +4,63 @@ title: Jednostki opakowania
 
 # Jednostki opakowania
 
-Nazwane jednostki zamawiania przypięte do produktu — na przykład **Paleta** o
-wartości 480 sztuk. Pozwalają kupcom B2B zamawiać w jednostkach hurtowych bez
-wpisywania dokładnej liczby sztuk i niosą ten kontekst aż do zamówienia i
-zapytania ofertowego.
+Nazwane jednostki zamawiania przypisane do produktu — na przykład **Paleta** zawierająca 480 sztuk.
+Pozwalają kupującym B2B zamawiać w jednostkach hurtowych bez wpisywania dokładnej liczby sztuk, a ta
+informacja trafia aż do zamówienia i zapytania ofertowego.
 
-## Dla operatorów
+## Dla operatora
 
-Zarządzaj jednostkami opakowania w sekcji **Inventory** karty produktu (tylko
-produkty simple i configurable). Każda jednostka ma:
+Jednostkami opakowania zarządza się w sekcji **Inventory** karty produktu (tylko produkty typu
+simple i configurable). Każda jednostka ma:
 
 - **nazwę** (tekst operatora, np. `Paleta`, `Karton`) — unikalną w obrębie produktu,
-- **base quantity** (liczba całkowita ≥ 1) — ile bazowych sztuk mieści jednostka,
-- flagę **default** — jednostkę wstępnie wybraną na storefront,
-- **position** — kolejność, w jakiej jednostki się pojawiają.
+- **base quantity** (liczba całkowita ≥ 1) — ile sztuk mieści jednostka,
+- flagę **default** — jednostka wybrana domyślnie w storefroncie,
+- **position** — kolejność, w jakiej jednostki są wyświetlane.
 
-## Dla kupców
+## Dla kupującego
 
-Na stronie produktu selektor oferuje dostępne jednostki plus opcję *pojedynczej
-sztuki*. Zamówienie jednostki dodaje `baseQuantity × units` sztuk do koszyka jako
-jedną linię, której wyświetlana nazwa dostaje dopisek jednostki — np.
-`Łożysko 6205-2RS (Paleta)`. Linia z jednostką opakowania i zwykła linia
-pojedynczej sztuki tego samego produktu pozostają osobne.
+Na stronie produktu lista wyboru oferuje dostępne jednostki oraz opcję *pojedynczej sztuki*.
+Zamówienie jednostki dodaje do koszyka `baseQuantity × units` sztuk jako jedną pozycję, której
+wyświetlana nazwa ma dopisek z jednostką — np. `Łożysko 6205-2RS (Paleta)`. Pozycja z jednostką
+opakowania i zwykła pozycja z pojedynczymi sztukami tego samego produktu pozostają osobne.
 
-## Jak podróżuje etykieta
+## Co dzieje się z nazwą jednostki
 
-Nazwa jednostki i base quantity są **snapshotowane** na linii w momencie
-utworzenia, więc późniejsze edycje (lub usunięcie) jednostek opakowania produktu
-nigdy nie zmieniają historycznych koszyków, zamówień ani zapytań ofertowych.
+Nazwa jednostki i base quantity są **kopiowane** do pozycji w chwili jej utworzenia, więc późniejsze
+zmiany (albo usunięcie) jednostek opakowania produktu nigdy nie zmieniają historycznych koszyków,
+zamówień ani zapytań ofertowych.
 
-- **Cart** — `cart_items` snapshotują jednostkę; serializer koszyka składa
-  `displayName` z sufiksem.
-- **Order** — `order_items` dostają `packaging_unit_snapshot`, a nazwa jednostki
-  jest doklejana do `product_snapshot.name`, więc każdy dokument zamówienia
-  (szczegóły, faktura, CSV, e-mail) ją pokazuje.
-- **Quote request** — `quote_request_items` snapshotują jednostkę i doklejają ją
-  do `product_name`; konwersja cart → quote-request niesie kontekst dalej.
+- **Koszyk** — `cart_items` zapisują kopię jednostki; serializacja koszyka buduje `displayName` z
+  dopiskiem.
+- **Zamówienie** — `order_items` dostają `packaging_unit_snapshot`, a nazwa jednostki jest
+  dopisywana do `product_snapshot.name`, więc pokazuje ją każdy dokument zamówienia (szczegóły,
+  faktura, CSV, e-mail).
+- **Zapytanie ofertowe** — `quote_request_items` zapisują kopię jednostki i dopisują ją do
+  `product_name`; zamiana koszyka w zapytanie ofertowe przenosi tę informację dalej.
 
 ## Ceny i dostępność
 
-Ceny używają istniejącego silnika na wynikowej ilości bazowych sztuk (łącznie z
-progami ilościowymi cennika) — nie ma osobnej ceny per jednostka. Dostępność
-magazynowa i limity per linia są oceniane na wynikowej liczbie sztuk.
+Ceny wyznacza istniejący mechanizm na podstawie wynikowej liczby sztuk (łącznie z progami
+ilościowymi cennika) — nie ma osobnej ceny za jednostkę. Dostępność w magazynie i limity dla pozycji
+są sprawdzane dla wynikowej liczby sztuk.
 
-## Powierzchnia API
+## API
 
-- Admin CRUD: `GET/POST /api/v1/admin/catalog/products/:id/packaging-units`,
-  `PATCH/DELETE …/:unitId`, `PATCH …/packaging-units/reorder`
-  (gated przez `catalog:read` / `catalog:write`).
-- Publiczne: szczegóły produktu (`GET /api/v1/catalog/products/:idOrSlug`)
-  zawierają opcjonalną tablicę `packagingUnits`.
-- Cart: `POST /api/v1/cart/items` akceptuje opcjonalne `packagingUnitId`; wynikowa
-  ilość linii to `baseQuantity × quantity`.
+- Zarządzanie w panelu: `GET/POST /api/v1/admin/catalog/products/:id/packaging-units`,
+  `PATCH/DELETE …/:unitId`, `PATCH …/packaging-units/reorder` (chronione przez `catalog:read` /
+  `catalog:write`).
+- Publiczne: szczegóły produktu (`GET /api/v1/catalog/products/:idOrSlug`) zawierają opcjonalną
+  tablicę `packagingUnits`.
+- Koszyk: `POST /api/v1/cart/items` przyjmuje opcjonalne `packagingUnitId`; wynikowa ilość w pozycji
+  to `baseQuantity × quantity`.
 
 ## Schemat
 
 Tabela `product_packaging_units` (migracja
-`20260611T140412_catalog_product_packaging_units.ts`): `id`, `product_id`
-(FK → `products`, cascade delete), `name`, `base_quantity`
-(`CHECK >= 1`), `position`, `is_default`, timestamps; `UNIQUE (product_id,
-name)`. Addytywne kolumny snapshot, każdą dodaje moduł, który ją posiada:
+`20260611T140412_catalog_product_packaging_units.ts`): `id`, `product_id` (klucz obcy → `products`,
+usuwany kaskadowo), `name`, `base_quantity` (`CHECK >= 1`), `position`, `is_default`, znaczniki
+czasu; `UNIQUE (product_id, name)`. Dodatkowe kolumny z kopią danych, każdą dodaje moduł, do którego należy:
 `cart_items` (`20260611T140413_carts_cart_item_packaging.ts`), `order_items`
 (`20260611T140414_orders_order_item_packaging.ts`), `quote_request_items`
 (`20260611T140415_quote_requests_qr_item_packaging.ts`).

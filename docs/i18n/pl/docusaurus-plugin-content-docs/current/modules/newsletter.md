@@ -1,98 +1,91 @@
 ---
 title: newsletter
-description: Newsletter na własnej infrastrukturze — lista subskrybentów, tagi, segmenty, jednorazowe kampanie i wieloetapowe automatyzacje z opt-in per kanał
+description: Newsletter na własnej infrastrukturze — lista subskrybentów, tagi, segmenty, jednorazowe kampanie i wieloetapowe automatyzacje ze zgodą zbieraną osobno w każdym kanale
 ---
 
 # `newsletter`
 
-Wysyłka newslettera na własnej infrastrukturze. Pozwala operatorom rozwijać listę
-subskrybentów, segmentować ją **tagami** i **polami niestandardowymi** oraz
-docierać przez jednorazowe **kampanie** i wieloetapowe **automatyzacje** (liniowe
-sekwencje send/wait). Odwiedzający storefront i zalogowani klienci subskrybują z
-modelem **opt-in** per Sales Channel; każdy e-mail niesie działający link
-wypisania. Treść reużywa renderer bezpieczny dla klientów pocztowych i silnik
-dyrektyw `{{var}}/{{if}}/{{for}}` ze stosu `transactional_emails`
-(`@endora-commerce/email-components`). Masowa dostawa przechodzi przez własny
-konfigurowalny **provider wysyłki** modułu (adapter SMTP docierający do Amazon SES
-SMTP, Mailgun lub dowolnego relay), niezależnie od transportu e-maili
-transakcyjnych. Cały moduł można **włączać/wyłączać**, aby nigdy nie kolidował z
-zewnętrznym ESP (MailerLite, GetResponse, …).
+Wysyłka newslettera na własnej infrastrukturze. Pozwala operatorom budować listę subskrybentów,
+dzielić ją na segmenty według **tagów** i **pól niestandardowych** oraz docierać do odbiorców przez
+jednorazowe **kampanie** i wieloetapowe **automatyzacje** (liniowe sekwencje kroków „wyślij” i
+„czekaj”). Odwiedzający storefront i zalogowani klienci zapisują się na newsletter po wyrażeniu
+**zgody (opt-in)**, osobno w każdym kanale sprzedaży; każdy e-mail zawiera działający link do
+wypisania się. Treść korzysta z mechanizmu generowania bezpiecznego dla programów pocztowych i z
+dyrektyw `{{var}}/{{if}}/{{for}}` znanych z `transactional_emails`
+(`@endora-commerce/email-components`). Wysyłka masowa przechodzi przez własnego, konfigurowalnego
+**dostawcę wysyłki** modułu (adapter SMTP, który obsługuje Amazon SES SMTP, Mailgun lub dowolny
+serwer pośredniczący), niezależnie od wysyłki e-maili transakcyjnych. Cały moduł można **włączać i
+wyłączać**, aby nie kolidował z zewnętrzną usługą e-mail marketingu (MailerLite, GetResponse…).
 
 ## Pojęcia
 
-- **Subscriber** — kluczowany po e-mailu (globalna tożsamość). Status to `pending` →
-  `active` → `unsubscribed` / `deactivated`. Ponowne wysłanie e-maila scala tagi
-  i pola niestandardowe zamiast duplikować. Osobna lista **suppression**
-  (unsubscribe / bounce / complaint), kluczowana po e-mailu, przeżywa usunięcie i
-  nadpisuje wszystkie targetowania.
-- **Opt-in** — per Sales Channel przez Settings `newsletter.opt_in_mode`
-  (`single` | `double`). Double opt-in wydaje podpisany, ograniczony TTL link
-  potwierdzający; niepotwierdzeni subskrybenci `pending` wygasają po
-  `newsletter.confirm_ttl_hours`.
-- **Tagi i pola niestandardowe** — definiowane przez operatora; tagi napędzają
-  targetowanie kampanii i triggery automatyzacji, pola niestandardowe wzbogacają
-  subskrybentów (ustawiane przez API, Admin UI lub signup) i zasilają kryteria
-  automatyzacji.
-- **Campaign** — jednorazowa wysyłka do `all` / ręcznej `group` / `tag` /
-  `tag_list`. Autorowana we wspólnym email Page Builderze (ta sama paleta co
-  e-maile transakcyjne) z subject + drzewem treści Puck + zmiennymi; podgląd ze
-  sample data; wysyłka teraz lub zaplanowana.
-- **Automation** — liniowa sekwencja `send` / `wait N days` triggerowana przez
-  all/tag/tag-list. Kroki send używają tego samego email Page Buildera. Model kroków
-  jest zaprojektowany tak, by później rozszerzyć o warunkowe rozgałęzienie bez
-  przebudowy.
-- **Email blocks** — wielokrotnie używane fragmenty bezpieczne dla e-maili
-  edytowane tym samym edytorem Puck i osadzalne przez `EmailInsertBlock` tam, gdzie
-  skonfigurowano.
-- **Variables** — katalog newslettera obejmuje `subscriber.email`,
-  `customFields.*`, `unsubscribeUrl`, `webviewUrl`, `channel.id` plus klucze
-  brandingu; admin **Insert variable** działa na subject i treści.
-- **Provider** — wybierany i konfigurowany w Admin UI; hasło SMTP jest
-  przechowywane jako Settings `secret` (AES-256-GCM, write-only na granicy).
+- **Subskrybent** — identyfikowany adresem e-mail (tożsamość globalna). Status: `pending` →
+  `active` → `unsubscribed` / `deactivated`. Ponowne zapisanie tego samego adresu łączy tagi i pola
+  niestandardowe zamiast tworzyć duplikat. Osobna **lista wykluczeń** (wypisanie, odbicie, skarga),
+  identyfikowana adresem e-mail, przetrwa usunięcie subskrybenta i ma pierwszeństwo przed każdym
+  wyborem odbiorców.
+- **Zgoda (opt-in)** — ustawiana dla każdego kanału sprzedaży w `newsletter.opt_in_mode`
+  (`single` | `double`). Podwójna zgoda wysyła podpisany link potwierdzający o ograniczonej
+  ważności; niepotwierdzeni subskrybenci `pending` wygasają po `newsletter.confirm_ttl_hours`.
+- **Tagi i pola niestandardowe** — definiuje je operator; tagi decydują o odbiorcach kampanii i
+  uruchamiają automatyzacje, a pola niestandardowe uzupełniają dane subskrybentów (ustawiane przez
+  API, panel administracyjny lub formularz zapisu) i służą jako kryteria automatyzacji.
+- **Kampania** — jednorazowa wysyłka do odbiorców `all` / ręcznie wybranej grupy `group` / `tag` /
+  `tag_list`. Tworzona we wspólnym edytorze e-maili Page Builder (ta sama paleta bloków co e-maile
+  transakcyjne): temat, drzewo treści Puck i zmienne; podgląd na przykładowych danych; wysyłka od
+  razu albo w zaplanowanym terminie.
+- **Automatyzacja** — liniowa sekwencja kroków `send` / `wait N days`, uruchamiana dla odbiorców
+  all / tag / tag-list. Kroki wysyłki korzystają z tego samego edytora e-maili. Model kroków
+  zaprojektowano tak, by później można było dodać rozgałęzienia warunkowe bez przebudowy.
+- **Bloki e-mail** — wielokrotnego użytku fragmenty bezpieczne dla programów pocztowych, edytowane
+  tym samym edytorem Puck i wstawiane przez `EmailInsertBlock` tam, gdzie to skonfigurowano.
+- **Zmienne** — katalog zmiennych newslettera obejmuje `subscriber.email`, `customFields.*`,
+  `unsubscribeUrl`, `webviewUrl`, `channel.id` oraz klucze identyfikacji wizualnej; **Insert
+  variable** w panelu działa w temacie i w treści.
+- **Dostawca wysyłki** — wybierany i konfigurowany w panelu administracyjnym; hasło SMTP jest
+  przechowywane jako ustawienie typu `secret` (AES-256-GCM, na granicy API tylko do zapisu).
 
-## Dostawa
+## Wysyłka
 
-Dispatch jest oparty na kolejce Redis/BullMQ:
+Wysyłka działa na kolejkach Redis/BullMQ:
 
-- `newsletter.campaign.plan` — rozwiązuje audience i **atomowo claimuje**
-  wiersz `newsletter_send_records` per odbiorca (`INSERT … ON CONFLICT DO
-  NOTHING`), potem enqueue'uje job send dla każdego świeżo-claimowanego odbiorcy.
-- `newsletter.send` — renderuje + dispatchuje jednego odbiorcę, idempotentnie na id
-  send-record (używane jako provider `messageId`), throttled przez rate limiter
-  send-workera (`newsletter.rate_limit_per_second`).
-- `newsletter.automation.step` — wykonuje krok; kroki `wait` planują następny
-  krok jako **delayed job** BullMQ. Run samo-anuluje się, gdy subskrybent
-  wypisze się w trakcie sekwencji.
+- `newsletter.campaign.plan` — wyznacza odbiorców i **atomowo rezerwuje** wiersz
+  `newsletter_send_records` dla każdego z nich (`INSERT … ON CONFLICT DO NOTHING`), a potem dodaje
+  do kolejki zadanie wysyłki dla każdego nowo zarezerwowanego odbiorcy.
+- `newsletter.send` — generuje i wysyła wiadomość do jednego odbiorcy, idempotentnie według
+  identyfikatora rekordu wysyłki (używanego jako `messageId` u dostawcy), z ograniczeniem
+  przepustowości workera wysyłki (`newsletter.rate_limit_per_second`).
+- `newsletter.automation.step` — wykonuje krok; kroki `wait` planują następny krok jako **zadanie
+  opóźnione** BullMQ. Przebieg sam się anuluje, gdy subskrybent wypisze się w trakcie sekwencji.
 
-Workery działają pod separowalnym entrypointem `worker.ts` i pauzują, gdy moduł
-jest wyłączony. Producenci tylko enqueue'ują — nigdy nie wykonują inline — więc
-N≥2 workerów nigdy nie double-send'uje.
+Workery działają w osobnym punkcie wejścia `worker.ts` i wstrzymują się, gdy moduł jest wyłączony.
+Producenci tylko dodają zadania do kolejki — nigdy nie wykonują ich od razu — więc przy dwóch lub
+więcej workerach żadna wiadomość nie zostanie wysłana dwa razy.
 
-## Engagement
+## Zaangażowanie odbiorców
 
-Open tracking używa piksela 1×1; click tracking przepisuje linki przez podpisany
-redirect. Per-kampania liczniki sent / delivered / failed / opened / clicked
-(plus per-link clicks) są agregowane z `newsletter_send_records` i
-`newsletter_engagement_events`. Tracking można wyłączyć per kampania.
+Śledzenie otwarć korzysta z piksela 1×1; śledzenie kliknięć przepisuje linki na podpisane
+przekierowania. Liczniki wysłanych / dostarczonych / nieudanych / otwartych / klikniętych dla
+każdej kampanii (oraz kliknięcia poszczególnych linków) są sumowane z `newsletter_send_records` i
+`newsletter_engagement_events`. Śledzenie można wyłączyć w każdej kampanii.
 
 ## Uprawnienia
 
-- `newsletter:read` — podgląd subskrybentów, kampanii, automatyzacji, statystyk.
-- `newsletter:write` — zarządzanie subskrybentami, kampaniami, automatyzacjami,
-  blokami i providerem wysyłki.
+- `newsletter:read` — podgląd subskrybentów, kampanii, automatyzacji i statystyk.
+- `newsletter:write` — zarządzanie subskrybentami, kampaniami, automatyzacjami, blokami i dostawcą
+  wysyłki.
 
 ## Storefront
 
-Reużywalny komponent signup (server action, tag-attachable), landing double-opt-in,
-strona wypisania (opcjonalny powód) oraz panel konta pokazujący status subskrypcji
-+ tagi z akcjami subscribe/unsubscribe.
+Komponent formularza zapisu wielokrotnego użytku (server action, z możliwością przypisania tagu),
+strona potwierdzenia podwójnej zgody, strona wypisania (z opcjonalnym powodem) oraz panel na koncie
+klienta pokazujący stan subskrypcji i tagi, z przyciskami zapisu i wypisania.
 
-## Schema
+## Schemat
 
-Migracja `20260629T200954_newsletter_init.ts` tworzy `newsletter_subscribers`,
-`newsletter_tags`, `newsletter_subscriber_tags`, `newsletter_custom_fields`,
-`newsletter_suppressions`, `newsletter_email_blocks`(+ channel bridge),
-`newsletter_campaigns`(+ group bridge), `newsletter_send_records`,
-`newsletter_engagement_events`, `newsletter_automations` i
-`newsletter_automation_runs`. Konfiguracja providera + tryb opt-in żyją w
-module **Settings** (brak dedykowanej tabeli credentials).
+Migracja `20260629T200954_newsletter_init.ts` tworzy `newsletter_subscribers`, `newsletter_tags`,
+`newsletter_subscriber_tags`, `newsletter_custom_fields`, `newsletter_suppressions`,
+`newsletter_email_blocks` (z tabelą łączącą z kanałami), `newsletter_campaigns` (z tabelą łączącą z
+grupami), `newsletter_send_records`, `newsletter_engagement_events`, `newsletter_automations` i
+`newsletter_automation_runs`. Konfiguracja dostawcy wysyłki i tryb zgody są przechowywane w module
+**ustawień** (bez osobnej tabeli danych uwierzytelniających).

@@ -1,275 +1,276 @@
 ---
-title: Checklist pierwszego wdrożenia produkcyjnego
+title: Lista kontrolna pierwszego wdrożenia produkcyjnego
 ---
 
-# Checklist pierwszego wdrożenia produkcyjnego
+# Lista kontrolna pierwszego wdrożenia produkcyjnego
 
-**Status: otwarty. Żaden punkt z tej listy nie został wykonany.** Endora Commerce nie ma
+**Status: otwarta. Żaden punkt z tej listy nie został jeszcze wykonany.** Endora Commerce nie ma
 jeszcze wdrożenia produkcyjnego.
 
-## Dlaczego ta strona istnieje
+## Po co jest ta strona
 
-Dziesiątki decyzji inżynieryjnych w tym repozytorium uznano za bezpieczne z jednego powodu:
-*nie ma wdrożenia produkcyjnego, więc nic nie może się zepsuć*. Ta decyzja pozwoliła
-platformie porzucić shims kompatybilności, przebudować historię migracji i zmienić bramki
-uprawnień bez ścieżki migracji. To była właściwa decyzja i nigdy nie była darmowa — pożyczyła
-pod zastaw pierwszego wdrożenia, które jeszcze się nie odbyło.
+Dziesiątki decyzji technicznych w tym repozytorium uznano za bezpieczne z jednego powodu: *nie ma
+wdrożenia produkcyjnego, więc nic nie może się zepsuć*. Dzięki temu platforma mogła porzucić warstwy
+zgodności wstecznej, przebudować historię migracji i zmienić zabezpieczenia uprawnień bez ścieżki
+przejścia. Była to słuszna decyzja, ale nigdy nie była darmowa — zaciągnięto ją na konto pierwszego
+wdrożenia, które jeszcze się nie odbyło.
 
-Wszystko, co ta decyzja licencjonowała, a czego kod sam nie uniesie, ląduje tutaj: grant, który
-ktoś musi nadać, ustawienie, które ktoś musi wybrać, seed, który nie może się uruchomić,
-wartość, która jest cicho błędna, dopóki operator jej nie ustawi. Ta strona to ten rejestr.
-Jest napisana tak, by wykonał ją ktoś, kto nie brał udziału w rozmowach, które te punkty
-wygenerowały.
+Wszystko, na co ta decyzja pozwoliła, a czego kod sam nie załatwi, trafia tutaj: uprawnienie, które
+ktoś musi przyznać, ustawienie, które ktoś musi wybrać, dane początkowe, których nie wolno
+wczytać, wartość, która po cichu jest błędna, dopóki operator jej nie ustawi. Ta strona jest takim
+rejestrem. Napisano ją tak, by mógł ją wykonać ktoś, kto nie uczestniczył w rozmowach, z których
+wzięły się te punkty.
 
-**Ta strona to nie procedura wdrożenia.** Provisioning VPS, rejestr kontenerów, TLS, DNS i
-stack compose są w `deploy/README.md` i powinno się je wykonać najpierw. Ta strona zaczyna
-się tam, gdzie tamta się kończy: stack stoi, schema jest nałożona (`backend-migrate`), hooki
-instalacyjne każdego modułu zostały uruchomione (`backend-install`), a nikt jeszcze nie podjął
-decyzji o biznesie, który na nim działa.
+**Ta strona nie jest procedurą wdrożenia.** Przygotowanie serwera VPS, rejestr kontenerów, TLS, DNS
+i zestaw usług Compose opisuje `deploy/README.md` i należy to zrobić najpierw. Ta strona zaczyna się
+tam, gdzie tamta się kończy: usługi działają, schemat bazy jest utworzony (`backend-migrate`), hooki
+instalacyjne wszystkich modułów zostały wykonane (`backend-install`), ale nikt jeszcze nie podjął
+żadnej decyzji o biznesie, który ma na tym działać.
 
-**Dyscyplina zakresu.** Punkt należy tutaj tylko wtedy, gdy wszystkie trzy warunki są spełnione:
-musi nastąpić przed transakcjami prawdziwych klientów, żaden change w kodzie nie może tego
-zdecydować za operatora, a pomyłka jest droga albo niewidoczna. Punkty, które nie przeszły
-jednego z testów, są wymienione na dole wraz z powodem — checklist, który cicho coś pomija,
-jest gorszy niż brak checklisty.
+**Granice zakresu.** Punkt trafia tutaj tylko wtedy, gdy spełnia trzy warunki naraz: musi zostać
+wykonany, zanim prawdziwi klienci zaczną składać zamówienia, żadna zmiana w kodzie nie może
+rozstrzygnąć go za operatora, a pomyłka jest kosztowna albo niewidoczna. Punkty, które nie spełniły
+któregoś warunku, są wymienione na końcu wraz z powodem — lista kontrolna, która po cichu coś
+pomija, jest gorsza niż brak listy.
 
 ## Jak z niej korzystać
 
-Skopiuj tę stronę na wdrożenie i odhaczaj punkty w kopii, nie tutaj. Każdy punkt nazywa
-**właściciela**: *operator* (decyzja biznesowa w Admin UI) albo *inżynier* (wartość w
-środowisku albo polecenie na hoście). Każdy punkt mówi, co zrobić i jak udowodnić, że
-zostało zrobione — „ustawiliśmy” to nie dowód, „odczytaliśmy z powrotem” to dowód.
+Skopiuj tę stronę dla każdego wdrożenia i zaznaczaj punkty w kopii, a nie tutaj. Każdy punkt
+wskazuje **odpowiedzialnego**: *operatora* (decyzja biznesowa w panelu administracyjnym) albo
+*inżyniera* (wartość w środowisku albo polecenie na serwerze). Każdy punkt mówi, co zrobić i jak
+udowodnić, że zostało zrobione — „ustawiliśmy” to nie dowód, „odczytaliśmy i się zgadza” to dowód.
 
 ---
 
-## A. Decyzje wbudowane w build
+## A. Decyzje utrwalane w buildzie
 
-Są zamrożone, gdy CI buduje obrazy. Zmiana później oznacza rebuild i redeploy, więc
-decyduj przed buildem release — nie po.
+Te wartości są zamrażane, gdy CI buduje obrazy. Późniejsza zmiana oznacza ponowny build i ponowne
+wdrożenie, więc rozstrzygnij je przed buildem wydania — nie po nim.
 
-### A1. Kod sales channel we wszystkich trzech miejscach, gdzie jest zapisany
+### A1. Kod kanału sprzedaży we wszystkich trzech miejscach, w których jest zapisany
 
-**Dlaczego.** Kod kanału pojawia się w trzech różnie nazwanych zmiennych i nic nie sprawdza,
-czy się zgadzają. Backend uzgadnia wiersz nazwany przez `DEFAULT_SALES_CHANNEL_CODE` jako
-system-default channel przy boot; bundle storefrontu niesie `NEXT_PUBLIC_SALES_CHANNEL_CODE`,
-wbakowany w czasie buildu obrazu ze zmiennej CI `SALES_CHANNEL_CODE`. Gdy kod storefrontu
-nazwuje kanał, który nie istnieje, żądania storefrontu fallbackują do system default, a treść
-per-channel rozwiązuje się cicho względem złego kanału.
+**Dlaczego.** Kod kanału występuje w trzech różnie nazwanych zmiennych i nic nie sprawdza, czy są
+zgodne. Backend przy starcie uzgadnia wiersz wskazany przez `DEFAULT_SALES_CHANNEL_CODE` jako
+domyślny kanał systemowy; pakiet storefrontu zawiera `NEXT_PUBLIC_SALES_CHANNEL_CODE`, wpisywane w
+czasie budowania obrazu ze zmiennej CI `SALES_CHANNEL_CODE`. Gdy kod w storefroncie wskazuje kanał,
+który nie istnieje, żądania storefrontu trafiają do domyślnego kanału systemowego, a treści zależne
+od kanału są po cichu pobierane z niewłaściwego kanału.
 
-**Zrób (inżynier).** Uzgodnij jeden kod z klientem. Ustaw go w:
+**Do zrobienia (inżynier).** Uzgodnij z klientem jeden kod. Ustaw go w:
 
 - zmiennych pipeline'u budowania: `SALES_CHANNEL_CODE`, którą build przekazuje do obrazu
   storefrontu jako `NEXT_PUBLIC_SALES_CHANNEL_CODE`. To mapowanie jest zadeklarowane w jednym
   miejscu, w `packages/cli/src/lib/instance-build-inputs.ts`; własny build tego repozytorium,
-  `.github/workflows/demo.yml`, czyta ją ze zmiennej repozytorium GitHub;
-- `deploy/.env` na VPS: `DEFAULT_SALES_CHANNEL_CODE` (zobacz `deploy/.env.prod.example`);
-- jeśli wdrożenie obsługuje więcej niż jedną domenę, `SALES_CHANNEL_HOST_MAP` jako pary
+  `.github/workflows/demo.yml`, odczytuje ją ze zmiennej repozytorium GitHub;
+- `deploy/.env` na serwerze VPS: `DEFAULT_SALES_CHANNEL_CODE` (zobacz `deploy/.env.prod.example`);
+- jeśli wdrożenie obsługuje więcej niż jedną domenę, w `SALES_CHANNEL_HOST_MAP` jako pary
   `host=channelCode`.
 
-**Zweryfikuj.** Po deploy `GET /api/v1/admin/sales-channels` listuje kanał, którego `code`
-równa się wartości wbakowanej w storefront, i jest oznaczony jako system default. Dokładnie
-jeden system-default channel zawsze istnieje — gdy żaden nie pasuje, storefront rozmawia z
+**Weryfikacja.** Po wdrożeniu `GET /api/v1/admin/sales-channels` zwraca kanał, którego `code` jest
+równy wartości wpisanej do storefrontu, oznaczony jako domyślny kanał systemowy. Domyślny kanał
+systemowy zawsze istnieje dokładnie jeden — jeśli żaden się nie zgadza, storefront rozmawia z
 kanałem, którego nikt nie skonfigurował.
 
-### A2. Domyślna locale
+### A2. Domyślny język
 
-**Dlaczego.** `NEXT_PUBLIC_DEFAULT_LOCALE` jest wbakowany ze zmiennej CI `DEFAULT_LOCALE`
+**Dlaczego.** `NEXT_PUBLIC_DEFAULT_LOCALE` jest wpisywany ze zmiennej CI `DEFAULT_LOCALE`
 (zadeklarowanej w `packages/cli/src/lib/instance-build-inputs.ts`; `.github/workflows/demo.yml`
-używa `en-US`, gdy nie jest ustawiona). Musi nazywać wiersz w tabeli `languages`. Migracja
-`packages/modules/languages/src/migrations/20260425T161557_languages_currencies_init.ts` seeduje
-dokładnie dwa języki — `en-US` (domyślny) i `pl-PL` — bo to był wybór demo, nie tego klienta.
+używa `en-US`, gdy nie jest ustawiona). Musi wskazywać wiersz w tabeli `languages`. Migracja
+`packages/modules/languages/src/migrations/20260425T161557_languages_currencies_init.ts` tworzy
+dokładnie dwa języki — `en-US` (domyślny) i `pl-PL` — bo był to wybór na potrzeby wersji
+demonstracyjnej, a nie wybór tego klienta.
 
-**Zrób (inżynier + operator).** Ustaw `DEFAULT_LOCALE` na język klienta. Gdy domyślny klienta
-to nie `en-US`, operator musi też przełączyć flagę default na wierszu języka i dodać każdy
-język, którego seed nie dostarcza.
+**Do zrobienia (inżynier i operator).** Ustaw `DEFAULT_LOCALE` na język klienta. Jeśli domyślnym
+językiem klienta nie jest `en-US`, operator musi też przestawić oznaczenie języka domyślnego w
+tabeli języków i dodać każdy język, którego nie zawierają dane początkowe.
 
-**Zweryfikuj.** Pierwszy render strony storefrontu jest w oczekiwanym języku bez przełącznika
-locale, a ekran Languages pokazuje ten język jako domyślny.
+**Weryfikacja.** Pierwsze wyświetlenie strony w storefroncie jest w oczekiwanym języku bez użycia
+przełącznika języka, a ekran Languages pokazuje ten język jako domyślny.
 
 ---
 
 ## B. Środowisko i sekrety
 
-### B1. Wygeneruj każdy sekret na nowo dla tego wdrożenia
+### B1. Wygeneruj wszystkie sekrety od nowa dla tego wdrożenia
 
-**Dlaczego.** Sekrety backendu są w dwóch plikach przykładowych: `deploy/.env.prod.example`,
-dla wdrożenia referencyjnego tego repozytorium, oraz `deploy/.env.example`, który
-`endora new instance` renderuje w szkielecie nowej instancji
-(`packages/cli/src/new-instance/deploy.ts`). Żaden z nich nie zawiera użytecznego sekretu, a
-zawodzą na dwa różne sposoby:
+**Dlaczego.** Sekrety backendu są w dwóch przykładowych plikach: `deploy/.env.prod.example`, dla
+wdrożenia referencyjnego tego repozytorium, oraz `deploy/.env.example`, który
+`endora new instance` umieszcza w szkielecie nowej instancji (`packages/cli/src/new-instance/deploy.ts`).
+Żaden z nich nie zawiera użytecznego sekretu, a każdy zawodzi na inny sposób:
 
-- **Sekrety podpisujące i hasła mają placeholder** (`change-me-hex-32`,
-  `change-me-base64-32`, `change-me-strong-password` w pierwszym pliku,
-  `change-me-generate-one` w drugim). Nic nie sprawdza ich treści, więc wdrożenie, które je
-  zostawi, uruchamia się i podpisuje ciasteczka sesji kluczem, który każdy może przeczytać
-  w tym repozytorium.
-- **Cztery linie są celowo puste**: `NEWSLETTER_TOKEN_SECRET`,
-  `SETTINGS_SECRET_ENCRYPTION_KEY`, `MFA_SECRET_ENCRYPTION_KEY` i `ASSETS_LIBRARY_HMAC_KEY`. Oba klucze szyfrujące to
-  klucze AES-256 i po zdekodowaniu z base64 muszą mieć dokładnie 32 bajty, czego żaden
-  placeholder nie spełnia. Pusta wartość to stan, który backend obsługuje i zgłasza; nadal nie
-  jest to gotowa konfiguracja.
+- **Sekrety podpisujące i hasła mają wartości zastępcze** (`change-me-hex-32`,
+  `change-me-base64-32`, `change-me-strong-password` w pierwszym pliku, `change-me-generate-one` w
+  drugim). Nic nie sprawdza ich treści, więc wdrożenie, które je zostawi, uruchamia się i podpisuje
+  ciasteczka sesji kluczem, który każdy może przeczytać w tym repozytorium.
+- **Cztery wiersze są celowo puste**: `NEWSLETTER_TOKEN_SECRET`, `SETTINGS_SECRET_ENCRYPTION_KEY`,
+  `MFA_SECRET_ENCRYPTION_KEY` i `ASSETS_LIBRARY_HMAC_KEY`. Oba klucze szyfrujące to klucze
+  AES-256 i po zdekodowaniu z base64 muszą mieć dokładnie 32 bajty, czego nie spełnia żadna wartość
+  zastępcza. Pusta wartość to stan, który backend obsługuje i zgłasza; nadal nie jest to gotowa
+  konfiguracja.
 
-Tylko dwie rzeczy zatrzymują backend przy starcie niezależnie od reszty: pusty
-`SESSION_COOKIE_SECRET` (`backend/src/index.ts`, `backend/src/worker.ts`) i brak publicznego
-origin API (B2). Błędny `MFA_SECRET_ENCRYPTION_KEY` to jedyny sekret, który też przerywa start,
-i tylko gdy moduł `mfa` jest zainstalowany.
+Niezależnie od reszty start backendu zatrzymują tylko dwie rzeczy: pusty `SESSION_COOKIE_SECRET`
+(`backend/src/index.ts`, `backend/src/worker.ts`) i brak publicznego adresu API (B2). Błędny
+`MFA_SECRET_ENCRYPTION_KEY` to jedyny sekret, który również przerywa start, i to tylko wtedy, gdy
+zainstalowany jest moduł `mfa`.
 
-**Zrób (inżynier).** Wygeneruj każdy sekret poleceniem z tabeli, wpisz go do `.env` wdrożenia
-i ustaw `chmod 600` na pliku. Używaj `-hex` albo `-base64` tak, jak mówi tabela: oba klucze
-szyfrujące są dekodowane z base64, więc ciąg hex tam nie zadziała (64 znaki hex dekodują się
-do 48 bajtów, nie 32).
+**Do zrobienia (inżynier).** Wygeneruj każdy sekret poleceniem z tabeli, wpisz go do pliku `.env`
+wdrożenia i ustaw na tym pliku `chmod 600`. Używaj `-hex` albo `-base64` dokładnie tak, jak podaje
+tabela: oba klucze szyfrujące są dekodowane z base64, więc ciąg szesnastkowy tam nie zadziała (64
+znaki szesnastkowe dekodują się do 48 bajtów, a nie 32).
 
-| Zmienna | Wygeneruj poleceniem | Pusta | Błędna lub placeholder |
+| Zmienna | Polecenie do wygenerowania | Gdy pusta | Gdy błędna lub zastępcza |
 | --- | --- | --- | --- |
-| `SESSION_COOKIE_SECRET` | `openssl rand -hex 32` | Backend i worker kończą działanie przy starcie z komunikatem `SESSION_COOKIE_SECRET must be set in production`. | Każdy niepusty ciąg jest akceptowany, więc placeholder uruchamia się i podpisuje ciasteczka publicznym kluczem. |
-| `NEWSLETTER_TOKEN_SECRET` | `openssl rand -base64 32` | Działa. Linki potwierdzenia i wypisania z newslettera są podpisywane kluczem `SESSION_COOKIE_SECRET` (`packages/platform/src/composition/newsletter-token-secret.ts`), więc rotacja klucza sesji unieważnia każdy link, który wciąż czeka w skrzynce. Ustaw go, aby oba klucze można było rotować niezależnie. | Każdy niepusty ciąg jest akceptowany jako klucz podpisujący. |
-| `SETTINGS_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Backend startuje i loguje `[settings] SETTINGS_SECRET_ENCRYPTION_KEY is not set`. Sekretnych ustawień i sekretnych pól poświadczeń (np. tokenu API zapisywanego przez moduł) nie da się zapisać ani odczytać, dopóki klucz nie zostanie ustawiony, a backend zrestartowany. | Nie jest sprawdzany przy starcie. Backend uruchamia się **bez ostrzeżenia**, a potem każdy zapis sekretnego ustawienia kończy się błędem `SETTINGS_SECRET_ENCRYPTION_KEY is misconfigured — it must decode to 32 bytes (got N)`, zgłaszanym przez moduł `credentials`. |
-| `MFA_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Moduł `mfa` udostępnia swoje ekrany i odmawia każdej rejestracji, więc żaden administrator nie włączy drugiego składnika (D4). | Gdy `mfa` jest zainstalowany, backend nie startuje: `MFA_SECRET_ENCRYPTION_KEY must decode to 32 bytes (got N)`. |
-| `ASSETS_LIBRARY_HMAC_KEY` | `openssl rand -hex 32` | Backend startuje. Każde żądanie, które podpisuje lub sprawdza link do prywatnego zasobu, kończy się błędem `ASSETS_LIBRARY_HMAC_KEY is unset`. | Wartość zaczynająca się od `change-me` — placeholder ze starszych przykładowych plików env — jest odrzucana przy pierwszym linku do prywatnego zasobu, tak samo jak brak klucza: `ASSETS_LIBRARY_HMAC_KEY is still the placeholder an env example carried`. Każda inna wartość, która nie jest hex, jest używana jako surowe bajty i przyjmowana. |
-| `MEILI_MASTER_KEY` | `openssl rand -base64 32` | `deploy/compose.prod.yml` uruchamia Meilisearch z `MEILI_ENV: production`, który odmawia startu bez klucza głównego. Backend czyta tę samą wartość jako `MEILISEARCH_API_KEY`. | Meilisearch akceptuje każdy klucz o długości co najmniej 16 bajtów, więc placeholder daje wyszukiwarce publicznie znany klucz. |
-| `POSTGRES_PASSWORD` | `openssl rand -hex 32` (hex, nie base64: wartość trafia bez escapowania do `DATABASE_URL`, gdzie `/` lub `+` psuje URL) | `deploy/compose.prod.yml` przyjmuje wtedy `b2b` (`${POSTGRES_PASSWORD:-b2b}`). | Placeholder działa i jest publicznie znany. |
-| `REVALIDATE_SECRET` | `openssl rand -hex 32` | Zob. B2. | Zob. B2. |
+| `SESSION_COOKIE_SECRET` | `openssl rand -hex 32` | Backend i worker kończą działanie przy starcie z komunikatem `SESSION_COOKIE_SECRET must be set in production`. | Akceptowany jest każdy niepusty ciąg, więc wartość zastępcza działa i podpisuje ciasteczka publicznie znanym kluczem. |
+| `NEWSLETTER_TOKEN_SECRET` | `openssl rand -base64 32` | Działa. Linki potwierdzenia i wypisania z newslettera są podpisywane kluczem `SESSION_COOKIE_SECRET` (`packages/platform/src/composition/newsletter-token-secret.ts`), więc zmiana klucza sesji unieważnia każdy link, który wciąż czeka w skrzynce odbiorcy. Ustaw go, aby oba klucze można było zmieniać niezależnie. | Jako klucz podpisujący akceptowany jest każdy niepusty ciąg. |
+| `SETTINGS_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Backend startuje i zapisuje w logu `[settings] SETTINGS_SECRET_ENCRYPTION_KEY is not set`. Sekretnych ustawień i sekretnych pól danych uwierzytelniających (np. tokenu API zapisywanego przez moduł) nie da się zapisać ani odczytać, dopóki klucz nie zostanie ustawiony, a backend uruchomiony ponownie. | Nie jest sprawdzany przy starcie. Backend uruchamia się **bez ostrzeżenia**, a potem każdy zapis sekretnego ustawienia kończy się błędem `SETTINGS_SECRET_ENCRYPTION_KEY is misconfigured — it must decode to 32 bytes (got N)`, zgłaszanym przez moduł `credentials`. |
+| `MFA_SECRET_ENCRYPTION_KEY` | `openssl rand -base64 32` (musi dekodować się do 32 bajtów) | Moduł `mfa` udostępnia swoje ekrany, ale odrzuca każdą rejestrację drugiego składnika, więc żaden administrator nie włączy 2FA (D4). | Gdy `mfa` jest zainstalowany, backend nie startuje: `MFA_SECRET_ENCRYPTION_KEY must decode to 32 bytes (got N)`. |
+| `ASSETS_LIBRARY_HMAC_KEY` | `openssl rand -hex 32` | Backend startuje. Każde żądanie, które podpisuje lub sprawdza link do prywatnego pliku, kończy się błędem `ASSETS_LIBRARY_HMAC_KEY is unset`. | Wartość zaczynająca się od `change-me` — wartość zastępcza ze starszych plików przykładowych — jest odrzucana przy pierwszym linku do prywatnego pliku, tak samo jak brak klucza: `ASSETS_LIBRARY_HMAC_KEY is still the placeholder an env example carried`. Każda inna wartość, która nie jest szesnastkowa, jest używana jako surowe bajty i akceptowana. |
+| `MEILI_MASTER_KEY` | `openssl rand -base64 32` | `deploy/compose.prod.yml` uruchamia Meilisearch z `MEILI_ENV: production`, który bez klucza głównego odmawia startu. Backend odczytuje tę samą wartość jako `MEILISEARCH_API_KEY`. | Meilisearch akceptuje każdy klucz o długości co najmniej 16 bajtów, więc wartość zastępcza daje wyszukiwarce publicznie znany klucz. |
+| `POSTGRES_PASSWORD` | `openssl rand -hex 32` (szesnastkowo, nie base64: wartość trafia bez kodowania do `DATABASE_URL`, gdzie `/` albo `+` psuje adres) | `deploy/compose.prod.yml` przyjmuje wtedy `b2b` (`${POSTGRES_PASSWORD:-b2b}`). | Wartość zastępcza działa i jest publicznie znana. |
+| `REVALIDATE_SECRET` | `openssl rand -hex 32` | Zobacz B2. | Zobacz B2. |
 
 **Wygeneruj klucze szyfrujące raz i je zachowaj.** Zastąpienie działającego
-`SETTINGS_SECRET_ENCRYPTION_KEY` lub `MFA_SECRET_ENCRYPTION_KEY` niczego nie szyfruje ponownie:
-sekretów zapisanych starym kluczem nie da się już odszyfrować. To samo dotyczy
-`POSTGRES_PASSWORD`: obraz bazy czyta go tylko przy pierwszej inicjalizacji wolumenu, więc
-późniejsza zmiana wymaga zmiany hasła roli również w PostgreSQL.
+`SETTINGS_SECRET_ENCRYPTION_KEY` albo `MFA_SECRET_ENCRYPTION_KEY` niczego nie szyfruje ponownie:
+sekretów zapisanych starym kluczem nie da się już odszyfrować. To samo dotyczy `POSTGRES_PASSWORD`:
+obraz bazy danych odczytuje go tylko przy pierwszej inicjalizacji wolumenu, więc późniejsza zmiana
+wymaga zmiany hasła roli również w PostgreSQL.
 
-**Zweryfikuj.** `grep change-me /opt/b2b/.env` nie zwraca nic, a żadna z trzech linii pustych w
-przykładzie nie jest już pusta. Oba klucze szyfrujące dekodują się do 32 bajtów:
+**Weryfikacja.** `grep change-me /opt/b2b/.env` niczego nie zwraca, a żaden z wierszy pustych w
+przykładzie nie jest już pusty. Oba klucze szyfrujące dekodują się do 32 bajtów:
 
 ```bash
 grep -E '^(SETTINGS|MFA)_SECRET_ENCRYPTION_KEY=' /opt/b2b/.env | cut -d= -f2- | while read -r key; do printf '%s' "$key" | base64 -d | wc -c; done
 ```
 
-Polecenie wypisuje `32` dwa razy. Po restarcie log backendu nie zawiera ostrzeżenia
+Polecenie wypisuje dwa razy `32`. Po ponownym uruchomieniu log backendu nie zawiera ostrzeżenia
 `SETTINGS_SECRET_ENCRYPTION_KEY is not set`.
 
-### B2. Ustaw `REVALIDATE_SECRET` i wiedz, dlaczego backend odmawia bootu bez public origin
+### B2. Ustaw `REVALIDATE_SECRET` i zrozum, dlaczego backend bez publicznego adresu API nie startuje
 
-**Dlaczego.** Ani `PUBLIC_API_BASE_URL`, ani `REVALIDATE_SECRET` nie pojawiały się w
-`deploy/.env.prod.example` ani w bloku `x-backend-env` w `deploy/compose.prod.yml`, a oba
-failowały cicho. Oba zostały od tego czasu naprawione, na różne sposoby:
+**Dlaczego.** Ani `PUBLIC_API_BASE_URL`, ani `REVALIDATE_SECRET` nie występowały w
+`deploy/.env.prod.example` ani w bloku `x-backend-env` w `deploy/compose.prod.yml`, a brak każdej z
+nich nie dawał żadnego błędu. Obie sprawy zostały od tego czasu naprawione, każda inaczej:
 
-- `PUBLIC_API_BASE_URL` to origin, na którym buduje się każdy callback bramki płatności
-  (ITN/notification), każdy publiczny URL product feed i każdy link potwierdzenia newslettera.
-  Kiedyś fallbackował do `http://localhost:3001`, więc platforma podawała bramce callback,
-  którego internet nie dosięgnie, i żadna płatność nie była potwierdzana. `compose.prod.yml`
-  teraz wyprowadza go z `API_DOMAIN` obok `BACKEND_PUBLIC_URL`, a backend **odmawia bootu**, gdy
-  `NODE_ENV=production` i żaden nie jest ustawiony
-  (`packages/platform/src/kernel/public-api-base-url.ts`, wołany na początku `composeApp()`).
-  Nic do wypełnienia — ale gdy backend wychodzi przy boot nazwując tę zmienną, brakuje
-  `API_DOMAIN`.
-- `REVALIDATE_SECRET` to współdzielony sekret, który backend prezentuje endpointowi storefrontu
-  `/api/revalidate` po zapisie treści (`packages/modules/catalog/src/backend/index.ts`, plus
-  moduły analytics i marketing). Gdy nieustawiony, revalidator jest cichym no-op, a endpoint
-  storefrontu odpowiada 401: zmiany treści nie pojawiają się, dopóki cache fetch nie wygaśnie
-  sam. Jest teraz w `deploy/.env.prod.example` i trafia do **obu** kontenerów backend i
-  storefront — ta sama wartość, inaczej szczelina się nie zamyka.
+- `PUBLIC_API_BASE_URL` to adres, na podstawie którego budowany jest każdy adres powiadomień zwrotnych
+  bramek płatności (ITN/notification), każdy publiczny adres feedu produktowego i każdy link
+  potwierdzenia newslettera. Kiedyś domyślnie przyjmował `http://localhost:3001`, więc platforma
+  podawała bramce adres powiadomień nieosiągalny z internetu i żadna płatność nie była
+  potwierdzana. `compose.prod.yml` wyprowadza go teraz z `API_DOMAIN`, obok `BACKEND_PUBLIC_URL`, a
+  backend **odmawia startu**, gdy `NODE_ENV=production` i żaden z nich nie jest ustawiony
+  (`packages/platform/src/kernel/public-api-base-url.ts`, wywoływane na początku `composeApp()`).
+  Nie trzeba niczego uzupełniać — ale jeśli backend kończy działanie przy starcie, wskazując tę
+  zmienną, to brakuje `API_DOMAIN`.
+- `REVALIDATE_SECRET` to wspólny sekret, który backend przekazuje endpointowi storefrontu
+  `/api/revalidate` po zapisaniu treści (`packages/modules/catalog/src/backend/index.ts` oraz moduły
+  analityczne i marketingowe). Gdy nie jest ustawiony, odświeżanie po cichu nic nie robi, a endpoint
+  storefrontu odpowiada 401: zmiany treści nie pojawiają się, dopóki pamięć podręczna sama nie
+  wygaśnie. Zmienna jest teraz w `deploy/.env.prod.example` i trafia do **obu** kontenerów —
+  backendu i storefrontu — z tą samą wartością, bo inaczej problem się nie zamyka.
 
-**Zrób (inżynier).** Wygeneruj `REVALIDATE_SECRET` (`openssl rand -hex 32`) do `deploy/.env`.
-Potwierdź, że `API_DOMAIN` to prawdziwa publiczna domena API.
+**Do zrobienia (inżynier).** Wygeneruj `REVALIDATE_SECRET` (`openssl rand -hex 32`) i wpisz go do
+`deploy/.env`. Upewnij się, że `API_DOMAIN` to prawdziwa publiczna domena API.
 
-**Zweryfikuj.** `docker compose --env-file .env -f compose.prod.yml config | grep PUBLIC_API_BASE_URL`
-pokazuje publiczny origin API, nie `localhost`. W Admin UI ekran konfiguracji bramki pokazuje
-callback URL na tej domenie, i to jest URL zarejestrowany w portalu providera. Opublikuj zmianę
-kategorii i potwierdź, że pojawia się na storefront bez czekania.
+**Weryfikacja.** `docker compose --env-file .env -f compose.prod.yml config | grep PUBLIC_API_BASE_URL`
+pokazuje publiczny adres API, a nie `localhost`. Ekran konfiguracji bramki płatności w panelu
+administracyjnym pokazuje adres powiadomień w tej domenie i to ten adres jest zarejestrowany w
+portalu operatora płatności. Opublikuj zmianę kategorii i sprawdź, że od razu pojawia się w
+storefroncie.
 
-### B3. Wskaż `SMTP_URL` na prawdziwy relay
+### B3. Skieruj `SMTP_URL` na prawdziwy serwer pocztowy
 
-**Dlaczego.** `SMTP_URL` jest pusty w `deploy/.env.prod.example` i udokumentowany jako opcjonalny:
-„unset falls back to a console mailer" (`deploy/compose.prod.yml:52`). Na produkcji to znaczy,
-że maile weryfikacji konta, zaproszenia, potwierdzenia zamówień i dostawy faktur trafiają do
-logu kontenera i nigdzie indziej. Nic nie erroruje, a klienci po prostu nic nie dostają.
+**Dlaczego.** `SMTP_URL` jest pusty w `deploy/.env.prod.example` i opisany jako opcjonalny: „unset
+falls back to a console mailer” (`deploy/compose.prod.yml:52`). Na produkcji oznacza to, że e-maile
+weryfikujące konto, zaproszenia, potwierdzenia zamówień i faktury trafiają do logu kontenera i
+nigdzie indziej. Nie ma żadnego błędu, a klienci po prostu nic nie dostają.
 
-**Zrób (inżynier).** Ustaw `SMTP_URL` i `SMTP_FROM` na relay klienta i tożsamość nadawcy, na
-domenie ze SPF/DKIM zgodnym z tym nadawcą.
+**Do zrobienia (inżynier).** Ustaw `SMTP_URL` i `SMTP_FROM` na serwer pocztowy klienta i adres
+nadawcy, w domenie z SPF i DKIM zgodnymi z tym nadawcą.
 
-**Zweryfikuj.** Zarejestruj testowego klienta na produkcyjnym storefront i odbierz mail
-weryfikacyjny w prawdziwej skrzynce. Zrób to, zanim pierwszy klient klienta to zrobi.
+**Weryfikacja.** Zarejestruj testowego klienta w produkcyjnym storefroncie i odbierz e-mail
+weryfikacyjny w prawdziwej skrzynce. Zrób to, zanim zrobi to pierwszy klient twojego klienta.
 
 ---
 
-## C. Baza danych i pierwszy boot
+## C. Baza danych i pierwsze uruchomienie
 
-### C1. Przećwicz łańcuch migracji na jednorazowej bazie najpierw
+### C1. Najpierw przećwicz łańcuch migracji na jednorazowej bazie
 
-**Dlaczego.** Historia migracji została przebudowana, a frozen-name map wycofany na tym samym
-gruncie braku wdrożenia produkcyjnego — kolejność bloku przed `20260801T000000` jest celowo nieskorygowana
-(`backend/src/db/migration-order.ts`), a łańcuch był stosowany tylko do baz, które można było
-wyrzucić. Pierwsza produkcyjna baza to pierwsza, która musi zachować wiersze.
+**Dlaczego.** Historię migracji przebudowano, a zamrożoną mapę nazw wycofano z tego samego powodu —
+braku wdrożenia produkcyjnego. Kolejność bloku sprzed `20260801T000000` celowo nie jest korygowana
+(`backend/src/db/migration-order.ts`), a cały łańcuch wykonywano dotąd tylko na bazach, które można
+było wyrzucić. Pierwsza baza produkcyjna to pierwsza, która musi zachować wiersze.
 
-**Zrób (inżynier).** Na dokładnym commicie, który będzie wdrożony, nałóż cały łańcuch na pustą
-jednorazową bazę, a potem uruchom na niej hooki instalacyjne każdego modułu — te same dwa kroki,
-w tej samej kolejności, które `deploy/compose.prod.yml` wykonuje jako `backend-migrate` i
-`backend-install`, zanim wystartuje API:
+**Do zrobienia (inżynier).** Dokładnie na tym commicie, który zostanie wdrożony, wykonaj cały
+łańcuch na pustej, jednorazowej bazie, a potem uruchom na niej hooki instalacyjne wszystkich
+modułów — te same dwa kroki, w tej samej kolejności, które `deploy/compose.prod.yml` wykonuje jako
+`backend-migrate` i `backend-install`, zanim uruchomi się API:
 
 ```bash
 DATABASE_URL=…/b2b_rehearsal pnpm --filter backend run setup
 ```
 
-`setup` (w `backend/package.json`) to `db:fresh`, a po nim `module:install --all`. Samo
-`db:fresh` nie jest próbą wdrożenia: baza, której pierwszym aktem po migracjach jest boot, nigdy
-nie uruchamia swoich hooków instalacyjnych. Nigdy nie uruchamiaj `db:fresh`, `setup` ani
-`db:reset` bez jawnego `DATABASE_URL`: bez prefiksu przebudowują własną bazę developera, a
-`db:reset` dodatkowo uruchamia demo seed.
+`setup` (w `backend/package.json`) to `db:fresh`, a po nim `module:install --all`. Samo `db:fresh`
+nie jest próbą wdrożenia: baza, której pierwszą czynnością po migracjach jest start aplikacji,
+nigdy nie wykonuje swoich hooków instalacyjnych. Nigdy nie uruchamiaj `db:fresh`, `setup` ani
+`db:reset` bez jawnego `DATABASE_URL`: bez tej zmiennej przebudowują własną bazę programisty, a
+`db:reset` dodatkowo wczytuje dane demonstracyjne.
 
-**Zweryfikuj.** Oba kroki kończą się bez błędu kolejności i bez nieudanego hooka instalacyjnego,
-a wynikowa schema odpowiada temu, co kontenery `backend-migrate` i `backend-install` produkują
-na VPS na release — każdy z nich kończy się kodem `0` (`docker compose --env-file .env -f
-compose.prod.yml ps -a` pokazuje je jako `Exited (0)`).
+**Weryfikacja.** Oba kroki kończą się bez błędu kolejności i bez nieudanego hooka instalacyjnego, a
+powstały schemat odpowiada temu, co tworzą kontenery `backend-migrate` i `backend-install` na
+serwerze VPS przy wydaniu — każdy z nich kończy się kodem `0`
+(`docker compose --env-file .env -f compose.prod.yml ps -a` pokazuje je jako `Exited (0)`).
 
-### C2. Nie uruchamiaj demo seed
+### C2. Nie wczytuj danych demonstracyjnych
 
-**Dlaczego.** Demo seed (`endora demo seed`) zapisuje cały sklep — katalog, organizację,
-administratora i kupującego — do wskazanej bazy. Już nie truncuje w drodze (truncate przeniesiono
-do `endora demo reset`, który truncuje), więc koszt dla produkcji to wiersze, które
-nie należą do klienta, a nie utrata jego wierszy. Ma production guard —
-`ALLOW_DEV_SEED_IN_PRODUCTION` — który `deploy/compose.prod.yml` kiedyś permanentnie pokonywał
-w pre-armed serwisie `seed`, który `deploy/README.md` wymieniał jako krok wdrożenia. Serwis został
-od tego czasu usunięty, a seed wyrzucony z procedury wdrożenia: nie ma już sposobu uruchomić go bez
-wpisania przez operatora **obu** override'ów — `-e ALLOW_DEV_SEED_IN_PRODUCTION=true` oraz
-`-e ALLOW_DEV_SEED_ON_NON_LOCAL_DATABASE=true`. Guard (`packages/platform/src/demo/guard.ts`)
-zadaje dwa osobne pytania: pierwszy override odpowiada na *„to jest `NODE_ENV=production`"*,
-drugi na *„baza nie jest ani na loopbacku, ani nazwana jako baza testowa"* — a w stacku
-produkcyjnym nie jest żadnym z nich, bo jej host to serwis `postgres`. Z samym pierwszym
-polecenie odmawia na drugim.
+**Dlaczego.** Polecenie danych demonstracyjnych (`endora demo seed`) zapisuje we wskazanej bazie cały
+sklep — katalog, organizację, administratora i kupującego. Nie czyści już po drodze tabel
+(czyszczenie przeniesiono do `endora demo reset`), więc na produkcji kosztem są wiersze, które nie
+należą do klienta, a nie utrata jego danych. Polecenie ma zabezpieczenie produkcyjne —
+`ALLOW_DEV_SEED_IN_PRODUCTION` — które `deploy/compose.prod.yml` kiedyś trwale wyłączał w
+przygotowanej z góry usłudze `seed`, wymienianej w `deploy/README.md` jako krok wdrożenia. Usługę
+od tego czasu usunięto, a dane demonstracyjne wyłączono z procedury wdrożenia: nie da się już ich
+wczytać, dopóki operator nie wpisze **obu** nadpisań — `-e ALLOW_DEV_SEED_IN_PRODUCTION=true` oraz
+`-e ALLOW_DEV_SEED_ON_NON_LOCAL_DATABASE=true`. Zabezpieczenie
+(`packages/platform/src/demo/guard.ts`) zadaje dwa osobne pytania: pierwsze nadpisanie odpowiada na
+*„to jest `NODE_ENV=production`”*, drugie na *„baza nie jest ani na pętli zwrotnej, ani nazwana jak
+baza testowa”* — a w produkcyjnym zestawie usług nie jest żadną z nich, bo jej hostem jest usługa
+`postgres`. Z samym pierwszym nadpisaniem polecenie zatrzyma się na drugim.
 
-To zamyka wypadek, nie decyzję. Seed nadal jest osiągalny, a ten krok nadal jest miejscem, gdzie
-operator mówi nie.
+To eliminuje przypadkową pomyłkę, ale nie decyzję. Dane demonstracyjne nadal da się wczytać, a ten
+krok nadal jest miejscem, w którym operator mówi „nie”.
 
-**Zrób (operator + inżynier).** Nie uruchamiaj seed. Załaduj prawdziwy katalog klienta przez
-moduł Import/Export — albo, gdy klient trzyma katalog w PIM, przez łącznik PIM, który wdrożenie
-dla niego instaluje. Wdrożenie startuje z pustym katalogiem celowo.
+**Do zrobienia (operator i inżynier).** Nie wczytuj danych demonstracyjnych. Wczytaj prawdziwy
+katalog klienta przez moduł importu i eksportu — albo, gdy klient prowadzi katalog w PIM, przez
+konektor PIM instalowany dla niego we wdrożeniu. Wdrożenie celowo startuje z pustym katalogiem.
 
-**Zweryfikuj.** Brak demo produktów, demo organizacji, konta `platform_admin`, którego sam nie
-utworzyłeś. `select count(*) from products` zwraca to, co wyprodukował import klienta.
+**Weryfikacja.** Nie ma produktów ani organizacji demonstracyjnych, ani konta `platform_admin`,
+którego sam nie utworzyłeś. `select count(*) from products` zwraca liczbę wynikającą z importu
+klienta.
 
-### C3. Potwierdź, co platforma zaseedowała sama
+### C3. Sprawdź, jakie dane platforma utworzyła sama
 
-**Dlaczego.** Część danych referencyjnych przychodzi bez pytania: reconciler kraj/waluta/język
-działa jako boot hook (`packages/modules/dictionaries/src/backend/index.ts:201`), a system-default
-sales channel jest uzgadniany przy boot, nie migracją. Gdy boot hook failuje, proces wychodzi —
-więc działający backend już dowodzi, że się uruchomiły. Czym *nie* jest dowodem, to że
-zaseedowane wartości są właściwe dla tego klienta.
+**Dlaczego.** Część danych słownikowych powstaje bez pytania: uzgadnianie krajów, walut i języków
+działa jako hook startowy (`packages/modules/dictionaries/src/backend/index.ts:201`), a domyślny kanał
+systemowy jest uzgadniany przy starcie, a nie w migracji. Gdy hook startowy się nie powiedzie, proces
+kończy działanie — więc działający backend już dowodzi, że hooki się wykonały. Nie dowodzi natomiast,
+że utworzone wartości są właściwe dla tego klienta.
 
-**Zrób (operator).** Otwórz ekran Dictionary i potwierdź, że kraje, z którymi klient handluje,
-są obecne i aktywne, oraz że domyślna waluta domyślnego kraju jest właściwa.
+**Do zrobienia (operator).** Otwórz ekran Dictionary i sprawdź, czy kraje, z którymi klient handluje,
+są obecne i aktywne, oraz czy domyślna waluta domyślnego kraju jest właściwa.
 
-**Zweryfikuj.** Formularz adresu na storefront oferuje kraj klienta, a ceny renderują się w
+**Weryfikacja.** Formularz adresu w storefroncie oferuje kraj klienta, a ceny są wyświetlane w
 walucie klienta.
 
 ---
 
 ## D. Tożsamość, role i uprawnienia
 
-### D1. Utwórz bootstrap administratora, potem go zawęź
+### D1. Utwórz pierwszego administratora, a potem ogranicz jego użycie {#d1-utwórz-bootstrap-administratora-potem-go-zawęź}
 
-**Dlaczego.** Jedyna rola, którą platforma kiedykolwiek tworzy za ciebie, to `platform_admin`,
-trzymająca wildcard `*`. Wszystko inne to design klienta.
+**Dlaczego.** Jedyna rola, którą platforma kiedykolwiek tworzy za ciebie, to `platform_admin`, z
+uprawnieniem wieloznacznym `*`. Wszystkie pozostałe role projektuje klient.
 
-**Zrób (inżynier, potem operator).**
+**Do zrobienia (inżynier, potem operator).**
 
 ```bash
 cd /opt/b2b
@@ -279,360 +280,374 @@ docker compose --env-file .env -f compose.prod.yml run --rm backend \
   --email=… --password=… --first-name=… --last-name=…
 ```
 
-To to samo polecenie, które podaje krok 3 w `deploy/README.md`, z czterema flagami, których
-wymaga polecenie `create` modułu `admin_users` (hasło musi mieć co najmniej 12 znaków). Obraz produkcyjny uruchamia zbudowane drzewo, więc host CLI to
-`node dist/cli.js` — skrypt pakietu `admin:create` to jego zapis deweloperski
-(`tsx src/cli.ts`), nie coś do uruchamiania na VPS. Uruchom je, gdy stack już stoi, żeby
-`backend-install` zdążył wykonać hooki instalacyjne każdego modułu.
+To samo polecenie podaje krok 3 w `deploy/README.md`, z czterema flagami, których wymaga polecenie
+`create` modułu `admin_users` (hasło musi mieć co najmniej 12 znaków). Obraz produkcyjny uruchamia
+zbudowany kod, więc programem CLI hosta jest `node dist/cli.js` — skrypt pakietu `admin:create` to
+jego wersja deweloperska (`tsx src/cli.ts`), a nie coś do uruchamiania na serwerze VPS. Uruchom je,
+gdy usługi już działają, aby `backend-install` zdążył wykonać hooki instalacyjne wszystkich modułów.
 
-Potem w Admin UI zdefiniuj role, których klient faktycznie potrzebuje na `/admin-roles`, i
-przestań używać konta wildcard do codziennej pracy.
+Następnie w panelu administracyjnym zdefiniuj na `/admin-roles` role, których klient faktycznie
+potrzebuje, i przestań używać konta z uprawnieniem wieloznacznym do codziennej pracy.
 
-**Zweryfikuj.** `/admin-roles` listuje role klienta, i co najmniej jedno konto bez wildcard
-potrafi wykonać swoją pracę end to end.
+**Weryfikacja.** `/admin-roles` pokazuje role klienta, a co najmniej jedno konto bez uprawnienia
+wieloznacznego potrafi wykonać swoją pracę od początku do końca.
 
-### D2. Nadaj `customer_groups:read` i `customer_groups:write`
+### D2. Przyznaj `customer_groups:read` i `customer_groups:write`
 
-**Dlaczego.** Zarządzanie grupami klientów przeniesiono z `price_lists` do `customer_accounts`
-i nadało własne kody uprawnień. Wcześniej było gated przez `catalog:write`,
-co było wyraźnie błędne — grupa klientów to segmentacja klientów, nie dane katalogu. Dwa nowe
-kody to `customer_groups:read` i `customer_groups:write`
+**Dlaczego.** Zarządzanie grupami klientów przeniesiono z `price_lists` do `customer_accounts` i
+nadano mu własne kody uprawnień. Wcześniej było chronione przez `catalog:write`, co było wyraźnie
+błędne — grupa klientów to podział klientów na segmenty, a nie dane katalogu. Dwa nowe kody to
+`customer_groups:read` i `customer_groups:write`
 (`packages/modules/customer_accounts/src/manifest.ts:188-189`).
 
-**Nic nie nadaje ich automatycznie.** Bramka kompatybilności akceptująca stary `catalog:write`
-obok nowych kodów była zaproponowana i świadomie odrzucona: utrzymałaby złe uprawnienie po
-momencie, gdy przestało być właściwe, dla nikogo, bo nie było wdrożenia do ochrony. Grant
-należy tutaj. Rola wildcard `*` jest nietknięta — przechodzi każdą bramkę.
+**Nic nie przyznaje ich automatycznie.** Zaproponowano i świadomie odrzucono zabezpieczenie
+przejściowe, które akceptowałoby stary `catalog:write` obok nowych kodów: utrzymałoby błędne
+uprawnienie dłużej, niż było właściwe, i nie chroniłoby nikogo, bo nie było wdrożenia do ochrony.
+Przyznanie uprawnień należy do tej listy. Rola z uprawnieniem wieloznacznym `*` się nie zmienia —
+przechodzi przez każde zabezpieczenie.
 
-**Zrób (operator).** Na `/admin-roles`, dla każdej roli, która nie jest `*` i której holder
-musi widzieć albo zarządzać grupami klientów, zaznacz oba uprawnienia (albo jedno, gdy rola ma
-tylko czytać). Które role ich potrzebują:
+**Do zrobienia (operator).** Na `/admin-roles`, dla każdej roli innej niż `*`, której użytkownik
+musi widzieć grupy klientów albo nimi zarządzać, zaznacz oba uprawnienia (albo jedno, jeśli rola ma
+tylko odczytywać). Które role ich potrzebują:
 
-| Rola, której holder… | potrzebuje |
+| Rola, której użytkownik… | potrzebuje |
 | --- | --- |
-| zarządza listą grup klientów (`/customer-groups`) | `customer_groups:read` + `customer_groups:write` |
-| edytuje klienta i przypisuje jego grupę — picker w `packages/modules/customers/src/admin/panels/ManagementPanels.tsx`, który czyta `GET /api/v1/admin/customer-groups` | `customer_groups:read` |
+| zarządza listą grup klientów (`/customer-groups`) | `customer_groups:read` i `customer_groups:write` |
+| edytuje klienta i przypisuje mu grupę — lista wyboru w `packages/modules/customers/src/admin/panels/ManagementPanels.tsx`, która odczytuje `GET /api/v1/admin/customer-groups` | `customer_groups:read` |
 
-Te dwie i żadne inne. Builder reguł promocji i builder audience PWA też pokazują listę grup, ale
-każdy czyta ją przez **własny** endpoint modułu
+Te dwie i żadne inne. Kreator reguł promocji i kreator odbiorców PWA też pokazują listę grup, ale
+każdy odczytuje ją przez **własny** endpoint modułu
 (`/api/v1/admin/promotions/rule-targets/customer-groups`,
-`/api/v1/admin/pwa/rule-targets/customer-groups`) za własnym read permission modułu, więc ten
-grant ich nie dotyka. Builder reguł price list był wyjątkiem do niedawna; teraz czyta listę
-za `price_lists:read`, co jest tematem D3.
+`/api/v1/admin/pwa/rule-targets/customer-groups`), chroniony własnym uprawnieniem odczytu modułu,
+więc to przyznanie ich nie dotyczy. Kreator reguł cenników był do niedawna wyjątkiem; teraz odczytuje
+listę z uprawnieniem `price_lists:read`, o czym mówi punkt D3.
 
-Ten sam grant można zrobić przez API:
-`PUT /api/v1/admin/admin-roles/<code>` z pełną listą uprawnień roli z nowymi kodami.
+To samo można zrobić przez API: `PUT /api/v1/admin/admin-roles/<code>` z pełną listą uprawnień
+roli, łącznie z nowymi kodami.
 
-**Zweryfikuj.** Zaloguj się jako holder każdej edytowanej roli i potwierdź trzy rzeczy: wpis
-**Customer groups** pojawia się w sidebarze; `⌘K` → „customer groups" oferuje akcję (paleta
-ukrywa akcje, których `requiredPermission` operatorowi brakuje); i `GET
-/api/v1/admin/customer-groups` zwraca `200` zamiast `403`. Rola, której świadomie nie nadałeś,
-nadal dostaje `403` — to druga połowa dowodu.
+**Weryfikacja.** Zaloguj się jako użytkownik każdej zmienionej roli i sprawdź trzy rzeczy: na pasku
+bocznym pojawia się pozycja **Customer groups**; `⌘K` → „customer groups” oferuje akcję (paleta
+ukrywa akcje, których `requiredPermission` operatorowi brakuje); a `GET /api/v1/admin/customer-groups`
+zwraca `200` zamiast `403`. Rola, której świadomie nie przyznałeś uprawnień, nadal dostaje `403` — to
+druga połowa dowodu.
 
-### D3. Nadaj `price_lists:read` i `price_lists:write`
+### D3. Przyznaj `price_lists:read` i `price_lists:write`
 
-**Dlaczego.** Moduł `price_lists` nie deklarował kiedyś własnych uprawnień: wszystkie 25
-jego tras admin było gated przez `catalog:write`. Rola z `catalog:write`, żeby ktoś mógł edytować
-opisy produktów, mogła też tworzyć, edytować i usuwać cenniki — czyli zmieniać, ile klienci
-płacą. Nikt nie wybrał tej granicy; to efekt uboczny brakującej deklaracji. Moduł posiada teraz
-`price_lists:read` i `price_lists:write`
-(`packages/modules/price_lists/src/manifest.ts`), podzielone według tego, co robi każda trasa,
-a nie mapowane hurtowo: czytanie listy, rosteru produktów, bracketów, override display-mode i
-pickerów rule-target to `:read`; wszystko, co persystuje, to `:write`.
+**Dlaczego.** Moduł `price_lists` nie deklarował kiedyś własnych uprawnień: wszystkie 25 jego tras
+administracyjnych było chronionych przez `catalog:write`. Rola z `catalog:write`, przyznanym po to,
+by ktoś mógł edytować opisy produktów, mogła też tworzyć, edytować i usuwać cenniki — czyli zmieniać,
+ile płacą klienci. Nikt nie wybrał takiej granicy; to skutek uboczny brakującej deklaracji. Moduł ma
+teraz `price_lists:read` i `price_lists:write` (`packages/modules/price_lists/src/manifest.ts`),
+przypisane według tego, co robi każda trasa, a nie hurtowo: odczyt listy, listy produktów, progów,
+nadpisań trybu wyświetlania cen i list wyboru celów reguł to `:read`; wszystko, co zapisuje dane, to
+`:write`.
 
-Ta sama zmiana zamknęła ostatnią żywą bramkę legacy:
-`GET /api/v1/admin/pricing/rule-targets/customer-groups` odpowiadał na `catalog:write`, więc
-edytor katalogu mógł wylistować grupy klientów klienta. Teraz odpowiada na `price_lists:read`,
-jak bliźniacze endpointy `promotions` i `pwa`.
+Ta sama zmiana zamknęła ostatnie działające zabezpieczenie w starym stylu:
+`GET /api/v1/admin/pricing/rule-targets/customer-groups` odpowiadał przy `catalog:write`, więc
+redaktor katalogu mógł wyświetlić grupy klientów. Teraz odpowiada przy `price_lists:read`, tak jak
+analogiczne endpointy w `promotions` i `pwa`.
 
-**Nic nie nadaje nowych kodów automatycznie** — i jak w D2 — bramka kompatybilności akceptująca
-`catalog:write` obok nich była zaproponowana i odrzucona, bo utrzymuje złe uprawnienie po
-momencie, gdy przestało być właściwe. Rola trzymająca tylko `catalog:write` ma więc **zero**
-dostępu do pricing: wpis sidebar znika, `/price-lists` 403, a zakładka **Pricing** w edytorze
-produktu renderuje stan błędu zamiast powiązanych cenników (czyta
-`GET /api/v1/admin/products/:productId/price-lists`, teraz trasa `price_lists:read`). Rola
-wildcard `*` jest nietknięta.
+**Nic nie przyznaje nowych kodów automatycznie** — i tak jak w D2 zaproponowano i odrzucono
+zabezpieczenie przejściowe, które akceptowałoby obok nich `catalog:write`, bo utrzymywałoby błędne
+uprawnienie dłużej, niż było właściwe. Rola, która ma tylko `catalog:write`, nie ma więc **żadnego**
+dostępu do cen: znika pozycja na pasku bocznym, `/price-lists` zwraca 403, a zakładka **Pricing** w
+edytorze produktu pokazuje błąd zamiast powiązanych cenników (odczytuje
+`GET /api/v1/admin/products/:productId/price-lists`, które jest teraz trasą `price_lists:read`). Rola
+z uprawnieniem wieloznacznym `*` się nie zmienia.
 
-**Zrób (operator).** Na `/admin-roles`, dla każdej roli, która nie jest `*`, zdecyduj o pricing
-jawnie:
+**Do zrobienia (operator).** Na `/admin-roles`, dla każdej roli innej niż `*`, jawnie zdecyduj o
+dostępie do cen:
 
-| Rola, której holder… | potrzebuje |
+| Rola, której użytkownik… | potrzebuje |
 | --- | --- |
-| zarządza cennikami, bracketami, regułami albo override display-mode (`/price-lists`, `/price-lists/:id`, `/price-lists/display-modes`) | `price_lists:read` + `price_lists:write` |
-| tylko musi zobaczyć wyjaśnioną cenę — czyta cenniki albo otwiera zakładkę **Pricing** na produkcie | `price_lists:read` |
-| pracuje na ekranie innego modułu, który oferuje pickery cennika albo waluty — czytają one `GET /api/v1/admin/price-lists-engine` i `GET /api/v1/admin/pricing/rule-targets/currencies` | `price_lists:read`, oprócz własnych uprawnień tego modułu |
-| edytuje treść katalogu i **nie** może zmieniać cen | żadnego — zostaw `catalog:write` jak jest |
+| zarządza cennikami, progami, regułami albo nadpisaniami trybu wyświetlania cen (`/price-lists`, `/price-lists/:id`, `/price-lists/display-modes`) | `price_lists:read` i `price_lists:write` |
+| musi tylko zobaczyć, skąd bierze się cena — przegląda cenniki albo otwiera zakładkę **Pricing** produktu | `price_lists:read` |
+| pracuje na ekranie innego modułu, który oferuje wybór cennika lub waluty — te listy odczytują `GET /api/v1/admin/price-lists-engine` i `GET /api/v1/admin/pricing/rule-targets/currencies` | `price_lists:read`, oprócz własnych uprawnień tamtego modułu |
+| edytuje treści katalogu i **nie może** zmieniać cen | żadnego — zostaw `catalog:write` bez zmian |
 
-Ostatni wiersz to sens zmiany: po tym `catalog:write` znaczy treść katalogu i nic więcej.
-Przejrzyj każdą istniejącą rolę z tym uprawnieniem i zdecyduj, do którego z pierwszych dwóch
-wierszy, jeśli w ogóle, też należy.
+Ostatni wiersz to sens całej zmiany: od teraz `catalog:write` oznacza treści katalogu i nic więcej.
+Przejrzyj każdą istniejącą rolę z tym uprawnieniem i zdecyduj, do którego z dwóch pierwszych wierszy
+— jeśli do któregokolwiek — również należy.
 
-Ten sam grant można zrobić przez API:
-`PUT /api/v1/admin/admin-roles/<code>` z pełną listą uprawnień roli z nowymi kodami.
+To samo można zrobić przez API: `PUT /api/v1/admin/admin-roles/<code>` z pełną listą uprawnień
+roli, łącznie z nowymi kodami.
 
-**Zweryfikuj.** Zaloguj się jako holder każdej edytowanej roli i potwierdź cztery rzeczy: wpis
-**Price lists** pojawia się w sidebarze; `GET /api/v1/admin/price-lists-engine` zwraca `200`
-zamiast `403`; rola z samym `price_lists:read` dostaje `403` z
-`POST /api/v1/admin/price-lists-engine`, więc podział read/write jest realny; rola z
-`catalog:write` i bez żadnego kodu pricing dostaje `403` z
-`GET /api/v1/admin/price-lists-engine` i z
-`GET /api/v1/admin/pricing/rule-targets/customer-groups` — ten negatywny przypadek to połowa,
-która dowodzi, że granica się przesunęła, a nie tylko poszerzyła.
+**Weryfikacja.** Zaloguj się jako użytkownik każdej zmienionej roli i sprawdź cztery rzeczy: na pasku
+bocznym pojawia się pozycja **Price lists**; `GET /api/v1/admin/price-lists-engine` zwraca `200`
+zamiast `403`; rola tylko z `price_lists:read` dostaje `403` z `POST /api/v1/admin/price-lists-engine`,
+więc podział na odczyt i zapis naprawdę działa; rola z `catalog:write` bez żadnego kodu dotyczącego
+cen dostaje `403` z `GET /api/v1/admin/price-lists-engine` i z
+`GET /api/v1/admin/pricing/rule-targets/customer-groups` — ten negatywny przypadek to połowa dowodu,
+że granica się przesunęła, a nie tylko poszerzyła.
 
-### D4. Włącz uwierzytelnianie dwuskładnikowe dla Admin UI
+### D4. Włącz uwierzytelnianie dwuskładnikowe w panelu administracyjnym
 
-**Dlaczego.** Moduł MFA jest aktywny domyślnie, ale każda capability w środku startuje **wyłączona**:
-`mfa.admin.totp_enabled` i `mfa.admin.totp_enforced` domyślnie `false`
-(`packages/modules/mfa/src/manifest.ts:37-51`). Wdrożenie, które nic nie zmienia, ma dostęp admin
-tylko hasłem na publicznej domenie.
+**Dlaczego.** Moduł MFA jest domyślnie aktywny, ale każda jego funkcja startuje **wyłączona**:
+`mfa.admin.totp_enabled` i `mfa.admin.totp_enforced` mają domyślnie wartość `false`
+(`packages/modules/mfa/src/manifest.ts:37-51`). Wdrożenie, w którym nic się nie zmieni, chroni dostęp
+administracyjny w publicznej domenie wyłącznie hasłem.
 
-**Zrób (operator + inżynier).** Ustaw `MFA_SECRET_ENCRYPTION_KEY` (B1), potem zezwól na admin 2FA,
-zarejestruj każdego administratora, i dopiero wtedy wymuś — wymuszenie przed rejestracją
-blokuje wszystkich.
+**Do zrobienia (operator i inżynier).** Ustaw `MFA_SECRET_ENCRYPTION_KEY` (B1), potem zezwól na 2FA
+dla administratorów, zarejestruj drugi składnik dla każdego administratora i dopiero wtedy wymuś
+2FA — wymuszenie przed rejestracją zablokuje wszystkich.
 
-**Zweryfikuj.** Drugie logowanie prosi o kod, a konto bez rejestracji jest odmawiane po
-włączeniu enforcement.
+**Weryfikacja.** Drugie logowanie prosi o kod, a konto bez zarejestrowanego drugiego składnika jest
+odrzucane po włączeniu wymuszenia.
 
 ---
 
 ## E. Aktywacja modułów
 
-### E1. Przejdź `/platform/modules` i zdecyduj o każdym
+### E1. Przejdź przez `/platform/modules` i zdecyduj o każdym module
 
-**Dlaczego.** Obecność modułu jest koniunkcją platform availability i wyboru
-aktywacji operatora — a druga oś ma default. Spośród modułów core 23 deklaruje się
-non-deactivatable, reszta dostarcza kontrolkę aktywacji operatora; **każda z tych kontrolek
-domyślnie włączona.** Nic o świeżej instalacji nie mówi, co ten klient kupił.
-Moduł pozostawiony włączony wnosi wpis sidebar, akcje palety, grupę settings, powierzchnię API
-i elementy storefrontu, nawet gdy nikt o to nie prosił.
+**Dlaczego.** Obecność modułu wynika jednocześnie z dostępności w platformie i z decyzji operatora o
+aktywacji — a ta druga oś ma wartość domyślną. Spośród modułów rdzenia 23 deklaruje, że nie można ich
+wyłączyć, a pozostałe mają przełącznik aktywacji dla operatora; **każdy z tych przełączników jest
+domyślnie włączony.** Nic w świeżej instalacji nie mówi, co ten klient kupił. Moduł pozostawiony
+włączony dodaje pozycję na pasku bocznym, akcje palety poleceń, grupę ustawień, endpointy API i
+elementy storefrontu, nawet jeśli nikt o niego nie prosił.
 
-**Zrób (operator).** Przejdź `/platform/modules` raz, z klientem, i wyłącz to, czego nie używa.
-Wyłączenie jest niedestrukcyjne i odwracalne: nie usuwa danych, konfiguracji, uprawnień ani
-schematu. **Nie polegaj na promptcie potwierdzenia, że powie, co kosztuje deaktywacja** — dziś
-nazywa tylko moduł (`admin/src/modules/platform/ModuleActivationControl.tsx:88`). Co się psuje,
-gdy moduł idzie off, jest w ledgerze konsekwencji deaktywacji, który buduje
-`pnpm --filter backend run check:port-dependencies`; poproś inżyniera o odczyt dla każdego
-modułu, z którym klient wyraźnie skończył.
+**Do zrobienia (operator).** Przejdź raz, razem z klientem, przez `/platform/modules` i wyłącz to,
+z czego klient nie korzysta. Wyłączenie niczego nie niszczy i jest odwracalne: nie usuwa danych,
+konfiguracji, uprawnień ani schematu. **Nie licz na to, że okno potwierdzenia powie, co kosztuje
+wyłączenie** — dziś podaje tylko nazwę modułu
+(`admin/src/modules/platform/ModuleActivationControl.tsx:88`). Co przestaje działać po wyłączeniu
+modułu, opisuje rejestr skutków wyłączenia budowany przez
+`pnpm --filter backend run check:port-dependencies`; poproś inżyniera o odczytanie go dla każdego
+modułu, z którego klient na pewno nie będzie korzystał.
 
-**Zweryfikuj.** Dla każdego wyłączonego modułu: wpis sidebar zniknął, akcje palety zniknęły, a
-API odpowiada `503 MODULE_DISABLED`. Dla każdego pozostawionego włączonego ktoś potrafi powiedzieć
-dlaczego.
+**Weryfikacja.** Dla każdego wyłączonego modułu: zniknęła pozycja na pasku bocznym i akcje palety
+poleceń, a API odpowiada `503 MODULE_DISABLED`. Dla każdego pozostawionego włączonego ktoś potrafi
+powiedzieć, dlaczego.
 
-### E2. Zdecyduj jawnie o modułach marketing i analytics
+### E2. Jawnie zdecyduj o modułach marketingowych i analitycznych
 
-**Dlaczego.** `google_analytics`, `google_tag_manager`, `meta_ads` i `linkedin_ads` są wszystkie
-aktywne domyślnie. Każdy ma drugi, capability-level toggle wyłączony do konfiguracji, więc nic
-jeszcze nie jest transmitowane — ale aktywacja to to, co stawia ekrany i ustawienia consent-mode
-przed operatorem, a czy klient w ogóle chce third-party tracking, to decyzja o wadze prawnej w UE.
+**Dlaczego.** `google_analytics`, `google_tag_manager`, `meta_ads` i `linkedin_ads` są domyślnie
+aktywne. Każdy ma drugi przełącznik, na poziomie funkcji, wyłączony do czasu konfiguracji, więc nic
+jeszcze nie jest wysyłane — ale aktywacja sprawia, że operator widzi ekrany i ustawienia trybu zgody,
+a to, czy klient w ogóle chce śledzenia przez podmioty zewnętrzne, jest w UE decyzją o znaczeniu
+prawnym.
 
-**Zrób (operator).** Potwierdź per moduł: wanted czy nie. Gdzie wanted, skonfiguruj measurement
-ID i toggle `require_consent` przed pierwszym odwiedzającym.
+**Do zrobienia (operator).** Potwierdź dla każdego modułu: potrzebny czy nie. Tam, gdzie jest
+potrzebny, przed pierwszym odwiedzającym skonfiguruj identyfikator pomiaru i przełącznik
+`require_consent`.
 
-**Zweryfikuj.** Z modułami, które klient odrzucił, wyłączonymi, w źródle strony storefront nie
-ma third-party tagu.
+**Weryfikacja.** Gdy moduły odrzucone przez klienta są wyłączone, w źródle strony storefrontu nie ma
+żadnego zewnętrznego tagu.
 
-### E3. Zdecyduj o asystencie AI osobno
+### E3. Osobno zdecyduj o asystencie AI
 
-**Dlaczego.** `prompt_actions` jest aktywny domyślnie, choć sam asystent
-(`prompt_actions.enabled`) jest wyłączony i potrzebuje credential LLM, zanim cokolwiek zrobi.
-Włączenie oznacza, że instrukcje admin i dane potrzebne do ich rozwiązania opuszczają platformę
-dla third-party model provider. To decyzja o przetwarzaniu danych, nie konfiguracji.
+**Dlaczego.** `prompt_actions` jest domyślnie aktywny, choć sam asystent (`prompt_actions.enabled`)
+jest wyłączony i zanim cokolwiek zrobi, potrzebuje danych dostępowych do modelu językowego.
+Włączenie oznacza, że polecenia administratorów i dane potrzebne do ich wykonania opuszczają platformę
+i trafiają do zewnętrznego dostawcy modelu. To decyzja o przetwarzaniu danych, a nie kwestia
+konfiguracji.
 
-**Zrób (operator).** Zdecyduj z klientem. Gdy tak, zarejestruj credential LLM na `/credentials`,
-ustaw `prompt_actions.bulk_limit` i nadaj `prompt_actions:use` świadomie, a nie przez dziedziczenie.
+**Do zrobienia (operator).** Zdecyduj razem z klientem. Jeśli tak — zarejestruj dane dostępowe do
+modelu na `/credentials`, ustaw `prompt_actions.bulk_limit` i przyznaj `prompt_actions:use`
+świadomie, a nie przez dziedziczenie.
 
-**Zweryfikuj.** Gdy odrzucone, tryb prompt palety nie występuje. Gdy zaakceptowane, klient
-zgodził się na providera na piśmie.
+**Weryfikacja.** Jeśli klient odmówił, w palecie poleceń nie ma trybu poleceń w języku naturalnym.
+Jeśli się zgodził, klient zaakceptował dostawcę na piśmie.
 
 ---
 
 ## F. Konfiguracja biznesowa przed pierwszą transakcją
 
-### F1. Tożsamość sprzedawcy faktury i numeracja
+### F1. Dane sprzedawcy na fakturach i numeracja
 
-**Dlaczego.** Moduł Invoices jest aktywny domyślnie, a tożsamość sprzedawcy jest pusta:
-`invoices.seller.tax_id` domyślnie `''`, a `invoices.seller.company_data` `{}`
-(`packages/modules/invoices/src/manifest.ts:40-55`). Wzorce numeracji domyślnie
-`FV {seq}/{channel}/{YYYY}`, `PRO …`, `KOR …` — rozsądny kształt, i nadal wybór, który księgowy
-klienta musi potwierdzić, bo nie da się go wygodnie zmienić, gdy dokumenty już istnieją pod nim.
-Prawidłowy tax id jest też prewarunkiem serializacji KSeF, gdy klient go używa.
+**Dlaczego.** Moduł faktur jest domyślnie aktywny, a dane sprzedawcy są puste:
+`invoices.seller.tax_id` ma domyślnie wartość `''`, a `invoices.seller.company_data` — `{}`
+(`packages/modules/invoices/src/manifest.ts:40-55`). Wzorce numeracji mają domyślnie postać
+`FV {seq}/{channel}/{YYYY}`, `PRO …`, `KOR …` — to rozsądny kształt, ale nadal wybór, który musi
+potwierdzić księgowy klienta, bo trudno go zmienić, gdy istnieją już wystawione dokumenty.
+Prawidłowy NIP jest też warunkiem wysyłki do KSeF, jeśli klient z niego korzysta.
 
-**Zrób (operator).** Wypełnij ustawienia sprzedawcy i potwierdź trzy wzorce numeracji w
-Settings → Invoices przed pierwszą fakturą.
+**Do zrobienia (operator).** Przed pierwszą fakturą uzupełnij dane sprzedawcy i potwierdź trzy wzorce
+numeracji w Settings → Invoices.
 
-**Zweryfikuj.** Wystaw jedną fakturę na testowe zamówienie i przeczytaj PDF: blok sprzedawcy to
-prawdziwa tożsamość prawna klienta, a numer pasuje do uzgodnionego wzorca.
+**Weryfikacja.** Wystaw jedną fakturę do testowego zamówienia i przeczytaj PDF: dane sprzedawcy to
+prawdziwe dane prawne klienta, a numer odpowiada uzgodnionemu wzorcowi.
 
 ### F2. Numeracja zamówień, minimalna wartość zamówienia i odbiorcy potwierdzeń
 
-**Dlaczego.** `orders.business_id.prefix` i `orders.business_id.suffix` domyślnie `''`,
+**Dlaczego.** `orders.business_id.prefix` i `orders.business_id.suffix` mają domyślnie wartość `''`,
 `orders.min_order_value` to `0`, a `orders.confirmation_recipients` to `[]`
-(`packages/modules/orders/src/manifest.ts`). Ostatnie jest ciche: przy pustej liście nikt po
-stronie klienta nie jest powiadamiany o złożeniu zamówienia.
+(`packages/modules/orders/src/manifest.ts`). Ostatnia wartość nie daje żadnego sygnału: przy pustej
+liście nikt po stronie klienta nie dostaje informacji o złożonym zamówieniu.
 
-**Zrób (operator).** Ustaw affixy numeru zamówienia przed pierwszym zamówieniem, minimalną
-wartość zamówienia na regułę handlową klienta i co najmniej jednego wewnętrznego odbiorcę
-potwierdzenia.
+**Do zrobienia (operator).** Przed pierwszym zamówieniem ustaw przedrostek i przyrostek numeru
+zamówienia, minimalną wartość zamówienia zgodną z zasadami handlowymi klienta i co najmniej jednego
+wewnętrznego odbiorcę potwierdzeń.
 
-**Zweryfikuj.** Złóż testowe zamówienie: numer niesie uzgodnione affixy, a potwierdzenie trafia
-do wewnętrznej skrzynki klienta.
+**Weryfikacja.** Złóż testowe zamówienie: numer ma uzgodniony przedrostek i przyrostek, a
+potwierdzenie trafia do wewnętrznej skrzynki klienta.
 
-### F3. Podatki, dostawa i metody płatności
+### F3. Podatki, metody dostawy i metody płatności
 
-**Dlaczego.** Żadna stawka podatku nie jest seedowana, a żadna metoda dostawy ani płatności nie
-jest skonfigurowana dla tego klienta: moduły delivery i payment tylko uzgadniają wiersz per
-zainstalowany adapter bramki (ich `installHook`s), co jest placeholderem, nie decyzją
-handlową. Zamówienie może zostać złożone ze wszystkimi trzema źle, długo zanim ktoś zauważy.
+**Dlaczego.** Platforma nie tworzy żadnej stawki podatku i nie konfiguruje dla klienta żadnej metody
+dostawy ani płatności: moduły dostawy i płatności tylko uzgadniają po jednym wierszu dla każdego
+zainstalowanego adaptera bramki (w swoich `installHook`), co jest wartością zastępczą, a nie decyzją
+handlową. Zamówienie można złożyć ze wszystkimi trzema ustawieniami błędnymi i długo nikt tego nie
+zauważy.
 
-**Zrób (operator).** Skonfiguruj stawki VAT, które klient nalicza, metody dostawy z dostępnością
-per channel i metody płatności.
+**Do zrobienia (operator).** Skonfiguruj stawki VAT, które nalicza klient, metody dostawy z
+dostępnością w poszczególnych kanałach oraz metody płatności.
 
-**Zweryfikuj.** Testowy checkout pokazuje oczekiwaną linię podatku, oferuje dokładnie opcje
-dostawy i płatności, których klient oczekuje, i sumuje się do liczby, którą własny system klienta
-by wyprodukował.
+**Weryfikacja.** Testowy checkout pokazuje oczekiwany wiersz podatku, oferuje dokładnie te metody
+dostawy i płatności, których oczekuje klient, a suma zgadza się z tą, którą wyliczyłby własny system
+klienta.
 
-### F4. Przełącz każdą bramkę płatności z sandbox na production
+### F4. Przełącz każdą bramkę płatności z trybu testowego na produkcyjny
 
-**Dlaczego.** Moduł bramki płatności instaluje się osobno od platformy, a moduł bramki zwykle
-jest dostarczany z environment ustawionym na `sandbox` i trzyma osobne credentials per
-environment. Wdrożenie live w sandbox nie bierze pieniędzy; wdrożenie, które zapomni zarejestrować
-production callback URL, bierze pieniądze i nigdy nie potwierdza zamówienia. Klient, który nie
-przyjmuje płatności online — przelew bankowy albo limit kredytowy z odroczonym terminem — nie ma
-bramki i pomija ten punkt.
+**Dlaczego.** Moduł bramki płatności instaluje się niezależnie od platformy i zwykle jest
+dostarczany z środowiskiem ustawionym na `sandbox` oraz osobnymi danymi dostępowymi dla każdego
+środowiska. Działające wdrożenie w trybie testowym nie przyjmuje pieniędzy; wdrożenie, w którym
+zapomniano zarejestrować produkcyjny adres powiadomień, przyjmuje pieniądze, ale nigdy nie potwierdza
+zamówienia. Klient, który nie przyjmuje płatności online — tylko przelew albo limit kredytowy z
+odroczonym terminem — nie ma bramki i pomija ten punkt.
 
-**Zrób (operator + inżynier).** Dla każdej bramki, której klient używa: wprowadź production
-credentials, przełącz environment na production i zarejestruj callback URL — zbudowany na
-`PUBLIC_API_BASE_URL` (B2) — w portalu providera. Własna dokumentacja modułu bramki podaje
-ścieżkę callback i każdy endpoint, który provider musi włączyć na żądanie.
+**Do zrobienia (operator i inżynier).** Dla każdej bramki, z której korzysta klient: wprowadź
+produkcyjne dane dostępowe, przełącz środowisko na produkcyjne i zarejestruj w portalu operatora
+płatności adres powiadomień — zbudowany na podstawie `PUBLIC_API_BASE_URL` (B2). Ścieżkę powiadomień
+i każdy endpoint, który operator płatności musi włączyć na życzenie, podaje dokumentacja modułu
+bramki.
 
-**Zweryfikuj.** Jedna prawdziwa transakcja o niskiej wartości per bramka end to end i potwierdź,
-że zamówienie dochodzi do stanu paid z callback providera — nie z ręcznej zmiany statusu.
+**Weryfikacja.** Wykonaj jedną prawdziwą transakcję o niskiej wartości dla każdej bramki, od początku
+do końca, i sprawdź, że zamówienie przechodzi do stanu opłaconego dzięki powiadomieniu od operatora
+płatności — a nie przez ręczną zmianę statusu.
 
-### F5. KSeF, gdy klient fakturuje w Polsce
+### F5. KSeF, jeśli klient wystawia faktury w Polsce
 
-**Dlaczego.** Endora wysyła faktury do KSeF przez moduł wysyłki KSeF, dostępny osobno. Jego
-integracja jest domyślnie wyłączona i wskazuje środowisko `test` KSeF — właściwy default —
-błędnie skonfigurowane production submission jest prawnie wiążące. Wejście live to więc świadomy
-akt. Klient, którego dostawca księgowy sam wysyła do KSeF, ustawia zamiast tego routing KSeF
-księgi faktur na `vendor`.
+**Dlaczego.** Endora wysyła faktury do KSeF przez moduł wysyłki do KSeF, dostępny osobno. Jego
+integracja jest domyślnie wyłączona i wskazuje środowisko `test` KSeF — to właściwa wartość domyślna,
+bo błędnie skonfigurowana wysyłka produkcyjna jest prawnie wiążąca. Przejście na produkcję to więc
+świadoma decyzja. Klient, którego dostawca systemu księgowego sam wysyła faktury do KSeF, zamiast
+tego ustawia trasowanie KSeF w księdze faktur na `vendor`.
 
-**Zrób (operator).** Dla wysyłki natywnej skonfiguruj moduł KSeF zgodnie z jego własną
-dokumentacją: poświadczenia, sprawdzenie połączenia w `test`, potem przełączenie na `prod` z
-włączoną integracją. Dla wysyłki przez dostawcę ustaw routing w zakładce Routing księgi faktur.
+**Do zrobienia (operator).** Przy wysyłce natywnej skonfiguruj moduł KSeF zgodnie z jego
+dokumentacją: dane dostępowe, sprawdzenie połączenia w `test`, a potem przełączenie na `prod` z
+włączoną integracją. Przy wysyłce przez dostawcę ustaw trasowanie na zakładce Routing księgi faktur.
 
-**Zweryfikuj.** Jedna faktura wysłana w `test` i zaakceptowana, zanim przełączysz environment —
-albo, przy wysyłce przez dostawcę, jedna faktura z numerem KSeF zapisanym przez dostawcę.
+**Weryfikacja.** Zanim przełączysz środowisko, wyślij jedną fakturę w `test` i sprawdź, że została
+przyjęta — albo, przy wysyłce przez dostawcę, sprawdź jedną fakturę z numerem KSeF zapisanym przez
+dostawcę.
 
 ---
 
-## G. Operacje, które muszą istnieć od dnia pierwszego
+## G. Działania operacyjne, które muszą istnieć od pierwszego dnia
 
-### G1. Backupy, w tym wolumen assets
+### G1. Kopie zapasowe, łącznie z wolumenem plików
 
-**Dlaczego.** `deploy/README.md` opisuje cron `pg_dump` jako *zalecany* i obejmuje tylko Postgres.
-Adapter local-filesystem Assets Library zapisuje pliki do wolumenu `backend-assets`
-(`deploy/compose.prod.yml`), a nic tego nie backupuje. Przywrócona baza bez plików to katalog
-zepsutych obrazów i niedostępnych PDF-ów faktur.
+**Dlaczego.** `deploy/README.md` opisuje zadanie cron z `pg_dump` jako *zalecane* i obejmuje ono
+tylko Postgresa. Adapter lokalnego systemu plików w bibliotece mediów zapisuje pliki w wolumenie
+`backend-assets` (`deploy/compose.prod.yml`), a nic nie tworzy jego kopii. Przywrócona baza bez
+plików to katalog z uszkodzonymi obrazami i niedostępnymi PDF-ami faktur.
 
-**Zrób (inżynier).** Zainstaluj off-box cron `pg_dump`, dodaj wolumen assets i — część zwykle
-pomijana — przywróć oba do scratch environment raz, przed go-live.
+**Do zrobienia (inżynier).** Skonfiguruj zadanie cron z `pg_dump` zapisujące kopie poza serwerem,
+dodaj wolumen plików i — o tym zwykle się zapomina — przed uruchomieniem produkcyjnym raz przywróć
+oba w osobnym środowisku testowym.
 
-**Zweryfikuj.** Rehearsal restore produkuje działający storefront z obrazami.
+**Weryfikacja.** Próbne przywrócenie daje działający storefront z obrazami.
 
-### G2. Zbuduj indeks wyszukiwania po pierwszym załadowaniu katalogu
+### G2. Zbuduj indeks wyszukiwarki po pierwszym wczytaniu katalogu
 
-**Dlaczego.** Indeks wyszukiwania jest utrzymywany przyrostowo przy zapisie. Dane załadowane
-przed istnieniem indeksu albo ścieżką omijającą eventy po prostu tam nie ma — wyszukiwanie
-storefront zwraca nic i bez błędu.
+**Dlaczego.** Indeks wyszukiwarki jest aktualizowany przyrostowo przy zapisach. Danych wczytanych,
+zanim indeks istniał, albo ścieżką, która pomija zdarzenia, po prostu w nim nie ma — wyszukiwarka w
+storefroncie niczego nie zwraca i nie zgłasza błędu.
 
-**Zrób (inżynier).** Po zakończeniu importu katalogu klienta uruchom re-index. Na VPS:
+**Do zrobienia (inżynier).** Po zakończeniu importu katalogu klienta uruchom ponowne indeksowanie. Na
+serwerze VPS:
 
 ```bash
 docker compose --env-file .env -f compose.prod.yml run --rm backend \
   node dist/cli.js search reindex
 ```
 
-(zbudowana postać tego, co skrypt pakietu `search:reindex` uruchamia w developmencie —
-`dist/cli.js` to host binary
-uruchamiający polecenia, które moduły deklarują w `manifest.ts`; `--list` wypisuje każde,
-które ta instancja oferuje). Zobacz `docs/docs/modules/search.md`.
+(to zbudowana wersja tego, co skrypt pakietu `search:reindex` uruchamia w środowisku deweloperskim —
+`dist/cli.js` to program hosta, który uruchamia polecenia deklarowane przez moduły w `manifest.ts`;
+`--list` wypisuje wszystkie polecenia dostępne w tej instancji). Zobacz `docs/docs/modules/search.md`.
 
-**Zweryfikuj.** Wyszukaj produkt, o którym wiesz, że istnieje, i go znajdź; porównaj liczbę
+**Weryfikacja.** Wyszukaj produkt, o którym wiesz, że istnieje, i go znajdź; porównaj liczbę
 zindeksowanych dokumentów z liczbą produktów.
 
-### G3. Powiedz backendowi, który proxy może nazywać adres IP klienta
+### G3. Wskaż backendowi, któremu serwerowi pośredniczącemu wolno podawać adres IP klienta
 
-**Dlaczego.** Adres klienta dociera do aplikacji tylko przez `X-Forwarded-For`, a backend wierzy
-w ten nagłówek tylko od hopu, któremu kazano ufać — inaczej `request.ip` to host nginx dla
-każdego żądania. Trzy konsekwencje: limit rate per IP (1000/min) staje się jednym wspólnym
-kubełkiem dla całego internetu; IP zapisane na audit rows istotnych dla bezpieczeństwa — zdarzenia
-MFA, impersonacja admin, runy prompt-action — to proxy, nie aktor; klucz rate-limit product feed
-publiczny zapada dla nieuwierzytelnionych callerów. Kiedyś to było otwarte pytanie bez odpowiedzi
-w kodzie; teraz odpowiedzią jest zmienna.
+**Dlaczego.** Adres klienta dociera do aplikacji tylko przez `X-Forwarded-For`, a backend ufa temu
+nagłówkowi tylko wtedy, gdy pochodzi od serwera, któremu kazano ufać — w przeciwnym razie
+`request.ip` dla każdego żądania to adres hosta nginx. Skutki są trzy: limit żądań na adres IP
+(1000/min) staje się jednym wspólnym limitem dla całego internetu; adres IP zapisywany w ważnych dla
+bezpieczeństwa wpisach audytu — zdarzeniach MFA, logowaniu administratora jako klient, wykonaniach
+poleceń asystenta AI — to adres serwera pośredniczącego, a nie osoby, która działała; a klucz limitu
+żądań do publicznego feedu produktowego dla nieuwierzytelnionych wywołań przestaje cokolwiek
+rozróżniać. Kiedyś było to otwarte pytanie bez odpowiedzi w kodzie; teraz odpowiedzią jest zmienna.
 
-**Zrób (inżynier).** Potwierdź, że host nginx ustawia `X-Forwarded-For` i `X-Forwarded-Proto`
-(szablon w `deploy/nginx.example.conf` już to robi z `$proxy_add_x_forwarded_for`), potem ustaw w
-`deploy/.env` na VPS:
+**Do zrobienia (inżynier).** Sprawdź, czy host nginx ustawia `X-Forwarded-For` i `X-Forwarded-Proto`
+(szablon w `deploy/nginx.example.conf` już to robi przez `$proxy_add_x_forwarded_for`), a potem
+ustaw w `deploy/.env` na serwerze VPS:
 
 ```bash
 TRUSTED_PROXY_HOPS=1
 ```
 
-Jeden hop, bo dokładnie jeden proxy siedzi między internetem a kontenerem backend. Dodaj jeden
-per dodatkowy proxy — CDN przed host nginx robi 2 — i licz źle tylko w kierunku *wysokim* na
-własne ryzyko: każdy dodatkowy hop to jeden wpis `X-Forwarded-For`, który sam klient mógł
-napisać. Gdy adres proxy jest stały i znany, `TRUSTED_PROXY_ADDRESSES` bierze IP, zakresy CIDR
-albo nazwane zakresy `loopback` / `linklocal` / `uniquelocal` zamiast tego; ustaw jedną zmienną
-albo drugą, nigdy obie. Celowo nie ma wartości „ufaj każdemu hopowi", a backend odmawia bootu
-na wartości, której nie parsuje, zamiast fallbackować do braku zaufania — cichy fallback to
-dokładnie stan, który ten punkt ma zakończyć.
+Jeden, bo między internetem a kontenerem backendu stoi dokładnie jeden serwer pośredniczący. Dodaj
+po jednym dla każdego kolejnego — CDN przed hostem nginx daje 2 — a jeśli się pomylisz w górę, to na
+własne ryzyko: każdy dodatkowy krok to jeden wpis w `X-Forwarded-For`, który mógł napisać sam klient.
+Gdy adres serwera pośredniczącego jest stały i znany, zamiast tego można użyć
+`TRUSTED_PROXY_ADDRESSES`, które przyjmuje adresy IP, zakresy CIDR albo nazwane zakresy `loopback` /
+`linklocal` / `uniquelocal`; ustaw jedną zmienną albo drugą, nigdy obie. Celowo nie ma wartości
+„ufaj każdemu serwerowi”, a backend odmawia startu przy wartości, której nie potrafi odczytać,
+zamiast przyjąć brak zaufania — cichy powrót do wartości domyślnej to dokładnie ten stan, który ten
+punkt ma zakończyć.
 
-**Zweryfikuj.** Po restarcie stacku zaloguj się z znanego zewnętrznego adresu i odczytaj wiersz
-audytu MFA albo impersonacji: zapisany adres musi być twój, nie proxy. Szybki negatywny test to
-`curl -H 'X-Forwarded-For: 1.2.3.4' https://<API_DOMAIN>/...` z zewnątrz — przy jednym
-zaufanym hopie sfałszowany wpis jest ignorowany, a logowany adres nadal twój, bo nginx dokleja
-własny widok peer po sobie.
+**Weryfikacja.** Po ponownym uruchomieniu usług zaloguj się ze znanego adresu zewnętrznego i odczytaj
+wpis audytu MFA albo logowania jako klient: zapisany adres musi być twój, a nie serwera
+pośredniczącego. Szybki test negatywny to `curl -H 'X-Forwarded-For: 1.2.3.4' https://<API_DOMAIN>/...`
+z zewnątrz — przy jednym zaufanym serwerze sfałszowany wpis jest pomijany, a zapisany adres nadal
+jest twój, bo nginx dopisuje za nim adres, z którego faktycznie przyszło połączenie.
 
 ---
 
 ## Świadomie poza tą listą
 
-Każdy z tych punktów był rozważony i zostawiony poza listą, z powodem. Gdy powód przestaje
-obowiązywać, punkt idzie wyżej.
+Każdy z tych punktów rozważono i zostawiono poza listą, z podanym powodem. Gdy powód przestanie
+obowiązywać, punkt trafia wyżej.
 
-- **Provisioning VPS, DNS, TLS, rejestr i stack compose.** Pokryte przez `deploy/README.md`,
-  które ta strona zakłada wykonane. Duplikacja to sposób, w jaki obie się rozjeżdżają.
-- **Skoordynowany reset bazy developera.** To procedura stacji roboczej developera.
-  Pierwsza produkcyjna baza startuje pusta i stosuje łańcuch raz; C1 to pokrywa.
-- **Raport migracji price list** — raport oznaczający wiersze, które potrzebują
-  prawdziwej wartości per waluta przed go-live. Opisuje migrację *istniejącego* wdrożenia ze
-  starymi cenami jednostkowymi. Pierwsze wdrożenie nie ma legacy cen do migracji. Staje się
-  realnym punktem, gdy pierwszy klient jest migrowany na platformę z czegoś innego.
-- **Retencja usuwania klientów** (`customers.deletion_retention_days`, default 365) i
-  **świeżość presence**. Default jest bezpieczny i nie gryzie przez rok, a ustawienie można
-  edytować w dowolnym momencie bez konsekwencji danych. Należy do przeglądu GDPR, nie bramki
-  go-live.
-- **Credentials integracji per moduł dla modułów, których klient nie używa** — łączniki PIM i
-  ERP, product feeds, providerzy newsletter, pixele marketing. Jest dziesiątki settings z defaultem pustego
-  stringa; każde jest inertne, dopóki capability modułu nie zostanie włączone. E1 decyduje,
-  które z nich w ogóle istnieją; wypisanie każdego credential tutaj byłoby zrzutem settings, nie
-  checklistą.
-- **Tuning Meilisearch, Redis i Postgres.** Praca pojemnościowa, nie poprawności, a nota sizing
-  single-VPS w `deploy/README.md` pokrywa floor.
-- **Rename modułu albo zablokowana blokada lifecycle.** Procedury incydentów, nie kroki go-live;
-  runbook to `docs/docs/operations/runbooks/module-lifecycle-stuck-lock.md`.
-- **Integracje specyficzne dla klienta** — połączenie ERP albo WMS, klucze API, subskrypcje
-  webhook. Prawdziwa praca, ale to project scoping, nie bramka go-live platformy: nic w platformie
-  nie jest źle, dopóki klient o coś nie poprosi.
-- **Cokolwiek, na co static check już odmawia.** Gdy CI może failować, to nie punkt tutaj — o to
-  chodzi w design check inventory repozytorium.
+- **Przygotowanie serwera VPS, DNS, TLS, rejestru i zestawu usług Compose.** Opisuje to
+  `deploy/README.md`, a ta strona zakłada, że ta procedura została wykonana. Powielanie jej to prosta
+  droga do rozbieżności między obiema stronami.
+- **Skoordynowany reset bazy deweloperskiej.** To procedura dla stanowiska programisty. Pierwsza baza
+  produkcyjna startuje pusta i wykonuje łańcuch migracji raz; obejmuje to punkt C1.
+- **Raport migracji cenników** — raport wskazujący wiersze, które przed uruchomieniem produkcyjnym
+  wymagają prawdziwej wartości dla każdej waluty. Dotyczy migracji dawnych cen jednostkowych
+  *istniejącego* wdrożenia. Pierwsze wdrożenie nie ma dawnych cen do przeniesienia. Stanie się
+  prawdziwym punktem, gdy pierwszy klient zostanie przeniesiony na platformę z innego systemu.
+- **Okres przechowywania usuniętych klientów** (`customers.deletion_retention_days`, domyślnie 365) i
+  **aktualność informacji o obecności online**. Wartość domyślna jest bezpieczna i przez rok nie ma
+  skutków, a ustawienie można zmienić w dowolnej chwili bez konsekwencji dla danych. To temat
+  przeglądu RODO, a nie warunek uruchomienia produkcyjnego.
+- **Dane dostępowe do integracji modułów, z których klient nie korzysta** — konektory PIM i ERP,
+  feedy produktowe, dostawcy newslettera, piksele marketingowe. Są dziesiątki ustawień z pustym
+  stringiem jako wartością domyślną; każde z nich nic nie robi, dopóki funkcja modułu nie zostanie
+  włączona. Punkt E1 decyduje, które z nich w ogóle istnieją; wypisanie tu każdej pary danych
+  dostępowych byłoby zrzutem ustawień, a nie listą kontrolną.
+- **Dostrajanie Meilisearch, Redis i Postgresa.** To praca nad wydajnością, a nie poprawnością, a
+  minimum opisuje uwaga o rozmiarze pojedynczego serwera VPS w `deploy/README.md`.
+- **Zmiana nazwy modułu albo zawieszona blokada cyklu życia.** To procedury na wypadek incydentów, a
+  nie kroki uruchomienia; instrukcja jest w
+  `docs/docs/operations/runbooks/module-lifecycle-stuck-lock.md`.
+- **Integracje specyficzne dla klienta** — połączenie z ERP albo WMS, klucze API, subskrypcje
+  webhooków. To prawdziwa praca, ale należy do zakresu projektu, a nie do warunków uruchomienia
+  platformy: nic w platformie nie jest błędne, dopóki klient o coś nie poprosi.
+- **Wszystko, czego już nie przepuszcza kontrola statyczna.** Jeśli CI może to wykryć, to nie jest
+  punkt dla tej listy — właśnie temu służy inwentarz kontroli w repozytorium.
 
 ---
 
-## Gdy licencja braku wdrożenia się zamyka
+## Gdy kończy się okres „bez wdrożenia”
 
-W dniu, gdy pierwsze wdrożenie niesie dane klienta, licencja „nic nie może się jeszcze zepsuć"
-przestaje obowiązywać. Od tego momentu: rename zastosowanej klasy migracji znów potrzebuje
-rename map, bramka uprawnień nie może się zmienić bez ścieżki grant, a zmiana kontraktu
-potrzebuje zwykłej dyscypliny wersjonowania. Ta strona to miejsce, gdzie konsekwencje zostały
-opłacone.
+W dniu, w którym pierwsze wdrożenie zacznie przechowywać dane klienta, przestaje obowiązywać zasada
+„jeszcze nic nie może się zepsuć”. Od tej chwili zmiana nazwy wykonanej klasy migracji znów wymaga
+mapy zmian nazw, zabezpieczenia uprawnień nie można zmienić bez ścieżki przyznania uprawnień, a
+zmiana kontraktu wymaga zwykłej dyscypliny wersjonowania. Ta strona jest miejscem, w którym spłacono
+koszty tamtych decyzji.

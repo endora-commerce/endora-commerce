@@ -1,7 +1,7 @@
 // Email-safe Puck editor configuration (feature 047 + expansion).
 
 import { createElement, type ComponentType, type ReactNode, type Ref } from 'react';
-import type { ComponentConfig, Config } from '@measured/puck';
+import type { ComponentConfig, Config } from '@puckeditor/core';
 import {
   createColorField,
   definePageBuilderComponent,

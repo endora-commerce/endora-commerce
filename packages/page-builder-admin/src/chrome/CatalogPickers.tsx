@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import type { Field } from '@measured/puck';
+import type { Field } from '@puckeditor/core';
 import { PB_DATA_METADATA } from '@endora-commerce/page-builder-core';
 import { ChevronDown, ChevronRight, Search, X } from 'lucide-react';
 import { apiClient, normalize } from '@endora-commerce/admin-kit/lib';

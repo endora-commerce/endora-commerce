@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import type { Field } from '@measured/puck';
+import type { Field } from '@puckeditor/core';
 import { usePageBuilderPuck } from '@endora-commerce/page-builder-core/editor';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { cmsClient } from '../api/cms-client.js';

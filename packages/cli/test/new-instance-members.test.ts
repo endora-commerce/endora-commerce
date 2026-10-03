@@ -62,7 +62,7 @@ function fullInput(overrides: Partial<PlanInput> = {}): PlanInput {
       ['tailwindcss', '^4.2.4'],
       ['@tailwindcss/vite', '^4.2.4'],
     ]),
-    adminPeers: new Map([['@measured/puck', '^0.20.0']]),
+    adminPeers: new Map([['@puckeditor/core', '^0.20.0']]),
     cliVersion: '1.2.3',
     docsRanges: new Map([
       ['@docusaurus/core', '^3.10.0'],
@@ -109,8 +109,8 @@ describe('R3.5c — a declined member writes no directory and no package', () =>
     expect(headless.files.some((file) => file.path.startsWith('admin/'))).toBe(false);
     // The optional peers the admin composes are declared at the root only when
     // it is written; declining it removes them with it.
-    expect(headless.dependencies.has('@measured/puck')).toBe(false);
-    expect(full.dependencies.has('@measured/puck')).toBe(true);
+    expect(headless.dependencies.has('@puckeditor/core')).toBe(false);
+    expect(full.dependencies.has('@puckeditor/core')).toBe(true);
     // R3.5e — the module list is the same list either way.
     const modules = (plan: typeof full): string[] =>
       [...plan.dependencies.keys()].filter((name) => name.startsWith(`${SCOPE}mod-`));

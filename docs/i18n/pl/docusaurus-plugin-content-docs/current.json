@@ -1,6 +1,6 @@
 {
   "sidebar.main.category._i18n": {
-    "message": "Języki Admin UI"
+    "message": "Języki panelu administracyjnego"
   },
   "sidebar.main.category._lifecycle": {
     "message": "Cykl życia modułu"
@@ -9,10 +9,10 @@
     "message": "addresses"
   },
   "sidebar.main.category.admin-ui": {
-    "message": "Admin UI"
+    "message": "Panel administracyjny"
   },
   "sidebar.main.category.admin_actions": {
-    "message": "Admin Command Palette Actions"
+    "message": "Akcje palety poleceń"
   },
   "sidebar.main.category.admin_roles": {
     "message": "admin_roles"
@@ -36,7 +36,7 @@
     "message": "Architektura"
   },
   "sidebar.main.category.assets_library": {
-    "message": "Assets Library"
+    "message": "Biblioteka mediów"
   },
   "sidebar.main.category.audit_logs": {
     "message": "audit_logs"
@@ -57,10 +57,10 @@
     "message": "CMS"
   },
   "sidebar.main.category.comparisons": {
-    "message": "Porównywanie produktów"
+    "message": "Porównywarka produktów"
   },
   "sidebar.main.category.credentials": {
-    "message": "Credentials"
+    "message": "Dane uwierzytelniające"
   },
   "sidebar.main.category.credit_limits": {
     "message": "credit_limits"
@@ -84,7 +84,7 @@
     "message": "Wdrożenie"
   },
   "sidebar.main.category.dictionaries": {
-    "message": "Słownik"
+    "message": "Słowniki"
   },
   "sidebar.main.category.google_analytics": {
     "message": "Google Analytics"
@@ -105,7 +105,7 @@
     "message": "inventory"
   },
   "sidebar.main.category.invoice_ledger": {
-    "message": "Invoice ledger"
+    "message": "Księga faktur"
   },
   "sidebar.main.category.invoices": {
     "message": "invoices"
@@ -150,13 +150,13 @@
     "message": "price_lists"
   },
   "sidebar.main.category.product_feeds": {
-    "message": "Product Feeds"
+    "message": "Feedy produktowe"
   },
   "sidebar.main.category.promotions": {
     "message": "promotions"
   },
   "sidebar.main.category.prompt_actions": {
-    "message": "Prompt Actions (asystent AI)"
+    "message": "Asystent AI (Prompt Actions)"
   },
   "sidebar.main.category.pwa": {
     "message": "PWA (Progressive Web App)"
@@ -177,7 +177,7 @@
     "message": "Runbooki"
   },
   "sidebar.main.category.sales_channels": {
-    "message": "Sales channels"
+    "message": "Kanały sprzedaży"
   },
   "sidebar.main.category.search": {
     "message": "search"
@@ -186,7 +186,7 @@
     "message": "seo"
   },
   "sidebar.main.category.settings": {
-    "message": "Settings"
+    "message": "Ustawienia"
   },
   "sidebar.main.category.shipments": {
     "message": "shipments"

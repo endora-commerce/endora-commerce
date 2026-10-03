@@ -32,7 +32,7 @@
 // of sections actually rendered follows the blocks, so a module declaring a
 // section it then contributes nothing to adds no empty drawer.
 
-import type { Config } from '@measured/puck';
+import type { Config } from '@puckeditor/core';
 import { contextAdmits } from './define-component.js';
 import type { PageBuilderContext } from './types/responsive.js';
 

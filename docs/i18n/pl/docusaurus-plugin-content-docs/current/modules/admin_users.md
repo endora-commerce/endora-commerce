@@ -1,53 +1,50 @@
 ---
 title: admin_users
-description: Konta administratorów platformy + impersonacja
+description: Konta administratorów platformy i logowanie jako klient
 ---
 
 # `admin_users`
 
-Konta administratorów platformy (oddzielne od Customer Accounts) oraz przepływ
-impersonacji.
+Konta administratorów platformy (oddzielne od kont klientów) oraz logowanie jako klient
+(impersonacja).
 
-## Publiczne API
+## API publiczne
 
-CRUD użytkowników i ról jest gated przez uprawnienie `admin_users:manage`.
+Zarządzanie użytkownikami i rolami wymaga uprawnienia `admin_users:manage`.
 
-| Verb + Path | Cel |
+| Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
-| `POST /api/v1/auth/admin/login` | Logowanie admina (wyzwanie 2FA, gdy Rola tego wymaga) |
-| `POST /api/v1/auth/admin/logout` | Zniszczenie sesji admina |
-| `GET /api/v1/admin/admin-users` | Lista użytkowników admina (wiersze usunięte są filtrowane) |
-| `POST /api/v1/admin/admin-users` | Utworzenie użytkownika admina; odrzuca duplikat e-mail z `EMAIL_ALREADY_REGISTERED` |
-| `PATCH /api/v1/admin/admin-users/:id` | Aktualizacja imienia / przypisania roli / statusu |
-| `DELETE /api/v1/admin/admin-users/:id` | Soft delete (ustawia `deletedAt` + `status='inactive'`) |
+| `POST /api/v1/auth/admin/login` | Logowanie administratora (z weryfikacją 2FA, gdy wymaga tego rola) |
+| `POST /api/v1/auth/admin/logout` | Zakończenie sesji administratora |
+| `GET /api/v1/admin/admin-users` | Lista administratorów (usunięte konta są pomijane) |
+| `POST /api/v1/admin/admin-users` | Utworzenie administratora; powtórzony e-mail jest odrzucany z `EMAIL_ALREADY_REGISTERED` |
+| `PATCH /api/v1/admin/admin-users/:id` | Aktualizacja imienia, przypisanej roli lub statusu |
+| `DELETE /api/v1/admin/admin-users/:id` | Usunięcie miękkie (ustawia `deletedAt` i `status='inactive'`) |
 | `GET /api/v1/admin/admin-roles` | Lista ról z tablicami uprawnień |
-| `PUT /api/v1/admin/admin-roles/:code` | Upsert roli po code; nieznane uprawnienia zwracają 400 `VALIDATION_FAILED` |
-| `DELETE /api/v1/admin/admin-roles/:id` | Usunięcie; odmowa z 409 `ADMIN_ROLE_IN_USE`, gdy jakikolwiek użytkownik nadal ma przypisaną rolę — **w tym soft-deleted**, którego przypisanie wraca po przywróceniu konta. Odmowa wymienia, która populacja trzyma rolę (`details.code` to `assigned` lub `assigned_to_deleted`) i ile ich jest |
-| `GET /api/v1/admin/permissions` | Kanoniczny katalog uprawnień (moduł / code / label) używany przez UI macierzy |
-| `POST /api/v1/admin/organizations/:id/impersonate` | Rozpoczęcie impersonacji; zapisuje wiersz audytu `impersonation.start` przed wydaniem cookie |
-| `POST /api/v1/admin/impersonation/end` | Przywrócenie oryginalnej sesji admina |
+| `PUT /api/v1/admin/admin-roles/:code` | Utworzenie lub aktualizacja roli według kodu; nieznane uprawnienia zwracają 400 `VALIDATION_FAILED` |
+| `DELETE /api/v1/admin/admin-roles/:id` | Usunięcie; odrzucane z 409 `ADMIN_ROLE_IN_USE`, gdy rola jest nadal przypisana do jakiegokolwiek użytkownika — **także usuniętego miękko**, bo jego przypisanie wraca po przywróceniu konta. Odpowiedź wskazuje, która grupa ma tę rolę (`details.code` to `assigned` albo `assigned_to_deleted`) i ilu jest takich użytkowników |
+| `GET /api/v1/admin/permissions` | Kanoniczny katalog uprawnień (moduł / kod / etykieta), z którego korzysta macierz uprawnień w panelu |
+| `POST /api/v1/admin/organizations/:id/impersonate` | Rozpoczęcie logowania jako klient; przed wydaniem ciasteczka zapisuje wpis audytu `impersonation.start` |
+| `POST /api/v1/admin/impersonation/end` | Powrót do pierwotnej sesji administratora |
 
-## Model impersonacji
+## Logowanie jako klient
 
-`impersonation-service.ts` implementuje wzorzec switch-user: rozpoczyna nową
-sesję przypisaną do docelowego Customer + shadow id admina; kończy się czysto,
-zapisując `impersonation.end`. Każda akcja podczas sesji impersonowanej niesie
-zarówno `actorAdminUserId`, jak i `impersonatedCustomerAccountId` przez log
-audytu.
+`impersonation-service.ts` realizuje wzorzec przełączenia użytkownika: rozpoczyna nową sesję
+przypisaną do docelowego klienta, z zapamiętanym w tle identyfikatorem administratora, i kończy ją
+czysto, zapisując `impersonation.end`. Każda czynność wykonana w takiej sesji jest zapisywana w
+dzienniku audytu zarówno z `actorAdminUserId`, jak i z `impersonatedCustomerAccountId`.
 
 ## Encje
 
-`AdminUser` (email, passwordHash, stan two-factor, pojedyncze `adminRoleId`,
-`status`, soft-delete `deletedAt`).
+`AdminUser` (e-mail, passwordHash, stan uwierzytelniania dwuskładnikowego, jedno `adminRoleId`,
+`status`, usunięcie miękkie przez `deletedAt`).
 
-`AdminRole` (code, nazwa wyświetlana, JSONB `permissions[]`,
-`requiresTwoFactor`). Wildcard `*` jest tylko bootstrapowy i jest odrzucany przez
-trasę upsert.
+`AdminRole` (kod, nazwa wyświetlana, JSONB `permissions[]`, `requiresTwoFactor`). Symbol
+wieloznaczny `*` służy wyłącznie do inicjalizacji platformy i jest odrzucany przez trasę zapisu
+roli.
 
 ## Punkty rozszerzenia
 
-- **Niestandardowe wyzwania logowania** — slot przed weryfikacją hasła w
-  `admin-auth-service.ts`.
-- **Konsumenci audytu impersonacji** — każdy wiersz audytu z akcją
-  `impersonation.start|end` ma tę samą strukturę; downstream reporting może
-  łączyć po nich.
+- **Własne etapy logowania** — miejsce przed weryfikacją hasła w `admin-auth-service.ts`.
+- **Odbiorcy audytu logowania jako klient** — każdy wpis audytu z akcją `impersonation.start|end`
+  ma tę samą strukturę; raportowanie w dalszych systemach może łączyć dane właśnie po nich.

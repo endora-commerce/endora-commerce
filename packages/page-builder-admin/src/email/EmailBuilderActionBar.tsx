@@ -11,7 +11,7 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { ActionBar } from '@measured/puck';
+import { ActionBar } from '@puckeditor/core';
 import { LayoutGrid, Plus } from 'lucide-react';
 import {
   EMAIL_ROW_LAYOUT_PRESETS,

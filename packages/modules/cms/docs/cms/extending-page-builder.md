@@ -9,8 +9,8 @@ The CMS module ships built-in components — `Row`, `Columns`, `Text`,
 `Heading`, `Button`, `InsertBlock`, and others — but every other
 backend module can contribute its own components. (`InsertTemplate` remains
 registered for legacy content trees but is no longer listed in the drawer
-palette.) The CMS, catalog, orders, invoices and transactional e-mail modules
-already contribute blocks this way. A contributing module participates in two
+palette.) The `cms`, `catalog`, `orders`, `invoices` and `transactional_emails`
+modules already contribute blocks this way. A contributing module participates in two
 places:
 
 1. **Manifest declaration**: declare the block's metadata — name, labels,
@@ -97,7 +97,7 @@ package's entry point:
 
 ```tsx
 // packages/cms-components/src/components/PromoBanner.tsx
-import type { ComponentConfig } from '@measured/puck';
+import type { ComponentConfig } from '@puckeditor/core';
 
 interface Props {
   headline: string;

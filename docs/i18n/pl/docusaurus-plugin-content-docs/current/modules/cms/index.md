@@ -1,25 +1,25 @@
 ---
 title: CMS
 sidebar_position: 1
-description: Powierzchnia autorska Page Buildera — Pages, Blocks, Templates, Hooks — per kanał + język
+description: Tworzenie treści w Page Builderze — strony, bloki, szablony, hooki — osobno dla kanałów i języków
 ---
 
 # CMS
 
-Moduł CMS to redakcyjna powierzchnia platformy. Posiada cztery encje
-tworzone w drag-and-drop **Page Builderze** i eksponowane na storefront z pełnym
-scope'owaniem sales-channel i języka.
+Moduł CMS to redakcyjna część platformy. Odpowiada za cztery encje tworzone w edytorze **Page
+Builder** (przeciągnij i upuść) i udostępniane w storefroncie z pełnym zawężeniem do kanału
+sprzedaży i języka.
 
-| Entity      | Identifier        | Lifecycle                            | Embedded by                                   |
+| Encja      | Identyfikator        | Cykl życia                            | Gdzie jest osadzana                                   |
 | ----------- | ----------------- | ------------------------------------ | --------------------------------------------- |
-| **Page**    | `slug` (per channel) | `draft → published → archived`       | URL on the storefront                         |
-| **Block**   | `code` (per channel) | `active` flag                        | Pages (`InsertBlock`) and Hooks (attachment)  |
-| **Template**| `code` (per channel) | always-visible (no flag)             | Blueprints for pages/blocks (**Save as template** / **Apply template**). Legacy `InsertTemplate` embeds still resolve at runtime. |
-| **Hook**    | `code` (global)      | `active` flag, system-protected seed | Storefront layouts (`<Hook code="..." />`)    |
+| **Strona**    | `slug` (w obrębie kanału) | `draft → published → archived`       | Adres w storefroncie                         |
+| **Blok**   | `code` (w obrębie kanału) | flaga `active`                        | Strony (`InsertBlock`) i hooki (przypięcie)  |
+| **Szablon**| `code` (w obrębie kanału) | zawsze widoczny (bez flagi)             | Wzorce stron i bloków (**Save as template** / **Apply template**). Dawne osadzenia `InsertTemplate` nadal działają. |
+| **Hook**    | `code` (globalny)      | flaga `active`, wpisy początkowe chronione przez system | Układy storefrontu (`<Hook code="..." />`)    |
 
-## Encje i graf referencji
+## Encje i graf odwołań
 
-Graf encji w runtime:
+Graf encji w czasie działania:
 
 ```
        Hook ──── attachment ────┐
@@ -30,58 +30,66 @@ Graf encji w runtime:
                             Template ── InsertTemplate (legacy) ──> Page (slug-routed)
 ```
 
-Szablony treści (`cms_templates`) to wielokrotnie używane layouty Page Buildera (Save as template / Apply template). Szablony e-mail i faktur pozostają we własnych listach admina i magazynie. Osadzanie przez `InsertTemplate` zostało wycofane z palety komponentów; istniejące drzewa nadal się renderują.
+Szablony treści (`cms_templates`) to wielokrotnego użytku układy Page Buildera (Save as template /
+Apply template). Szablony e-maili i faktur mają własne listy w panelu i własne miejsce
+przechowywania. Osadzanie przez `InsertTemplate` usunięto z palety komponentów; istniejące drzewa
+nadal się wyświetlają.
 
-Ochrona referencji działa przy każdym usunięciu:
+Ochrona odwołań działa przy każdym usuwaniu:
 
-- **Block** odwołany przez Page, Template lub attachment Hooka nie może zostać usunięty (HTTP `409 CMS_REFERENCED`).
-- **Template** odwołany przez Page lub Block nie może zostać usunięty.
-- **Hook** z flagą `is_system=true` nie może zostać usunięty (`409 CMS_HOOK_SYSTEM_PROTECTED`); Hooki utworzone przez admina są usuwalne.
+- **Bloku**, do którego odwołuje się strona, szablon albo przypięcie do hooka, nie można usunąć (HTTP
+  `409 CMS_REFERENCED`).
+- **Szablonu**, do którego odwołuje się strona albo blok, nie można usunąć.
+- **Hooka** z flagą `is_system=true` nie można usunąć (`409 CMS_HOOK_SYSTEM_PROTECTED`); hooki
+  utworzone przez administratora można usuwać.
 
-Każde skanowanie referencji to przejście JSONB po envelope `content` encji (`page→block`, `page→template`, `block→template`, `template→block`) plus sprawdzenie klucza obcego w `cms_hook_block_attachments` dla `hook→block`.
+Każde wyszukiwanie odwołań to przejście JSONB po strukturze `content` encji (`page→block`,
+`page→template`, `block→template`, `template→block`) oraz sprawdzenie klucza obcego w
+`cms_hook_block_attachments` dla `hook→block`.
 
-Ten sam JSONB `content` skanuje też **rejestr referencji Assets Library** — usunięcie Assetu osadzonego w `props` komponentu CMS jest podobnie odrzucane.
+Tę samą zawartość JSONB `content` przeszukuje też **rejestr odwołań biblioteki mediów** — usunięcie
+pliku osadzonego we właściwościach (`props`) komponentu CMS jest odrzucane w ten sam sposób.
 
-## Autoring Page Buildera
+## Tworzenie treści w Page Builderze
 
-Page Builder opiera się na **Puck** (`@measured/puck`) i dostarcza komponenty
-w `@endora-commerce/cms-components`. Domyślne layout/content:
+Page Builder jest zbudowany na **Puck** (`@puckeditor/core`), a komponenty dostarcza
+`@endora-commerce/cms-components`. Domyślne komponenty układu i treści:
 
-| Component       | Purpose                                                                |
+| Komponent       | Przeznaczenie                                                                |
 | --------------- | ---------------------------------------------------------------------- |
-| `Row`           | Kontener layoutu flex-column.                                          |
+| `Row`           | Kontener układu w kolumnie (flex).                                          |
 | `Heading`       | `h1`–`h6` z wyborem wyrównania i poziomu.                              |
-| `Text`          | Prosty tekst z kontrolami typografii.                                  |
-| `RichContent`   | TipTap rich text (modal linków, kolory, obrazy).                       |
-| `Button`        | Etykieta + cel linku + wariant.                                        |
-| `Image`         | URL lub biblioteka assetów; tryby szerokości + wyrównanie.             |
-| `Icons`         | Wizualny picker ikon Lucide (~100 wyselekcjonowanych ikon).          |
-| `Social`        | Ikony social brand (`react-icons`); lista linków pokazuje nazwy sieci. |
-| `Spacer`        | Odstęp pionowy + opcjonalny separator.                                 |
-| `FeatureList`   | Kolumny ikona + tytuł + opis.                                          |
-| `Hero`          | Baner CTA z tłem, nagłówkiem i przyciskiem.                            |
-| `LogoStrip`     | Logotypy partnerów / zaufania.                                         |
-| `Testimonial`   | Cytat + autor (+ opcjonalny avatar).                                   |
-| `Stats`         | Pasek KPI / liczników.                                                 |
-| `AnnouncementBar` | Cienki pasek promocyjny.                                             |
-| `SimpleTable`   | Prosta tabela z separatorem pipe.                                      |
-| `NewsletterSignup` | Formularz zapisu e-mail (konfigurowalny action URL).                |
-| `ContactFormEmbed` | Osadzenie iframe formularza lub mailto.                             |
-| `InsertBlock`   | Osadza Block po `code`. Storefront inline'uje rozwiązany Block.       |
-| `InsertTemplate`| Legacy: osadza Template po `code`. Zachowany dla istniejących drzew; **nie** w palecie drawer. Preferuj Save as / Apply template. |
+| `Text`          | Zwykły tekst z ustawieniami typografii.                                  |
+| `RichContent`   | Tekst sformatowany TipTap (okno linków, kolory, obrazy).                       |
+| `Button`        | Etykieta, cel linku i wariant.                                        |
+| `Image`         | Adres URL albo plik z biblioteki; tryby szerokości i wyrównanie.             |
+| `Icons`         | Graficzny wybór ikon Lucide (ok. 100 wybranych ikon).          |
+| `Social`        | Ikony serwisów społecznościowych (`react-icons`); lista linków pokazuje nazwy serwisów. |
+| `Spacer`        | Odstęp pionowy z opcjonalną linią oddzielającą.                                 |
+| `FeatureList`   | Kolumny z ikoną, tytułem i opisem.                                          |
+| `Hero`          | Baner z wezwaniem do działania: tło, nagłówek i przycisk.                            |
+| `LogoStrip`     | Logotypy partnerów lub klientów.                                         |
+| `Testimonial`   | Cytat i autor (z opcjonalnym zdjęciem).                                   |
+| `Stats`         | Pasek wskaźników lub liczników.                                                 |
+| `AnnouncementBar` | Wąski pasek z komunikatem promocyjnym.                                             |
+| `SimpleTable`   | Prosta tabela z kolumnami rozdzielonymi znakiem `\|`.                                      |
+| `NewsletterSignup` | Formularz zapisu na newsletter (konfigurowalny adres wysyłki formularza).                |
+| `ContactFormEmbed` | Osadzony formularz w iframe albo link mailto.                             |
+| `InsertBlock`   | Osadza blok według `code`. Storefront wstawia treść odnalezionego bloku.       |
+| `InsertTemplate`| Dawny komponent: osadza szablon według `code`. Zachowany dla istniejących drzew; **nie** ma go w palecie. Zamiast niego używaj Save as / Apply template. |
 
-Dodatkowe kategorie (catalog, media, interactive, forms, advanced) dostarczają
-Product*, Video, Map, slidery, Tabs, Accordion, RawHtml/RawJs itd.
+Dodatkowe kategorie (katalog, media, elementy interaktywne, formularze, zaawansowane) dostarczają
+komponenty Product*, Video, Map, karuzele, Tabs, Accordion, RawHtml/RawJs itd.
 
-### Viewporty podglądu
+### Rozmiary podglądu
 
-Ramki Puck Mobile / Tablet / Desktop używają logicznych szerokości **360 / tabletMin /
-max(desktopMin, 1280)**. Zoom to wbudowany Puck `transform: scale` wewnątrz
-iframe (`waitForStyles: true`). Preferuj przełącznik viewportu zamiast resize
-przeglądarki przy sprawdzaniu responsywnych props — reguły CSS `@media` rozwiązują się
-względem szerokości iframe, podczas gdy JS warstwy edycji używa wybranej szerokości viewportu.
+Ramki podglądu Puck dla telefonu, tabletu i komputera mają logiczne szerokości **360 / tabletMin /
+max(desktopMin, 1280)**. Powiększenie to wbudowane w Puck `transform: scale` wewnątrz iframe
+(`waitForStyles: true`). Sprawdzając ustawienia responsywne, korzystaj z przełącznika rozmiaru
+podglądu zamiast zmieniać rozmiar okna przeglądarki — reguły CSS `@media` zależą od szerokości iframe,
+a skrypty warstwy edycji korzystają z wybranej szerokości podglądu.
 
-Drzewo treści jest persystowane w envelope JSONB:
+Drzewo treści jest zapisywane w strukturze JSONB:
 
 ```jsonc
 {
@@ -93,26 +101,26 @@ Drzewo treści jest persystowane w envelope JSONB:
 }
 ```
 
-`schema_version` jest podnoszone tylko gdy zmienia się kształt magazynu węzła. Boot-time `content-schema-upgrader` przechodzi każde zapisane drzewo i przepisuje węzły in-place; bieżące komponenty startują od `schema_version=1`.
+`schema_version` jest zwiększane tylko wtedy, gdy zmienia się sposób zapisu węzła. Mechanizm
+`content-schema-upgrader` przy starcie przechodzi przez każde zapisane drzewo i przepisuje węzły na
+miejscu; obecne komponenty zaczynają od `schema_version=1`.
 
-## Scope sales-channel + język
+## Zakres: kanał sprzedaży i język
 
-Każda Page, Block, Template i Hook jest powiązana z jednym lub więcej sales
-channels (join M:N z denormalizowanym `code`/`slug` na wierszu join, żeby
-egzekwować unikalność per kanał na poziomie DB). Ten sam `slug` może istnieć
-w dwóch kanałach — to niezależne wiersze. Języki żyją jako tablica JSONB na każdej
-encji; resolver storefront stosuje standardową platformową regułę fallback
-(żądany → domyślny kanału → 404).
+Każda strona, blok, szablon i hook jest przypisany do jednego lub kilku kanałów sprzedaży (relacja
+wiele-do-wielu z powielonym `code`/`slug` w wierszu łączącym, aby baza danych pilnowała unikalności w
+obrębie kanału). Ten sam `slug` może istnieć w dwóch kanałach — to niezależne wiersze. Języki są
+zapisane jako tablica JSONB w każdej encji; odczyt w storefroncie stosuje standardową regułę
+wartości zastępczej platformy (żądany język → język domyślny kanału → 404).
 
-Admin `ScopePicker` ogranicza listę języków per kanał do skonfigurowanego
-zestawu języków kanału; zapis Page, której `languages` zawiera kod
-nieobsługiwany przez żaden przypisany kanał, zwraca
-`400 CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE`.
+`ScopePicker` w panelu ogranicza listę języków dla kanału do zbioru języków skonfigurowanych w tym
+kanale; zapis strony, której `languages` zawiera kod nieobsługiwany przez żaden z przypisanych
+kanałów, zwraca `400 CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE`.
 
-## Seedowane Hooki
+## Hooki tworzone przy instalacji
 
-23 bazowe kody Hook są seedowane z `is_system=true` przy boot przez
-idempotentny reconciler. Obejmują standardowe punkty wstawienia storefront:
+Przy starcie idempotentny mechanizm uzgadniania tworzy 23 podstawowe kody hooków z
+`is_system=true`. Obejmują standardowe miejsca wstawiania treści w storefroncie:
 
 ```
 header.top
@@ -127,56 +135,54 @@ login.top, login.bottom
 register.top, register.bottom
 ```
 
-Każdy `<Hook code="…" />` server component pobiera
-`/api/v1/cms/hooks/by-code` z rozwiązanym kanałem + językiem i
-renderuje każdy aktywny dołączony Block w kolejności `position`. Puste
-attachmenty i nieudane fetch'e renderują nic — Hooki nie mogą psuć renderu strony.
+Każdy komponent serwerowy `<Hook code="…" />` pobiera `/api/v1/cms/hooks/by-code` z wyznaczonym
+kanałem i językiem i wyświetla każdy aktywny przypięty blok w kolejności `position`. Brak przypięć
+albo nieudane pobranie nic nie wyświetla — hooki nie mogą zepsuć wyświetlania strony.
 
-## Powierzchnia HTTP
+## API HTTP
 
-### Admin (`/api/v1/admin/cms`)
+### Panel administracyjny (`/api/v1/admin/cms`)
 
-| Method  | Path                                                | Purpose                                         |
+| Metoda  | Ścieżka                                                | Przeznaczenie                                         |
 | ------- | --------------------------------------------------- | ----------------------------------------------- |
-| GET     | `/pages`                                            | Paginowana lista Page z filtrami.               |
-| POST    | `/pages`                                            | Utworzenie Page (zawsze startuje jako `draft`). |
-| GET     | `/pages/:id`                                        | Szczegóły z pełnym envelope content + version.  |
-| PATCH   | `/pages/:id`                                        | Edycja metadanych; respektuje `If-Match` przez `version`.|
-| PUT     | `/pages/:id/content/:language`                      | Zapis drzewa Page Buildera per język.            |
-| POST    | `/pages/:id/{publish,archive,unarchive}`            | Przejścia cyklu życia.                          |
-| DELETE  | `/pages/:id`                                        | Hard delete (kanały są cascade-unbound).        |
-| Same    | `/blocks/*`                                         | Ten sam kształt; `code` unikalny per kanał; ochrona referencji przy delete. |
-| Same    | `/templates/*`                                      | Ten sam kształt bez flagi `active`.             |
-| GET     | `/hooks`, `/hooks/:id`                              | Lista + szczegóły z liczbą attachmentów.        |
-| POST    | `/hooks`                                            | Utworzenie Hooka admin (non-system).            |
-| PATCH   | `/hooks/:id`                                        | Edycja name / active / scope; `code` jest niemutowalne.|
-| DELETE  | `/hooks/:id`                                        | Odmowa z 409 gdy `is_system=true`.              |
-| GET / POST / PATCH / DELETE | `/hooks/:id/attachments[/:blockId]` | Dołącz / reorder / detach Blocków na Hooku.     |
-| GET     | `/page-builder/config`                              | Scalony deskryptor Page Buildera (tylko metadane).|
+| GET     | `/pages`                                            | Stronicowana lista stron z filtrami.               |
+| POST    | `/pages`                                            | Utworzenie strony (zawsze zaczyna jako `draft`). |
+| GET     | `/pages/:id`                                        | Szczegóły z pełną treścią i wersją.  |
+| PATCH   | `/pages/:id`                                        | Edycja metadanych; uwzględnia `If-Match` przez `version`.|
+| PUT     | `/pages/:id/content/:language`                      | Zapis drzewa Page Buildera dla danego języka.            |
+| POST    | `/pages/:id/{publish,archive,unarchive}`            | Przejścia w cyklu życia.                          |
+| DELETE  | `/pages/:id`                                        | Trwałe usunięcie (przypisania do kanałów są usuwane kaskadowo).        |
+| Analogicznie    | `/blocks/*`                                         | Ta sama postać; `code` unikalny w obrębie kanału; ochrona odwołań przy usuwaniu. |
+| Analogicznie    | `/templates/*`                                      | Ta sama postać, bez flagi `active`.             |
+| GET     | `/hooks`, `/hooks/:id`                              | Lista i szczegóły z liczbą przypiętych bloków.        |
+| POST    | `/hooks`                                            | Utworzenie hooka przez administratora (niesystemowego).            |
+| PATCH   | `/hooks/:id`                                        | Edycja nazwy, aktywności i zakresu; `code` nie można zmienić.|
+| DELETE  | `/hooks/:id`                                        | Odrzucane z 409, gdy `is_system=true`.              |
+| GET / POST / PATCH / DELETE | `/hooks/:id/attachments[/:blockId]` | Przypinanie, zmiana kolejności i odpinanie bloków w hooku.     |
+| GET     | `/page-builder/config`                              | Połączony opis Page Buildera (tylko metadane).|
 
 ### Storefront (`/api/v1/cms`)
 
-| Method | Path                              | Returns                                                        |
+| Metoda | Ścieżka                              | Zwraca                                                        |
 | ------ | --------------------------------- | -------------------------------------------------------------- |
-| GET    | `/pages/by-slug?slug=…&language=…`| Rozwiązana Page z `embeds.blocks`, `embeds.templates`, assets. |
-| GET    | `/blocks/by-code?code=…&language=…`| Rozwiązany Block (pojedynczy, filtrowany kanałem, tylko active).|
-| GET    | `/hooks/by-code?code=…&language=…`| Uporządkowana lista aktywnych Blocków dla nazwanego Hooka.     |
+| GET    | `/pages/by-slug?slug=…&language=…`| Stronę z `embeds.blocks`, `embeds.templates` i plikami. |
+| GET    | `/blocks/by-code?code=…&language=…`| Blok (jeden, z filtrowaniem według kanału, tylko aktywny).|
+| GET    | `/hooks/by-code?code=…&language=…`| Uporządkowaną listę aktywnych bloków dla wskazanego hooka.     |
 
-Rozwiązywanie kanału preferuje nagłówek `X-Sales-Channel`, potem fallback
-do domyślnego kanału systemowego. Rozwiązywanie języka preferuje `?language=`,
-potem `Accept-Language`, potem domyślny język skonfigurowany dla kanału.
+Kanał jest wyznaczany najpierw z nagłówka `X-Sales-Channel`, a w jego braku jest to domyślny kanał
+systemowy. Język — najpierw z `?language=`, potem z `Accept-Language`, a na końcu jest to język
+domyślny skonfigurowany dla kanału.
 
-## Rozwiązywanie storefront + cache Redis
+## Odczyt w storefroncie i pamięć podręczna w Redis
 
-Pojedynczy serwis `StorefrontResolver` obsługuje wszystkie trzy operacje odczytu
-storefront jednym query dla encji root, jednym batch query
-per typ embed (`InsertBlock` / `InsertTemplate`) per poziom rekursji
-oraz jednym batch call do `assetsLibrary.resolveUrl` dla każdego osadzonego
-asseta. Rekursja jest ograniczona głębokością 3; cykle lub głębsze grafy
-degradują do `MissingComponentPlaceholder` renderowanego po stronie admina.
+Jedna usługa, `StorefrontResolver`, obsługuje wszystkie trzy odczyty dla storefrontu: jedno
+zapytanie dla encji głównej, jedno zapytanie zbiorcze dla każdego typu osadzenia (`InsertBlock` /
+`InsertTemplate`) na każdym poziomie zagnieżdżenia oraz jedno zbiorcze wywołanie
+`assetsLibrary.resolveUrl` dla wszystkich osadzonych plików. Zagnieżdżenie jest ograniczone do 3
+poziomów; cykle i głębsze grafy są zastępowane elementem `MissingComponentPlaceholder` widocznym w
+panelu.
 
-Rozwiązane payloady są cache'owane w Redis z TTL 5 minut pod trzema
-rodzinami kluczy:
+Wyniki są przechowywane w Redis z TTL 5 minut, w trzech rodzinach kluczy:
 
 ```
 cms:v1:page:<slug>:<channel>:<language>
@@ -184,48 +190,47 @@ cms:v1:block:<code>:<channel>:<language>
 cms:v1:hook:<code>:<channel>:<language>
 ```
 
-Invalidacja działa przy każdym zapisie Page / Block / Template / Hook:
+Unieważnianie następuje przy każdym zapisie strony, bloku, szablonu lub hooka:
 
-- Zapis Page → usuwa `cms:v1:page:<slug>:*` dla każdego slug, do którego page jest przypisana.
-- Zapis Block → usuwa własne klucze block + każdy wpis page-keyed (jeszcze nie śledzimy, które pages embedują który block; coarse drop jest akceptowalny w skali platformy).
-- Zapis Template → usuwa każdy klucz w namespace CMS.
-- Zapis Hook / attachment → usuwa klucze hooka.
+- Zapis strony → usuwa `cms:v1:page:<slug>:*` dla każdego sluga przypisanego do strony.
+- Zapis bloku → usuwa klucze bloku i wszystkie klucze stron (nie śledzimy jeszcze, które strony
+  osadzają który blok; w skali platformy usuwanie całości jest akceptowalne).
+- Zapis szablonu → usuwa wszystkie klucze w przestrzeni CMS.
+- Zapis hooka albo przypięcia → usuwa klucze hooka.
 
-Cel wydajności: rozwiązywanie strony z 5 osadzonymi Blockami + 3 osadzonymi
-Templates zwraca w &lt; 200 ms p95 cold; warm path zwraca w &lt; 5 ms.
+Cel wydajnościowy: odczyt strony z 5 osadzonymi blokami i 3 osadzonymi szablonami trwa
+&lt; 200 ms p95 bez pamięci podręcznej, a z nią &lt; 5 ms.
 
-## Migracja z legacy `cms_pages`
+## Migracja z dawnego `cms_pages`
 
-Wcześniej `cms_pages` niosło `path` + `body` (HTML per język) i enum
-`status`. Migracja `20260505T130214_cms_init.ts` dodaje nowy zestaw kolumn
-(`slug`, `name`, `active`, `content`, `languages`, `version`, `meta_*`)
-i idempotentnie backfilluje każdy wiersz:
+Wcześniej `cms_pages` zawierało `path`, `body` (HTML w poszczególnych językach) i wyliczenie
+`status`. Migracja `20260505T130214_cms_init.ts` dodaje nowy zestaw kolumn (`slug`, `name`, `active`, `content`,
+`languages`, `version`, `meta_*`) i idempotentnie uzupełnia każdy wiersz:
 
 - `slug = path`
-- `name = title['en-US']` (best effort)
+- `name = title['en-US']` (w miarę możliwości)
 - `active = (status = 'published')`
-- envelope `content` z `body` z HTML każdego języka opakowanym w pojedynczy węzeł `Text` z `tiptapHtml`
-- tablica `languages` = klucze body niepustych
-- powiązanie z domyślnym sales channel platformy przez `cms_page_sales_channels`
+- struktura `content` z `body`, w której HTML każdego języka trafia do pojedynczego węzła `Text` z
+  `tiptapHtml`
+- tablica `languages` = klucze niepustych treści w `body`
+- przypisanie do domyślnego kanału sprzedaży platformy przez `cms_page_sales_channels`
 
-Ponowne uruchomienie backfillu na częściowo zmigrowanym stanie to no-op.
-Legacy kolumny `path`, `title` i `body` przeżywają jeden release jako
-lustra; skan referencji assetów obejmuje `body` dla kompatybilności wstecznej.
+Ponowne uruchomienie uzupełniania na częściowo zmigrowanych danych niczego nie zmienia. Dawne kolumny
+`path`, `title` i `body` pozostają przez jedno wydanie jako kopie; wyszukiwanie odwołań do plików
+obejmuje `body` ze względu na zgodność wsteczną.
 
 ## Rozszerzanie Page Buildera
 
-Inne moduły backendu wnoszą komponenty przez SPI w
-`packages/modules/cms/src/backend/services/page-builder-registry.ts`. Zob.
-przewodnik [Extending the Page Builder](./extending-page-builder) dla
-end-to-end workflow: deklaracja deskryptora, dostarczenie renderera i
-wiring kompozycji.
+Inne moduły backendu dodają komponenty przez interfejs w
+`packages/modules/cms/src/backend/services/page-builder-registry.ts`. Cały proces — deklarację
+opisu, dostarczenie komponentu wyświetlającego i podłączenie przy kompozycji — opisuje przewodnik
+[Rozszerzanie Page Buildera](./extending-page-builder).
 
 ## Kody błędów
 
-`CMS_PAGE_NOT_FOUND`, `CMS_BLOCK_NOT_FOUND`, `CMS_TEMPLATE_NOT_FOUND`,
-`CMS_HOOK_NOT_FOUND`, `CMS_SLUG_CONFLICT`, `CMS_CODE_CONFLICT`,
-`CMS_REFERENCED`, `CMS_HOOK_SYSTEM_PROTECTED`,
+`CMS_PAGE_NOT_FOUND`, `CMS_BLOCK_NOT_FOUND`, `CMS_TEMPLATE_NOT_FOUND`, `CMS_HOOK_NOT_FOUND`,
+`CMS_SLUG_CONFLICT`, `CMS_CODE_CONFLICT`, `CMS_REFERENCED`, `CMS_HOOK_SYSTEM_PROTECTED`,
 `CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE`, `CMS_SCHEMA_UPGRADE_FAILED`.
 
-Wszystkie envelope'y stosują platformowy kontrakt błędów w
+Wszystkie odpowiedzi z błędem mają strukturę zgodną z kontraktem błędów platformy w
 `packages/contracts/src/errors.ts`.

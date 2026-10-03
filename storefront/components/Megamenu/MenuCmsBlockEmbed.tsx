@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Render } from '@measured/puck';
+import { Render } from '@puckeditor/core';
 import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
 import type { ResolvedMenuItem } from '@endora-commerce/contracts';
 
@@ -11,7 +11,7 @@ interface MenuCmsBlockEmbedProps {
 /**
  * Renders the inlined CMS Block content carried by a menu item of kind
  * `cms-block-embed`. Reuses the platform-wide Page Builder render
- * pipeline (`@measured/puck` + `defaultPageBuilderConfig`) so a Block
+ * pipeline (`@puckeditor/core` + `defaultPageBuilderConfig`) so a Block
  * authored once renders identically on a CMS Page, in a Hook, and inside
  * a megamenu panel.
  */

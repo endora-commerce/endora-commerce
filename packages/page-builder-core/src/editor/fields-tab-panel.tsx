@@ -10,8 +10,8 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { FieldLabel } from '@measured/puck';
-import type { Field } from '@measured/puck';
+import { FieldLabel } from '@puckeditor/core';
+import type { Field } from '@puckeditor/core';
 import { SETTINGS_SCOPE_LABELS, type SettingsScope } from '../types/responsive.js';
 import { fieldTabForName, componentHasDataFields, componentHasItemsFields, componentHasResponsiveFields } from './field-tabs.js';
 import { setStoredScope } from './settings-scope-store.js';

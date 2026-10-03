@@ -4,52 +4,51 @@ title: Konsumenci kolejek i przetwarzanie w tle
 
 # Konsumenci kolejek i przetwarzanie w tle
 
-Asynchroniczna praca na Platformie B2B — masowe edycje, ponowne indeksowanie wyszukiwarki,
-dostarczanie webhooków — przechodzi przez trwałe kolejki oparte na Redis, obsługiwane przez
-**workery**. Ta strona wyjaśnia, jak uruchamiać te konsumenty i jak zachowują się obecne
-operacje platformy oparte na kolejkach.
+Praca asynchroniczna w Platformie B2B — masowe edycje, ponowne indeksowanie wyszukiwarki, wysyłka
+webhooków — przechodzi przez trwałe kolejki w Redis, obsługiwane przez **workery**. Ta strona
+wyjaśnia, jak uruchamiać konsumentów kolejek i jak zachowują się obecne operacje platformy oparte na
+kolejkach.
 
-Projekt podąża za regułą platformy o **skalowalnych konsumentach kolejek**.
-Wiążący invariant brzmi:
+Rozwiązanie jest zgodne z zasadą platformy o **skalowalnych konsumentach kolejek**. Wiążące
+założenia:
 
-- kolejka to **trwały, rozproszony substrat** (Redis / klasa BullMQ), a nie lista
-  in-memory przypisana do jednego procesu;
-- każde zadanie jest **atomowo przejmowane**, tak aby `N ≥ 2` instancje konsumenta nigdy
-  nie przetworzyły jednego joba podwójnie, a handlery są **idempotentne** przy ponowieniach;
-- komponent, który enqueue'uje (handler HTTP, subscriber zdarzeń, scheduler), to
-  **producent** — tylko enqueue'uje i wraca, nigdy nie wykonuje joba inline na ścieżce
+- kolejka to **trwały, rozproszony mechanizm** (Redis / BullMQ), a nie lista w pamięci jednego
+  procesu;
+- każde zadanie jest **pobierane atomowo**, dzięki czemu przy `N ≥ 2` instancjach konsumenta żadne
+  zadanie nie zostanie wykonane dwa razy, a handlery są **idempotentne** przy ponowieniach;
+- komponent, który dodaje zadania do kolejki (handler HTTP, subskrybent zdarzeń, harmonogram), to
+  **producent** — tylko dodaje zadanie i od razu kończy, nigdy nie wykonuje go w trakcie obsługi
   żądania;
-- konsument to **oddzielny entrypoint workera** — proces, który można uruchomić osobno i
-  skalować do wielu instancji *bez zmian w kodzie*.
+- konsument to **osobny punkt wejścia workera** — proces, który można uruchomić osobno i skalować do
+  wielu instancji *bez zmian w kodzie*.
 
 ## Uruchamianie konsumentów
 
-Workery i API współdzielą jedną kompozycję (to samo okablowanie modułów), więc konsument
-nie potrzebuje osobnego grafu serwisów. Rolę procesu wybiera zmienna środowiskowa
-`BACKEND_ROLE`:
+Workery i API korzystają z tej samej kompozycji (tego samego połączenia modułów), więc konsument nie
+potrzebuje osobnego grafu usług. Rolę procesu wybiera zmienna środowiskowa `BACKEND_ROLE`:
 
 | `BACKEND_ROLE` | Zachowanie procesu |
 | --- | --- |
-| nieustawione / `all` (domyślnie) | API **oraz** współlokalizowane workery — domyślna konfiguracja na jednym VPS |
-| `api` | Tylko HTTP; **nie** uruchamia konsumentów (sparuj z osobnym procesem workera) |
-| `worker` | Tylko konsumenci; nie serwuje HTTP (ustawiane automatycznie przez entrypoint workera) |
+| nieustawiona / `all` (domyślnie) | API **oraz** workery w tym samym procesie — domyślna konfiguracja na jednym serwerze VPS |
+| `api` | Tylko HTTP; **nie** uruchamia konsumentów (połącz z osobnym procesem workera) |
+| `worker` | Tylko konsumenci; nie obsługuje HTTP (ustawiane automatycznie przez punkt wejścia workera) |
 
-### Pojedynczy deployable (domyślnie)
+### Jeden proces (domyślnie)
 
-Na jednym VPS uruchom tylko proces API — współlokalizuje on workery:
+Na jednym serwerze VPS uruchom tylko proces API — workery działają w nim:
 
 ```bash
 pnpm --filter backend run start      # production (built)
 pnpm --filter backend run dev        # development (tsx watch)
 ```
 
-To postawa dozwolona przez tę regułę przy niskim wolumenie: worker pozostaje *oddzielnym
-entrypointem*, ale jest hostowany w procesie API, aby utrzymać prosty deployment.
+Przy niewielkim obciążeniu ta zasada na to pozwala: worker pozostaje *osobnym punktem wejścia*, ale
+działa w procesie API, co upraszcza wdrożenie.
 
-### Osobne, niezależnie skalowalne workery
+### Osobne, niezależnie skalowane workery
 
-Gdy masowe edycje, importy lub re-indeksowanie zaczynają konkurować z latencją żądań,
-rozdziel workery na własne proces(y):
+Gdy masowe edycje, importy albo ponowne indeksowanie zaczynają spowalniać obsługę żądań, przenieś
+workery do osobnych procesów:
 
 ```bash
 # Warstwa web — tylko HTTP, bez konsumentów in-process.
@@ -60,90 +59,87 @@ pnpm --filter backend run worker          # production (built)
 pnpm --filter backend run worker:dev      # development (tsx watch)
 ```
 
-Skaluj warstwę worker **horyzontalnie**, uruchamiając więcej procesów worker (lub
-kontenerów). Atomowe przejęcie joba w BullMQ gwarantuje, że job przetworzy dokładnie jeden
-z nich; dodanie instancji nie wymaga zmiany konfiguracji.
+Warstwę workerów skaluj **poziomo**, uruchamiając więcej procesów (albo kontenerów) workera.
+Atomowe pobieranie zadań w BullMQ gwarantuje, że każde zadanie wykona dokładnie jeden z nich;
+dodanie instancji nie wymaga zmian w konfiguracji.
 
-Obie warstwy muszą wskazywać na **ten sam Redis** (`REDIS_URL`, domyślnie
-`redis://localhost:6379`) i tę samą bazę PostgreSQL. Redis to substrat kolejki; Postgres
-trzyma wiersze operacji będące źródłem prawdy.
+Obie warstwy muszą korzystać z **tego samego Redis** (`REDIS_URL`, domyślnie
+`redis://localhost:6379`) i tej samej bazy PostgreSQL. Redis jest mechanizmem kolejki, a Postgres
+przechowuje wiersze operacji, które są źródłem prawdy.
 
-### Graceful shutdown
+### Łagodne zatrzymanie
 
-Entrypoint workera (`backend/src/worker.ts`) obsługuje `SIGINT` / `SIGTERM`: zamyka
-workery BullMQ (pozwalając dokończyć joby w locie), następnie rozłącza Redis i ORM. Wyślij
-`SIGTERM` i poczekaj na zakończenie procesu przed podmianą podczas deployu.
+Punkt wejścia workera (`backend/src/worker.ts`) obsługuje `SIGINT` / `SIGTERM`: zamyka workery
+BullMQ (pozwalając dokończyć trwające zadania), a następnie rozłącza Redis i ORM. Podczas wdrożenia
+wyślij `SIGTERM` i poczekaj na zakończenie procesu, zanim go zastąpisz.
 
 ## Obecne operacje oparte na kolejkach
 
-### Masowe operacje katalogu — `catalog.bulk-operation`
+### Masowe operacje w katalogu — `catalog.bulk-operation`
 
-Obsługuje stronę admin **Akcje masowe** (*Bulk actions*). Dwa typy jobów współdzielą jedną
-kolejkę:
+Obsługuje stronę panelu **Akcje masowe** (*Bulk actions*). Dwa typy zadań korzystają z jednej
+kolejki:
 
-- **`product_bulk_update`** — masowa edycja produktów większa niż próg synchroniczny (50
-  produktów). Żądanie admin zapisuje wiersz `BulkOperation` ze statusem `pending`, enqueue'uje
-  jego id i natychmiast zwraca `202`.
-- **`search_reindex`** — pełne ponowne indeksowanie Meilisearch (odpowiednik CLI
-  `pnpm search:reindex`), enqueue'owane automatycznie po przełączeniu flagi `searchable`
-  atrybutu.
+- **`product_bulk_update`** — masowa edycja produktów powyżej progu przetwarzania synchronicznego
+  (50 produktów). Żądanie z panelu zapisuje wiersz `BulkOperation` ze statusem `pending`, dodaje jego
+  identyfikator do kolejki i od razu zwraca `202`.
+- **`search_reindex`** — pełne ponowne indeksowanie Meilisearch (odpowiednik polecenia
+  `pnpm search:reindex`), dodawane do kolejki automatycznie po zmianie flagi `searchable` atrybutu.
 
-Konsument przejmuje wiersz, zmieniając `pending → running` warunkowym UPDATE (atomowe
-przejęcie), uruchamia handler i zapisuje postęp na żywo oraz końcowy status `completed` /
-`failed`. Po zakończeniu wnioskodawca dostaje powiadomienie w aplikacji **oraz** e-mail.
-Ponowne dostarczenie już przejętego joba to no-op, więc handler jest bezpieczny przy
-`N ≥ 2` workerach.
+Konsument przejmuje wiersz, zmieniając `pending → running` warunkowym UPDATE (atomowe przejęcie),
+wykonuje handler i na bieżąco zapisuje postęp, a na końcu status `completed` / `failed`. Po
+zakończeniu osoba, która zleciła operację, dostaje powiadomienie w aplikacji **oraz** e-mail.
+Ponowne dostarczenie już przejętego zadania nic nie robi, więc handler jest bezpieczny przy `N ≥ 2`
+workerach.
 
-Przy starcie workera **boot reconciliation** ponownie enqueue'uje wiersze pozostawione w
-`pending` (np. utworzone, gdy Redis był chwilowo niedostępny). To tylko *enqueue'uje* na
-trwałą kolejkę — nie jest sweeperem drainującym.
+Przy starcie workera **uzgadnianie przy starcie** ponownie dodaje do kolejki wiersze pozostawione w
+stanie `pending` (np. utworzone, gdy Redis był chwilowo niedostępny). To *tylko dodanie do kolejki*
+— nie jest to zadanie, które samo przetwarza zaległości.
 
-### Dostarczanie webhooków — `webhook.deliver`
+### Wysyłka webhooków — `webhook.deliver`
 
-Zdarzenia domenowe na in-process event bus są mostkowane na kolejkę BullMQ; worker podpisuje
-każdy payload (HMAC-SHA-256) i POST-uje go na URL subskrybenta. Do 8 prób z exponential
-backoff; ostateczna porażka trafia do dead letter i można ją odtworzyć z widoku admin
-**Webhooks → Deliveries**. Zobacz moduł [webhooks](../modules/webhooks.md) po kontrakt
-dostarczania i model ponowień.
+Zdarzenia domenowe z działającej w procesie szyny zdarzeń są przekazywane do kolejki BullMQ; worker
+podpisuje każdą treść (HMAC-SHA-256) i wysyła ją żądaniem POST na adres subskrybenta. Do 8 prób z
+wykładniczo rosnącym odstępem; ostateczna porażka trafia do kolejki nieudanych wysyłek i można ją
+ponowić w widoku panelu **Webhooks → Deliveries**. Kontrakt wysyłki i zasady ponawiania opisuje
+moduł [webhooks](../modules/webhooks.md).
 
-## Inne joby w tle (jeszcze nie na wspólnej kolejce)
+## Inne zadania w tle (jeszcze nie na wspólnej kolejce)
 
-Kilka okresowych/jobów konserwacyjnych nadal działa jako timery in-process lub ręczne
-skrypty. Poprzedzają regułę o skalowalnych konsumentach kolejek i są śledzone pod migrację
-do tego samego modelu workera; do tego czasu dokumentuj i obsługuj je tak:
+Kilka zadań okresowych i porządkowych nadal działa jako timery w procesie albo skrypty uruchamiane
+ręcznie. Są starsze niż zasada o skalowalnych konsumentach kolejek i czekają na przeniesienie do tego
+samego modelu workerów; do tego czasu dokumentuj je i obsługuj tak:
 
-| Job | Jak działa dziś | Wywołanie |
+| Zadanie | Jak działa dziś | Uruchomienie |
 | --- | --- | --- |
-| Cart abandonment sweep | Ręczny / cron script | `pnpm --filter backend run cart:abandonment-sweep` |
-| Full search re-index | Ręczne CLI | `pnpm --filter backend run search:reindex` |
-| Price-list status sweep | In-process `setInterval` (co 5 min) | startuje z procesem API |
-| RFQ expiry | Metoda serwisu, wywoływana wg harmonogramu | `RfqExpiryWorker.sweep()` |
+| Wyszukiwanie porzuconych koszyków | Skrypt uruchamiany ręcznie lub przez cron | `pnpm --filter backend run cart:abandonment-sweep` |
+| Pełne ponowne indeksowanie wyszukiwarki | Polecenie uruchamiane ręcznie | `pnpm --filter backend run search:reindex` |
+| Aktualizacja statusów cenników | `setInterval` w procesie (co 5 min) | startuje razem z procesem API |
+| Wygasanie zapytań ofertowych | Metoda usługi wywoływana według harmonogramu | `RfqExpiryWorker.sweep()` |
 
 :::note
-Powyższe sweepery in-process `setInterval` to legacy pattern, który zastępuje reguła
-o skalowalnych konsumentach kolejek. Nowa asynchroniczna praca oparta na kolejkach MUSI
-używać trwałej kolejki + oddzielnego modelu workera opisanego tutaj, nigdy timera
-w procesie żądania.
+Opisane wyżej zadania oparte na `setInterval` w procesie to starszy wzorzec, który zastępuje zasada
+o skalowalnych konsumentach kolejek. Nowa praca asynchroniczna MUSI korzystać z trwałej kolejki i
+opisanego tu modelu osobnego workera, a nigdy z timera w procesie obsługującym żądania.
 :::
 
-Cart abandonment sweep czyta obecność modułu z `module_registrations` przed jakąkolwiek
-akcją i kończy się kodem niezerowym z `MODULE_DISABLED`, gdy `carts` nie jest zainstalowany
-na deploymencie — ta sama odpowiedź, jaką dałaby trasa HTTP, dla entrypointu bez trasy do
-gatingu. Przetwarza partiami po 500, commitując flipy statusu każdej partii razem z
-wierszami audytu, więc przerwany run zostawia całe partie, a nie częściową.
+Wyszukiwanie porzuconych koszyków przed jakąkolwiek czynnością sprawdza obecność modułu w
+`module_registrations` i kończy się niezerowym kodem z `MODULE_DISABLED`, gdy moduł `carts` nie jest
+zainstalowany we wdrożeniu — to ta sama odpowiedź, jaką dałaby trasa HTTP, tylko dla punktu wejścia
+bez trasy, którą można by zablokować. Przetwarza koszyki porcjami po 500 i zatwierdza zmiany statusu
+każdej porcji razem z wierszami audytu, więc przerwany przebieg zostawia całe porcje, a nie częściowe.
 
-## Monitoring i rozwiązywanie problemów
+## Monitorowanie i rozwiązywanie problemów
 
-- **Głębokość kolejki / failed jobs** — sprawdź klucze BullMQ w Redis, np.
-  `redis-cli keys 'bull:catalog.bulk-operation:*'` i
-  `redis-cli keys 'bull:webhook.deliver:*'`. Failed jobs są zachowywane (`removeOnFail`) do
-  inspekcji.
-- **Status operacji** — dla pracy katalogowej strona admin **Akcje masowe** listuje operacje
-  pending / running / completed / failed z licznikami per item; wiersze leżą w tabeli
+- **Długość kolejki i nieudane zadania** — sprawdź klucze BullMQ w Redis, np.
+  `redis-cli keys 'bull:catalog.bulk-operation:*'` i `redis-cli keys 'bull:webhook.deliver:*'`.
+  Nieudane zadania są zachowywane (`removeOnFail`) do analizy.
+- **Status operacji** — dla pracy na katalogu strona panelu **Akcje masowe** pokazuje operacje
+  oczekujące, trwające, zakończone i nieudane, z licznikami dla każdej pozycji; wiersze są w tabeli
   `catalog_bulk_operations`.
-- **Operacja w kolejce nigdy nie opuszcza `pending`** — potwierdź, że worker działa
-  (`BACKEND_ROLE` obejmuje konsumentów) i współdzieli ten sam `REDIS_URL` co API. Restart
-  workera ponownie enqueue'uje osierocone wiersze `pending` przez boot reconciliation.
-- **Workery bezczynne, a joby się piętrzą** — sprawdź, czy moduł właściciel jest włączony;
-  workery rejestrowane przez cykl życia modułu są wstrzymywane, gdy moduł jest wyłączony, i
-  wznawiane po ponownym włączeniu.
+- **Operacja w kolejce nigdy nie wychodzi ze stanu `pending`** — sprawdź, czy worker działa
+  (`BACKEND_ROLE` obejmuje konsumentów) i korzysta z tego samego `REDIS_URL` co API. Restart workera
+  ponownie dodaje osierocone wiersze `pending` do kolejki przez uzgadnianie przy starcie.
+- **Workery stoją, a zadania się gromadzą** — sprawdź, czy moduł-właściciel jest włączony; workery
+  rejestrowane przez cykl życia modułu są wstrzymywane, gdy moduł jest wyłączony, i wznawiane po
+  ponownym włączeniu.

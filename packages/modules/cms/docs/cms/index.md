@@ -44,7 +44,7 @@ The same `content` JSONB is scanned by the **Assets Library reference registry**
 
 ## Page Builder authoring
 
-The Page Builder is built on **Puck** (`@measured/puck`) and ships components
+The Page Builder is built on **Puck** (`@puckeditor/core`) and ships components
 in `@endora-commerce/cms-components`. Core layout/content defaults:
 
 | Component       | Purpose                                                                |

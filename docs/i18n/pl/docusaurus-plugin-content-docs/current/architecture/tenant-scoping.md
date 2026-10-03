@@ -1,64 +1,61 @@
 ---
-title: Izolacja tenantów (multi-tenant)
+title: Izolacja tenantów
 ---
 
 # Izolacja tenantów
 
-Backend wymusza izolację multi-tenant na poziomie **frameworka**, a nie przez
-klauzule `where` w poszczególnych serwisach. Każda
-trwała encja jest klasyfikowana raz, a odczyty i zapisy są automatycznie ograniczane
-do tenantu wywołującego na warstwie dostępu do danych — izolacja działa nawet wtedy, gdy
-serwis zapomni o jawnym filtrze.
+Backend wymusza izolację tenantów **zabezpieczeniem na poziomie frameworka**, a nie klauzulami
+`where` dopisywanymi w każdej usłudze z osobna. Każda utrwalana encja jest klasyfikowana raz, a
+odczyty i zapisy są automatycznie ograniczane do tenanta wywołującego już w warstwie dostępu do
+danych — izolacja działa więc nawet wtedy, gdy usługa zapomni o jawnym filtrze.
 
 ## Jak to działa
 
-- **Ambient `TenantContext`** — ustawiany raz na żądanie (lub job w tle) na podstawie
-  uwierzytelnionego aktora i przenoszony przez łańcuch wywołań async przez
-  `AsyncLocalStorage`. Jest wyprowadzany po stronie serwera i **nigdy** nie pochodzi z
-  body żądania, query string ani nagłówków.
-  - Klient → `single-org` (jego organizacja + konto klienta).
-  - Admin platformy → `all` (bez ograniczeń).
-  - Admin handlowca z zakresem → `allowed-set` (przypisane organizacje).
-  - Worker / migracja / escape hatch → `system`.
-- **Globalne filtry MikroORM** (`org`, `customerAccount`) czytają ambient context
-  bezpośrednio w czasie zapytania i dodają predykat tenantowy. Ponieważ czytają context
-  per zapytanie (a nie per fork), działają na sub-forkach `em.transactional` i każdym
-  innym forku.
-- **Fail-closed** — zapytanie przeciw encji objętej tenantem **bez** ambient context
-  rzuca `MissingTenantContextError`. Zapomniany context to głośny błąd,
-  nigdy cichy odczyt między tenantami.
+- **Kontekst `TenantContext`** — ustawiany raz na żądanie (albo zadanie w tle) na podstawie
+  uwierzytelnionego użytkownika i przekazywany przez cały asynchroniczny łańcuch wywołań za pomocą
+  `AsyncLocalStorage`. Jest wyznaczany po stronie serwera i **nigdy** nie pochodzi z treści
+  żądania, parametrów zapytania ani nagłówków.
+  - Klient → `single-org` (jego organizacja i konto klienta).
+  - Administrator platformy → `all` (bez ograniczeń).
+  - Administrator-handlowiec z ograniczonym zakresem → `allowed-set` (przypisane mu organizacje).
+  - Worker, migracja, jawne obejście → `system`.
+- **Globalne filtry MikroORM** (`org`, `customerAccount`) odczytują bieżący kontekst bezpośrednio
+  w chwili wykonania zapytania i dodają warunek ograniczający do tenanta. Ponieważ odczytują
+  kontekst przy każdym zapytaniu (a nie przy każdym forku EntityManagera), działają też w forkach
+  tworzonych przez `em.transactional` i w każdym innym forku.
+- **Odmowa w razie braku kontekstu (fail-closed)** — zapytanie do encji objętej izolacją wykonane
+  **bez** kontekstu rzuca `MissingTenantContextError`. Zapomniany kontekst to głośny błąd, a
+  nigdy cichy odczyt danych innego tenanta.
 
 ## Klasyfikacja encji
 
-Dodaj **dokładnie jeden** dekorator klasyfikacji do każdego `*.entity.ts` (w przeciwnym razie
-check CI `check-entity-tenant-classification.ts` blokuje build):
+Do każdego pliku `*.entity.ts` dodaj **dokładnie jeden** dekorator klasyfikacji (w przeciwnym razie
+kontrola CI `check-entity-tenant-classification.ts` przerwie build):
 
 | Dekorator | Użyj, gdy encja… |
 |-----------|----------------------|
 | `@OrgScoped()` | ma kolumnę `organizationId` |
-| `@CustomerScoped()` | ma kolumnę `customerAccountId` i brak kolumny org |
-| `@TransitivelyScoped('Parent', 'fk')` | jest objęta org przez agregat nadrzędny (np. `Invoice` → `Order`) |
-| `@RuleScoped()` | trafia do org przez regułę/JSONB, nie kolumnę (np. `price_lists.applicationRule`) |
-| `@GlobalEntity()` | jest globalna/platformowa / konfiguracyjna (bez tenantu) |
+| `@CustomerScoped()` | ma kolumnę `customerAccountId`, a nie ma kolumny organizacji |
+| `@TransitivelyScoped('Parent', 'fk')` | należy do organizacji przez agregat nadrzędny (np. `Invoice` → `Order`) |
+| `@RuleScoped()` | wskazuje organizacje przez regułę lub JSONB, a nie kolumnę (np. `price_lists.applicationRule`) |
+| `@GlobalEntity()` | jest globalna dla platformy albo jest konfiguracją (bez tenanta) |
 
-`@OrgScoped` / `@CustomerScoped` dołączają filtr; pozostałe to tylko metadane —
-egzekwowanie (tam, gdzie potrzebne) jest jawne w serwisie właściciela.
+`@OrgScoped` i `@CustomerScoped` podpinają filtr; pozostałe dekoratory to wyłącznie metadane — ich
+egzekwowanie (tam, gdzie jest potrzebne) odbywa się jawnie w usłudze będącej właścicielem encji.
 
-**Rodzic tranzytywny jest nazwany nazwą klasy, nie samą klasą.** Oba łańcuchy
-tranzytywne tej platformy przekraczają granicę modułu, a moduł,
-który stał się pakietem, publikuje tablicę `entities` i nie nazwaną klasę encji — więc
-`@TransitivelyScoped(() => Order, 'orderId')` byłby importem, którego dziecko nie może
-napisać. Nazwa jest rozwiązywana leniwie w rejestrze klasyfikacji, bo dziecko jest
-rutynowo importowane przed rodzicem, a cały rejestr jest uzgadniany raz przy starcie, w
-`backend/src/db/configured-entities.ts`, tuż po uruchomieniu każdego dekoratora
-klasyfikacji i przed powstaniem ORM. Nazwa, która nie rozwiązuje się do niczego —
-albo do więcej niż jednej encji — zatrzymuje start z
-`UnresolvableTenantParentError`. Nie ma fallbacku: encja tranzytywnie objęta nie ma
-własnej kolumny tenantowej, więc łańcuch, który cicho przestał się rozwiązywać, byłby
-odczytem bez tenantu.
+**Encję nadrzędną wskazuje się nazwą klasy, a nie samą klasą.** Oba łańcuchy przechodnie w tej
+platformie przekraczają granicę modułu, a moduł, który stał się pakietem, publikuje tablicę
+`entities`, a nie nazwane klasy encji — więc `@TransitivelyScoped(() => Order, 'orderId')`
+wymagałoby importu, którego encja podrzędna nie może wykonać. Nazwa jest rozwiązywana leniwie w
+rejestrze klasyfikacji, bo encja podrzędna jest zwykle importowana przed nadrzędną, a cały rejestr
+jest uzgadniany raz przy starcie, w `backend/src/db/configured-entities.ts` — tuż po wykonaniu
+wszystkich dekoratorów klasyfikacji, a zanim powstanie ORM. Nazwa, która nie wskazuje żadnej
+encji — albo wskazuje więcej niż jedną — zatrzymuje start błędem `UnresolvableTenantParentError`.
+Nie ma wartości zastępczej: encja objęta izolacją przechodnio nie ma własnej kolumny tenanta, więc
+łańcuch, który po cichu przestałby się rozwiązywać, oznaczałby odczyt bez żadnej izolacji.
 
-**Nie piszesz filtra tenantowego ręcznie** — `em.find(MyEntity, { ...business filters })`
-jest już ograniczone do ambient tenantu.
+Filtra tenanta **nie piszesz** ręcznie — `em.find(MyEntity, { ...business filters })` jest już
+ograniczone do bieżącego tenanta.
 
 ## Dostęp między tenantami (jawne obejście)
 

@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactElement, ReactNode } from 'react';
-import type { Plugin } from '@measured/puck';
+import type { Plugin } from '@puckeditor/core';
 import { PageBuilderOutline } from '@endora-commerce/page-builder-core/editor';
 
 /**

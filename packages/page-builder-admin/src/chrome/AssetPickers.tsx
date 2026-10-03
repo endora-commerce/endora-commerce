@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
-import type { CustomField } from '@measured/puck';
-import { FieldLabel } from '@measured/puck';
+import type { CustomField } from '@puckeditor/core';
+import { FieldLabel } from '@puckeditor/core';
 import { X } from 'lucide-react';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import type { AssetDetail, AssetSummary } from '@endora-commerce/contracts';

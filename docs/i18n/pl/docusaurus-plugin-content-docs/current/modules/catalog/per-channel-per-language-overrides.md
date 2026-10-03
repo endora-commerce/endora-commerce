@@ -1,45 +1,43 @@
 ---
-title: Nadpisania per kanał i język
+title: Nadpisania dla kanału i języka
 ---
 
-# Nadpisania per kanał i język
+# Nadpisania dla kanału i języka
 
-Catalog stosuje **cztero-scope'owy model wartości** dla wartości atrybutów
-produktu. Ten sam klucz atrybutu może trzymać do czterech adresowalnych slotów
-na produkt:
+Katalog stosuje dla wartości atrybutów produktu **model wartości o czterech zakresach**. Ten sam
+klucz atrybutu może mieć w jednym produkcie do czterech osobnych miejsc na wartość:
 
-- `global` — jedna wartość we wszystkich Sales Channel i wszystkich językach;
-- `language` — jedna wartość per język (np. systemowe Name, Description);
-- `channel` — jedna wartość per Sales Channel, do którego produkt jest przypisany;
-- `channel+language` — jedna wartość per para `(channel, language)`.
+- `global` — jedna wartość dla wszystkich kanałów sprzedaży i wszystkich języków;
+- `language` — jedna wartość dla każdego języka (np. systemowe Name, Description);
+- `channel` — jedna wartość dla każdego kanału sprzedaży, do którego przypisano produkt;
+- `channel+language` — jedna wartość dla każdej pary `(channel, language)`.
 
-Które sloty są adresowalne dla danego atrybutu regulują dwie flagi na definicji
-atrybutu, `channelScoped` i `languageScoped`. Systemowe atrybuty `name` i
-`description` są przypięte channel-scoped + language-scoped przez stałą backend
-(`SYSTEM_ATTRIBUTE_SCOPES`). Atrybuty zdefiniowane przez użytkownika domyślnie
-są tylko globalne i opt-in przez edytor atrybutów.
+O tym, które z tych miejsc są dostępne dla danego atrybutu, decydują dwie flagi w definicji
+atrybutu: `channelScoped` i `languageScoped`. Atrybuty systemowe `name` i `description` mają na
+stałe włączone obie (stała backendu `SYSTEM_ATTRIBUTE_SCOPES`). Atrybuty zdefiniowane przez
+użytkownika są domyślnie tylko globalne, a zakresy włącza się w edytorze atrybutów.
 
 ## Po co
 
-Katalog B2B rutynowo potrzebuje nakładać kanałowo-specyficzny copy marketingowy
-(wholesale vs. retail) i tłumaczenia językowe na ten sam produkt. Legacy storage —
-JSONB na `products.name` / `products.description` + płaski
-`products.attribute_values` JSONB — wyrażał tylko wymiar językowy. Model
-czterech scope'ów podnosi ten sufit bez przepisywania baseline storage; dodaje
-siostrzeczną tabelę overrides trzymającą sloty channel-aware i jedną funkcję
-resolver łączącą oba przy odczycie.
+Katalog B2B często potrzebuje dla tego samego produktu zarówno tekstów marketingowych różnych w
+poszczególnych kanałach (hurt i detal), jak i tłumaczeń na różne języki. Dotychczasowy sposób
+przechowywania — JSONB w `products.name` / `products.description` i płaski JSONB
+`products.attribute_values` — pozwalał wyrazić tylko wymiar językowy. Model czterech zakresów
+znosi to ograniczenie bez przepisywania podstawowego sposobu przechowywania: dodaje obok osobną
+tabelę nadpisań, przechowującą wartości zależne od kanału, oraz jedną funkcję rozstrzygającą, która
+przy odczycie łączy oba źródła.
 
-## Kształt magazynowania
+## Sposób przechowywania
 
-Globalny baseline nadal żyje tam, gdzie zawsze:
+Globalne wartości bazowe pozostają tam, gdzie były zawsze:
 
-- `products.name` (`Record<lang, string>` JSONB) — language-scoped.
-- `products.description` (`Record<lang, string>` JSONB) — language-scoped.
-- `products.attribute_values` (`Record<key, value>` JSONB) — global domyślnie.
-  Gdy flaga `languageScoped` atrybutu to `true`, wewnętrzna wartość sama jest
-  kluczowana językiem: `Record<key, Record<lang, value>>`.
+- `products.name` (JSONB `Record<lang, string>`) — zależne od języka.
+- `products.description` (JSONB `Record<lang, string>`) — zależne od języka.
+- `products.attribute_values` (JSONB `Record<key, value>`) — domyślnie globalne. Gdy flaga
+  `languageScoped` atrybutu ma wartość `true`, wartość wewnętrzna też jest indeksowana językiem:
+  `Record<key, Record<lang, value>>`.
 
-Sloty channel-aware lądują w nowej tabeli:
+Wartości zależne od kanału trafiają do nowej tabeli:
 
 ```sql
 create table "product_value_overrides" (
@@ -54,8 +52,7 @@ create table "product_value_overrides" (
 );
 ```
 
-Krotka (product, attribute, channel, language) jest unikalna pod
-**dwoma partial indexami**:
+Unikalność krotki (produkt, atrybut, kanał, język) zapewniają **dwa indeksy częściowe**:
 
 ```sql
 create unique index "product_value_overrides_channel_only_uniq"
@@ -67,59 +64,55 @@ create unique index "product_value_overrides_channel_lang_uniq"
   where "language_code" is not null;
 ```
 
-PostgreSQL traktuje `NULL` jako distinct w zwykłym UNIQUE constraint, więc
-jedyny poprawny sposób modelowania „(channel, NULL) i (channel, NULL) to ten
-sam wiersz” to dwa partial indexy — jeden na każdą semantykę NULL.
+W zwykłym ograniczeniu UNIQUE PostgreSQL traktuje każdy `NULL` jako odrębną wartość, więc jedynym
+poprawnym sposobem wyrażenia, że „(kanał, NULL) i (kanał, NULL) to ten sam wiersz”, są dwa indeksy
+częściowe — po jednym dla każdego przypadku `NULL`.
 
-Ścieżka lookup używana przez resolver w ciasnych pętlach to zwykły btree:
+Do wyszukiwania w ciasnych pętlach funkcja rozstrzygająca używa zwykłego indeksu btree:
 
 ```sql
 create index "product_value_overrides_product_attr_idx"
   on "product_value_overrides" ("product_id", "attribute_key");
 ```
 
-Druga tabela — `product_editor_preferences` — przechowuje per-(admin
-user, product) ostatnio wybrane `(channelId, languageCode)`, żeby strona edycji
-produktu seedowała przełączniki z poprzedniej wizyty edytora.
-Nie ma FK do `sales_channels`, więc usunięty / odpięty kanał jest cicho
-tolerowany przy odczycie.
+Druga tabela — `product_editor_preferences` — przechowuje dla każdej pary (administrator, produkt)
+ostatnio wybrane `(channelId, languageCode)`, aby strona edycji produktu ustawiała przełączniki tak
+jak przy poprzedniej wizycie. Tabela nie ma klucza obcego do `sales_channels`, więc usunięty lub
+odpięty kanał jest przy odczycie po prostu pomijany.
 
-## Resolver
+## Funkcja rozstrzygająca
 
-Jedno źródło prawdy dla „jaką wartość pokazać?” żyje w
-`packages/contracts/src/product-value-resolver.ts`. Ten sam plik TypeScript
-jest importowany przez backend (endpointy admin, ścieżka odczytu storefront,
-indeksator wyszukiwania) i admin SPA. Z definicji podgląd effective-value
-admina nie może odjechać od tego, co renderuje storefront.
+Jedynym źródłem odpowiedzi na pytanie „jaką wartość pokazać?” jest
+`packages/contracts/src/product-value-resolver.ts`. Ten sam plik TypeScript importują backend
+(endpointy administracyjne, odczyt dla storefrontu, indeksowanie wyszukiwarki) i aplikacja panelu
+administracyjnego. Podgląd wartości efektywnej w panelu z definicji nie może więc różnić się od
+tego, co wyświetla storefront.
 
-Algorytm — `resolveAttribute({ baseline, overrides, scope, ctx })`
-— przechodzi cztery kroki:
+Algorytm — `resolveAttribute({ baseline, overrides, scope, ctx })` — przechodzi cztery kroki:
 
-1. slot `(channel + language)` — gdy atrybut jest channel-scoped
-   AND language-scoped AND kontekst niesie oba;
-2. slot `(channel-only)` — gdy channel-scoped AND kanał jest w kontekście;
-3. baseline `(global + language)` — dla language-scoped atrybutów
-   wybierz żądany język z JSONB;
-4. baseline `(global)` — pojedyncza wartość (lub pick języka primary dla
-   language-scoped attrs).
+1. wartość `(channel + language)` — gdy atrybut zależy od kanału I od języka, a kontekst zawiera
+   oba;
+2. wartość `(channel-only)` — gdy atrybut zależy od kanału, a kanał jest w kontekście;
+3. wartość bazowa `(global + language)` — dla atrybutów zależnych od języka wybiera żądany język z
+   JSONB;
+4. wartość bazowa `(global)` — pojedyncza wartość (albo wartość w języku podstawowym dla atrybutów
+   zależnych od języka).
 
-Pierwszy niepusty slot wygrywa. Pusty string, `null`, pusty obiekt,
-pusta tablica są traktowane jako „brak” i przechodzą dalej. Funkcja
-zwraca zarówno rozwiązaną wartość, JAK I tag `source` wskazujący, który
-slot dał odpowiedź — admin UI konsumuje to, żeby renderować badge
-„channel + language override” / „global baseline” per pole.
+Wygrywa pierwsza niepusta wartość. Pusty string, `null`, pusty obiekt i pusta tablica są traktowane
+jako „brak wartości” i algorytm przechodzi dalej. Funkcja zwraca zarówno wynik, JAK I znacznik
+`source` wskazujący, skąd pochodzi odpowiedź — panel administracyjny wykorzystuje go, aby przy
+każdym polu wyświetlić etykietę „channel + language override” / „global baseline”.
 
-### Tolerancja osieroconych
+### Osierocone nadpisania
 
-Administrator może przełączyć flagę `channelScoped` atrybutu z powrotem na
-`false` po tym, jak channel overrides zostały już zapisane. Resolver po prostu
-pomija wiersze override, których atrybut nie jest już channel-scoped, więc
-storefront wraca do baseline bez utraty danych. Przyszły maintenance pass może
-usunąć osierocone wiersze; ten feature tego nie wymaga.
+Administrator może z powrotem ustawić flagę `channelScoped` atrybutu na `false`, gdy nadpisania dla
+kanałów są już zapisane. Funkcja rozstrzygająca po prostu pomija wtedy wiersze nadpisań atrybutu,
+który przestał zależeć od kanału, więc storefront wraca do wartości bazowej bez utraty danych.
+Osierocone wiersze może kiedyś usunąć zadanie porządkowe; ta funkcja tego nie wymaga.
 
-## Ścieżka zapisu
+## Zapis
 
-Channel-aware overrides lądują przez jeden endpoint admin:
+Nadpisania zależne od kanału zapisuje się przez jeden endpoint administracyjny:
 
 ```
 PATCH /api/v1/admin/catalog/products/:id/value-overrides
@@ -134,92 +127,84 @@ PATCH /api/v1/admin/catalog/products/:id/value-overrides
 }
 ```
 
-Wszystkie żądane operacje działają w jednym przebiegu `em.transactional`.
-Handler waliduje każdy wpis z góry wobec sześciu reguł i
-cofa wszystko przy pierwszej porażce:
+Wszystkie żądane operacje wykonują się w jednej transakcji `em.transactional`. Handler najpierw
+sprawdza każdy wpis według sześciu reguł i przy pierwszym błędzie wycofuje całość:
 
-| 422 code                            | Triggered when |
+| Kod 422                             | Kiedy występuje |
 | ----------------------------------- | -------------- |
 | `attribute_unknown`                 | `attributeKey` nie jest ani atrybutem systemowym (`name`, `description`), ani wierszem w `product_attributes`. |
-| `attribute_not_channel_scoped`      | `channelScoped=false` atrybutu, więc nie ma slotu channel. |
-| `attribute_missing_language`        | `languageScoped=true` atrybutu, ale slot ma `languageCode=null`. |
-| `channel_not_assigned_to_product`   | `channelId` nie jest w `sales_channel_products` dla produktu. |
-| `language_not_in_channel`           | `languageCode` jest non-null i nie jest w tablicy `SalesChannel.languages` kanału. |
-| `value_invalid`                     | opakowane `value.v` nie pasuje do `valueType` atrybutu. |
+| `attribute_not_channel_scoped`      | atrybut ma `channelScoped=false`, więc nie ma wartości dla kanału. |
+| `attribute_missing_language`        | atrybut ma `languageScoped=true`, ale wpis ma `languageCode=null`. |
+| `channel_not_assigned_to_product`   | `channelId` nie występuje w `sales_channel_products` dla tego produktu. |
+| `language_not_in_channel`           | `languageCode` nie jest `null` i nie występuje w tablicy `SalesChannel.languages` kanału. |
+| `value_invalid`                     | opakowana wartość `value.v` nie pasuje do `valueType` atrybutu. |
 
-Baseline write path (Name / Description per język; global
-`attribute_values`) jest bez zmian — edytorzy nadal używają istniejących
-inputów locale obok siebie na zakładce Details. Channel overrides są addytywne.
+Zapis wartości bazowych (Name / Description dla każdego języka; globalne `attribute_values`) się nie
+zmienia — redaktorzy nadal korzystają z istniejących pól dla poszczególnych języków na zakładce
+Details. Nadpisania dla kanałów są dodatkiem.
 
-## Ścieżki odczytu
+## Odczyt
 
-Trzech konsumentów przechodzi przez resolver:
+Z funkcji rozstrzygającej korzystają trzy miejsca:
 
-- **Endpoint admin** — `GET /api/v1/admin/catalog/products/:id?channelId=&languageCode=&includeOverridesMap=true`
-  zwraca baseline produktu PLUS, gdy przekazano parametry kontekstu, blok
-  `resolved` z `name`, `description`, `attributeValues`,
-  `sources`. Gdy `includeOverridesMap=true`, pełna lista override jest
-  dołączona dla podglądów przełączników po stronie klienta.
-- **Publiczny odczyt storefront** — bierze kanał z nagłówka
-  `x-sales-channel` (istniejąca konwencja) i język z
-  `Accept-Language`. Warstwa override jest niewidoczna dla klienta publicznego.
-- **Indeksator wyszukiwania (Meilisearch)** — buduje jeden dokument per
-  para `(product, channel)`. Pola `name` i `description` każdego dokumentu
-  przechodzą przez resolver z `channel.defaultLanguage`
-  jako aktywnym językiem, więc per-channel overrides trafiają do
-  rankingu wyszukiwania storefront.
+- **Endpoint administracyjny** —
+  `GET /api/v1/admin/catalog/products/:id?channelId=&languageCode=&includeOverridesMap=true`
+  zwraca wartości bazowe produktu ORAZ — jeśli podano parametry kontekstu — blok `resolved` z
+  `name`, `description`, `attributeValues` i `sources`. Przy `includeOverridesMap=true` dołącza też
+  pełną listę nadpisań, aby klient mógł pokazywać podgląd przy przełączaniu kontekstu.
+- **Publiczny odczyt dla storefrontu** — kanał pobiera z nagłówka `x-sales-channel` (dotychczasowa
+  konwencja), a język z `Accept-Language`. Warstwa nadpisań jest niewidoczna dla publicznego
+  klienta.
+- **Indeksowanie wyszukiwarki (Meilisearch)** — tworzy jeden dokument dla każdej pary
+  `(product, channel)`. Pola `name` i `description` każdego dokumentu przechodzą przez funkcję
+  rozstrzygającą z `channel.defaultLanguage` jako aktywnym językiem, więc nadpisania dla kanałów
+  wpływają na wyniki wyszukiwania w storefroncie.
 
-## Admin UI
+## Panel administracyjny
 
-Zakładka **Details** strony edycji produktu dostaje panel
-`<ProductScopeEditor>` nad istniejącymi inputami locale. On:
+Zakładka **Details** strony edycji produktu ma nad istniejącymi polami dla języków panel
+`<ProductScopeEditor>`. Panel:
 
-1. Ładuje równolegle `GET /scope-context` (kanały przypisane do produktu +
-   języki każdego kanału + primary admin language platformy +
-   zapamiętaną preferencję edytora) i `GET /value-overrides`.
-2. Renderuje przełącznik Sales Channel (Global + każdy przypisany kanał)
-   i przełącznik Language zawężony do języków aktywnego kanału
-   (lub unii wszystkich języków kanałów przy Global).
-3. Pokazuje rozwiązane Name + Description dla aktywnego kontekstu z badge
-   źródła per pole — `channel + language override` / `channel
-   override` / `global baseline (language)` / `global baseline
-   (fallback)` / `no value`.
-4. Oferuje affordance „Add override” / „Edit override” / „Reset to Global”
-   per pole. Edycje idą przez `PATCH /value-overrides`
-   z optymistycznym odświeżeniem.
-5. Persistuje wybór edytora `(channel, language)` przez
-   `PUT /editor-preference` (debounced, best-effort), żeby następna wizyta
-   seedowała ten sam kontekst.
+1. Równolegle pobiera `GET /scope-context` (kanały przypisane do produktu, języki każdego kanału,
+   podstawowy język panelu administracyjnego i zapamiętany wybór redaktora) oraz
+   `GET /value-overrides`.
+2. Wyświetla przełącznik kanału sprzedaży (Global i każdy przypisany kanał) oraz przełącznik języka
+   ograniczony do języków aktywnego kanału (albo do sumy języków wszystkich kanałów przy Global).
+3. Pokazuje efektywne Name i Description dla aktywnego kontekstu, z etykietą źródła przy każdym
+   polu — `channel + language override` / `channel override` / `global baseline (language)` /
+   `global baseline (fallback)` / `no value`.
+4. Przy każdym polu oferuje działania „Add override” / „Edit override” / „Reset to Global”. Zmiany
+   są zapisywane przez `PATCH /value-overrides` z optymistycznym odświeżeniem.
+5. Zapisuje wybór redaktora `(channel, language)` przez `PUT /editor-preference` (z opóźnieniem,
+   bez gwarancji), aby przy następnej wizycie ustawić ten sam kontekst.
 
-Affordance edycji są gated na wybrany konkretny kanał.
-Pod Global / bez kanału panel jest read-only, a help string wyjaśnia,
-że overrides działają tylko per-channel.
+Edycja jest możliwa dopiero po wybraniu konkretnego kanału. Przy Global (bez kanału) panel jest
+tylko do odczytu, a tekst pomocy wyjaśnia, że nadpisania działają wyłącznie w obrębie kanału.
 
 ## Migracja
 
-Jedna migracja `20260611T140346_catalog_product_value_overrides_init.ts` dostarcza wszystko:
+Wszystko wprowadza jedna migracja, `20260611T140346_catalog_product_value_overrides_init.ts`:
 
-- dodaje kolumny boolean `channel_scoped` + `language_scoped` do
-  `product_attributes` (default `false`);
-- tworzy `product_value_overrides` z dwoma partial UNIQUE
-  indexami i btree `(product_id, attribute_key)`;
-- tworzy `product_editor_preferences` (composite PK
-  `(admin_user_id, product_id)`).
+- dodaje do `product_attributes` kolumny logiczne `channel_scoped` i `language_scoped` (domyślnie
+  `false`);
+- tworzy `product_value_overrides` z dwoma częściowymi indeksami UNIQUE i indeksem btree
+  `(product_id, attribute_key)`;
+- tworzy `product_editor_preferences` (złożony klucz główny `(admin_user_id, product_id)`).
 
-Brak migracji danych baseline. Brak backfillu. `down()` to
-dokładna inwersja — drop dwóch tabel i dwóch kolumn.
+Nie ma migracji danych bazowych ani uzupełniania danych. `down()` jest dokładnym odwróceniem —
+usuwa obie tabele i obie kolumny.
 
-## Czego nie ma w scope
+## Poza zakresem
 
-- **Overrides atrybutów zdefiniowanych przez użytkownika w admin UI** — panel
-  pokazuje dziś tylko systemowe Name + Description. Overrides atrybutów
-  użytkownika są akceptowane przez endpoint PATCH i rozwiązywane przy odczycie,
-  ale admin SPA nie eksponuje jeszcze affordance zapisu dla nich.
-- **Zmiana kształtu publicznego odczytu storefront** — `products.name` i
-  `products.description` nadal wysyłają się jako `Record<lang, string>` JSONB
-  na publicznym endpoincie katalogu. Przejście na rozwiązany scalar to
-  breaking change dla konsumentów storefront i jest follow-upem.
-- **Enqueue reindex channel-aware** — endpoint PATCH nie
-  enqueue'uje jeszcze joba reindex Meilisearch per dotknięty kanał; następny
-  upsert per produkt (napędzany dowolną mutacją katalogu) to podniesie.
-  Dedykowany reindex przy zapisie override to mały follow-up.
+- **Nadpisania atrybutów zdefiniowanych przez użytkownika w panelu administracyjnym** — panel
+  pokazuje dziś tylko systemowe Name i Description. Endpoint PATCH przyjmuje nadpisania atrybutów
+  użytkownika, a odczyt je rozstrzyga, ale aplikacja panelu nie ma jeszcze dla nich interfejsu
+  zapisu.
+- **Zmiana postaci publicznego odczytu dla storefrontu** — publiczny endpoint katalogu nadal
+  zwraca `products.name` i `products.description` jako JSONB `Record<lang, string>`. Przejście na
+  pojedynczą, rozstrzygniętą wartość to zmiana niezgodna wstecz dla konsumentów storefrontu i
+  zostanie zrobione osobno.
+- **Ponowne indeksowanie z uwzględnieniem kanału** — endpoint PATCH nie dodaje jeszcze do kolejki
+  zadania ponownego indeksowania w Meilisearch dla każdego zmienionego kanału; zmianę uwzględni
+  dopiero następna aktualizacja indeksu produktu (wywołana dowolną zmianą w katalogu). Osobne
+  indeksowanie przy zapisie nadpisania to niewielka zmiana do zrobienia później.

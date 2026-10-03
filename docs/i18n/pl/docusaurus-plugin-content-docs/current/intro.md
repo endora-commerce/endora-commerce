@@ -5,12 +5,12 @@ title: Platforma B2B — Wprowadzenie
 ---
 
 :::caution Tłumaczenia dokumentacji
-Ta witryna jest utrzymywana ręcznie w wersjach angielskiej i polskiej. Przy każdej zmianie treści angielskiej zaktualizuj polską wersję w tym samym merge requeście — szczegóły w [polityce tłumaczeń dokumentacji](contributing/documentation-i18n).
+Ta witryna jest prowadzona ręcznie w wersji angielskiej i polskiej. Przy każdej zmianie treści angielskiej zaktualizuj wersję polską w tym samym pull requeście — szczegóły w [zasadach tłumaczenia dokumentacji](contributing/documentation-i18n).
 :::
 
 # Platforma B2B — Wprowadzenie
 
-Witamy. Ta witryna dokumentuje **Platformę B2B** — produkt handlowy obsługiwany przez Dostawcę, który w jednej bazie kodu wspiera zarówno przepływ **Zapytania ofertowe (RFQ)**, jak i **bezpośrednie zakupy**, z Organizacjami Klientów, wieloma użytkownikami i rolami, rozliczeniem Limitu kredytowego, panelem administracyjnym z uprawnieniami oraz otwartą warstwą API + webhooków do integracji z zewnętrznymi ERP / PIM / WMS / CRM.
+Witamy. Ta witryna dokumentuje **Platformę B2B** — platformę handlową prowadzoną przez Dostawcę, która w jednym kodzie źródłowym obsługuje zarówno **zapytania ofertowe (RFQ)**, jak i **bezpośrednie zakupy**: organizacje klientów z wieloma użytkownikami i rolami, płatność w ramach limitu kredytowego, panel administracyjny z uprawnieniami oraz otwarte API i webhooki do integracji z zewnętrznymi systemami ERP, PIM, WMS i CRM.
 
 ## Zacznij tutaj
 
@@ -26,10 +26,10 @@ Witamy. Ta witryna dokumentuje **Platformę B2B** — produkt handlowy obsługiw
 
 ## Dla kogo jest ta dokumentacja
 
-- **Programiści** rozszerzający platformę — sekcja każdego modułu poniżej opisuje jego domenę, kontrakty, usługi i testy z wystarczającą szczegółowością, aby móc wnieść wkład bez reverse engineeringu kodu.
-- **Product Ownerzy i użytkownicy końcowi** — strona „Usage” każdego modułu jest napisana tak, aby była zrozumiała bez czytania TypeScript.
+- **Programiści** rozszerzający platformę — sekcja każdego modułu opisuje jego domenę, kontrakty, usługi i testy na tyle szczegółowo, aby można było wnieść zmiany bez analizowania kodu od podstaw.
+- **Właściciele produktu i użytkownicy końcowi** — strona „Usage” każdego modułu jest napisana tak, aby dało się ją zrozumieć bez czytania kodu TypeScript.
 
-Obie grupy czytają tę samą strukturę. Sekcje oznaczone _Developers_ vs _Usage_ pozwalają pominąć fragmenty, które Cię nie dotyczą.
+Obie grupy korzystają z tej samej struktury. Sekcje oznaczone jako _Developers_ i _Usage_ pozwalają pominąć fragmenty, które Cię nie dotyczą.
 
 ## Gdzie co się znajduje
 
@@ -45,14 +45,14 @@ Obie grupy czytają tę samą strukturę. Sekcje oznaczone _Developers_ vs _Usag
 
 ## Status
 
-Fundament platformy jest **kompletny** end-to-end:
+Podstawa platformy jest **kompletna** od początku do końca:
 
-- **Backend** dostarcza katalog (Products / Categories / Attributes), wyszukiwarkę, cykl życia RFQ, koszyk + checkout + zamówienia + faktury, organizacje + członków + zaproszenia, admin Users & Roles + Audit Log + Impersonation, Shopping Lists + Quick Order, Credit Limits, integracje (API keys, webhooks, external integrations), CMS, SEO, języki + waluty, analitykę — każda strona modułu poniżej dokumentuje jego publiczne API, a dokument OpenAPI na żywo pod `GET /api/v1/_openapi.json` jest kontraktem runtime.
-- **Storefront** (Next.js) dostarcza rejestrację / logowanie / 2FA / reset hasła, panel konta, ustawienia organizacji (członkowie + adresy + oczekujące zaproszenia), koszyk, checkout (z widocznością metod płatności uwzględniającą limit kredytowy), potwierdzenie zamówienia + historię, listę RFQ + szczegół z widgetem „Request a quote” na PDP, listy zakupów z masową konwersją do koszyka / do RFQ, importer CSV quick-order oraz baner impersonacji.
-- **Panel administracyjny** (Vite + React) dostarcza Products / Categories / Attributes, Inventory, Organizations, Orders, Invoices, Quote Requests (Claim / Send Quote / Decline), Price Lists / Taxes / Promotions, Delivery + Payment Methods, Credit Limits, Users + Roles z macierzą uprawnień, przeglądarkę Audit Log, baner Impersonation, a także moduły API Keys / Webhooks / Integrations / Analytics / SEO / Languages / CMS.
+- **Backend** zapewnia katalog (produkty, kategorie, atrybuty), wyszukiwarkę, obsługę zapytań ofertowych, koszyk, checkout, zamówienia i faktury, organizacje z członkami i zaproszeniami, administratorów i role, dziennik audytu, logowanie jako klient, listy zakupów i szybkie zamówienia, limity kredytowe, integracje (klucze API, webhooki, integracje zewnętrzne), CMS, SEO, języki i waluty oraz analitykę — strona każdego modułu dokumentuje jego publiczne API, a kontraktem obowiązującym w czasie działania jest dokument OpenAPI na żywo pod `GET /api/v1/_openapi.json`.
+- **Storefront** (Next.js) zapewnia rejestrację, logowanie, 2FA i reset hasła, panel konta, ustawienia organizacji (członkowie, adresy, oczekujące zaproszenia), koszyk, checkout (z metodami płatności zależnymi od limitu kredytowego), potwierdzenie i historię zamówień, listę i szczegóły zapytań ofertowych z widżetem „Request a quote” na stronie produktu, listy zakupów z przenoszeniem do koszyka lub zapytania ofertowego, import CSV do szybkiego zamówienia oraz baner logowania jako klient.
+- **Panel administracyjny** (Vite + React) zapewnia ekrany produktów, kategorii i atrybutów, stanów magazynowych, organizacji, zamówień, faktur, zapytań ofertowych (Claim / Send Quote / Decline), cenników, podatków i promocji, metod dostawy i płatności, limitów kredytowych, użytkowników i ról z macierzą uprawnień, przeglądarkę dziennika audytu, baner logowania jako klient oraz moduły kluczy API, webhooków, integracji, analityki, SEO, języków i CMS.
 
-PR-y, które dodają lub zmieniają moduł, MUSZĄ zaktualizować odpowiednią stronę w tym samym zakresie commitów.
+Pull requesty, które dodają lub zmieniają moduł, MUSZĄ w tych samych commitach zaktualizować odpowiednią stronę.
 
 ## O tej witrynie
 
-To jest publiczna dokumentacja Endora Commerce, publikowana pod adresem `https://docs.commerce.endora.software/` w wersji angielskiej i polskiej: powstaje w Docusaurusie ze źródeł dokumentacji trzymanych w repozytorium samego produktu — stron tej witryny w katalogu `docs/` oraz jednego katalogu dokumentacji na moduł, zbieranych podczas budowania — dzięki czemu strona i opisywany przez nią kod zmieniają się razem.
+To publiczna dokumentacja Endora Commerce, publikowana pod adresem `https://docs.commerce.endora.software/` po angielsku i po polsku. Powstaje w Docusaurusie ze źródeł przechowywanych w repozytorium samego produktu — stron tej witryny w katalogu `docs/` oraz katalogu dokumentacji każdego modułu, zbieranych podczas budowania — dzięki czemu dokumentacja i opisywany przez nią kod zmieniają się razem.

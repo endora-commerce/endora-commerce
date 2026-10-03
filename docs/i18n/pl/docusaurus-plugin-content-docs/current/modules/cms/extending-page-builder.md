@@ -1,24 +1,23 @@
 ---
-title: Extending the Page Builder
+title: Rozszerzanie Page Buildera
 sidebar_position: 2
 ---
 
 # Rozszerzanie Page Buildera
 
-Moduł CMS dostarcza wbudowane komponenty — `Row`, `Columns`, `Text`,
-`Heading`, `Button`, `InsertBlock` i inne — ale każdy inny
-moduł backendu może wnosić własne komponenty. (`InsertTemplate` pozostaje
-zarejestrowany dla starszych drzew treści, ale nie ma go już w palecie.)
-W ten sposób bloki wnoszą już moduły CMS, catalog, orders, invoices i
-transactional e-mail. Moduł wnoszący komponent uczestniczy w dwóch miejscach:
+Moduł CMS dostarcza wbudowane komponenty — `Row`, `Columns`, `Text`, `Heading`, `Button`,
+`InsertBlock` i inne — ale każdy inny moduł backendu może dodawać własne komponenty.
+(`InsertTemplate` pozostaje zarejestrowany ze względu na dawne drzewa treści, ale nie ma go już w
+palecie komponentów). W ten sposób bloki dodają już moduły `cms`, `catalog`, `orders`, `invoices` i
+`transactional_emails`. Moduł, który dodaje komponent, robi to w dwóch miejscach:
 
 1. **Deklaracja w manifeście**: zadeklaruj metadane bloku — nazwę, etykiety,
    kategorię palety, konteksty i edytowalne pola — we własnym `manifest.ts`
    modułu. Moduł CMS buduje rejestr Page Buildera z manifestów złożonych
    modułów, więc nie ma żadnego wywołania rejestracji do napisania.
-2. **Współdzielony renderer**: dostarcz komponent React do pakietu workspace,
-   od którego zależą panel administracyjny i storefront (typowo sam
-   `@endora-commerce/cms-components` lub pakiet modułu re-eksportujący z niego).
+2. **Wspólny komponent wyświetlający**: dodaj komponent React do pakietu workspace, od którego
+   zależą panel i storefront (zwykle sam `@endora-commerce/cms-components` albo pakiet modułu,
+   który go reeksportuje).
 
 ## 1. Deklaracja bloku w manifeście
 
@@ -81,22 +80,21 @@ definiowania manifestu, więc trzeba o to zadbać ręcznie.
 Typy pól pochodzą ze zamkniętego enum zadeklarowanego w
 `packages/contracts/src/cms.ts`: `text | textarea | number | select |
 radio | array | object | external | uuid | richtext`. Te metadane są
-wolne od React; backend nigdy nie importuje renderera.
+wolne od React; backend nigdy nie importuje komponentu wyświetlającego.
 
 Blok jest oferowany tylko wtedy, gdy jego moduł jest obecny: rejestr filtruje
 deklaracje według obecności modułu, odpowiadając na
 `GET /api/v1/admin/cms/page-builder/config`, więc wyłączony moduł zabiera
 swoje bloki z palety.
 
-## 2. Dostarczenie renderera
+## 2. Komponent wyświetlający
 
-Dodaj React `ComponentConfig` w `packages/cms-components/src/components/`
-(lub we własnym pakiecie admin/storefront modułu) i eksportuj z
-entry point pakietu:
+Dodaj `ComponentConfig` Reacta w `packages/cms-components/src/components/` (albo we własnym
+pakiecie modułu dla panelu lub storefrontu) i wyeksportuj go z punktu wejścia pakietu:
 
 ```tsx
 // packages/cms-components/src/components/PromoBanner.tsx
-import type { ComponentConfig } from '@measured/puck';
+import type { ComponentConfig } from '@puckeditor/core';
 
 interface Props {
   headline: string;
@@ -142,19 +140,16 @@ export const defaultPageBuilderConfig: Config = {
 };
 ```
 
-Renderery CMS to ten jeden bundle (bloki e-mail renderują się w ten sam sposób
-z `@endora-commerce/email-components`). Moduł publikowany poza tym
-repozytorium nie może dodać renderera do żadnego z tych bundli bez zmiany w
-danym pakiecie.
+Komponenty wyświetlające CMS to ten jeden pakiet (bloki e-maili są w ten sam sposób wyświetlane z
+`@endora-commerce/email-components`). Moduł publikowany poza tym repozytorium nie może dodać
+komponentu wyświetlającego do żadnego z tych pakietów bez zmiany w danym pakiecie.
 
-Renderer pominięty w bundle nie psuje admina:
-`PageBuilderEditor` scala deskryptor z lokalnym configiem i
-podstawia `MissingComponentPlaceholder` dla każdego komponentu, który
-deskryptor nazywa, a bundle nie eksportuje. Placeholder renderuje
-nic na storefront, chyba że strona ładuje się z parametrem query
-`?cms_admin=1` (tryb podglądu).
+Brak komponentu wyświetlającego w pakiecie nie psuje panelu: `PageBuilderEditor` łączy opis z
+lokalną konfiguracją i dla każdego komponentu, który opis wymienia, a pakiet nie eksportuje,
+podstawia `MissingComponentPlaceholder`. W storefroncie ten element zastępczy niczego nie wyświetla,
+chyba że strona jest wczytana z parametrem `?cms_admin=1` (tryb podglądu).
 
-## Namespacing nazw komponentów
+## Przestrzenie nazw komponentów
 
 Nazwy bloków są unikalne w całej platformie, a zapewnia to prefiks z id
 modułu: `cms.Text`, `catalog.ProductCard`, `promotions.PromoBanner`. Dwa
@@ -163,105 +158,100 @@ id modułu deklarującego — a jeśli kolizja mimo to dotrze do rejestru, rzuca
 on `DuplicateBlockNameError`, zamiast pozwolić, by blok jednego modułu
 zastąpił blok innego.
 
-## Dostępność kontekstów (`contexts`)
+## Konteksty (`contexts`)
 
-Każdy komponent deklaruje, które powierzchnie Page Buildera mogą go
-eksponować przez `contexts`:
+Każdy komponent deklaruje w `contexts`, w których edytorach Page Buildera może się pojawić:
 
-| Context | Used by |
+| Kontekst | Kto z niego korzysta |
 |---------|---------|
-| `cms` | CMS pages, blocks, templates, blog |
+| `cms` | Strony, bloki i szablony CMS, blog |
 | `email` | Edytor e-maili transakcyjnych |
-| `newsletter` | Kampanie newsletter (alias email-safe set) |
+| `newsletter` | Kampanie newslettera (ten sam zestaw komponentów bezpiecznych dla e-maili) |
 | `invoice` | Edytor szablonów PDF faktur |
 
-Deklaruj je na bloku w manifeście. `contexts` jest wymagane i musi wymieniać
-co najmniej jedną powierzchnię:
+Zadeklaruj je przy bloku w manifeście. `contexts` jest wymagane i musi wymieniać co najmniej jedną
+powierzchnię:
 
 ```ts
 contexts: ['cms'], // CMS-only
 ```
 
-W `@endora-commerce/cms-components` owiń config Puck
-`definePageBuilderComponent` z `@endora-commerce/page-builder-core`, żeby
-filtr palety admina pozostawał zsynchronizowany. Komponenty bez `email` / `invoice` w
-`contexts` nigdy nie pojawiają się w tych edytorach (np. karuzela produktów).
+W `@endora-commerce/cms-components` opakuj konfigurację Puck funkcją
+`definePageBuilderComponent` z `@endora-commerce/page-builder-core`, aby filtr palety w panelu
+pozostawał zgodny. Komponenty bez `email` / `invoice` w `contexts` nigdy nie pojawiają się w tych
+edytorach (np. karuzela produktów).
 
-## Responsywne props i widoczność (tylko CMS)
+## Właściwości responsywne i widoczność (tylko CMS)
 
-CMS Page Builder wspiera nadpisania per breakpoint z dziedziczeniem
-(mobile ← tablet ← desktop). Użyj `createResponsiveField` z
-`@endora-commerce/page-builder-core` dla pojedynczych props i
-`withResponsiveVisibility` dla kontrolki **Visibility** per komponent.
+Page Builder w CMS obsługuje nadpisania dla poszczególnych progów szerokości, z dziedziczeniem
+(telefon ← tablet ← komputer). Dla pojedynczych właściwości użyj `createResponsiveField` z
+`@endora-commerce/page-builder-core`, a dla kontrolki **Visibility** komponentu —
+`withResponsiveVisibility`.
 
-Domyślne breakpointy (konfigurowalne przez Settings
-`cms.page_builder.breakpoint.*` lub env `CMS_PB_BREAKPOINT_*`):
+Domyślne progi szerokości (konfigurowalne w ustawieniach `cms.page_builder.breakpoint.*` albo
+zmiennymi środowiskowymi `CMS_PB_BREAKPOINT_*`):
 
-- Mobile: &lt; 768px
+- Telefon: &lt; 768px
 - Tablet: 768–1023px
-- Desktop: ≥ 1024px
+- Komputer: ≥ 1024px
 
-Edytory e-mail i faktur używają jednej szerokości layoutu i nie eksponują
-pól responsywnych.
+Edytory e-maili i faktur mają jedną szerokość układu i nie pokazują pól responsywnych.
 
-**Edytory e-mail** (transakcyjne + newsletter) **nie** używają viewportów CMS Mobile /
-Tablet / Desktop. Canvas autorski ma stałe **600px** (szerokość maila).
-Modal **Preview** oferuje ramki HTML **600px** / **320px**. Pola koloru
-re-używają palety kolorów CMS.
+**Edytory e-maili** (transakcyjnych i newslettera) **nie** korzystają z podglądów CMS dla telefonu,
+tabletu i komputera. Obszar edycji ma stałą szerokość **600 px** (szerokość e-maila). Okno
+**Preview** oferuje podgląd HTML w szerokości **600 px** i **320 px**. Pola kolorów korzystają z
+palety kolorów CMS.
 
-## Zagnieżdżanie (slots)
+## Zagnieżdżanie (sloty)
 
-Komponenty layoutu (`Row`, `Columns`) używają pól Puck **slot** — zagnieżdżona
-treść jest przechowywana w `props`, nie w legacy mapie `zones`.
+Komponenty układu (`Row`, `Columns`) korzystają z pól Puck typu **slot** — zagnieżdżona treść jest
+przechowywana w `props`, a nie w dawnej mapie `zones`.
 
-## Box model (layout + content CMS)
+## Model pudełkowy (komponenty układu i treści CMS)
 
-Komponenty layoutu i content eksponują **outer spacing** (margin), **inner
-spacing** (padding) i pola **border** na zakładce Responsive. Wartości
-wspierają edycję uniform lub per-side. **Columns** używa responsywnej liczby
-kolumn (1–12 per breakpoint) z równymi trackami.
+Komponenty układu i treści mają na zakładce Responsive pola **odstępu zewnętrznego** (margin),
+**odstępu wewnętrznego** (padding) i **obramowania**. Wartości można ustawić jednakowo albo osobno dla
+każdej strony. **Columns** ma responsywną liczbę kolumn (1–12 dla każdego progu) o równej szerokości.
 
-Użyj `createSpacingField`, `createBorderField` i `createColorField` z
-`@endora-commerce/page-builder-core` przy dodawaniu nowych komponentów CMS.
+Przy dodawaniu nowych komponentów CMS korzystaj z `createSpacingField`, `createBorderField` i
+`createColorField` z `@endora-commerce/page-builder-core`.
 
-## Wbudowane Icons / Social
+## Wbudowane komponenty Icons i Social
 
-- **`Icons`** — kuratorowany allowlist Lucide (~100 ikon) w
-  `packages/cms-components/src/components/icon-catalog.ts` z **wizualnym
-  grid pickerem** (`IconPickerField`). Nie eksponuj pełnego katalogu Lucide.
-- **`Social`** — ikony brand przez `react-icons/fa6` (Facebook, X, Instagram,
-  LinkedIn, YouTube, TikTok, …). Elementy tablicy używają `getItemSummary`, żeby
-  wybrana **nazwa sieci** pojawiała się na liście Links. Layouty:
-  `icons-only` | `icons-with-labels` | `vertical-list` | `pills`.
+- **`Icons`** — wybrana lista ikon Lucide (ok. 100) w
+  `packages/cms-components/src/components/icon-catalog.ts`, z **graficzną siatką wyboru**
+  (`IconPickerField`). Nie udostępniaj pełnego katalogu Lucide.
+- **`Social`** — ikony serwisów przez `react-icons/fa6` (Facebook, X, Instagram, LinkedIn, YouTube,
+  TikTok, …). Elementy tablicy korzystają z `getItemSummary`, aby na liście Links pojawiała się
+  wybrana **nazwa serwisu**. Układy: `icons-only` | `icons-with-labels` | `vertical-list` | `pills`.
 
-## Dodatkowe komponenty landing
+## Dodatkowe komponenty stron docelowych
 
-| Component | Purpose |
+| Komponent | Przeznaczenie |
 | --------- | ------- |
-| `Spacer` | Odstęp pionowy + opcjonalny separator |
-| `FeatureList` | Kolumny ikona + tytuł + opis |
-| `Hero` | Tło + nagłówek + CTA first-fold |
-| `LogoStrip` | Logotypy partnerów / zaufania |
-| `Testimonial` | Cytat + autor |
-| `Stats` | Pasek KPI |
-| `AnnouncementBar` | Cienki pasek promocyjny |
-| `SimpleTable` | Nagłówki/wiersze z separatorem pipe |
-| `NewsletterSignup` | Formularz e-mail (podłącz `actionUrl` do newsletter) |
-| `ContactFormEmbed` | Osadzenie iframe lub fallback mailto |
+| `Spacer` | Odstęp pionowy z opcjonalną linią oddzielającą |
+| `FeatureList` | Kolumny z ikoną, tytułem i opisem |
+| `Hero` | Tło, nagłówek i wezwanie do działania na górze strony |
+| `LogoStrip` | Logotypy partnerów lub klientów |
+| `Testimonial` | Cytat i autor |
+| `Stats` | Pasek wskaźników |
+| `AnnouncementBar` | Wąski pasek z komunikatem promocyjnym |
+| `SimpleTable` | Nagłówki i wiersze z kolumnami rozdzielonymi znakiem `\|` |
+| `NewsletterSignup` | Formularz zapisu (ustaw `actionUrl` na endpoint newslettera) |
+| `ContactFormEmbed` | Osadzony formularz w iframe albo link mailto |
 
-## Sugerowane follow-up (głębsze integracje)
+## Propozycje dalszych zmian (głębsze integracje)
 
-| Priority | Idea | Why |
+| Priorytet | Pomysł | Dlaczego |
 | -------- | ---- | --- |
-| Medium | Newsletter ↔ module 048 | Auto-wire endpoint subscribe kanału |
-| Low | Contact ↔ forms module | Wybierz istniejący formularz zamiast URL iframe |
+| Średni | Newsletter ↔ moduł 048 | Automatyczne podłączenie endpointu zapisu dla kanału |
+| Niski | Kontakt ↔ moduł formularzy | Wybór istniejącego formularza zamiast adresu iframe |
 
-`Accordion` / `Tabs` już pokrywają sekcje w stylu FAQ; preferuj je przed
-dedykowanym komponentem FAQ.
+`Accordion` i `Tabs` już obsługują sekcje w stylu FAQ; korzystaj z nich zamiast osobnego komponentu
+FAQ.
 
 ## Testowanie
 
-Platforma dostarcza scaffold TDD dla SPI w
-`backend/test/integration/cms/page-builder-extension.test.ts`. Użyj
-fixture w `backend/test/fixtures/cms/test-extension-module.ts` jako
-szablonu przy dodawaniu testów własnych wkładów.
+Platforma ma szkielet testów (TDD) dla tego interfejsu w
+`backend/test/integration/cms/page-builder-extension.test.ts`. Pisząc testy własnych komponentów,
+korzystaj z danych testowych w `backend/test/fixtures/cms/test-extension-module.ts` jako wzoru.

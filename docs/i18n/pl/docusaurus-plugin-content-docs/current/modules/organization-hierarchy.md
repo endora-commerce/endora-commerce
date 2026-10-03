@@ -1,118 +1,111 @@
 ---
-title: Organization hierarchy
+title: Hierarchia organizacji
 ---
 
-# Organization hierarchy
+# Hierarchia organizacji
 
-Organizations mogą być zagnieżdżane w **drzewo**: centrala (head-office) posiada
-oddziały, które mogą mieć pododdziały. Po drzewie płyną dwie rzeczy — **scope**
-(użytkownik rodzica z włączonym roll-up lub scoped sales-rep widzi całe poddrzewo)
-oraz **warunki handlowe** (potomek bez własnego cennika lub limitu kredytowego
-dziedziczy najbliższego przodka).
+Organizacje można zagnieżdżać w **drzewo**: centrala ma oddziały, a oddziały mogą mieć
+pododdziały. W drzewie przekazywane są dwie rzeczy — **zakres dostępu** (użytkownik organizacji
+nadrzędnej z włączonym wglądem w strukturę albo handlowiec z ograniczonym zakresem widzi całe
+poddrzewo) oraz **warunki handlowe** (organizacja podrzędna bez własnego cennika albo limitu
+kredytowego dziedziczy je po najbliższej organizacji nadrzędnej).
 
-To addytywna warstwa nad płaskim modelem organization. Każda organization
-startuje jako **root** (bez rodzica), a płaska instalacja zachowuje się
-bajt-w-bajt tak jak przed hierarchią.
+To warstwa dodana do płaskiego modelu organizacji. Każda organizacja zaczyna jako **korzeń** (bez
+organizacji nadrzędnej), a płaska instalacja działa bajt w bajt tak samo jak przed wprowadzeniem
+hierarchii.
 
 ## Drzewo
 
-Każda organization zapisuje nullable self-referential `parent_id` (NULL ⇒ root)
-oraz utrzymywaną przez serwer materializowaną `path` (`/<rootId>/…/<thisId>/`).
-Pojedyncze indeksowane skanowanie prefiksu odpowiada na „potomkowie X” i
-„przodkowie X” — bez chodzenia per węzeł.
+Każda organizacja ma opcjonalne odwołanie do samej tabeli, `parent_id` (NULL ⇒ korzeń), oraz
+utrzymywaną przez serwer ścieżkę `path` (`/<rootId>/…/<thisId>/`). Jedno indeksowane wyszukiwanie
+po prefiksie odpowiada na pytania „podrzędne X” i „nadrzędne X” — bez przechodzenia węzeł po węźle.
 
-- **Przypisanie / przeniesienie rodzica** — `POST /api/v1/admin/organizations/:id/parent`
-  z `{ "parentId": "<uuid>" | null }`. `null` odcina organization z powrotem do
-  root. Przeniesienie jest walidowane względem **cykli** (węzeł nie może stać się
-  dzieckiem własnego potomka) oraz **maksymalnej głębokości 10 poziomów** i jest
-  audytowane przez Command Bus (`organization.set_parent` / `organization.move`,
-  oba odwracalne).
-- **Odczyt poddrzewa** — `GET /api/v1/admin/organizations/:id/subtree` zwraca
-  potomków (włącznie z samym węzłem) w kolejności pre-order, każdego jako
-  `{ id, name, parentId, depth, status }`.
-- **Odczyt łańcucha przodków** — `GET /api/v1/admin/organizations/:id/ancestors`
-  zwraca łańcuch parent → … → root, od najbliższego.
-- **Usunięcie jest zablokowane** — organization z dowolnym dzieckiem nie może
-  zostać usunięta (`409 has_children`), wspierane przez FK
-  `parent_id … ON DELETE RESTRICT`. Najpierw przypisz ponownie lub usuń dzieci.
+- **Ustawienie lub zmiana organizacji nadrzędnej** — `POST /api/v1/admin/organizations/:id/parent`
+  z `{ "parentId": "<uuid>" | null }`. `null` zamienia organizację z powrotem w korzeń. Przeniesienie
+  jest sprawdzane pod kątem **cykli** (węzeł nie może stać się dzieckiem własnego potomka) i
+  **maksymalnej głębokości 10 poziomów**, a także audytowane przez Command Bus
+  (`organization.set_parent` / `organization.move`, oba odwracalne).
+- **Odczyt poddrzewa** — `GET /api/v1/admin/organizations/:id/subtree` zwraca organizacje podrzędne
+  (łącznie z samym węzłem) w kolejności pre-order, każdą jako `{ id, name, parentId, depth, status }`.
+- **Odczyt organizacji nadrzędnych** — `GET /api/v1/admin/organizations/:id/ancestors` zwraca
+  łańcuch od najbliższej organizacji nadrzędnej do korzenia.
+- **Usunięcie jest zablokowane** — organizacji, która ma jakąkolwiek organizację podrzędną, nie
+  można usunąć (`409 has_children`), co zabezpiecza też klucz obcy `parent_id … ON DELETE RESTRICT`.
+  Najpierw przenieś albo usuń organizacje podrzędne.
 
-Re-parenting jest **retroaktywny**: członkostwo w poddrzewie, widoczność roll-up
-i dziedziczenie warunków liczone są zawsze względem *bieżącego* drzewa, więc po
-przeniesieniu historia oddziału staje się widoczna dla roll-up userów nowego
-rodzica i dziedziczy jego warunki.
+Zmiana organizacji nadrzędnej działa **wstecz**: przynależność do poddrzewa, wgląd w strukturę i
+dziedziczenie warunków są zawsze wyznaczane według *bieżącego* drzewa, więc po przeniesieniu historia
+oddziału staje się widoczna dla użytkowników nowej organizacji nadrzędnej z wglądem w strukturę, a
+oddział dziedziczy jej warunki.
 
-Panel admin wystawia parent picker oraz widok poddrzewa/przodków na stronie
-szczegółów organization.
+Panel administracyjny ma na stronie szczegółów organizacji wybór organizacji nadrzędnej oraz widok
+poddrzewa i organizacji nadrzędnych.
 
-## Roll-up scope
+## Wgląd w strukturę
 
-Widoczność wśród potomków jest **permission-gated** przez capability
-`organizations:rollup` („Act across organization descendants”).
+Widoczność organizacji podrzędnych wymaga uprawnienia `organizations:rollup` („Act across
+organization descendants”).
 
-- **Scoped sales-rep** z tą capability ma każde przypisanie rozszerzone do
-  poddrzewa przypisanego węzła. Potomek z **własnym** przypisaniem nadpisuje
-  dziedziczone dla swojego poddrzewa — wygrywa **najbliższe przypisanie na
-  łańcuchu przodków**. Bez capability rep pozostaje ograniczony do organizations
-  bezpośrednio mu przypisanych.
-- Użytkownik tylko oddziałowy (bez roll-up) widzi wyłącznie własną organization.
+- **Handlowiec z ograniczonym zakresem**, który ma to uprawnienie, ma każde przypisanie rozszerzone
+  na poddrzewo przypisanego węzła. Organizacja podrzędna z **własnym** przypisaniem zastępuje
+  odziedziczone dla swojego poddrzewa — wygrywa **najbliższe przypisanie w łańcuchu organizacji
+  nadrzędnych**. Bez tego uprawnienia handlowiec widzi tylko organizacje przypisane mu bezpośrednio.
+- Użytkownik oddziału bez wglądu w strukturę widzi wyłącznie własną organizację.
 
-Ekspansja jest liczona **po stronie serwera** i poszerza istniejący guard
-tenant-scope (`allowedOrganizationIds`) dokładnie do poddrzewa — nigdy do
-rodzeństwa, kuzynostwa ani przodka poza przyznanym węzłem. Rekord poza
-poddrzewem jest nieodróżnialny od „nie istnieje”. Trzy powierzchnie odczytu
-admin — orders, quotes i customers — czytają już poszerzony scope i nie
-wymagają własnej zmiany.
+Rozszerzenie jest obliczane **po stronie serwera** i poszerza istniejące zabezpieczenie zakresu
+tenanta (`allowedOrganizationIds`) dokładnie o poddrzewo — nigdy o organizacje siostrzane, dalsze
+gałęzie ani organizacje nadrzędne powyżej przypisanego węzła. Rekordu spoza poddrzewa nie da się
+odróżnić od rekordu, który nie istnieje. Trzy ekrany odczytu w panelu — zamówienia, oferty i klienci —
+już korzystają z poszerzonego zakresu i nie wymagają żadnych zmian.
 
 ## Dziedziczenie warunków
 
-Potomek bez własnego warunku handlowego rozwiązuje najbliższego przodka.
+Organizacja podrzędna bez własnego warunku handlowego przejmuje warunek najbliższej organizacji
+nadrzędnej.
 
-### Price lists
+### Cenniki
 
-Cenniki targetują organizations przez regułę aplikacji (brak FK organization).
-Resolver buduje zbiór kandydatów org jako `[thisOrg, …ancestors]` (nearest-first)
-i zachowuje istniejący porządek priorytetów
-(`organization` > `customerGroup` > `category` > `salesChannel`):
+Cenniki wskazują organizacje regułą stosowania (bez klucza obcego do organizacji). Mechanizm
+wyznaczania cen buduje listę kandydatów jako `[thisOrg, …ancestors]` (od najbliższej) i zachowuje
+istniejącą kolejność priorytetów (`organization` > `customerGroup` > `category` > `salesChannel`):
 
-- cennik wskazujący **bliższą** organization przeważa nad dalszym przodkiem, więc
-  **override oddziału zawsze wygrywa**;
-- dziedziczony cennik org-named przodka nadal przeważa nad customer-group,
-  category lub sales-channel;
-- oddział bez własnego cennika spada do org-named listy najbliższego przodka,
-  zanim przejdzie do poziomów bez org.
+- cennik wskazujący **bliższą** organizację ma pierwszeństwo przed dalszą organizacją nadrzędną, więc
+  **własny cennik oddziału zawsze wygrywa**;
+- odziedziczony cennik wskazujący organizację nadrzędną nadal ma pierwszeństwo przed cennikiem grupy
+  klientów, kategorii czy kanału sprzedaży;
+- oddział bez własnego cennika korzysta z cennika najbliższej organizacji nadrzędnej, zanim przejdzie
+  do poziomów niezwiązanych z organizacją.
 
-Tylko ta gałąź odbiega — rodzeństwo pozostaje nietknięte. Rozwiązanie to jeden
-przebieg (bez re-run per ancestor).
+Zmienia się tylko ta gałąź — organizacje siostrzane pozostają bez zmian. Wyznaczanie odbywa się w
+jednym przebiegu (bez osobnego przebiegu dla każdej organizacji nadrzędnej).
 
-### Credit limits
+### Limity kredytowe
 
-Potomek bez własnego limitu kredytowego transakcjonuje względem **najbliższego
-przodka**, który limit ma. Sposób konsumpcji limitu przodka to **tryb per
-organization**, ustawiany wyłącznie przez platform administrator:
+Organizacja podrzędna bez własnego limitu kredytowego korzysta z limitu **najbliższej organizacji
+nadrzędnej**, która go ma. Sposób korzystania z limitu organizacji nadrzędnej to **tryb ustawiany
+dla każdej organizacji**, wyłącznie przez administratora platformy:
 
-- **`shared_pool`** — każda organization w poddrzewie czerpie ze wspólnej puli
-  na wierszu owning ancestor. Równoległe pobrania serializują się na tym wierszu,
-  więc pula nie może być przekroczona (brak double-spend).
-- **`independent_default`** — dziedziczona kwota to własny limit każdego
-  oddziału; każdy oddział może wykorzystać pełną dziedziczoną kwotę niezależnie
-  od rodzeństwa.
+- **`shared_pool`** — każda organizacja w poddrzewie korzysta ze wspólnej puli zapisanej w wierszu
+  organizacji nadrzędnej, do której należy limit. Równoczesne pobrania są wykonywane po kolei na tym
+  wierszu, więc pula nie może zostać przekroczona (nie ma podwójnego wydania).
+- **`independent_default`** — odziedziczona kwota jest osobnym limitem każdego oddziału; każdy oddział
+  może wykorzystać pełną odziedziczoną kwotę niezależnie od organizacji siostrzanych.
 
-Oddział z **własnym** limitem kredytowym nadpisuje dziedziczony.
+Oddział z **własnym** limitem kredytowym nie korzysta z limitu odziedziczonego.
 
-#### Ustawienie credit-inheritance-mode
+#### Ustawienie trybu dziedziczenia limitu
 
-Domyślna fabryka to platform-wide Settings value
-`organizations.hierarchy.credit_inheritance_mode` (default **`shared_pool`**).
-Override per organization trzymany jest na organization i ustawiany przez
+Wartością domyślną jest ustawienie dla całej platformy
+`organizations.hierarchy.credit_inheritance_mode` (domyślnie **`shared_pool`**). Nadpisanie dla
+konkretnej organizacji jest zapisywane w organizacji i ustawiane przez
 `PUT /api/v1/admin/organizations/:id/credit-inheritance-mode` z
-`{ "mode": "shared_pool" | "independent_default" | null }` (`null` wraca do
-domyślnej Settings). Endpoint jest **tylko dla platform-admin** — scoped lub
-roll-up actor dostaje `403` — a zmiana jest audytowana
-(`organization.set_credit_mode`).
+`{ "mode": "shared_pool" | "independent_default" | null }` (`null` przywraca wartość z ustawień).
+Endpoint jest **dostępny tylko dla administratora platformy** — użytkownik z ograniczonym zakresem
+albo wglądem w strukturę dostaje `403` — a zmiana jest audytowana (`organization.set_credit_mode`).
 
-## Gwarancja zachowania płaskiego
+## Gwarancja zachowania płaskiego modelu
 
-Dla root organization poddrzewo to `{itself}`, łańcuch org cennika to
-`[itself]`, a credit owner to sama organization (albo brak). Scope, pricing i
-credit resolution więc zapadają się do zachowania single-organization sprzed
-feature, bajt-w-bajt.
+Dla organizacji będącej korzeniem poddrzewo to `{itself}`, łańcuch organizacji dla cenników to
+`[itself]`, a właścicielem limitu jest sama organizacja (albo nikt). Zakres dostępu, ceny i limity
+kredytowe działają więc dokładnie tak jak w modelu jednej organizacji sprzed tej funkcji, bajt w
+bajt.

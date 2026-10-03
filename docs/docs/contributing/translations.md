@@ -7,11 +7,14 @@ sidebar_label: Admin UI Translations
 
 # Admin UI Translations
 
-This page covers **Admin UI** string bundles only (each module's own `i18n/` directory).
-The **documentation site** (`docs/`) uses a separate manual bilingual workflow
+This page covers **Admin UI** string bundles (each module's own `i18n/` directory)
+and holds the **one Polish glossary** both translation systems use. The
+**documentation site** (`docs/`) has a separate manual bilingual workflow
 — cache entries, materialised markdown under `docs/i18n/pl/`, and
-`check:docs-translations`. See
-[Documentation site i18n](./documentation-i18n.md).
+`check:docs-translations`; see
+[Documentation site i18n](./documentation-i18n.md). Its platform and
+architecture vocabulary is under
+[Documentation-site terminology](#documentation-site-terminology) below.
 
 The Admin UI is bilingual at launch — every user-visible string is shipped in
 both **English** (the platform-wide source of truth) and **Polish**. The
@@ -105,6 +108,91 @@ first and only propose a glossary edit if the term genuinely does not fit.
 | categories page title   | Kategorie                   |                                                     |
 | customers page title    | Klienci                     |                                                     |
 | organisations page      | Organizacje                 |                                                     |
+
+## Documentation-site terminology
+
+The Polish pages of the documentation site (`docs/i18n/pl/`) use the domain
+terms above **and** the platform vocabulary below. The aim is Polish a Polish
+engineer would write, not English with Polish endings: a technical loanword
+stays only where Polish developers actually say it (`storefront`, `build`,
+`worker`, `endpoint`), and an English verb is never conjugated as Polish
+("failuje", "shipuje", "shadowuje" are always wrong). Identifiers, commands,
+file paths, setting keys and environment variables (`DEPLOYMENT`,
+`overlay:check`, `apps/<deployment>/`) stay exactly as they are in code.
+An Admin UI label quoted in bold (a button, a tab, a screen name) stays as it
+reads in the English page unless the translator has checked the Polish label
+in the module's `i18n/pl.json`; a guessed Polish label sends the reader looking
+for a button that does not exist.
+
+| English term                | Polish term                         | Notes                                                                 |
+|-----------------------------|-------------------------------------|-----------------------------------------------------------------------|
+| module                      | moduł                               |                                                                       |
+| core (module)               | rdzeń; moduł rdzenia                | "core" may follow once in brackets: rdzeń (core)                      |
+| overlay module              | moduł nakładkowy                    | never "moduł overlay"; add "(overlay)" on a page's first mention      |
+| overlay (layer)             | nakładka; warstwa nakładkowa        | overlay pattern → wzorzec nakładki                                    |
+| deployment                  | wdrożenie                           | reference deployment → wdrożenie referencyjne                         |
+| instance                    | instancja                           | the tree `npx create-endora-commerce` writes                          |
+| storefront                  | storefront                          | the application; "sklep" when addressing a merchant                   |
+| Admin UI, admin panel       | panel administracyjny               | "panel" alone once the context is clear                               |
+| operator                    | operator                            |                                                                       |
+| activation; enable; disable | aktywacja; włączyć; wyłączyć        |                                                                       |
+| availability (platform)     | dostępność                          | the deployment-owned axis, beside activation                          |
+| install; uninstall          | instalacja; odinstalowanie          |                                                                       |
+| install hook                | hook instalacyjny                   | "hook" is the established loanword                                    |
+| lifecycle                   | cykl życia                          |                                                                       |
+| migration                   | migracja                            |                                                                       |
+| schema                      | schemat                             |                                                                       |
+| entity                      | encja                               |                                                                       |
+| service (DI)                | usługa                              | not "serwis"                                                          |
+| container (DI)              | kontener                            |                                                                       |
+| registration; register      | rejestracja; rejestrować            |                                                                       |
+| decorate; decoration        | dekorować; dekoracja                |                                                                       |
+| wrap; wrapper               | opakować; wrapper                   |                                                                       |
+| route; route handler        | trasa; handler trasy                |                                                                       |
+| endpoint                    | endpoint                            |                                                                       |
+| worker; queue consumer      | worker; konsument kolejki           | job → zadanie                                                         |
+| event bus; event            | szyna zdarzeń; zdarzenie            | `EventBus` stays as the identifier                                    |
+| Command Bus                 | Command Bus                         | proper name                                                           |
+| port; adapter               | port; adapter                       |                                                                       |
+| composition; compose        | kompozycja; składać                 | composition root stays "composition root"                             |
+| manifest                    | manifest                            |                                                                       |
+| registry                    | rejestr                             |                                                                       |
+| dependency                  | zależność                           |                                                                       |
+| package; extension package  | pakiet; pakiet rozszerzenia         |                                                                       |
+| release                     | wydanie                             | patch/major release → wydanie poprawkowe / główne                     |
+| changeset                   | changeset                           | the file `.changeset/*.md`                                            |
+| build; build time           | build; czas budowania               | the verb is "zbudować", not "zbuildować"                              |
+| runtime                     | czas działania                      |                                                                       |
+| ship (a package ships X)    | zawierać; dostarczać                | never "wysyłać", which means sending a message                        |
+| fail (a build, a check)     | kończyć się błędem; nie przechodzić | never "failować"                                                      |
+| fail closed                 | odmawiać w razie wątpliwości        | "(fail-closed)" may follow once in brackets                           |
+| refuse; refusal             | odrzucać; odmowa                    |                                                                       |
+| seam                        | punkt rozszerzenia                  | never "szew"                                                          |
+| contribution; contribution point | wkład; punkt wpięcia        | what a module adds to a host surface (a nav entry, a zone)            |
+| capability                  | możliwość                           |                                                                       |
+| override                    | nadpisanie; nadpisać                |                                                                       |
+| shadow (a file)             | przesłaniać                         |                                                                       |
+| check (`check:*` script)    | kontrola                            | the script name stays as written                                      |
+| guard                       | zabezpieczenie                      |                                                                       |
+| tenant; tenant isolation    | tenant; izolacja tenantów           | the Organization is the tenant; inflect: tenanta, tenantów            |
+| channel scoping             | zawężanie do kanału sprzedaży       |                                                                       |
+| setting key                 | klucz ustawienia                    |                                                                       |
+| permission code             | kod uprawnienia                     |                                                                       |
+| command palette             | paleta poleceń                      |                                                                       |
+| divergence report           | raport rozbieżności                 |                                                                       |
+| customisation ladder; rung  | drabina dostosowań; stopień         |                                                                       |
+| payload; request body       | treść; treść żądania                |                                                                       |
+| specification; spec         | specyfikacja                        |                                                                       |
+| pull request; merge         | pull request; scalenie              |                                                                       |
+| commit (verb)               | zatwierdzić (commit)                | the noun "commit" stays                                               |
+| fallback                    | wartość zastępcza                   | or "ścieżka zapasowa" for a code path                                 |
+| seed data                   | dane początkowe                     |                                                                       |
+| connector (PIM, ERP)        | konektor                            | "konektor PIM", "konektor ERP"                                        |
+| invoice ledger              | księga faktur                       | matches the module's Polish UI label                                  |
+| provider (feed, taxonomy, external service) | dostawca            | "provider" stays only inside identifiers                              |
+| product feed; feed          | feed produktowy; feed               | inflect: feedu, feedy; matches the module's Polish UI label           |
+| run (a feed generation)     | generowanie                         | "przebieg" for a job run or a test run                                |
+| reconciler; reconcile       | mechanizm uzgadniający; uzgadniać   |                                                                       |
 
 ## Adding a new term
 

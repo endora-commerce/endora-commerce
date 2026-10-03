@@ -19,7 +19,7 @@
   //
   // `types` carries two entries and each is a program-wide requirement rather
   // than a preference. `vite/client` is what declares `*.css` as a module. The e-mail
-  // editor pane imports `@measured/puck/puck.css` and
+  // editor pane imports `@puckeditor/core/puck.css` and
   // `@endora-commerce/cms-components/styles.css` as side effects, and the
   // imports are kept verbatim: the bundler is what resolves them, and rewriting
   // one into an indirection is a chance for the stylesheet to stop being

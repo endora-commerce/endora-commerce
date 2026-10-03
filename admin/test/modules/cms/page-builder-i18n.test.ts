@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Config } from '@measured/puck';
+import type { Config } from '@puckeditor/core';
 import { applyPageBuilderTranslations } from '../../../../packages/modules/cms/src/admin/components/page-builder-i18n';
 
 /**
