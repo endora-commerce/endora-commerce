@@ -183,14 +183,16 @@ export function ordersPromptTools(deps: OrdersPromptToolsDeps): PromptActionTool
           // a terminal one, or a before-guard's veto, each of which the operator
           // reads next to the orders that did move. A switched-off module is
           // none of those. It is the same answer for every remaining order, so
-          // absorbing it turns one fixable cause into N identical `failed` rows
-          // — and `OrderTransitionService.apply` flushes the status change
-          // *before* it runs the side-effects hook that reaches
-          // `credit_limits`' release port, so those rows would report `failed`
-          // for orders whose status had in fact already moved. Re-throwing
-          // stops the batch and hands the operator the 503 `MODULE_DISABLED`
-          // envelope, which names the module they have to switch on; re-running
-          // afterwards is safe, because an order already at the target status
+          // absorbing it turns one fixable cause into N identical `failed` rows.
+          //
+          // Every refusal `apply` can give is given before anything is written
+          // (`specs/142-order-transition-atomicity/`), so an order listed here
+          // as failed has not moved. A module being off no longer refuses a
+          // transition either — the release it owes waits for the module — so
+          // this re-throw is reached only in the instant a module is switched
+          // off between a follow-up's presence answer and its port call; the
+          // status is committed and the release recorded even then, and
+          // re-running is safe because an order already at the target status
           // is a no-op transition.
           rethrowIfModuleDisabled(err);
           failures.push({

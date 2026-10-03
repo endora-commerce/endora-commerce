@@ -558,6 +558,12 @@ export async function registerOrderRoutes(
   // refuses to say. An out-of-scope order is reported as `not_found`, the same
   // reason a nonexistent one gets — `classifySkip` reaches that answer through
   // the tenant filter, not through a branch of its own.
+  //
+  // **`skipped` means the order did not move** (`specs/142-order-transition-atomicity/`).
+  // `apply` decides every refusal before it writes, and nothing it runs after
+  // the commit can fail the call, so a throw caught below is always about an
+  // order whose status is unchanged. It used not to be: a release that failed
+  // after the status had flushed listed a *cancelled* order here as `terminal`.
   app.post(
     '/api/v1/admin/orders/bulk/status',
     { preHandler: requireAdmin('orders:write'), schema: { body: bulkOrderStatusRequestSchema } },
@@ -671,6 +677,9 @@ export async function registerOrderRoutes(
     // is off is a statement about the platform, and reporting one hundred
     // orders as `invalid_transition` sends the operator to the status graph to
     // look for a rule that was never the problem.
+    // A module being off no longer refuses a transition — the release it owes
+    // waits for it — so this is reached only in the instant a module is
+    // switched off under a follow-up that had already found it present.
     rethrowIfModuleDisabled(err);
     if (err instanceof HttpError && err.code === ERROR_CODES.ORDER_NOT_FOUND) return 'not_found';
     const order = await emFactory().findOne(Order, { id: orderId });
