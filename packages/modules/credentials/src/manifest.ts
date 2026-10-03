@@ -94,10 +94,13 @@ export const manifest = defineModuleManifest({
    * `settings`' (!1133) although it is raised out of a secret codec that
    * `@endora-commerce/platform`, this module and `ksef` each ship a byte-identical
    * copy of — see `services/secret-value-codec.ts`, whose own header calls the
-   * duplication debt. This module raises one code it does not own in the other
-   * direction: `VERSION_CONFLICT`, in the optimistic-concurrency guard of
-   * `update-configuration.command.ts`, which routes to `core` and is not declared
-   * here. Re-routing any of this is out of scope (§6.5); disagreement belongs in
+   * duplication debt. This module raises two codes it does not own in the other
+   * direction, and declares neither: `VERSION_CONFLICT`, in the
+   * optimistic-concurrency guard of `update-configuration.command.ts`, which
+   * routes to `core`; and that same `SETTING_SECRET_KEY_MISSING`, in
+   * `services/secret-key-refusal.ts`, which is what turns this module's copy of
+   * the codec's two key faults into an answer naming the variable instead of a
+   * bare `500 INTERNAL`. Re-routing any of this is out of scope (§6.5); disagreement belongs in
    * `specs/082-error-code-ownership/rulings.md` §9.
    *
    * **All six are raised**, in both spellings (trap T12): `ERROR_CODES.<CODE>`
