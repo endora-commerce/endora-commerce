@@ -1,69 +1,67 @@
 ---
 title: delivery_methods
-description: Skonfigurowane opcje dostawy
+description: Skonfigurowane metody dostawy
 ---
 
 # `delivery_methods`
 
-**Framework metod wysyłki** platformy (_Metoda Dostawy_).
-Moduł hostuje rejestr adapterów wtykanych nad katalogiem metod dostawy,
-blizniaczy odpowiednik po stronie dostawy dla `payment_methods`. Rekord `Shipment`
-pierwszej klasy i jego cykl życia żyją w sąsiednim module [`shipments`](./shipments.md).
-Moduły integracji przewoźników rejestrują adaptery w tym frameworku. To, które z nich
-ma twoja instancja, zależy od tego, co jest zainstalowane, więc są tu nazwane, a nie
-podlinkowane: link do strony sąsiedniego modułu jest zepsutym linkiem w każdej instancji,
-która tego modułu nie instaluje — i to właśnie mówi o nim `onBrokenLinks: 'throw'`.
+**Mechanizm metod dostawy** w platformie (_Metoda dostawy_). Moduł zawiera rejestr podłączanych
+adapterów, zbudowany na katalogu metod dostawy — odpowiednik modułu `payment_methods` po stronie
+dostawy. Pełnoprawny rekord przesyłki `Shipment` i jego cykl życia należą do sąsiedniego modułu
+[`shipments`](./shipments.md). Moduły integracji z przewoźnikami rejestrują w tym mechanizmie swoje
+adaptery. Które z nich ma twoja instancja, zależy od tego, co jest zainstalowane, więc są tu
+wymienione z nazwy, a nie podlinkowane: link do strony sąsiedniego modułu byłby niedziałającym
+linkiem w każdej instancji, która tego modułu nie instaluje — i dokładnie to zgłosiłoby
+`onBrokenLinks: 'throw'`.
 
-Metoda dostawy nigdy nie jest hard-coded: platforma odkrywa metody z
-**modułów adapterów**, które są zainstalowane i włączone. Włączenie rozpoznanego
-modułu adaptera metody wysyłki auto-tworzy konfigurowalny wiersz
-`delivery_methods` widoczny na `/delivery-methods`.
+Metoda dostawy nigdy nie jest wpisana na stałe: platforma wykrywa metody na podstawie
+zainstalowanych i włączonych **modułów adapterów**. Włączenie rozpoznanego modułu adaptera metody
+dostawy automatycznie tworzy konfigurowalny wiersz `delivery_methods`, widoczny na
+`/delivery-methods`.
 
-## Publiczne API
+## API publiczne
 
-Trasy admin są chronione przez `delivery_methods:read` (odczyty) i
-`delivery_methods:write` (mutacje) — własne kody modułu od 2026-08-28.
-Wcześniej były to `catalog:read` / `catalog:write`, co oznaczało, że ktokolwiek mógł
-edytować produkt, mógł też decydować, jak sklep wysyła, i usuwać metodę
-dostawy wprost. Rola polegająca na kodach katalogu dla tego ekranu
-musi dostać nowe na `/admin-roles`; nic nie nadaje ich automatycznie — celowo.
+Trasy administracyjne są chronione przez `delivery_methods:read` (odczyt) i
+`delivery_methods:write` (zmiany) — własne kody modułu od 2026-08-28. Wcześniej były to
+`catalog:read` / `catalog:write`, co oznaczało, że każdy, kto mógł edytować produkt, mógł też
+decydować o sposobach wysyłki sklepu i całkowicie usuwać metody dostawy. Rola, która korzystała z
+kodów katalogu przy tym ekranie, musi dostać nowe kody na `/admin-roles`; nic nie przyznaje ich
+automatycznie — celowo.
 
-| Verb + Path | Odbiorca | Gate | Cel |
+| Metoda i ścieżka | Kto | Uprawnienie | Przeznaczenie |
 | --- | --- | --- | --- |
-| `GET /api/v1/delivery-methods` | anon | — | Metody kwalifikujące się do checkout storefront (active ∩ sales-channel ∩ Organization allow-list ∩ adapter registered ∩ `validateUseOnStorefront`) |
-| `GET /api/v1/admin/delivery-methods` | admin | `delivery_methods:read` | Pełna lista z adapterem, mapowaniami statusów, sales channels, kluczem renderera |
-| `PUT /api/v1/admin/delivery-methods/:code` | admin | `delivery_methods:write` | Upsert po kodzie (name, cost/`price`, status, `statusOnSuccess`/`statusOnFailure`, sales channels) |
-| `DELETE /api/v1/admin/delivery-methods/:id` | admin | `delivery_methods:write` | Twarde usunięcie (chronione: odrzucone 409, gdy `Shipment` referencjonuje metodę — ustaw status `inactive` zamiast tego) |
+| `GET /api/v1/delivery-methods` | anonimowy | — | Metody dostępne w checkoucie storefrontu (aktywne ∩ kanał sprzedaży ∩ lista dozwolonych organizacji ∩ zarejestrowany adapter ∩ `validateUseOnStorefront`) |
+| `GET /api/v1/admin/delivery-methods` | administrator | `delivery_methods:read` | Pełna lista z adapterem, przypisaniem statusów, kanałami sprzedaży i kluczem szablonu |
+| `PUT /api/v1/admin/delivery-methods/:code` | administrator | `delivery_methods:write` | Utworzenie lub aktualizacja według kodu (nazwa, koszt/`price`, status, `statusOnSuccess`/`statusOnFailure`, kanały sprzedaży) |
+| `DELETE /api/v1/admin/delivery-methods/:id` | administrator | `delivery_methods:write` | Trwałe usunięcie (chronione: odrzucane z 409, gdy metoda jest używana przez przesyłkę `Shipment` — zamiast tego ustaw status `inactive`) |
 
-Selektory statusów admin czytają opcje z `GET /api/v1/admin/order-statuses`
-(należące do tras admin modułu payment-methods; współdzielony `OrderStatusRegistry`). Ta
-trasa wymaga `payment_methods:read` **or** `delivery_methods:read` — any-of
-nad dwoma edytorami, które ją czytają, więc kod otwierający ten ekran otwiera też
-jego selektory statusów.
+Listy wyboru statusów w panelu pobierają opcje z `GET /api/v1/admin/order-statuses` (trasa
+administracyjna modułu metod płatności; wspólny `OrderStatusRegistry`). Ta trasa wymaga
+`payment_methods:read` **albo** `delivery_methods:read` — wystarczy jedno z uprawnień obu
+edytorów, które z niej korzystają, więc kod otwierający ten ekran otwiera też jego listy statusów.
 
 ## Pola wpisu
 
-Wiersz `delivery_methods` niesie: `code` (unikalny), `adapter` (klucz rejestru),
-per-język `name` (domyślna + nadpisania), `cost` + `currency` (dopłata `price`
-dodawana do sumy zamówienia), `status` (`active`/`inactive`),
-`statusOnSuccess` / `statusOnFailure` (referencje statusów Order stosowane przy
-sukcesie/porażce generowania przesyłki). **Nie ma** `statusOnPending` ani kolumny
-`kind` — metoda wysyłki jest identyfikowana wyłącznie przez `adapter`.
+Wiersz `delivery_methods` zawiera: `code` (unikalny), `adapter` (klucz w rejestrze), `name` dla
+poszczególnych języków (wartość domyślna i nadpisania), `cost` i `currency` (dopłata `price`
+doliczana do wartości zamówienia), `status` (`active`/`inactive`), `statusOnSuccess` /
+`statusOnFailure` (odwołania do statusów zamówienia ustawianych po udanym lub nieudanym utworzeniu
+przesyłki). **Nie ma** `statusOnPending` ani kolumny `kind` — metodę dostawy identyfikuje wyłącznie
+`adapter`.
 
-`statusOnSuccess` / `statusOnFailure` referencjonują statusy Order rozwiązywane
-przez port `OrderStatusRegistry` (oparte na enumie statusu order do czasu,
-gdy moduł Orders dostarczy konfigurowalny rejestr). Domyślne seedy: `shipped` /
-`in_fulfilment`.
+`statusOnSuccess` / `statusOnFailure` odwołują się do statusów zamówienia wyznaczanych przez port
+`OrderStatusRegistry` (oparty na wyliczeniu statusów zamówienia, dopóki moduł zamówień nie dostarczy
+konfigurowalnego rejestru). Domyślne wartości początkowe: `shipped` / `in_fulfilment`.
 
-Zakres sales channel reużywa generycznego `SalesChannelMembershipService`
-(`'delivery-method'`); dostępność per Organization reużywa
-`OrganizationRestrictionService` (`'delivery_method'`, opt-out blocklist).
+Przypisanie do kanałów sprzedaży korzysta z ogólnego `SalesChannelMembershipService`
+(`'delivery-method'`); dostępność dla organizacji korzysta z `OrganizationRestrictionService`
+(`'delivery_method'`, lista blokad).
 
-## Jak zbudować moduł metody wysyłki
+## Jak zbudować moduł metody dostawy
 
-Moduł platformy jest rozpoznawany jako adapter metody wysyłki **wtedy i tylko wtedy, gdy**
-rejestruje `ShippingAdapter` w procesowym `shippingAdapterRegistry`
-z boot hooka. Nie trzeba zmian w core.
+Moduł platformy jest rozpoznawany jako adapter metody dostawy **wtedy i tylko wtedy, gdy** w hooku
+startowym rejestruje `ShippingAdapter` w działającym w procesie `shippingAdapterRegistry`. Zmiany w
+rdzeniu nie są potrzebne.
 
 1. **Zaimplementuj kontrakt `ShippingAdapter`** (`@endora-commerce/contracts`):
 
@@ -72,26 +70,26 @@ z boot hooka. Nie trzeba zmian w core.
 
    export const myCarrierAdapter: ShippingAdapter = {
      adapterKey: 'my_carrier',
-     // Dodatkowe warunki per powierzchnia; zwróć stałe true, gdy brak.
+     // Dodatkowe warunki dla poszczególnych miejsc; zwróć stałe true, gdy ich nie ma.
      validateUseOnStorefront: async () => true,
      validateUseOnAdmin: async () => true,
      validateUseInApi: async () => true,
-     // order_created: może rozpocząć generowanie; bezpiecznie zostaw no-op.
+     // order_created: może rozpocząć tworzenie przesyłki; można bezpiecznie nic nie robić.
      onOrderCreated: async () => {},
-     // shipment_created: rozpocznij generowanie, zwróć następną akcję.
+     // shipment_created: rozpocznij tworzenie przesyłki, zwróć następną akcję.
      onShipmentCreated: async () => ({ kind: 'pending' }),
-     // receive_shipment: zmapuj ingress na wynik success/failure.
+     // receive_shipment: przełóż przyjęty wynik na sukces albo porażkę.
      onReceiveShipment: async (ctx) => ({
        result: 'success',
        externalReference: ctx.externalReference ?? null,
      }),
-     // Opcjonalne klucze rendererów; brak ⇒ domyślna platformy.
+     // Opcjonalne klucze szablonów; brak ⇒ szablon domyślny platformy.
      renderers: { storefront: 'my_carrier', email: 'my_carrier.email' },
    };
    ```
 
-2. **Wnieś adapter z boot hooka**, nazywając moduł właściciela, i
-   dostarcz wiersz metody jako migrację:
+2. **Dodaj adapter w hooku startowym**, podając moduł-właściciela, a wiersz metody dostarcz jako
+   migrację:
 
    ```ts
    import { shippingAdapterRegistry } from '.../delivery_methods/services/registry-singleton.js';
@@ -101,89 +99,84 @@ z boot hooka. Nie trzeba zmian w core.
    });
    ```
 
-   Id właściciela pozwala rejestrowi pominąć adapter, gdy jego moduł jest
-   nieobecny, więc przewoźnik wyłączony przez operatora przestaje być oferowany zamiast
-   być oferowany i padać — ten sam defekt, który miał bliźniak payment, naprawiony
-   po obu stronach. Sam wiersz `delivery_methods` to statyczne dane referencyjne i
-   należy do migracji modułu; `DeliveryMethodReconciler` pozostaje
-   dostępny z `installHook` dla wiersza tworzonego z kodu. Nie trzeba uninstall hooka,
-   aby wycofać adapter — moduł nieobecny nie jest enumerowany.
+   Identyfikator właściciela pozwala rejestrowi pominąć adapter, gdy jego modułu nie ma, więc
+   przewoźnik wyłączony przez operatora przestaje być oferowany, zamiast być oferowany i zawodzić — to
+   ten sam błąd, który miał odpowiednik po stronie płatności, naprawiony po obu stronach. Sam wiersz
+   `delivery_methods` to statyczne dane słownikowe i należy do migracji modułu;
+   `DeliveryMethodReconciler` pozostaje dostępny w `installHook` dla wiersza tworzonego w kodzie.
+   Do wycofania adaptera nie jest potrzebny hook odinstalowania — nieobecny moduł nie jest brany pod
+   uwagę przy przeglądaniu wpisów.
 
-   Skip nie odpowiada za zamówienie **już złożone** na twojej metodzie:
-   przesyłka nadal może być wygenerowana i otwiera się
-   `pending_manual` z nazwą twojego modułu zamiast brzmieć jak zaakceptowana.
-   Nie piszesz kodu pod to — zobacz *Kiedy rejestr jest czytany* poniżej.
+   Pominięcie nie dotyczy zamówienia **już złożonego** z twoją metodą: przesyłkę nadal można
+   wygenerować, a powstaje ona w stanie `pending_manual` z nazwą twojego modułu, zamiast wyglądać
+   na przyjętą przez przewoźnika. Nie piszesz do tego żadnego kodu — zobacz *Kiedy odczytywany jest
+   rejestr* niżej.
 
-   **Twój hook wpycha i wraca.** Nie sprawdza, co już jest w tabeli,
-   nie sprawdza obecności `delivery_methods` i nie traktuje nieobecności jako błędu — bo
-   nic nie czyta rejestru podczas komponowania modułów. Boot hooki działają w
-   dowolnym skutecznym stanie modułu; *enumeracja* odpowiada obecności, nie rejestracji.
-   Throw w boot hooku to nie jeden adapter wypadający: `runBootHooks` re-throwuje go jako
-   `ModuleCompositionError`, a `index.ts` robi z tego `process.exit(1)`, więc
-   następny start operatora pada przez przełącznik, z którego miał prawo skorzystać. Hook
-   wnoszący też *nie może* sondować `effectiveState` — host filtruje przy
-   enumeracji, a sonda przy push sprawiłaby, że ponowne włączenie przewoźnika wymaga
-   restartu. Jeśli hook też *robi pracę* (reconcile, zapis Redis lub Postgres),
-   rozdziel to najpierw: połowa robocza sonduje, wnosząca nigdy.
+   **Twój hook dodaje wpis i od razu kończy.** Nie sprawdza, co już jest w tabeli, nie sprawdza
+   obecności `delivery_methods` i nie traktuje jej braku jako błędu — bo podczas składania modułów
+   nic nie odczytuje rejestru. Hooki startowe wykonują się niezależnie od stanu efektywnego modułu;
+   na pytanie o obecność odpowiada *przeglądanie wpisów*, a nie rejestracja. Wyjątek rzucony w hooku
+   startowym to nie tylko jeden brakujący adapter: `runBootHooks` rzuca go dalej jako
+   `ModuleCompositionError`, a `index.ts` zamienia to w `process.exit(1)`, więc następny start
+   operatora kończy się błędem z powodu przełącznika, z którego miał prawo skorzystać. Hook, który
+   wnosi wkład, *nie może* też sprawdzać `effectiveState` — host filtruje wpisy przy przeglądaniu, a
+   sprawdzenie przy dodawaniu oznaczałoby, że ponowne włączenie przewoźnika wymaga restartu. Jeśli
+   hook *wykonuje też pracę* (uzgadnianie, zapis w Redis lub Postgresie), najpierw go rozdziel: część
+   wykonująca pracę sprawdza obecność, część wnosząca wkład — nigdy.
 
-3. **Opcjonalne renderery** — zarejestruj niestandardowe renderery pod zadeklarowanymi
-   kluczami:
+3. **Opcjonalne szablony** — zarejestruj własne szablony pod zadeklarowanymi kluczami:
    - Storefront: `registerShippingMethodRenderer(key, fn)` w
      `storefront/lib/shipping-renderers/registry.tsx`.
    - E-mail: `registerShippingEmailRenderer(key, fn)` w
      `shipments/services/shipping-email-renderer.ts`.
-   Gdy renderer brakuje dla powierzchni, używana jest domyślna platformy, więc
-   metoda zawsze się renderuje.
+   Gdy dla danego miejsca brakuje szablonu, używany jest szablon domyślny platformy, więc metoda
+   zawsze się wyświetla.
 
-4. **Włącz moduł** z ekranu cyklu życia modułu admin → konfigurowalna
-   Delivery Method pojawia się na `/delivery-methods`.
+4. **Włącz moduł** na ekranie cyklu życia modułów w panelu → na `/delivery-methods` pojawia się
+   konfigurowalna metoda dostawy.
 
-Dwa wbudowane offline reference adaptery — `manual_courier` (_Wysyłka własna_)
-i `personal_pickup` (_Odbiór osobisty_) — nie wymagają zewnętrznego przewoźnika i są
-przepracowanym przykładem pełnego cyklu życia.
+Dwa wbudowane adaptery wzorcowe działające offline — `manual_courier` (_Wysyłka własna_) i
+`personal_pickup` (_Odbiór osobisty_) — nie wymagają zewnętrznego przewoźnika i są pełnym przykładem
+całego cyklu życia.
 
-## Kiedy rejestr jest czytany
+## Kiedy odczytywany jest rejestr
 
-`shippingAdapterRegistry` to **singleton procesowy**
-(`delivery_methods/services/registry-singleton.ts`): jedna tabela adapterów na
-proces, niezależnie ile razy platforma jest komponowana. Wkłady są wpychane
-**raz, podczas komponowania**. Każde odczytanie następuje **później, wewnątrz
-żądania**:
+`shippingAdapterRegistry` to **singleton procesu** (`delivery_methods/services/registry-singleton.ts`):
+jedna tabela adapterów na proces, niezależnie od tego, ile razy platforma jest składana. Wkłady są
+dodawane **raz, podczas kompozycji**. Każdy odczyt następuje **później, w trakcie żądania**:
 
-| Odczyt | Gdzie | Co oznacza nieobecny adapter |
+| Odczyt | Gdzie | Co oznacza brak adaptera |
 | --- | --- | --- |
-| Kwalifikacja storefront | `GET /api/v1/delivery-methods` → `ShippingMethodEligibilityService.filter` | metoda nie jest oferowana |
-| Strażnik upsert admin | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | jawnie podany klucz, którego nikt nie wniósł, jest odrzucany (400); wniesiony z wyłączonym właścicielem jest akceptowany, bo odczyt celowo nie widzi obecności |
-| Składanie zamówienia | `orders` ponownie waliduje wybraną metodę, potem odpala `onOrderCreated` | metoda z wyłączonym właścicielem odpowiada 503 `MODULE_DISABLED`; nierzarejestrowana pomija hook |
-| Generowanie przesyłki | `ShipmentService.create` → `onShipmentCreated` | hook adaptera jest pomijany, a `Shipment` otwiera **`pending_manual`** z nazwą nieobecnego modułu — nigdy zwykłe `pending`, które brzmiałoby jak zaakceptowana przez przewoźnika |
-| E-mail potwierdzenia zamówienia | klucz `renderers.email` metody | używany jest domyślny renderer platformy |
+| Dostępność w storefroncie | `GET /api/v1/delivery-methods` → `ShippingMethodEligibilityService.filter` | metoda nie jest oferowana |
+| Zabezpieczenie zapisu w panelu | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | jawnie podany klucz, którego nikt nie dodał, jest odrzucany (400); klucz dodany przez wyłączony moduł jest akceptowany, bo ten odczyt celowo nie sprawdza obecności |
+| Składanie zamówienia | `orders` ponownie sprawdza wybraną metodę, a potem wywołuje `onOrderCreated` | metoda, której właściciel jest wyłączony, odpowiada 503 `MODULE_DISABLED`; dla niezarejestrowanej hook jest pomijany |
+| Generowanie przesyłki | `ShipmentService.create` → `onShipmentCreated` | hook adaptera jest pomijany, a `Shipment` powstaje w stanie **`pending_manual`** z nazwą nieobecnego modułu — nigdy w zwykłym `pending`, które wyglądałoby na przyjęte przez przewoźnika |
+| E-mail z potwierdzeniem zamówienia | klucz `renderers.email` metody | używany jest szablon domyślny platformy |
 
-Wynikają dwie rzeczy i dlatego ta sekcja istnieje, zamiast być domyślana. Po pierwsze,
-**nie ma kolejności do trafienia** między wnoszącymi: twój adapter jest widoczny przy
-pierwszym odczycie, niezależnie czy wszedł przed czy po czyimś, więc boot hook nie ma
-czego czekać ani weryfikować. Po drugie, nieobecny lub wyłączony wnoszący jest
-odpowiadany **przy odczycie**, przez zapisanego właściciela wpisu — nigdy przy push.
-To czyni to punktem wkładu, a nie gated portem: push jest celowo ungated,
-bo gating zamieniłby jeden flip operatora w boot failure wskazujący moduł, którego
-nikt nie dotykał.
+Wynikają z tego dwie rzeczy i dlatego ta sekcja istnieje, a nie jest pozostawiona domysłom. Po
+pierwsze, **nie ma kolejności, którą trzeba zachować** między wnoszącymi wkład: twój adapter jest
+widoczny przy pierwszym odczycie, niezależnie od tego, czy został dodany przed cudzym, czy po nim,
+więc hook startowy nie ma na co czekać ani czego sprawdzać. Po drugie, na nieobecność lub wyłączenie
+wnoszącego odpowiada się **przy odczycie**, na podstawie zapisanego właściciela wpisu — nigdy przy
+dodawaniu. To sprawia, że jest to punkt wpięcia, a nie blokowany port: dodawanie jest celowo
+nieblokowane, bo blokada zamieniłaby jedno przełączenie przez operatora w błąd startu wskazujący
+moduł, którego nikt nie dotykał.
 
-Filtr obecności dzieli powierzchnię według pytającego. `get`, `resolve`,
-`list` i `isAvailable` pomijają wpis, którego moduł właściciel nie jest skutecznie
-obecny — kupujący nigdy nie dostaje przewoźnika, który nie może przyjąć paczki, a
-`resolve` podnosi zwykły `ModuleDisabledError`. `entry`, `ownerOf`,
-`isRegistered` i `listAll` celowo nie, bo `/delivery-methods`
-musi pokazywać metodę *i* powód niedostępności: wyłączenie modułu to nie deinstalacja.
+Filtr obecności dzieli API według tego, kto pyta. `get`, `resolve`, `list` i `isAvailable`
+pomijają wpis, którego moduł-właściciel nie jest faktycznie obecny — kupujący nigdy nie zobaczy
+przewoźnika, który nie może przyjąć paczki, a `resolve` rzuca zwykły `ModuleDisabledError`. `entry`,
+`ownerOf`, `isRegistered` i `listAll` celowo tego nie robią, bo `/delivery-methods` musi pokazywać
+metodę *i* powód, dla którego jest niedostępna: wyłączenie modułu to nie jego odinstalowanie.
 
-`absentOwnerFor(adapterKey)` to piąty czytelnik i jedyny odpowiadający na
-*pytanie* zamiast eksponować tabelę: nazywa moduł, który wniósł klucz i nie jest
-obecny, i `null` w każdym innym przypadku. Istnieje, bo `get()` zwija dwie sytuacje,
-na które operator nie może reagować identycznie — klucz, którego nikt nie wniósł, i klucz,
-którego moduł przewoźnika jest wyłączony — a tylko druga nazywa coś, co można
-włączyć z powrotem. `shipments` pyta o to, by zdecydować, w jakim stanie otworzyć
-`Shipment`; bliźniak payment, `GatewayRefundRegistry.absentOwnerFor`, to ten sam
-czytelnik z tego samego powodu.
+`absentOwnerFor(adapterKey)` to piąty sposób odczytu i jedyny, który odpowiada na *pytanie*, zamiast
+udostępniać tabelę: wskazuje moduł, który dodał klucz, a nie jest obecny, a w każdym innym
+przypadku zwraca `null`. Istnieje, bo `get()` łączy dwie sytuacje, na które operator nie może
+zareagować tak samo — klucz, którego nikt nie dodał, i klucz, którego moduł przewoźnika jest
+wyłączony — a tylko druga wskazuje coś, co można z powrotem włączyć. `shipments` pyta o to, aby
+zdecydować, w jakim stanie utworzyć `Shipment`; odpowiednik po stronie płatności,
+`GatewayRefundRegistry.absentOwnerFor`, to ten sam sposób odczytu z tego samego powodu.
 
 ## Cykl życia
 
-Zobacz [`shipments`](./shipments.md) dla cyklu życia `order_created` → `shipment_created`
-→ `receive_shipment`, encji `Shipment`, retry i mapowania statusów zamówienia.
+Cykl życia `order_created` → `shipment_created` → `receive_shipment`, encję `Shipment`, ponawianie i
+przekładanie na statusy zamówienia opisuje [`shipments`](./shipments.md).
