@@ -195,6 +195,26 @@ export function registerErrorEnvelope(app: FastifyInstance, options: ErrorEnvelo
   app.setErrorHandler((error, request: FastifyRequest, reply: FastifyReply) => {
     const requestId = request.id;
 
+    // The reply already went out, so no envelope can reach the client; log the
+    // error, once, and send nothing (error-envelope-sent-reply.test.ts).
+    //
+    // - Fully sent (`reply.sent` is `writableEnded`) — typically a handler that
+    //   sent without `return reply`, whose second send threw
+    //   `ERR_HTTP_HEADERS_SENT`. Sending a 500 on top only made Fastify log
+    //   `FST_ERR_REP_ALREADY_SENT` over the error worth reading.
+    // - Headers sent, body unfinished — a body cut off half-way. Sending fails
+    //   on `writeHead` and nothing ever ends the response, so the client waits
+    //   until its own timeout; Fastify's default handler does the same.
+    //   Destroying the response is what Fastify's own stream path does when a
+    //   piped body fails after its headers (`sendStream` in `lib/reply.js`):
+    //   the client sees the connection close instead of a body passed off as
+    //   complete.
+    if (reply.sent || reply.raw.headersSent) {
+      request.log.error({ err: error }, 'error after the reply was sent; nothing more was sent');
+      if (!reply.raw.writableEnded) reply.raw.destroy();
+      return;
+    }
+
     // Fastify wraps Zod validation errors from the Zod type provider — detect them via
     // the helper exposed by @fastify/type-provider-zod, then fall back to a plain ZodError.
     if (hasZodFastifySchemaValidationErrors(error)) {
