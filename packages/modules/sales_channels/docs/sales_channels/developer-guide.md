@@ -9,25 +9,27 @@ How a backend module integrates with the Sales Channels module: scoping queries 
 
 ## Reading the resolved channel inside a route
 
-The resolver middleware decorates every request under `/api/v1/*` with `req.salesChannel` (a serialised `CachedChannel` view of the resolved row). Use the typed helper to keep the access pattern consistent:
+The resolver middleware resolves the sales channel of every request under `/api/v1/*` and stores it (a `CachedChannel` view of the row) on the request's platform scope, not on the request object. Read it with the helpers the platform kernel publishes:
 
 ```ts
-import { getResolvedChannel } from '../../kernel/sales-channels/sales-channel-resolver.middleware.js';
+import { getResolvedChannel } from '@endora-commerce/platform/kernel';
 
-app.get('/api/v1/storefront/products', async (request) => {
-  const channel = getResolvedChannel(request);
+app.get('/api/v1/storefront/products', async () => {
+  const channel = getResolvedChannel();
   return productService.list({ salesChannelId: channel.id });
 });
 ```
 
-Outside the request lifecycle (background jobs, CLI scripts), call `SalesChannelResolverService.getByCode(code)` or `getSystemDefault()` directly through the module's composition handle.
+`getResolvedChannel()` throws (`500`) when the resolver did not run on the path; `currentSalesChannel()`, from the same barrel, returns `null` instead. Neither needs the `FastifyRequest`, so a service deep in the call chain can read the channel without having it threaded through. (`getResolvedChannel` still accepts a request argument for older call sites and ignores it.)
+
+Outside the request lifecycle (background jobs, CLI scripts), resolve the `salesChannelResolutionPort` from the container and call `getByCode(code)` or `getSystemDefault()`; type it with `SalesChannelResolutionPort` from `@endora-commerce/platform/kernel`. The `SalesChannelResolverService` class behind it is not published.
 
 ## Adding a channel-scoped entity to your module
 
 Channel scoping has two layers:
 
 1. **Schema** — the entity gains a many-to-many relationship to `sales_channels` via a new bridge table `sales_channel_<entity>` (composite primary key on both ids, `ON DELETE CASCADE` on both sides). Add the table in your module's next migration.
-2. **Service** — every read path of the entity that should be filtered by channel takes a `salesChannelId` parameter and joins through the bridge table. Every create / update path that lands a new entity calls `SalesChannelMembershipService.bindToDefaultIfEmpty(entityType, entity.id)` after `persistAndFlush` so newly-created entities default to the system-default channel.
+2. **Service** — every read path of the entity that should be filtered by channel takes a `salesChannelId` parameter and joins through the bridge table. Every create / update path that lands a new entity calls `bindToDefaultIfEmpty(entityType, entity.id)` on the `salesChannelMembershipPort` after `persistAndFlush` so newly-created entities default to the system-default channel.
 
 Then add the member to the contract's `ChannelMemberEntityTypeSchema` enum, and **declare the bridge from your own module**: export the `{ entityType, table, entityIdColumn }` triple from `src/backend/index.ts` and register it from a boot hook —
 
@@ -42,7 +44,7 @@ The bidirectional admin routes then pick it up automatically — no per-module r
 
 ## Mutating memberships
 
-`SalesChannelMembershipService` is the single mutator for every bridge table. Direct INSERT / DELETE on `sales_channel_*` from anywhere else is forbidden — the lint rule `no-unscoped-channel-query` is the safety net (it ships disabled and gets turned on once every existing call site has been threaded).
+`SalesChannelMembershipService` is the single mutator for every bridge table. A module reaches it as the `salesChannelMembershipPort` container entry, typed with `SalesChannelMembershipPort` from `@endora-commerce/platform/kernel`; the class itself is not published. Direct INSERT / DELETE on `sales_channel_*` from anywhere else is forbidden, and `check:module-boundary` is what enforces it: it resolves every `sales_channel_*` table to its owner from the DDL and reports a module that writes one in raw SQL.
 
 ```ts
 const result = await membershipService.addToChannel(channelId, 'product', productId);
@@ -56,7 +58,7 @@ const removed = await membershipService.removeFromChannel(channelId, 'product', 
 
 ## The Default channel guarantee
 
-The `DefaultChannelReconciler` runs at every backend boot from `composition.ts` (and from `test-server.ts` for integration tests). Three branches:
+The `DefaultChannelReconciler` runs at every backend boot, from the platform's composition (`packages/platform/src/composition/compose-app.ts`), and therefore also in the integration-test server. Three branches:
 
 1. **Empty `sales_channels` table** — inserts a new `default` row sourced from `DEFAULT_SALES_CHANNEL_CODE` (env, default `default`).
 2. **Rows exist but none has `system_default = true`** — promotes the lexically-first row, with a tie-break preferring the row whose `code = 'default'`.

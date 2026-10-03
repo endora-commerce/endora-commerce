@@ -82,8 +82,9 @@ Organization can transact. While the status is anything other than
 `active`, the platform refuses Order placement, RFQ submission, and
 cart-line addition with HTTP 423.
 
-The legacy `suspended` status was renamed to `blocked` by migration 047
-with an audit-log breadcrumb on every remapped row.
+The legacy `suspended` status was renamed to `blocked` by migration
+`20260611T140349_organizations_consolidation.ts`, which writes an explanatory
+`blocked_reason` on every remapped row (it writes no audit-log entry).
 
 Admin endpoints:
 
@@ -167,8 +168,9 @@ rendered as a read-only table in the admin Organization detail page.
 Promotions: when a promotion targets a specific Organization
 (`promotions.organization_id` is set), the platform applies the rule
 only when the cart's Organization is `active`. The check is wired
-through `PromotionService`'s optional `resolveOrganizationStatus`
-constructor argument; composition.ts passes a raw SQL lookup.
+through `PromotionService`'s required `resolveOrganizationStatus`
+constructor argument, which the `promotions` module wires to
+`organizationReadPort.loadEffectiveOrganization`.
 
 ### Sales-rep ownership
 
@@ -254,19 +256,20 @@ so it is a migration of `name_search`, not an edit.
 
 ### Migrations
 
-- `047_organizations_consolidation.ts` — adds `legal_name`, VAT-validation
+- `20260611T140349_organizations_consolidation.ts` — adds `legal_name`, VAT-validation
   columns, blocked / rejected / approved audit columns, `version`
   optimistic-lock, `name_search` denormalized column, three allow-list
   bridges, the validation-history table, the `organizations_name_search_idx`
   B-Tree index, and remaps every `suspended` row to `blocked`.
-- `048_admin_notifications_init.ts` — adds the `admin_notifications`
+- `20260611T140350_admin_notifications_init.ts` (owned by `admin_notifications`) — adds the `admin_notifications`
   table + the per-admin `admin_notification_reads` bridge.
-- `049_customer_accounts_organization_optional.ts` — relaxed
+- `20260611T140351_customer_accounts_organization_optional.ts` (owned by
+  `customer_accounts`) — relaxed
   `customer_accounts.organization_id` to nullable so guest-style
   Customer accounts were representable. **That design is
   dead**: personal organizations replaced it and the column was re-tightened — see
   `customer_accounts`' `20260825T141659_customer_accounts_organization_required`.
-- `089_personal_organizations.ts` — adds `organizations.is_personal`
+- `20260717T151403_organizations_personal_organizations.ts` — adds `organizations.is_personal`
   and backfills a personal organization for every pre-existing no-org
   customer account (see "Personal organizations" below).
 

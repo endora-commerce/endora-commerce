@@ -205,7 +205,7 @@ explains that overrides only apply per-channel.
 
 ## Migration
 
-One migration `043_product_value_overrides_init.ts` ships everything:
+One migration `20260611T140346_catalog_product_value_overrides_init.ts` ships everything:
 
 - adds `channel_scoped` + `language_scoped` boolean columns to
   `product_attributes` (default `false`);

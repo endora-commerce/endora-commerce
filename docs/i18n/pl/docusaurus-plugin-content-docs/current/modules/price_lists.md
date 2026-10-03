@@ -23,7 +23,7 @@ Mechanizm cen — przebudowany na pierwotnych podstawach wyznaczania cen. Obejmu
   `pricing.unauthenticated_display_mode`).
 
 Dawne tabele `PriceListItem` i `PriceListAssignment` (oraz kolumny `code` / `currency` / `priority` /
-`isDefault` w `price_lists`) są utrzymywane przez migrację 031 wyłącznie jako tymczasowa warstwa
+`isDefault` w `price_lists`) są utrzymywane przez migrację `20260504T125655_price_lists_engine.ts` wyłącznie jako tymczasowa warstwa
 zgodności na czas przejścia „rozszerz → przenieś → zawęź”. Nowy kod MUSI korzystać ze schematu
 mechanizmu cen przez `@endora-commerce/contracts`.
 
@@ -44,7 +44,7 @@ draft ──activate──▶ scheduled ──auto on startsAt──▶ active �
   `POST /api/v1/admin/price-lists-engine/internal/sweep`.
 
 Cennik `Default` tworzony przy instalacji (`isSystem = true`) odrzuca każdą zmianę stanu, każde
-usunięcie i każdą niepustą `applicationRule`. Migracja 031 tworzy w nim też progi na podstawie
+usunięcie i każdą niepustą `applicationRule`. Migracja `20260504T125655_price_lists_engine.ts` tworzy w nim też progi na podstawie
 dawnego `attributeValues.defaultPrice` każdego produktu, więc platforma zawsze ma użyteczną cenę
 ostatecznej wartości zastępczej.
 
@@ -193,22 +193,23 @@ którą przechowują roboty wyszukiwarek i wspólna pamięć podręczna storefro
 | `GET / POST / DELETE /api/v1/admin/price-lists/:id/assignments{,/:assignmentId}` | Dawne zarządzanie przypisaniami |
 | `GET /api/v1/admin/price-lists/preview?productSku=&quantity=&organizationId=&salesChannelCode=` | Dawny podgląd |
 
-## Uwagi o migracji (031)
+## Uwagi o migracji (przebudowa silnika)
 
-`031_price_lists_engine.ts` wykonuje w transakcji przebudowę w 8 krokach:
+Migracja modułu `20260504T125655_price_lists_engine.ts` przebudowuje schemat w jednej transakcji:
 
-1. Zakłada blokadę doradczą (advisory lock), aby równoległe migracje wycofały się bez szkody.
+1. Zakłada blokadę doradczą ograniczoną do transakcji (`pg_advisory_xact_lock`), aby równoległe
+   migracje wykonywały się po kolei; blokada zwalnia się wraz z końcem transakcji.
 2. Dodaje nowe kolumny w `price_lists` (`type`, `status`, `startsAt`, `endsAt`, `modifiedAt`,
    `isSystem`, `applicationRule` JSONB).
 3. Tworzy trzy nowe tabele (`price_list_products`, `price_list_price_brackets`,
    `price_display_mode_overrides`).
-4. Tworzy cennik `Default` ze stałym UUID.
+4. Tworzy cennik `Default` ze stałym UUID `00000000-0000-4000-8000-00000000d51b`.
 5. Przechodzi przez każdy `Product`, którego `attributeValues` zawiera `defaultPrice` (albo, w razie
-   jego braku, `price`), i zapisuje po jednym progu dla każdej waluty dostępnej w którymkolwiek kanale
-   sprzedaży. Skopiowanie tej samej kwoty do różnych walut jest oznaczane w raporcie migracji.
-6. Usuwa dawne klucze `attributeValues.defaultPrice` i `attributeValues.price`.
-7. Zapisuje raport do `backend/var/migration-reports/011_price_lists_seed.json`.
-8. Zwalnia blokadę doradczą.
+   jego braku, `price`), przypisuje go do cennika `Default` i zapisuje po jednym progu dla każdej
+   waluty dostępnej w którymkolwiek kanale sprzedaży, kopiując tę samą kwotę do każdej waluty.
+
+Dawne klucze `attributeValues.defaultPrice` i `attributeValues.price` **nie** są usuwane, więc
+istniejące miejsca odczytu działają dalej, a migracja nie zapisuje żadnego pliku raportu.
 
 Migracja jest **dodatkiem** względem dawnego schematu — tabele `price_list_items` i
 `price_list_assignments` oraz kolumny `code`/`currency`/`priority`/`isDefault` w `price_lists`
@@ -216,8 +217,10 @@ pozostają, dopóki miejsca odczytu w `cart-service`, `comparison-service`, `cat
 `search-query` i `product-link.service` nie przejdą na nowy mechanizm. Dawne kolumny usunie kolejna
 migracja, gdy zakończy się przegląd.
 
-Funkcja pomocnicza migracji (`default-price-list-migration.ts`) jest idempotentna i można ją
-uruchomić ponownie jako polecenie naprawcze.
+Ten sam backfill jest dostępny jako usługa `DefaultPriceListMigrator`
+(`src/backend/services/default-price-list-migration.ts` w tym module). Jest idempotentna, więc można
+ją bezpiecznie uruchomić ponownie, i zwraca ustrukturyzowany raport wymieniający każdy produkt,
+którego pojedyncza dawna cena została skopiowana do więcej niż jednej waluty.
 
 ## Storefront
 

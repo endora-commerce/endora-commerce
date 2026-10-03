@@ -78,8 +78,9 @@ platformy `organizations.moderation.mode` (`manual` / `auto`) decyduje, czy prze
 transakcją administrator musi ją ręcznie zatwierdzić. Gdy status jest inny niż `active`, platforma
 odrzuca składanie zamówień, wysyłanie zapytań ofertowych i dodawanie pozycji do koszyka z HTTP 423.
 
-Dawny status `suspended` zmieniono na `blocked` w migracji 047, a każdy przepisany wiersz ma ślad w
-audycie.
+Dawny status `suspended` zmieniono na `blocked` w migracji
+`20260611T140349_organizations_consolidation.ts`, która w każdym przepisanym wierszu zapisuje
+wyjaśniający `blocked_reason` (nie tworzy wpisu w dzienniku audytu).
 
 Endpointy administracyjne:
 
@@ -153,8 +154,9 @@ odczytu na stronie szczegółów organizacji w panelu.
 
 Promocje: gdy promocja jest skierowana do konkretnej organizacji (`promotions.organization_id` jest
 ustawione), platforma stosuje ją tylko wtedy, gdy organizacja koszyka ma status `active`. Sprawdzenie
-jest podłączone przez opcjonalny argument konstruktora `resolveOrganizationStatus` w
-`PromotionService`; composition.ts przekazuje tam bezpośrednie zapytanie SQL.
+jest podłączone przez wymagany argument konstruktora `resolveOrganizationStatus` w
+`PromotionService`, który moduł `promotions` podłącza do
+`organizationReadPort.loadEffectiveOrganization`.
 
 ### Przypisanie handlowców
 
@@ -228,17 +230,17 @@ edycji.
 
 ### Migracje
 
-- `047_organizations_consolidation.ts` — dodaje `legal_name`, kolumny walidacji VAT, kolumny audytu
+- `20260611T140349_organizations_consolidation.ts` — dodaje `legal_name`, kolumny walidacji VAT, kolumny audytu
   blokady, odrzucenia i zatwierdzenia, `version` do blokady optymistycznej, zdenormalizowaną kolumnę
   `name_search`, trzy tabele list dozwolonych, tabelę historii walidacji, indeks B-Tree
   `organizations_name_search_idx` i zamienia każdy wiersz `suspended` na `blocked`.
-- `048_admin_notifications_init.ts` — dodaje tabelę `admin_notifications` i tabelę łączącą
+- `20260611T140350_admin_notifications_init.ts` (należy do `admin_notifications`) — dodaje tabelę `admin_notifications` i tabelę łączącą
   `admin_notification_reads` dla każdego administratora.
-- `049_customer_accounts_organization_optional.ts` — dopuściła `NULL` w
+- `20260611T140351_customer_accounts_organization_optional.ts` (należy do `customer_accounts`) — dopuściła `NULL` w
   `customer_accounts.organization_id` dla kont gościnnych. **To rozwiązanie jest martwe**: zastąpiły
   je organizacje prywatne, a kolumnę ponownie zaostrzono — zobacz
   `20260825T141659_customer_accounts_organization_required` w `customer_accounts`.
-- `089_personal_organizations.ts` — dodaje `organizations.is_personal` i tworzy organizację prywatną
+- `20260717T151403_organizations_personal_organizations.ts` — dodaje `organizations.is_personal` i tworzy organizację prywatną
   dla każdego wcześniej istniejącego konta bez organizacji (zobacz „Organizacje prywatne” niżej).
 
 ### Organizacje prywatne (B2C)

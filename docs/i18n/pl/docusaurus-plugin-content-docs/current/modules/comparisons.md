@@ -178,7 +178,8 @@ następne dodanie produktu.
 ## Flaga w katalogu
 
 Moduł korzysta z kolumny logicznej `is_comparable` w `product_attributes`. Właścicielem kolumny jest
-katalog (migracja `028` w `catalog/migrations/`); moduł porównań odczytuje ją przez
+katalog (migracja modułu catalog
+`20260501T185835_catalog_product_attribute_is_comparable.ts`); moduł porównań odczytuje ją przez
 `CatalogQueryService.comparableAttributeKeys()`.
 
 `<AttributesManager>` w części panelu należącej do katalogu ma pole `Comparable` obok `Searchable` i
@@ -187,7 +188,7 @@ indeksowania) — następne wyświetlenie strony porównania odczytuje zmianę b
 
 ## Przechowywanie
 
-Dwie tabele, obie należące do modułu porównań (`027_comparisons_init.ts`):
+Dwie tabele, obie należące do modułu porównań (`20260501T185834_comparisons_init.ts`):
 
 - `comparisons` — klucz główny, 22-znakowy `share_token` w base64url (`UNIQUE`), wzajemnie
   wykluczające się kolumny właściciela (`customer_account_id` *albo* `anonymous_token`; ograniczenie

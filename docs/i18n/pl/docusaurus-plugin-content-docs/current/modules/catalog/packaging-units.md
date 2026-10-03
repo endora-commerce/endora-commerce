@@ -57,7 +57,10 @@ są sprawdzane dla wynikowej liczby sztuk.
 
 ## Schemat
 
-Tabela `product_packaging_units` (migracja 068): `id`, `product_id` (klucz obcy → `products`,
+Tabela `product_packaging_units` (migracja
+`20260611T140412_catalog_product_packaging_units.ts`): `id`, `product_id` (klucz obcy → `products`,
 usuwany kaskadowo), `name`, `base_quantity` (`CHECK >= 1`), `position`, `is_default`, znaczniki
-czasu; `UNIQUE (product_id, name)`. Dodatkowe kolumny z kopią danych: `cart_items` (069),
-`order_items` (070), `quote_request_items` (071).
+czasu; `UNIQUE (product_id, name)`. Dodatkowe kolumny z kopią danych, każdą dodaje moduł, do którego należy:
+`cart_items` (`20260611T140413_carts_cart_item_packaging.ts`), `order_items`
+(`20260611T140414_orders_order_item_packaging.ts`), `quote_request_items`
+(`20260611T140415_quote_requests_qr_item_packaging.ts`).

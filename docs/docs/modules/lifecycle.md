@@ -86,7 +86,7 @@ An **orphan** registry row — a row whose module has no manifest on disk — is
 guard reads the manifest, and cleaning orphans up is the one job uninstall has that nothing
 else does.
 
-Legacy `pnpm modules:install` / `pnpm modules:uninstall` (plural) print a deprecation notice and forward to the singular form. They will be removed in the next minor release.
+The plural `modules:install` / `modules:uninstall` scripts no longer exist — they were deprecated aliases and have been removed. Use the singular `module:*` commands above.
 
 ## Manifest file shape
 

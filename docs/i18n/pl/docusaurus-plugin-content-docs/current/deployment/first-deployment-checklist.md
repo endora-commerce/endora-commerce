@@ -58,8 +58,10 @@ od kanału są po cichu pobierane z niewłaściwego kanału.
 
 **Do zrobienia (inżynier).** Uzgodnij z klientem jeden kod. Ustaw go w:
 
-- GitLab → Settings → CI/CD → Variables: `SALES_CHANNEL_CODE` (zobacz `.gitlab-ci.yml:17`, używane
-  w `.gitlab-ci.yml:645`);
+- zmiennych pipeline'u budowania: `SALES_CHANNEL_CODE`, którą build przekazuje do obrazu
+  storefrontu jako `NEXT_PUBLIC_SALES_CHANNEL_CODE`. To mapowanie jest zadeklarowane w jednym
+  miejscu, w `packages/cli/src/lib/instance-build-inputs.ts`; własny build tego repozytorium,
+  `.github/workflows/demo.yml`, odczytuje ją ze zmiennej repozytorium GitHub;
 - `deploy/.env` na serwerze VPS: `DEFAULT_SALES_CHANNEL_CODE` (zobacz `deploy/.env.prod.example`);
 - jeśli wdrożenie obsługuje więcej niż jedną domenę, w `SALES_CHANNEL_HOST_MAP` jako pary
   `host=channelCode`.
@@ -72,7 +74,8 @@ kanałem, którego nikt nie skonfigurował.
 ### A2. Domyślny język
 
 **Dlaczego.** `NEXT_PUBLIC_DEFAULT_LOCALE` jest wpisywany ze zmiennej CI `DEFAULT_LOCALE`
-(`.gitlab-ci.yml:646`). Musi wskazywać wiersz w tabeli `languages`. Migracja
+(zadeklarowanej w `packages/cli/src/lib/instance-build-inputs.ts`; `.github/workflows/demo.yml`
+używa `en-US`, gdy nie jest ustawiona). Musi wskazywać wiersz w tabeli `languages`. Migracja
 `packages/modules/languages/src/migrations/20260425T161557_languages_currencies_init.ts` tworzy
 dokładnie dwa języki — `en-US` (domyślny) i `pl-PL` — bo był to wybór na potrzeby wersji
 demonstracyjnej, a nie wybór tego klienta.
