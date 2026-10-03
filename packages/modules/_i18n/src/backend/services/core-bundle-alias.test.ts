@@ -2,8 +2,9 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { manifest } from '@endora-commerce/mod-i18n';
-import { I18nService, MissingKeyLogger } from '@endora-commerce/mod-i18n/backend';
+import { manifest } from '../../manifest.js';
+import { I18nService } from './i18n-service.js';
+import { MissingKeyLogger } from './missing-key-logger.js';
 
 /**
  * The `_i18n` → `core` alias, held where the run everybody uses can see it.
@@ -18,19 +19,19 @@ import { I18nService, MissingKeyLogger } from '@endora-commerce/mod-i18n/backend
  * every language, with no error, no log line anybody reads and no envelope
  * difference an English reader can see.
  *
- * `test/integration/_i18n/platform-error-sentences.test.ts` proves the whole
- * path through a real request and stays the authority on what the root does.
- * It needs a database and a booted server, so the service-free unit run cannot
- * reach it. This file holds the alias itself at that level: the rows are handed
- * to the service in the shape the table stores them — keyed `_i18n` — through a
- * stub `EntityManager`, and everything above the stub is the real service. The
- * sibling `i18n-service.unit.test.ts` replaces `getMergedBundleForLanguage`
- * outright, which is one of the places the alias is applied, so it cannot see
- * this.
+ * The host's `test/integration/_i18n/platform-error-sentences.test.ts` proves
+ * the whole path through a real request and stays the authority on what the
+ * root does. It needs a database and a booted server, so no service-free run
+ * can reach it. This file holds the alias itself at that level, beside the
+ * service that owns it: the rows are handed over in the shape the table stores
+ * them — keyed `_i18n` — through a stub `EntityManager`, and everything above
+ * the stub is the real service. The host's `i18n-service.unit.test.ts` replaces
+ * `getMergedBundleForLanguage` outright, which is one of the places the alias
+ * is applied, so it cannot see this.
  */
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BUNDLES_DIR = join(HERE, '..', '..', '..', '..', 'packages', 'modules', '_i18n', 'i18n');
+const BUNDLES_DIR = join(HERE, '..', '..', '..', 'i18n');
 
 type Language = 'en' | 'pl';
 type Entries = Readonly<Record<string, string>>;
