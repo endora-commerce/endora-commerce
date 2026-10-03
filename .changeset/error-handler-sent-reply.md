@@ -10,3 +10,9 @@ used to answer it with a 500 envelope that could not be delivered, so Fastify lo
 the original error once, at `error` (`error after the reply was sent; nothing more was sent`),
 and sends nothing. The double-send stays visible in the log; the caller keeps the first,
 intact response.
+
+When the headers were sent but the body was not finished (a response cut off half-way by an
+error), the handler used to fail on `writeHead` and leave the response open, so the caller waited
+until its own timeout — as Fastify's default handler also does. It now logs the error once and
+destroys the response, which is what Fastify does when a piped stream fails after its headers:
+the caller sees the connection close instead of a hanging or seemingly complete body.
