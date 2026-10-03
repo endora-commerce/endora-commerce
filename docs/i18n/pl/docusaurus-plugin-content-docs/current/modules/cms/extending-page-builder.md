@@ -15,9 +15,8 @@ palecie komponentów). W ten sposób bloki dodają już moduły `cms`, `catalog`
    kategorię palety, konteksty i edytowalne pola — we własnym `manifest.ts`
    modułu. Moduł CMS buduje rejestr Page Buildera z manifestów złożonych
    modułów, więc nie ma żadnego wywołania rejestracji do napisania.
-2. **Wspólny komponent wyświetlający**: dodaj komponent React do pakietu workspace, od którego
-   zależą panel i storefront (zwykle sam `@endora-commerce/cms-components` albo pakiet modułu,
-   który go reeksportuje).
+2. **Komponenty wyświetlające**: dostarcz, we własnym pakiecie modułu, kod,
+   który wyświetla blok na storefroncie, w e-mailu i w edytorach panelu.
 
 ## 1. Deklaracja bloku w manifeście
 
@@ -87,67 +86,295 @@ deklaracje według obecności modułu, odpowiadając na
 `GET /api/v1/admin/cms/page-builder/config`, więc wyłączony moduł zabiera
 swoje bloki z palety.
 
-## 2. Komponent wyświetlający
+## 2. Komponenty wyświetlające
 
-Dodaj `ComponentConfig` Reacta w `packages/cms-components/src/components/` (albo we własnym
-pakiecie modułu dla panelu lub storefrontu) i wyeksportuj go z punktu wejścia pakietu:
+Pakiet modułu sam wyświetla swoje bloki. Służą do tego najwyżej trzy
+**warstwy** — po jednej na każdy proces, który wyświetla blok — oraz
+opcjonalny arkusz stylów. Każda jest ścieżką w mapie `exports` pakietu i każda
+jest opcjonalna: moduł, którego bloki trafiają tylko do e-maili, dostarcza
+warstwę e-mail i nic więcej.
 
-```tsx
-// packages/cms-components/src/components/PromoBanner.tsx
-import type { ComponentConfig } from '@puckeditor/core';
+| Ścieżka | Co eksportuje | Kto z niej korzysta |
+| --- | --- | --- |
+| `./storefront` | `contributions` — komponenty React wyświetlające bloki modułu w kontekście `cms` | storefront, w kodzie HTML generowanym po stronie serwera |
+| `./email` | `emailBlocks` — czyste funkcje zamieniające bloki modułu w kontekście `email` na HTML i tekst | backend podczas wysyłki oraz edytor e-maili w panelu |
+| `./admin` | `contributions.blocks` — komponenty dla edytorów, obok tras i stref modułu | edytor CMS i edytor e-maili w panelu |
+| `./blocks.css` | jeden gotowy arkusz stylów | storefront i edytor w panelu |
 
-interface Props {
-  headline: string;
-  codeInput?: string;
-  tone: 'info' | 'urgent';
-}
-
-export const PromoBanner: ComponentConfig<Props> = {
-  fields: {
-    headline: { type: 'text' },
-    codeInput: { type: 'text' },
-    tone: { type: 'select', options: [
-      { label: 'Info', value: 'info' },
-      { label: 'Urgent', value: 'urgent' },
-    ] },
-  },
-  defaultProps: { headline: 'Spring sale', tone: 'info' },
-  contexts: ['cms'],
-  render: ({ headline, codeInput, tone }) => (
-    <div className={`promo-banner promo-${tone}`}>
-      <strong>{headline}</strong>
-      {codeInput ? <code>{codeInput}</code> : null}
-    </div>
-  ),
-};
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/package.json -->
+```json
+"exports": {
+  ".": "./dist/manifest.js",
+  "./backend": "./dist/backend/index.js",
+  "./admin": "./dist/admin/index.js",
+  "./storefront": "./dist/storefront/index.js",
+  "./email": "./dist/email/index.js",
+  "./blocks.css": "./blocks.css",
 ```
 
-Podłącz go do `defaultPageBuilderConfig` pod pełną nazwą bloku, żeby edytor
-w panelu administracyjnym i wywołania `<Render>` w storefroncie go widziały:
+Przykłady poniżej pochodzą z modułu, na którym platforma sama sprawdza ten
+mechanizm — modułu spoza wszystkich pakietów platformy, który wyświetla jeden
+blok, `acceptance_blocks.Badge`, na wszystkich trzech powierzchniach.
 
+Każdy komponent wyświetlający jest przypisany do pełnej nazwy bloku, a pakiet
+wyświetla wyłącznie bloki, które **deklaruje jego własny manifest**, i tylko w
+kontekście, który ten blok deklaruje: `cms` dla storefrontu i edytora CMS,
+`email` dla e-maili. Nazwę zapisz jako literał tekstowy — w manifeście i w
+każdej warstwie.
+
+### Warstwa storefrontu
+
+`src/storefront/index.ts` eksportuje `contributions`: mapę z nazwy bloku na
+konfigurację komponentu Puck:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/storefront/index.ts -->
 ```ts
-// packages/cms-components/src/index.ts
-import { PromoBanner } from './components/PromoBanner.js';
-
-export const defaultPageBuilderConfig: Config = {
-  components: {
-    // ...the existing 'cms.*' and 'catalog.*' entries
-    'promotions.PromoBanner': definePageBuilderComponent({
-      ...(PromoBanner as unknown as ComponentConfig),
-      contexts: ['cms'],
-    }),
+export const contributions: StorefrontContributions = {
+  blocks: {
+    'acceptance_blocks.Badge': {
+      defaultProps: { text: 'New badge', explode: 'no' },
+      render: Badge,
+    },
   },
 };
 ```
 
-Komponenty wyświetlające CMS to ten jeden pakiet (bloki e-maili są w ten sam sposób wyświetlane z
-`@endora-commerce/email-components`). Moduł publikowany poza tym repozytorium nie może dodać
-komponentu wyświetlającego do żadnego z tych pakietów bez zmiany w danym pakiecie.
+Komponent wyświetlający to zwykły komponent React. Jego właściwościami są
+zapisane właściwości bloku, pod które podstawiono powyższe `defaultProps` —
+dzięki temu właściwość dodana przez moduł po zapisaniu strony nadal ma wartość:
 
-Brak komponentu wyświetlającego w pakiecie nie psuje panelu: `PageBuilderEditor` łączy opis z
-lokalną konfiguracją i dla każdego komponentu, który opis wymienia, a pakiet nie eksportuje,
-podstawia `MissingComponentPlaceholder`. W storefroncie ten element zastępczy niczego nie wyświetla,
-chyba że strona jest wczytana z parametrem `?cms_admin=1` (tryb podglądu).
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/storefront/Badge.tsx -->
+```tsx
+export function Badge({ text, explode }: BadgeProps): ReactNode {
+  const { language } = useBlockRenderEnvironment();
+  if (explode === true || explode === 'yes') {
+    throw new Error('acceptance_blocks.Badge was asked to fail on render');
+  }
+  const label = LABEL[language.slice(0, 2).toLowerCase()] ?? LABEL['en'];
+  return (
+    <span className="acceptance_blocks-badge" title={label}>
+      {`acceptance-badge:${String(text ?? '')}`}
+    </span>
+  );
+}
+```
+
+Komponent storefrontu jest wykonywany raz na serwerze i raz w przeglądarce,
+dlatego:
+
+- jest **synchroniczny** — bez komponentów `async` — i podczas renderowania nie
+  czyta żadnego obiektu przeglądarki (`window`, `document`, `localStorage`);
+  wolno to robić tylko w efekcie;
+- dla tych samych właściwości daje ten sam wynik na serwerze i w przeglądarce:
+  bez `Date.now()`, bez `Math.random()` i bez formatowania zależnego od języka,
+  jeśli język nie pochodzi z `useBlockRenderEnvironment()`;
+- każdy plik warstwy zaczyna się od `'use client'`;
+- importuje wyłącznie `react`, `react-dom`, `@puckeditor/core`,
+  `@endora-commerce/page-builder-core`, `@endora-commerce/cms-components`,
+  `@endora-commerce/contracts` i własne pliki. Żadnego kodu serwerowego, pakietu
+  panelu, platformy ani innego modułu. Potrzebne dane bierze z właściwości, z
+  kontekstu renderowania CMS albo pobiera je w efekcie;
+- właściwości bloku to **dane niezaufane**: HTML wstawia się wyłącznie jako
+  `dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(value) }}`, z
+  `sanitizeRichHtml` z `@endora-commerce/cms-components`;
+- etykieta, którą komponent wypisuje sam — niebędąca treścią operatora — jest
+  dostarczana w warstwie po angielsku i po polsku i wybierana na podstawie
+  `useBlockRenderEnvironment().language`; językiem zapasowym jest angielski.
+
+**Instalacja.** Właściciel storefrontu dodaje pakiet do swojego storefrontu i
+go buduje. Polecenie `blocks:generate`, uruchamiane przez skrypty `dev` i
+`build` storefrontu, znajduje każdy zainstalowany pakiet modułu deklarujący
+`./storefront` lub `./blocks.css` i zapisuje rejestr oraz import arkusza stylów
+— nie trzeba dopisywać niczego w żadnym pliku. Gdy `endora install` zapisuje
+instancję i storefront w jednym przebiegu, dopisuje do zależności storefrontu
+moduły instancji, które publikują warstwę storefrontu — jeden raz; potem ta
+lista należy do właściciela storefrontu.
+
+**Blok, którego nie wyświetla żaden pakiet.** Storefront może też wyświetlić
+blok samodzielnie — zwykle taki, który deklaruje moduł nakładkowy (overlay)
+jego własnej instancji — dopisując go w `lib/page-builder/local-blocks.tsx`,
+jedynym pliku rejestru bloków, który należy do właściciela storefrontu. Blok
+lokalny nigdy nie zastępuje bloku, który wyświetla już pakiet albo platforma.
+
+### Warstwa e-mail
+
+`src/email/index.ts` eksportuje `emailBlocks`. Każdy element to czysta funkcja
+— bez Reacta i bez operacji wejścia-wyjścia — która zwraca wiersze tabeli
+tworzącej układ e-maila i zabezpiecza każdą właściwość przed wstrzyknięciem
+HTML:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/email/index.ts -->
+```ts
+export const emailBlocks: EmailBlockRenderers = {
+  'acceptance_blocks.Badge': {
+    defaultProps: { text: 'New badge' },
+    html: (props: BadgeProps, ctx) => {
+      assertRenderable(props);
+      return (
+        '<tr><td style="padding:8px 24px;font-family:Arial,Helvetica,sans-serif;">' +
+        `<span style="display:inline-block;padding:4px 10px;border-radius:6px;background-color:${ctx.accentColor};color:#ffffff;font-size:14px;font-weight:bold;">` +
+        `acceptance-badge:${escapeHtml(String(props.text ?? ''))}` +
+        '</span></td></tr>'
+      );
+    },
+    text: (props: BadgeProps) => {
+      assertRenderable(props);
+      return `acceptance-badge:${String(props.text ?? '')}\n`;
+    },
+  },
+};
+```
+
+Pole `text` jest opcjonalne; bez niego część tekstowa powstaje z kodu HTML.
+Dyrektywy `{{var …}}` w wyniku są rozwijane później, dokładnie tak jak we
+wbudowanym bloku. Warstwa importuje wyłącznie
+`@endora-commerce/email-components/render/*`, `@endora-commerce/contracts` i
+własne pliki, ponieważ ta sama funkcja działa w backendzie i w przeglądarce
+administratora.
+
+Backend modułu rejestruje funkcje podczas startu platformy, a manifest modułu
+wymienia `email` w `dependencies`:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/backend/index.ts -->
+```ts
+export function registerModule(ctx: ModuleContext): void {
+  // From a boot hook, unprobed: the registry is ungated and decides presence
+  // itself, per render, on the contributor recorded here — so switching this
+  // module off, or back on, needs no restart and no re-registration.
+  ctx.onBoot(() => {
+    lazyPort<EmailBlockRendererRegistryPort>(ctx, 'emailBlockRendererRegistry').register(
+      'acceptance_blocks',
+      emailBlocks,
+    );
+  });
+}
+```
+
+Przez ten rejestr przechodzą zarówno e-maile transakcyjne, jak i kampanie
+newslettera. Wbudowanego bloku e-mail nie da się nadpisać: funkcja dostarczona
+przez moduł jest używana tylko dla nazwy, której platforma nie wyświetla sama.
+
+### Warstwa panelu
+
+Warstwa `./admin` modułu — ta sama, która deklaruje jego trasy i wkłady do
+stref — wymienia po jednym komponencie edytora na blok i edytor:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/admin/index.ts -->
+```ts
+export const contributions: AdminContributions = {
+  blocks: [
+    {
+      name: 'acceptance_blocks.Badge',
+      context: 'cms',
+      component: () => import('./badge-editor.js'),
+    },
+    {
+      name: 'acceptance_blocks.Badge',
+      context: 'email',
+      component: () => import('./badge-email.js'),
+    },
+  ],
+};
+```
+
+W edytorze CMS eksportem domyślnym jest komponent wyświetlający blok — zwykle
+ten sam, którego używa storefront, więc obszar roboczy pokazuje to, co
+wyświetli storefront:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/admin/badge-editor.tsx -->
+```tsx
+const editor: PageBuilderBlockEditorConfig = { render: Badge };
+
+export default editor;
+```
+
+W edytorze e-maili jest nim funkcja z warstwy e-mail, czyli ta, którą wykonuje
+wysyłka, więc obszar roboczy i podgląd nie mogą różnić się od wiadomości:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/admin/badge-email.ts -->
+```ts
+export default emailBlocks['acceptance_blocks.Badge'];
+```
+
+Etykieta bloku, sekcja palety, wartości domyślne i zestaw pól pochodzą z
+deklaracji w manifeście, a nie z wkładu. Konfiguracja edytora CMS może zawierać
+`fields`, aby zastąpić edytor pola zadeklarowanego w manifeście — na przykład
+selektorem zamiast pola tekstowego — ale nie może dodać pola, którego manifest
+nie deklaruje.
+
+Zadeklarowany blok **bez** komponentu edytora nadal można wstawić i edytować:
+edytor buduje pola z deklaracji w manifeście i pokazuje neutralny podgląd z
+nazwą bloku. Tak właśnie wygląda blok modułu nakładkowego, bo moduł nakładkowy
+nie ma warstwy panelu.
+
+### Arkusz stylów bloków
+
+`./blocks.css` to jeden gotowy arkusz stylów. Każdy selektor znajduje się pod
+klasą z prefiksem identyfikatora modułu, a kolory i kroje pisma pochodzą z
+właściwości niestandardowych motywu storefrontu, z dosłownymi wartościami
+zapasowymi — dzięki temu blok dopasowuje się do motywu kanału i nadal
+wyświetla się w obszarze roboczym panelu:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/blocks.css -->
+```css
+.acceptance_blocks-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--r-md, 6px);
+  background: var(--brand-600, #2563eb);
+  color: #ffffff;
+```
+
+Bez `@import`, bez `@tailwind`, bez `@source` i bez selektorów elementów.
+Storefront importuje arkusz przez `blocks:generate`, a panel przez
+`endora generate`.
+
+### Gdy moduł jest wyłączony
+
+Blok modułu wyłączonego przez operatora znika z każdej powierzchni, a w
+zapisanej treści nic się nie zmienia:
+
+| Powierzchnia | Co się dzieje |
+| --- | --- |
+| Storefront | blok nie wyświetla klientowi niczego; z parametrem `?cms_admin=1` wyświetla notkę z nazwą bloku |
+| E-mail | blok nie dodaje niczego do HTML ani do tekstu |
+| Edytory w panelu | zapisany blok jest widocznym symbolem zastępczym, który zachowuje swoje właściwości; bloku nie ma w palecie |
+
+Ponowne włączenie modułu przywraca wszystkie trzy, a żaden dokument nie zmienia
+się w międzyczasie. Storefront kieruje się listą modułów, które backend zgłasza
+jako nieobecne, więc blok, którego właściciela backend nie zna — blok modułu
+nakładkowego — nadal się wyświetla.
+
+### Gdy komponent zawiedzie
+
+Komponent, który zgłosi wyjątek, kosztuje stronę tylko ten jeden blok. Na
+storefroncie i w edytorach staje się on takim samym symbolem zastępczym jak
+blok bez komponentu, a bloki wokół pozostają nietknięte; w e-mailu nie dodaje
+niczego, wiadomość i tak zostaje wysłana, a błąd trafia do logu wraz z nazwą
+bloku i jego modułu.
+
+### Sprawdzenie pakietu
+
+Uruchom `endora check` w pakiecie modułu. Reguła `check:block-renderers`
+zgłasza:
+
+| Wynik | Znaczenie |
+| --- | --- |
+| `foreign-block-name` | komponent przypisany do bloku, który należy do innego modułu |
+| `undeclared-block` | komponent dla bloku, którego manifest nie deklaruje albo nie deklaruje w kontekście tej powierzchni |
+| `storefront-import` | warstwa storefrontu importuje coś spoza dozwolonego zestawu |
+| `raw-html` | `dangerouslySetInnerHTML`, którego wartością nie jest `sanitizeRichHtml(…)` |
+| `email-layer-import` | warstwa e-mail importuje Reacta, moduł wbudowany Node albo cokolwiek spoza renderera e-maili |
+| `unscoped-stylesheet` | `./blocks.css` ma selektor poza prefiksem modułu albo dołącza inny arkusz stylów |
+| `layer-without-subpath` | źródła warstwy istnieją, a mapa `exports` ich nie publikuje |
+
+### Starsza treść musi się nadal wyświetlać
+
+Nazwa bloku jest trwała, a jego zapisane właściwości żyją dłużej niż wersja
+modułu, która je zapisała. Komponent musi wyświetlić każdy kształt właściwości,
+jaki moduł kiedykolwiek opublikował: pominąć właściwość, której nie zna, i
+użyć wartości domyślnej dla brakującej. Zmiana, której nie da się wprowadzić w
+ten sposób, to nowy blok pod nową nazwą — a stary komponent zostaje.
 
 ## Przestrzenie nazw komponentów
 
@@ -176,10 +403,10 @@ powierzchnię:
 contexts: ['cms'], // CMS-only
 ```
 
-W `@endora-commerce/cms-components` opakuj konfigurację Puck funkcją
-`definePageBuilderComponent` z `@endora-commerce/page-builder-core`, aby filtr palety w panelu
-pozostawał zgodny. Komponenty bez `email` / `invoice` w `contexts` nigdy nie pojawiają się w tych
-edytorach (np. karuzela produktów).
+Blok bez `email` / `invoice` w `contexts` nigdy nie pojawia się w tych
+edytorach (np. karuzela produktów). Moduł dostarcza komponenty wyświetlające
+dla kontekstów `cms` i `email`; edytor newslettera pokazuje bloki kontekstu
+`email`, a bloki faktur wyświetla moduł faktur.
 
 ## Właściwości responsywne i widoczność (tylko CMS)
 

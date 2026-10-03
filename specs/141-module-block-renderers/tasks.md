@@ -199,7 +199,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   **Test**: `backend/test/unit/_i18n/registered-bundles-shape.test.ts` stays green;
   `pnpm --filter backend run i18n:hardcoded` reports no new literal.
 
-- [ ] **T18** Module-author documentation (FR-023), English and Polish, with every code block a
+- [x] **T18** Module-author documentation (FR-023), English and Polish, with every code block a
   `verbatim-from` quotation of the acceptance fixture. Rewrite the page that today tells an author to
   edit `defaultPageBuilderConfig` (`packages/modules/cms/docs/cms/extending-page-builder.md` and its
   Polish twin) — after PR #66 has merged, which edits the same page. Hand to
@@ -207,7 +207,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   Files: those two pages, the translation cache entry.
   **Test**: `check:docs-translations`, `check:doc-snippets`.
 
-- [ ] **T19** Changesets: one per touched package, `minor`, written for the consumer (name the new
+- [x] **T19** Changesets: one per touched package, `minor`, written for the consumer (name the new
   export / subpath / option).
   Files: `.changeset/*.md`.
   **Test**: `pnpm changeset:status`; `check:release-intent -- --since origin/master`.
