@@ -35,7 +35,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 1 — shapes (contracts and host packages)
 
-- [ ] **T02** `AdminBlockContributionSchema`, `AdminBlockContribution`, `AdminContributions.blocks`
+- [x] **T02** `AdminBlockContributionSchema`, `AdminBlockContribution`, `AdminContributions.blocks`
   (contract §4), additive.
   Files: `packages/contracts/src/admin-contributions.ts`, its barrel export.
   **Test**: `backend/test/unit/contracts/admin-block-contribution.test.ts` — accepts `cms`/`email`,
