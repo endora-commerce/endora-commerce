@@ -165,10 +165,11 @@ export async function startLocalRegistry(options: {
     // `pipe` ends the destination when the source ends and does nothing in the
     // other direction: a client that stopped reading — pnpm abandons a download
     // it no longer needs — left the upstream request open with its body unread,
-    // and `close()` left it open too. Against npmjs the socket under that
-    // request then kept this process's event loop alive after `close()` had
-    // resolved — for 60 s and for 240 s in two measurements, and for however
-    // long the upstream chooses: nothing on this side bounded it.
+    // and `close()` left it open too. That is what kept an acceptance run alive
+    // after its verdicts were printed: measured on a full run, the one handle
+    // left was a TLS socket to npmjs speaking h2, twelve minutes after the
+    // report — and destroying it only made the dispatcher dial npmjs again,
+    // because the request was still its to serve. Nothing on this side ended it.
     const upstreamRequest = new AbortController();
     inFlight.add(upstreamRequest);
     response.once('close', () => {

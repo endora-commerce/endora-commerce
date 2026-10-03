@@ -5,10 +5,10 @@
  * registry and pipes the answer through. A client that stops reading — pnpm
  * abandons a download it no longer needs — used to end the *client's* half
  * only: the upstream request stayed open with its body unread, and `close()`
- * did not end it either. Against npmjs the socket under it kept the process's
- * event loop alive after `close()` had resolved, for as long as the upstream
- * chose — 60 s and 240 s in two measurements, with nothing on this side to
- * bound it.
+ * did not end it either. On a full `instance-local-registry.ts` run that was
+ * the one handle left after the verdicts were printed — a TLS socket to npmjs
+ * speaking h2, still there twelve minutes later, and re-dialled by the
+ * dispatcher when it was destroyed, because the request was still pending.
  *
  * The upstream here is a real `node:http` server whose body never ends, so
  * "released" is observable as the upstream seeing its connection close.
