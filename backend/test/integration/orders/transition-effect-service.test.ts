@@ -262,6 +262,54 @@ describe('OrderTransitionEffectService (spec 142, T08)', () => {
     expect((await rowsOf(orderId))['credit.release']).toMatchObject({
       completed: false, attempts: 0, last_error: null,
     });
+    // ...and the lease was handed back, so the row is not out of reach for the
+    // length of a lease: once the port answers, the very next attempt runs it
+    // (and the stock row, which the re-throw stopped the first drain reaching).
+    expect(await service().drainForOrder(orderId)).toMatchObject({ done: 2, skipped: 0 });
+  });
+
+  it('leaves a row another attempt has claimed alone, and takes it once that lease has expired', async () => {
+    const orderId = await owingBoth();
+    const claim = (until: string) =>
+      h.em().getConnection().execute(
+        `update "order_transition_effects" set "claimed_until" = now() + ?::interval
+          where "order_id" = ? and "effect" = 'stock.release'`,
+        [until, orderId],
+      );
+
+    // Somebody is working on the stock row: neither the drain nor a sweep touches it.
+    await claim('5 minutes');
+    expect(await service().drainForOrder(orderId)).toEqual({
+      done: 1, blocked: 0, failed: 0, skipped: 1,
+    });
+    await sweep(new Date(Date.now() + 2 * 60 * 60_000));
+    expect(stock).not.toHaveBeenCalled();
+
+    // That attempt died without recording anything. Its lease runs out, and
+    // the row is anybody's again.
+    await claim('-1 second');
+    expect(await sweep()).toMatchObject({ done: 1 });
+    expect(stock).toHaveBeenCalledTimes(1);
+    expect((await rowsOf(orderId))['stock.release']).toMatchObject({ completed: true });
+  });
+
+  it('holds no database connection while a handler runs', async () => {
+    const orderId = await owingBoth();
+    const pool = (
+      h.em().getConnection().getKnex() as unknown as { client: { pool: { numUsed(): number } } }
+    ).client.pool;
+    const usedDuringHandler: number[] = [];
+    stock.mockImplementation(async () => {
+      usedDuringHandler.push(pool.numUsed());
+      return done();
+    });
+
+    await service().drainForOrder(orderId);
+
+    // The claim is committed and its connection returned before the handler
+    // starts — which is what lets more attempts run at once than the pool has
+    // connections.
+    expect(usedDuringHandler).toEqual([0]);
   });
 
   // --- sweep -------------------------------------------------------------------
@@ -299,6 +347,34 @@ describe('OrderTransitionEffectService (spec 142, T08)', () => {
     absent = new Set();
     expect(await sweep()).toMatchObject({ done: 1 });
     expect((await rowsOf(orderId))['stock.release']).toMatchObject({
+      completed: true, blocked_on: null,
+    });
+  });
+
+  it('a row that had failed and then waited on an absent owner runs in the first sweep after the owner returns, not after its back-off (FR-008)', async () => {
+    const orderId = await owingBoth();
+    // Five failures: the next retry is a quarter of an hour away.
+    credit.mockRejectedValue(new Error('still failing'));
+    let at = Date.now();
+    for (let failure = 0; failure < 5; failure += 1) {
+      at += 60 * 60_000 + 1_000;
+      await sweep(new Date(at));
+    }
+    const backedOffUntil = new Date((await rowsOf(orderId))['credit.release']!.next_attempt_at).getTime();
+    expect(backedOffUntil).toBeGreaterThan(at + 15 * 60_000);
+    credit.mockReset().mockResolvedValue(done({ ok: true }));
+
+    // The owner goes away; a pass marks the row as waiting on it.
+    absent = new Set(['credit_limits']);
+    await sweep(new Date(at + 1_000));
+    expect((await rowsOf(orderId))['credit.release']).toMatchObject({
+      completed: false, blocked_on: 'credit_limits', attempts: 5,
+    });
+
+    // The owner returns. One pass, a minute later — far inside the back-off.
+    absent = new Set();
+    expect(await sweep(new Date(at + 61_000))).toMatchObject({ done: 1 });
+    expect((await rowsOf(orderId))['credit.release']).toMatchObject({
       completed: true, blocked_on: null,
     });
   });

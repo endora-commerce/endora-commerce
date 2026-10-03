@@ -19,6 +19,10 @@ import { Migration } from '@mikro-orm/migrations';
  *  - `(next_attempt_at) where completed_at is null` — the sweep's read: only
  *    outstanding rows are in it, so completed history costs it nothing.
  *  - `(order_id)` — the order page.
+ *  - `claimed_until` is the lease of whoever is attempting the row right now:
+ *    a committed timestamp rather than a row lock, so an attempt holds no
+ *    database connection while the owner's release runs, and a lease nobody
+ *    hands back simply expires.
  *  - `organization_id` is copied from the order at insert — the tenant key
  *    (Principle XI). It carries **no foreign key of its own**, deliberately:
  *    `orders.organization_id` carries none either, and a row here is tied to
@@ -51,6 +55,7 @@ export class Migration20261003T201537OrdersOrderTransitionEffects extends Migrat
         "last_attempt_at" timestamptz null,
         "result" jsonb null,
         "completed_at" timestamptz null,
+        "claimed_until" timestamptz null,
         "created_at" timestamptz not null default now(),
         "updated_at" timestamptz not null default now(),
         constraint "order_transition_effects_pkey" primary key ("id"),

@@ -46,6 +46,7 @@ export class OrderTransitionEffect {
     | 'lastAttemptAt'
     | 'result'
     | 'completedAt'
+    | 'claimedUntil'
     | 'createdAt'
     | 'updatedAt';
 
@@ -91,6 +92,13 @@ export class OrderTransitionEffect {
 
   @Property({ type: 'datetime', nullable: true })
   completedAt?: Date | null;
+
+  /**
+   * The lease of the attempt in flight, if any: nobody else attempts the row
+   * until it passes. Cleared when the attempt records its outcome.
+   */
+  @Property({ type: 'datetime', nullable: true })
+  claimedUntil?: Date | null;
 
   @Property({ type: 'datetime', onCreate: () => new Date() })
   createdAt: Date = new Date();

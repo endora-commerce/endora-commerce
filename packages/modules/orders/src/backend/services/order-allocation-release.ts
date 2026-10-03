@@ -33,6 +33,14 @@ export async function releaseOrderAllocations(
   orderId: string,
 ): Promise<{ released: number }> {
   return emFactory().transactional(async (tx) => {
+    // One stock release per order at a time. `inventory`'s release takes no
+    // row lock of its own, so two overlapping runs could both read an
+    // allocation as held and both decrement the counter. The follow-up queue
+    // keeps runs apart with a lease, and a lease can expire under a release
+    // that is merely slow; this lock is what makes that harmless — the second
+    // run waits here, and then finds `released_at` already stamped. It is held
+    // for this short transaction only, on a row this module owns.
+    await tx.execute(`select 1 from "orders" where "id" = ? for update`, [orderId]);
     // `tx.execute`, not `tx.getKnex()`: the knex instance is connection-level
     // and carries no transaction context, so the read would take its own pooled
     // connection and could not see anything this transaction had written
