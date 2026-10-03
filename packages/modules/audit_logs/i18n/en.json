@@ -1,5 +1,6 @@
 {
   "nav.auditLog.label": "Audit log",
   "actions.openAuditLog.label": "Audit log",
-  "actions.openAuditLog.description": "Who changed what, and when"
+  "actions.openAuditLog.description": "Who changed what, and when",
+  "auditLog.tenant.escape_hatch": "Cross-organization access"
 }

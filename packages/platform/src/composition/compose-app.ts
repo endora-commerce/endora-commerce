@@ -81,6 +81,10 @@ import { ApiInterceptorRegistry } from '../http/interceptors/index.js';
 import type { ModulePlugin } from '../http/server.js';
 import { StorefrontRevalidator } from '../http/storefront-revalidator.js';
 import { AuditLogService } from '../kernel/audit/audit-log-service.js';
+import {
+  attachEscapeHatchAuditWriter,
+  type EscapeHatchAuditWriter,
+} from '../kernel/audit/escape-hatch-audit-writer.js';
 import { composeModules } from '../kernel/compose.js';
 import {
   createRootContainer,
@@ -335,6 +339,14 @@ export interface ComposeAppHandle {
   /** Feature 054 — the Command Bus, exposed so migrated module wiring can consume it. */
   commandBus: CommandBus;
   /**
+   * The persistent escape-hatch audit sink (owner decision of 2026-10-03,
+   * Principle XI): every `withSystemScope` / `withOrgScope` /
+   * `enterSystemScope` from the moment the ORM is open is written to
+   * `audit_log_entries`. Exposed so a caller can `flush()` before reading the
+   * trail; `dispose()` flushes and detaches it.
+   */
+  escapeHatchAudit: EscapeHatchAuditWriter;
+  /**
    * Feature 060 — the API interceptor registry. An entry point passes it to
    * `buildServer({ apiInterceptors })`; modules receive it at registration.
    */
@@ -544,6 +556,16 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   });
 
   const auditLogService = new AuditLogService(em);
+
+  // Cross-organisation access is audited in the database, in every deployment
+  // (owner decision of 2026-10-03). Attached here — the first line with an
+  // EntityManager, before the presence load below enters the first system
+  // scope — and in `composeApp` rather than in an application root, because
+  // this function is the composition an instance shares with this repository:
+  // a server, a worker and every composing CLI command all come through it.
+  // The writer keeps the stderr line, aggregates per flush window and writes on
+  // a fork of its own; the reasoning is at the top of its file.
+  const escapeHatchAudit = attachEscapeHatchAuditWriter({ em });
 
   // Feature 090 Phase 2 — which bundle holds which error code's sentence,
   // derived from the manifests this deployment resolved rather than from a table
@@ -1290,6 +1312,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     redis,
     modules,
     commandBus,
+    escapeHatchAudit,
     apiInterceptors,
     container,
     // Bound to the composed object rather than re-implemented: a second way to
@@ -1317,6 +1340,10 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
       // disposers — for every module, not only one — and it runs *before* the
       // Redis sockets go, which is the ordering the drain needs.
       await container.dispose();
+      // After the container — a disposer draining a queue may still widen
+      // scope — and before the ORM closes, so the last records are written
+      // rather than printed as unpersisted.
+      await escapeHatchAudit.detach();
       redis.disconnect();
       redisSubscriber.disconnect();
       await ormLifecycle.close();

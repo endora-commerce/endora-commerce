@@ -54,6 +54,13 @@ export const NO_SCOPE_NEEDED: Readonly<Record<string, string>> = {
     'would be dead weight and the entry would emit an escape-hatch audit record ' +
     'every few seconds for the life of every lease.',
 
+  'packages/platform/src/kernel/audit/escape-hatch-audit-writer.ts:armFlushTimer:setInterval':
+    'The escape-hatch audit flush. Entering the hatch here would report a ' +
+    'widening on every tick that this very timer then persists — an audit row ' +
+    'every ten seconds per process, about nothing. The write opens its own ' +
+    '`systemTenantContext` through `runWithTenantContext`, without the hatch, ' +
+    'and touches only `audit_log_entries`, a `@GlobalEntity`. Falsified the day ' +
+    'the tick reads or writes anything else.',
 
   'src/index.ts:<file>:program':
     'The HTTP server root. It composes and listens; it opens no EntityManager ' +

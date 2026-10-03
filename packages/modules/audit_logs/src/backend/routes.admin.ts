@@ -87,7 +87,15 @@ function serialize(e: AuditLogEntry, actorById: Map<string, AuditActorIdentity>)
   };
 }
 
-function moduleIdForAuditAction(action: string): string {
+/**
+ * Which module's bundle labels an action (`auditLog.<action>`). Exported for
+ * its test.
+ */
+export function moduleIdForAuditAction(action: string): string {
+  // The escape-hatch rows (owner decision of 2026-10-03): written by the
+  // platform for every cross-organization access, labelled here, because the
+  // audit log is where an operator reads them.
+  if (action.startsWith('tenant.')) return 'audit_logs';
   if (action.startsWith('setting.')) return 'settings';
   if (action.startsWith('setting_group.')) return 'settings';
   if (action.startsWith('module.')) return 'core';

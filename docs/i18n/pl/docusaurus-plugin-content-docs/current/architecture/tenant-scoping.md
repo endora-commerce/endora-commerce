@@ -71,9 +71,60 @@ await withSystemScope('nightly reconciliation', () => em.find(Order, { status: '
 ```
 
 `withSystemScope` wymaga niepustego uzasadnienia (`reason`) i emituje jeden wpis audytu obejścia.
-Domyślnie jest to ustrukturyzowana linia `tenant.escape_hatch` na stderr, a nie wiersz
-`audit_log_entries`. Przeszukanie repozytorium pod kątem `withSystemScope` i `enterSystemScope`
-wylicza każdy dostęp do danych wielu organizacji.
+Przeszukanie repozytorium pod kątem `withSystemScope` i `enterSystemScope` wylicza każdy dostęp do
+danych wielu organizacji.
+
+### Jak dostęp między tenantami trafia do audytu
+
+Każde poszerzenie zakresu jest zapisywane dwa razy:
+
+- **Ustrukturyzowana linia na stderr**, zapisywana synchronicznie w chwili wywołania:
+  `{"level":"info","msg":"tenant.escape_hatch","scope":"system","reason":"…"}`, a do tego
+  `organizationId` dla zakresu przypiętego do organizacji i `entryPoint` dla zakresu, który otwiera
+  `enterSystemScope`.
+- **Wiersz w `audit_log_entries`** z akcją `tenant.escape_hatch`. Dziennik audytu w panelu
+  administracyjnym pokazuje te wiersze jako *Dostęp między organizacjami*. `composeApp` dołącza
+  zapis do każdego serwera, workera i polecenia CLI, które składa aplikację, zarówno w tym
+  repozytorium, jak i w instancji wygenerowanej ze scaffoldu. Polecenia operatorskie `module:*` nie
+  składają aplikacji, więc dołączają zapis same.
+
+Wiersz jest zapisywany **asynchronicznie**. Obejście jest często używane, zanim powstanie
+jakakolwiek transakcja (w hooku uwierzytelniania, w pierwszej linii zadania workera, w mechanizmie
+uzgadniającym przy starcie), a większość takich dostępów to odczyty. Wiersz audytu w transakcji
+wywołującego zostałby wycofany razem z nieudanym odczytem i wymazałby dostęp, który naprawdę
+nastąpił. Dlatego wpis jest przechwytywany w chwili wywołania i zapisywany mniej więcej co 10 sekund
+na osobnym forku EntityManagera. Wywołujący nigdy nie czeka na zapis audytu.
+
+Identyczne dostępy w jednym oknie są **agregowane, a nie próbkowane**. Dwa dostępy trafiają do
+jednego wiersza tylko wtedy, gdy mają ten sam zakres, uzasadnienie, docelową organizację, moduł,
+punkt wejścia, aktora i impersonację. Wiersz liczy każde wystąpienie:
+
+| Kolumna | Wartość |
+|---|---|
+| `object_type`, `object_id` | `organization` i jej identyfikator dla zakresu przypiętego do organizacji; w pozostałych przypadkach `tenant_scope` i `system` |
+| `actor_admin_user_id`, `impersonated_customer_account_id` | administrator, który spowodował dostęp, i klient, w którego imieniu działał, jeśli taki jest |
+| `request_id`, `ip_address`, `user_agent` | ustawiane, gdy wszystkie wystąpienia w wierszu pochodzą z jednego żądania |
+| `acted_at` | pierwsze wystąpienie |
+| `state_after` | `scope`, `reason`, `organizationId`, `module`, `entryPoint`, `occurrences`, `firstAt`, `lastAt`, do 20 identyfikatorów `requestIds` oraz `actor`: rodzaj i identyfikator aktora, a także `context`, czyli uzasadnienie zakresu, w którym wywołujący już działał, na przykład `actor:anonymous` dla anonimowego żądania sklepu |
+
+Agregacja ma znaczenie, bo dwa dostępy odbywają się przy każdym uwierzytelnionym żądaniu sklepu:
+`auth: resolve customer org` i `tenant: resolve customer roll-up flag`. Pole `module` jest
+ustalane na podstawie stosu wywołań. Wskazuje pakiet modułu albo moduł overlay, który wykonał
+wywołanie, `platform` dla jądra i `host` dla punktu wejścia aplikacji.
+
+**Nieudany zapis niczego nie gubi.** Linia na stderr jest już zapisana. Partia wraca do kolejki,
+scalona ze wszystkim, co zarejestrowano w międzyczasie, i jest ponawiana przy następnym cyklu, a w
+logu pojawia się `tenant.escape_hatch.persist_failed`. Przy długiej awarii ponad 5000 różnych
+oczekujących wpisów zostaje złożonych w jeden wiersz przepełnienia na zakres i moduł, więc awaria
+kosztuje szczegóły, ale zachowuje liczbę wystąpień. Przy zamykaniu `dispose()` wykonuje ostatni
+zapis. Wszystko, czego nadal nie udało się zapisać, trafia na stderr jako jedna linia
+`tenant.escape_hatch.unpersisted` na wiersz. Polecenie operatorskie, które nigdy nie otworzyło bazy
+danych, nie odczytało danych żadnej organizacji i wypisuje swoje wpisy jako
+`tenant.escape_hatch.not_persisted`.
+
+Zapis audytu sam nie korzysta z obejścia, więc niczego nie rejestruje i nie może wywołać rekurencji.
+Modułu `audit_logs` nie da się wyłączyć. Zapis tych wierszy i tak od niego nie zależy, bo zapis i
+tabela `audit_log_entries` należą do platformy. Moduł dostarcza tylko przeglądarkę.
 
 `@endora-commerce/platform/tenancy` to jedna z pięciu ścieżek platformy, które moduł może
 importować (`kernel`, `http`, `tenancy`, `commands`, `events`); `check:platform-surface` zgłasza
@@ -99,6 +150,7 @@ ma już kontekst, na przykład handlera trasy.
 Środowisko testowe backendu ustawia domyślny kontekst `system` (`backend/test/tenancy-setup.ts`),
 dzięki czemu przygotowanie i sprzątanie danych bezpośrednio przez EntityManager działa bez
 owijania każdego wywołania; obsługa żądań i tak nadpisuje go prawdziwym, zawężonym kontekstem,
-więc zachowanie między tenantami jest testowane naprawdę. Testy hosta mogą wywołać
+więc zachowanie między tenantami jest testowane naprawdę. To środowisko nie przechodzi przez `composeApp`, więc
+nie dołącza zapisu audytu, a jego wpisy obejścia trafiają tylko na stderr. Testy hosta mogą wywołać
 `runWithoutTenantContext(fn)` (`packages/platform/src/tenancy/tenant-context.ts`), aby jawnie
 sprawdzić odmowę przy braku kontekstu; tej funkcji nie ma w opublikowanym barrelu.

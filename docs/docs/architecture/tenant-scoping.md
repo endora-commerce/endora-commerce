@@ -75,9 +75,65 @@ await withSystemScope('nightly reconciliation', () => em.find(Order, { status: '
 ```
 
 `withSystemScope` requires a non-empty `reason` and emits one escape-hatch audit
-record. By default that record is a structured `tenant.escape_hatch` line on stderr,
-not an `audit_log_entries` row. A repository-wide grep for `withSystemScope` and
-`enterSystemScope` enumerates every cross-org access.
+record. A repository-wide grep for `withSystemScope` and `enterSystemScope`
+enumerates every cross-org access.
+
+### How a crossing is audited
+
+Every widening is recorded twice:
+
+- **A structured stderr line**, written synchronously at the moment of the call:
+  `{"level":"info","msg":"tenant.escape_hatch","scope":"system","reason":"…"}`,
+  plus `organizationId` for an organization-pinned scope and `entryPoint` for a
+  scope that `enterSystemScope` starts.
+- **A row in `audit_log_entries`** with the action `tenant.escape_hatch`. The
+  admin audit log lists these rows as *Cross-organization access*. `composeApp`
+  attaches the writer for every server, worker and CLI command that composes, in
+  this repository and in a scaffolded instance alike. The `module:*` operator
+  commands do not compose, so they attach the writer themselves.
+
+The row is written **asynchronously**. The hatch is often entered before any
+transaction exists (in the auth hook, as the first line of a worker job, in a
+boot reconciler), and most crossings are reads. An audit row in the caller's
+transaction would roll back with a failed read and erase an access that did
+happen. So the record is captured when the call is made and written about every
+10 seconds on a separate EntityManager fork. The caller never waits for the
+audit write.
+
+Identical crossings in one window are **aggregated, not sampled**. Two
+crossings land in the same row only when they share the scope, the reason, the
+target organization, the module, the entry point, the actor and the
+impersonation. The row counts every occurrence:
+
+| Column | Value |
+|---|---|
+| `object_type`, `object_id` | `organization` and its id for an organization-pinned scope; `tenant_scope` and `system` otherwise |
+| `actor_admin_user_id`, `impersonated_customer_account_id` | the admin who caused the crossing, and the customer they acted for, when there is one |
+| `request_id`, `ip_address`, `user_agent` | set when every occurrence in the row came from one request |
+| `acted_at` | the first occurrence |
+| `state_after` | `scope`, `reason`, `organizationId`, `module`, `entryPoint`, `occurrences`, `firstAt`, `lastAt`, up to 20 `requestIds`, and `actor`: its kind and id plus `context`, the reason of the scope the caller was already in, such as `actor:anonymous` for an anonymous storefront request |
+
+Aggregation matters because two crossings run on every authenticated storefront
+request: `auth: resolve customer org` and `tenant: resolve customer roll-up flag`.
+`module` is taken from the call stack. It names the module package or overlay
+module that made the call, `platform` for the kernel, and `host` for an
+application entry point.
+
+**A failed write loses nothing.** The stderr line is already written. The batch is
+put back, merged with anything recorded since, and retried on the next tick, and
+`tenant.escape_hatch.persist_failed` is logged. During a long outage, more than
+5000 distinct pending records fold into one overflow row per scope and module,
+so the outage costs detail but keeps the count. On shutdown, `dispose()` runs a
+final flush. Anything still unwritten is printed as one
+`tenant.escape_hatch.unpersisted` line per row. An operator command that never
+opened a database read no organization's data, and prints its records as
+`tenant.escape_hatch.not_persisted`.
+
+The audit write does not use the escape hatch itself, so it records nothing and
+cannot recurse. `audit_logs` cannot be switched off. Writing these rows does
+not depend on it in any case, because the writer and the
+`audit_log_entries` table belong to the platform. The module only provides the
+viewer.
 
 `@endora-commerce/platform/tenancy` is one of the five platform subpaths a module
 may import (`kernel`, `http`, `tenancy`, `commands`, `events`);
@@ -105,6 +161,8 @@ already has a context, such as a request handler.
 The backend test harness sets a default `system` context
 (`backend/test/tenancy-setup.ts`) so direct-EM seeding/cleanup works without
 wrapping every site; the request pipeline still overrides it with the real scoped
-context, so cross-tenant behavior is exercised for real. Host tests can call
+context, so cross-tenant behavior is exercised for real. That harness does not
+go through `composeApp`, so it attaches no audit writer and its escape-hatch
+records only reach stderr. Host tests can call
 `runWithoutTenantContext(fn)` (`packages/platform/src/tenancy/tenant-context.ts`)
 to assert fail-closed behavior explicitly; it is not on the published barrel.
