@@ -115,7 +115,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   rejected factory → D8 editor; declared-without-renderer is editable from its fields; owner absent
   from the descriptor → placeholder and not in the palette; `block-degradation.test.tsx` still green.
 
-- [ ] **T10** The e-mail editor: `emailBlockEditorConfig(renderer)`; `EmailEditorPane` loads the
+- [x] **T10** The e-mail editor: `emailBlockEditorConfig(renderer)`; `EmailEditorPane` loads the
   `email` contributions for present names, passes the loaded renderers to both `renderEmailHtml`
   calls (canvas embeds and preview), and merges `withMissingBlockPlaceholders` for stored names it
   cannot render (FR-016 — it merges none today).
@@ -193,7 +193,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 6 — strings, docs, release
 
-- [ ] **T17** [P] The neutral preview's sentence, `pageBuilder.blockPreview.unavailable`, `en` + `pl`,
+- [x] **T17** [P] The neutral preview's sentence, `pageBuilder.blockPreview.unavailable`, `en` + `pl`,
   in `cms`, `transactional_emails` and `newsletter` bundles; the D8 editor and T10's pane read it.
   Files: `packages/modules/{cms,transactional_emails,newsletter}/i18n/{en,pl}.json`.
   **Test**: `backend/test/unit/_i18n/registered-bundles-shape.test.ts` stays green;
