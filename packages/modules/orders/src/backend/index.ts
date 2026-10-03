@@ -92,11 +92,7 @@ import { releaseOrderAllocations } from './services/order-allocation-release.js'
 import { createOrderTransitionEffectHandlers } from './services/order-transition-effect-handlers.js';
 import { OrderTransitionEffectService } from './services/order-transition-effect-service.js';
 import { OrderTransitionEffectRepairService } from './services/order-transition-effect-repair-service.js';
-import {
-  buildTransitionEffectSweepWorker,
-  createTransitionEffectSweepQueue,
-  ensureTransitionEffectSweepSchedule,
-} from './workers/transition-effect-sweep-worker.js';
+import { startTransitionEffectSweep } from './workers/transition-effect-sweep-worker.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './email-templates/order-confirmation.default.js';
 import { ADMIN_CREATED_ORDER_DEFAULT, ORDER_COMMENT_DEFAULT, REORDER_CREATED_DEFAULT } from './email-templates/secondary-defaults.js';
 import { ordersPromptTools } from './prompt-tools.js';
@@ -993,22 +989,16 @@ export function registerModule(ctx: ModuleContext): void {
     // never listens. Built only where the host says this process consumes
     // queues and offers a connection to build one on; the shared test server
     // says neither, and drives `sweep()` directly.
-    const { processRunsWorkers, moduleQueueRedis } = cradle();
-    if (processRunsWorkers && moduleQueueRedis !== undefined) {
-      const sweepQueue = createTransitionEffectSweepQueue(moduleQueueRedis);
-      app.addHook('onClose', async () => {
-        await sweepQueue.close();
-      });
-      ctx.worker(
-        buildTransitionEffectSweepWorker({
-          redis: moduleQueueRedis,
-          effects: cradle().orderTransitionEffectService,
-          log: ctx.log,
-        }),
-        { logger: app.log },
-      );
-      await ensureTransitionEffectSweepSchedule(sweepQueue);
-    }
+    await startTransitionEffectSweep({
+      processRunsWorkers: cradle().processRunsWorkers,
+      moduleQueueRedis: cradle().moduleQueueRedis,
+      effects: cradle().orderTransitionEffectService,
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+      onClose: (close) => {
+        app.addHook('onClose', close);
+      },
+    });
   });
 
   /**

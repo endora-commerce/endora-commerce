@@ -604,6 +604,7 @@ export function commerceModule(options: OrdersModuleOptions) {
       orderCreationAdminService,
       customerOrderCancellation,
       purchaseConversion: options.purchaseConversion,
+      ...(options.log ? { log: options.log } : {}),
       emFactory: options.emFactory,
       requireCustomer: options.requireCustomer,
       requireAdmin: options.requireAdmin,

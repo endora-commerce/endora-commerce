@@ -44,12 +44,10 @@ export interface TransitionEffectSweepDeps {
   readonly log: PlatformLogger;
 }
 
+const SWEEP_SCOPE_REASON = 'orders: sweep outstanding order follow-ups';
+
 /**
- * One tick: one `sweep()`, under a system tenant scope.
- *
- * The scope is established here, at the entry point, rather than left to
- * whoever builds the BullMQ worker around it: a worker has no request and
- * therefore no tenant context, and the sweep reads every organization's rows.
+ * The body of one tick: one `sweep()`.
  *
  * A failed pass is logged and **not** re-thrown. Failing the job would buy
  * nothing — the next tick is the retry, sixty seconds later, and it re-reads
@@ -59,14 +57,6 @@ export interface TransitionEffectSweepDeps {
  * swallowed (module-composition item 7), it fails this one job, and the next
  * tick finds the row waiting on its owner.
  */
-export function transitionEffectSweepProcessor(deps: TransitionEffectSweepDeps): () => Promise<void> {
-  const tick = sweepTick(deps);
-  return () => enterSystemScope(SWEEP_SCOPE_REASON, tick);
-}
-
-const SWEEP_SCOPE_REASON = 'orders: sweep outstanding order follow-ups';
-
-/** The body of one tick, without the scope its entry point establishes. */
 function sweepTick(deps: TransitionEffectSweepDeps): () => Promise<void> {
   return async () => {
     try {
@@ -118,4 +108,42 @@ export async function ensureTransitionEffectSweepSchedule(
     { every: TRANSITION_EFFECT_SWEEP_EVERY_MS },
     { name: 'sweep', data: {} },
   );
+}
+
+/**
+ * Build and start the consumer — where the host says this process runs one.
+ *
+ * The whole decision in one function so it can be tested without Redis: a
+ * consumer is built only when the process consumes queues (`processRunsWorkers`)
+ * **and** the composition offers a connection to build one on
+ * (`moduleQueueRedis`). The shared test server says neither, and drives
+ * `sweep()` directly.
+ *
+ * `attach` is the platform's worker seam — `ctx.worker` — which is what puts
+ * the consumer in the registry the platform reconciles and stops; `onClose`
+ * registers the queue's own shutdown. Answers whether a consumer was started.
+ */
+export async function startTransitionEffectSweep(
+  input: TransitionEffectSweepDeps & {
+    readonly processRunsWorkers: boolean;
+    readonly moduleQueueRedis: Redis | undefined;
+    readonly attach: (worker: Worker<TransitionEffectSweepJobData>) => void;
+    readonly onClose: (close: () => Promise<void>) => void;
+  },
+): Promise<boolean> {
+  const { processRunsWorkers, moduleQueueRedis } = input;
+  if (!processRunsWorkers || moduleQueueRedis === undefined) return false;
+  const queue = createTransitionEffectSweepQueue(moduleQueueRedis);
+  input.onClose(async () => {
+    await queue.close();
+  });
+  input.attach(
+    buildTransitionEffectSweepWorker({
+      redis: moduleQueueRedis,
+      effects: input.effects,
+      log: input.log,
+    }),
+  );
+  await ensureTransitionEffectSweepSchedule(queue);
+  return true;
 }

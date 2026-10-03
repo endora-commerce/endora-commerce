@@ -54,10 +54,11 @@ import type { CustomerOrderCancellationService } from './services/order-cancella
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
+import { replyAfterCommittedWrite } from './services/committed-write-reply.js';
 import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
 import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { PlatformLogger, RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface OrdersDeps {
   orderService: OrderService;
@@ -86,6 +87,8 @@ export interface OrdersDeps {
    * by whichever storefront page the buyer sees the order on first.
    */
   purchaseConversion: PurchaseConversionService;
+  /** The module's logger. */
+  log?: PlatformLogger;
   /**
    * Feature 038 US3 — pricing engine, used by the read-only create-order
    * preview to resolve per-line prices for the chosen customer/channel.
@@ -327,7 +330,13 @@ export async function registerOrderRoutes(
         request.params.id,
         ctx.customerAccountId,
       );
-      return { data: await serializeForBuyer(order, ctx.customerAccountId) };
+      // The cancellation is committed: a failure reading the response back
+      // must not be answered as a failure of the cancellation.
+      return replyAfterCommittedWrite(
+        order,
+        () => serializeForBuyer(order, ctx.customerAccountId),
+        deps.log,
+      );
     },
   );
 
@@ -950,7 +959,12 @@ export async function registerOrderRoutes(
         adminUserId ? { kind: 'admin', adminUserId } : { kind: 'system', source: 'checkout' },
         body.reason ?? null,
       );
-      return { data: await serializeAdminOrder(emFactory(), order) };
+      // Committed by now — see `replyAfterCommittedWrite`.
+      return replyAfterCommittedWrite(
+        order,
+        () => serializeAdminOrder(emFactory(), order),
+        deps.log,
+      );
     },
   );
 
@@ -1033,7 +1047,11 @@ export async function registerOrderRoutes(
     async (request) => {
       const body = adminOrderPaymentStatusTransitionSchema.parse(request.body);
       const order = await orderService.transitionPaymentStatus(request.params.id, body.to);
-      return { data: await serializeAdminOrder(emFactory(), order) };
+      return replyAfterCommittedWrite(
+        order,
+        () => serializeAdminOrder(emFactory(), order),
+        deps.log,
+      );
     },
   );
 
