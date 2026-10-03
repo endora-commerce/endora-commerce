@@ -83,6 +83,7 @@ import { nodeWorkspaceFs, workspaceMembers } from '@endora-commerce/cli/lib/work
 import { resolveDatabaseTarget } from './assertions.js';
 import { adminPasswordFlag } from './instance-public-assertions.js';
 import { startLocalRegistry, tarballFrom, type LocalRegistry } from './local-registry.js';
+import { armExitWatchdog, stopProcessGroup, trackProcessGroup } from './process-teardown.js';
 import {
   assertP1,
   assertP2,
@@ -238,28 +239,12 @@ async function waitFor(url: string, deadline: number, child: ChildProcess): Prom
   return null;
 }
 
-async function stopGroup(child: ChildProcess): Promise<void> {
-  if (child.pid === undefined || child.exitCode !== null) return;
-  const exited = new Promise<void>((done) => child.once('close', () => done()));
-  try {
-    process.kill(-child.pid, 'SIGINT');
-  } catch {
-    return;
-  }
-  const timeout = new Promise<'timeout'>((done) => setTimeout(() => done('timeout'), 30_000));
-  if ((await Promise.race([exited, timeout])) === 'timeout') {
-    try {
-      process.kill(-child.pid, 'SIGKILL');
-    } catch {
-      // gone
-    }
-  }
-}
-
 /** A layer started in its own process group, so stopping it stops what it started. */
 function start(label: string, cwd: string, script: string, env: NodeJS.ProcessEnv): ChildProcess {
   console.log(`\n$ (${label}) pnpm run ${script}   # in ${cwd}`);
-  return spawn('pnpm', ['run', script], { cwd, env, stdio: ['ignore', 'inherit', 'inherit'], detached: true });
+  return trackProcessGroup(
+    spawn('pnpm', ['run', script], { cwd, env, stdio: ['ignore', 'inherit', 'inherit'], detached: true }),
+  );
 }
 
 /** The answered assignments of a `.env`, without a parser this script would have to trust. */
@@ -818,7 +803,7 @@ async function main(): Promise<number> {
       }
     }
   } finally {
-    for (const child of running.reverse()) await stopGroup(child);
+    for (const child of running.reverse()) await stopProcessGroup(child);
     if (registry !== null) await registry.close();
     if (proxyContainer !== null) spawnSync('docker', ['rm', '-f', proxyContainer], { stdio: 'ignore' });
     for (const dir of withServices ? composeDirs : []) {
@@ -856,4 +841,4 @@ async function main(): Promise<number> {
   return verdicts.some((entry) => entry.status === 'fail') ? 1 : verdicts.some((entry) => entry.status === 'unmeasured') ? 2 : 0;
 }
 
-process.exitCode = await main();
+armExitWatchdog(await main());

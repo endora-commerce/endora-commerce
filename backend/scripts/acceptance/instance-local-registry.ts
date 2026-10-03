@@ -110,6 +110,7 @@ import { resolveDatabaseTarget } from './assertions.js';
 import { instanceEnvValues } from './instance-assertions.js';
 import { adminPasswordFlag } from './instance-public-assertions.js';
 import { startLocalRegistry, tarballFrom, type LocalRegistry, type PackedTarball } from './local-registry.js';
+import { armExitWatchdog, stopProcessGroup, trackProcessGroup } from './process-teardown.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..', '..');
@@ -265,24 +266,6 @@ async function waitFor(url: string, deadline: number, child: ChildProcess): Prom
     }
   }
   return null;
-}
-
-async function stopGroup(child: ChildProcess): Promise<void> {
-  if (child.pid === undefined || child.exitCode !== null) return;
-  const exited = new Promise<void>((done) => child.once('close', () => done()));
-  try {
-    process.kill(-child.pid, 'SIGINT');
-  } catch {
-    return;
-  }
-  const timeout = new Promise<'timeout'>((done) => setTimeout(() => done('timeout'), 30_000));
-  if ((await Promise.race([exited, timeout])) === 'timeout') {
-    try {
-      process.kill(-child.pid, 'SIGKILL');
-    } catch {
-      // gone
-    }
-  }
 }
 
 interface PresenceRow {
@@ -901,12 +884,14 @@ async function main(): Promise<number> {
       const origin = `http://127.0.0.1:${String(port)}`;
       const boot = async (): Promise<number | null> => {
         console.log('\n$ pnpm run start');
-        api = spawn('pnpm', ['run', 'start'], {
-          cwd: target,
-          env: environment,
-          stdio: ['ignore', 'inherit', 'inherit'],
-          detached: true,
-        });
+        api = trackProcessGroup(
+          spawn('pnpm', ['run', 'start'], {
+            cwd: target,
+            env: environment,
+            stdio: ['ignore', 'inherit', 'inherit'],
+            detached: true,
+          }),
+        );
         return waitFor(`${origin}${HEALTH_PATH}`, Date.now() + BOOT_TIMEOUT_MS, api);
       };
       const health = await boot();
@@ -952,7 +937,7 @@ async function main(): Promise<number> {
           if (subject === null) {
             settle('L12', false, `nothing could be switched off — last refusal ${refusal}`);
           } else {
-            await stopGroup(api!);
+            await stopProcessGroup(api!);
             const again = await boot();
             session = again === null ? session : await signIn(origin, admin);
             const afterRestart = again === null ? null : await presenceOf(origin, session.cookie, subject);
@@ -1127,12 +1112,14 @@ async function main(): Promise<number> {
         } else {
           const shopPort = await freePort();
           console.log(`\n$ PORT=${String(shopPort)} pnpm run start`);
-          shop = spawn('pnpm', ['run', 'start'], {
-            cwd: storefrontDir,
-            env: { ...shopEnvironment, PORT: String(shopPort) },
-            stdio: ['ignore', 'inherit', 'inherit'],
-            detached: true,
-          });
+          shop = trackProcessGroup(
+            spawn('pnpm', ['run', 'start'], {
+              cwd: storefrontDir,
+              env: { ...shopEnvironment, PORT: String(shopPort) },
+              stdio: ['ignore', 'inherit', 'inherit'],
+              detached: true,
+            }),
+          );
           const origin = `http://127.0.0.1:${String(shopPort)}`;
           const up = await waitFor(`${origin}/catalog`, Date.now() + BOOT_TIMEOUT_MS, shop);
           if (up !== 200) {
@@ -1162,8 +1149,8 @@ async function main(): Promise<number> {
       verdicts.push(rendered);
     }
   } finally {
-    if (shop !== null) await stopGroup(shop);
-    if (api !== null) await stopGroup(api);
+    if (shop !== null) await stopProcessGroup(shop);
+    if (api !== null) await stopProcessGroup(api);
     if (registry !== null) await registry.close();
     if (withServices && target.length > 0 && existsSync(join(target, 'compose.dev.yml'))) {
       // From the instance's own directory, so Compose reads the `.env` that
@@ -1185,4 +1172,4 @@ async function main(): Promise<number> {
   return verdicts.some((verdict) => verdict.status === 'fail') ? 1 : verdicts.some((verdict) => verdict.status === 'unmeasured') ? 2 : 0;
 }
 
-process.exitCode = await main();
+armExitWatchdog(await main());
