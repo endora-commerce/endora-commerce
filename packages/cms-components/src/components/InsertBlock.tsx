@@ -1,4 +1,4 @@
-import { type ComponentConfig } from '@measured/puck';
+import { type ComponentConfig } from '@puckeditor/core';
 import type { InsertBlockProps } from '../schema/component-types.js';
 import { useCmsRenderEmbeds } from './render-context.js';
 

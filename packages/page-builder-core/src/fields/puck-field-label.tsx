@@ -1,6 +1,6 @@
 'use client';
 
-import { FieldLabel } from '@measured/puck';
+import { FieldLabel } from '@puckeditor/core';
 import type { ReactElement, ReactNode } from 'react';
 
 /** Puck does not render `field.label` for custom fields — wrap controls explicitly. */

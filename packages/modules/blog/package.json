@@ -58,10 +58,10 @@
     "@endora-commerce/mod-cms": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
-    "@measured/puck": "^0",
     "@mikro-orm/core": "^6",
     "@mikro-orm/migrations": "^6",
     "@mikro-orm/postgresql": "^6",
+    "@puckeditor/core": "^0",
     "fastify": "^5.11.0",
     "ioredis": "^5",
     "react": "^19",
@@ -75,7 +75,7 @@
     "@endora-commerce/mod-cms": {
       "optional": true
     },
-    "@measured/puck": {
+    "@puckeditor/core": {
       "optional": true
     },
     "react": {
@@ -91,10 +91,10 @@
     "@endora-commerce/mod-cms": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
-    "@measured/puck": "^0.20.2",
     "@mikro-orm/core": "^6.6.13",
     "@mikro-orm/migrations": "^6.6.13",
     "@mikro-orm/postgresql": "^6.6.13",
+    "@puckeditor/core": "^0.23.0",
     "@types/node": "^22.9.0",
     "@types/react": "^19.2.14",
     "fastify": "^5.12.5",

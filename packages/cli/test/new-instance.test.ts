@@ -1111,7 +1111,7 @@ describe('the admin member (instance-tree.md §2.4)', () => {
         ['@tailwindcss/vite', '^4.2.4'],
       ]),
       adminPeers: new Map([
-        ['@measured/puck', '^0'],
+        ['@puckeditor/core', '^0'],
         ['lucide-react', '^1'],
         ['vite', '^7.3.2'],
       ]),
@@ -1172,7 +1172,7 @@ describe('the admin member (instance-tree.md §2.4)', () => {
     const root = JSON.parse(plan.files.find((file) => file.path === 'package.json')!.content) as {
       dependencies: Record<string, string>;
     };
-    expect(root.dependencies['@measured/puck']).toBe('^0');
+    expect(root.dependencies['@puckeditor/core']).toBe('^0');
     expect(root.dependencies['lucide-react']).toBe('^1');
     // A build tool is the admin member's and never the root's: it builds the
     // bundle and is not in it.

@@ -1,4 +1,4 @@
-import type { Config, ComponentConfig } from '@measured/puck';
+import type { Config, ComponentConfig } from '@puckeditor/core';
 
 type TranslateFn = (key: string, params?: Record<string, string | number>) => string;
 

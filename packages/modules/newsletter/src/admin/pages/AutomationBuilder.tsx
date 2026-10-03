@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { Data } from '@measured/puck';
+import type { Data } from '@puckeditor/core';
 import type {
   AutomationDetail,
   AutomationStep,

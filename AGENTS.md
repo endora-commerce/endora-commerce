@@ -39,7 +39,7 @@ anybody did anything.
   What `backend/src` keeps is the application: the composition roots, the generated registries,
   the manifest-registry binding, and one entry point per `module:*` command.
 - **`admin/`** — React 19 + Vite + react-router-dom 7 + `lucide-react` + Tailwind 4 +
-  Radix/shadcn primitives; `@measured/puck` for the CMS/e-mail builders; `@dnd-kit` for
+  Radix/shadcn primitives; `@puckeditor/core` for the CMS/e-mail builders; `@dnd-kit` for
   drag-drop; charts through the `<EChart>` wrapper
   (`admin/src/components/charts/echart.tsx`). The router and every host screen are
   `@endora-commerce/admin-shell`; the design system is `@endora-commerce/admin-kit`.

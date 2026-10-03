@@ -1,4 +1,4 @@
-import type { ComponentConfig, Config } from '@measured/puck';
+import type { ComponentConfig, Config } from '@puckeditor/core';
 import type { PageBuilderContext } from './types/responsive.js';
 import { enhancePageBuilderComponent } from './editor/enhance-component-config.js';
 

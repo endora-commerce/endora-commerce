@@ -1,4 +1,4 @@
-import type { Slot } from '@measured/puck';
+import type { Slot } from '@puckeditor/core';
 import type {
   BorderValue,
   BackgroundProp,

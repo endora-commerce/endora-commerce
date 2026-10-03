@@ -20,7 +20,7 @@
  * ## Why not the kit, and why not `@endora-commerce/page-builder-admin`
  *
  * The kit refuses it on R7, exactly as it refused the chrome P5b published: the
- * component is a `@measured/puck` `<Puck>` host, and the kit is what all 66
+ * component is a `@puckeditor/core` `<Puck>` host, and the kit is what all 66
  * module packages' admin layers compile against, so Puck would sit behind the
  * admin design system for every one of them.
  *

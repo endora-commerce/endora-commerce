@@ -140,7 +140,7 @@ export function nodeLiteralSource(name: string): string {
 export function rendererMapSource(names: readonly string[]): string {
   const entries = names.map((name) => `  '${name}': stub,`).join('\n');
   return (
-    "import type { Config } from '@measured/puck';\n" +
+    "import type { Config } from '@puckeditor/core';\n" +
     'declare const stub: never;\n' +
     `export const config: Config = {\n  components: {\n${entries}\n  },\n};\n`
   );

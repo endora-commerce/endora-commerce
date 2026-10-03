@@ -44,7 +44,7 @@ Ten sam JSONB `content` skanuje też **rejestr referencji Assets Library** — u
 
 ## Autoring Page Buildera
 
-Page Builder opiera się na **Puck** (`@measured/puck`) i dostarcza komponenty
+Page Builder opiera się na **Puck** (`@puckeditor/core`) i dostarcza komponenty
 w `@endora-commerce/cms-components`. Domyślne layout/content:
 
 | Component       | Purpose                                                                |

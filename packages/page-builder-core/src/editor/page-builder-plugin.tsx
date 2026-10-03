@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactElement, ReactNode } from 'react';
-import type { Plugin } from '@measured/puck';
+import type { Plugin } from '@puckeditor/core';
 import { FieldsTabPanel } from './fields-tab-panel.js';
 import { PageBuilderComponentOverlay } from './page-builder-component-overlay.js';
 import { PageBuilderOutline } from './page-builder-outline.js';

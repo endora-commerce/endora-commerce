@@ -1,7 +1,7 @@
 'use client';
 
 import { memo, useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
-import type { FieldProps } from '@measured/puck';
+import type { FieldProps } from '@puckeditor/core';
 import {
   ScopedFieldHint,
   ScopedResetLink,

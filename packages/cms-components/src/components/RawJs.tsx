@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { type ComponentConfig, type PuckComponent } from '@measured/puck';
+import { type ComponentConfig, type PuckComponent } from '@puckeditor/core';
 import { withHideOn } from '@endora-commerce/page-builder-core';
 import type { RawJsProps } from '../schema/component-types.js';
 import { BoxStyled } from './box-styles.js';

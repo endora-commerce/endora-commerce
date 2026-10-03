@@ -1,4 +1,4 @@
-import type { ComponentConfig, Fields } from '@measured/puck';
+import type { ComponentConfig, Fields } from '@puckeditor/core';
 import { createEditorNameField } from '../fields/editor-name-field.js';
 import type { ComponentContextMeta } from '../define-component.js';
 import { EDITOR_NAME_FIELD_KEY } from '../types/editor-chrome.js';

@@ -1,4 +1,4 @@
-import type { ComponentConfig } from '@measured/puck';
+import type { ComponentConfig } from '@puckeditor/core';
 import type { ReactNode } from 'react';
 import { createHideOnField } from '../fields/hide-on-field.js';
 import { RESPONSIVE_HIDE_ON_CLASS, hideOnDataAttrs } from '../render/responsive-styles.js';

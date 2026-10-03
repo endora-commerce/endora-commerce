@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
-import { Render, type Config } from '@measured/puck';
+import { Render, type Config } from '@puckeditor/core';
 import { isNamespaced, parseBlockName } from '@endora-commerce/page-builder-core';
 import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
 import { PageBuilderRender } from '../../components/PageBuilderRender';

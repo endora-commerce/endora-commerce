@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import type { CustomField } from '@measured/puck';
+import type { CustomField } from '@puckeditor/core';
 import { Button, Input, Textarea } from '@endora-commerce/admin-kit/ui';
 import { insertAtCursor } from './insert-at-cursor.js';
 import { useEmailVariables } from './EmailVariablesProvider.js';

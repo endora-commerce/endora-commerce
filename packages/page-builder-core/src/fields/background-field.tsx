@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, type ReactElement } from 'react';
-import type { Field } from '@measured/puck';
+import type { Field } from '@puckeditor/core';
 import { createColorField } from './color-field.js';
 import { normalizeBackground, type BackgroundKind, type BackgroundProp, type BackgroundValue, type MediaSourceKind } from '../types/background.js';
 

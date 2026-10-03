@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { Data } from '@measured/puck';
+import type { Data } from '@puckeditor/core';
 import type {
   CampaignDetail,
   CampaignTargetType,

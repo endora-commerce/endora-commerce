@@ -35,10 +35,10 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 
 **Third-party**
 
-- `@measured/puck` ^0 — *optional*
 - `@mikro-orm/core` ^6
 - `@mikro-orm/migrations` ^6
 - `@mikro-orm/postgresql` ^6
+- `@puckeditor/core` ^0 — *optional*
 - `fastify` ^5.11.0
 - `lucide-react` ^1 — *optional*
 - `react` ^19 — *optional*
