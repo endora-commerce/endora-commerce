@@ -87,6 +87,9 @@ import type { OrderListService } from './services/order-list-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderTransitionPortService } from './services/order-transition-port.js';
+import { releaseOrderAllocations } from './services/order-allocation-release.js';
+import { createOrderTransitionEffectHandlers } from './services/order-transition-effect-handlers.js';
+import { OrderTransitionEffectService } from './services/order-transition-effect-service.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './email-templates/order-confirmation.default.js';
 import { ADMIN_CREATED_ORDER_DEFAULT, ORDER_COMMENT_DEFAULT, REORDER_CREATED_DEFAULT } from './email-templates/secondary-defaults.js';
 import { ordersPromptTools } from './prompt-tools.js';
@@ -235,6 +238,12 @@ export interface OrdersCradle {
   readonly orderTransitionServiceAccessor: () => OrderTransitionService | null;
   /** Issue #277 — the per-order claim on the GA4 `purchase` conversion. */
   readonly orderPurchaseConversion: PurchaseConversionService;
+  /**
+   * The follow-ups an order transition owes — recorded with the status, run
+   * after it commits, retried until they complete
+   * (`specs/142-order-transition-atomicity/`).
+   */
+  readonly orderTransitionEffectService: OrderTransitionEffectService;
   readonly orders: ReturnType<typeof commerceModule>;
   /**
    * Owned by `prompt_actions`: the assistant's tool catalogue. An ungated
@@ -390,6 +399,48 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   /**
+   * The follow-ups an order transition owes
+   * (`specs/142-order-transition-atomicity/`, D1–D3, D6).
+   *
+   * Registered here rather than built in the plugin body beside the transition
+   * engine, because three things reach it and only one of them has a server:
+   * the engine (routes), the sweep worker, and the repair command — which
+   * composes the platform and never registers a route, so anything constructed
+   * in the plugin body does not exist for it.
+   *
+   * Both owners are switchable and this module is not, and both edges are
+   * declared in the manifest (`inventory` degrades, `credit_limits` refuses
+   * placement). The handlers ask `effectiveState.isPresent(<owner>)` **before**
+   * the gated port is touched and answer "waiting" as a value: a follow-up
+   * runs after its status has committed, where a `ModuleDisabledError` would
+   * reach nobody who could act on it. The two ports are resolved lazily like
+   * every other one — this registration is a singleton and a gate may not be
+   * frozen inside one.
+   */
+  ctx.di.register({
+    orderTransitionEffectService: ctx
+      .asFunction(({ emFactory }: OrdersCradle) => {
+        const isPresent = (moduleId: string): boolean => effectiveState.isPresent(moduleId);
+        const creditLimit = lazyPort<CreditLimitPort>(ctx, 'creditLimitService');
+        const reservationApply = lazyPort<InventoryReservationApplyPort>(
+          ctx,
+          'inventoryReservationApplyPort',
+        );
+        return new OrderTransitionEffectService({
+          emFactory,
+          isPresent,
+          log: ctx.log,
+          handlers: createOrderTransitionEffectHandlers({
+            isPresent,
+            creditLimit: () => creditLimit,
+            releaseStock: (orderId) => releaseOrderAllocations(emFactory, reservationApply, orderId),
+          }),
+        });
+      })
+      .singleton(),
+  });
+
+  /**
    * Feature 026 US6 — admin orders visibility scope, defaulted here
    * (`specs/117-instance-bring-up/` Phase 6, FR-033). Sales-rep admins see only
    * orders from organizations they own; every other admin sees everything.
@@ -461,6 +512,7 @@ export function registerModule(ctx: ModuleContext): void {
           auditLogService,
           redis,
           orderPurchaseConversion,
+          orderTransitionEffectService,
         }: OrdersCradle) =>
           commerceModule({
             emFactory,
@@ -469,6 +521,8 @@ export function registerModule(ctx: ModuleContext): void {
             auditLogService,
             redis,
             purchaseConversion: orderPurchaseConversion,
+            transitionEffects: orderTransitionEffectService,
+            log: ctx.log,
             // Ports, every one of them read lazily: this registration is a
             // singleton and a gate may not be frozen inside one.
             cartWritePort: lazyPort<CartWritePort>(ctx, 'cartWritePort'),

@@ -20,7 +20,11 @@ import { Migration } from '@mikro-orm/migrations';
  *    outstanding rows are in it, so completed history costs it nothing.
  *  - `(order_id)` — the order page.
  *  - `organization_id` is copied from the order at insert — the tenant key
- *    (Principle XI).
+ *    (Principle XI). It carries **no foreign key of its own**, deliberately:
+ *    `orders.organization_id` carries none either, and a row here is tied to
+ *    its order by `order_id`. A constraint on the copy would refuse a
+ *    follow-up for an order the schema itself accepts — which, on this path,
+ *    means refusing the cancellation that owes it.
  *  - `order_id` cascades: a release is owed *by* an order, and the two owners'
  *    own `on delete restrict` constraints already refuse to delete an order
  *    that still holds stock or credit.
@@ -57,12 +61,6 @@ export class Migration20261003T201537OrdersOrderTransitionEffects extends Migrat
         constraint "order_transition_effects_origin_check"
           check ("origin" in ('transition', 'repair'))
       );
-    `);
-    this.addSql(`
-      alter table "order_transition_effects"
-        add constraint "order_transition_effects_organization_id_foreign"
-          foreign key ("organization_id") references "organizations" ("id")
-          on update cascade on delete cascade;
     `);
     this.addSql(`
       alter table "order_transition_effects"

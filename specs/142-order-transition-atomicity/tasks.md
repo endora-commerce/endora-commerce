@@ -102,7 +102,7 @@ calling `sweep()`.
   two concurrent `drainForOrder` calls run the handler once (FR-010); `sweep` skips rows not yet
   due; with an owner absent `sweep` issues no per-row work for its effect; the back-off caps at 1 h.
 
-- [ ] **T09** `OrderTransitionService.apply` — D5 and D7: the transaction, the row lock and single
+- [x] **T09** `OrderTransitionService.apply` — D5 and D7: the transaction, the row lock and single
   re-evaluation, `recordWithin(tx, …)`, effect rows from T06, then `drainForOrder`, then the emit in
   a `finally`. Remove the `sideEffects` constructor parameter and its closure in `plugin.ts`.
   Files: `packages/modules/orders/src/backend/services/order-transition-service.ts`,

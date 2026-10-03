@@ -15,6 +15,7 @@ import {
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { CreditLimit, PaymentMethod } from '../../helpers/package-entities.js';
+import { OrderTransitionVetoError } from '../../../../packages/modules/orders/dist/backend/events/order-status-events.js';
 
 /**
  * `specs/142-order-transition-atomicity/` — the seven states a failed or refused
@@ -400,5 +401,72 @@ describe('an order transition and its follow-up work cannot come apart (spec 142
     await sweep();
     expect(await reservation(orderId)).toBe('released');
     expect((await effects(orderId)).every((e) => e.completed)).toBe(true);
+  });
+
+  // --- the write itself (T09) ---------------------------------------------------
+
+  const transitionAudits = async (orderId: string): Promise<number> =>
+    (await h.auditLogService.query({ action: 'order.status_transition', objectId: orderId }))
+      .length;
+
+  it('two concurrent cancellations of one order write one status, one audit entry and one set of follow-ups (FR-004)', async () => {
+    const orderId = await place('credit');
+
+    const [first, second] = await Promise.all([cancel(orderId), cancel(orderId)]);
+
+    // Both callers are told the truth: the order is cancelled.
+    expect([first.statusCode, second.statusCode]).toEqual([200, 200]);
+    expect((await orderRow(orderId)).status).toBe('cancelled');
+    expect(await transitionAudits(orderId)).toBe(1);
+    expect((await effects(orderId)).map((e) => [e.effect, e.completed])).toEqual([
+      ['credit.release', true],
+      ['stock.release', true],
+    ]);
+    expect(await heldAllocations(orderId)).toBe(0);
+    expect(await reservation(orderId)).toBe('released');
+  });
+
+  it('a vetoed transition writes nothing — no status, no audit entry, no follow-up (FR-003)', async () => {
+    const orderId = await place('credit');
+    const engine = (
+      h.container.resolve('orderTransitionServiceAccessor') as () => {
+        onOrderTransitionGuard(
+          match: { to?: string },
+          guard: (e: { orderId: string }) => void,
+        ): () => void;
+      } | null
+    )()!;
+    const lift = engine.onOrderTransitionGuard({ to: 'cancelled' }, (e) => {
+      if (e.orderId === orderId) throw new OrderTransitionVetoError('held by a guard', 'new', 'cancelled');
+    });
+
+    try {
+      const res = await cancel(orderId);
+      expect(res.statusCode).toBe(409);
+    } finally {
+      lift();
+    }
+
+    expect((await orderRow(orderId)).status).toBe('new');
+    expect(await transitionAudits(orderId)).toBe(0);
+    expect(await effects(orderId)).toEqual([]);
+    expect(await heldAllocations(orderId)).toBe(1);
+    expect(await reservation(orderId)).toBe('active');
+    expect(announced.has(orderId)).toBe(false);
+  });
+
+  it('a cancellation with nothing failing releases both, completes both rows and announces — as before', async () => {
+    const orderId = await place('credit');
+
+    const res = await cancel(orderId);
+
+    expect(await observed(orderId, res.statusCode)).toEqual({
+      http: 200,
+      status: 'cancelled',
+      heldAllocations: 0,
+      reservation: 'released',
+      announced: true,
+    });
+    expect((await effects(orderId)).every((e) => e.completed && e.attempts === 0)).toBe(true);
   });
 });

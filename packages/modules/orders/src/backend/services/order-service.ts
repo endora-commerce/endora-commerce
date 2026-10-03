@@ -104,6 +104,7 @@ import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entit
  */
 import type { CartPlacementApplyPort } from '@endora-commerce/mod-carts/ports';
 import type { InventoryReservationApplyPort } from '@endora-commerce/mod-inventory/ports';
+import { releaseOrderAllocations } from './order-allocation-release.js';
 import type { InvoicePlacementApplyPort } from '@endora-commerce/mod-invoices/ports';
 import type { PaymentPlacementApplyPort } from '../../ports/index.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
@@ -2051,36 +2052,9 @@ export class OrderService {
     // lifecycle side effect of.
     const inventory = this.neighbours.inventory();
     if (inventory === null) return { released: 0 };
-    const em = this.emFactory();
-    return em.transactional(async (tx) => {
-      // `tx.execute`, not `tx.getKnex()`: the knex instance is connection-level
-      // and carries no transaction context, so this read took its own pooled
-      // connection and could not see anything the surrounding transaction had
-      // written (issue #200). Harmless for committed order lines, and the exact
-      // shape that made the promotion-usage writes escape their transaction.
-      const itemRows = await tx.execute<
-        Array<{ id: string; product_id: string; variant_id: string | null; quantity: number }>
-      >(
-        `select "id", "product_id", "variant_id", "quantity"
-           from "order_items"
-          where "order_id" = ?`,
-        [orderId],
-      );
-      if (itemRows.length === 0) return { released: 0 };
-
-      // On `tx`, so the counter decrement and the `released_at` stamp are one
-      // operation with each other and with whatever else this transaction is
-      // doing. The lines are passed in because `stock_allocations` records the
-      // warehouse and the order item and not the product: resolving it on the
-      // other side would mean `inventory` reading `order_items`.
-      return inventory.reservationApply.releaseForOrderItems(tx, {
-        items: itemRows.map((r) => ({
-          orderItemId: r.id,
-          productId: r.product_id,
-          variantId: r.variant_id ?? null,
-        })),
-      });
-    });
+    // One statement of the release, shared with the cancellation's
+    // `stock.release` follow-up so the two cannot drift.
+    return releaseOrderAllocations(this.emFactory, inventory.reservationApply, orderId);
   }
 
   /** Admin payment-status transition (T210 + T149). */

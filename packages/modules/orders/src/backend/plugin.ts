@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { CommandBus } from '@endora-commerce/platform/commands';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { AuditPort, PlatformLogger } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { Redis } from 'ioredis';
 import type { EmailMailerPort } from '@endora-commerce/contracts';
@@ -21,6 +21,7 @@ import {
 } from './services/order-service.js';
 import { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderTransitionService } from './services/order-transition-service.js';
+import type { OrderTransitionEffectService } from './services/order-transition-effect-service.js';
 import { OrderListService } from './services/order-list-service.js';
 import { OrderListViewService } from './services/order-list-view-service.js';
 import { OrderExportService } from './services/order-export-service.js';
@@ -62,7 +63,6 @@ import { createBusinessIdGenerator } from './services/business-id-generator.js';
 import { registerOrderRoutes } from './routes.js';
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import type { OrderConfirmationRenderers } from './email-templates/order-confirmation.js';
-import { mayHoldCreditLimitReservation } from './domain/credit-limit-reservation.js';
 // Feature 035 — shipping-method adapter framework + shipment lifecycle.
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
@@ -318,6 +318,16 @@ export interface OrdersModuleOptions {
    */
   exposeOrderStatusGraphService?: (service: OrderStatusGraphService) => void;
   /**
+   * The follow-ups an order transition owes, recorded with the status and run
+   * after it commits (`specs/142-order-transition-atomicity/`). Built in
+   * `backend.ts`, where the two owners' ports are resolved and their presence
+   * is asked, and where the sweep worker and the repair command reach the same
+   * instance.
+   */
+  transitionEffects: OrderTransitionEffectService;
+  /** The module's logger; the transition engine warns through it. */
+  log?: PlatformLogger;
+  /**
    * Feature 027 §R5 — Redis client used by the cart-pricing-recompute
    * cache. When provided alongside `pricingService`, every full-cart
    * read re-resolves unit prices through PricingService with a 30 s
@@ -498,28 +508,19 @@ export function commerceModule(options: OrdersModuleOptions) {
 
     // Feature 038 — configurable lifecycle. The transition engine validates
     // against the DB-backed graph, runs veto guards, and emits the templated
-    // status events. Cancellation side-effects (release stock allocations +
-    // credit-limit reservation) are applied through the side-effects hook.
+    // status events. What a cancellation owes — the release of its stock
+    // allocations and of its credit-limit reservation — is no longer a hook
+    // run after the status has flushed: the engine records it in the
+    // transaction that writes the status and `transitionEffects` runs it
+    // (`specs/142-order-transition-atomicity/`).
     const orderStatusGraphService = new OrderStatusGraphService(options.emFactory, options.commandBus);
     const orderTransitionService = new OrderTransitionService(
       options.emFactory,
       options.eventBus,
       orderStatusGraphService,
-      async ({ order, to }) => {
-        if (to === 'cancelled') {
-          // D-179.3 — only an order placed against a credit limit holds a
-          // reservation, and `paymentMethodSnapshot.kind` is this module's own
-          // record of that. Asking the gated port about every cancellation is
-          // what made an operator who switched `credit_limits` off unable to
-          // cancel any order at all; an order that did draw credit still
-          // refuses, which is the half that must not be caught.
-          if (options.creditLimit && mayHoldCreditLimitReservation(order)) {
-            await options.creditLimit.releaseByOrder({ orderId: order.id, reason: 'order_cancelled' });
-          }
-          await orderService.releaseAllocations(order.id);
-        }
-      },
+      options.transitionEffects,
       options.auditLogService,
+      options.log,
     );
     // Feature 043 — hand the configured transition engine to composition so the
     // orders prompt-action tools reuse it (guards + cancel side-effects).
