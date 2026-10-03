@@ -282,6 +282,49 @@ describe('admin sales-channels CRUD + lifecycle (T029-T033)', () => {
     );
   });
 
+  it('PATCH adds a language to the system-default channel the reconciler created', async () => {
+    // The default channel here is the boot reconciler's own, created with the
+    // production fallbacks (no language override in the harness). A fresh shop
+    // must be able to add a language to it: the PATCH validates every listed
+    // code against the languages dictionary, so a reconciler language the
+    // dictionary does not hold refuses this with 409 DICTIONARY_ENTRY_NOT_FOUND.
+    const before = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/sales-channels/default',
+      cookies: adminCookie,
+    });
+    expect(before.statusCode).toBe(200);
+    const channel = before.json() as {
+      languages: string[];
+      defaultLanguage: string;
+      version: number;
+    };
+    expect(channel.languages).toEqual([channel.defaultLanguage]);
+
+    const r = await h.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/admin/sales-channels/default',
+      cookies: adminCookie,
+      payload: {
+        expectedVersion: channel.version,
+        languages: [channel.defaultLanguage, 'pl-PL'],
+      },
+    });
+    expect(r.statusCode, r.body).toBe(200);
+    const after = r.json() as { languages: string[]; defaultLanguage: string; version: number };
+    expect(after.languages).toEqual([channel.defaultLanguage, 'pl-PL']);
+    expect(after.defaultLanguage).toBe(channel.defaultLanguage);
+
+    // Put the channel back the way the other cases in this file expect it.
+    const restored = await h.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/admin/sales-channels/default',
+      cookies: adminCookie,
+      payload: { expectedVersion: after.version, languages: channel.languages },
+    });
+    expect(restored.statusCode, restored.body).toBe(200);
+  });
+
   it('PATCH version increments by exactly 1 on every success', async () => {
     await h.app.inject({
       method: 'POST',
