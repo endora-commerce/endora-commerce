@@ -371,6 +371,50 @@ export interface InstallOptions {
  * The containers and volumes that already carry a Compose project name on this
  * machine — empty when the name is free.
  */
+/**
+ * Add the instance's modules that publish a storefront layer to the storefront's
+ * `dependencies`, and answer which were added.
+ *
+ * **The version is the package's own, exactly** — the rule `new storefront`
+ * rewrites its `workspace:` ranges by (`new-storefront/rewrite.ts`, rule 1): a
+ * storefront is written from one release and pins it, so a module's renderers
+ * and the `cms-components` they are composed with cannot drift apart on the
+ * first install.
+ *
+ * A name the storefront already declares is left exactly as it is, and the
+ * block is re-sorted so the file a second tool rewrites does not reorder.
+ */
+function seedStorefrontModules(
+  storefrontDir: string,
+  instance: NewInstanceResult,
+  dryRun: boolean,
+): readonly string[] {
+  const publishing = instance.modules.ids
+    .map((id) => instance.modules.candidates.get(id))
+    .filter(
+      (candidate): candidate is NonNullable<typeof candidate> =>
+        candidate !== undefined && candidate.publishesStorefrontLayer && !candidate.carriedByHost,
+    );
+  if (publishing.length === 0) return [];
+  if (dryRun) return publishing.map((candidate) => candidate.packageName).sort();
+
+  const manifestPath = join(storefrontDir, 'package.json');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
+  const declared = { ...((manifest['dependencies'] ?? {}) as Record<string, string>) };
+  const added: string[] = [];
+  for (const candidate of publishing) {
+    if (declared[candidate.packageName] !== undefined) continue;
+    declared[candidate.packageName] = candidate.version;
+    added.push(candidate.packageName);
+  }
+  if (added.length === 0) return [];
+  manifest['dependencies'] = Object.fromEntries(
+    Object.entries(declared).sort(([left], [right]) => left.localeCompare(right)),
+  );
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  return added.sort();
+}
+
 export type ComposeProjectProbe = (name: string) => Promise<readonly string[]>;
 
 /** Is this host port taken? */
@@ -1925,6 +1969,25 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
       say(`    omitted ${omission.path} — ${omission.reason}`);
     }
     say(`  ${storefront.provenance}`);
+    // ── seed the storefront's Page Builder renderers (141, plan D12) ─────────
+    // One run wrote both trees, so it is the one moment the instance's module
+    // set and the storefront's manifest are in the same hands: every module of
+    // the instance that publishes a storefront layer joins the storefront's
+    // dependencies, and its `blocks:generate` registers them on the first
+    // build. Once — afterwards that manifest is its owner's (D-195), and
+    // `--only storefront` writes no instance to read a set from.
+    if (instance !== null) {
+      const seeded = seedStorefrontModules(storefrontDir, instance, dryRun);
+      if (seeded.length > 0) {
+        say(
+          `  ${dryRun ? 'would add' : 'added'} to the storefront's dependencies the ` +
+            `${String(seeded.length)} module package${seeded.length === 1 ? '' : 's'} of this ` +
+            `instance that publish${seeded.length === 1 ? 'es' : ''} a storefront layer, so ` +
+            `${seeded.length === 1 ? 'its' : 'their'} blocks render there: ${seeded.join(', ')}. ` +
+            'That manifest is the storefront owner\'s from here on.',
+        );
+      }
+    }
     if (!dryRun && storefrontPort !== null && storefrontPort.written !== null) {
       writeStorefrontPort(storefrontDir, storefrontPort.port, storefrontPort.written);
     }

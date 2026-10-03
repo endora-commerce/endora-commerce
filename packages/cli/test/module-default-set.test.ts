@@ -41,6 +41,7 @@ function candidate(id: string, overrides: Partial<ModuleCandidate> = {}): Module
   return {
     id,
     packageName: `${SCOPE}mod-${id}`,
+    publishesStorefrontLayer: false,
     version: '1.0.0',
     dependencies: [],
     acknowledged: [],
