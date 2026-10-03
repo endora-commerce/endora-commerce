@@ -185,7 +185,7 @@ calling `sweep()`.
 
 ## Phase 4 — docs, release, acceptance
 
-- [ ] **T18** [P] Documentation, handed to the product owner: `packages/modules/orders/docs/orders.md`
+- [x] **T18** [P] Documentation, handed to the product owner: `packages/modules/orders/docs/orders.md`
   (what an outstanding follow-up is; what happens with `inventory` or `credit_limits` off; the repair
   command and its dry run), `en` + `pl`; the upgrade note telling an operator to run the dry run.
   Files: as named; `check:module-docs`.
