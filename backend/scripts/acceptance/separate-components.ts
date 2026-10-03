@@ -81,6 +81,7 @@ import { publishablePackages } from '@endora-commerce/cli/lib/release-index.js';
 import { nodeWorkspaceFs, workspaceMembers } from '@endora-commerce/cli/lib/workspace-packages.js';
 
 import { resolveDatabaseTarget } from './assertions.js';
+import { adminPasswordFlag } from './instance-public-assertions.js';
 import { startLocalRegistry, tarballFrom, type LocalRegistry } from './local-registry.js';
 import {
   assertP1,
@@ -405,8 +406,7 @@ async function main(): Promise<number> {
     const administratorFlags = [
       '--admin-email',
       administrator.email,
-      '--admin-password',
-      administrator.password,
+      adminPasswordFlag(administrator.password),
       '--admin-first-name',
       administrator.firstName,
       '--admin-last-name',
@@ -419,7 +419,13 @@ async function main(): Promise<number> {
         timeoutMs: INSTALL_TIMEOUT_MS,
         quiet,
         shown: `npx --yes ${FRONT_DOOR}@${version} ${dir} --non-interactive ${flags
-          .map((flag, index) => (flags[index - 1] === '--admin-password' || flags[index - 1] === '--revalidate-secret' ? '…' : flag))
+          .map((flag, index) =>
+            flag.startsWith('--admin-password=')
+              ? '--admin-password=…'
+              : flags[index - 1] === '--revalidate-secret'
+                ? '…'
+                : flag,
+          )
           .join(' ')}`,
       });
 

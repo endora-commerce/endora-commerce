@@ -108,6 +108,7 @@ import { nodeWorkspaceFs, workspaceMembers } from '@endora-commerce/cli/lib/work
 
 import { resolveDatabaseTarget } from './assertions.js';
 import { instanceEnvValues } from './instance-assertions.js';
+import { adminPasswordFlag } from './instance-public-assertions.js';
 import { startLocalRegistry, tarballFrom, type LocalRegistry, type PackedTarball } from './local-registry.js';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -612,8 +613,7 @@ async function main(): Promise<number> {
       ...choices,
       '--admin-email',
       admin.email,
-      '--admin-password',
-      admin.password,
+      adminPasswordFlag(admin.password),
       '--admin-first-name',
       admin.firstName,
       '--admin-last-name',
@@ -623,7 +623,7 @@ async function main(): Promise<number> {
       cwd: work,
       env: environment,
       timeoutMs: INSTALL_TIMEOUT_MS,
-      shown: `npx --yes ${packageName}@${frontDoorTarball.version} ${dirName} --non-interactive ${choices.join(' ')} --admin-email ${admin.email} --admin-password … --admin-first-name ${admin.firstName} --admin-last-name ${admin.lastName}`,
+      shown: `npx --yes ${packageName}@${frontDoorTarball.version} ${dirName} --non-interactive ${choices.join(' ')} --admin-email ${admin.email} --admin-password=… --admin-first-name ${admin.firstName} --admin-last-name ${admin.lastName}`,
     });
     const tail = install.output.trim().split('\n').slice(-12).join(' | ');
 

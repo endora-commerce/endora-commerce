@@ -436,3 +436,40 @@ describe('`upgrade`', () => {
     }
   });
 });
+
+/**
+ * A password is the operator's, and a random one starts with `-` about one time
+ * in 64 (`base64url`). `parseArgs` reads `--admin-password -x…` as a flag
+ * missing its value and refuses it; the `=` form carries any value. The
+ * acceptance harnesses pass the `=` form for exactly this reason.
+ */
+describe('`--admin-password` with a value that starts with `-`', () => {
+  it('is carried through the `=` form', async () => {
+    const parent = mkdtempSync(join(tmpdir(), 'endora-cli-dash-password-'));
+    try {
+      // Both demo flags at once is a refusal the install verb makes after the
+      // parse — so reaching it proves the password was parsed as a value.
+      const result = await run(
+        ['install', join(parent, 'shop'), '--demo', '--no-demo', '--no-storefront', '--admin-password=-Xy_9-secret'],
+        parent,
+      );
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain('two answers to one question');
+      expect(result.stderr).not.toContain('ambiguous');
+      expect(existsSync(join(parent, 'shop'))).toBe(false);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('given as a separate argument, is refused with the form that works named', async () => {
+    const parent = mkdtempSync(join(tmpdir(), 'endora-cli-dash-password-'));
+    try {
+      const result = await run(['install', join(parent, 'shop'), '--admin-password', '-Xy_9-secret'], parent);
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("'--admin-password=-XYZ'");
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+});

@@ -131,6 +131,20 @@ ich nie zmienia:
 - Instalator `0.100.x` nie zmieniał zajętego portu, więc zanim cokolwiek uruchomisz, sprawdź, czy
   `.env` nie wskazuje bazy danych innego środowiska.
 
+### Instancje utworzone przed wydaniem 0.102.0 {#puck-rename}
+
+Wydanie `0.102.0` przeniosło Page Builder z `@measured/puck` na `@puckeditor/core` — Puck
+zmienił nazwę pakietu w wersji 0.21 — a aktualizacja nie zmienia tej nazwy w Twoich plikach. Gdy
+`pnpm run upgrade` się zakończy, zastąp `"@measured/puck"` wpisem
+`"@puckeditor/core": "^0.23.0"` w każdym `package.json`, który go deklaruje (w katalogu głównym
+instancji i w storefroncie), a w swoich plikach — w `app/`, `components/` i `test/` storefrontu
+oraz we wszystkim, co Twoje, w `admin/src` lub w module nakładkowym (overlay) — zmień importy
+`'@measured/puck'` na `'@puckeditor/core'` i `'@measured/puck/puck.css'` na
+`'@puckeditor/core/puck.css'`. Znajdzie je w każdym z drzew
+`grep -rl "@measured/puck" --exclude-dir=node_modules .`. Potem uruchom `pnpm install` w obu.
+Bez tej zmiany `pnpm run build` storefrontu kończy się błędem sprawdzania typów. Zapisane strony,
+bloki i szablony nie wymagają zmian.
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza
