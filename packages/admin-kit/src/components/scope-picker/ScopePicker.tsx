@@ -35,18 +35,47 @@ export interface ScopePickerProps {
   onChange: (value: ScopePickerValue) => void;
 }
 
+/**
+ * The languages a channel offers, or `null` while that is not known yet.
+ *
+ * A channel summary carries only its `defaultLanguage`; the full list arrives
+ * with the per-channel read. Answering with the default before that read lands
+ * is what lost a stored scope on 2026-10-03: a pruning effect took the default
+ * as the whole answer and wrote it back, so a page whose language was not the
+ * channel default opened with nothing selected and an empty canvas, and a page
+ * holding the default and another language lost the other one on its next
+ * save. `fallBack` is passed only once the read has failed, where the default
+ * is the best answer there will be.
+ */
 function languagesForChannel(
   channel: SalesChannelSummary,
   detailsByCode: Record<string, SalesChannelDetail>,
-): string[] {
+  fallBack: boolean,
+): string[] | null {
   const detail = detailsByCode[channel.code];
   if (detail?.languages?.length) return detail.languages;
+  if (!detail && !fallBack) return null;
   return channel.defaultLanguage ? [channel.defaultLanguage] : [];
+}
+
+/** The union of what `channels` offer, sorted, or `null` if any is still unknown. */
+function languagesOfChannels(
+  channels: SalesChannelSummary[],
+  detailsByCode: Record<string, SalesChannelDetail>,
+  fallBack: boolean,
+): string[] | null {
+  const out = new Set<string>();
+  for (const channel of channels) {
+    const languages = languagesForChannel(channel, detailsByCode, fallBack);
+    if (languages === null) return null;
+    for (const language of languages) out.add(language);
+  }
+  return Array.from(out).sort();
 }
 
 export function ScopePicker({ value, onChange }: ScopePickerProps): ReactNode {
   const t = useTranslation('core');
-  const [channels, setChannels] = useState<SalesChannelSummary[]>([]);
+  const [channels, setChannels] = useState<SalesChannelSummary[] | null>(null);
   const [detailsByCode, setDetailsByCode] = useState<Record<string, SalesChannelDetail>>({});
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +95,7 @@ export function ScopePicker({ value, onChange }: ScopePickerProps): ReactNode {
 
   useEffect(() => {
     let cancelled = false;
+    if (!channels) return;
     const missing = channels.filter(
       (channel) => value.salesChannelIds.includes(channel.id) && !detailsByCode[channel.code],
     );
@@ -89,61 +119,69 @@ export function ScopePicker({ value, onChange }: ScopePickerProps): ReactNode {
   }, [channels, detailsByCode, value.salesChannelIds]);
 
   const selectedChannels = useMemo(
-    () => channels.filter((channel) => value.salesChannelIds.includes(channel.id)),
+    () => channels?.filter((channel) => value.salesChannelIds.includes(channel.id)) ?? null,
     [channels, value.salesChannelIds],
   );
 
+  /** A failed read stops the wait: the defaults are all there is to offer. */
+  const fallBack = error !== null;
+
+  /**
+   * The languages the selected channels offer, or `null` while any of them is
+   * still being read. Nothing is derived from a partial answer.
+   */
   const allowedLanguages = useMemo(() => {
-    const out = new Set<string>();
-    for (const channel of selectedChannels) {
-      for (const language of languagesForChannel(channel, detailsByCode)) {
-        out.add(language);
-      }
-    }
-    return Array.from(out).sort();
-  }, [detailsByCode, selectedChannels]);
+    if (selectedChannels === null) return fallBack ? [] : null;
+    return languagesOfChannels(selectedChannels, detailsByCode, fallBack);
+  }, [detailsByCode, fallBack, selectedChannels]);
 
-  useEffect(() => {
-    if (value.salesChannelIds.length === 0 || allowedLanguages.length === 0) return;
-
-    const allowed = new Set(allowedLanguages);
-    const pruned = value.languages.filter((language) => allowed.has(language));
-    if (pruned.length === value.languages.length) return;
-
-    onChange({
-      salesChannelIds: value.salesChannelIds,
-      languages: pruned,
-    });
-  }, [allowedLanguages, onChange, value.languages, value.salesChannelIds]);
+  /**
+   * What the operator is offered: the channels' languages plus every language
+   * the stored scope already holds. The picker never prunes a stored scope on
+   * its own — a language the channels no longer offer stays visible and
+   * checked, so the operator sees it and is the one who takes it out. Writing a
+   * normalised scope back without a user action is exactly how a scope used to
+   * be lost before anybody touched it.
+   */
+  const offeredLanguages = useMemo(() => {
+    if (allowedLanguages === null) return null;
+    return Array.from(new Set([...allowedLanguages, ...value.languages])).sort();
+  }, [allowedLanguages, value.languages]);
 
   const setChannel = useCallback(
     (channelId: string, checked: boolean) => {
+      if (!channels) return;
       const channel = channels.find((item) => item.id === channelId);
       const nextChannels = checked
         ? Array.from(new Set([...value.salesChannelIds, channelId]))
         : value.salesChannelIds.filter((id) => id !== channelId);
 
-      const nextAllowed = new Set<string>();
-      for (const selected of channels) {
-        if (!nextChannels.includes(selected.id)) continue;
-        for (const language of languagesForChannel(selected, detailsByCode)) {
-          nextAllowed.add(language);
-        }
-      }
+      // Languages are pruned against the next channel set only when every
+      // channel in it is known; an unknown channel could be the one offering a
+      // language the scope holds.
+      const nextAllowed = languagesOfChannels(
+        channels.filter((item) => nextChannels.includes(item.id)),
+        detailsByCode,
+        fallBack,
+      );
 
       let nextLanguages =
         nextChannels.length === 0
           ? []
-          : value.languages.filter((language) => nextAllowed.has(language));
+          : nextAllowed === null
+            ? value.languages
+            : value.languages.filter((language) => nextAllowed.includes(language));
 
       if (checked && channel && nextLanguages.length === 0) {
-        const defaults = languagesForChannel(channel, detailsByCode);
+        // The channel's first language once known, its default meanwhile —
+        // the default is always one of the channel's languages.
+        const defaults = languagesForChannel(channel, detailsByCode, true) ?? [];
         if (defaults[0]) nextLanguages = [defaults[0]];
       }
 
       onChange({ salesChannelIds: nextChannels, languages: nextLanguages });
     },
-    [channels, detailsByCode, onChange, value.languages, value.salesChannelIds],
+    [channels, detailsByCode, fallBack, onChange, value.languages, value.salesChannelIds],
   );
 
   const setLanguage = useCallback(
@@ -173,7 +211,7 @@ export function ScopePicker({ value, onChange }: ScopePickerProps): ReactNode {
         ) : null}
 
         <div className="grid gap-2">
-          {channels.map((channel) => (
+          {(channels ?? []).map((channel) => (
             <label key={channel.id} className="flex items-center gap-2 text-sm">
               <Checkbox
                 checked={value.salesChannelIds.includes(channel.id)}
@@ -190,23 +228,28 @@ export function ScopePicker({ value, onChange }: ScopePickerProps): ReactNode {
         <div className="space-y-2">
           <Label>{t('scopePicker.languages')}</Label>
           <div className="flex flex-wrap gap-2">
-            {allowedLanguages.map((language) => (
-              <label
-                key={language}
-                className="flex items-center gap-2 rounded border px-3 py-2 text-sm"
-              >
-                <Checkbox
-                  checked={value.languages.includes(language)}
-                  onChange={(event) => setLanguage(language, event.target.checked)}
-                />
-                <span>{language}</span>
-              </label>
-            ))}
             {!hasSelectedChannels ? (
               <p className="text-sm text-muted-foreground">{t('scopePicker.selectChannel')}</p>
-            ) : allowedLanguages.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t('scopePicker.loadingLanguages')}</p>
-            ) : null}
+            ) : offeredLanguages === null ? (
+              // Loading is said, not shown as a row of unchecked boxes: an
+              // empty selection would read as "this content has no language".
+              <p className="text-sm text-muted-foreground" role="status">
+                {t('scopePicker.loadingLanguages')}
+              </p>
+            ) : (
+              offeredLanguages.map((language) => (
+                <label
+                  key={language}
+                  className="flex items-center gap-2 rounded border px-3 py-2 text-sm"
+                >
+                  <Checkbox
+                    checked={value.languages.includes(language)}
+                    onChange={(event) => setLanguage(language, event.target.checked)}
+                  />
+                  <span>{language}</span>
+                </label>
+              ))
+            )}
           </div>
         </div>
       </CardContent>
