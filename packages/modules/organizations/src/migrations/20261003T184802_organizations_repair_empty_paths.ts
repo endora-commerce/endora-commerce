@@ -37,10 +37,22 @@ import { Migration } from '@mikro-orm/migrations';
  *
  * A well-formed row is not written at all (`is distinct from`), so on a tree
  * nobody damaged — and on a fresh database, which holds no organization yet —
- * this is a no-op, and a second run matches nothing. `version` is left alone,
- * as the re-parent Command's own subtree rewrite leaves it: `path` is derived
- * state no admin form submits, so there is no edit in flight for a bump to
- * protect.
+ * this is a no-op, and a second run matches nothing.
+ *
+ * Each repaired row gets its `version` bumped by one and `updated_at` set, so
+ * an admin form still holding the old version is refused rather than writing
+ * over a row this changed underneath it.
+ *
+ * ## Why no `check ("path" <> '')`
+ *
+ * The constraint was considered and left out. The column's default is `''`,
+ * and an `insert` that names no `path` is how other statements already create
+ * organizations — `customer_accounts`' migration that provisions a personal
+ * organization per account is one, and it is ordered *after* this module's
+ * migrations on an instance that has yet to run it. A constraint here would
+ * turn that insert into a failed upgrade. What protects the tree instead is
+ * that every reader in `OrganizationTreeService` judges a path before using it
+ * as a prefix (`isReadableTreePath`).
  */
 export class Migration20261003T184802OrganizationsRepairEmptyPaths extends Migration {
   override async up(): Promise<void> {
@@ -55,7 +67,9 @@ export class Migration20261003T184802OrganizationsRepairEmptyPaths extends Migra
            join "tree" t on c."parent_id" = t."id"
        )
        update "organizations" o
-          set "path" = t."path"
+          set "path" = t."path",
+              "version" = o."version" + 1,
+              "updated_at" = now()
          from "tree" t
         where o."id" = t."id"
           and o."path" is distinct from t."path";`,

@@ -13,5 +13,6 @@
   "errors.ORGANIZATION_TREE_INVALID": "The requested organization move is invalid (it would create a cycle or exceed the maximum depth).",
   "errors.ORGANIZATION_TREE_INVALID.cycle": "The chosen parent is inside this organization's own subtree, so the move would create a cycle. Pick a parent outside it.",
   "errors.ORGANIZATION_TREE_INVALID.max_depth_exceeded": "The move would take the organization tree past its maximum depth of {maxDepth} levels. Move the branch higher up, or flatten part of it first.",
+  "errors.ORGANIZATION_TREE_INVALID.path_unreadable": "The stored tree position of organization {organizationId} cannot be read, so it cannot be moved or chosen as a parent. This is a fault in that organization's record rather than in your choice; ask an administrator to repair it.",
   "errors.ORG_OWNER_DEPLETION": "This account is the organization's last active administrator, so it cannot be deleted, blocked or moved out. Give the administrator role to another member first."
 }

@@ -72,10 +72,15 @@ describe('organizations — repairing rows stored with an empty path', () => {
     const a = await insertOrganization('');
     const b = await insertOrganization('');
 
+    const versionBefore = (await row(a)).version;
+
     await runMigration();
 
     expect((await row(a)).path).toBe(`/${a}/`);
     expect((await row(b)).path).toBe(`/${b}/`);
+    // Bumped, so a form holding the old version is refused instead of writing
+    // over the repaired row.
+    expect((await row(a)).version).toBe(versionBefore + 1);
   });
 
   it('rebuilds the subtree that was hung under an empty-path parent', async () => {
