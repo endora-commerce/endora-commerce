@@ -141,6 +141,27 @@ interface Verdict {
  * `quality`.
  */
 const SCRIPTS_NO_JOB_RUNS: Readonly<Record<string, Verdict>> = {
+  'backend::acceptance:block-renderers': {
+    kind: 'local-operation',
+    reason:
+      'It builds and packs a synthetic third-party module outside the repository and stands it ' +
+      'up on all three surfaces: a scaffolded storefront built with `next build`, the composed ' +
+      'platform booted against the tarball with the module switched on, off and on again, and ' +
+      'an instance scaffolded by `endora new instance`, installed from a local registry and ' +
+      'built with Vite (`specs/141-module-block-renderers/`, contract §9). It needs a disposable ' +
+      'database and Redis, network access for the scaffolds\' own dependencies, and about ' +
+      'twenty minutes, and it exits on the criterion\'s own colour. No job provides those ' +
+      'services for it; it is run by hand, as `acceptance:separate-components` is.',
+  },
+  'backend::acceptance:block-renderers:ci': {
+    kind: 'local-operation',
+    reason:
+      'The same run, compared in both directions to ' +
+      '`backend/acceptance/block-renderers-expected-state.json` — the form a pipeline can hold a ' +
+      'branch to. It is declared so that the job which eventually provides the services has a ' +
+      'ratchet to run rather than a colour; until a job does, it is the same local operation as ' +
+      'the bare form and is listed here rather than claimed as a gate.',
+  },
   'backend::acceptance:instance': {
     kind: 'superseded',
     coveredBy: 'backend::acceptance:instance:ci',

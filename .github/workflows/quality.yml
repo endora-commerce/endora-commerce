@@ -138,6 +138,7 @@ jobs:
           pnpm --filter backend run check:bundle-pairing
           pnpm --filter backend run check:env-inputs
           pnpm --filter backend run check:block-names
+          pnpm --filter backend run check:block-renderers
           pnpm --filter backend run check:class-vocabulary
           pnpm --filter backend run check:off-state-coverage
           pnpm --filter backend run check:test-ownership

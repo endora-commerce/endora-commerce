@@ -20,11 +20,10 @@ import {
   type TransactionalSendOutcome,
 } from '@endora-commerce/contracts';
 import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
-import { EMAIL_SAFE_COMPONENT_NAMES } from '@endora-commerce/email-components/schema/component-types';
-import { walkUnknownComponents } from '@endora-commerce/email-components/tree/walk-embeds';
-import { renderEmailHtml } from '@endora-commerce/email-components/render/render-email-html';
-import { renderEmailText } from '@endora-commerce/email-components/render/render-email-text';
-import { renderDirectives } from '@endora-commerce/email-components/directives/directive-engine';
+import type {
+  EmailBlockFailureReporter,
+  EmailBlockRenderers,
+} from '@endora-commerce/email-components/render/block-renderers';
 import { HttpError } from '@endora-commerce/platform/http';
 import type {
   EmailDeliveryRecorder,
@@ -40,8 +39,13 @@ import type { BrandingService} from './branding.service.js';
 import { type ResolvedBranding } from './branding.service.js';
 import type { EmbedResolver } from './embed-resolver.js';
 import type { EmailDefaultsRegistry } from './email-defaults-registry.js';
+import {
+  FIRST_PARTY_EMAIL_NAMES,
+  unknownEmailComponents,
+  type EmailSafeNames,
+} from './email-safe-components.js';
+import { renderTransactionalEmail } from './render-transactional-email.js';
 
-const KNOWN_COMPONENTS: ReadonlySet<string> = new Set(EMAIL_SAFE_COMPONENT_NAMES);
 
 /**
  * A missing transport is a deployment fact, not a per-message one: it holds for
@@ -91,6 +95,16 @@ export interface TransactionalEmailServiceDeps {
    */
   deliveryRecorder?: EmailDeliveryRecorder;
   auditLog?: AuditPort;
+  /**
+   * The e-mail block renderers the composed modules contributed (feature 141),
+   * read on every render so a module switched off — or back on — changes the
+   * next message. Absent: only the first-party blocks render, as before.
+   */
+  blockRenderers?: () => EmailBlockRenderers;
+  /** Told about a contributed block that threw. The message still renders. */
+  onBlockFailure?: EmailBlockFailureReporter;
+  /** The block names saved content may hold. Absent: the first-party set alone. */
+  emailSafeNames?: EmailSafeNames;
 }
 
 export class TransactionalEmailService implements TransactionalEmailSender {
@@ -102,6 +116,9 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   private readonly mailer: EmailMailerPort | undefined;
   private readonly deliveryRecorder: EmailDeliveryRecorder | undefined;
   private readonly auditLog: AuditPort | undefined;
+  private readonly blockRenderers: (() => EmailBlockRenderers) | undefined;
+  private readonly onBlockFailure: EmailBlockFailureReporter | undefined;
+  private readonly emailSafeNames: EmailSafeNames;
 
   constructor(deps: TransactionalEmailServiceDeps) {
     this.emFactory = deps.emFactory;
@@ -112,6 +129,9 @@ export class TransactionalEmailService implements TransactionalEmailSender {
     this.mailer = deps.mailer;
     this.deliveryRecorder = deps.deliveryRecorder;
     this.auditLog = deps.auditLog;
+    this.blockRenderers = deps.blockRenderers;
+    this.onBlockFailure = deps.onBlockFailure;
+    this.emailSafeNames = deps.emailSafeNames ?? FIRST_PARTY_EMAIL_NAMES;
   }
 
   // --- Sending (port) -----------------------------------------------------
@@ -230,22 +250,16 @@ export class TransactionalEmailService implements TransactionalEmailSender {
     scope: { salesChannelId: string | null; language: string; fallbackLanguage?: string },
   ): Promise<RenderResult> {
     const embeds = await this.embeds.resolve(em, resolved.content, scope);
-    const ctx: Record<string, unknown> = {
-      ...variables,
-      branding: { logoUrl: branding.logoUrl, accentColor: branding.accentColor },
-    };
-    const html = renderDirectives(
-      renderEmailHtml(resolved.content, {
-        embeds,
-        accentColor: branding.accentColor,
-        language: scope.language,
-      }),
-      ctx,
-      { escape: true },
-    );
-    const text = renderDirectives(renderEmailText(resolved.content, { embeds }), ctx);
-    const subject = renderDirectives(resolved.subject, ctx);
-    return { subject, html, text };
+    return renderTransactionalEmail({
+      subject: resolved.subject,
+      content: resolved.content,
+      embeds,
+      branding,
+      variables,
+      language: scope.language,
+      ...(this.blockRenderers ? { blockRenderers: this.blockRenderers } : {}),
+      ...(this.onBlockFailure ? { onBlockFailure: this.onBlockFailure } : {}),
+    });
   }
 
   // --- Admin: list / detail ----------------------------------------------
@@ -361,12 +375,12 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   // --- Admin: save / reset -----------------------------------------------
 
   private validateContent(content: PuckDataTree): void {
-    const unknown = walkUnknownComponents(content, KNOWN_COMPONENTS);
-    if (unknown.size > 0) {
+    const unknown = unknownEmailComponents(content, this.emailSafeNames());
+    if (unknown.length > 0) {
       throw new HttpError(
         400,
         ERROR_CODES.VALIDATION_FAILED,
-        `Email content contains non-email-safe components: ${[...unknown].join(', ')}`,
+        `Email content contains non-email-safe components: ${unknown.join(', ')}`,
       );
     }
   }

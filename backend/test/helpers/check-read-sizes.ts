@@ -7630,6 +7630,24 @@ export const RECORDED_READ_SIZES: Readonly<Record<string, RecordedReadSize>> = {
     // disagrees with it in the same run.
     sources: ['manifest-index', 'design-system', 'module-admin'],
   },
+  'backend/scripts/check-block-renderers.ts': {
+    prefix: '[block-renderers]',
+    run: { kind: 'tsx', path: 'scripts/check-block-renderers.ts', args: [] },
+    // Every file a package's description opened: its `package.json`, every source
+    // of an admin layer it publishes (read for `blocks` contributions), and — for
+    // a package that ships a renderer layer — its manifest, the layers and the
+    // stylesheet. It moves with the admin layers of the module set, which is most
+    // of the number, and with the acceptance fixture that ships all three layers.
+    files: 432,
+    // Renderer claims judged: one per storefront key, e-mail key and admin
+    // `blocks` entry. Today all four are the acceptance fixture's one block.
+    sites: 4,
+    // `renderer-layers` is this check's own second author for *"how many layers
+    // do the packages declare"* against how many were read, and it is the one
+    // that goes to zero — and exits 2 — if the fixture's layers stop being
+    // reachable.
+    sources: ['manifest-index', 'renderer-layers'],
+  },
   'backend/scripts/check-bundle-pairing.ts': {
     prefix: '[bundle-pairing]',
     run: { kind: 'tsx', path: 'scripts/check-bundle-pairing.ts', args: [] },

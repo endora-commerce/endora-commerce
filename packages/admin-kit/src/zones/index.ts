@@ -31,8 +31,11 @@ export {
 export type {
   AdminContributionsProviderProps,
   AdminZoneRegistryEntry,
+  OwnedBlockContribution,
   OwnedZoneContribution,
 } from './AdminContributionsProvider.js';
+export { selectBlockContributions, useBlockContributions } from './use-block-contributions.js';
+export type { BlockContributionContext } from './use-block-contributions.js';
 export { matchesZoneProps, selectZoneContributions, useAdminZone } from './use-admin-zone.js';
 export { ZoneErrorBoundary } from './ZoneErrorBoundary.js';
 export type { ZoneErrorBoundaryProps } from './ZoneErrorBoundary.js';

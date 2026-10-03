@@ -35,6 +35,12 @@ import {
 import { declaresRegisterModule } from '../lib/module-roots.js';
 import { providedPortNames } from '../lib/port-registrations.js';
 import { readSizeRefusal, type ReadCoverage, type ReadSizeInput } from '../lib/read-size.js';
+import {
+  checkBlockRenderers,
+  declaredLayerCount,
+  describeBlockRendererPackage,
+  PREFIX as BLOCK_RENDERERS_PREFIX,
+} from '../rules/block-renderers.js';
 import { checkBundlePairing, type ModuleUnderCheck } from '../rules/bundle-pairing.js';
 import {
   analyzeSource as commandCoverageAnalyse,
@@ -295,6 +301,82 @@ const nulBytes: PackageRuleHost = (layout) => {
         `${finding.count} raw NUL byte(s). Git classifies the file as binary, so every diff ` +
         `of it reads "Binary files differ" and the file stops being reviewable. Spell the ` +
         `byte as \`\\0\` — the same byte at runtime, and the diff comes back.`,
+    })),
+  );
+};
+
+/* ---------------------------------------------------------- block-renderers */
+
+/**
+ * A package's Page Builder renderers stay in their lane
+ * (`specs/141-module-block-renderers/`, plan D11).
+ *
+ * The subject is the package's own declaration: an `exports` subpath publishing
+ * a storefront layer, an e-mail layer or a block stylesheet, or a `blocks`
+ * contribution in its admin layer. A package with none of them draws no block
+ * and is `not-applicable`. A package that claims a renderer and whose manifest
+ * this run cannot read is `unreadable` rather than clean: the manifest's
+ * `blocks` is what a claim is judged against.
+ */
+const blockRenderers: PackageRuleHost = (layout) => {
+  const id = 'check:block-renderers';
+  const pkg = describeBlockRendererPackage(layout.packageRoot);
+  if (pkg === null) {
+    return unreadable(
+      id,
+      `${layout.packageRoot} could not be read as a module package: its \`package.json\` ` +
+        `declares no \`endora: { "type": "module", "id": … }\`.`,
+      null,
+    );
+  }
+
+  const result = checkBlockRenderers([pkg]);
+  const declared = declaredLayerCount(pkg);
+  if (declared === 0 && result.claims === 0 && result.findings.length === 0) {
+    return notApplicable(id, absentDeclaration(entryOf(id)));
+  }
+
+  const readSize: ReadSizeInput = {
+    prefix: BLOCK_RENDERERS_PREFIX,
+    files: pkg.filesRead.length,
+    sites: result.claims,
+    // Omitted, never `0/0`, for a package whose only claim is an admin
+    // contribution: it declares no layer for a walk to be held to.
+    ...(declared === 0
+      ? {}
+      : { coverage: [{ source: PACKAGE_EXPORTS, expected: declared, covered: result.layersRead }] }),
+  };
+
+  if (result.missingStylesheets.length > 0) {
+    return unreadable(
+      id,
+      `the package's \`exports\` map declares \`./blocks.css\` and the file is not there ` +
+        `(${result.missingStylesheets.map((path) => layout.keyOf(path)).join(', ')}). Build the ` +
+        `stylesheet, or withdraw the declaration.`,
+      readSize,
+    );
+  }
+  if (result.unreadableManifests.length > 0) {
+    return unreadable(
+      id,
+      `the package contributes a block renderer and the \`blocks\` its module manifest declares ` +
+        `could not be read — as a literal array in the manifest at the package's root ` +
+        `\`exports\` target or its source. A renderer is judged against that declaration, so ` +
+        `this run cannot answer without it.`,
+      readSize,
+    );
+  }
+  const short = readSizeOrShortWalk(id, readSize);
+  if (!short.ok) return short.result;
+
+  return ran(
+    id,
+    readSize,
+    result.findings.map((finding) => ({
+      rule: id,
+      key: `${finding.kind}|${layout.keyOf(finding.path)}|${String(finding.line)}`,
+      location: `${layout.keyOf(finding.path)}:${String(finding.line)}`,
+      message: `${finding.kind}: ${finding.detail}`,
     })),
   );
 };
@@ -1681,6 +1763,7 @@ export const PACKAGE_HOSTS: ReadonlyMap<string, PackageRuleHost> = new Map<
 >([
   ['channel:resolution', channelResolution],
   ['check-entity-tenant-classification', entityTenantClassification],
+  ['check:block-renderers', blockRenderers],
   ['check:bundle-pairing', bundlePairing],
   ['check:command-coverage', commandCoverage],
   ['check:container-imports', containerImports],

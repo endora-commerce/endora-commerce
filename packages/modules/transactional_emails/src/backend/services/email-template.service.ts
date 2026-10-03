@@ -13,20 +13,21 @@ import {
   type PutEmailBlockContentRequest,
 } from '@endora-commerce/contracts';
 import type { PuckDataTree } from '@endora-commerce/email-components/schema/envelope';
-import { EMAIL_SAFE_COMPONENT_NAMES } from '@endora-commerce/email-components/schema/component-types';
-import { walkUnknownComponents } from '@endora-commerce/email-components/tree/walk-embeds';
+import {
+  FIRST_PARTY_EMAIL_NAMES,
+  unknownEmailComponents,
+  type EmailSafeNames,
+} from './email-safe-components.js';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { EmailTemplate } from '../entities/email-template.entity.js';
 import { EmailTemplateSalesChannel } from '../entities/email-template-sales-channel.entity.js';
 
-const KNOWN: ReadonlySet<string> = new Set(EMAIL_SAFE_COMPONENT_NAMES);
-
-function validateTree(content: unknown): void {
-  const unknown = walkUnknownComponents(content, KNOWN);
-  if (unknown.size > 0) {
-    throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `Non-email-safe components: ${[...unknown].join(', ')}`);
+function validateTree(content: unknown, names: ReadonlySet<string>): void {
+  const unknown = unknownEmailComponents(content, names);
+  if (unknown.length > 0) {
+    throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `Non-email-safe components: ${unknown.join(', ')}`);
   }
 }
 
@@ -34,6 +35,8 @@ export class EmailTemplateService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly auditLog?: AuditPort,
+    /** The block names saved content may hold; the first-party set when not composed. */
+    private readonly emailSafeNames: EmailSafeNames = FIRST_PARTY_EMAIL_NAMES,
   ) {}
 
   #audit(
@@ -148,7 +151,7 @@ export class EmailTemplateService {
   }
 
   async setContent(id: string, language: string, req: PutEmailBlockContentRequest): Promise<EmailTemplateDetail> {
-    validateTree(req.content);
+    validateTree(req.content, this.emailSafeNames());
     const em = this.emFactory();
     const t = await this.loadOrThrow(em, id);
     if (req.expectedVersion !== t.version) {

@@ -51,6 +51,36 @@ it is not released with. **Cost accepted, and measured first (T00)**: the storef
 module package's required backend peers (spec Q1). Bundle size is unaffected — Next bundles what
 `./storefront` imports, and `check:block-renderers` keeps that to contract §2.3.
 
+*Measured (T00, 2026-10-03, on `fe0803f2e`; pnpm 9.15.0, Node 22, Linux x64)*: a storefront
+scaffolded by `endora new storefront` outside the repository, with its three release packages
+(`cms-components`, `contracts`, `page-builder-core`) packed and pinned the way
+`acceptance:storefront-scaffold`'s tarball route pins them.
+
+| | `node_modules` (`du -sk`) | entries under `node_modules/.pnpm` | files |
+| --- | --- | --- | --- |
+| scaffold alone | 876 512 KB (856 MB) | 465 | 30 292 |
+| + packed `@endora-commerce/mod-blog` and its required peers | 930 708 KB (909 MB) | 640 | 38 755 |
+| delta | **+54 196 KB (+53 MB, +6.2%)** | **+175** | +8 463 |
+
+The peers pnpm auto-installed on `pnpm add <mod-blog tarball>`: `@mikro-orm/core`,
+`@mikro-orm/migrations`, `@mikro-orm/postgresql`, `fastify`, `ioredis` (`zod`, `react`,
+`@puckeditor/core`, `contracts` and `page-builder-core` were already there) — +127 entries,
++33 MB. `@endora-commerce/platform` was **not** auto-installed in that run, and that is an artefact
+of the measurement rather than a property of the package: the tarball route rewrites the peer range
+to a `file:` specifier, which pnpm reports as a missing peer instead of fetching. It was added
+explicitly to stand in for what a registry install does, and brought its own closure (`bullmq`,
+`argon2` — a native addon with a prebuilt binary —, `pino`, `pino-pretty`, `awilix`, five
+`@fastify/*` plugins, `@asteasolutions/zod-to-openapi`): +48 entries, +21 MB. The largest single
+additions are `lodash` and `luxon` (under 5 MB each, both through `@mikro-orm/*`/`bullmq`).
+
+*Reading*: +6% of an install that is already 856 MB, and it is paid **once** — every further module
+package shares the same backend peers, so the second module costs its own files only. Nothing of it
+reaches the browser bundle. That is not a weight that justifies changing `manifests:generate` for
+every module package, so the generator rule of spec Q1 is **not** applied and the feature proceeds
+on one package per module with required peers. What the number does not cover, and a storefront
+owner may still weigh: `argon2` is a native addon (an install on a platform without a prebuilt
+binary compiles it), and the install prints peer warnings for the optional admin-side peers.
+
 **D3 — The admin reuses the generated contribution registry.**
 *Decision*: `AdminContributions.blocks?` (contract §4); no new artefact.
 *Rationale*: the owner asked to reuse the mechanism admin surfaces already use, and it fits without
@@ -207,3 +237,110 @@ on a thrown error (T01); (2) the storefront install delta of one module package 
 Branch off `origin/master`; regenerate and commit generated artefacts in the same pull request
 (`composer:generate`, `blocks:generate`); one changeset per touched package; no AI attribution in
 commits or pull-request text.
+
+## Deviations recorded during implementation (2026-10-03)
+
+The spec's premises were measured on `a76210cc3` and implemented on `fe0803f2e`. Where the tree or
+a measurement disagreed with the plan, the tree was followed; each case is listed here so the
+contract and the code are read together.
+
+**Shapes**
+
+1. **`BlockPresence` is `{ absent: string[] }`, not `{ all: true } | { ids: string[] }`** (contract
+   §2, §7). The storefront's presence projection lists the modules the *manifest index* knows, and
+   an overlay module's id is not among them. Inferring absence from "not in the list of present
+   ids" would switch off every overlay module's block — the case US5 exists for. Absence is
+   therefore reported, never inferred: an owner the backend does not list is honoured, the same
+   tri-state the e-mail registry's probe has. It is also the smaller payload across the
+   `'use client'` boundary. One consequence is stated in the type: a module package installed in a
+   storefront whose backend does not compose that module is honoured too.
+2. **`withBlockBoundary(config, placeholder, options?)`**, not `(config, name, owner)` (contract
+   §8). `page-builder-core` sits below `cms-components`, which owns the placeholder, so the
+   placeholder is a parameter; the "one export" the plan expected from `cms-components` was not
+   needed. The module's `render` is **mounted as a component** under the two boundaries instead of
+   being called inside `try`/`catch`: a top-level throw is then a throw below the boundary like
+   any other (T01 measured `<Suspense>` isolating it on the server), and the module's hooks belong
+   to its own component rather than to the wrapper.
+3. **`BlockRenderFunction`** — `StorefrontBlockConfig` and `PageBuilderBlockEditorConfig` type
+   `render` as `(props: any) => ReactNode` rather than Puck's `PuckComponent`. Found by the
+   fixture: Puck's type refuses a component whose own props are all optional, which a block's must
+   be.
+4. **`EmailBlockRendererRegistryPort<R>` is generic and lives in `contracts`**; the renderer shape
+   stays in `email-components`, which `contracts` cannot depend on. `register` **reports** a
+   refused name and does not throw — it is called from a boot hook, and one wrong name in one
+   installed package must not stop the platform.
+5. **`fieldsFromDescriptor`**: a declaration says a field is an `array` or an `object` and not of
+   what, so those are edited as JSON; `external` and `uuid` are text until the owning module
+   contributes a picker; `richtext` is a textarea over the stored HTML string.
+
+**Surfaces**
+
+6. **The storefront threads presence once, through `BlockRenderScope` in the root layout**, rather
+   than as a prop to each of the five render sites (T13). Page Builder content is rendered from
+   places with no server context — a megamenu panel inside a client drawer — and the three sites
+   that mounted Puck's `<Render>` themselves now go through `PageBuilderRender`. Presence is still
+   required: a render site with neither a scope nor its own `presence` throws.
+7. **D8 applies to the e-mail editor as well as the CMS editor.** A declared e-mail block with no
+   contributed renderer — an overlay module's, whose renderer exists only in its backend — is
+   editable from its declared fields; it is not previewed.
+8. **The e-mail pane reads the preview sentence from its caller's bundle by context**
+   (`newsletter` or `transactional_emails`), since `page-builder-admin` owns no bundle.
+9. **Two helpers were extracted to make the send paths testable without a database**:
+   `renderTransactionalEmail` (the pure half of `renderWith`) and `emailBlockRendering` in
+   `email-components`, which both producers build their renderer options with.
+10. **`blocks:generate` refuses a storefront layer with no type declarations** (`untyped-layer`).
+    Found by the acceptance run: the generated registry imports the layer from TypeScript, and an
+    untyped module fails `next build` with TS7016. Contract §1 should say a layer publishes its
+    declarations.
+
+**Tests and tooling**
+
+11. T08's test is `admin/test/kit/use-block-contributions.test.tsx`: `admin-kit` has no test runner
+    of its own and its tests are run from the admin application.
+12. `page-builder-core` gains `react-dom` and `@types/react-dom` as **dev** dependencies, for the
+    SSR test of the block boundary. No runtime dependency was added anywhere.
+13. `check:block-renderers`' repository host reads the module packages under `backend/acceptance/`
+    as well as the registered modules — no registered module ships a renderer layer yet, and a
+    rule over an empty subject is green for no reason. Its `residueGuard` is
+    `deferred-shared-proof`, with the measurement and the retiring condition in
+    `DEFERRED_SHARED_PROOFS`. The rule reads block names and contexts as **literals**; a computed
+    renderer key escapes it and is refused again at run time by every surface.
+14. **T21 measures every assertion, split by where it is measured.** The storefront half is a
+    scaffolded storefront; the platform half is `acceptance:package-schema`'s arrangement — the
+    tarball installed outside the repository, the real composition root booted against it, the
+    module switched on, off and on again, and the admin's own routes asked for a transactional
+    preview, a newsletter preview and the descriptor; the admin half is an instance scaffolded by
+    `endora new instance`, installed from a **local registry** and built with Vite, with a probe
+    bundled by that instance's own Vite composing the editors from its generated registry. All
+    sixteen pass (2026-10-04). `endora check` is run over the fixture's built package directory
+    rather than over the unpacked tarball, which carries no build layout. The instance is
+    installed from a registry rather than through `pnpm.overrides`: a peer range rewritten to a
+    tarball is one pnpm reports unmet instead of linking, and the admin build then cannot resolve
+    an optional peer. No CI job runs the criterion; both scripts are classified
+    `local-operation`.
+
+**Found by the acceptance run, and repaired here**
+
+14a. **Saved e-mail content was held to a closed list.** `transactional_emails` validated content,
+    e-mail blocks and e-mail templates against the names `email-components` draws itself, so a
+    block another module declared for `email` could be rendered and never saved. The admitted set
+    is now the built-in blocks, every block a composed manifest declares for `email`, and every
+    registered renderer — declared rather than present, so a document holding a switched-off
+    module's node still saves.
+14b. **A package with `./admin` must publish `./tailwind.css`.** `endora generate` refuses an admin
+    layer without it — an existing rule the fixture did not meet. The fixture now ships one, and
+    the documentation states it.
+
+**Not done, and outside the task list**
+
+15. `manifests:generate` does not render `./storefront`, `./email` or `./blocks.css` into a
+    workspace module package's `exports` map, so a **first-party** module cannot ship the layers
+    until it does. The fixture's manifest is hand-written, as a third party's is. This belongs with
+    the follow-up that moves the first-party renderers.
+16. A fresh storefront scaffold's unpinned install resolves Vite 8, under which the storefront's
+    vitest configuration (`esbuild.jsx`) does not transform JSX, so its `.tsx` tests do not run.
+    Found by the acceptance probe, which pins Vite for itself; the scaffold defect is not repaired
+    here.
+17. A newsletter campaign with no sales channel answers 500 from its preview route: branding is
+    read with an undefined channel id. Found by the platform probe, which gives its campaign a
+    channel; the route is not repaired here.

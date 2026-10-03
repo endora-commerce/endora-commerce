@@ -8,6 +8,8 @@
     "node": ">=22.18.0"
   },
   "scripts": {
+    "acceptance:block-renderers": "tsx scripts/acceptance/block-renderers.ts",
+    "acceptance:block-renderers:ci": "tsx scripts/acceptance/block-renderers.ts --against-expectation",
     "acceptance:instance": "tsx scripts/acceptance/instance.ts",
     "acceptance:instance:ci": "tsx scripts/acceptance/instance.ts --against-expectation",
     "acceptance:package-schema": "tsx scripts/acceptance/package-schema.ts",
@@ -26,6 +28,7 @@
     "check:admin-surface": "tsx scripts/check-admin-surface.ts",
     "check:admin-zones": "tsx scripts/check-admin-zones.ts",
     "check:block-names": "tsx scripts/check-block-names.ts",
+    "check:block-renderers": "tsx scripts/check-block-renderers.ts",
     "check:bundle-pairing": "tsx scripts/check-bundle-pairing.ts",
     "check:class-vocabulary": "tsx scripts/check-class-vocabulary.ts",
     "check:command-coverage": "tsx scripts/check-command-coverage.ts",

@@ -136,6 +136,9 @@ describe('storefront degradation for a block whose owner is absent (FR-019, FR-0
       html = renderToString(
         createElement(PageBuilderRender, {
           data: { root: { props: {} }, content, zones: {} },
+          // Nobody is reported absent: the two blocks below degrade because
+          // nothing here can render them, not because of presence.
+          presence: { absent: [] },
         }),
       );
     }).not.toThrow();

@@ -39,6 +39,7 @@
   "status.draft": "Draft",
   "status.published": "Published",
   "pageBuilder.extensions": "Extensions",
+  "pageBuilder.blockPreview.unavailable": "This block has no preview in the editor. Its fields can be edited in the side panel.",
   "pageBuilder.loadingConfig": "Loading Page Builder config...",
   "pageBuilder.drawer.searchPlaceholder": "Search components…",
   "pageBuilder.drawer.searchEmpty": "No components match your search.",

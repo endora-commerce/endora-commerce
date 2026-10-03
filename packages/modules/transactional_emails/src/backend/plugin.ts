@@ -1,3 +1,8 @@
+import { emailSafeNamesFrom } from './services/email-safe-components.js';
+import type {
+  EmailBlockFailureReporter,
+  EmailBlockRenderers,
+} from '@endora-commerce/email-components/render/block-renderers';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleManifest } from '@endora-commerce/contracts';
@@ -46,6 +51,12 @@ export interface TransactionalEmailsModuleOptions {
   resolveAssetUrl?: AssetUrlResolver;
   /** Settings admin service used to persist branding values (US2). */
   settingsAdmin?: SettingsAdminPort;
+  /** Contributed e-mail block renderers, read per render (feature 141). */
+  blockRenderers?: () => EmailBlockRenderers;
+  /** Every block name a module registered an e-mail renderer for, whatever its state. */
+  registeredBlockNames?: () => readonly string[];
+  /** Told about a contributed block that threw while a message rendered. */
+  onBlockFailure?: EmailBlockFailureReporter;
   /** Exposes the sender back to composition so owning modules can send. */
   exposeSender?: (sender: TransactionalEmailService) => void;
   /** Exposes branding so newsletter (and others) can inject logoUrl/accent. */
@@ -69,7 +80,12 @@ export function transactionalEmailsModule(
     );
     const embeds = new EmbedResolver();
 
+    // What saved e-mail content may hold: the first-party blocks, every block a
+    // composed module declares for `email`, and every registered renderer.
+    const emailSafeNames = emailSafeNamesFrom(options.manifests, options.registeredBlockNames);
+
     const service = new TransactionalEmailService({
+      emailSafeNames,
       emFactory: options.emFactory,
       contentResolver,
       branding,
@@ -78,10 +94,12 @@ export function transactionalEmailsModule(
       ...(options.mailer ? { mailer: options.mailer } : {}),
       ...(options.deliveryRecorder ? { deliveryRecorder: options.deliveryRecorder } : {}),
       ...(options.auditLog ? { auditLog: options.auditLog } : {}),
+      ...(options.blockRenderers ? { blockRenderers: options.blockRenderers } : {}),
+      ...(options.onBlockFailure ? { onBlockFailure: options.onBlockFailure } : {}),
     });
 
-    const blocks = new EmailBlockService(options.emFactory, options.auditLog);
-    const templates = new EmailTemplateService(options.emFactory, options.auditLog);
+    const blocks = new EmailBlockService(options.emFactory, options.auditLog, emailSafeNames);
+    const templates = new EmailTemplateService(options.emFactory, options.auditLog, emailSafeNames);
 
     // Boot reconciliation: upsert definitions from manifests + registered defaults.
     const reconciler = new TransactionalEmailReconciler(

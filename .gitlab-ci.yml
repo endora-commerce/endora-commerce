@@ -583,6 +583,7 @@ quality:
     # renderer — reconciled against what the manifests declare, in both
     # directions. One ledger, `BLOCKS_WITHOUT_A_RENDERER`, and it lands empty.
     - pnpm --filter backend run check:block-names
+    - pnpm --filter backend run check:block-renderers
     # Feature 110 T129b (owner ruling D-219) —
     # `specs/110-instance-repository/contracts/admin-stylesheet-composition.md`
     # §3's *"a module release renders a class the design system does not

@@ -23,5 +23,6 @@
   "nav.automations.label": "Automatyzacje",
   "nav.tags.label": "Tagi i pola",
   "nav.blocks.label": "Bloki",
-  "nav.provider.label": "Usługa wysyłki"
+  "nav.provider.label": "Usługa wysyłki",
+  "pageBuilder.blockPreview.unavailable": "Ten blok nie ma podglądu w edytorze. Jego pola można edytować w panelu bocznym."
 }

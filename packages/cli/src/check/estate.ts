@@ -340,6 +340,30 @@ export const ESTATE: readonly EstateEntry[] = [
     tier: 'B',
   },
   {
+    id: 'check:block-renderers',
+    script: 'backend/scripts/check-block-renderers.ts',
+    scope: 'package',
+    /**
+     * Built with the rule (`specs/141-module-block-renderers/`, plan D11), and
+     * the reason the rule exists at all: the storefront layer of a package this
+     * repository never sees is enforceable only by a command its author runs.
+     * Everything it reads is the package's own — its `exports` map, its build
+     * layout, its manifest and the layers themselves — so it is Tier A and has
+     * no signal a lone package cannot evaluate.
+     */
+    host: 'built',
+    subjectDeclaration: {
+      kind: 'exports-subpath',
+      declaration:
+        '`exports` subpath publishing a storefront layer, an e-mail layer or a block ' +
+        'stylesheet, and no `blocks` contribution in an admin layer',
+    },
+    // The layers are read as sources where the package ships them — that is
+    // what an author can still change — and where the target points otherwise.
+    readsArtefact: false,
+    tier: 'A',
+  },
+  {
     id: 'check:bundle-pairing',
     script: 'backend/scripts/check-bundle-pairing.ts',
     scope: 'package',

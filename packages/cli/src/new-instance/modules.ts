@@ -49,10 +49,20 @@ import {
 
 import { InstanceHostError, InstanceInputError, type ResolvedPackage } from './host.js';
 
+/** The subpath a module package publishes its storefront renderers under. */
+export const STOREFRONT_LAYER_SUBPATH = './storefront';
+
 /** One module package, as this command needs it. */
 export interface ModuleCandidate {
   readonly id: string;
   readonly packageName: string;
+  /**
+   * Does the package's own `exports` map declare `./storefront` — React
+   * renderers for its Page Builder blocks (`specs/141-module-block-renderers/`)?
+   * Read off the map and nothing else, as every layer is. `endora install`
+   * seeds a storefront it writes beside the instance with these packages.
+   */
+  readonly publishesStorefrontLayer: boolean;
   /**
    * The version **this package** declares about itself, and the source of the
    * `^` range the instance's manifest carries for it.
@@ -368,6 +378,7 @@ function candidateFrom(
   version: string,
   carriedByHost: boolean,
   license: unknown,
+  exportsField: unknown = undefined,
 ): ModuleCandidate {
   const activation = manifest.activation as
     | { readonly nonDeactivatable?: unknown; readonly reason?: unknown }
@@ -376,6 +387,10 @@ function candidateFrom(
     id,
     packageName,
     version,
+    publishesStorefrontLayer:
+      typeof exportsField === 'object' &&
+      exportsField !== null &&
+      (exportsField as Record<string, unknown>)[STOREFRONT_LAYER_SUBPATH] !== undefined,
     dependencies: Array.isArray(manifest.dependencies)
       ? manifest.dependencies.filter((entry): entry is string => typeof entry === 'string')
       : [],
@@ -470,7 +485,15 @@ export async function loadModuleCandidates(
     }
     candidates.set(
       declaredId,
-      candidateFrom(declaredId, manifest, pkg.name, pkg.version, false, pkg.manifest['license']),
+      candidateFrom(
+        declaredId,
+        manifest,
+        pkg.name,
+        pkg.version,
+        false,
+        pkg.manifest['license'],
+        pkg.manifest['exports'],
+      ),
     );
   }
 

@@ -774,6 +774,57 @@ describe('the scaffold names nothing above its own directory', () => {
   }, 120_000);
 
   /**
+   * `specs/141-module-block-renderers/` T14 — the scaffold carries the
+   * storefront's block registry: the discovery and the generator, the composer,
+   * the two generated artefacts, and `local-blocks.tsx`, which is the client's
+   * own from the first commit and which nothing regenerates.
+   */
+  it('carries the Page Builder block registry, and blocks:generate runs clean in the copy', async () => {
+    const parent = temp('endora-sf-blocks-');
+    const target = join(parent, 'shop');
+    try {
+      await runNewStorefront({ dir: target, cwd: REPO_ROOT, inputs: REFERENCE_INPUTS });
+      for (const file of [
+        'scripts/block-discovery.mjs',
+        'scripts/generate-blocks.mjs',
+        'lib/page-builder/config.ts',
+        'lib/page-builder/presence.ts',
+        'lib/page-builder/local-blocks.tsx',
+        'lib/page-builder/blocks.generated.ts',
+        'app/blocks.generated.css',
+      ]) {
+        expect(existsSync(join(target, file)), file).toBe(true);
+      }
+      const manifest = JSON.parse(readFileSync(join(target, 'package.json'), 'utf8')) as {
+        scripts: Record<string, string>;
+      };
+      expect(manifest.scripts['blocks:generate']).toBe('node scripts/generate-blocks.mjs');
+      expect(manifest.scripts['dev']).toContain('pnpm run blocks:generate');
+      expect(manifest.scripts['build']).toContain('pnpm run blocks:generate');
+      // Written empty, and the client's: no banner telling them not to edit it.
+      const local = readFileSync(join(target, 'lib/page-builder/local-blocks.tsx'), 'utf8');
+      expect(local).toContain('export const localBlocks');
+      expect(local).not.toContain('GENERATED');
+
+      // The generator, as the copy's owner runs it. An install with no module
+      // package is the state a fresh scaffold is in.
+      const committed = readFileSync(join(target, 'lib/page-builder/blocks.generated.ts'), 'utf8');
+      mkdirSync(join(target, 'node_modules'), { recursive: true });
+      const run = spawnSync(process.execPath, [join(target, 'scripts', 'generate-blocks.mjs')], {
+        encoding: 'utf8',
+        cwd: target,
+      });
+      expect(run.status, `${run.stdout}${run.stderr}`).toBe(0);
+      expect(run.stdout).toContain('[blocks:generate] wrote: modules=0');
+      expect(readFileSync(join(target, 'lib/page-builder/blocks.generated.ts'), 'utf8')).toBe(
+        committed,
+      );
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  /**
    * S3, against this repository's own storefront rather than a fixture: every
    * package a vendored configuration imports by name is one the scaffold's
    * manifest declares, and so is the tool its `lint` script runs. The fixture

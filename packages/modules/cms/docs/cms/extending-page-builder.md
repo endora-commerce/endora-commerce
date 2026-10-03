@@ -10,17 +10,19 @@ The CMS module ships built-in components — `Row`, `Columns`, `Text`,
 backend module can contribute its own components. (`InsertTemplate` remains
 registered for legacy content trees but is no longer listed in the drawer
 palette.) The `cms`, `catalog`, `orders`, `invoices` and `transactional_emails`
-modules already contribute blocks this way. A contributing module participates in two
-places:
+modules already declare their blocks this way. Their renderers are still the
+built-in ones in `@endora-commerce/cms-components` and
+`@endora-commerce/email-components`; a module package outside the platform
+ships its own, as section 2 describes. A contributing module participates in
+two places:
 
 1. **Manifest declaration**: declare the block's metadata — name, labels,
    palette category, contexts and editable fields — in the module's own
    `manifest.ts`. The CMS module builds its Page Builder registry from the
    manifests of the composed modules, so there is no registration call to
    write.
-2. **Shared renderer**: ship a React component to a workspace package both
-   admin and storefront depend on (typically `@endora-commerce/cms-components` itself
-   or a per-module package re-exporting from it).
+2. **Renderers**: ship, in the module's own package, the code that draws the
+   block on the storefront, in e-mail and in the admin editors.
 
 ## 1. Declare the block in the manifest
 
@@ -64,7 +66,8 @@ export const manifest = defineModuleManifest({
 ```
 
 The schema is `BlockDefinitionSchema` and `BlockCategorySchema` in
-`packages/contracts/src/cms.ts`. `defineModuleManifest` refuses a manifest
+`packages/contracts/src/cms.ts` (both exported from
+`@endora-commerce/contracts`). `defineModuleManifest` refuses a manifest
 that breaks either of two rules:
 
 - A block `name` is `<module id>.<PascalCaseName>`, and the part before the
@@ -89,71 +92,515 @@ declarations by module presence when it answers
 `GET /api/v1/admin/cms/page-builder/config`, so a module that is switched off
 takes its blocks out of the palette with it.
 
-## 2. Ship the renderer
+## 2. Ship the renderers
 
-Add a React `ComponentConfig` in `packages/cms-components/src/components/`
-(or in your module's own admin/storefront package) and export it from the
-package's entry point:
+A module package draws its own blocks. It does so through up to three
+**layers**, one per process that renders a block, plus an optional stylesheet.
+Each is a subpath of the package's `exports` map, and each is optional: a
+module whose blocks are e-mail-only ships the e-mail layer and nothing else.
 
+| Subpath | What it exports | Who renders with it |
+| --- | --- | --- |
+| `./storefront` | `contributions` — React renderers for the module's `cms` blocks | the storefront, in the server-rendered HTML |
+| `./email` | `emailBlocks` — pure functions that render the module's `email` blocks to HTML and text | the backend when it sends, and the admin's e-mail editor |
+| `./admin` | `contributions.blocks` — editor renderers, beside the module's routes and zones | the admin's CMS and e-mail editors |
+| `./blocks.css` | one finished stylesheet | the storefront and the admin editor |
+
+This is for a module **package** — one a storefront and an instance install
+from a registry. The platform's own modules do not ship these layers yet: their
+`package.json` is generated, and the generator does not render the three
+subpaths. An overlay module has no package; its blocks are covered under
+[A block no package renders](#a-block-no-package-renders).
+
+The examples below quote the platform's own acceptance fixture: a module
+outside every platform package that ships all three layers and a stylesheet
+for one block, `acceptance_blocks.Badge`.
+
+### The package
+
+A surface finds the package by its own `package.json`:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/package.json -->
+```json
+"files": [
+  "dist",
+  "i18n",
+  "blocks.css",
+  "tailwind.css"
+],
+"endora": {
+  "type": "module",
+  "id": "acceptance_blocks"
+},
+"exports": {
+  ".": {
+    "types": "./dist/manifest.d.ts",
+    "default": "./dist/manifest.js"
+  },
+  "./backend": {
+    "types": "./dist/backend/index.d.ts",
+    "default": "./dist/backend/index.js"
+  },
+  "./admin": {
+    "types": "./dist/admin/index.d.ts",
+    "default": "./dist/admin/index.js"
+  },
+  "./storefront": {
+    "types": "./dist/storefront/index.d.ts",
+    "default": "./dist/storefront/index.js"
+  },
+  "./email": {
+    "types": "./dist/email/index.d.ts",
+    "default": "./dist/email/index.js"
+  },
+  "./blocks.css": "./blocks.css",
+  "./tailwind.css": "./tailwind.css",
+  "./i18n/*": "./i18n/*",
+  "./package.json": "./package.json"
+```
+
+- **`endora.type` must be `module`, and `endora.id` the module id** that
+  prefixes its block names. A package without that block is not a module
+  package: `blocks:generate` says so in a note and registers nothing from it,
+  and its blocks render as placeholders.
+- **`files` lists everything an `exports` entry points at** — `blocks.css` and
+  `tailwind.css` beside `dist`. An entry whose file is not in the tarball is
+  refused by the generator that would import it.
+- **Each layer publishes type declarations** beside its JavaScript (the `types`
+  condition above). A storefront written in TypeScript imports `./storefront`
+  from its generated registry, and `blocks:generate` refuses a storefront layer
+  that ships none as `untyped-layer`.
+- **A package with `./admin` also publishes `./tailwind.css`**, which tells the
+  admin's Tailwind build where the layer is. `endora generate` refuses an admin
+  layer without it. The fixture's is one line, quoted below the list.
+- **The layers' imports are peer dependencies**: `@endora-commerce/contracts`,
+  `@endora-commerce/page-builder-core`, `@endora-commerce/email-components`,
+  `@puckeditor/core` and `react`, with `@endora-commerce/platform` for the
+  backend.
+- **The build is plain `tsc`**, which keeps a leading `'use client'` and emits
+  the declarations. Relative imports are written with the `.js` extension.
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/tailwind.css -->
+```css
+@source "./dist/admin";
+```
+
+Where the names in the examples come from:
+
+| Name | Import it from |
+| --- | --- |
+| `StorefrontContributions`, `PageBuilderBlockEditorConfig`, `useBlockRenderEnvironment` | `@endora-commerce/page-builder-core/contributions` |
+| `sanitizeRichHtml` | `@endora-commerce/cms-components` |
+| `EmailBlockRenderers` | `@endora-commerce/email-components/render/block-renderers` |
+| `escapeHtml`, `escapeAttr` | `@endora-commerce/email-components/render/escape-html` |
+| `AdminContributions`, `EmailBlockRendererRegistryPort` | `@endora-commerce/contracts` |
+| `ModuleContext`, `lazyPort` | `@endora-commerce/platform/kernel` |
+
+### The declaration the layers draw
+
+The block is declared in the module's manifest, for both contexts it is drawn
+in, in a palette section the same manifest declares for both:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/manifest.ts -->
+```ts
+blockCategories: [
+  { key: 'acceptance', titleKey: 'blocks.section', contexts: ['cms', 'email'], weight: 900 },
+],
+blocks: [
+  {
+    // The persisted name — `<endora.id>.<Name>`, and permanent. Written as a
+    // literal: `endora check` reads a block's name and contexts off the
+    // manifest's text, and a name it cannot read is one it cannot hold a
+    // renderer to.
+    name: 'acceptance_blocks.Badge',
+    labelKey: 'blocks.badge.label',
+    descriptionKey: 'blocks.badge.description',
+    category: 'acceptance',
+    contexts: ['cms', 'email'],
+    fields: {
+      text: { type: 'text', label: 'Text' },
+      // Forces every renderer of this block to throw. It exists for the
+      // failure-isolation assertion and for nothing an operator would use.
+      explode: {
+        type: 'radio',
+        label: 'Fail on render',
+        options: [
+          { label: 'No', value: 'no' },
+          { label: 'Yes', value: 'yes' },
+        ],
+      },
+    },
+    defaultProps: { text: 'New badge', explode: 'no' },
+    weight: 10,
+  },
+],
+```
+
+Every renderer is keyed by the block's full name, and a package renders only
+the blocks **its own manifest declares**, for a context that block declares:
+`cms` for the storefront and the CMS editor, `email` for e-mail. Write the name
+and the contexts as literals, in the manifest and in each layer:
+`check:block-renderers` reads them off the source text, and a name it cannot
+read is one it cannot hold a renderer to. A computed renderer key escapes the
+check and is refused when the surface composes it.
+
+### The storefront layer
+
+`src/storefront/index.ts` exports `contributions`, a map from block name to a
+Puck component config:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/storefront/index.ts -->
+```ts
+import type { StorefrontContributions } from '@endora-commerce/page-builder-core/contributions';
+
+import { Badge } from './Badge.js';
+
+export const contributions: StorefrontContributions = {
+  blocks: {
+    'acceptance_blocks.Badge': {
+      defaultProps: { text: 'New badge', explode: 'no' },
+      render: Badge,
+    },
+  },
+};
+```
+
+The renderer is an ordinary React component. Its props are the block's stored
+props, with the `defaultProps` above filled in underneath them — so a prop the
+module added after a page was saved still has a value:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/storefront/Badge.tsx -->
 ```tsx
-// packages/cms-components/src/components/PromoBanner.tsx
-import type { ComponentConfig } from '@puckeditor/core';
+'use client';
 
-interface Props {
-  headline: string;
-  codeInput?: string;
-  tone: 'info' | 'urgent';
+import { useBlockRenderEnvironment } from '@endora-commerce/page-builder-core/contributions';
+import type { ReactNode } from 'react';
+
+export interface BadgeProps {
+  readonly text?: string;
+  readonly explode?: string | boolean;
 }
 
-export const PromoBanner: ComponentConfig<Props> = {
-  fields: {
-    headline: { type: 'text' },
-    codeInput: { type: 'text' },
-    tone: { type: 'select', options: [
-      { label: 'Info', value: 'info' },
-      { label: 'Urgent', value: 'urgent' },
-    ] },
-  },
-  defaultProps: { headline: 'Spring sale', tone: 'info' },
-  contexts: ['cms'],
-  render: ({ headline, codeInput, tone }) => (
-    <div className={`promo-banner promo-${tone}`}>
-      <strong>{headline}</strong>
-      {codeInput ? <code>{codeInput}</code> : null}
-    </div>
-  ),
-};
+/**
+ * The renderer's one built-in string — a label that is not operator content —
+ * shipped in both languages inside the layer and chosen by the request's
+ * content language, with English as the fallback. The storefront's own
+ * catalogue belongs to the storefront's owner.
+ */
+const LABEL: Readonly<Record<string, string>> = { en: 'Badge', pl: 'Odznaka' };
+
+/**
+ * Synchronous, reads no browser global, and draws the same output on the
+ * server and on hydration for the same props: it is part of the
+ * server-rendered HTML.
+ */
+export function Badge({ text, explode }: BadgeProps): ReactNode {
+  const { language } = useBlockRenderEnvironment();
+  if (explode === true || explode === 'yes') {
+    throw new Error('acceptance_blocks.Badge was asked to fail on render');
+  }
+  const label = LABEL[language.slice(0, 2).toLowerCase()] ?? LABEL['en'];
+  return (
+    <span className="acceptance_blocks-badge" title={label}>
+      {`acceptance-badge:${String(text ?? '')}`}
+    </span>
+  );
+}
 ```
 
-Wire it into the `defaultPageBuilderConfig` under the block's full name, so
-both the admin editor and the storefront `<Render>` call sites pick it up:
+A storefront renderer runs once on the server and once in the browser, so:
 
+- it is **synchronous** — no `async` component — and reads no browser global
+  (`window`, `document`, `localStorage`) while rendering, only in an effect;
+- it draws the same output on the server and in the browser for the same
+  props: no `Date.now()`, no `Math.random()`, no locale-dependent formatting
+  without the language from `useBlockRenderEnvironment()`;
+- every file of the layer starts with `'use client'`. `check:block-renderers`
+  does not hold this one; a layer without it fails the storefront's build;
+- it imports only `react`, `react-dom`, `@puckeditor/core`,
+  `@endora-commerce/page-builder-core`, `@endora-commerce/cms-components`,
+  `@endora-commerce/contracts` and its own files. Nothing server-only, no
+  admin kit, no platform, no other module. Data it needs comes from its props,
+  from the CMS render context, or from a fetch in an effect;
+- block props are **untrusted input**: HTML is injected only as
+  `dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(value) }}`;
+- a label the renderer prints itself — one that is not the operator's content —
+  ships in English and Polish inside the layer and is chosen by
+  `useBlockRenderEnvironment().language`, with English as the fallback.
+
+**Installing it in a storefront.** A storefront owner adds the package to
+their storefront (`pnpm add`) and builds. `blocks:generate`, which the
+storefront's `dev` and `build` scripts run, finds every installed module
+package that declares `./storefront` or `./blocks.css` and writes the registry
+and the stylesheet import — there is no line to add to any file.
+
+When `endora install` writes an instance and a storefront in one run, it adds
+the instance's modules that publish a storefront layer to the storefront's
+dependencies, once. No platform module publishes one yet, so a default install
+adds nothing; a package added to the instance afterwards is added to the
+storefront by its owner.
+
+What `blocks:generate` refuses, writing nothing and exiting 1:
+
+| Refusal | Meaning |
+| --- | --- |
+| `untyped-layer` | the package publishes `./storefront` with no type declarations |
+| `missing-layer-file` | an `exports` entry points at a file the package does not hold |
+| `layer-without-subpath` | the package ships `src/storefront/index.ts` and declares no `./storefront` |
+| `duplicate-module` | two installed packages declare the same module id |
+
+#### A block no package renders
+
+A storefront can also render a block itself — typically one an overlay module
+of its own instance declares — by adding it to
+`lib/page-builder/local-blocks.tsx`, the one file of the block registry that is
+the storefront owner's. A local block never replaces a block a package or the
+platform already renders.
+
+### The e-mail layer
+
+`src/email/index.ts` exports `emailBlocks`. Each renderer is a pure function —
+no React, no I/O — that returns rows of the e-mail's table layout and escapes
+every prop:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/email/index.ts -->
 ```ts
-// packages/cms-components/src/index.ts
-import { PromoBanner } from './components/PromoBanner.js';
+import type { EmailBlockRenderers } from '@endora-commerce/email-components/render/block-renderers';
+import { escapeHtml } from '@endora-commerce/email-components/render/escape-html';
 
-export const defaultPageBuilderConfig: Config = {
-  components: {
-    // ...the existing 'cms.*' and 'catalog.*' entries
-    'promotions.PromoBanner': definePageBuilderComponent({
-      ...(PromoBanner as unknown as ComponentConfig),
-      contexts: ['cms'],
-    }),
+interface BadgeProps {
+  readonly text?: string;
+  readonly explode?: string | boolean;
+}
+
+function assertRenderable(props: BadgeProps): void {
+  if (props.explode === true || props.explode === 'yes') {
+    throw new Error('acceptance_blocks.Badge was asked to fail on render');
+  }
+}
+
+export const emailBlocks: EmailBlockRenderers = {
+  'acceptance_blocks.Badge': {
+    defaultProps: { text: 'New badge' },
+    html: (props: BadgeProps, ctx) => {
+      assertRenderable(props);
+      return (
+        '<tr><td style="padding:8px 24px;font-family:Arial,Helvetica,sans-serif;">' +
+        `<span style="display:inline-block;padding:4px 10px;border-radius:6px;background-color:${ctx.accentColor};color:#ffffff;font-size:14px;font-weight:bold;">` +
+        `acceptance-badge:${escapeHtml(String(props.text ?? ''))}` +
+        '</span></td></tr>'
+      );
+    },
+    text: (props: BadgeProps) => {
+      assertRenderable(props);
+      return `acceptance-badge:${String(props.text ?? '')}\n`;
+    },
   },
 };
 ```
 
-The CMS renderers are this one bundle (e-mail blocks render from
-`@endora-commerce/email-components` the same way). A module published
-outside this repository cannot add a renderer to either bundle without a
-change to that package.
+`text` is optional; without it the plain-text part is derived from the HTML.
+The second argument carries `accentColor`, the message's `language` — a label
+the renderer prints itself follows it, as on the storefront — and
+`renderSlot(nodes)`, which renders nested content with the platform's own
+renderer. `{{var …}}` directives in the output are resolved afterwards,
+exactly as in a built-in block. The layer imports only
+`@endora-commerce/email-components/render/*`, `@endora-commerce/contracts` and
+its own files, because the same function runs in the backend and in the
+admin's browser.
 
-A renderer omitted from the bundle does not break the admin: the
-`PageBuilderEditor` merges the descriptor with the local config and
-substitutes a `MissingComponentPlaceholder` for any component the
-descriptor names but the bundle does not export. The placeholder renders
-nothing on the storefront unless the page is loaded with the
-`?cms_admin=1` query parameter (preview mode).
+The module's backend registers the renderers when the platform boots, and its
+manifest names `email` in `dependencies`:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/manifest.ts -->
+```ts
+// `email` owns the registry this module registers its e-mail renderer into.
+// It is non-deactivatable, so the edge never fails closed.
+dependencies: ['email'],
+```
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/backend/index.ts -->
+```ts
+import type { EmailBlockRendererRegistryPort } from '@endora-commerce/contracts';
+import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
+
+import { emailBlocks } from '../email/index.js';
+
+/** This module persists nothing. */
+export const entities = [] as const;
+
+export function registerModule(ctx: ModuleContext): void {
+  // From a boot hook, unprobed: the registry is ungated and decides presence
+  // itself, per render, on the contributor recorded here — so switching this
+  // module off, or back on, needs no restart and no re-registration.
+  ctx.onBoot(() => {
+    lazyPort<EmailBlockRendererRegistryPort>(ctx, 'emailBlockRendererRegistry').register(
+      'acceptance_blocks',
+      emailBlocks,
+    );
+  });
+}
+```
+
+`register` never throws. A name the module does not own, or an entry without an
+`html` function, is refused with a warning in the backend log and listed in the
+`refused` array the call returns — assert on that array in a test.
+
+Transactional e-mail and newsletter campaigns both render through that
+registry, and content holding the block can be saved in either. A built-in
+e-mail block cannot be overridden: a contributed renderer is consulted only for
+a name the platform does not draw itself.
+
+### The admin layer
+
+The module's `./admin` layer — the one that already declares its routes and
+zone contributions — lists an editor renderer per block and editor:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/admin/index.ts -->
+```ts
+import type { AdminContributions } from '@endora-commerce/contracts';
+
+export const contributions: AdminContributions = {
+  blocks: [
+    {
+      name: 'acceptance_blocks.Badge',
+      context: 'cms',
+      component: () => import('./badge-editor.js'),
+    },
+    {
+      name: 'acceptance_blocks.Badge',
+      context: 'email',
+      component: () => import('./badge-email.js'),
+    },
+  ],
+};
+```
+
+For the CMS editor the default export is the block's renderer — usually the
+storefront's own component, so the canvas shows what the storefront draws:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/admin/badge-editor.tsx -->
+```tsx
+import type { PageBuilderBlockEditorConfig } from '@endora-commerce/page-builder-core/contributions';
+
+import { Badge } from '../storefront/Badge.js';
+
+const editor: PageBuilderBlockEditorConfig = { render: Badge };
+
+export default editor;
+```
+
+For the e-mail editor it is the e-mail layer's renderer, the function the send
+path runs, so the canvas and the preview cannot differ from the message:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/src/admin/badge-email.ts -->
+```ts
+import { emailBlocks } from '../email/index.js';
+
+export default emailBlocks['acceptance_blocks.Badge'];
+```
+
+The block's label, palette section, default props and field set come from the
+manifest declaration, not from the contribution. A CMS editor config may carry
+`fields` to replace the editor of a field the manifest declares — a picker in
+place of a text input — and cannot add a field the manifest does not declare.
+
+A declared block with **no** editor renderer is still insertable and editable:
+the editor builds its fields from the manifest declaration and shows a neutral
+preview that names the block. That is what an overlay module's block gets,
+since an overlay module has no admin layer. In the e-mail editor such a block
+is also absent from the HTML preview, although the backend renders it in the
+message that is sent.
+
+**Installing it in an instance.** The instance's owner adds the package to the
+instance's dependencies and installs. Then:
+
+1. `pnpm run build:admin` — it runs `endora generate`, which names the
+   package's `./admin` in the admin's contribution registry and its
+   `./blocks.css` in the admin's stylesheet, and then builds the admin.
+2. `pnpm run module:install <module id>` — the module's lifecycle install,
+   which creates the Setting an operator switches it on and off with.
+3. Restart the backend. Its e-mail renderers are registered at boot.
+
+There is no line to add to any file of the instance.
+
+### The block stylesheet
+
+`./blocks.css` is one finished stylesheet. Every selector is under a class
+prefixed with the module id, and colours and fonts come from the storefront's
+theme custom properties with literal fallbacks, so the block follows the
+channel's theme and still renders on the admin canvas:
+
+<!-- verbatim-from: backend/acceptance/block-renderers-fixture/blocks.css -->
+```css
+.acceptance_blocks-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: var(--r-md, 6px);
+  background: var(--brand-600, #2563eb);
+  color: #ffffff;
+  font-family: var(--font-sans, system-ui, sans-serif);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+```
+
+No `@import`, no `@tailwind`, no `@source`, no element selectors. The
+storefront imports it through `blocks:generate` and the admin through
+`endora generate`.
+
+### When the module is switched off
+
+A block whose module an operator switched off is absent on every surface, and
+nothing is written to the stored content:
+
+| Surface | What happens |
+| --- | --- |
+| Storefront | the block renders nothing to a customer; with `?cms_admin=1` it renders a note naming the block |
+| E-mail | the block contributes nothing to the HTML or the text; the message is still sent, and content holding the block can still be saved |
+| Admin editors | a stored block is a visible placeholder that keeps its props; the block is not offered in the palette |
+
+Switching the module back on restores all three, with no document changed in
+between. The storefront decides from the modules the backend **reports** as not
+present, so a block whose owner the backend does not know — an overlay
+module's — still renders. The same holds for a package the storefront has
+installed and the backend does not compose, and when the backend cannot be
+reached nobody is reported absent.
+
+### When a renderer fails
+
+A renderer that throws costs the page that one block. On the storefront and in
+the editors it becomes the same placeholder a missing renderer gets, and the
+blocks around it are untouched; in an e-mail it contributes nothing, the
+message is still sent, and the failure is logged with the block and its
+module.
+
+### Check the package
+
+Run the check in the module package:
+
+```bash
+pnpm exec endora check --rule check:block-renderers
+```
+
+| Finding | Meaning |
+| --- | --- |
+| `foreign-block-name` | a renderer keyed by a block another module owns |
+| `undeclared-block` | a renderer for a block the manifest does not declare, or not for that surface's context |
+| `storefront-import` | the storefront layer imports outside its allowed set |
+| `raw-html` | `dangerouslySetInnerHTML` whose value is not `sanitizeRichHtml(…)` |
+| `email-layer-import` | the e-mail layer imports React, a Node built-in or anything outside the e-mail renderer |
+| `unscoped-stylesheet` | `./blocks.css` has a selector outside the module's prefix, or pulls in another stylesheet |
+| `layer-without-subpath` | a layer's sources exist and the `exports` map does not publish them |
+
+### Keep old content rendering
+
+A block's name is permanent, and its stored props outlive the version of the
+module that wrote them. A renderer must draw every shape of props the module
+ever published: ignore a prop it does not know, and fall back to a default for
+one that is missing. A change that cannot be made that way is a new block
+under a new name, with the old renderer kept.
 
 ## Component name namespacing
 
@@ -183,10 +630,10 @@ name at least one surface:
 contexts: ['cms'], // CMS-only
 ```
 
-In `@endora-commerce/cms-components`, wrap the Puck config with
-`definePageBuilderComponent` from `@endora-commerce/page-builder-core` so the admin
-palette filter stays in sync. Components without `email` / `invoice` in
-`contexts` never appear in those editors (e.g. a product carousel).
+A block without `email` / `invoice` in `contexts` never appears in those
+editors (e.g. a product carousel). A module ships renderers for the `cms` and
+`email` contexts; `newsletter` shows the `email` blocks, and invoice blocks are
+drawn by the invoices module.
 
 ## Responsive props and visibility (CMS only)
 
@@ -254,7 +701,7 @@ Use `createSpacingField`, `createBorderField`, and `createColorField` from
 
 | Priority | Idea | Why |
 | -------- | ---- | --- |
-| Medium | Newsletter ↔ module 048 | Auto-wire channel subscribe endpoint |
+| Medium | Newsletter signup ↔ the `newsletter` module | Auto-wire channel subscribe endpoint |
 | Low | Contact ↔ forms module | Pick an existing form instead of iframe URL |
 
 `Accordion` / `Tabs` already cover FAQ-style sections; prefer those before a
@@ -262,7 +709,7 @@ dedicated FAQ component.
 
 ## Testing
 
-The platform ships a TDD scaffold for the SPI in
-`backend/test/integration/cms/page-builder-extension.test.ts`. Use the
-fixture in `backend/test/fixtures/cms/test-extension-module.ts` as a
-template when adding tests for your own contributions.
+Use `backend/acceptance/block-renderers-fixture/` as the template for a package
+that ships renderers, and `endora check` as its first test.
+`backend/test/integration/cms/page-builder-extension.test.ts` covers the
+declaration half: a manifest's blocks reaching the descriptor.

@@ -1,0 +1,25 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    // `paths` is cleared for the reason `../fixture-package/tsconfig.json` gives:
+    // a synthetic third-party package must resolve nothing into the repository
+    // that hosts it. Every `@endora-commerce/*` specifier below resolves through
+    // `node_modules` and the named package's own `exports` map, exactly as an
+    // installed one does.
+    "paths": {},
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    // Declarations are published: a storefront written in TypeScript imports
+    // `./storefront` from its generated registry, and an untyped module is a
+    // compile error there.
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "removeComments": false,
+    "noEmit": true
+  },
+  "include": ["src/**/*"]
+}
