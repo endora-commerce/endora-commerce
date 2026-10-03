@@ -220,6 +220,7 @@ import { Migration20260804T114814OrdersShippingAdapterData } from '@endora-comme
 import { Migration20260820T100201OrdersNewToPaidTransition } from '@endora-commerce/mod-orders/migrations';
 import { Migration20260821T131145OrdersPurchaseConversionMarker } from '@endora-commerce/mod-orders/migrations';
 import { Migration20260824T080000OrdersDeliveryPointSnapshot } from '@endora-commerce/mod-orders/migrations';
+import { Migration20261003T201537OrdersOrderTransitionEffects } from '@endora-commerce/mod-orders/migrations';
 
 // ── organizations ───────────────────────────────────────────────────────────
 import { Migration20260424T205317OrganizationsInit } from '@endora-commerce/mod-organizations/migrations';
@@ -510,6 +511,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('orders', Migration20260820T100201OrdersNewToPaidTransition),
   migration('orders', Migration20260821T131145OrdersPurchaseConversionMarker),
   migration('orders', Migration20260824T080000OrdersDeliveryPointSnapshot),
+  migration('orders', Migration20261003T201537OrdersOrderTransitionEffects),
 
   // ── organizations ───────────────────────────────────────────────────────────
   migration('organizations', Migration20260424T205317OrganizationsInit),

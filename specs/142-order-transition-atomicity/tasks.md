@@ -65,7 +65,7 @@ calling `sweep()`.
   **Test**: `backend/test/integration/credit_limits/active-reservations-read.test.ts` — a released
   reservation excluded; an order with none absent from the answer.
 
-- [ ] **T05** Entity `OrderTransitionEffect` and its migration (plan *Data model*). Scaffold with
+- [x] **T05** Entity `OrderTransitionEffect` and its migration (plan *Data model*). Scaffold with
   `pnpm --filter backend run migration:new -- --module orders --name order_transition_effects`; run
   `composer:generate`; commit the regenerated registry.
   Files: `packages/modules/orders/src/backend/entities/order-transition-effect.entity.ts`,

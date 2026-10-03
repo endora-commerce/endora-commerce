@@ -102,6 +102,7 @@ import { OrderItem } from './entities/order-item.entity.js';
 import { OrderListSavedView } from './entities/order-list-saved-view.entity.js';
 import { OrderPlacementIntent } from './entities/order-placement-intent.entity.js';
 import { OrderStatusTransition } from './entities/order-status-transition.entity.js';
+import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
 import { OrderStatus } from './entities/order-status.entity.js';
 import { Order } from './entities/order.entity.js';
 
@@ -987,6 +988,7 @@ export const entities = [
   OrderListSavedView,
   OrderPlacementIntent,
   OrderStatusTransition,
+  OrderTransitionEffect,
   OrderStatus,
   Order,
 ];
