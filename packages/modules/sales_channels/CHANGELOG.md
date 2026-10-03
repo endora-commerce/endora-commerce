@@ -1,5 +1,24 @@
 # @endora-commerce/mod-sales-channels
 
+## 0.102.0
+
+### Patch Changes
+
+- 489a0b6: Documentation: the developer guide now imports from the published platform barrel —
+  `getResolvedChannel` and `currentSalesChannel` from `@endora-commerce/platform/kernel` — instead
+  of a relative path into platform internals that no module can resolve. It also corrects three
+  other statements: the resolved channel lives on the request's platform scope, not on
+  `req.salesChannel`; outside a request a module resolves `salesChannelResolutionPort` /
+  `salesChannelMembershipPort` rather than the unpublished service classes; and direct writes to
+  `sales_channel_*` bridge tables are caught by `check:module-boundary`, not by a lint rule.
+- Updated dependencies [3f7f481]
+- Updated dependencies [e29093b]
+- Updated dependencies [e7fd44a]
+- Updated dependencies [d8b4e1b]
+  - @endora-commerce/platform@0.102.0
+  - @endora-commerce/admin-kit@0.102.0
+  - @endora-commerce/contracts@0.102.0
+
 ## 0.101.1
 
 ### Patch Changes

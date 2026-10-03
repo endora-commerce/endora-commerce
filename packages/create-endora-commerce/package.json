@@ -1,6 +1,6 @@
 {
   "name": "create-endora-commerce",
-  "version": "0.101.1",
+  "version": "0.102.0",
   "type": "module",
   "description": "npx create-endora-commerce <dir> — the front door to `endora install`, and nothing else.",
   "license": "MIT",

@@ -1,5 +1,19 @@
 # @endora-commerce/mod-admin-actions
 
+## 0.102.0
+
+### Patch Changes
+
+- 489a0b6: Documentation: the admin runtime for command-palette actions is in
+  `@endora-commerce/admin-shell` (`src/lib/admin-actions/`), not in `admin/src/lib/admin-actions/`.
+  The page no longer says two actions are hardcoded — none are — and replaces its fixed "v1 seed
+  set" list with how to see the actions an instance actually serves.
+- Updated dependencies [3f7f481]
+- Updated dependencies [e29093b]
+- Updated dependencies [e7fd44a]
+  - @endora-commerce/platform@0.102.0
+  - @endora-commerce/contracts@0.102.0
+
 ## 0.101.1
 
 ### Patch Changes

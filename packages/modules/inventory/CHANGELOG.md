@@ -1,5 +1,31 @@
 # @endora-commerce/mod-inventory
 
+## 0.102.0
+
+### Patch Changes
+
+- 489a0b6: Documentation: the inventory page has a proper "Public routes" table again. Two of its rows had
+  been left dangling after the Permissions section, the storefront display-mode route sat in the
+  admin table, and the anonymous `POST /api/v1/storefront/inventory/notify-when-available` route
+  was missing. The notify-when-available section now names which route serves signed-in customers
+  and which serves anonymous visitors.
+- 489a0b6: Documentation: migrations are now named by the file that actually ships. The pages cited
+  migrations by a retired numbering (`024_settings_init.ts`, "migration 102", `080_returns_init.ts`
+  and others), which matches no file in any package. Each reference now gives the real
+  timestamped filename, such as `20260611T140346_catalog_product_value_overrides_init.ts`, and
+  says which module owns it where that is a different module. The organizations page also no
+  longer claims that the `suspended` → `blocked` migration writes an audit-log entry: it writes
+  an explanatory `blocked_reason` on each remapped row.
+- Updated dependencies [3f7f481]
+- Updated dependencies [e29093b]
+- Updated dependencies [e7fd44a]
+- Updated dependencies [255b60b]
+- Updated dependencies [d8b4e1b]
+  - @endora-commerce/platform@0.102.0
+  - @endora-commerce/email-components@0.102.0
+  - @endora-commerce/admin-kit@0.102.0
+  - @endora-commerce/contracts@0.102.0
+
 ## 0.101.1
 
 ### Patch Changes

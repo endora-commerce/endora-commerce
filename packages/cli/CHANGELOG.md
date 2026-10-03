@@ -1,5 +1,88 @@
 # @endora-commerce/cli
 
+## 0.102.0
+
+### Minor Changes
+
+- 989d7a4: Add `endora upgrade [<version>]`, and declare it in every new instance as `pnpm run upgrade`.
+
+  Run inside an instance, it moves every package of the release the CLI belongs to — the platform,
+  every module, the admin shell, `@endora-commerce/contracts` — to one version (the registry's
+  latest when none is named), in every member's `package.json` and in the storefront beside the
+  instance, then runs `pnpm install`, the instance's `pnpm run setup` and `pnpm install` in the
+  storefront. An exact pin stays exact and `^` stays `^`; a package the release does not carry (a
+  module versioned outside the release, a third-party library) or a spec that is not a version
+  range is left as written and named. Lockfile entries of release packages at another version are dropped so pnpm re-resolves the
+  peers it installed by itself. Every precondition is checked before anything is written; a failing
+  step exits with its own code and prints what is left; `--dry-run` reports and does nothing; an
+  instance already at the version is told so and left untouched; a version older than the one
+  installed is refused. `--storefront-dir <path>` and `--no-storefront` choose the storefront.
+
+  Do not upgrade an instance with `pnpm update`: it leaves the exact `contracts` pin behind (two
+  copies installed, one unmet-peer warning per module), cannot cross a minor release in `0.x`, and
+  never moves an auto-installed peer. An instance created by `0.101.x` or earlier has no `upgrade`
+  script; `pnpm add -D -w @endora-commerce/cli@<version>` and then `pnpm exec endora upgrade
+<version>` upgrade it. The documentation page _Upgrading an instance_ has the details.
+
+  `runUpgrade`, `rewriteRange`, `rewriteManifestText`, `pruneLockfile` and `compareVersions` are
+  exported from the package root.
+
+- 255b60b: The page builder's editor peer moves from `@measured/puck` to `@puckeditor/core`. Puck renamed
+  its package at 0.21 (`npm install @measured/puck` now prints _"Puck has moved"_), and these
+  packages now import `@puckeditor/core` 0.23 — the code, the types and the stylesheet
+  (`@puckeditor/core/puck.css`).
+
+  **What a consumer changes.** If your project declares the editor itself — an admin application
+  that bundles `@endora-commerce/page-builder-admin`, `@endora-commerce/mod-cms` or any of the
+  modules above, or a storefront rendering pages through `@endora-commerce/cms-components`:
+
+  ```bash
+  pnpm remove @measured/puck
+  pnpm add @puckeditor/core@^0.23.0
+  ```
+
+  and rename the specifier in any import of your own (`'@measured/puck'` → `'@puckeditor/core'`,
+  `'@measured/puck/puck.css'` → `'@puckeditor/core/puck.css'`). A project scaffolded with
+  `create-endora-commerce` / `endora new instance` gets the new name at its root from this release
+  on; an existing instance renames the one line in its root `package.json`. Leaving
+  `@measured/puck` installed does not satisfy the peer — the two names are different packages —
+  so a bundler resolves `@puckeditor/core` to nothing and the editor fails to build.
+
+  **Stored content is unchanged.** Puck 0.21–0.23 changed no part of the page data shape: CMS
+  pages, blocks, templates, blog bodies, e-mail templates, newsletter blocks and invoice templates
+  persisted under 0.20 render and edit as they did, with no migration and no read-time adapter.
+
+  **The editor looks and behaves as it did.** Three 0.21–0.23 defaults that reshape the editor are
+  pinned back for every builder host through new exports of `@endora-commerce/page-builder-core/editor`:
+  `withPuckLegacySideBar(plugins)` keeps the stacked Components + Outline side bar instead of the
+  0.21 Plugin Rail, `PUCK_LEGACY_VIEWPORTS` keeps the 0.20 Small / Medium / Large viewports without
+  the 0.21 full-width one (the CMS host keeps passing its own breakpoints), and `PUCK_LEGACY_DND`
+  keeps the 0.20 fluid drag-and-drop instead of the 0.23 insertion line. A host of your own built on
+  these packages can pass the same three to its `<Puck>`.
+
+  `@puckeditor/core` 0.23 requires Node 20 or later, below this platform's own floor (22.17).
+
+### Patch Changes
+
+- 5faaa66: A scaffold of release X now names every package of release X at exactly X.
+
+  `endora install`, `endora new instance` and `endora new storefront` — and so
+  `npx create-endora-commerce@X` — used to write `^X` for the platform, every module, the admin
+  shell, the design system, the page-builder and component packages and the CLI, and `X` exactly
+  only for `@endora-commerce/contracts`. Run after a newer patch was published, the install
+  resolved the carets to the newer patch and kept `contracts` at X: two copies of `contracts` and
+  one unmet-peer warning per module, in a tree nobody had edited. Every package of the release is
+  now written exactly, in the root, `admin/` and `docs/` manifests and in the storefront, so a
+  scaffold of X installs X on any day and moves forward only through `pnpm run upgrade`, which
+  keeps an exact pin exact. A package of the scope at another version than the release keeps its
+  caret, and third-party ranges are unchanged.
+
+  An instance already scaffolded with carets needs nothing: `pnpm run upgrade` (or, on `0.101.x`
+  or earlier, `pnpm add -D -w @endora-commerce/cli@<version>` then `pnpm exec endora upgrade
+<version>`) puts it on one version.
+
+- @endora-commerce/contracts@0.102.0
+
 ## 0.101.1
 
 ### Patch Changes

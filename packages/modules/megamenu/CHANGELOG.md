@@ -1,5 +1,28 @@
 # @endora-commerce/mod-megamenu
 
+## 0.102.0
+
+### Patch Changes
+
+- 489a0b6: Documentation: migrations are now named by the file that actually ships. The pages cited
+  migrations by a retired numbering (`024_settings_init.ts`, "migration 102", `080_returns_init.ts`
+  and others), which matches no file in any package. Each reference now gives the real
+  timestamped filename, such as `20260611T140346_catalog_product_value_overrides_init.ts`, and
+  says which module owns it where that is a different module. The organizations page also no
+  longer claims that the `suspended` → `blocked` migration writes an audit-log entry: it writes
+  an explanatory `blocked_reason` on each remapped row.
+- 489a0b6: Documentation: two pages said their wiring was done in `composition.ts`. The megamenu module
+  registers its CMS and asset reference scanners in its own boot hook, and the promotions gate on
+  organization status is a required `PromotionService` argument that the `promotions` module wires
+  to `organizationReadPort.loadEffectiveOrganization`, not a raw SQL lookup.
+- Updated dependencies [3f7f481]
+- Updated dependencies [e29093b]
+- Updated dependencies [e7fd44a]
+- Updated dependencies [d8b4e1b]
+  - @endora-commerce/platform@0.102.0
+  - @endora-commerce/admin-kit@0.102.0
+  - @endora-commerce/contracts@0.102.0
+
 ## 0.101.1
 
 ### Patch Changes

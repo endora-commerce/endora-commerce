@@ -1,5 +1,72 @@
 # @endora-commerce/mod-cms
 
+## 0.102.0
+
+### Minor Changes
+
+- 255b60b: The page builder's editor peer moves from `@measured/puck` to `@puckeditor/core`. Puck renamed
+  its package at 0.21 (`npm install @measured/puck` now prints _"Puck has moved"_), and these
+  packages now import `@puckeditor/core` 0.23 — the code, the types and the stylesheet
+  (`@puckeditor/core/puck.css`).
+
+  **What a consumer changes.** If your project declares the editor itself — an admin application
+  that bundles `@endora-commerce/page-builder-admin`, `@endora-commerce/mod-cms` or any of the
+  modules above, or a storefront rendering pages through `@endora-commerce/cms-components`:
+
+  ```bash
+  pnpm remove @measured/puck
+  pnpm add @puckeditor/core@^0.23.0
+  ```
+
+  and rename the specifier in any import of your own (`'@measured/puck'` → `'@puckeditor/core'`,
+  `'@measured/puck/puck.css'` → `'@puckeditor/core/puck.css'`). A project scaffolded with
+  `create-endora-commerce` / `endora new instance` gets the new name at its root from this release
+  on; an existing instance renames the one line in its root `package.json`. Leaving
+  `@measured/puck` installed does not satisfy the peer — the two names are different packages —
+  so a bundler resolves `@puckeditor/core` to nothing and the editor fails to build.
+
+  **Stored content is unchanged.** Puck 0.21–0.23 changed no part of the page data shape: CMS
+  pages, blocks, templates, blog bodies, e-mail templates, newsletter blocks and invoice templates
+  persisted under 0.20 render and edit as they did, with no migration and no read-time adapter.
+
+  **The editor looks and behaves as it did.** Three 0.21–0.23 defaults that reshape the editor are
+  pinned back for every builder host through new exports of `@endora-commerce/page-builder-core/editor`:
+  `withPuckLegacySideBar(plugins)` keeps the stacked Components + Outline side bar instead of the
+  0.21 Plugin Rail, `PUCK_LEGACY_VIEWPORTS` keeps the 0.20 Small / Medium / Large viewports without
+  the 0.21 full-width one (the CMS host keeps passing its own breakpoints), and `PUCK_LEGACY_DND`
+  keeps the 0.20 fluid drag-and-drop instead of the 0.23 insertion line. A host of your own built on
+  these packages can pass the same three to its `<Puck>`.
+
+  `@puckeditor/core` 0.23 requires Node 20 or later, below this platform's own floor (22.17).
+
+### Patch Changes
+
+- 489a0b6: Documentation: "Extending the Page Builder" now describes how a module contributes a block
+  today — by declaring `blocks` and `blockCategories` in its own module manifest, with a
+  `<module id>.<Name>` block name — instead of calling `PageBuilderRegistry.register` from
+  `composition.ts`, which no longer exists. It states the two rules `defineModuleManifest`
+  enforces, that a duplicate name throws `DuplicateBlockNameError` rather than overwriting, that
+  `contexts` is required, and that a module published outside this repository cannot add a
+  renderer to `@endora-commerce/cms-components` without changing that package.
+- 489a0b6: Documentation: migrations are now named by the file that actually ships. The pages cited
+  migrations by a retired numbering (`024_settings_init.ts`, "migration 102", `080_returns_init.ts`
+  and others), which matches no file in any package. Each reference now gives the real
+  timestamped filename, such as `20260611T140346_catalog_product_value_overrides_init.ts`, and
+  says which module owns it where that is a different module. The organizations page also no
+  longer claims that the `suspended` → `blocked` migration writes an audit-log entry: it writes
+  an explanatory `blocked_reason` on each remapped row.
+- Updated dependencies [3f7f481]
+- Updated dependencies [e29093b]
+- Updated dependencies [e7fd44a]
+- Updated dependencies [255b60b]
+- Updated dependencies [d8b4e1b]
+  - @endora-commerce/platform@0.102.0
+  - @endora-commerce/page-builder-core@0.102.0
+  - @endora-commerce/page-builder-admin@0.102.0
+  - @endora-commerce/cms-components@0.102.0
+  - @endora-commerce/admin-kit@0.102.0
+  - @endora-commerce/contracts@0.102.0
+
 ## 0.101.1
 
 ### Patch Changes

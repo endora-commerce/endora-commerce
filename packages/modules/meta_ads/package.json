@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-meta-ads",
-  "version": "0.101.1",
+  "version": "0.102.0",
   "type": "module",
   "sideEffects": false,
   "description": "Meta Ads integration: per-sales-channel Meta Pixel, consent-gated tracking, standard commerce events, and configurable custom events.",

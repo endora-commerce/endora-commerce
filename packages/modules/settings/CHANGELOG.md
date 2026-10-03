@@ -1,5 +1,34 @@
 # @endora-commerce/mod-settings
 
+## 0.102.0
+
+### Patch Changes
+
+- 489a0b6: Documentation: migrations are now named by the file that actually ships. The pages cited
+  migrations by a retired numbering (`024_settings_init.ts`, "migration 102", `080_returns_init.ts`
+  and others), which matches no file in any package. Each reference now gives the real
+  timestamped filename, such as `20260611T140346_catalog_product_value_overrides_init.ts`, and
+  says which module owns it where that is a different module. The organizations page also no
+  longer claims that the `suspended` → `blocked` migration writes an audit-log entry: it writes
+  an explanatory `blocked_reason` on each remapped row.
+- 489a0b6: Documentation: the Settings page now describes how settings are actually registered and
+  removed. A module declares its settings manifest as the `settings` field of its module
+  manifest; there is no array in `backend/src/composition.ts` to append to. The CLI section named
+  `modules:install` / `modules:uninstall`, which do not exist, with an `--force` flag that
+  `module:install` refuses; it now documents `module:install <id> [--dry-run] [--json]` and
+  `module:uninstall <id> [--hard --force] [--json]`, and that `--remove-settings` /
+  `--preserve-settings` survive only as aliases. The reconciler table no longer says a changed
+  `valueType` or `defaultValue` can be forced through, and the value-type list now includes
+  `secret` and `credential_ref`.
+- Updated dependencies [3f7f481]
+- Updated dependencies [e29093b]
+- Updated dependencies [e7fd44a]
+- Updated dependencies [d8b4e1b]
+  - @endora-commerce/platform@0.102.0
+  - @endora-commerce/admin-kit@0.102.0
+  - @endora-commerce/mod-credentials@0.102.0
+  - @endora-commerce/contracts@0.102.0
+
 ## 0.101.1
 
 ### Patch Changes

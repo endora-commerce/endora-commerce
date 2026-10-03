@@ -1,5 +1,21 @@
 # @endora-commerce/mod-product-feeds
 
+## 0.102.0
+
+### Patch Changes
+
+- 489a0b6: Documentation: the out-of-scope list no longer says runtime taxonomy downloads are excluded,
+  which contradicted the optional taxonomy check the same page documents. What stays out of scope
+  is adopting a downloaded taxonomy automatically: a fetched revision is installed inactive and
+  comes into use only when an operator promotes it.
+- Updated dependencies [3f7f481]
+- Updated dependencies [e29093b]
+- Updated dependencies [e7fd44a]
+- Updated dependencies [d8b4e1b]
+  - @endora-commerce/platform@0.102.0
+  - @endora-commerce/admin-kit@0.102.0
+  - @endora-commerce/contracts@0.102.0
+
 ## 0.101.1
 
 ### Patch Changes

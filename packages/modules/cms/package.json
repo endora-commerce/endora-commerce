@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/mod-cms",
-  "version": "0.101.1",
+  "version": "0.102.0",
   "type": "module",
   "sideEffects": false,
   "description": "Pages, blocks, templates, and hooks for content management.",
