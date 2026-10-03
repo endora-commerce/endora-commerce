@@ -381,8 +381,11 @@ the reason. None changes D1–D10's substance.
 10. **Strings: the notice's are in `orders`' own bundle**, as the plan says, although the rest of
     the order page still reads the legacy `core` namespace.
 11. **Read sizes were not re-recorded (T19).** They are re-recorded at release now; the bands held.
-12. **Tests written with their subject rather than strictly before it**: T07, T08 and T16. T00's
-    seven cases, T02–T06, T13, T15 and T17 were red first.
+12. **Test-first was kept unevenly, and this is the honest account.** Run red before the
+    implementation existed: T00's seven cases, T02, T03, T04 and T06 — and through T00, the
+    mechanism tasks T09–T12, whose acceptance is those seven cases going green. Written before the
+    implementation but not run red: T05 (its absence was observed as T00 row 5's missing relation),
+    T13 and T17. Written together with or after their subject: T07, T08, T15, T16 and T20.
 
 Also re-derive the spec's failure table against the tree you branch from; every row is a reading of
 `fe0803f2e`. Branch off `origin/master`; regenerate and commit generated artefacts in the same pull
