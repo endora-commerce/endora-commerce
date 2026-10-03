@@ -107,10 +107,14 @@ describe('more concurrent cancellations than pooled connections (spec 142, FR-00
   const slowed = (registration: string, method: string): void => {
     const object = h.container.resolve(registration) as Record<string, Method>;
     const original = object[method]!.bind(object);
-    vi.spyOn(object as never, method as never).mockImplementation((async (...args: unknown[]) => {
+    (
+      vi.spyOn(object as never, method as never) as unknown as {
+        mockImplementation(fn: Method): unknown;
+      }
+    ).mockImplementation(async (...args) => {
       await sleep(50);
       return original(...args);
-    }) as never);
+    });
   };
 
   it('answers every one of them 200 and releases everything, without waiting on the pool', async () => {
