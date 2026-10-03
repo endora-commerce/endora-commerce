@@ -119,6 +119,10 @@ stays only where Polish developers actually say it (`storefront`, `build`,
 ("failuje", "shipuje", "shadowuje" are always wrong). Identifiers, commands,
 file paths, setting keys and environment variables (`DEPLOYMENT`,
 `overlay:check`, `apps/<deployment>/`) stay exactly as they are in code.
+An Admin UI label quoted in bold (a button, a tab, a screen name) stays as it
+reads in the English page unless the translator has checked the Polish label
+in the module's `i18n/pl.json`; a guessed Polish label sends the reader looking
+for a button that does not exist.
 
 | English term                | Polish term                         | Notes                                                                 |
 |-----------------------------|-------------------------------------|-----------------------------------------------------------------------|
@@ -183,6 +187,12 @@ file paths, setting keys and environment variables (`DEPLOYMENT`,
 | commit (verb)               | zatwierdzić (commit)                | the noun "commit" stays                                               |
 | fallback                    | wartość zastępcza                   | or "ścieżka zapasowa" for a code path                                 |
 | seed data                   | dane początkowe                     |                                                                       |
+| connector (PIM, ERP)        | konektor                            | "konektor PIM", "konektor ERP"                                        |
+| invoice ledger              | księga faktur                       | matches the module's Polish UI label                                  |
+| provider (feed, taxonomy, external service) | dostawca            | "provider" stays only inside identifiers                              |
+| product feed; feed          | feed produktowy; feed               | inflect: feedu, feedy; matches the module's Polish UI label           |
+| run (a feed generation)     | generowanie                         | "przebieg" for a job run or a test run                                |
+| reconciler; reconcile       | mechanizm uzgadniający; uzgadniać   |                                                                       |
 
 ## Adding a new term
 
