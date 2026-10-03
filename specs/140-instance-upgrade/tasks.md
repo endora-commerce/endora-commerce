@@ -19,7 +19,9 @@
 - [x] T008 Prove on npmjs with the branch's CLI tarball: `0.101.0 → 0.101.1` (instance and
   storefront) and `0.100.2 → 0.101.1` (instance; storefront written afterwards), each ending in
   admin sign-in 200, `GET /api/v1/admin/modules` 200 and a demo product rendered.
-- [ ] T009 Run the local-registry acceptance mode with `--services` and record L23.
+- [x] T009 Run the local-registry acceptance mode with `--services` and record L23 — every
+  verdict L1…L23 passed on 2026-10-03, L23 as *exit 0, said so, 4 manifests and lockfiles
+  unchanged*.
 
 ## Not proven here
 

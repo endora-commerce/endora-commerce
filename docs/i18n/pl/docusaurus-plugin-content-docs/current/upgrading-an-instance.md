@@ -66,9 +66,9 @@ Jeśli instancja jest już w żądanej wersji, polecenie to mówi i niczego nie 
 ### Czego nie rusza
 
 - **Pakietów, które nie należą do wydania.** O tym, które należą, decyduje samo wydanie, a nie
-  zakres `@endora-commerce/`, więc płatny moduł wersjonowany osobno i każdy pakiet zewnętrzny
-  zachowują zakres, który wpisałeś. Każdy pominięty pakiet z tego zakresu jest wymieniony
-  w wyniku.
+  zakres `@endora-commerce/`, więc moduł wersjonowany osobno, poza wydaniem, i każdy pakiet
+  zewnętrzny zachowują zakres, który wpisałeś. Każdy pominięty pakiet z tego zakresu jest
+  wymieniony w wyniku.
 - **Zależności, która nie jest zakresem wersji** — `file:`, `link:`, `workspace:`, tag. Zostaje
   wymieniona i zachowana.
 - **Własnych plików sklepu.** Sklep to Twoje repozytorium; przesuwają się tylko jego pakiety

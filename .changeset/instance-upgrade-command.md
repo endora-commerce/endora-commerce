@@ -9,8 +9,8 @@ every module, the admin shell, `@endora-commerce/contracts` — to one version (
 latest when none is named), in every member's `package.json` and in the storefront beside the
 instance, then runs `pnpm install`, the instance's `pnpm run setup` and `pnpm install` in the
 storefront. An exact pin stays exact and `^` stays `^`; a package the release does not carry (a
-paid module, a third-party library) or a spec that is not a version range is left as written and
-named. Lockfile entries of release packages at another version are dropped so pnpm re-resolves the
+module versioned outside the release, a third-party library) or a spec that is not a version
+range is left as written and named. Lockfile entries of release packages at another version are dropped so pnpm re-resolves the
 peers it installed by itself. Every precondition is checked before anything is written; a failing
 step exits with its own code and prints what is left; `--dry-run` reports and does nothing; an
 instance already at the version is told so and left untouched; a version older than the one

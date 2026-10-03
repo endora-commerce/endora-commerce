@@ -32,7 +32,7 @@ its own services, then upgraded to `0.101.1` the way a user would.
   and `module:install --all` are idempotent on an installed instance (61 × *already installed
   (no-op)*); `migrate` applies what a release adds and `module:install --all` installs a module
   the manifest newly declares.
-- **M7 — the paid modules share the scope and not the version** (`mod-inpost` `0.10.0` beside a
+- **M7 — modules published outside the release share the scope and not the version** (`mod-inpost` `0.10.0` beside a
   `0.101.x` release), so "every `@endora-commerce/*` package to one version" is wrong for an
   instance carrying one.
 
@@ -43,8 +43,8 @@ its own services, then upgraded to `0.101.1` the way a user would.
   the storefront beside the instance — then installs and runs the instance's own `setup`.
   `<version>` absent is the registry's `latest` of the platform package.
 - **FR-002** "Belongs to the release" is decided by **name**, from the release index the CLI
-  carries (`lib/release-index.ts`) — never by scope. A package the index does not name (a paid
-  module, a third-party package) is left exactly as written and reported.
+  carries (`lib/release-index.ts`) — never by scope. A package the index does not name (a module
+  versioned on its own, a third-party package) is left exactly as written and reported.
 - **FR-003** A range keeps its operator: an exact pin stays exact at the new version, `^` stays
   `^`, `~` stays `~`. A spec that is not a version range (`file:`, `link:`, `workspace:`, `npm:`,
   a tag, a URL) is left as written and reported. No other line of a manifest changes.

@@ -279,7 +279,7 @@ of the release this CLI belongs to — the platform, every module, the admin she
 the contracts — to one version, in every member of the instance and in the
 storefront beside it, then installs and runs the instance's own \`setup\` (generate,
 build, migrate, install any module the release adds). An exact pin stays exact and
-a caret stays a caret; a package that is not part of the release — a paid module, a
+a caret stays a caret; a package that is not part of the release — a module versioned on its own, a
 third-party library — is left as written and named. Every precondition is checked
 before anything is written, every command is printed before it runs, and a failure
 exits with that step's own code and prints what is left. Already at the version, it

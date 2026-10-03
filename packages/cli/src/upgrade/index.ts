@@ -16,7 +16,8 @@
  *
  * ## What belongs to the release is a name, never a scope (FR-002)
  *
- * The paid modules share the scope and version on their own, so "every
+ * Modules published outside the release share the scope and version on
+ * their own, so "every
  * `@endora-commerce/*` package" would move one to a version that does not
  * exist. The population is the release index this CLI carries
  * (`lib/release-index.ts`) — the release's own statement of what it published —
@@ -219,7 +220,8 @@ export function rewriteManifestText(
       const scoped = name.startsWith('@');
       if (!release.has(name)) {
         // A third-party package is nobody's business here. A package of a
-        // scope the release uses but not in the release — a paid module — is
+        // scope the release uses but not in the release — a module versioned on
+        // its own — is
         // reported, because skipping it silently is a decision nobody saw.
         if (scoped && [...release].some((member) => member.split('/')[0] === name.split('/')[0])) {
           left.set(name, { name, spec, why: 'not part of this release' });

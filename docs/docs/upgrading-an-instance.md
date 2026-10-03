@@ -64,9 +64,9 @@ Already at the version you asked for, it says so and changes nothing.
 ### What it leaves alone
 
 - **Packages that are not part of the release.** Which packages belong to it is decided by the
-  release itself, not by the `@endora-commerce/` scope, so a paid module versioned on its own,
-  and every third-party package, keeps the range you wrote. Each scoped package it skips is
-  named in the output.
+  release itself, not by the `@endora-commerce/` scope, so a module versioned on its own outside
+  the release, and every third-party package, keeps the range you wrote. Each scoped package it
+  skips is named in the output.
 - **A dependency that is not a version range** — `file:`, `link:`, `workspace:`, a tag. It is
   named, and kept.
 - **The storefront's own files.** The storefront is your repository; only its release packages

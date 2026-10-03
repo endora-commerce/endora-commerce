@@ -99,7 +99,7 @@ interface Tree {
 
 /**
  * An instance at `installed`, as `endora install` leaves one: three members,
- * an exact `contracts` pin, a paid module of the same scope at its own version,
+ * an exact `contracts` pin, a module of the same scope versioned on its own,
  * a third-party range, and the storefront beside it.
  */
 function tree(options: { installed?: string; ranges?: string; storefront?: boolean } = {}): Tree {
@@ -264,7 +264,7 @@ describe('rewriteManifestText — only release packages move, and nothing else c
       { name: `${SCOPE}contracts`, from: '0.1.0', to: '0.2.0' },
       { name: `${SCOPE}platform`, from: '^0.1.0', to: '^0.2.0' },
     ]);
-    // The paid module is not in the release, so it is reported rather than
+    // That module is not in the release, so it is reported rather than
     // silently skipped; the third-party range is nobody's business here.
     expect(result.left).toEqual([
       { name: `${SCOPE}cli`, spec: 'file:../cli.tgz', why: 'not a version range' },
