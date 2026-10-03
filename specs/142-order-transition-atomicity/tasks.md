@@ -84,7 +84,7 @@ calling `sweep()`.
 
 ## Phase 2 — the mechanism (needs Q1 and Q2 answered)
 
-- [ ] **T07** Handlers `stock.release` and `credit.release`: presence first, then the port; answer
+- [x] **T07** Handlers `stock.release` and `credit.release`: presence first, then the port; answer
   `done` with the owner's result or `blocked` with the module id (plan D2, D3).
   Files: `packages/modules/orders/src/backend/services/order-transition-effect-handlers.ts`.
   **Test**: `…/services/order-transition-effect-handlers.test.ts` — with the owner absent the port
