@@ -336,6 +336,54 @@ found replaces the premise:
    `pendingEffects` is added there the same way: optional, documented as admin-only, and T16
    asserts the buyer-facing response does not carry it.
 
+## As built — where the tree led somewhere the plan did not
+
+Each of these is a difference between what the decisions above say and what was implemented, with
+the reason. None changes D1–D10's substance.
+
+1. **`stock.release` shares a function with `OrderService.releaseAllocations` rather than calling
+   it (D2).** `OrderService` is built in the plugin body, so it exists only once routes register —
+   and the repair command composes the platform without building a server. The release body moved
+   to `services/order-allocation-release.ts`; both callers use it, and
+   `place-order-inventory-apply-port.test.ts`, which drives the service method, is green unedited.
+2. **The effect service is a container registration, not a plugin-body object (D6).** For the same
+   reason: the engine, the sweep worker and the repair command must reach one instance, and only
+   the first has a server. `orderTransitionEffectService` is registered in `backend/index.ts` and
+   handed to the plugin.
+3. **The engine's fourth constructor argument stays, with a new meaning (T09).** T09 said to
+   remove the `sideEffects` parameter. `status-lifecycle.test.ts` builds the engine with three
+   arguments and SC-004 keeps it unedited, so the fourth is now the optional effect service — and
+   it fails closed: a transition that owes a follow-up is refused, before the write, when none was
+   supplied. `OrderService` takes the same collaborator the same way for D8.
+4. **`record` is `insert … on conflict do nothing` on the partial index.** D5's lock makes two
+   *lifecycle* transitions serialise, but an order marked paid whose credit release is still
+   outstanding and which is then cancelled would otherwise trip the unique index inside the
+   cancellation. One outstanding release per order and effect is owed once, whichever transition
+   asks second.
+5. **`order_transition_effects.organization_id` carries no foreign key.** `orders.organization_id`
+   carries none, and `order-transition-port.test.ts` seeds orders whose organization has no row; a
+   constraint on the copy refused the cancellation of an order the schema accepts.
+6. **`sweep` writes `blocked_on` in bulk (D3).** D3 has the sweep exclude the rows of an absent
+   owner and do nothing per row. It does — and issues one statement per absent owner marking
+   not-yet-marked rows as waiting, and its mirror clearing the mark when the owner is back, so the
+   order page's "waiting for module" stays true for a row the inline attempt never saw blocked.
+   After the first pass both statements update nothing.
+7. **A failure of the drain itself is tolerated in the request (FR-002).** D7 puts the emit in a
+   `finally` and says nothing about the drain throwing for a reason other than D3's residue (the
+   claim failing on a lost connection). The status is committed and the rows recorded, so the
+   caller is answered "applied" and the failure is logged; `ModuleDisabledError` is re-thrown
+   first, as D3 says. Fault 1 of the fault-injection test.
+8. **The buyer cannot reach spec row 1** — measured, and corrected in the spec. T11's buyer
+   assertion is made with an order the buyer may cancel.
+9. **A second module edge: `credit_limits:creditLimitReadPort`, `degrades-without`.** D9 added the
+   read method; resolving its port from `orders` is a new edge and is declared, with the degrade
+   the repair implements (credit holdings reported as not examined).
+10. **Strings: the notice's are in `orders`' own bundle**, as the plan says, although the rest of
+    the order page still reads the legacy `core` namespace.
+11. **Read sizes were not re-recorded (T19).** They are re-recorded at release now; the bands held.
+12. **Tests written with their subject rather than strictly before it**: T07, T08 and T16. T00's
+    seven cases, T02–T06, T13, T15 and T17 were red first.
+
 Also re-derive the spec's failure table against the tree you branch from; every row is a reading of
 `fe0803f2e`. Branch off `origin/master`; regenerate and commit generated artefacts in the same pull
 request (`composer:generate`); re-measure read sizes (this adds files); one changeset per touched
