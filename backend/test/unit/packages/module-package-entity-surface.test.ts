@@ -68,6 +68,10 @@ const MODULE_PACKAGES_OUTSIDE_THE_WORKSPACE: Readonly<Record<string, string>> = 
     'the package-schema acceptance fixture (D-110). Not a `pnpm-workspace.yaml` member on ' +
     'purpose, so pnpm cannot link it and the criterion measures a real install — and it is ' +
     'the shape a third-party author copies, so D-168 has to reach it.',
+  'backend/acceptance/block-renderers-fixture':
+    'the block-renderers acceptance fixture (`specs/141-module-block-renderers/`). Not a ' +
+    'workspace member for the same reason, and the documentation quotes it verbatim as the ' +
+    'example a module author copies — so its `./backend` is held to D-168 like any other.',
 };
 
 /**
