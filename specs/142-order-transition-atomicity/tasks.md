@@ -91,7 +91,7 @@ calling `sweep()`.
   accessor is **never called** and the answer is `blocked`; with it present the port is called once
   with the right reason; `ALREADY_RELEASED` and `RESERVATION_NOT_FOUND` are `done`.
 
-- [ ] **T08** `OrderTransitionEffectService`: `record(tx, order, effects, origin)`,
+- [x] **T08** `OrderTransitionEffectService`: `record(tx, order, effects, origin)`,
   `drainForOrder(orderId)`, `sweep(now)` (plan D6) — claim with `for update skip locked` through
   `em.execute`; outcome recording; back-off; the per-owner presence filter in `sweep`; `warn` from
   the fifth failure (FR-020). The per-row `catch` begins with `rethrowIfModuleDisabled`.
