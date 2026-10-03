@@ -125,7 +125,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   canvas and preview show the renderer's HTML; an unknown stored name is a visible placeholder and
   survives a save round-trip unchanged.
 
-- [ ] **T11** [P] The admin stylesheet enumeration imports `./blocks.css` of every installed module
+- [x] **T11** [P] The admin stylesheet enumeration imports `./blocks.css` of every installed module
   package declaring it, in both trees; regenerate.
   Files: `packages/cli/src/lib/admin-artefacts.ts`, `admin/src/tailwind.generated.css` (regenerated —
   unchanged in this repository, no package declares it yet).

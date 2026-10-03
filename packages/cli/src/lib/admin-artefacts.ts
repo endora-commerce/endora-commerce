@@ -455,6 +455,88 @@ export function collectTailwindSources(
     }));
 }
 
+// ── the Page Builder block stylesheets ──────────────────────────────────────
+
+/**
+ * The subpath a module package publishes its finished block stylesheet under
+ * (`specs/141-module-block-renderers/contracts/block-renderers.md` §1, §6).
+ */
+export const BLOCK_STYLESHEET_SUBPATH = './blocks.css';
+
+/** One module package whose `./blocks.css` the admin imports. */
+export interface BlockStylesheetEntry {
+  /** The npm name, which is also the sort key. */
+  readonly name: string;
+  /** `<name>/blocks.css`, or a path relative to the artefact — as for a Tailwind source. */
+  readonly specifier: string;
+}
+
+/** The file a declared `./blocks.css` points at, or `null` when it is not declared. */
+function blockStylesheetTargetOf(manifest: Record<string, unknown>): string | null {
+  const declared = (manifest['exports'] as Record<string, unknown> | undefined)?.[
+    BLOCK_STYLESHEET_SUBPATH
+  ];
+  if (typeof declared === 'string') return declared;
+  if (typeof declared === 'object' && declared !== null) {
+    const fallback = (declared as Record<string, unknown>)['default'];
+    if (typeof fallback === 'string') return fallback;
+  }
+  return null;
+}
+
+/**
+ * Every composed **module** package that declares `./blocks.css`, sorted by name.
+ *
+ * The admin canvas draws a module's block with the module's own renderer
+ * (contract §4), so it needs the stylesheet the storefront loads for it. The
+ * population is the stylesheet composition's — the packages this tree composes
+ * — narrowed by two statements the package makes about itself: `endora.type`
+ * is `module`, and the `exports` map declares the subpath. A non-module package
+ * declaring the same subpath is not a block stylesheet and is not imported.
+ *
+ * **A declared subpath whose file is not in the package is a refusal**, for the
+ * reason a missing admin layer is: the generated stylesheet would import it and
+ * the bundler would fail on a path a client cannot attribute to anything.
+ */
+export function collectBlockStylesheets(
+  root: string,
+  exists: PathProbe = existsSync,
+): readonly BlockStylesheetEntry[] {
+  const composed = composedPackageDirectories(root, exists);
+  const artefactDir = realDirectory(dirname(tailwindRegistryOutputPathIn(root)));
+  const found: BlockStylesheetEntry[] = [];
+  for (const [name, pkg] of composed) {
+    let manifest: Record<string, unknown>;
+    try {
+      manifest = JSON.parse(readFileSync(join(pkg.dir, 'package.json'), 'utf8')) as Record<
+        string,
+        unknown
+      >;
+    } catch {
+      continue;
+    }
+    if ((manifest['endora'] as { type?: unknown } | undefined)?.type !== 'module') continue;
+    const target = blockStylesheetTargetOf(manifest);
+    if (target === null) continue;
+    const file = join(realDirectory(pkg.dir), target);
+    if (!exists(file)) {
+      throw new ModulePackageError(
+        `[composer] ${name} exports '${BLOCK_STYLESHEET_SUBPATH}' as ${target}, and that file is ` +
+          `not in the package. The generated admin stylesheet imports it by that specifier, so ` +
+          `the admin would fail to build on a path nobody wrote; build the package's block ` +
+          `stylesheet before packing it, or remove the subpath.`,
+      );
+    }
+    found.push({
+      name,
+      specifier: pkg.bare
+        ? `${name}/${BLOCK_STYLESHEET_SUBPATH.replace(/^\.\//, '')}`
+        : relative(artefactDir, file).split(sep).join('/'),
+    });
+  }
+  return found.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+}
+
 /** `@endora-commerce/mod-blog/tailwind.css` → `@endora-commerce/mod-blog`. */
 function packageNameOf(specifier: string): string {
   const segments = specifier.split('/');
@@ -465,8 +547,20 @@ function packageNameOf(specifier: string): string {
 export function emitTailwindRegistry(
   entries: readonly TailwindSourceEntry[],
   header: string = COMPOSER_STYLESHEET_HEADER,
+  blockStylesheets: readonly BlockStylesheetEntry[] = [],
 ): string {
-  const imports = entries.map((entry) => `@import "${entry.specifier}";`).join('\n');
+  // The section is written only when a module declares one, so a tree in which
+  // none does renders the bytes it rendered before the section existed.
+  const blocks =
+    blockStylesheets.length === 0
+      ? ''
+      : `\n/*\n * Page Builder block stylesheets — one import per module package that declares\n` +
+        ` * \`./blocks.css\`: finished, module-scoped CSS for the blocks that module draws\n` +
+        ` * on the editor canvas (\`specs/141-module-block-renderers/\`, contract §6).\n */\n` +
+        blockStylesheets.map((entry) => `@import "${entry.specifier}";`).join('\n') +
+        '\n';
+  const imports =
+    entries.map((entry) => `@import "${entry.specifier}";`).join('\n') + (blocks === '' ? '' : `\n${blocks.replace(/\n$/, '')}`);
   return `${header} *
  * The admin stylesheet composition — one import per package that declares
  * \`./tailwind.css\`, which is where that package's own \`@source\` directives

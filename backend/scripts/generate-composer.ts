@@ -89,6 +89,7 @@ import { BASELINE_MIGRATION_INVENTORY } from '@endora-commerce/platform/migratio
 import {
   adminRegistryOutputPathIn,
   collectAdminContributions,
+  collectBlockStylesheets,
   collectTailwindSources,
   emitAdminRegistry,
   emitTailwindRegistry,
@@ -2114,7 +2115,11 @@ export function renderTailwindRegistry(
 ): { outputPath: string; content: string } {
   return {
     outputPath: tailwindRegistryOutputPathIn(population.root),
-    content: emitTailwindRegistry(collectTailwindSources(population.root, population.packages)),
+    content: emitTailwindRegistry(
+      collectTailwindSources(population.root, population.packages),
+      undefined,
+      collectBlockStylesheets(population.root),
+    ),
   };
 }
 
