@@ -75,7 +75,7 @@ calling `sweep()`.
   outstanding row for one `(order_id, effect)` is refused; a second row after the first completed is
   accepted; the entity is tenant-filtered.
 
-- [ ] **T06** [P] Pure rule: which effects a transition owes (plan table *Which rows a transition
+- [x] **T06** [P] Pure rule: which effects a transition owes (plan table *Which rows a transition
   writes*).
   Files: `packages/modules/orders/src/backend/domain/transition-effects.ts`.
   **Test**: `…/domain/transition-effects.test.ts` — `→ cancelled` on a credit order owes two; on any
