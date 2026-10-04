@@ -263,11 +263,26 @@ describe('Heap ceiling (feature 072)', () => {
  * ## The bound
  *
  * Three cycles, because a leak is a *slope* and one cycle cannot show one.
- * Measured with both repairs in place: **1 `Timeout` and 1 `TCPWRAP`** survive
- * three cycles — a constant, the pooled connection and the timer wheel the
- * process would hold anyway. Without the test-kit repair the same three cycles
+ * Measured with both repairs in place: **no `Timeout` and no `TCPWRAP`**
+ * survives three cycles. Without the test-kit repair the same three cycles
  * leave **4** `TCPWRAP`; a per-cycle leak of either kind reaches at least 3, so
  * the ceiling sits at 2.
+ *
+ * **This paragraph read "1 `Timeout` and 1 `TCPWRAP` … a constant, the pooled
+ * connection and the timer wheel the process would hold anyway", and that was
+ * a misreading of the instrument rather than a property of the process.** The
+ * census disabled its hook before the settle wait, so it never saw the
+ * `destroy` of anything still closing when the last teardown returned. The one
+ * of each was one connection of the *final* cycle's pool mid-close — its
+ * socket and the pool's destroy timeout — and under load, when more of that
+ * pool was still closing at that instant, the same run printed
+ * `TCPWRAP=4 Timeout=4` and failed with nothing leaked. With the hook enabled
+ * through the wait the figure is zero — six runs out of six on a host whose
+ * load average stood between 50 and 68, the condition under which the old
+ * ordering went red; an unref'ed interval armed once per cycle still reads
+ * `Timeout=3` and fails. The ceiling and the wait are unchanged: a real
+ * per-composition leak is created in every cycle, not only the last, and is
+ * counted under either ordering.
  */
 const HANDLE_CYCLES = 3;
 
@@ -280,10 +295,24 @@ const SURVIVING_HANDLE_CEILING = 2;
  */
 const WATCHED_HANDLE_TYPES = ['Timeout', 'TCPWRAP'] as const;
 
+/**
+ * How long the census waits after the last teardown before it counts.
+ *
+ * Node queues a `destroy` hook to run on a later tick, and a pooled connection
+ * closes over several of them — its socket, the pool's destroy timeout, the
+ * tick after — so what is still open can only be read once those have been
+ * delivered.
+ */
+const SETTLE_MS = 500;
+
 async function surviveCycles(cycles: number): Promise<ReadonlyMap<string, number>> {
   const live = new Map<number, string>();
+  // Set while the census arms its own settle timer, so that timer is never
+  // counted as something a composition left behind.
+  let armingSettleTimer = false;
   const hook = createHook({
     init(id, type) {
+      if (armingSettleTimer && type === 'Timeout') return;
       live.set(id, type);
     },
     destroy(id) {
@@ -297,13 +326,24 @@ async function surviveCycles(cycles: number): Promise<ReadonlyMap<string, number
       const handle = await setupBackendServer({ seed: 'none' });
       await teardownBackendServer(handle);
     }
+    // **The hook stays enabled across the wait.** A disabled hook receives no
+    // callback, so disabling it first — which is what this function did —
+    // discards every `destroy` still queued when the last teardown returned,
+    // and the wait that exists to let them land cannot deliver one. The count
+    // was then "what had not been reported closed at the instant the last
+    // teardown returned": one entry per connection of the final pool that was
+    // still closing, a number that follows host load and not a leak.
+    await new Promise<void>((resolve) => {
+      armingSettleTimer = true;
+      try {
+        setTimeout(resolve, SETTLE_MS);
+      } finally {
+        armingSettleTimer = false;
+      }
+    });
   } finally {
     hook.disable();
   }
-  // `destroy` for a socket closed during teardown lands on a later tick; without
-  // this the count is of what has not been *reported* closed rather than of what
-  // is still open.
-  await new Promise((resolve) => setTimeout(resolve, 500));
 
   const byType = new Map<string, number>();
   for (const type of live.values()) byType.set(type, (byType.get(type) ?? 0) + 1);

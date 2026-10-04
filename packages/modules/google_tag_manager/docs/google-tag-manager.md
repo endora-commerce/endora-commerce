@@ -157,6 +157,11 @@ producer**: it validates the batch and enqueues one job per event onto the durab
 `google_tag_manager.ss.relay`, then answers `202`. No outbound call happens inside the shopper's
 request, so a slow or failing container can never affect the shop.
 
+For a channel whose server-side tagging is not configured — the switch is off, or the
+`Server container URL` is blank — the route enqueues nothing and answers `202` with `accepted: 0`.
+The storefront does not post for such a channel in the first place; this is what a request from a
+page still holding an older configuration gets.
+
 A separable worker (co-located in the API process unless `BACKEND_ROLE=api`, in which case only the
 `worker` process runs it) posts each event to your container and retries on failure: eight attempts
 with exponential backoff from one second. Exhausted deliveries are retained as failed jobs so they

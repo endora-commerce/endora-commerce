@@ -89,23 +89,115 @@ export function hasChildrenRefusal(): HttpError {
   );
 }
 
+/**
+ * Whether `path` is a materialized path this service may use as an operand, for
+ * the organization `id`.
+ *
+ * Readable means exactly the shape the writers produce: one or more
+ * slash-delimited segments, a leading and a trailing slash, the last segment
+ * the organization's own id, and no segment that is empty or carries a `LIKE`
+ * metacharacter. Everything else is unreadable — the empty string above all,
+ * which is the column's default and the prefix of every path.
+ *
+ * **Every reader below asks this before it uses a path as a prefix**, and that
+ * is the point of it being one function. The create hook and the repair
+ * migration make an unreadable path something no current writer produces; this
+ * is what keeps a row that arrives some other way (raw SQL, a restore, a writer
+ * that skips the hook) from reading as the ancestor of the whole table. The
+ * rule for a row that fails it is the same everywhere: it has no ancestors, its
+ * subtree is itself, and it is not moved.
+ */
+export function isReadableTreePath(path: string | null | undefined, id: string): boolean {
+  if (typeof path !== 'string' || id.length === 0) return false;
+  if (!path.startsWith('/') || !path.endsWith(`/${id}/`)) return false;
+  const segments = path.slice(1, -1).split('/');
+  return segments.every((segment) => segment.length > 0 && !/[%_\\]/.test(segment));
+}
+
+/**
+ * A move refused because one of the two organizations has a stored path the
+ * tree cannot read.
+ *
+ * 409 rather than the 422 its siblings carry: nothing about the *request* is
+ * wrong — the same move is fine once the row is repaired — so it is a conflict
+ * with stored state. `organizationId` names which of the two it is, because the
+ * operator chose both and only one of them is at fault.
+ */
+export function unreadablePathRefusal(organizationId: string): HttpError {
+  return new HttpError(
+    409,
+    ERROR_CODES.ORGANIZATION_TREE_INVALID,
+    `Organization ${organizationId} has a stored tree position that cannot be read, so it cannot be moved or chosen as a parent until that is repaired.`,
+    { code: 'path_unreadable', organizationId },
+  );
+}
+
+interface OwnTreeRow {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  status: string;
+  path: string;
+  deleted_at: Date | string | null;
+}
+
 export class OrganizationTreeService {
   constructor(private readonly emFactory: () => EntityManager) {}
 
-  /**
-   * `{orgId} ∪ descendants`, pre-order (by `path`). One indexed prefix scan.
-   * Empty when the org does not exist.
-   */
-  async subtreeIds(orgId: string): Promise<string[]> {
-    const em = this.emFactory();
+  /** The organization's own row, read by primary key. */
+  async #ownRow(em: EntityManager, orgId: string): Promise<OwnTreeRow | undefined> {
     const rows = (await em.getConnection().execute(
-      `select "id" from "organizations"
-         where "path" like (select "path" from "organizations" where "id" = ?) || '%'
+      `select "id", "name", "parent_id", "status", "path", "deleted_at"
+         from "organizations" where "id" = ?`,
+      [orgId],
+    )) as OwnTreeRow[];
+    return rows[0];
+  }
+
+  /**
+   * The rows of `orgId`'s subtree, pre-order.
+   *
+   * The organization's own path is read first and **judged** before it becomes
+   * a `LIKE` operand. It used to be inlined as a sub-select, which is one
+   * statement fewer and has no place to refuse: a row holding `''` matched
+   * every organization on the platform. An unreadable path answers the row
+   * itself and nothing else — the narrowest set that is still true.
+   */
+  async #subtreeRows(
+    orgId: string,
+  ): Promise<Array<Omit<OwnTreeRow, 'deleted_at'>>> {
+    const em = this.emFactory();
+    const own = await this.#ownRow(em, orgId);
+    if (!own) return [];
+    if (!isReadableTreePath(own.path, own.id)) {
+      // As a root for every reading derived from it: no ancestors, depth 0.
+      return own.deleted_at ? [] : [{ ...own, path: `/${own.id}/` }];
+    }
+    return (await em.getConnection().execute(
+      `select "id", "name", "parent_id", "status", "path" from "organizations"
+         where "path" like ?
            and "deleted_at" is null
          order by "path"`,
-      [orgId],
-    )) as Array<{ id: string }>;
-    return rows.map((r) => r.id);
+      [`${own.path}%`],
+    )) as Array<Omit<OwnTreeRow, 'deleted_at'>>;
+  }
+
+  /** Refuses unless every given organization has a readable path. */
+  #assertReadable(...organizations: Array<Organization | null>): void {
+    for (const organization of organizations) {
+      if (organization && !isReadableTreePath(organization.path, organization.id)) {
+        throw unreadablePathRefusal(organization.id);
+      }
+    }
+  }
+
+  /**
+   * `{orgId} ∪ descendants`, pre-order (by `path`): a primary-key read, then
+   * one indexed prefix scan. Empty when the org does not exist; the org alone
+   * when its own path is unreadable (see {@link isReadableTreePath}).
+   */
+  async subtreeIds(orgId: string): Promise<string[]> {
+    return (await this.#subtreeRows(orgId)).map((r) => r.id);
   }
 
   /** Descendants of `orgId` (excludes self), pre-order. */
@@ -116,28 +208,20 @@ export class OrganizationTreeService {
 
   /** Ancestor ids of `orgId`, nearest-first (parent → … → root). Excludes self. */
   async ancestorIds(orgId: string): Promise<string[]> {
-    const em = this.emFactory();
-    const rows = (await em.getConnection().execute(
-      `select "path" from "organizations" where "id" = ?`,
-      [orgId],
-    )) as Array<{ path: string }>;
-    const path = rows[0]?.path;
-    if (!path) return [];
-    const segs = pathSegments(path);
+    const own = await this.#ownRow(this.emFactory(), orgId);
+    // An unreadable path names no ancestors: a chain read off it would be
+    // whatever ids the damage happened to leave behind.
+    if (!own || !isReadableTreePath(own.path, own.id)) return [];
+    const segs = pathSegments(own.path);
     segs.pop(); // drop self (final segment)
     return segs.reverse(); // nearest-first
   }
 
   /** Subtree as tree nodes (id, name, parentId, depth, status), pre-order. */
   async subtreeNodes(orgId: string): Promise<OrganizationTreeNode[]> {
-    const em = this.emFactory();
-    const rows = (await em.getConnection().execute(
-      `select "id", "name", "parent_id", "status", "path" from "organizations"
-         where "path" like (select "path" from "organizations" where "id" = ?) || '%'
-           and "deleted_at" is null
-         order by "path"`,
-      [orgId],
-    )) as Array<{ id: string; name: string; parent_id: string | null; status: string; path: string }>;
+    const rows = await this.#subtreeRows(orgId);
+    // Depth is relative to nothing here — it is the node's depth in the whole
+    // tree, as before — so it is read off each row's own path.
     return rows.map((r) => this.#toNode(r));
   }
 
@@ -160,8 +244,15 @@ export class OrganizationTreeService {
    * Rejects assigning `node`'s parent to `newParent` when that would create a
    * cycle: `newParent` is `node` itself or lives inside `node`'s own subtree.
    * One path-prefix comparison — no walk (FR-002).
+   *
+   * Both paths have to be readable first, the detach case included: the
+   * comparison below is `startsWith`, which an empty `node.path` satisfies for
+   * every parent, and the rewrite that follows a passed check is a prefix
+   * `UPDATE` over `node.path`. Refusing by name beats answering "cycle" for a
+   * move that has none.
    */
   assertNoCycle(node: Organization, newParent: Organization | null): void {
+    this.#assertReadable(node, newParent);
     if (!newParent) return; // detach → root, never a cycle
     if (newParent.id === node.id || newParent.path.startsWith(node.path)) {
       throw cycleRefusal();
@@ -177,6 +268,7 @@ export class OrganizationTreeService {
     node: Organization,
     newParent: Organization | null,
   ): Promise<void> {
+    this.#assertReadable(node, newParent);
     const rows = (await em.getConnection().execute(
       `select "path" from "organizations" where "path" like ? and "deleted_at" is null`,
       [`${node.path}%`],
@@ -208,6 +300,11 @@ export class OrganizationTreeService {
     node: Organization,
     newParent: Organization | null,
   ): Promise<{ affected: Array<{ id: string; oldPath: string }> }> {
+    // Guarded here as well as in the two checks, because this is the statement
+    // that does the damage: `where "path" like oldPath || '%'` with an empty
+    // `oldPath` rewrites every organization in the table, and an empty parent
+    // path builds a child path with no leading slash.
+    this.#assertReadable(node, newParent);
     const oldPath = node.path;
     const newPath = `${newParent ? newParent.path : '/'}${node.id}/`;
 

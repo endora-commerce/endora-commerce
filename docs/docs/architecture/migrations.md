@@ -62,7 +62,7 @@ The convention is:
 | Part | Rule |
 |------|------|
 | Timestamp | UTC, fixed width (15 chars), literal `T` at index 8. No `Z`, no separators. Lexicographically sortable. **Unique within its own module** — two modules may legally share a stamp, because a stamp orders nothing outside its module and two package authors cannot coordinate. |
-| `<SEGMENT>` | The owning module id with a leading underscore stripped; the literal `core` for the cross-cutting migrations in `backend/src/db/migrations/`. |
+| `<SEGMENT>` | The owning module id with a leading underscore stripped; the literal `core` for the cross-cutting migrations in `packages/platform/src/migrations/`. |
 | `<SLUG>` | `snake_case` (`[a-z0-9_]+`) describing the change. |
 
 The **class name is derived mechanically** from the filename: strip the extension,
@@ -81,8 +81,13 @@ Segment normalization has exactly two special cases:
 |------------------|-------------|---------------------|
 | `packages/modules/orders/src/migrations/` | `orders` | `'orders'` |
 | `packages/modules/_i18n/src/migrations/` | `i18n` | `'_i18n'` |
-| `packages/platform/src/lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
-| `backend/src/db/migrations/` | `core` | `'core'` |
+| `packages/platform/src/migrations/` | `core` | `'core'` |
+
+Every row is a directory that exists. `_lifecycle` is the other underscore-prefixed module
+and would take the segment `lifecycle` by the same rule, but it has no row because it has
+no migrations directory: the module is part of the platform package, and its one table is
+created by `20260506T200657_core_module_lifecycle_init.ts` among the cross-cutting
+migrations, under the `core` segment.
 
 **The class-name tail must begin with the module's segment**, and that is a rule now,
 not just a consequence of deriving the name from the path. It is what
@@ -103,7 +108,7 @@ costs and how to ship it.
 
 This section is this **repository's own** modules — a workspace member declaring
 `endora: { type: 'module', id }`, a module under the application's source root, or the
-cross-cutting migrations under `backend/src/db/migrations/`. Both commands below need this
+cross-cutting migrations under `packages/platform/src/migrations/`. Both commands below need this
 repository's layout. If you are writing a module that ships as an installed npm package,
 neither is available to you: skip to
 [How to create a migration in an extension package](#how-to-create-a-migration-in-an-extension-package).
@@ -144,7 +149,7 @@ Register it by regenerating the committed registry, and commit both files:
 pnpm --filter backend run composer:generate
 ```
 
-The generator walks `src/db/migrations/` and every module's own `migrations/`
+The generator walks the platform's `packages/platform/src/migrations/` and every module's own `migrations/`
 directory, located the same way the scaffolder locates it, derives each class name from its filename, and refuses — rather than skips — a file it
 cannot place: an unrecognized `.ts` in a migrations directory, a class the file does
 not export, two files deriving the same name, or a migration under
@@ -284,9 +289,23 @@ Everything else fails loudly — see *If you get the naming wrong* below.
 
 The execution order is a topological walk of the manifest dependency graph, so a manifest
 `dependencies` entry is **the only thing** that puts your migration after the table it
-references. If your migration adds a foreign key to `orders`, your manifest declares `orders`
-— that, and only that, is what makes the constraint applicable on a fresh database. The
-fixture declares `auth` for exactly this class of reason.
+references. **The predicate is a table reference, not a `references` clause.** A foreign key
+to `orders` is one, and so is a `select`, `insert`, `update` or `delete` that names an `orders`
+table: each needs that table to be there on a fresh database, and your manifest declaring
+`orders` — directly or transitively — is the only thing that guarantees it. The fixture
+declares `auth` for exactly this class of reason.
+
+**A declaration does not license a write.** A migration may not `insert` into, `update` or
+`delete` from a table another module owns, whether or not that module is in your
+`dependencies`: a declaration is a fact about order and presence, and a write is a fact about
+ownership. Rows in another module's table are seeded or corrected by that module's own
+migration, by your module's install hook, or through the owning module's port at boot. Tables
+the platform itself owns need no declaration — the platform is always present and cannot
+appear in a `dependencies` array.
+
+In this repository both rules are enforced by `pnpm --filter backend run check:module-boundary`,
+beside the foreign-key validator described below. As with the `./migrations` array, nothing in
+the host reads an installed package's migration SQL, so in a package they are yours to keep.
 
 There is no other lever. Moving your timestamp cannot do it (see below), and there is no
 per-migration ordering edge.
@@ -516,6 +535,12 @@ enumerated `backend/test/unit/db/table-owner-overrides.ts` for the bridge tables
 entity claims), and asserts that the referencing module **transitively declares** the
 referenced module in its manifest `dependencies`.
 
+It reads those two statements and nothing else, so it is the foreign-key half of the rule. A
+`select`, `insert`, `update` or `delete` in a migration that names another module's table is
+judged by `check:module-boundary`, under the two rules given in step 3 of the extension-package
+section above: an undeclared reference is refused, and a write is refused whether declared or
+not.
+
 - It is a **pure unit test**: no database, no ORM bootstrap, runs inside
   `pnpm --filter backend run test:unit` in well under a second.
 - It has **no runtime effect whatsoever**. Nothing under `backend/src/` imports it, it
@@ -531,7 +556,7 @@ A failure reads:
 [fk-drift] undeclared cross-module foreign key:
   orders.order_placement_intents → api_keys
   module "orders" references module "api_keys" but does not declare it
-  (transitively) in backend/src/modules/orders/manifest.ts.
+  (transitively) in packages/modules/orders/src/manifest.ts.
 
   Fix one of:
     (a) add 'api_keys' to `dependencies` in orders/manifest.ts  ← usually this

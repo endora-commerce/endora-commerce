@@ -1,10 +1,32 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { NumberingSeries } from '@endora-commerce/contracts';
 import {
   findNumberPatternCollisions,
   patternSequenceDefect,
 } from './invoice-number-collisions.js';
-import { DEFAULT_PATTERNS, effectivePattern } from './invoice-number-generator.js';
+import {
+  DEFAULT_PATTERNS,
+  effectivePattern,
+  formatInvoiceNumber,
+} from './invoice-number-generator.js';
+
+/**
+ * The renderer is wrapped, not replaced: every call still reaches the real
+ * `formatInvoiceNumber`, and the wrapper only makes the calls countable. That
+ * count is the cost of a sweep — see the two cases that read it.
+ */
+vi.mock('./invoice-number-generator.js', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./invoice-number-generator.js')>();
+  return { ...original, formatInvoiceNumber: vi.fn(original.formatInvoiceNumber) };
+});
+
+/** How many numbers one sweep renders. */
+function rendersOf(sweep: readonly NumberingSeries[]): number {
+  const renderer = vi.mocked(formatInvoiceNumber);
+  renderer.mockClear();
+  expect(findNumberPatternCollisions(sweep)).toEqual([]);
+  return renderer.mock.calls.length;
+}
 
 /**
  * D-95.1 — a collision is an intersection of *rendered sets*, decided by a
@@ -102,14 +124,38 @@ describe('findNumberPatternCollisions', () => {
     ).toEqual([]);
   });
 
-  it('completes 50 series inside the budget', () => {
-    const many = Array.from({ length: 50 }, (_, i) =>
-      series(`ch${i}`, 'FV {seq}/{channel}/{YYYY}'),
-    );
-    const started = performance.now();
-    const found = findNumberPatternCollisions(many);
-    expect(found).toEqual([]);
-    expect(performance.now() - started).toBeLessThan(250);
+  /**
+   * The cost of a sweep is the number of renders, and it is asserted as a count
+   * rather than as elapsed time: a wall-clock budget is a statement about the
+   * machine, and this file runs beside every other suite on it. What the budget
+   * stood in for is that each series is rendered once and the pairwise sweep
+   * intersects prepared sets — `n × |grid|` renders, never `n² × |grid|`.
+   */
+  it('renders each series once — ten times the series is ten times the renders', () => {
+    const sweep = (count: number): NumberingSeries[] =>
+      Array.from({ length: count }, (_, i) => series(`ch${i}`, 'FV {seq}/{channel}/{YYYY}'));
+
+    // Both sweeps probe one grid: the longest code is under seven characters in
+    // each, which is the only thing about the codes the grid depends on.
+    const five = rendersOf(sweep(5));
+    const fifty = rendersOf(sweep(50));
+
+    expect(five).toBeGreaterThan(0);
+    expect(fifty).toBe(five * 10);
+  });
+
+  it('does not probe twelve months for a pattern that renders no month', () => {
+    const withoutMonth = rendersOf([
+      series('a', 'FV {seq}/{channel}/{YYYY}'),
+      series('b', 'FV {seq}/{channel}/{YYYY}'),
+    ]);
+    const withMonth = rendersOf([
+      series('a', 'FV {seq}/{channel}/{MM}/{YYYY}'),
+      series('b', 'FV {seq}/{channel}/{MM}/{YYYY}'),
+    ]);
+
+    expect(withoutMonth).toBeGreaterThan(0);
+    expect(withMonth).toBe(withoutMonth * 12);
   });
 });
 
