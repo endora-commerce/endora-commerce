@@ -45,11 +45,12 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `carts` | tylko bramkowanie | rozwiązuje `cartPlacementApplyPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `carts` | tylko bramkowanie | rozwiązuje `cartReadPort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
 | `carts` | tylko bramkowanie | rozwiązuje `cartWritePort`; pominięty w `dependencies`, bo kolejność instalacji nie może nieść tej krawędzi |
-| `credit_limits` | nie | refuses-without `creditLimitService` — nie można złożyć zamówienia w ramach limitu kredytowego, a zamówienia, które z niego skorzystało, nie można anulować ani oznaczyć jako opłaconego, bo nie da się zwolnić jego rezerwacji; pozostałe zamówienia działają bez zmian |
+| `credit_limits` | nie | degrades-without `creditLimitReadPort` — polecenie naprawy zamówień nie widzi, które zamówienia nadal trzymają limit, i informuje o tym, zamiast je wypisać |
+| `credit_limits` | nie | refuses-without `creditLimitService` — nie można złożyć zamówienia w ramach limitu kredytowego; zamówienie, które z niego skorzystało, nadal można anulować albo oznaczyć jako opłacone, a jego rezerwacja zostanie zwolniona po ponownym włączeniu modułu |
 | `delivery_methods` | nie | degrades-without `deliveryMethodReadPort` — podgląd tworzenia zamówienia w panelu administracyjnym nie wycenia dostawy, bo nie ma katalogu metod, z którego można by pobrać cenę |
 | `delivery_methods` | nie | degrades-without `shippingAdapterRegistry` — checkout nie oferuje żadnej metody dostawy do wyboru |
 | `inventory` | nie | degrades-without `inventoryFulfilmentPlanningPort` — zamówienia są składane bez rezerwacji stanu magazynowego |
-| `inventory` | nie | degrades-without `inventoryReservationApplyPort` — zamówienia są składane bez rezerwacji stanu magazynowego, a anulowane zamówienie nie zwalnia rezerwacji, dopóki moduł nie zostanie włączony ponownie |
+| `inventory` | nie | degrades-without `inventoryReservationApplyPort` — zamówienia są składane bez rezerwacji stanu magazynowego, a anulowane zamówienie zachowuje to, co zarezerwowało, do ponownego włączenia modułu, kiedy rezerwacja zostaje zwolniona automatycznie |
 | `inventory` | nie | degrades-without `inventoryStockReadPort` — zamówienia są składane bez rezerwacji stanu magazynowego |
 | `invoices` | nie | degrades-without `invoicePdfPort` — PDF faktury do zamówienia nie jest już udostępniany; reszta obsługi zamówienia się nie zmienia |
 | `invoices` | nie | degrades-without `invoicePlacementApplyPort` — zamówienie jest składane bez faktury proforma; reszta obsługi zamówienia się nie zmienia |
@@ -92,4 +93,6 @@ Pakiety tłumaczeń w katalogu `i18n` modułu, po jednym pliku na każdy obsług
 
 ## Polecenia operatora
 
-_Brak._
+| Polecenie | Działanie |
+| --- | --- |
+| `pnpm --filter backend run cli -- orders transition-effects-repair` | Wypisuje anulowane lub opłacone zamówienia, które nadal trzymają stan magazynowy lub limit kredytowy; z opcją --apply zwalnia je. |

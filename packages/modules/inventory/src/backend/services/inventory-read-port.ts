@@ -7,6 +7,7 @@ import type {
   WarehouseChannelAssignmentRecord,
   WarehouseRecord,
 } from '@endora-commerce/contracts';
+import { StockAllocation } from '../entities/stock-allocation.entity.js';
 import { StockLevel } from '../entities/stock-level.entity.js';
 import {
   DEFAULT_WAREHOUSE_CODE,
@@ -43,6 +44,31 @@ export class InventoryStockReadService implements InventoryStockReadPort {
       ...(options?.warehouseId ? { warehouseId: options.warehouseId } : {}),
     });
     return rows.map(toStockLevelRecord);
+  }
+
+  /**
+   * The allocations a cancellation has not released, for the order items asked
+   * about (`specs/142-order-transition-atomicity/`, D9).
+   *
+   * `released_at is null` is the same predicate the release itself filters on,
+   * so this answers exactly the rows a release would still touch. Plain
+   * records, never the rows: a `StockAllocation` handed across the seam would
+   * be a managed entity the caller could mutate and flush.
+   */
+  async unreleasedAllocationsForOrderItems(
+    orderItemIds: readonly string[],
+  ): Promise<Array<{ orderItemId: string; warehouseId: string; quantity: number }>> {
+    if (orderItemIds.length === 0) return [];
+    const rows = await this.emFactory().find(
+      StockAllocation,
+      { orderItemId: { $in: [...orderItemIds] }, releasedAt: null },
+      { orderBy: { orderItemId: 'asc', warehouseId: 'asc' } },
+    );
+    return rows.map((row) => ({
+      orderItemId: row.orderItemId,
+      warehouseId: row.warehouseId,
+      quantity: row.quantity,
+    }));
   }
 
   async listWarehouses(options?: { activeOnly?: boolean }): Promise<WarehouseRecord[]> {

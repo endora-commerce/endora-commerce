@@ -12,6 +12,7 @@ import type {
   CartReadPort,
   CartWritePort,
   CatalogProductReadPort,
+  CreditLimitReadPort,
   CustomerAccountReadPort,
   DeliveryMethodReadPort,
   EmailDefaultsRegistryPort,
@@ -87,6 +88,11 @@ import type { OrderListService } from './services/order-list-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import { OrderTransitionPortService } from './services/order-transition-port.js';
+import { releaseOrderAllocations } from './services/order-allocation-release.js';
+import { createOrderTransitionEffectHandlers } from './services/order-transition-effect-handlers.js';
+import { OrderTransitionEffectService } from './services/order-transition-effect-service.js';
+import { OrderTransitionEffectRepairService } from './services/order-transition-effect-repair-service.js';
+import { startTransitionEffectSweep } from './workers/transition-effect-sweep-worker.js';
 import { ORDER_CONFIRMATION_DEFAULT } from './email-templates/order-confirmation.default.js';
 import { ADMIN_CREATED_ORDER_DEFAULT, ORDER_COMMENT_DEFAULT, REORDER_CREATED_DEFAULT } from './email-templates/secondary-defaults.js';
 import { ordersPromptTools } from './prompt-tools.js';
@@ -102,6 +108,7 @@ import { OrderItem } from './entities/order-item.entity.js';
 import { OrderListSavedView } from './entities/order-list-saved-view.entity.js';
 import { OrderPlacementIntent } from './entities/order-placement-intent.entity.js';
 import { OrderStatusTransition } from './entities/order-status-transition.entity.js';
+import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
 import { OrderStatus } from './entities/order-status.entity.js';
 import { Order } from './entities/order.entity.js';
 
@@ -234,6 +241,24 @@ export interface OrdersCradle {
   readonly orderTransitionServiceAccessor: () => OrderTransitionService | null;
   /** Issue #277 — the per-order claim on the GA4 `purchase` conversion. */
   readonly orderPurchaseConversion: PurchaseConversionService;
+  /**
+   * The follow-ups an order transition owes — recorded with the status, run
+   * after it commits, retried until they complete
+   * (`specs/142-order-transition-atomicity/`).
+   */
+  readonly orderTransitionEffectService: OrderTransitionEffectService;
+  readonly orderTransitionEffectRepairService: OrderTransitionEffectRepairService;
+  /**
+   * Whether this process runs queue consumers (Principle X) — the platform's
+   * one module-agnostic answer, `false` in the test kit.
+   */
+  readonly processRunsWorkers: boolean;
+  /**
+   * The connection a module may build a BullMQ queue on. A different name from
+   * `redis` on purpose (see that field): `undefined` is a composition saying it
+   * wants no queues, and the sweep worker is then not built.
+   */
+  readonly moduleQueueRedis: Redis | undefined;
   readonly orders: ReturnType<typeof commerceModule>;
   /**
    * Owned by `prompt_actions`: the assistant's tool catalogue. An ungated
@@ -389,6 +414,78 @@ export function registerModule(ctx: ModuleContext): void {
   });
 
   /**
+   * The follow-ups an order transition owes
+   * (`specs/142-order-transition-atomicity/`, D1–D3, D6).
+   *
+   * Registered here rather than built in the plugin body beside the transition
+   * engine, because three things reach it and only one of them has a server:
+   * the engine (routes), the sweep worker, and the repair command — which
+   * composes the platform and never registers a route, so anything constructed
+   * in the plugin body does not exist for it.
+   *
+   * Both owners are switchable and this module is not, and both edges are
+   * declared in the manifest (`inventory` degrades, `credit_limits` refuses
+   * placement). The handlers ask `effectiveState.isPresent(<owner>)` **before**
+   * the gated port is touched and answer "waiting" as a value: a follow-up
+   * runs after its status has committed, where a `ModuleDisabledError` would
+   * reach nobody who could act on it. The two ports are resolved lazily like
+   * every other one — this registration is a singleton and a gate may not be
+   * frozen inside one.
+   */
+  ctx.di.register({
+    orderTransitionEffectService: ctx
+      .asFunction(({ emFactory }: OrdersCradle) => {
+        const isPresent = (moduleId: string): boolean => effectiveState.isPresent(moduleId);
+        const creditLimit = lazyPort<CreditLimitPort>(ctx, 'creditLimitService');
+        const reservationApply = lazyPort<InventoryReservationApplyPort>(
+          ctx,
+          'inventoryReservationApplyPort',
+        );
+        return new OrderTransitionEffectService({
+          emFactory,
+          isPresent,
+          log: ctx.log,
+          handlers: createOrderTransitionEffectHandlers({
+            isPresent,
+            creditLimit: () => creditLimit,
+            releaseStock: (orderId) => releaseOrderAllocations(emFactory, reservationApply, orderId),
+          }),
+        });
+      })
+      .singleton(),
+  });
+
+  /**
+   * The operator's repair of orders an earlier version left holding stock or
+   * credit (`specs/142-order-transition-atomicity/`, D9), read off the cradle
+   * by the `transition-effects-repair` command.
+   *
+   * It asks the two owners what orders still hold through their **read** ports
+   * — `inventoryStockReadPort`, already an edge of this module, and
+   * `creditLimitReadPort`, declared `degrades-without` for this one use. Each
+   * is behind an accessor the service calls only after
+   * `effectiveState.isPresent(<owner>)` answered yes: with an owner off, its
+   * holdings are reported as not examined, which is the degrade the manifest
+   * declares.
+   */
+  ctx.di.register({
+    orderTransitionEffectRepairService: ctx
+      .asFunction(({ emFactory, commandBus, orderTransitionEffectService }: OrdersCradle) => {
+        const stockRead = lazyPort<InventoryStockReadPort>(ctx, 'inventoryStockReadPort');
+        const creditRead = lazyPort<CreditLimitReadPort>(ctx, 'creditLimitReadPort');
+        return new OrderTransitionEffectRepairService({
+          emFactory,
+          commandBus,
+          effects: orderTransitionEffectService,
+          isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+          stockRead: () => stockRead,
+          creditRead: () => creditRead,
+        });
+      })
+      .singleton(),
+  });
+
+  /**
    * Feature 026 US6 — admin orders visibility scope, defaulted here
    * (`specs/117-instance-bring-up/` Phase 6, FR-033). Sales-rep admins see only
    * orders from organizations they own; every other admin sees everything.
@@ -460,6 +557,7 @@ export function registerModule(ctx: ModuleContext): void {
           auditLogService,
           redis,
           orderPurchaseConversion,
+          orderTransitionEffectService,
         }: OrdersCradle) =>
           commerceModule({
             emFactory,
@@ -468,6 +566,8 @@ export function registerModule(ctx: ModuleContext): void {
             auditLogService,
             redis,
             purchaseConversion: orderPurchaseConversion,
+            transitionEffects: orderTransitionEffectService,
+            log: ctx.log,
             // Ports, every one of them read lazily: this registration is a
             // singleton and a gate may not be frozen inside one.
             cartWritePort: lazyPort<CartWritePort>(ctx, 'cartWritePort'),
@@ -877,6 +977,28 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     await cradle().orders(app);
+
+    // The sweep that retries outstanding order follow-ups
+    // (`specs/142-order-transition-atomicity/`, D6). `ctx.worker` applies
+    // `defineModuleWorker('orders', …)`, which is what puts the consumer in the
+    // registry the platform reconciles and stops.
+    //
+    // Attached here rather than at registration for the reason every worker in
+    // the tree is: this is where `app.log` exists, and a `BACKEND_ROLE=worker`
+    // process reaches it — it builds the server to register module plugins and
+    // never listens. Built only where the host says this process consumes
+    // queues and offers a connection to build one on; the shared test server
+    // says neither, and drives `sweep()` directly.
+    await startTransitionEffectSweep({
+      processRunsWorkers: cradle().processRunsWorkers,
+      moduleQueueRedis: cradle().moduleQueueRedis,
+      effects: cradle().orderTransitionEffectService,
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+      onClose: (close) => {
+        app.addHook('onClose', close);
+      },
+    });
   });
 
   /**
@@ -987,6 +1109,7 @@ export const entities = [
   OrderListSavedView,
   OrderPlacementIntent,
   OrderStatusTransition,
+  OrderTransitionEffect,
   OrderStatus,
   Order,
 ];

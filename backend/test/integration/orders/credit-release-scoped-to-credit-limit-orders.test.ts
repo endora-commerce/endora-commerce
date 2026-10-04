@@ -1,11 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { withModuleOff } from '../../helpers/off-state.js';
+import { withSystemScope } from '../../../src/tenancy/escape-hatch.js';
 import { CreditLimit, CreditLimitReservation, PaymentMethod } from '../../helpers/package-entities.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
@@ -20,15 +20,22 @@ import { Order } from '../../helpers/package-entities.js';
  * **both transitions failed for every order** — correct for one placed against
  * a credit limit, wrong for the overwhelming majority that never drew one.
  *
- * The repair is not a `catch` (AGENTS.md composition item 7). `orders` owns the
+ * The repair is not a `catch` (module-composition item 7). `orders` owns the
  * fact it needs: `paymentMethodSnapshot.kind` is stamped at placement from the
  * same value that decides whether `reserve` runs at all, so an order whose kind
  * is not `credit_limit` provably holds no reservation and there is nothing to
  * release. The port is not asked.
  *
- * Both halves are asserted here, and the second is what stops the repair
- * becoming a fail-open: an order that *does* hold a reservation must still
- * refuse, because its credit cannot be given back while the owner is absent.
+ * **The second half changed with `specs/142-order-transition-atomicity/`
+ * (D4).** An order that *does* hold a reservation used to refuse both
+ * transitions with 503 `MODULE_DISABLED` — and did so *after* the new status
+ * had committed, so the order was cancelled (or paid), the caller was told it
+ * had failed, and a repeat was a no-op that released nothing. The two cases
+ * that asserted that 503 now assert what replaced it: the transition is
+ * applied and answered 200, the reservation is **not** touched while its owner
+ * is absent, and it is released once the owner is back. What stops this being
+ * a fail-open is no longer a refusal but the recorded release: the credit is
+ * given back later instead of never.
  *
  * The absence is driven through the real seam — `withModuleOff` flips the
  * registry cache and asserts the flip took before the body observes anything —
@@ -44,19 +51,10 @@ const PLAIN_ORDER_TO_PAY_ID = '00000000-0000-4000-8000-000000000d02';
 /** Credit-limit orders, each holding its own active reservation. */
 const CREDIT_ORDER_TO_CANCEL_ID = '00000000-0000-4000-8000-000000000d03';
 const CREDIT_ORDER_TO_PAY_ID = '00000000-0000-4000-8000-000000000d04';
-/**
- * The positive control's own order. It cannot share one with the refusal
- * probes: the transition engine flushes the new status *before* it runs the
- * side effect, so a refused cancellation leaves the order already `cancelled`
- * and the re-run is a no-op that releases nothing.
- */
+/** The positive control's own order, so no case depends on another's outcome. */
 const CREDIT_ORDER_CONTROL_ID = '00000000-0000-4000-8000-000000000d05';
 
-interface ErrorBody {
-  error: { code: string };
-}
-
-describe('orders — releasing credit is scoped to the orders that drew it (D-179.3)', () => {
+describe('orders — releasing credit is scoped to the orders that drew it (D-179.3, spec 142)', () => {
   let h: BackendServerHandle;
 
   beforeAll(async () => {
@@ -167,7 +165,23 @@ describe('orders — releasing credit is scoped to the orders that drew it (D-17
     });
   });
 
-  it('still refuses to cancel an order that holds a reservation', async () => {
+  const reservationOf = async (orderId: string): Promise<string | undefined> => {
+    const em = h.em();
+    em.clear();
+    return (await em.findOne(CreditLimitReservation, { orderId }))?.status;
+  };
+
+  /** One pass of the background consumer that retries outstanding releases. */
+  const sweep = (): Promise<unknown> =>
+    withSystemScope('spec 142 test — one sweep pass', () =>
+      (
+        h.container.resolve('orderTransitionEffectService') as {
+          sweep(now: Date): Promise<unknown>;
+        }
+      ).sweep(new Date()),
+    );
+
+  it('cancels an order that holds a reservation, and releases the credit once `credit_limits` is back', async () => {
     await withModuleOff('credit_limits', 'deactivated', async () => {
       const res = await h.app.inject({
         method: 'POST',
@@ -175,12 +189,17 @@ describe('orders — releasing credit is scoped to the orders that drew it (D-17
         payload: { to: 'cancelled' },
         cookies: adminCookie,
       });
-      expect(res.statusCode).toBe(503);
-      expect((res.json() as ErrorBody).error.code).toBe(ERROR_CODES.MODULE_DISABLED);
+      expect(res.statusCode).toBe(200);
+      expect((res.json() as { data: { status: string } }).data.status).toBe('cancelled');
+      // Nothing of the absent owner's is written while it is off.
+      expect(await reservationOf(CREDIT_ORDER_TO_CANCEL_ID)).toBe('active');
     });
+
+    await sweep();
+    expect(await reservationOf(CREDIT_ORDER_TO_CANCEL_ID)).toBe('released');
   });
 
-  it('still refuses to mark an order that holds a reservation paid', async () => {
+  it('marks an order that holds a reservation paid, and releases the credit once `credit_limits` is back', async () => {
     await withModuleOff('credit_limits', 'deactivated', async () => {
       const res = await h.app.inject({
         method: 'POST',
@@ -188,9 +207,13 @@ describe('orders — releasing credit is scoped to the orders that drew it (D-17
         payload: { to: 'paid' },
         cookies: adminCookie,
       });
-      expect(res.statusCode).toBe(503);
-      expect((res.json() as ErrorBody).error.code).toBe(ERROR_CODES.MODULE_DISABLED);
+      expect(res.statusCode).toBe(200);
+      expect((res.json() as { data: { paymentStatus: string } }).data.paymentStatus).toBe('paid');
+      expect(await reservationOf(CREDIT_ORDER_TO_PAY_ID)).toBe('active');
     });
+
+    await sweep();
+    expect(await reservationOf(CREDIT_ORDER_TO_PAY_ID)).toBe('released');
   });
 
   it('releases the reservation on cancellation while `credit_limits` is on (the positive control)', async () => {

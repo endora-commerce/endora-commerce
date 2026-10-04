@@ -43,10 +43,113 @@ templated events (below). Payment/shipping events drive automatic transitions
 through the `OrderStatusRegistry` (the method `statusOn*` columns reference
 these status codes); `payment_status` is retained as a derived/secondary field.
 
+## What a transition owes: follow-ups
+
+Cancelling an order gives back what the order was holding: its **stock
+allocations**, and — for an order placed against a credit limit — its **credit
+reservation**. Marking such an order paid gives back the credit reservation.
+These releases are the transition's *follow-ups*.
+
+A follow-up is recorded **in the same transaction as the status**, as a row in
+`order_transition_effects`, and is run immediately afterwards, in the same
+request. So in the ordinary case the stock and the credit are released by the
+time the caller is answered. What changed is what happens when a release cannot
+complete:
+
+- **The transition is still applied, and the caller is told so.** Every refusal
+  — an unknown status, no configured edge, a terminal source, a guard's veto —
+  is decided before anything is written. Once the status is committed nothing
+  can turn the answer into an error.
+- **The release is retried until it completes.** A background sweep runs every
+  minute and attempts every outstanding follow-up that is due, backing off from
+  one minute up to one hour between attempts. There is no "gave up" state; from
+  the fifth failure on, each further failure is logged at `warn` with the order
+  id, the release and the last error.
+- **Even the response cannot turn it into an error.** If the order cannot be
+  read back for the response body after the commit, `POST
+  /api/v1/admin/orders/:id/status`, `POST /api/v1/admin/orders/:id/payment-status`
+  and `POST /api/v1/orders/:id/cancel` answer `200` with
+  `{ data: { id, businessId, status, paymentStatus }, meta: { partial: true } }`
+  (`orderCommittedWritePartialResponseSchema` in `@endora-commerce/contracts`).
+  Check `meta.partial` before treating `data` as a whole order, and read the
+  order again if the rest is needed.
+- **Follow-ups are independent.** A credit release that fails does not keep the
+  stock held, and the other way round.
+- **The status events are always emitted** after the commit, whatever happened
+  to the releases.
+
+Repeating a transition to the status an order already has is a no-op, and that
+is safe: what the status owes is recorded beside it and will run.
+
+### With `inventory` or `credit_limits` switched off
+
+A follow-up whose owning module is switched off **waits**. Nothing of that
+module's is written while it is off, the wait is not counted as a failed
+attempt, and the release runs within one sweep (a minute) of the module being
+switched back on.
+
+- With `inventory` off, a cancelled order keeps its allocations until the
+  module returns.
+- With `credit_limits` off, an order placed on credit can still be cancelled or
+  marked paid; its reservation is released when the module returns. Placing a
+  new order against a credit limit is still refused while the module is off.
+
+### On the order page
+
+The admin order page shows a notice while an order has follow-ups outstanding:
+which release, whether it is waiting for a module, and how many attempts have
+failed. The admin order response carries the same information as
+`pendingEffects` — present only when something is outstanding, and never on the
+buyer-facing order responses.
+
+### Repairing orders stranded by an earlier version
+
+Before follow-ups were recorded, a release that failed or was refused could
+leave an order cancelled (or paid) while still holding stock or credit, with
+nothing able to release it afterwards. Those orders have no follow-up row. An
+operator command finds and repairs them:
+
+```bash
+# List what would be released. Writes nothing.
+pnpm --filter backend run cli orders transition-effects-repair
+
+# Release it.
+pnpm --filter backend run cli orders transition-effects-repair --apply
+```
+
+The dry run prints every order found holding stock allocations or an active
+credit reservation it should have given back, with what each holds. `--apply`
+records the releases through the same follow-up mechanism, attempts them at
+once, and writes one audit entry per page of orders; anything that does not
+complete is retried by the sweep. Running it again finds nothing left.
+
+**Run the dry run once after upgrading**, and read the list before applying it:
+a release changes reserved-stock counters and available credit. The repair
+never runs by itself.
+
+**What the dry run cannot show.** It lists what each order's own rows say the
+order holds. If somebody has already corrected a stock counter by hand for one
+of those orders, the order is still listed — its allocation row is unreleased —
+and applying it lowers the counter a second time, so less stock is reserved than
+live orders actually hold (the counter is never driven below zero, which hides
+the error rather than preventing it). Leave such an order out, or repair only
+the orders you name; both options take the order id the list prints in
+brackets and may be repeated:
+
+```bash
+pnpm --filter backend run cli orders transition-effects-repair --apply --except=<order id>
+pnpm --filter backend run cli orders transition-effects-repair --apply --order=<order id>
+```
+
+If `inventory` or `credit_limits` is switched off, the command cannot ask that
+module what orders hold. It says so, repairs the rest, and should be run again
+once the module is back on.
+
 ## Entities
 
 `Order`, `OrderItem`, `Payment`, `OrderStatus`,
-`OrderStatusTransition`, `OrderComment`, `OrderListSavedView`, and the
+`OrderStatusTransition`, `OrderTransitionEffect`, `OrderComment`,
+`OrderListSavedView`, and the
 `organizations.order_confirmation_emails` column (owned by `organizations`,
 read via a port). `OrderItem` snapshots the product + variant + unit price +
 tax rate at placement so historical orders survive pricing / catalog changes.
@@ -69,7 +172,7 @@ transition X→Y additionally emits four **templated** events (built by
   per-status counts; `GET …/export` streams CSV; saved views via
   `…/list-views` (private or shared).
 - **Bulk** — `POST …/bulk/status` (eligible orders move; skipped reported with
-  reason) and `…/bulk/print-invoices`.
+  reason — a skipped order has not moved) and `…/bulk/print-invoices`.
 - **Comments** — admin/customer `…/:id/comments` with customer-visibility +
   notify flags; closed on terminal orders.
 - **Reorder** — `…/:id/reorder` rebuilds the cart (gated by

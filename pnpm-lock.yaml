@@ -2705,6 +2705,9 @@ importers:
       '@types/react':
         specifier: ^19.2.14
         version: 19.2.14
+      bullmq:
+        specifier: ^5.76.1
+        version: 5.76.1
       fastify:
         specifier: ^5.12.5
         version: 5.12.5

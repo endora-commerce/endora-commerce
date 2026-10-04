@@ -36,6 +36,7 @@ import { Migration20260804T114814OrdersShippingAdapterData } from './20260804T11
 import { Migration20260820T100201OrdersNewToPaidTransition } from './20260820T100201_orders_new_to_paid_transition.js';
 import { Migration20260821T131145OrdersPurchaseConversionMarker } from './20260821T131145_orders_purchase_conversion_marker.js';
 import { Migration20260824T080000OrdersDeliveryPointSnapshot } from './20260824T080000_orders_delivery_point_snapshot.js';
+import { Migration20261003T201537OrdersOrderTransitionEffects } from './20261003T201537_orders_order_transition_effects.js';
 
 export const migrations = [
   Migration20260611T140355OrdersBusinessId,
@@ -52,6 +53,7 @@ export const migrations = [
   Migration20260820T100201OrdersNewToPaidTransition,
   Migration20260821T131145OrdersPurchaseConversionMarker,
   Migration20260824T080000OrdersDeliveryPointSnapshot,
+  Migration20261003T201537OrdersOrderTransitionEffects,
 ];
 
 export {
@@ -69,4 +71,5 @@ export {
   Migration20260820T100201OrdersNewToPaidTransition,
   Migration20260821T131145OrdersPurchaseConversionMarker,
   Migration20260824T080000OrdersDeliveryPointSnapshot,
+  Migration20261003T201537OrdersOrderTransitionEffects,
 };

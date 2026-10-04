@@ -22,6 +22,7 @@ import {
   updateOrderStatusRequestSchema,
 } from '@endora-commerce/contracts';
 import type {
+  OrderPendingEffect,
   AssetReadPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
@@ -53,9 +54,11 @@ import type { CustomerOrderCancellationService } from './services/order-cancella
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { Order } from './entities/order.entity.js';
 import { OrderItem } from './entities/order-item.entity.js';
+import { replyAfterCommittedWrite } from './services/committed-write-reply.js';
+import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
 import { OrderAppliedPromotion } from './entities/order-applied-promotion.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { PlatformLogger, RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface OrdersDeps {
   orderService: OrderService;
@@ -84,6 +87,8 @@ export interface OrdersDeps {
    * by whichever storefront page the buyer sees the order on first.
    */
   purchaseConversion: PurchaseConversionService;
+  /** The module's logger. */
+  log?: PlatformLogger;
   /**
    * Feature 038 US3 — pricing engine, used by the read-only create-order
    * preview to resolve per-line prices for the chosen customer/channel.
@@ -325,7 +330,13 @@ export async function registerOrderRoutes(
         request.params.id,
         ctx.customerAccountId,
       );
-      return { data: await serializeForBuyer(order, ctx.customerAccountId) };
+      // The cancellation is committed: a failure reading the response back
+      // must not be answered as a failure of the cancellation.
+      return replyAfterCommittedWrite(
+        order,
+        () => serializeForBuyer(order, ctx.customerAccountId),
+        deps.log,
+      );
     },
   );
 
@@ -558,6 +569,12 @@ export async function registerOrderRoutes(
   // refuses to say. An out-of-scope order is reported as `not_found`, the same
   // reason a nonexistent one gets — `classifySkip` reaches that answer through
   // the tenant filter, not through a branch of its own.
+  //
+  // **`skipped` means the order did not move** (`specs/142-order-transition-atomicity/`).
+  // `apply` decides every refusal before it writes, and nothing it runs after
+  // the commit can fail the call, so a throw caught below is always about an
+  // order whose status is unchanged. It used not to be: a release that failed
+  // after the status had flushed listed a *cancelled* order here as `terminal`.
   app.post(
     '/api/v1/admin/orders/bulk/status',
     { preHandler: requireAdmin('orders:write'), schema: { body: bulkOrderStatusRequestSchema } },
@@ -671,6 +688,9 @@ export async function registerOrderRoutes(
     // is off is a statement about the platform, and reporting one hundred
     // orders as `invalid_transition` sends the operator to the status graph to
     // look for a rule that was never the problem.
+    // A module being off no longer refuses a transition — the release it owes
+    // waits for it — so this is reached only in the instant a module is
+    // switched off under a follow-up that had already found it present.
     rethrowIfModuleDisabled(err);
     if (err instanceof HttpError && err.code === ERROR_CODES.ORDER_NOT_FOUND) return 'not_found';
     const order = await emFactory().findOne(Order, { id: orderId });
@@ -881,7 +901,7 @@ export async function registerOrderRoutes(
       ]);
       return {
         data: {
-          ...(await serializeOrder(em, order)),
+          ...(await serializeAdminOrder(em, order)),
           organization: organization
             ? {
                 id: organization.id,
@@ -939,7 +959,12 @@ export async function registerOrderRoutes(
         adminUserId ? { kind: 'admin', adminUserId } : { kind: 'system', source: 'checkout' },
         body.reason ?? null,
       );
-      return { data: await serializeOrder(emFactory(), order) };
+      // Committed by now — see `replyAfterCommittedWrite`.
+      return replyAfterCommittedWrite(
+        order,
+        () => serializeAdminOrder(emFactory(), order),
+        deps.log,
+      );
     },
   );
 
@@ -1022,7 +1047,11 @@ export async function registerOrderRoutes(
     async (request) => {
       const body = adminOrderPaymentStatusTransitionSchema.parse(request.body);
       const order = await orderService.transitionPaymentStatus(request.params.id, body.to);
-      return { data: await serializeOrder(emFactory(), order) };
+      return replyAfterCommittedWrite(
+        order,
+        () => serializeAdminOrder(emFactory(), order),
+        deps.log,
+      );
     },
   );
 
@@ -1264,5 +1293,37 @@ async function serializeOrder(
     // undefined → null.
     nextAction: order.nextAction ?? null,
     ...(capabilities ? { customerCancellable: capabilities.customerCancellable } : {}),
+  };
+}
+
+/**
+ * The admin order response: the order, plus the follow-ups it still owes
+ * (`specs/142-order-transition-atomicity/`, D10, FR-019).
+ *
+ * `pendingEffects` is carried **only when something is outstanding** — a stock
+ * or credit release that has not completed, because it failed and is being
+ * retried or because the module that owns it is switched off. An order that
+ * owes nothing carries no field at all.
+ *
+ * A function of its own rather than a flag on `serializeOrder`, so that the
+ * buyer-facing reads cannot acquire the field by passing an argument: a
+ * release the platform is still retrying is an operator's concern and changes
+ * nothing a buyer can do.
+ */
+async function serializeAdminOrder(em: EntityManager, order: Order): Promise<Record<string, unknown>> {
+  const outstanding = await em.find(
+    OrderTransitionEffect,
+    { orderId: order.id, completedAt: null },
+    { orderBy: { effect: 'asc', createdAt: 'asc' } },
+  );
+  const pendingEffects: OrderPendingEffect[] = outstanding.map((row) => ({
+    effect: row.effect,
+    blockedOn: row.blockedOn ?? null,
+    attempts: row.attempts,
+    lastAttemptAt: row.lastAttemptAt ? row.lastAttemptAt.toISOString() : null,
+  }));
+  return {
+    ...(await serializeOrder(em, order)),
+    ...(pendingEffects.length > 0 ? { pendingEffects } : {}),
   };
 }

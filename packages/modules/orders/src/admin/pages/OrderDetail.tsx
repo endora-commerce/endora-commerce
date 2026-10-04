@@ -15,13 +15,14 @@ import { Alert, AlertDescription, Badge, Button, Card, CardContent, Label, PageH
 import { CustomFieldValuesPanel } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
+import { OrderPendingEffectsNotice } from '../components/OrderPendingEffectsNotice.js';
 import { OrderShipmentsTab } from '../components/OrderShipmentsTab.js';
 import {
   SELECTABLE_PAYMENT_STATUSES,
   paymentStatusLabelKey,
   paymentStatusOptions,
 } from '../lib/paymentStatus.js';
-import type { IssueInvoiceEmailOutcome } from '@endora-commerce/contracts';
+import type { IssueInvoiceEmailOutcome, OrderPendingEffect } from '@endora-commerce/contracts';
 
 type OrderTab = 'overview' | 'payment' | 'delivery' | 'comments';
 
@@ -85,6 +86,11 @@ interface OrderDetail {
   currency: string;
   customerNote: string | null;
   placedAt: string;
+  /**
+   * Releases this order still owes (`specs/142-order-transition-atomicity/`).
+   * Present only when something is outstanding.
+   */
+  pendingEffects?: OrderPendingEffect[];
 }
 
 interface StatusDef {
@@ -430,6 +436,8 @@ export function OrderDetail(): ReactNode {
           <AlertDescription>{info}</AlertDescription>
         </Alert>
       ) : null}
+
+      <OrderPendingEffectsNotice pendingEffects={order.pendingEffects} />
 
       <Card className="mb-4 overflow-hidden">
         <div style={{ padding: '4px 4px 0', overflow: 'hidden' }}>

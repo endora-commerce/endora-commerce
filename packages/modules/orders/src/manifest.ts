@@ -1,7 +1,9 @@
 import {
   defineModuleManifest,
   defineModuleSettingsManifest,
+  type ModuleCliCommand,
 } from '@endora-commerce/contracts';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * Orders module — manifest.
@@ -214,20 +216,35 @@ export const manifest = defineModuleManifest({
       name: 'creditLimitService',
       kind: 'refuses-without',
       whenAbsent:
-        'no order can be placed against a credit limit, and an order that drew one can be ' +
-        'neither cancelled nor marked paid, because its reservation cannot be released; ' +
-        'every other order is unaffected',
+        'no order can be placed against a credit limit; an order that drew one can still be ' +
+        'cancelled or marked paid, and its reservation is released once the module is back on',
       reason:
-        'Placement reserves against the organization`s limit inside its own transaction, so ' +
-        'the `PESSIMISTIC_WRITE` on the credit row is held until the order commits; ' +
-        'cancellation and the transition to paid release that reservation. D-179.3: both ' +
-        'release paths asked the port for every order, so an absent owner refused both ' +
-        'transitions platform-wide — a refusal about orders that never drew credit. They now ' +
-        'test `paymentMethodSnapshot.kind` first, this module`s own record of whether there ' +
-        'is anything to release, so the port is resolved only for an order that took one; ' +
-        'not a `catch`, and those orders still refuse. Each call is a `lazyPort` forward ' +
-        'with no fallback. `credit_limit_reservations_order_fk` obliges `credit_limits` to ' +
-        'declare this module, so `dependencies` was never available.',
+        'Placement reserves against the organization`s limit inside its own transaction — a ' +
+        '`lazyPort` forward with no fallback, which is the half that refuses and why the edge ' +
+        'stays `refuses-without`. Cancellation and the change to paid release that ' +
+        'reservation and no longer refuse (`specs/142-order-transition-atomicity/`, D4): the ' +
+        'release is recorded in the transaction that writes the status, its handler asks ' +
+        '`effectiveState.isPresent` before it touches the port, and with the owner absent it ' +
+        'waits until a sweep runs it after the owner returns. D-179.3 still holds: only an ' +
+        'order whose `paymentMethodSnapshot.kind` says it drew credit owes a release. ' +
+        '`credit_limit_reservations_order_fk` obliges `credit_limits` to declare this module, ' +
+        'so `dependencies` was never available.',
+    },
+    {
+      moduleId: 'credit_limits',
+      name: 'creditLimitReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'the order repair command cannot see which orders still hold credit, and says so ' +
+        'instead of listing them',
+      reason:
+        'The `transition-effects-repair` operator command asks which cancelled or paid ' +
+        'orders still hold an active reservation before it proposes to release anything ' +
+        '(`specs/142-order-transition-atomicity/`, D9) — this module may not read ' +
+        '`credit_limit_reservations` itself. A read on a `di.providePort` name, behind ' +
+        '`effectiveState.isPresent`: with the owner absent the command reports credit ' +
+        'holdings as not examined and still repairs stock. `dependencies` was never ' +
+        'available, for the reason given on `creditLimitService` above.',
     },
     {
       moduleId: 'promotions',
@@ -317,18 +334,19 @@ export const manifest = defineModuleManifest({
       name: 'inventoryReservationApplyPort',
       kind: 'degrades-without',
       whenAbsent:
-        'orders are placed without reserving stock, and a cancelled order releases none until the module is switched back on',
+        'orders are placed without reserving stock, and a cancelled order keeps what it ' +
+        'reserved until the module is switched back on, when it is released automatically',
       reason:
         'The reservation itself — the `FOR UPDATE` lock on `stock_levels`, the `reserved` ' +
         'increment, the `stock_allocations` rows and the release a cancellation performs — ' +
-        'on the placement `EntityManager`, because `stock_allocations_order_item_fk` (`on ' +
-        'delete restrict`) means an allocation row cannot exist before its order item does ' +
-        'and the lock must be held by the transaction that writes the order (feature 080, ' +
-        'T048; D-169). It joins the two entries above under one presence question rather ' +
-        'than adding a second. Same ground as those two: `inventory` declares this module ' +
-        'for the constraint, so `dependencies` would close a cycle, and an acknowledged ' +
-        'edge would keep the bind and make `inventory.enabled` unusable. Until T048 this ' +
-        'module wrote that module`s two tables through its entity classes.',
+        'on the placement `EntityManager`, because `stock_allocations_order_item_fk` means an ' +
+        'allocation row cannot exist before its order item does (feature 080, T048; D-169). ' +
+        'It shares the presence question of the two entries above and their ground: ' +
+        '`inventory` declares this module, so `dependencies` would close a cycle, and an ' +
+        'acknowledged edge would make `inventory.enabled` unusable. The release a ' +
+        'cancellation owes is recorded with the status and waits while this owner is absent ' +
+        '(`specs/142-order-transition-atomicity/`): nothing of `inventory`s is written ' +
+        'meanwhile, and the first sweep after it returns releases the allocations.',
     },
     {
       moduleId: 'payments',
@@ -793,3 +811,21 @@ export const manifest = defineModuleManifest({
     { key: 'order', titleKey: 'blocks.category.order', contexts: ['email'], weight: 20 },
   ],
 });
+
+/**
+ * The operator command this module declares
+ * (`specs/142-order-transition-atomicity/`, D9).
+ *
+ * A declaration the host runs, not a script that bootstraps the host: the body
+ * is `await import()`ed so that a manifest — loaded by every process that
+ * composes the platform and by the check scripts — stays light.
+ */
+export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
+  {
+    name: 'transition-effects-repair',
+    summary:
+      'List cancelled or paid orders still holding stock or credit; with --apply, release it.',
+    run: async (context) =>
+      (await import('./backend/cli/transition-effects-repair.js')).transitionEffectsRepair(context),
+  },
+];

@@ -50,5 +50,15 @@
   "blocks.emailShippingAddress.description": "The order's shipping address, with a label.",
   "blocks.emailBillingAddress.label": "Billing address",
   "blocks.emailBillingAddress.description": "The order's billing address, with a label.",
-  "blocks.category.order": "Order"
+  "blocks.category.order": "Order",
+  "pendingEffects.title": "This order still has follow-up work outstanding",
+  "pendingEffects.description": "The order's status is final, but the releases below have not happened yet. They are retried automatically; nothing needs to be repeated.",
+  "pendingEffects.effect.stockRelease": "Stock release",
+  "pendingEffects.effect.creditRelease": "Credit limit release",
+  "pendingEffects.state.waitingForModule": "waiting for the {module} module to be switched on",
+  "pendingEffects.state.retrying": "being retried; failed attempts so far: {count}",
+  "pendingEffects.state.queued": "queued, will run shortly",
+  "pendingEffects.needsAttention": "A release has failed several times and needs attention. Check the server log for the last error.",
+  "pendingEffects.module.inventory": "Inventory",
+  "pendingEffects.module.credit_limits": "Credit limits"
 }

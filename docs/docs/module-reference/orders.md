@@ -45,11 +45,12 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `carts` | gating only | resolves `cartPlacementApplyPort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `carts` | gating only | resolves `cartReadPort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `carts` | gating only | resolves `cartWritePort`; withheld from `dependencies` because the install order cannot carry the edge |
-| `credit_limits` | no | refuses-without `creditLimitService` — no order can be placed against a credit limit, and an order that drew one can be neither cancelled nor marked paid, because its reservation cannot be released; every other order is unaffected |
+| `credit_limits` | no | degrades-without `creditLimitReadPort` — the order repair command cannot see which orders still hold credit, and says so instead of listing them |
+| `credit_limits` | no | refuses-without `creditLimitService` — no order can be placed against a credit limit; an order that drew one can still be cancelled or marked paid, and its reservation is released once the module is back on |
 | `delivery_methods` | no | degrades-without `deliveryMethodReadPort` — the admin create-order preview quotes no delivery cost, because there is no method catalogue to quote one from |
 | `delivery_methods` | no | degrades-without `shippingAdapterRegistry` — checkout offers no delivery method to choose from |
 | `inventory` | no | degrades-without `inventoryFulfilmentPlanningPort` — orders are placed without reserving stock |
-| `inventory` | no | degrades-without `inventoryReservationApplyPort` — orders are placed without reserving stock, and a cancelled order releases none until the module is switched back on |
+| `inventory` | no | degrades-without `inventoryReservationApplyPort` — orders are placed without reserving stock, and a cancelled order keeps what it reserved until the module is switched back on, when it is released automatically |
 | `inventory` | no | degrades-without `inventoryStockReadPort` — orders are placed without reserving stock |
 | `invoices` | no | degrades-without `invoicePdfPort` — an order’s invoice PDF is no longer offered; nothing else about an order changes |
 | `invoices` | no | degrades-without `invoicePlacementApplyPort` — an order is placed without a proforma document; nothing else about the order changes |
@@ -92,4 +93,6 @@ Bundles at `i18n` inside the module, one file per shipped language.
 
 ## Operator commands
 
-_None._
+| Command | What it does |
+| --- | --- |
+| `pnpm --filter backend run cli -- orders transition-effects-repair` | List cancelled or paid orders still holding stock or credit; with --apply, release it. |
