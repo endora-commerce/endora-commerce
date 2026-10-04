@@ -64,6 +64,8 @@ Bundles at `i18n` inside the module, one file per shipped language.
 
 ## Operator commands
 
+Run these in the root of an instance. In a checkout of the Endora Commerce repository the same commands are `pnpm --filter backend run cli -- cms <command>`.
+
 | Command | What it does |
 | --- | --- |
-| `pnpm --filter backend run cli -- cms block-names` | Report the Page Builder block names stored in this database, and what the namespacing migration will do to each. Read-only. |
+| `pnpm run cli cms block-names` | Report the Page Builder block names stored in this database, and what the namespacing migration will do to each. Read-only. |

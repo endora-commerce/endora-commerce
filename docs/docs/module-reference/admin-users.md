@@ -57,6 +57,8 @@ Bundles at `i18n` inside the module, one file per shipped language.
 
 ## Operator commands
 
+Run these in the root of an instance. In a checkout of the Endora Commerce repository the same commands are `pnpm --filter backend run cli -- admin_users <command>`.
+
 | Command | What it does |
 | --- | --- |
-| `pnpm --filter backend run cli -- admin_users create` | Create or update an admin user, bootstrapping the platform_admin role. |
+| `pnpm run cli admin_users create` | Create or update an admin user, bootstrapping the platform_admin role. |

@@ -93,6 +93,9 @@ Pakiety tłumaczeń w katalogu `i18n` modułu, po jednym pliku na każdy obsług
 
 ## Polecenia operatora
 
+Uruchamiaj je w katalogu głównym instancji. W klonie repozytorium Endora Commerce te same
+polecenia mają postać `pnpm --filter backend run cli -- orders <command>`.
+
 | Polecenie | Działanie |
 | --- | --- |
-| `pnpm --filter backend run cli -- orders transition-effects-repair` | Wypisuje anulowane lub opłacone zamówienia, które nadal trzymają stan magazynowy lub limit kredytowy; z opcją --apply zwalnia je. |
+| `pnpm run cli orders transition-effects-repair` | Wypisuje anulowane lub opłacone zamówienia, które nadal trzymają stan magazynowy lub limit kredytowy; z opcją --apply zwalnia je. |

@@ -93,6 +93,8 @@ Bundles at `i18n` inside the module, one file per shipped language.
 
 ## Operator commands
 
+Run these in the root of an instance. In a checkout of the Endora Commerce repository the same commands are `pnpm --filter backend run cli -- orders <command>`.
+
 | Command | What it does |
 | --- | --- |
-| `pnpm --filter backend run cli -- orders transition-effects-repair` | List cancelled or paid orders still holding stock or credit; with --apply, release it. |
+| `pnpm run cli orders transition-effects-repair` | List cancelled or paid orders still holding stock or credit; with --apply, release it. |

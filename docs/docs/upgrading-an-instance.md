@@ -142,6 +142,35 @@ and `'@measured/puck/puck.css'` to `'@puckeditor/core/puck.css'`.
 `pnpm install` in both. Left as it is, the storefront's `pnpm run build` fails type-checking.
 Stored pages, blocks and templates need no change.
 
+### After upgrading to 0.103.0 {#after-0-103-0}
+
+Two things the upgrade does not do for you.
+
+**Run the order repair's dry run once.** An earlier release could leave an order cancelled or
+paid while it still held stock or a credit reservation, and nothing releases those by itself.
+In the root of the instance, after `pnpm run upgrade` finishes:
+
+```bash
+pnpm run cli orders transition-effects-repair           # lists, writes nothing
+pnpm run cli orders transition-effects-repair --apply   # releases what the list named
+```
+
+Read the list before you apply it: a release changes reserved-stock counters and available
+credit. `--except=<order id>` leaves an order out and `--order=<order id>` repairs only the ones
+you name — see
+[Repairing orders stranded by an earlier version](./modules/orders.md#repairing-orders-stranded-by-an-earlier-version).
+A command that prints `No projects matched the filters` has run nothing, whatever its exit code:
+that is `pnpm --filter backend …`, the form for a checkout of the Endora Commerce repository,
+typed in an instance.
+
+**Add one line to the storefront's `vitest.config.mts`.** The storefront's own `.tsx` tests fail
+with *Failed to parse source for import analysis* once its install resolves Vite 8. Beside the
+`esbuild` block in that file, add:
+
+```ts
+oxc: { jsx: { runtime: 'automatic', importSource: 'react' } },
+```
+
 ## An instance that is mixed from the start
 
 The installer of `0.101.x` or earlier wrote every package of the release with a `^` except

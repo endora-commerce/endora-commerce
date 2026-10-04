@@ -4,10 +4,10 @@
  * (`specs/142-order-transition-atomicity/`, D9).
  *
  * Usage:
- *   pnpm --filter backend run cli orders transition-effects-repair
- *   pnpm --filter backend run cli orders transition-effects-repair --apply
- *   pnpm --filter backend run cli orders transition-effects-repair --apply --except=<order id>
- *   pnpm --filter backend run cli orders transition-effects-repair --apply --order=<order id>
+ *   pnpm run cli orders transition-effects-repair
+ *   pnpm run cli orders transition-effects-repair --apply
+ *   pnpm run cli orders transition-effects-repair --apply --except=<order id>
+ *   pnpm run cli orders transition-effects-repair --apply --order=<order id>
  *
  * Without `--apply` it is a dry run: it prints every order found holding stock
  * allocations or a credit reservation it should have released, with what each
