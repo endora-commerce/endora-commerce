@@ -209,19 +209,20 @@ export const manifest = defineModuleManifest({
   /**
    * Feature 090, Phase 3 — the error codes this module owns.
    *
-   * The list is the incumbent prefix chain's *answer* for `search`, copied from
+   * The list is the deleted prefix chain's *answer* for `search`, copied from
    * the frozen capture at `backend/test/fixtures/error-code-routing/chain-answers.ts`
    * (`grep -oE "^  [A-Z0-9_]+: 'search'," …`). It is a transcription, not a
    * judgement: the migration is answer-preserving over all 289 codes and
    * re-routing is out of scope (`specs/090-module-owned-error-codes/` §6.2, §6.5).
    *
    * **Trap T1 does not bite here, and that was measured rather than assumed.**
-   * The chain answers `search` from three prefixes — `QUERY_`, `SEARCH_`,
-   * `PHRASE_` — plus a three-member `SEARCH_MISC_ERROR_CODES` set. Every code in
-   * the enumeration carrying one of those prefixes routes here (five of them),
-   * no earlier rule shadows any of them, and all three misc members survive to
+   * The chain answered `search` from three prefixes — `QUERY_`, `SEARCH_`,
+   * `PHRASE_` — plus three codes it named one by one: `LIMIT_OUT_OF_RANGE`,
+   * `LLM_CONFIG_INCOMPLETE` and `RESULT_COUNT_INVALID`. Every code in the
+   * enumeration carrying one of those prefixes routed here (five of them), no
+   * earlier rule shadowed any of them, and all three named codes survived to
    * this rule. So reading the chain's source would have given the same eight as
-   * reading its answer. `inventory` and `assets_library` are where it does bite;
+   * reading its answer. `inventory` and `assets_library` are where it did bite;
    * this module is the case where the two agree, which is worth recording so the
    * next reader knows the question was asked.
    *
@@ -232,7 +233,7 @@ export const manifest = defineModuleManifest({
    * and `LLM_CONFIG_INCOMPLETE` name this module's domain. They belong here
    * because `routes.public.ts` hand-parses `?q=&limit=` precisely to avoid the
    * generic `VALIDATION_FAILED` — its own comment says so — and nothing else in
-   * `packages`, `backend/src`, `admin/src` or `storefront/src` names any of the
+   * `packages`, `backend/src`, `admin/src` or `storefront` raises any of the
    * six. Do not read the plain names as a routing accident; they are this
    * module's refusals wearing generic clothes.
    *
@@ -263,9 +264,10 @@ export const manifest = defineModuleManifest({
    *
    * Both spellings were searched, which trap T12 asks for: `ERROR_CODES.<CODE>`
    * and the bare quoted literal, over `packages`, `backend/src`, `admin/src` and
-   * `storefront/src`. Outside the enumeration in `@endora-commerce/contracts`,
-   * the chain's own `SEARCH_MISC_ERROR_CODES` set and this declaration, every
-   * occurrence is one of those seven raise sites.
+   * `storefront`. Outside the enumeration in `@endora-commerce/contracts` and
+   * this declaration, every occurrence but one is one of those seven raise
+   * sites; the one is the storefront's `SearchAutocomplete.tsx`, which reads
+   * `QUERY_TOO_SHORT` off a response and raises nothing.
    *
    * No `tokens`, derived rather than assumed. `refusalToken`
    * (`packages/platform/src/http/error-envelope.ts`) reads `details.code` and

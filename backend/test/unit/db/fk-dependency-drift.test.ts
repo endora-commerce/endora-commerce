@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { discoverModulePackages } from '../../../scripts/lib/module-packages.js';
 import { platformResidentModuleRoots } from '../../../scripts/lib/module-roots.js';
@@ -41,6 +41,7 @@ import { closureOf } from '../../../scripts/lib/manifest-dependencies.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const backendSrc = resolve(here, '../../../src');
+const repositoryRoot = resolve(backendSrc, '../..');
 /**
  * The kernel's entity classes, which since the relocation are
  * `@endora-commerce/platform`'s. `backend/src/kernel` holds re-export shims that
@@ -118,6 +119,32 @@ const MANIFEST_DEPENDENCIES: ReadonlyMap<string, readonly string[]> = new Map(
  * `scripts/lib/manifest-dependencies.ts`'.
  */
 
+/**
+ * Where a module's manifest is, as the path an author can open.
+ *
+ * **Read off the directory the walk resolved, never spelled.** This was the
+ * literal `backend/src/modules/<id>/manifest.ts`, which named a tree that holds
+ * no modules any more: an author refused by this rule was sent to a file that
+ * is not there. The scan already knows where each module is — a package's
+ * directory holds its sources under `src/`, a host-resident module's directory
+ * holds the manifest directly — so the two shapes are probed in that directory
+ * rather than a third layout being written down here.
+ */
+function manifestFileOf(modules: FkGraph['modules'], moduleId: string): string {
+  const scanned = modules.get(moduleId);
+  const found =
+    scanned === undefined
+      ? undefined
+      : [
+          join(scanned.directory, 'manifest.ts'),
+          join(scanned.directory, 'src', 'manifest.ts'),
+        ].find((candidate) => existsSync(candidate));
+  if (found === undefined) {
+    return `its manifest.ts (no directory was resolved for module "${moduleId}")`;
+  }
+  return relative(repositoryRoot, found).split(sep).join('/');
+}
+
 function violationMessage(edge: FkEdge, moduleFile: string): string {
   return (
     `[fk-drift] undeclared cross-module foreign key:\n` +
@@ -136,6 +163,7 @@ function findViolations(
   edges: readonly FkEdge[],
   dependencies: ReadonlyMap<string, readonly string[]>,
   acknowledged: readonly AcknowledgedFkEdge[],
+  modules: FkGraph['modules'] = graph.modules,
 ): string[] {
   const allowed = new Set(acknowledged.map((edge) => `${edge.from}|${edge.to}`));
   const messages: string[] = [];
@@ -148,7 +176,7 @@ function findViolations(
     if (edge.to === KERNEL_OWNER) continue;
     if (closureOf(edge.from, dependencies).has(edge.to)) continue;
     if (allowed.has(`${edge.from}|${edge.to}`)) continue;
-    messages.push(violationMessage(edge, `backend/src/modules/${edge.from}/manifest.ts`));
+    messages.push(violationMessage(edge, manifestFileOf(modules, edge.from)));
   }
   return messages;
 }
@@ -347,6 +375,37 @@ describe('fk drift — V3 failure-message contract (FR-042)', () => {
     expect(message).toContain('module "api_keys"');
     expect(message).toContain("add 'api_keys' to `dependencies` in orders/manifest.ts");
     expect(message).toContain('acknowledged-fk-edges.ts');
+  });
+
+  it('names a manifest file that is on disk, for every registered module', () => {
+    // The message is read by an author at the moment a rule has just refused
+    // them, so the file it sends them to has to be there. It was spelled as a
+    // literal under the application's module tree, which stopped holding
+    // modules when they became packages — and nothing reddened, because no case
+    // asked whether the path it printed resolved.
+    const missing: string[] = [];
+    for (const id of REGISTERED_IDS) {
+      const [message] = findViolations(
+        [{ from: id, to: 'synthetic_owner', count: 1, via: ['a → b'] }],
+        new Map([[id, []]]),
+        [],
+      );
+      const named = /\(transitively\) in (\S+)\.\n/.exec(message ?? '')?.[1];
+      if (named === undefined || !existsSync(resolve(repositoryRoot, named))) {
+        missing.push(`${id}: ${named ?? '<no file named>'}`);
+      }
+    }
+    expect(REGISTERED_IDS.length).toBeGreaterThan(0);
+    expect(missing).toEqual([]);
+  });
+
+  it('says so, rather than inventing a path, for a module it resolved no directory for', () => {
+    const [message] = findViolations(
+      [{ from: 'nowhere', to: 'api_keys', count: 1, via: ['a → b'] }],
+      new Map([['nowhere', []]]),
+      [],
+    );
+    expect(message).toContain('its manifest.ts (no directory was resolved for module "nowhere")');
   });
 });
 

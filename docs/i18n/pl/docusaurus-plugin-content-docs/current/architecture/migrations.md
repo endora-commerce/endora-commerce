@@ -61,7 +61,7 @@ Konwencja wygląda tak:
 | Część | Reguła |
 |------|------|
 | Znacznik czasu | UTC, stała szerokość (15 znaków), litera `T` na pozycji 8. Bez `Z` i bez separatorów. Można go sortować leksykograficznie. **Unikalny w obrębie własnego modułu** — dwa moduły mogą mieć ten sam znacznik, bo znacznik nie porządkuje niczego poza swoim modułem, a autorzy dwóch pakietów nie mogą się koordynować. |
-| `<SEGMENT>` | Identyfikator modułu-właściciela bez początkowego podkreślenia; dosłownie `core` dla migracji przekrojowych w `backend/src/db/migrations/`. |
+| `<SEGMENT>` | Identyfikator modułu-właściciela bez początkowego podkreślenia; dosłownie `core` dla migracji przekrojowych w `packages/platform/src/migrations/`. |
 | `<SLUG>` | `snake_case` (`[a-z0-9_]+`) opisujący zmianę. |
 
 **Nazwa klasy jest wyprowadzana mechanicznie** z nazwy pliku: usuń rozszerzenie, zapisz każdy
@@ -80,8 +80,12 @@ Normalizacja segmentu ma dokładnie dwa przypadki szczególne:
 |------------------|-------------|---------------------|
 | `packages/modules/orders/src/migrations/` | `orders` | `'orders'` |
 | `packages/modules/_i18n/src/migrations/` | `i18n` | `'_i18n'` |
-| `packages/platform/src/lifecycle/migrations/` | `lifecycle` | `'_lifecycle'` |
-| `backend/src/db/migrations/` | `core` | `'core'` |
+| `packages/platform/src/migrations/` | `core` | `'core'` |
+
+Każdy wiersz to katalog, który istnieje. `_lifecycle` jest drugim modułem z początkowym
+podkreśleniem i według tej samej reguły otrzymałby segment `lifecycle`, ale nie ma wiersza, bo nie
+ma katalogu migracji: moduł jest częścią pakietu platformy, a jego jedyną tabelę tworzy
+`20260506T200657_core_module_lifecycle_init.ts` wśród migracji przekrojowych, w segmencie `core`.
 
 **Końcówka nazwy klasy musi zaczynać się od segmentu modułu** — i jest to teraz reguła, a nie tylko
 skutek wyprowadzania nazwy ze ścieżki. To ona sprawia, że nazwy klas są globalnie unikalne bez
@@ -100,7 +104,7 @@ kosztuje i jak ją wdrożyć, opisuje sekcja „Blok bazowy i zmiana nazwy wykon
 
 Ta sekcja dotyczy **własnych** modułów tego repozytorium — członka workspace, który deklaruje
 `endora: { type: 'module', id }`, modułu w katalogu źródeł aplikacji albo migracji przekrojowych
-w `backend/src/db/migrations/`. Oba poniższe polecenia wymagają struktury tego repozytorium. Jeśli
+w `packages/platform/src/migrations/`. Oba poniższe polecenia wymagają struktury tego repozytorium. Jeśli
 piszesz moduł dostarczany jako instalowany pakiet npm, żadne z nich nie jest dla ciebie dostępne:
 przejdź do sekcji
 [Jak utworzyć migrację w pakiecie rozszerzenia](#jak-utworzyć-migrację-w-pakiecie-rozszerzenia).
@@ -142,7 +146,7 @@ Zarejestruj migrację, generując ponownie zatwierdzony rejestr, i zatwierdź ob
 pnpm --filter backend run composer:generate
 ```
 
-Generator przechodzi po `src/db/migrations/` i po własnym katalogu `migrations/` każdego modułu,
+Generator przechodzi po katalogu platformy `packages/platform/src/migrations/` i po własnym katalogu `migrations/` każdego modułu,
 odnajdywanym tak samo jak przez generator szkieletu, wyprowadza każdą nazwę klasy z nazwy pliku i
 odrzuca — zamiast pomijać — plik, którego nie potrafi przypisać: nierozpoznany plik `.ts` w katalogu
 migracji, klasę, której plik nie eksportuje, dwa pliki dające tę samą nazwę albo migrację w
@@ -281,9 +285,22 @@ Wszystko inne kończy się głośnym błędem — zobacz *Gdy pomylisz się w na
 
 Kolejność wykonania to przejście topologiczne po grafie zależności manifestów, więc wpis w
 `dependencies` manifestu to **jedyna rzecz**, która umieszcza twoją migrację za tabelą, do której
-się odwołuje. Jeśli twoja migracja dodaje klucz obcy do `orders`, twój manifest deklaruje `orders` —
-to i tylko to sprawia, że ograniczenie da się nałożyć na świeżej bazie danych. Dane testowe
+się odwołuje. **Kryterium jest odwołanie do tabeli, a nie klauzula `references`.** Jest nim klucz
+obcy do `orders`, ale także `select`, `insert`, `update` albo `delete`, które wymieniają tabelę
+`orders`: każde z nich wymaga, żeby ta tabela istniała na świeżej bazie danych, a gwarantuje to
+wyłącznie deklaracja `orders` w twoim manifeście — bezpośrednia albo przechodnia. Dane testowe
 deklarują `auth` właśnie z tego rodzaju powodu.
+
+**Deklaracja nie uprawnia do zapisu.** Migracja nie może wykonywać `insert`, `update` ani `delete`
+na tabeli należącej do innego modułu, niezależnie od tego, czy ten moduł jest w twoich
+`dependencies`: deklaracja mówi o kolejności i obecności, a zapis — o własności. Wiersze w tabeli
+innego modułu zasila albo poprawia własna migracja tego modułu, hook instalacyjny twojego modułu
+albo port modułu-właściciela podczas startu. Tabele należące do samej platformy nie wymagają
+deklaracji — platforma jest zawsze obecna i nie może wystąpić w tablicy `dependencies`.
+
+W tym repozytorium obie reguły egzekwuje `pnpm --filter backend run check:module-boundary`, obok
+opisanego niżej walidatora kluczy obcych. Tak jak w przypadku tablicy `./migrations`, nic w hoście
+nie czyta SQL migracji zainstalowanego pakietu, więc w pakiecie pilnujesz ich samodzielnie.
 
 Nie ma innej dźwigni. Przesunięcie znacznika czasu tego nie zrobi (zobacz niżej), a krawędzi
 kolejności dla pojedynczej migracji nie ma.
@@ -508,6 +525,12 @@ modułu-właściciela (najpierw na podstawie deklaracji `tableName` w encjach, p
 żadna encja) i sprawdza, czy moduł odwołujący się **przechodnio deklaruje** moduł, do którego się
 odwołuje, w `dependencies` swojego manifestu.
 
+Czyta te dwie instrukcje i nic więcej, więc jest tą połową reguły, która dotyczy kluczy obcych.
+`select`, `insert`, `update` albo `delete` w migracji, które wymieniają tabelę innego modułu,
+ocenia `check:module-boundary` według dwóch reguł podanych w kroku 3 powyższej sekcji o pakiecie
+rozszerzenia: odwołanie bez deklaracji jest odrzucane, a zapis jest odrzucany niezależnie od
+deklaracji.
+
 - To **czysty test jednostkowy**: bez bazy danych i bez uruchamiania ORM, wykonuje się w ramach
   `pnpm --filter backend run test:unit` w znacznie mniej niż sekundę.
 - **Nie ma żadnego wpływu na działanie platformy.** Nic w `backend/src/` go nie importuje, nie
@@ -523,7 +546,7 @@ Komunikat błędu wygląda tak:
 [fk-drift] undeclared cross-module foreign key:
   orders.order_placement_intents → api_keys
   module "orders" references module "api_keys" but does not declare it
-  (transitively) in backend/src/modules/orders/manifest.ts.
+  (transitively) in packages/modules/orders/src/manifest.ts.
 
   Fix one of:
     (a) add 'api_keys' to `dependencies` in orders/manifest.ts  ← usually this

@@ -346,24 +346,30 @@ export const manifest = defineModuleManifest({
    * §6.5), and that list was not written by hand: it is the output of the
    * runbook's step-1 derivation over the frozen capture at
    * `backend/test/fixtures/error-code-routing/chain-answers.ts`, which records
-   * what the prefix chain in `@endora-commerce/mod-i18n` answered at
-   * `49f3c6817`. Re-routing a code to a better owner was
+   * what the prefix chain that used to route error codes answered at
+   * `49f3c6817`. That chain is deleted: routing is now built from these
+   * declarations, and
+   * `backend/test/unit/kernel/error-code-routing-equality.test.ts` holds them
+   * to the capture. Re-routing a code to a better owner was
    * `specs/082-error-code-ownership/rulings.md` §9's remaining work, deliberately
    * not done in Phase 3; it is what the six additions below are.
    *
-   * **Four codes are here because an earlier rule in that ordered chain shadows
-   * a later one that names them.** Read from the chain's source they look like
-   * somebody else's; read from its answer — which is the only reading that
-   * matches what a client receives today — they are this module's:
+   * **Four codes are here because an earlier rule in that ordered chain
+   * shadowed a later one that named them.** By their names they look like
+   * somebody else's; by the capture, and by where their sentences are — this
+   * module's `i18n/{en,pl}.json` hold all four — they are this module's:
    *
-   * - `PRODUCT_UNMANAGED_STOCK` and `PRODUCT_IN_STOCK` are members of the
-   *   chain's own `INVENTORY_MISC_ERROR_CODES` set, and the `PRODUCT_` prefix
-   *   above it claims both first. `inventory` raises the second one.
-   * - `ASSET_KIND_NOT_SUPPORTED` would match `assets_library`'s `ASSET_` prefix,
-   *   and `CATALOG_MISC_ERROR_CODES` names it thirty lines earlier.
-   * - `UNKNOWN_OPTION` would match `sales_channels`' `UNKNOWN_` prefix, and the
-   *   same misc set claims it first. `catalog`'s own `bundle.service.ts` raises
-   *   it.
+   * - `PRODUCT_UNMANAGED_STOCK` and `PRODUCT_IN_STOCK` were listed one by one
+   *   among `inventory`'s codes, and the `PRODUCT_` prefix rule ahead of that
+   *   list claimed both first. **Nothing in this package raises either**: both
+   *   raise sites are `inventory`'s `availability-notification-service.ts`. The
+   *   capture and the noun in the name are what keep them here, not a thrower.
+   * - `ASSET_KIND_NOT_SUPPORTED` would have matched `assets_library`'s `ASSET_`
+   *   prefix, and was named among this module's codes ahead of it. This
+   *   module's `attachment.service.ts` and `gallery.service.ts` raise it.
+   * - `UNKNOWN_OPTION` would have matched `sales_channels`' `UNKNOWN_` prefix,
+   *   and was named among this module's codes ahead of it in the same way. This
+   *   module's `bundle.service.ts` raises it.
    *
    * **Ten more are counter-intuitive without any shadow** — the prefix rule is
    * simply wider than the module that raises the code, which §6.5 leaves

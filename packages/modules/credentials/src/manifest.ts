@@ -62,13 +62,15 @@ export const manifest = defineModuleManifest({
   // merging this changes no deployment's state (FR-012).
   activation: { settingCode: CREDENTIALS_ACTIVATION_SETTING_CODE, default: true },
   /**
-   * Feature 090 Phase 3 — the six error codes the incumbent prefix chain routes
-   * to this module.
+   * Feature 090 Phase 3 — the six error codes the prefix chain routed to this
+   * module before it was deleted.
    *
    * The list is copied from the frozen capture
    * (`backend/test/fixtures/error-code-routing/chain-answers.ts`), which records
-   * what `moduleIdForErrorCode` answered, and is not a judgement about where a
-   * code belongs. Reading the chain's *source* would have coincided here — the
+   * what that chain answered for every code, and is not a judgement about where
+   * a code belongs. Routing is now built from this declaration, and
+   * `backend/test/unit/kernel/error-code-routing-equality.test.ts` holds it to
+   * the capture. Reading the chain's *source* would have coincided here — the
    * `CREDENTIAL_` branch is unshadowed and no later branch claims a
    * `CREDENTIAL_`-prefixed code — but that is a conclusion of having read the
    * whole chain, never a premise (trap T1), and the six below still come off the
@@ -86,7 +88,7 @@ export const manifest = defineModuleManifest({
    *
    * **The inverse is the larger half, and every code in it is somebody else's.**
    * `INVALID_CREDENTIALS` is auth's sign-in failure and routes to `core` — the
-   * chain says so in its own comment above the `CREDENTIAL_` branch, because the
+   * chain said so in its own comment above the `CREDENTIAL_` branch, because the
    * plural noun is a password and not a stored configuration.
    * `KSEF_CREDENTIAL_EXISTS` and `KSEF_CREDENTIAL_INVALID` route to `core` as
    * well, which surprises twice over: not here, and not `ksef` either.

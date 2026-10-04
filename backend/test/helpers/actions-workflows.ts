@@ -154,3 +154,20 @@ export function gateCommands(script: string): readonly string[] {
     .map((line) => (line.startsWith('- ') ? line.slice(2).trim() : line))
     .filter((line) => /^(pnpm\s|bash scripts\/)/.test(line));
 }
+
+/**
+ * A workflow's `on.pull_request.paths` filter, quotes dropped, in order.
+ *
+ * It was a local function of `test/unit/ci/actions-tranche-one-parity.test.ts`
+ * until a second test asked the same question of the same file; one reader, so
+ * the two cannot come to disagree about what the filter says.
+ */
+export function pullRequestPaths(source: string): readonly string[] {
+  const on = /^on:\s*\n((?:[ \t]+.*\n|\s*\n)*)/m.exec(source)?.[1] ?? '';
+  const block = /^ {2}pull_request:\s*\n((?: {4}.*\n|\s*\n)*)/m.exec(on)?.[1] ?? '';
+  const paths = /^ {4}paths:\s*\n((?: {6}.*\n|\s*\n)*)/m.exec(block)?.[1] ?? '';
+  return paths
+    .split('\n')
+    .map((line) => /^ {6}- '?([^']+?)'?\s*$/.exec(line)?.[1])
+    .filter((entry): entry is string => entry !== undefined);
+}
