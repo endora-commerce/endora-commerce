@@ -212,10 +212,32 @@ async function adminScopeOrNone(
   sources: ActorTenantScopeSources,
   adminUserId: string,
 ): Promise<AdminScopeInput> {
-  try {
+  return adminScopeOrUnresolved(async () => {
     const port = sources.adminTenantScope();
     if (port === undefined) return NO_ORGANIZATION;
-    return await port.resolveForAdmin(adminUserId);
+    return port.resolveForAdmin(adminUserId);
+  });
+}
+
+/**
+ * The degrade itself, as the one function every composition root runs: ask for
+ * an admin's scope, and answer {@link unresolvedAdminScope} when the asking is
+ * refused because a module is absent.
+ *
+ * `resolve` must do the **whole** asking inside the callback — reading the
+ * port off the container as well as calling it — because a gated port refuses
+ * at resolution, before any method runs, and a read made outside would escape
+ * the catch. Narrow on purpose: `ModuleDisabledError` and nothing else.
+ *
+ * It is exported for the test harness, whose mapping is its own and whose admin
+ * arm must degrade exactly as this one does; a second hand-written `catch` is
+ * how the two come to disagree about which errors are a presence answer.
+ */
+export async function adminScopeOrUnresolved(
+  resolve: () => Promise<AdminScopeInput>,
+): Promise<AdminScopeInput> {
+  try {
+    return await resolve();
   } catch (error) {
     if (error instanceof ModuleDisabledError) return unresolvedAdminScope(error);
     throw error;

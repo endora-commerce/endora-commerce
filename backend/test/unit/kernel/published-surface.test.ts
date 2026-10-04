@@ -590,6 +590,11 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
     'ModuleRegistrationSink',
   ],
   'kernel/request-scope-hook.ts': ['registerRequestScopeHook'],
+  // The admin arm's degrade when a module behind the scope port is absent. The
+  // test harness writes its own actor → context mapping, and its admin arm
+  // must degrade exactly as the platform's does — so it calls the platform's
+  // function instead of carrying a second `catch`.
+  'kernel/actor-tenant-context.ts': ['adminScopeOrUnresolved'],
   'kernel/logging.ts': ['platformLogger'],
   // T119b. `kernel/public-api-base-url.ts` was here for `absolutizePublicUrl`,
   // and is gone with **D-223**, which took the application's last two reaches
