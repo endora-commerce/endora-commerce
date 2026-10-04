@@ -7,16 +7,13 @@ import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
 import { enterSystemScope } from '@endora-commerce/platform/kernel';
 import { seedOrder, type PgClient } from '../../../scripts/acceptance/instance-actor-scope.js';
-import { AdminRole, AdminUser } from '../../helpers/package-entities.js';
+import { randomUUID } from 'node:crypto';
 import {
-  seedOtherTestOrganization,
-  seedTestOrganizations,
-} from '../../helpers/seed-organizations.js';
-import {
-  OTHER_TEST_ORGANIZATION_ID,
-  TEST_CUSTOMER_ID,
-  TEST_ORGANIZATION_ID,
-} from '../../helpers/test-actors.js';
+  AdminRole,
+  AdminUser,
+  CustomerAccount,
+  Organization,
+} from '../../helpers/package-entities.js';
 
 /**
  * The production root actually boots (feature 072, D-40).
@@ -283,10 +280,16 @@ describe('the production composition root boots', () => {
    * The fixture is two organizations, an order of each written as a row (the
    * acceptance run's own insert, for its reason: placing one needs a delivery
    * and a payment method this boot has not configured), a member of the first,
-   * and an administrator holding every permission.
+   * and an administrator holding every permission. Every row is this block's
+   * own, under ids generated here: the file shares its database with whatever
+   * ran before it and truncates nothing.
    */
   describe('a browser holding an admin session and a customer session', () => {
-    const ADMIN_ID = '00000000-0000-4000-8000-0000000000d7';
+    const run = randomUUID();
+    const ADMIN_ID = randomUUID();
+    const CUSTOMER_ID = randomUUID();
+    const OWN_ORGANIZATION_ID = randomUUID();
+    const OTHER_ORGANIZATION_ID = randomUUID();
     let cookies: { b2b_admin_session: string; b2b_session: string };
     let impersonating: { b2b_admin_session: string; b2b_session: string };
     let ownOrderId: string;
@@ -324,10 +327,38 @@ describe('the production composition root boots', () => {
         'test: seed two organizations, an order of each and an administrator',
         async () => {
           const em = composition!.orm.em.fork();
-          await seedTestOrganizations(em);
-          await seedOtherTestOrganization(em);
+          const organization = (id: string, label: string): Organization =>
+            em.create(Organization, {
+              id,
+              name: `Two sessions ${label} ${run.slice(0, 8)}`,
+              taxId: `PL2S${label}${run.replace(/-/g, '').slice(0, 10)}`,
+              status: 'active',
+              vatStatus: 'vat_payer',
+              registeredAddress: {
+                street: 'ul. Zakresu 1',
+                city: 'Warszawa',
+                postalCode: '00-100',
+                country: 'PL',
+              },
+            });
+          await em.persistAndFlush([
+            organization(OWN_ORGANIZATION_ID, 'A'),
+            organization(OTHER_ORGANIZATION_ID, 'B'),
+          ]);
+          await em.persistAndFlush(
+            em.create(CustomerAccount, {
+              id: CUSTOMER_ID,
+              organizationId: OWN_ORGANIZATION_ID,
+              email: `two-sessions-customer-${run}@example.com`,
+              passwordHash: 'x'.repeat(60),
+              firstName: 'Two',
+              lastName: 'Sessions',
+              role: 'organization_admin',
+              emailVerifiedAt: new Date(),
+            }),
+          );
           const role = em.create(AdminRole, {
-            code: 'two_sessions_admin',
+            code: `two_sessions_admin_${run.slice(0, 8)}`,
             name: 'Two sessions admin',
             permissions: ['*'],
           });
@@ -335,7 +366,7 @@ describe('the production composition root boots', () => {
           await em.persistAndFlush(
             em.create(AdminUser, {
               id: ADMIN_ID,
-              email: 'two-sessions-admin@example.com',
+              email: `two-sessions-admin-${run}@example.com`,
               passwordHash: 'x'.repeat(60),
               firstName: 'Two',
               lastName: 'Sessions',
@@ -356,12 +387,12 @@ describe('the production composition root boots', () => {
           const salesChannelId = channel.rows[0]!.id;
           ownOrderId = await seedOrder(
             client,
-            { organizationId: TEST_ORGANIZATION_ID, customerAccountId: TEST_CUSTOMER_ID },
+            { organizationId: OWN_ORGANIZATION_ID, customerAccountId: CUSTOMER_ID },
             salesChannelId,
           );
           foreignOrderId = await seedOrder(
             client,
-            { organizationId: OTHER_TEST_ORGANIZATION_ID, customerAccountId: TEST_CUSTOMER_ID },
+            { organizationId: OTHER_ORGANIZATION_ID, customerAccountId: CUSTOMER_ID },
             salesChannelId,
           );
         },
@@ -374,11 +405,11 @@ describe('the production composition root boots', () => {
       const admin = await sessions.createSession({ kind: 'admin', adminUserId: ADMIN_ID });
       const customer = await sessions.createSession({
         kind: 'customer',
-        customerAccountId: TEST_CUSTOMER_ID,
+        customerAccountId: CUSTOMER_ID,
       });
       const impersonation = await sessions.createSession({
         kind: 'impersonation',
-        customerAccountId: TEST_CUSTOMER_ID,
+        customerAccountId: CUSTOMER_ID,
         impersonatorAdminUserId: ADMIN_ID,
       });
       cookies = { b2b_admin_session: admin.cookieValue, b2b_session: customer.cookieValue };
@@ -410,20 +441,20 @@ describe('the production composition root boots', () => {
 
     it('re-parents an organization as the admin, and the audit names the admin', async () => {
       for (const [sent, parentId] of [
-        [cookies, TEST_ORGANIZATION_ID],
+        [cookies, OWN_ORGANIZATION_ID],
         [impersonating, null],
       ] as const) {
         const since = new Date();
 
         const response = await app!.inject({
           method: 'POST',
-          url: `/api/v1/admin/organizations/${OTHER_TEST_ORGANIZATION_ID}/parent`,
+          url: `/api/v1/admin/organizations/${OTHER_ORGANIZATION_ID}/parent`,
           payload: { parentId },
           cookies: sent,
         });
 
         expect(response.statusCode, response.body).toBe(200);
-        const rows = await auditRowsAbout(OTHER_TEST_ORGANIZATION_ID, since);
+        const rows = await auditRowsAbout(OTHER_ORGANIZATION_ID, since);
         expect(rows.length).toBeGreaterThan(0);
         for (const row of rows) {
           expect(row.actor_admin_user_id).toBe(ADMIN_ID);
