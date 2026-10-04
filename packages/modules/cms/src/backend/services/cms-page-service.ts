@@ -9,6 +9,7 @@ import {
   type PatchCmsPageRequest,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import type { AuditState, CommandBus } from '@endora-commerce/platform/commands';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { walkBlockEmbeds, walkUnknownComponents } from './content-tree-walker.js';
 import type { CmsCache } from './cms-cache.js';
@@ -72,6 +73,30 @@ export function normalizeReservedSegments(value: unknown): string[] {
   return [...out];
 }
 
+/**
+ * The audit `objectType` of every Page write. One value, so the trail of one
+ * page is one query whichever of the seven actions wrote the row.
+ */
+const PAGE_OBJECT_TYPE = 'cms_page';
+
+const TRANSITION_ACTIONS = {
+  published: 'cms_page.publish',
+  archived: 'cms_page.archive',
+  draft: 'cms_page.unarchive',
+} as const;
+
+/**
+ * Every write below runs as a Command (Constitution XIII): `CommandBus.run`
+ * opens the transaction, derives the actor from the ambient TenantContext and
+ * records exactly one audit entry beside the write, so a rolled-back write
+ * leaves no entry and a committed one cannot skip it. The statements are raw
+ * SQL and stay so — what changed is the EntityManager they run on, which is the
+ * Command's and no longer one this service opened for itself.
+ *
+ * What stays **outside** the Command is what is not part of the write: the
+ * reserved-segment refusal (a settings read), the storefront cache invalidation
+ * (Redis, and only meaningful once the row is committed) and the response read.
+ */
 export class CmsPageService {
   /**
    * Absent until `registerModule` installs it, and absent means "nothing is
@@ -83,6 +108,12 @@ export class CmsPageService {
 
   constructor(
     private readonly emFactory: () => EntityManager,
+    /**
+     * Required, with no un-audited fallback: an optional bus is a write path
+     * whose absent form audits nothing, which is the defect this parameter
+     * exists to remove.
+     */
+    private readonly commandBus: CommandBus,
     private readonly knownComponentNames: () => Iterable<string>,
     private readonly cache?: CmsCache,
     private readonly references?: CmsReferenceRegistry,
@@ -132,14 +163,39 @@ export class CmsPageService {
 
   private async invalidateForPageId(pageId: string): Promise<void> {
     if (!this.cache) return;
-    const rows = (await this.emFactory().execute(
+    await this.invalidateForSlugs(await this.slugsOf(pageId));
+  }
+
+  /** Every slug a page is served under — its own and each channel's. */
+  private async slugsOf(pageId: string, em = this.emFactory()): Promise<string[]> {
+    const rows = (await em.execute(
       `select slug from cms_page_sales_channels where page_id = ?
        union
        select slug from cms_pages where id = ?`,
       [pageId, pageId],
     )) as Array<{ slug: string }>;
-    const slugs = new Set(rows.map((r) => r.slug).filter((s) => s && s.length > 0));
-    if (slugs.size > 0) await this.cache.invalidatePagesBySlug(slugs);
+    return rows.map((r) => r.slug);
+  }
+
+  /**
+   * What an audit entry keeps of a Page: the facts an operator sets, and not
+   * the content tree. A page's tree is routinely hundreds of kilobytes and is
+   * saved many times in one editing session, so carrying it on both sides of
+   * every entry would make the audit table the largest copy of the CMS. A
+   * content save records which language changed and the version it produced.
+   */
+  private async auditState(em: EntityManager, row: PageRow): Promise<NonNullable<AuditState>> {
+    return {
+      name: row.name,
+      slug: row.slug,
+      status: row.status,
+      active: row.active,
+      description: row.description,
+      languages: row.languages,
+      salesChannelIds: await this.channelIdsFor(row.id, em),
+      meta: this.combineMeta(row),
+      version: row.version,
+    };
   }
 
   private async invalidateForSlugs(slugs: Iterable<string>): Promise<void> {
@@ -193,7 +249,6 @@ export class CmsPageService {
     // transaction to refuse it would hold a connection for the length of a
     // settings read.
     await this.assertSlugNotReserved(input.slug);
-    const em = this.emFactory();
     const id = randomUUID();
     const now = new Date();
     const meta = this.splitMeta(input.meta ?? null);
@@ -205,35 +260,46 @@ export class CmsPageService {
     );
     const body = Object.fromEntries(input.languages.map((language) => [language, '']));
 
-    await em.transactional(async (tx) => {
-      await this.assertLanguagesInChannelScope(tx, input.languages, input.salesChannelIds);
-      await this.assertSlugAvailable(tx, input.slug, input.salesChannelIds);
-      await tx.execute(
-        `insert into cms_pages
-          (id, path, status, title, body, published_at, archived_at, created_at, updated_at,
-           name, slug, active, description, meta_title, meta_description, meta_keywords,
-           content, languages, version)
-         values (?, ?, 'draft', ?::jsonb, ?::jsonb, null, null, ?, ?,
-           ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, 1)`,
-        [
-          id,
-          this.legacyPath(input.slug, id),
-          JSON.stringify(title),
-          JSON.stringify(body),
-          now,
-          now,
-          input.name,
-          input.slug,
-          input.active ?? true,
-          input.description ?? null,
-          JSON.stringify(meta.metaTitle),
-          JSON.stringify(meta.metaDescription),
-          JSON.stringify(meta.metaKeywords),
-          JSON.stringify(emptyContent),
-          JSON.stringify(input.languages),
-        ],
-      );
-      await this.replaceChannelScope(tx, id, input.salesChannelIds, input.slug);
+    await this.commandBus.run<void>({
+      action: 'cms_page.create',
+      objectType: PAGE_OBJECT_TYPE,
+      objectId: id,
+      run: async ({ em: tx }) => {
+        await this.assertLanguagesInChannelScope(tx, input.languages, input.salesChannelIds);
+        await this.assertSlugAvailable(tx, input.slug, input.salesChannelIds);
+        await tx.execute(
+          `insert into cms_pages
+            (id, path, status, title, body, published_at, archived_at, created_at, updated_at,
+             name, slug, active, description, meta_title, meta_description, meta_keywords,
+             content, languages, version)
+           values (?, ?, 'draft', ?::jsonb, ?::jsonb, null, null, ?, ?,
+             ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, ?::jsonb, 1)`,
+          [
+            id,
+            this.legacyPath(input.slug, id),
+            JSON.stringify(title),
+            JSON.stringify(body),
+            now,
+            now,
+            input.name,
+            input.slug,
+            input.active ?? true,
+            input.description ?? null,
+            JSON.stringify(meta.metaTitle),
+            JSON.stringify(meta.metaDescription),
+            JSON.stringify(meta.metaKeywords),
+            JSON.stringify(emptyContent),
+            JSON.stringify(input.languages),
+          ],
+        );
+        await this.replaceChannelScope(tx, id, input.salesChannelIds, input.slug);
+        const created = await this.findRow(id, tx);
+        return {
+          result: undefined,
+          before: null,
+          after: created ? await this.auditState(tx, created) : null,
+        };
+      },
     });
 
     await this.invalidateForSlugs([input.slug]);
@@ -253,54 +319,70 @@ export class CmsPageService {
     // uneditable — a rule that punishes the operator for a decision somebody
     // else made later.
     if (input.slug !== undefined) await this.assertSlugNotReserved(input.slug);
-    const em = this.emFactory();
     const slugsToInvalidate = new Set<string>();
-    await em.transactional(async (tx) => {
-      const row = await this.findRow(id, tx);
-      if (!row) throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
-      this.assertVersion(row, input.version);
-      slugsToInvalidate.add(row.slug);
+    await this.commandBus.run<void>({
+      action: 'cms_page.update',
+      objectType: PAGE_OBJECT_TYPE,
+      objectId: id,
+      run: async ({ em: tx }) => {
+        const row = await this.findRow(id, tx);
+        if (!row) throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
+        this.assertVersion(row, input.version);
+        slugsToInvalidate.add(row.slug);
+        const before = await this.auditState(tx, row);
 
-      const nextSlug = input.slug ?? row.slug;
-      const nextChannels = input.salesChannelIds ?? (await this.channelIdsFor(id, tx));
-      const nextLanguages = input.languages ?? row.languages;
-      await this.assertLanguagesInChannelScope(tx, nextLanguages, nextChannels);
-      if (input.slug || input.salesChannelIds) {
-        await this.assertSlugAvailable(tx, nextSlug, nextChannels, id);
-      }
+        const nextSlug = input.slug ?? row.slug;
+        const nextChannels = input.salesChannelIds ?? (await this.channelIdsFor(id, tx));
+        const nextLanguages = input.languages ?? row.languages;
+        await this.assertLanguagesInChannelScope(tx, nextLanguages, nextChannels);
+        if (input.slug || input.salesChannelIds) {
+          await this.assertSlugAvailable(tx, nextSlug, nextChannels, id);
+        }
 
-      const meta = input.meta !== undefined ? this.splitMeta(input.meta ?? null) : null;
-      const sets: string[] = [];
-      const params: unknown[] = [];
-      const set = (sql: string, value: unknown) => {
-        sets.push(sql);
-        params.push(value);
-      };
+        const meta = input.meta !== undefined ? this.splitMeta(input.meta ?? null) : null;
+        const sets: string[] = [];
+        const params: unknown[] = [];
+        const set = (sql: string, value: unknown) => {
+          sets.push(sql);
+          params.push(value);
+        };
 
-      if (input.name !== undefined) set('name = ?', input.name);
-      if (input.slug !== undefined) set('slug = ?', input.slug);
-      if (input.active !== undefined) set('active = ?', input.active);
-      if (input.description !== undefined) set('description = ?', input.description);
-      if (input.languages !== undefined) set('languages = ?::jsonb', JSON.stringify(input.languages));
-      if (meta) {
-        set('meta_title = ?::jsonb', JSON.stringify(meta.metaTitle));
-        set('meta_description = ?::jsonb', JSON.stringify(meta.metaDescription));
-        set('meta_keywords = ?::jsonb', JSON.stringify(meta.metaKeywords));
-      }
+        if (input.name !== undefined) set('name = ?', input.name);
+        if (input.slug !== undefined) set('slug = ?', input.slug);
+        if (input.active !== undefined) set('active = ?', input.active);
+        if (input.description !== undefined) set('description = ?', input.description);
+        if (input.languages !== undefined) set('languages = ?::jsonb', JSON.stringify(input.languages));
+        if (meta) {
+          set('meta_title = ?::jsonb', JSON.stringify(meta.metaTitle));
+          set('meta_description = ?::jsonb', JSON.stringify(meta.metaDescription));
+          set('meta_keywords = ?::jsonb', JSON.stringify(meta.metaKeywords));
+        }
 
-      if (sets.length > 0) {
-        params.push(id);
-        await tx.execute(
-          `update cms_pages
-           set ${sets.join(', ')}, version = version + 1, updated_at = now()
-           where id = ?`,
-          params,
-        );
-      }
-      if (input.salesChannelIds || input.slug) {
-        await this.replaceChannelScope(tx, id, nextChannels, nextSlug);
-      }
-      slugsToInvalidate.add(nextSlug);
+        if (sets.length > 0) {
+          params.push(id);
+          await tx.execute(
+            `update cms_pages
+             set ${sets.join(', ')}, version = version + 1, updated_at = now()
+             where id = ?`,
+            params,
+          );
+        }
+        const rescoped = Boolean(input.salesChannelIds || input.slug);
+        if (rescoped) {
+          await this.replaceChannelScope(tx, id, nextChannels, nextSlug);
+        }
+        slugsToInvalidate.add(nextSlug);
+
+        // A patch that named no field wrote no row, so it leaves no entry: "no
+        // write, no audit row" is the bus's own rule and `skipAudit` its spelling.
+        if (sets.length === 0 && !rescoped) return { result: undefined, skipAudit: true };
+        const updated = await this.findRow(id, tx);
+        return {
+          result: undefined,
+          before,
+          after: updated ? await this.auditState(tx, updated) : null,
+        };
+      },
     });
 
     await this.invalidateForSlugs(slugsToInvalidate);
@@ -308,40 +390,49 @@ export class CmsPageService {
   }
 
   async setContent(id: string, language: string, data: unknown, version: number): Promise<CmsPageDetail> {
-    const em = this.emFactory();
-    await em.transactional(async (tx) => {
-      const row = await this.findRow(id, tx);
-      if (!row) throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
-      this.assertVersion(row, version);
+    await this.commandBus.run<void>({
+      action: 'cms_page.set_content',
+      objectType: PAGE_OBJECT_TYPE,
+      objectId: id,
+      run: async ({ em: tx }) => {
+        const row = await this.findRow(id, tx);
+        if (!row) throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
+        this.assertVersion(row, version);
 
-      const unknown = walkUnknownComponents(data, new Set(this.knownComponentNames()));
-      if (unknown.size > 0) {
-        console.warn(
-          `CMS page ${id} saved with unknown components: ${Array.from(unknown).join(', ')}`,
+        const unknown = walkUnknownComponents(data, new Set(this.knownComponentNames()));
+        if (unknown.size > 0) {
+          console.warn(
+            `CMS page ${id} saved with unknown components: ${Array.from(unknown).join(', ')}`,
+          );
+        }
+        await this.assertBlockEmbedsExist(tx, data, await this.channelIdsFor(id, tx));
+
+        const content = {
+          languages: {
+            ...(row.content.languages ?? {}),
+            [language]: data,
+          },
+        };
+        if (!row.languages.includes(language)) {
+          throw new HttpError(
+            400,
+            ERROR_CODES.CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE,
+            `CMS Page language "${language}" is not assigned to this page.`,
+          );
+        }
+
+        await tx.execute(
+          `update cms_pages
+           set content = ?::jsonb, version = version + 1, updated_at = now()
+           where id = ?`,
+          [JSON.stringify(content), id],
         );
-      }
-      await this.assertBlockEmbedsExist(tx, data, await this.channelIdsFor(id, tx));
-
-      const content = {
-        languages: {
-          ...(row.content.languages ?? {}),
-          [language]: data,
-        },
-      };
-      if (!row.languages.includes(language)) {
-        throw new HttpError(
-          400,
-          ERROR_CODES.CMS_LANGUAGE_NOT_IN_CHANNEL_SCOPE,
-          `CMS Page language "${language}" is not assigned to this page.`,
-        );
-      }
-
-      await tx.execute(
-        `update cms_pages
-         set content = ?::jsonb, version = version + 1, updated_at = now()
-         where id = ?`,
-        [JSON.stringify(content), id],
-      );
+        return {
+          result: undefined,
+          before: { language, version: row.version },
+          after: { language, version: row.version + 1 },
+        };
+      },
     });
 
     await this.invalidateForPageId(id);
@@ -367,28 +458,57 @@ export class CmsPageService {
         throw new HttpError(409, ERROR_CODES.CMS_REFERENCED, 'CMS Page is referenced.');
       }
     }
-    await this.invalidateForPageId(id);
-    await this.emFactory().execute('delete from cms_pages where id = ?', [id]);
+    // Read inside the Command, before the row goes: the channel rows that carry
+    // the slugs cascade with it. Invalidated after the commit, so a storefront
+    // read racing the delete cannot re-cache a page that is about to be gone.
+    let slugs: string[] = [];
+    await this.commandBus.run<void>({
+      action: 'cms_page.delete',
+      objectType: PAGE_OBJECT_TYPE,
+      objectId: id,
+      run: async ({ em }) => {
+        const row = await this.findRow(id, em);
+        // Deleting a page that is not there has always answered success, and
+        // still does — it removed nothing, so it records nothing.
+        if (!row) return { result: undefined, skipAudit: true };
+        const before = await this.auditState(em, row);
+        slugs = await this.slugsOf(id, em);
+        await em.execute('delete from cms_pages where id = ?', [id]);
+        return { result: undefined, before, after: null };
+      },
+    });
+    await this.invalidateForSlugs(slugs);
   }
 
   private async transition(
     id: string,
     status: 'draft' | 'published' | 'archived',
   ): Promise<CmsPageDetail> {
-    const em = this.emFactory();
-    const row = await this.findRow(id, em);
-    if (!row) throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
+    await this.commandBus.run<void>({
+      action: TRANSITION_ACTIONS[status],
+      objectType: PAGE_OBJECT_TYPE,
+      objectId: id,
+      run: async ({ em }) => {
+        const row = await this.findRow(id, em);
+        if (!row) throw new HttpError(404, ERROR_CODES.CMS_PAGE_NOT_FOUND, 'CMS Page not found.');
 
-    await em.execute(
-      `update cms_pages
-       set status = ?,
-           published_at = case when ? = 'published' then now() else published_at end,
-           archived_at = case when ? = 'archived' then now() else null end,
-           version = version + 1,
-           updated_at = now()
-       where id = ?`,
-      [status, status, status, id],
-    );
+        await em.execute(
+          `update cms_pages
+           set status = ?,
+               published_at = case when ? = 'published' then now() else published_at end,
+               archived_at = case when ? = 'archived' then now() else null end,
+               version = version + 1,
+               updated_at = now()
+           where id = ?`,
+          [status, status, status, id],
+        );
+        return {
+          result: undefined,
+          before: { status: row.status, version: row.version },
+          after: { status, version: row.version + 1 },
+        };
+      },
+    });
     await this.invalidateForPageId(id);
     return this.get(id);
   }
