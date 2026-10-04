@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, orderSchema } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -56,6 +56,13 @@ interface SerializedOrder {
   items: Array<{ productId: string; quantity: number; unitPrice: number }>;
   total: number;
   currency: string;
+}
+
+/** Every field of a serialized order the published schema refuses, as `path: message`. */
+function orderSchemaDisagreements(order: unknown): string[] {
+  const parsed = orderSchema.safeParse(order);
+  if (parsed.success) return [];
+  return parsed.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`);
 }
 
 describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
@@ -246,6 +253,10 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
     expect(res.headers['cache-control']).toBe(NO_STORE);
     const order = (res.json() as { data: SerializedOrder }).data;
     happyOrderId = order.id;
+    // The external surface has a serialiser of its own, and its comment says
+    // the published `orderSchema` is what keeps it from drifting. Nothing held
+    // it to that until this parse.
+    expect(orderSchemaDisagreements(order)).toEqual([]);
 
     expect(order.organizationId).toBe(TEST_ORGANIZATION_ID);
     expect(order.placedByCustomerAccountId).toBe(TEST_CUSTOMER_ID);
@@ -383,6 +394,7 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
     expect(body.data.length).toBeGreaterThanOrEqual(1);
     expect(body.data.every((o) => o.organizationId === TEST_ORGANIZATION_ID)).toBe(true);
     expect(body.data.some((o) => o.id === happyOrderId)).toBe(true);
+    expect(body.data.flatMap(orderSchemaDisagreements)).toEqual([]);
   });
 
   it('GET /api/v1/external/orders/:id returns the detail for an own order', async () => {
@@ -395,6 +407,7 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
     const order = (res.json() as { data: SerializedOrder }).data;
     expect(order.id).toBe(happyOrderId);
     expect(order.organizationId).toBe(TEST_ORGANIZATION_ID);
+    expect(orderSchemaDisagreements(order)).toEqual([]);
   });
 
   it("key of another org fetching org A's order id ⇒ 404 (no existence leak)", async () => {

@@ -43,7 +43,12 @@ export const addressSnapshotSchema = z.object({
   city: z.string().max(120),
   postalCode: z.string().max(20),
   country: z.string().length(2).describe('ISO-3166-1 alpha-2 country code'),
-  phone: z.string().max(32).optional(),
+  /**
+   * `null` when the source address carried no phone number. That is what an
+   * order answers for it — placement writes the key unconditionally — so a
+   * consumer must expect `null` there and not only an absent key.
+   */
+  phone: z.string().max(32).nullable().optional(),
   /**
    * Optional company name captured on a billing snapshot. Defaults from the
    * Organization at order placement; the buyer may override it at checkout.
