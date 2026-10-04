@@ -93,8 +93,9 @@ export interface AdminScopeInput {
    * Set when the scope is the **fallback** for a question nobody could answer
    * — the module that decides an admin's reach, or one it reads, is absent. It
    * is carried onto the context as `scopeUnresolved` and never widens it: a
-   * scope that names it is confined to `allowedOrganizationIds` whatever
-   * `allowAll` says.
+   * scope that names it holds **no organization**, whatever `allowAll` and
+   * `allowedOrganizationIds` say beside it. An unanswered question has no
+   * partial answer to keep.
    */
   readonly unresolved?: Error;
 }
@@ -154,12 +155,22 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
   if (!adminScope || (adminScope.allowAll && adminScope.unresolved === undefined)) {
     return { mode: 'all', actor: { kind: 'admin', id: actor.adminUserId } };
   }
+  if (adminScope.unresolved !== undefined) {
+    // Fail closed on the set as well as on the mode: nobody could say what
+    // this admin reaches, so a set passed beside the refusal is not an answer.
+    return {
+      mode: 'allowed-set',
+      allowedOrganizationIds: [],
+      notices: newScopeNotices(),
+      actor: { kind: 'admin', id: actor.adminUserId },
+      scopeUnresolved: adminScope.unresolved,
+    };
+  }
   return {
     mode: 'allowed-set',
     allowedOrganizationIds: adminScope.allowedOrganizationIds ?? [],
     notices: newScopeNotices(),
     actor: { kind: 'admin', id: actor.adminUserId },
-    ...(adminScope.unresolved === undefined ? {} : { scopeUnresolved: adminScope.unresolved }),
   };
 }
 
