@@ -1,5 +1,29 @@
 # @endora-commerce/cli
 
+## 0.103.0
+
+### Minor Changes
+
+- d0e76fd: Page Builder renderers a module package ships are generated, seeded and checked. `endora generate` adds one `@import` to the admin stylesheet for every installed module package that declares `./blocks.css`, and refuses a declared subpath whose file is missing. `endora new storefront` writes a storefront that discovers its installed modules' `./storefront` layers and block stylesheets at build time (`blocks:generate`, run by `dev` and `build`) and carries `lib/page-builder/local-blocks.tsx` for blocks the storefront renders itself. `endora install` adds, once, every module of the instance that publishes a storefront layer to the dependencies of the storefront it writes beside it. `endora check` gains `check:block-renderers`: a storefront layer imports only what it may and injects HTML only through `sanitizeRichHtml`, an e-mail layer stays React-free, `./blocks.css` is scoped to the module, and every renderer names a block the package's own manifest declares for that surface.
+
+### Patch Changes
+
+- bd70d67: A storefront written by `endora new storefront` or `endora install` runs its own `.tsx` tests again.
+  The scaffold has no lockfile and declares `vitest ^4.1.11`, so a fresh install resolves Vite 8, which
+  transforms with oxc and ignores the `esbuild` JSX option the storefront's `vitest.config.mts`
+  carried: `pnpm test` failed on every test that renders JSX with _"Failed to parse source for import
+  analysis … make sure to not set jsx to preserve"_. The packaged reference now declares the automatic
+  JSX runtime for both transformers, so the tests run under Vite 7 and Vite 8 alike.
+
+  An existing scaffolded storefront is repaired by adding
+  `oxc: { jsx: { runtime: 'automatic', importSource: 'react' } }` beside the `esbuild` block in its
+  `vitest.config.mts`.
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/contracts@0.103.0
+
 ## 0.102.0
 
 ### Minor Changes

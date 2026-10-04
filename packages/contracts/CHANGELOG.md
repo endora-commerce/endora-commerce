@@ -1,5 +1,31 @@
 # @endora-commerce/contracts
 
+## 0.103.0
+
+### Minor Changes
+
+- d0e76fd: A module's `./admin` layer may contribute editor renderers for its own Page Builder blocks: `AdminContributions` gains an optional `blocks` array of `AdminBlockContribution` (`{ name, context: 'cms' | 'email', component }`), with `AdminBlockContributionSchema` for the data half. New `EmailBlockRendererRegistryPort<R>` and `EmailBlockRendererRegistrationResult` describe the container name `emailBlockRendererRegistry`, which `email` owns and a module registers its e-mail block renderers into from `ctx.onBoot`. Additive: a contribution set without `blocks` is unchanged.
+- 9eb7ed9: Two read methods, one optional response field and one partial-response schema, for order transitions that record what they owe.
+  - `InventoryStockReadPort.unreleasedAllocationsForOrderItems(orderItemIds)` answers the stock allocations still held for the given order items, as `{ orderItemId, warehouseId, quantity }`.
+  - `CreditLimitReadPort.activeReservationsForOrders(orderIds)` answers the credit reservations still active for the given orders, as `{ orderId, amount, currency }`, with `amount` the decimal string the reservation stores.
+  - `orderSchema` gains an optional `pendingEffects` array (`orderPendingEffectSchema`, type `OrderPendingEffect`; the closed set of effects is `ORDER_TRANSITION_EFFECTS`). It is carried by the admin order responses only, and only while a stock or credit release of the order is outstanding.
+  - `orderCommittedWritePartialSchema` and `orderCommittedWritePartialResponseSchema` (types `OrderCommittedWritePartial`, `OrderCommittedWritePartialResponse`) describe what `POST /api/v1/admin/orders/:id/status`, `POST /api/v1/admin/orders/:id/payment-status` and `POST /api/v1/orders/:id/cancel` answer when the change committed but the order could not be read back for the response: `{ data: { id, businessId, status, paymentStatus }, meta: { partial: true } }`. **A client of those three routes should check `meta?.partial` before treating `data` as an order** — the partial body does not parse with `orderSchema`.
+
+  Nothing existing changes shape, so a caller of either port and a consumer of the order response need no change.
+
+  **If you implement `InventoryStockReadPort` or `CreditLimitReadPort` yourself** — a test double, or an alternative owner of the port — this is a compile break: add the new method. An implementation with nothing to report answers `[]`.
+
+### Patch Changes
+
+- 2b339d3: `addressSnapshotSchema.phone` is now `string | null | undefined`; it was `string | undefined`. An
+  order has always answered `phone: null` in `deliveryAddress` and `billingAddress` when the source
+  address carries no phone number, so every order response with such an address was refused by the
+  published `orderSchema` — a consumer parsing `GET /api/v1/orders/:id`, the order lists, the admin
+  order detail or the external order routes with it got a `ZodError` on a correct response. Nothing
+  on the wire changes; the schema now accepts what the API sends. The inferred `AddressSnapshot` and
+  `Order` types widen with it, so TypeScript code that passed `order.deliveryAddress.phone` where a
+  `string | undefined` is required has to handle `null`. `companyName` and `taxId` are unchanged.
+
 ## 0.102.0
 
 ## 0.101.1

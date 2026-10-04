@@ -1,5 +1,27 @@
 # @endora-commerce/mod-inventory
 
+## 0.103.0
+
+### Minor Changes
+
+- 9eb7ed9: `inventoryStockReadPort` answers which stock allocations are still held.
+
+  The module's implementation of `InventoryStockReadPort` gains `unreleasedAllocationsForOrderItems(orderItemIds)`: the allocations with no `released_at` for the given order items, as `{ orderItemId, warehouseId, quantity }`. `orders`' repair command uses it to list cancelled orders that still hold stock before releasing anything. An empty input answers `[]` without a query.
+
+  Nothing else about the module changes: the reservation and the release are the same, and with `inventory` switched off a cancelled order's allocations are now released automatically once the module is switched back on, where before they stayed held.
+
+### Patch Changes
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/admin-kit@0.103.0
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/email-components@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes
