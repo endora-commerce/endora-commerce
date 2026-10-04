@@ -745,10 +745,21 @@ export function emitModuleReference(
       : `Bundles at ${code(reference.bundlesDir)} inside the module, one file per shipped ` +
         'language.\n') +
     `\n## Operator commands\n\n` +
+    // The cell carries the form an **instance** has, because that is what a
+    // user of the published packages copies. It used to carry the repository
+    // checkout's `pnpm --filter backend …`, and an instance's backend member is
+    // named `<instance>-backend`: pnpm matched no project, printed `No projects
+    // matched the filters` and exited 0, so an operator read a clean exit off a
+    // command that had not run.
+    (reference.cliCommands.length === 0
+      ? ''
+      : 'Run these in the root of an instance. In a checkout of the Endora Commerce ' +
+        'repository the same commands are ' +
+        `\`pnpm --filter backend run cli -- ${reference.moduleId} <command>\`.\n\n`) +
     table(
       ['Command', 'What it does'],
       reference.cliCommands.map((entry) => [
-        `\`pnpm --filter backend run cli -- ${reference.moduleId} ${entry.name}\``,
+        `\`pnpm run cli ${reference.moduleId} ${entry.name}\``,
         entry.summary,
       ]),
     )

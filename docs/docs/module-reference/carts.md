@@ -65,6 +65,8 @@ Bundles at `i18n` inside the module, one file per shipped language.
 
 ## Operator commands
 
+Run these in the root of an instance. In a checkout of the Endora Commerce repository the same commands are `pnpm --filter backend run cli -- carts <command>`.
+
 | Command | What it does |
 | --- | --- |
-| `pnpm --filter backend run cli -- carts abandonment-sweep` | Run one pass of the cart abandonment sweep against the live database. |
+| `pnpm run cli carts abandonment-sweep` | Run one pass of the cart abandonment sweep against the live database. |

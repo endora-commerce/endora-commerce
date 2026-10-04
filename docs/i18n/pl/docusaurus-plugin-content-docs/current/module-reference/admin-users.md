@@ -57,6 +57,9 @@ Pakiety tłumaczeń w katalogu `i18n` modułu, po jednym pliku na każdy obsług
 
 ## Polecenia operatora
 
+Uruchamiaj je w katalogu głównym instancji. W klonie repozytorium Endora Commerce te same
+polecenia mają postać `pnpm --filter backend run cli -- admin_users <command>`.
+
 | Polecenie | Działanie |
 | --- | --- |
-| `pnpm --filter backend run cli -- admin_users create` | Tworzy lub aktualizuje administratora i w razie potrzeby tworzy rolę platform_admin. |
+| `pnpm run cli admin_users create` | Tworzy lub aktualizuje administratora i w razie potrzeby tworzy rolę platform_admin. |

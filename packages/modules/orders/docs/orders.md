@@ -107,15 +107,21 @@ buyer-facing order responses.
 Before follow-ups were recorded, a release that failed or was refused could
 leave an order cancelled (or paid) while still holding stock or credit, with
 nothing able to release it afterwards. Those orders have no follow-up row. An
-operator command finds and repairs them:
+operator command finds and repairs them. Run it in the root of your instance:
 
 ```bash
 # List what would be released. Writes nothing.
-pnpm --filter backend run cli orders transition-effects-repair
+pnpm run cli orders transition-effects-repair
 
 # Release it.
-pnpm --filter backend run cli orders transition-effects-repair --apply
+pnpm run cli orders transition-effects-repair --apply
 ```
+
+In a checkout of the Endora Commerce repository the same command is
+`pnpm --filter backend run cli orders transition-effects-repair`, with the same
+options. That form does nothing in an instance: the backend member there has
+another name, so pnpm prints `No projects matched the filters` and exits `0`
+without running the command.
 
 The dry run prints every order found holding stock allocations or an active
 credit reservation it should have given back, with what each holds. `--apply`
@@ -137,8 +143,8 @@ the orders you name; both options take the order id the list prints in
 brackets and may be repeated:
 
 ```bash
-pnpm --filter backend run cli orders transition-effects-repair --apply --except=<order id>
-pnpm --filter backend run cli orders transition-effects-repair --apply --order=<order id>
+pnpm run cli orders transition-effects-repair --apply --except=<order id>
+pnpm run cli orders transition-effects-repair --apply --order=<order id>
 ```
 
 If `inventory` or `credit_limits` is switched off, the command cannot ask that

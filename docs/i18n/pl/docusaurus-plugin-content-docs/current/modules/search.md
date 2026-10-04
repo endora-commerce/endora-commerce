@@ -141,7 +141,8 @@ a każdą posortowaną listę po cichu obsługiwał zapasowy mechanizm w Postgre
 nie było zapisywane w dokumencie. Pełne ponowne indeksowanie stosuje jedno i drugie. Następuje
 automatycznie przy kolejnym okresowym przebiegu w roli worker (`search.reindex_interval_minutes`,
 domyślnie 10); wdrożenie bez okresowego przebiegu wymaga działania operatora — akcji **Reindex
-products** w panelu administracyjnym albo `pnpm --filter backend run search:reindex`. Odświeżenie po
+products** w panelu administracyjnym albo `pnpm run cli search reindex` w katalogu głównym
+instancji. Odświeżenie po
 `attribute.updated.v1` ponownie stosuje ustawienia, ale nie zapisuje dokumentów, więc przywraca
 sortowanie `name`, ale nie `-createdAt`.
 
@@ -220,8 +221,12 @@ To polecenie deklarowane w `manifest.ts` tego modułu i uruchamiane przez hosta,
 ten jeden `SearchIndexer`, który ma kompozycja, zamiast budować drugi:
 
 ```bash
+# W instancji, z jej katalogu głównego:
+pnpm run cli search reindex
+
+# W klonie repozytorium Endora Commerce:
 pnpm --filter backend run search:reindex
-# or, addressing the host binary directly:
+# albo bezpośrednio przez plik wykonywalny hosta:
 pnpm --filter backend exec tsx src/cli.ts search reindex
 ```
 

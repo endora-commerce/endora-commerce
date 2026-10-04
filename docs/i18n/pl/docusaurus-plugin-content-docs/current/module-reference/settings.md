@@ -68,6 +68,9 @@ Pakiety tłumaczeń w katalogu `i18n` modułu, po jednym pliku na każdy obsług
 
 ## Polecenia operatora
 
+Uruchamiaj je w katalogu głównym instancji. W klonie repozytorium Endora Commerce te same
+polecenia mają postać `pnpm --filter backend run cli -- settings <command>`.
+
 | Polecenie | Działanie |
 | --- | --- |
-| `pnpm --filter backend run cli -- settings cache-clear` | Czyści wybrane (albo wszystkie) przestrzenie nazw pamięci podręcznej w Redis. |
+| `pnpm run cli settings cache-clear` | Czyści wybrane (albo wszystkie) przestrzenie nazw pamięci podręcznej w Redis. |

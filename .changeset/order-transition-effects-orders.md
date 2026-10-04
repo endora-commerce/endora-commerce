@@ -20,12 +20,14 @@ Cancelling an order releases its stock allocations and, for an order placed agai
 
 **After upgrading: run the repair's dry run once**
 
-Orders that an earlier version left cancelled or paid while still holding stock or credit have no follow-up row, so nothing releases them by itself. A new operator command finds them:
+Orders that an earlier version left cancelled or paid while still holding stock or credit have no follow-up row, so nothing releases them by itself. A new operator command finds them. Run it in the root of your instance:
 
 ```bash
-pnpm --filter backend run cli orders transition-effects-repair           # lists, writes nothing
-pnpm --filter backend run cli orders transition-effects-repair --apply   # releases
+pnpm run cli orders transition-effects-repair           # lists, writes nothing
+pnpm run cli orders transition-effects-repair --apply   # releases
 ```
+
+In a checkout of the Endora Commerce repository the same command is `pnpm --filter backend run cli orders transition-effects-repair`. That form does nothing in an instance — the backend member there has another name, so pnpm prints `No projects matched the filters` and exits `0` — so a clean exit from it does not mean nothing is stranded.
 
 Read the list before applying it: a release changes reserved-stock counters and available credit. **The dry run cannot show whether a stock counter was already corrected by hand** for a listed order — its allocation row is still unreleased, so it is listed like any other, and applying it lowers the counter a second time. Leave such an order out with `--except=<order id>` (repeatable), or repair named orders only with `--order=<order id>`. The repair never runs on its own.
 

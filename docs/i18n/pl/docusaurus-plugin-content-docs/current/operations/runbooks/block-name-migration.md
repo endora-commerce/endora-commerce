@@ -20,8 +20,11 @@ Ta strona to lista kontrolna przed aktualizacją. Wykonuj kroki po kolei.
 ## 1. Uruchom raport
 
 ```bash
-pnpm --filter backend run cli -- cms block-names
+pnpm run cli cms block-names
 ```
+
+Uruchom je w katalogu głównym instancji. W klonie repozytorium Endora Commerce to samo polecenie
+ma postać `pnpm --filter backend run cli -- cms block-names`.
 
 To polecenie **tylko odczytuje** dane. Uruchom je na produkcyjnej bazie, zanim zdecydujesz o
 aktualizacji; nie wykonuje `update`, `insert` ani `delete`.
@@ -79,7 +82,7 @@ wydaniu.
 ## 5. Uruchom raport ponownie i porównaj wyniki
 
 ```bash
-pnpm --filter backend run cli -- cms block-names
+pnpm run cli cms block-names
 ```
 
 Muszą być spełnione dwa warunki — to cała weryfikacja:

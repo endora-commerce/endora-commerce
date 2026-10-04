@@ -1260,7 +1260,12 @@ export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
 ```
 
 ```bash
-pnpm --filter backend run cli -- --list          # every command this instance offers
+# In an instance, from its root:
+pnpm run cli --list            # every command this instance offers
+pnpm run cli search reindex
+
+# In a checkout of the Endora Commerce repository:
+pnpm --filter backend run cli -- --list
 pnpm --filter backend run cli -- search reindex  # or the alias: pnpm search:reindex
 ```
 

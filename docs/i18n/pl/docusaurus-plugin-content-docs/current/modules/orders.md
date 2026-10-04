@@ -102,15 +102,21 @@ wtedy, gdy coś jest zaległe, i nigdy w odpowiedziach przeznaczonych dla kupuj�
 Zanim działania następcze zaczęły być zapisywane, zwolnienie, które się nie powiodło albo zostało
 odrzucone, mogło zostawić zamówienie anulowane (albo opłacone), a mimo to nadal trzymające stan
 magazynowy lub limit — i nic nie mogło go już potem zwolnić. Takie zamówienia nie mają wiersza
-działania następczego. Znajduje je i naprawia polecenie dla operatora:
+działania następczego. Znajduje je i naprawia polecenie dla operatora. Uruchom je w katalogu
+głównym instancji:
 
 ```bash
 # Wypisuje, co zostałoby zwolnione. Niczego nie zapisuje.
-pnpm --filter backend run cli orders transition-effects-repair
+pnpm run cli orders transition-effects-repair
 
 # Zwalnia.
-pnpm --filter backend run cli orders transition-effects-repair --apply
+pnpm run cli orders transition-effects-repair --apply
 ```
+
+W klonie repozytorium Endora Commerce to samo polecenie ma postać
+`pnpm --filter backend run cli orders transition-effects-repair`, z tymi samymi opcjami.
+W instancji ta postać nie robi nic: członek backendu nazywa się tam inaczej, więc pnpm wypisuje
+`No projects matched the filters` i kończy się kodem `0`, nie uruchamiając polecenia.
 
 Przebieg próbny wypisuje każde zamówienie, które nadal trzyma rezerwacje stanów magazynowych lub
 aktywną rezerwację limitu, choć powinno było je zwolnić — wraz z tym, co trzyma. `--apply` zapisuje
@@ -131,8 +137,8 @@ zamówienie pomiń albo napraw tylko wskazane zamówienia; obie opcje przyjmują
 zamówienia wypisany na liście w nawiasie i można je powtarzać:
 
 ```bash
-pnpm --filter backend run cli orders transition-effects-repair --apply --except=<identyfikator zamówienia>
-pnpm --filter backend run cli orders transition-effects-repair --apply --order=<identyfikator zamówienia>
+pnpm run cli orders transition-effects-repair --apply --except=<identyfikator zamówienia>
+pnpm run cli orders transition-effects-repair --apply --order=<identyfikator zamówienia>
 ```
 
 Jeśli `inventory` lub `credit_limits` jest wyłączony, polecenie nie może zapytać tego modułu, co
