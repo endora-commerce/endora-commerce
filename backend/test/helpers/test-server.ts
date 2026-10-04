@@ -80,6 +80,7 @@ import type {
   AssetReadPort,
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
+  AdminTenantScopePort,
   CustomerRollupScopePort,
   SettingsManifestCollectionPort,
 } from '@endora-commerce/contracts';
@@ -1300,7 +1301,12 @@ export async function setupBackendServer(
       });
     }
     if (actor?.kind === 'admin') {
-      const scope = await resolveTestAdminOrdersScope(request);
+      // `organizations`' port — the one the platform's own mapping asks, so the
+      // admin arm here is decided by the code production runs rather than by a
+      // copy of it.
+      const scope = await (
+        container.cradle as never as { adminTenantScopePort: AdminTenantScopePort }
+      ).adminTenantScopePort.resolveForAdmin(actor.adminUserId);
       return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
     }
     // Feature 062 — mirror production: a bound api key derives single-org

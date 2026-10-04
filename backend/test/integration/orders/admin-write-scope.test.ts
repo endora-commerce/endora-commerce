@@ -29,7 +29,7 @@ import { Order, OrderComment } from '../../helpers/package-entities.js';
  * Feature 085 Phase E — the assignment scope on the admin order routes.
  *
  * The list and the export intersect their query with the scope resolved by
- * `resolveAdminOrdersScope`; the status-write routes name it nowhere. That
+ * `ordersAdminScopeResolver`; the status-write routes name it nowhere. That
  * reads as read-scoped/write-unscoped, and the reason it is not is worth an
  * executable statement rather than a reading of the tree: the request-scope
  * hook builds the request's `TenantContext` from the *same* resolver, `Order`
@@ -119,7 +119,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
     h = await setupBackendServer();
     const em = h.em();
 
-    // `resolveAdminOrdersScope` keys on this exact role code, so the fixture
+    // The admin scope resolution keys on this exact role code, so the fixture
     // cannot use a code of its own. Another file in the run may have created it
     // already with a narrower grant set — widen that one rather than creating a
     // second row the unique index would refuse.
@@ -360,7 +360,7 @@ describe('Admin order routes honour the sales-rep assignment scope (feature 085 
    * The two routes that name no order. Both were already refused — through the
    * customer rather than the order, `CustomerAccount` being `@OrgScoped` too —
    * so what these assert is that the refusal is now the route's own decision
-   * against `resolveAdminOrdersScope` and survives the customer read below it
+   * against `ordersAdminScopeResolver` and survives the customer read below it
    * changing, and that it says 403 with a reason instead of "customer not
    * found". There is no order here whose existence a status code could
    * disclose, which is why the answer differs from the order-keyed routes'.

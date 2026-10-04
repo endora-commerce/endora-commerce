@@ -74,7 +74,7 @@ describe('@CustomerScoped surfaces honour the sales-rep assignment scope', () =>
     h = await setupBackendServer();
     const em = h.em();
 
-    // `resolveAdminOrdersScope` keys on this exact role code, so the fixture
+    // The admin scope resolution keys on this exact role code, so the fixture
     // cannot use a code of its own. Another file in the run may have created it
     // already with a narrower grant set — widen that one rather than creating a
     // second row the unique index would refuse.

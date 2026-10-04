@@ -927,6 +927,15 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
       'The same seam as the assertion above, one call earlier: production derives the public ' +
       'base URL every absolute link is built from, and the harness sets one. A deployment whose ' +
       'derivation produced the wrong origin would ship links nobody in the suite ever reads.',
+    tenantContextMappingFor:
+      'Production takes the actor → tenant-context mapping from the platform, wrapped in the ' +
+      'refusal of a system context for a customer or an admin; the harness supplies its own ' +
+      'mapping over `request.testActor` and the kit installs it unwrapped. So the platform ' +
+      'mapping’s customer and API-key arms, and the refusal, run in no harness-rooted file — ' +
+      'the admin arm is shared, because the harness resolves the same `adminTenantScopePort`. ' +
+      "The mapping is proved over its inputs by the platform's `actor-tenant-context.test.ts` " +
+      'and over a real instance by `acceptance:instance` A17. It drains when the kit takes its ' +
+      'mapping from the same function.',
   };
 
   it('lists every boot step production runs and the harness does not', () => {

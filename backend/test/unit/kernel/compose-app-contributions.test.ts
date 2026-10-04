@@ -210,10 +210,11 @@ const PLATFORM_CONTRIBUTIONS: readonly string[] = [
  * The nine beside it are the same finding in five other modules:
  * `quote_requests`' two RFQ context resolvers and its tax rate, `customers`'
  * moderation actor, `ksef`'s seller NIP, `newsletter`'s nine-member bridge, and
- * `catalog`'s three adapters. Note what stayed: the deployment's
- * `buildTenantContext` still calls `resolveAdminOrdersScope` for its admin arm,
- * and that mapping is this root's own. A root keeping a function it calls
- * itself is not a contribution.
+ * `catalog`'s three adapters. What stayed after that phase was the deployment's
+ * own `buildTenantContext`, which went on calling `resolveAdminOrdersScope` for
+ * its admin arm. It has gone the same way since: the mapping is the platform's
+ * default and the role decision is `organizations`' `adminTenantScopePort`, so
+ * the root supplies no mapping at all.
  *
  * The assertion is two-way. A name here must be contributed by **neither**
  * side — one of them taking it back is a module default silently overwritten,

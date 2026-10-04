@@ -20,6 +20,21 @@ service forgets an explicit filter.
   - Platform admin → `all` (no restriction).
   - Scoped sales-rep admin → `allowed-set` (their assigned organizations).
   - Worker / migration / escape hatch → `system`.
+  - API key bound to an organization → `single-org` (its organization + service
+    account); an unbound key and anonymous traffic → `system`.
+
+  **The mapping is the platform's, and every composition gets it.** `composeApp`
+  installs it with the request-scope hook, so an instance — whose entry point
+  calls `composeApp({ deploymentRoot })` and nothing else — runs with it without
+  wiring anything. The answers that belong to a module are read through ports
+  the composed modules register: `customerRollupScopePort` (`customer_accounts`)
+  for the subtree widening of a roll-up account, and `adminTenantScopePort`
+  (`organizations`) for the organizations an admin's role lets them reach. A
+  composition that registers neither **confines rather than widens**: the
+  customer stays on its own organization and the admin reaches no organization
+  at all. `ComposeAppOptions.buildTenantContext` replaces the mapping for a
+  deployment that needs to, and a replacement that answers a customer or an
+  admin request with a `system` context is refused — the request fails.
 - **MikroORM global filters** (`org`, `customerAccount`) read the ambient context
   directly at query time and add the tenant predicate. Because they read the
   context per query (not per fork), they apply on `em.transactional` sub-forks and

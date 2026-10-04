@@ -77,7 +77,7 @@ describe('a scoped administrator is shown these lists, and told nothing about th
     h = await setupBackendServer();
     const em = h.em();
 
-    // `resolveAdminOrdersScope` keys on this exact role code, so the fixture
+    // The admin scope resolution keys on this exact role code, so the fixture
     // cannot invent one, and the row is therefore shared with every other file
     // in the run. Widen it rather than creating a second one the unique index
     // would refuse — and widen it with codes this file's own cases need and

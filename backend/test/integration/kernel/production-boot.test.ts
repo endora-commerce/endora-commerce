@@ -162,6 +162,33 @@ describe('the production composition root boots', () => {
     expect(request.actor).toBe(adminActor);
   });
 
+  it('registers the ports the tenant-context mapping reads, so no arm of it falls back', async () => {
+    // The actor → tenant-context mapping is the platform's and reads three
+    // module-owned names off this container on every request. A name nobody
+    // registered is not a boot failure — the mapping confines instead: a
+    // customer loses the roll-up and an admin reaches no organization. That is
+    // the right answer for a composition missing the module and a silent
+    // regression for one that has it, so the presence of all three is held
+    // here, on the composed production container.
+    const container = composition!.container;
+    for (const name of [
+      'customerRollupScopePort',
+      'organizationTreeService',
+      'adminTenantScopePort',
+    ]) {
+      expect(container.hasRegistration(name), `${name} is not registered`).toBe(true);
+    }
+
+    // And the admin port answers over the real tables: an id that names no
+    // admin holds no confining role.
+    const adminScope = container.cradle['adminTenantScopePort'] as {
+      resolveForAdmin(adminUserId: string): Promise<unknown>;
+    };
+    await expect(
+      adminScope.resolveForAdmin('00000000-0000-4000-8000-000000000001'),
+    ).resolves.toEqual({ allowAll: true });
+  });
+
   it('answers a request, which is what "the backend started" means', async () => {
     const health = await app!.inject({ method: 'GET', url: '/api/v1/_health' });
 

@@ -106,6 +106,7 @@ import {
   assertPublicApiBaseUrlConfigured,
   resolvePublicApiBaseUrl,
 } from '../kernel/public-api-base-url.js';
+import { tenantContextMappingFor } from '../kernel/actor-tenant-context.js';
 import { registerRequestScopeHook } from '../kernel/request-scope-hook.js';
 import {
   composeSalesChannelsKernel,
@@ -136,7 +137,6 @@ import { nodeModulesRootsFor } from '../packages/installed-packages.js';
 import { newsletterTokenSecretFrom } from './newsletter-token-secret.js';
 import { processRunsWorkersFor } from './process-runs-workers.js';
 import { forkScopedEm } from '../tenancy/scoped-em.js';
-import { systemTenantContext } from '../tenancy/resolve-tenant-context.js';
 import type { TenantContext } from '../tenancy/tenant-context.js';
 
 /** One composed module, named through `composeModules`' own signature. */
@@ -299,17 +299,20 @@ export interface ComposeAppOptions {
    */
   readonly scopedPlugins?: readonly ModulePlugin[];
   /**
-   * Establish the ambient `TenantContext` for a request (Principle XI).
+   * Replace the actor → `TenantContext` mapping for a request (Principle XI).
    *
-   * Omitting it is not "no tenancy": the platform installs
-   * `registerRequestScopeHook` either way and the default context is a system
-   * one. There is no path through this function that leaves the hook off.
+   * **Omit it.** The platform installs `registerRequestScopeHook` either way,
+   * and the mapping it runs with by default is the one every composition
+   * should have: a customer is confined to its organization (widened to the
+   * subtree only for a roll-up account), an admin to the reach its role
+   * resolves to, a bound API key to its binding, and system scope is kept for
+   * a request that identifies nobody. It is built from the ports the composed
+   * modules register and fails closed where one is missing — see
+   * `../kernel/actor-tenant-context.ts`.
    *
-   * The actor → context mapping is the caller's until
-   * `specs/110-instance-repository/` T118b relocates the `request.actor`
-   * augmentation: reading `request.actor` needs a `declare module 'fastify'`
-   * block `auth` owns, and a platform file that named it would be the
-   * D-52/D-53 reach this function exists to end.
+   * A deployment that supplies its own is still held to one rule: a mapping
+   * that answers a customer or an admin request with a system context is
+   * refused, and the request fails.
    */
   readonly buildTenantContext?: (request: FastifyRequest) => Promise<TenantContext>;
   /**
@@ -1197,10 +1200,14 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // The caller's own, in the same window and after the platform's.
   await options.contribute?.(composedContext);
 
-  const buildTenantContext =
-    options.buildTenantContext ??
-    (async (request: FastifyRequest): Promise<TenantContext> =>
-      systemTenantContext(`${request.method} ${request.url}`));
+  // The request's tenant context, derived from the authenticated actor
+  // (Principle XI). With nothing supplied it is the platform's own mapping over
+  // what this composition registered — a customer confined to its organization,
+  // an admin to the reach its role resolves to, a bound API key to its binding —
+  // and never a system context for a request that identifies someone. A
+  // supplied mapping passes through the same refusal. See
+  // `../kernel/actor-tenant-context.ts`.
+  const buildTenantContext = tenantContextMappingFor(container, options.buildTenantContext);
 
   // Assembled here rather than above the contribution window, and that is a
   // guarantee rather than a placement: a caller adds to `options.plugins` or

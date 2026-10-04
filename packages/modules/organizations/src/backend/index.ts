@@ -4,6 +4,8 @@ import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
 import type {
   AddressServicePort,
   AdminNotificationRecordPort,
+  AdminRolePort,
+  AdminTenantScopePort,
   AdminUserReadPort,
   CreditLimitReadPort,
   CustomFieldValuePort,
@@ -776,6 +778,55 @@ export function registerModule(ctx: ModuleContext): void {
           listForOrganization: (organizationId) => assignments.listForOrganization(organizationId),
           assign: (input) => assignments.assign(input),
           unassign: (input) => assignments.unassign(input),
+        };
+      })
+      .singleton(),
+  );
+
+  /**
+   * The tenant reach of an authenticated admin, for the platform's
+   * request-scope hook.
+   *
+   * The hook establishes the ambient tenant context of every request from the
+   * authenticated actor, and for an admin that needs one decision the platform
+   * may not make itself: whether this admin's role confines them to the
+   * organizations assigned to them. It is a role code read through
+   * `admin_users` and `admin_roles`, over this module's assignment relation —
+   * a module's rule — so it is published here, and the platform resolves the
+   * name from whatever composition it is running in.
+   *
+   * It lives in this module because the Organization is the tenant concept and
+   * the assignment relation is this module's; both role owners are already in
+   * the manifest's `dependencies`.
+   *
+   * The same decision `orders`, `customers` and `quote_requests` make for
+   * their own admin lists, deliberately unchanged: an admin whose role is not
+   * the sales-representative one reaches every organization.
+   */
+  ctx.di.providePort<AdminTenantScopePort>(
+    'adminTenantScopePort',
+    ctx
+      .asFunction((): AdminTenantScopePort => {
+        const admins = lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort');
+        const roles = lazyPort<AdminRolePort>(ctx, 'adminRolePort');
+        const salesRepScope = lazyPort<SalesRepAssignmentPort>(
+          ctx,
+          'organizationSalesRepScopePort',
+        );
+        return {
+          resolveForAdmin: async (adminUserId) => {
+            const adminUser = await admins.findById(adminUserId);
+            // `getById` cannot 404 here: `admin_users_admin_role_fk` is
+            // `on delete restrict`, so a non-null `adminRoleId` names a row.
+            const role = adminUser?.adminRoleId ? await roles.getById(adminUser.adminRoleId) : null;
+            if (role?.code !== 'sales_representative') return { allowAll: true };
+            // Subtree-expanded when the rep holds `organizations:rollup`,
+            // which the assignment port decides.
+            return {
+              allowAll: false,
+              allowedOrganizationIds: await salesRepScope.listAssignedOrganizationIds(adminUserId),
+            };
+          },
         };
       })
       .singleton(),

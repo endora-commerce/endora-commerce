@@ -155,6 +155,10 @@
         "A16": {
           "status": "pass",
           "reason": "MEASURED 2026-09-15, AND IT IS THE INSTRUMENT FOR THE FINDING THAT HAD JUST STOPPED ANNOUNCING ITSELF. Recorded verbatim from the run that added it: \"the 27 module packages at this instance top level are exactly the ones its own manifests declare, so what it composes is what a client installing the same set composes — after removing the 3 top-level links publication would never have created and this run's tarball stand-in did: @endora-commerce/mod-credit-limits, @endora-commerce/mod-inventory, @endora-commerce/mod-invoices\". Until that day the two supply routes composed different sets — 30 module packages here against 27 there — and the difference was visible only as A3 and A6 being red in `registry` and green in `tarball`; those were repaired at their source, which took the symptom and left the difference. IT IS PROVED RED ON THIS TREE, not only in the unit fixtures: the same run with the prune disabled reports \"A16 FAIL — the 30 module packages installed here are not the 27 this instance own manifests declare\" and names the three, with A3 back at 119 migrations, A6 at 72 pages and A7 at 42 absent packages. `contracts/instance-repository.md` R6.3 is the assertion."
+        },
+        "A17": {
+          "status": "pass",
+          "reason": "MEASURED, AS THE RUN THAT ADDED IT PRINTED IT: \"a customer administering one organization and an API key bound to it each read that organization's order, are refused the other's by id and list only their own; an administrator holding the platform role re-parented an organization, and `organization.set_parent` names that administrator as its actor\". IT IS THE HALF OF PRINCIPLE XI THAT A9 CANNOT SEE. A9 asks the guard, in a process of its own: a read with no tenant context is refused. This asks what context a SERVED request is handed — over the boot A4 started, through the routes a client uses, as the administrator A15 created. The two are independent — the guard can be sound while the context it is handed is not — so neither assertion answers for the other. The mapping from actor to context is the platform's own (`packages/platform/src/kernel/actor-tenant-context.ts`), built over ports the composed modules register, and an instance gets it by calling `composeApp` with nothing but its deployment root. THE CUSTOMER IS AN ORGANIZATION ADMINISTRATOR ON PURPOSE: that role's order reads rely on the ambient tenant filter alone, where a regular member's are pinned by the handler as well, so this is a reading of the context rather than of one handler's own care. THE ORDERS ARE WRITTEN AS ROWS, derived from the table's own definition, because placing one through the API needs a delivery and a payment method and the default module set ships no adapter to configure either with (`backend/scripts/acceptance/instance-actor-scope.ts` says so beside the insert). The `registry` mode is deliberately not given a state for this assertion: that mode measures the last publish rather than this checkout, and its record is meant to arrive from a run."
         }
       }
     },
@@ -489,6 +493,13 @@
     "WHAT THIS RUN COULD NOT MEASURE. `ENDORA_NPM_REGISTRY` and `ENDORA_NPM_TOKEN` are protected, so the",
     "`registry` mode was not run: its block below is still 2026-09-14's, and the claim that the two",
     "modes now compose the same set is carried by `tarball` matching that run's figures, which is",
-    "evidence and not the assertion. A16 measured in `registry` mode is what closes it."
+    "evidence and not the assertion. A16 measured in `registry` mode is what closes it.",
+    "",
+    "2026-10-04 — A17. The criterion gains the assertion that a served request runs in the tenant",
+    "scope of its authenticated actor: a customer and a bound API key confined to their",
+    "organization, a platform administrator able to re-parent one, and the Command that did it",
+    "recording that administrator. Measured in `tarball` mode on the branch that makes the actor to",
+    "tenant mapping the platform's own: 16 pass, 0 fail, 1 unmeasured (A12) of 17. `registry` is",
+    "left without a state for A17, so its first run after the next publish drifts and records it."
   ]
 }

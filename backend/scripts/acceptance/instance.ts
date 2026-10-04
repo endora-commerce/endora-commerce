@@ -127,6 +127,7 @@ import {
 } from '@endora-commerce/cli/lib/module-packages.js';
 
 import { resolveDatabaseTarget } from './assertions.js';
+import { measureActorScope } from './instance-actor-scope.js';
 import {
   compareToExpectation,
   completeResults,
@@ -144,6 +145,8 @@ import {
   evaluateA8,
   evaluateA9,
   evaluateA16,
+  evaluateA17,
+  type ActorScopeObservation,
   type AdminStylesheetObservation,
   type DivergenceReportEntry,
   type OverlayModuleObservation,
@@ -962,6 +965,8 @@ interface BootObservation {
   readonly loginStatus: number | null;
   readonly sessionCookie: boolean;
   readonly loginBody: string;
+  /** A17's readings; `null` when the caller did not ask or the login failed. */
+  readonly actorScope: ActorScopeObservation | null;
   readonly output: string;
 }
 
@@ -986,6 +991,12 @@ async function bootOnce(
    */
   withLogin: boolean,
   probePaths: readonly string[] = [],
+  /**
+   * The instance's own database, when A17 is to be asked on this boot. It is
+   * asked here for the reason the login is: the composition that answers it has
+   * to be the one A4 started.
+   */
+  actorScopeDsn: string | null = null,
 ): Promise<BootObservation> {
   const port = 3400 + Math.floor(Math.random() * 300);
   const child = spawn('pnpm', ['run', 'start'], {
@@ -1004,6 +1015,7 @@ async function bootOnce(
     loginStatus: null,
     sessionCookie: false,
     loginBody: '',
+    actorScope: null,
     output,
   });
   const ask = async (path: string): Promise<{ status: number; body: unknown } | null> => {
@@ -1086,6 +1098,16 @@ async function bootOnce(
           loginBody = thrown instanceof Error ? thrown.message : String(thrown);
         }
       }
+      // A17, after the login it depends on and on the same boot. A login that
+      // did not earn a session is A15's finding; asking as nobody would only
+      // report it a second time.
+      const actorScope =
+        actorScopeDsn !== null && loginStatus === 200 && sessionCookie
+          ? await measureActorScope(`http://127.0.0.1:${String(port)}`, actorScopeDsn, {
+              email: ADMIN_EMAIL,
+              password: ADMIN_PASSWORD,
+            })
+          : null;
       return {
         healthStatus: health.status,
         enumerated,
@@ -1094,6 +1116,7 @@ async function bootOnce(
         loginStatus,
         sessionCookie,
         loginBody,
+        actorScope,
         output,
       };
     }
@@ -2335,7 +2358,13 @@ async function main(): Promise<void> {
         // enumerating the modules and the one behind the bundle, so a second
         // boot would be a second composition, and A15's login says the same of
         // itself.
-        boot = await bootOnce(target, environment, created?.code === 0);
+        boot = await bootOnce(
+          target,
+          environment,
+          created?.code === 0,
+          [],
+          database.databaseUrl,
+        );
         results.push(
           evaluateA4({
             started: true,
@@ -2352,6 +2381,19 @@ async function main(): Promise<void> {
             sessionCookie: boot.sessionCookie,
             loginBody: boot.loginBody,
           }),
+        );
+
+        results.push(
+          boot.actorScope === null
+            ? {
+                id: 'A17',
+                state: 'unmeasured',
+                detail:
+                  'no administrator signed in to this boot, so there was nobody to set the two ' +
+                  'organizations up as — which is A4 or A15 finding rather than a second ' +
+                  'report of it',
+              }
+            : evaluateA17(boot.actorScope),
         );
 
         // A9 needs the migrated schema and the installed platform, and no
@@ -2404,6 +2446,11 @@ async function main(): Promise<void> {
           state: 'unmeasured',
           detail: 'the instance did not migrate, so there is no schema to create an administrator in',
         });
+        results.push({
+          id: 'A17',
+          state: 'unmeasured',
+          detail: 'the instance did not migrate, so there is nothing to serve a request from',
+        });
       }
     } else {
       results.push({
@@ -2427,6 +2474,11 @@ async function main(): Promise<void> {
         id: 'A15',
         state: 'unmeasured',
         detail: 'there is no install to create an administrator in',
+      });
+      results.push({
+        id: 'A17',
+        state: 'unmeasured',
+        detail: 'there is no install to serve a request from',
       });
       results.push(evaluateA16({ declared: declaredModules, installed: null, pruned: [] }));
     }
