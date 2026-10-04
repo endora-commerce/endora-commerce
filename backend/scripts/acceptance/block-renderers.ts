@@ -884,30 +884,9 @@ async function main(): Promise<void> {
     [`${SCOPE}email-components`]: '*',
   };
   writeFileSync(shopManifestPath, `${JSON.stringify(shopManifest, null, 2)}\n`);
-  // The probe below runs under the scaffold's own vitest. An unpinned install
-  // resolves the newest Vite that vitest's range admits, and under Vite 8 the
-  // storefront's vitest configuration (`esbuild.jsx`) no longer transforms JSX —
-  // every `.tsx` test of a fresh scaffold fails to parse. That is a defect of
-  // the scaffold and not this criterion's subject, so the harness pins Vite to
-  // the version this checkout's own storefront tests run on, and says so.
-  const viteVersion = readJson<{ version: string }>(
-    createRequire(realpathSync(join(REPO_ROOT, 'storefront', 'node_modules', 'vitest', 'package.json'))).resolve(
-      'vite/package.json',
-    ),
-  ).version;
-  shopManifest['pnpm'] = {
-    ...((shopManifest['pnpm'] ?? {}) as Record<string, unknown>),
-    overrides: {
-      ...(((shopManifest['pnpm'] ?? {}) as { overrides?: Record<string, string> }).overrides ?? {}),
-      vite: viteVersion,
-    },
-  };
-  writeFileSync(shopManifestPath, `${JSON.stringify(shopManifest, null, 2)}\n`);
-  notes.push(
-    `the scaffold's vite was pinned to ${viteVersion}, the version this checkout's storefront tests ` +
-      'run on: an unpinned install resolves Vite 8, under which the scaffold\'s vitest configuration ' +
-      'does not transform JSX — a scaffold defect outside this criterion',
-  );
+  // The probe below runs under the scaffold's own vitest, on whichever Vite its
+  // range resolves here — nothing is pinned, so the runner is the one a
+  // storefront owner gets.
   const fixtureManifest = readJson<Record<string, unknown>>(join(unpacked, 'package', 'package.json'));
   const pinned = pinScopedPackages(shop, tarballDir, [
     ...scopedNames(shopManifest),
