@@ -62,6 +62,13 @@ co dzieje się, gdy zwolnienia nie da się dokończyć:
   jednej minuty do jednej godziny. Nie ma stanu „porzucone”; od piątego niepowodzenia każde
   kolejne jest zapisywane w logu na poziomie `warn` wraz z identyfikatorem zamówienia, rodzajem
   zwolnienia i ostatnim błędem.
+- **Nawet odpowiedź nie zamieni tego w błąd.** Jeśli po zatwierdzeniu nie uda się odczytać
+  zamówienia na potrzeby treści odpowiedzi, `POST /api/v1/admin/orders/:id/status`,
+  `POST /api/v1/admin/orders/:id/payment-status` i `POST /api/v1/orders/:id/cancel` odpowiadają `200`
+  z `{ data: { id, businessId, status, paymentStatus }, meta: { partial: true } }`
+  (`orderCommittedWritePartialResponseSchema` w `@endora-commerce/contracts`). Sprawdź
+  `meta.partial`, zanim potraktujesz `data` jako całe zamówienie, i odczytaj zamówienie ponownie,
+  jeśli potrzebna jest reszta.
 - **Działania następcze są od siebie niezależne.** Nieudane zwolnienie limitu nie wstrzymuje
   zwolnienia stanu magazynowego — i odwrotnie.
 - **Zdarzenia zmiany statusu są emitowane zawsze** po zatwierdzeniu, bez względu na to, co stało

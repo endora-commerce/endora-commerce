@@ -65,6 +65,14 @@ complete:
   one minute up to one hour between attempts. There is no "gave up" state; from
   the fifth failure on, each further failure is logged at `warn` with the order
   id, the release and the last error.
+- **Even the response cannot turn it into an error.** If the order cannot be
+  read back for the response body after the commit, `POST
+  /api/v1/admin/orders/:id/status`, `POST /api/v1/admin/orders/:id/payment-status`
+  and `POST /api/v1/orders/:id/cancel` answer `200` with
+  `{ data: { id, businessId, status, paymentStatus }, meta: { partial: true } }`
+  (`orderCommittedWritePartialResponseSchema` in `@endora-commerce/contracts`).
+  Check `meta.partial` before treating `data` as a whole order, and read the
+  order again if the rest is needed.
 - **Follow-ups are independent.** A credit release that fails does not keep the
   stock held, and the other way round.
 - **The status events are always emitted** after the commit, whatever happened

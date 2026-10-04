@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
+import { orderCommittedWritePartialResponseSchema } from '@endora-commerce/contracts';
+import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { replyAfterCommittedWrite } from './committed-write-reply.js';
 
 const ORDER = { id: 'o-1', businessId: 'ORD-1', status: 'cancelled', paymentStatus: 'deferred' };
@@ -30,5 +32,31 @@ describe('replyAfterCommittedWrite', () => {
       { orderId: 'o-1', error: 'Knex: Timeout acquiring a connection.' },
       expect.any(String),
     );
+  });
+
+  it('re-throws a module switched off under the serialiser instead of answering partial', async () => {
+    const warn = vi.fn();
+
+    await expect(
+      replyAfterCommittedWrite(
+        ORDER,
+        async () => {
+          throw new ModuleDisabledError('payment_methods');
+        },
+        { info: () => undefined, warn, error: () => undefined },
+      ),
+    ).rejects.toBeInstanceOf(ModuleDisabledError);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('answers a partial body the published schema accepts', async () => {
+    const reply = await replyAfterCommittedWrite(
+      { ...ORDER, id: '00000000-0000-4000-8000-000000000001' },
+      async () => {
+        throw new Error('no connection');
+      },
+    );
+
+    expect(orderCommittedWritePartialResponseSchema.safeParse(reply).success).toBe(true);
   });
 });

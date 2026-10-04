@@ -191,6 +191,40 @@ export const orderSchema = z.object({
 });
 export type Order = z.infer<typeof orderSchema>;
 
+/**
+ * What a status-changing order route answers when the change **committed** but
+ * the full order could not be read back for the response
+ * (`specs/142-order-transition-atomicity/`, FR-002).
+ *
+ * `POST /api/v1/admin/orders/:id/status`, `POST /api/v1/admin/orders/:id/payment-status`
+ * and `POST /api/v1/orders/:id/cancel` normally answer `{ data: <order> }`. The
+ * reads behind that body are the last thing that can fail after the commit, and
+ * a failure there is not reported as a failure of the change: the route answers
+ * `200` with these four fields — which need no read — and `meta.partial`.
+ */
+export const orderCommittedWritePartialSchema = z.object({
+  id: uuidSchema,
+  businessId: z.string(),
+  status: orderStatusCodeSchema,
+  paymentStatus: paymentStatusSchema,
+});
+export type OrderCommittedWritePartial = z.infer<typeof orderCommittedWritePartialSchema>;
+
+/**
+ * The whole partial response, marker included. A client checks
+ * `meta?.partial` first — or parses with this schema: when it matches, `data`
+ * is **not** an {@link Order} and parsing it with {@link orderSchema} fails;
+ * the order is read again when the rest is needed. A response with no
+ * `meta.partial` carries the order exactly as these routes always answered it.
+ */
+export const orderCommittedWritePartialResponseSchema = z.object({
+  data: orderCommittedWritePartialSchema,
+  meta: z.object({ partial: z.literal(true) }),
+});
+export type OrderCommittedWritePartialResponse = z.infer<
+  typeof orderCommittedWritePartialResponseSchema
+>;
+
 // --- Requests --------------------------------------------------------------
 
 export const placeOrderRequestSchema = z.object({

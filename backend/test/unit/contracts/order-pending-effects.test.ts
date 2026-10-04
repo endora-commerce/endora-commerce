@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { orderPendingEffectSchema, orderSchema } from '@endora-commerce/contracts';
+import {
+  orderCommittedWritePartialResponseSchema,
+  orderPendingEffectSchema,
+  orderSchema,
+} from '@endora-commerce/contracts';
 
 /**
  * `specs/142-order-transition-atomicity/` (D10, FR-019) — the admin order
@@ -79,5 +83,27 @@ describe('orderSchema — pendingEffects (spec 142, D10)', () => {
         lastAttemptAt: null,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('orderCommittedWritePartialResponseSchema (spec 142, FR-002)', () => {
+  const partial = {
+    data: { id: ORDER.id, businessId: 'ORD-1', status: 'cancelled', paymentStatus: 'deferred' },
+    meta: { partial: true },
+  };
+
+  it('accepts the partial reply and keeps its marker', () => {
+    expect(orderCommittedWritePartialResponseSchema.parse(partial)).toEqual(partial);
+  });
+
+  it('is what a client needs: the partial body is not an order', () => {
+    expect(orderSchema.safeParse(partial.data).success).toBe(false);
+  });
+
+  it('does not match a whole order, nor four fields with no marker', () => {
+    expect(orderCommittedWritePartialResponseSchema.safeParse({ data: ORDER }).success).toBe(false);
+    expect(orderCommittedWritePartialResponseSchema.safeParse({ data: partial.data }).success).toBe(
+      false,
+    );
   });
 });

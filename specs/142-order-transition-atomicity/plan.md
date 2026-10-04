@@ -394,12 +394,25 @@ the reason. None changes D1–D10's substance.
     nothing of the queue's open, and one statement records the outcome; the same 30 take under four
     seconds, all answered 200, all released. A lease nobody hands back expires after five minutes,
     and the stock release locks its order row for its own short transaction, so a second run
-    overlapping a slow first one cannot decrement twice. The bulk `blocked_on` statements no longer
+    overlapping a slow first one cannot decrement twice (`stock-release-order-lock.test.ts`, red
+    without the lock). **The feature's migration was edited in place to add `claimed_until`**, so
+    a database that already ran the earlier shape under the same migration name — a development
+    database, a preview of this branch — must be recreated; nothing published carries the earlier
+    shape. The bulk `blocked_on` statements no longer
     have a held row lock to wait behind. `transition-effects-pool-pressure.test.ts` is the test.
 14. **A response that cannot be read back after the commit is answered as a success.** The 500s
     above came from the status route's own reads for the response body. The three routes that reply
     after a committed transition answer what was written (`id`, `businessId`, `status`,
     `paymentStatus`) with `meta.partial` when the full order cannot be read (FR-002).
+    The partial body is published as `orderCommittedWritePartialResponseSchema` in
+    `@endora-commerce/contracts`. The helper's `catch` begins with `rethrowIfModuleDisabled`
+    (`module-composition.md` item 7): the buyer's serialiser reaches `payment_methods`' port, and a
+    module switched off underneath it is the same accepted residue as D3's, not a partial reply.
+    `check:port-catches` does not see this catch — the serialiser arrives as a closure — so the
+    line is held by the convention and by the helper's own test. **Found while testing it, not
+    fixed here**: a real order response does not parse with `orderSchema` — the address snapshots
+    answer `phone: null` where the schema has an optional string — which is why the partial schema
+    is published on its own rather than as a union with `orderSchema`.
 15. **A returned owner's rows are due at once (FR-008).** The statement that clears `blocked_on`
     also brings `next_attempt_at` forward, so a row that had failed before its owner went away
     drains in the first sweep after the owner returns rather than after its old back-off.
