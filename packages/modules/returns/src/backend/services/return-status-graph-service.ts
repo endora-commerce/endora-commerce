@@ -3,9 +3,11 @@ import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
+import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
 import { ReturnStatus } from '../entities/return-status.entity.js';
 import { ReturnStatusTransition } from '../entities/return-status-transition.entity.js';
 import { ReturnCase } from '../entities/return-case.entity.js';
+import { returnStatusUsageQuery } from './return-status-usage.js';
 import {
   RETURN_STATUS_INITIAL,
   ReturnStatusGraph,
@@ -91,13 +93,15 @@ export class ReturnStatusGraphService {
 
   private async statusUsageCounts(): Promise<Map<string, number>> {
     const em = this.emFactory();
-    const rows = await em
-      .getKnex()
-      .from('return_cases')
-      .select('status_code')
-      .count<{ status_code: string; count: string }[]>('* as count')
-      .groupBy('status_code');
-    return new Map(rows.map((r) => [r.status_code, Number(r.count)]));
+    // Confined to the organizations the reader reaches: the statement is raw,
+    // so the entity filter does not apply to it (`return-status-usage.ts`).
+    const query = returnStatusUsageQuery(orgConstraintFor());
+    if (query === null) return new Map();
+    const rows = (await em.execute(query.sql, query.params)) as Array<{
+      status: string;
+      count: string;
+    }>;
+    return new Map(rows.map((r) => [r.status, Number(r.count)]));
   }
 
   async createStatus(input: {
