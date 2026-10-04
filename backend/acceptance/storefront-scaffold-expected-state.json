@@ -137,7 +137,18 @@
     "Retiring condition: the next publication. This entry is not a judgement that the",
     "scaffold is wrong, and it must not be read as licensing a scaffold that stops",
     "building — the moment the registry carries the export, A5 returns to `pass` and this",
-    "record moves back with it, in the merge request that publishes."
+    "record moves back with it, in the merge request that publishes.",
+    "",
+    "SINCE 2026-10-04 THERE IS AN A8, AND IT IS THE ONLY ASSERTION THAT RUNS THE COPY'S",
+    "OWN `test` SCRIPT. A5 proves the copy builds, and `next build` compiles JSX with",
+    "Next's compiler; the copy's tests are transformed by whichever Vite its `vitest`",
+    "range resolves, and with no lockfile that is not the version this repository pins.",
+    "The range admitted Vite 8, which transforms with oxc and ignores an `esbuild` JSX",
+    "option, so 54 of the copy's 59 `.tsx` test files failed to parse while A1 to A5",
+    "stayed green. A8 counts the `.tsx` test files off the copy and requires each to have",
+    "executed, and the run to be green. It is recorded for `tarball`, where it was",
+    "measured, and deliberately absent from `registry`, which this change could not run:",
+    "the first run of that route reports A8 as unrecorded and names the state it measured."
   ],
   "modes": {
     "tarball": {
@@ -149,7 +160,8 @@
         "A4": "pass",
         "A5": "pass",
         "A6": "pass",
-        "A7": "pass"
+        "A7": "pass",
+        "A8": "pass"
       }
     },
     "registry": {
@@ -210,6 +222,11 @@
       "on": "2026-09-12",
       "what": "the registry route is green on all seven again, and the entry above it retires exactly as it said it would",
       "detail": "Pipeline 13682, on `master`, the first run of this criterion after the publication of 2026-09-11: `mode=registry pass=7 fail=0 unmeasured=0`. The job is red, and that is the record working rather than the route failing — three of its states were recorded worse than they measured (`recorded fail, measured pass` once and `recorded unmeasured, measured pass` twice), and an unrecorded pass is drift in the direction nobody watches. This entry is that measurement; the states above move with it. The entry dated 2026-09-09 named its own retiring condition — *\"Retires at the next publication\"* — and the defect it described was precise: `./app/globals.css` imports `@endora-commerce/page-builder-core/tailwind.css`, a subpath `e27bf6cf9` added on 2026-09-07, and the published `0.7.0` predated it while the version number did not move. `release/version-0.8.0` moved 83 packages — 68 to `0.8.0`, 15 to `0.7.1`, none leaving `0.x` under D-225 — so `page-builder-core@0.8.0` carries the subpath and the divergence between what the registry serves and what this repository holds is closed. That divergence is also why the version had to move at all: `changeset publish` publishes the current version of each package or nothing, and the registry's `0.7.0` is immutable, so no amount of republishing could have fixed it in place. What the seven now establish, against a real registry rather than a packed checkout: a storefront scaffolded by `endora new storefront` installs outside this checkout resolving published semver ranges, resolves three `@endora-commerce/*` packages there, builds under `next build`, serves `/` with 200 from `next start`, and carries the canonical origin it was built with. `acceptance:instance` is the other half of the milestone and is **not** measured here: it exited 2 in the same pipeline because the host install received no authorization header, so the instance's registry route has still never produced a verdict."
+    },
+    {
+      "on": "2026-10-04",
+      "what": "A8 arrives in the tarball mode, measured red and then green: the copy's own test run executes every `.tsx` test",
+      "detail": "A scaffolded storefront declares `vitest ^4.1.11` and has no lockfile, so its install resolved Vite 8.3.2 where this repository's lockfile holds 7.3.6. `vitest.config.mts` declared the JSX transform under `esbuild` only; Vite 8 transforms with oxc, vitest sets an `oxc` block of its own, and Vite then ignores `esbuild` entirely — so the transform fell back to the copy's tsconfig, which says `jsx: preserve` for Next. Measured before the repair, in an instance scaffolded outside the checkout: `A8 FAIL — 54 of 59 .tsx test files ran no test`, with A1 to A5 passing beside it. After declaring the same transform under `oxc` as well: `A8 PASS — executed all 59 .tsx test files`, 93 files and 719 tests green under Vite 8.3.2, and the same 93 and 719 with the instance's Vite forced to 7.3.6. Those two runs had no backend, so their A6 and A7 were unmeasured; the recorded states of A1 to A7 are untouched and A8 does not depend on a boot. The registry mode's block does not gain A8 here: that route was not run for this change, and a state written without a run is a prediction."
     }
   ]
 }
