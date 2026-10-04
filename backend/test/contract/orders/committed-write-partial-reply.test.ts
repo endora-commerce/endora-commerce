@@ -83,7 +83,7 @@ describe('a status route whose response cannot be read back (spec 142, FR-002)',
   function failNextOrderLinesRead(): { fired: () => boolean } {
     let fired = false;
     let holder: object | null = Object.getPrototypeOf(h.em()) as object;
-    while (holder && !Object.prototype.hasOwnProperty.call(holder, 'find')) {
+    while (holder && !Object.hasOwn(holder, 'find')) {
       holder = Object.getPrototypeOf(holder) as object | null;
     }
     const proto = holder as { find: Find };
