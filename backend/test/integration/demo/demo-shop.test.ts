@@ -38,7 +38,7 @@
  *
  * ## So what does this file assert instead
  *
- * Three properties, none of which the parity comparison could see, because two
+ * Four properties, none of which the parity comparison could see, because two
  * paths agreeing says nothing about whether either is right:
  *
  *  1. **The delta ledger** — every table the seed moves, and by how much,
@@ -56,6 +56,13 @@
  *     with an empty two-way escape. Neither is a property a single-run
  *     differential comparison could express: parity ran each seed exactly once
  *     and never withdrew.
+ *  4. **The access ledger** — the seed crosses every organisation, and the
+ *     platform audits each widening of tenant scope as a `tenant.escape_hatch`
+ *     row. Those rows are an append-only record of *access*, not shop state, so
+ *     they are kept out of the table counts and asserted as what a run owes:
+ *     one entry into the system scope of its own, the rest the boot's, and the
+ *     same on every re-run. Measured on 2026-10-04: 27 rows per run, 26 of them
+ *     the boot's (55 entries across 26 reasons) and one the command's.
  *
  * ## Why the baseline is a `demo reset` and not a migrated database
  *
@@ -74,8 +81,10 @@
  * `backend/scripts/acceptance/`, as `package-schema` takes — buys a CI job of
  * its own and costs a package script, a `gate-coverage` classification, an
  * entry-scope program and a read-size record, none of which makes the
- * assertions stronger. The cost of this shape is that no merge-request pipeline
- * runs it (D-198); the nightly `master` suite does.
+ * assertions stronger. The cost of this shape is that no pipeline runs it: the
+ * integration tree needs live services and no workflow provisions them, so this
+ * file is run by hand — which is how its ledger sat stale for a day after the
+ * escape-hatch audit landed.
  */
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -153,11 +162,32 @@ async function run(
 }
 
 /**
+ * The `audit_log_entries.action` of a tenant escape-hatch record — one row per
+ * distinct widening of tenant scope per flush window, written by the platform's
+ * persistent audit writer in every process that composes. The literal, as the
+ * two other spawning tests of that writer carry it: this file imports nothing
+ * from the platform on purpose, because its subject is a child process.
+ */
+const ESCAPE_HATCH_ACTION = 'tenant.escape_hatch';
+
+/**
  * Every base table in `public`, with its row count.
  *
  * Derived from `information_schema`, so a table the seed starts writing joins
  * the ledger by existing. `mikro_orm_migrations` is excluded because the
  * database is a clone of a migrated template and its content is the template's.
+ *
+ * **`audit_log_entries` is counted without its escape-hatch rows**, and that is
+ * the one place this function is not a plain `count(*)`. Those rows are an
+ * access log, not shop state: every process that composes the platform appends
+ * its own, so they grow on each run by construction and no run can be
+ * idempotent over them. Counting them here would also make the number depend
+ * on the clock — the writer aggregates per flush window, so a boot that
+ * straddles a flush writes the same access as two rows. They are not dropped
+ * from the file's claims: {@link scopeEntries} reads them, and the access
+ * ledger below says what each run owes. Every *other* audit row — a command's,
+ * a reconciler's — is still counted here, so a seed that starts auditing a
+ * write of its own still fails the delta ledger.
  */
 async function tableCounts(client: Client): Promise<Record<string, number>> {
   const { rows } = await client.query<{ table_name: string }>(
@@ -169,12 +199,75 @@ async function tableCounts(client: Client): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   for (const row of rows) {
     const counted = await client.query<{ n: string }>(
-      `select count(*)::text as n from "${row.table_name}"`,
+      row.table_name === 'audit_log_entries'
+        ? `select count(*)::text as n from audit_log_entries where action <> '${ESCAPE_HATCH_ACTION}'`
+        : `select count(*)::text as n from "${row.table_name}"`,
     );
     counts[row.table_name] = Number(counted.rows[0]!.n);
   }
   return counts;
 }
+
+/** One kind of scope widening, and how many times it has happened so far. */
+interface ScopeEntry {
+  readonly scope: string;
+  readonly entryPoint: string;
+  readonly reason: string;
+  readonly occurrences: number;
+}
+
+/**
+ * Every tenant-scope widening recorded so far, summed per kind.
+ *
+ * **Summed over `occurrences`, never counted as rows.** The writer flushes on a
+ * timer, so how many rows one access becomes depends on how long the process
+ * ran; how many times the scope was entered does not.
+ */
+async function scopeEntries(client: Client): Promise<ScopeEntry[]> {
+  const { rows } = await client.query<{
+    scope: string;
+    entry_point: string;
+    reason: string;
+    occurrences: string;
+  }>(
+    `select state_after->>'scope' as scope,
+            coalesce(state_after->>'entryPoint', '(none)') as entry_point,
+            state_after->>'reason' as reason,
+            sum((state_after->>'occurrences')::int)::text as occurrences
+       from audit_log_entries
+      where action = '${ESCAPE_HATCH_ACTION}'
+      group by 1, 2, 3
+      order by 2, 3, 1`,
+  );
+  return rows.map((row) => ({
+    scope: row.scope,
+    entryPoint: row.entry_point,
+    reason: row.reason,
+    occurrences: Number(row.occurrences),
+  }));
+}
+
+/** What was recorded between two readings of {@link scopeEntries}. */
+function scopeEntriesBetween(
+  before: readonly ScopeEntry[],
+  after: readonly ScopeEntry[],
+): ScopeEntry[] {
+  const key = (entry: ScopeEntry): string =>
+    JSON.stringify([entry.scope, entry.entryPoint, entry.reason]);
+  const earlier = new Map(before.map((entry) => [key(entry), entry.occurrences]));
+  return after
+    .map((entry) => ({ ...entry, occurrences: entry.occurrences - (earlier.get(key(entry)) ?? 0) }))
+    .filter((entry) => entry.occurrences !== 0);
+}
+
+/**
+ * The one widening `endora demo seed` owes, in the sentence an operator reads.
+ *
+ * The command enters the system scope once, at its entry point, and everything
+ * it writes happens inside that one entry. Kept as the opening words rather
+ * than the whole sentence so that rewording the tail does not red this file.
+ */
+const DEMO_SEED_SCOPE_REASON_PREFIX = 'cli: demo seed';
 
 /**
  * What one `endora demo seed` adds to a shop that has just been reset.
@@ -316,6 +409,8 @@ describe('T226 — `endora demo seed` builds this shop', () => {
   let afterThird: Record<string, number>;
   let afterReset: Record<string, number>;
   let seedReports: string[];
+  /** What each of the three seed runs recorded in the escape-hatch audit. */
+  let seedScopeEntries: ScopeEntry[][];
   let shop: Client;
 
   beforeAll(async () => {
@@ -354,12 +449,18 @@ describe('T226 — `endora demo seed` builds this shop', () => {
       baseline = await tableCounts(reading);
 
       seedReports = [];
-      seedReports.push(await run('endora demo seed (1)', DEMO_SEED, url));
-      afterFirst = await tableCounts(reading);
-      seedReports.push(await run('endora demo seed (2)', DEMO_SEED, url));
-      afterSecond = await tableCounts(reading);
-      seedReports.push(await run('endora demo seed (3)', DEMO_SEED, url));
-      afterThird = await tableCounts(reading);
+      seedScopeEntries = [];
+      let recorded = await scopeEntries(reading);
+      const seedOnce = async (label: string): Promise<Record<string, number>> => {
+        seedReports.push(await run(label, DEMO_SEED, url));
+        const now = await scopeEntries(reading);
+        seedScopeEntries.push(scopeEntriesBetween(recorded, now));
+        recorded = now;
+        return await tableCounts(reading);
+      };
+      afterFirst = await seedOnce('endora demo seed (1)');
+      afterSecond = await seedOnce('endora demo seed (2)');
+      afterThird = await seedOnce('endora demo seed (3)');
 
       // The withdrawal, measured here rather than in `afterAll` so that a
       // failure inside it fails a case rather than a hook — and after the
@@ -418,6 +519,61 @@ describe('T226 — `endora demo seed` builds this shop', () => {
       // above is satisfied by a ledger somebody emptied.
       expect(Object.keys(SEED_DELTA).length).toBeGreaterThan(20);
       expect(SEED_DELTA['products']).toBe(203);
+    });
+  });
+
+  describe('the access ledger', () => {
+    // The seed crosses every organisation, so the platform audits it: each
+    // widening of tenant scope becomes a `tenant.escape_hatch` row. Those rows
+    // are kept out of the table counts (see `tableCounts`) and held here
+    // instead, as a statement of what a run owes rather than a number of rows —
+    // a count would have to be re-recorded for every module that gains a boot
+    // hook, and would move with the flush timer besides.
+
+    const ownEntries = (run: number): ScopeEntry[] =>
+      seedScopeEntries[run]!.filter((entry) => entry.entryPoint !== 'boot');
+    const bootEntries = (run: number): ScopeEntry[] =>
+      seedScopeEntries[run]!.filter((entry) => entry.entryPoint === 'boot');
+
+    it('enters the system scope exactly once per run, under the reason an operator reads', () => {
+      // Everything that is not the platform's boot is the command's own. One
+      // entry, once: a module body or a composition step that opened a scope of
+      // its own would appear here as a second line, and so would a seed that
+      // re-entered per module.
+      for (const run of [0, 1, 2]) {
+        const own = ownEntries(run);
+        expect(own, `run ${run + 1} widened tenant scope other than through its one entry`).toEqual(
+          [
+            {
+              scope: 'system',
+              entryPoint: 'cli',
+              reason: expect.stringMatching(new RegExp(`^${DEMO_SEED_SCOPE_REASON_PREFIX}\\b`)),
+              occurrences: 1,
+            },
+          ],
+        );
+      }
+    });
+
+    it('owes the rest to the boot that composed the platform, and to nothing else', () => {
+      // `endora demo seed` composes before it seeds, so the boot's own entries
+      // are recorded by the same process. Their magnitude is the platform's —
+      // one reason per boot step and per module with a boot hook — and is
+      // deliberately not recorded, for the reason `BOOT_RECONCILED` gives.
+      for (const run of [0, 1, 2]) {
+        const boot = bootEntries(run);
+        expect(boot.length, `run ${run + 1} recorded no boot entry at all`).toBeGreaterThan(0);
+        expect(boot.filter((entry) => !entry.reason.startsWith('boot: '))).toEqual([]);
+        expect(boot.filter((entry) => entry.scope !== 'system')).toEqual([]);
+      }
+    });
+
+    it('widens no further on a re-run than on the run before it', () => {
+      // The idempotence claim for the one table that cannot stand still: a
+      // re-run appends an access record, and it appends the same one. A body
+      // that took a wider path once its rows existed would differ here.
+      expect(seedScopeEntries[2]).toEqual(seedScopeEntries[1]);
+      expect(seedScopeEntries[1]).toEqual(seedScopeEntries[0]);
     });
   });
 
@@ -565,6 +721,9 @@ describe('T226 — `endora demo seed` builds this shop', () => {
       // Asserted over the **whole database** with no exception list, which is
       // the strongest form available: a run that doubled a table the delta
       // ledger does not name is exactly the case a narrower comparison misses.
+      // The one thing a count cannot hold still — the escape-hatch access
+      // records every composing process appends — is read by the access ledger
+      // above instead of being excepted here.
       // Runs two and three are the pair where it is a total claim — by then the
       // platform's boot has seen every channel the demo creates.
       expect(afterThird).toEqual(afterSecond);
