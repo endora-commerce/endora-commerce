@@ -349,6 +349,115 @@ export function canonicalHrefIn(html: string): string | null {
   return null;
 }
 
+/** The copy's test files with one extension, read off its own file list. */
+export function testFilesIn(files: readonly string[], extension: '.ts' | '.tsx'): readonly string[] {
+  return files.filter((file) => file.endsWith(`.test${extension}`)).sort();
+}
+
+/** What A8 observed of the copy's own `test` script. */
+export interface TestRunObservation {
+  /** The instance's directory, which the reporter's absolute file names are under. */
+  readonly root: string;
+  readonly code: number;
+  readonly output: string;
+  /** Every `.test.tsx` file in the copy, relative to {@link root}. */
+  readonly tsxTests: readonly string[];
+  /** The text of vitest's JSON report, or `null` where the run wrote none. */
+  readonly report: string | null;
+}
+
+/**
+ * A8 — the copy's own test run executes its `.tsx` tests, and is green.
+ *
+ * A5 says the copy builds; this says the copy's **test script** works, which is
+ * a different toolchain. `next build` compiles JSX with Next's own compiler; the
+ * tests are transformed by whichever Vite the copy's `vitest` range resolved —
+ * and a scaffolded storefront has no lockfile, so that is not the version this
+ * repository pins. Measured: the range admitted Vite 8, which transforms with
+ * oxc and ignores an `esbuild` JSX option, so every `.tsx` test failed to parse
+ * while the build, the boot and every `.ts` test stayed green.
+ *
+ * The subject is therefore the **`.tsx` population**, counted off the copy's
+ * own files rather than off the report: a file the runner never collected is
+ * absent from the report, and a pass computed from the report alone would not
+ * see it go. A file that was collected and ran no test is the transform failure
+ * itself. A copy with no `.tsx` test is `unmeasured`, never a pass — with no
+ * subject the assertion would be green over a scaffold that omitted them all.
+ */
+export function evaluateA8(observed: TestRunObservation): AssertionResult {
+  const id = 'A8';
+  const tail = (): string => observed.output.trim().split('\n').slice(-6).join(' / ');
+  if (observed.tsxTests.length === 0) {
+    return {
+      id,
+      state: 'unmeasured',
+      detail:
+        'the copy holds no `.test.tsx` file, so there is no JSX test whose execution could be ' +
+        'measured',
+    };
+  }
+  if (observed.report === null) {
+    return {
+      id,
+      state: 'fail',
+      detail: `the copy's test run exited ${String(observed.code)} and wrote no report: ${tail()}`,
+    };
+  }
+  let parsed: { testResults?: unknown };
+  try {
+    parsed = JSON.parse(observed.report) as { testResults?: unknown };
+  } catch {
+    parsed = {};
+  }
+  if (!Array.isArray(parsed.testResults)) {
+    return {
+      id,
+      state: 'unmeasured',
+      detail:
+        'the test run wrote a report that is not vitest\'s JSON reporter output, so which files ' +
+        'executed cannot be read from it',
+    };
+  }
+  const executed = new Set<string>();
+  for (const entry of parsed.testResults as readonly {
+    name?: unknown;
+    assertionResults?: unknown;
+  }[]) {
+    if (typeof entry.name !== 'string' || !Array.isArray(entry.assertionResults)) continue;
+    if (entry.assertionResults.length === 0) continue;
+    const prefix = `${observed.root.replace(/\/$/, '')}/`;
+    executed.add(entry.name.startsWith(prefix) ? entry.name.slice(prefix.length) : entry.name);
+  }
+  const silent = observed.tsxTests.filter((file) => !executed.has(file));
+  const total = observed.tsxTests.length;
+  if (silent.length > 0) {
+    return {
+      id,
+      state: 'fail',
+      detail:
+        `${String(silent.length)} of ${String(total)} \`.tsx\` test files ran no test under the ` +
+        `copy's own \`test\` script — ${silent.slice(0, 3).join(', ')}` +
+        `${silent.length > 3 ? ', …' : ''} — exit ${String(observed.code)}: ${tail()}`,
+    };
+  }
+  if (observed.code !== 0) {
+    return {
+      id,
+      state: 'fail',
+      detail:
+        `all ${String(total)} \`.tsx\` test files executed and the copy's test run is red — ` +
+        `exit ${String(observed.code)}: ${tail()}`,
+    };
+  }
+  return {
+    id,
+    state: 'pass',
+    detail:
+      `the copy's own \`test\` script is green outside the checkout and executed all ` +
+      `${String(total)} \`.tsx\` test files`,
+  };
+}
+
 /** A build, an install or a boot: exit 0 is a pass, anything else the tail of its output. */
 export function evaluateProcess(
   id: string,

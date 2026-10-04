@@ -6,6 +6,7 @@
  * computes (issue #130). That is what lets these run in the fast suite while the
  * criterion itself needs an install, a build and a backend.
  */
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -19,6 +20,7 @@ import {
   evaluateA4,
   evaluateA6,
   evaluateA7,
+  evaluateA8,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -26,6 +28,7 @@ import {
   instanceEnvironment,
   planScaffoldInputs,
   SCAFFOLD_INPUT_STAND_INS,
+  testFilesIn,
 } from '../../../scripts/acceptance/storefront-scaffold-assertions.js';
 
 describe('A1 — the copy names nothing above its own directory', () => {
@@ -771,5 +774,111 @@ describe('the instance is given its own environment, not the harness‘s', () =>
     const declared = await declaredVariablesOf(join(repoRoot, 'storefront'));
     expect(declared.length).toBeGreaterThan(0);
     expect(declared).toContain('NODE_ENV');
+  });
+});
+
+describe('A8 — the copy‘s own test run executes its `.tsx` tests', () => {
+  const report = (
+    files: readonly { name: string; status: string; tests: number }[],
+  ): string =>
+    JSON.stringify({
+      testResults: files.map((file) => ({
+        name: `/tmp/instance/${file.name}`,
+        status: file.status,
+        assertionResults: Array.from({ length: file.tests }, () => ({ status: 'passed' })),
+      })),
+    });
+
+  const green = {
+    root: '/tmp/instance',
+    code: 0,
+    output: '',
+    tsxTests: ['test/a.test.tsx', 'test/nested/b.test.tsx'],
+    report: report([
+      { name: 'test/a.test.tsx', status: 'passed', tests: 3 },
+      { name: 'test/nested/b.test.tsx', status: 'passed', tests: 1 },
+      { name: 'test/c.test.ts', status: 'passed', tests: 2 },
+    ]),
+  };
+
+  it('passes when the run is green and every `.tsx` test file ran a test', () => {
+    const result = evaluateA8(green);
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('2 `.tsx` test files');
+  });
+
+  it('fails when a `.tsx` test file was collected and ran no test — the transform failure', () => {
+    // What a JSX transform that never ran looks like in the reporter: the file
+    // is there, `failed`, with no assertion in it, while every `.ts` file passes.
+    const result = evaluateA8({
+      ...green,
+      code: 1,
+      output: 'Error: Failed to parse source for import analysis',
+      report: report([
+        { name: 'test/a.test.tsx', status: 'failed', tests: 0 },
+        { name: 'test/nested/b.test.tsx', status: 'passed', tests: 1 },
+        { name: 'test/c.test.ts', status: 'passed', tests: 2 },
+      ]),
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('1 of 2');
+    expect(result.detail).toContain('test/a.test.tsx');
+    expect(result.detail).toContain('Failed to parse source');
+  });
+
+  it('fails when a `.tsx` test file on disk is absent from the report, even on exit 0', () => {
+    const result = evaluateA8({
+      ...green,
+      report: report([{ name: 'test/a.test.tsx', status: 'passed', tests: 3 }]),
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('test/nested/b.test.tsx');
+  });
+
+  it('fails on a red run whose `.tsx` files all executed', () => {
+    const result = evaluateA8({ ...green, code: 1, output: 'AssertionError: nope' });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('exit 1');
+  });
+
+  it('fails when the run left no report to read', () => {
+    const result = evaluateA8({ ...green, code: 1, output: 'vitest: not found', report: null });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('vitest: not found');
+  });
+
+  it('is unmeasured, never a pass, when the copy holds no `.tsx` test', () => {
+    expect(evaluateA8({ ...green, tsxTests: [] }).state).toBe('unmeasured');
+  });
+
+  it('is unmeasured when the report is not the reporter‘s JSON', () => {
+    expect(evaluateA8({ ...green, report: 'not json' }).state).toBe('unmeasured');
+  });
+
+  it('reads the test population off the copy‘s own file list', () => {
+    expect(
+      testFilesIn(['test/a.test.tsx', 'test/c.test.ts', 'components/a.tsx', 'app/x.test.tsx'], '.tsx'),
+    ).toEqual(['app/x.test.tsx', 'test/a.test.tsx']);
+  });
+});
+
+describe('a JSX transform configured for esbuild is configured for oxc as well', () => {
+  // Vite 7 transforms with esbuild and Vite 8 with oxc, and vitest declares a
+  // range that admits both. A scaffolded storefront has no lockfile, so which
+  // one it gets is decided on the client's machine: a configuration that names
+  // only `esbuild` falls back to the tsconfig's `jsx: preserve` under Vite 8 and
+  // no `.tsx` test parses. A8 measures that outside the checkout; this holds
+  // the configuration itself in the fast suite.
+  const repoRoot = resolve(import.meta.dirname, '..', '..', '..', '..');
+  const configurations = ['storefront/vitest.config.mts', 'admin/vitest.config.ts'];
+
+  it.each(configurations)('%s', (file) => {
+    const path = join(repoRoot, file);
+    expect(existsSync(path), `${file} is not there`).toBe(true);
+    const text = readFileSync(path, 'utf8');
+    expect(text).toMatch(/esbuild:\s*\{[^}]*jsx:\s*'automatic'[^}]*jsxImportSource:\s*'react'/);
+    expect(text).toMatch(
+      /oxc:\s*\{\s*jsx:\s*\{[^}]*runtime:\s*'automatic'[^}]*importSource:\s*'react'/,
+    );
   });
 });

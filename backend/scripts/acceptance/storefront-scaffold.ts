@@ -115,6 +115,7 @@ import {
   evaluateA4,
   evaluateA6,
   evaluateA7,
+  evaluateA8,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -122,6 +123,7 @@ import {
   instanceEnvironment,
   planScaffoldInputs,
   SCAFFOLD_INPUT_STAND_INS,
+  testFilesIn,
   type AcceptanceExpectation,
   type AcceptanceMode,
   type AssertionResult,
@@ -690,6 +692,32 @@ async function boot(
   ];
 }
 
+/**
+ * A8 — the copy's own `test` script, run the way its owner would run it.
+ *
+ * `pnpm run test`, so the subject is the script the scaffold wrote and the
+ * runner its ranges resolved here, with no lockfile — not `vitest` invoked by
+ * this harness with options of its own. The only thing added is a reporter,
+ * which is how the run says *which files executed*: an exit code alone cannot
+ * tell a `.tsx` file that ran from one the runner never collected. The report
+ * is written beside the instance rather than inside it, so the copy A1 read is
+ * the copy that is tested.
+ */
+function runOwnTests(target: string, reportPath: string): AssertionResult {
+  const tested = run(
+    'pnpm',
+    ['run', 'test', '--reporter=json', `--outputFile=${reportPath}`],
+    { cwd: target, env: insideInstance(), timeout: 15 * 60_000 },
+  );
+  return evaluateA8({
+    root: realpathSync(target),
+    code: tested.code,
+    output: tested.output,
+    tsxTests: testFilesIn(listFiles(target), '.tsx'),
+    report: existsSync(reportPath) ? readFileSync(reportPath, 'utf8') : null,
+  });
+}
+
 async function main(): Promise<void> {
   const againstExpectation = process.argv.includes('--against-expectation');
   const { mode, registry } = resolveMode();
@@ -858,10 +886,14 @@ async function main(): Promise<void> {
         results.push({ id: 'A6', state: 'unmeasured', detail: 'there is no build to boot' });
         results.push({ id: 'A7', state: 'unmeasured', detail: 'there is no build to boot' });
       }
+      // Not behind the build: the test run needs the install and nothing else,
+      // and a copy that does not build still owes an answer about its tests.
+      results.push(runOwnTests(target, join(temp, 'own-test-report.json')));
     } else {
       results.push({ id: 'A5', state: 'unmeasured', detail: 'there is no install to build' });
       results.push({ id: 'A6', state: 'unmeasured', detail: 'there is no build to boot' });
       results.push({ id: 'A7', state: 'unmeasured', detail: 'there is no build to boot' });
+      results.push({ id: 'A8', state: 'unmeasured', detail: 'there is no install to test' });
     }
   } finally {
     if (process.env['KEEP_STOREFRONT_ACCEPTANCE'] !== '1') {
