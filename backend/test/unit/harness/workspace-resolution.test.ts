@@ -33,7 +33,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import ts from 'typescript';
 import {
@@ -925,8 +926,16 @@ export type TypeCheckProgramReader = (
   config: string,
 ) => readonly string[] | null;
 
-/** Directories that are not a member's own source. */
-const NOT_SOURCE = new Set(['node_modules', 'dist', '.next', 'build', 'coverage']);
+/**
+ * Directories that are not a member's own source.
+ *
+ * `tmp` is here because it is git-ignored scratch space, in no `tsconfig`
+ * `include`, and written to by tests of this very directory while this file
+ * runs beside them: a fixture `*.test.ts` under `backend/tmp/` is not a test
+ * the member owns, and counting it made the real-tree case below fail only
+ * when a sibling file's fixture happened to be on disk.
+ */
+const NOT_SOURCE = new Set(['node_modules', 'dist', '.next', 'build', 'coverage', 'tmp']);
 
 /** The real filesystem behind {@link TestFileLister}. An unreadable directory contributes nothing. */
 export function nodeTestFileLister(): TestFileLister {
@@ -1249,6 +1258,27 @@ describe('which test files `tsc` reads', () => {
     );
 
     expect(findings).toEqual(['stale-ledger-entry endora.type=gone']);
+  });
+
+  it('does not list a test file under a member’s git-ignored `tmp/`', () => {
+    // `heap-headroom.test.ts` and `run-completeness-wiring.test.ts` write
+    // `*.test.ts` fixtures under `backend/tmp/` and spawn vitest over them. The
+    // unit run executes files in parallel, so those fixtures exist while the
+    // real-tree case below walks `backend/` — and `tmp/` is in no `tsconfig`
+    // `include`, so each one read as a test file `tsc` never sees. The case
+    // passed alone and failed whenever a sibling's fixture was on disk: a
+    // verdict about the scope of the run rather than about the tree.
+    const memberDir = mkdtempSync(join(tmpdir(), 'test-file-lister-'));
+    try {
+      mkdirSync(join(memberDir, 'src'));
+      mkdirSync(join(memberDir, 'tmp', 'fixture-a1b2c3'), { recursive: true });
+      writeFileSync(join(memberDir, 'src', 'own.test.ts'), '');
+      writeFileSync(join(memberDir, 'tmp', 'fixture-a1b2c3', 'ordinary.test.ts'), '');
+
+      expect(nodeTestFileLister()(memberDir)).toEqual([join(memberDir, 'src', 'own.test.ts')]);
+    } finally {
+      rmSync(memberDir, { recursive: true, force: true });
+    }
   });
 
   it('every workspace member’s own tests are in a program `pnpm -r run typecheck` builds', () => {
