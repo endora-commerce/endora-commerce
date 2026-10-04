@@ -787,6 +787,52 @@ export interface SalesRepAssignmentPort {
   unassign(input: { organizationId: string; adminUserId: string }): Promise<boolean>;
 }
 
+/**
+ * Which organizations an admin's requests may reach: every one, or a named set.
+ *
+ * The same two-member answer the admin list resolvers already give, so the
+ * tenant context and the lists built over it cannot disagree about one admin.
+ */
+export type AdminTenantScope =
+  | { readonly allowAll: true }
+  | { readonly allowAll: false; readonly allowedOrganizationIds: string[] };
+
+/**
+ * Container name: `adminTenantScopePort`. Owner: `organizations`.
+ *
+ * The tenant reach of an authenticated admin, derived from the role the admin
+ * holds and never from request inputs (Principle XI). An admin whose role
+ * confines them to assigned organizations answers the assigned set — expanded
+ * to each assignment's subtree when the admin holds `organizations:rollup` —
+ * and every other admin answers `allowAll`.
+ *
+ * **Its consumer is the platform's request-scope hook**, which establishes the
+ * ambient tenant context from the authenticated actor before any handler runs.
+ * The rule is a module's — a role code over two modules' rows — so the platform
+ * asks for the answer here rather than deciding it, and a composition that
+ * registers no such port gives an admin **no** organization rather than all of
+ * them.
+ *
+ * It takes the admin's id rather than a request because the question is about
+ * an identity; reading the actor off the request is the caller's half.
+ *
+ * **Owner off:** resolving this port throws `ModuleDisabledError`, as every
+ * gated port does, and so does a call made while `admin_users` or `admin_roles`
+ * — which the implementation reads the role through — is absent. **The
+ * platform's request-scope hook does not turn that into a 503 for the whole
+ * request**: it gives the admin a context holding no organization and defers
+ * the refusal to the first tenant-scoped read, which answers 503
+ * `MODULE_DISABLED`. That is the confined end, so nothing widens, and routes
+ * over global data keep answering — the module-presence projection among them,
+ * which an operator needs exactly when a module is absent. Any other consumer
+ * gets the throw at the call. Whether `organizations` has an off state at
+ * all is its manifest's `activation` to say, not this line's: a module
+ * declaring `nonDeactivatable` never enters one.
+ */
+export interface AdminTenantScopePort {
+  resolveForAdmin(adminUserId: string): Promise<AdminTenantScope>;
+}
+
 /** The address a VAT registry hands back when it recognises the tax id. */
 export interface VatReturnedAddress {
   line1?: string | null;

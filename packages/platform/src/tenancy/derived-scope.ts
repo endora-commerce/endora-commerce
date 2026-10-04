@@ -1,4 +1,9 @@
-import { getTenantContext, MissingTenantContextError, type TenantContext } from './tenant-context.js';
+import {
+  getTenantContext,
+  MissingTenantContextError,
+  throwIfScopeUnresolved,
+  type TenantContext,
+} from './tenant-context.js';
 
 /**
  * Derived-scope helpers for entities with no direct tenant column
@@ -18,6 +23,7 @@ export type OrgConstraint =
 /** Compute the org constraint from a context (defaults to the ambient one). */
 export function orgConstraintFor(ctx: TenantContext | undefined = getTenantContext()): OrgConstraint {
   if (!ctx) throw new MissingTenantContextError('derived-scope');
+  throwIfScopeUnresolved(ctx);
   switch (ctx.mode) {
     case 'all':
     case 'system':

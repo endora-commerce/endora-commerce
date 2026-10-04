@@ -19,6 +19,26 @@ danych — izolacja działa więc nawet wtedy, gdy usługa zapomni o jawnym filt
   - Administrator platformy → `all` (bez ograniczeń).
   - Administrator-handlowiec z ograniczonym zakresem → `allowed-set` (przypisane mu organizacje).
   - Worker, migracja, jawne obejście → `system`.
+  - Klucz API powiązany z organizacją → `single-org` (jego organizacja i konto serwisowe);
+    klucz niepowiązany i ruch anonimowy → `system`.
+
+  **To mapowanie należy do platformy i dostaje je każda kompozycja.** `composeApp` instaluje je
+  razem z hookiem zakresu żądania, więc instancja — której punkt wejścia wywołuje
+  `composeApp({ deploymentRoot })` i nic więcej — działa z nim bez żadnej dodatkowej konfiguracji.
+  Odpowiedzi należące do modułów są odczytywane przez porty rejestrowane przez skomponowane
+  moduły: `customerRollupScopePort` (`customer_accounts`) dla rozszerzenia na poddrzewo w przypadku
+  konta z włączonym roll-upem oraz `adminTenantScopePort` (`organizations`) dla organizacji, do
+  których rola administratora daje dostęp. Kompozycja, która nie rejestruje żadnego z nich,
+  **zawęża, a nie rozszerza**: klient pozostaje w swojej organizacji, a administrator nie ma
+  dostępu do żadnej organizacji — `composeApp` zapisuje przy starcie ostrzeżenie, gdy brakuje
+  `adminTenantScopePort`, co jest typowym objawem częściowej aktualizacji. Administrator jest
+  zawężany tak samo, gdy moduł `organizations`, `admin_users` lub `admin_roles` jest nieobecny:
+  trasy operujące na danych globalnych nadal odpowiadają, a pierwszy odczyt objęty izolacją
+  odpowiada kodem 503 `MODULE_DISABLED` ze wskazaniem nieobecnego modułu zamiast pustym wynikiem.
+  `ComposeAppOptions.buildTenantContext` zastępuje mapowanie we wdrożeniu, które tego potrzebuje,
+  a zamiennik jest odrzucany — żądanie kończy się błędem — gdy na żądanie klienta lub klucza API
+  powiązanego z organizacją odpowiada kontekstem `system` albo `all`, a na żądanie administratora
+  kontekstem `system`.
 - **Globalne filtry MikroORM** (`org`, `customerAccount`) odczytują bieżący kontekst bezpośrednio
   w chwili wykonania zapytania i dodają warunek ograniczający do tenanta. Ponieważ odczytują
   kontekst przy każdym zapytaniu (a nie przy każdym forku EntityManagera), działają też w forkach

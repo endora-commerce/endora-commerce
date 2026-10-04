@@ -43,6 +43,8 @@ import {
   evaluateA8,
   evaluateA9,
   evaluateA16,
+  evaluateA17,
+  type ActorScopeObservation,
   evaluateProcess,
   exitCodeFor,
   exitCodeForExpectation,
@@ -1551,5 +1553,111 @@ describe('standInLinksToRemove — only what changes what the platform composes'
 
   it('removes nothing when the stand-in pinned nothing beyond the declared set', () => {
     expect(standInLinksToRemove([], modules)).toEqual([]);
+  });
+});
+
+/**
+ * A17 — the tenant scope a served request runs in is its actor's.
+ *
+ * A9 holds the guard; this holds what the guard is handed. The cases below are
+ * the shapes a composition can produce: confined, crossing organizations for
+ * each of the two order-reading actors, an admin denied a platform-wide
+ * operation, a Command with nobody recorded as its actor — and the two ways the
+ * run can fail to ask at all, which must never read as either verdict.
+ */
+describe('A17 — a request is confined to what its authenticated actor may reach', () => {
+  const OWN = 'org-own';
+  const OTHER = 'org-other';
+  const ADMIN = 'admin-1';
+  const confined = { ownStatus: 200, foreignStatus: 404, listStatus: 200, listedOrganizations: [OWN] };
+  const measured: ActorScopeObservation = {
+    setupFailure: null,
+    ownOrganizationId: OWN,
+    customer: confined,
+    apiKey: confined,
+    reparent: { status: 200, body: '{}' },
+    audit: {
+      adminUserId: ADMIN,
+      entries: [{ action: 'organization.parent.assign', actorAdminUserId: ADMIN }],
+    },
+  };
+
+  it('passes when every actor is confined and the admin is recorded', () => {
+    const result = evaluateA17(measured);
+    expect(result.state).toBe('pass');
+    expect(result.detail).toContain('organization.parent.assign');
+  });
+
+  it('accepts a 403 for the other organization as a refusal', () => {
+    expect(
+      evaluateA17({ ...measured, customer: { ...confined, foreignStatus: 403 } }).state,
+    ).toBe('pass');
+  });
+
+  it('fails when a customer reads another organization by id', () => {
+    const result = evaluateA17({ ...measured, customer: { ...confined, foreignStatus: 200 } });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('a customer administering one organization');
+    expect(result.detail).toContain('answered 200');
+  });
+
+  it('fails when a list holds an organization other than the actor own', () => {
+    const result = evaluateA17({
+      ...measured,
+      apiKey: { ...confined, listedOrganizations: [OTHER, OWN] },
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('an API key bound to one organization');
+    expect(result.detail).toContain('1 organization(s) other than its own');
+  });
+
+  it('fails an actor that can read nothing, so a refusal cannot pass for confinement', () => {
+    const blind = { ownStatus: 404, foreignStatus: 404, listStatus: 200, listedOrganizations: [] };
+    const result = evaluateA17({ ...measured, customer: blind });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('read its own organization');
+  });
+
+  it('fails when the platform administrator is refused the re-parent', () => {
+    const result = evaluateA17({
+      ...measured,
+      reparent: { status: 403, body: '{"error":{"code":"FORBIDDEN"}}' },
+      audit: { adminUserId: ADMIN, entries: [] },
+    });
+    expect(result.state).toBe('fail');
+    expect(result.detail).toContain('answered 403');
+  });
+
+  it('fails when the Command recorded nobody, or wrote nothing', () => {
+    const unattributed = evaluateA17({
+      ...measured,
+      audit: {
+        adminUserId: ADMIN,
+        entries: [{ action: 'organization.parent.assign', actorAdminUserId: null }],
+      },
+    });
+    expect(unattributed.state).toBe('fail');
+    expect(unattributed.detail).toContain('without recording the administrator');
+
+    const silent = evaluateA17({ ...measured, audit: { adminUserId: ADMIN, entries: [] } });
+    expect(silent.state).toBe('fail');
+    expect(silent.detail).toContain('wrote no audit entry');
+  });
+
+  it('is unmeasured, never a verdict, when the fixture could not be built', () => {
+    const result = evaluateA17({
+      setupFailure: 'POST /api/v1/organizations/register answered 500',
+      ownOrganizationId: null,
+      customer: null,
+      apiKey: null,
+      reparent: null,
+      audit: null,
+    });
+    expect(result.state).toBe('unmeasured');
+    expect(result.detail).toContain('answered 500');
+  });
+
+  it('is unmeasured when a reading is missing', () => {
+    expect(evaluateA17({ ...measured, apiKey: null }).state).toBe('unmeasured');
   });
 });

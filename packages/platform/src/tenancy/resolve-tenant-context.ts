@@ -33,7 +33,8 @@ import type { TenantContext, TenantScopeNotices } from './tenant-context.js';
  *    would be a case this function has no answer for.
  *
  * So the two shapes agree on the fields they share and are different types on
- * purpose. The caller that bridges them is the deployment's `buildTenantContext`.
+ * purpose. The caller that bridges them is `../kernel/actor-tenant-context.ts`,
+ * the mapping every composition runs with.
  */
 
 export interface CustomerActorInput {
@@ -51,7 +52,7 @@ export interface CustomerActorInput {
    * NB: there is no customer-facing capability source wired in production today
    * (admin permissions do not attach to customer accounts), so production
    * customer contexts stay `single-org`; the roll-up path for scoped actors is
-   * derived at the admin scope-builder seam (`resolveAdminOrdersScope` /
+   * derived at the admin scope-builder seam (`adminTenantScopePort` /
    * `resolveModerationActor`) via the subtree-aware `SalesRepAssignmentService`.
    * This field keeps the derivation server-side (Principle XI) and ready for a
    * future customer-capability source.
@@ -83,11 +84,19 @@ export type TenantActorInput = CustomerActorInput | AdminActorInput | ApiKeyActo
 /**
  * A scoped admin's reach. `allowAll: true` ⇒ platform admin (no restriction).
  * Otherwise the admin is confined to `allowedOrganizationIds`. Mirrors the
- * shape already produced by `resolveAdminOrdersScope` in composition.ts.
+ * shape `organizations`' `adminTenantScopePort` answers with.
  */
 export interface AdminScopeInput {
   readonly allowAll: boolean;
   readonly allowedOrganizationIds?: readonly string[];
+  /**
+   * Set when the scope is the **fallback** for a question nobody could answer
+   * — the module that decides an admin's reach, or one it reads, is absent. It
+   * is carried onto the context as `scopeUnresolved` and never widens it: a
+   * scope that names it is confined to `allowedOrganizationIds` whatever
+   * `allowAll` says.
+   */
+  readonly unresolved?: Error;
 }
 
 export function resolveTenantContext(actor: TenantActorInput, adminScope?: AdminScopeInput): TenantContext {
@@ -142,7 +151,7 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
   }
 
   // Admin actor.
-  if (!adminScope || adminScope.allowAll) {
+  if (!adminScope || (adminScope.allowAll && adminScope.unresolved === undefined)) {
     return { mode: 'all', actor: { kind: 'admin', id: actor.adminUserId } };
   }
   return {
@@ -150,6 +159,7 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
     allowedOrganizationIds: adminScope.allowedOrganizationIds ?? [],
     notices: newScopeNotices(),
     actor: { kind: 'admin', id: actor.adminUserId },
+    ...(adminScope.unresolved === undefined ? {} : { scopeUnresolved: adminScope.unresolved }),
   };
 }
 

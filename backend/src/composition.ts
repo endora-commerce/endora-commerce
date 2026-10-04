@@ -1,6 +1,5 @@
 import type { AssetsLibraryCradle } from '@endora-commerce/mod-assets-library/backend';
 import type { CartShoppingListBridge } from '@endora-commerce/mod-carts/backend';
-import type { FastifyRequest } from 'fastify';
 // Feature 080 (T052) — the contract types for the seven ports that replaced
 // this root's five entity-class reads. Types only: what a root resolves is a
 // container name, and the shape it resolves it against is published in
@@ -20,14 +19,11 @@ import type {
   CartMergeOutcome,
   CustomerAccountReadPort,
   CustomerPasswordVerificationPort,
-  CustomerRollupScopePort,
   EmailMailerPort,
   OrganizationTaxProfilePort,
   TaxServicePort,
 } from '@endora-commerce/contracts';
 import { initOrm, closeOrm } from './db/index.js';
-import { type TenantContext } from './tenancy/tenant-context.js';
-import { resolveTenantContext, systemTenantContext } from '@endora-commerce/platform/composition';
 // Feature 072 — the generated module list. D-45 collapsed the early/late split
 // into a single pass: registration resolves nothing (`kernel/compose.ts`'s
 // `registering` guard), so the order modules register in carries no meaning,
@@ -67,13 +63,11 @@ import { MODULES } from './composition.generated.js';
 // `request.actor` names neither `auth` nor any other module for it.
 import { effectiveState } from './kernel/lifecycle/effective-state.js';
 // Feature 072 (T138) — `organizations` owns its services, its routes and its
-// two event subscriptions. T143a — the sales-rep assignment scope too: what is
-// left here is the actor half of the orders/RFQ visibility question, which only
-// a composition can answer.
+// two event subscriptions. T143a — the sales-rep assignment scope too, and the
+// actor half of the orders/RFQ visibility question went with the
+// tenant-context mapping to the platform's default.
 //
-// T118 — the two type imports that stood here are gone. `organizationTreeService`
-// is read against the one method this root calls (below, beside `salesRepScope`,
-// which has always been written that way), and `organizationTaxProfilePort`'s
+// T118 — the two type imports that stood here are gone. `organizationTaxProfilePort`'s
 // shape is `@endora-commerce/contracts`' now, which is where a `providePort`
 // name's type argument belongs whoever resolves it.
 // Feature 072 (T079) — `email` is composed through the kernel. The driver
@@ -164,28 +158,6 @@ import { loadPackageModuleEntries } from './packages/package-runtime.js';
 export type { ComposeAppHandle, ComposeAppOptions };
 
 /**
- * The seam this deployment fills in during the contribution window.
- *
- * It needs the composed container, and the container does not exist until
- * every module has registered — so the value is written inside the window and
- * read after it closes, on the first request. It is the shape
- * `test/helpers/test-server.ts` spells as `let container!: KernelContainer`,
- * one indirection wider because the contributions live in a function of their
- * own rather than in the callback. `scopedPlugins` was the second seam and
- * carried one plugin, the lifecycle subscriber, which is `composeApp`'s now.
- */
-interface DeploymentSeams {
-  /**
-   * The actor → `TenantContext` mapping (Principle XI).
-   *
-   * The hook that installs it is the platform's and is installed on every
-   * composition; only the mapping is here, because it reads `request.actor` —
-   * `auth`'s `declare module 'fastify'` block, which T118b relocates.
-   */
-  buildTenantContext?: (request: FastifyRequest) => Promise<TenantContext>;
-}
-
-/**
  * The container reads this root makes, declared as **what it calls** rather
  * than as the registering module's cradle interface
  * (`specs/110-instance-repository/` T118).
@@ -210,7 +182,7 @@ interface DeploymentSeams {
  *     is a contract type and never the provider's file (composition checklist
  *     item 3);
  *   - nothing is published for it ⇒ the read declares the one method it calls,
- *     which is what `salesRepScope` and `emailCradle` below have always done.
+ *     which is what `emailCradle` below has always done.
  *
  * These are **narrow on purpose**. Widening one to the module's whole service
  * would restate a declaration this root is not the author of, and the next
@@ -252,11 +224,6 @@ interface ContainerReads {
   readonly emailMailer: EmailMailerPort;
   /** Owner: `organizations`. The VAT facts a quote's tax rate depends on (T143c). */
   readonly organizationTaxProfilePort: OrganizationTaxProfilePort;
-  /**
-   * Owner: `organizations`. The subtree walk a roll-up-enabled customer's
-   * tenant context widens over (feature 056, US2).
-   */
-  readonly organizationTreeService: { subtreeIds(organizationId: string): Promise<string[]> };
   /** Owner: `sales_channels`. The Rule Builder's channel picker source. */
   readonly salesChannelsService: {
     list(options: Record<string, unknown>): Promise<{
@@ -409,13 +376,6 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // thing that knows a package is here.
   const packageModuleEntries = await loadPackageModuleEntries();
 
-  // The seam the contribution callback fills in, because it needs the composed
-  // container and the container does not exist until every module has
-  // registered. A mutable object for the reason the harness's is `let`
-  // (`test/helpers/test-server.ts`): the value is read after the window closes,
-  // on the first request, and never during it.
-  const seams: DeploymentSeams = {};
-
   return composePlatformApp({
     deploymentRoot,
     composition: {
@@ -453,21 +413,10 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
     // names with it. The blocker expired in the commit that was supposed to
     // clear it, and the cost was borne by every composition that is not this
     // file: four modules read the name and nothing defaulted it.
-    // Feature 050 — establish the ambient TenantContext for every request from
-    // the already-authenticated actor (never from request inputs). The mapping
-    // is this deployment's until T118b relocates the `request.actor`
-    // augmentation; the *hook* is the platform's and always installed.
-    buildTenantContext: async (request: FastifyRequest): Promise<TenantContext> => {
-      if (seams.buildTenantContext === undefined) {
-        throw new Error(
-          'the reference deployment did not install its tenant-context mapping — a request ' +
-            'reached the scope hook before the contribution window ran, which cannot happen ' +
-            'through composeApp and means this root was assembled by hand (Principle XI).',
-        );
-      }
-      return seams.buildTenantContext(request);
-    },
-    contribute: (ctx) => contributeReferenceDeployment(ctx, seams),
+    // `buildTenantContext` is deliberately not supplied: the actor → tenant
+    // mapping is the platform's default, the same one an instance runs with, so
+    // the two cannot drift.
+    contribute: (ctx) => contributeReferenceDeployment(ctx),
   });
 }
 
@@ -484,10 +433,7 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
  * entry retires as a `lazyPort` in the owning module's own registration, with
  * the edge in that module's manifest `dependencies` (T118c).
  */
-async function contributeReferenceDeployment(
-  ctx: ComposedAppContext,
-  seams: DeploymentSeams,
-): Promise<void> {
+async function contributeReferenceDeployment(ctx: ComposedAppContext): Promise<void> {
   const {
     container,
     em,
@@ -528,15 +474,9 @@ async function contributeReferenceDeployment(
   // is the `mfa` target's `adminActorPromotion` shape again: a root accessor
   // whose last consumer was the bridge it existed for.
 
-  // Feature 080 (T040b) — the two ports that replaced this root's value
-  // imports of a module's own sources. Same reason as the block above and the
-  // same lazy read: a packaged module publishes `./backend`, not a file path,
-  // so a root that names one stops compiling the day its owner moves — and a
-  // root that names the *source* of a module the platform composes from `dist`
-  // evaluates it twice, which fails silently rather than loudly (D-160.6.1).
-  const customerRollupScopePort = (): CustomerRollupScopePort =>
-    (container.cradle as never as { customerRollupScopePort: CustomerRollupScopePort })
-      .customerRollupScopePort;
+  // `customerRollupScopePort` had an accessor here for the tenant-context
+  // mapping's customer arm. The mapping is the platform's now and reads the
+  // port itself.
 
   // Feature 117 (FR-030) put actor promotion on the container as
   // `promoteAdminActor`, read here rather than imported, because a value import
@@ -678,13 +618,6 @@ async function contributeReferenceDeployment(
   // `customer_accounts` each resolve the port through `lazyPort` behind an
   // `effectiveState.isPresent('mfa')` probe and declare the edge
   // `degrades-without`, so neither root binds anything here.
-
-  // Feature 056 — organization tree + inheritance resolution. Both are
-  // `organizations`' own services and both are gated ports since T138; this
-  // root reads them lazily for the hand-wired remainder that still takes them
-  // as arguments.
-  const organizationTreeService = (): ContainerReads['organizationTreeService'] =>
-    reads().organizationTreeService;
 
   // Feature 072 (T101) — `credit_limits` owns its service and routes now, and
   // since T143c the return-settlement top-up as well, so this root reads
@@ -957,57 +890,6 @@ async function contributeReferenceDeployment(
   // could not address a `setting_values` row at all. "No channel" is now `null`
   // and the read decides what that means.
 
-  // Feature 056 — subtree-aware assignment scope. When a scoped sales-rep actor
-  // holds the `organizations:rollup` capability, `listAssignedOrganizationIds`
-  // expands each assignment to its subtree (with per-descendant override,
-  // FR-011). Without the capability, behavior is byte-for-byte the pre-feature
-  // flat set.
-  //
-  // T143a — `organizations`' port, read lazily, rather than a
-  // `SalesRepAssignmentService` built here. The class, the tree it walks and
-  // the rule it applies are all that module's; a root built one and the harness
-  // built a different one, which is how the roll-up went untested.
-  const salesRepScope = (): {
-    listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
-  } =>
-    (
-      container.cradle as never as {
-        organizationSalesRepScopePort: {
-          listAssignedOrganizationIds(adminUserId: string): Promise<string[]>;
-        };
-      }
-    ).organizationSalesRepScopePort;
-
-  /**
-   * Feature 026 US6 — admin orders/RFQ visibility scope. Sales-rep admins
-   * see only orders/RFQs from organizations they own; any other admin
-   * (platform admin, content manager, etc.) sees everything.
-   *
-   * Feature 056 — the assigned set is subtree-expanded when the rep holds the
-   * roll-up capability, which `organizations` decides (see `salesRepScope`).
-   */
-  const resolveAdminOrdersScope = async (
-    request: FastifyRequest,
-  ): Promise<{ allowAll: true } | { allowAll: false; allowedOrganizationIds: string[] }> => {
-    const actor = (request as { actor?: { kind: string; adminUserId?: string } }).actor;
-    if (!actor || actor.kind !== 'admin' || !actor.adminUserId) {
-      return { allowAll: true };
-    }
-    const knex = em().getKnex();
-    const roleRow = (await knex.raw(
-      `select ar."code" as code from "admin_users" au left join "admin_roles" ar on ar."id" = au."admin_role_id" where au."id" = ?`,
-      [actor.adminUserId],
-    )) as { rows: Array<{ code: string | null }> };
-    const roleCode = roleRow.rows[0]?.code ?? null;
-    if (roleCode !== 'sales_representative') {
-      return { allowAll: true };
-    }
-    const allowedOrganizationIds = await salesRepScope().listAssignedOrganizationIds(
-      actor.adminUserId,
-    );
-    return { allowAll: false, allowedOrganizationIds };
-  };
-
   // Feature 047 — late-bound transactional-email sender. `orders` (and
   // other owning modules) read it via a getter; the transactional_emails module
   // sets it through exposeSender once built.
@@ -1025,61 +907,15 @@ async function contributeReferenceDeployment(
       | undefined;
   } => container.cradle as never;
 
-  // Feature 050 — establish the ambient TenantContext for every request from the
-  // already-authenticated actor (never from request inputs). It runs after auth
-  // so `request.actor` is set, and applies globally.
-  //
-  // Feature 072 (T027) — the hook that installs it also opens the request's
-  // resolution scope, and `registerRequestScopeHook` owns that shape, shared
-  // with the test kit so the two cannot drift.
-  //
-  // T118 — the *hook* is the platform's and is installed on every composition
-  // whatever this line does. What is handed over is the **mapping**: it reads
-  // `request.actor`, which exists only because `auth` writes a
-  // `declare module 'fastify'` block, and a platform file that named that
-  // package would be the D-52/D-53 reach `composeApp` moved out of. T118b
-  // relocates the augmentation and this closure goes with it.
-  seams.buildTenantContext = async (request: FastifyRequest): Promise<TenantContext> => {
-    const actor = request.actor;
-    if (actor.kind === 'customer') {
-      const orgId =
-        actor.organizationId && actor.organizationId.length > 0 ? actor.organizationId : null;
-      // Feature 056 (T032) — a roll-up-enabled customer widens to its org
-      // subtree (server-derived). Absent the capability, stays single-org.
-      const rollupSubtree = await customerRollupScopePort().resolveSubtreeIds(
-        actor.customerAccountId,
-        orgId,
-        (id) => organizationTreeService().subtreeIds(id),
-      );
-      return resolveTenantContext({
-        kind: 'customer',
-        customerAccountId: actor.customerAccountId,
-        organizationId: orgId,
-        impersonatorAdminUserId: actor.impersonatorAdminUserId,
-        ...(rollupSubtree && rollupSubtree.length > 0
-          ? { rollupSubtreeOrganizationIds: rollupSubtree }
-          : {}),
-      });
-    }
-    if (actor.kind === 'admin') {
-      const scope = await resolveAdminOrdersScope(request);
-      return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
-    }
-    // Feature 062 — a BOUND api key pins the request to its organization +
-    // designated service account; an unbound key keeps the legacy trusted
-    // system scope (its only surface is the global-entity PIM path).
-    if (actor.kind === 'api_key') {
-      return resolveTenantContext({
-        kind: 'api_key',
-        apiKeyId: actor.apiKeyId,
-        organizationId: actor.organizationId ?? null,
-        customerAccountId: actor.customerAccountId ?? null,
-      });
-    }
-    // anonymous: trusted platform read scope. Guest-owned rows are
-    // scoped by their own token mechanism, not by the tenant filter.
-    return systemTenantContext(`actor:${actor.kind}`);
-  };
+  // The actor → tenant-context mapping is **not** written here any more. It was
+  // this root's own closure, which made it something only this root had: every
+  // other composition ran with `composeApp`'s default. The mapping is the
+  // platform's now (`@endora-commerce/platform`'s `kernel/actor-tenant-context.ts`),
+  // built over the ports the composed modules register, and this deployment
+  // gets it the way an instance does — by supplying nothing. The admin arm's
+  // role decision, which stood above as `resolveAdminOrdersScope` in
+  // `knex.raw` over two modules' tables, is `organizations`'
+  // `adminTenantScopePort`.
 
   // Feature 062 — read-only inventory accessors backing the external catalog
   // namespace's availability indication (channel-candidate warehouses +
@@ -1257,8 +1093,9 @@ async function contributeReferenceDeployment(
   // also how the `knex.raw` join over two other modules' tables leaves this
   // file.
   //
-  // `resolveAdminOrdersScope` survives above for `buildTenantContext`'s admin
-  // arm, which is this root's own and stays.
+  // `resolveAdminOrdersScope` survived above for the tenant-context mapping's
+  // admin arm until that mapping became the platform's default; the role
+  // decision is `organizations`' `adminTenantScopePort` now.
 
   composedModules.contribute({
     cartShoppingListBridge: {

@@ -68,7 +68,8 @@ export type AssertionId =
   | 'A13'
   | 'A14'
   | 'A15'
-  | 'A16';
+  | 'A16'
+  | 'A17';
 
 /**
  * What each assertion is, independently of any run.
@@ -96,6 +97,7 @@ export const ASSERTION_CATALOGUE: Readonly<Record<AssertionId, string>> = {
   A14: 'the wiring the created tree holds is under the bound, measured on the tree rather than on the template',
   A15: "the instance's own CLI creates an administrator, and the instance answers that administrator's login with a session",
   A16: 'the module packages the instance installs are exactly the ones its own manifests declare, whichever supply route it took',
+  A17: 'a request is confined to what its authenticated actor may reach: a customer to its organization, an admin to the scope its role resolves to, a bound API key to its binding',
 };
 
 export const ASSERTION_IDS = Object.keys(ASSERTION_CATALOGUE) as readonly AssertionId[];
@@ -2152,4 +2154,155 @@ export function hostNpmrc(registry: string | null, scope: string): string {
     for (const key of authKeys(endpoint)) lines.push(`${key}:_authToken=\${${TOKEN_VARIABLE}}`);
   }
   return `${lines.join('\n')}\n`;
+}
+
+/** The two customer-facing surfaces A17 reads orders through. */
+export const CUSTOMER_ORDERS_PATH = '/api/v1/orders';
+export const EXTERNAL_ORDERS_PATH = '/api/v1/external/orders';
+
+/** One actor's reads over the two organizations' orders. */
+export interface ActorOrderReads {
+  /** The actor's own organization's order, read by id. */
+  readonly ownStatus: number | null;
+  /** The other organization's order, read by id. */
+  readonly foreignStatus: number | null;
+  readonly listStatus: number | null;
+  /** The distinct organizations the actor's order list holds. */
+  readonly listedOrganizations: readonly string[];
+}
+
+/** What A17 measured over one boot of the instance. */
+export interface ActorScopeObservation {
+  /**
+   * Why the fixture could not be built — two organizations, a member of each,
+   * an order of each. Non-null means nothing below was asked.
+   */
+  readonly setupFailure: string | null;
+  /** The organization the customer and the API key belong to. */
+  readonly ownOrganizationId: string | null;
+  readonly customer: ActorOrderReads | null;
+  readonly apiKey: ActorOrderReads | null;
+  /** The administrator re-parents one organization under the other. */
+  readonly reparent: { readonly status: number | null; readonly body: string } | null;
+  /**
+   * The audit rows the re-parent Command wrote about the organization it
+   * moved, and the administrator who ran it.
+   */
+  readonly audit: {
+    readonly adminUserId: string;
+    readonly entries: readonly { readonly action: string; readonly actorAdminUserId: string | null }[];
+  } | null;
+}
+
+function orderReadFailures(who: string, own: string, reads: ActorOrderReads): string[] {
+  const failures: string[] = [];
+  if (reads.ownStatus !== 200) {
+    failures.push(
+      `${who} read its own organization's order and was answered ${String(reads.ownStatus)}, so ` +
+        'the refusals beside it prove nothing',
+    );
+  }
+  if (reads.foreignStatus !== 404 && reads.foreignStatus !== 403) {
+    failures.push(
+      `${who} read another organization's order by id and was answered ` +
+        `${String(reads.foreignStatus)} where a refusal belongs`,
+    );
+  }
+  const foreign = reads.listedOrganizations.filter((organization) => organization !== own);
+  if (reads.listStatus !== 200 || !reads.listedOrganizations.includes(own)) {
+    failures.push(
+      `${who} listed orders (${String(reads.listStatus)}) and its own organization's order is ` +
+        'not among them',
+    );
+  }
+  if (foreign.length > 0) {
+    failures.push(
+      `${who} listed orders and the list holds ${String(foreign.length)} organization(s) other ` +
+        'than its own',
+    );
+  }
+  return failures;
+}
+
+/**
+ * A17 — a request runs in the tenant scope of whoever is asking (Principle XI).
+ *
+ * A9 proves the guard: a read with no tenant context is refused. This is the
+ * other half, and A9 cannot see it — that the context a **served request** gets
+ * is derived from its authenticated actor. The two are independent — the guard
+ * can be sound while the context it is handed is not — so neither assertion
+ * answers for the other.
+ *
+ * Four readings, over one boot and through the routes a client would use:
+ *
+ *  - a customer who administers one organization reads that organization's
+ *    orders and nobody else's — by id and in the list. The role matters: an
+ *    organization administrator's order list is scoped by the ambient tenant
+ *    filter alone, where a regular member's is also pinned by the handler;
+ *  - an API key bound to an organization, the same;
+ *  - an administrator holding the platform role re-parents an organization,
+ *    which the handler allows only to a platform-wide admin scope;
+ *  - the Command that re-parent ran recorded that administrator as its actor.
+ *
+ * The own-organization read is asked for in each case so a refusal cannot pass
+ * for confinement: an actor that can read nothing is not scoped, it is broken.
+ */
+export function evaluateA17(observed: ActorScopeObservation): AssertionResult {
+  if (observed.setupFailure !== null) {
+    return {
+      id: 'A17',
+      state: 'unmeasured',
+      detail:
+        'the two organizations, their members and their orders could not be set up, so there ' +
+        `was no actor to ask as: ${observed.setupFailure}`,
+    };
+  }
+  const own = observed.ownOrganizationId;
+  if (
+    own === null ||
+    observed.customer === null ||
+    observed.apiKey === null ||
+    observed.reparent === null ||
+    observed.audit === null
+  ) {
+    return {
+      id: 'A17',
+      state: 'unmeasured',
+      detail: 'the instance served no request for this run to ask the four readings with',
+    };
+  }
+  const failures = [
+    ...orderReadFailures('a customer administering one organization', own, observed.customer),
+    ...orderReadFailures('an API key bound to one organization', own, observed.apiKey),
+  ];
+  if (observed.reparent.status !== 200) {
+    failures.push(
+      'an administrator holding the platform role re-parented an organization and was ' +
+        `answered ${String(observed.reparent.status)}: ${observed.reparent.body.slice(0, 200)}`,
+    );
+  } else {
+    const { entries, adminUserId } = observed.audit;
+    const unattributed = entries.filter((entry) => entry.actorAdminUserId !== adminUserId);
+    if (entries.length === 0) {
+      failures.push('the re-parent succeeded and wrote no audit entry about the organization');
+    } else if (unattributed.length > 0) {
+      failures.push(
+        `the re-parent wrote ${unattributed.map((entry) => `\`${entry.action}\``).join(', ')} ` +
+          'without recording the administrator who ran it as the actor',
+      );
+    }
+  }
+  if (failures.length > 0) {
+    return { id: 'A17', state: 'fail', detail: failures.join('; ') };
+  }
+  return {
+    id: 'A17',
+    state: 'pass',
+    detail:
+      'a customer administering one organization and an API key bound to it each read that ' +
+      "organization's order, are refused the other's by id and list only their own; an " +
+      'administrator holding the platform role re-parented an organization, and ' +
+      `${observed.audit.entries.map((entry) => `\`${entry.action}\``).join(', ')} names that ` +
+      'administrator as its actor',
+  };
 }
