@@ -102,6 +102,10 @@ const MIGRATED_MODULES: readonly string[] = [
   // same change and every code arrives with prose, so
   // `UNTRANSLATED_ERROR_CODES` does not move.
   'admin_roles',
+  // Minted, not migrated: `ADMIN_USER_ROLE_REQUIRED` is this module's first
+  // code and the frozen capture holds none, so `MINTED_ERROR_CODES` is what
+  // accounts for it.
+  'admin_users',
   'api_keys',
   'assets_library',
   'blog',

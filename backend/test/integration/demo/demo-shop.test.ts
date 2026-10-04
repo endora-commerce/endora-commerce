@@ -290,7 +290,10 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   sales_channels: 1,
 
   // ── the modules' own rows ──────────────────────────────────────────────
-  admin_roles: 2,
+  // One, not two: `platform_admin` is the role every instance has — the
+  // reset's own boot ensures it — so the demo finds it there and adds only the
+  // sales representative's.
+  admin_roles: 1,
   admin_users: 3,
   organizations: 1,
   taxes: 1,

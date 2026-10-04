@@ -90,6 +90,23 @@ import type {
  * author of one claim is two answers waiting to disagree.
  */
 export const MINTED_ERROR_CODES: MintedErrorCodes = {
+  ADMIN_ROLE_REQUIRED: {
+    to: 'admin_roles',
+    reason:
+      'Minted for the refusal an administrator acting without a role earns. The permission ' +
+      'check and the tenant reach of an admin are both read off the role, so an account with ' +
+      'none is refused by name rather than treated as holding nothing or as reaching every ' +
+      'organization. The noun is an admin role and the one place the refusal is built is ' +
+      '`admin_roles`\' permission service, which `organizations` asks for it.',
+  },
+  ADMIN_USER_ROLE_REQUIRED: {
+    to: 'admin_users',
+    reason:
+      'Minted for the refusal a write earns when it would leave an administrator account ' +
+      'without a role: creating one with none, or clearing the role of one that has it. The ' +
+      'noun is the admin account, `admin_users`\' own row, and both raise sites are in its ' +
+      'service.',
+  },
   CMS_SLUG_RESERVED: {
     to: 'cms',
     reason:
