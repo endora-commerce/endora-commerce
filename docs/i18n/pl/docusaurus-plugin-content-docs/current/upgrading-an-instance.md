@@ -145,6 +145,36 @@ oraz we wszystkim, co Twoje, w `admin/src` lub w module nakładkowym (overlay) �
 Bez tej zmiany `pnpm run build` storefrontu kończy się błędem sprawdzania typów. Zapisane strony,
 bloki i szablony nie wymagają zmian.
 
+### Po aktualizacji do wydania 0.103.0 {#after-0-103-0}
+
+Dwie rzeczy, których aktualizacja nie zrobi za Ciebie.
+
+**Uruchom raz przebieg próbny naprawy zamówień.** Wcześniejsze wydanie mogło zostawić zamówienie
+anulowane albo opłacone, a mimo to nadal trzymające stan magazynowy lub rezerwację limitu
+kredytowego — i nic nie zwalnia ich samo. W katalogu głównym instancji, gdy `pnpm run upgrade`
+się zakończy:
+
+```bash
+pnpm run cli orders transition-effects-repair           # wypisuje, niczego nie zapisuje
+pnpm run cli orders transition-effects-repair --apply   # zwalnia to, co wymieniła lista
+```
+
+Przeczytaj listę, zanim ją zastosujesz: zwolnienie zmienia liczniki zarezerwowanego stanu
+i dostępny limit. `--except=<identyfikator zamówienia>` pomija zamówienie,
+a `--order=<identyfikator zamówienia>` naprawia tylko wskazane — zobacz
+[Naprawa zamówień pozostawionych przez wcześniejszą wersję](./modules/orders.md#naprawa-zamówień-pozostawionych-przez-wcześniejszą-wersję).
+Polecenie, które wypisuje `No projects matched the filters`, niczego nie uruchomiło, niezależnie
+od kodu wyjścia: to `pnpm --filter backend …`, czyli postać dla klonu repozytorium Endora
+Commerce, wpisana w instancji.
+
+**Dodaj jedną linię do `vitest.config.mts` storefrontu.** Własne testy `.tsx` storefrontu kończą
+się błędem *Failed to parse source for import analysis*, gdy jego instalacja wybierze Vite 8.
+Obok bloku `esbuild` w tym pliku dodaj:
+
+```ts
+oxc: { jsx: { runtime: 'automatic', importSource: 'react' } },
+```
+
 ## Instancja niespójna od początku
 
 Instalator `0.101.x` lub starszy zapisywał każdy pakiet wydania z `^` poza

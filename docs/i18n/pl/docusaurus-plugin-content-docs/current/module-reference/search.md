@@ -64,6 +64,9 @@ Pakiety tłumaczeń w katalogu `i18n` modułu, po jednym pliku na każdy obsług
 
 ## Polecenia operatora
 
+Uruchamiaj je w katalogu głównym instancji. W klonie repozytorium Endora Commerce te same
+polecenia mają postać `pnpm --filter backend run cli -- search <command>`.
+
 | Polecenie | Działanie |
 | --- | --- |
-| `pnpm --filter backend run cli -- search reindex` | Przebudowuje indeks Meilisearch każdego kanału sprzedaży z PostgreSQL. |
+| `pnpm run cli search reindex` | Przebudowuje indeks Meilisearch każdego kanału sprzedaży z PostgreSQL. |

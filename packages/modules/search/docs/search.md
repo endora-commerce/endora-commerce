@@ -157,8 +157,8 @@ fallback), and `createdAt` was never written into a document. A full
 reindex applies both. That happens automatically on the next periodic
 sweep in the worker role (`search.reindex_interval_minutes`, default
 10); a deployment that runs no sweep needs the operator step — the
-admin **Reindex products** action or `pnpm --filter backend run
-search:reindex`. An `attribute.updated.v1` refresh reapplies the
+admin **Reindex products** action or `pnpm run cli search reindex`
+in the root of the instance. An `attribute.updated.v1` refresh reapplies the
 settings but writes no documents, so it restores `name` sorting and
 not `-createdAt`.
 
@@ -246,6 +246,10 @@ runs, so it reindexes through the one `SearchIndexer` the composition
 holds rather than building a second one:
 
 ```bash
+# In an instance, from its root:
+pnpm run cli search reindex
+
+# In a checkout of the Endora Commerce repository:
 pnpm --filter backend run search:reindex
 # or, addressing the host binary directly:
 pnpm --filter backend exec tsx src/cli.ts search reindex

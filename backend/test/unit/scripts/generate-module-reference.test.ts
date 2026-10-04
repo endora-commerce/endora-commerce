@@ -172,7 +172,23 @@ describe('the reference page reads the manifest', () => {
         ]),
       ),
     );
-    expect(page).toContain('| `pnpm --filter backend run cli -- catalog reindex` |');
+    // The form a scaffolded instance has, in the cell an operator copies: its
+    // backend member is named `<instance>-backend`, so `pnpm --filter backend`
+    // matches no project there, prints so and exits 0 having run nothing.
+    expect(page).toContain('| `pnpm run cli catalog reindex` |');
+    expect(page).not.toContain('| `pnpm --filter backend');
+    // The repository-checkout form is named once, beside it and labelled.
+    expect(page).toContain(
+      'In a checkout of the Endora Commerce repository the same commands are ' +
+        '`pnpm --filter backend run cli -- catalog <command>`',
+    );
+  });
+
+  it('says nothing about how to run a command where the module declares none', () => {
+    const page = emitModuleReference(
+      referenceFor(manifestModule({ id: 'catalog', name: 'Catalog', version: '1.0.0' }, [])),
+    );
+    expect(page).toContain('## Operator commands\n\n_None._\n');
   });
 
   it('links the module prose page where there is one, and the map where there is not', () => {

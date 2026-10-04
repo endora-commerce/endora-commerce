@@ -65,6 +65,9 @@ Pakiety tłumaczeń w katalogu `i18n` modułu, po jednym pliku na każdy obsług
 
 ## Polecenia operatora
 
+Uruchamiaj je w katalogu głównym instancji. W klonie repozytorium Endora Commerce te same
+polecenia mają postać `pnpm --filter backend run cli -- carts <command>`.
+
 | Polecenie | Działanie |
 | --- | --- |
-| `pnpm --filter backend run cli -- carts abandonment-sweep` | Uruchamia jeden przebieg wyszukiwania porzuconych koszyków na działającej bazie danych. |
+| `pnpm run cli carts abandonment-sweep` | Uruchamia jeden przebieg wyszukiwania porzuconych koszyków na działającej bazie danych. |

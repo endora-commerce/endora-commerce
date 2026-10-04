@@ -1163,8 +1163,13 @@ export const cliCommands: ReadonlyArray<ModuleCliCommand<ModuleContext>> = [
 ```
 
 ```bash
-pnpm --filter backend run cli -- --list          # every command this instance offers
-pnpm --filter backend run cli -- search reindex  # or the alias: pnpm search:reindex
+# W instancji, z jej katalogu głównego:
+pnpm run cli --list            # każde polecenie, które oferuje ta instancja
+pnpm run cli search reindex
+
+# W klonie repozytorium Endora Commerce:
+pnpm --filter backend run cli -- --list
+pnpm --filter backend run cli -- search reindex  # albo alias: pnpm search:reindex
 ```
 
 To samo przejście po drzewie i ta sama funkcja `detectHookExport`, które obsługują `installHook`,

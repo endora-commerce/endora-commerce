@@ -64,6 +64,9 @@ Pakiety tłumaczeń w katalogu `i18n` modułu, po jednym pliku na każdy obsług
 
 ## Polecenia operatora
 
+Uruchamiaj je w katalogu głównym instancji. W klonie repozytorium Endora Commerce te same
+polecenia mają postać `pnpm --filter backend run cli -- cms <command>`.
+
 | Polecenie | Działanie |
 | --- | --- |
-| `pnpm --filter backend run cli -- cms block-names` | Wypisuje nazwy bloków Page Buildera zapisane w tej bazie danych i to, co migracja dodająca przestrzenie nazw zrobi z każdą z nich. Tylko odczyt. |
+| `pnpm run cli cms block-names` | Wypisuje nazwy bloków Page Buildera zapisane w tej bazie danych i to, co migracja dodająca przestrzenie nazw zrobi z każdą z nich. Tylko odczyt. |

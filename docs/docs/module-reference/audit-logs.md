@@ -51,6 +51,8 @@ Bundles at `i18n` inside the module, one file per shipped language.
 
 ## Operator commands
 
+Run these in the root of an instance. In a checkout of the Endora Commerce repository the same commands are `pnpm --filter backend run cli -- audit_logs <command>`.
+
 | Command | What it does |
 | --- | --- |
-| `pnpm --filter backend run cli -- audit_logs read` | Read the audit trail from the host, without writing to it. |
+| `pnpm run cli audit_logs read` | Read the audit trail from the host, without writing to it. |

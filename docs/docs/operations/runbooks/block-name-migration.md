@@ -21,8 +21,11 @@ This page is the pre-flight. Follow it in order.
 ## 1. Run the report
 
 ```bash
-pnpm --filter backend run cli -- cms block-names
+pnpm run cli cms block-names
 ```
+
+Run it in the root of your instance. In a checkout of the Endora Commerce repository the same
+command is `pnpm --filter backend run cli -- cms block-names`.
 
 It is **read-only**. Run it on the production database before you have decided to upgrade;
 it issues no `update`, no `insert` and no `delete`.
@@ -81,7 +84,7 @@ and of every other migration in the release.
 ## 5. Run the report again, and diff it
 
 ```bash
-pnpm --filter backend run cli -- cms block-names
+pnpm run cli cms block-names
 ```
 
 Two things must be true, and they are the whole verification:
