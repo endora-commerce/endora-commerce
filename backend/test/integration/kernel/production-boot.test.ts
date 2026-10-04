@@ -180,13 +180,17 @@ describe('the production composition root boots', () => {
     }
 
     // And the admin port answers over the real tables: an id that names no
-    // admin holds no confining role.
+    // admin holds no role, so it reaches no organization and carries the
+    // refusal — the absence of a role is never the widest role there is.
     const adminScope = container.cradle['adminTenantScopePort'] as {
       resolveForAdmin(adminUserId: string): Promise<unknown>;
     };
-    await expect(
-      adminScope.resolveForAdmin('00000000-0000-4000-8000-000000000001'),
-    ).resolves.toEqual({ allowAll: true });
+    const scope = await adminScope.resolveForAdmin('00000000-0000-4000-8000-000000000001');
+    expect(scope).toMatchObject({ allowAll: false, allowedOrganizationIds: [] });
+    expect((scope as { unresolved?: unknown }).unresolved).toMatchObject({
+      statusCode: 403,
+      code: 'ADMIN_ROLE_REQUIRED',
+    });
   });
 
   it('answers a request, which is what "the backend started" means', async () => {

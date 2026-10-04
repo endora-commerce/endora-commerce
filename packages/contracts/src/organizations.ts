@@ -795,7 +795,18 @@ export interface SalesRepAssignmentPort {
  */
 export type AdminTenantScope =
   | { readonly allowAll: true }
-  | { readonly allowAll: false; readonly allowedOrganizationIds: string[] };
+  | {
+      readonly allowAll: false;
+      readonly allowedOrganizationIds: string[];
+      /**
+       * Set when the admin's reach could not be established at all — the id
+       * names no live administrator, or the administrator holds no role. The
+       * scope then names **no** organization and carries the refusal, which the
+       * tenant guard raises on the first tenant-scoped read of the request. It
+       * can only turn an answer into a refusal, never widen one.
+       */
+      readonly unresolved?: Error;
+    };
 
 /**
  * Container name: `adminTenantScopePort`. Owner: `organizations`.
@@ -804,7 +815,12 @@ export type AdminTenantScope =
  * holds and never from request inputs (Principle XI). An admin whose role
  * confines them to assigned organizations answers the assigned set — expanded
  * to each assignment's subtree when the admin holds `organizations:rollup` —
- * and every other admin answers `allowAll`.
+ * and an admin holding any other role answers `allowAll`.
+ *
+ * **An admin with no role is refused, never widened.** An id that names no
+ * live administrator, or an administrator holding no role, answers the empty
+ * set with `unresolved` carrying a 403 `ADMIN_ROLE_REQUIRED`. Nothing answers
+ * `allowAll` for want of a role.
  *
  * **Its consumer is the platform's request-scope hook**, which establishes the
  * ambient tenant context from the authenticated actor before any handler runs.

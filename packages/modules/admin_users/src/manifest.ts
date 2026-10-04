@@ -181,6 +181,12 @@ export const manifest = defineModuleManifest({
     },
   ],
   permissions: [{ code: 'customers:impersonate', label: 'Impersonate customers' }],
+  /**
+   * Raised by `AdminUserService` when a create or an edit would leave an
+   * account without a role. The noun is this module's own row and both raise
+   * sites are in this module.
+   */
+  errorCodes: [{ code: 'ADMIN_USER_ROLE_REQUIRED' }],
   demo,
   // Feature 072/073 (Constitution XVII) — this module owns the admin login
   // route, the admin session and the impersonation flow. Switched off, nobody

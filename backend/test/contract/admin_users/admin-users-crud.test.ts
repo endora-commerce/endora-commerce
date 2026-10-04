@@ -94,6 +94,7 @@ describe('Admin users CRUD', () => {
         password: 'super-strong-pass-123!',
         firstName: 'Dup',
         lastName: 'Email',
+        adminRoleId: READ_ONLY_ROLE_ID,
       },
     });
     expect(res.statusCode).toBe(409);

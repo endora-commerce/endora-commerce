@@ -172,6 +172,10 @@ export const ERROR_CODES = {
   // Admin users / roles
   ADMIN_ROLE_CODE_TAKEN: 'ADMIN_ROLE_CODE_TAKEN',
   ADMIN_ROLE_IN_USE: 'ADMIN_ROLE_IN_USE',
+  /** The acting administrator holds no role, so nothing says what they may do or reach. */
+  ADMIN_ROLE_REQUIRED: 'ADMIN_ROLE_REQUIRED',
+  /** A write would leave an administrator account without a role. */
+  ADMIN_USER_ROLE_REQUIRED: 'ADMIN_USER_ROLE_REQUIRED',
 
   // Settings (feature 004)
   SETTING_NOT_REGISTERED: 'SETTING_NOT_REGISTERED',

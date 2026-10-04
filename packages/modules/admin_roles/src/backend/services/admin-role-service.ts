@@ -5,6 +5,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { AdminRole } from '../entities/admin-role.entity.js';
+import { PLATFORM_ADMINISTRATOR_ROLE_CODE } from './platform-administrator-role.js';
 import type { PermissionCatalogueService } from './permission-catalogue.service.js';
 
 /**
@@ -16,6 +17,8 @@ import type { PermissionCatalogueService } from './permission-catalogue.service.
  *     to exactly `['*']` (a role is either "full access" or an explicit list).
  *   - the bootstrap `platform_admin` role is locked to `['*']`: it always has
  *     full access and its permission set cannot be downgraded from the UI.
+ *   - the `platform_admin` role cannot be deleted at all (409), assigned or not:
+ *     it is the role installation guarantees.
  *   - a Role with assigned AdminUsers cannot be deleted (409); reassign or
  *     deactivate the users first. A **soft-deleted** admin still counts
  *     (issue #168): restoring the account restores its role, so the assignment
@@ -26,10 +29,11 @@ import type { PermissionCatalogueService } from './permission-catalogue.service.
 const WILDCARD = '*';
 
 /**
- * The bootstrap super-admin role. Its permission set is forced to the wildcard
- * on every upsert so it can never be locked out of the panel.
+ * The platform-administrator role. Its permission set is forced to the wildcard
+ * on every upsert so it can never be locked out of the panel, and it is never
+ * deletable — see `platform-administrator-role.ts`.
  */
-const PLATFORM_ADMIN_CODE = 'platform_admin';
+const PLATFORM_ADMIN_CODE = PLATFORM_ADMINISTRATOR_ROLE_CODE;
 
 export interface UpsertAdminRoleInput {
   code: string;
@@ -123,7 +127,7 @@ export function protectedRoleRefusal(code: string): HttpError {
   return new HttpError(
     409,
     ERROR_CODES.ADMIN_ROLE_PROTECTED,
-    `Cannot delete the system-protected role "${code}". Modules' seeded roles are immutable.`,
+    `Cannot delete the system-protected role "${code}". Roles the platform or a module seeds are immutable.`,
     { role: code },
   );
 }
@@ -207,7 +211,12 @@ export class AdminRoleService {
     const em = this.emFactory();
     const role = await em.findOne(AdminRole, { id });
     if (!role) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Admin role not found.');
-    if (SYSTEM_ROLE_CODES.has(role.code)) throw protectedRoleRefusal(role.code);
+    // The platform-administrator role is protected by its code, not by the
+    // registry: that set is filled at boot by the modules that seed a role, and
+    // the role installation guarantees must not depend on a hook having run.
+    if (role.code === PLATFORM_ADMIN_CODE || SYSTEM_ROLE_CODES.has(role.code)) {
+      throw protectedRoleRefusal(role.code);
+    }
     // Every assignee a restore returns, live or binned (issue #168).
     //
     // A soft delete does not release the assignment: the row keeps its

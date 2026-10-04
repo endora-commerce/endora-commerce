@@ -35,6 +35,9 @@ danych — izolacja działa więc nawet wtedy, gdy usługa zapomni o jawnym filt
   zawężany tak samo, gdy moduł `organizations`, `admin_users` lub `admin_roles` jest nieobecny:
   trasy operujące na danych globalnych nadal odpowiadają, a pierwszy odczyt objęty izolacją
   odpowiada kodem 503 `MODULE_DISABLED` ze wskazaniem nieobecnego modułu zamiast pustym wynikiem.
+  **Administrator bez roli jest odrzucany w ten sam sposób**: zasięg wynika z roli, więc bez niej
+  administrator nie ma dostępu do żadnej organizacji, a pierwszy odczyt objęty izolacją odpowiada
+  kodem 403 `ADMIN_ROLE_REQUIRED` — brak roli nigdy nie oznacza „wszystkie organizacje”.
   `ComposeAppOptions.buildTenantContext` zastępuje mapowanie we wdrożeniu, które tego potrzebuje,
   a zamiennik jest odrzucany — żądanie kończy się błędem — gdy na żądanie klienta lub klucza API
   powiązanego z organizacją odpowiada kontekstem `system` albo `all`, a na żądanie administratora

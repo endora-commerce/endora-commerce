@@ -71,7 +71,7 @@ export const SALES_REPRESENTATIVE_PERMISSIONS: readonly string[] = [
  * assigns.
  */
 export const DEMO_ADMIN_ROLES: readonly DemoAdminRoleRow[] = [
-  { code: 'platform_admin', name: 'Platform Admin', permissions: ['*'] },
+  { code: 'platform_admin', name: 'Platform administrator', permissions: ['*'] },
   {
     code: 'sales_representative',
     name: 'Sales representative',
@@ -79,5 +79,14 @@ export const DEMO_ADMIN_ROLES: readonly DemoAdminRoleRow[] = [
   },
 ];
 
-/** The codes `reset` withdraws — derived from the rows, never a second list. */
-export const DEMO_ADMIN_ROLE_CODES: readonly string[] = DEMO_ADMIN_ROLES.map((row) => row.code);
+/**
+ * The codes `reset` withdraws — derived from the rows, never a second list.
+ *
+ * **`platform_admin` is not among them.** The demo signs in with that role but
+ * does not own it: installation creates it on every instance and the
+ * administrator an operator made for themselves holds it, so `seed` finds it
+ * already there and withdrawing the demo must leave it where it was.
+ */
+export const DEMO_ADMIN_ROLE_CODES: readonly string[] = DEMO_ADMIN_ROLES.map(
+  (row) => row.code,
+).filter((code) => code !== 'platform_admin');

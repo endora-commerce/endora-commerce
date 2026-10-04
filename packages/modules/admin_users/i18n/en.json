@@ -1,5 +1,6 @@
 {
   "nav.adminUsers.label": "Users",
   "actions.openAdminUsers.label": "Admin users",
-  "actions.openAdminUsers.description": "Accounts that can sign in to the Admin UI"
+  "actions.openAdminUsers.description": "Accounts that can sign in to the Admin UI",
+  "errors.ADMIN_USER_ROLE_REQUIRED": "An administrator account must hold a role. Choose a role for this account."
 }

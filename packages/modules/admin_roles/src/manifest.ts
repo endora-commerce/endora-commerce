@@ -1,4 +1,9 @@
-import { defineModuleManifest, type ModuleDemoManifest } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  type ModuleDemoManifest,
+  type ModuleInstallHook,
+} from '@endora-commerce/contracts';
+import type { EntityManager } from '@mikro-orm/postgresql';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
@@ -193,5 +198,34 @@ export const manifest = defineModuleManifest({
     { code: 'ADMIN_ROLE_CODE_TAKEN' },
     { code: 'ADMIN_ROLE_IN_USE', tokens: ['assigned', 'assigned_to_deleted'] },
     { code: 'ADMIN_ROLE_PROTECTED' },
+    // An administrator acting without a role. Raised by this module's
+    // permission check, and carried by `organizations`' admin tenant scope to
+    // the first tenant-scoped read — one refusal, built in one place
+    // (`services/permission-service.ts`).
+    { code: 'ADMIN_ROLE_REQUIRED' },
   ],
 });
+
+/**
+ * Installation guarantees the platform-administrator role.
+ *
+ * An administrator must hold a role, so the role an administrator is given by
+ * default exists before the first one is created — on every instance, with or
+ * without demo data. Idempotent, as the hook contract requires: a re-run finds
+ * the row and leaves an operator's rename alone.
+ *
+ * The body is reached by a relative `await import()` for the reason the demo
+ * bodies above are: a manifest is loaded by every process that composes the
+ * platform, and an entity imported at the top of this file would be on all of
+ * their graphs. `registerModule` runs the same function at boot, which is what
+ * covers an instance installed before this hook existed.
+ */
+export const installHook: ModuleInstallHook = async (ctx) => {
+  const { ensurePlatformAdministratorRole } = await import(
+    './backend/services/platform-administrator-role.js'
+  );
+  // The registry types every hook over an unknown `em`; the orchestrator hands
+  // each one the lifecycle's own PostgreSQL EntityManager.
+  const outcome = await ensurePlatformAdministratorRole(ctx.em as EntityManager);
+  ctx.log.info(`platform-administrator role (platform_admin): ${outcome}`);
+};

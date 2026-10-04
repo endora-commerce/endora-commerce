@@ -88,7 +88,8 @@ export interface AdminActionsServiceDeps {
    * boundary with them.
    */
   i18nService: AdminI18nTranslatePort;
-  permissionService: PermissionReadPort;
+  /** Only the permission list is read here, so only that much is asked for. */
+  permissionService: Pick<PermissionReadPort, 'listPermissions'>;
   log?: { info(msg: string): void; warn(msg: string): void };
   /**
    * Feature 073 / issue #225 / issue #187 — **both** presence axes and the
@@ -168,7 +169,7 @@ export const ADMIN_ACTIONS_CACHE_NAMESPACE = 'admin_actions';
 export class AdminActionsService {
   private readonly em: () => EntityManager;
   private readonly i18nService: AdminI18nTranslatePort;
-  private readonly permissionService: PermissionReadPort;
+  private readonly permissionService: Pick<PermissionReadPort, 'listPermissions'>;
   private readonly presence: ModulePresenceProbe;
   private readonly cache = new Map<string, ListVisibleResult>();
   /** Presence generation every snapshot currently in {@link cache} was built under. */

@@ -37,7 +37,11 @@ service forgets an explicit filter.
   same way while `organizations`, `admin_users` or `admin_roles` is absent:
   routes over global data keep answering, and the first tenant-scoped read
   answers 503 `MODULE_DISABLED` naming the absent module rather than an empty
-  result. `ComposeAppOptions.buildTenantContext`
+  result. **An admin who holds no role is refused the same way**: the reach is
+  read off the role, so without one the admin reaches no organization and the
+  first tenant-scoped read answers 403 `ADMIN_ROLE_REQUIRED` — the absence of a
+  role is never read as "every organization".
+  `ComposeAppOptions.buildTenantContext`
   replaces the mapping for a deployment that needs to, and a replacement is
   refused — the request fails — when it answers a customer or a bound API key
   with a `system` or `all` context, or an admin with a `system` one.
