@@ -82,7 +82,14 @@ import { ModuleDisabledError } from './lifecycle/plugin-helpers.js';
 export interface ActorTenantScopeSources {
   /** `customer_accounts`' roll-up decision. */
   customerRollupScope(): CustomerRollupScopePort | undefined;
-  /** `organizations`' tree traversal: an organization and everything beneath it. */
+  /**
+   * `organizations`' tree traversal: an organization and everything beneath it.
+   *
+   * `undefined` says the composition has no traversal. Anything else must be
+   * safe to hand over **unasked**: the mapping obtains it for every customer
+   * and only a roll-up account ever calls it, so an owner that is absent has
+   * to refuse at `subtreeIds`, not here.
+   */
   organizationSubtree(): { subtreeIds(organizationId: string): Promise<string[]> } | undefined;
   /** `organizations`' answer for the reach of an admin. */
   adminTenantScope(): AdminTenantScopePort | undefined;
@@ -223,6 +230,14 @@ async function adminScopeOrNone(
  * than a failure. A **registered** name is resolved on every call, so a gated
  * port keeps answering for its owner's current state and its refusal reaches
  * the caller.
+ *
+ * The tree traversal is the one whose cradle read is **deferred to its use**.
+ * The mapping takes it for every customer and hands it to the roll-up port as a
+ * callback, which only a roll-up account invokes. Resolving it up front would
+ * make a gated `organizationTreeService` refuse every signed-in customer while
+ * its owner is absent, where the only request that needs the tree is the one
+ * that walks it. Whether the name is registered is still answered eagerly:
+ * that is what decides between "no traversal here" and "ask when needed".
  */
 export function containerTenantScopeSources(container: KernelContainer): ActorTenantScopeSources {
   const read = <T>(name: string): T | undefined =>
@@ -232,7 +247,16 @@ export function containerTenantScopeSources(container: KernelContainer): ActorTe
   return {
     customerRollupScope: () => read<CustomerRollupScopePort>('customerRollupScopePort'),
     organizationSubtree: () =>
-      read<{ subtreeIds(organizationId: string): Promise<string[]> }>('organizationTreeService'),
+      container.hasRegistration('organizationTreeService')
+        ? {
+            subtreeIds: async (organizationId: string) =>
+              (
+                read<{ subtreeIds(organizationId: string): Promise<string[]> }>(
+                  'organizationTreeService',
+                ) as { subtreeIds(organizationId: string): Promise<string[]> }
+              ).subtreeIds(organizationId),
+          }
+        : undefined,
     adminTenantScope: () => read<AdminTenantScopePort>('adminTenantScopePort'),
   };
 }
