@@ -1,5 +1,22 @@
 # @endora-commerce/mod-google-tag-manager
 
+## 0.103.0
+
+### Patch Changes
+
+- 12f4367: `POST /api/v1/storefront/google-tag-manager/collect` no longer enqueues relay jobs for a sales
+  channel whose server-side tagging is not configured (the switch is off, or the server container
+  URL is blank). It answers `202` with `accepted: 0`. Before, any instance with Redis wrote one job
+  per storefront event onto `google_tag_manager.ss.relay`, and the worker read the same empty address
+  and dropped each one. Nothing was ever sent anywhere; the change removes the queue traffic.
+  `makeEnqueuer` takes a second, required argument that answers whether a channel relays.
+- Updated dependencies [d0e76fd]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes

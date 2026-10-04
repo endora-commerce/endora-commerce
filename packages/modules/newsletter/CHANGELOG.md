@@ -1,5 +1,28 @@
 # @endora-commerce/mod-newsletter
 
+## 0.103.0
+
+### Minor Changes
+
+- d0e76fd: Newsletter campaigns and automations render the e-mail blocks other modules contribute through `emailBlockRendererRegistry`, under the same rules as transactional e-mail: a switched-off module's block contributes nothing, and a renderer that throws is logged and does not stop the message. Adds the `pageBuilder.blockPreview.unavailable` string (English and Polish).
+
+### Patch Changes
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/admin-kit@0.103.0
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/email-components@0.103.0
+  - @endora-commerce/page-builder-admin@0.103.0
+  - @endora-commerce/page-builder-core@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Minor Changes

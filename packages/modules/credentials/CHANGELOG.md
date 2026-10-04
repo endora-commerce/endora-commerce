@@ -1,5 +1,24 @@
 # @endora-commerce/mod-credentials
 
+## 0.103.0
+
+### Patch Changes
+
+- c13dc4f: Saving or resolving a credential on an instance with no usable `SETTINGS_SECRET_ENCRYPTION_KEY`
+  now answers `500 SETTING_SECRET_KEY_MISSING` with a message naming the variable — and, for a key
+  of the wrong length, how long it must be — instead of `500 INTERNAL` "Internal server error.".
+  `POST` and `PUT /api/v1/admin/credentials` and `CredentialsPort.resolve` are the three places
+  affected. It is the code `@endora-commerce/mod-settings` already raises for the same key. The
+  write still fails closed: nothing is stored and nothing is decrypted.
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/admin-kit@0.103.0
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes

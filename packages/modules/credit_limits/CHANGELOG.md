@@ -1,5 +1,26 @@
 # @endora-commerce/mod-credit-limits
 
+## 0.103.0
+
+### Minor Changes
+
+- 9eb7ed9: `creditLimitReadPort` answers which orders still hold credit.
+
+  The module's implementation of `CreditLimitReadPort` gains `activeReservationsForOrders(orderIds)`: the reservations with `status = 'active'` for the given orders, as `{ orderId, amount, currency }`. `orders`' repair command uses it to list cancelled or paid orders that still hold credit before releasing anything. An empty input answers `[]` without a query.
+
+  `releaseByOrder` is unchanged. With `credit_limits` switched off, an order placed on credit can now be cancelled or marked paid, and its reservation is released once the module is switched back on; placing a new order against a credit limit is still refused while the module is off.
+
+### Patch Changes
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/admin-kit@0.103.0
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes

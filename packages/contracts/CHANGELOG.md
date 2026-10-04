@@ -1,5 +1,78 @@
 # @endora-commerce/contracts
 
+## 0.103.0
+
+### Minor Changes
+
+- d0e76fd: A module's `./admin` layer may contribute editor renderers for its own Page Builder blocks: `AdminContributions` gains an optional `blocks` array of `AdminBlockContribution` (`{ name, context: 'cms' | 'email', component }`), with `AdminBlockContributionSchema` for the data half. New `EmailBlockRendererRegistryPort<R>` and `EmailBlockRendererRegistrationResult` describe the container name `emailBlockRendererRegistry`, which `email` owns and a module registers its e-mail block renderers into from `ctx.onBoot`. Additive: a contribution set without `blocks` is unchanged.
+- 9eb7ed9: Two read methods, one optional response field and one partial-response schema, for order transitions that record what they owe.
+  - `InventoryStockReadPort.unreleasedAllocationsForOrderItems(orderItemIds)` answers the stock allocations still held for the given order items, as `{ orderItemId, warehouseId, quantity }`.
+  - `CreditLimitReadPort.activeReservationsForOrders(orderIds)` answers the credit reservations still active for the given orders, as `{ orderId, amount, currency }`, with `amount` the decimal string the reservation stores.
+  - `orderSchema` gains an optional `pendingEffects` array (`orderPendingEffectSchema`, type `OrderPendingEffect`; the closed set of effects is `ORDER_TRANSITION_EFFECTS`). It is carried by the admin order responses only, and only while a stock or credit release of the order is outstanding.
+  - `orderCommittedWritePartialSchema` and `orderCommittedWritePartialResponseSchema` (types `OrderCommittedWritePartial`, `OrderCommittedWritePartialResponse`) describe what `POST /api/v1/admin/orders/:id/status`, `POST /api/v1/admin/orders/:id/payment-status` and `POST /api/v1/orders/:id/cancel` answer when the change committed but the order could not be read back for the response: `{ data: { id, businessId, status, paymentStatus }, meta: { partial: true } }`. **A client of those three routes should check `meta?.partial` before treating `data` as an order** — the partial body does not parse with `orderSchema`.
+
+  Nothing existing changes shape, so a caller of either port and a consumer of the order response need no change.
+
+  **If you implement `InventoryStockReadPort` or `CreditLimitReadPort` yourself** — a test double, or an alternative owner of the port — this is a compile break: add the new method. An implementation with nothing to report answers `[]`.
+
+### Patch Changes
+
+- f052b7f: **Tenant isolation fix for scaffolded instances — upgrade.** Every instance scaffolded from the
+  published packages up to and including 0.102.0 is affected. In such an instance requests were not
+  confined to the organization of the customer or API key making them, and an admin's scope was not
+  resolved from the admin's role: every request ran in the platform's system tenant scope, and
+  audit entries written through the Command Bus did not record the acting admin. The fix is to
+  upgrade; nothing in the instance has to be edited.
+
+  **Upgrade all `@endora-commerce/*` packages together.** The platform reads the admin's scope
+  from a port `@endora-commerce/mod-organizations` registers from this version on. With the
+  platform upgraded and that package left behind, every admin — a platform administrator included —
+  is confined to no organization and organization-scoped screens are empty; the platform logs a
+  warning at boot naming `adminTenantScopePort` when that is the case.
+
+  `composeApp` used to leave the actor → tenant-context mapping to its caller and fall back to a
+  system context when none was supplied, which is what an instance's entry point does. The mapping
+  is the platform's own now and every composition gets it:
+  - a customer is confined to its organization, widened to that organization's subtree only for an
+    account with roll-up enabled;
+  - an admin gets the scope its role resolves to — every organization, or the organizations
+    assigned to a sales representative;
+  - an API key bound to an organization is confined to that organization and its service account;
+  - system scope remains for a request that identifies nobody (anonymous traffic, an unbound API
+    key) and for work with no request at all.
+
+  It fails closed. A composition that does not register the ports the mapping reads confines
+  rather than widens: a customer stays on its own organization and an admin reaches no
+  organization. The same holds for an admin while `organizations`, `admin_users` or `admin_roles`
+  is absent: the admin holds no organization, routes over global data keep answering, and a route
+  that reads organization data answers 503 `MODULE_DISABLED` naming the absent module.
+
+  One behaviour an operator will notice after upgrading: an admin route requested from a browser
+  that also holds a customer session — which is the case while an admin is impersonating a
+  customer — runs in that customer's tenant scope, so admin screens show that customer's
+  organization only until the customer session ends. In an affected instance those requests were
+  not confined at all.
+
+  For a host that composes the platform itself:
+  - `ComposeAppOptions.buildTenantContext` is still accepted and should normally be omitted. A
+    supplied mapping is now refused, and the request fails, when it answers a customer or an API
+    key bound to an organization with a `system` or `all` context, or an admin with a `system`
+    context.
+  - `@endora-commerce/mod-organizations` registers a new port, `adminTenantScopePort`
+    (`AdminTenantScopePort` and `AdminTenantScope` in `@endora-commerce/contracts`):
+    `resolveForAdmin(adminUserId)` answers `{ allowAll: true }` or
+    `{ allowAll: false, allowedOrganizationIds }`. The platform reads it by container name; a
+    composition that replaces `organizations` should register its own.
+
+- 2b339d3: `addressSnapshotSchema.phone` is now `string | null | undefined`; it was `string | undefined`. An
+  order has always answered `phone: null` in `deliveryAddress` and `billingAddress` when the source
+  address carries no phone number, so every order response with such an address was refused by the
+  published `orderSchema` — a consumer parsing `GET /api/v1/orders/:id`, the order lists, the admin
+  order detail or the external order routes with it got a `ZodError` on a correct response. Nothing
+  on the wire changes; the schema now accepts what the API sends. The inferred `AddressSnapshot` and
+  `Order` types widen with it, so TypeScript code that passed `order.deliveryAddress.phone` where a
+  `string | undefined` is required has to handle `null`. `companyName` and `taxId` are unchanged.
+
 ## 0.102.0
 
 ## 0.101.1

@@ -1,5 +1,21 @@
 # @endora-commerce/mod-search
 
+## 0.103.0
+
+### Patch Changes
+
+- 1c9e6f3: `POST /api/v1/admin/search/reindex` answers `503 SEARCH_BACKEND_UNAVAILABLE` in the error envelope
+  when Meilisearch is unreachable or refuses the request (a rejected API key, for example), with the
+  client's own message. It used to answer an untyped `500 INTERNAL`, while the storefront's suggest
+  route already gave a buyer the typed refusal for the same condition. A failure that is not the
+  search engine's is still a 500.
+- Updated dependencies [d0e76fd]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes

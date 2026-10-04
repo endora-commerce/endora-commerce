@@ -1,5 +1,19 @@
 # @endora-commerce/admin-kit
 
+## 0.103.0
+
+### Minor Changes
+
+- d0e76fd: `AdminContributionsProvider` also carries the `blocks` each module contributes, and `@endora-commerce/admin-kit/zones` exports `useBlockContributions(context)` — the editor renderers the present modules contribute for `cms` or `email`, with no factory evaluated — together with `selectBlockContributions`, `OwnedBlockContribution` and `BlockContributionContext`. A block a module contributes under a name another module owns is dropped.
+
+### Patch Changes
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/contracts@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes
