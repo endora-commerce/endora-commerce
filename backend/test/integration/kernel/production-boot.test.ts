@@ -5,6 +5,18 @@ import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
 import { buildServer } from '@endora-commerce/platform/composition';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import { REGISTERED_MANIFESTS } from '../../../src/lifecycle/registered-manifests.js';
+import { enterSystemScope } from '@endora-commerce/platform/kernel';
+import { seedOrder, type PgClient } from '../../../scripts/acceptance/instance-actor-scope.js';
+import { AdminRole, AdminUser } from '../../helpers/package-entities.js';
+import {
+  seedOtherTestOrganization,
+  seedTestOrganizations,
+} from '../../helpers/seed-organizations.js';
+import {
+  OTHER_TEST_ORGANIZATION_ID,
+  TEST_CUSTOMER_ID,
+  TEST_ORGANIZATION_ID,
+} from '../../helpers/test-actors.js';
 
 /**
  * The production root actually boots (feature 072, D-40).
@@ -254,6 +266,182 @@ describe('the production composition root boots', () => {
           requestIds: ['escape-hatch-audit-probe'],
         },
       });
+    });
+  });
+  /**
+   * The route decides which session scopes a request (Principle XI).
+   *
+   * Asserted on the production root because the chain it depends on is this
+   * root's and nothing else's: `auth`'s real plugin resolving two real session
+   * cookies, the platform's scope hook opening the request's tenant context
+   * from the ambient actor, and `auth`'s guard — a route-level `preHandler`,
+   * so later than both — settling which session the route accepts. The harness
+   * assigns its own actor over the plugin's and builds its own mapping, so a
+   * request that is authorized as one actor and scoped as another there is a
+   * different defect from the same one here.
+   *
+   * The fixture is two organizations, an order of each written as a row (the
+   * acceptance run's own insert, for its reason: placing one needs a delivery
+   * and a payment method this boot has not configured), a member of the first,
+   * and an administrator holding every permission.
+   */
+  describe('a browser holding an admin session and a customer session', () => {
+    const ADMIN_ID = '00000000-0000-4000-8000-0000000000d7';
+    let cookies: { b2b_admin_session: string; b2b_session: string };
+    let impersonating: { b2b_admin_session: string; b2b_session: string };
+    let ownOrderId: string;
+    let foreignOrderId: string;
+
+    interface OrderList {
+      readonly status: number;
+      readonly orderIds: string[];
+    }
+
+    async function orderList(url: string, sent: Record<string, string>): Promise<OrderList> {
+      const response = await app!.inject({ method: 'GET', url, cookies: sent });
+      const rows = (response.json() as { data?: Array<{ id: string }> }).data ?? [];
+      return { status: response.statusCode, orderIds: rows.map((row) => row.id) };
+    }
+
+    async function auditRowsAbout(
+      objectId: string,
+      since: Date,
+    ): Promise<Array<{ actor_admin_user_id: string | null; impersonated: string | null }>> {
+      return composition!.orm.em
+        .fork()
+        .getConnection()
+        .execute(
+          `select actor_admin_user_id, impersonated_customer_account_id as impersonated
+             from audit_log_entries
+            where object_id = ? and acted_at >= ?
+            order by acted_at`,
+          [objectId, since],
+        );
+    }
+
+    beforeAll(async () => {
+      await enterSystemScope(
+        'test: seed two organizations, an order of each and an administrator',
+        async () => {
+          const em = composition!.orm.em.fork();
+          await seedTestOrganizations(em);
+          await seedOtherTestOrganization(em);
+          const role = em.create(AdminRole, {
+            code: 'two_sessions_admin',
+            name: 'Two sessions admin',
+            permissions: ['*'],
+          });
+          await em.persistAndFlush(role);
+          await em.persistAndFlush(
+            em.create(AdminUser, {
+              id: ADMIN_ID,
+              email: 'two-sessions-admin@example.com',
+              passwordHash: 'x'.repeat(60),
+              firstName: 'Two',
+              lastName: 'Sessions',
+              adminRoleId: role.id,
+              status: 'active',
+            }),
+          );
+
+          const connection = em.getConnection();
+          const client: PgClient = {
+            query: async <Row>(text: string, values: readonly unknown[] = []) => ({
+              rows: (await connection.execute(text.replace(/\$\d+/g, '?'), [...values])) as Row[],
+            }),
+          };
+          const channel = await client.query<{ id: string }>(
+            'select id from sales_channels order by created_at asc limit 1',
+          );
+          const salesChannelId = channel.rows[0]!.id;
+          ownOrderId = await seedOrder(
+            client,
+            { organizationId: TEST_ORGANIZATION_ID, customerAccountId: TEST_CUSTOMER_ID },
+            salesChannelId,
+          );
+          foreignOrderId = await seedOrder(
+            client,
+            { organizationId: OTHER_TEST_ORGANIZATION_ID, customerAccountId: TEST_CUSTOMER_ID },
+            salesChannelId,
+          );
+        },
+        { entryPoint: 'cli', container: composition!.container },
+      );
+
+      const sessions = composition!.container.cradle['sessionService'] as {
+        createSession(input: Record<string, string>): Promise<{ cookieValue: string }>;
+      };
+      const admin = await sessions.createSession({ kind: 'admin', adminUserId: ADMIN_ID });
+      const customer = await sessions.createSession({
+        kind: 'customer',
+        customerAccountId: TEST_CUSTOMER_ID,
+      });
+      const impersonation = await sessions.createSession({
+        kind: 'impersonation',
+        customerAccountId: TEST_CUSTOMER_ID,
+        impersonatorAdminUserId: ADMIN_ID,
+      });
+      cookies = { b2b_admin_session: admin.cookieValue, b2b_session: customer.cookieValue };
+      impersonating = {
+        b2b_admin_session: admin.cookieValue,
+        b2b_session: impersonation.cookieValue,
+      };
+    });
+
+    it('reads every organization`s orders on the admin route and the customer`s own on the buyer route', async () => {
+      const asAdmin = await orderList('/api/v1/admin/orders?pageSize=100', cookies);
+      const asCustomer = await orderList('/api/v1/orders?pageSize=100', cookies);
+
+      expect(asAdmin.status).toBe(200);
+      expect(asAdmin.orderIds).toEqual(expect.arrayContaining([ownOrderId, foreignOrderId]));
+      expect(asCustomer.status).toBe(200);
+      expect(asCustomer.orderIds).toContain(ownOrderId);
+      expect(asCustomer.orderIds).not.toContain(foreignOrderId);
+    });
+
+    it('reads the same two ways while impersonating', async () => {
+      const asAdmin = await orderList('/api/v1/admin/orders?pageSize=100', impersonating);
+      const asCustomer = await orderList('/api/v1/orders?pageSize=100', impersonating);
+
+      expect(asAdmin.orderIds).toEqual(expect.arrayContaining([ownOrderId, foreignOrderId]));
+      expect(asCustomer.orderIds).toContain(ownOrderId);
+      expect(asCustomer.orderIds).not.toContain(foreignOrderId);
+    });
+
+    it('re-parents an organization as the admin, and the audit names the admin', async () => {
+      for (const [sent, parentId] of [
+        [cookies, TEST_ORGANIZATION_ID],
+        [impersonating, null],
+      ] as const) {
+        const since = new Date();
+
+        const response = await app!.inject({
+          method: 'POST',
+          url: `/api/v1/admin/organizations/${OTHER_TEST_ORGANIZATION_ID}/parent`,
+          payload: { parentId },
+          cookies: sent,
+        });
+
+        expect(response.statusCode, response.body).toBe(200);
+        const rows = await auditRowsAbout(OTHER_TEST_ORGANIZATION_ID, since);
+        expect(rows.length).toBeGreaterThan(0);
+        for (const row of rows) {
+          expect(row.actor_admin_user_id).toBe(ADMIN_ID);
+          expect(row.impersonated).toBeNull();
+        }
+      }
+    });
+
+    it('refuses each route to the session it does not accept', async () => {
+      const adminRouteAsCustomer = await orderList('/api/v1/admin/orders', {
+        b2b_session: cookies.b2b_session,
+      });
+      const buyerRouteAsAdmin = await orderList('/api/v1/orders', {
+        b2b_admin_session: cookies.b2b_admin_session,
+      });
+
+      expect(adminRouteAsCustomer.status).toBe(401);
+      expect(buyerRouteAsAdmin.status).toBe(401);
     });
   });
 });

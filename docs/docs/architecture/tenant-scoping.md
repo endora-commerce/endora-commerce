@@ -41,6 +41,26 @@ service forgets an explicit filter.
   replaces the mapping for a deployment that needs to, and a replacement is
   refused — the request fails — when it answers a customer or a bound API key
   with a `system` or `all` context, or an admin with a `system` one.
+
+  **The route decides whose request it is, not which cookies are present.** One
+  browser can hold an admin session and a customer session at once — an operator
+  who is also signed in to the storefront, and every request made while
+  impersonating. The context is opened from the ambient actor, which is the
+  customer session whenever one is present, and the route's own gate settles it:
+  - a route behind `requireAdmin` runs as the admin and in the admin's scope, and
+    a Command it runs records the admin;
+  - a route behind `requireCustomer` runs as the customer and in the customer's
+    scope — during impersonation with the impersonating admin recorded beside
+    the customer;
+  - a route behind neither keeps the ambient actor's context;
+  - a gate refuses a request that carries only the other session. It never
+    falls back to that session's scope.
+
+  The gate is the one source for both answers. Once it has accepted an actor it
+  calls `scopeRequestToActor(request)` (`@endora-commerce/platform/kernel`), and
+  the platform derives the request's context again through the same mapping. A
+  module that publishes a gate of its own which chooses between sessions calls
+  it too; it takes no context, so it cannot be used to pick one.
 - **MikroORM global filters** (`org`, `customerAccount`) read the ambient context
   directly at query time and add the tenant predicate. Because they read the
   context per query (not per fork), they apply on `em.transactional` sub-forks and

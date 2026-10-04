@@ -73,9 +73,11 @@ declare module 'fastify' {
      * signed in to the storefront can coexist in one browser. `null` when the
      * request carries no admin cookie.
      *
-     * `promoteAdminActor` — `auth`'s implementation of the platform's
-     * `AdminActorPromotion` port — is what moves this into {@link actor} for an
-     * admin route whose ambient actor is a customer.
+     * `auth`'s admin guard is what moves this into {@link actor} for an admin
+     * route whose ambient actor is a customer, and it re-derives the request's
+     * tenant context from the admin in the same step
+     * (`scopeRequestToActor`, `../kernel/request-scope-hook.ts`) — the route
+     * decides which session a request runs as and is scoped by.
      */
     adminActor: ActorAdmin | null;
   }

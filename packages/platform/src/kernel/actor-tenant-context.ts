@@ -63,6 +63,16 @@ import { ModuleDisabledError } from './lifecycle/plugin-helpers.js';
  *    tenant-scoped read rather than raised here. See {@link adminScopeOrNone}
  *    for why that one arm does not refuse in the hook. It never widens.
  *
+ * ## Which actor
+ *
+ * `request.actor` **when the mapping is asked**, and it is asked twice for a
+ * request whose gate accepts a different actor from the ambient one: once by
+ * the scope hook in `onRequest`, and again when `auth`'s admin guard has put
+ * the admin session on a request that also carries a customer one
+ * (`scopeRequestToActor` in `./request-scope-hook.ts`). The mapping does not
+ * know or care which call it is — a context is always what the request's
+ * current actor may reach.
+ *
  * System scope is what remains for a request that identifies nobody: anonymous
  * traffic, whose guest-owned rows are scoped by their own token, and an API key
  * bound to no organization, whose surface is global data.

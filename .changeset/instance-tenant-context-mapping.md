@@ -35,11 +35,11 @@ organization. The same holds for an admin while `organizations`, `admin_users` o
 is absent: the admin holds no organization, routes over global data keep answering, and a route
 that reads organization data answers 503 `MODULE_DISABLED` naming the absent module.
 
-One behaviour an operator will notice after upgrading: an admin route requested from a browser
-that also holds a customer session — which is the case while an admin is impersonating a
-customer — runs in that customer's tenant scope, so admin screens show that customer's
-organization only until the customer session ends. In an affected instance those requests were
-not confined at all.
+A browser may hold an admin session and a customer session at once — an operator who is also
+signed in to the storefront, and every request made while impersonating a customer. The route
+decides which of the two a request runs as: an admin route runs in the admin's scope and a
+storefront route in the customer's, whichever cookies are present. Admin screens are therefore
+unaffected by a customer session in the same browser.
 
 For a host that composes the platform itself:
 

@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import type { RequireCustomerGuard } from '@endora-commerce/platform/kernel';
+import { scopeRequestToActor, type RequireCustomerGuard } from '@endora-commerce/platform/kernel';
 
 /**
  * The customer guard (issue #43). **One implementation**, shared by production
@@ -52,5 +52,12 @@ export function createRequireCustomer(): RequireCustomerGuard {
     if (actor?.kind !== 'customer') {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Customer session required.');
     }
+    // The customer side of the rule `require-admin.ts` states: the request is
+    // scoped to the actor its gate accepted. The plugin already makes the
+    // customer session the ambient actor whenever one is present — also beside
+    // an admin session, and during impersonation — so the context was derived
+    // from this actor and the call changes nothing. It is here so that the
+    // property is the gate's rather than a consequence of hook order.
+    await scopeRequestToActor(request);
   };
 }

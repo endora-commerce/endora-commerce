@@ -87,6 +87,12 @@ export interface AuthPluginOptions {
  * by the auth plugin) but its ambient `request.actor` is not already an admin,
  * promote the admin candidate. Admin guards call this so an admin route works
  * even when a customer session is simultaneously present on the same request.
+ *
+ * It changes who the request is authorized as and nothing else: the tenant
+ * context was derived from the ambient actor before any guard ran. The guards
+ * in `require-admin.ts` follow it with the platform's `scopeRequestToActor`, so
+ * the admin route is scoped as the admin too; anything else that promotes must
+ * do the same.
  */
 export function promoteAdminActor(request: FastifyRequest): void {
   const r = request as FastifyRequest & { adminActor?: ActorAdmin | null };

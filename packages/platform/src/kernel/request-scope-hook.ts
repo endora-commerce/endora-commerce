@@ -1,7 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import { SCOPE_NOTICE_CODES, type RequestMeta } from '@endora-commerce/contracts';
-import { getTenantContext, type TenantContext } from '../tenancy/tenant-context.js';
+import {
+  getTenantContext,
+  RequestTenantContextCell,
+  type TenantContext,
+} from '../tenancy/tenant-context.js';
 import { enterPlatformScope } from './scope.js';
 
 /**
@@ -41,6 +45,22 @@ import { enterPlatformScope } from './scope.js';
  * about to go out — and because a per-route flag is a flag somebody forgets.
  * Both composition roots register this hook, so neither can disclose less than
  * the other.
+ *
+ * ## The route's gate decides whose request it is
+ *
+ * This hook runs in `onRequest`, before any route-level `preHandler`, so the
+ * context it opens is derived from the actor the session cookies resolved to —
+ * and a browser may hold two sessions. The route's own gate is what settles
+ * which of them the request runs as, and it does so later. A context that
+ * stayed as first derived would leave a request authorized as one actor and
+ * scoped as another.
+ *
+ * So the context is held in a per-request cell, and {@link scopeRequestToActor}
+ * derives it again — through the same mapping, over the same request — when
+ * the gate has accepted an actor other than the one the context was derived
+ * from. Authorization and scope then have one source: the gate. There is no
+ * second declaration of a route's class to keep in step with it, which is what
+ * a URL prefix or a per-route flag would be.
  */
 
 export interface RequestScopeHookOptions {
@@ -61,6 +81,60 @@ function requestMetaOf(request: FastifyRequest): RequestMeta {
   };
 }
 
+/**
+ * What this hook remembers about one request: where its context lives, which
+ * actor that context was derived from, and the mapping that derived it.
+ *
+ * Keyed by the request and holding no reference back to it, so the cell — which
+ * is what the `AsyncLocalStorage` frame retains — pins neither the request nor
+ * the reply (see `createPlatformScope` in `scope.ts` for what that costs).
+ */
+interface RequestScopeBinding {
+  readonly cell: RequestTenantContextCell;
+  derivedFrom: unknown;
+  readonly buildTenantContext: (request: FastifyRequest) => Promise<TenantContext>;
+}
+
+const bindings = new WeakMap<FastifyRequest, RequestScopeBinding>();
+
+/** `request.actor`, or `undefined` where no auth plugin decorated one. */
+function actorOf(request: FastifyRequest): unknown {
+  return (request as { actor?: unknown }).actor;
+}
+
+/**
+ * Make the request's tenant context the one its **current** actor maps to.
+ *
+ * Called by a route gate once it has accepted an actor — `auth`'s admin and
+ * customer guards both do. When that actor is the one the context was derived
+ * from, which is every request carrying a single session, nothing happens.
+ * When the gate has put a different actor on the request — an admin route
+ * requested by a browser that also holds a customer session — the context is
+ * derived again by the composition's own mapping, with every refusal that
+ * mapping makes, and replaces the first for the rest of the request: the
+ * tenant filters, the Command Bus's audit actor and the scope notice all read
+ * the ambient context when they need it, not when the request began.
+ *
+ * It takes no context and no actor. What a request is scoped to stays a
+ * function of `request.actor` and the mapping, exactly as in `onRequest`; this
+ * only says *when* that function is asked again.
+ *
+ * It rejects when the mapping does, and the context is then left as it was —
+ * so a gate that awaits it refuses the request rather than letting it through
+ * on the earlier actor's scope.
+ *
+ * A request this hook never saw — a composition that mounts a gate without
+ * the scope hook — has nothing to rebind, and the call is a no-op.
+ */
+export async function scopeRequestToActor(request: FastifyRequest): Promise<void> {
+  const binding = bindings.get(request);
+  if (binding === undefined) return;
+  const actor = actorOf(request);
+  if (binding.derivedFrom === actor) return;
+  binding.cell.current = await binding.buildTenantContext(request);
+  binding.derivedFrom = actor;
+}
+
 export async function registerRequestScopeHook(
   app: FastifyInstance,
   options: RequestScopeHookOptions,
@@ -68,8 +142,17 @@ export async function registerRequestScopeHook(
   await app.register(
     fastifyPlugin(async (inner) => {
       inner.addHook('onRequest', (request, reply, done) => {
+        // Read before the mapping runs: the actor this context is derived
+        // from is the one on the request now.
+        const derivedFrom = actorOf(request);
         options.buildTenantContext(request).then(
           (tenant) => {
+            const cell = new RequestTenantContextCell(tenant);
+            bindings.set(request, {
+              cell,
+              derivedFrom,
+              buildTenantContext: options.buildTenantContext,
+            });
             void enterPlatformScope(
               tenant,
               () =>
@@ -77,7 +160,11 @@ export async function registerRequestScopeHook(
                   reply.raw.once('close', resolve);
                   done();
                 }),
-              { entryPoint: 'http', requestMeta: requestMetaOf(request) },
+              {
+                entryPoint: 'http',
+                requestMeta: requestMetaOf(request),
+                requestTenantCell: cell,
+              },
             ).catch((err: unknown) => {
               // Reaching here means the scope failed to close down, not that the
               // request failed — the response has already been written by then.

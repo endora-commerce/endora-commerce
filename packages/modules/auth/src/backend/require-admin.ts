@@ -1,10 +1,11 @@
 import type { FastifyRequest } from 'fastify';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import type {
-  AdminPermissionChecker,
-  RequireAdminAnyFactory,
-  RequireAdminFactory,
+import {
+  scopeRequestToActor,
+  type AdminPermissionChecker,
+  type RequireAdminAnyFactory,
+  type RequireAdminFactory,
 } from '@endora-commerce/platform/kernel';
 import { promoteAdminActor } from './plugin.js';
 
@@ -38,21 +39,39 @@ interface AdminActorSlice {
   readonly adminUserId: string;
 }
 
-function resolveAdminActor(request: FastifyRequest): AdminActorSlice | null {
+/**
+ * The admin this route accepts, with the request **scoped to that admin**.
+ *
+ * Two steps and they are one decision. A browser may hold an admin session and
+ * a customer session at once, and the plugin's `onRequest` hook makes the
+ * customer the ambient actor — which is the right answer for a storefront
+ * route and the wrong one here. Promotion puts the admin on the request; the
+ * platform then derives the request's tenant context from the actor the gate
+ * accepted, so an admin route is never authorized as the admin and scoped as
+ * the customer. The route decides, not which cookies happen to be present.
+ *
+ * `scopeRequestToActor` does nothing when the context was already derived from
+ * this actor — every request carrying the admin session alone. When it rejects,
+ * so does the guard: the request is refused rather than served in the scope of
+ * the session this route does not accept.
+ */
+async function resolveAdminActor(request: FastifyRequest): Promise<AdminActorSlice | null> {
   // `promoteAdminActor` dereferences `request.actor`. In production it is a
   // decorated getter that always answers; a composition root that mounts a
   // route without an actor resolver would otherwise turn a 401 into a 500.
   const carrier = request as FastifyRequest & { actor?: AdminActorSlice };
   if (carrier.actor !== undefined) promoteAdminActor(request);
   const actor = carrier.actor;
-  return actor?.kind === 'admin' ? actor : null;
+  if (actor?.kind !== 'admin') return null;
+  await scopeRequestToActor(request);
+  return actor;
 }
 
 /** Gate a route on an admin session, optionally holding one permission code. */
 export function createRequireAdmin({ permissionService }: RequireAdminDeps): RequireAdminFactory {
   return (permission?: string) =>
     async (request): Promise<void> => {
-      const actor = resolveAdminActor(request);
+      const actor = await resolveAdminActor(request);
       if (!actor) {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
       }
@@ -77,7 +96,7 @@ export function createRequireAdminAny({
 }: RequireAdminDeps): RequireAdminAnyFactory {
   return (codes) =>
     async (request): Promise<void> => {
-      const actor = resolveAdminActor(request);
+      const actor = await resolveAdminActor(request);
       if (!actor) {
         throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
       }
