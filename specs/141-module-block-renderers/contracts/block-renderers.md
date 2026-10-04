@@ -25,6 +25,10 @@ three; a package whose blocks are e-mail-only publishes `./email` and no `./stor
 `src/storefront/index.ts` and no `./storefront` subpath is **refused**, not skipped, exactly as
 `./admin` is (R4 of `admin-artefacts.ts`).
 
+**R1.2a** `./storefront` publishes its type declarations — a `types` condition, or a `.d.ts`
+beside its target. The storefront's generated registry imports the layer from TypeScript, and
+`blocks:generate` refuses a layer without them as `untyped-layer` (found by the acceptance run).
+
 **R1.3** `./storefront` and `./email` export an **object**, so a reach into another module's layer
 is a counted boundary reach under D-171 (`packages/cli/src/lib/module-package-subpaths.ts`), as a
 reach into `./admin` is.
@@ -50,6 +54,11 @@ export interface BlockRenderEnvironment {
 }
 export function useBlockRenderEnvironment(): BlockRenderEnvironment;
 ```
+
+> **As implemented** (plan § Deviations 1–3): `render` is typed `BlockRenderFunction`,
+> `(props: any) => ReactNode`; presence crosses the render boundary as
+> `BlockPresence = { absent: string[] }` — the modules the backend **reports** as not present — and
+> `withBlockBoundary` takes the surface's placeholder as a parameter.
 
 **R2.1 Keys.** Every key matches `blockNameRe`, its owner segment equals the package's
 `endora.id`, and its manifest declares that name with `'cms'` in `contexts`.
@@ -182,10 +191,10 @@ shape of `theme-discovery.mjs` (D-193/D-195):
 **R5.2.1 Composition order**, each step a pure function with its own test:
 `defaultPageBuilderConfig` → contributed blocks (a name already present is **kept** and the
 contribution logged; a name whose owner segment is not the contributing `moduleId` is dropped and
-logged) → `localBlocks` (same two rules, owner unchecked) → **presence**: every component whose
-`ownerOf(name)` is not present becomes `makeMissingComponentConfig(name, owner)` → every
-contributed/local component is wrapped by `withBlockBoundary` (§8) and gets its `defaultProps`
-merged under stored props.
+logged) → `localBlocks` (same two rules, owner unchecked) → every contributed/local component is
+wrapped by `withBlockBoundary` (§8) and gets its `defaultProps` merged under stored props →
+**presence**, last: every component whose `ownerOf(name)` the backend reports as not present becomes
+`makeMissingComponentConfig(name, owner)`, replacing the wrapped component.
 
 **R5.2.2** All five render sites (`PageBuilderRender.tsx`, `CmsPageRenderer.tsx`,
 `Megamenu/MenuCmsBlockEmbed.tsx`, `BlogPostBody.tsx`, `BlogCategoryPage.tsx`) render through
@@ -216,7 +225,7 @@ and still renders in the admin canvas.
 
 | Surface | Where presence is read | Absent owner |
 | --- | --- | --- |
-| Storefront | `getModulePresence()` (`storefront/lib/api/module-presence.ts`), passed to the render boundary as a serialisable `{ all: true } \| { ids: string[] }` | `makeMissingComponentConfig` → an empty span; the note under `?cms_admin=1` |
+| Storefront | `getModulePresence()` (`storefront/lib/api/module-presence.ts`), passed to the render boundary as a serialisable `{ absent: string[] }` — the ids the backend reports as not present (plan § Deviations 1; the draft read `{ all: true } \| { ids: string[] }`, under which an overlay module's block, whose owner the projection does not list, would never render) | `makeMissingComponentConfig` → an empty span; the note under `?cms_admin=1` |
 | Admin editor | the descriptor (already presence-filtered by the registry) | stored node → `withMissingBlockPlaceholders`; not in the palette |
 | E-mail | `EmailBlockRendererRegistry.renderers()` — policy **skip**, probe `effectiveState.presenceOf` injected at the registration (tri-state: `undefined` — an id no manifest declares, an overlay's — is **honoured**) | no renderer → `''` |
 
@@ -228,13 +237,34 @@ beside the existing registries.
 
 ## §8 — Failure isolation
 
-**R8.1 Storefront and admin canvas**: `withBlockBoundary(config, name, owner)` returns a config
-whose `render` (a) calls the module's `render` inside `try`/`catch` and renders the placeholder on a
-synchronous throw, and (b) wraps the result in a client error boundary that renders the placeholder
-on a throw below it. A server-side throw below the top level is caught by a `<Suspense>` boundary
-around the block, which makes React render the fallback on the server and retry on the client —
-**premise to verify in T01 before anything is built on it**, with `renderToString` (the storefront
-test harness) and with Next's streaming SSR.
+**R8.1 Storefront and admin canvas**: `withBlockBoundary(config, placeholder, options?)` returns a
+config whose `render` mounts the module's `render` **as a component** under a client error boundary
+**around** a `<Suspense>` boundary, with the surface's placeholder as the fallback of both. The
+module's render is not called inside `try`/`catch`: mounted below the boundaries, a throw at its
+top level is a throw below a boundary like any other, and its hooks belong to its own component.
+The placeholder is a parameter because `page-builder-core` sits below the package that owns it.
+The two boundaries are both needed and the order matters — measured in T01 (2026-10-03, React
+19.3.0, Next 15.5.27, spikes outside the tree, deleted):
+
+- **(a) Server-side throw below the top level.** Under `renderToString` **and** under
+  `renderToReadableStream`, a component that throws inside `<Suspense fallback={…}>` yields the
+  fallback and both siblings; the render does not throw, and `onError` receives the error. A class
+  error boundary **alone** does not do this — on the server `getDerivedStateFromError` is never
+  consulted and the whole render throws, under both renderers. So `<Suspense>` is what isolates the
+  server and the error boundary is what isolates the client, where React retries the boundary,
+  the renderer throws again, and the error boundary outside the `<Suspense>` renders the placeholder.
+  The client half of that sentence is React's documented behaviour and was **not** observed in a
+  browser by T01.
+- React marks the failed boundary with a `<template>` beside the fallback. A development build
+  writes the error's message and stack into it (`data-msg`, `data-stck`); a production build writes
+  a digest only (`data-dgst`). A test asserting "nothing of the block reached the HTML" must
+  therefore run against what the block **rendered**, not against the error's text.
+- **(b) `tsc` keeps a leading `'use client'`** as the first statement of the emitted `dist/*.js`.
+- **(c) Next 15.5.27, production build**: a page whose `'use client'` boundary statically imports a
+  package's `./storefront` subpath from `node_modules` (ESM `dist`, each file starting with
+  `'use client'`) builds, and `next start` server-renders the block's markup. With the block forced
+  to throw, the response is still `200`, both siblings are in the HTML, the fallback is in the
+  block's place, and the server logs the error with its digest.
 
 **R8.2 E-mail**: §3 R3.4.
 
@@ -250,7 +280,7 @@ and installs them into directories outside the repository.
 
 | | Assertion | How |
 | --- | --- | --- |
-| A1 | The packed fixture publishes `./admin`, `./storefront`, `./email`, `./blocks.css`, and `endora check` passes `check:block-renderers` on it | `pnpm pack`, then the CLI on the unpacked tarball |
+| A1 | The packed fixture publishes `./admin`, `./storefront`, `./email`, `./blocks.css`, and `endora check` passes `check:block-renderers` on it | `pnpm pack` and the tarball's own manifest and file list; the CLI on the built package directory (an unpacked tarball carries no build layout for `endora check` to read) |
 | A2 | A scaffolded instance with the fixture: `endora generate` names its `./admin` in the admin registry and its `./blocks.css` in the admin stylesheet; `vite build` succeeds and the bundle contains the marker | `endora new instance` + `endora generate` + `pnpm run build:admin` |
 | A3 | The CMS editor composition renders the marker for a document holding the block and exposes the manifest's fields | the admin's editor composition rendered with Puck `<Render>` through `react-dom/server`, descriptor fixture with the block present |
 | A4 | A scaffolded storefront with the fixture added: `blocks:generate` writes one entry; `next build` succeeds; SSR of a document holding the block contains the marker | `endora new storefront` + `pnpm add <tarball>` + build + a probe test run by the storefront's own vitest |

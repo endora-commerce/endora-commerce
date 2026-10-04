@@ -180,3 +180,53 @@ export type EmailMailerSendOutcome =
 export interface EmailMailerPort {
   send(input: EmailMailerSendInput): Promise<EmailMailerSendOutcome>;
 }
+
+// ---------------------------------------------------------------------------
+// Contributed e-mail block renderers (feature 141)
+// ---------------------------------------------------------------------------
+
+/** What `EmailBlockRendererRegistryPort.register` did with each offered name. */
+export interface EmailBlockRendererRegistrationResult {
+  readonly registered: readonly string[];
+  readonly refused: ReadonlyArray<{ readonly name: string; readonly reason: string }>;
+}
+
+/**
+ * Container name: `emailBlockRendererRegistry`. Owner: `email`.
+ *
+ * The table of e-mail block renderers the composed modules contribute
+ * (`specs/141-module-block-renderers/contracts/block-renderers.md` §5.3). A
+ * module imports its own `./email` layer and, from `ctx.onBoot`, registers it
+ * under its own id; `transactional_emails` and `newsletter` hand
+ * `renderers()` to the e-mail renderer on every send.
+ *
+ * **An ungated contribution registry** — `ctx.di.register`, never
+ * `providePort` — and `email` is non-deactivatable besides, so the edge cannot
+ * fail closed under a contributor. Its policy for an absent contributor is
+ * **skip**: `renderers()` leaves out every block whose owner an operator
+ * switched off, read on each call, so a block of a module that is off
+ * contributes nothing to an e-mail and comes back with no restart. An owner no
+ * manifest declares — an overlay module's id — is honoured.
+ *
+ * **`R` is the renderer shape, and this package does not name it.** The shape
+ * is `EmailBlockRenderer` from `@endora-commerce/email-components`, which is
+ * where the function that calls it lives; `contracts` is compiled by every
+ * process and acquires no dependency on it. A consumer writes
+ * `EmailBlockRendererRegistryPort<EmailBlockRenderer>`.
+ */
+export interface EmailBlockRendererRegistryPort<R = unknown> {
+  /**
+   * Offer `renderers`, keyed by block name, as `ownerModuleId`'s. A name whose
+   * owner segment is not `ownerModuleId` is refused — reported and logged,
+   * never thrown, because this is called from a boot hook and one wrong name
+   * must not stop the platform.
+   */
+  register(
+    ownerModuleId: string,
+    renderers: Readonly<Record<string, R>>,
+  ): EmailBlockRendererRegistrationResult;
+  /** The renderers whose owner is present, keyed by block name. */
+  renderers(): Readonly<Record<string, R>>;
+  /** Every registered name with its owner, whatever the owner's state. */
+  listAll(): ReadonlyArray<{ readonly name: string; readonly ownerModuleId: string }>;
+}

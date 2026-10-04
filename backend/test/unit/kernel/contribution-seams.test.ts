@@ -12,6 +12,7 @@ import { EnumOrderStatusRegistry as PaymentOrderStatusRegistry } from '../../../
 import { EnumOrderStatusRegistry as ShippingOrderStatusRegistry } from '../../../../packages/modules/delivery_methods/src/backend/services/order-status-registry.port.js';
 import { AssetReferenceRegistry } from '../../../../packages/modules/assets_library/src/backend/services/reference-registry.js';
 import { CmsReferenceRegistry } from '../../../../packages/modules/cms/src/backend/services/cms-reference-registry.js';
+import { EmailBlockRendererRegistry } from '../../../../packages/modules/email/src/backend/services/email-block-renderer-registry.js';
 import { EmailDefaultsRegistry } from '../../../../packages/modules/transactional_emails/src/backend/services/email-defaults-registry.js';
 import { registerCmsAssetReferences } from '../../../../packages/modules/cms/src/backend/services/asset-references.js';
 import { registerCatalogAssetReferences } from '../../../../packages/modules/catalog/src/backend/services/asset-references.js';
@@ -132,6 +133,10 @@ const SEAMS: ReadonlyArray<{ readonly owner: string; readonly name: string }> = 
   // from; gating the name would take the backend down for an operator who
   // switched invoicing off while a connector is composed.
   { owner: 'invoices', name: 'invoiceAttachmentFetchRegistry' },
+  // Feature 141: e-mail block renderers a module contributes. A contributor
+  // pushes its `./email` layer from a boot hook, and both e-mail producers read
+  // the table on every send.
+  { owner: 'email', name: 'emailBlockRendererRegistry' },
 ];
 
 /**
@@ -354,6 +359,41 @@ describe('InvoiceAttachmentFetchRegistry — an absent contributor’s provider 
     expect(flat(backendSource('invoices'))).toContain(
       flat('(moduleId) => effectiveState.isPresent(moduleId)'),
     );
+  });
+});
+
+describe('EmailBlockRendererRegistry — an absent contributor’s renderer is skipped', () => {
+  const renderer = { html: (): string => '<tr><td>points</td></tr>' };
+
+  it('states a skip policy', () => {
+    // A module that is off must contribute nothing to an outgoing message
+    // (feature 141, FR-015). The stored template keeps the node and its props,
+    // so nothing is lost with the skip.
+    expect(CONTRIBUTION_POLICY_STATED['email:emailBlockRendererRegistry']).toBe('skip');
+  });
+
+  it('wires the registry to the kernel effective state, tri-state', () => {
+    // `presenceOf`, not `isPresent`: an overlay module's id is one no manifest
+    // declares, and this is the only e-mail seam an overlay module has.
+    expect(flat(backendSource('email'))).toContain(
+      flat('new EmailBlockRendererRegistry((moduleId) => effectiveState.presenceOf(moduleId)'),
+    );
+  });
+
+  it('records the owner, skips an absent one and honours an unknown one', () => {
+    const presenceOf = (moduleId: string): boolean | undefined =>
+      moduleId === 'loyalty' ? false : moduleId === 'crm' ? true : undefined;
+    const registry = new EmailBlockRendererRegistry(presenceOf);
+    registry.register('crm', { 'crm.Badge': renderer });
+    registry.register('loyalty', { 'loyalty.Points': renderer });
+    registry.register('overlay_crm', { 'overlay_crm.Banner': renderer });
+
+    expect(Object.keys(registry.renderers())).toEqual(['crm.Badge', 'overlay_crm.Banner']);
+    expect(registry.listAll()).toEqual([
+      { name: 'crm.Badge', ownerModuleId: 'crm' },
+      { name: 'loyalty.Points', ownerModuleId: 'loyalty' },
+      { name: 'overlay_crm.Banner', ownerModuleId: 'overlay_crm' },
+    ]);
   });
 });
 

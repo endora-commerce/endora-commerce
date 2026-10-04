@@ -221,10 +221,9 @@ obejmuje `body` ze względu na zgodność wsteczną.
 
 ## Rozszerzanie Page Buildera
 
-Inne moduły backendu dodają komponenty przez interfejs w
-`packages/modules/cms/src/backend/services/page-builder-registry.ts`. Cały proces — deklarację
-opisu, dostarczenie komponentu wyświetlającego i podłączenie przy kompozycji — opisuje przewodnik
-[Rozszerzanie Page Buildera](./extending-page-builder).
+Inne moduły deklarują bloki we własnym manifeście i dostarczają komponenty wyświetlające we własnym
+pakiecie. Zob. przewodnik [Rozszerzanie Page Buildera](./extending-page-builder): deklaracja w
+manifeście, trzy warstwy i arkusz stylów bloków.
 
 ## Kody błędów
 

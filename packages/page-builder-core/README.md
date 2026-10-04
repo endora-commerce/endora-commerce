@@ -13,6 +13,7 @@ A shared library package of **Endora Commerce**, the modular B2B/B2C commerce pl
 - `@endora-commerce/page-builder-core`
 - `@endora-commerce/page-builder-core/*`
 - `@endora-commerce/page-builder-core/client`
+- `@endora-commerce/page-builder-core/contributions`
 - `@endora-commerce/page-builder-core/editor`
 - `@endora-commerce/page-builder-core/editor/carousel-preview`
 - `@endora-commerce/page-builder-core/editor/puck-guards`

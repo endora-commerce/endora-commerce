@@ -15,7 +15,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 0 — premises (measure; leave nothing in the tree)
 
-- [ ] **T00** Measure spec Q1. Scaffold a storefront from the packed CLI (`acceptance:storefront-scaffold`'s
+- [x] **T00** Measure spec Q1. Scaffold a storefront from the packed CLI (`acceptance:storefront-scaffold`'s
   tarball route), record `node_modules` size and package count, `pnpm add` one packed first-party
   module tarball (`@endora-commerce/mod-blog`), record again. Write both numbers and the list of
   peers pnpm auto-installed into plan.md's D2 as a measured fact. **If the delta is large, stop and
@@ -23,7 +23,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   Files: `specs/141-module-block-renderers/plan.md` only.
   **Test**: none — a measurement; the throwaway directory is deleted.
 
-- [ ] **T01** Verify contract §8's premises, in a throwaway spike outside the tree: (a) under
+- [x] **T01** Verify contract §8's premises, in a throwaway spike outside the tree: (a) under
   `react-dom/server` `renderToString` **and** `renderToReadableStream`, a component that throws
   inside `<Suspense fallback={…}>` yields the fallback and the siblings, not a thrown render;
   (b) `tsc` keeps a leading `'use client'` in emitted `dist/*.js`; (c) a Next 15 production build
@@ -35,14 +35,14 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 1 — shapes (contracts and host packages)
 
-- [ ] **T02** `AdminBlockContributionSchema`, `AdminBlockContribution`, `AdminContributions.blocks`
+- [x] **T02** `AdminBlockContributionSchema`, `AdminBlockContribution`, `AdminContributions.blocks`
   (contract §4), additive.
   Files: `packages/contracts/src/admin-contributions.ts`, its barrel export.
   **Test**: `backend/test/unit/contracts/admin-block-contribution.test.ts` — accepts `cms`/`email`,
   refuses a non-namespaced name, `invoice`, `newsletter`; an `AdminContributions` with no `blocks`
   still type-checks.
 
-- [ ] **T03** [P] E-mail renderer contract and host hook (contract §3): `EmailBlockRenderer(s)`,
+- [x] **T03** [P] E-mail renderer contract and host hook (contract §3): `EmailBlockRenderer(s)`,
   `EmailBlockRenderContext`; `renderEmailHtml` / `renderEmailText` take `blockRenderers` and
   `onBlockError`, consult them only in `default:`, merge `defaultProps` under props, give
   `renderSlot` the host's own node renderer, and derive text from HTML when `text` is absent.
@@ -53,7 +53,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   renderer yields `''` and one `onBlockError` call naming the block; text derived when `text` is
   absent; `defaultProps` applied; a slot renders through the host.
 
-- [ ] **T04** [P] `@endora-commerce/page-builder-core/contributions` (contract §2, §4, §5.2.1):
+- [x] **T04** [P] `@endora-commerce/page-builder-core/contributions` (contract §2, §4, §5.2.1):
   `StorefrontBlockConfig`, `StorefrontContributions`, `PageBuilderBlockEditorConfig`,
   `BlockRenderEnvironment` + provider + `useBlockRenderEnvironment`; pure
   `withContributedBlocks(config, entries)` (keep existing name, drop owner mismatch, report both),
@@ -64,7 +64,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   and reported; foreign owner dropped and reported; absent owner replaced, present kept,
   `{ all: true }` keeps all; every `cmsFieldDescriptorSchema` type maps to a Puck field.
 
-- [ ] **T05** `withBlockBoundary` (contract §8, as T01 measured it) and the `defaultProps` merge.
+- [x] **T05** `withBlockBoundary` (contract §8, as T01 measured it) and the `defaultProps` merge.
   Files: `packages/page-builder-core/src/contributions/block-boundary.tsx` (new).
   **Test**: `packages/page-builder-core/src/contributions/block-boundary.test.tsx` — SSR
   (`renderToString`, node environment, the storefront harness's convention): a sync throw, a throw
@@ -73,7 +73,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 2 — e-mail (backend)
 
-- [ ] **T06** `EmailBlockRendererRegistry` in `email`: `register(ownerModuleId, renderers)` (a
+- [x] **T06** `EmailBlockRendererRegistry` in `email`: `register(ownerModuleId, renderers)` (a
   name whose owner segment differs from `ownerModuleId` is refused at registration), `renderers()`
   filtered by the injected tri-state `presenceOf` (policy **skip**; `undefined` honoured), and
   `listAll()` presence-blind. Registered with `ctx.di.register`, ungated; the probe wired the way
@@ -83,7 +83,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   **Test**: `packages/modules/email/src/backend/services/email-block-renderer-registry.test.ts`;
   add the registry and its policy to `backend/test/unit/kernel/contribution-seams.test.ts`.
 
-- [ ] **T07** Both send paths use it: `transactional_emails`' `renderWith` and `newsletter`'s
+- [x] **T07** Both send paths use it: `transactional_emails`' `renderWith` and `newsletter`'s
   `renderNewsletterEmail` pass `renderers()` and an `onBlockError` that logs
   `{ block, owner: ownerOf(block) }` through the module logger.
   Files: `packages/modules/transactional_emails/src/backend/services/transactional-email.service.ts`,
@@ -97,7 +97,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 3 — admin
 
-- [ ] **T08** `AdminContributionsProvider` flattens `blocks` with `moduleId`;
+- [x] **T08** `AdminContributionsProvider` flattens `blocks` with `moduleId`;
   `useBlockContributions(context)` returns the present owners' entries (through the same
   `isSurfaceVisible` predicate zones use).
   Files: `packages/admin-kit/src/zones/AdminContributionsProvider.tsx`,
@@ -105,7 +105,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   **Test**: `packages/admin-kit/src/zones/use-block-contributions.test.tsx` — filters by context,
   stamps the owner, drops a switched-off owner, keeps the factory unevaluated until asked.
 
-- [ ] **T09** The CMS editor composes contributed renderers: load the factories of the descriptor's
+- [x] **T09** The CMS editor composes contributed renderers: load the factories of the descriptor's
   present, context-admitted names (one `Promise.all`), apply `withContributedBlocks`, override
   fields from the contribution over `fieldsFromDescriptor`, and give a declared name with no
   renderer the D8 editor instead of `makeMissingComponentConfig`. Stored names of absent owners keep
@@ -115,7 +115,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   rejected factory → D8 editor; declared-without-renderer is editable from its fields; owner absent
   from the descriptor → placeholder and not in the palette; `block-degradation.test.tsx` still green.
 
-- [ ] **T10** The e-mail editor: `emailBlockEditorConfig(renderer)`; `EmailEditorPane` loads the
+- [x] **T10** The e-mail editor: `emailBlockEditorConfig(renderer)`; `EmailEditorPane` loads the
   `email` contributions for present names, passes the loaded renderers to both `renderEmailHtml`
   calls (canvas embeds and preview), and merges `withMissingBlockPlaceholders` for stored names it
   cannot render (FR-016 — it merges none today).
@@ -125,7 +125,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   canvas and preview show the renderer's HTML; an unknown stored name is a visible placeholder and
   survives a save round-trip unchanged.
 
-- [ ] **T11** [P] The admin stylesheet enumeration imports `./blocks.css` of every installed module
+- [x] **T11** [P] The admin stylesheet enumeration imports `./blocks.css` of every installed module
   package declaring it, in both trees; regenerate.
   Files: `packages/cli/src/lib/admin-artefacts.ts`, `admin/src/tailwind.generated.css` (regenerated —
   unchanged in this repository, no package declares it yet).
@@ -134,7 +134,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 4 — storefront
 
-- [ ] **T12** Discovery and generation (contract §5.2): lift the package walk out of
+- [x] **T12** Discovery and generation (contract §5.2): lift the package walk out of
   `theme-discovery.mjs` into an exported `listInstalledPackages`; `block-discovery.mjs` selects
   `endora.type === 'module'` packages declaring `./storefront` / `./blocks.css`;
   `generate-blocks.mjs` writes `lib/page-builder/blocks.generated.ts` and `app/blocks.generated.css`
@@ -148,7 +148,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   package declaring `./storefront` (ignored), a module with `src/storefront` and no subpath (refused);
   the generator's output for the empty population is byte-equal to the committed files.
 
-- [ ] **T13** Composition and the render sites: `lib/page-builder/config.ts`
+- [x] **T13** Composition and the render sites: `lib/page-builder/config.ts`
   (`storefrontPageBuilderConfig({ presence, pageContainer })`, contract R5.2.1),
   `lib/page-builder/local-blocks.tsx` (empty, the client's own); `PageBuilderRender` takes a
   required serialisable `presence` and a `language` and provides `BlockRenderEnvironment`; the five
@@ -163,14 +163,14 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   `storefront/` only by `lib/page-builder/config.ts`. Keep `test/ssr/block-degradation.test.tsx`
   and `blocks.test.tsx` green.
 
-- [ ] **T14** The scaffold carries it: the new storefront files are in the copy population with
+- [x] **T14** The scaffold carries it: the new storefront files are in the copy population with
   `local-blocks.tsx` as the client's own; rebuild the packaged reference.
   Files: `packages/cli/src/new-storefront/rewrite.ts` (only if a rule must classify the new files),
   the CLI build's packaged reference.
   **Test**: `packages/cli/test/new-storefront.test.ts` (extend) — the scaffold contains the five
   files and the two scripts in `package.json`, and `blocks:generate` runs clean in it.
 
-- [ ] **T15** Seeding (plan D12 — Q2 answered *yes* by the owner on 2026-10-03): when one `endora install`
+- [x] **T15** Seeding (plan D12 — Q2 answered *yes* by the owner on 2026-10-03): when one `endora install`
   run writes both trees, every installed module publishing `./storefront` joins the storefront's
   `dependencies` at the release's version rule.
   Files: `packages/cli/src/install/index.ts`.
@@ -179,7 +179,7 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 5 — the check
 
-- [ ] **T16** `check:block-renderers`: one analysis, two hosts
+- [x] **T16** `check:block-renderers`: one analysis, two hosts
   (`specs/conventions/check-estate.md`). Findings: `foreign-block-name` (a renderer key whose owner
   segment is not `endora.id`), `undeclared-block` (not in the package's own manifest `blocks`, or
   not for that context), `storefront-import` (contract §2.3), `raw-html` (§2.4),
@@ -193,13 +193,13 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
 
 ## Phase 6 — strings, docs, release
 
-- [ ] **T17** [P] The neutral preview's sentence, `pageBuilder.blockPreview.unavailable`, `en` + `pl`,
+- [x] **T17** [P] The neutral preview's sentence, `pageBuilder.blockPreview.unavailable`, `en` + `pl`,
   in `cms`, `transactional_emails` and `newsletter` bundles; the D8 editor and T10's pane read it.
   Files: `packages/modules/{cms,transactional_emails,newsletter}/i18n/{en,pl}.json`.
   **Test**: `backend/test/unit/_i18n/registered-bundles-shape.test.ts` stays green;
   `pnpm --filter backend run i18n:hardcoded` reports no new literal.
 
-- [ ] **T18** Module-author documentation (FR-023), English and Polish, with every code block a
+- [x] **T18** Module-author documentation (FR-023), English and Polish, with every code block a
   `verbatim-from` quotation of the acceptance fixture. Rewrite the page that today tells an author to
   edit `defaultPageBuilderConfig` (`packages/modules/cms/docs/cms/extending-page-builder.md` and its
   Polish twin) — after PR #66 has merged, which edits the same page. Hand to
@@ -207,21 +207,21 @@ the spec's *Why* table against the tree — every row is a measurement taken on 
   Files: those two pages, the translation cache entry.
   **Test**: `check:docs-translations`, `check:doc-snippets`.
 
-- [ ] **T19** Changesets: one per touched package, `minor`, written for the consumer (name the new
+- [x] **T19** Changesets: one per touched package, `minor`, written for the consumer (name the new
   export / subpath / option).
   Files: `.changeset/*.md`.
   **Test**: `pnpm changeset:status`; `check:release-intent -- --since origin/master`.
 
 ## Phase 7 — acceptance
 
-- [ ] **T20** The fixture module, not a workspace member: `backend/acceptance/block-renderers-fixture/`
+- [x] **T20** The fixture module, not a workspace member: `backend/acceptance/block-renderers-fixture/`
   (`@endora-commerce/mod-acceptance-blocks`, `endora.id` `acceptance_blocks`, block
   `acceptance_blocks.Badge` for `cms` + `email`, `./admin`, `./storefront`, `./email`,
   `./blocks.css`, `./backend` registering the e-mail renderer, `en`/`pl` bundles, an `explode` prop
   for A8).
   **Test**: it passes `check:block-renderers` (A1).
 
-- [ ] **T21** The runner and its ratchet (contract §9, A1–A8): reuse `storefront-scaffold.ts`' and
+- [x] **T21** The runner and its ratchet (contract §9, A1–A8): reuse `storefront-scaffold.ts`' and
   `package-schema.ts`' packing, local install and instance-probe helpers rather than copying them.
   Files: `backend/scripts/acceptance/block-renderers.ts`, `block-renderers-assertions.ts` (pure),
   `backend/acceptance/block-renderers-expected-state.json`, `backend/package.json`

@@ -1,0 +1,14 @@
+{
+  // The emit configuration, separate from the type-check one as in every module
+  // package — and what `endora check` reads to take a declared `exports` target
+  // back to the sources it is built from. Comments are kept (the base strips
+  // none here): a leading `'use client'` survives either way, and a storefront
+  // layer whose directive was lost would fail the build that imports it.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "noEmit": false,
+    "noEmitOnError": true
+  }
+}

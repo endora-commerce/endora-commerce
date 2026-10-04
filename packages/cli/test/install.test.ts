@@ -100,6 +100,8 @@ function installFixture(
     readonly mfa?: boolean;
     /** Read by `checkoutFixture`: the storefront depends on a workspace package. */
     readonly scopedDependency?: boolean;
+    /** `admin_users` publishes a storefront layer (feature 141, T15). */
+    readonly storefrontLayer?: boolean;
   } = {},
 ): void {
   const scopeDir = join(root, 'node_modules', '@endora-commerce');
@@ -198,7 +200,12 @@ function installFixture(
       version: '1.2.3',
       type: 'module',
       endora: { type: 'module', id: 'admin_users' },
-      exports: { '.': { default: './manifest.js' } },
+      exports: {
+        '.': { default: './manifest.js' },
+        ...(fixture.storefrontLayer === true
+          ? { './storefront': { default: './storefront.js' }, './blocks.css': './blocks.css' }
+          : {}),
+      },
     },
     `export const manifest = { id: 'admin_users', dependencies: ['settings'] };\n`,
   );
@@ -1023,6 +1030,69 @@ describe('FR-160 — the storefront is a sibling, copied from the checkout or fr
       secretOf(readFileSync(join(root, 'acme-shop', '.env'), 'utf8')),
     );
     expect(result.output.join('\n')).toContain('from the reference storefront this CLI carries');
+  });
+
+  /**
+   * `specs/141-module-block-renderers/` T15 (plan D12; spec Q2, answered *yes*
+   * by the owner on 2026-10-03): when one run writes both trees, every module
+   * of the instance that publishes a storefront layer joins the storefront's
+   * dependencies — once. Afterwards that manifest is its owner's.
+   */
+  it('seeds the storefront with the instance\'s modules that publish a storefront layer', async () => {
+    const root = checkoutFixture({ storefrontLayer: true });
+    const { run } = recorder();
+    const result = await runInstall(options(root, { storefront: true, run }));
+    const manifest = JSON.parse(
+      readFileSync(join(root, 'acme-shop-storefront', 'package.json'), 'utf8'),
+    ) as { dependencies: Record<string, string> };
+    // The release's version rule for a storefront: the package's own version,
+    // exactly — the rule its `workspace:` ranges are rewritten by.
+    expect(manifest.dependencies['@endora-commerce/mod-admin-users']).toBe('1.2.3');
+    // A module with no storefront layer is not a storefront dependency.
+    expect(manifest.dependencies['@endora-commerce/mod-settings']).toBeUndefined();
+    // What was there is still there, and the block stays sorted.
+    expect(manifest.dependencies['next']).toBe('^15.0.0');
+    expect(Object.keys(manifest.dependencies)).toEqual(
+      [...Object.keys(manifest.dependencies)].sort((a, b) => a.localeCompare(b)),
+    );
+    expect(result.output.join('\n')).toContain('@endora-commerce/mod-admin-users');
+  });
+
+  it('seeds nothing when no module of the instance publishes a storefront layer', async () => {
+    const root = checkoutFixture();
+    const { run } = recorder();
+    const result = await runInstall(options(root, { storefront: true, run }));
+    const manifest = JSON.parse(
+      readFileSync(join(root, 'acme-shop-storefront', 'package.json'), 'utf8'),
+    ) as { dependencies: Record<string, string> };
+    expect(Object.keys(manifest.dependencies).filter((name) => name.includes('/mod-'))).toEqual([]);
+    expect(result.output.join('\n')).not.toContain('storefront layer');
+  });
+
+  it('does not seed a storefront written on its own — `--only storefront` reads no instance', async () => {
+    const root = checkoutFixture({ storefrontLayer: true });
+    const { run } = recorder();
+    await runInstall(
+      only(root, 'storefront', {
+        apiUrl: 'https://api.example.com',
+        storefrontUrl: 'https://shop.example.com',
+        revalidateSecret: 'the-api-already-holds-this',
+        packageManagers: [{ command: 'pnpm', prefix: [], label: 'pnpm' }],
+        run,
+      }),
+    );
+    const manifest = JSON.parse(readFileSync(join(root, 'acme-shop', 'package.json'), 'utf8')) as {
+      dependencies: Record<string, string>;
+    };
+    expect(manifest.dependencies['@endora-commerce/mod-admin-users']).toBeUndefined();
+  });
+
+  it('a dry run names what it would seed and writes nothing', async () => {
+    const root = checkoutFixture({ storefrontLayer: true });
+    const { run } = recorder();
+    const result = await runInstall(options(root, { storefront: true, dryRun: true, run }));
+    expect(existsSync(join(root, 'acme-shop-storefront'))).toBe(false);
+    expect(result.output.join('\n')).toContain('@endora-commerce/mod-admin-users');
   });
 
   it('the storefront is pointed at the instance\'s own PORT, never at a constant', async () => {

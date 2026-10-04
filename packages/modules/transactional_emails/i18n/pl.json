@@ -88,5 +88,6 @@
   "blocks.category.content": "Treść",
   "blocks.category.layout": "Układ",
   "blocks.category.embeds": "Osadzone",
-  "blocks.category.internal": "Wewnętrzne"
+  "blocks.category.internal": "Wewnętrzne",
+  "pageBuilder.blockPreview.unavailable": "Ten blok nie ma podglądu w edytorze. Jego pola można edytować w panelu bocznym."
 }

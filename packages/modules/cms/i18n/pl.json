@@ -39,6 +39,7 @@
   "status.draft": "Szkic",
   "status.published": "Opublikowana",
   "pageBuilder.extensions": "Rozszerzenia",
+  "pageBuilder.blockPreview.unavailable": "Ten blok nie ma podglądu w edytorze. Jego pola można edytować w panelu bocznym.",
   "pageBuilder.loadingConfig": "Ładowanie konfiguracji Page Builder...",
   "pageBuilder.drawer.searchPlaceholder": "Szukaj komponentów…",
   "pageBuilder.drawer.searchEmpty": "Brak komponentów pasujących do wyszukiwania.",

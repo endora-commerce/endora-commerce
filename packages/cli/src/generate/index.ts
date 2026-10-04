@@ -40,6 +40,7 @@ import { dirname, join, relative, resolve } from 'node:path';
 import {
   adminRegistryOutputPathIn,
   collectAdminContributions,
+  collectBlockStylesheets,
   collectTailwindSources,
   emitAdminRegistry,
   emitTailwindRegistry,
@@ -231,7 +232,11 @@ export async function runGenerate(options: GenerateOptions = {}): Promise<Genera
       },
       {
         path: tailwindRegistryOutputPathIn(root),
-        content: emitTailwindRegistry(sources, GENERATED_STYLESHEET_HEADER),
+        content: emitTailwindRegistry(
+          sources,
+          GENERATED_STYLESHEET_HEADER,
+          collectBlockStylesheets(root),
+        ),
         label: `the admin stylesheet enumeration (${String(sources.length)} package(s))`,
       },
     );

@@ -49,7 +49,11 @@ function write(path: string, content: string): void {
 }
 
 /** One installed module package, as a published tarball leaves it: `dist` only. */
-function installModule(root: string, id: string, options: { admin: boolean } = { admin: true }): void {
+function installModule(
+  root: string,
+  id: string,
+  options: { admin: boolean; blocksCss?: 'published' | 'declared-only' } = { admin: true },
+): void {
   const dir = join(root, 'node_modules', SCOPE, `mod-${id}`);
   write(
     join(dir, 'package.json'),
@@ -67,9 +71,13 @@ function installModule(root: string, id: string, options: { admin: boolean } = {
         './backend': './dist/backend/index.js',
         ...(options.admin ? { './admin': './dist/admin/index.js' } : {}),
         './tailwind.css': './tailwind.css',
+        ...(options.blocksCss !== undefined ? { './blocks.css': './dist/blocks.css' } : {}),
       },
     }),
   );
+  if (options.blocksCss === 'published') {
+    write(join(dir, 'dist', 'blocks.css'), `.${id}-badge { color: var(--color-primary, #111); }\n`);
+  }
   write(join(dir, 'dist', 'backend', 'index.js'), 'export const entities = [];\n');
   write(
     join(dir, 'dist', 'manifest.js'),
@@ -395,6 +403,66 @@ describe('endora generate (instance-tree.md §2.6)', () => {
     expect(result.modules).toBe(2);
     expect(readFileSync(result.artefacts[0]!.path, 'utf8')).not.toContain('mod-headless');
   });
+  /**
+   * A module's finished block stylesheet (`specs/141-module-block-renderers/`
+   * T11; contract §5.1, §6). The admin canvas draws a module's block with the
+   * module's own renderer, so it needs the stylesheet the storefront loads —
+   * and it reaches the bundle the way every other package stylesheet does.
+   */
+  it('imports the `./blocks.css` of a module package that declares it, once', async () => {
+    const root = instance(['blog']);
+    installModule(root, 'blog', { admin: true, blocksCss: 'published' });
+    const result = await runGenerate({ cwd: root });
+    const stylesheet = readFileSync(join(root, 'admin', 'src', 'tailwind.generated.css'), 'utf8');
+    expect(stylesheet.split(`@import "${SCOPE}/mod-blog/blocks.css";`)).toHaveLength(2);
+    // After the Tailwind sources, so a module's finished rules are not
+    // re-ordered ahead of the layers they are written against.
+    expect(stylesheet.indexOf('/blocks.css')).toBeGreaterThan(
+      stylesheet.indexOf(`@import "${SCOPE}/mod-blog/tailwind.css";`),
+    );
+    expect(result.modules).toBe(1);
+  });
+
+  it('imports no block stylesheet for a module that declares none', async () => {
+    const root = instance(['blog', 'cms']);
+    installModule(root, 'cms', { admin: true, blocksCss: 'published' });
+    await runGenerate({ cwd: root });
+    const stylesheet = readFileSync(join(root, 'admin', 'src', 'tailwind.generated.css'), 'utf8');
+    expect(stylesheet).toContain(`@import "${SCOPE}/mod-cms/blocks.css";`);
+    expect(stylesheet).not.toContain(`${SCOPE}/mod-blog/blocks.css`);
+  });
+
+  it('writes no block-stylesheet section at all when no module declares one', async () => {
+    const root = instance(['blog']);
+    await runGenerate({ cwd: root });
+    const stylesheet = readFileSync(join(root, 'admin', 'src', 'tailwind.generated.css'), 'utf8');
+    expect(stylesheet).not.toContain('blocks.css');
+  });
+
+  it('refuses a declared `./blocks.css` whose file is not in the package', async () => {
+    const root = instance(['blog']);
+    installModule(root, 'blog', { admin: true, blocksCss: 'declared-only' });
+    await expect(runGenerate({ cwd: root })).rejects.toThrow(/blocks\.css/);
+  });
+
+  it('does not import a `./blocks.css` declared by a package that is not a module', async () => {
+    const root = instance(['blog']);
+    const kit = installUiPackage(root, `${SCOPE}/admin-kit`, [join(root, 'admin')]);
+    const manifest = JSON.parse(readFileSync(join(kit, 'package.json'), 'utf8')) as {
+      exports: Record<string, string>;
+    };
+    manifest.exports['./blocks.css'] = './blocks.css';
+    writeFileSync(join(kit, 'package.json'), JSON.stringify(manifest));
+    write(join(kit, 'blocks.css'), '.x { color: red; }\n');
+    writeFileSync(
+      join(root, 'admin', 'package.json'),
+      JSON.stringify({ name: 'acme-admin', dependencies: { [`${SCOPE}/admin-kit`]: '^1.0.0' } }),
+    );
+    await runGenerate({ cwd: root });
+    const stylesheet = readFileSync(join(root, 'admin', 'src', 'tailwind.generated.css'), 'utf8');
+    expect(stylesheet).not.toContain('blocks.css');
+  });
+
   /**
    * The documentation half (T137; `instance-tree.md` §2.6's third artefact).
    *

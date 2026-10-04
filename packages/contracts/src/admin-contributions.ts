@@ -29,6 +29,7 @@
 import { z } from 'zod';
 
 import { KnownIconNameSchema } from './admin-actions.js';
+import { blockNameRe } from './cms.js';
 import type { InvoiceKind } from './invoices.js';
 import type { ShipmentStatus } from './shipping-methods.js';
 
@@ -754,6 +755,28 @@ export const AdminZoneContributionSchema = z.object({
 });
 
 /**
+ * The data half of an editor renderer for one Page Builder block in one editor
+ * (`specs/141-module-block-renderers/contracts/block-renderers.md` §4).
+ *
+ * **Two contexts and not the four a block may declare.** `invoice` blocks are
+ * drawn by `pdfmake` inside `invoices` and have no editor renderer to
+ * contribute; `newsletter` is a palette the `email` context admits, rendered by
+ * the same function, so a renderer contributed for `email` serves both and a
+ * second spelling would be a second place to forget.
+ *
+ * **Label, category, default props and the field set are not here.** They come
+ * from the block's manifest declaration, through the descriptor the backend
+ * serves — a contribution that restated them would be a second statement of
+ * what the palette shows, and the one the server cannot presence-filter.
+ */
+export const AdminBlockContributionSchema = z.object({
+  name: z
+    .string()
+    .regex(blockNameRe, 'Block name must be <module>.<Name>, as the manifest declares it'),
+  context: z.enum(['cms', 'email']),
+});
+
+/**
  * A lazily-loaded React component.
  *
  * Typed structurally rather than against `react`, because
@@ -785,10 +808,25 @@ export interface AdminZoneContribution extends z.infer<typeof AdminZoneContribut
 }
 
 /**
+ * An editor renderer a module contributes for one of its own blocks.
+ *
+ * The factory's default export depends on the context, and neither shape is
+ * nameable here — `contracts` is compiled by the backend and acquires no React
+ * dependency: for `cms` it is a `PageBuilderBlockEditorConfig`
+ * (`@endora-commerce/page-builder-core/contributions`), for `email` an
+ * `EmailBlockRenderer` (`@endora-commerce/email-components`) — the same
+ * function the send path runs, so the editor's preview cannot drift from what
+ * is sent.
+ */
+export interface AdminBlockContribution extends z.infer<typeof AdminBlockContributionSchema> {
+  readonly component: AdminComponentFactory;
+}
+
+/**
  * What a module package's `src/admin/index.ts` exports — and the only thing it
  * exports.
  *
- * All three arrays are optional, so a module shipping only a nav entry pointing
+ * All four arrays are optional, so a module shipping only a nav entry pointing
  * at a host route is legal and so is one shipping only a zone contribution.
  * The entry may not export a component, a hook or a service:
  * `check:module-boundary`'s D-171 rule designates a subpath as contract surface
@@ -800,4 +838,5 @@ export interface AdminContributions {
   readonly routes?: readonly AdminRouteDeclaration[];
   readonly nav?: readonly AdminNavDeclaration[];
   readonly zones?: readonly AdminZoneContribution[];
+  readonly blocks?: readonly AdminBlockContribution[];
 }

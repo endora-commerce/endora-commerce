@@ -515,7 +515,8 @@ function nextSteps(
   return [
     install,
     backendStep(),
-    `pnpm run build — it runs \`themes:generate\`, \`next build\` and \`check:themes\`.`,
+    `pnpm run build — it runs \`themes:generate\`, \`blocks:generate\`, \`next build\` and ` +
+      `\`check:themes\`.`,
     // Baseline step E4 (`specs/125-first-mile-install/spec.md` §2.3), which was
     // printed nowhere: `storefront/package.json` has declared `start` all
     // along, and a client who followed this block to the end had a built

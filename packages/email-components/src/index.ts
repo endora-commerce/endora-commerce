@@ -7,6 +7,7 @@
 
 export * from './schema/component-types.js';
 export * from './schema/envelope.js';
+export * from './render/block-renderers.js';
 export * from './render/escape-html.js';
 export * from './render/render-email-html.js';
 export * from './render/render-email-text.js';

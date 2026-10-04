@@ -3,6 +3,11 @@
 import type { PuckDataTree } from '../schema/envelope.js';
 import type { EmailSocialProps } from '../schema/component-types.js';
 import { EMAIL_ORDER_LABELED_FIELDS } from '../schema/component-types.js';
+import {
+  renderContributedBlock,
+  type EmailBlockRenderingOptions,
+} from './block-renderers.js';
+import { renderEmailHtml } from './render-email-html.js';
 import { emailHtmlToPlainText } from './sanitize-email-html.js';
 
 export interface RenderEmailTextEmbeds {
@@ -10,9 +15,13 @@ export interface RenderEmailTextEmbeds {
   templates: Record<string, PuckDataTree>;
 }
 
-export interface RenderEmailTextOptions {
+export interface RenderEmailTextOptions extends EmailBlockRenderingOptions {
   embeds?: RenderEmailTextEmbeds;
   maxDepth?: number;
+  /** Handed to contributed renderers; first-party text has no localised string. */
+  language?: string;
+  /** Handed to contributed renderers whose text is derived from their HTML. */
+  accentColor?: string;
 }
 
 interface PuckNode {
@@ -25,6 +34,9 @@ interface Ctx {
   depth: number;
   maxDepth: number;
   tree: PuckDataTree;
+  language: string;
+  accent: string;
+  contributed: EmailBlockRenderingOptions;
 }
 
 function asNodes(list: unknown[] | null | undefined): PuckNode[] {
@@ -170,7 +182,41 @@ function renderNode(node: PuckNode, ctx: Ctx): string {
     case 'transactional_emails.EmailInsertTemplate':
       return renderEmbed('templates', str(p, 'code'), ctx);
     default:
-      return '';
+      // Only here: a name a `case` above answers never reaches a contribution.
+      return renderContributedBlock(node.type, p, ctx.contributed, (renderer, props) => {
+        const slotNodes = (nodes: unknown): unknown[] => (Array.isArray(nodes) ? nodes : []);
+        if (renderer.text !== undefined) {
+          return renderer.text(props, {
+            language: ctx.language,
+            accentColor: ctx.accent,
+            renderSlot: (nodes) =>
+              asNodes(slotNodes(nodes))
+                .map((n) => renderNode(n, ctx))
+                .join(''),
+          });
+        }
+        // No text function: derive it from the block's own HTML, with its slots
+        // drawn by the HTML host. A row boundary is the one line break the
+        // table layout has, so it becomes one before the tags are stripped.
+        const html = renderer.html(props, {
+          language: ctx.language,
+          accentColor: ctx.accent,
+          renderSlot: (nodes) =>
+            renderEmailHtml(
+              { root: { props: {} }, content: slotNodes(nodes), zones: ctx.tree.zones ?? {} },
+              {
+                document: false,
+                embeds: ctx.embeds,
+                maxDepth: ctx.maxDepth,
+                language: ctx.language,
+                accentColor: ctx.accent,
+                ...ctx.contributed,
+              },
+            ),
+        });
+        const text = emailHtmlToPlainText(html.replace(/<\/tr>/gi, '<br />'));
+        return text === '' ? '' : `${text}\n`;
+      });
   }
 }
 
@@ -193,6 +239,12 @@ export function renderEmailText(
     depth: 0,
     maxDepth: opts.maxDepth ?? 3,
     tree: safeTree,
+    language: opts.language ?? 'en-US',
+    accent: opts.accentColor ?? '#1f2937',
+    contributed: {
+      ...(opts.blockRenderers ? { blockRenderers: opts.blockRenderers } : {}),
+      ...(opts.onBlockError ? { onBlockError: opts.onBlockError } : {}),
+    },
   };
   return treeContent(safeTree)
     .map((n) => renderNode(n, ctx))

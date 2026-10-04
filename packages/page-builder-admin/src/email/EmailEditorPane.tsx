@@ -18,6 +18,7 @@ import {
   sampleOrderDiscountsText,
   sampleOrderSummaryText,
   useEmailBrandingPreview,
+  type EmailBlockRenderers,
   type EmailEmbeds,
   type EmailRenderEmbeds,
   type EmailRowLayoutPresetId,
@@ -26,9 +27,13 @@ import {
 } from '@endora-commerce/email-components';
 import {
   buildPaletteCategories,
+  contextAdmits,
+  countBlockNames,
   filterConfigByContext,
   type PageBuilderContext,
 } from '@endora-commerce/page-builder-core';
+import { withMissingBlockPlaceholders } from '@endora-commerce/cms-components';
+import { useBlockContributions } from '@endora-commerce/admin-kit/zones';
 import {
   hasInvalidColumnPlacement,
   PUCK_LEGACY_DND,
@@ -71,12 +76,24 @@ import { createEmailBuilderEditorPlugin } from './email-builder-plugin.js';
 import { useEmailVariables, type EmailVariableItem } from './EmailVariablesProvider.js';
 import { EmailBuilderActionBar } from './EmailBuilderActionBar.js';
 import { EmailRowLayoutPicker } from './EmailRowLayoutPicker.js';
+import {
+  composeEmailBlocks,
+  EmailBlockRenderersProvider,
+  loadEmailBlockRenderers,
+  useEmailBlockRenderers,
+  type LoadedEmailBlockRenderers,
+} from './email-block-editor-config.js';
 
 export type EmailPreviewWidth = 600 | 320;
 
 const emptyData: Data = { root: { props: {} }, content: [] };
 const CANVAS_WIDTH: EmailPreviewWidth = 600;
 const emailBuilderPlugins = withPuckLegacySideBar([createEmailBuilderEditorPlugin()]);
+
+/** A contribution that was ignored or failed is the operator's console's to know. */
+function reportBlockContribution(message: string): void {
+  console.warn(message);
+}
 
 function collectEmailRowIds(data: Data): Set<string> {
   const ids = new Set<string>();
@@ -140,8 +157,12 @@ function pickLanguageTree(content: Record<string, unknown>): PuckDataTree | null
  */
 function EmbedPreviewHtml({ content }: { content: Record<string, unknown> }): React.ReactElement {
   const { logoUrl } = useEmailBrandingPreview();
+  // The contributed renderers the pane loaded (feature 141): an embedded block
+  // or template may hold a module's block, and it has to draw here as it does
+  // in the message.
+  const blockRenderers = useEmailBlockRenderers();
   const tree = pickLanguageTree(content);
-  const raw = renderEmailHtml(tree, { document: false });
+  const raw = renderEmailHtml(tree, { document: false, blockRenderers });
   const html = renderDirectives(
     raw,
     {
@@ -572,11 +593,13 @@ function buildPreviewHtml(
   extras: Record<string, unknown>,
   embedTrees?: EmailRenderEmbeds,
   previewLanguage?: string | null,
+  blockRenderers: EmailBlockRenderers = {},
 ): string {
   const language = previewLanguage || 'en-US';
   const raw = renderEmailHtml((data ?? emptyData) as never, {
     document: true,
     language,
+    blockRenderers,
     ...(embedTrees ? { embeds: embedTrees } : {}),
   });
   const fromDescriptors = buildSampleVariableContext(
@@ -634,7 +657,17 @@ export function EmailEditorPane({
   const [rowLayoutPickerForId, setRowLayoutPickerForId] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState('');
   const [descriptor, setDescriptor] = useState<CmsPageBuilderDescriptor | null>(null);
+  /** `false` until the descriptor fetch has answered, either way. */
+  const [descriptorSettled, setDescriptorSettled] = useState(false);
   const { t: translateInScope } = useTranslationContext();
+  /**
+   * The e-mail renderers the present modules contribute (feature 141, contract
+   * R4.3). `null` until the factories have settled, so a stored contributed
+   * block is not shown as a missing-renderer placeholder while its chunk is
+   * still on the way.
+   */
+  const blockContributions = useBlockContributions('email');
+  const [contributed, setContributed] = useState<LoadedEmailBlockRenderers | null>(null);
   const [paletteEntries, setPaletteEntries] = useState<
     Awaited<ReturnType<typeof getPageBuilderColorPalette>>
   >([]);
@@ -762,11 +795,54 @@ export function EmailEditorPane({
       })
       .catch(() => {
         if (live) setDescriptor(null);
+      })
+      .finally(() => {
+        if (live) setDescriptorSettled(true);
       });
     return () => {
       live = false;
     };
   }, []);
+
+  /** The descriptor's entries this pane's palette admits. */
+  const declared = useMemo(
+    () =>
+      (descriptor?.components ?? []).filter((entry) =>
+        contextAdmits(entry.contexts ?? ['cms'], builderContext),
+      ),
+    [descriptor, builderContext],
+  );
+
+  useEffect(() => {
+    if (!descriptorSettled) return undefined;
+    const bundled = defaultEmailBuilderConfig.components ?? {};
+    const wanted = new Set(
+      declared.map((entry) => entry.name).filter((name) => !Object.hasOwn(bundled, name)),
+    );
+    if (!blockContributions.some((contribution) => wanted.has(contribution.name))) {
+      setContributed({ renderers: {}, owners: {} });
+      return undefined;
+    }
+    let live = true;
+    void loadEmailBlockRenderers(blockContributions, wanted, reportBlockContribution).then(
+      (loaded) => {
+        if (live) setContributed(loaded);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [descriptorSettled, declared, blockContributions]);
+
+  /**
+   * The block names the loaded document carries, as a stable key — the
+   * document changes identity on every keystroke and the set of names it holds
+   * almost never does (the CMS editor's reasoning, feature 096 T602).
+   */
+  const storedBlockNamesKey = useMemo(
+    () => [...countBlockNames(data ?? emptyData).keys()].sort().join('\n'),
+    [data],
+  );
 
   useEffect(() => {
     if (!fullscreen) return undefined;
@@ -777,10 +853,23 @@ export function EmailEditorPane({
     return () => window.removeEventListener('keydown', onKey);
   }, [fullscreen]);
 
-  const config = useMemo(() => {
+  const composed = useMemo(() => {
     const withFields = withEditorFields(defaultEmailBuilderConfig);
     const withEmbeds = mergeEmbedSelects(withFields, blockOptions);
     const byContext = filterConfigByContext(withEmbeds, builderContext);
+    // Feature 141 — every declared block the bundle does not draw: the renderer
+    // its module contributes, or an editor built from its declared fields. The
+    // sentence is the calling module's, since the pane owns no bundle.
+    const previewScope = builderContext === 'newsletter' ? 'newsletter' : 'transactional_emails';
+    const blocks = composeEmailBlocks({
+      components: (byContext.components ?? {}) as Record<string, ComponentConfig>,
+      declared,
+      renderers: contributed?.renderers ?? {},
+      owners: contributed?.owners ?? {},
+      previewSentence: translateInScope(previewScope, 'pageBuilder.blockPreview.unavailable'),
+      language: previewLanguage || 'en-US',
+      report: reportBlockContribution,
+    });
     // Feature 096, T302/T305 — the sections come from the modules that declared
     // them, merged and presence-filtered by the server, and are resolved for
     // `builderContext` through `contextAdmits`. That last part is what keeps the
@@ -792,6 +881,7 @@ export function EmailEditorPane({
     // module owns.
     const sectioned: Config = {
       ...byContext,
+      components: blocks.components,
       categories: buildPaletteCategories(
         descriptor?.components ?? [],
         descriptor?.categories ?? [],
@@ -802,15 +892,39 @@ export function EmailEditorPane({
             const resolved = translateInScope(owner, section.titleKey);
             return resolved === `${owner}.${section.titleKey}` ? section.key : resolved;
           },
-          renderable: new Set(Object.keys(byContext.components ?? {})),
+          renderable: new Set(Object.keys(blocks.components)),
         },
       ),
-    };
-    return filterEmailPaletteByVariables(
+    } as Config;
+    const filtered = filterEmailPaletteByVariables(
       sectioned,
       variables.map((v) => v.key),
     );
-  }, [blockOptions, builderContext, descriptor, translateInScope, variables]);
+    // FR-016 — a stored block nothing here can render (a switched-off module's)
+    // is a visible, data-preserving placeholder rather than a node Puck keeps
+    // and draws nothing for. After the palette, deliberately: it is not a block
+    // anyone may insert. Held back until the contributions have settled, so a
+    // contributed block is never shown as missing while its chunk loads.
+    const degraded =
+      contributed === null
+        ? filtered
+        : withMissingBlockPlaceholders(
+            filtered,
+            storedBlockNamesKey === '' ? [] : storedBlockNamesKey.split('\n'),
+          );
+    return { config: degraded, blockRenderers: blocks.blockRenderers };
+  }, [
+    blockOptions,
+    builderContext,
+    contributed,
+    declared,
+    descriptor,
+    previewLanguage,
+    storedBlockNamesKey,
+    translateInScope,
+    variables,
+  ]);
+  const config = composed.config;
 
   const previewHtml = useMemo(
     () =>
@@ -821,8 +935,9 @@ export function EmailEditorPane({
         previewExtras,
         embedTrees,
         previewLanguage,
+        composed.blockRenderers,
       ),
-    [data, variables, logoUrl, previewExtras, embedTrees, previewLanguage],
+    [data, variables, logoUrl, previewExtras, embedTrees, previewLanguage, composed.blockRenderers],
   );
 
   return (
@@ -839,6 +954,7 @@ export function EmailEditorPane({
         >
           <EmailBrandingPreviewProvider value={{ logoUrl }}>
             <EmailEmbedsProvider value={embeds}>
+             <EmailBlockRenderersProvider value={composed.blockRenderers}>
               <div className="email-builder-pane" data-preview-width={CANVAS_WIDTH}>
                 <Puck
                   key={`${editorKey}:${canvasEpoch}`}
@@ -922,6 +1038,7 @@ export function EmailEditorPane({
                   }}
                 />
               </div>
+             </EmailBlockRenderersProvider>
             </EmailEmbedsProvider>
           </EmailBrandingPreviewProvider>
         </div>

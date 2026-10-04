@@ -49,6 +49,9 @@ describe('getModulePresence', () => {
     expect(presence.isPresent('blog')).toBe(true);
     expect(presence.isPresent('comparisons')).toBe(false);
     expect(presence.presentIds).toEqual(['blog']);
+    // What a Page Builder render boundary reads (feature 141): the ids the
+    // backend *said* are not present, which is not the complement of the above.
+    expect(presence.absentIds).toEqual(['comparisons']);
   });
 
   it('treats a module the projection never mentioned as absent', async () => {
@@ -76,6 +79,8 @@ describe('getModulePresence', () => {
     }) as unknown as typeof fetch;
     const presence = await getModulePresence();
     expect(presence.isPresent('anything')).toBe(true);
+    // And nobody is *reported* absent, so every block renders from its props.
+    expect(presence.absentIds).toEqual([]);
   });
 });
 

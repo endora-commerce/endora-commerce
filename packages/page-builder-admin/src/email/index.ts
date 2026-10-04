@@ -31,6 +31,18 @@ export {
   type EmailPreviewWidth,
 } from './EmailEditorPane.js';
 export {
+  composeEmailBlocks,
+  emailBlockEditorConfig,
+  EmailBlockRenderersProvider,
+  loadEmailBlockRenderers,
+  useEmailBlockRenderers,
+  type ComposedEmailBlocks,
+  type ComposeEmailBlocksInput,
+  type DeclaredEmailBlock,
+  type EmailBlockContributionReport,
+  type LoadedEmailBlockRenderers,
+} from './email-block-editor-config.js';
+export {
   EmailVariablesProvider,
   useEmailVariables,
   type EmailVariableItem,

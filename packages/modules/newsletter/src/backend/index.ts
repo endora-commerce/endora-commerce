@@ -1,3 +1,5 @@
+import type { EmailBlockRendererRegistryPort } from '@endora-commerce/contracts';
+import type { EmailBlockRenderer } from '@endora-commerce/email-components/render/block-renderers';
 import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
@@ -197,6 +199,22 @@ export function registerModule(ctx: ModuleContext): void {
           // through the seam a composed module is meant to use.
           registerWorker: (worker, workerOptions) => {
             ctx.worker(worker, workerOptions);
+          },
+          // Feature 141 — the e-mail block renderers the composed modules
+          // contributed. `email` owns the table, registers it ungated and is
+          // non-deactivatable; `renderers()` is called per render, which is
+          // where a switched-off contributor's blocks are left out.
+          blockRendering: {
+            blockRenderers: () =>
+              lazyPort<EmailBlockRendererRegistryPort<EmailBlockRenderer>>(
+                ctx,
+                'emailBlockRendererRegistry',
+              ).renderers(),
+            onBlockFailure: ({ block, owner, error }) =>
+              ctx.log.warn(
+                { block, owner, err: error },
+                'a contributed e-mail block failed to render; the message was rendered without it',
+              ),
           },
           // Read per call, so a root may contribute branding at any point in
           // its own ordering.

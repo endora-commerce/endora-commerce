@@ -7,9 +7,10 @@
     "node": ">=22.18.0"
   },
   "scripts": {
-    "dev": "pnpm run themes:generate && node --env-file-if-exists=.env node_modules/next/dist/bin/next dev",
-    "build": "pnpm run themes:generate && next build && pnpm run check:themes",
+    "dev": "pnpm run themes:generate && pnpm run blocks:generate && node --env-file-if-exists=.env node_modules/next/dist/bin/next dev",
+    "build": "pnpm run themes:generate && pnpm run blocks:generate && next build && pnpm run check:themes",
     "themes:generate": "node scripts/generate-themes.mjs",
+    "blocks:generate": "node scripts/generate-blocks.mjs",
     "check:themes": "node scripts/check-themes.mjs",
     "start": "node --env-file-if-exists=.env scripts/start-standalone.mjs",
     "typecheck": "tsc --noEmit",

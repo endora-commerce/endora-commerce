@@ -1,0 +1,5 @@
+---
+"@endora-commerce/cli": minor
+---
+
+Page Builder renderers a module package ships are generated, seeded and checked. `endora generate` adds one `@import` to the admin stylesheet for every installed module package that declares `./blocks.css`, and refuses a declared subpath whose file is missing. `endora new storefront` writes a storefront that discovers its installed modules' `./storefront` layers and block stylesheets at build time (`blocks:generate`, run by `dev` and `build`) and carries `lib/page-builder/local-blocks.tsx` for blocks the storefront renders itself. `endora install` adds, once, every module of the instance that publishes a storefront layer to the dependencies of the storefront it writes beside it. `endora check` gains `check:block-renderers`: a storefront layer imports only what it may and injects HTML only through `sanitizeRichHtml`, an e-mail layer stays React-free, `./blocks.css` is scoped to the module, and every renderer names a block the package's own manifest declares for that surface.

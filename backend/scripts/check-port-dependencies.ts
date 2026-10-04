@@ -1035,6 +1035,13 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
   // stays downloadable from `assets_library`, and switching the connector back
   // on takes effect on the next download (feature 134, T061; D12).
   'invoices:invoiceAttachmentFetchRegistry': 'skip',
+  // Skipped: a module that is off must contribute nothing to an outgoing
+  // message. `renderers()` leaves its blocks out, read on every call, so the
+  // e-mail simply has no such section, the stored template keeps the node and
+  // its props, and switching the module back on takes effect on the next
+  // render. An owner no manifest declares — an overlay module's — is honoured.
+  // `listAll` stays presence-blind (feature 141, contract §7).
+  'email:emailBlockRendererRegistry': 'skip',
 };
 
 /**

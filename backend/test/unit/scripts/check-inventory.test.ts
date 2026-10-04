@@ -217,12 +217,23 @@ import {
 } from '../../helpers/divergence-fixture.js';
 import { ESTATE, PACKAGE_HOSTS, pendingEntries } from '@endora-commerce/cli/checks';
 import * as hostNulBytes from '../../../scripts/check-nul-bytes.js';
+import * as hostBlockRenderers from '../../../scripts/check-block-renderers.js';
+import {
+  checkBlockRenderers,
+  describeBlockRendererPackage,
+  type BlockRendererFindingKind,
+} from '../../../scripts/check-block-renderers.js';
+import {
+  createBlockRendererFixture,
+  manifestWithExports,
+} from '../../helpers/block-renderers-fixture.js';
 import * as hostBundlePairing from '../../../scripts/check-bundle-pairing.js';
 import * as hostContainerImports from '../../../scripts/check-container-imports.js';
 import * as hostSubscribeSeam from '../../../scripts/check-subscribe-seam.js';
 import * as hostQueueNames from '../../../scripts/check-queue-names.js';
 import * as hostCommandCoverage from '../../../scripts/check-command-coverage.js';
 import * as ruleNulBytes from '@endora-commerce/cli/rules/nul-bytes.js';
+import * as ruleBlockRenderers from '@endora-commerce/cli/rules/block-renderers.js';
 import * as ruleBundlePairing from '@endora-commerce/cli/rules/bundle-pairing.js';
 import * as ruleContainerImports from '@endora-commerce/cli/rules/container-imports.js';
 import * as ruleSubscribeSeam from '@endora-commerce/cli/rules/subscribe-seam.js';
@@ -3735,6 +3746,30 @@ const BUNDLE_PAIRING_COMPLIANT: FixtureModule = {
  * two builders over one population are two answers waiting to disagree.
  */
 /**
+ * `check-block-renderers` over a module package on disk, for findings of
+ * exactly one kind — so no signal goes blind behind another's red.
+ *
+ * The builder is `test/helpers/block-renderers-fixture.ts` and the companion
+ * test calls the same one. The package is described off disk first, which is
+ * the top of the analysis: the layer directories are derived from the fixture's
+ * own `exports` map and build layout, not handed in.
+ */
+function blockRendererFindings(
+  overrides: Readonly<Record<string, string | null>>,
+  kind: BlockRendererFindingKind,
+): number {
+  const fixture = createBlockRendererFixture(overrides);
+  try {
+    const described = describeBlockRendererPackage(fixture.dir);
+    if (described === null) return 0;
+    return checkBlockRenderers([described]).findings.filter((finding) => finding.kind === kind)
+      .length;
+  } finally {
+    fixture.cleanup();
+  }
+}
+
+/**
  * `check:block-names`' red proofs run through the **shared** builder
  * (`test/helpers/block-name-fixture.ts`), which is the same one the companion
  * test calls. Two builders over one population are two answers waiting to
@@ -4830,6 +4865,87 @@ const CHECKS: readonly CheckEntry[] = [
         ).every((site) => !site.computed)
           ? 1
           : 0,
+      ),
+    },
+  },
+  {
+    // `specs/141-module-block-renderers/` (plan D11) — a module package's Page
+    // Builder renderers stay in their lane. It lands at **zero violations** over
+    // one package that ships the layers at all (the acceptance fixture), so
+    // every one of the seven findings is exercised here or nowhere.
+    //
+    // Each proof enters as a **module package on disk**: `package.json`, a build
+    // layout, a manifest and the layers. The chain that then runs is the whole
+    // of it — the description that derives the layer directories from the
+    // package's own `exports` map and `tsconfig.build.json`, TypeScript parsing
+    // each file, and the rule. A fixture handing in a parsed claim would prove
+    // the reporter and leave the derivation unproven (issue #130).
+    script: 'backend/scripts/check-block-renderers.ts',
+    npmScript: 'check:block-renderers',
+    job: 'quality',
+    companionTest: 'backend/test/unit/scripts/check-block-renderers.test.ts',
+    vacuousGuard: 'exit-2',
+    readSize: 'reported',
+    // It carries the module-population floor — half its population is every
+    // registered module's own directory — and the shared moved-tree fixture
+    // cannot reach a verdict over it: see `DEFERRED_SHARED_PROOFS`.
+    residueGuard: 'deferred-shared-proof',
+    red: {
+      'foreign-block-name': top(() =>
+        blockRendererFindings(
+          {
+            'src/storefront/index.ts':
+              "import { Badge } from './Badge.js';\n" +
+              "export const contributions = { blocks: { 'cms.Text': { render: Badge } } };\n",
+          },
+          'foreign-block-name',
+        ),
+      ),
+      'undeclared-block': top(() =>
+        blockRendererFindings(
+          {
+            'src/email/index.ts':
+              "export const emailBlocks = { 'crm.Banner': { html: () => '' } };\n",
+          },
+          'undeclared-block',
+        ),
+      ),
+      'storefront-import': top(() =>
+        blockRendererFindings(
+          { 'src/storefront/extra.ts': "import { readFileSync } from 'node:fs';\nexport const x = readFileSync;\n" },
+          'storefront-import',
+        ),
+      ),
+      'raw-html': top(() =>
+        blockRendererFindings(
+          {
+            'src/storefront/Badge.tsx':
+              "'use client';\n" +
+              'export function Badge(props: { html?: string }) {\n' +
+              '  return <span dangerouslySetInnerHTML={{ __html: props.html }} />;\n' +
+              '}\n',
+          },
+          'raw-html',
+        ),
+      ),
+      'email-layer-import': top(() =>
+        blockRendererFindings(
+          { 'src/email/extra.ts': "import { createElement } from 'react';\nexport const x = createElement;\n" },
+          'email-layer-import',
+        ),
+      ),
+      'unscoped-stylesheet': top(() =>
+        blockRendererFindings({ 'blocks.css': 'body { margin: 0; }\n' }, 'unscoped-stylesheet'),
+      ),
+      'layer-without-subpath': top(() =>
+        blockRendererFindings(
+          {
+            'package.json': manifestWithExports((exportsMap) => {
+              delete exportsMap['./storefront'];
+            }),
+          },
+          'layer-without-subpath',
+        ),
       ),
     },
   },
@@ -11383,6 +11499,11 @@ describe('every red proof enters at the top of the analysis', () => {
       // it still tells a vocabulary name from a utility.
       'backend/scripts/check-class-vocabulary.ts': 7,
       'backend/scripts/check-bundle-pairing.ts': 5,
+      // Seven findings, one proof each. The discriminations — the allowed
+      // imports, a scoped stylesheet, a package with no layer — assert zero
+      // findings and are in the companion test, as are the two refusals that
+      // are exit 2 rather than a finding.
+      'backend/scripts/check-block-renderers.ts': 7,
       // Three findings, and nine more shapes of which six are discriminations.
       // The ratio is the point: this check lands over a population of 46, so
       // what needs proving is not that it can go red — the tree does that — but
@@ -11895,6 +12016,23 @@ const DEFERRED_SHARED_PROOFS: Readonly<
       '`check:admin-zones` waited for and that feature 111 FR-007 delivered for the admin-ui ' +
       'family, two members further on.',
   },
+  'backend/scripts/check-block-renderers.ts': {
+    reason:
+      'half its population is the registered modules and half is the module packages under the ' +
+      'application root\'s `acceptance/` directory, and the shared fixture stages the first and ' +
+      'not the second. No registered module ships a renderer layer yet — the one package in ' +
+      'this repository that does is `backend/acceptance/block-renderers-fixture` — so over the ' +
+      'split tree the walk declares no layer and the run answers exit 2 on `renderer-layers:0/0` ' +
+      'rather than 0. Measured on 2026-10-03 with the check added to that file\'s list: exit 2 ' +
+      'over the moved tree, on the module floor, and exit 2 over the split tree, on the ' +
+      'expectation of zero — the tree that is supposed to answer 0. Identical exit codes over ' +
+      'different trees assert no discrimination, which is worse than no proof.',
+    retiredBy:
+      'the shared fixture stages the application root\'s repository-resident package roots — the ' +
+      'same staging `check:divergence` waits for — or a registered module ships a renderer ' +
+      'layer, at which point the split tree answers 0 and the check joins `CHECKS` in ' +
+      '`moved-module-tree.test.ts` as `derived-population`.',
+  },
   'backend/scripts/check-divergence.ts': {
     reason:
       'its owner map is built from the module tree and from the **repository-resident package ' +
@@ -12406,6 +12544,7 @@ describe('a relocated analysis has one implementation and two hosts', () => {
     [
       ['check:nul-bytes', hostNulBytes as unknown as Record<string, unknown>, ruleNulBytes as unknown as Record<string, unknown>],
       ['check:bundle-pairing', hostBundlePairing as unknown as Record<string, unknown>, ruleBundlePairing as unknown as Record<string, unknown>],
+      ['check:block-renderers', hostBlockRenderers as unknown as Record<string, unknown>, ruleBlockRenderers as unknown as Record<string, unknown>],
       ['check:container-imports', hostContainerImports as unknown as Record<string, unknown>, ruleContainerImports as unknown as Record<string, unknown>],
       ['check:queue-names', hostQueueNames as unknown as Record<string, unknown>, ruleQueueNames as unknown as Record<string, unknown>],
       ['check:subscribe-seam', hostSubscribeSeam as unknown as Record<string, unknown>, ruleSubscribeSeam as unknown as Record<string, unknown>],
