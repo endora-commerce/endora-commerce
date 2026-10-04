@@ -8,6 +8,7 @@ import {
   buildPersistableValues,
   redactSecretsForAudit,
 } from '../services/field-validator.js';
+import { withSecretKeyRefusal } from '../services/secret-key-refusal.js';
 
 /**
  * `credential.update` (feature 058 US1, Principle XIII).
@@ -89,13 +90,16 @@ export function makeUpdateConfigurationCommand(input: {
 
       if (data.name !== undefined) entity.name = data.name;
 
-      if (data.values !== undefined) {
-        const { values, errors } = buildPersistableValues({
-          fields: variant.fields,
-          submitted: data.values,
-          existing: entity.values,
-          secretEncryptionKey,
-        });
+      const submitted = data.values;
+      if (submitted !== undefined) {
+        const { values, errors } = withSecretKeyRefusal(() =>
+          buildPersistableValues({
+            fields: variant.fields,
+            submitted,
+            existing: entity.values,
+            secretEncryptionKey,
+          }),
+        );
         if (errors.length > 0) {
           throw new HttpError(
             422,

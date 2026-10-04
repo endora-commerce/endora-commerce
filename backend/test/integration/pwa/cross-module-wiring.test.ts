@@ -82,15 +82,14 @@ describe('pwa — the cross-module ports, composed', () => {
     // `resolveAssetUrl` is what turns a rendition's asset id into the
     // `Location` a browser follows.
     //
-    // **The ingest is driven through the composed handle rather than through
-    // `POST /api/v1/admin/pwa/icon`, and that is a finding rather than a
-    // convenience**: that route answers 500 for the only body it accepts,
-    // because `pwa` registers `@fastify/multipart` nowhere — `assets_library`
-    // and `ksef` each register it inside their own encapsulated context, on
-    // purpose, so neither reaches here. It is a live defect on every deployment
-    // and it is not this drain's to repair; it is in `specs/deferred-defects.md`.
-    // `h.pwa.iconService` is the container's own instance, built with the real
-    // `lazyPort` proxy, so this still asserts the wiring and not a stub.
+    // **The ingest is driven through `POST /api/v1/admin/pwa/icon`, with a real
+    // multipart body.** It used to go through the composed handle instead,
+    // because the route could not be reached: `pwa` registered
+    // `@fastify/multipart` nowhere, every other module that registers it does so
+    // inside its own encapsulated context, and the envelope answered the
+    // parser's refusal as `500 INTERNAL` for the only body the handler accepts.
+    // The route brings its own parser now, so this asserts the HTTP door, the
+    // pipeline behind it and the setting it records, on the composed server.
     const source = await sharp({
       create: {
         width: 512,
@@ -102,11 +101,27 @@ describe('pwa — the cross-module ports, composed', () => {
       .png()
       .toBuffer();
 
-    const ingested = await h.pwa.iconService.ingest({
-      salesChannelId: null,
-      declaredMime: 'image/png',
-      buffer: source,
+    const boundary = '----pwa-icon-upload';
+    const upload = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/pwa/icon',
+      cookies: { b2b_session: 'stub-admin-session' },
+      headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
+      payload: Buffer.concat([
+        Buffer.from(
+          `--${boundary}\r\n` +
+            'Content-Disposition: form-data; name="file"; filename="icon.png"\r\n' +
+            'Content-Type: image/png\r\n\r\n',
+        ),
+        source,
+        Buffer.from(`\r\n--${boundary}--\r\n`),
+      ]),
     });
+    expect(upload.statusCode, upload.body).toBe(201);
+    const ingested = upload.json() as {
+      sourceAssetId: string;
+      renditions: Array<{ size: number; purpose: string; assetId: string }>;
+    };
     const rendition = ingested.renditions.find((r) => r.size === 512 && r.purpose === 'any');
     expect(rendition, 'the 512 "any" rendition was not derived').toBeTruthy();
 

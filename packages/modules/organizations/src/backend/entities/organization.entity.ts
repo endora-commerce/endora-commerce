@@ -203,6 +203,13 @@ export class Organization {
    * Materialized ancestor-chain path `'/<rootId>/…/<thisId>/'`. Backfilled to
    * `'/<id>/'` (a root) for every pre-feature org. A `text_pattern_ops` prefix
    * index backs single-query subtree (`path LIKE :selfPath || '%'`) traversal.
+   *
+   * **Never empty on a stored row.** The `''` below is only what a new instance
+   * holds until it is inserted: {@link assignRootPath} writes the root path on
+   * create, and the tree Commands rewrite it on a re-parent. An empty path is
+   * not "no path", it is the prefix of every path — `'' || '%'` matches every
+   * organization on the platform and `x.startsWith('')` is true for every `x`
+   * — so a row keeping it reads as the ancestor of everything.
    */
   @Property({ type: 'text' })
   path: string = '';
@@ -246,6 +253,27 @@ export class Organization {
   @BeforeUpdate()
   syncNameSearch(_args: EventArgs<Organization>): void {
     this.nameSearch = normalizeOrganizationName(this.name);
+  }
+
+  /**
+   * A new organization is a root, and a root's path is `'/<id>/'`.
+   *
+   * On the entity rather than in each creator because there are several —
+   * company registration, the personal organization a B2C account gets, the
+   * demo seed, every test fixture — and none of them is about the tree. Each
+   * one that forgot left a row with the column's `''` default, which the tree
+   * service reads as the prefix of every path: its subtree was every
+   * organization, and every re-parent involving it refused as a cycle.
+   *
+   * Only an empty path is filled, so a creator that knows better is left alone,
+   * and only for a row with no parent: a child's path depends on its parent's,
+   * which is the tree Commands' to compute (`applyReparentPaths`).
+   */
+  @BeforeCreate()
+  assignRootPath(_args?: EventArgs<Organization>): void {
+    if (this.path === '' && (this.parentId === undefined || this.parentId === null)) {
+      this.path = `/${this.id}/`;
+    }
   }
 }
 

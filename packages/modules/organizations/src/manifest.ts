@@ -460,8 +460,10 @@ export const manifest = defineModuleManifest({
    * read as the **positional fourth argument** it is — the correction MR 6
    * recorded, because looking for a named `details:` property reports `(none)`
    * for a raise that plainly carries a token. `ORGANIZATION_HAS_CHILDREN` has
-   * one raise and it passes `has_children`; `ORGANIZATION_TREE_INVALID` has two
-   * and they pass `cycle` and `max_depth_exceeded`. The other six carry no
+   * one raise and it passes `has_children`; `ORGANIZATION_TREE_INVALID` has
+   * three and they pass `cycle`, `max_depth_exceeded` and `path_unreadable` —
+   * the last added later, for a move involving an organization whose stored
+   * path the tree service cannot read, and the only one answered 409. The other six carry no
    * `details` at all, at any raise site, which is why they declare no tokens.
    *
    * **So all four sentences these two codes had were unreachable, and this
@@ -519,7 +521,7 @@ export const manifest = defineModuleManifest({
     { code: 'ORGANIZATION_HAS_CHILDREN', tokens: ['has_children'] },
     { code: 'ORGANIZATION_SUSPENDED' },
     { code: 'ORGANIZATION_TAX_ID_EXISTS' },
-    { code: 'ORGANIZATION_TREE_INVALID', tokens: ['cycle', 'max_depth_exceeded'] },
+    { code: 'ORGANIZATION_TREE_INVALID', tokens: ['cycle', 'max_depth_exceeded', 'path_unreadable'] },
     { code: 'ORG_OWNER_DEPLETION' },
   ],
 });

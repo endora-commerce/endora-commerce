@@ -67,3 +67,45 @@ describe('POST /api/v1/admin/search/reindex', () => {
     expect(body.error.code).toBe(ERROR_CODES.UNAUTHORIZED);
   });
 });
+
+/**
+ * The same route with the search engine unreachable.
+ *
+ * The indexer reads `MEILISEARCH_URL` when it is constructed, so this needs a
+ * server of its own, composed against an address nothing listens on. The
+ * operator is the one caller who can act on a search container that is down,
+ * and the answer has to name that condition rather than read as a platform
+ * fault: the full envelope, with the code the storefront's suggest route
+ * already gives a buyer.
+ */
+describe('POST /api/v1/admin/search/reindex — the search backend is unreachable', () => {
+  let h: BackendServerHandle;
+  let originalUrl: string | undefined;
+
+  beforeAll(async () => {
+    originalUrl = process.env['MEILISEARCH_URL'];
+    // Port 9 (discard) on loopback: refused immediately, never a timeout.
+    process.env['MEILISEARCH_URL'] = 'http://127.0.0.1:9';
+    h = await setupBackendServer();
+  });
+
+  afterAll(async () => {
+    await teardownBackendServer(h);
+    if (originalUrl === undefined) delete process.env['MEILISEARCH_URL'];
+    else process.env['MEILISEARCH_URL'] = originalUrl;
+  });
+
+  it('answers 503 SEARCH_BACKEND_UNAVAILABLE in the typed envelope', async () => {
+    const r = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/search/reindex',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: {},
+    });
+    expect(r.statusCode).toBe(503);
+    const body = r.json() as { error: { code: string; message: string; requestId: string } };
+    expect(body.error.code).toBe(ERROR_CODES.SEARCH_BACKEND_UNAVAILABLE);
+    expect(body.error.message.length).toBeGreaterThan(0);
+    expect(body.error.requestId).toBeTruthy();
+  });
+});

@@ -8,6 +8,7 @@ import {
   cycleRefusal,
   hasChildrenRefusal,
   maxDepthRefusal,
+  unreadablePathRefusal,
 } from '../../../../packages/modules/organizations/src/backend/services/organization-tree-service.js';
 
 /**
@@ -96,6 +97,14 @@ describe('the two always-tokened organizations codes', () => {
       status: 422,
       contains: String(MAX_TREE_DEPTH_SEGMENTS),
     },
+    {
+      code: 'ORGANIZATION_TREE_INVALID',
+      name: 'a re-parent involving an organization whose stored path cannot be read',
+      refusal: unreadablePathRefusal('00000000-0000-4000-8000-0000000000aa'),
+      token: 'path_unreadable',
+      status: 409,
+      contains: '00000000-0000-4000-8000-0000000000aa',
+    },
   ] as const;
 
   for (const { code, name, refusal, token, status, contains } of cases) {
@@ -157,7 +166,11 @@ describe('the two always-tokened organizations codes', () => {
       produced.set(code, [...(produced.get(code) ?? []), String(tokenOf(refusal.details))]);
     }
     expect(produced.get('ORGANIZATION_HAS_CHILDREN')).toEqual(['has_children']);
-    expect(produced.get('ORGANIZATION_TREE_INVALID')).toEqual(['cycle', 'max_depth_exceeded']);
+    expect(produced.get('ORGANIZATION_TREE_INVALID')).toEqual([
+      'cycle',
+      'max_depth_exceeded',
+      'path_unreadable',
+    ]);
   });
 });
 
