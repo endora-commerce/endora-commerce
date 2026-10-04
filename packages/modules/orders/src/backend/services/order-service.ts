@@ -12,6 +12,7 @@ import {
   type PromotionApplyPort,
   type StartPaymentResult,
 } from '@endora-commerce/contracts';
+import { LockMode } from '@mikro-orm/core';
 import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import {
@@ -25,7 +26,7 @@ import {
   type OrderEmailResult,
 } from './transactional-email-helper.js';
 
-import type { AuditPort } from '@endora-commerce/platform/kernel';
+import type { AuditPort, PlatformLogger } from '@endora-commerce/platform/kernel';
 import { actorFromContext } from '@endora-commerce/platform/commands';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import { NoSystemDefaultChannel } from '@endora-commerce/platform/kernel';
@@ -104,6 +105,9 @@ import { OrderAppliedPromotion } from '../entities/order-applied-promotion.entit
  */
 import type { CartPlacementApplyPort } from '@endora-commerce/mod-carts/ports';
 import type { InventoryReservationApplyPort } from '@endora-commerce/mod-inventory/ports';
+import { releaseOrderAllocations } from './order-allocation-release.js';
+import type { OrderTransitionEffectService } from './order-transition-effect-service.js';
+import { effectsOwedByPaymentStatusChange } from '../domain/transition-effects.js';
 import type { InvoicePlacementApplyPort } from '@endora-commerce/mod-invoices/ports';
 import type { PaymentPlacementApplyPort } from '../../ports/index.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
@@ -149,7 +153,6 @@ import {
   noCarrierShippingLineRenderer,
   noGatewayPaymentLineRenderer,
 } from '../email-templates/adapter-line-baselines.js';
-import { mayHoldCreditLimitReservation } from '../domain/credit-limit-reservation.js';
 
 
 export interface OrderEvents extends Record<string, EventBase> {
@@ -395,6 +398,9 @@ export class OrderService {
     | (() => TransactionalEmailSender | undefined)
     | undefined;
 
+  private readonly transitionEffects: OrderTransitionEffectService | undefined;
+  private readonly log: PlatformLogger | undefined;
+
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly events: OrderEventBus,
@@ -433,6 +439,16 @@ export class OrderService {
       resolveChannelAllowNegativeStock?: (salesChannelId: string) => Promise<boolean>;
       getTransactionalEmailSender?: () => TransactionalEmailSender | undefined;
       /**
+       * Records and runs the follow-up a payment-status change owes — the
+       * credit release of an order marked paid
+       * (`specs/142-order-transition-atomicity/`, D8). Optional only so that
+       * a placement-only service can be built without it, and it fails closed:
+       * a change that owes a follow-up is refused before anything is written
+       * when there is nowhere to record it.
+       */
+      transitionEffects?: OrderTransitionEffectService;
+      log?: PlatformLogger;
+      /**
        * Resolve the VAT rate (as a fraction, e.g. `0.23`) for a single product
        * line, given the billing country, the product's tax class (its `type`),
        * and the organization's VAT status. Optional only because the parameter
@@ -465,6 +481,8 @@ export class OrderService {
     this.promotionUsageFinalizer = paymentDeps?.promotionUsageFinalizer;
     this.confirmationRecipients = paymentDeps?.confirmationRecipients;
     this.getTransactionalEmailSender = paymentDeps?.getTransactionalEmailSender;
+    this.transitionEffects = paymentDeps?.transitionEffects;
+    this.log = paymentDeps?.log;
     this.resolveMinOrderValue = paymentDeps?.resolveMinOrderValue;
     this.resolveChannelFulfilmentStrategy = paymentDeps?.resolveChannelFulfilmentStrategy;
     this.resolveChannelFulfilmentWarehouseOrder =
@@ -2051,76 +2069,96 @@ export class OrderService {
     // lifecycle side effect of.
     const inventory = this.neighbours.inventory();
     if (inventory === null) return { released: 0 };
-    const em = this.emFactory();
-    return em.transactional(async (tx) => {
-      // `tx.execute`, not `tx.getKnex()`: the knex instance is connection-level
-      // and carries no transaction context, so this read took its own pooled
-      // connection and could not see anything the surrounding transaction had
-      // written (issue #200). Harmless for committed order lines, and the exact
-      // shape that made the promotion-usage writes escape their transaction.
-      const itemRows = await tx.execute<
-        Array<{ id: string; product_id: string; variant_id: string | null; quantity: number }>
-      >(
-        `select "id", "product_id", "variant_id", "quantity"
-           from "order_items"
-          where "order_id" = ?`,
-        [orderId],
-      );
-      if (itemRows.length === 0) return { released: 0 };
-
-      // On `tx`, so the counter decrement and the `released_at` stamp are one
-      // operation with each other and with whatever else this transaction is
-      // doing. The lines are passed in because `stock_allocations` records the
-      // warehouse and the order item and not the product: resolving it on the
-      // other side would mean `inventory` reading `order_items`.
-      return inventory.reservationApply.releaseForOrderItems(tx, {
-        items: itemRows.map((r) => ({
-          orderItemId: r.id,
-          productId: r.product_id,
-          variantId: r.variant_id ?? null,
-        })),
-      });
-    });
+    // One statement of the release, shared with the cancellation's
+    // `stock.release` follow-up so the two cannot drift.
+    return releaseOrderAllocations(this.emFactory, inventory.reservationApply, orderId);
   }
 
-  /** Admin payment-status transition (T210 + T149). */
+  /**
+   * Admin payment-status transition (T210 + T149;
+   * `specs/142-order-transition-atomicity/`, D8).
+   *
+   * The money-axis twin of `OrderTransitionService.apply`, and it had the same
+   * defect one method away: it flushed `paymentStatus = paid` and then asked
+   * `credit_limits` to release the reservation, so a refusal or a failure
+   * there answered an error for a change that had already committed.
+   *
+   * The payment status, its audit entry and the credit release it owes now
+   * commit in one transaction, with the order row locked. The release is
+   * attempted at once and, if it cannot complete — `credit_limits` is switched
+   * off, or the release fails — it stays recorded and is retried. The caller
+   * is told the change was applied, because it was.
+   *
+   * D-179.3 still holds: `orders` asks `credit_limits` about nothing but the
+   * credit an order actually drew. The rule reads `paymentMethodSnapshot.kind`,
+   * stamped at placement from the same value that decides whether `reserve`
+   * runs, so an order that is not on credit owes no follow-up at all.
+   */
   async transitionPaymentStatus(
     orderId: string,
     to: 'paid' | 'refunded',
   ): Promise<Order> {
     const em = this.emFactory();
-    const order = await em.findOne(Order, { id: orderId });
-    if (!order) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
-    const paymentBefore = order.paymentStatus;
-    order.paymentStatus = to;
-    // Feature 054 — audit the payment-status change co-transactionally (actor
-    // from the ambient TenantContext; the admin route always carries one).
-    if (this.auditLog) {
-      const ctx = getTenantContext();
-      const actor = ctx ? actorFromContext(ctx) : null;
-      this.auditLog.recordWithin(em, {
-        action: 'order.payment_status_transition',
-        objectType: 'order',
-        objectId: order.id,
-        actorAdminUserId: actor?.actorAdminUserId ?? null,
-        impersonatedCustomerAccountId: actor?.impersonatedCustomerAccountId ?? null,
-        stateBefore: { paymentStatus: paymentBefore },
-        stateAfter: { paymentStatus: to },
-      });
-    }
-    await em.flush();
-    // D-179.3 — release the credit this order actually drew, and ask
-    // `credit_limits` about nothing else. The predicate reads
-    // `paymentMethodSnapshot.kind`, stamped at placement from the same value
-    // that decides whether `reserve` runs, so an order that is not on credit
-    // has no reservation and the gated port is not resolved for it. Without
-    // it, an operator who switched `credit_limits` off could mark no order
-    // paid at all.
-    if (to === 'paid' && this.creditLimit && mayHoldCreditLimitReservation(order)) {
-      await this.creditLimit.releaseByOrder({
-        orderId: order.id,
-        reason: 'invoice_paid',
-      });
+    // Through the tenant filter first: a caller outside the order's scope gets
+    // the same 404 a missing order does, before any lock is taken.
+    const visible = await em.findOne(Order, { id: orderId });
+    if (!visible) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+
+    const { order, owes } = await em.transactional(async (tx) => {
+      const locked = await tx.findOne(
+        Order,
+        { id: orderId },
+        { lockMode: LockMode.PESSIMISTIC_WRITE, refresh: true },
+      );
+      if (!locked) throw new HttpError(404, ERROR_CODES.ORDER_NOT_FOUND, 'Order not found.');
+
+      const owed = effectsOwedByPaymentStatusChange(locked, to);
+      if (owed.length > 0 && !this.transitionEffects) {
+        throw new Error(
+          `OrderService: marking an order "${to}" owes ${owed.map((o) => o.effect).join(' and ')}, ` +
+            'and no effect service was supplied to record it. Refusing rather than committing ' +
+            'a payment status whose follow-up would be lost.',
+        );
+      }
+
+      const paymentBefore = locked.paymentStatus;
+      locked.paymentStatus = to;
+      // Feature 054 — audit the payment-status change co-transactionally (actor
+      // from the ambient TenantContext; the admin route always carries one).
+      if (this.auditLog) {
+        const ctx = getTenantContext();
+        const actor = ctx ? actorFromContext(ctx) : null;
+        this.auditLog.recordWithin(tx, {
+          action: 'order.payment_status_transition',
+          objectType: 'order',
+          objectId: locked.id,
+          actorAdminUserId: actor?.actorAdminUserId ?? null,
+          impersonatedCustomerAccountId: actor?.impersonatedCustomerAccountId ?? null,
+          stateBefore: { paymentStatus: paymentBefore },
+          stateAfter: { paymentStatus: to },
+        });
+      }
+      if (this.transitionEffects && owed.length > 0) {
+        await this.transitionEffects.record(tx, locked, owed, 'transition');
+      }
+      return { order: locked, owes: owed.length > 0 };
+    });
+
+    if (owes && this.transitionEffects) {
+      try {
+        await this.transitionEffects.drainForOrder(order.id);
+      } catch (error) {
+        // The same narrow tolerance as the lifecycle transition's: the change
+        // is committed and its follow-up recorded, so a drain that could not
+        // run is the sweep's to retry and not the caller's to be told about. A
+        // module switched off in the instant between the handler's presence
+        // answer and its port call is not swallowed.
+        rethrowIfModuleDisabled(error);
+        this.log?.warn(
+          { orderId: order.id, error: error instanceof Error ? error.message : String(error) },
+          'orders: the immediate attempt at a payment-status follow-up failed; the sweep retries it',
+        );
+      }
     }
     return order;
   }

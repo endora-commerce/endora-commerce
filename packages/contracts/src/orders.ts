@@ -70,6 +70,33 @@ export const nextActionSchema = z.discriminatedUnion('kind', [
 ]);
 export type NextAction = z.infer<typeof nextActionSchema>;
 
+/**
+ * The follow-ups an order transition can owe (`specs/142-order-transition-atomicity/`).
+ *
+ * A closed set: cancelling an order owes the release of its stock allocations
+ * and, for an order placed against a credit limit, of its credit reservation;
+ * marking such an order paid owes the credit release alone.
+ */
+export const ORDER_TRANSITION_EFFECTS = ['stock.release', 'credit.release'] as const;
+export type OrderTransitionEffectKind = (typeof ORDER_TRANSITION_EFFECTS)[number];
+
+/**
+ * One follow-up of an order that has **not happened yet** — the status that
+ * owes it is already committed, and the platform retries it until it completes.
+ */
+export const orderPendingEffectSchema = z.object({
+  effect: z.enum(ORDER_TRANSITION_EFFECTS),
+  /**
+   * The id of the module the follow-up is waiting for, when that module is
+   * switched off; `null` when nothing blocks it and it is simply being retried.
+   */
+  blockedOn: z.string().nullable(),
+  /** Failed attempts so far. Waiting on a switched-off module is not one. */
+  attempts: z.number().int().nonnegative(),
+  lastAttemptAt: isoDateTimeSchema.nullable(),
+});
+export type OrderPendingEffect = z.infer<typeof orderPendingEffectSchema>;
+
 export const orderSchema = z.object({
   id: uuidSchema,
   /**
@@ -151,8 +178,52 @@ export const orderSchema = z.object({
    * narrowing that does not exist.
    */
   customerCancellable: z.boolean().optional(),
+  /**
+   * The follow-ups this order still owes — a stock or credit release that has
+   * not completed yet (`specs/142-order-transition-atomicity/`, FR-019).
+   *
+   * Present on the **admin** order reads, and only when something is
+   * outstanding: an order with nothing pending carries no field at all. Absent
+   * on the buyer-facing reads — a release the platform is still retrying is an
+   * operator's concern and changes nothing a buyer can do.
+   */
+  pendingEffects: z.array(orderPendingEffectSchema).optional(),
 });
 export type Order = z.infer<typeof orderSchema>;
+
+/**
+ * What a status-changing order route answers when the change **committed** but
+ * the full order could not be read back for the response
+ * (`specs/142-order-transition-atomicity/`, FR-002).
+ *
+ * `POST /api/v1/admin/orders/:id/status`, `POST /api/v1/admin/orders/:id/payment-status`
+ * and `POST /api/v1/orders/:id/cancel` normally answer `{ data: <order> }`. The
+ * reads behind that body are the last thing that can fail after the commit, and
+ * a failure there is not reported as a failure of the change: the route answers
+ * `200` with these four fields — which need no read — and `meta.partial`.
+ */
+export const orderCommittedWritePartialSchema = z.object({
+  id: uuidSchema,
+  businessId: z.string(),
+  status: orderStatusCodeSchema,
+  paymentStatus: paymentStatusSchema,
+});
+export type OrderCommittedWritePartial = z.infer<typeof orderCommittedWritePartialSchema>;
+
+/**
+ * The whole partial response, marker included. A client checks
+ * `meta?.partial` first — or parses with this schema: when it matches, `data`
+ * is **not** an {@link Order} and parsing it with {@link orderSchema} fails;
+ * the order is read again when the rest is needed. A response with no
+ * `meta.partial` carries the order exactly as these routes always answered it.
+ */
+export const orderCommittedWritePartialResponseSchema = z.object({
+  data: orderCommittedWritePartialSchema,
+  meta: z.object({ partial: z.literal(true) }),
+});
+export type OrderCommittedWritePartialResponse = z.infer<
+  typeof orderCommittedWritePartialResponseSchema
+>;
 
 // --- Requests --------------------------------------------------------------
 

@@ -86,6 +86,22 @@ export interface CreditLimitReadPort {
    * the transaction that loaded it.
    */
   organizationsWithLimit(organizationIds: readonly string[]): Promise<string[]>;
+  /**
+   * The reservations still **active** for the given orders — credit an order
+   * drew and has not given back (`specs/142-order-transition-atomicity/`, D9).
+   *
+   * Asked by `orders`' repair command, which may not read this module's tables:
+   * it knows which orders are cancelled or paid and has to learn which of them
+   * still hold credit before it proposes to release anything. An order with no
+   * active reservation is absent from the answer; an empty input answers the
+   * empty list without a query.
+   *
+   * `amount` is the decimal string the reservation stores, never a float.
+   * Read across organisations, for the reason `organizationsWithLimit` is.
+   */
+  activeReservationsForOrders(
+    orderIds: readonly string[],
+  ): Promise<Array<{ orderId: string; amount: string; currency: string }>>;
 }
 
 /**

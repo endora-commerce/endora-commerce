@@ -50,6 +50,7 @@ describe('OrganizationInheritanceService.creditOwner (feature 077, D-87)', () =>
   it('asks the owner about the whole chain, nearest-first, and takes the nearest hit', async () => {
     const asked: Array<readonly string[]> = [];
     const creditLimits: CreditLimitReadPort = {
+      activeReservationsForOrders: async () => [],
       organizationsWithLimit: async (ids) => {
         asked.push(ids);
         // Both ancestors hold one; the nearest must win.
@@ -73,6 +74,7 @@ describe('OrganizationInheritanceService.creditOwner (feature 077, D-87)', () =>
 
   it('reads the answer as plain ids, so no row of the owner’s can be handed back', async () => {
     const creditLimits: CreditLimitReadPort = {
+      activeReservationsForOrders: async () => [],
       organizationsWithLimit: async () => [LEAF],
     };
     const service = new OrganizationInheritanceService(
@@ -93,6 +95,7 @@ describe('OrganizationInheritanceService.creditOwner (feature 077, D-87)', () =>
 
   it('falls back to the global mode when nobody in the chain holds a limit', async () => {
     const creditLimits: CreditLimitReadPort = {
+      activeReservationsForOrders: async () => [],
       organizationsWithLimit: async () => [],
     };
     const service = new OrganizationInheritanceService(
@@ -110,6 +113,7 @@ describe('OrganizationInheritanceService.creditOwner (feature 077, D-87)', () =>
 
   it('fails closed when `credit_limits` is absent — no catch turns the refusal into "no limit"', async () => {
     const creditLimits: CreditLimitReadPort = {
+      activeReservationsForOrders: async () => [],
       organizationsWithLimit: async () => {
         throw new ModuleDisabledError('credit_limits');
       },

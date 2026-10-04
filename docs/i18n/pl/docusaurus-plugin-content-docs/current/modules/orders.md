@@ -42,10 +42,107 @@ emituje zdarzenia według szablonu (niżej). Zdarzenia płatności i wysyłki wy
 przejścia przez `OrderStatusRegistry` (kolumny `statusOn*` odwołują się do tych kodów statusów);
 `payment_status` pozostaje polem pochodnym, drugorzędnym.
 
+## Co wynika z przejścia: działania następcze
+
+Anulowanie zamówienia zwalnia to, co zamówienie trzymało: jego **rezerwacje stanów magazynowych**
+oraz — w przypadku zamówienia złożonego w ramach limitu kredytowego — jego **rezerwację limitu**.
+Oznaczenie takiego zamówienia jako opłaconego zwalnia rezerwację limitu. Te zwolnienia to
+*działania następcze* przejścia.
+
+Działanie następcze jest zapisywane **w tej samej transakcji co status**, jako wiersz w tabeli
+`order_transition_effects`, i wykonywane zaraz potem, w tym samym żądaniu. W zwykłym przypadku
+stan magazynowy i limit są więc zwolnione, zanim wywołujący dostanie odpowiedź. Zmieniło się to,
+co dzieje się, gdy zwolnienia nie da się dokończyć:
+
+- **Przejście i tak jest wykonane, a wywołujący dostaje taką odpowiedź.** Każda odmowa — nieznany
+  status, brak skonfigurowanej krawędzi, status końcowy, blokada zabezpieczenia wstępnego — zapada,
+  zanim cokolwiek zostanie zapisane. Po zatwierdzeniu statusu nic nie zamieni odpowiedzi w błąd.
+- **Zwolnienie jest ponawiane aż do skutku.** Zadanie w tle uruchamia się co minutę i próbuje
+  wykonać każde zaległe działanie, na które przyszła pora, wydłużając odstęp między próbami od
+  jednej minuty do jednej godziny. Nie ma stanu „porzucone”; od piątego niepowodzenia każde
+  kolejne jest zapisywane w logu na poziomie `warn` wraz z identyfikatorem zamówienia, rodzajem
+  zwolnienia i ostatnim błędem.
+- **Nawet odpowiedź nie zamieni tego w błąd.** Jeśli po zatwierdzeniu nie uda się odczytać
+  zamówienia na potrzeby treści odpowiedzi, `POST /api/v1/admin/orders/:id/status`,
+  `POST /api/v1/admin/orders/:id/payment-status` i `POST /api/v1/orders/:id/cancel` odpowiadają `200`
+  z `{ data: { id, businessId, status, paymentStatus }, meta: { partial: true } }`
+  (`orderCommittedWritePartialResponseSchema` w `@endora-commerce/contracts`). Sprawdź
+  `meta.partial`, zanim potraktujesz `data` jako całe zamówienie, i odczytaj zamówienie ponownie,
+  jeśli potrzebna jest reszta.
+- **Działania następcze są od siebie niezależne.** Nieudane zwolnienie limitu nie wstrzymuje
+  zwolnienia stanu magazynowego — i odwrotnie.
+- **Zdarzenia zmiany statusu są emitowane zawsze** po zatwierdzeniu, bez względu na to, co stało
+  się ze zwolnieniami.
+
+Powtórzenie przejścia do statusu, który zamówienie już ma, niczego nie zmienia — i jest to
+bezpieczne: to, co wynika ze statusu, jest zapisane obok niego i zostanie wykonane.
+
+### Gdy moduł `inventory` lub `credit_limits` jest wyłączony
+
+Działanie następcze, którego moduł-właściciel jest wyłączony, **czeka**. Dopóki moduł jest
+wyłączony, nic w jego danych nie jest zapisywane, oczekiwanie nie liczy się jako nieudana próba, a
+zwolnienie następuje w ciągu jednego przebiegu zadania w tle (minuty) od ponownego włączenia
+modułu.
+
+- Przy wyłączonym `inventory` anulowane zamówienie zachowuje swoje rezerwacje do czasu powrotu
+  modułu.
+- Przy wyłączonym `credit_limits` zamówienie złożone w ramach limitu nadal można anulować albo
+  oznaczyć jako opłacone; jego rezerwacja zostanie zwolniona po powrocie modułu. Złożenie nowego
+  zamówienia w ramach limitu kredytowego jest przy wyłączonym module nadal odrzucane.
+
+### Na stronie zamówienia
+
+Strona zamówienia w panelu administracyjnym pokazuje komunikat, dopóki zamówienie ma zaległe
+działania następcze: które zwolnienie, czy czeka na moduł i ile prób się nie powiodło. Odpowiedź
+administracyjna z zamówieniem zawiera te same informacje w polu `pendingEffects` — obecnym tylko
+wtedy, gdy coś jest zaległe, i nigdy w odpowiedziach przeznaczonych dla kupującego.
+
+### Naprawa zamówień pozostawionych przez wcześniejszą wersję
+
+Zanim działania następcze zaczęły być zapisywane, zwolnienie, które się nie powiodło albo zostało
+odrzucone, mogło zostawić zamówienie anulowane (albo opłacone), a mimo to nadal trzymające stan
+magazynowy lub limit — i nic nie mogło go już potem zwolnić. Takie zamówienia nie mają wiersza
+działania następczego. Znajduje je i naprawia polecenie dla operatora:
+
+```bash
+# Wypisuje, co zostałoby zwolnione. Niczego nie zapisuje.
+pnpm --filter backend run cli orders transition-effects-repair
+
+# Zwalnia.
+pnpm --filter backend run cli orders transition-effects-repair --apply
+```
+
+Przebieg próbny wypisuje każde zamówienie, które nadal trzyma rezerwacje stanów magazynowych lub
+aktywną rezerwację limitu, choć powinno było je zwolnić — wraz z tym, co trzyma. `--apply` zapisuje
+zwolnienia tym samym mechanizmem działań następczych, od razu próbuje je wykonać i tworzy jeden
+wpis audytu na stronę zamówień; to, czego nie uda się dokończyć, ponawia zadanie w tle. Ponowne
+uruchomienie niczego już nie znajduje.
+
+**Po aktualizacji uruchom raz przebieg próbny** i przeczytaj listę, zanim ją zastosujesz:
+zwolnienie zmienia liczniki zarezerwowanego stanu i dostępny limit. Naprawa nigdy nie uruchamia się
+sama.
+
+**Czego przebieg próbny nie pokaże.** Wypisuje to, co według własnych wierszy zamówienia zamówienie
+trzyma. Jeśli ktoś już ręcznie poprawił licznik stanu dla któregoś z tych zamówień, zamówienie
+nadal jest na liście — jego rezerwacja nie jest oznaczona jako zwolniona — a zastosowanie naprawy
+obniży licznik po raz drugi, więc zarezerwowane będzie mniej, niż faktycznie trzymają aktywne
+zamówienia (licznik nigdy nie spada poniżej zera, co ukrywa błąd, zamiast mu zapobiec). Takie
+zamówienie pomiń albo napraw tylko wskazane zamówienia; obie opcje przyjmują identyfikator
+zamówienia wypisany na liście w nawiasie i można je powtarzać:
+
+```bash
+pnpm --filter backend run cli orders transition-effects-repair --apply --except=<identyfikator zamówienia>
+pnpm --filter backend run cli orders transition-effects-repair --apply --order=<identyfikator zamówienia>
+```
+
+Jeśli `inventory` lub `credit_limits` jest wyłączony, polecenie nie może zapytać tego modułu, co
+trzymają zamówienia. Informuje o tym, naprawia resztę i należy je uruchomić ponownie po włączeniu
+modułu.
+
 ## Encje
 
-`Order`, `OrderItem`, `Payment`, `OrderStatus`, `OrderStatusTransition`, `OrderComment`,
-`OrderListSavedView` oraz kolumna `organizations.order_confirmation_emails` (właściciel:
+`Order`, `OrderItem`, `Payment`, `OrderStatus`, `OrderStatusTransition`, `OrderTransitionEffect`,
+`OrderComment`, `OrderListSavedView` oraz kolumna `organizations.order_confirmation_emails` (właściciel:
 `organizations`, odczyt przez port). `OrderItem` zapisuje kopię produktu, wariantu, ceny
 jednostkowej i stawki podatku z chwili złożenia zamówienia, aby historyczne zamówienia nie zmieniały
 się po zmianach cen i katalogu.
@@ -67,7 +164,8 @@ zatwierdzeniu, odizolowane).
   licznikami dla każdego statusu; `GET …/export` zwraca CSV strumieniowo; zapisane widoki przez
   `…/list-views` (prywatne lub współdzielone).
 - **Operacje masowe** — `POST …/bulk/status` (zamówienia, które się kwalifikują, zmieniają status;
-  pominięte są zgłaszane z powodem) oraz `…/bulk/print-invoices`.
+  pominięte są zgłaszane z powodem — pominięte zamówienie nie zmieniło statusu) oraz
+  `…/bulk/print-invoices`.
 - **Komentarze** — `…/:id/comments` dla administratora i klienta, z flagą widoczności dla klienta i
   powiadomieniem; zablokowane w zamówieniach o statusie końcowym.
 - **Ponowne zamówienie** — `…/:id/reorder` odtwarza koszyk (zależnie od ustawienia

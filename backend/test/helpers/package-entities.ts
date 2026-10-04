@@ -127,6 +127,7 @@ import type { OrderItem as OrderItemRow } from '../../../packages/modules/orders
 import type { OrderComment as OrderCommentRow } from '../../../packages/modules/orders/src/backend/entities/order-comment.entity.js';
 import type { OrderAppliedPromotion as OrderAppliedPromotionRow } from '../../../packages/modules/orders/src/backend/entities/order-applied-promotion.entity.js';
 import type { OrderPlacementIntent as OrderPlacementIntentRow } from '../../../packages/modules/orders/src/backend/entities/order-placement-intent.entity.js';
+import type { OrderTransitionEffect as OrderTransitionEffectRow } from '../../../packages/modules/orders/src/backend/entities/order-transition-effect.entity.js';
 import type { Payment as PaymentRow } from '../../../packages/modules/payments/src/backend/entities/payment.entity.js';
 
 /**
@@ -276,6 +277,12 @@ export const OrderPlacementIntent = classNamed<OrderPlacementIntentRow>(
   installedModuleEntities,
   'orders',
   'OrderPlacementIntent',
+);
+
+export const OrderTransitionEffect = classNamed<OrderTransitionEffectRow>(
+  installedModuleEntities,
+  'orders',
+  'OrderTransitionEffect',
 );
 
 export const Currency = classNamed<CurrencyRow>(installedModuleEntities, 'currencies', 'Currency');
@@ -1006,6 +1013,7 @@ export type OrderItem = OrderItemRow;
 export type OrderComment = OrderCommentRow;
 export type OrderAppliedPromotion = OrderAppliedPromotionRow;
 export type OrderPlacementIntent = OrderPlacementIntentRow;
+export type OrderTransitionEffect = OrderTransitionEffectRow;
 export type Payment = PaymentRow;
 export type Shipment = ShipmentRow;
 export type NewsletterSubscriber = NewsletterSubscriberRow;

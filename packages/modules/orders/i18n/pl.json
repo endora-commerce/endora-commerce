@@ -50,5 +50,15 @@
   "blocks.emailShippingAddress.description": "Adres dostawy zamówienia wraz z etykietą.",
   "blocks.emailBillingAddress.label": "Adres rozliczeniowy",
   "blocks.emailBillingAddress.description": "Adres rozliczeniowy zamówienia wraz z etykietą.",
-  "blocks.category.order": "Zamówienie"
+  "blocks.category.order": "Zamówienie",
+  "pendingEffects.title": "To zamówienie ma jeszcze niewykonane działania następcze",
+  "pendingEffects.description": "Status zamówienia jest ostateczny, ale poniższe zwolnienia jeszcze nie nastąpiły. Są ponawiane automatycznie; niczego nie trzeba powtarzać.",
+  "pendingEffects.effect.stockRelease": "Zwolnienie stanu magazynowego",
+  "pendingEffects.effect.creditRelease": "Zwolnienie limitu kredytowego",
+  "pendingEffects.state.waitingForModule": "oczekuje na włączenie modułu {module}",
+  "pendingEffects.state.retrying": "ponawiane; nieudanych prób do tej pory: {count}",
+  "pendingEffects.state.queued": "w kolejce, zostanie wykonane za chwilę",
+  "pendingEffects.needsAttention": "Zwolnienie nie powiodło się kilka razy i wymaga uwagi. Sprawdź ostatni błąd w logu serwera.",
+  "pendingEffects.module.inventory": "Magazyn",
+  "pendingEffects.module.credit_limits": "Limity kredytowe"
 }

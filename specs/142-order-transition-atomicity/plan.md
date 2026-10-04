@@ -298,18 +298,133 @@ backend/test/integration/orders/…                                             
 
 ## Handoff to `endora-commerce-dev`
 
-Implement from [tasks.md](tasks.md) in order. **Do not start Phase 2 before the owner has answered
-Q1 and Q2.** Four things here are **premises, not measurements** — re-derive each (Phase 0) before
-relying on it:
+Implement from [tasks.md](tasks.md) in order. Q1 and Q2 are answered (spec, *Open questions*).
+The four items below were written as premises; **T01 measured each on `af6e32ab3`**, and what was
+found replaces the premise:
 
-1. that `effectiveState.isPresent('credit_limits')` beside a `refuses-without` edge is accepted by
-   `check:port-dependencies`, `check:entry-presence` and the deactivation-consequence ledger;
-2. that a declared `cliCommands` body can run a Command through `CommandBus.run` with a system
-   actor (find the nearest precedent among the modules that declare `cliCommands`);
-3. that `ctx.worker` with a BullMQ repeatable job is the current shape for a periodic sweep (read
-   the newest worker in `packages/modules/*/src/backend/workers/`, not the oldest);
-4. that the admin order response has one schema `serializeOrder` is checked against — name it in
-   T02.
+1. **Holds.** An `effectiveState.isPresent('credit_limits')` decision in `orders`, placed before a
+   `lazyPort` call on `creditLimitService` (the `refuses-without` edge), with the same shape for
+   `inventory`, was run through `check:port-dependencies` (resolutions 1299 → 1302, `violations=0`,
+   `non-binding-issues=0`), `check:entry-presence` (`violations=0`) and `check:port-catches`
+   (`violations=0`), and through the ledger's own tests
+   (`test/unit/kernel/port-dependency-check.test.ts`,
+   `test/unit/_lifecycle/dead-activation-switches.test.ts`,
+   `test/unit/orders/payments-deactivation-consequence.test.ts`) — all green. D3 and D4 stand.
+   **One thing the measurement also showed**: `check:port-catches` does not see a `catch` around a
+   closure that reaches the port two calls away — a negative control with the
+   `rethrowIfModuleDisabled` line removed stayed at `violations=0`. So the first line of the
+   per-row `catch` in T08 is held by the rule in `module-composition.md` item 7 and by T08's own
+   test, not by that check.
+2. **No precedent exists; the seam does.** None of the declared `cliCommands` bodies runs a Command
+   (`search reindex` and `carts abandonment-sweep` read their own registrations off the cradle;
+   `admin_users create` writes directly and says why). `CommandBus.run` resolves its actor from the
+   ambient tenant context and refuses without one — and the host supplies one: the dispatcher
+   (`packages/platform/src/cli/dispatch.ts`) runs every module command inside `enterSystemScope`
+   over its own composition. So the repair body opens no scope of its own and reads `commandBus`
+   off the cradle, where `orders` already resolves it; a system actor maps to a `null` admin id on
+   the audit entry (`actorFromContext`). *This answer first said the host establishes no context;
+   that was read off `runModuleCommand` alone, one frame below the dispatcher, and review corrected
+   it.*
+3. **The current shape is `product_feeds`' reaper** (`workers/feed-run-reaper-worker.ts`, the newest
+   periodic worker): a BullMQ `Worker` whose processor runs inside `enterSystemScope`, a **Job
+   Scheduler** installed with `queue.upsertJobScheduler(id, { … }, { name, data })` rather than a
+   repeatable job, both built only when the host values `processRunsWorkers` and `moduleQueueRedis`
+   say this process consumes queues, and the worker attached with
+   `ctx.worker(worker, { logger: app.log })` inside the `ctx.routes(…)` body. The test kit sets
+   `processRunsWorkers` to `false`, so the shared test server composes no consumer.
+4. **There is no admin-specific schema.** `serializeOrder` returns `Record<string, unknown>` and is
+   checked against nothing at runtime; the one schema describing the shape is `orderSchema` in
+   `packages/contracts/src/orders.ts`, shared by the buyer-facing and the admin reads, which
+   already carries a field present on one family only (`customerCancellable`, buyer reads).
+   `pendingEffects` is added there the same way: optional, documented as admin-only, and T16
+   asserts the buyer-facing response does not carry it.
+
+## As built — where the tree led somewhere the plan did not
+
+Each of these is a difference between what the decisions above say and what was implemented, with
+the reason. None changes D1–D10's substance.
+
+1. **`stock.release` shares a function with `OrderService.releaseAllocations` rather than calling
+   it (D2).** `OrderService` is built in the plugin body, so it exists only once routes register —
+   and the repair command composes the platform without building a server. The release body moved
+   to `services/order-allocation-release.ts`; both callers use it, and
+   `place-order-inventory-apply-port.test.ts`, which drives the service method, is green unedited.
+2. **The effect service is a container registration, not a plugin-body object (D6).** For the same
+   reason: the engine, the sweep worker and the repair command must reach one instance, and only
+   the first has a server. `orderTransitionEffectService` is registered in `backend/index.ts` and
+   handed to the plugin.
+3. **The engine's fourth constructor argument stays, with a new meaning (T09).** T09 said to
+   remove the `sideEffects` parameter. `status-lifecycle.test.ts` builds the engine with three
+   arguments and SC-004 keeps it unedited, so the fourth is now the optional effect service — and
+   it fails closed: a transition that owes a follow-up is refused, before the write, when none was
+   supplied. `OrderService` takes the same collaborator the same way for D8.
+4. **`record` is `insert … on conflict do nothing` on the partial index.** D5's lock makes two
+   *lifecycle* transitions serialise, but an order marked paid whose credit release is still
+   outstanding and which is then cancelled would otherwise trip the unique index inside the
+   cancellation. One outstanding release per order and effect is owed once, whichever transition
+   asks second.
+5. **`order_transition_effects.organization_id` carries no foreign key.** `orders.organization_id`
+   carries none, and `order-transition-port.test.ts` seeds orders whose organization has no row; a
+   constraint on the copy refused the cancellation of an order the schema accepts.
+6. **`sweep` writes `blocked_on` in bulk (D3).** D3 has the sweep exclude the rows of an absent
+   owner and do nothing per row. It does — and issues one statement per absent owner marking
+   not-yet-marked rows as waiting, and its mirror clearing the mark when the owner is back, so the
+   order page's "waiting for module" stays true for a row the inline attempt never saw blocked.
+   After the first pass both statements update nothing.
+7. **A failure of the drain itself is tolerated in the request (FR-002).** D7 puts the emit in a
+   `finally` and says nothing about the drain throwing for a reason other than D3's residue (the
+   claim failing on a lost connection). The status is committed and the rows recorded, so the
+   caller is answered "applied" and the failure is logged; `ModuleDisabledError` is re-thrown
+   first, as D3 says. Fault 1 of the fault-injection test.
+8. **The buyer cannot reach spec row 1** — measured, and corrected in the spec. T11's buyer
+   assertion is made with an order the buyer may cancel.
+9. **A second module edge: `credit_limits:creditLimitReadPort`, `degrades-without`.** D9 added the
+   read method; resolving its port from `orders` is a new edge and is declared, with the degrade
+   the repair implements (credit holdings reported as not examined).
+10. **Strings: the notice's are in `orders`' own bundle**, as the plan says, although the rest of
+    the order page still reads the legacy `core` namespace.
+11. **Read sizes were not re-recorded (T19).** They are re-recorded at release now; the bands held.
+13. **A claim is a committed lease, not a row lock (D6) — changed after review.** D6 claims rows
+    with `select … for update skip locked` held around the handler. That holds one pooled
+    connection per attempt while the release opens a second, and with more concurrent cancellations
+    than the pool has connections every claim waits on a connection only another waiting claim
+    could free. Measured through HTTP on a pool of 10: 30 at once took 123 s, 20 committed
+    cancellations were answered 500 and no release completed. The claim is now one committed
+    statement stamping `claimed_until` (a column of the same new table), the handler runs with
+    nothing of the queue's open, and one statement records the outcome; the same 30 take under four
+    seconds, all answered 200, all released. A lease nobody hands back expires after five minutes,
+    and the stock release locks its order row for its own short transaction, so a second run
+    overlapping a slow first one cannot decrement twice (`stock-release-order-lock.test.ts`, red
+    without the lock). **The feature's migration was edited in place to add `claimed_until`**, so
+    a database that already ran the earlier shape under the same migration name — a development
+    database, a preview of this branch — must be recreated; nothing published carries the earlier
+    shape. The bulk `blocked_on` statements no longer
+    have a held row lock to wait behind. `transition-effects-pool-pressure.test.ts` is the test.
+14. **A response that cannot be read back after the commit is answered as a success.** The 500s
+    above came from the status route's own reads for the response body. The three routes that reply
+    after a committed transition answer what was written (`id`, `businessId`, `status`,
+    `paymentStatus`) with `meta.partial` when the full order cannot be read (FR-002).
+    The partial body is published as `orderCommittedWritePartialResponseSchema` in
+    `@endora-commerce/contracts`. The helper's `catch` begins with `rethrowIfModuleDisabled`
+    (`module-composition.md` item 7): the buyer's serialiser reaches `payment_methods`' port, and a
+    module switched off underneath it is the same accepted residue as D3's, not a partial reply.
+    `check:port-catches` does not see this catch — the serialiser arrives as a closure — so the
+    line is held by the convention and by the helper's own test. **Found while testing it, not
+    fixed here**: a real order response does not parse with `orderSchema` — the address snapshots
+    answer `phone: null` where the schema has an optional string — which is why the partial schema
+    is published on its own rather than as a union with `orderSchema`.
+15. **A returned owner's rows are due at once (FR-008).** The statement that clears `blocked_on`
+    also brings `next_attempt_at` forward, so a row that had failed before its owner went away
+    drains in the first sweep after the owner returns rather than after its old back-off.
+16. **The repair takes `--order=<id>` and `--except=<id>`.** The dry run cannot show that an
+    operator already corrected a stock counter by hand for a listed order; the filters are how such
+    an order is left out.
+
+12. **Test-first was kept unevenly, and this is the honest account.** Run red before the
+    implementation existed: T00's seven cases, T02, T03, T04 and T06 — and through T00, the
+    mechanism tasks T09–T12, whose acceptance is those seven cases going green. Written before the
+    implementation but not run red: T05 (its absence was observed as T00 row 5's missing relation),
+    T13 and T17. Written together with or after their subject: T07, T08, T15, T16 and T20.
 
 Also re-derive the spec's failure table against the tree you branch from; every row is a reading of
 `fe0803f2e`. Branch off `origin/master`; regenerate and commit generated artefacts in the same pull
