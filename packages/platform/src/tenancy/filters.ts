@@ -2,6 +2,7 @@ import {
   getTenantContext,
   MissingTenantContextError,
   noteOrganizationAttributionRefusal,
+  throwIfScopeUnresolved,
 } from './tenant-context.js';
 
 /**
@@ -44,6 +45,7 @@ export type CustomerOrganizationColumn = 'present' | 'absent';
 export function orgFilterCond(): Record<string, unknown> {
   const ctx = getTenantContext();
   if (!ctx) throw new MissingTenantContextError(`filter '${ORG_FILTER}'`);
+  throwIfScopeUnresolved(ctx);
   switch (ctx.mode) {
     case 'all':
     case 'system':
@@ -120,6 +122,7 @@ export function customerFilterCond(
 ): Record<string, unknown> {
   const ctx = getTenantContext();
   if (!ctx) throw new MissingTenantContextError(`filter '${CUSTOMER_FILTER}'`);
+  throwIfScopeUnresolved(ctx);
   switch (ctx.mode) {
     case 'all':
     case 'system':

@@ -311,8 +311,10 @@ export interface ComposeAppOptions {
    * `../kernel/actor-tenant-context.ts`.
    *
    * A deployment that supplies its own is still held to one rule: a mapping
-   * that answers a customer or an admin request with a system context is
-   * refused, and the request fails.
+   * that hands an identified actor a context wider than that kind of actor may
+   * hold — a customer or a bound API key anything that crosses every
+   * organization, an admin a system context — is refused, and the request
+   * fails.
    */
   readonly buildTenantContext?: (request: FastifyRequest) => Promise<TenantContext>;
   /**
@@ -1204,10 +1206,13 @@ export async function composeApp(options: ComposeAppOptions): Promise<ComposeApp
   // (Principle XI). With nothing supplied it is the platform's own mapping over
   // what this composition registered — a customer confined to its organization,
   // an admin to the reach its role resolves to, a bound API key to its binding —
-  // and never a system context for a request that identifies someone. A
-  // supplied mapping passes through the same refusal. See
+  // and never a context wider than the request's actor may hold. A supplied
+  // mapping passes through the same refusal. See
   // `../kernel/actor-tenant-context.ts`.
-  const buildTenantContext = tenantContextMappingFor(container, options.buildTenantContext);
+  const buildTenantContext = tenantContextMappingFor(container, options.buildTenantContext, {
+    // Boot-time logging path; the Fastify logger is not yet available here.
+    warn: (message) => console.warn(message),
+  });
 
   // Assembled here rather than above the contribution window, and that is a
   // guarantee rather than a placement: a caller adds to `options.plugins` or

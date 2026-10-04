@@ -1,13 +1,16 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { asValue } from 'awilix';
+import { asFunction, asValue } from 'awilix';
 import Fastify, { type FastifyInstance } from 'fastify';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Actor } from '@endora-commerce/contracts';
 import { getTenantContext, type TenantContext } from '../tenancy/tenant-context.js';
+import { customerFilterCond, orgFilterCond } from '../tenancy/filters.js';
+import { orgConstraintFor } from '../tenancy/derived-scope.js';
 import { systemTenantContext } from '../tenancy/resolve-tenant-context.js';
 import { createRootContainer, type KernelContainer } from './container.js';
 import { tenantContextMappingFor } from './actor-tenant-context.js';
+import { ModuleDisabledError } from './lifecycle/plugin-helpers.js';
 import { registerRequestScopeHook } from './request-scope-hook.js';
 
 /**
@@ -185,12 +188,93 @@ describe('a composition missing the modules the mapping asks', () => {
     expect(tenant.organizationId).toBe(ORG_A);
   });
 
-  it('lets a refusal from a registered port fail the request instead of widening it', async () => {
+  it('confines an admin to no organization when an owner behind the port is absent', async () => {
+    // Both places the presence answer can come from: the port's own gate, at
+    // resolution, and a module its implementation reads, inside the call.
+    const atCall = createRootContainer();
+    atCall.register({
+      adminTenantScopePort: asValue({
+        resolveForAdmin: async () => {
+          throw new ModuleDisabledError('admin_roles');
+        },
+      }),
+    } as never);
+    const atResolution = createRootContainer();
+    atResolution.register({
+      adminTenantScopePort: asFunction(() => {
+        throw new ModuleDisabledError('organizations');
+      }).transient(),
+    } as never);
+
+    for (const container of [atCall, atResolution]) {
+      const { status, tenant } = await contextFor(await appOver(container), admin);
+      // Not a 503: the hook runs before every route, the ones over global data
+      // included.
+      expect(status).toBe(200);
+      expect(tenant.mode).toBe('allowed-set');
+      expect(tenant.allowedOrganizationIds).toEqual([]);
+    }
+  });
+
+  it('defers that refusal to the first tenant-scoped read instead of dropping it', async () => {
     const container = createRootContainer();
     container.register({
       adminTenantScopePort: asValue({
         resolveForAdmin: async () => {
-          throw new Error('owner is switched off');
+          throw new ModuleDisabledError('organizations');
+        },
+      }),
+    } as never);
+    const app = await appOver(container);
+    // What a handler over organization data runs: each of the three places that
+    // turn the ambient context into a tenant predicate.
+    app.get('/org-scoped', async () => orgFilterCond());
+    app.get('/customer-scoped', async () => customerFilterCond('present'));
+    app.get('/derived', async () => orgConstraintFor());
+    const asAdmin = { 'x-test-actor': JSON.stringify(admin) };
+
+    for (const url of ['/org-scoped', '/customer-scoped', '/derived']) {
+      const response = await app.inject({ method: 'GET', url, headers: asAdmin });
+      // Not an empty list: the truthful answer is that a module is off.
+      expect(response.statusCode, url).toBe(503);
+      expect(response.body, url).toContain('organizations');
+    }
+    // A route over global data builds no tenant predicate and answers.
+    expect((await app.inject({ method: 'GET', url: '/context', headers: asAdmin })).statusCode).toBe(
+      200,
+    );
+    // And an admin with no port at all is confined quietly: nobody refused.
+    const quiet = await appOver(createRootContainer());
+    quiet.get('/org-scoped', async () => orgFilterCond());
+    const none = await quiet.inject({ method: 'GET', url: '/org-scoped', headers: asAdmin });
+    expect(none.statusCode).toBe(200);
+    expect(none.json()).toEqual({ organizationId: { $in: [] } });
+  });
+
+  it('does not degrade a customer when the roll-up owner is absent — the request is refused', async () => {
+    const container = createRootContainer();
+    container.register({
+      customerRollupScopePort: asValue({
+        resolveSubtreeIds: async () => {
+          throw new ModuleDisabledError('customer_accounts');
+        },
+      }),
+      organizationTreeService: asValue({ subtreeIds: async (id: string) => [id] }),
+    } as never);
+    const response = await (await appOver(container)).inject({
+      method: 'GET',
+      url: '/context',
+      headers: { 'x-test-actor': JSON.stringify(customer) },
+    });
+    expect(response.statusCode).toBe(503);
+  });
+
+  it('lets any other failure of a registered port fail the request instead of widening it', async () => {
+    const container = createRootContainer();
+    container.register({
+      adminTenantScopePort: asValue({
+        resolveForAdmin: async () => {
+          throw new Error('the database is unreachable');
         },
       }),
     } as never);
@@ -219,10 +303,58 @@ describe("a deployment's own mapping", () => {
     }
   });
 
+  it('is refused when it answers a bound API key with a system scope', async () => {
+    const app = await appOver(createRootContainer(), everyoneIsSystem);
+    const response = await app.inject({
+      method: 'GET',
+      url: '/context',
+      headers: { 'x-test-actor': JSON.stringify(boundKey) },
+    });
+    expect(response.statusCode).toBe(500);
+  });
+
+  it('is refused when it answers a customer or a bound API key with every organization', async () => {
+    const everyoneIsAll = async (): Promise<TenantContext> =>
+      ({ mode: 'all', actor: { kind: 'admin', id: 'stub' } }) as TenantContext;
+    const app = await appOver(createRootContainer(), everyoneIsAll);
+    for (const actor of [customer, boundKey]) {
+      const response = await app.inject({
+        method: 'GET',
+        url: '/context',
+        headers: { 'x-test-actor': JSON.stringify(actor) },
+      });
+      expect(response.statusCode).toBe(500);
+      expect(response.body).not.toContain('"mode":"all"');
+    }
+    // `all` is what a platform administrator holds, so it is an admin's to have.
+    expect((await contextFor(app, admin)).tenant.mode).toBe('all');
+  });
+
   it('is used as written for everything else', async () => {
     const app = await appOver(createRootContainer(), everyoneIsSystem);
     expect((await contextFor(app, anonymous)).tenant.reason).toBe('stub');
     expect((await contextFor(app, unboundKey)).tenant.reason).toBe('stub');
+  });
+});
+
+describe('a composition whose admins would all be confined to nothing', () => {
+  it('says so once, at assembly, and names the remedy', () => {
+    const warn = vi.fn();
+    tenantContextMappingFor(createRootContainer(), undefined, { warn });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain("'adminTenantScopePort'");
+    expect(warn.mock.calls[0]?.[0]).toContain('Upgrade all `@endora-commerce/*` packages together');
+  });
+
+  it('is silent when the port is registered, and when the deployment maps for itself', () => {
+    const warn = vi.fn();
+    tenantContextMappingFor(
+      composedContainer({ rollup: false, adminScope: { allowAll: true } }),
+      undefined,
+      { warn },
+    );
+    tenantContextMappingFor(createRootContainer(), async () => systemTenantContext('own'), { warn });
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 
@@ -240,8 +372,10 @@ describe('composeApp', () => {
 
   it('takes its tenant-context mapping from tenantContextMappingFor', () => {
     expect(source).toMatch(
-      /const buildTenantContext = tenantContextMappingFor\(\s*container,\s*options\.buildTenantContext,?\s*\);/,
+      /const buildTenantContext = tenantContextMappingFor\(\s*container,\s*options\.buildTenantContext,\s*\{/,
     );
+    // And the warning has somewhere to go.
+    expect(source).toMatch(/warn: \(message\) => console\.warn\(message\)/);
     expect(source).toMatch(/registerRequestScopeHook\(app, \{ buildTenantContext \}\)/);
   });
 

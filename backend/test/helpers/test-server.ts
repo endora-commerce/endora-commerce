@@ -14,6 +14,7 @@ import { buildServer, type ModulePlugin } from '@endora-commerce/platform/compos
 import type { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
 import { publishStateChanged, registryCache } from '@endora-commerce/platform/composition';
 import { effectiveState } from '@endora-commerce/platform/kernel';
+import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { type TenantContext } from '@endora-commerce/platform/tenancy';
 // Feature 072 — the generated module list, composed in one pass exactly as
 // `src/composition.ts` composes it (D-45). Issue #52 — and contributed into
@@ -1304,9 +1305,25 @@ export async function setupBackendServer(
       // `organizations`' port — the one the platform's own mapping asks, so the
       // admin arm here is decided by the code production runs rather than by a
       // copy of it.
-      const scope = await (
-        container.cradle as never as { adminTenantScopePort: AdminTenantScopePort }
-      ).adminTenantScopePort.resolveForAdmin(actor.adminUserId);
+      //
+      // And the same degrade the platform's mapping makes when an owner behind
+      // the port is absent (`kernel/actor-tenant-context.ts`, `adminScopeOrNone`,
+      // whose `unresolvedAdminScope` this spells out): no organization, and
+      // the refusal deferred to the first tenant-scoped read rather than raised
+      // here. This hook runs before every route, so refusing here would take
+      // down the module-presence projection and the palette registry in exactly
+      // the off-state the off-state tests put the platform in. It is the
+      // confined end, so nothing widens; any other failure still fails the
+      // request.
+      let scope: Parameters<typeof resolveTenantContext>[1];
+      try {
+        scope = await (
+          container.cradle as never as { adminTenantScopePort: AdminTenantScopePort }
+        ).adminTenantScopePort.resolveForAdmin(actor.adminUserId);
+      } catch (error) {
+        if (!(error instanceof ModuleDisabledError)) throw error;
+        scope = { allowAll: false, allowedOrganizationIds: [], unresolved: error };
+      }
       return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
     }
     // Feature 062 — mirror production: a bound api key derives single-org

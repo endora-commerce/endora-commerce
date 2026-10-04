@@ -89,6 +89,14 @@ export type TenantActorInput = CustomerActorInput | AdminActorInput | ApiKeyActo
 export interface AdminScopeInput {
   readonly allowAll: boolean;
   readonly allowedOrganizationIds?: readonly string[];
+  /**
+   * Set when the scope is the **fallback** for a question nobody could answer
+   * — the module that decides an admin's reach, or one it reads, is absent. It
+   * is carried onto the context as `scopeUnresolved` and never widens it: a
+   * scope that names it is confined to `allowedOrganizationIds` whatever
+   * `allowAll` says.
+   */
+  readonly unresolved?: Error;
 }
 
 export function resolveTenantContext(actor: TenantActorInput, adminScope?: AdminScopeInput): TenantContext {
@@ -143,7 +151,7 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
   }
 
   // Admin actor.
-  if (!adminScope || adminScope.allowAll) {
+  if (!adminScope || (adminScope.allowAll && adminScope.unresolved === undefined)) {
     return { mode: 'all', actor: { kind: 'admin', id: actor.adminUserId } };
   }
   return {
@@ -151,6 +159,7 @@ export function resolveTenantContext(actor: TenantActorInput, adminScope?: Admin
     allowedOrganizationIds: adminScope.allowedOrganizationIds ?? [],
     notices: newScopeNotices(),
     actor: { kind: 'admin', id: actor.adminUserId },
+    ...(adminScope.unresolved === undefined ? {} : { scopeUnresolved: adminScope.unresolved }),
   };
 }
 

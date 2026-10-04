@@ -929,10 +929,11 @@ describe('T076 — the drift between the roots is an exact ledger', () => {
       'derivation produced the wrong origin would ship links nobody in the suite ever reads.',
     tenantContextMappingFor:
       'Production takes the actor → tenant-context mapping from the platform, wrapped in the ' +
-      'refusal of a system context for a customer or an admin; the harness supplies its own ' +
+      'refusal of a context wider than the actor may hold; the harness supplies its own ' +
       'mapping over `request.testActor` and the kit installs it unwrapped. So the platform ' +
-      'mapping’s customer and API-key arms, and the refusal, run in no harness-rooted file — ' +
-      'the admin arm is shared, because the harness resolves the same `adminTenantScopePort`. ' +
+      'mapping’s customer and API-key arms, the refusal and the boot warning run in no ' +
+      'harness-rooted file — the admin arm resolves the same `adminTenantScopePort` and makes ' +
+      'the same absent-owner degrade, written a second time in `test-server.ts`. ' +
       "The mapping is proved over its inputs by the platform's `actor-tenant-context.test.ts` " +
       'and over a real instance by `acceptance:instance` A17. It drains when the kit takes its ' +
       'mapping from the same function.',

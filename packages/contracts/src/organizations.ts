@@ -816,11 +816,18 @@ export type AdminTenantScope =
  * It takes the admin's id rather than a request because the question is about
  * an identity; reading the actor off the request is the caller's half.
  *
- * **Owner off:** the seam fails closed — resolving this port throws
- * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`, so nothing
- * half-executes. Whether `organizations` has an off state at all is its manifest's
- * `activation` to say, not this line's: a module declaring
- * `nonDeactivatable` never enters one.
+ * **Owner off:** resolving this port throws `ModuleDisabledError`, as every
+ * gated port does, and so does a call made while `admin_users` or `admin_roles`
+ * — which the implementation reads the role through — is absent. **The
+ * platform's request-scope hook does not turn that into a 503 for the whole
+ * request**: it gives the admin a context holding no organization and defers
+ * the refusal to the first tenant-scoped read, which answers 503
+ * `MODULE_DISABLED`. That is the confined end, so nothing widens, and routes
+ * over global data keep answering — the module-presence projection among them,
+ * which an operator needs exactly when a module is absent. Any other consumer
+ * gets the throw at the call. Whether `organizations` has an off state at
+ * all is its manifest's `activation` to say, not this line's: a module
+ * declaring `nonDeactivatable` never enters one.
  */
 export interface AdminTenantScopePort {
   resolveForAdmin(adminUserId: string): Promise<AdminTenantScope>;

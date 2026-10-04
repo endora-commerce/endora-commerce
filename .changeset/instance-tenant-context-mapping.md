@@ -11,6 +11,12 @@ resolved from the admin's role: every request ran in the platform's system tenan
 audit entries written through the Command Bus did not record the acting admin. The fix is to
 upgrade; nothing in the instance has to be edited.
 
+**Upgrade all `@endora-commerce/*` packages together.** The platform reads the admin's scope
+from a port `@endora-commerce/mod-organizations` registers from this version on. With the
+platform upgraded and that package left behind, every admin — a platform administrator included —
+is confined to no organization and organization-scoped screens are empty; the platform logs a
+warning at boot naming `adminTenantScopePort` when that is the case.
+
 `composeApp` used to leave the actor → tenant-context mapping to its caller and fall back to a
 system context when none was supplied, which is what an instance's entry point does. The mapping
 is the platform's own now and every composition gets it:
@@ -25,13 +31,22 @@ is the platform's own now and every composition gets it:
 
 It fails closed. A composition that does not register the ports the mapping reads confines
 rather than widens: a customer stays on its own organization and an admin reaches no
-organization.
+organization. The same holds for an admin while `organizations`, `admin_users` or `admin_roles`
+is absent: the admin holds no organization, routes over global data keep answering, and a route
+that reads organization data answers 503 `MODULE_DISABLED` naming the absent module.
+
+One behaviour an operator will notice after upgrading: an admin route requested from a browser
+that also holds a customer session — which is the case while an admin is impersonating a
+customer — runs in that customer's tenant scope, so admin screens show that customer's
+organization only until the customer session ends. In an affected instance those requests were
+not confined at all.
 
 For a host that composes the platform itself:
 
 - `ComposeAppOptions.buildTenantContext` is still accepted and should normally be omitted. A
-  supplied mapping that answers a customer or an admin request with a system context is now
-  refused, and that request fails.
+  supplied mapping is now refused, and the request fails, when it answers a customer or an API
+  key bound to an organization with a `system` or `all` context, or an admin with a `system`
+  context.
 - `@endora-commerce/mod-organizations` registers a new port, `adminTenantScopePort`
   (`AdminTenantScopePort` and `AdminTenantScope` in `@endora-commerce/contracts`):
   `resolveForAdmin(adminUserId)` answers `{ allowAll: true }` or

@@ -32,9 +32,15 @@ service forgets an explicit filter.
   (`organizations`) for the organizations an admin's role lets them reach. A
   composition that registers neither **confines rather than widens**: the
   customer stays on its own organization and the admin reaches no organization
-  at all. `ComposeAppOptions.buildTenantContext` replaces the mapping for a
-  deployment that needs to, and a replacement that answers a customer or an
-  admin request with a `system` context is refused — the request fails.
+  at all — `composeApp` logs a warning at boot when `adminTenantScopePort` is
+  missing, which is what a partial upgrade looks like. An admin is confined the
+  same way while `organizations`, `admin_users` or `admin_roles` is absent:
+  routes over global data keep answering, and the first tenant-scoped read
+  answers 503 `MODULE_DISABLED` naming the absent module rather than an empty
+  result. `ComposeAppOptions.buildTenantContext`
+  replaces the mapping for a deployment that needs to, and a replacement is
+  refused — the request fails — when it answers a customer or a bound API key
+  with a `system` or `all` context, or an admin with a `system` one.
 - **MikroORM global filters** (`org`, `customerAccount`) read the ambient context
   directly at query time and add the tenant predicate. Because they read the
   context per query (not per fork), they apply on `em.transactional` sub-forks and

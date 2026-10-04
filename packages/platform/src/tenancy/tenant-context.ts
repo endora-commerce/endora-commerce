@@ -78,6 +78,29 @@ export interface TenantContext {
    * everywhere else — a mode that never refuses has nothing to disclose.
    */
   readonly notices?: TenantScopeNotices;
+  /**
+   * Why this context's reach could **not be resolved**, when it could not.
+   *
+   * Set on the one context built without an answer: an admin whose scope the
+   * owning module could not give because a module it needs is absent. That
+   * context holds no organization, and a read confined to "no organization"
+   * comes back empty — which is safe and untrue: the caller sees "nothing
+   * exists" where the fact is "the module that decides your reach is off".
+   *
+   * So the refusal is **deferred, not dropped**. The guard throws this error
+   * the first time the execution builds a tenant predicate
+   * ({@link throwIfScopeUnresolved}), and a route over global data, which builds
+   * none, answers normally. It can only ever turn an answer into a refusal.
+   */
+  readonly scopeUnresolved?: Error;
+}
+
+/**
+ * Raise the deferred refusal a context carries, if it carries one. Called by
+ * every place that turns the ambient context into a tenant predicate.
+ */
+export function throwIfScopeUnresolved(ctx: TenantContext): void {
+  if (ctx.scopeUnresolved !== undefined) throw ctx.scopeUnresolved;
 }
 
 /**
