@@ -14,14 +14,14 @@ This file used to instruct a reader on folder naming, entity ownership and cross
 imports for modules that have not lived here for months, and pointed at a 2025 data model
 for "the module inventory". That is what feature `103` removed.
 
-The **directory** stays because it is still a derived root, and five test files resolve it
+The **directory** stays because it is still a derived root, and four test files resolve it
 by path rather than through the generated manifest index:
 
 - `test/helpers/fk-graph.ts` refuses a root that does not resolve — issue #215's own rule,
   correctly applied — which reds `test/unit/db/fk-dependency-drift.test.ts` and
   `test/unit/db/kernel-migration-ownership.test.ts`;
-- `test/unit/db/migrations-registry.test.ts`, `test/unit/commands/check-command-coverage.test.ts`
-  and `test/unit/payments/published-refund-registry-surface.test.ts` each `readdirSync` it.
+- `test/unit/db/migrations-registry.test.ts` and
+  `test/unit/commands/check-command-coverage.test.ts` each `readdirSync` it.
 
 Every `check-*` script resolves its module roots from the generated manifest index instead
 (`backend/scripts/lib/module-roots.ts`, `scripts/lib/module-root.sh`) and is unaffected —
@@ -30,11 +30,10 @@ measured, with the directory gone: `check:naming`, `check:language`, `overlay:ch
 `check:kernel-boundary`, `check:port-dependencies`, `check:subscribe-seam` and
 `test/unit/scripts/moved-module-tree.test.ts` all pass.
 
-**One of the five is worth a second look before the directory goes.**
-`published-refund-registry-surface.test.ts`' last case walks this directory and asserts the
-result is empty. It has therefore been passing over **zero files** since the sweep finished:
-a green that means "not looking", which is the issue #215 family. Deleting the directory
-turns that silence into an `ENOENT`, which is an improvement and not a repair.
+A fifth, `test/unit/payments/published-refund-registry-surface.test.ts`, walked this directory
+and asserted that no file in it registered a name — over **zero files** once the sweep
+finished, a green that meant "not looking". It now takes its population from the module
+layout and refuses an empty one, so it no longer depends on this directory.
 
 ## Where to look instead
 

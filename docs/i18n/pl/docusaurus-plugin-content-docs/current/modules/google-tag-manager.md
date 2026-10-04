@@ -162,6 +162,11 @@ zadania**: sprawdza porcję zdarzeń, dodaje jedno zadanie na zdarzenie do trwa�
 `google_tag_manager.ss.relay` i odpowiada `202`. W trakcie żądania kupującego nie ma żadnego wywołania
 na zewnątrz, więc wolny albo niedziałający kontener nigdy nie wpływa na sklep.
 
+Dla kanału, w którym tagowanie po stronie serwera nie jest skonfigurowane — przełącznik jest
+wyłączony albo pole `Server container URL` jest puste — trasa nie dodaje żadnego zadania i odpowiada
+`202` z `accepted: 0`. Storefront w ogóle nie wysyła żądań dla takiego kanału; taką odpowiedź dostaje
+żądanie ze strony, która wciąż ma starszą konfigurację.
+
 Osobny worker (działający w procesie API, chyba że ustawiono `BACKEND_ROLE=api` — wtedy uruchamia go
 tylko proces `worker`) wysyła każde zdarzenie do kontenera i ponawia próbę po błędzie: osiem prób z
 wykładniczo rosnącym odstępem, zaczynając od sekundy. Wysyłki, którym zabrakło prób, pozostają jako

@@ -14,6 +14,7 @@ import { CredentialConfiguration } from '../entities/credential-configuration.en
 import type { ConfigurationTypeRegistry } from './configuration-type-registry.js';
 import { maskSecrets } from './field-validator.js';
 import { decryptSecretValue, secretValueIsSet } from './secret-value-codec.js';
+import { withSecretKeyRefusal } from './secret-key-refusal.js';
 import { makeCreateConfigurationCommand } from '../commands/create-configuration.command.js';
 import { makeUpdateConfigurationCommand } from '../commands/update-configuration.command.js';
 import { makeDeleteConfigurationCommand } from '../commands/delete-configuration.command.js';
@@ -138,7 +139,7 @@ export class CredentialsService {
       if (stored === undefined) continue;
       if (field.secret) {
         values[field.key] = secretValueIsSet(stored)
-          ? decryptSecretValue(stored, this.deps.secretEncryptionKey)
+          ? withSecretKeyRefusal(() => decryptSecretValue(stored, this.deps.secretEncryptionKey))
           : stored;
       } else {
         values[field.key] = stored;

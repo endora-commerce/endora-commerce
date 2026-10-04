@@ -1,6 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Redis } from 'ioredis';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { EventBus } from '@endora-commerce/platform/events';
 import { createRootContainer, registerValues } from '@endora-commerce/platform/composition';
 import { composeModules } from '@endora-commerce/platform/composition';
@@ -72,6 +73,10 @@ async function composeCms(): Promise<Composed> {
   registerValues(container, {
     emFactory: (): EntityManager => ({}) as EntityManager,
     redis: {} as Redis,
+    // The host's Command Bus, which the page service issues its writes through
+    // (Constitution XIII). Inert here for the same reason `emFactory` is: no
+    // boot hook writes a page, and this file's subject is which hooks probe.
+    commandBus: {} as CommandBus,
     assetReferenceRegistry,
     languageReferenceRegistry,
     // Feature 120 (FR-015) — the kernel's channel-bridge registry, supplied for

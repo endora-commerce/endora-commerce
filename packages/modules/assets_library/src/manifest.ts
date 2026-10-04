@@ -175,20 +175,25 @@ export const manifest = defineModuleManifest({
    * languages and no sixteenth.
    *
    * The list is answer-preserving, not a judgement (§6.2 and §6.5): it is
-   * exactly what the prefix chain in `@endora-commerce/mod-i18n` routes here
-   * today, copied from the frozen capture at
+   * exactly what the prefix chain that used to route error codes sent here,
+   * copied from the frozen capture at
    * `backend/test/fixtures/error-code-routing/chain-answers.ts` rather than
-   * re-derived. Re-routing a code to a better owner is
+   * re-derived. That chain is deleted; routing is now built from these
+   * declarations and held to the capture by
+   * `backend/test/unit/kernel/error-code-routing-equality.test.ts`. Re-routing
+   * a code to a better owner is
    * `specs/082-error-code-ownership/rulings.md` §9's remaining work and is
    * deliberately not done here.
    *
    * **One code a reader will look for here and not find.**
    * `ASSET_KIND_NOT_SUPPORTED` carries this module's own `ASSET_` prefix and is
-   * `catalog`'s: the chain's `CATALOG_MISC_ERROR_CODES` set names it thirty
-   * lines before the `ASSET_` rule is reached, so the prefix never runs on it.
-   * `catalog` declares it and holds its sentence in that module's bundle. Read
-   * from the chain's source it looks like ours; read from its answer — the only
-   * reading that matches what a client receives today — it is not.
+   * `catalog`'s. The capture records it so because the chain named it, one code
+   * at a time, among `catalog`'s before its `ASSET_` rule was reached. It is
+   * also what the code does: both raise sites are `catalog`'s —
+   * `attachment.service.ts` and `gallery.service.ts`, refusing an asset kind a
+   * product's attachments or gallery do not accept — and `catalog` declares it
+   * and holds its sentence in that module's bundle. Nothing in this package
+   * raises it.
    *
    * **This module's list and this module's `throw`s are two different sets, in
    * both directions**, because ownership follows the domain noun and never the

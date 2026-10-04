@@ -79,8 +79,9 @@ export const manifest = defineModuleManifest({
    *
    * **How it came to be twenty-one.** The list opened as the frozen chain
    * capture and not as a judgement: the verbatim output of the runbook's step-1
-   * derivation over `test/fixtures/error-code-routing/chain-answers.ts`, every
-   * code `moduleIdForErrorCode` answered `core` for, because
+   * derivation over `backend/test/fixtures/error-code-routing/chain-answers.ts`,
+   * every code that capture records the deleted prefix chain answering `core`
+   * for, because
    * `contracts/error-code-declaration.md` §6.2 makes the migration
    * answer-preserving over all 289 codes with no exception list and §6.5 puts
    * re-routing out of scope. Most of that hundred was never the platform's: they

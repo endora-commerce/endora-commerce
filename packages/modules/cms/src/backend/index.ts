@@ -20,6 +20,7 @@ import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { CommandBus } from '@endora-commerce/platform/commands';
 import { cmsModule } from './plugin.js';
 import type { CmsAssetResolver } from './services/storefront-resolver.js';
 import { createAssetEmbedResolver } from './services/asset-embed-resolver.js';
@@ -104,6 +105,8 @@ export interface CmsCradle {
     }): void;
   };
   readonly emFactory: () => EntityManager;
+  /** The host's Command Bus — the audited path every Page write runs on (Constitution XIII). */
+  readonly commandBus: CommandBus;
   readonly redis: Redis;
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: {
@@ -221,9 +224,10 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
 
     cms: ctx
-      .asFunction(({ emFactory, redis, resolvedModuleRegistry }: CmsCradle) => {
+      .asFunction(({ emFactory, commandBus, redis, resolvedModuleRegistry }: CmsCradle) => {
         const result = cmsModule({
           emFactory,
+          commandBus,
           redis,
           // Feature 096, T209/T210. The declarations are fixed at composition;
           // presence is read per `describe()` call, so an operator switching a

@@ -265,6 +265,11 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'a template telling an author where to put a file. It spelled ' +
     '`backend/src/modules/<id>/` until F4 closed, which is the whole argument: the layout ' +
     'is derived and a page that restates it goes stale in silence.',
+  'architecture/migrations#0549e09f':
+    'a verbatim quotation of the foreign-key validator\'s violation message, which names ' +
+    'the refused module\'s manifest by address because that is what it prints. The ' +
+    'validator derives the path, and `test/unit/docs/migrations-page.test.ts` holds the ' +
+    'quoted one to a file that is on disk.',
   'architecture/migrations#1fe771b3':
     'cites `packages/modules/organizations/src/manifest.ts` by address. The file is real ' +
     'and the sentence is worth keeping; the repair is to name the module and the file ' +
@@ -277,9 +282,6 @@ export const DERIVED_FACTS_IN_PROSE: Readonly<Record<string, ProseLedgerEntry>> 
     'cites `packages/modules/quote_requests/src/migrations/status-mapping.ts` by address. ' +
     'The file is real and the sentence is worth keeping; the repair is to name the module ' +
     'and the file rather than the path.',
-  'architecture/migrations#a63a41bf':
-    '`_lifecycle`\'s sources sit inside the host package, and this sentence states that ' +
-    'address — which has already moved once. Name the module.',
   'architecture/migrations#ac38292a':
     'cites `packages/modules/_i18n/src/migrations` by address. The file is real and the ' +
     'sentence is worth keeping; the repair is to name the module and the file rather than ' +

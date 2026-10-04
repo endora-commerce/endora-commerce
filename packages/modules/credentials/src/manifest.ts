@@ -62,13 +62,15 @@ export const manifest = defineModuleManifest({
   // merging this changes no deployment's state (FR-012).
   activation: { settingCode: CREDENTIALS_ACTIVATION_SETTING_CODE, default: true },
   /**
-   * Feature 090 Phase 3 — the six error codes the incumbent prefix chain routes
-   * to this module.
+   * Feature 090 Phase 3 — the six error codes the prefix chain routed to this
+   * module before it was deleted.
    *
    * The list is copied from the frozen capture
    * (`backend/test/fixtures/error-code-routing/chain-answers.ts`), which records
-   * what `moduleIdForErrorCode` answered, and is not a judgement about where a
-   * code belongs. Reading the chain's *source* would have coincided here — the
+   * what that chain answered for every code, and is not a judgement about where
+   * a code belongs. Routing is now built from this declaration, and
+   * `backend/test/unit/kernel/error-code-routing-equality.test.ts` holds it to
+   * the capture. Reading the chain's *source* would have coincided here — the
    * `CREDENTIAL_` branch is unshadowed and no later branch claims a
    * `CREDENTIAL_`-prefixed code — but that is a conclusion of having read the
    * whole chain, never a premise (trap T1), and the six below still come off the
@@ -86,7 +88,7 @@ export const manifest = defineModuleManifest({
    *
    * **The inverse is the larger half, and every code in it is somebody else's.**
    * `INVALID_CREDENTIALS` is auth's sign-in failure and routes to `core` — the
-   * chain says so in its own comment above the `CREDENTIAL_` branch, because the
+   * chain said so in its own comment above the `CREDENTIAL_` branch, because the
    * plural noun is a password and not a stored configuration.
    * `KSEF_CREDENTIAL_EXISTS` and `KSEF_CREDENTIAL_INVALID` route to `core` as
    * well, which surprises twice over: not here, and not `ksef` either.
@@ -94,10 +96,13 @@ export const manifest = defineModuleManifest({
    * `settings`' (!1133) although it is raised out of a secret codec that
    * `@endora-commerce/platform`, this module and `ksef` each ship a byte-identical
    * copy of — see `services/secret-value-codec.ts`, whose own header calls the
-   * duplication debt. This module raises one code it does not own in the other
-   * direction: `VERSION_CONFLICT`, in the optimistic-concurrency guard of
-   * `update-configuration.command.ts`, which routes to `core` and is not declared
-   * here. Re-routing any of this is out of scope (§6.5); disagreement belongs in
+   * duplication debt. This module raises two codes it does not own in the other
+   * direction, and declares neither: `VERSION_CONFLICT`, in the
+   * optimistic-concurrency guard of `update-configuration.command.ts`, which
+   * routes to `core`; and that same `SETTING_SECRET_KEY_MISSING`, in
+   * `services/secret-key-refusal.ts`, which is what turns this module's copy of
+   * the codec's two key faults into an answer naming the variable instead of a
+   * bare `500 INTERNAL`. Re-routing any of this is out of scope (§6.5); disagreement belongs in
    * `specs/082-error-code-ownership/rulings.md` §9.
    *
    * **All six are raised**, in both spellings (trap T12): `ERROR_CODES.<CODE>`

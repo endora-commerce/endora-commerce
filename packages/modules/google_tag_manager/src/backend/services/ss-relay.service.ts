@@ -12,18 +12,38 @@ import type { SgtmClient, SgtmEvent } from './sgtm-client.js';
  * - `makeEnqueuer` returns the producer used by the `/collect` route: it
  *   assigns one uuid `eventId` per event (the idempotency key and the BullMQ
  *   `jobId`) and enqueues one relay job each. Pure producer — no outbound call
- *   happens in the shopper's request (Principle X / FR-029).
+ *   happens in the shopper's request (Principle X / FR-029). It enqueues
+ *   nothing, and accepts zero, for a channel whose server-side tagging is not
+ *   configured — a queue exists on every instance with Redis, so its presence
+ *   is not that answer.
  * - `makeProcessor` returns the BullMQ processor: it resolves the channel's
  *   server container address from Settings, drops the visitor's IP and user
  *   agent unless consent was granted (FR-030), and forwards through the sGTM
  *   client, letting a failure throw so BullMQ retries.
  */
-export function makeEnqueuer(queue: Queue<GtmRelayJobData>) {
+export function makeEnqueuer(
+  queue: Queue<GtmRelayJobData>,
+  /**
+   * Whether the channel relays at all: the switch is on **and** a server
+   * container address is set — `GtmStorefrontConfig.serverSide`, the same
+   * answer the storefront is given. Required rather than defaulted, because the
+   * default would be "relay for everybody", which is the behaviour this exists
+   * to stop.
+   */
+  isServerSideOn: (salesChannelId: string) => Promise<boolean>,
+) {
   return async (
     salesChannelId: string,
     request: GtmCollectRequest,
     context: GtmIngestContext,
   ): Promise<number> => {
+    // A storefront that honours its config never posts here for such a channel;
+    // one holding a stale config, or a crafted request, does. Nothing is
+    // relayed either way — the processor reads the same address and returns —
+    // so the only thing a job would add is work for this instance's own Redis.
+    // The processor keeps its check: the address can still be cleared between
+    // enqueue and delivery.
+    if (!(await isServerSideOn(salesChannelId))) return 0;
     // One timestamp for the whole batch: it is when the visitor acted, not when
     // a retry happened to reach the destination.
     const occurredAt = new Date().toISOString();

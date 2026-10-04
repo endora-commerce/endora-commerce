@@ -9,6 +9,7 @@ import {
   providerVariantFor,
   redactSecretsForAudit,
 } from '../services/field-validator.js';
+import { withSecretKeyRefusal } from '../services/secret-key-refusal.js';
 
 /**
  * `credential.create` (feature 058 US1, Principle XIII).
@@ -52,12 +53,14 @@ export function makeCreateConfigurationCommand(input: {
         throw new HttpError(409, ERROR_CODES.CREDENTIAL_CODE_TAKEN, `Code "${data.code}" is already in use.`);
       }
 
-      const { values, errors } = buildPersistableValues({
-        fields: variant.fields,
-        submitted: data.values,
-        existing: {},
-        secretEncryptionKey,
-      });
+      const { values, errors } = withSecretKeyRefusal(() =>
+        buildPersistableValues({
+          fields: variant.fields,
+          submitted: data.values,
+          existing: {},
+          secretEncryptionKey,
+        }),
+      );
       if (errors.length > 0) {
         throw new HttpError(
           422,

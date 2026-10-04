@@ -1943,10 +1943,10 @@ boot-gate:
         - tsconfig.base.json
         - backend/Dockerfile
         - .dockerignore
-        - scripts/collect-workspace-manifests.sh
-        # The gate itself, and the compose file whose commands it mirrors.
-        - scripts/boot-gate.sh
-        - scripts/lib/boot-gate-assert.sh
+        # `backend/Dockerfile` copies `scripts/` whole, and the gate itself is
+        # under it.
+        - scripts/**/*
+        # The compose file whose commands the gate mirrors.
         - deploy/compose.prod.yml
         - .gitlab-ci.yml
 

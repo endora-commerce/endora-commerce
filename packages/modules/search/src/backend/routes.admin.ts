@@ -1,5 +1,11 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { LlmToggleRequestSchema, type SettingsAdminAuditContext } from '@endora-commerce/contracts';
+import { MeilisearchError } from 'meilisearch';
+import {
+  ERROR_CODES,
+  LlmToggleRequestSchema,
+  type SettingsAdminAuditContext,
+} from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { LlmToggleService } from './services/llm-toggle.service.js';
 import type { SearchReindexWorker } from './services/search-reindex-worker.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -41,7 +47,27 @@ export async function registerSearchAdminRoutes(
     '/api/v1/admin/search/reindex',
     { preHandler: requireAdmin('search:write') },
     async (_request, reply) => {
-      const result = await reindexWorker.reindex();
+      let result: Awaited<ReturnType<SearchReindexWorker['reindex']>>;
+      try {
+        result = await reindexWorker.reindex();
+      } catch (err) {
+        // The engine is down, or it is up and refusing us (a rejected API key,
+        // say). Either way the reindex did not happen *because of the search
+        // backend*, and the operator is the one caller who can act on that —
+        // so they get the code the storefront's suggest route already answers
+        // a buyer with, and the client's own message, which names the address
+        // or the refusal. Every error the Meilisearch client raises derives
+        // from this one class; anything else (the database, a defect here)
+        // is not this condition and stays a 500.
+        if (err instanceof MeilisearchError) {
+          throw new HttpError(
+            503,
+            ERROR_CODES.SEARCH_BACKEND_UNAVAILABLE,
+            `The search backend is unavailable: ${err.message}`,
+          );
+        }
+        throw err;
+      }
       return reply.send(result);
     },
   );
