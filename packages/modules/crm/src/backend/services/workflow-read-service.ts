@@ -48,8 +48,9 @@ export class WorkflowReadService {
   async getWorkflow(): Promise<OpportunityWorkflow> {
     const em = this.emFactory();
     const graph = await this.loadGraph(em);
-    const [counts, mappings, counting] = await Promise.all([
+    const [counts, unknownOrderStatuses, mappings, counting] = await Promise.all([
       this.statusUsageCounts(em),
+      this.orderStatusesRefusedAsUnknown(em),
       em.find(CrmOrderStatusMapping, {}, {
         orderBy: { direction: 'asc', opportunityStatusCode: 'asc', orderStatusCode: 'asc' },
       }),
@@ -66,10 +67,7 @@ export class WorkflowReadService {
         opportunityStatusCode: mapping.opportunityStatusCode,
         orderStatusCode: mapping.orderStatusCode,
         requireAllOrders: mapping.requireAllOrders,
-        // Whether the Order status still exists is the reverse-mapping story's
-        // to answer (tasks.md T059). No mapping can exist before the
-        // configuration endpoints land, so nothing reads this value yet.
-        orderStatusKnown: true,
+        orderStatusKnown: !unknownOrderStatuses.has(mapping.orderStatusCode),
       })),
       valueCountingStatuses: {
         order: counting.filter((row) => row.documentKind === 'order').map((row) => row.statusCode),
@@ -78,6 +76,36 @@ export class WorkflowReadService {
           .map((row) => row.statusCode),
       },
     };
+  }
+
+  /**
+   * The Order status codes the Orders module itself has most recently refused
+   * as unknown — which is everything this module can truthfully say about
+   * `orderStatusKnown`.
+   *
+   * `orders` publishes no read that lists or tests a configured status code,
+   * and its tables are not this module's to read. What CRM does hold is the
+   * Orders transition port's own answers, one per Order it asked: for each
+   * Order status a forward mapping requested, the latest answer that says
+   * anything about the *status* (`not_found` and `failed` are about the Order
+   * or the call) is either `unknown_status` or evidence that the status
+   * exists. A code nobody has asked for yet is taken as known; the admin
+   * screen, which fetches the Orders API's own status list for its picker, can
+   * tell sooner (`specs/143-crm-sales-opportunities/research.md`, N-B1).
+   *
+   * Platform-wide on purpose, and raw for that reason: the answer is a fact
+   * about the Order workflow, which is not any Organization's, and it carries
+   * nothing of the Opportunity that produced it.
+   */
+  private async orderStatusesRefusedAsUnknown(em: EntityManager): Promise<Set<string>> {
+    const rows = (await em.execute(
+      `select distinct on ("order_status_code") "order_status_code", "outcome"
+         from "crm_status_propagations"
+        where "direction" = 'opportunity_to_order'
+          and "outcome" in ('applied', 'already_there', 'not_permitted', 'vetoed', 'unknown_status')
+        order by "order_status_code", "created_at" desc`,
+    )) as Array<{ order_status_code: string; outcome: string }>;
+    return new Set(rows.filter((row) => row.outcome === 'unknown_status').map((row) => row.order_status_code));
   }
 
   /**

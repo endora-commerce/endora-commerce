@@ -1,32 +1,51 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  AdminNotificationRecordPort,
   AdminUserReadPort,
+  AssetReadPort,
+  AssetReferenceRegistryPort,
+  AssetsLibraryPort,
   CustomerAccountReadPort,
   OrderReadPort,
   OrderTransitionPort,
   OrganizationDetailsPort,
   SalesChannelAttributionRegistryPort,
+  SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import {
   effectiveState,
+  enterSystemScope,
   lazyPort,
   type ModuleContext,
   type RequireAdminFactory,
 } from '@endora-commerce/platform/kernel';
+import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
+import { registerCrmAttachmentRoutes } from './routes/routes.attachments.js';
 import { registerCrmBoardRoutes } from './routes/routes.board.js';
+import { registerCrmCommentRoutes } from './routes/routes.comments.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
+import { registerCrmTagRoutes } from './routes/routes.tags.js';
 import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
 import { BoardService } from './services/board-service.js';
+import { registerCrmAssetReferences } from './services/crm-asset-references.js';
+import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
+import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
+import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
+import { OpportunityCommentService } from './services/opportunity-comment-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityService } from './services/opportunity-service.js';
 import { OpportunityTransitionGuardRegistry } from './services/opportunity-transition-guard-registry.js';
 import { OpportunityTransitionService } from './services/opportunity-transition-service.js';
-import { OrderStatusPropagationService } from './services/order-status-propagation-service.js';
+import {
+  OrderStatusPropagationService,
+  type OrderStatusChange,
+} from './services/order-status-propagation-service.js';
 import { registerOpportunitySalesChannelAttributions } from './services/sales-channel-attributions.js';
+import { TagService } from './services/tag-service.js';
 import { WorkflowConfigService } from './services/workflow-config-service.js';
 import { WorkflowReadService } from './services/workflow-read-service.js';
 import { CrmOpportunity } from './entities/crm-opportunity.entity.js';
@@ -68,6 +87,11 @@ interface CrmCradle {
   readonly crmWorkflowReadService: WorkflowReadService;
   readonly crmWorkflowConfigService: WorkflowConfigService;
   readonly crmOpportunityService: OpportunityService;
+  readonly crmNotifier: CrmNotifier;
+  readonly crmTagService: TagService;
+  readonly crmOpportunityCommentService: OpportunityCommentService;
+  readonly crmOpportunityAttachmentService: OpportunityAttachmentService;
+  readonly crmOpportunityAssignmentService: OpportunityAssignmentService;
   readonly crmOpportunityLinkService: OpportunityLinkService;
   readonly crmOrderStatusPropagationService: OrderStatusPropagationService;
   readonly crmOpportunityTransitionService: OpportunityTransitionService;
@@ -160,6 +184,128 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
+  // --- Reverse mapping -----------------------------------------------------
+  // An Order's status moves its Opportunity. `order.status_changed.v1` is the
+  // coarse event every Order status change emits, whoever caused it — the
+  // operator, a payment, a shipment, or this module's own forward direction,
+  // whose echo the handler recognises and drops.
+  //
+  // `ctx.subscribe`, so the handler does not run while the module is off; a
+  // change made meanwhile is not replayed. There is no request behind an
+  // event, so the work starts a system scope of its own and the service
+  // constrains by the Organization the event names.
+  ctx.subscribe('order.status_changed.v1', async (payload) => {
+    const change = readOrderStatusChange(payload);
+    if (!change) return;
+    await enterSystemScope('crm: order status follows', async () => {
+      const cradle = ctx.cradle<CrmCradle>();
+      await cradle.crmOrderStatusPropagationService.onOrderStatusChanged(
+        change,
+        (opportunityId, to, causeOrderId) =>
+          cradle.crmOpportunityTransitionService.apply(opportunityId, to, {
+            actor: { kind: 'system' },
+            cause: 'order_status',
+            causeOrderId,
+          }),
+      );
+    });
+  });
+
+  // --- Assignment ------------------------------------------------------------
+  // Who holds an Opportunity. The Sales Reps of an Organization are
+  // `organizations`' relation and the administrators are `admin_users`'; both
+  // are read through their ports, lazily.
+  //
+  // The bell is `admin_notifications`', which an operator may switch off. This
+  // module degrades without it (the manifest's `degrades-without` edge): the
+  // notifier decides that module's presence before it asks, so an assignment
+  // succeeds either way and nothing here catches a refusal.
+  ctx.di.register({
+    crmNotifier: ctx
+      .asFunction(() =>
+        createCrmNotifier(lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort')),
+      )
+      .singleton(),
+    crmOpportunityAssignmentService: ctx
+      .asFunction(
+        ({ emFactory, commandBus, crmNotifier }: CrmCradle) =>
+          new OpportunityAssignmentService({
+            emFactory,
+            commandBus,
+            salesReps: lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            notifier: crmNotifier,
+          }),
+      )
+      .singleton(),
+  });
+
+  // --- Notes and messages ------------------------------------------------------
+  // Internal to administrators: nothing outside this module's admin routes
+  // reads them. A message tells the people in the conversation through the
+  // same notifier an assignment uses, so it is stored whether or not the bell
+  // is switched on.
+  ctx.di.register({
+    crmOpportunityCommentService: ctx
+      .asFunction(
+        ({ emFactory, commandBus, crmNotifier }: CrmCradle) =>
+          new OpportunityCommentService({
+            emFactory,
+            commandBus,
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            notifier: crmNotifier,
+          }),
+      )
+      .singleton(),
+  });
+
+  // --- Attachments -------------------------------------------------------------
+  // The bytes are the media library's; an attachment is a link to one of its
+  // files. Name, type and size come through `assetReadPort`, and the download
+  // link through `assetsLibraryPort` — resolved here because the library's own
+  // admin API asks for the library's permissions.
+  ctx.di.register({
+    crmOpportunityAttachmentService: ctx
+      .asFunction(
+        ({ emFactory, commandBus }: CrmCradle) =>
+          new OpportunityAttachmentService({
+            emFactory,
+            commandBus,
+            assets: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+            assetsLibrary: lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+
+  /**
+   * The asset-reference scanner — a **contribution** hook.
+   *
+   * It pushes an inert descriptor into `assetReferenceRegistry`, an ungated
+   * registry `assets_library` owns, and carries no presence probe: the
+   * attachments survive a deactivation, so a scanner registered only while the
+   * module is on would let an operator delete a file that comes back as a
+   * broken attachment when the module is switched on again. Off is
+   * non-destructive and reversible (Constitution XVII); the registry honours
+   * an absent contributor for exactly this reason.
+   */
+  ctx.onBoot(() => {
+    registerCrmAssetReferences(
+      lazyPort<AssetReferenceRegistryPort>(ctx, 'assetReferenceRegistry'),
+      ctx.cradle<CrmCradle>().emFactory,
+    );
+  });
+
+  // --- Tags ------------------------------------------------------------------
+  // The tag list is platform configuration. What a tag is on is a child of an
+  // Opportunity and is written by the Opportunity service, under its parent.
+  ctx.di.register({
+    crmTagService: ctx
+      .asFunction(({ emFactory, commandBus }: CrmCradle) => new TagService({ emFactory, commandBus }))
+      .singleton(),
+  });
+
   // --- Opportunities -------------------------------------------------------
   // Create, list, read, edit, delete. The Organization, the contact person and
   // the assignee are read through their owners' ports.
@@ -172,6 +318,8 @@ export function registerModule(ctx: ModuleContext): void {
           crmWorkflowReadService,
           crmOpportunityLinkService,
           crmOrderStatusPropagationService,
+          crmOpportunityAssignmentService,
+          crmTagService,
         }: CrmCradle) =>
           new OpportunityService({
             emFactory,
@@ -180,6 +328,8 @@ export function registerModule(ctx: ModuleContext): void {
             organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            assignment: crmOpportunityAssignmentService,
+            tags: crmTagService,
             links: (opportunityId) => crmOpportunityLinkService.list(opportunityId),
             unresolvedPropagations: (opportunityId) =>
               crmOrderStatusPropagationService.listUnresolved(opportunityId),
@@ -248,8 +398,26 @@ export function registerModule(ctx: ModuleContext): void {
       opportunityService: cradle.crmOpportunityService,
       requireAdmin,
     });
+    await registerCrmAssignmentRoutes(app, {
+      assignmentService: cradle.crmOpportunityAssignmentService,
+      opportunityService: cradle.crmOpportunityService,
+      requireAdmin,
+    });
+    await registerCrmAttachmentRoutes(app, {
+      attachmentService: cradle.crmOpportunityAttachmentService,
+      requireAdmin,
+    });
+    await registerCrmCommentRoutes(app, {
+      commentService: cradle.crmOpportunityCommentService,
+      requireAdmin,
+    });
     await registerCrmLinkRoutes(app, {
       linkService: cradle.crmOpportunityLinkService,
+      requireAdmin,
+    });
+    await registerCrmTagRoutes(app, {
+      tagService: cradle.crmTagService,
+      opportunityService: cradle.crmOpportunityService,
       requireAdmin,
     });
     await registerCrmTransitionRoutes(app, {
@@ -259,6 +427,21 @@ export function registerModule(ctx: ModuleContext): void {
       requireAdmin,
     });
   });
+}
+
+/**
+ * The part of `order.status_changed.v1` the reverse mapping reads, taken off a
+ * payload the bus hands over untyped. `orders` publishes the event's shape as a
+ * TypeScript type of its own module and no schema in the contracts package, so
+ * the three fields are checked here, by hand, and an event that does not carry
+ * them is dropped rather than acted on.
+ */
+function readOrderStatusChange(payload: unknown): OrderStatusChange | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+  const { orderId, organizationId, to } = payload as Record<string, unknown>;
+  if (typeof orderId !== 'string' || typeof organizationId !== 'string' || typeof to !== 'string') return null;
+  if (!orderId || !organizationId || !to) return null;
+  return { orderId, organizationId, to };
 }
 
 /**

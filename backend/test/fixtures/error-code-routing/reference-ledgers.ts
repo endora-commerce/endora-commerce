@@ -188,6 +188,27 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'that would break a structural rule of the Opportunity workflow; `details.rule` names the ' +
       'rule and each rule has its own sentence.',
   },
+  CRM_ASSIGNEE_INVALID: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 3), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to assign an Opportunity to ' +
+      'somebody who is not an active administrator — unknown, deactivated or deleted.',
+  },
+  CRM_TAG_NAME_TAKEN: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 6), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to create or rename a CRM ' +
+      'tag onto a name another tag already has, compared without regard to case.',
+  },
+  CRM_MESSAGE_IMMUTABLE: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 4), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to edit or delete an ' +
+      'internal message on an Opportunity, which is immutable once sent, whoever asks.',
+  },
   CMS_SLUG_RESERVED: {
     to: 'cms',
     reason:

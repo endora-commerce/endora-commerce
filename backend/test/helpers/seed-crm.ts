@@ -286,3 +286,133 @@ export function setCrmForwardMappings(h: BackendServerHandle, mappings: Record<s
     },
   });
 }
+
+/** `PUT /order-status-mappings` with the whole set, both directions, as given. */
+export function setCrmMappings(
+  h: BackendServerHandle,
+  mappings: ReadonlyArray<{
+    direction: 'opportunity_to_order' | 'order_to_opportunity';
+    opportunityStatusCode: string;
+    orderStatusCode: string;
+    requireAllOrders?: boolean;
+  }>,
+) {
+  return h.app.inject({
+    method: 'PUT',
+    url: `${CRM_API}/order-status-mappings`,
+    cookies: CRM_ADMIN,
+    payload: { mappings },
+  });
+}
+
+/**
+ * Change an Order's status through the **Orders admin endpoint** — the way an
+ * operator does it — and wait until every subscriber of the resulting
+ * `order.status_changed.v1` has finished.
+ *
+ * The bus dispatches to its handlers one after another and awaits each, so a
+ * handler registered here, after the composed application's own, runs once
+ * theirs have returned. That is what lets a test assert "nothing moved"
+ * without sleeping.
+ */
+export async function changeOrderStatusAsOperator(
+  h: BackendServerHandle,
+  orderId: string,
+  to: string,
+): Promise<void> {
+  let off: () => void = () => undefined;
+  const settled = new Promise<void>((resolve) => {
+    off = h.eventBus.on('order.status_changed.v1', (payload: unknown) => {
+      const event = payload as { orderId?: string; to?: string };
+      if (event.orderId === orderId && event.to === to) resolve();
+    });
+  });
+  try {
+    const response = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orderId}/status`,
+      cookies: CRM_ADMIN,
+      payload: { to },
+    });
+    if (response.statusCode !== 200) {
+      throw new Error(`changeOrderStatusAsOperator: ${response.statusCode} ${response.body}`);
+    }
+    await settled;
+  } finally {
+    off();
+  }
+}
+
+/**
+ * Assign `adminUserId` to `organizationId` as its Sales Rep, as of `assignedAt`
+ * — the row `organizations` keeps, written directly so a test can state which
+ * assignment is the longest-standing.
+ */
+export async function assignCrmSalesRep(
+  em: EntityManager,
+  organizationId: string,
+  adminUserId: string,
+  assignedAt: Date = new Date(),
+): Promise<void> {
+  em.create(OrganizationSalesRepAssignment, { organizationId, adminUserId, createdAt: assignedAt });
+  await em.flush();
+}
+
+/**
+ * Drop every CRM tag (and, by cascade, every tagging). `crm_tags` is platform
+ * configuration that hangs off nothing the harness truncates, so a file that
+ * creates tags clears them in `beforeAll` and `afterAll`, for the reason
+ * {@link restoreDefaultCrmWorkflow} is called in both.
+ */
+export async function clearCrmTags(em: EntityManager): Promise<void> {
+  await em.getConnection().execute('delete from "crm_tags"');
+}
+
+/** `POST /tags` as the platform administrator; fails the test on anything but 201. */
+export async function createCrmTag(
+  h: BackendServerHandle,
+  name: string,
+  color?: string,
+): Promise<{ id: string; name: string; color: string; usageCount: number }> {
+  const response = await h.app.inject({
+    method: 'POST',
+    url: `${CRM_API}/tags`,
+    cookies: CRM_ADMIN,
+    payload: { name, ...(color ? { color } : {}) },
+  });
+  if (response.statusCode !== 201) throw new Error(`createCrmTag: ${response.statusCode} ${response.body}`);
+  return (response.json() as { data: { id: string; name: string; color: string; usageCount: number } }).data;
+}
+
+/**
+ * A file in the media library, as an upload leaves it — written straight to
+ * `assets`, as the library's own reference tests do: the subject of the CRM
+ * tests is what an Opportunity does with a file that already exists. `private`
+ * unless said otherwise, which is what an attachment has to be.
+ */
+export async function seedCrmAsset(
+  em: EntityManager,
+  overrides: { visibility?: 'public' | 'private'; filename?: string; mimeType?: string; sizeBytes?: number } = {},
+): Promise<{ id: string; filename: string; mimeType: string; sizeBytes: number }> {
+  const id = randomUUID();
+  const filename = overrides.filename ?? `brief-${id.slice(0, 8)}.pdf`;
+  const mimeType = overrides.mimeType ?? 'application/pdf';
+  const sizeBytes = overrides.sizeBytes ?? 2048;
+  const locator = `${id.slice(0, 2)}/${id.slice(2, 4)}/${id}.pdf`;
+  await em.getConnection().execute(
+    `insert into "assets"
+       ("id", "kind", "filename", "mime_type", "size_bytes", "storage_url", "visibility",
+        "storage_backend", "storage_locator", "created_at", "updated_at")
+     values (?, 'pdf', ?, ?, ?, ?, ?, 'local', ?, now(), now())`,
+    [id, filename, mimeType, sizeBytes, locator, overrides.visibility ?? 'private', locator],
+  );
+  return { id, filename, mimeType, sizeBytes };
+}
+
+/** Remove fixture assets: `assets` hangs off nothing the harness truncates. */
+export async function removeCrmAssets(em: EntityManager, ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await em
+    .getConnection()
+    .execute(`delete from "assets" where "id" in (${ids.map(() => '?').join(', ')})`, [...ids]);
+}

@@ -1725,6 +1725,72 @@
         }
       }
     },
+    "/api/v1/admin/crm/opportunities/{id}/assign": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/opportunities/{id}/attachments": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/opportunities/{id}/attachments/{attachmentId}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/opportunities/{id}/comments": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/opportunities/{id}/comments/{commentId}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/opportunities/{id}/links": {
       "post": {
         "responses": {
@@ -1768,6 +1834,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/opportunities/{id}/tags": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/opportunities/{id}/transition": {
       "post": {
         "responses": {
@@ -1796,6 +1871,38 @@
       }
     },
     "/api/v1/admin/crm/statuses/{code}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/tags": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/tags/{id}": {
       "delete": {
         "responses": {
           "200": {

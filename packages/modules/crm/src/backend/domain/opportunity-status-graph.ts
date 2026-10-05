@@ -45,7 +45,8 @@ export type OpportunityWorkflowRule =
   | 'lost_status_required'
   | 'transition_unknown_status'
   | 'mapping_unknown_status'
-  | 'mapping_duplicate';
+  | 'mapping_duplicate'
+  | 'mapping_duplicate_order_status';
 
 export class OpportunityWorkflowConfigError extends Error {
   constructor(

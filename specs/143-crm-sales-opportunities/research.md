@@ -1210,6 +1210,218 @@ when it was measured, and what was done about it.
   edit to the component (`specs/conventions/building-packages.md`). The two domain-freedom
   cases read the **source** file: no `opportunit|status|crm` in it, and `@dnd-kit/core` the
   only `@dnd-kit/*` specifier.
+- **N-B1 (2026-10-05, T059) — `orderStatusKnown` is computed from what the Orders port has
+  answered, not from the Order workflow.** Re-derived: `orders` publishes `orderReadPort`,
+  `orderListPort` (whose `counts` holds only statuses some Order is in), `orderPlacementPort`,
+  `orderStatusAnnouncePort`, `orderTransitionPort` and a payment-status apply port — none
+  lists or tests a configured status code, and N-8 stands. No port was added and `orders` was
+  not edited. What CRM does hold is the transition port's own answers, one row per Order it
+  asked: for each Order status code, the latest forward outcome that says anything about the
+  *status* (`applied`, `already_there`, `not_permitted`, `vetoed`, `unknown_status`) decides —
+  `false` when it is `unknown_status`, `true` otherwise, and `true` for a code nobody has
+  asked for yet. So the flag is **evidence, not validation**: it cannot warn before the first
+  refusal, and a reverse-only Order status that never occurs never turns `false`. The admin
+  screen, which fetches `GET /api/v1/admin/orders/statuses` for its picker, can tell sooner
+  and should prefer its own answer; a real one needs a read on an `orders` port, which is a
+  foreign change this feature's list does not carry.
+- **N-B2 (2026-10-05, T062) — there is no Zod schema for `order.status_changed.v1`.** T062
+  asks for the payload to be parsed "with its Zod schema". The event's shape is a TypeScript
+  type inside `orders` (`OrderEvents` in `order-service.ts`); the contracts package has none,
+  and the CRM package does not depend on `zod`. The subscriber reads the three fields it uses
+  (`orderId`, `organizationId`, `to`) with a hand-written guard in `index.ts` and drops an
+  event that lacks one. The coarse event carries no actor, so "who changed the Order" is not
+  known to the handler — which is why the echo is recognised by row, as R-5 says.
+- **N-B3 (2026-10-05, T061) — how the reverse half is wired and what it records.** The
+  transition service already depends on the propagation service, so `onOrderStatusChanged`
+  takes the "move this Opportunity on an Order's behalf" function as an argument from the
+  subscriber in `index.ts` rather than holding the transition service. Marking a forward row
+  `echoed` is a Command with `skipAudit` (`crm.opportunity.propagation_echo`). A refused
+  Order-caused move is one Command, `crm.opportunity.propagation_skip`, that writes the
+  `skipped` row **and an audit entry** — an action `data-model.md` § Audit actions does not
+  list. It is audited because the spec's scenario 3 wants the skipped change "recorded on the
+  Opportunity with the reason", `unresolvedPropagations` is forward-only by `data-model.md`,
+  and the Opportunity's history tab reads the audit log. A closed Opportunity, a missing
+  mapping and an unmet "every Order" rule record nothing. `requireAllOrders` is stored `false`
+  on a forward mapping whatever the request says. A new `details.rule`,
+  `mapping_duplicate_order_status`, joins the seven. The audit entry of an Order-caused
+  transition carries `causeOrderId` in its after-state beside `cause` — the status-history row
+  had it, and the Opportunity's change history is read from the audit trail (R-16), which did
+  not.
+- **N-B4 (2026-10-05, T058) — an echo marker that is never consumed.** A forward row is
+  matched as an echo while it is `pending` or `applied` and not yet `echoed`. If the module is
+  switched off between asking an Order and hearing the event, the row stays unconsumed, and
+  the next time that Order reaches that same status by somebody else's hand the change is
+  taken for the echo, once. Not repaired: it needs an Order to leave a status and return to
+  it across a deactivation, and the cost is one unfollowed change.
+- **N-B5 (2026-10-05, T068) — the Sales Rep port's container name is
+  `organizationSalesRepScopePort`, not `salesRepAssignmentPort`.** R-9, R-17 and
+  `contracts/events-and-ports.md` §5 name the *type* (`SalesRepAssignmentPort`) as if it were
+  the container name. The `Container name:` marker in `packages/contracts/src/organizations.ts`
+  says `organizationSalesRepScopePort`, which is what `quote_requests` resolves, and what CRM
+  resolves. `listForOrganization` answers rows with `adminUserId` and `createdAt`, unordered;
+  the rule sorts them itself and breaks a tie on the date by id. `organizations` is already a
+  binding dependency, so no edge was added.
+- **N-B6 (2026-10-05, T066/T068) — "active" is two columns, and `activeOnly` reads one.**
+  `adminUserReadPort.findById(id, { activeOnly: true })` excludes soft-deleted administrators
+  only; a deactivated one (`status: 'inactive'`) is returned. User Story 1 validated an
+  assignee with it and so accepted a deactivated administrator. An assignee is now held to
+  `status === 'active' && deletedAt === null` in one predicate
+  (`isActiveAdministrator`), used by the default rule, by `POST /assign`, by create and by
+  `PATCH` — and the refusal is 422 `CRM_ASSIGNEE_INVALID` on all three, where create and
+  `PATCH` answered 422 `VALIDATION_FAILED` before.
+- **N-B7 (2026-10-05, T069) — R-11's [unverified] premise: no key/params variant has
+  landed.** `RecordAdminNotificationInput` still takes `title: string`, as it does for
+  `organizations`, `catalog`, `product_feeds` and `pim_ergonode`. CRM's title is a finished
+  English sentence (`Opportunity OPP-000123 "<title>" was assigned to you`); the Opportunity's
+  title is in it, which is internal to administrators who already see bell entries. The
+  notifier returns `'recorded' | 'not-present'`, decides presence before the call and catches
+  nothing. The edge is `degrades-without` with a `reason`; `check:port-dependencies` accepted
+  it with no ledger edit. The generated reference page gained the row, and with it its Polish
+  mirror and cache entry.
+- **N-B8 (2026-10-05, T068/T070) — what the contract leaves open about assignment.** The
+  default assignee of an Opportunity somebody else created **is** notified (the story's
+  independent test); `crm.opportunity.assigned.v1` is emitted by `POST /assign` and by a
+  `PATCH` that changes the assignee, **not** on create, whose Command already declares
+  `crm.opportunity.created.v1` and a Command declares one event. Naming the assignee the
+  Opportunity already has answers 200 and writes nothing — no version bump, no audit entry,
+  no event. `assignedAdminUserId=me` with no administrator behind the request answers an
+  empty page. The assignee is not required to hold a CRM permission or to reach the
+  Organization (R-9), so an assignee may be somebody who cannot open the Opportunity.
+- **N-B9 (2026-10-05, T085) — where a tagging is written, and the shapes §8 leaves open.**
+  `tag-service.ts` owns the tag list (Commands `crm.tag.create|update|delete` against
+  `crm_tag`); the **taggings** are written by `opportunity-service.ts`, in the Commands that
+  already hold the scoped parent — create, `PATCH`, and `setTags` (`crm.opportunity.tag_set`)
+  — so no child row is ever written from a file that did not load its Opportunity. T085's
+  "tagging in `tag-service.ts`" is therefore half true. Shapes: `POST /tags` answers 201
+  `{ data: OpportunityTag }`, `PATCH` 200 the same, `DELETE` 204, `PUT …/tags` 200
+  `{ data: OpportunityDetail }`. An unknown tag id on `PATCH`/`DELETE /tags/:id` is 404
+  `NOT_FOUND`; an unknown tag in a `tagIds` is 422 `VALIDATION_FAILED` and nothing is
+  replaced. Setting the set an Opportunity already has writes nothing (no version bump, no
+  audit entry); a real change bumps `version`. `tagIds` on `PATCH` absent = leave alone,
+  `[]` = clear. A tag's audit entry on delete carries the platform-wide `usageCount`, because
+  the tag leaves every Opportunity, not only the visible ones. Tags on an Opportunity are
+  ordered by name.
+- **N-B10 (2026-10-05, T084) — `crm_tags` joins the tables the tests clean themselves.** Like
+  the three workflow tables (N-21), `crm_tags` hangs off nothing the harness truncates;
+  `clearCrmTags` in `backend/test/helpers/seed-crm.ts` is called in `beforeAll` and
+  `afterAll` of the two tag files. The AND filter is a raw `group by … having
+  count(distinct tag_id) = n` whose ids only ever narrow the scoped `find`; the usage count
+  is raw SQL joined to `crm_opportunities` and constrained by `orgConstraintFor()`.
+- **N-B11 (2026-10-05, T085) — `crm` is not on `check:command-coverage`'s roster.** The
+  check's own output lists its "migrated modules" and `crm` is not among them, so a write
+  outside a Command in this module is reported by nothing. N-16's sentence about what that
+  check reads was about its rule, not about this module being held to it. Every write of
+  these stories is in a Command regardless, and the check run by hand against the module
+  (`tsx scripts/check-command-coverage.ts --strict --module crm`) reports 0 blocking; joining
+  the roster is one line in a file this feature's foreign-change list does not carry, and is
+  reported rather than done.
+- **N-B12 (2026-10-05, T075) — what §6 leaves open about notes and messages.** `POST` answers
+  201 `{ data: OpportunityComment }`, `PATCH` 200 the same, `DELETE` 204; `GET` requires
+  `kind` (400 without it — the schema has no default). The refusals of `PATCH`/`DELETE` are
+  evaluated in this order: the Opportunity as the caller may see it (404
+  `CRM_OPPORTUNITY_NOT_FOUND`), the comment under it (404 `NOT_FOUND`, also for a note already
+  deleted and for a comment of another Opportunity), a message (409 `CRM_MESSAGE_IMMUTABLE`
+  **whoever asks**, the author included), and only then authorship (403 `FORBIDDEN`). So the
+  platform administrator cannot edit a colleague's note: authorship is not a permission. A
+  `PATCH` with the body a note already has writes nothing. Deletion is soft (`deleted_at`),
+  as the entity's header says. **The audit entries carry the text** (`body` in the after-state
+  of `note_add` / `message_add`, both states of `note_update`, the before-state of
+  `note_delete`): "stays in the audit trail" is otherwise unverifiable, and the audit log is
+  read by administrators only. `references` is `[]` until User Story 12.
+- **N-B13 (2026-10-05, T075) — who a message tells.** The assignee at the moment of sending
+  and every earlier *message* author on that Opportunity (note authors are not participants),
+  each once, never the sender — computed inside the Command, before the message joins the
+  thread, and notified after the commit through `crm-notifier.ts` (kind
+  `crm.opportunity.message`, an English title naming the Opportunity, the first 200
+  characters of the message as the bell entry's body). A participant who has since been
+  deactivated is still a recipient; the bell entry is inert for somebody who cannot sign in.
+  A recipient is not checked against the Opportunity's tenant scope: an earlier author could
+  only have written there by reaching it, and the assignee is whoever was chosen (N-B8).
+- **N-B14 (2026-10-05, T074) — how "no customer-facing route returns a note or a message" is
+  held.** The module registers nothing outside `/api/v1/admin/crm` (`contracts/admin-api.md`
+  says so, and the off-state list is every route it has). The test writes a note and a
+  message with marker strings on an Opportunity linked to an Order, then reads, as the
+  customer of that Organization, `/api/v1/orders`, `/api/v1/orders/:id`,
+  `/api/v1/orders/:id/comments` and `/api/v1/quote-requests`, asserting the markers are in
+  none and that the customer really is shown that Order; and it asserts the admin endpoint
+  refuses the customer's session.
+- **N-B15 (2026-10-05, T080) — User Story 5 is STOPPED before any code: the asset-reference
+  descriptor needs a foreign edit this feature's list does not carry.** An
+  `AssetReferenceDescriptor` answers `AssetReference[]`, and `AssetReference.kind` is a
+  **closed Zod enum**, `assetReferenceKindSchema` in `packages/contracts/src/assets-library.ts`
+  (nine members: four of `catalog`, one of `cms`, one of `megamenu`, three of `blog`). There
+  is no member a CRM attachment can truthfully carry, so the descriptor
+  T080 asks for cannot be written without adding one — e.g. `'crm_opportunity_attachment'` —
+  to that file. It is one line, it is how `megamenu` and `blog` joined (the only two files
+  naming `megamenu_item_target` are that contract and `megamenu`'s own descriptor; no label
+  map elsewhere consumes the enum), and it is **not** a row of
+  `contracts/foreign-module-changes.md` (§A lists `crm.ts`, `index.ts`,
+  `admin-contributions.ts`, `common.ts`, `errors.ts`). Attachments without the descriptor
+  would be attachments the library may delete from under an Opportunity (FR-044), so the
+  story was not half-built: T078–T080 are untouched. **What unblocks it:** a row in §A for
+  that enum member, with the `@endora-commerce/contracts` changeset saying so.
+- **N-B16 (2026-10-05, T080) — R-15's [unverified] premises, re-derived from the tree for
+  whoever resumes User Story 5.** (a) **An upload is `public` by default**
+  (`packages/modules/assets_library/src/backend/routes.admin.ts`, `let visibility … =
+  'public'`); `private` is a multipart field sent *before* the file part, which the kit's
+  `uploadAsset(file, { visibility: 'private' })` does. So "attachments are uploaded private"
+  is the admin screen's act unless the backend refuses a non-private asset on attach — the
+  recommendation here is that it does (422), because nothing else stands between a customer's
+  brief and a stable public URL. (b) **A private asset is served through a signed, expiring
+  URL** — `…/assets/file/<id>?token=…&exp=…`, TTL from the adapter's `privateUrlTtlSec` (300 s
+  in the adapter's tests) — produced by `AssetsLibraryService.resolveUrl` and carried as
+  `AssetDetail.url`. An administrator gets it from `GET /api/v1/admin/assets/:id`
+  (`fetchAssetDetail`), **which is gated `assets.read`**: a Sales Rep holding only CRM
+  permissions cannot use it. So `OpportunityAttachment.url` has to be resolved by CRM, through
+  `assetsLibraryPort.getAsset(assetId).url`, at read time — and the screen should re-read the
+  list before opening a link, since the one it holds may have expired. `getAsset` also builds
+  the deletion-protection `references` list (one query per registered descriptor), which is
+  acceptable for a handful of attachments and would not be for a list of Opportunities.
+  (c) **Name, MIME type and size come from `assetReadPort.findByIds(ids, { liveOnly: true })`**
+  — `AssetRecord.filename`, `.mimeType`, `.sizeBytes` (a decimal **string**; the wire schema
+  wants a number), `.visibility`. `resolvePublicUrls` on the same port answers stable URLs for
+  public assets only and nothing for private ones. Both ports are `assets_library`'s, already
+  a binding dependency. (d) The registry's enumeration policy is *honoured while the
+  contributor is absent*, so the push is a contribution-only `ctx.onBoot` with no presence
+  probe; `backend/test/integration/blog/asset-reference-while-off.test.ts` composes the module
+  alone, while off, against a registry of its own, asserts the owner registered, that the
+  Library's `softDelete` answers 409 `ASSET_REFERENCED` naming the module's kind, and — the
+  control — that the same delete succeeds through an empty registry. Composing `crm` alone
+  needs `salesChannelAttributionRegistry` supplied as a root value too (its other boot hook).
+  (e) §7 names no error for attaching the same asset twice; the unique `(opportunity_id,
+  asset_id)` constraint exists, and no `CRM_*` code of §13 fits — answering the existing
+  attachment (200, nothing written) avoids minting one.
+- **N-B17 (2026-10-05, T080) — User Story 5 unblocked and built.** The coordinator approved
+  the enum member (row A10 of `contracts/foreign-module-changes.md`, a commit of its own).
+  Before relying on "nothing else enumerates the kinds", six sibling literals were grepped
+  across the whole tree (admin, admin-kit, every module's admin pages, bundles, docs, tests):
+  each is named only by the contract, by its owner's descriptor and by its owner's tests; no
+  label map, no exhaustive switch, no exact-set expectation over kinds. Nothing else was
+  touched. What was built, and what N-B16 recommended that is now fact:
+  (a) **the backend enforces `private`** — a live asset whose `visibility` is not `private`
+  is 422 `VALIDATION_FAILED`; `AssetRecord` carries nothing that says what a file was uploaded
+  *for* (only `label` and `folderId`, both free), so purpose is not checked and the admin
+  screen **must** upload with `visibility: 'private'`;
+  (b) **`url` is `assetsLibraryPort.getAsset(assetId).url`**, resolved on every read, for live
+  assets only (`assetReadPort.findByIds(…, { liveOnly: true })` decides which — so the library
+  is never asked for something it would refuse, and no port call is wrapped in a `catch`);
+  (c) **a private file cannot be reached by attaching it elsewhere**: an asset already
+  attached to an Opportunity the caller's scoped EntityManager does not return is refused with
+  the same 422 as a missing one. **Residual, not closed:** a private library asset that is
+  attached to *no* Opportunity can be attached by anybody holding `crm:write` who knows its
+  uuid, and they then hold a link without `assets.read` — the port offers nothing to tell such
+  a file from an attachment-to-be;
+  (d) the same asset twice on one Opportunity answers 200 with the existing attachment and
+  writes nothing (§7 names no error for it); `POST` otherwise 201, `DELETE` 204, a child under
+  the wrong parent 404 `NOT_FOUND`;
+  (e) a file gone from the library leaves its attachment listed with the snapshot name,
+  `application/octet-stream`, size 0 and `url: null`;
+  (f) the descriptor's label is `Sales opportunity <number>` — the number and never the title,
+  because whoever deletes a file in the library need not be able to read the Opportunity;
+  (g) composing `crm` alone for the while-off test needed `salesChannelAttributionRegistry`
+  as a root value, as N-B16 predicted, and `lazyPort` resolved both registries from root
+  values. `check:port-dependencies` asked for no new edge: `assets_library` was already
+  binding.
 
 - **N-26 (2026-10-05, T053) — `PaginationFooter` cannot be fed by a cursor-paged endpoint.**
   T053 and `plan.md` name the kit's `PaginationFooter` for the list. Its props are a

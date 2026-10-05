@@ -377,3 +377,199 @@ ekranie **Role**.
 - Historia zmian każdej szansy.
 - Analityka: czas obsługi, czas w poszczególnych statusach, wyniki
   przedstawicieli handlowych.
+
+## Zamówienie, które przesuwa swoją szansę
+
+Mapowanie działa też w drugą stronę: gdy powiązane zamówienie osiągnie *ten*
+status zamówienia, szansa sprzedażowa przechodzi do *tamtego* statusu. Jeden
+status zamówienia mapuje się na najwyżej jeden status szansy; kilka statusów
+zamówienia może prowadzić do tego samego.
+
+Nie ma znaczenia, kto zmienił zamówienie — administrator, zaksięgowana
+płatność czy nadana przesyłka. Szansa podąża za nim przez własny przepływ:
+przejście musi istnieć, wszystko, co zarejestrowano, aby je odrzucać, może je
+odrzucić, a wszystko, co nasłuchuje zmiany statusu szansy, usłyszy także tę.
+Zmiana jest zapisywana jako spowodowana przez zamówienie i wskazuje je; żaden
+administrator nie jest zapisywany jako jej autor.
+
+| Sytuacja | Co się dzieje |
+| --- | --- |
+| Zamówienie nie podąża za szansą (podążanie za statusem jest wyłączone) albo nie jest powiązane z żadną | Nic. |
+| Szansa jest już zamknięta — wygrana albo przegrana | Nic. **Mapowanie nigdy nie otwiera ponownie zamkniętej szansy.** |
+| Przepływ nie ma przejścia ze statusu szansy do statusu z mapowania albo coś je odrzuciło | Szansa zostaje tam, gdzie była, a pominięta zmiana jest na niej zapisywana razem z powodem. |
+| Mapowanie jest oznaczone *tylko gdy każde powiązane zamówienie tam jest* | Szansa czeka, aż każde powiązane zamówienie, które za nią podąża, znajdzie się w statusie zamówienia zmapowanym na ten sam status szansy. |
+
+**Mapowania w obu kierunkach nie tworzą pętli.** Zmiana przechodzi jeden krok
+i się zatrzymuje:
+
+- gdy szansa zmienia status, a jej zamówienia za nią podążają, zmiany tych
+  zamówień są rozpoznawane jako własne zmiany szansy i nie przesuwają jej
+  ponownie;
+- gdy zamówienie przesuwa swoją szansę, żadne inne zamówienie tej szansy nie
+  jest proszone o podążanie.
+
+Mapowanie wysyła się na ten sam adres co mapowania w przód, z
+`direction: "order_to_opportunity"` i opcjonalnie z `requireAllOrders`. Zbiór
+jest zastępowany w całości, oba kierunki razem:
+
+```json
+{
+  "mappings": [
+    { "direction": "opportunity_to_order", "opportunityStatusCode": "won", "orderStatusCode": "completed" },
+    { "direction": "order_to_opportunity", "orderStatusCode": "completed", "opportunityStatusCode": "won", "requireAllOrders": true }
+  ]
+}
+```
+
+Do opisanych wyżej reguł dochodzi jedna: `mapping_duplicate_order_status` —
+status zamówienia przesuwa szansę do jednego statusu, a nie do kilku.
+
+`GET /api/v1/admin/crm/workflow` podaje `orderStatusKnown` dla każdego
+mapowania. Wartość zmienia się na `false`, gdy moduł Zamówień odpowie, że taki
+status zamówienia nie istnieje, i wraca do `true`, gdy zamówienie następnym
+razem go przyjmie; mapowanie, którego nikt jeszcze nie użył, ma `true`.
+
+Gdy moduł jest wyłączony, zmiana statusu zamówienia niczego nie przesuwa i nie
+jest później nadrabiana.
+
+## Kto prowadzi szansę
+
+Każda szansa sprzedażowa ma najwyżej jedną **osobę przypisaną** — tę, która nad
+nią pracuje. Przypisany może zostać każdy aktywny administrator.
+
+Gdy szansa jest tworzona bez wskazania, kto ją prowadzi, osoba przypisana jest
+wybierana spośród Handlowców przypisanych do organizacji tej szansy:
+
+1. osoba tworząca szansę, jeśli jest jednym z nich;
+2. w przeciwnym razie Handlowiec przypisany do organizacji najdłużej;
+3. w przeciwnym razie nikt — szansa powstaje jako nieprzypisana.
+
+Handlowiec, którego konto zostało dezaktywowane, jest pomijany. Żądanie, które
+wskazuje osobę przypisaną albo wprost mówi, że jej nie ma, jest wykonywane
+dosłownie i reguła nie ma zastosowania.
+
+**Przypisanie nie decyduje o tym, kto widzi szansę.** Handlowiec ograniczony do
+wybranych organizacji widzi każdą szansę tych organizacji, niezależnie od tego,
+kto ją prowadzi — i nie widzi szansy innej organizacji, nawet jeśli jest do
+niego przypisana.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `POST /api/v1/admin/crm/opportunities/:id/assign` | `crm:write` | Przypisanie, zmiana przypisania albo — z `{ "adminUserId": null }` — jego zdjęcie. Odpowiedzią jest szansa. |
+| `GET /api/v1/admin/crm/opportunities?assignedAdminUserId=…` | `crm:read` | `me` — szanse wywołującego, `unassigned` — nieprzypisane, albo identyfikator administratora. |
+
+Osoby, która nie jest aktywnym administratorem, nie można przypisać: żądanie
+jest odrzucane z kodem `CRM_ASSIGNEE_INVALID`. Edycja szansy również może
+zmienić osobę przypisaną — na tej samej zasadzie.
+
+Osoba dowiaduje się, że szansa została jej przypisana — z dzwonka powiadomień
+w Admin UI, z odnośnikiem do szansy. Nikt nie jest powiadamiany o tym, że sam
+wziął szansę. Dzwonek należy do modułu **Powiadomienia administratora**: gdy
+ten moduł jest wyłączony, przypisywanie działa dokładnie tak samo, a nikt nie
+dostaje powiadomienia.
+
+Każde przypisanie trafia do historii zmian szansy, a inne moduły mogą na nie
+reagować: `crm.opportunity.assigned.v1` niesie nową i poprzednią osobę
+przypisaną.
+
+## Etykiety
+
+**Etykieta** to krótkie oznaczenie z kolorem — *Klient kluczowy*, *Przetarg*,
+*Odnowienie* — które szansa sprzedażowa może nosić, w dowolnej liczbie. Lista
+etykiet jest jedna dla całej platformy.
+
+- Nazwy etykiet są unikalne bez względu na wielkość liter: *Przetarg*
+  i *PRZETARG* to ta sama nazwa, a druga zostanie odrzucona z kodem
+  `CRM_TAG_NAME_TAKEN`.
+- Zmiana nazwy albo koloru etykiety zmienia ją na każdej szansie, która ją
+  nosi.
+- Usunięcie etykiety zdejmuje ją z każdej szansy, która ją nosiła. Nic innego
+  w tych szansach się nie zmienia.
+- Listę szans można filtrować po etykietach. Kilka etykiet oznacza *wszystkie
+  naraz*: szansa pojawia się na liście tylko wtedy, gdy nosi każdą ze
+  wskazanych etykiet.
+- Przy każdej etykiecie widać, ile szans ją nosi — liczone po szansach, które
+  pytająca osoba może zobaczyć, a nie po całej platformie.
+
+Zarządzanie listą etykiet jest konfiguracją i wymaga `crm:configure`.
+Nadawanie etykiet szansie to codzienna praca i wymaga `crm:write`.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/tags` | `crm:read` | Lista etykiet według nazwy, każda z `usageCount`. |
+| `POST /api/v1/admin/crm/tags` | `crm:configure` | Utworzenie etykiety: `{ "name", "color"? }`. |
+| `PATCH /api/v1/admin/crm/tags/:id` | `crm:configure` | Zmiana nazwy albo koloru. |
+| `DELETE /api/v1/admin/crm/tags/:id` | `crm:configure` | Usunięcie etykiety i zdjęcie jej z każdej szansy. |
+| `PUT /api/v1/admin/crm/opportunities/:id/tags` | `crm:write` | Zastąpienie etykiet szansy: `{ "tagIds": [...] }`. Odpowiedzią jest szansa. |
+| `GET /api/v1/admin/crm/opportunities?tagId=…&tagId=…` | `crm:read` | Szanse noszące każdą ze wskazanych etykiet. |
+
+Tworzenie i edycja szansy również mogą ustawić jej etykiety, przez `tagIds`.
+Etykieta, która nie istnieje, jest odrzucana i nic się nie zmienia.
+
+## Notatki i wiadomości wewnętrzne
+
+Osoby pracujące nad szansą sprzedażową piszą w niej na dwa sposoby.
+
+**Notatka** to coś do zapamiętania — co powiedział klient, co ustalono, co
+zrobić dalej. Autor notatki może ją edytować albo usunąć; nikt inny nie może,
+bez względu na uprawnienia. Przy edytowanej notatce widać, że była edytowana.
+Usunięta notatka znika z listy, a jej treść zostaje w historii zmian szansy.
+
+**Wiadomość** jest częścią rozmowy między osobami pracującymi nad szansą.
+Wiadomości są wyświetlane w kolejności wysłania, a **wiadomości nie można
+zmienić ani usunąć po wysłaniu** — nie może tego zrobić ani autor, ani nikt
+inny: próba jest odrzucana z kodem `CRM_MESSAGE_IMMUTABLE`. O wiadomości
+dowiadują się osoba przypisana do szansy i wszyscy, którzy już napisali w tej
+rozmowie — poza nadawcą — z dzwonka powiadomień w Admin UI, z odnośnikiem do
+szansy. Gdy moduł **Powiadomienia administratora** jest wyłączony, wiadomość
+jest zapisywana tak samo, a nikt nie dostaje powiadomienia.
+
+**Jedno i drugie jest wewnętrzne.** Ani Notatka, ani Wiadomość nie ma
+ustawienia, które pokazałoby ją klientowi, i nic, co klient może otworzyć —
+Zamówienie, zapytanie ofertowe, jego konto — ich nie zawiera.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | Notatki szansy, od najstarszej. `kind=message` — rozmowa. Parametr `kind` jest wymagany. |
+| `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Dodanie: `{ "kind": "note" \| "message", "body" }`. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edycja notatki: `{ "body" }`. Tylko autor. |
+| `DELETE /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Usunięcie notatki. Tylko autor. |
+
+Edycja albo usunięcie cudzej notatki kończy się odpowiedzią 403; próba zrobienia
+tego z wiadomością — odpowiedzią 409 `CRM_MESSAGE_IMMUTABLE`, niezależnie od
+tego, kto pyta.
+
+## Załączniki
+
+Brief, rysunek, podpisana oferta — do szansy sprzedażowej można dołączać pliki.
+
+Sam plik jest przechowywany w **bibliotece mediów**. Najpierw jest tam
+przesyłany, a szansa przechowuje odnośnik do niego. Wynikają z tego dwie rzeczy.
+
+**Załącznik jest plikiem prywatnym.** Plik, który biblioteka mediów
+przechowuje jako publiczny, ma adres, który może otworzyć każdy, dlatego plik
+publiczny jest odrzucany jako Załącznik. Biblioteka mediów zapisuje przesłany
+plik jako publiczny, o ile nie wskazano inaczej: plik przeznaczony dla szansy
+przesyła się z `visibility: "private"`.
+
+**Pliku, który jest załączony, nie można usunąć z biblioteki mediów.**
+Biblioteka odmawia i wskazuje szansę po jej numerze. Najpierw trzeba usunąć
+Załącznik. Dotyczy to także czasu, gdy moduł CRM jest wyłączony — załączniki
+nadal istnieją, a ochrona razem z nimi.
+
+Każdy, kto może czytać szansę, może pobrać jej załączniki; żadne uprawnienie
+biblioteki mediów nie jest potrzebne. Każdy Załącznik na liście ma odnośnik do
+pobrania ważny przez kilka minut — aby dostać świeży, wystarczy ponownie
+odczytać listę.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | Załączniki, od najstarszego: nazwa pliku, typ, rozmiar, kto załączył oraz `url`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` | Załączenie pliku z biblioteki mediów: `{ "assetId" }`. |
+| `DELETE /api/v1/admin/crm/opportunities/:id/attachments/:attachmentId` | `crm:write` | Usunięcie załącznika. Plik zostaje w bibliotece mediów. |
+
+Załączenie pliku, który szansa już ma, niczego nie zmienia, a odpowiedzią jest
+istniejący Załącznik. Plik, którego nie ma w bibliotece mediów — albo który
+jest załączony do szansy niedostępnej dla pytającej osoby — jest odrzucany jak
+plik, który nie istnieje. Jeśli plik zniknął z biblioteki mediów, jego
+Załącznik nadal jest na liście, pod dawną nazwą, bez odnośnika.

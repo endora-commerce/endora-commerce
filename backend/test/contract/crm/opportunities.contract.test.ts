@@ -207,7 +207,7 @@ describe('crm opportunities (contract)', () => {
       expect(response.statusCode, response.body).toBe(422);
     });
 
-    it('refuses tags until their story lands, rather than accepting and dropping them', async () => {
+    it('refuses a tag that does not exist — 422', async () => {
       const response = await call('POST', '/opportunities', {
         payload: {
           title: 'x',
@@ -442,12 +442,24 @@ describe('crm opportunities (contract)', () => {
       }
     });
 
-    it('refuses the assignee and tag filters until their stories land, rather than ignoring them', async () => {
-      for (const query of ['?assignedAdminUserId=me', '?tagId=00000000-0000-4000-8000-00000000dead']) {
+    it('accepts the assignee filter in each of its three forms', async () => {
+      for (const query of ['?assignedAdminUserId=me', '?assignedAdminUserId=unassigned', `?assignedAdminUserId=${TEST_ADMIN_ID}`]) {
         const response = await call('GET', `/opportunities${query}`);
-        expect(response.statusCode, `${query} ${response.body}`).toBe(422);
-        expect(response.json().error.code).toBe('VALIDATION_FAILED');
+        expect(response.statusCode, `${query} ${response.body}`).toBe(200);
       }
+      const malformed = await call('GET', '/opportunities?assignedAdminUserId=somebody');
+      expect(malformed.statusCode, malformed.body).toBe(400);
+    });
+
+    it('accepts the tag filter, repeated', async () => {
+      const response = await call(
+        'GET',
+        '/opportunities?tagId=00000000-0000-4000-8000-00000000dead&tagId=00000000-0000-4000-8000-00000000beef',
+      );
+      expect(response.statusCode, response.body).toBe(200);
+      expect(response.json().data).toEqual([]);
+      const malformed = await call('GET', '/opportunities?tagId=nope');
+      expect(malformed.statusCode, malformed.body).toBe(400);
     });
 
     it('is readable with crm:read alone', async () => {

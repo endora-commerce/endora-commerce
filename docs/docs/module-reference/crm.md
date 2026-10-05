@@ -38,6 +38,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `organizations` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `sales_channels` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `admin_notifications` | no | degrades-without `adminNotificationRecordPort` — CRM stops notifying people about assignments and messages; everything else in CRM keeps working |
 
 ## Permissions
 

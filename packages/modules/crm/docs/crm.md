@@ -368,3 +368,194 @@ No role receives a CRM permission automatically. Grant them on the
 - A change history for every opportunity.
 - Analytics: handling time, time in each status, results by sales
   representative.
+
+## An order that moves its opportunity
+
+The mapping also runs the other way: when a linked order reaches *this* order
+status, move its opportunity to *that* status. One order status maps to at most
+one opportunity status; several order statuses may lead to the same one.
+
+It does not matter who changed the order — an administrator, a payment that
+arrived, a shipment that was sent. The opportunity follows, through its own
+workflow: the transition must exist, anything registered to refuse it may
+refuse it, and everything that listens to an opportunity's status change hears
+this one too. The change is recorded as caused by the order, and names it; no
+administrator is recorded as having made it.
+
+| Situation | What happens |
+| --- | --- |
+| The order does not follow its opportunity (status following is off), or is linked to none | Nothing. |
+| The opportunity is already closed, won or lost | Nothing. **A mapping never reopens a closed opportunity.** |
+| The workflow has no transition from the opportunity's status to the mapped one, or something refused it | The opportunity stays where it is, and the skipped change is recorded on it with the reason. |
+| The mapping is marked *only when every linked order is there* | The opportunity waits until every linked order that follows it is in an order status mapped to that same opportunity status. |
+
+**Mappings in both directions do not loop.** A change goes one hop and stops:
+
+- when an opportunity moves and its orders follow, those orders' changes are
+  recognised as the opportunity's own and do not move it again;
+- when an order moves its opportunity, no other order of that opportunity is
+  asked to follow.
+
+A mapping is sent to the same endpoint as the forward ones, with
+`direction: "order_to_opportunity"` and, optionally, `requireAllOrders`. The
+set is replaced whole, both directions together:
+
+```json
+{
+  "mappings": [
+    { "direction": "opportunity_to_order", "opportunityStatusCode": "won", "orderStatusCode": "completed" },
+    { "direction": "order_to_opportunity", "orderStatusCode": "completed", "opportunityStatusCode": "won", "requireAllOrders": true }
+  ]
+}
+```
+
+One rule joins the ones above: `mapping_duplicate_order_status` — an order
+status moves an opportunity to one status, not several.
+
+`GET /api/v1/admin/crm/workflow` reports `orderStatusKnown` for every mapping.
+It turns `false` once the Orders module has answered that the order status does
+not exist, and back to `true` when an order next accepts it; a mapping nobody
+has used yet reads `true`.
+
+While the module is switched off, an order's status change moves nothing, and
+it is not caught up afterwards.
+
+## Who holds an opportunity
+
+Every opportunity has at most one **assignee** — the person working it. Any
+active administrator may be the assignee.
+
+When an opportunity is created without saying who holds it, the assignee is
+chosen from the sales representatives assigned to the opportunity's
+organization:
+
+1. the person creating the opportunity, if they are one of them;
+2. otherwise the one who has been assigned to the organization the longest;
+3. otherwise nobody — the opportunity is created unassigned.
+
+A sales representative who has been deactivated is passed over. A request that
+names an assignee, or says explicitly that there is none, is taken at its word
+and the rule does not apply.
+
+**The assignee does not decide who can see an opportunity.** A sales
+representative restricted to certain organizations sees every opportunity of
+those organizations, whoever holds it — and does not see an opportunity of
+another organization even when it is assigned to them.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `POST /api/v1/admin/crm/opportunities/:id/assign` | `crm:write` | Assign, reassign, or — with `{ "adminUserId": null }` — unassign. Answers the opportunity. |
+| `GET /api/v1/admin/crm/opportunities?assignedAdminUserId=…` | `crm:read` | `me` for the caller's own, `unassigned`, or an administrator's id. |
+
+Somebody who is not an active administrator cannot be assigned: the request is
+refused with `CRM_ASSIGNEE_INVALID`. Editing an opportunity may change its
+assignee too, under the same rule.
+
+A person is told when an opportunity becomes theirs — on the notification bell
+of the Admin UI, with a link to the opportunity. Nobody is told about taking an
+opportunity themselves. The bell belongs to the **Admin notifications** module:
+while that module is switched off, assigning works exactly as before and nobody
+is notified.
+
+Every assignment is in the opportunity's change history, and other modules can
+react to it: `crm.opportunity.assigned.v1` carries the new and the previous
+assignee.
+
+## Tags
+
+A **tag** is a short label with a colour — *Key account*, *Tender*, *Renewal* —
+that an opportunity may carry, any number of them. There is one tag list for
+the whole platform.
+
+- Tag names are unique whatever their case: *Tender* and *TENDER* are the same
+  name, and the second is refused with `CRM_TAG_NAME_TAKEN`.
+- Renaming or recolouring a tag changes it on every opportunity that carries
+  it.
+- Deleting a tag takes it off every opportunity that carried it. Nothing else
+  about those opportunities changes.
+- The list of opportunities can be filtered by tags. Several tags mean *all of
+  them*: an opportunity is listed only when it carries every tag named.
+- Each tag shows how many opportunities carry it — counted over the
+  opportunities the person asking may see, not over the whole platform.
+
+Managing the tag list is configuration and needs `crm:configure`. Putting tags
+on an opportunity is everyday work and needs `crm:write`.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/tags` | `crm:read` | The tag list, by name, each with `usageCount`. |
+| `POST /api/v1/admin/crm/tags` | `crm:configure` | Create a tag: `{ "name", "color"? }`. |
+| `PATCH /api/v1/admin/crm/tags/:id` | `crm:configure` | Rename or recolour. |
+| `DELETE /api/v1/admin/crm/tags/:id` | `crm:configure` | Delete, and untag every opportunity. |
+| `PUT /api/v1/admin/crm/opportunities/:id/tags` | `crm:write` | Replace the opportunity's tags: `{ "tagIds": [...] }`. Answers the opportunity. |
+| `GET /api/v1/admin/crm/opportunities?tagId=…&tagId=…` | `crm:read` | Opportunities carrying every tag named. |
+
+Creating or editing an opportunity may set its tags too, with `tagIds`. A tag
+that does not exist is refused, and nothing is changed.
+
+## Notes and internal messages
+
+People working an opportunity write on it in two ways.
+
+A **note** is something to remember — what the customer said, what was agreed,
+what to do next. Whoever wrote a note may edit it or delete it; nobody else
+may, whatever their permissions. An edited note shows that it was edited. A
+deleted note is no longer listed, and what it said stays in the opportunity's
+change history.
+
+A **message** is part of a conversation between the people working the
+opportunity. Messages are listed in the order they were sent, and **a message
+cannot be changed or deleted once it is sent** — not by its author, not by
+anybody: the attempt is refused with `CRM_MESSAGE_IMMUTABLE`. A message tells
+the opportunity's assignee and everybody who has already written in that
+conversation, except the person who sent it, on the notification bell of the
+Admin UI with a link to the opportunity. While the **Admin notifications**
+module is switched off, a message is stored all the same and nobody is told.
+
+**Both are internal.** Neither a note nor a message has a setting that shows it
+to the customer, and nothing the customer can open — an order, a quote request,
+their account — carries either.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | The opportunity's notes, oldest first. `kind=message` for the conversation. `kind` is required. |
+| `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Write one: `{ "kind": "note" \| "message", "body" }`. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edit a note: `{ "body" }`. Its author only. |
+| `DELETE /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Delete a note. Its author only. |
+
+Editing or deleting somebody else's note answers 403; doing either to a message
+answers 409 `CRM_MESSAGE_IMMUTABLE`, whoever asks.
+
+## Attachments
+
+A brief, a drawing, a signed offer — files can be attached to an opportunity.
+
+The file itself is kept in the **media library**. It is uploaded there first,
+and the opportunity then holds a link to it. Two things follow.
+
+**An attachment is a private file.** A file the media library holds as public
+has an address anybody can open, so a public file is refused as an attachment.
+The media library stores an upload as public unless told otherwise: a file
+meant for an opportunity is uploaded with `visibility: "private"`.
+
+**A file that is attached cannot be deleted from the media library.** The
+library refuses, and names the opportunity by its number. Remove the attachment
+first. This holds while the CRM module is switched off, too — the attachments
+are still there, and so is the protection.
+
+Anybody who may read an opportunity may download its attachments; no
+permission of the media library is needed. Each attachment in the list carries
+a download link that is valid for a few minutes — read the list again for a
+fresh one.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | The attachments, oldest first: file name, type, size, who attached it, and `url`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` | Attach a file of the media library: `{ "assetId" }`. |
+| `DELETE /api/v1/admin/crm/opportunities/:id/attachments/:attachmentId` | `crm:write` | Remove the attachment. The file stays in the media library. |
+
+Attaching a file the opportunity already has changes nothing and answers the
+existing attachment. A file that is not in the media library — or that is
+attached to an opportunity the person asking may not see — is refused as one
+that does not exist. If a file has gone missing from the media library, its
+attachment is still listed, under the name it had, with no link.

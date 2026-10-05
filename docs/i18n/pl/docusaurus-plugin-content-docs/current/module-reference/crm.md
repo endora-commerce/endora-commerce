@@ -38,6 +38,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `organizations` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `sales_channels` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `settings` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
+| `admin_notifications` | nie | degrades-without `adminNotificationRecordPort` — CRM przestaje powiadamiać o przypisaniach i wiadomościach; wszystko inne w CRM działa dalej |
 
 ## Uprawnienia
 
