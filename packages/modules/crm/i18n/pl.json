@@ -43,6 +43,8 @@
   "auditLog.crm.opportunity.note_update": "Edytowano notatkę",
   "auditLog.crm.opportunity.note_delete": "Usunięto notatkę",
   "auditLog.crm.opportunity.message_add": "Wysłano wiadomość",
+  "auditLog.crm.opportunity.attachment_add": "Dodano załącznik",
+  "auditLog.crm.opportunity.attachment_remove": "Usunięto załącznik",
   "auditLog.crm.tag.create": "Utworzono etykietę",
   "auditLog.crm.tag.update": "Zaktualizowano etykietę",
   "auditLog.crm.tag.delete": "Usunięto etykietę",

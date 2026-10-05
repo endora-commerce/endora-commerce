@@ -2,6 +2,9 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   AdminNotificationRecordPort,
   AdminUserReadPort,
+  AssetReadPort,
+  AssetReferenceRegistryPort,
+  AssetsLibraryPort,
   CustomerAccountReadPort,
   OrderReadPort,
   OrderTransitionPort,
@@ -19,14 +22,17 @@ import {
   type RequireAdminFactory,
 } from '@endora-commerce/platform/kernel';
 import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
+import { registerCrmAttachmentRoutes } from './routes/routes.attachments.js';
 import { registerCrmCommentRoutes } from './routes/routes.comments.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
 import { registerCrmTagRoutes } from './routes/routes.tags.js';
 import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
+import { registerCrmAssetReferences } from './services/crm-asset-references.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
 import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
+import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
 import { OpportunityCommentService } from './services/opportunity-comment-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityService } from './services/opportunity-service.js';
@@ -82,6 +88,7 @@ interface CrmCradle {
   readonly crmNotifier: CrmNotifier;
   readonly crmTagService: TagService;
   readonly crmOpportunityCommentService: OpportunityCommentService;
+  readonly crmOpportunityAttachmentService: OpportunityAttachmentService;
   readonly crmOpportunityAssignmentService: OpportunityAssignmentService;
   readonly crmOpportunityLinkService: OpportunityLinkService;
   readonly crmOrderStatusPropagationService: OrderStatusPropagationService;
@@ -250,6 +257,44 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
+  // --- Attachments -------------------------------------------------------------
+  // The bytes are the media library's; an attachment is a link to one of its
+  // files. Name, type and size come through `assetReadPort`, and the download
+  // link through `assetsLibraryPort` — resolved here because the library's own
+  // admin API asks for the library's permissions.
+  ctx.di.register({
+    crmOpportunityAttachmentService: ctx
+      .asFunction(
+        ({ emFactory, commandBus }: CrmCradle) =>
+          new OpportunityAttachmentService({
+            emFactory,
+            commandBus,
+            assets: lazyPort<AssetReadPort>(ctx, 'assetReadPort'),
+            assetsLibrary: lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+
+  /**
+   * The asset-reference scanner — a **contribution** hook.
+   *
+   * It pushes an inert descriptor into `assetReferenceRegistry`, an ungated
+   * registry `assets_library` owns, and carries no presence probe: the
+   * attachments survive a deactivation, so a scanner registered only while the
+   * module is on would let an operator delete a file that comes back as a
+   * broken attachment when the module is switched on again. Off is
+   * non-destructive and reversible (Constitution XVII); the registry honours
+   * an absent contributor for exactly this reason.
+   */
+  ctx.onBoot(() => {
+    registerCrmAssetReferences(
+      lazyPort<AssetReferenceRegistryPort>(ctx, 'assetReferenceRegistry'),
+      ctx.cradle<CrmCradle>().emFactory,
+    );
+  });
+
   // --- Tags ------------------------------------------------------------------
   // The tag list is platform configuration. What a tag is on is a child of an
   // Opportunity and is written by the Opportunity service, under its parent.
@@ -326,6 +371,10 @@ export function registerModule(ctx: ModuleContext): void {
     await registerCrmAssignmentRoutes(app, {
       assignmentService: cradle.crmOpportunityAssignmentService,
       opportunityService: cradle.crmOpportunityService,
+      requireAdmin,
+    });
+    await registerCrmAttachmentRoutes(app, {
+      attachmentService: cradle.crmOpportunityAttachmentService,
       requireAdmin,
     });
     await registerCrmCommentRoutes(app, {

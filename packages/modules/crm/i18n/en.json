@@ -43,6 +43,8 @@
   "auditLog.crm.opportunity.note_update": "Note edited",
   "auditLog.crm.opportunity.note_delete": "Note deleted",
   "auditLog.crm.opportunity.message_add": "Message sent",
+  "auditLog.crm.opportunity.attachment_add": "File attached",
+  "auditLog.crm.opportunity.attachment_remove": "Attachment removed",
   "auditLog.crm.tag.create": "Tag created",
   "auditLog.crm.tag.update": "Tag updated",
   "auditLog.crm.tag.delete": "Tag deleted",

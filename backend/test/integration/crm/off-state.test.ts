@@ -65,6 +65,9 @@ describe('crm off-state (Constitution XVII)', () => {
     { method: 'DELETE', route: `${API}/opportunities/:id` },
     { method: 'POST', route: `${API}/opportunities/:id/transition`, payload: { to: 'qualified' } },
     { method: 'POST', route: `${API}/opportunities/:id/assign`, payload: { adminUserId: null } },
+    { method: 'GET', route: `${API}/opportunities/:id/attachments` },
+    { method: 'POST', route: `${API}/opportunities/:id/attachments`, payload: { assetId: CHILD } },
+    { method: 'DELETE', route: `${API}/opportunities/:id/attachments/:attachmentId` },
     { method: 'GET', route: `${API}/opportunities/:id/comments` },
     { method: 'POST', route: `${API}/opportunities/:id/comments`, payload: { kind: 'note', body: 'Off' } },
     { method: 'PATCH', route: `${API}/opportunities/:id/comments/:commentId`, payload: { body: 'Off' } },
@@ -87,6 +90,7 @@ describe('crm off-state (Constitution XVII)', () => {
       .replace(':id', ID)
       .replace(':linkId', CHILD)
       .replace(':commentId', CHILD)
+      .replace(':attachmentId', CHILD)
       .replace(':propagationId', CHILD)
       .replace(':code', 'new'),
     cookies: admin,
