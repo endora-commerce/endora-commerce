@@ -1243,7 +1243,10 @@ when it was measured, and what was done about it.
   and the Opportunity's history tab reads the audit log. A closed Opportunity, a missing
   mapping and an unmet "every Order" rule record nothing. `requireAllOrders` is stored `false`
   on a forward mapping whatever the request says. A new `details.rule`,
-  `mapping_duplicate_order_status`, joins the seven.
+  `mapping_duplicate_order_status`, joins the seven. The audit entry of an Order-caused
+  transition carries `causeOrderId` in its after-state beside `cause` — the status-history row
+  had it, and the Opportunity's change history is read from the audit trail (R-16), which did
+  not.
 - **N-B4 (2026-10-05, T058) — an echo marker that is never consumed.** A forward row is
   matched as an echo while it is `pending` or `applied` and not yet `echoed`. If the module is
   switched off between asking an Order and hearing the event, the row stays unconsumed, and

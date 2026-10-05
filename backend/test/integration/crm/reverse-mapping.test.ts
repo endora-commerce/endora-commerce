@@ -109,6 +109,13 @@ describe('crm reverse mapping — an Order moves its Opportunity', () => {
     expect(rows[1]).toMatchObject({ causeOrderId: order.id });
     // The system moved it, on the Order's behalf — not the operator who changed the Order.
     expect(rows[1]?.actorAdminUserId ?? null).toBeNull();
+    // The audit trail — what the Opportunity's change history is read from — names the Order too.
+    const audit = await h.auditLogService.query({ action: 'crm.opportunity.transition', objectId: opportunity.id });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      stateBefore: { status: 'new' },
+      stateAfter: { status: 'qualified', cause: 'order_status', causeOrderId: order.id },
+    });
   });
 
   it('pushes no other Order when the move came from an Order', async () => {

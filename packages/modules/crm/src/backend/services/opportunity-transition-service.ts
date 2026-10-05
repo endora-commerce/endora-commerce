@@ -202,7 +202,14 @@ export class OpportunityTransitionService {
               pending,
             },
             before: { status: from },
-            after: { status: to, cause, ...(reason ? { reason } : {}) },
+            // The Order that caused the move is named in the audit entry too:
+            // the Opportunity's change history is read from the audit trail.
+            after: {
+              status: to,
+              cause,
+              ...(request.causeOrderId ? { causeOrderId: request.causeOrderId } : {}),
+              ...(reason ? { reason } : {}),
+            },
           };
         },
       });
