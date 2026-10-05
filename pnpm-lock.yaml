@@ -1799,6 +1799,9 @@ importers:
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@fastify/multipart':
+        specifier: ^10.0.0
+        version: 10.0.0
       '@mikro-orm/core':
         specifier: ^6.6.13
         version: 6.6.16

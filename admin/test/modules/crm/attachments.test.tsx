@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { OpportunityAttachment } from '@endora-commerce/contracts';
+import { OPPORTUNITY_ATTACHMENT_MAX_BYTES, type OpportunityAttachment } from '@endora-commerce/contracts';
 import {
   OPPORTUNITY_ID,
   ORDER_STATUS_GRAPH,
@@ -15,7 +15,8 @@ import {
 /**
  * Attachments on the Opportunity screen (`specs/143-crm-sales-opportunities/`,
  * User Story 5 — task T081; FR-044 – FR-046): files of the media library linked
- * to an Opportunity. A file is uploaded **private**; a download link is
+ * to an Opportunity. A file is added through CRM's own upload, which asks for
+ * `crm:write` and nothing of the media library's; a download link is
  * short-lived, so the list is read again right before one is opened.
  */
 
@@ -42,32 +43,11 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 const UPLOADED_ASSET_ID = '00000000-0000-4000-8000-00000000a55e';
 
 /**
- * The kit's uploader posts multipart with a `fetch` of its own, past the mock
- * above. What this screen owes it is its props — above all `visibility:
- * 'private'`, without which the backend refuses the file — so the stub reports
- * the defaults it was given and "uploads" a fixed asset when pressed.
+ * The upload is multipart, which the JSON client above does not speak, so the
+ * screen sends it with `fetch`. The suite's own `fetch` refuses every request;
+ * this one answers the upload and records what it was sent.
  */
-vi.mock('@endora-commerce/admin-kit/components', async () => {
-  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/components')>(
-    '@endora-commerce/admin-kit/components',
-  );
-  return {
-    ...actual,
-    AssetUploader: (props: {
-      defaults?: { visibility?: string };
-      triggerLabel?: string;
-      onUploaded: (asset: { id: string }) => void;
-    }) => (
-      <button
-        type="button"
-        data-visibility={props.defaults?.visibility ?? ''}
-        onClick={(): void => props.onUploaded({ id: UPLOADED_ASSET_ID })}
-      >
-        {props.triggerLabel}
-      </button>
-    ),
-  };
-});
+const fetchSpy = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>();
 
 const { ApiError } = await import('@endora-commerce/admin-kit/lib');
 const { OpportunityDetail } = await import(
@@ -77,7 +57,9 @@ const { OpportunityDetail } = await import(
 const DETAIL_PATH = `/api/v1/admin/crm/opportunities/${OPPORTUNITY_ID}`;
 const ATTACHMENTS_PATH = `${DETAIL_PATH}/attachments`;
 const ID = (n: number): string => `00000000-0000-4000-8000-0000000a700${n}`;
-const WRITER = ['crm:read', 'crm:write', 'orders:read', 'assets.write'];
+const UPLOAD_PATH = `${ATTACHMENTS_PATH}/upload`;
+/** Exactly what a Sales Rep holds: nothing of the media library's. */
+const WRITER = ['crm:read', 'crm:write', 'orders:read'];
 
 function attachment(overrides: Partial<OpportunityAttachment> = {}): OpportunityAttachment {
   return {
@@ -98,7 +80,8 @@ let failList = false;
 let openSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
-  for (const spy of [getSpy, postSpy, deleteSpy]) spy.mockReset();
+  for (const spy of [getSpy, postSpy, deleteSpy, fetchSpy]) spy.mockReset();
+  vi.stubGlobal('fetch', fetchSpy);
   attachments = [attachment(), attachment({ id: ID(2), fileName: 'drawing.dwg', sizeBytes: 512 })];
   failList = false;
   openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
@@ -118,7 +101,20 @@ beforeEach(() => {
 
 afterEach(() => {
   openSpy.mockRestore();
+  vi.unstubAllGlobals();
 });
+
+const json = (status: number, body: unknown): Response =>
+  new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+const fileInput = (panel: HTMLElement): HTMLInputElement =>
+  panel.querySelector('input[type="file"]') as HTMLInputElement;
+
+const pdf = (name: string, size?: number): File => {
+  const file = new File(['%PDF-1.4 offer'], name, { type: 'application/pdf' });
+  if (size !== undefined) Object.defineProperty(file, 'size', { value: size });
+  return file;
+};
 
 async function openTab(permissions: readonly string[] = WRITER): Promise<HTMLElement> {
   renderCrm(<OpportunityDetail />, {
@@ -162,34 +158,67 @@ describe('the Attachments tab', () => {
     expect(await within(panel).findByText('brief.pdf')).toBeInTheDocument();
   });
 
-  it('uploads a file as private and attaches it', async () => {
+  it('adds a file with crm:write alone, through CRM\'s own upload', async () => {
     const added = attachment({ id: ID(3), assetId: UPLOADED_ASSET_ID, fileName: 'offer.pdf' });
-    postSpy.mockImplementation(() => {
+    fetchSpy.mockImplementation(() => {
       attachments = [...attachments, added];
-      return Promise.resolve({ data: added });
+      return Promise.resolve(json(201, { data: added }));
     });
     const panel = await openTab();
     await within(panel).findByText('brief.pdf');
-    const upload = within(panel).getByRole('button', { name: en('attachments.upload') });
-    // The backend refuses an asset that is not private.
-    expect(upload).toHaveAttribute('data-visibility', 'private');
-    await userEvent.click(upload);
+    expect(within(panel).getByRole('button', { name: en('attachments.upload') })).toBeEnabled();
 
-    await waitFor(() =>
-      expect(postSpy).toHaveBeenCalledWith(ATTACHMENTS_PATH, { assetId: UPLOADED_ASSET_ID }),
-    );
+    await userEvent.upload(fileInput(panel), pdf('offer.pdf'));
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+    const [url, init] = fetchSpy.mock.calls[0]!;
+    expect(String(url)).toMatch(new RegExp(`${UPLOAD_PATH}$`));
+    expect(init?.method).toBe('POST');
+    expect(init?.credentials).toBe('include');
+    const sent = (init?.body as FormData).get('file') as File;
+    expect(sent.name).toBe('offer.pdf');
+    // One request does both halves: nothing is attached by id afterwards, and
+    // the media library's own endpoints are never asked.
+    expect(postSpy).not.toHaveBeenCalled();
     expect(await within(panel).findByText('offer.pdf')).toBeInTheDocument();
     expect(within(panel).getByRole('status')).toHaveTextContent(en('attachments.added'));
   });
 
-  it('shows the refusal when the file cannot be attached', async () => {
-    postSpy.mockRejectedValue(
-      new ApiError(422, { error: { code: 'VALIDATION_FAILED', message: 'Only a private file can be attached.' } }),
+  it('says a file is being uploaded and takes no second one meanwhile', async () => {
+    let finish: (response: Response) => void = () => undefined;
+    fetchSpy.mockImplementation(() => new Promise<Response>((resolve) => (finish = resolve)));
+    const panel = await openTab();
+    await within(panel).findByText('brief.pdf');
+    await userEvent.upload(fileInput(panel), pdf('offer.pdf'));
+
+    const button = await within(panel).findByRole('button', { name: en('attachments.upload') });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(within(panel).getByText(en('attachments.uploading', { name: 'offer.pdf' }))).toBeInTheDocument();
+
+    finish(json(201, { data: attachment({ id: ID(3), fileName: 'offer.pdf' }) }));
+    await waitFor(() => expect(button).toBeEnabled());
+  });
+
+  it('shows the refusal when the file is not accepted', async () => {
+    fetchSpy.mockResolvedValue(
+      json(415, { error: { code: 'ASSET_UPLOAD_TYPE_NOT_ALLOWED', message: 'This file type is not allowed.' } }),
     );
     const panel = await openTab();
     await within(panel).findByText('brief.pdf');
-    await userEvent.click(within(panel).getByRole('button', { name: en('attachments.upload') }));
-    expect(await within(panel).findByText('Only a private file can be attached.')).toBeInTheDocument();
+    await userEvent.upload(fileInput(panel), pdf('macro.pdf'));
+    expect(await within(panel).findByText('This file type is not allowed.')).toBeInTheDocument();
+    expect(within(panel).queryByText('macro.pdf')).toBeNull();
+  });
+
+  it('refuses a file over the limit before sending it', async () => {
+    const panel = await openTab();
+    await within(panel).findByText('brief.pdf');
+    await userEvent.upload(fileInput(panel), pdf('scan.pdf', OPPORTUNITY_ATTACHMENT_MAX_BYTES + 1));
+    expect(
+      await within(panel).findByText(en('attachments.error.tooLarge', { name: 'scan.pdf', max: '25 MB' })),
+    ).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('reads the list again right before a download and opens the fresh link', async () => {
@@ -249,19 +278,9 @@ describe('the Attachments tab', () => {
       within(panel).getByRole('button', { name: en('attachments.download', { name: 'brief.pdf' }) }),
     ).toBeInTheDocument();
     expect(within(panel).queryByRole('button', { name: en('attachments.upload') })).toBeNull();
+    expect(fileInput(panel)).toBeNull();
     expect(
       within(panel).queryByRole('button', { name: en('attachments.remove', { name: 'brief.pdf' }) }),
     ).toBeNull();
-  });
-
-  it('explains why there is no upload when the role may not upload to the media library', async () => {
-    const panel = await openTab(['crm:read', 'crm:write', 'orders:read']);
-    await within(panel).findByText('brief.pdf');
-    expect(within(panel).queryByRole('button', { name: en('attachments.upload') })).toBeNull();
-    expect(within(panel).getByText(en('attachments.uploadNotAllowed'))).toBeInTheDocument();
-    // Removing an attachment needs no permission of the media library.
-    expect(
-      within(panel).getByRole('button', { name: en('attachments.remove', { name: 'brief.pdf' }) }),
-    ).toBeInTheDocument();
   });
 });

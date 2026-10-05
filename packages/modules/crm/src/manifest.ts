@@ -164,6 +164,7 @@ export const manifest = defineModuleManifest({
     { code: 'CRM_STATUS_IN_USE' },
     { code: 'CRM_STATUS_INITIAL_REQUIRED' },
     { code: 'CRM_ASSIGNEE_INVALID' },
+    { code: 'CRM_ATTACHMENT_TOO_LARGE' },
     { code: 'CRM_TAG_NAME_TAKEN' },
     { code: 'CRM_MESSAGE_IMMUTABLE' },
     // One sentence per broken rule: the raise carries the rule as its refusal

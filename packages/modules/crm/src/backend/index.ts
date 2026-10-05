@@ -22,6 +22,7 @@ import {
   type RequireAdminFactory,
 } from '@endora-commerce/platform/kernel';
 import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
+import { registerCrmAttachmentUploadRoutes } from './routes/routes.attachment-upload.js';
 import { registerCrmAttachmentRoutes } from './routes/routes.attachments.js';
 import { registerCrmBoardRoutes } from './routes/routes.board.js';
 import { registerCrmCommentRoutes } from './routes/routes.comments.js';
@@ -37,6 +38,7 @@ import { CrmLookupService } from './services/crm-lookup-service.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
 import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
 import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
+import { OpportunityAttachmentUploadService } from './services/opportunity-attachment-upload-service.js';
 import { OpportunityCommentService } from './services/opportunity-comment-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityService } from './services/opportunity-service.js';
@@ -413,6 +415,36 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
   // --- end of Lookups ----------------------------------------------------------
+
+  // --- Attachment upload (research N-F1) ----------------------------------------
+  // One request that stores a file in the media library and attaches it, gated
+  // by `crm:write` alone: the library's own upload endpoint asks for the
+  // library's permission, which a Sales Rep need not hold. The bytes go through
+  // `assetsLibraryPort.upload` — the library's own pipeline, so its limits and
+  // its storage apply unchanged — and the attaching is the attachment service's
+  // Command. One service, one `ctx.routes`, this one section.
+  ctx.di.register({
+    crmOpportunityAttachmentUploadService: ctx
+      .asFunction(
+        ({ emFactory, crmOpportunityAttachmentService }: CrmCradle) =>
+          new OpportunityAttachmentUploadService({
+            emFactory,
+            assetsLibrary: lazyPort<AssetsLibraryPort>(ctx, 'assetsLibraryPort'),
+            attach: (opportunityId, assetId) => crmOpportunityAttachmentService.add(opportunityId, assetId),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<
+      CrmCradle & { readonly crmOpportunityAttachmentUploadService: OpportunityAttachmentUploadService }
+    >();
+    await registerCrmAttachmentUploadRoutes(app, {
+      uploadService: cradle.crmOpportunityAttachmentUploadService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of Attachment upload -------------------------------------------------
 
   // --- Routes ----------------------------------------------------------------
   // All through `ctx.routes`, so every one of them stops with the module.

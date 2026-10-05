@@ -1786,6 +1786,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/opportunities/{id}/attachments/upload": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/opportunities/{id}/attachments/{attachmentId}": {
       "delete": {
         "responses": {

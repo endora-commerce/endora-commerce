@@ -506,6 +506,8 @@ export const ERROR_CODES = {
   CRM_WORKFLOW_INVALID: 'CRM_WORKFLOW_INVALID',
   /** The assignee named is not an active administrator of this platform. */
   CRM_ASSIGNEE_INVALID: 'CRM_ASSIGNEE_INVALID',
+  /** The uploaded file is larger than an Opportunity attachment may be. */
+  CRM_ATTACHMENT_TOO_LARGE: 'CRM_ATTACHMENT_TOO_LARGE',
   /** Another CRM tag already has this name, whatever its case. */
   CRM_TAG_NAME_TAKEN: 'CRM_TAG_NAME_TAKEN',
   /** A message on an Opportunity cannot be edited or deleted once sent. */

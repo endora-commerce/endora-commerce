@@ -144,11 +144,31 @@ does not proxy them.
 | --- | --- | --- | --- |
 | `GET /opportunities/:id/attachments` | `crm:read` | — | `{ data: OpportunityAttachment[] }` |
 | `POST /opportunities/:id/attachments` | `crm:write` | `{ assetId: uuid }` | 201 |
+| `POST /opportunities/:id/attachments/upload` | `crm:write` | multipart, one `file` part (§7a) | 201 |
 | `DELETE /opportunities/:id/attachments/:attachmentId` | `crm:write` | — | 204 |
 
 `OpportunityAttachment`: `id`, `assetId`, `fileName`, `mimeType`, `sizeBytes`, `url | null`,
-`uploadedBy { id, name }`, `createdAt`. The bytes are uploaded to the media library by the
-admin first; this API stores the link only.
+`uploadedBy { id, name }`, `createdAt`. `POST …/attachments { assetId }` stores the link to a
+file already in the media library; it is not used by the Admin UI since §7a.
+
+### 7a. Upload (the Attachments tab; research N-D8, N-F1)
+
+`POST /opportunities/:id/attachments/upload` · `crm:write` · `multipart/form-data` with one
+`file` part → 201 `{ data: OpportunityAttachment }`.
+
+One request stores the file in the media library as a **private** asset — through
+`assetsLibraryPort.upload`, the library's own pipeline, so its allowed types, its size limit as
+set at that moment, its content sniffing and its storage backend apply unchanged — and attaches
+it with the Command of the row above. No permission of the media library is asked for.
+
+- The Opportunity is checked first: 404 `CRM_OPPORTUNITY_NOT_FOUND` for one missing or outside
+  the caller's scope, before a byte is read or stored.
+- 400 `VALIDATION_FAILED` — not multipart, or no `file` part.
+- 413 `CRM_ATTACHMENT_TOO_LARGE` (`details.maxMb`) — over `OPPORTUNITY_ATTACHMENT_MAX_BYTES`
+  (25 MB), the bound on what the route reads into memory.
+- The library's refusals pass through unchanged: 413 `ASSET_UPLOAD_TOO_LARGE`, 415
+  `ASSET_UPLOAD_TYPE_NOT_ALLOWED`, 503 `ASSET_STORAGE_UNAVAILABLE`.
+- A file stored and then not attached is soft-deleted in the library again.
 
 ## 8. Tags (US6)
 
@@ -240,7 +260,7 @@ Declared in the manifest's `errorCodes`, sentences under `errors.<CODE>` in
 `CRM_TRANSITION_CONFLICT`, `CRM_DOCUMENT_NOT_FOUND`, `CRM_DOCUMENT_ALREADY_LINKED`,
 `CRM_LINK_ORGANIZATION_MISMATCH`, `CRM_STATUS_CODE_TAKEN`, `CRM_STATUS_IN_USE`,
 `CRM_STATUS_INITIAL_REQUIRED`, `CRM_WORKFLOW_INVALID`, `CRM_ASSIGNEE_INVALID`,
-`CRM_MESSAGE_IMMUTABLE`, `CRM_TAG_NAME_TAKEN`.
+`CRM_MESSAGE_IMMUTABLE`, `CRM_TAG_NAME_TAKEN`, `CRM_ATTACHMENT_TOO_LARGE` (§7a).
 
 How a new code is minted — whether it must also become a member of `ERROR_CODES` in
 `packages/contracts/src/errors.ts`, and which fixtures record it — is **not** established by

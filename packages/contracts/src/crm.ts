@@ -551,6 +551,17 @@ export const OpportunityAttachmentListResponseSchema = dataEnvelope(
   z.array(OpportunityAttachmentSchema),
 );
 
+/**
+ * §7a — the largest file `POST /opportunities/:id/attachments/upload` reads,
+ * in bytes (25 MB). The route holds the whole file in memory before the media
+ * library decides anything about it, so this is the bound on what one request
+ * may make the process allocate; what a file may otherwise *be* — its type, a
+ * smaller size limit — is the media library's upload policy, applied as it is
+ * for any other upload. The screen reads it to refuse a larger file before
+ * sending it. Above it: 413 `CRM_ATTACHMENT_TOO_LARGE`.
+ */
+export const OPPORTUNITY_ATTACHMENT_MAX_BYTES = 25 * 1024 * 1024;
+
 // ---------------------------------------------------------------------------
 // §8 Tags
 // ---------------------------------------------------------------------------

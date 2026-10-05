@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Download, Trash2 } from 'lucide-react';
-import type { OpportunityAttachment } from '@endora-commerce/contracts';
+import {
+  OPPORTUNITY_ATTACHMENT_MAX_BYTES,
+  type OpportunityAttachment,
+} from '@endora-commerce/contracts';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { AssetUploader } from '@endora-commerce/admin-kit/components';
 import {
   Alert,
   AlertDescription,
@@ -16,29 +18,29 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../../../api.js';
+import { AttachmentUploader } from '../../../components/AttachmentUploader.js';
 import { ModalDialog } from '../../../components/ModalDialog.js';
 import { errorMessage, fileSizeLabel } from '../../../lib/labels.js';
+import { uploadOpportunityAttachment } from '../../../lib/upload-attachment.js';
 import type { OpportunityTabProps } from '../tabs.js';
 
 /**
  * The *Attachments* tab (User Story 5; `contracts/admin-api.md` §7): the files
  * of the media library linked to this Opportunity.
  *
- * **A file is uploaded private.** The bytes go to the media library first,
- * through the kit's uploader, and the Opportunity then holds a link to the
- * asset. The backend refuses an asset that is not `private` — a public one has
- * an address anybody can open — so `visibility: 'private'` is this screen's to
- * send, and it does.
+ * **Adding a file needs `crm:write` and nothing else.** The file goes to
+ * CRM's own upload endpoint, which stores it in the media library as a private
+ * asset and attaches it in the same request; the library's own upload asks for
+ * the library's permission, which the people working an Opportunity need not
+ * hold. What a file may be — its type, its size — is still the library's
+ * policy, and its refusal is shown in its own words. A file over the size this
+ * screen may send at all is refused here, before it is sent.
  *
  * **A download link is read at the moment it is used.** Each attachment carries
  * a signed link valid for a few minutes; one read when the tab was opened may
  * have expired by the time it is clicked. *Download* therefore reads the list
  * again and opens the link it has just been given.
  *
- * **Uploading needs the media library's own permission** (`assets.write`) on
- * top of `crm:write`: the upload endpoint is the library's. A Sales Rep without
- * it is told so rather than shown a control that answers 403; removing an
- * attachment, and downloading one, need nothing of the library's.
  */
 export function AttachmentsTab(props: OpportunityTabProps): ReactNode {
   const opportunityId = props.opportunity.id;
@@ -47,14 +49,14 @@ export function AttachmentsTab(props: OpportunityTabProps): ReactNode {
   const { language } = useAppLanguage();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('crm:write');
-  const canUpload = canWrite && hasPermission('assets.write');
+  const maxSize = fileSizeLabel(OPPORTUNITY_ATTACHMENT_MAX_BYTES, language);
 
   const [attachments, setAttachments] = useState<OpportunityAttachment[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
-  const [attaching, setAttaching] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [pendingRemove, setPendingRemove] = useState<OpportunityAttachment | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -79,13 +81,16 @@ export function AttachmentsTab(props: OpportunityTabProps): ReactNode {
     void load();
   }, [load]);
 
-  const attach = async (assetId: string): Promise<void> => {
-    setAttaching(true);
+  const upload = async (file: File): Promise<void> => {
     setActionError(null);
     setNotice('');
+    if (file.size > OPPORTUNITY_ATTACHMENT_MAX_BYTES) {
+      setActionError(t('attachments.error.tooLarge', { name: file.name, max: maxSize }));
+      return;
+    }
+    setUploading(file.name);
     try {
-      const added = await crmApi.addAttachment(opportunityId, assetId);
-      // The same file attached twice answers the attachment that exists.
+      const added = await uploadOpportunityAttachment(opportunityId, file);
       setAttachments((previous) =>
         (previous ?? []).some((item) => item.id === added.id)
           ? (previous ?? [])
@@ -95,7 +100,7 @@ export function AttachmentsTab(props: OpportunityTabProps): ReactNode {
     } catch (failure) {
       setActionError(errorMessage(failure, t('attachments.error.attach')));
     } finally {
-      setAttaching(false);
+      setUploading(null);
     }
   };
 
@@ -229,16 +234,17 @@ export function AttachmentsTab(props: OpportunityTabProps): ReactNode {
         {notice}
       </p>
 
-      {canUpload ? (
-        <div aria-busy={attaching}>
-          <AssetUploader
-            defaults={{ visibility: 'private' }}
-            triggerLabel={t('attachments.upload')}
-            onUploaded={(asset): void => void attach(asset.id)}
-          />
-        </div>
-      ) : canWrite ? (
-        <p className="text-sm text-muted-foreground">{t('attachments.uploadNotAllowed')}</p>
+      {canWrite ? (
+        <AttachmentUploader
+          label={t('attachments.upload')}
+          hint={
+            uploading === null
+              ? t('attachments.dropHint', { max: maxSize })
+              : t('attachments.uploading', { name: uploading })
+          }
+          busy={uploading !== null}
+          onFile={(file): void => void upload(file)}
+        />
       ) : null}
 
       {pendingRemove ? (

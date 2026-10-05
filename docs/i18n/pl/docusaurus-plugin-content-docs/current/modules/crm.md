@@ -491,50 +491,74 @@ tego, kto pyta.
 
 Brief, rysunek, podpisana oferta — do szansy sprzedażowej można dołączać pliki.
 
-Sam plik jest przechowywany w **bibliotece mediów**. Najpierw jest tam
-przesyłany, a szansa przechowuje odnośnik do niego. Wynikają z tego dwie rzeczy.
+**Do dodania pliku wystarcza uprawnienie `crm:write`.** Plik trafia do
+mechanizmu przesyłania samego CRM, który zapisuje go w **bibliotece mediów**
+jako plik prywatny i w tym samym kroku dołącza do szansy. Żadne uprawnienie
+biblioteki mediów nie jest potrzebne, więc handlowiec, który nie ma dostępu do
+biblioteki mediów, nadal może dodać plik do szans, nad którymi pracuje.
+
+Sam plik jest przechowywany w bibliotece mediów, a szansa przechowuje odnośnik
+do niego. Wynikają z tego trzy rzeczy.
+
+**O tym, jaki plik jest dopuszczalny, decyduje biblioteka mediów.** Dozwolone
+typy plików i limit rozmiaru ustawione dla biblioteki mediów obowiązują
+załącznik dokładnie tak, jak każdy inny przesyłany plik, a plik, którego
+biblioteka nie przyjmie, jest odrzucany z jej własną odpowiedzią. Niezależnie
+od tego załącznik może mieć najwyżej **25 MB**, bez względu na to, na co
+pozwala biblioteka.
 
 **Załącznik jest plikiem prywatnym.** Plik, który biblioteka mediów
 przechowuje jako publiczny, ma adres, który może otworzyć każdy, dlatego plik
-publiczny jest odrzucany jako Załącznik. Biblioteka mediów zapisuje przesłany
-plik jako publiczny, o ile nie wskazano inaczej: plik przeznaczony dla szansy
-przesyła się z `visibility: "private"`.
+przesłany przez CRM jest zawsze zapisywany jako prywatny, a plik publiczny jest
+odrzucany jako załącznik.
 
 **Pliku, który jest załączony, nie można usunąć z biblioteki mediów.**
 Biblioteka odmawia i wskazuje szansę po jej numerze. Najpierw trzeba usunąć
-Załącznik. Dotyczy to także czasu, gdy moduł CRM jest wyłączony — załączniki
+załącznik. Dotyczy to także czasu, gdy moduł CRM jest wyłączony — załączniki
 nadal istnieją, a ochrona razem z nimi.
 
 Każdy, kto może czytać szansę, może pobrać jej załączniki; żadne uprawnienie
-biblioteki mediów nie jest potrzebne. Każdy Załącznik na liście ma odnośnik do
+biblioteki mediów nie jest potrzebne. Każdy załącznik na liście ma odnośnik do
 pobrania ważny przez kilka minut — aby dostać świeży, wystarczy ponownie
 odczytać listę.
 
 W Admin UI szansa ma kartę **Załączniki**: listę plików z nazwą, rozmiarem,
 osobą, która plik dodała, i datą dodania.
 
-- **Dodaj plik** przesyła plik do biblioteki mediów jako prywatny i dołącza go
-  do szansy. Przesyłanie korzysta z mechanizmu biblioteki mediów, więc rola
-  potrzebuje uprawnienia `assets.write` oprócz `crm:write`; rola bez niego
-  widzi zamiast przycisku zdanie, które to wyjaśnia.
+- **Dodaj plik** — albo upuszczenie pliku na obszar z przerywaną ramką —
+  przesyła jeden plik i dołącza go do szansy. Przycisk jest dostępny dla
+  każdego, kto ma uprawnienie `crm:write`. Plik większy niż 25 MB jest
+  odrzucany jeszcze przed wysłaniem; plik, którego biblioteka mediów nie
+  przyjmuje, jest odrzucany z podaną przez nią przyczyną.
 - Przycisk pobierania przygotowuje świeży odnośnik w chwili kliknięcia i
   otwiera plik w nowej karcie. Jeśli pliku nie ma już w bibliotece mediów,
   ekran o tym informuje i niczego nie otwiera.
-- Kosz usuwa Załącznik po potwierdzeniu. Plik pozostaje w bibliotece mediów.
+- Kosz usuwa załącznik po potwierdzeniu. Plik pozostaje w bibliotece mediów.
 
 Osoba, która może tylko czytać, widzi listę i przyciski pobierania.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | Załączniki, od najstarszego: nazwa pliku, typ, rozmiar, kto załączył oraz `url`. |
-| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` | Załączenie pliku z biblioteki mediów: `{ "assetId" }`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments/upload` | `crm:write` | Przesłanie pliku i załączenie go: `multipart/form-data` z jedną częścią `file`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` | Załączenie pliku, który już jest w bibliotece mediów jako prywatny: `{ "assetId" }`. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/attachments/:attachmentId` | `crm:write` | Usunięcie załącznika. Plik zostaje w bibliotece mediów. |
 
-Załączenie pliku, który szansa już ma, niczego nie zmienia, a odpowiedzią jest
-istniejący Załącznik. Plik, którego nie ma w bibliotece mediów — albo który
-jest załączony do szansy niedostępnej dla pytającej osoby — jest odrzucany jak
-plik, który nie istnieje. Jeśli plik zniknął z biblioteki mediów, jego
-Załącznik nadal jest na liście, pod dawną nazwą, bez odnośnika.
+Odpowiedzią na przesłanie pliku jest nowy załącznik. Dla pliku większego niż
+25 MB odpowiedzią jest 413 `CRM_ATTACHMENT_TOO_LARGE`, a odmowy samej
+biblioteki mediów — 413 `ASSET_UPLOAD_TOO_LARGE`, 415
+`ASSET_UPLOAD_TYPE_NOT_ALLOWED` — są przekazywane bez zmian. Dla szansy
+niedostępnej dla pytającej osoby odpowiedzią jest 404, zanim cokolwiek zostanie
+zapisane, a plik, który został zapisany, ale nie dał się załączyć, jest z
+biblioteki mediów usuwany.
+
+Załączanie po `assetId` jest przeznaczone dla integracji, która sama umieściła
+plik w bibliotece mediów; Admin UI z niego nie korzysta. Załączenie pliku,
+który szansa już ma, niczego nie zmienia, a odpowiedzią jest istniejący
+załącznik. Plik, którego nie ma w bibliotece mediów — albo który jest załączony
+do szansy niedostępnej dla pytającej osoby — jest odrzucany jak plik, który nie
+istnieje. Jeśli plik zniknął z biblioteki mediów, jego załącznik nadal jest na
+liście, pod dawną nazwą, bez odnośnika.
 
 ## Własna logika przy zmianie statusu
 
@@ -610,7 +634,7 @@ dokładnie do poprzedniego stanu.
 | Kod | Na co pozwala |
 | --- | --- |
 | `crm:read` | Przeglądanie szans sprzedażowych, tablicy, przepływu statusów i listy etykiet; czytanie notatek i wiadomości szansy oraz pobieranie jej załączników. |
-| `crm:write` | Tworzenie i edycja szans, przenoszenie ich w przepływie, przypisywanie handlowca, nadawanie etykiet, wiązanie i odłączanie zamówień, ponawianie lub pomijanie odmowy zmiany zamówienia, pisanie notatek i wiadomości, dodawanie i usuwanie załączników (przesłanie nowego pliku wymaga też uprawnienia `assets.write` biblioteki mediów). |
+| `crm:write` | Tworzenie i edycja szans, przenoszenie ich w przepływie, przypisywanie handlowca, nadawanie etykiet, wiązanie i odłączanie zamówień, ponawianie lub pomijanie odmowy zmiany zamówienia, pisanie notatek i wiadomości, przesyłanie, dodawanie i usuwanie załączników. |
 | `crm:configure` | Zmiana przepływu — statusów, przejść i mapowań statusów zamówień w obu kierunkach — zarządzanie listą etykiet oraz usuwanie szansy. |
 
 Rola z uprawnieniem `crm:read` powinna mieć także `orders:read`: szansa

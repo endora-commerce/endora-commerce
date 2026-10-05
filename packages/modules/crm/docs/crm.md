@@ -474,13 +474,24 @@ answers 409 `CRM_MESSAGE_IMMUTABLE`, whoever asks.
 
 A brief, a drawing, a signed offer — files can be attached to an opportunity.
 
-The file itself is kept in the **media library**. It is uploaded there first,
-and the opportunity then holds a link to it. Two things follow.
+**Adding a file needs `crm:write` and nothing else.** The file is sent to the
+CRM's own upload, which stores it in the **media library** as a private file
+and attaches it to the opportunity in the same step. No permission of the media
+library is involved, so a sales rep who cannot open the media library can still
+add a file to the opportunities they work.
+
+The file itself is kept in the media library, and the opportunity holds a link
+to it. Three things follow.
+
+**What a file may be is the media library's decision.** The allowed file types
+and the size limit set for the media library apply to an attachment exactly as
+they do to any other upload, and a file the library refuses is refused here
+with the library's own answer. On top of that an attachment may be at most
+**25 MB**, whatever the library allows.
 
 **An attachment is a private file.** A file the media library holds as public
-has an address anybody can open, so a public file is refused as an attachment.
-The media library stores an upload as public unless told otherwise: a file
-meant for an opportunity is uploaded with `visibility: "private"`.
+has an address anybody can open, so a file uploaded through the CRM is always
+stored as private, and a public file is refused as an attachment.
 
 **A file that is attached cannot be deleted from the media library.** The
 library refuses, and names the opportunity by its number. Remove the attachment
@@ -495,10 +506,10 @@ fresh one.
 In the Admin UI an opportunity has an **Attachments** tab: a list of the files
 with each one's name, size, who attached it and when.
 
-- **Add a file** uploads a file to the media library as a private file and
-  attaches it. Uploading uses the media library's own upload, so the role needs
-  `assets.write` as well as `crm:write`; a role without it sees a sentence
-  saying so instead of the button.
+- **Add a file** — or dropping a file onto the dashed area — uploads one file
+  and attaches it. It is offered to everybody who holds `crm:write`. A file
+  over 25 MB is refused before it is sent; a file the media library does not
+  accept is refused with the library's reason.
 - The download button prepares a fresh link at the moment it is pressed and
   opens the file in a new tab. A file that has gone missing from the media
   library says so and opens nothing.
@@ -510,14 +521,24 @@ Somebody who may only read sees the list and the download buttons.
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | The attachments, oldest first: file name, type, size, who attached it, and `url`. |
-| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` | Attach a file of the media library: `{ "assetId" }`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments/upload` | `crm:write` | Upload a file and attach it: `multipart/form-data` with one `file` part. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` | Attach a file that is already in the media library as a private file: `{ "assetId" }`. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/attachments/:attachmentId` | `crm:write` | Remove the attachment. The file stays in the media library. |
 
-Attaching a file the opportunity already has changes nothing and answers the
-existing attachment. A file that is not in the media library — or that is
-attached to an opportunity the person asking may not see — is refused as one
-that does not exist. If a file has gone missing from the media library, its
-attachment is still listed, under the name it had, with no link.
+The upload answers the new attachment. It answers 413 `CRM_ATTACHMENT_TOO_LARGE`
+for a file over 25 MB, and passes on the media library's own refusals — 413
+`ASSET_UPLOAD_TOO_LARGE`, 415 `ASSET_UPLOAD_TYPE_NOT_ALLOWED` — unchanged. An
+opportunity the person asking may not see answers 404 before anything is
+stored, and a file that was stored but could not be attached is removed from
+the media library again.
+
+Attaching by `assetId` is for an integration that has already put a file in the
+media library; the Admin UI does not use it. Attaching a file the opportunity
+already has changes nothing and answers the existing attachment. A file that is
+not in the media library — or that is attached to an opportunity the person
+asking may not see — is refused as one that does not exist. If a file has gone
+missing from the media library, its attachment is still listed, under the name
+it had, with no link.
 
 ## Adding your own logic to a status change
 
@@ -594,7 +615,7 @@ when the module is switched on again.
 | Code | What it allows |
 | --- | --- |
 | `crm:read` | View sales opportunities, the board, the status workflow and the tag list; read an opportunity's notes and messages and download its attachments. |
-| `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders, retry or dismiss a refused order change, write notes and messages, add and remove attachments (uploading a new file also needs the media library's `assets.write`). |
+| `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders, retry or dismiss a refused order change, write notes and messages, upload, add and remove attachments. |
 | `crm:configure` | Change the workflow — statuses, transitions and order-status mappings in both directions — manage the tag list, and delete an opportunity. |
 
 A role that holds `crm:read` should also hold `orders:read`: an opportunity

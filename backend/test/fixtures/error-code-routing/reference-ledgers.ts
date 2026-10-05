@@ -195,6 +195,15 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'did not exist when the prefix chain was deleted: the refusal to assign an Opportunity to ' +
       'somebody who is not an active administrator — unknown, deactivated or deleted.',
   },
+  CRM_ATTACHMENT_TOO_LARGE: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, the attachment ' +
+      'upload), which did not exist when the prefix chain was deleted: the refusal of a file ' +
+      'larger than the route that uploads an Opportunity attachment will read into memory. ' +
+      'The noun is the attachment and the one raise site is that route; the media library\'s ' +
+      'own size limit keeps its own code.',
+  },
   CRM_TAG_NAME_TAKEN: {
     to: 'crm',
     reason:

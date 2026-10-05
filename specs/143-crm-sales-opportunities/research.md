@@ -1837,6 +1837,62 @@ when it was measured, and what was done about it.
   every Sales Rep's network panel, reported for whoever owns the shell's idle-logout read.
   Not verified by eye: a real screen reader, a physical touch device, dark theme, a popup
   blocker stricter than Chromium's default on the download's new tab (N-D8 (c)).
+- **N-F1 (2026-10-06, T182) — the upload seam N-D8 said did not exist does: `assetsLibraryPort.upload`.**
+  N-D8 (a) left the Attachments tab without *Add a file* for a role holding only CRM's
+  permissions, on the premise that "a CRM-owned upload would have to carry multipart through a
+  port that takes none today". Re-derived from the tree, that premise is false.
+  `AssetsLibraryPort` (`packages/contracts/src/assets-library.ts`) has four methods and the
+  first is `upload(input: AssetUploadInput)` — a filename, the declared MIME type, a byte
+  stream, a size, a folder, a label and a `visibility`; `assets_library` registers its own
+  `AssetsLibraryService` under that name, and the library's admin route calls the very same
+  method. `pwa` is the precedent for a module accepting an upload on behalf of an
+  administrator: it registers `@fastify/multipart` in a child context of its own route and
+  hands the bytes to that port. **So nothing in `assets_library` and nothing in its contract
+  was changed**; `contracts/foreign-module-changes.md` gains no row for it. What was built:
+  (a) **`POST /opportunities/:id/attachments/upload`**, `crm:write`, in a new route file with
+  the parser registered inside a child context, a new service and one delimited section of
+  `index.ts`. `@fastify/multipart` joins `mod-crm`'s rendered peers — a package two modules
+  already use, written by `manifests:generate` from the import, which is the derivation
+  `foreign-module-changes.md` §F already allows.
+  (b) **The file is read whole, and that is what makes the library's size limit apply.** The
+  library's pipeline compares `declaredSize` with `assets.max_file_size_mb` **as it is set at
+  that moment**, and a multipart part carries no length — which is why the library's own
+  route passes `declaredSize: 0` and is held only by its parser's `fileSize`, fixed when the
+  backend booted (its own contract test says as much). CRM buffers the part and passes the
+  real size, so `ASSET_UPLOAD_TOO_LARGE` is the library's live answer; the price is a bound on
+  the buffer, `OPPORTUNITY_ATTACHMENT_MAX_BYTES` (25 MB, in the contracts so the screen can
+  refuse a larger file before sending it), answered as 413 `CRM_ATTACHMENT_TOO_LARGE` — one
+  minted code, by N-13's procedure. Type checks, content sniffing, the storage backend and
+  the `asset.upload` audit entry are the pipeline's, untouched.
+  (c) **Parent first.** The route loads the Opportunity through the scoped EntityManager before
+  it reads the body, and the service does so again before it stores anything: out of scope is
+  404 with no asset row and no file, which the integration test counts.
+  (d) **Two writes in two modules, compensated.** The asset insert is the library's
+  transaction and the attachment is CRM's Command; a file stored and then not attached is
+  soft-deleted through the same port (no `catch` — a flag and a `finally`), so the upload
+  cannot manufacture the orphan N-B17's residual is about.
+  (e) **The library's two refusal sentences are placeholders** — `errors.ASSET_UPLOAD_TOO_LARGE`
+  is "Asset Upload Too Large." in its bundle, and that is what a Sales Rep reads when the
+  library refuses. The envelope replaces a declared code's message with the bundle sentence
+  (N-13 (a)), so CRM cannot improve it; reported for `assets_library`' owner. The screen's own
+  pre-check covers the 25 MB case in a full sentence.
+  (f) **N-B17's residual, and the narrowing that was not applied.** With a CRM-owned upload the
+  Admin UI no longer calls `POST …/attachments { assetId }` at all (`crmApi.addAttachment` is
+  kept and unused). The endpoint still lets a holder of `crm:write` who knows the uuid of a
+  private library asset attached to no Opportunity attach it and obtain a signed link without
+  `assets.read`. Two narrowings are available: **(i)** gate the by-id attach with `crm:write`
+  **and** `assets.read` — exactly the people who could already fetch the file from the
+  library — or **(ii)** remove the endpoint. Neither was made: both change §7's gate column
+  for a documented endpoint (a client holding `crm:write` alone is refused where it was
+  served), which is a contract change and the owner's call; (i) is the recommendation, and it
+  is one `preHandler`, one line of §7 and one test. The port still offers nothing to tell a
+  file uploaded *for* an attachment from any other private file, so a rule keyed on purpose
+  remains impossible without a foreign change.
+  (g) **On the screen** the kit's `AssetUploader` is replaced by a module-private
+  `components/AttachmentUploader.tsx` (a button, a drop area, no request of its own) and
+  `lib/upload-attachment.ts`, which posts multipart with `fetch` — the kit's client is
+  JSON-only — and throws the client's own `ApiError` so the server's sentence is shown.
+  `attachments.uploadNotAllowed` is gone.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
