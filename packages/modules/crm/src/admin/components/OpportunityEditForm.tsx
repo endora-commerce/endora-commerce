@@ -14,10 +14,10 @@ import {
   Select,
   Textarea,
 } from '@endora-commerce/admin-kit/ui';
-import { CustomerPicker, SalesChannelPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
 import { errorMessage, normaliseAmount } from '../lib/labels.js';
+import { ContactLookup, SalesChannelLookup } from './LookupPickers.js';
 
 export interface OpportunityEditFormProps {
   opportunity: OpportunityDetail;
@@ -236,7 +236,7 @@ export function OpportunityEditForm(props: OpportunityEditFormProps): ReactNode 
       <div className="grid gap-x-4 gap-y-5 md:grid-cols-2">
         <div className="space-y-1">
           <Label htmlFor="crm-edit-contact">{t('opportunity.field.contact')}</Label>
-          <CustomerPicker
+          <ContactLookup
             id="crm-edit-contact"
             ariaLabel={t('opportunity.field.contact')}
             organizationId={base.organization.id}
@@ -244,19 +244,15 @@ export function OpportunityEditForm(props: OpportunityEditFormProps): ReactNode 
             onChange={(customerAccountId): void => set({ customerAccountId })}
             placeholder={t('opportunity.picker.contactPlaceholder')}
             emptyMessage={t('opportunity.picker.contactEmpty')}
+            {...(contact && draft.customerAccountId === contact.id
+              ? { selectedLabel: contact.name }
+              : {})}
           />
-          {/* The picker can only name an account it has searched for, so the
-              person already chosen is named here until another one is. */}
-          {contact && draft.customerAccountId === contact.id ? (
-            <p className="text-xs text-muted-foreground">
-              {t('opportunity.edit.contactCurrent', { name: contact.name })}
-            </p>
-          ) : null}
         </div>
 
         <div className="space-y-1">
           <Label htmlFor="crm-edit-channel">{t('opportunity.field.salesChannel')}</Label>
-          <SalesChannelPicker
+          <SalesChannelLookup
             id="crm-edit-channel"
             ariaLabel={t('opportunity.field.salesChannel')}
             value={draft.salesChannelId}

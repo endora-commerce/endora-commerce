@@ -618,6 +618,90 @@ export type OpportunityBoard = z.infer<typeof OpportunityBoardSchema>;
 export const OpportunityBoardResponseSchema = dataEnvelope(OpportunityBoardSchema);
 
 // ---------------------------------------------------------------------------
+// §10a Lookups — what the CRM screens' pickers choose from
+// ---------------------------------------------------------------------------
+//
+// The Organization, Sales Channel, assignee and contact-person pickers of the
+// CRM screens read from CRM's own endpoints, gated by CRM's own codes, and not
+// from the admin lists of the modules that own those rows: a Sales Rep holding
+// `crm:read` / `crm:write` holds neither `customers:read`, `sales_channels:read`
+// nor `admin_users:manage`, and must not need them to fill in a form
+// (`specs/143-crm-sales-opportunities/research.md` N-D4). Each answer is the
+// minimum a picker shows — an id and a label.
+
+const lookupLimitSchema = z.coerce.number().int().positive().max(50).default(20);
+const lookupSearchSchema = z.string().trim().max(200).optional();
+
+/** `id` asks for one Organization by id (the label of a preselection); `q` searches by name. */
+export const OpportunityOrganizationLookupQuerySchema = z.object({
+  q: lookupSearchSchema,
+  id: z.string().uuid().optional(),
+  limit: lookupLimitSchema,
+});
+export type OpportunityOrganizationLookupQuery = z.infer<
+  typeof OpportunityOrganizationLookupQuerySchema
+>;
+
+export const OpportunityOrganizationOptionSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+});
+export type OpportunityOrganizationOption = z.infer<typeof OpportunityOrganizationOptionSchema>;
+export const OpportunityOrganizationLookupResponseSchema = dataEnvelope(
+  z.array(OpportunityOrganizationOptionSchema),
+);
+
+/** `name` is per language, as the channel stores it; the screen resolves it. */
+export const OpportunitySalesChannelOptionSchema = z.object({
+  id: z.string().uuid(),
+  code: z.string(),
+  name: z.record(z.string(), z.string()),
+  active: z.boolean(),
+  systemDefault: z.boolean(),
+  /** The currencies the channel sells in — what an Opportunity's currency is chosen from. */
+  defaultCurrency: z.string(),
+  currencies: z.array(z.string()),
+});
+export type OpportunitySalesChannelOption = z.infer<typeof OpportunitySalesChannelOptionSchema>;
+export const OpportunitySalesChannelLookupResponseSchema = dataEnvelope(
+  z.array(OpportunitySalesChannelOptionSchema),
+);
+
+export const OpportunityAssigneeLookupQuerySchema = z.object({
+  q: lookupSearchSchema,
+  limit: lookupLimitSchema,
+});
+export type OpportunityAssigneeLookupQuery = z.infer<typeof OpportunityAssigneeLookupQuerySchema>;
+
+/** An administrator who may be assigned — active ones only, by name. */
+export const OpportunityAssigneeOptionSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+});
+export type OpportunityAssigneeOption = z.infer<typeof OpportunityAssigneeOptionSchema>;
+export const OpportunityAssigneeLookupResponseSchema = dataEnvelope(
+  z.array(OpportunityAssigneeOptionSchema),
+);
+
+export const OpportunityContactLookupQuerySchema = z.object({
+  organizationId: z.string().uuid(),
+  q: lookupSearchSchema,
+  limit: lookupLimitSchema,
+});
+export type OpportunityContactLookupQuery = z.infer<typeof OpportunityContactLookupQuerySchema>;
+
+/** A member of the Organization who may be the Opportunity's contact person. */
+export const OpportunityContactOptionSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  email: z.string(),
+});
+export type OpportunityContactOption = z.infer<typeof OpportunityContactOptionSchema>;
+export const OpportunityContactLookupResponseSchema = dataEnvelope(
+  z.array(OpportunityContactOptionSchema),
+);
+
+// ---------------------------------------------------------------------------
 // §11 History
 // ---------------------------------------------------------------------------
 

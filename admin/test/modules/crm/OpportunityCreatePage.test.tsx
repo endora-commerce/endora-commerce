@@ -1,7 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { OPPORTUNITY_ID, ORGANIZATION_ID, core, detail, en, renderCrm } from './crm-fixtures';
+import {
+  CHANNEL_ID,
+  CONTACT_ID,
+  OPPORTUNITY_ID,
+  ORGANIZATION_ID,
+  core,
+  crmLookupResponse,
+  detail,
+  en,
+  renderCrm,
+} from './crm-fixtures';
 
 /**
  * Creating an Opportunity by hand (`specs/143-crm-sales-opportunities/`, User
@@ -34,41 +44,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
   };
 });
 
-/**
- * The contact picker is stubbed, and it is the only collaborator here that is.
- *
- * The kit's `CustomerPicker` takes `apiClient` from the kit's own
- * `lib/api-client.js` rather than through the `./lib` barrel, so the mock above
- * cannot reach its request — `SalesChannelPicker.tsx` records that as the
- * reason the older pickers have no tests. What this screen owes the picker is
- * its props: which Organization it searches, and whether it is usable yet. The
- * stub reports both and commits a fixed account when pressed.
- */
-vi.mock('@endora-commerce/admin-kit/components', async () => {
-  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/components')>(
-    '@endora-commerce/admin-kit/components',
-  );
-  return {
-    ...actual,
-    CustomerPicker: (props: {
-      ariaLabel?: string;
-      organizationId?: string;
-      disabled?: boolean;
-      value: string | null;
-      onChange: (id: string | null) => void;
-    }) => (
-      <button
-        type="button"
-        aria-label={props.ariaLabel}
-        data-organization={props.organizationId ?? ''}
-        data-value={props.value ?? ''}
-        disabled={props.disabled}
-        onClick={(): void => props.onChange('00000000-0000-4000-8000-0000000000f1')}
-      />
-    ),
-  };
-});
-
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return { ...actual, useNavigate: () => navigateSpy };
@@ -79,36 +54,15 @@ const { OpportunityCreatePage } = await import(
   '../../../../packages/modules/crm/src/admin/pages/OpportunityCreatePage'
 );
 
-const CUSTOMER_ID = '00000000-0000-4000-8000-0000000000f1';
-const CHANNEL_ID = '00000000-0000-4000-8000-0000000000f2';
+const CUSTOMER_ID = CONTACT_ID;
 
 beforeEach(() => {
   getSpy.mockReset();
   postSpy.mockReset();
   navigateSpy.mockReset();
   getSpy.mockImplementation((path: string) => {
-    if (path === `/api/v1/admin/organizations/${ORGANIZATION_ID}`) {
-      return Promise.resolve({ data: { id: ORGANIZATION_ID, name: 'Acme' } });
-    }
-    if (path.startsWith('/api/v1/admin/organizations')) {
-      return Promise.resolve({
-        data: [{ id: ORGANIZATION_ID, name: 'Acme', legalName: 'Acme sp. z o.o.', status: 'active' }],
-        pagination: { cursor: null, hasMore: false, limit: 20 },
-      });
-    }
-    if (path.startsWith('/api/v1/admin/sales-channels')) {
-      return Promise.resolve({
-        items: [{ id: CHANNEL_ID, code: 'B2B', name: { 'en-US': 'Wholesale' }, active: true }],
-      });
-    }
-    if (path.startsWith('/api/v1/admin/dictionary/currencies')) {
-      return Promise.resolve({
-        data: [
-          { code: 'PLN', label: 'Polish złoty', isActive: true },
-          { code: 'EUR', label: 'Euro', isActive: true },
-        ],
-      });
-    }
+    const lookup = crmLookupResponse(path);
+    if (lookup) return lookup;
     return Promise.reject(new Error(`unexpected GET ${path}`));
   });
   postSpy.mockResolvedValue({ data: detail() });
@@ -178,10 +132,11 @@ describe('OpportunityCreatePage', () => {
       'Fleet renewal',
     );
     await pick(en('opportunity.field.organization'), 'Acme');
-    const contact = screen.getByLabelText(en('opportunity.field.contact'));
     // The contact search is scoped to the chosen Organization.
-    expect(contact).toHaveAttribute('data-organization', ORGANIZATION_ID);
-    await userEvent.click(contact);
+    await pick(en('opportunity.field.contact'), 'Jan Kowalski');
+    expect(getSpy).toHaveBeenCalledWith(
+      `/api/v1/admin/crm/lookups/contacts?organizationId=${ORGANIZATION_ID}`,
+    );
     await pick(en('opportunity.field.salesChannel'), 'Wholesale');
     await chooseCurrency('EUR');
     // A comma is what a Polish keyboard produces; it is accepted, not refused.
@@ -208,19 +163,15 @@ describe('OpportunityCreatePage', () => {
     renderPage();
     expect(screen.getByLabelText(en('opportunity.field.contact'))).toBeDisabled();
     await pick(en('opportunity.field.organization'), 'Acme');
-    const contact = screen.getByLabelText(en('opportunity.field.contact'));
-    expect(contact).not.toBeDisabled();
-    await userEvent.click(contact);
-    expect(screen.getByLabelText(en('opportunity.field.contact'))).toHaveAttribute(
-      'data-value',
-      CUSTOMER_ID,
-    );
+    expect(screen.getByLabelText(en('opportunity.field.contact'))).not.toBeDisabled();
+    await pick(en('opportunity.field.contact'), 'Jan Kowalski');
+    expect(screen.getByLabelText(en('opportunity.field.contact'))).toHaveValue('Jan Kowalski');
     // A contact person belongs to one Organization: clearing it clears them.
     await userEvent.click(
       screen.getAllByRole('button', { name: core('common.combobox.clearSelection') })[0] as HTMLElement,
     );
     expect(screen.getByLabelText(en('opportunity.field.contact'))).toBeDisabled();
-    expect(screen.getByLabelText(en('opportunity.field.contact'))).toHaveAttribute('data-value', '');
+    expect(screen.getByLabelText(en('opportunity.field.contact'))).toHaveValue('');
   });
 
   it('refuses a value that is not a number, without calling the server', async () => {

@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { Search } from 'lucide-react';
 import { Input, Label } from '@endora-commerce/admin-kit/ui';
-import { OrganizationPicker, SalesChannelPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { OpportunityFilterParams } from '../api.js';
+import { OrganizationLookup, SalesChannelLookup } from './LookupPickers.js';
 
 /**
  * The filters the list and the board share, as the two screens hold them:
@@ -98,7 +98,7 @@ export function OpportunityFilterFields(props: OpportunityFilterFieldsProps): Re
         <Label htmlFor={`${idPrefix}-organization`}>
           {t('opportunity.list.filter.organization')}
         </Label>
-        <OrganizationPicker
+        <OrganizationLookup
           id={`${idPrefix}-organization`}
           ariaLabel={t('opportunity.list.filter.organization')}
           value={filters.organizationId}
@@ -109,7 +109,7 @@ export function OpportunityFilterFields(props: OpportunityFilterFieldsProps): Re
       </div>
       <div className="space-y-1">
         <Label htmlFor={`${idPrefix}-channel`}>{t('opportunity.list.filter.salesChannel')}</Label>
-        <SalesChannelPicker
+        <SalesChannelLookup
           id={`${idPrefix}-channel`}
           ariaLabel={t('opportunity.list.filter.salesChannel')}
           value={filters.salesChannelId}

@@ -547,6 +547,23 @@ A role that holds `crm:read` should also hold `orders:read`: an opportunity
 shows the orders linked to it, and those are read from the Orders module.
 `crm:write` and `crm:configure` each build on `crm:read`.
 
+**Nothing else is needed.** The fields that choose an organization, a sales
+channel, an assignee or a contact person — in the filters of the list and the
+board, and on the forms — read CRM's own lookups, so a sales representative
+does not need permission to browse customers, sales channels or administrators
+to work an opportunity. What a lookup offers is narrowed to the organizations
+the person may see, and is no more than a name to choose by.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/lookups/organizations?q=…` | `crm:read` | Organizations the caller may see, by name: `id`, `name`. `id=…` answers one. |
+| `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Every sales channel: `id`, `code`, `name` per language, `active`, `systemDefault`, and the currencies it sells in. |
+| `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Active administrators, by name: `id`, `name`. |
+| `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Members of one organization the caller may see: `id`, `name`, `email`. |
+
+The currencies offered when an opportunity is created are the ones the active
+sales channels sell in.
+
 No role receives a CRM permission automatically. Grant them on the
 **Roles** screen.
 

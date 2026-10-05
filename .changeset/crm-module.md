@@ -35,6 +35,15 @@ all under `/api/v1/admin/crm`:
   counts and the totals alike. There is no board-specific write — moving a card is the
   transition endpoint.
 
+- **lookups for its own pickers** — `GET /lookups/organizations`, `/lookups/sales-channels`,
+  `/lookups/assignees` (`crm:read`) and `/lookups/contacts` (`crm:write`). The screens'
+  Organization, Sales Channel, assignee and contact-person pickers read these instead of the
+  admin lists of the modules that own those rows, so a role holding only `crm:read`,
+  `crm:write` and `orders:read` can filter and fill in every form; the owners' endpoints and
+  their permissions are unchanged. Organizations and contact persons are narrowed to the
+  caller's tenant scope, and an answer carries an id and a label only. The currency of a new
+  opportunity is chosen from the currencies the active sales channels sell in.
+
 **In the Admin UI** the package exports `./admin` (and `./tailwind.css`), which contributes
 five screens and three entries to the shell's "CRM" sidebar section:
 

@@ -1688,6 +1688,55 @@ when it was measured, and what was done about it.
   status-history table and in the audit entry (N-B3) — so the Overview has nothing to read
   it from. The change history tab of User Story 11 is where it will be shown; adding a field
   to the detail for it is a contract change no task asks for.
+- **N-D4 (2026-10-05, the picker defect of N-C5 (4)) — CRM answers its own pickers; `requires`
+  was not the fix.** Measured first: the kit's `OrganizationPicker` reads
+  `GET /api/v1/admin/organizations` (`customers:read` or `customers:manage`),
+  `SalesChannelPicker` reads `/api/v1/admin/sales-channels` (`sales_channels:read`),
+  `CustomerPicker` reads `/api/v1/admin/customers` (`customers:read`), `AdminUserPicker` —
+  which T071 names for the assignee — reads `/api/v1/admin/admin-users`
+  (**`admin_users:manage`**), and `CurrencyPicker` reads `/api/v1/admin/dictionary/currencies`
+  (the dictionary's *write* code). So the defect was wider than the report: the create form's
+  contact and currency fields failed the same way, and the assignee picker would have.
+  **How `requires` is consumed:** `missingPermissionRequirements` in
+  `packages/contracts/src/admin.ts` and the role editor — a suggestion beside a checkbox;
+  "nothing here refuses anything". It is how `rfqs:handle` names `price_lists:read` (D-173),
+  and `quote_requests`' own list uses the kit's `OrganizationPicker` with no requirement
+  declared for it — whether its Sales Rep meets the same 403 was not measured here. **Why it was not used here:** declaring
+  `customers:read`, `sales_channels:read`, `admin_users:manage` and a dictionary write code
+  as what a Sales Rep "should also hold" would make assigning an Opportunity cost the right
+  to manage administrators. That is a wider grant than any CRM screen needs, and an operator
+  following the advisory would hand it out.
+  **What was built:** four reads under `/api/v1/admin/crm/lookups/` — `organizations`,
+  `sales-channels`, `assignees` (`crm:read`: the list and the board filter by them) and
+  `contacts` (`crm:write`: chosen on the forms only) — in one new service
+  (`services/crm-lookup-service.ts`), one new route file and one delimited section of
+  `index.ts`. Each goes through the owner's published read port (`organizationDetailsPort`,
+  `adminUserReadPort`, `customerAccountReadPort`) or, for channels, the kernel's `SalesChannel`
+  entity the module already reads; every owner was already a binding dependency, so the
+  manifest's edges did not change and `check:port-dependencies` asked for nothing.
+  **Tenant scope is applied by name** (N-14: the Organization port answers whoever asks): a
+  platform administrator searches by name through the port; a confined one is offered the
+  Organizations of `orgConstraintFor()` and nothing else, searched in memory so a page of
+  platform-wide matches can never crowd theirs out; contact persons are offered only for an
+  Organization `isOrgInScope` accepts, and an out-of-scope one answers an empty list, not a
+  refusal. Answers are the minimum a picker shows: `id` + `name` (an assignee's e-mail is
+  searched and not returned; a contact's is returned because the screen shows it).
+  **No other module's gate changed**, and `lookups.contract.test.ts` holds that: the same
+  role still gets 403 from all four owners' lists, with the platform administrator as the
+  positive control.
+  **On the screens** the kit's pickers were replaced by `components/LookupPickers.tsx` — the
+  same props, on the kit's `Combobox` — in the filter bar, the create form and the edit form;
+  `admin/test/modules/crm/lookups.test.tsx` makes every foreign list reject and asserts none
+  was asked. Three things fell out: (a) the contact picker is now driven by the tests instead
+  of stubbed (N-27) and names the person already chosen itself (N-C1 (e)), so
+  `opportunity.edit.contactCurrent` is gone; (b) **the currency of a new Opportunity is chosen
+  from the currencies the active Sales Channels sell in**, not from the currency dictionary —
+  a behaviour change of the create form, made because the dictionary's list is behind its
+  write code and neither `dictionaries` nor `currencies` is a dependency of this module;
+  (c) the Overview's Sales Channel name comes from the same lookup. **Left as it is:** the
+  Organization's name on the Overview links to `/organizations/:id`, which a role without
+  `customers:read` cannot open — a link, not a failing read; and the kit's pickers
+  themselves, which every other module's screens still use.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

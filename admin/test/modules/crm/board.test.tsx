@@ -7,7 +7,16 @@ import type {
   OpportunitySummary,
 } from '@endora-commerce/contracts';
 import type { KanbanBoardProps } from '@endora-commerce/admin-kit/components';
-import { ORDER_ID, WORKFLOW, detail, en, propagation, renderCrm, summary } from './crm-fixtures';
+import {
+  crmLookupResponse,
+  detail,
+  en,
+  ORDER_ID,
+  propagation,
+  renderCrm,
+  summary,
+  WORKFLOW,
+} from './crm-fixtures';
 
 /**
  * CRM's board (`specs/143-crm-sales-opportunities/`, User Story 7 — tasks T089
@@ -137,7 +146,8 @@ beforeEach(() => {
   getSpy.mockImplementation((path: string) => {
     if (path === WORKFLOW_PATH) return Promise.resolve({ data: WORKFLOW });
     if (path.startsWith(BOARD_PATH)) return Promise.resolve({ data: current });
-    if (path.startsWith('/api/v1/admin/sales-channels')) return Promise.resolve({ items: [], total: 0 });
+    const lookup = crmLookupResponse(path);
+    if (lookup) return lookup;
     return Promise.reject(new Error(`unexpected GET ${path}`));
   });
 });
@@ -472,7 +482,7 @@ describe('OpportunityBoardPage — loading, failure and more cards', () => {
     getSpy.mockImplementation((path: string) => {
       if (path === WORKFLOW_PATH) return Promise.resolve({ data: WORKFLOW });
       if (path.startsWith(BOARD_PATH)) return new Promise((done) => (resolve = done));
-      return Promise.resolve({ items: [], total: 0 });
+      return crmLookupResponse(path) ?? Promise.reject(new Error(`unexpected GET ${path}`));
     });
     renderCrm(<OpportunityBoardPage />, { path: '/crm/board', pattern: '/crm/board' });
     const fresh = await screen.findByRole('group', { name: en('board.column.label', { status: 'New' }) });
@@ -495,7 +505,7 @@ describe('OpportunityBoardPage — loading, failure and more cards', () => {
           ? Promise.reject(new ApiError(500, { error: { code: 'INTERNAL', message: 'Boom.' } }))
           : Promise.resolve({ data: boardData() });
       }
-      return Promise.resolve({ items: [], total: 0 });
+      return crmLookupResponse(path) ?? Promise.reject(new Error(`unexpected GET ${path}`));
     });
     renderCrm(<OpportunityBoardPage />, { path: '/crm/board', pattern: '/crm/board' });
     const alert = await screen.findByRole('alert');
@@ -538,7 +548,7 @@ describe('OpportunityBoardPage — loading, failure and more cards', () => {
               pagination: { cursor: 'next', hasMore: true, limit: 200 },
             });
       }
-      return Promise.resolve({ items: [], total: 0 });
+      return crmLookupResponse(path) ?? Promise.reject(new Error(`unexpected GET ${path}`));
     });
     await renderBoard();
     const fresh = lane('New');

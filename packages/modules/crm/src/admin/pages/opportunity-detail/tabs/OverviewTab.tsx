@@ -7,11 +7,11 @@ import type {
   PropagationOutcome,
 } from '@endora-commerce/contracts';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
-import { listScopeSalesChannels } from '@endora-commerce/admin-kit/components';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type OrderStatusOption } from '../../../api.js';
 import { LinkedDocuments } from '../../../components/LinkedDocuments.js';
+import { salesChannelLabel } from '../../../components/LookupPickers.js';
 import { OpportunityEditForm } from '../../../components/OpportunityEditForm.js';
 import { PropagationOutcomes } from '../../../components/PropagationOutcomes.js';
 import { StatusControl } from '../../../components/StatusControl.js';
@@ -71,18 +71,12 @@ export function OverviewTab(props: OpportunityTabProps): ReactNode {
       return undefined;
     }
     let alive = true;
-    listScopeSalesChannels(200)
-      .then((page) => {
+    crmApi
+      .lookupSalesChannels()
+      .then((channels) => {
         if (!alive) return;
-        const channel = page.items.find((item) => item.id === salesChannelId);
-        setSalesChannelName(
-          channel
-            ? (channel.name[language] ??
-                channel.name['en-US'] ??
-                Object.values(channel.name)[0] ??
-                channel.code)
-            : null,
-        );
+        const channel = channels.find((item) => item.id === salesChannelId);
+        setSalesChannelName(channel ? salesChannelLabel(channel, language) : null);
       })
       .catch(() => {
         if (alive) setSalesChannelName(null);

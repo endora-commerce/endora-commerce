@@ -59,6 +59,10 @@ describe('crm off-state (Constitution XVII)', () => {
   const REGISTERED: ReadonlyArray<{ method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'; route: string; payload?: unknown }> = [
     { method: 'GET', route: `${API}/workflow` },
     { method: 'GET', route: `${API}/board` },
+    { method: 'GET', route: `${API}/lookups/organizations` },
+    { method: 'GET', route: `${API}/lookups/sales-channels` },
+    { method: 'GET', route: `${API}/lookups/assignees` },
+    { method: 'GET', route: `${API}/lookups/contacts` },
     { method: 'POST', route: `${API}/statuses`, payload: { code: 'off_state', defaultName: 'Off', kind: 'open' } },
     { method: 'PATCH', route: `${API}/statuses/:code`, payload: { defaultName: 'Renamed' } },
     { method: 'DELETE', route: `${API}/statuses/:code` },

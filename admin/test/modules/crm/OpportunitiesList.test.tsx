@@ -2,7 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { setMobileViewport } from '../../setup';
-import { OPPORTUNITY_ID, WORKFLOW, core, en, renderCrm, summary } from './crm-fixtures';
+import {
+  OPPORTUNITY_ID,
+  WORKFLOW,
+  core,
+  crmLookupResponse,
+  en,
+  renderCrm,
+  summary,
+} from './crm-fixtures';
 
 /**
  * The Opportunities list (`specs/143-crm-sales-opportunities/`, User Story 1 —
@@ -60,10 +68,8 @@ beforeEach(() => {
   getSpy.mockImplementation((path: string) => {
     if (path.startsWith(`${LIST_PATH}?`) || path === LIST_PATH) return Promise.resolve(page);
     if (path === '/api/v1/admin/crm/workflow') return Promise.resolve({ data: WORKFLOW });
-    if (path.startsWith('/api/v1/admin/sales-channels')) return Promise.resolve({ items: [] });
-    if (path.startsWith('/api/v1/admin/organizations')) {
-      return Promise.resolve({ data: [], pagination: { cursor: null, hasMore: false, limit: 20 } });
-    }
+    const lookup = crmLookupResponse(path);
+    if (lookup) return lookup;
     return Promise.reject(new Error(`unexpected GET ${path}`));
   });
 });

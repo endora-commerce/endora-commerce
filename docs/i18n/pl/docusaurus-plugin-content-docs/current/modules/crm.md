@@ -561,6 +561,24 @@ Rola z uprawnieniem `crm:read` powinna mieć także `orders:read`: szansa
 pokazuje powiązane z nią zamówienia, a te są odczytywane z modułu Zamówienia.
 Uprawnienia `crm:write` i `crm:configure` opierają się na `crm:read`.
 
+**Nic więcej nie jest potrzebne.** Pola wyboru organizacji, kanału sprzedaży,
+handlowca i osoby kontaktowej — w filtrach listy i tablicy oraz w formularzach
+— korzystają z własnych list podpowiedzi modułu CRM, więc handlowiec nie
+potrzebuje uprawnień do przeglądania klientów, kanałów sprzedaży ani
+administratorów, żeby pracować z szansą. Lista podpowiedzi jest zawężona do
+organizacji, które dana osoba może zobaczyć, i zawiera wyłącznie nazwę, po
+której się wybiera.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/lookups/organizations?q=…` | `crm:read` | Organizacje widoczne dla pytającego, według nazwy: `id`, `name`. Parametr `id=…` zwraca jedną. |
+| `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Wszystkie kanały sprzedaży: `id`, `code`, `name` w każdym języku, `active`, `systemDefault` oraz waluty, w których kanał sprzedaje. |
+| `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Aktywni administratorzy, według imienia i nazwiska: `id`, `name`. |
+| `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Członkowie jednej organizacji widocznej dla pytającego: `id`, `name`, `email`. |
+
+Waluty proponowane przy tworzeniu szansy to te, w których sprzedają aktywne
+kanały sprzedaży.
+
 Żadna rola nie otrzymuje uprawnień CRM automatycznie. Nadaje się je na
 ekranie **Role**.
 

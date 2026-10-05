@@ -47,37 +47,6 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 const CONTACT_ID = '00000000-0000-4000-8000-0000000000f1';
 const OTHER_CONTACT_ID = '00000000-0000-4000-8000-0000000000f2';
 
-/**
- * The contact picker is stubbed for the reason `OpportunityCreatePage.test.tsx`
- * records: the kit's `CustomerPicker` reaches the network past the mock above.
- * The stub reports the Organization it is scoped to and commits a fixed account.
- */
-vi.mock('@endora-commerce/admin-kit/components', async () => {
-  const actual = await vi.importActual<typeof import('@endora-commerce/admin-kit/components')>(
-    '@endora-commerce/admin-kit/components',
-  );
-  return {
-    ...actual,
-    CustomerPicker: (props: {
-      ariaLabel?: string;
-      organizationId?: string;
-      value: string | null;
-      onChange: (id: string | null) => void;
-    }) => (
-      <span>
-        <button
-          type="button"
-          aria-label={props.ariaLabel}
-          data-organization={props.organizationId ?? ''}
-          data-value={props.value ?? ''}
-          onClick={(): void => props.onChange(OTHER_CONTACT_ID)}
-        />
-        <button type="button" aria-label="clear contact" onClick={(): void => props.onChange(null)} />
-      </span>
-    ),
-  };
-});
-
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return { ...actual, useNavigate: () => navigateSpy };
@@ -99,10 +68,27 @@ beforeEach(() => {
   getSpy.mockImplementation((path: string) => {
     if (path === DETAIL_PATH) return Promise.resolve({ data: current });
     if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
-    if (path.startsWith('/api/v1/admin/sales-channels')) {
+    if (path === '/api/v1/admin/crm/lookups/sales-channels') {
       return Promise.resolve({
-        items: [{ id: CHANNEL_ID, code: 'b2b', name: { en: 'Wholesale' }, active: true }],
-        total: 1,
+        data: [
+          {
+            id: CHANNEL_ID,
+            code: 'b2b',
+            name: { en: 'Wholesale' },
+            active: true,
+            systemDefault: true,
+            defaultCurrency: 'PLN',
+            currencies: ['PLN'],
+          },
+        ],
+      });
+    }
+    if (path.startsWith('/api/v1/admin/crm/lookups/contacts')) {
+      return Promise.resolve({
+        data: [
+          { id: CONTACT_ID, name: 'Jan Kowalski', email: 'jan@acme.test' },
+          { id: OTHER_CONTACT_ID, name: 'Ewa Inna', email: 'ewa@acme.test' },
+        ],
       });
     }
     return Promise.reject(new Error(`unexpected GET ${path}`));
@@ -154,12 +140,11 @@ describe('OpportunityDetail — editing', () => {
     expect(within(form).getByLabelText(en('opportunity.field.value'))).toHaveValue('12500.00');
     expect(within(form).getByLabelText(en('opportunity.edit.valueMode'))).toHaveValue('manual');
     // The contact picker searches the Opportunity's own Organization only.
-    const contact = within(form).getByRole('button', { name: en('opportunity.field.contact') });
-    expect(contact).toHaveAttribute('data-organization', ORGANIZATION_ID);
-    expect(contact).toHaveAttribute('data-value', CONTACT_ID);
-    expect(
-      within(form).getByText(en('opportunity.edit.contactCurrent', { name: 'Jan Kowalski' })),
-    ).toBeInTheDocument();
+    expect(getSpy).toHaveBeenCalledWith(
+      `/api/v1/admin/crm/lookups/contacts?organizationId=${ORGANIZATION_ID}`,
+    );
+    // The person already chosen is named in the picker itself.
+    expect(within(form).getByLabelText(en('opportunity.field.contact'))).toHaveValue('Jan Kowalski');
     // Organization and currency are immutable: named, with no control to change them.
     expect(
       within(form).getByText(en('opportunity.edit.fixed', { organization: 'Acme', currency: 'PLN' })),
@@ -192,7 +177,10 @@ describe('OpportunityDetail — editing', () => {
     patchSpy.mockResolvedValue({ data: detail({ version: 2 }) });
     await renderPage();
     const form = await openForm();
-    await userEvent.click(within(form).getByRole('button', { name: 'clear contact' }));
+    // The first clear button of the form is the contact picker's.
+    await userEvent.click(
+      within(form).getAllByRole('button', { name: core('common.combobox.clearSelection') })[0] as HTMLElement,
+    );
     await userEvent.clear(within(form).getByLabelText(en('opportunity.field.description')));
     await userEvent.clear(within(form).getByLabelText(en('opportunity.field.expectedCloseDate')));
     const value = within(form).getByLabelText(en('opportunity.field.value'));
@@ -214,7 +202,8 @@ describe('OpportunityDetail — editing', () => {
     patchSpy.mockResolvedValue({ data: detail({ version: 2 }) });
     await renderPage();
     const form = await openForm();
-    await userEvent.click(within(form).getByRole('button', { name: en('opportunity.field.contact') }));
+    await userEvent.click(within(form).getByLabelText(en('opportunity.field.contact')));
+    await userEvent.click(await screen.findByRole('option', { name: /Ewa Inna/ }));
     await userEvent.click(within(form).getByRole('combobox', { name: en('opportunity.field.salesChannel') }));
     await userEvent.click(await screen.findByRole('option', { name: /Wholesale/ }));
     await save(form);

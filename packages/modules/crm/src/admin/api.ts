@@ -1,6 +1,10 @@
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import type {
   CreateOpportunityLinkRequest,
+  OpportunityAssigneeOption,
+  OpportunityContactOption,
+  OpportunityOrganizationOption,
+  OpportunitySalesChannelOption,
   CreateOpportunityRequest,
   CreateOpportunityStatusRequest,
   OpportunityBoard,
@@ -26,12 +30,13 @@ import type {
  * validates with — so a screen and a route cannot disagree about a field
  * without one of them failing to compile.
  *
- * Three reads are **not** CRM's: the Order statuses a mapping is chosen from
- * and the Orders an Opportunity can be linked to come from `orders`' own admin
- * endpoints, and the name of a preselected Organization from `organizations`'.
+ * Two reads are **not** CRM's: the Order statuses a mapping is chosen from and
+ * the Orders an Opportunity can be linked to come from `orders`' own admin
+ * endpoints, under `orders:read` — the code `crm:read` names in its `requires`.
  * CRM does not proxy them (§4), and naming the endpoint rather than importing
  * that module's client is the sanctioned way for one module's screen to read
- * another's data.
+ * another's data. Everything a **picker** chooses from — Organizations, Sales
+ * Channels, assignees, contact persons — is CRM's own (§10a, research N-D4).
  */
 
 const BASE = '/api/v1/admin/crm';
@@ -247,7 +252,15 @@ export const crmApi = {
     return data(apiClient.get<{ data: OpportunityBoard }>(`${BASE}/board${boardQuery(params)}`));
   },
 
-  // --- Other modules' endpoints, by path --------------------------------------
+  // --- §10a Lookups — what the pickers choose from ----------------------------
+
+  lookupOrganizations(query = ''): Promise<OpportunityOrganizationOption[]> {
+    return data(
+      apiClient.get<{ data: OpportunityOrganizationOption[] }>(
+        `${BASE}/lookups/organizations${query ? `?q=${encodeURIComponent(query)}` : ''}`,
+      ),
+    );
+  },
 
   /**
    * The name of one Organization, or `null` when it cannot be read — a label
@@ -255,10 +268,39 @@ export const crmApi = {
    */
   organizationName(organizationId: string): Promise<string | null> {
     return apiClient
-      .get<{ data: { name?: string } }>(`/api/v1/admin/organizations/${organizationId}`)
-      .then((envelope) => envelope.data.name ?? null)
+      .get<{ data: OpportunityOrganizationOption[] }>(
+        `${BASE}/lookups/organizations?id=${organizationId}`,
+      )
+      .then((envelope) => envelope.data[0]?.name ?? null)
       .catch(() => null);
   },
+
+  lookupSalesChannels(): Promise<OpportunitySalesChannelOption[]> {
+    return data(
+      apiClient.get<{ data: OpportunitySalesChannelOption[] }>(`${BASE}/lookups/sales-channels`),
+    );
+  },
+
+  lookupAssignees(query = ''): Promise<OpportunityAssigneeOption[]> {
+    return data(
+      apiClient.get<{ data: OpportunityAssigneeOption[] }>(
+        `${BASE}/lookups/assignees${query ? `?q=${encodeURIComponent(query)}` : ''}`,
+      ),
+    );
+  },
+
+  /** Gated `crm:write`: a contact person is chosen on the forms only. */
+  lookupContacts(organizationId: string, query = ''): Promise<OpportunityContactOption[]> {
+    const qs = new URLSearchParams({ organizationId });
+    if (query) qs.set('q', query);
+    return data(
+      apiClient.get<{ data: OpportunityContactOption[] }>(
+        `${BASE}/lookups/contacts?${qs.toString()}`,
+      ),
+    );
+  },
+
+  // --- Other modules' endpoints, by path --------------------------------------
 
   listOrderStatuses(): Promise<OrderStatusOption[]> {
     return apiClient
