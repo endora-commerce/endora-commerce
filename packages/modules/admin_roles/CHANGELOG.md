@@ -1,5 +1,91 @@
 # @endora-commerce/mod-admin-roles
 
+## 0.103.0
+
+### Minor Changes
+
+- 08192f0: **An administrator always holds a role, and one without a role is refused.** An administrator's
+  permissions and the organizations they reach are both read off the role the account holds. An
+  account with no role used to be treated as reaching every organization; it now reaches none and is
+  refused by name.
+
+  **After upgrading, an administrator account that has no role is refused until it is given one.**
+  Accounts are deliberately not given a role by the upgrade — any default would grant access nobody
+  chose. The instance logs a warning at every boot naming how many accounts are affected. To repair
+  one:
+  - from the Admin UI, on the Users screen, choose a role for the account; or
+  - from the command line, which is the way when no administrator can sign in:
+    `pnpm run admin:create -- --email=<their e-mail> --password-stdin --first-name=<f> --last-name=<l> [--role=<code>]`.
+    The command updates the existing account, sets the password it is given and assigns
+    `platform_admin` unless `--role` names another role.
+
+  What an operator sees for such an account: every permission-gated admin route answers 403
+  `ADMIN_ROLE_REQUIRED`, and so does the first read of organization data on any other route. The
+  account can still sign in, read `GET /api/v1/admin/me` (which answers `role: null`) and sign out.
+
+  **Every instance has the platform-administrator role.** `platform_admin` — shown as _Platform
+  administrator_ / _Administrator platformy_ — holds every permission. Installing
+  `@endora-commerce/mod-admin-roles` creates it and every boot ensures it exists with full access, on
+  an instance with or without demo data. It cannot be deleted (409 `ADMIN_ROLE_PROTECTED`), whether
+  or not anybody holds it, and withdrawing the demo data no longer removes it. The role code is
+  unchanged; an operator's own rename of the role is kept.
+
+  **The admin surface no longer produces an account without a role.**
+  - `POST /api/v1/admin/admin-users` requires `adminRoleId`; without one it answers 400
+    `ADMIN_USER_ROLE_REQUIRED`. A client that created accounts and assigned the role afterwards must
+    send the role with the create.
+  - `PATCH /api/v1/admin/admin-users/:id` with `adminRoleId: null` answers 400
+    `ADMIN_USER_ROLE_REQUIRED`. A role is changed for another, never cleared.
+  - The Users screen requires a role when creating an account and offers no "unassigned" choice for
+    an account that has one.
+
+  For code that consumes the packages:
+  - `ERROR_CODES` gains `ADMIN_ROLE_REQUIRED` (declared by `admin_roles`) and
+    `ADMIN_USER_ROLE_REQUIRED` (declared by `admin_users`), each with an `en` and a `pl` sentence.
+  - `PermissionReadPort` (container name `permissionService`) gains
+    `resolveRole(adminUserId): Promise<AdminRoleResolution>`, which answers `{ role }` or
+    `{ refusal }`. An implementation of the port must add it.
+  - `hasPermission` on that service **throws** the 403 `ADMIN_ROLE_REQUIRED` refusal for an active
+    administrator with no role, where it used to answer `false`. An unknown or inactive
+    administrator is still `false`.
+  - `AdminTenantScope`'s confined member gains an optional `unresolved: Error`.
+    `adminTenantScopePort.resolveForAdmin` no longer answers `{ allowAll: true }` for an id that
+    names no live administrator or for an administrator with no role: it answers
+    `{ allowAll: false, allowedOrganizationIds: [], unresolved }`, and the platform's tenant guard
+    raises `unresolved` on the first tenant-scoped read.
+  - `@endora-commerce/mod-admin-roles` exports an `installHook`.
+
+### Patch Changes
+
+- 7f579d2: **A demo seed or reset that stops part-way no longer leaves the demo administrators without a
+  role.** An administrator without a role is refused, and a demo run is not one transaction, so the
+  pairing of the three demo accounts with their roles can no longer wait for a late step:
+  - `demo seed` creates each demo administrator already holding its role. An account that an
+    earlier, interrupted run left without a role is given it on the next `demo seed`; a role
+    somebody chose for one of these accounts is never replaced.
+  - The composition step "demo administrators take their roles" now runs first and only fills in a
+    missing role. Its withdrawal no longer unassigns anything.
+  - `demo reset` deletes the demo accounts with their role still on them, then the demo's own
+    `sales_representative` role. The `platform_admin` role stays.
+
+  `demo seed` now fails, naming the role, if a role a demo administrator needs does not exist,
+  rather than creating the account without one.
+
+  **Several processes can start at once on a database that does not hold the
+  platform-administrator role yet.** Each process ensures the role at boot; the ones that lose the
+  race now find the role the winner created instead of failing to start.
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [08192f0]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+- Updated dependencies [11c0962]
+  - @endora-commerce/admin-kit@0.103.0
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes

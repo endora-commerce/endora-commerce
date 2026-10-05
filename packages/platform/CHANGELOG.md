@@ -1,5 +1,93 @@
 # @endora-commerce/platform
 
+## 0.103.0
+
+### Patch Changes
+
+- f052b7f: **Tenant isolation fix for scaffolded instances — upgrade.** Every instance scaffolded from the
+  published packages up to and including 0.102.0 is affected. In such an instance requests were not
+  confined to the organization of the customer or API key making them, and an admin's scope was not
+  resolved from the admin's role: every request ran in the platform's system tenant scope, and
+  audit entries written through the Command Bus did not record the acting admin. The fix is to
+  upgrade; nothing in the instance has to be edited.
+
+  **Upgrade all `@endora-commerce/*` packages together.** The platform reads the admin's scope
+  from a port `@endora-commerce/mod-organizations` registers from this version on. With the
+  platform upgraded and that package left behind, every admin — a platform administrator included —
+  is confined to no organization and organization-scoped screens are empty; the platform logs a
+  warning at boot naming `adminTenantScopePort` when that is the case.
+
+  `composeApp` used to leave the actor → tenant-context mapping to its caller and fall back to a
+  system context when none was supplied, which is what an instance's entry point does. The mapping
+  is the platform's own now and every composition gets it:
+  - a customer is confined to its organization, widened to that organization's subtree only for an
+    account with roll-up enabled;
+  - an admin gets the scope its role resolves to — every organization, or the organizations
+    assigned to a sales representative;
+  - an API key bound to an organization is confined to that organization and its service account;
+  - system scope remains for a request that identifies nobody (anonymous traffic, an unbound API
+    key) and for work with no request at all.
+
+  It fails closed. A composition that does not register the ports the mapping reads confines
+  rather than widens: a customer stays on its own organization and an admin reaches no
+  organization. The same holds for an admin while `organizations`, `admin_users` or `admin_roles`
+  is absent: the admin holds no organization, routes over global data keep answering, and a route
+  that reads organization data answers 503 `MODULE_DISABLED` naming the absent module.
+
+  A browser may hold an admin session and a customer session at once — an operator who is also
+  signed in to the storefront, and every request made while impersonating a customer. The route
+  decides which of the two a request runs as: an admin route runs in the admin's scope and a
+  storefront route in the customer's, whichever cookies are present. Admin screens are therefore
+  unaffected by a customer session in the same browser.
+
+  For a host that composes the platform itself:
+  - `ComposeAppOptions.buildTenantContext` is still accepted and should normally be omitted. A
+    supplied mapping is now refused, and the request fails, when it answers a customer or an API
+    key bound to an organization with a `system` or `all` context, or an admin with a `system`
+    context.
+  - `@endora-commerce/mod-organizations` registers a new port, `adminTenantScopePort`
+    (`AdminTenantScopePort` and `AdminTenantScope` in `@endora-commerce/contracts`):
+    `resolveForAdmin(adminUserId)` answers `{ allowAll: true }` or
+    `{ allowAll: false, allowedOrganizationIds }`. The platform reads it by container name; a
+    composition that replaces `organizations` should register its own.
+
+- 11c0962: **The route decides which session scopes a request — upgrade.** A browser can hold an admin
+  session and a customer session at once: an operator who is also signed in to the storefront, and
+  every request made while impersonating a customer. A request to an admin route from such a
+  browser was authorized as the admin and ran in the **customer's** tenant scope: admin screens
+  were narrowed to that customer's organization, actions reserved for a platform administrator
+  were refused, and audit entries written through the Command Bus did not record the admin. The
+  fix is to upgrade; nothing in an instance has to be edited.
+
+  The rule, from this version on:
+  - a route behind the admin guard (`requireAdmin`, `requireAdminAny`) runs as the admin, in the
+    scope the admin's role resolves to, and a Command it runs records the admin as its actor —
+    also when a customer session is present;
+  - a route behind the customer guard (`requireCustomer`) runs as the customer, in the customer's
+    scope — also when an admin session is present. During impersonation it keeps the customer's
+    view and records the customer with the impersonating admin, as before;
+  - a route behind neither keeps the scope of the request's ambient actor, as before;
+  - a guard still refuses a request that carries only the other session, and never falls back to
+    that session's scope.
+
+  Upgrade `@endora-commerce/platform` and `@endora-commerce/mod-auth` together: the guards call a
+  function the platform publishes from this version on.
+
+  For a module or host that publishes a guard of its own which chooses between sessions:
+  `@endora-commerce/platform/kernel` exports `scopeRequestToActor(request)`. Call it after putting
+  the accepted actor on `request.actor`; the platform derives the request's tenant context again
+  through the composition's own mapping. It takes no context, does nothing when the context was
+  already derived from that actor, and rejects — so the guard should refuse — when the mapping
+  does. A guard that only checks `request.actor`, and every route using the guards
+  `@endora-commerce/mod-auth` registers, needs no change.
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [08192f0]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/contracts@0.103.0
+
 ## 0.102.0
 
 ### Minor Changes

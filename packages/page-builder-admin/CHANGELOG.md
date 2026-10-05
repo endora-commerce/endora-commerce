@@ -1,5 +1,27 @@
 # @endora-commerce/page-builder-admin
 
+## 0.103.0
+
+### Minor Changes
+
+- d0e76fd: The e-mail editor draws a module's contributed e-mail block with the renderer the send path runs. `EmailEditorPane` loads the `email` block contributions of the present modules, shows each on the canvas and in the HTML preview, and gives a declared block with no contributed renderer an editor built from its declared fields. A stored block the editor cannot render — a switched-off module's — is now a visible placeholder that keeps its props; it used to be drawn as nothing. New exports from `./email`: `emailBlockEditorConfig`, `composeEmailBlocks`, `loadEmailBlockRenderers`, `EmailBlockRenderersProvider`, `useEmailBlockRenderers` and their types. The pane must be rendered under `AdminContributionsProvider`, which the admin shell already mounts.
+
+### Patch Changes
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [08192f0]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/admin-kit@0.103.0
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/email-components@0.103.0
+  - @endora-commerce/page-builder-core@0.103.0
+  - @endora-commerce/cms-components@0.103.0
+
 ## 0.102.0
 
 ### Minor Changes

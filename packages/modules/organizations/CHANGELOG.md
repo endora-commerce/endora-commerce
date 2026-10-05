@@ -1,5 +1,149 @@
 # @endora-commerce/mod-organizations
 
+## 0.103.0
+
+### Minor Changes
+
+- 08192f0: **An administrator always holds a role, and one without a role is refused.** An administrator's
+  permissions and the organizations they reach are both read off the role the account holds. An
+  account with no role used to be treated as reaching every organization; it now reaches none and is
+  refused by name.
+
+  **After upgrading, an administrator account that has no role is refused until it is given one.**
+  Accounts are deliberately not given a role by the upgrade — any default would grant access nobody
+  chose. The instance logs a warning at every boot naming how many accounts are affected. To repair
+  one:
+  - from the Admin UI, on the Users screen, choose a role for the account; or
+  - from the command line, which is the way when no administrator can sign in:
+    `pnpm run admin:create -- --email=<their e-mail> --password-stdin --first-name=<f> --last-name=<l> [--role=<code>]`.
+    The command updates the existing account, sets the password it is given and assigns
+    `platform_admin` unless `--role` names another role.
+
+  What an operator sees for such an account: every permission-gated admin route answers 403
+  `ADMIN_ROLE_REQUIRED`, and so does the first read of organization data on any other route. The
+  account can still sign in, read `GET /api/v1/admin/me` (which answers `role: null`) and sign out.
+
+  **Every instance has the platform-administrator role.** `platform_admin` — shown as _Platform
+  administrator_ / _Administrator platformy_ — holds every permission. Installing
+  `@endora-commerce/mod-admin-roles` creates it and every boot ensures it exists with full access, on
+  an instance with or without demo data. It cannot be deleted (409 `ADMIN_ROLE_PROTECTED`), whether
+  or not anybody holds it, and withdrawing the demo data no longer removes it. The role code is
+  unchanged; an operator's own rename of the role is kept.
+
+  **The admin surface no longer produces an account without a role.**
+  - `POST /api/v1/admin/admin-users` requires `adminRoleId`; without one it answers 400
+    `ADMIN_USER_ROLE_REQUIRED`. A client that created accounts and assigned the role afterwards must
+    send the role with the create.
+  - `PATCH /api/v1/admin/admin-users/:id` with `adminRoleId: null` answers 400
+    `ADMIN_USER_ROLE_REQUIRED`. A role is changed for another, never cleared.
+  - The Users screen requires a role when creating an account and offers no "unassigned" choice for
+    an account that has one.
+
+  For code that consumes the packages:
+  - `ERROR_CODES` gains `ADMIN_ROLE_REQUIRED` (declared by `admin_roles`) and
+    `ADMIN_USER_ROLE_REQUIRED` (declared by `admin_users`), each with an `en` and a `pl` sentence.
+  - `PermissionReadPort` (container name `permissionService`) gains
+    `resolveRole(adminUserId): Promise<AdminRoleResolution>`, which answers `{ role }` or
+    `{ refusal }`. An implementation of the port must add it.
+  - `hasPermission` on that service **throws** the 403 `ADMIN_ROLE_REQUIRED` refusal for an active
+    administrator with no role, where it used to answer `false`. An unknown or inactive
+    administrator is still `false`.
+  - `AdminTenantScope`'s confined member gains an optional `unresolved: Error`.
+    `adminTenantScopePort.resolveForAdmin` no longer answers `{ allowAll: true }` for an id that
+    names no live administrator or for an administrator with no role: it answers
+    `{ allowAll: false, allowedOrganizationIds: [], unresolved }`, and the platform's tenant guard
+    raises `unresolved` on the first tenant-scoped read.
+  - `@endora-commerce/mod-admin-roles` exports an `installHook`.
+
+### Patch Changes
+
+- f052b7f: **Tenant isolation fix for scaffolded instances — upgrade.** Every instance scaffolded from the
+  published packages up to and including 0.102.0 is affected. In such an instance requests were not
+  confined to the organization of the customer or API key making them, and an admin's scope was not
+  resolved from the admin's role: every request ran in the platform's system tenant scope, and
+  audit entries written through the Command Bus did not record the acting admin. The fix is to
+  upgrade; nothing in the instance has to be edited.
+
+  **Upgrade all `@endora-commerce/*` packages together.** The platform reads the admin's scope
+  from a port `@endora-commerce/mod-organizations` registers from this version on. With the
+  platform upgraded and that package left behind, every admin — a platform administrator included —
+  is confined to no organization and organization-scoped screens are empty; the platform logs a
+  warning at boot naming `adminTenantScopePort` when that is the case.
+
+  `composeApp` used to leave the actor → tenant-context mapping to its caller and fall back to a
+  system context when none was supplied, which is what an instance's entry point does. The mapping
+  is the platform's own now and every composition gets it:
+  - a customer is confined to its organization, widened to that organization's subtree only for an
+    account with roll-up enabled;
+  - an admin gets the scope its role resolves to — every organization, or the organizations
+    assigned to a sales representative;
+  - an API key bound to an organization is confined to that organization and its service account;
+  - system scope remains for a request that identifies nobody (anonymous traffic, an unbound API
+    key) and for work with no request at all.
+
+  It fails closed. A composition that does not register the ports the mapping reads confines
+  rather than widens: a customer stays on its own organization and an admin reaches no
+  organization. The same holds for an admin while `organizations`, `admin_users` or `admin_roles`
+  is absent: the admin holds no organization, routes over global data keep answering, and a route
+  that reads organization data answers 503 `MODULE_DISABLED` naming the absent module.
+
+  A browser may hold an admin session and a customer session at once — an operator who is also
+  signed in to the storefront, and every request made while impersonating a customer. The route
+  decides which of the two a request runs as: an admin route runs in the admin's scope and a
+  storefront route in the customer's, whichever cookies are present. Admin screens are therefore
+  unaffected by a customer session in the same browser.
+
+  For a host that composes the platform itself:
+  - `ComposeAppOptions.buildTenantContext` is still accepted and should normally be omitted. A
+    supplied mapping is now refused, and the request fails, when it answers a customer or an API
+    key bound to an organization with a `system` or `all` context, or an admin with a `system`
+    context.
+  - `@endora-commerce/mod-organizations` registers a new port, `adminTenantScopePort`
+    (`AdminTenantScopePort` and `AdminTenantScope` in `@endora-commerce/contracts`):
+    `resolveForAdmin(adminUserId)` answers `{ allowAll: true }` or
+    `{ allowAll: false, allowedOrganizationIds }`. The platform reads it by container name; a
+    composition that replaces `organizations` should register its own.
+
+- f2a2dca: A newly created organization is stored with the tree path of a root, `/<id>/`, and the tree
+  service no longer trusts a stored path it cannot read.
+
+  **Who is affected.** Any instance holding organizations that were created by company registration,
+  as the personal organization of a B2C account, or by the demo seed, and never re-parented since.
+  Those rows were stored with an empty `organizations.path`.
+
+  **What was wrong for such an organization.**
+  - Its subtree was read too wide. That affects `GET /api/v1/admin/organizations/:id/subtree`,
+    sales-rep subtree assignment, and the scope of a customer account with `subtreeRollupEnabled`.
+  - `POST /api/v1/admin/organizations/:id/parent` refused every move with
+    `422 ORGANIZATION_TREE_INVALID` (`cycle`).
+
+  **What changes.**
+  - The `Organization` entity assigns the root path on create.
+  - A new migration, `Migration20261003T184802OrganizationsRepairEmptyPaths`, runs on the next
+    `endora upgrade` or `pnpm run setup`. It rewrites `path` from the `parent_id` chain for every row
+    where the two disagree and bumps that row's `version`; a row that was already right is not
+    written.
+  - `OrganizationTreeService` judges a stored path before using it (`isReadableTreePath`, exported).
+    For an organization whose path is empty or malformed, `subtreeIds` and `subtreeNodes` answer
+    that organization alone, `ancestorIds` answers none, and a re-parent involving it is refused with
+    `409 ORGANIZATION_TREE_INVALID` and the new token `path_unreadable`, whose `details` name the
+    organization. The token has its sentence in English and Polish.
+
+  **If any customer account on your instance has `subtreeRollupEnabled` set, apply this release.**
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [08192f0]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+- Updated dependencies [11c0962]
+  - @endora-commerce/admin-kit@0.103.0
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/email-components@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes

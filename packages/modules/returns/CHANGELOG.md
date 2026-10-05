@@ -1,5 +1,39 @@
 # @endora-commerce/mod-returns
 
+## 0.103.0
+
+### Patch Changes
+
+- 9b170e8: **Admin aggregates are narrowed to the organizations the administrator reaches.** The analytics
+  summary, and the "in use" count shown beside each order status and each return status, are
+  computed over organization-scoped data. They are now confined to the reader the way the lists
+  beside them already are, so an administrator whose authority is a set of organizations — a sales
+  representative — sees figures for those organizations only.
+  - A platform administrator sees what they saw before.
+  - An administrator confined to a set of organizations sees figures for those organizations, and
+    one with no organization assigned sees none.
+  - Analytics events that belong to no organization — anonymous storefront traffic — are counted
+    for a platform administrator and are not visible to an administrator confined to a set of
+    organizations.
+
+  Upgrade to pick the change up; nothing in an instance has to be edited.
+
+  `AnalyticsQueryService.summary` takes an optional second argument, the organization constraint to
+  apply; it defaults to the one the ambient tenant context implies.
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [08192f0]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+- Updated dependencies [11c0962]
+  - @endora-commerce/admin-kit@0.103.0
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/email-components@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes

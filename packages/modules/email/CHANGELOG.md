@@ -1,5 +1,22 @@
 # @endora-commerce/mod-email
 
+## 0.103.0
+
+### Minor Changes
+
+- d0e76fd: `email` registers `emailBlockRendererRegistry`: the table a module registers its e-mail block renderers into (`register(ownerModuleId, renderers)` from `ctx.onBoot`). A name whose owner segment is not the registering module is refused and logged. `renderers()` leaves out the blocks of a module an operator switched off, read on every call, and honours an owner no manifest declares.
+
+### Patch Changes
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [08192f0]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+- Updated dependencies [11c0962]
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes

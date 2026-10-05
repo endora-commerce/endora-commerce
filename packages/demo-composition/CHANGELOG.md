@@ -1,5 +1,47 @@
 # @endora-commerce/demo-composition
 
+## 0.103.0
+
+### Patch Changes
+
+- 7f579d2: **A demo seed or reset that stops part-way no longer leaves the demo administrators without a
+  role.** An administrator without a role is refused, and a demo run is not one transaction, so the
+  pairing of the three demo accounts with their roles can no longer wait for a late step:
+  - `demo seed` creates each demo administrator already holding its role. An account that an
+    earlier, interrupted run left without a role is given it on the next `demo seed`; a role
+    somebody chose for one of these accounts is never replaced.
+  - The composition step "demo administrators take their roles" now runs first and only fills in a
+    missing role. Its withdrawal no longer unassigns anything.
+  - `demo reset` deletes the demo accounts with their role still on them, then the demo's own
+    `sales_representative` role. The `platform_admin` role stays.
+
+  `demo seed` now fails, naming the role, if a role a demo administrator needs does not exist,
+  rather than creating the account without one.
+
+  **Several processes can start at once on a database that does not hold the
+  platform-administrator role yet.** Each process ensures the role at boot; the ones that lose the
+  race now find the role the winner created instead of failing to start.
+
+- Updated dependencies [08192f0]
+- Updated dependencies [a609ce3]
+- Updated dependencies [7f579d2]
+- Updated dependencies [f052b7f]
+- Updated dependencies [9eb7ed9]
+- Updated dependencies [9eb7ed9]
+- Updated dependencies [f2a2dca]
+- Updated dependencies [11c0962]
+  - @endora-commerce/mod-admin-roles@0.103.0
+  - @endora-commerce/mod-admin-users@0.103.0
+  - @endora-commerce/mod-organizations@0.103.0
+  - @endora-commerce/mod-catalog@0.103.0
+  - @endora-commerce/platform@0.103.0
+  - @endora-commerce/mod-credit-limits@0.103.0
+  - @endora-commerce/mod-inventory@0.103.0
+  - @endora-commerce/mod-custom-fields@0.103.0
+  - @endora-commerce/mod-customer-accounts@0.103.0
+  - @endora-commerce/mod-megamenu@0.103.0
+  - @endora-commerce/mod-price-lists@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes

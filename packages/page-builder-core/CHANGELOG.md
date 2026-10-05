@@ -1,5 +1,20 @@
 # @endora-commerce/page-builder-core
 
+## 0.103.0
+
+### Minor Changes
+
+- d0e76fd: New subpath `@endora-commerce/page-builder-core/contributions` — what a module package ships its Page Builder renderers in, and what a surface composes them with. Types `StorefrontContributions`, `StorefrontBlockConfig`, `PageBuilderBlockEditorConfig`, `BlockRenderFunction`, `BlockRenderEnvironment` and `BlockPresence`; `useBlockRenderEnvironment()` (the request language and the preview flag) with `BlockRenderEnvironmentProvider`; and the composition steps `withContributedBlocks`, `withPresence`, `isOwnerPresent`, `withBlockBoundary` (one failing block degrades to a placeholder, on the server and in the browser), `fieldsFromDescriptor`, `editorConfigFromDescriptor` and `neutralBlockPreview`. Nothing existing changes.
+
+### Patch Changes
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [08192f0]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+  - @endora-commerce/contracts@0.103.0
+
 ## 0.102.0
 
 ### Minor Changes

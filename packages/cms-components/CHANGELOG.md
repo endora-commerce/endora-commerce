@@ -1,5 +1,12 @@
 # @endora-commerce/cms-components
 
+## 0.103.0
+
+### Patch Changes
+
+- Updated dependencies [d0e76fd]
+  - @endora-commerce/page-builder-core@0.103.0
+
 ## 0.102.0
 
 ### Minor Changes
