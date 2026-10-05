@@ -848,7 +848,13 @@ export interface OpportunityTransitionGuard {
 }
 
 /**
- * Container name: `opportunityTransitionGuardRegistry`. Owner: `crm`.
+ * The registry a module pushes an {@link OpportunityTransitionGuard} into.
+ * Owner: `crm`, under the container name `opportunityTransitionGuardRegistry`.
+ *
+ * **Not published yet.** `check:port-shape` holds that a contract carrying the
+ * port marker has a registration behind it, so the marker line is added by the
+ * change that registers the name (tasks.md T049) and not before — until then
+ * this is a type, not a port a consumer may resolve.
  *
  * A contribution seam: registered ungated, pushed into from a contribution-only
  * boot hook, declared by the contributor as a `contributes-to` edge.
@@ -887,7 +893,12 @@ export interface OpportunityRecord {
 }
 
 /**
- * Container name: `opportunityReadPort`. Owner: `crm`.
+ * Reading Opportunities from another module. Owner: `crm`, under the container
+ * name `opportunityReadPort`.
+ *
+ * **Not published yet** — the port marker line is added by the change that
+ * registers the name (tasks.md, User Story 14), for the reason
+ * {@link OpportunityTransitionGuardRegistryPort} gives.
  *
  * Reads run under the **caller's** ambient tenant context.
  *
@@ -920,7 +931,12 @@ export type OpportunityTransitionOutcome =
   | { applied: false; reason: OpportunityTransitionRefusal; from: string | null; detail: string };
 
 /**
- * Container name: `opportunityTransitionPort`. Owner: `crm`.
+ * Moving an Opportunity from another module. Owner: `crm`, under the container
+ * name `opportunityTransitionPort`.
+ *
+ * **Not published yet** — the port marker line is added by the change that
+ * registers the name (tasks.md, User Story 14), for the reason
+ * {@link OpportunityTransitionGuardRegistryPort} gives.
  *
  * **Call this after your own commit, never inside your transaction** — the
  * implementation obtains its own EntityManager. A refusal is a value, not an
