@@ -175,6 +175,39 @@ describe('WorkflowConfigPage', () => {
     );
   });
 
+  it('keeps an unsaved mapping choice when another part of the workflow is saved', async () => {
+    // Every write answers a fresh workflow. One that did not touch the mappings
+    // must not throw away what the operator has chosen and not yet saved.
+    putSpy.mockResolvedValue({
+      data: {
+        ...WORKFLOW,
+        transitions: [...WORKFLOW.transitions, { fromStatusCode: 'qualified', toStatusCode: 'lost' }],
+      },
+    });
+    await renderPage();
+    const select = await screen.findByLabelText(
+      en('workflow.mapping.orderStatusFor', { name: 'Qualified' }),
+    );
+    await userEvent.selectOptions(select, 'paid');
+    await userEvent.selectOptions(
+      screen.getByLabelText(core('orderStatusConfig.col.from')),
+      'qualified',
+    );
+    await userEvent.selectOptions(screen.getByLabelText(core('orderStatusConfig.col.to')), 'lost');
+    await userEvent.click(
+      screen.getByRole('button', { name: core('orderStatusConfig.addTransition') }),
+    );
+    await waitFor(() => expect(putSpy).toHaveBeenCalledTimes(1));
+    // Let the answer land before reading the control.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: en('workflow.mapping.save') })).toBeEnabled(),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(
+      screen.getByLabelText(en('workflow.mapping.orderStatusFor', { name: 'Qualified' })),
+    ).toHaveValue('paid');
+  });
+
   it('shows the refusal when an in-use status is deleted', async () => {
     const refusal = 'The status "new" is used by opportunities (3). Move them to another status first.';
     deleteSpy.mockRejectedValue(

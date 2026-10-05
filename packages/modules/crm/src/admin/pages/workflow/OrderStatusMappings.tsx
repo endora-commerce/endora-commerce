@@ -55,14 +55,23 @@ function savedForward(workflow: OpportunityWorkflow): Record<string, string> {
 export function OrderStatusMappings(props: OrderStatusMappingsProps): ReactNode {
   const { workflow, orderStatuses, language, onSave } = props;
   const t = useTranslation('crm');
-  const saved = useMemo(() => savedForward(workflow), [workflow]);
+  // Keyed by what the mappings *are*, not by the workflow object: every write
+  // on this screen answers a fresh workflow, and one that did not touch the
+  // mappings must not discard a choice the operator has not saved yet.
+  const savedKey = JSON.stringify(
+    Object.entries(savedForward(workflow)).sort(([a], [b]) => a.localeCompare(b)),
+  );
+  const saved = useMemo(
+    () => Object.fromEntries(JSON.parse(savedKey) as [string, string][]),
+    [savedKey],
+  );
   const [draft, setDraft] = useState<Record<string, string>>(saved);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
 
-  // The workflow changed under the table (a status was added or deleted, or a
-  // save came back): start again from what is stored.
+  // The stored mappings changed (a save came back, or a status carrying one was
+  // deleted): start again from what is stored.
   useEffect(() => {
     setDraft(saved);
   }, [saved]);
