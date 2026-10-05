@@ -93,6 +93,10 @@ export type PermissionRequirement = z.infer<typeof PermissionRequirementSchema>;
 export const AdminNavSectionNameSchema = z.enum([
   'main',
   'sales',
+  // Owner ruling of 2026-10-05 (`specs/143-crm-sales-opportunities/`, research
+  // R-19): the CRM screens get a group of their own. The section is the
+  // shell's, declared here and in `AppShell.tsx`; the `crm` module joins it.
+  'crm',
   'catalog',
   'inventory',
   'pricing',

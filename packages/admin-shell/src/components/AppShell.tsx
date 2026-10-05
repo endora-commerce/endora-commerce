@@ -136,6 +136,16 @@ const NAV: NavSection[] = [
     ],
   },
   {
+    // The CRM group (owner ruling of 2026-10-05,
+    // `specs/143-crm-sales-opportunities/` research R-19). It holds no
+    // host-declared row and never will: every entry is the `crm` module's
+    // contribution, so the heading renders only while that module is present
+    // and the operator may see one of its entries.
+    key: 'crm',
+    labelKey: 'appShell.section.crm',
+    items: [],
+  },
+  {
     key: 'catalog',
     labelKey: 'appShell.section.catalog',
     items: [
