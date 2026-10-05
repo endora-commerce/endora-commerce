@@ -1,5 +1,5 @@
 import { ApiError, formatMoney } from '@endora-commerce/admin-kit/lib';
-import type { OpportunityWorkflowStatus } from '@endora-commerce/contracts';
+import type { OpportunityWorkflowStatus, PropagationOutcome } from '@endora-commerce/contracts';
 import type { OrderStatusOption } from '../api.js';
 
 /** What a cell shows when there is nothing to show. */
@@ -81,4 +81,17 @@ export function normaliseAmount(raw: string): string | null {
   const compact = raw.replace(/[\s ]/g, '').replace(',', '.');
   if (!/^\d{1,12}(\.\d{1,2})?$/.test(compact)) return null;
   return Number(compact).toFixed(2);
+}
+
+const REFUSED_OUTCOMES: ReadonlySet<PropagationOutcome['outcome']> = new Set([
+  'not_found',
+  'unknown_status',
+  'not_permitted',
+  'vetoed',
+  'failed',
+]);
+
+/** Whether a linked Order did **not** follow the Opportunity's move. */
+export function isRefusedOutcome(outcome: Pick<PropagationOutcome, 'outcome'>): boolean {
+  return REFUSED_OUTCOMES.has(outcome.outcome);
 }

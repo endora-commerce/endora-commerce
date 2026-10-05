@@ -1,15 +1,15 @@
 /**
- * `crm`'s admin surface — four routes and two sidebar rows
+ * `crm`'s admin surface — five routes and three sidebar rows
  * (`specs/143-crm-sales-opportunities/contracts/admin-surfaces.md` §1–§2).
  *
  * **A sidebar group of its own.** Both rows sit in the host's `crm` section
  * (owner ruling of 2026-10-05), not under *Sales*: the section, its heading and
  * its position are the shell's, and a module joins it by naming it.
  *
- * **Only what User Story 1 ships.** The board, the tags screen and analytics
- * add their route and their row with the story that ships the page — a sidebar
- * or palette entry pointing at a route that does not exist is a defect
- * (Principle XVI).
+ * **Only what has shipped** — User Story 1's four screens and User Story 7's
+ * board. The tags screen and analytics add their route and their row with the
+ * story that ships the page — a sidebar or palette entry pointing at a route
+ * that does not exist is a defect (Principle XVI).
  *
  * **This entry exports data and nothing else**; every component is a
  * dynamic-import factory, so none of the screens is in the admin's entry chunk.
@@ -39,6 +39,7 @@ const CONFIGURE_PERMISSION = 'crm:configure';
 
 const OPPORTUNITIES_PATH = '/crm/opportunities';
 const WORKFLOW_PATH = '/crm/workflow';
+const BOARD_PATH = '/crm/board';
 
 export const contributions: AdminContributions = {
   routes: [
@@ -66,6 +67,14 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/WorkflowConfigPage.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
+    {
+      // Another view of the list, on the code that reads it: `GET /board` is
+      // `crm:read`. Moving a card needs `crm:write`, which the screen asks for
+      // itself — a reader sees the board without the controls.
+      path: BOARD_PATH,
+      component: () => import('./pages/OpportunityBoardPage.js'),
+      requiredPermission: READ_PERMISSION,
+    },
   ],
   nav: [
     {
@@ -77,12 +86,20 @@ export const contributions: AdminContributions = {
       requiredPermission: READ_PERMISSION,
     },
     {
+      to: BOARD_PATH,
+      labelKey: 'nav.board.label',
+      icon: 'PanelLeft',
+      section: 'crm',
+      weight: 200,
+      requiredPermission: READ_PERMISSION,
+    },
+    {
       to: WORKFLOW_PATH,
       labelKey: 'nav.workflow.label',
       icon: 'ListChecks',
       section: 'crm',
       // Last of the group: configuration is visited rarely, and the rows the
-      // later stories add (board 200, analytics 300, tags 400) sort before it.
+      // later stories add (analytics 300, tags 400) sort before it.
       weight: 500,
       requiredPermission: CONFIGURE_PERMISSION,
     },

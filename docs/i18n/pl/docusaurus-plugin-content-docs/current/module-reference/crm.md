@@ -53,6 +53,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | --- | --- | --- |
 | `new-opportunity` | `/crm/opportunities/new` | `crm:write` |
 | `open-opportunities` | `/crm/opportunities` | `crm:read` |
+| `open-opportunity-board` | `/crm/board` | `crm:read` |
 
 ## Ustawienia
 

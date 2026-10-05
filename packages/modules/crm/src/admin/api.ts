@@ -3,6 +3,7 @@ import type {
   CreateOpportunityLinkRequest,
   CreateOpportunityRequest,
   CreateOpportunityStatusRequest,
+  OpportunityBoard,
   OpportunityDetail,
   OpportunityLink,
   OpportunityStatusKind,
@@ -19,7 +20,7 @@ import type {
 
 /**
  * The HTTP calls of the CRM admin screens
- * (`specs/143-crm-sales-opportunities/contracts/admin-api.md` §1–§4).
+ * (`specs/143-crm-sales-opportunities/contracts/admin-api.md` §1–§4, §10).
  *
  * Every shape is `@endora-commerce/contracts`' — the schemas the backend
  * validates with — so a screen and a route cannot disagree about a field
@@ -39,22 +40,34 @@ const ORDERS_BASE = '/api/v1/admin/orders';
 export type OpportunitySort = 'createdAt' | 'updatedAt' | 'value' | 'expectedCloseDate' | 'number';
 
 /**
- * The list filters User Story 1 sends. `assignedAdminUserId` and `tagId` are
- * deliberately absent: the endpoint answers 422 for them until their stories
- * land, so a type that cannot carry them is the guard.
+ * The filters the list and the board share (`contracts/admin-api.md` §1, §10).
+ *
+ * `assignedAdminUserId` and `tagId` are deliberately absent: both endpoints
+ * answer 422 for them until their stories land, so a type that cannot carry
+ * them is the guard. The story that serves one adds it **here** and to
+ * {@link appendSharedFilters}, and both screens can then send it.
  */
-export interface OpportunityListParams {
+export interface OpportunityFilterParams {
   q?: string;
-  state?: OpportunityStatusKind;
-  statusCode?: readonly string[];
   organizationId?: string;
   salesChannelId?: string;
   createdFrom?: string;
   createdTo?: string;
+}
+
+/** The list's own parameters on top of the shared filters. */
+export interface OpportunityListParams extends OpportunityFilterParams {
+  state?: OpportunityStatusKind;
+  statusCode?: readonly string[];
   sort?: OpportunitySort;
   order?: 'asc' | 'desc';
   cursor?: string;
   limit?: number;
+}
+
+/** The board takes the shared filters and nothing about status — its columns are the statuses. */
+export interface OpportunityBoardParams extends OpportunityFilterParams {
+  perColumn?: number;
 }
 
 export interface OpportunityListPage {
@@ -79,21 +92,37 @@ export interface LinkableOrder {
   currency: string;
 }
 
+function appendSharedFilters(qs: URLSearchParams, params: OpportunityFilterParams): void {
+  if (params.organizationId) qs.set('organizationId', params.organizationId);
+  if (params.salesChannelId) qs.set('salesChannelId', params.salesChannelId);
+  if (params.createdFrom) qs.set('createdFrom', params.createdFrom);
+  if (params.createdTo) qs.set('createdTo', params.createdTo);
+}
+
+function queryTail(qs: URLSearchParams): string {
+  const tail = qs.toString();
+  return tail ? `?${tail}` : '';
+}
+
 function listQuery(params: OpportunityListParams): string {
   const qs = new URLSearchParams();
   if (params.q) qs.set('q', params.q);
   if (params.state) qs.set('state', params.state);
   for (const code of params.statusCode ?? []) qs.append('statusCode', code);
-  if (params.organizationId) qs.set('organizationId', params.organizationId);
-  if (params.salesChannelId) qs.set('salesChannelId', params.salesChannelId);
-  if (params.createdFrom) qs.set('createdFrom', params.createdFrom);
-  if (params.createdTo) qs.set('createdTo', params.createdTo);
+  appendSharedFilters(qs, params);
   if (params.sort) qs.set('sort', params.sort);
   if (params.order) qs.set('order', params.order);
   if (params.cursor) qs.set('cursor', params.cursor);
   if (params.limit) qs.set('limit', String(params.limit));
-  const tail = qs.toString();
-  return tail ? `?${tail}` : '';
+  return queryTail(qs);
+}
+
+function boardQuery(params: OpportunityBoardParams): string {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set('q', params.q);
+  appendSharedFilters(qs, params);
+  if (params.perColumn) qs.set('perColumn', String(params.perColumn));
+  return queryTail(qs);
 }
 
 function data<T>(promise: Promise<{ data: T }>): Promise<T> {
@@ -209,6 +238,13 @@ export const crmApi = {
     return data(
       apiClient.put<{ data: OpportunityWorkflow }>(`${BASE}/order-status-mappings`, { mappings }),
     );
+  },
+
+  // --- §10 Board ------------------------------------------------------------
+
+  /** One column per status, with its figures and its first cards. A read; a move is `transition`. */
+  getBoard(params: OpportunityBoardParams = {}): Promise<OpportunityBoard> {
+    return data(apiClient.get<{ data: OpportunityBoard }>(`${BASE}/board${boardQuery(params)}`));
   },
 
   // --- Other modules' endpoints, by path --------------------------------------

@@ -53,6 +53,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | --- | --- | --- |
 | `new-opportunity` | `/crm/opportunities/new` | `crm:write` |
 | `open-opportunities` | `/crm/opportunities` | `crm:read` |
+| `open-opportunity-board` | `/crm/board` | `crm:read` |
 
 ## Settings
 

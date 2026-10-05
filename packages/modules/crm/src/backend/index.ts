@@ -15,10 +15,12 @@ import {
   type ModuleContext,
   type RequireAdminFactory,
 } from '@endora-commerce/platform/kernel';
+import { registerCrmBoardRoutes } from './routes/routes.board.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
 import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
+import { BoardService } from './services/board-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityService } from './services/opportunity-service.js';
 import { OpportunityTransitionGuardRegistry } from './services/opportunity-transition-guard-registry.js';
@@ -203,6 +205,34 @@ export function registerModule(ctx: ModuleContext): void {
       ctx.cradle<CrmCradle>().emFactory,
     );
   });
+
+  // --- Board (User Story 7) --------------------------------------------------
+  // One read: a column per status, with its figures and its first cards. The
+  // cards are the list's — asked per status — so the service takes the list as
+  // a function and renders no Opportunity itself. Its route is registered here,
+  // in a `ctx.routes` of its own, so the whole story is this one section.
+  ctx.di.register({
+    crmBoardService: ctx
+      .asFunction(
+        ({ emFactory, crmWorkflowReadService, crmOpportunityService }: CrmCradle) =>
+          new BoardService({
+            emFactory,
+            workflowRead: crmWorkflowReadService,
+            listOpportunities: (query) => crmOpportunityService.list(query),
+            organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<CrmCradle & { readonly crmBoardService: BoardService }>();
+    await registerCrmBoardRoutes(app, {
+      boardService: cradle.crmBoardService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of Board ----------------------------------------------------------
 
   // --- Routes ----------------------------------------------------------------
   // All through `ctx.routes`, so every one of them stops with the module.

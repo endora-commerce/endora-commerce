@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { CircleDollarSign, Plus, Search, SearchX, X } from 'lucide-react';
+import { CircleDollarSign, Plus, SearchX, X } from 'lucide-react';
 import type {
   OpportunityStatusKind,
   OpportunitySummary,
@@ -19,20 +19,21 @@ import {
   Button,
   Card,
   CardContent,
-  Input,
   Label,
   PageHeader,
   Select,
 } from '@endora-commerce/admin-kit/ui';
-import {
-  OrganizationPicker,
-  ResponsiveTable,
-  SalesChannelPicker,
-  type ResponsiveColumn,
-} from '@endora-commerce/admin-kit/components';
+import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type OpportunityListParams, type OpportunitySort } from '../api.js';
 import { CursorPagination, MAX_PAGE_LIMIT } from '../components/CursorPagination.js';
+import {
+  NO_SHARED_FILTERS,
+  OpportunityFilterFields,
+  hasSharedFilters,
+  sharedFilterParams,
+  type SharedOpportunityFilters,
+} from '../components/OpportunityFilterFields.js';
 import {
   calendarDateLabel,
   errorMessage,
@@ -54,36 +55,16 @@ type SortOption = (typeof SORTS)[number];
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-interface Filters {
-  q: string;
+/** The filters shared with the board, plus the two only a list has. */
+interface Filters extends SharedOpportunityFilters {
   state: OpportunityStatusKind | '';
   statusCode: string;
-  organizationId: string | null;
-  salesChannelId: string | null;
-  createdFrom: string;
-  createdTo: string;
 }
 
-const NO_FILTERS: Filters = {
-  q: '',
-  state: '',
-  statusCode: '',
-  organizationId: null,
-  salesChannelId: null,
-  createdFrom: '',
-  createdTo: '',
-};
+const NO_FILTERS: Filters = { ...NO_SHARED_FILTERS, state: '', statusCode: '' };
 
 function hasFilters(filters: Filters): boolean {
-  return (
-    filters.q.trim() !== '' ||
-    filters.state !== '' ||
-    filters.statusCode !== '' ||
-    filters.organizationId !== null ||
-    filters.salesChannelId !== null ||
-    filters.createdFrom !== '' ||
-    filters.createdTo !== ''
-  );
+  return hasSharedFilters(filters) || filters.state !== '' || filters.statusCode !== '';
 }
 
 /**
@@ -91,9 +72,11 @@ function hasFilters(filters: Filters): boolean {
  * FR-003 – FR-005): every Opportunity the operator may see, filtered by text,
  * state, status, Organization, Sales Channel and creation date.
  *
- * The filters by assignee and by tag are not here: the endpoint refuses them
- * until their stories land, and a control that produces an error is worse than
- * one that is absent.
+ * The fields the board has too are one component, `OpportunityFilterFields`;
+ * the state and the status are the list's alone, because the board's columns
+ * *are* the statuses. The filters by assignee and by tag are not here: the
+ * endpoint refuses them until their stories land, and a control that produces
+ * an error is worse than one that is absent.
  */
 export function OpportunitiesList(): ReactNode {
   const t = useTranslation('crm');
@@ -146,13 +129,9 @@ export function OpportunitiesList(): ReactNode {
     const [field, order] = sort.split(':') as [OpportunitySort, 'asc' | 'desc'];
     const cursor = trail[trail.length - 1];
     return {
-      ...(filters.q.trim() ? { q: filters.q.trim() } : {}),
+      ...sharedFilterParams(filters),
       ...(filters.state ? { state: filters.state } : {}),
       ...(filters.statusCode ? { statusCode: [filters.statusCode] } : {}),
-      ...(filters.organizationId ? { organizationId: filters.organizationId } : {}),
-      ...(filters.salesChannelId ? { salesChannelId: filters.salesChannelId } : {}),
-      ...(filters.createdFrom ? { createdFrom: filters.createdFrom } : {}),
-      ...(filters.createdTo ? { createdTo: filters.createdTo } : {}),
       sort: field,
       order,
       ...(cursor ? { cursor } : {}),
@@ -299,105 +278,46 @@ export function OpportunitiesList(): ReactNode {
       <Card className="mb-4">
         <CardContent className="pt-6">
           <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1 sm:col-span-2">
-              <Label htmlFor="crm-opportunity-search">{t('opportunity.list.filter.search')}</Label>
-              <div className="relative">
-                <Search
-                  aria-hidden="true"
-                  className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                  id="crm-opportunity-search"
-                  type="search"
-                  className="pl-8"
-                  value={search}
-                  placeholder={t('opportunity.list.filter.searchPlaceholder')}
-                  onChange={(event): void => setSearch(event.target.value)}
-                />
+            <OpportunityFilterFields
+              idPrefix="crm-opportunity"
+              search={search}
+              onSearchChange={setSearch}
+              filters={filters}
+              onChange={change}
+            >
+              <div className="space-y-1">
+                <Label htmlFor="crm-opportunity-state">{t('opportunity.list.filter.state')}</Label>
+                <Select
+                  id="crm-opportunity-state"
+                  value={filters.state}
+                  onChange={(event): void =>
+                    change({ state: event.target.value as OpportunityStatusKind | '' })
+                  }
+                >
+                  <option value="">{t('opportunity.list.filter.stateAll')}</option>
+                  {STATES.map((state) => (
+                    <option key={state} value={state}>
+                      {t(`opportunity.state.${state}`)}
+                    </option>
+                  ))}
+                </Select>
               </div>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="crm-opportunity-state">{t('opportunity.list.filter.state')}</Label>
-              <Select
-                id="crm-opportunity-state"
-                value={filters.state}
-                onChange={(event): void =>
-                  change({ state: event.target.value as OpportunityStatusKind | '' })
-                }
-              >
-                <option value="">{t('opportunity.list.filter.stateAll')}</option>
-                {STATES.map((state) => (
-                  <option key={state} value={state}>
-                    {t(`opportunity.state.${state}`)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="crm-opportunity-status">{t('opportunity.list.filter.status')}</Label>
-              <Select
-                id="crm-opportunity-status"
-                value={filters.statusCode}
-                onChange={(event): void => change({ statusCode: event.target.value })}
-              >
-                <option value="">{t('opportunity.list.filter.statusAll')}</option>
-                {statuses.map((status) => (
-                  <option key={status.code} value={status.code}>
-                    {workflowStatusLabel(status, language)}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="crm-opportunity-organization">
-                {t('opportunity.list.filter.organization')}
-              </Label>
-              <OrganizationPicker
-                id="crm-opportunity-organization"
-                ariaLabel={t('opportunity.list.filter.organization')}
-                value={filters.organizationId}
-                onChange={(organizationId): void => change({ organizationId })}
-                placeholder={t('opportunity.list.filter.organizationAny')}
-                emptyMessage={t('opportunity.picker.organizationEmpty')}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="crm-opportunity-channel">
-                {t('opportunity.list.filter.salesChannel')}
-              </Label>
-              <SalesChannelPicker
-                id="crm-opportunity-channel"
-                ariaLabel={t('opportunity.list.filter.salesChannel')}
-                value={filters.salesChannelId}
-                onChange={(salesChannelId): void => change({ salesChannelId })}
-                placeholder={t('opportunity.list.filter.salesChannelAny')}
-                emptyMessage={t('opportunity.picker.salesChannelEmpty')}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="crm-opportunity-created-from">
-                {t('opportunity.list.filter.createdFrom')}
-              </Label>
-              <Input
-                id="crm-opportunity-created-from"
-                type="date"
-                value={filters.createdFrom}
-                max={filters.createdTo || undefined}
-                onChange={(event): void => change({ createdFrom: event.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="crm-opportunity-created-to">
-                {t('opportunity.list.filter.createdTo')}
-              </Label>
-              <Input
-                id="crm-opportunity-created-to"
-                type="date"
-                value={filters.createdTo}
-                min={filters.createdFrom || undefined}
-                onChange={(event): void => change({ createdTo: event.target.value })}
-              />
-            </div>
+              <div className="space-y-1">
+                <Label htmlFor="crm-opportunity-status">{t('opportunity.list.filter.status')}</Label>
+                <Select
+                  id="crm-opportunity-status"
+                  value={filters.statusCode}
+                  onChange={(event): void => change({ statusCode: event.target.value })}
+                >
+                  <option value="">{t('opportunity.list.filter.statusAll')}</option>
+                  {statuses.map((status) => (
+                    <option key={status.code} value={status.code}>
+                      {workflowStatusLabel(status, language)}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </OpportunityFilterFields>
           </div>
           <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
             <div className="space-y-1">

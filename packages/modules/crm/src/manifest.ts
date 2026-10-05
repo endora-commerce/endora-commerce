@@ -157,9 +157,10 @@ export const manifest = defineModuleManifest({
     },
   ],
   /**
-   * The command palette (Principle XVI): the landing surface and the one thing
-   * a Sales Rep starts from it daily. Curated, not a route dump — the workflow
-   * configuration is reached from the sidebar by the few who configure it.
+   * The command palette (Principle XVI): the landing surface, the one thing a
+   * Sales Rep starts from it daily, and the board. Curated, not a route dump —
+   * the workflow configuration is reached from the sidebar by the few who
+   * configure it.
    *
    * Each `requiredPermission` is the code the target route itself enforces
    * (`src/admin/index.ts`), so the palette never advertises a screen the
@@ -185,6 +186,16 @@ export const manifest = defineModuleManifest({
       requiredPermission: 'crm:write',
       keywords: ['crm', 'opportunity', 'new', 'create', 'szansa', 'sprzedaż', 'nowa'],
       weight: 321,
+    },
+    {
+      id: 'open-opportunity-board',
+      labelKey: 'actions.openOpportunityBoard.label',
+      descriptionKey: 'actions.openOpportunityBoard.description',
+      icon: 'PanelLeft',
+      targetRoute: '/crm/board',
+      requiredPermission: 'crm:read',
+      keywords: ['crm', 'opportunity', 'board', 'kanban', 'pipeline', 'szansa', 'tablica', 'lejek'],
+      weight: 322,
     },
   ],
   i18n: { bundlesDir: 'i18n' },

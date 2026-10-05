@@ -49,6 +49,7 @@ describe('crm off-state (Constitution XVII)', () => {
    */
   const REGISTERED: ReadonlyArray<{ method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'; route: string; payload?: unknown }> = [
     { method: 'GET', route: `${API}/workflow` },
+    { method: 'GET', route: `${API}/board` },
     { method: 'POST', route: `${API}/statuses`, payload: { code: 'off_state', defaultName: 'Off', kind: 'open' } },
     { method: 'PATCH', route: `${API}/statuses/:code`, payload: { defaultName: 'Renamed' } },
     { method: 'DELETE', route: `${API}/statuses/:code` },
@@ -127,7 +128,7 @@ describe('crm off-state (Constitution XVII)', () => {
       // manifests, against the effective enabled-set — no admin-side test can
       // see it. Positive control first: a registry answering nothing to anybody
       // would otherwise pass.
-      const declared = ['new-opportunity', 'open-opportunities'];
+      const declared = ['new-opportunity', 'open-opportunities', 'open-opportunity-board'];
       expect(await paletteActionIds()).toEqual(declared);
       await withModuleOff('crm', axis, async () => {
         expect(await paletteActionIds()).toEqual([]);

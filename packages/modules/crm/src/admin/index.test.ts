@@ -37,7 +37,7 @@ function adminSources(directory: URL = ADMIN_ROOT): { path: string; text: string
 }
 
 describe('crm admin contributions', () => {
-  it('declares the four screens of User Story 1, each on the code its route enforces', () => {
+  it('declares the four screens of User Story 1 and the board, each on the code its route enforces', () => {
     expect(
       (contributions.routes ?? []).map((route) => [route.path, route.requiredPermission]),
     ).toEqual([
@@ -45,6 +45,7 @@ describe('crm admin contributions', () => {
       ['/crm/opportunities/new', 'crm:write'],
       ['/crm/opportunities/:id', 'crm:read'],
       ['/crm/workflow', 'crm:configure'],
+      ['/crm/board', 'crm:read'],
     ]);
     expect((contributions.routes ?? []).filter((route) => route.index)).toHaveLength(1);
   });
@@ -59,15 +60,17 @@ describe('crm admin contributions', () => {
     expect(entry).not.toMatch(/^import .* from '\.\/(pages|components)\//m);
   });
 
-  it('puts both sidebar rows in the CRM section, workflow last', () => {
+  it('puts every sidebar row in the CRM section — opportunities, the board, workflow last', () => {
     expect(
       (contributions.nav ?? []).map((row) => [row.to, row.section, row.requiredPermission]),
     ).toEqual([
       ['/crm/opportunities', 'crm', 'crm:read'],
+      ['/crm/board', 'crm', 'crm:read'],
       ['/crm/workflow', 'crm', 'crm:configure'],
     ]);
     const weights = (contributions.nav ?? []).map((row) => row.weight ?? 0);
-    expect(weights[0]).toBeLessThan(weights[1] as number);
+    expect(weights).toEqual([...weights].sort((a, b) => a - b));
+    expect(new Set(weights).size).toBe(weights.length);
   });
 
   it('points every sidebar row and every palette action at a route it declares', () => {
@@ -80,7 +83,11 @@ describe('crm admin contributions', () => {
       expect(row.requiredPermission, row.to).toBe(permissionOf.get(row.to));
     }
     const actions = manifest.actions ?? [];
-    expect(actions.map((action) => action.id)).toEqual(['open-opportunities', 'new-opportunity']);
+    expect(actions.map((action) => action.id)).toEqual([
+      'open-opportunities',
+      'new-opportunity',
+      'open-opportunity-board',
+    ]);
     for (const action of actions) {
       expect(paths.has(action.targetRoute), action.id).toBe(true);
       // The palette never advertises a screen the operator cannot open.
@@ -155,7 +162,7 @@ describe('crm admin copy', () => {
   it('ships no key under its own prefixes that no screen asks for', () => {
     const text = sources.map((source) => source.text).join('\n');
     const own = Object.keys(en).filter((key) =>
-      /^(opportunity|links|propagation|workflow)\./.test(key),
+      /^(opportunity|links|propagation|workflow|board)\./.test(key),
     );
     const unused = own.filter((key) => {
       if (text.includes(`'${key}'`)) return false;
