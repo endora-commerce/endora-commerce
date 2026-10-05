@@ -286,3 +286,59 @@ export function setCrmForwardMappings(h: BackendServerHandle, mappings: Record<s
     },
   });
 }
+
+/** `PUT /order-status-mappings` with the whole set, both directions, as given. */
+export function setCrmMappings(
+  h: BackendServerHandle,
+  mappings: ReadonlyArray<{
+    direction: 'opportunity_to_order' | 'order_to_opportunity';
+    opportunityStatusCode: string;
+    orderStatusCode: string;
+    requireAllOrders?: boolean;
+  }>,
+) {
+  return h.app.inject({
+    method: 'PUT',
+    url: `${CRM_API}/order-status-mappings`,
+    cookies: CRM_ADMIN,
+    payload: { mappings },
+  });
+}
+
+/**
+ * Change an Order's status through the **Orders admin endpoint** — the way an
+ * operator does it — and wait until every subscriber of the resulting
+ * `order.status_changed.v1` has finished.
+ *
+ * The bus dispatches to its handlers one after another and awaits each, so a
+ * handler registered here, after the composed application's own, runs once
+ * theirs have returned. That is what lets a test assert "nothing moved"
+ * without sleeping.
+ */
+export async function changeOrderStatusAsOperator(
+  h: BackendServerHandle,
+  orderId: string,
+  to: string,
+): Promise<void> {
+  let off: () => void = () => undefined;
+  const settled = new Promise<void>((resolve) => {
+    off = h.eventBus.on('order.status_changed.v1', (payload: unknown) => {
+      const event = payload as { orderId?: string; to?: string };
+      if (event.orderId === orderId && event.to === to) resolve();
+    });
+  });
+  try {
+    const response = await h.app.inject({
+      method: 'POST',
+      url: `/api/v1/admin/orders/${orderId}/status`,
+      cookies: CRM_ADMIN,
+      payload: { to },
+    });
+    if (response.statusCode !== 200) {
+      throw new Error(`changeOrderStatusAsOperator: ${response.statusCode} ${response.body}`);
+    }
+    await settled;
+  } finally {
+    off();
+  }
+}

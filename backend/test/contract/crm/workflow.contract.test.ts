@@ -9,14 +9,17 @@ import {
   CRM_ADMIN,
   CRM_API,
   createCrmOpportunity,
+  linkCrmOrder,
   restoreDefaultCrmWorkflow,
   seedCrmAdmin,
+  seedCrmOrder,
+  transitionCrmOpportunity,
 } from '../../helpers/seed-crm.js';
 
 /**
  * The workflow configuration endpoints
  * (`specs/143-crm-sales-opportunities/contracts/admin-api.md` §4): statuses,
- * transitions and the forward Order-status mappings, each against its schema,
+ * transitions and the Order-status mappings in both directions, each against its schema,
  * each gated `crm:configure`, each refusal with its code.
  */
 describe('crm workflow configuration (contract)', () => {
@@ -298,6 +301,111 @@ describe('crm workflow configuration (contract)', () => {
       });
       // The refused write replaced nothing.
       expect((await workflow()).orderStatusMappings.map((m) => m.opportunityStatusCode)).toEqual(['won']);
+    });
+  });
+
+  describe('PUT /order-status-mappings (reverse)', () => {
+    afterAll(async () => {
+      await call('PUT', '/order-status-mappings', { mappings: [] });
+    });
+
+    it('accepts mappings from an Order status, with the "every Order" rule, beside forward ones', async () => {
+      const response = await call('PUT', '/order-status-mappings', {
+        mappings: [
+          { direction: 'opportunity_to_order', opportunityStatusCode: 'won', orderStatusCode: 'completed' },
+          { direction: 'order_to_opportunity', orderStatusCode: 'paid', opportunityStatusCode: 'qualified' },
+          {
+            direction: 'order_to_opportunity',
+            orderStatusCode: 'completed',
+            opportunityStatusCode: 'won',
+            requireAllOrders: true,
+          },
+          // Two Order statuses may lead to one Opportunity status.
+          {
+            direction: 'order_to_opportunity',
+            orderStatusCode: 'shipment_sent',
+            opportunityStatusCode: 'won',
+            requireAllOrders: true,
+          },
+        ],
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      expect(
+        OpportunityWorkflowResponseSchema.parse(response.json()).data.orderStatusMappings.map((mapping) => [
+          mapping.direction,
+          mapping.orderStatusCode,
+          mapping.opportunityStatusCode,
+          mapping.requireAllOrders,
+        ]),
+      ).toEqual([
+        ['opportunity_to_order', 'completed', 'won', false],
+        ['order_to_opportunity', 'paid', 'qualified', false],
+        ['order_to_opportunity', 'completed', 'won', true],
+        ['order_to_opportunity', 'shipment_sent', 'won', true],
+      ]);
+    });
+
+    it('refuses two Opportunity statuses for one Order status', async () => {
+      const before = (await workflow()).orderStatusMappings;
+      const response = await call('PUT', '/order-status-mappings', {
+        mappings: [
+          { direction: 'order_to_opportunity', orderStatusCode: 'paid', opportunityStatusCode: 'qualified' },
+          { direction: 'order_to_opportunity', orderStatusCode: 'paid', opportunityStatusCode: 'proposal' },
+        ],
+      });
+      expect(response.statusCode, response.body).toBe(422);
+      expect(response.json().error).toMatchObject({
+        code: 'CRM_WORKFLOW_INVALID',
+        details: { rule: 'mapping_duplicate_order_status' },
+      });
+      expect((await workflow()).orderStatusMappings).toEqual(before);
+    });
+
+    it('refuses a reverse mapping onto an Opportunity status that does not exist', async () => {
+      const response = await call('PUT', '/order-status-mappings', {
+        mappings: [
+          { direction: 'order_to_opportunity', orderStatusCode: 'paid', opportunityStatusCode: 'no_such_status' },
+        ],
+      });
+      expect(response.statusCode, response.body).toBe(422);
+      expect(response.json().error).toMatchObject({
+        code: 'CRM_WORKFLOW_INVALID',
+        details: { rule: 'mapping_unknown_status' },
+      });
+    });
+  });
+
+  describe('GET /workflow reports orderStatusKnown', () => {
+    afterAll(async () => {
+      await call('PUT', '/order-status-mappings', { mappings: [] });
+    });
+
+    it('is true until the Orders module has refused the status as unknown, and false after', async () => {
+      const mapped = await call('PUT', '/order-status-mappings', {
+        mappings: [
+          { direction: 'opportunity_to_order', opportunityStatusCode: 'qualified', orderStatusCode: 'never_an_order_status' },
+          { direction: 'opportunity_to_order', opportunityStatusCode: 'proposal', orderStatusCode: 'paid' },
+        ],
+      });
+      expect(mapped.statusCode, mapped.body).toBe(200);
+      const known = async () =>
+        Object.fromEntries(
+          (await workflow()).orderStatusMappings.map((mapping) => [mapping.orderStatusCode, mapping.orderStatusKnown]),
+        );
+      // Nothing has asked the Orders module yet: a status is taken as known.
+      expect(await known()).toEqual({ never_an_order_status: true, paid: true });
+
+      const opportunity = await createCrmOpportunity(h);
+      const order = await seedCrmOrder(h.em());
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+      // `qualified` asks the Order for a status the Order workflow does not have…
+      expect((await transitionCrmOpportunity(h, opportunity.id, 'qualified')).statusCode).toBe(200);
+      expect(await known()).toEqual({ never_an_order_status: false, paid: true });
+      // …and `proposal` for one it has.
+      expect((await transitionCrmOpportunity(h, opportunity.id, 'proposal')).statusCode).toBe(200);
+      expect(await known()).toEqual({ never_an_order_status: false, paid: true });
+      // Not left behind: later cases count the Opportunities in a status.
+      expect((await call('DELETE', `/opportunities/${opportunity.id}`)).statusCode).toBe(204);
     });
   });
 

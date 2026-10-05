@@ -4,7 +4,16 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { expectModuleAbsent, type OffStateProbe } from '../../helpers/off-state.js';
+import { expectModuleAbsent, withModuleOff, type OffStateProbe } from '../../helpers/off-state.js';
+import { CrmOpportunity, CrmStatusPropagation } from '../../helpers/package-entities.js';
+import {
+  changeOrderStatusAsOperator,
+  createCrmOpportunity,
+  linkCrmOrder,
+  restoreDefaultCrmWorkflow,
+  seedCrmOrder,
+  setCrmMappings,
+} from '../../helpers/seed-crm.js';
 
 /**
  * `crm` off-state — Constitution XVII item 6
@@ -105,6 +114,61 @@ describe('crm off-state (Constitution XVII)', () => {
     expect(response.statusCode, response.body).toBe(200);
     const list = await h.app.inject({ method: 'GET', url: `${API}/opportunities`, cookies: admin });
     expect(list.statusCode, list.body).toBe(200);
+  });
+
+  describe('the reverse-mapping subscriber (order.status_changed.v1)', () => {
+    const statusOf = async (opportunityId: string) =>
+      (await h.em().findOneOrFail(CrmOpportunity, { id: opportunityId }, { filters: false })).statusCode;
+
+    const linkedPair = async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const order = await seedCrmOrder(h.em());
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+      return { opportunityId: opportunity.id, orderId: order.id };
+    };
+
+    beforeAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      const mapped = await setCrmMappings(h, [
+        { direction: 'order_to_opportunity', orderStatusCode: 'paid', opportunityStatusCode: 'qualified' },
+      ]);
+      expect(mapped.statusCode, mapped.body).toBe(200);
+    });
+
+    afterAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+    });
+
+    it('moves the Opportunity while on — the positive control', async () => {
+      const { opportunityId, orderId } = await linkedPair();
+      await changeOrderStatusAsOperator(h, orderId, 'paid');
+      expect(await statusOf(opportunityId)).toBe('qualified');
+    });
+
+    it('moves nothing and records nothing while deactivated, and moves again once reactivated', async () => {
+      const whileOff = await linkedPair();
+      await withModuleOff('crm', 'deactivated', async () => {
+        await changeOrderStatusAsOperator(h, whileOff.orderId, 'paid');
+        expect(await statusOf(whileOff.opportunityId)).toBe('new');
+        expect(
+          await h.em().count(CrmStatusPropagation, { opportunityId: whileOff.opportunityId }, { filters: false }),
+        ).toBe(0);
+      });
+      // Nothing is replayed: the change made while off stays unanswered.
+      expect(await statusOf(whileOff.opportunityId)).toBe('new');
+
+      const after = await linkedPair();
+      await changeOrderStatusAsOperator(h, after.orderId, 'paid');
+      expect(await statusOf(after.opportunityId)).toBe('qualified');
+    });
+
+    it('moves nothing while platform-unavailable', async () => {
+      const pair = await linkedPair();
+      await withModuleOff('crm', 'platform-unavailable', async () => {
+        await changeOrderStatusAsOperator(h, pair.orderId, 'paid');
+        expect(await statusOf(pair.opportunityId)).toBe('new');
+      });
+    });
   });
 
   it('probes routes that exist — a refused path the module never registered would prove nothing', () => {
