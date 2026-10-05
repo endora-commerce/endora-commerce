@@ -1780,6 +1780,26 @@ when it was measured, and what was done about it.
   colleague's message appears on the next visit to the tab. (e) An empty entry is refused on
   screen; the 10 000-character limit is the field's `maxLength`. (f) **With the second tab
   the tab strip appears** (N-28 (i)); the tabs are not routes, so a link cannot open one.
+- **N-D8 (2026-10-05, T081) — the Attachments tab, and one permission it cannot work
+  around.** (a) **The upload is the media library's, and so is its gate.** The kit's
+  `AssetUploader` posts multipart to `POST /api/v1/admin/assets`, which is
+  `assets.write` — a code a Sales Rep holding only CRM's does not hold. The tab therefore
+  offers *Add a file* to a holder of `crm:write` **and** `assets.write`, and tells a holder of
+  `crm:write` alone why there is no button; listing, downloading and removing need nothing of
+  the library's. This is the same shape as the picker defect (N-D4) and was **not** repaired
+  the same way: a CRM-owned upload would have to carry multipart through a port that takes
+  none today. Reported for a decision — an upload seam on `assetsLibraryPort`, or
+  `assets.write` named in `crm:write`'s `requires`. (b) `visibility: 'private'` is passed as
+  the uploader's `defaults`, and the test asserts it: the backend refuses anything else
+  (N-B17 (a)). (c) **Download reads the list again and opens the link it was just given**
+  (`window.open(url, '_blank', 'noopener,noreferrer')`), because the one on screen may be
+  minutes old; `url: null` on that read — the file gone from the library (N-B17 (e)) — is
+  said and nothing is opened. The open happens after an `await`; browsers honour it inside
+  the transient-activation window of the click, which a slow list read could outlast
+  **[unverified beyond the browser walk]**. (d) Attaching the same asset twice answers the
+  existing attachment (N-B17 (d)); the list does not grow a second row. (e) Removing asks
+  first and says the file stays in the library. (f) A size is rendered by `Intl.NumberFormat`
+  with a unit, in binary steps, so no unit string is hand-written in either language.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

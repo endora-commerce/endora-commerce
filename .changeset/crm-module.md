@@ -67,7 +67,11 @@ six screens and four entries to the shell's "CRM" sidebar section:
   ticks and unticks them, each change saved at once. Two further tabs, **Notes** and
   **Messages**, list the opportunity's notes and its internal conversation, oldest first, over
   one composer: a note shows *Edit* and *Delete* to its author only, a message shows neither
-  to anybody;
+  to anybody. An **Attachments** tab lists the files with name, size and who attached each,
+  uploads a new one to the media library as a **private** file and attaches it (the upload is
+  the library's and needs its `assets.write` beside `crm:write`), reads the list again right
+  before a download because the links are short-lived, and removes an attachment after a
+  confirmation;
 - `/crm/tags` (`crm:configure`) — the tag list with each tag's usage count: add, rename,
   recolour, and delete after a confirmation naming how many opportunities lose the tag;
 - `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, the

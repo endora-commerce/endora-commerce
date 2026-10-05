@@ -8,6 +8,7 @@ import type {
   CreateOpportunityRequest,
   CreateOpportunityStatusRequest,
   CreateOpportunityTagRequest,
+  OpportunityAttachment,
   OpportunityComment,
   OpportunityCommentKind,
   OpportunityBoard,
@@ -296,6 +297,32 @@ export const crmApi = {
 
   deleteComment(id: string, commentId: string): Promise<void> {
     return apiClient.delete<void>(`${BASE}/opportunities/${id}/comments/${commentId}`);
+  },
+
+  // --- §7 Attachments ------------------------------------------------------
+
+  /**
+   * Oldest first. Each carries `url`, a signed link valid for a few minutes —
+   * read the list again right before opening one.
+   */
+  listAttachments(id: string): Promise<OpportunityAttachment[]> {
+    return data(
+      apiClient.get<{ data: OpportunityAttachment[] }>(`${BASE}/opportunities/${id}/attachments`),
+    );
+  },
+
+  /** Link a **private** asset of the media library; a public one is refused with 422. */
+  addAttachment(id: string, assetId: string): Promise<OpportunityAttachment> {
+    return data(
+      apiClient.post<{ data: OpportunityAttachment }>(`${BASE}/opportunities/${id}/attachments`, {
+        assetId,
+      }),
+    );
+  },
+
+  /** Removes the link; the file stays in the media library. */
+  removeAttachment(id: string, attachmentId: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/opportunities/${id}/attachments/${attachmentId}`);
   },
 
   // --- §8 Tags --------------------------------------------------------------

@@ -510,6 +510,20 @@ biblioteki mediów nie jest potrzebne. Każdy Załącznik na liście ma odnośni
 pobrania ważny przez kilka minut — aby dostać świeży, wystarczy ponownie
 odczytać listę.
 
+W Admin UI szansa ma kartę **Załączniki**: listę plików z nazwą, rozmiarem,
+osobą, która plik dodała, i datą dodania.
+
+- **Dodaj plik** przesyła plik do biblioteki mediów jako prywatny i dołącza go
+  do szansy. Przesyłanie korzysta z mechanizmu biblioteki mediów, więc rola
+  potrzebuje uprawnienia `assets.write` oprócz `crm:write`; rola bez niego
+  widzi zamiast przycisku zdanie, które to wyjaśnia.
+- Przycisk pobierania przygotowuje świeży odnośnik w chwili kliknięcia i
+  otwiera plik w nowej karcie. Jeśli pliku nie ma już w bibliotece mediów,
+  ekran o tym informuje i niczego nie otwiera.
+- Kosz usuwa Załącznik po potwierdzeniu. Plik pozostaje w bibliotece mediów.
+
+Osoba, która może tylko czytać, widzi listę i przyciski pobierania.
+
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | Załączniki, od najstarszego: nazwa pliku, typ, rozmiar, kto załączył oraz `url`. |
@@ -596,7 +610,7 @@ dokładnie do poprzedniego stanu.
 | Kod | Na co pozwala |
 | --- | --- |
 | `crm:read` | Przeglądanie szans sprzedażowych, tablicy, przepływu statusów i listy etykiet; czytanie notatek i wiadomości szansy oraz pobieranie jej załączników. |
-| `crm:write` | Tworzenie i edycja szans, przenoszenie ich w przepływie, przypisywanie handlowca, nadawanie etykiet, wiązanie i odłączanie zamówień, ponawianie lub pomijanie odmowy zmiany zamówienia, pisanie notatek i wiadomości, dodawanie i usuwanie załączników. |
+| `crm:write` | Tworzenie i edycja szans, przenoszenie ich w przepływie, przypisywanie handlowca, nadawanie etykiet, wiązanie i odłączanie zamówień, ponawianie lub pomijanie odmowy zmiany zamówienia, pisanie notatek i wiadomości, dodawanie i usuwanie załączników (przesłanie nowego pliku wymaga też uprawnienia `assets.write` biblioteki mediów). |
 | `crm:configure` | Zmiana przepływu — statusów, przejść i mapowań statusów zamówień w obu kierunkach — zarządzanie listą etykiet oraz usuwanie szansy. |
 
 Rola z uprawnieniem `crm:read` powinna mieć także `orders:read`: szansa

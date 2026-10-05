@@ -492,6 +492,21 @@ permission of the media library is needed. Each attachment in the list carries
 a download link that is valid for a few minutes — read the list again for a
 fresh one.
 
+In the Admin UI an opportunity has an **Attachments** tab: a list of the files
+with each one's name, size, who attached it and when.
+
+- **Add a file** uploads a file to the media library as a private file and
+  attaches it. Uploading uses the media library's own upload, so the role needs
+  `assets.write` as well as `crm:write`; a role without it sees a sentence
+  saying so instead of the button.
+- The download button prepares a fresh link at the moment it is pressed and
+  opens the file in a new tab. A file that has gone missing from the media
+  library says so and opens nothing.
+- The bin removes the attachment, after a confirmation. The file stays in the
+  media library.
+
+Somebody who may only read sees the list and the download buttons.
+
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | The attachments, oldest first: file name, type, size, who attached it, and `url`. |
@@ -579,7 +594,7 @@ when the module is switched on again.
 | Code | What it allows |
 | --- | --- |
 | `crm:read` | View sales opportunities, the board, the status workflow and the tag list; read an opportunity's notes and messages and download its attachments. |
-| `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders, retry or dismiss a refused order change, write notes and messages, add and remove attachments. |
+| `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders, retry or dismiss a refused order change, write notes and messages, add and remove attachments (uploading a new file also needs the media library's `assets.write`). |
 | `crm:configure` | Change the workflow — statuses, transitions and order-status mappings in both directions — manage the tag list, and delete an opportunity. |
 
 A role that holds `crm:read` should also hold `orders:read`: an opportunity
