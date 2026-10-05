@@ -156,6 +156,37 @@ export const manifest = defineModuleManifest({
       ],
     },
   ],
+  /**
+   * The command palette (Principle XVI): the landing surface and the one thing
+   * a Sales Rep starts from it daily. Curated, not a route dump — the workflow
+   * configuration is reached from the sidebar by the few who configure it.
+   *
+   * Each `requiredPermission` is the code the target route itself enforces
+   * (`src/admin/index.ts`), so the palette never advertises a screen the
+   * operator cannot open.
+   */
+  actions: [
+    {
+      id: 'open-opportunities',
+      labelKey: 'actions.openOpportunities.label',
+      descriptionKey: 'actions.openOpportunities.description',
+      icon: 'CircleDollarSign',
+      targetRoute: '/crm/opportunities',
+      requiredPermission: 'crm:read',
+      keywords: ['crm', 'opportunity', 'opportunities', 'pipeline', 'szansa', 'sprzedaż', 'lejek'],
+      weight: 320,
+    },
+    {
+      id: 'new-opportunity',
+      labelKey: 'actions.newOpportunity.label',
+      descriptionKey: 'actions.newOpportunity.description',
+      icon: 'PlusCircle',
+      targetRoute: '/crm/opportunities/new',
+      requiredPermission: 'crm:write',
+      keywords: ['crm', 'opportunity', 'new', 'create', 'szansa', 'sprzedaż', 'nowa'],
+      weight: 321,
+    },
+  ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
   // Demo data is a later story's decision (research R-24); `false` is a

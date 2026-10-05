@@ -49,7 +49,10 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 ## Command palette
 
-_None._
+| Action | Opens | Permission |
+| --- | --- | --- |
+| `new-opportunity` | `/crm/opportunities/new` | `crm:write` |
+| `open-opportunities` | `/crm/opportunities` | `crm:read` |
 
 ## Settings
 

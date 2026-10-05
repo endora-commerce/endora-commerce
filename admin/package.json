@@ -35,6 +35,7 @@
     "@endora-commerce/mod-comparisons": "workspace:*",
     "@endora-commerce/mod-credentials": "workspace:*",
     "@endora-commerce/mod-credit-limits": "workspace:*",
+    "@endora-commerce/mod-crm": "workspace:*",
     "@endora-commerce/mod-custom-fields": "workspace:*",
     "@endora-commerce/mod-customer-accounts": "workspace:*",
     "@endora-commerce/mod-customers": "workspace:*",

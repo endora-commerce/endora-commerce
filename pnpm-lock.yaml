@@ -99,6 +99,9 @@ importers:
       '@endora-commerce/mod-credit-limits':
         specifier: workspace:*
         version: link:../packages/modules/credit_limits
+      '@endora-commerce/mod-crm':
+        specifier: workspace:*
+        version: link:../packages/modules/crm
       '@endora-commerce/mod-custom-fields':
         specifier: workspace:*
         version: link:../packages/modules/custom_fields
@@ -1787,6 +1790,9 @@ importers:
 
   packages/modules/crm:
     devDependencies:
+      '@endora-commerce/admin-kit':
+        specifier: workspace:*
+        version: link:../../admin-kit
       '@endora-commerce/contracts':
         specifier: workspace:*
         version: link:../../contracts
@@ -1805,9 +1811,21 @@ importers:
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.3.0
       fastify:
         specifier: ^5.12.5
         version: 5.12.5
+      lucide-react:
+        specifier: ^1.11.0
+        version: 1.11.0(react@19.2.5)
+      react:
+        specifier: ^19.2.5
+        version: 19.2.5
+      react-router-dom:
+        specifier: ^7.18.2
+        version: 7.18.4(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -17098,7 +17116,7 @@ snapshots:
       '@docusaurus/utils': 3.10.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@docusaurus/utils-common': 3.10.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@types/history': 4.7.11
-      '@types/react': 19.2.14
+      '@types/react': 19.3.0
       '@types/react-router-config': 5.0.11
       clsx: 2.1.1
       parse-numeric-range: 1.3.0
@@ -17122,7 +17140,7 @@ snapshots:
       '@docusaurus/utils': 3.10.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@docusaurus/utils-common': 3.10.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@types/history': 4.7.11
-      '@types/react': 19.2.14
+      '@types/react': 19.3.0
       '@types/react-router-config': 5.0.11
       clsx: 2.1.1
       parse-numeric-range: 1.3.0
@@ -20140,19 +20158,19 @@ snapshots:
   '@types/react-router-config@5.0.11':
     dependencies:
       '@types/history': 4.7.11
-      '@types/react': 19.2.14
+      '@types/react': 19.3.0
       '@types/react-router': 5.1.20
 
   '@types/react-router-dom@5.3.3':
     dependencies:
       '@types/history': 4.7.11
-      '@types/react': 19.2.14
+      '@types/react': 19.3.0
       '@types/react-router': 5.1.20
 
   '@types/react-router@5.1.20':
     dependencies:
       '@types/history': 4.7.11
-      '@types/react': 19.2.14
+      '@types/react': 19.3.0
 
   '@types/react@19.2.14':
     dependencies:

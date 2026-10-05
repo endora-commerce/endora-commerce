@@ -24,7 +24,7 @@ import { MODULE_ADMIN_CONTRIBUTIONS } from '../../../src/modules.generated.js';
  * enum member, the `NAV` row and the heading's translation are host changes and
  * this file is their proof. It is driven with a contribution declared here
  * rather than with the `crm` package's own, deliberately — the subject is the
- * section, and it has to hold before the module ships its first screen.
+ * section, and it had to hold before the module shipped its first screen.
  *
  * The heading is asserted against the **shipped** bundles, read from
  * `packages/modules/_i18n/i18n/`, so "labelled CRM" is a statement about what
@@ -72,7 +72,12 @@ const crmContribution = {
 
 function renderShell(options: { crmPresent: boolean; permissions: readonly string[] }): RenderResult {
   setMobileViewport(false);
-  const present = [...everyDeclaredModule(), ...(options.crmPresent ? ['crm'] : [])];
+  // `everyDeclaredModule()` names `crm` itself now that the module ships
+  // screens, so presence is decided here and not inherited from that list.
+  const present = [
+    ...everyDeclaredModule().filter((id) => id !== 'crm'),
+    ...(options.crmPresent ? ['crm'] : []),
+  ];
   return renderWithI18n(
     withSession(
       <MemoryRouter initialEntries={['/']}>
@@ -85,7 +90,15 @@ function renderShell(options: { crmPresent: boolean; permissions: readonly strin
       {
         session: adminSession({ permissions: [...options.permissions] }),
         presence: modulePresence({ present }),
-        registry: [...MODULE_ADMIN_CONTRIBUTIONS, crmContribution],
+        // The module's own declaration is replaced by the one above, for the
+        // reason the header gives: the subject is the section, and a second
+        // row or a later story's entry must not move this file's assertions.
+        // What the package itself declares is
+        // `packages/modules/crm/src/admin/index.test.ts`.
+        registry: [
+          ...MODULE_ADMIN_CONTRIBUTIONS.filter((entry) => entry.moduleId !== 'crm'),
+          crmContribution,
+        ],
       },
     ),
     { core: shippedCoreBundle('en'), crm: { 'nav.opportunities.label': 'Opportunities' } },

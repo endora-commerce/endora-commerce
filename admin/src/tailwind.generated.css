@@ -36,6 +36,7 @@
 @import "@endora-commerce/mod-comparisons/tailwind.css";
 @import "@endora-commerce/mod-credentials/tailwind.css";
 @import "@endora-commerce/mod-credit-limits/tailwind.css";
+@import "@endora-commerce/mod-crm/tailwind.css";
 @import "@endora-commerce/mod-custom-fields/tailwind.css";
 @import "@endora-commerce/mod-customer-accounts/tailwind.css";
 @import "@endora-commerce/mod-customers/tailwind.css";
