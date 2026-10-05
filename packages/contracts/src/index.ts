@@ -32,6 +32,8 @@ export * from './payment-return-url.js';
 export * from './shipping-methods.js';
 export * from './admin.js';
 export * from './credit-limits.js';
+// CRM — Sales Opportunities (specs/143-crm-sales-opportunities/).
+export * from './crm.js';
 export * from './api-keys.js';
 export * from './webhooks.js';
 export * from './analytics.js';
