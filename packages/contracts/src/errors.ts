@@ -506,6 +506,8 @@ export const ERROR_CODES = {
   CRM_WORKFLOW_INVALID: 'CRM_WORKFLOW_INVALID',
   /** The assignee named is not an active administrator of this platform. */
   CRM_ASSIGNEE_INVALID: 'CRM_ASSIGNEE_INVALID',
+  /** Another CRM tag already has this name, whatever its case. */
+  CRM_TAG_NAME_TAKEN: 'CRM_TAG_NAME_TAKEN',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
