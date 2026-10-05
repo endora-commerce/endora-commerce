@@ -1133,6 +1133,16 @@ when it was measured, and what was done about it.
   Opportunity's workflow and ends completed when the Opportunity is won. The refused-Order
   case (step 9) runs on a second Opportunity in the same test.
 
+- **N-25 (2026-10-05, T050) — a ledger derived about the contribution, in a file T050 never
+  names.** `backend/test/integration/sales_channels/delete-attribution-guard.test.ts` asserts
+  the contributors of `salesChannelAttributionRegistry` as an exact set (`orders`,
+  `quote_requests`), so the counter T050 asks for reddens it — and a targeted run over the
+  CRM directories never opens that file. Found by running the neighbouring suites. The
+  expectation gained `crm`; the file was **not** on `contracts/foreign-module-changes.md`, so
+  it is added to §E there, beside the other set-asserting ledger CRM joined, **in a commit of
+  its own and without the coordinator's prior acceptance** — it is the one edit of this story
+  to an existing file outside the listed set.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,

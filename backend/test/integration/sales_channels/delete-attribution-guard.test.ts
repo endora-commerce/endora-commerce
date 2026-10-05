@@ -134,7 +134,7 @@ describe('sales channel delete — the attribution guard asks the owners', () =>
   }
 
   it('has every owner registered by its own boot hook', () => {
-    expect([...registry().owners()].sort()).toEqual(['orders', 'quote_requests']);
+    expect([...registry().owners()].sort()).toEqual(['crm', 'orders', 'quote_requests']);
   });
 
   it('deletes a channel nothing is attributed to', async () => {
