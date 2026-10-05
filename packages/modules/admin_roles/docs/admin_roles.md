@@ -25,6 +25,21 @@ pre-handler in `auth/plugin.ts` consults it on every gated route. A Role
 may also require 2FA — `requireAdmin` enforces the 2FA challenge before
 invoking the route handler.
 
+## The platform-administrator role
+
+Every instance has one role the platform creates itself: `platform_admin`,
+shown as *Platform administrator*, holding the wildcard `*` — every permission.
+Installing the module creates it and every boot ensures it is still there with
+full access, so the role an administrator is given by default always exists.
+Its permission set cannot be narrowed and the role cannot be deleted
+(409 `ADMIN_ROLE_PROTECTED`), whether or not anybody holds it. Renaming it is
+allowed and is kept.
+
+An administrator must hold a role. `hasPermission` refuses an active
+administrator that has none with 403 `ADMIN_ROLE_REQUIRED` rather than
+answering "no", so the operator is told what to repair; see `admin_users` for
+how to repair it.
+
 ## Entities
 
 `AdminRole`, with `requires2fa: boolean` and a `permissions: string[]`

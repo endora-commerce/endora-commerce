@@ -15,6 +15,7 @@ import { AdminRoleService } from './services/admin-role-service.js';
 import { createAdminRolePort, createSystemRoleCodePort } from './services/admin-role-ports.js';
 import { PermissionCatalogueService } from './services/permission-catalogue.service.js';
 import { PermissionService } from './services/permission-service.js';
+import { ensurePlatformAdministratorRole } from './services/platform-administrator-role.js';
 import { AdminRole } from './entities/admin-role.entity.js';
 
 /**
@@ -151,6 +152,31 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.di.register({
     systemRoleCodePort: ctx.asFunction(() => createSystemRoleCodePort()).singleton(),
+  });
+
+  /**
+   * The platform-administrator role exists on every instance, at every boot.
+   *
+   * The install hook in `manifest.ts` creates it; this is the same idempotent
+   * call for the databases that hook never ran against — an instance installed
+   * before the hook existed, and one whose modules were converged by a first
+   * boot rather than by `module:install`. An administrator must hold a role, so
+   * the role they are given by default cannot be something an upgrade leaves
+   * to chance.
+   *
+   * No presence probe: this module declares itself non-deactivatable, so there
+   * is no off state in which the write would be a switched-off module acting.
+   */
+  ctx.onBoot(async () => {
+    const outcome = await ensurePlatformAdministratorRole(ctx.cradle<AdminRolesCradle>().emFactory());
+    if (outcome !== 'unchanged') {
+      ctx.log.info(
+        { outcome },
+        outcome === 'created'
+          ? 'created the platform-administrator role (platform_admin), which every instance has'
+          : 'restored full access to the platform-administrator role (platform_admin)',
+      );
+    }
   });
 }
 

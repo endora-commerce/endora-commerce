@@ -263,16 +263,16 @@ describe('`demo seed` on a CLI-scaffolded instance', () => {
   }, SUITE_TIMEOUT_MS);
 
   describe('with no composition installed — the ordinary instance (D-216)', () => {
-    it('seeds the modules’ own rows and leaves them unwired, as the live instance had them', () => {
+    it('seeds the modules’ own rows and leaves the shop unwired, with its administrators able to sign in', () => {
       // The defect's exact state, reproduced: this is what every CLI-scaffolded
       // instance got, because none of them had a composition.
       expect(without.demoProducts).toBe(203);
       expect(without.soldOnDefaultChannel).toBe(0);
-      expect(without.roles).toEqual({
-        'admin@demo.local': null,
-        'sales-rep-other@demo.local': null,
-        'sales-rep@demo.local': null,
-      });
+      // The administrators are the exception, and no longer part of that
+      // state: an account is created already holding its role, by its own
+      // module, because an administrator without one is refused everywhere —
+      // so even an instance with no composition can be signed in to.
+      expect(without.roles).toEqual(DEMO_ROLE_HOLDERS);
     });
 
     it('says once that the wiring is missing, and how to get it', () => {

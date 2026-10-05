@@ -17,8 +17,8 @@ Zarządzanie użytkownikami i rolami wymaga uprawnienia `admin_users:manage`.
 | `POST /api/v1/auth/admin/login` | Logowanie administratora (z weryfikacją 2FA, gdy wymaga tego rola) |
 | `POST /api/v1/auth/admin/logout` | Zakończenie sesji administratora |
 | `GET /api/v1/admin/admin-users` | Lista administratorów (usunięte konta są pomijane) |
-| `POST /api/v1/admin/admin-users` | Utworzenie administratora; powtórzony e-mail jest odrzucany z `EMAIL_ALREADY_REGISTERED` |
-| `PATCH /api/v1/admin/admin-users/:id` | Aktualizacja imienia, przypisanej roli lub statusu |
+| `POST /api/v1/admin/admin-users` | Utworzenie administratora. Pole `adminRoleId` jest wymagane: konto bez roli jest odrzucane z 400 `ADMIN_USER_ROLE_REQUIRED`. Powtórzony e-mail jest odrzucany z `EMAIL_ALREADY_REGISTERED` |
+| `PATCH /api/v1/admin/admin-users/:id` | Aktualizacja imienia, przypisanej roli lub statusu. Rolę można zmienić na inną, ale nie można jej usunąć: `adminRoleId: null` jest odrzucane z 400 `ADMIN_USER_ROLE_REQUIRED` |
 | `DELETE /api/v1/admin/admin-users/:id` | Usunięcie miękkie (ustawia `deletedAt` i `status='inactive'`) |
 | `GET /api/v1/admin/admin-roles` | Lista ról z tablicami uprawnień |
 | `PUT /api/v1/admin/admin-roles/:code` | Utworzenie lub aktualizacja roli według kodu; nieznane uprawnienia zwracają 400 `VALIDATION_FAILED` |
@@ -26,6 +26,31 @@ Zarządzanie użytkownikami i rolami wymaga uprawnienia `admin_users:manage`.
 | `GET /api/v1/admin/permissions` | Kanoniczny katalog uprawnień (moduł / kod / etykieta), z którego korzysta macierz uprawnień w panelu |
 | `POST /api/v1/admin/organizations/:id/impersonate` | Rozpoczęcie logowania jako klient; przed wydaniem ciasteczka zapisuje wpis audytu `impersonation.start` |
 | `POST /api/v1/admin/impersonation/end` | Powrót do pierwotnej sesji administratora |
+
+## Każdy administrator ma rolę
+
+Uprawnienia administratora i organizacje, do których ma dostęp, wynikają z roli przypisanej do
+konta, dlatego konto ma zawsze dokładnie jedną rolę. Panel i API odmawiają utworzenia konta bez
+roli oraz usunięcia roli z istniejącego konta, a polecenie `admin_users create` przypisuje rolę
+`platform_admin`, chyba że `--role` wskazuje inną.
+
+Konto, które mimo to nie ma roli — utworzone przed wprowadzeniem tej reguły — jest odrzucane,
+a nie interpretowane: trasa chroniona uprawnieniem odpowiada 403 `ADMIN_ROLE_REQUIRED`, tak samo
+jak pierwszy odczyt danych organizacji. Takie konto nigdy nie jest traktowane jak konto
+z dostępem do wszystkich organizacji. Nadal może się zalogować, sprawdzić, kim jest
+(`GET /api/v1/admin/me` zwraca `role: null`), i się wylogować.
+
+Przy starcie moduł zapisuje ostrzeżenie z liczbą kont bez roli. Przypisz każdemu rolę na ekranie
+Użytkownicy albo — gdy żaden administrator nie może się zalogować — z wiersza poleceń:
+
+```bash
+pnpm run admin:create -- --email=<adres e-mail konta> --password-stdin \
+  --first-name=<imię> --last-name=<nazwisko> [--role=<kod>]
+```
+
+Polecenie aktualizuje istniejące konto, ustawia podane hasło i przypisuje rolę `platform_admin`,
+chyba że `--role` wskazuje inną. Przy aktualizacji konta nie dostają roli automatycznie:
+oznaczałoby to nadanie dostępu, o którym nikt nie zdecydował.
 
 ## Logowanie jako klient
 

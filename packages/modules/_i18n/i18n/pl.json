@@ -117,7 +117,7 @@
   "adminRoles.wildcardSuffix": "Wyłącz go, aby wybrać pojedyncze uprawnienia poniżej.",
   "adminRoles.wildcardTitle": "Pełny dostęp",
   "adminRoles.wildcardToggle": "Pełny dostęp",
-  "adminUsers.assignLater": "— przypisz później —",
+  "adminUsers.chooseRole": "— wybierz rolę —",
   "adminUsers.column.email": "E-mail",
   "adminUsers.column.lastLogin": "Ostatnie logowanie",
   "adminUsers.column.name": "Imię i nazwisko",

@@ -2,9 +2,11 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CommandBus } from '@endora-commerce/platform/commands';
+import { orgConstraintFor } from '@endora-commerce/platform/tenancy';
 import { OrderStatus } from '../entities/order-status.entity.js';
 import { OrderStatusTransition } from '../entities/order-status-transition.entity.js';
 import { Order } from '../entities/order.entity.js';
+import { orderStatusUsageQuery } from './order-status-usage.js';
 import {
   materializeUniversalTransitions,
   ORDER_STATUS_INITIAL,
@@ -106,9 +108,15 @@ export class OrderStatusGraphService {
     // connection, so the in-use counts would be read from outside a transaction
     // the caller holds open — a status the same transaction has just moved an
     // order off would still look in use (issue #207).
-    const rows = (await em.execute(
-      `select status, count(*) as count from orders group by status`,
-    )) as Array<{ status: string; count: string }>;
+    //
+    // Confined to the organizations the reader reaches: the statement is raw,
+    // so the entity filter does not apply to it (`order-status-usage.ts`).
+    const query = orderStatusUsageQuery(orgConstraintFor());
+    if (query === null) return new Map();
+    const rows = (await em.execute(query.sql, query.params)) as Array<{
+      status: string;
+      count: string;
+    }>;
     return new Map(rows.map((r) => [r.status, Number(r.count)]));
   }
 

@@ -17,8 +17,8 @@ User + role CRUD is gated by the `admin_users:manage` permission.
 | `POST /api/v1/auth/admin/login` | Admin login (2FA challenge if Role requires it) |
 | `POST /api/v1/auth/admin/logout` | Destroy admin session |
 | `GET /api/v1/admin/admin-users` | List admin users (deleted rows filtered) |
-| `POST /api/v1/admin/admin-users` | Create admin user; rejects dup email with `EMAIL_ALREADY_REGISTERED` |
-| `PATCH /api/v1/admin/admin-users/:id` | Update name / role assignment / status |
+| `POST /api/v1/admin/admin-users` | Create admin user. `adminRoleId` is required: an account with no role is refused with 400 `ADMIN_USER_ROLE_REQUIRED`. Rejects dup email with `EMAIL_ALREADY_REGISTERED` |
+| `PATCH /api/v1/admin/admin-users/:id` | Update name / role assignment / status. A role can be changed for another, never cleared: `adminRoleId: null` is refused with 400 `ADMIN_USER_ROLE_REQUIRED` |
 | `DELETE /api/v1/admin/admin-users/:id` | Soft delete (sets `deletedAt` + `status='inactive'`) |
 | `GET /api/v1/admin/admin-roles` | List roles with their permission arrays |
 | `PUT /api/v1/admin/admin-roles/:code` | Upsert role by code; unknown permissions return 400 `VALIDATION_FAILED` |
@@ -26,6 +26,33 @@ User + role CRUD is gated by the `admin_users:manage` permission.
 | `GET /api/v1/admin/permissions` | Canonical permission catalogue (module / code / label) used by the matrix UI |
 | `POST /api/v1/admin/organizations/:id/impersonate` | Begin impersonation; writes `impersonation.start` audit row before issuing the cookie |
 | `POST /api/v1/admin/impersonation/end` | Restore the original admin session |
+
+## Every administrator holds a role
+
+An administrator's permissions and the organizations they reach are both read
+off the role the account holds, so an account always has exactly one. The admin
+surface refuses to create an account without a role or to clear the role of an
+existing one, and `admin_users create` assigns `platform_admin` unless `--role`
+names another role.
+
+An account that has no role anyway — one created before this rule — is refused
+rather than interpreted: a permission-gated route answers 403
+`ADMIN_ROLE_REQUIRED`, and so does the first read of organization data. It is
+never treated as reaching every organization. Such an account can still sign
+in, see who it is (`GET /api/v1/admin/me` answers `role: null`) and sign out.
+
+At boot the module logs a warning naming how many accounts hold no role. Give
+each one a role on the Users screen, or — when no administrator can sign in to
+do that — from the command line:
+
+```bash
+pnpm run admin:create -- --email=<their e-mail> --password-stdin \
+  --first-name=<first name> --last-name=<last name> [--role=<code>]
+```
+
+The command updates the existing account, sets the password it is given and
+assigns `platform_admin` unless `--role` names another role. Accounts are not
+given a role automatically on upgrade: that would grant access nobody chose.
 
 ## Impersonation model
 

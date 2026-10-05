@@ -92,7 +92,7 @@ describe('AdminActionsService presence-refresh window (integration)', () => {
     const i18nStub: AdminI18nTranslatePort = {
       translate: async (moduleId, key): Promise<string> => `${moduleId}:${key}`,
     };
-    const permissionStub: PermissionReadPort = {
+    const permissionStub: Pick<PermissionReadPort, 'listPermissions'> = {
       listPermissions: async (): Promise<string[]> => ['*'],
     };
 

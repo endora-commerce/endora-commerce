@@ -79,7 +79,7 @@ export default function AdminUsersPage(): ReactNode {
       password: string;
       firstName: string;
       lastName: string;
-      adminRoleId: string | null;
+      adminRoleId: string;
     }): Promise<void> => {
       try {
         await apiClient.post<{ data: AdminUser }>('/api/v1/admin/admin-users', {
@@ -87,7 +87,7 @@ export default function AdminUsersPage(): ReactNode {
           password: input.password,
           firstName: input.firstName,
           lastName: input.lastName,
-          ...(input.adminRoleId ? { adminRoleId: input.adminRoleId } : {}),
+          adminRoleId: input.adminRoleId,
         });
         await refresh();
       } catch (err) {
@@ -99,9 +99,12 @@ export default function AdminUsersPage(): ReactNode {
 
   const handleAssignRole = useCallback(
     async (userId: string, roleId: string): Promise<void> => {
+      // An account always holds a role, so there is no "unassign": the empty
+      // option is only ever the label of an account that has none yet.
+      if (roleId === '') return;
       try {
         await apiClient.patch<{ data: AdminUser }>(`/api/v1/admin/admin-users/${userId}`, {
-          adminRoleId: roleId === '' ? null : roleId,
+          adminRoleId: roleId,
         });
         await refresh();
       } catch (err) {
@@ -229,7 +232,11 @@ export default function AdminUsersPage(): ReactNode {
                           value={u.adminRoleId ?? ''}
                           onChange={(e): void => void handleAssignRole(u.id, e.target.value)}
                         >
-                          <option value="">{t('adminUsers.unassigned')}</option>
+                          {u.adminRoleId === null && (
+                            <option value="" disabled>
+                              {t('adminUsers.unassigned')}
+                            </option>
+                          )}
                           {roles.map((r) => (
                             <option key={r.id} value={r.id}>
                               {translateRoleName(t, r)}
@@ -361,7 +368,7 @@ function CreateUserForm({
     password: string;
     firstName: string;
     lastName: string;
-    adminRoleId: string | null;
+    adminRoleId: string;
   }) => Promise<void>;
 }): ReactNode {
   const t = useTranslation('core');
@@ -381,7 +388,7 @@ function CreateUserForm({
           password,
           firstName,
           lastName,
-          adminRoleId: adminRoleId || null,
+          adminRoleId,
         }).then(() => {
           setEmail('');
           setPassword('');
@@ -437,8 +444,11 @@ function CreateUserForm({
             id="nr"
             value={adminRoleId}
             onChange={(e): void => setAdminRoleId(e.target.value)}
+            required
           >
-            <option value="">{t('adminUsers.assignLater')}</option>
+            <option value="" disabled>
+              {t('adminUsers.chooseRole')}
+            </option>
             {roles.map((r) => (
               <option key={r.id} value={r.id}>
                 {translateRoleName(t, r)}

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AdminUser } from '../../helpers/package-entities.js';
+import { PLATFORM_ADMIN_ROLE_ID } from '../../helpers/seed-admins.js';
 import { ERROR_CODES, type AdminUserReadPort } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -37,7 +38,13 @@ describe('admin_users — a mixed-case e-mail can sign in', () => {
       method: 'POST',
       url: '/api/v1/admin/admin-users',
       cookies: ADMIN_COOKIE,
-      payload: { email, password, firstName: 'Anna', lastName: 'Nowak' },
+      payload: {
+        email,
+        password,
+        firstName: 'Anna',
+        lastName: 'Nowak',
+        adminRoleId: PLATFORM_ADMIN_ROLE_ID,
+      },
     });
   }
 

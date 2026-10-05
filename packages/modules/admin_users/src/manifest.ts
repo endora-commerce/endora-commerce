@@ -19,10 +19,9 @@ import type { ModuleContext } from '@endora-commerce/platform/kernel';
  * would be a service graph pulled into all of them. It needs no `exports`
  * subpath and no `files` entry (§1.5).
  *
- * **The role each account holds is not here.** An `admin_users` row carrying an
- * `admin_roles` id is two modules' rows in one statement, so the assignment is a
- * composition step (§5.1) and belongs to whoever owns the instance. The column
- * is nullable, which is what makes that split available at all.
+ * **Each account is created holding its role**, read by code through
+ * `adminRolePort`. An administrator without a role is refused, so the account
+ * and its role are written together rather than paired by a later step.
  *
  * The sign-in details come back as `DemoSeedResult.credentials`, so the runner
  * formats them once (§3.7) instead of the seed printing them itself.
@@ -181,6 +180,12 @@ export const manifest = defineModuleManifest({
     },
   ],
   permissions: [{ code: 'customers:impersonate', label: 'Impersonate customers' }],
+  /**
+   * Raised by `AdminUserService` when a create or an edit would leave an
+   * account without a role. The noun is this module's own row and both raise
+   * sites are in this module.
+   */
+  errorCodes: [{ code: 'ADMIN_USER_ROLE_REQUIRED' }],
   demo,
   // Feature 072/073 (Constitution XVII) — this module owns the admin login
   // route, the admin session and the impersonation flow. Switched off, nobody

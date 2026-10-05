@@ -26,6 +26,7 @@ import {
   createAdminUserPreferencePort,
   createImpersonationPort,
 } from './services/admin-user-ports.js';
+import { describeAdministratorsWithoutRole } from './services/admin-user-service.js';
 import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
 
 /**
@@ -209,6 +210,22 @@ export function registerModule(ctx: ModuleContext): void {
 
   ctx.routes(async (app) => {
     await ctx.cradle<AdminUsersCradle>().admin.plugin(app);
+  });
+
+  /**
+   * Say so at boot when an administrator account holds no role.
+   *
+   * Such an account is refused — its permission checks and its tenant reach
+   * have nothing to be read from — and the surface no longer lets one be
+   * created. The accounts that already exist are not repaired here: assigning a
+   * role nobody chose would grant access silently. So the state is reported,
+   * with how many and how to fix it, every time the instance starts until it
+   * is gone.
+   */
+  ctx.onBoot(async () => {
+    const count = await ctx.cradle<AdminUsersCradle>().admin.handle.adminUserService.countWithoutRole();
+    const notice = describeAdministratorsWithoutRole(count);
+    if (notice !== null) ctx.log.warn({ administratorsWithoutRole: count }, notice);
   });
 }
 

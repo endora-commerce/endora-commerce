@@ -18,6 +18,8 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
  * route layer; this service trusts the caller and focuses on data integrity:
  *
  *   - email uniqueness (DB partial unique enforces, mapped to 409)
+ *   - an account always holds a role: creating one without, or clearing the
+ *     role of one that has it, is refused (`ADMIN_USER_ROLE_REQUIRED`)
  *   - role existence on assignment
  *   - password rehash on create, on self-rotation, and on a peer reset
  *   - soft delete via `deletedAt`; status flip is the everyday lever
@@ -55,6 +57,44 @@ export interface ListAdminUsersResult {
   page: number;
   pageSize: number;
   total: number;
+}
+
+/**
+ * The refusal a write earns when it would leave an account without a role.
+ *
+ * An administrator's permissions and tenant reach are both read off the role,
+ * so an account without one cannot act at all — and the platform refuses such
+ * an account at sign-in time rather than guessing what it may reach. Refusing
+ * the write is what keeps an operator from creating that state by accident.
+ */
+export function adminUserRoleRequiredRefusal(): HttpError {
+  return new HttpError(
+    400,
+    ERROR_CODES.ADMIN_USER_ROLE_REQUIRED,
+    'An administrator account must hold a role. Choose the role this account is given.',
+  );
+}
+
+/**
+ * What an operator is told at boot about accounts that have no role, or `null`
+ * when there are none.
+ *
+ * Such accounts predate the rule above. They are deliberately **not** given a
+ * role automatically — any default would hand out access nobody decided on —
+ * so the state is made visible instead, with both ways to repair it. The CLI
+ * one matters when the only administrator is affected: nobody can then sign in
+ * to use the Admin UI.
+ */
+export function describeAdministratorsWithoutRole(count: number): string | null {
+  if (count <= 0) return null;
+  return (
+    `${count} administrator account(s) hold no role and are refused until given one. ` +
+    'Assign a role on the Users screen of the Admin UI, or from the command line with ' +
+    '`admin_users create --email=<their e-mail> --password-stdin --first-name=<f> ' +
+    '--last-name=<l> [--role=<code>]` (the instance script `admin:create`), which updates ' +
+    'the existing account, sets the password given and assigns `platform_admin` unless ' +
+    '`--role` names another role.'
+  );
 }
 
 export class AdminUserService {
@@ -177,14 +217,15 @@ export class AdminUserService {
 
   async create(input: CreateAdminUserInput): Promise<AdminUser> {
     const em = this.emFactory();
-    if (input.adminRoleId) await this.#assertRoleExists(input.adminRoleId);
+    if (!input.adminRoleId) throw adminUserRoleRequiredRefusal();
+    await this.#assertRoleExists(input.adminRoleId);
     const passwordHash = await hashPassword(input.password);
     const user = em.create(AdminUser, {
       email: normalizeEmailAddress(input.email),
       passwordHash,
       firstName: input.firstName,
       lastName: input.lastName,
-      ...(input.adminRoleId ? { adminRoleId: input.adminRoleId } : {}),
+      adminRoleId: input.adminRoleId,
       status: 'active',
     });
     this.#audit(em, 'admin_user.create', user.id, null, { email: user.email });
@@ -207,7 +248,10 @@ export class AdminUserService {
     const em = this.emFactory();
     const user = await this.#getByIdOn(em, id);
     if (input.adminRoleId !== undefined) {
-      if (input.adminRoleId !== null) await this.#assertRoleExists(input.adminRoleId);
+      // `null` used to clear the role. An account always holds one now, so the
+      // only role change is one role for another.
+      if (input.adminRoleId === null) throw adminUserRoleRequiredRefusal();
+      await this.#assertRoleExists(input.adminRoleId);
       user.adminRoleId = input.adminRoleId;
     }
     if (input.firstName !== undefined) user.firstName = input.firstName;
@@ -260,6 +304,11 @@ export class AdminUserService {
     });
     await em.flush();
     return user;
+  }
+
+  /** Live accounts that hold no role — the state the boot notice reports. */
+  async countWithoutRole(): Promise<number> {
+    return this.emFactory().count(AdminUser, { adminRoleId: null, deletedAt: null });
   }
 
   async softDelete(id: string): Promise<void> {

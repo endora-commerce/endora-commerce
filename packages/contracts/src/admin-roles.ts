@@ -128,4 +128,20 @@ export interface PermissionCataloguePort {
  */
 export interface PermissionReadPort {
   listPermissions(adminUserId: string): Promise<string[]>;
+  /**
+   * The role an administrator acts under, or why there is none.
+   *
+   * An administrator always holds exactly one role; an id that names no live
+   * administrator, or an administrator with no role, is a state the platform
+   * refuses rather than interprets. The refusal is **returned**, not thrown, so
+   * a caller that must keep answering — the request-scope hook, which runs
+   * before every route — can carry it to the place where it is true instead of
+   * failing there. It is a 403 `ADMIN_ROLE_REQUIRED`.
+   */
+  resolveRole(adminUserId: string): Promise<AdminRoleResolution>;
 }
+
+/** What {@link PermissionReadPort.resolveRole} answers: a role, or the refusal. */
+export type AdminRoleResolution =
+  | { readonly role: AdminRoleRecord; readonly refusal?: undefined }
+  | { readonly role?: undefined; readonly refusal: Error };

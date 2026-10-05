@@ -35,36 +35,49 @@ vi.mock('@endora-commerce/platform/kernel', () => ({
  * is already there is the duplicate-key failure a non-idempotent body would hit
  * against Postgres.
  */
-function fakeEm(existing: readonly string[] = []): {
+const ROLE_IDS: Record<string, string> = {
+  platform_admin: 'role-platform',
+  sales_representative: 'role-sales',
+};
+
+function fakeEm(existing: readonly string[] = [], existingRoleId: string | null = 'role-kept'): {
   em: EntityManager;
   created: Record<string, unknown>[];
   deletes: unknown[];
+  found: Map<string, { email: string; adminRoleId: string | null }>;
 } {
-  const rows = new Set(existing);
+  const found = new Map(
+    existing.map((email) => [email, { email, adminRoleId: existingRoleId }] as const),
+  );
   const created: Record<string, unknown>[] = [];
   const deletes: unknown[] = [];
   const em = {
-    findOne: async (_entity: unknown, where: { email: string }) =>
-      rows.has(where.email) ? { email: where.email } : null,
+    findOne: async (_entity: unknown, where: { email: string }) => found.get(where.email) ?? null,
     create: (_entity: unknown, payload: Record<string, unknown>) => {
       const email = payload['email'] as string;
-      if (rows.has(email)) throw new Error(`duplicate key: ${email}`);
-      rows.add(email);
+      if (found.has(email)) throw new Error(`duplicate key: ${email}`);
+      found.set(email, { email, adminRoleId: (payload['adminRoleId'] as string) ?? null });
       created.push(payload);
       return payload;
     },
     flush: async () => undefined,
     nativeDelete: async (_entity: unknown, where: unknown) => {
       deletes.push(where);
-      return rows.size;
+      return found.size;
     },
   };
-  return { em: em as unknown as EntityManager, created, deletes };
+  return { em: em as unknown as EntityManager, created, deletes, found };
 }
 
-function contextOver(em: EntityManager): ModuleDemoContext<ModuleContext> {
+function contextOver(
+  em: EntityManager,
+  roleIds: Record<string, string> = ROLE_IDS,
+): ModuleDemoContext<ModuleContext> {
+  const adminRolePort = {
+    findByCode: async (code: string) => (roleIds[code] ? { id: roleIds[code], code } : null),
+  };
   return {
-    ctx: { cradle: () => ({ emFactory: () => em }) } as unknown as ModuleContext,
+    ctx: { cradle: () => ({ emFactory: () => em, adminRolePort }) } as unknown as ModuleContext,
   };
 }
 
@@ -78,19 +91,49 @@ describe('admin_users demo data', () => {
     ]);
   });
 
-  it('writes no role id — the assignment is the composition\'s (§5.1)', async () => {
+  it('creates every account already holding its role, in the same statement', async () => {
+    // An administrator without a role is refused everywhere, so an account
+    // must never exist without one — not even until a later step pairs them,
+    // because that step may be the one that fails.
     const { em, created } = fakeEm();
     await seedDemo(contextOver(em));
-    for (const payload of created) {
-      expect(payload).not.toHaveProperty('adminRoleId');
-    }
-    // The demo shop's intent is still recorded, so the demo composition and a
-    // reader have one place to look for which account holds which role.
+    expect(created.map((row) => [row['email'], row['adminRoleId']])).toEqual([
+      ['admin@demo.local', 'role-platform'],
+      ['sales-rep@demo.local', 'role-sales'],
+      ['sales-rep-other@demo.local', 'role-sales'],
+    ]);
     expect(DEMO_ADMIN_USERS.map((row) => row.roleCode)).toEqual([
       'platform_admin',
       'sales_representative',
       'sales_representative',
     ]);
+  });
+
+  it('fails by name rather than create an account whose role does not exist', async () => {
+    const { em, created } = fakeEm();
+    await expect(
+      seedDemo(contextOver(em, { platform_admin: 'role-platform' })),
+    ).rejects.toThrow(/sales_representative/);
+    // The one account whose role was there is the only one created, and it
+    // holds that role: no account was written without one.
+    expect(created.every((row) => typeof row['adminRoleId'] === 'string')).toBe(true);
+  });
+
+  it('gives a role to an account an earlier, interrupted run left without one', async () => {
+    const { em, created, found } = fakeEm([...DEMO_ADMIN_USER_EMAILS], null);
+    await seedDemo(contextOver(em));
+    expect(created).toEqual([]);
+    expect([...found.values()].map((row) => row.adminRoleId)).toEqual([
+      'role-platform',
+      'role-sales',
+      'role-sales',
+    ]);
+  });
+
+  it('never replaces a role an existing account already holds', async () => {
+    const { em, found } = fakeEm([...DEMO_ADMIN_USER_EMAILS], 'role-kept');
+    await seedDemo(contextOver(em));
+    expect([...found.values()].every((row) => row.adminRoleId === 'role-kept')).toBe(true);
   });
 
   it('creates nothing on a second run and reports the same count (§2.4)', async () => {

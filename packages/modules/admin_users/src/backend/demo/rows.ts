@@ -10,17 +10,15 @@
  * `test/integration/demo/demo-shop.test.ts`' recorded delta is what holds them
  * now.
  *
- * ## The role each account holds is deliberately not here
+ * ## Each account is created holding its role
  *
- * An `admin_users` row carrying an `admin_roles` id is two modules' rows in one
- * statement, so the assignment is a composition step (§5.1). `roleCode` below is
- * **not** written by this body: it records which role the demo shop means each
- * account to hold, so that `reset` and this module's own test can say what the
- * composition is expected to have done. `AdminUser.adminRoleId` is nullable —
- * `[OptionalProps]` names it — which is what makes the split available at all,
- * and it is the difference from the demo *buyer*, whose
- * `customer_accounts.organization_id` is `NOT NULL` and who therefore has to be
- * created by the composition outright.
+ * `roleCode` below names the `admin_roles` role the account is created with.
+ * `seed` reads that role's id through `adminRolePort` — the port `admin_roles`
+ * publishes and this module declares — and writes it in the statement that
+ * creates the account, so a demo administrator never exists without a role.
+ * That matters because an administrator without one is refused everywhere: a
+ * run that stopped between "account created" and "role assigned" used to leave
+ * a demo nobody could sign in to.
  *
  * ## The password is a real one and is printed
  *
@@ -36,7 +34,7 @@ export interface DemoAdminUserRow {
   readonly firstName: string;
   readonly lastName: string;
   readonly status: 'active' | 'inactive';
-  /** The `admin_roles` code the composition assigns — never written here. */
+  /** The `admin_roles` code of the role the account is created holding. */
   readonly roleCode: string;
   /** How the report announces this account. */
   readonly credentialLabel: string;

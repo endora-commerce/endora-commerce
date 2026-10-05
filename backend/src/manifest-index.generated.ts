@@ -39,7 +39,7 @@ import { manifest as manifest1 } from '@endora-commerce/platform/lifecycle';
 import { manifest as manifest2 } from '@endora-commerce/mod-addresses';
 import { manifest as manifest3, lifecycleParticipant as lifecycleParticipant3 } from '@endora-commerce/mod-admin-actions';
 import { manifest as manifest4 } from '@endora-commerce/mod-admin-notifications';
-import { manifest as manifest5 } from '@endora-commerce/mod-admin-roles';
+import { manifest as manifest5, installHook as installHook5 } from '@endora-commerce/mod-admin-roles';
 import { manifest as manifest6, cliCommands as cliCommands6 } from '@endora-commerce/mod-admin-users';
 import { manifest as manifest7 } from '@endora-commerce/mod-analytics';
 import { manifest as manifest8 } from '@endora-commerce/mod-api-keys';
@@ -118,7 +118,7 @@ export const DISCOVERED_MANIFESTS: ReadonlyArray<DiscoveredManifestEntry> = [
   { id: 'addresses', manifest: manifest2, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-addresses') },
   { id: 'admin_actions', manifest: manifest3, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-admin-actions'), lifecycleParticipant: lifecycleParticipant3 },
   { id: 'admin_notifications', manifest: manifest4, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-admin-notifications') },
-  { id: 'admin_roles', manifest: manifest5, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-admin-roles') },
+  { id: 'admin_roles', manifest: manifest5, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-admin-roles'), installHook: installHook5 },
   { id: 'admin_users', manifest: manifest6, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-admin-users'), cliCommands: cliCommands6 },
   { id: 'analytics', manifest: manifest7, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-analytics') },
   { id: 'api_keys', manifest: manifest8, manifestPath: resolveManifestPath(import.meta.url, '@endora-commerce/mod-api-keys') },

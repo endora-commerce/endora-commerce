@@ -158,7 +158,7 @@ export async function createAdmin(
     }
     role = await adminRoles.upsertByCode({
       code: 'platform_admin',
-      name: 'Platform Admin',
+      name: 'Platform administrator',
       permissions: ['*'],
       requiresTwoFactor: false,
     });

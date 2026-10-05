@@ -72,14 +72,14 @@ describe('admin_roles demo data', () => {
   it('creates its declared roles on an empty table', async () => {
     const { em, created } = fakeEm();
     const result = await seedDemo(contextOver(em));
-    expect(created.map((row) => row['code'])).toEqual([...DEMO_ADMIN_ROLE_CODES]);
+    expect(created.map((row) => row['code'])).toEqual(DEMO_ADMIN_ROLES.map((row) => row.code));
     expect(result.created).toEqual([
       { entity: 'AdminRole', count: DEMO_ADMIN_ROLES.length },
     ]);
   });
 
   it('creates nothing on a second run and reports the same count (§2.4)', async () => {
-    const { em, created } = fakeEm([...DEMO_ADMIN_ROLE_CODES]);
+    const { em, created } = fakeEm(DEMO_ADMIN_ROLES.map((row) => row.code));
     const result = await seedDemo(contextOver(em));
     expect(created).toEqual([]);
     expect(result.created).toEqual([
@@ -94,6 +94,10 @@ describe('admin_roles demo data', () => {
     const { em, deletes } = fakeEm([...DEMO_ADMIN_ROLE_CODES, 'blog_manager']);
     await resetDemo(contextOver(em));
     expect(deletes).toEqual([{ code: { $in: [...DEMO_ADMIN_ROLE_CODES] } }]);
+  });
+
+  it('leaves the platform-administrator role in place: installation owns it, not the demo', () => {
+    expect(DEMO_ADMIN_ROLE_CODES).toEqual(['sales_representative']);
   });
 
   it('holds no account assignment — that is the composition\'s (§5.1)', async () => {

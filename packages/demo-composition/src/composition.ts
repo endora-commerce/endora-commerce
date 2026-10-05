@@ -744,6 +744,50 @@ const FOUNDATION_STEPS: readonly CompositionStep[] = [
 
 const STEPS: readonly CompositionStep[] = [
   {
+    // ── the demo administrators hold their roles — first, on purpose ──────
+    // `admin_users`' demo data creates each account already holding its role,
+    // so on a clean run this step finds nothing to do. It is kept, and kept
+    // **first**, as the repair for an instance whose accounts were created
+    // without one — by an earlier release, or by a run that stopped part-way:
+    // an administrator without a role is refused everywhere, so the pairing
+    // must not wait behind the megamenu, the stock and five hundred images,
+    // any of which can fail. It depends on the two modules' rows and nothing
+    // else.
+    //
+    // Which account holds which role is still stated here as well as in
+    // `admin_users`' rows: the composition is the instance's own statement
+    // about its shop, and it joins by the natural keys both modules assign.
+    name: 'demo administrators take their roles',
+    modules: ['admin_users', 'admin_roles'],
+    async apply(em) {
+      const { AdminRole, AdminUser } = await adminRows();
+      const roles = await em.find(AdminRole, {
+        code: { $in: DEMO_ADMIN_ROLE_ASSIGNMENTS.map((row) => row.roleCode) },
+      });
+      const byCode = new Map(roles.map((role) => [role.code, role]));
+      for (const assignment of DEMO_ADMIN_ROLE_ASSIGNMENTS) {
+        const role = byCode.get(assignment.roleCode);
+        const account = await em.findOne(AdminUser, { email: assignment.email });
+        // A role the demo did not create, or an account it did not create, is
+        // an instance the operator has already changed. Skipped rather than
+        // repaired: this step joins what is there and creates neither side.
+        if (role === undefined || account === null) continue;
+        // Only an account with **no** role: one somebody chose is theirs.
+        if (!account.adminRoleId) account.adminRoleId = role.id;
+      }
+      await em.flush();
+    },
+    async withdraw() {
+      // Nothing, deliberately. This used to unassign the roles so that no row
+      // referenced one `admin_roles` was about to delete — and it ran at the
+      // start of a reset, long before the accounts were removed, so a reset
+      // that stopped in between left administrators with no role. The accounts
+      // are deleted with their role still on them: `admin_users`' withdrawal
+      // runs before `admin_roles`', the reverse of the order they are seeded
+      // in, and that ordering is what the foreign key needs.
+    },
+  },
+  {
     // ── 1. the megamenu over the category tree ────────────────────────────
     // A predefined navigation mirroring the seeded tree, so the storefront
     // <Megamenu> renders real, clickable links out of the box: top level is
@@ -1329,51 +1373,6 @@ const STEPS: readonly CompositionStep[] = [
            and filename in (${placeholders(filenames.length)})`,
         filenames,
       );
-    },
-  },
-  {
-    // ── 6. the demo administrators take their roles ───────────────────────
-    // An `admin_users` row carrying an `admin_roles` id is two modules' rows
-    // in one statement, so which account holds which role is the instance's
-    // statement and not either module's (§5.1). `admin_users` creates the
-    // three accounts with no role, `admin_roles` creates the two roles, and
-    // this step joins them by the natural keys both assign.
-    //
-    // **It is an update and not a creation, which is the difference from step
-    // 5.** `AdminUser.adminRoleId` is nullable, so the account exists before
-    // it has a role and the split is available;
-    // `customer_accounts.organization_id` is `NOT NULL`, so there the
-    // composition has to create the row outright. The schema decides which
-    // shape a link takes, not a preference.
-    name: 'demo administrators take their roles',
-    modules: ['admin_users', 'admin_roles'],
-    async apply(em) {
-      const { AdminRole, AdminUser } = await adminRows();
-      const roles = await em.find(AdminRole, {
-        code: { $in: DEMO_ADMIN_ROLE_ASSIGNMENTS.map((row) => row.roleCode) },
-      });
-      const byCode = new Map(roles.map((role) => [role.code, role]));
-      for (const assignment of DEMO_ADMIN_ROLE_ASSIGNMENTS) {
-        const role = byCode.get(assignment.roleCode);
-        const account = await em.findOne(AdminUser, { email: assignment.email });
-        // A role the demo did not create, or an account it did not create, is
-        // an instance the operator has already changed. Skipped rather than
-        // repaired: this step joins what is there and creates neither side.
-        if (role === undefined || account === null) continue;
-        account.adminRoleId = role.id;
-      }
-      await em.flush();
-    },
-    async withdraw(em) {
-      // The link and only the link. The accounts are `admin_users`' to remove
-      // and the roles are `admin_roles`' — and unassigning first is what
-      // leaves no row referencing a role either of them is about to delete.
-      const { AdminUser } = await adminRows();
-      const accounts = await em.find(AdminUser, {
-        email: { $in: DEMO_ADMIN_ROLE_ASSIGNMENTS.map((row) => row.email) },
-      });
-      for (const account of accounts) account.adminRoleId = null;
-      await em.flush();
     },
   },
   {
