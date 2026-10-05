@@ -5953,6 +5953,15 @@
         }
       }
     },
+    "/api/v1/admin/webhooks/event-types": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/webhooks/{id}": {
       "delete": {
         "responses": {

@@ -40,6 +40,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `settings` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `admin_notifications` | no | degrades-without `adminNotificationRecordPort` — CRM stops notifying people about assignments and messages; everything else in CRM keeps working |
 | `quote_requests` | no | degrades-without `quoteRequestReadPort` — Quote Requests linked to Opportunities show as unavailable, stop counting toward computed values, and can no longer be linked or created from one. Opportunities and their Orders keep working |
+| `webhooks` | no | contributes-to `webhookEventRegistry` |
 
 ## Permissions
 

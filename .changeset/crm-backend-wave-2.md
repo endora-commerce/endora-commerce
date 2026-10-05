@@ -1,5 +1,7 @@
 ---
 '@endora-commerce/mod-crm': minor
+'@endora-commerce/mod-webhooks': minor
+'@endora-commerce/contracts': minor
 ---
 
 More of the CRM backend, all under `/api/v1/admin/crm`.
@@ -48,3 +50,26 @@ opportunity's `description` and in a note's or message's `body` are now resolved
 mentioned, `{ type, id, available, label, url }`, with the product's current name or the
 order's number. A target that is gone, or an order the reader may not see, is
 `available: false` with no label and no URL. The text itself is stored and returned unchanged.
+
+**Outbound webhooks for opportunity events, and a contribution seam in `mod-webhooks`.**
+
+- **`@endora-commerce/mod-webhooks`** gains `webhookEventRegistry`
+  (`WebhookEventRegistryPort`): a module pushes the event types it offers from a boot hook,
+  each is bridged to the delivery queue through the webhooks module's own gated subscription,
+  and `GET /api/v1/admin/webhooks/event-types` (`integrations:manage`) lists the contributed
+  types whose owner is switched on. The subscription form offers them after its own list.
+  Nothing changes for an instance in which nobody contributes: the two built-in event types
+  and the form's own list are as they were.
+- **`@endora-commerce/mod-crm`** contributes `crm.opportunity.created.v1`,
+  `crm.opportunity.status_changed.v1` and `crm.opportunity.closed.v1`. The webhook payload is
+  the event payload; no title, description, note or message is in any of the three.
+- **`@endora-commerce/contracts`** gains `WebhookEventDescriptor` and
+  `WebhookEventRegistryPort`, the strict schemas `OpportunityCreatedEventV1Schema`,
+  `OpportunityStatusChangedEventV1Schema` and `OpportunityClosedEventV1Schema`, and
+  `CRM_WEBHOOK_EVENT_TYPES` / `CRM_WEBHOOK_EVENT_SCHEMAS`. The three payload types
+  (`OpportunityCreatedEvent`, `OpportunityStatusChangedEvent`, `OpportunityClosedEvent`) are
+  now inferred from those schemas; their shape is unchanged.
+
+**What an integrator has to do:** nothing unless they want the events — then subscribe to
+them on the Webhooks screen. A `.v1` event keeps its fields; a removal or a rename would be a
+`.v2` event offered beside it.

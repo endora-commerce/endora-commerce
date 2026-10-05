@@ -783,3 +783,92 @@ identyfikatorem — jest po prostu tekstem.
 
 `references` znajduje się na szansie (dla jej `description`) oraz na każdej
 notatce i wiadomości (dla jej `body`). Nie ma osobnego punktu końcowego.
+
+## Powiadamianie innych systemów: webhooki
+
+Trzy rzeczy, które dzieją się z szansą sprzedażową, mogą być wysyłane do innego
+systemu przez **webhooki** platformy: jej utworzenie, zmiana statusu i
+zamknięcie. Na ekranie *Webhooki* pojawiają się wśród typów zdarzeń, które
+subskrypcja może wybrać, i są dostarczane jak każdy inny webhook — podpisane,
+ponawiane, widoczne na liście wysyłek.
+
+| Typ zdarzenia | Wysyłane, gdy |
+| --- | --- |
+| `crm.opportunity.created.v1` | szansa zostaje utworzona — ręcznie albo automatycznie |
+| `crm.opportunity.status_changed.v1` | szansa przechodzi do innego statusu, bez względu na to, co ją przesunęło |
+| `crm.opportunity.closed.v1` | szansa wchodzi w status, który ją zamyka — jako wygraną albo przegraną |
+
+Zamknięcie jako wygrana i jako przegrana to **jedno** zdarzenie: o tym, które,
+mówi `outcome`. Przejście do statusu zamykającego wysyła zarówno
+`status_changed`, jak i `closed`.
+
+**Wysyłane jest samo zdarzenie**, dokładnie z tymi polami i żadnym innym:
+
+```json
+{
+  "eventId": "8f0c2c2e-3f0b-4d0a-9a55-0d5e6b7a1c11",
+  "occurredAt": "2026-10-05T12:00:00.000Z",
+  "opportunityId": "5d0c7c1e-6a0f-4f55-8a53-0f3f7cbe0a01",
+  "number": "OPP-000123",
+  "organizationId": "6a3b1e9d-0c1f-4a8e-9a2d-4b7f0c5d2e02",
+  "source": "manual"
+}
+```
+
+`crm.opportunity.created.v1` — `source` ma wartość `manual`, `order` albo
+`quote_request`.
+
+```json
+{
+  "eventId": "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed",
+  "occurredAt": "2026-10-05T12:05:00.000Z",
+  "opportunityId": "5d0c7c1e-6a0f-4f55-8a53-0f3f7cbe0a01",
+  "number": "OPP-000123",
+  "organizationId": "6a3b1e9d-0c1f-4a8e-9a2d-4b7f0c5d2e02",
+  "salesChannelId": null,
+  "from": "negotiation",
+  "to": "won",
+  "fromKind": "open",
+  "toKind": "won",
+  "actor": { "kind": "admin", "adminUserId": "0b8f5f0e-2a0e-4f55-8a53-0f3f7cbe0a01" },
+  "cause": "manual",
+  "reason": "Contract signed"
+}
+```
+
+`crm.opportunity.status_changed.v1` — `actor.kind` ma wartość `admin` (z
+`adminUserId`) albo `system`; `cause` to `manual`, `order_status` albo `system`,
+a gdy zmianę spowodowało zamówienie, wskazuje je `causeOrderId`. `reason` to
+krótki tekst wpisany przez kogoś przy tej zmianie albo `null`.
+
+```json
+{
+  "eventId": "c3a1f0de-52c7-4d0c-8a44-2f7e7a9f3b10",
+  "occurredAt": "2026-10-05T12:05:00.000Z",
+  "opportunityId": "5d0c7c1e-6a0f-4f55-8a53-0f3f7cbe0a01",
+  "organizationId": "6a3b1e9d-0c1f-4a8e-9a2d-4b7f0c5d2e02",
+  "outcome": "won",
+  "value": "1500.00",
+  "currency": "PLN"
+}
+```
+
+`crm.opportunity.closed.v1` — `outcome` ma wartość `won` albo `lost`; `value`
+to wartość szansy w chwili zamknięcia albo `null`, gdy szansa jej nie ma.
+
+Na czym można polegać:
+
+- **Żaden wolny tekst szansy nie jest nigdy wysyłany**: ani tytuł, ani opis,
+  ani notatka, ani wiadomość. Jedynym tekstem jest `reason`, czyli to, co
+  wpisano przy jednej zmianie statusu.
+- **`organizationId` jest zawsze obecne**, więc subskrypcja przypisana do
+  jednej organizacji dostaje tylko szanse tej organizacji.
+- **Wersja jest w nazwie.** Zdarzenie `.v1` zachowuje swoje pola. Pole może
+  zostać do niego dodane; jeśli kiedyś trzeba będzie jakieś usunąć albo
+  zmienić jego nazwę, będzie to nowe zdarzenie `.v2`, oferowane obok starego.
+
+Gdy moduł Webhooków jest wyłączony, szanse działają jak zawsze i nic nie jest
+wysyłane — a to, co wydarzyło się w tym czasie, nie jest wysyłane później. Gdy
+wyłączony jest moduł CRM, jego trzy typy zdarzeń nie są oferowane; subskrypcja,
+która wskazuje któryś z nich, zostaje zachowana i po prostu nic nie dostaje,
+dopóki CRM nie wróci.

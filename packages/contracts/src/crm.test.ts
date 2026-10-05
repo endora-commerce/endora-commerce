@@ -399,3 +399,135 @@ describe('OpportunityTransitionOutcome', () => {
     expect([veto.from, veto.to]).toEqual(['negotiation', 'won']);
   });
 });
+
+/**
+ * `contracts/events-and-ports.md` §6 — the three events offered to outbound
+ * webhooks. The delivery bridge serialises an event whole, so **the event
+ * payload is the webhook payload**, and these schemas are a public contract: a
+ * field added to an event is a reviewed change here, or the strict parse — and
+ * the test that holds every emitted event to it — refuses it.
+ */
+describe('outbound webhook event schemas (events-and-ports.md §6)', () => {
+  const envelope = { eventId: 'evt-1', occurredAt: '2026-10-05T12:00:00.000Z' };
+
+  const statusChanged = {
+    ...envelope,
+    opportunityId: UUID_A,
+    number: 'OPP-000123',
+    organizationId: UUID_B,
+    salesChannelId: null,
+    from: 'new',
+    to: 'won',
+    fromKind: 'open',
+    toKind: 'won',
+    actor: { kind: 'admin', adminUserId: UUID_A },
+    cause: 'manual',
+    reason: null,
+  };
+  const created = { ...envelope, opportunityId: UUID_A, number: 'OPP-000123', organizationId: UUID_B, source: 'manual' };
+  const closed = {
+    ...envelope,
+    opportunityId: UUID_A,
+    organizationId: UUID_B,
+    outcome: 'won',
+    value: '1500.00',
+    currency: 'PLN',
+  };
+
+  const offered = [
+    ['crm.opportunity.status_changed.v1', crm.OpportunityStatusChangedEventV1Schema, statusChanged],
+    ['crm.opportunity.created.v1', crm.OpportunityCreatedEventV1Schema, created],
+    ['crm.opportunity.closed.v1', crm.OpportunityClosedEventV1Schema, closed],
+  ] as const;
+
+  it('names exactly the three offered event types, each with its schema', () => {
+    expect(Object.keys(crm.CRM_WEBHOOK_EVENT_SCHEMAS).sort()).toEqual(offered.map(([name]) => name).sort());
+    for (const [name, schema] of offered) expect(crm.CRM_WEBHOOK_EVENT_SCHEMAS[name]).toBe(schema);
+    expect(crm.CRM_WEBHOOK_EVENT_TYPES).toEqual([
+      crm.CRM_EVENTS.STATUS_CHANGED,
+      crm.CRM_EVENTS.CREATED,
+      crm.CRM_EVENTS.CLOSED,
+    ]);
+  });
+
+  it.each(offered)('%s accepts its payload', (_name, schema, payload) => {
+    accepts(schema, payload);
+  });
+
+  it.each(offered)('%s is strict — a field the contract does not name is refused', (_name, schema, payload) => {
+    rejects(schema, { ...payload, title: 'Leaked' });
+    rejects(schema, { ...payload, description: 'Leaked' });
+    rejects(schema, { ...payload, anythingElse: 1 });
+  });
+
+  it.each(offered)('%s carries eventId, occurredAt, opportunityId and organizationId', (_name, schema, payload) => {
+    for (const field of ['eventId', 'occurredAt', 'opportunityId', 'organizationId']) {
+      const { [field]: _dropped, ...rest } = payload as Record<string, unknown>;
+      rejects(schema, rest);
+    }
+    rejects(schema, { ...payload, organizationId: null });
+    rejects(schema, { ...payload, occurredAt: 'yesterday' });
+  });
+
+  it('carries the fields of §6 and no other', () => {
+    expect(Object.keys(crm.OpportunityStatusChangedEventV1Schema.shape).sort()).toEqual(
+      [
+        'eventId',
+        'occurredAt',
+        'opportunityId',
+        'number',
+        'organizationId',
+        'salesChannelId',
+        'from',
+        'to',
+        'fromKind',
+        'toKind',
+        'actor',
+        'cause',
+        'causeOrderId',
+        'reason',
+      ].sort(),
+    );
+    expect(Object.keys(crm.OpportunityCreatedEventV1Schema.shape).sort()).toEqual(
+      ['eventId', 'occurredAt', 'opportunityId', 'number', 'organizationId', 'source'].sort(),
+    );
+    expect(Object.keys(crm.OpportunityClosedEventV1Schema.shape).sort()).toEqual(
+      ['eventId', 'occurredAt', 'opportunityId', 'organizationId', 'outcome', 'value', 'currency'].sort(),
+    );
+  });
+
+  it('holds no free text: no title, description, note or message body in any of the three', () => {
+    const FREE_TEXT = ['title', 'description', 'body', 'note', 'message', 'comment', 'name'];
+    for (const [name, schema] of offered) {
+      for (const field of FREE_TEXT) {
+        expect(Object.keys(schema.shape), `${name}.${field}`).not.toContain(field);
+      }
+    }
+  });
+
+  it('status_changed: the actor is strict, causeOrderId is optional, reason may be a short text', () => {
+    const schema = crm.OpportunityStatusChangedEventV1Schema;
+    accepts(schema, { ...statusChanged, actor: { kind: 'system' } });
+    accepts(schema, { ...statusChanged, cause: 'order_status', causeOrderId: UUID_B });
+    accepts(schema, { ...statusChanged, reason: 'Budget confirmed', salesChannelId: UUID_A });
+    rejects(schema, { ...statusChanged, actor: { kind: 'admin', adminUserId: UUID_A, name: 'Leaked' } });
+    rejects(schema, { ...statusChanged, actor: { kind: 'customer' } });
+    rejects(schema, { ...statusChanged, cause: 'webhook' });
+    rejects(schema, { ...statusChanged, toKind: 'closed' });
+    rejects(schema, { ...statusChanged, reason: 'x'.repeat(2001) });
+  });
+
+  it('closed: one event for won and lost, told apart by outcome; the value may be absent', () => {
+    const schema = crm.OpportunityClosedEventV1Schema;
+    accepts(schema, { ...closed, outcome: 'lost', value: null });
+    rejects(schema, { ...closed, outcome: 'open' });
+    rejects(schema, { ...closed, currency: 'zloty' });
+  });
+
+  it('created: the source is one of the three', () => {
+    for (const source of ['manual', 'order', 'quote_request']) {
+      accepts(crm.OpportunityCreatedEventV1Schema, { ...created, source });
+    }
+    rejects(crm.OpportunityCreatedEventV1Schema, { ...created, source: 'import' });
+  });
+});

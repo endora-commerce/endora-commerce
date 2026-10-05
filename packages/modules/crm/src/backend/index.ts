@@ -14,6 +14,7 @@ import type {
   SalesChannelAttributionRegistryPort,
   SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
+import { CRM_WEBHOOK_EVENT_TYPES, type WebhookEventRegistryPort } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { Redis } from 'ioredis';
@@ -595,6 +596,30 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
   // --- end of Change history -------------------------------------------------
+
+  // --- Outbound webhooks (User Story 16) ----------------------------------------
+  /**
+   * The events this module offers to outbound webhooks — a **contribution**
+   * hook.
+   *
+   * It pushes three event names into `webhookEventRegistry`, an ungated
+   * registry `webhooks` owns, and carries no presence probe: the registry
+   * leaves out a contributor that is not present when it is read, so a push
+   * made while this module is off costs nothing, and one skipped here would
+   * make switching the module on need a restart before its events were
+   * offered. `webhooks` bridges each pushed type through its own gated
+   * subscription and sends the event payload whole — which is why the three
+   * have strict schemas in the contracts package.
+   *
+   * Nothing is read back and nothing degrades: with `webhooks` off the events
+   * are emitted as ever and nobody is told; in an instance without `webhooks`
+   * the push is dropped by the platform.
+   */
+  ctx.onBoot(() => {
+    const registry = lazyPort<WebhookEventRegistryPort>(ctx, 'webhookEventRegistry');
+    for (const eventType of CRM_WEBHOOK_EVENT_TYPES) registry.register({ ownerModuleId: 'crm', eventType });
+  });
+  // --- end of Outbound webhooks --------------------------------------------------
 
   // --- Routes ----------------------------------------------------------------
   // All through `ctx.routes`, so every one of them stops with the module.

@@ -766,3 +766,89 @@ A token that is not well-formed — an unknown type, something that is not an id
 
 `references` is on the opportunity (for its `description`) and on every note
 and message (for its `body`). There is no separate endpoint.
+
+## Telling other systems: webhooks
+
+Three things that happen to an opportunity can be sent to another system
+through the platform's **webhooks**: when it is created, when its status
+changes, and when it is closed. On the *Webhooks* screen they appear among the
+event types a subscription can choose, and they are delivered like every other
+webhook — signed, retried, listed among the deliveries.
+
+| Event type | Sent when |
+| --- | --- |
+| `crm.opportunity.created.v1` | an opportunity is created — by hand or automatically |
+| `crm.opportunity.status_changed.v1` | an opportunity moves to another status, whatever moved it |
+| `crm.opportunity.closed.v1` | an opportunity enters a status that closes it, won or lost |
+
+Closing as won and closing as lost are **one** event: `outcome` says which. A
+move into a closing status sends both `status_changed` and `closed`.
+
+**What is sent is the event itself**, exactly these fields and no other:
+
+```json
+{
+  "eventId": "8f0c2c2e-3f0b-4d0a-9a55-0d5e6b7a1c11",
+  "occurredAt": "2026-10-05T12:00:00.000Z",
+  "opportunityId": "5d0c7c1e-6a0f-4f55-8a53-0f3f7cbe0a01",
+  "number": "OPP-000123",
+  "organizationId": "6a3b1e9d-0c1f-4a8e-9a2d-4b7f0c5d2e02",
+  "source": "manual"
+}
+```
+
+`crm.opportunity.created.v1` — `source` is `manual`, `order` or `quote_request`.
+
+```json
+{
+  "eventId": "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed",
+  "occurredAt": "2026-10-05T12:05:00.000Z",
+  "opportunityId": "5d0c7c1e-6a0f-4f55-8a53-0f3f7cbe0a01",
+  "number": "OPP-000123",
+  "organizationId": "6a3b1e9d-0c1f-4a8e-9a2d-4b7f0c5d2e02",
+  "salesChannelId": null,
+  "from": "negotiation",
+  "to": "won",
+  "fromKind": "open",
+  "toKind": "won",
+  "actor": { "kind": "admin", "adminUserId": "0b8f5f0e-2a0e-4f55-8a53-0f3f7cbe0a01" },
+  "cause": "manual",
+  "reason": "Contract signed"
+}
+```
+
+`crm.opportunity.status_changed.v1` — `actor.kind` is `admin` (with
+`adminUserId`) or `system`; `cause` is `manual`, `order_status` or `system`, and
+when an order caused the move `causeOrderId` names it. `reason` is the short
+text somebody typed for that move, or `null`.
+
+```json
+{
+  "eventId": "c3a1f0de-52c7-4d0c-8a44-2f7e7a9f3b10",
+  "occurredAt": "2026-10-05T12:05:00.000Z",
+  "opportunityId": "5d0c7c1e-6a0f-4f55-8a53-0f3f7cbe0a01",
+  "organizationId": "6a3b1e9d-0c1f-4a8e-9a2d-4b7f0c5d2e02",
+  "outcome": "won",
+  "value": "1500.00",
+  "currency": "PLN"
+}
+```
+
+`crm.opportunity.closed.v1` — `outcome` is `won` or `lost`; `value` is the
+opportunity's value when it closed, or `null` when it has none.
+
+Things to rely on:
+
+- **No free text of an opportunity is ever sent**: no title, no description, no
+  note, no message. `reason` is the only text, and it is what was typed for one
+  status change.
+- **`organizationId` is always there**, so a subscription bound to one
+  organization receives that organization's opportunities only.
+- **The version is in the name.** A `.v1` event keeps its fields. A field may
+  be added to it; if one ever has to be removed or renamed, that is a new
+  `.v2` event, offered beside the old one.
+
+With the Webhooks module switched off, opportunities work as ever and nothing
+is sent — and what happened meanwhile is not sent later. With the CRM module
+switched off, its three event types are not offered; a subscription that names
+one is kept and simply receives nothing until CRM is back.

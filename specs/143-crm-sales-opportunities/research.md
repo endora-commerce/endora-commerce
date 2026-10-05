@@ -1866,6 +1866,108 @@ when it was measured, and what was done about it.
   note's rows are removed; a message is immutable, so its rows never change. No endpoint was
   added: `contracts/admin-api.md` §9 names none, and the composer's two pickers use the
   catalog's and the Orders' own admin endpoints.
+- **N-E15 (2026-10-05, T163) — the reported webhooks defect, verified before touching the
+  module; it is as R-27 says, and a little worse.** `KNOWN_EVENT_TYPES` in
+  `packages/modules/webhooks/src/admin/pages/WebhooksPage.tsx` offers **thirteen** event
+  types. `BRIDGED_EVENT_TYPES` in `packages/modules/webhooks/src/backend/index.ts` holds
+  **two** — `order.created.v1`, `order.status_changed.v1` — and the loop over it was the
+  module's only `ctx.subscribe`; `bridgeEventHandler` is called from nowhere else, and no other
+  module adds a job to the delivery queue. `POST /api/v1/admin/webhooks` accepts any non-empty
+  string as an event type. So a subscription to any of the other **eleven** is stored and never
+  receives a delivery. Of those eleven, **six are emitted** by something in the tree and simply
+  not bridged (`product.created.v1`, `product.updated.v1`, `product.archived.v1`,
+  `rfq.created.v1`, `rfq.expired.v1`, `credit_limit.adjusted.v1`), and **five are emitted by
+  nothing at all** (`rfq.quoted.v1`, `rfq.accepted.v1`, `order.cancelled.v1`,
+  `payment.settled.v1`, `credit_limit.reservation_released.v1` — no `emit` of those names
+  exists outside tests; `order.cancelled.v1` is declared in `orders`' event map and emitted
+  nowhere). **Not repaired**: `contracts/foreign-module-changes.md` §I and §F
+  leave both lists untouched. The seam this story adds is the repair's shape — the six emitted
+  types need one `register` each from their owners, and the five need deleting from the form
+  — and is for the defect register.
+- **N-E16 (2026-10-05, T167) — R-27's [unverified] premise holds: a `ctx.subscribe` issued
+  from the registry during the boot phase is accepted, by the kernel and by
+  `check:subscribe-seam`.** The kernel: `ModuleContext.subscribe` is
+  `sink.unsubscribes.push(subscribeForModule(module.id, eventBus, event, handler))` with no
+  `isRegistering` guard — `subscribeForModule` calls `bus.on` at once, with the handler
+  wrapped in `effectiveState.isPresent('webhooks')`, so a late subscription is gated exactly
+  as an early one. The only thing that differs is bookkeeping: `composeModules` copies each
+  module's `unsubscribes` into its result when registration ends, so a later one is not in
+  that copy — and **nothing in the tree reads that copy** (it is collected and never called;
+  the bus lives and dies with its composition), so nothing is lost by it. The check: it is
+  static, flags `<bus>.on(<event>, …)` in a module's files, and has nothing to say about a
+  `ctx.subscribe` wherever it is called from; it is green. Proven end to end by
+  `backend/test/integration/webhooks/contributed-events.test.ts`, which registers its
+  descriptor **after** `runBootHooks()` has returned — later than any boot hook can — and
+  observes the job enqueued, the Organization binding honoured, and nothing enqueued on either
+  off axis. So the fallback (subscribing from a `webhooks` boot hook over `list()`) was not
+  needed, and the ordering question it raises never arises: a contribution is bridged the
+  moment it is pushed, whichever boot hook pushes it. The registry takes the subscribing
+  function from `index.ts` (`bridge`), where `ctx` is, and the two built-in types now go
+  through the same function. A contribution naming a type the module bridges already is
+  recorded and **not** bridged a second time.
+- **N-E17 (2026-10-05, T166/T169) — what the webhook contract fixed in place.** The three
+  payload types are now `z.infer` of their strict schemas (`OpportunityStatusChangedEvent`,
+  `OpportunityCreatedEvent`, `OpportunityClosedEvent`), so every emit site is typed by the
+  schema and there is one definition; `OpportunityStatusEvent` (the four templated events and
+  what a guard is handed) stays an interface — it is not offered to webhooks.
+  `CRM_WEBHOOK_EVENT_TYPES` and `CRM_WEBHOOK_EVENT_SCHEMAS` name the three for the contributor
+  and the tests. `occurredAt` is held to an ISO date-time with offset and `currency` to a
+  three-letter code; `reason` to 2000 characters (the transition request's own limit).
+  `crm/webhooks.test.ts` subscribes to the three on the bus through a manual create, a
+  computed one, six transitions including reopen, won and lost, and an automatic creation from
+  a placed Order, and parses every payload under `.strict()`. `GET
+  /api/v1/admin/webhooks/event-types` answers `{ data: [{ ownerModuleId, eventType }] }` under
+  `integrations:manage`, the gate of the module's other routes; no response schema was added
+  to the contracts package beyond the two interfaces §I1 lists. The edge is `contributes-to`
+  with a `reason` and no `whenAbsent`; `check:port-dependencies` and `check:port-shape`
+  accepted the new container name with no ledger edit. Two test files the seam needed are new
+  and are not rows of §I: `backend/test/integration/webhooks/contributed-events.test.ts` (T163)
+  and `admin/test/modules/webhooks/contributed-event-types.test.tsx` (T165).
+- **N-E18 (2026-10-05, T106 — a correction to N-E7) — the wait for a commit must not be
+  awaited on the bus, and for one story it was.** `EventBus.dispatch` runs the subscribers of
+  an event one after another and awaits each. User Story 9's handler slept until the Order was
+  readable, so every later subscriber of `order.created.v1` waited with it — a few
+  milliseconds when the race was lost, **the whole two seconds for an Order that never
+  commits**. It was found by a neighbour's test, not by CRM's:
+  `backend/test/integration/webhooks/off-state-bridge.test.ts` announces an Order that does not
+  exist and gives the bridge 50 ms. Repaired in `opportunity-auto-create-service.ts`: the
+  handler reads **once**; a document that is there is handled in the handler, as before; one
+  that is not is looked for again through `defer`, which the composition supplies — off the
+  dispatch chain, in a system scope of its own (the handler's ends when it returns), doing
+  nothing if the module was switched off meanwhile, and logging rather than rejecting. The
+  handler answers `deferred` at once. `idle()` resolves when no deferred look is running;
+  `whenCrmEventSettled` in `seed-crm.ts` waits on it, which is what keeps "nothing was
+  created" a measurement rather than a race. A deferred look for a Quote Request asks for
+  `quote_requests`' presence again before every read. The lesson for any subscriber in this
+  module: read, decide, and never sleep in a handler.
+- **N-E19 (2026-10-05, T169) — the first real second subscriber broke the order of the
+  transition hooks, and the transition now delivers them in one bus scope.**
+  `contracts/events-and-ports.md` §1.1 lists the after-events "in this order". They were
+  emitted bare: outside a scope `EventBus.emit` starts one dispatch chain **per event**, and
+  the chains run side by side. While no event had an awaiting subscriber the order of emission
+  was the order of arrival. The webhook bridge is now a subscriber of
+  `crm.opportunity.status_changed.v1` and awaits a subscription lookup, so a later subscriber
+  of that event received it **after** the two templated after-events —
+  `transition-hooks.test.ts`, written for User Story 1, failed on exactly that. The transition
+  service now emits its after-events inside one `EventBus.run`, which holds them back and
+  dispatches them one after another, each to all of its subscribers before the next. Two
+  consequences: the documented order is the order every subscriber sees, whoever else
+  subscribes; and **the transition answers once its after-subscribers have run** — as
+  `POST /opportunities` already does for `created.v1`, a Command's event being dispatched in the
+  Command's own scope. A subscriber's failure is still isolated by the bus and cannot undo or
+  fail the transition. The two `.before` events are emitted bare as before: they are passive,
+  nothing is promised about them beyond "ahead of the write", and only the test subscribes.
+- **N-E20 (2026-10-05, T169) — one check-estate ledger learned of the new registry.**
+  `check:port-dependencies` refuses a `contributes-to` edge into a registry whose owner has
+  not stated what it does with an absent contributor's entry, and reads that statement from
+  `CONTRIBUTION_POLICY_STATED` in `backend/scripts/check-port-dependencies.ts` (one line per
+  registry — `email:emailBlockRendererRegistry` joined it the same way in `f1d5a4ad6`). The
+  line `'webhooks:webhookEventRegistry': 'skip'` is that statement, and it mirrors the doc
+  block of `WebhookEventRegistryPort`. The file is not a row of §I; the line is in a commit of
+  its own and is listed in `contracts/foreign-module-changes.md` §E. The edge and the line
+  need each other — the check refuses the line while nothing resolves the name, and the edge
+  while the line is missing — so the story's commit is red on that one check until the commit
+  after it.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

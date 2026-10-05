@@ -118,6 +118,21 @@ export const manifest = defineModuleManifest({
         'of the gate and answers `not-present` in its return type; nothing in this module fails ' +
         'closed on it, and no table of that owner is referenced from this module\'s schema.',
     },
+    // CRM offers three of its events to outbound webhooks by pushing their
+    // names into `webhooks`' registry from a contribution-only boot hook. A
+    // push, and nothing read back: with `webhooks` off or absent nothing is
+    // delivered and nothing in this module changes, so there is no
+    // `whenAbsent` to state.
+    {
+      moduleId: 'webhooks',
+      name: 'webhookEventRegistry',
+      kind: 'contributes-to',
+      reason:
+        'A push, from this module\'s contribution-only boot hook, of the three event names it ' +
+        'offers for outbound delivery. Nothing is read back: the registry is a plain ' +
+        'registration that leaves out every event type whose owner is not present when it is ' +
+        'read, and `webhooks` bridges and delivers through its own gated subscription.',
+    },
     // `quote_requests` is operator-switchable too. A shop that sells without
     // quotes still wants a pipeline, so the quote desk's switch must not be
     // held by this module (owner decision of 2026-10-05, research R-17).

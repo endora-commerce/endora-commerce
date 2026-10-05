@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoDateTimeSchema } from './common.js';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
 import type { QuoteRequestStatus } from './quote-requests.js';
 
@@ -783,27 +784,89 @@ export interface OpportunityStatusEvent extends CrmEventEnvelope {
   reason: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Events offered to outbound webhooks (`contracts/events-and-ports.md` §6)
+// ---------------------------------------------------------------------------
+//
+// The webhook delivery bridge serialises an event whole, so for these three
+// **the event payload is the webhook payload** — a public, versioned contract.
+// Each has a strict schema, the payload type is inferred from it (one
+// definition), and a test holds every event the module emits to it. Adding a
+// field is a reviewed change here; removing or renaming one is a new `.v2`
+// event offered beside the old. No description, title, note or message is in
+// any of them: `reason` is the short text somebody typed for one transition.
+
+const webhookEventEnvelopeShape = {
+  eventId: z.string().min(1),
+  occurredAt: isoDateTimeSchema,
+};
+
 /** Payload of `crm.opportunity.status_changed.v1`. */
-export interface OpportunityStatusChangedEvent extends OpportunityStatusEvent {
-  number: string;
-}
+export const OpportunityStatusChangedEventV1Schema = z
+  .object({
+    ...webhookEventEnvelopeShape,
+    opportunityId: z.string().uuid(),
+    number: z.string().min(1),
+    /** Always present — what lets a subscription bound to one Organization receive only its own events. */
+    organizationId: z.string().uuid(),
+    salesChannelId: z.string().uuid().nullable(),
+    from: z.string().min(1),
+    to: z.string().min(1),
+    fromKind: opportunityStatusKindSchema,
+    toKind: opportunityStatusKindSchema,
+    actor: z
+      .object({ kind: z.enum(['admin', 'system']), adminUserId: z.string().uuid().optional() })
+      .strict(),
+    cause: z.enum(['manual', 'order_status', 'system']),
+    /** The Order whose status caused the move, when `cause` is `order_status`. */
+    causeOrderId: z.string().uuid().optional(),
+    reason: z.string().max(2000).nullable(),
+  })
+  .strict();
+export type OpportunityStatusChangedEvent = z.infer<typeof OpportunityStatusChangedEventV1Schema>;
 
 /** Payload of `crm.opportunity.created.v1`. */
-export interface OpportunityCreatedEvent extends CrmEventEnvelope {
-  opportunityId: string;
-  organizationId: string;
-  number: string;
-  source: OpportunitySource;
-}
+export const OpportunityCreatedEventV1Schema = z
+  .object({
+    ...webhookEventEnvelopeShape,
+    opportunityId: z.string().uuid(),
+    number: z.string().min(1),
+    organizationId: z.string().uuid(),
+    source: opportunitySourceSchema,
+  })
+  .strict();
+export type OpportunityCreatedEvent = z.infer<typeof OpportunityCreatedEventV1Schema>;
 
-/** Payload of `crm.opportunity.closed.v1`. */
-export interface OpportunityClosedEvent extends CrmEventEnvelope {
-  opportunityId: string;
-  organizationId: string;
-  outcome: OpportunityClosedKind;
-  value: string | null;
-  currency: string;
-}
+/**
+ * Payload of `crm.opportunity.closed.v1` — one event for won and lost, told
+ * apart by `outcome`.
+ */
+export const OpportunityClosedEventV1Schema = z
+  .object({
+    ...webhookEventEnvelopeShape,
+    opportunityId: z.string().uuid(),
+    organizationId: z.string().uuid(),
+    outcome: opportunityClosedKindSchema,
+    /** The Opportunity's effective value when it closed; `null` when it has none. */
+    value: z.string().nullable(),
+    currency: currencyCodeSchema,
+  })
+  .strict();
+export type OpportunityClosedEvent = z.infer<typeof OpportunityClosedEventV1Schema>;
+
+/** The event types CRM offers to outbound webhooks, in the order they are offered. */
+export const CRM_WEBHOOK_EVENT_TYPES = [
+  CRM_EVENTS.STATUS_CHANGED,
+  CRM_EVENTS.CREATED,
+  CRM_EVENTS.CLOSED,
+] as const;
+
+/** The strict schema of each offered event's payload, by event type. */
+export const CRM_WEBHOOK_EVENT_SCHEMAS = {
+  [CRM_EVENTS.STATUS_CHANGED]: OpportunityStatusChangedEventV1Schema,
+  [CRM_EVENTS.CREATED]: OpportunityCreatedEventV1Schema,
+  [CRM_EVENTS.CLOSED]: OpportunityClosedEventV1Schema,
+} as const;
 
 /** Payload of `crm.opportunity.assigned.v1`. */
 export interface OpportunityAssignedEvent extends CrmEventEnvelope {
