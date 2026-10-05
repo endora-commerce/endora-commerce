@@ -373,6 +373,9 @@ importers:
       '@endora-commerce/mod-credit-limits':
         specifier: workspace:*
         version: link:../packages/modules/credit_limits
+      '@endora-commerce/mod-crm':
+        specifier: workspace:*
+        version: link:../packages/modules/crm
       '@endora-commerce/mod-currencies':
         specifier: workspace:*
         version: link:../packages/modules/currencies
@@ -1769,6 +1772,24 @@ importers:
       react:
         specifier: ^19.2.5
         version: 19.2.5
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@22.19.17)(happy-dom@20.14.5)(jsdom@29.1.1(@noble/hashes@2.0.1))(vite@7.3.6(@types/node@22.19.17)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.2)(tsx@4.23.15)(yaml@2.9.0))
+
+  packages/modules/crm:
+    devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../../contracts
+      '@endora-commerce/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
