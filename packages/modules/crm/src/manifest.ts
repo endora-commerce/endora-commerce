@@ -74,9 +74,16 @@ export const manifest = defineModuleManifest({
   //
   // `custom_fields` owns `customFieldValueService`, which validates and
   // projects an Opportunity's operator-defined fields (User Story 15).
+  //
+  // `audit_logs` owns `auditReferenceRegistry`, the registry this module pushes
+  // its "what is this audit row called" resolver into (User Story 14). The
+  // registry is ungated and its owner is non-deactivatable, so the declaration
+  // buys install order rather than a flip-time refusal — as the registry's four
+  // other contributors declare it.
   dependencies: [
     'admin_users',
     'assets_library',
+    'audit_logs',
     'auth',
     'catalog',
     'custom_fields',

@@ -33,3 +33,21 @@ here changes behaviour a released version had.
   button, and reports the whole edited bag on every change. Two further optional props:
   `fieldErrors` (a message per field key, shown at the field) and `language` (the language
   labels are shown in; `en` when omitted). A caller passing none of them sees no change.
+
+**CRM where the rest of the platform already is.**
+
+- **Two published ports.** `opportunityReadPort` (`OpportunityReadPort`: `findById`,
+  `findByDocument`, `listOpenForOrganization`, answering plain `OpportunityRecord` values under
+  the caller's tenant scope) and `opportunityTransitionPort` (`OpportunityTransitionPort`:
+  `applyStatus`, answering `applied`, `already_there`, `not_found`, `unknown_status`,
+  `not_permitted` or `vetoed` as a value). Both are gated: resolving either while `crm` is off
+  throws `ModuleDisabledError`. The two interfaces in `@endora-commerce/contracts` now carry
+  their `Container name:` lines; their shapes are unchanged.
+- **Recent activity names an opportunity.** The module contributes a resolver for
+  `crm_opportunity` to `auditReferenceRegistry` (title and `/crm/opportunities/:id`), and
+  `crm` now lists `audit_logs` in `dependencies`, as the registry's other contributors do.
+- **An "Open opportunities" panel on the organization screen**, contributed to the existing
+  `organization.detail.after` zone under `crm:read`, with a "New opportunity" link for a
+  holder of `crm:write`. `organizations` is unchanged.
+- **No demo data.** The manifest keeps `demo: false`; a demo pipeline needs rows of other
+  modules and is a step of the instance's demo composition, not of this module.

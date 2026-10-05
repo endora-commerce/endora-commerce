@@ -418,5 +418,16 @@
   "customFields.heading": "Custom fields",
   "customFields.value.yes": "Yes",
   "customFields.value.no": "No",
-  "customFields.loadFailed": "The custom fields could not be loaded."
+  "customFields.loadFailed": "The custom fields could not be loaded.",
+  "organizationPanel.title": "Open opportunities",
+  "organizationPanel.description": "The sales opportunities being worked with this organization.",
+  "organizationPanel.new": "New opportunity",
+  "organizationPanel.loading": "Loading opportunities…",
+  "organizationPanel.empty": "This organization has no open opportunity.",
+  "organizationPanel.error": "The opportunities could not be loaded.",
+  "organizationPanel.more": "Showing the {count} newest. Open the opportunity list to see them all.",
+  "organizationPanel.all": "All opportunities",
+  "organizationPanel.column.opportunity": "Opportunity",
+  "organizationPanel.column.status": "Status",
+  "organizationPanel.column.value": "Value"
 }

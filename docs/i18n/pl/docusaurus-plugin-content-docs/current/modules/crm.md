@@ -701,3 +701,84 @@ Zapis jest częścią wpisu audytowego samej szansy — osobnego wpisu nie ma.
 pól niestandardowych, a definicji jej pól nie można tworzyć, zmieniać ani usuwać
 (`409`). Nic nie jest usuwane: ponowne włączenie CRM przywraca definicje i
 wszystkie zapisane wartości.
+
+## Szanse sprzedażowe na ekranie organizacji
+
+Ekran organizacji kończy się panelem **Otwarte szanse sprzedażowe**: szanse
+prowadzone z tą organizacją, które nie zostały jeszcze wygrane ani przegrane, od
+najnowszej — każda z numerem i tytułem (odnośnik do szansy), statusem i
+wartością. **Nowa szansa** otwiera formularz tworzenia z wybraną już
+organizacją.
+
+- Panel widzi każdy, kto ma uprawnienie `crm:read`; **Nowa szansa** wymaga
+  `crm:write`.
+- Panel pokazuje dziesięć najnowszych szans, a gdy jest ich więcej, prowadzi do
+  listy szans.
+- Osoba ograniczona do wybranych organizacji widzi panel tylko na ekranach tych
+  organizacji — tak jak każdą inną listę szans.
+- Gdy CRM jest wyłączony, ekran organizacji nie pokazuje niczego z CRM — ani
+  panelu, ani nagłówka, ani żadnego zapytania.
+
+Ostatnia aktywność na pulpicie nazywa szansę jej tytułem i prowadzi do jej
+ekranu. Gdy CRM jest wyłączony albo gdy ktoś nie może zobaczyć danej szansy,
+wpis pozostaje, ale bez tytułu i bez odnośnika.
+
+## Odczyt i zmiana statusu szansy z innego modułu
+
+Dla programistów. Inny moduł albo nakładka wdrożenia pracuje z szansami przez
+dwa opublikowane porty — nigdy przez tabele ani klasy CRM. Oba typy eksportuje
+`@endora-commerce/contracts`.
+
+| Nazwa w kontenerze | Typ | Co robi |
+| --- | --- | --- |
+| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByDocument(kind, documentId)` i `listOpenForOrganization(organizationId)`. Każda zwraca zwykłe wartości `OpportunityRecord` — id, numer, tytuł, organizację, kod i rodzaj statusu, osobę przypisaną, wartość, walutę, daty — albo `null` / pustą listę. |
+| `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` przeprowadza szansę przez skonfigurowany przepływ, razem ze strażnikami i zdarzeniami, i zwraca wynik jako wartość. |
+
+```ts
+import type { OpportunityTransitionPort } from '@endora-commerce/contracts';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+
+const opportunities = lazyPort<OpportunityTransitionPort>(ctx, 'opportunityTransitionPort');
+
+const outcome = await opportunities.applyStatus({
+  opportunityId,
+  to: 'won',
+  actor: { kind: 'system' },
+  reason: 'Contract signed in the ERP',
+});
+if (!outcome.applied && outcome.reason !== 'already_there') {
+  // 'not_found' | 'unknown_status' | 'not_permitted' | 'vetoed', with `detail`
+}
+```
+
+- **Odmowa jest wartością, nie wyjątkiem.** `applied: true` niesie `from` i
+  `to`. `already_there` oznacza, że szansa jest już tam, gdzie miała być, i nic
+  nie zapisano. `not_found` obejmuje także szansę spoza organizacji
+  wywołującego. `not_permitted` oznacza, że przepływ nie ma takiego przejścia;
+  `vetoed` — że odmówił strażnik, a `detail` to jego własne zdanie.
+- **Wywołuj port po własnym zatwierdzeniu transakcji**, nigdy w jej trakcie:
+  port otwiera własną.
+- **Odczyty i zmiany działają w zakresie organizacji wywołującego.** Wywołujący
+  ograniczony do wybranych organizacji nie odczyta ani nie przesunie szansy
+  innej organizacji.
+- **Zadeklaruj zależność w manifeście.** Moduł, który nie może działać bez CRM,
+  wpisuje `crm` w `dependencies`. Moduł, który może, wpisuje go w
+  `nonBindingDependencies` z `kind: 'degrades-without'`, nazwą portu i zdaniem
+  `whenAbsent`, które operator przeczyta przed wyłączeniem CRM.
+- **Gdy CRM jest wyłączony, oba porty odmawiają**: pobranie któregokolwiek
+  rzuca `ModuleDisabledError` (HTTP `503 MODULE_DISABLED`). Nie otaczaj
+  wywołania gołym `catch` — moduł, który ma działać dalej, pyta najpierw
+  `effectiveState.isPresent('crm')`.
+
+Aby reagować na zmianę statusu, a nie ją wywoływać, subskrybuj zdarzenia albo
+zarejestruj strażnika — opisuje to sekcja o własnej logice przy zmianie statusu.
+
+## Dane demonstracyjne
+
+CRM nie dostarcza danych demonstracyjnych: `endora demo seed` nie tworzy żadnej
+szansy. Szansa zawsze należy do organizacji, a szansa demonstracyjna powiązana z
+zamówieniem wymaga także demonstracyjnego zamówienia — to wiersze innych
+modułów, których dane demonstracyjne modułu nie mogą tworzyć ani odczytywać.
+Demonstracyjny lejek jest więc krokiem kompozycji demo instancji, a nie tego
+modułu, i nie wchodzi w skład tego wydania. Domyślny przepływ statusów jest
+instalowany zawsze, więc tablica ma swoje kolumny od pierwszego uruchomienia.

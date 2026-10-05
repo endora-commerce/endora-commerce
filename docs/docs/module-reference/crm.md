@@ -31,6 +31,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | --- | --- | --- |
 | `admin_users` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `assets_library` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `audit_logs` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `auth` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `catalog` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `custom_fields` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |

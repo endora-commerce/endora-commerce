@@ -683,3 +683,84 @@ write is part of the opportunity's own audit entry — there is no separate one.
 screen and its field definitions cannot be created, changed or deleted (`409`).
 Nothing is removed: switching CRM back on restores the definitions and every
 stored value.
+
+## Opportunities on the organization's screen
+
+An organization's screen ends with an **Open opportunities** panel: the
+opportunities being worked with that organization that are not yet won or lost,
+newest first, each with its number and title (a link to the opportunity), its
+status and its value. **New opportunity** opens the create form with the
+organization already chosen.
+
+- The panel is shown to whoever holds `crm:read`; **New opportunity** needs
+  `crm:write`.
+- It lists the ten newest and, when there are more, links to the opportunity
+  list.
+- Somebody confined to certain organizations sees the panel only on those
+  organizations' screens, like every other opportunity list.
+- With CRM switched off the organization's screen shows nothing of it — no
+  panel, no heading, no request.
+
+The dashboard's recent activity names an opportunity by its title and links to
+its screen. With CRM switched off, and for somebody who may not see that
+opportunity, the entry stays and carries no title and no link.
+
+## Reading and moving an opportunity from another module
+
+For developers. Another module, or a deployment's overlay, works with
+opportunities through two published ports and never through CRM's tables or
+classes. Both types are exported by `@endora-commerce/contracts`.
+
+| Container name | Type | What it does |
+| --- | --- | --- |
+| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByDocument(kind, documentId)` and `listOpenForOrganization(organizationId)`. Each answers plain `OpportunityRecord` values — id, number, title, organization, status code and kind, assignee, value, currency, dates — or `null` / an empty list. |
+| `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` moves an opportunity through the configured workflow, guards and events included, and answers what happened as a value. |
+
+```ts
+import type { OpportunityTransitionPort } from '@endora-commerce/contracts';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+
+const opportunities = lazyPort<OpportunityTransitionPort>(ctx, 'opportunityTransitionPort');
+
+const outcome = await opportunities.applyStatus({
+  opportunityId,
+  to: 'won',
+  actor: { kind: 'system' },
+  reason: 'Contract signed in the ERP',
+});
+if (!outcome.applied && outcome.reason !== 'already_there') {
+  // 'not_found' | 'unknown_status' | 'not_permitted' | 'vetoed', with `detail`
+}
+```
+
+- **A refusal is a value, not an exception.** `applied: true` carries `from`
+  and `to`. `already_there` means the opportunity is where you wanted it and
+  nothing was written. `not_found` also covers an opportunity outside the
+  caller's organizations. `not_permitted` means the workflow has no such
+  transition; `vetoed` means a guard refused, and `detail` is the guard's own
+  sentence.
+- **Call it after your own commit**, never inside your transaction: the port
+  opens its own.
+- **Reads and moves run under the caller's tenant scope.** A caller confined to
+  some organizations cannot read or move an opportunity of another.
+- **Declare the edge in your manifest.** A module that cannot work without CRM
+  lists `crm` in `dependencies`. One that can lists it in
+  `nonBindingDependencies` with `kind: 'degrades-without'`, the port's name and
+  a `whenAbsent` sentence an operator will read before switching CRM off.
+- **With CRM switched off both ports fail closed**: resolving either throws
+  `ModuleDisabledError` (HTTP `503 MODULE_DISABLED`). Do not wrap the call in a
+  bare `catch` — a consumer that degrades asks
+  `effectiveState.isPresent('crm')` first.
+
+To react to a status change rather than cause one, subscribe to the events or
+register a guard, as *Adding your own logic to a status change* describes.
+
+## Demo data
+
+CRM ships no demo data: `endora demo seed` creates no opportunity. An
+opportunity always belongs to an organization, and a demo opportunity linked to
+an order needs a demo order as well — rows of other modules, which a module's
+own demo data may not create or read. A demo pipeline is therefore a step of
+the instance's demo composition rather than of this module, and is not part of
+this release. The default workflow is always installed, so a board has its
+columns from the first start.

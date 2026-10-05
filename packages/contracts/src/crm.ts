@@ -984,12 +984,9 @@ export interface OpportunityRecord {
 }
 
 /**
- * Reading Opportunities from another module. Owner: `crm`, under the container
- * name `opportunityReadPort`.
+ * Container name: `opportunityReadPort`. Owner: `crm`.
  *
- * **Not published yet** — the port marker line is added by the change that
- * registers the name (tasks.md, User Story 14), for the reason
- * {@link OpportunityTransitionGuardRegistryPort} gives.
+ * Reading Opportunities from another module.
  *
  * Reads run under the **caller's** ambient tenant context.
  *
@@ -1022,12 +1019,9 @@ export type OpportunityTransitionOutcome =
   | { applied: false; reason: OpportunityTransitionRefusal; from: string | null; detail: string };
 
 /**
- * Moving an Opportunity from another module. Owner: `crm`, under the container
- * name `opportunityTransitionPort`.
+ * Container name: `opportunityTransitionPort`. Owner: `crm`.
  *
- * **Not published yet** — the port marker line is added by the change that
- * registers the name (tasks.md, User Story 14), for the reason
- * {@link OpportunityTransitionGuardRegistryPort} gives.
+ * Moving an Opportunity from another module.
  *
  * **Call this after your own commit, never inside your transaction** — the
  * implementation obtains its own EntityManager. A refusal is a value, not an

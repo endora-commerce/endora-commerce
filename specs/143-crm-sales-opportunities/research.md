@@ -1891,6 +1891,74 @@ when it was measured, and what was done about it.
   refuses their create is named in the form's own error message. A holder of `crm:read`
   without `crm:write` gets a read-only list (`CustomFieldValuesList`, module-private: the kit
   panel has no read-only mode).
+- **N-G5 (2026-10-06, T139) — R-24's design cannot be built inside the module, and T139 is
+  STOPPED, not half-built.** R-24 and T139 ask for a module-own demo body
+  (`src/backend/demo/`) that seeds Opportunities "for the demo Organizations, a few linked to
+  demo Orders". Three facts from the tree: (a) **a module's demo body may write only its own
+  tables, read no other module's table and resolve no other module's port** — the doc block of
+  `ModuleDemoManifest` in `packages/contracts/src/modules.ts` (§2.1–§2.2), which adds that
+  "wiring that spans modules is a composition and belongs to the instance". An Opportunity is
+  CRM's row whose `organization_id` is a foreign key into `organizations`' demo row, which the
+  body may not look up. The tree's own precedent is exact: `organizations`' `demo/rows.ts`
+  says the demo buyer and the demo credit limit are "another module's row against this one's
+  and are therefore composition steps", and both live in
+  `packages/demo-composition/src/composition.ts` ("credit limit granted to the demo
+  organisation"). (b) **That file is not a row of `contracts/foreign-module-changes.md`.**
+  (c) **There is no demo Order anywhere**: `orders` declares no `demo`, and none of the ten
+  composition steps places one — so "one linked to a demo Order" needs a demo Order to be
+  invented first, through `orders`' placement path, which is a second unlisted foreign change
+  and a much larger one. What a compliant module-own body could seed — tags and Order-status
+  mappings — shows an empty board, which is the thing R-24 says "demonstrates nothing"; it was
+  not built, so the manifest still says `demo: false`, and the module page says in so many
+  words that CRM ships no demo data. **What unblocks it:** a §-row admitting
+  `packages/demo-composition/src/composition.ts` (+ its test and the recorded delta of
+  `backend/test/integration/demo/demo-shop.test.ts`), and a decision on whether the demo gains
+  an Order. With both, the step is: find the demo Organization by its tax id, create a dozen
+  Opportunities across the six seeded statuses through `CrmOpportunity` rows keyed on fixed
+  ids, write `order_to_opportunity` / `opportunity_to_order` mappings for the seeded Order
+  workflow (N-24's path: `qualified → paid`, `proposal → processing`, `negotiation →
+  shipment_ready`, `won → completed`), and link one Opportunity to the demo Order; `withdraw`
+  deletes by those ids. The owner's standing position (demo data is optional and opt-in) is
+  met either way — `endora demo seed` is the opt-in.
+- **N-G6 (2026-10-06, T137) — the two ports, and what the contract leaves open.** Registered
+  with `ctx.di.providePort` in one delimited section of `src/backend/index.ts` (N-6), and the
+  two `Container name:` marker lines N-5 withheld are now in `packages/contracts/src/crm.ts`
+  — `check:port-shape` and `check:port-dependencies` are green with them.
+  (a) **`findByDocument` is parent-first**: the link row is read only to learn which
+  Opportunity to ask for, and the Opportunity is then read through the scoped EntityManager,
+  so a document linked to an Opportunity the caller may not see answers `null` (N-15).
+  (b) **`not_found` covers "outside the caller's scope"**, as 404 does on the HTTP API.
+  (c) **A malformed id is `null` / `not_found`**, never a database error. (d) **`cause`** is
+  `manual` for an `admin` actor and `system` for a `system` one; the port cannot be asked for
+  `order_status`, which is the reverse mapping's own. (e) **A concurrent move is thrown**, not
+  returned: `CRM_TRANSITION_CONFLICT` is not one of the contract's outcomes, and the `catch`
+  tolerates exactly `CRM_TRANSITION_VETOED` after `rethrowIfModuleDisabled`. (f) The callers
+  of a port carry their own tenant context; with none, the tenant guard refuses the read
+  (`MissingTenantContextError`) — the tests enter one with `resolveTenantContext`.
+  (g) **The audit reference** is `referenceType: 'crm_opportunity'` (the `objectType` every
+  CRM Command records), label = the title, url `/crm/opportunities/:id`, read through the
+  scoped EntityManager so a reader confined to other Organizations gets no title. **The edge
+  is `dependencies: ['audit_logs']`, not the `contributes-to` entry T137 and
+  `contracts/events-and-ports.md` §5 name**: `check:port-dependencies` refuses a
+  `contributes-to` edge to a registry whose absent-contributor policy is not listed in its
+  `CONTRIBUTION_POLICY_STATED` ledger, and offers "declare the edge in `dependencies`" as the
+  other answer — which is what the registry's four existing contributors (`catalog`,
+  `customer_accounts`, `inventory`, `price_lists`) do, costs an operator nothing
+  (`audit_logs` cannot be switched off) and edits no check ledger. `backend/test/integration/audit_logs/reference-contributions.test.ts`
+  asserts the registry's contributors as an exact set and gained `crm` — a ledger of N-25's
+  kind, in a commit of its own, now a row of `contracts/foreign-module-changes.md` §E.
+  **N-22 still stands**: `audit_logs`' action-label lookup is a separate static chain and was
+  not touched.
+- **N-G7 (2026-10-06, T138) — the Organization panel.** `organization.detail.after` exists
+  and is mounted once at the end of `OrganizationDetail.tsx`; a contribution is one
+  `zoneComponent(zone, () => import(…), { weight, requiredPermission })` in the module's
+  `contributions.zones`, exactly as `carts` declares its own, and the renderer applies both
+  presence axes and the permission before the chunk is fetched — nothing in `organizations`
+  changed. Weight 600 (after `carts`' 400). The panel lists the ten newest **open**
+  Opportunities from the existing list endpoint (`state=open&organizationId=…&limit=10`) —
+  no new route — and *New opportunity* is shown to a holder of `crm:write` only, because the
+  create route is gated on it. The list screen does not read filters from its URL, so "see
+  them all" links to the unfiltered list.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

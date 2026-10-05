@@ -238,6 +238,8 @@ describe('crm attachments', () => {
           // `sales_channels` owns this one and is not composed here; the
           // module's other contribution hook pushes into it.
           salesChannelAttributionRegistry: { register: () => undefined, owners: () => [] },
+          // `audit_logs` owns this one, the module's third boot-hook push.
+          auditReferenceRegistry: { register: () => undefined, owners: () => [], resolve: async () => new Map() },
         });
         const composed = composeModules([{ id: 'crm', version: '1.0.0', registerModule }], {
           container,

@@ -418,5 +418,16 @@
   "customFields.heading": "Pola niestandardowe",
   "customFields.value.yes": "Tak",
   "customFields.value.no": "Nie",
-  "customFields.loadFailed": "Nie udało się wczytać pól niestandardowych."
+  "customFields.loadFailed": "Nie udało się wczytać pól niestandardowych.",
+  "organizationPanel.title": "Otwarte szanse sprzedażowe",
+  "organizationPanel.description": "Szanse sprzedażowe prowadzone z tą organizacją.",
+  "organizationPanel.new": "Nowa szansa",
+  "organizationPanel.loading": "Wczytywanie szans…",
+  "organizationPanel.empty": "Ta organizacja nie ma otwartych szans sprzedażowych.",
+  "organizationPanel.error": "Nie udało się wczytać szans sprzedażowych.",
+  "organizationPanel.more": "Widocznych jest {count} najnowszych. Otwórz listę szans, aby zobaczyć wszystkie.",
+  "organizationPanel.all": "Wszystkie szanse",
+  "organizationPanel.column.opportunity": "Szansa",
+  "organizationPanel.column.status": "Status",
+  "organizationPanel.column.value": "Wartość"
 }
