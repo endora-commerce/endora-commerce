@@ -209,3 +209,7 @@ export { AuditLogService } from '../kernel/audit/audit-log-service.js';
 // --- tenancy: establishing and forking a context --------------------------
 export { forkScopedEm } from '../tenancy/scoped-em.js';
 export { resolveTenantContext, systemTenantContext } from '../tenancy/resolve-tenant-context.js';
+// The admin arm's degrade when a module behind the scope port is absent, for a
+// root that writes its own actor → context mapping — the test harness does — so
+// that root runs the platform's `catch` rather than a copy of it.
+export { adminScopeOrUnresolved } from '../kernel/actor-tenant-context.js';

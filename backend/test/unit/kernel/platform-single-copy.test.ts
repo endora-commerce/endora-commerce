@@ -330,7 +330,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
       // it and the comparison is real. `backend/src/http/` held no such barrel;
       // T119b took its last two files and the directory went with them. The
       // measured consequence: `kernel` fell from 18 shims to 12 and its shared
-      // count did not move, which is why the total below is still 50.
+      // count did not move, which is why T119c left the total below where it was.
       'kernel: SalesChannel',
       // Harmless of the six — a pure function over the `ModuleContext` the host
       // passes in — and listed so the set is the whole one rather than the
@@ -348,7 +348,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
   // than the assertion relaxed: it is the whole point of this file that the
   // count is exact, and a `toBeGreaterThan` here would make the next real
   // duplication invisible.
-  it('shares 50 values across the five published subpaths, which is every one still spelled twice', () => {
+  it('shares 51 values across the five published subpaths, which is every one still spelled twice', () => {
     // Not a target and not a floor somebody chose: it opened at **57**, the
     // number the superseded `host-package-copy.test.ts` measured as *distinct*
     // over this same population, and it is here so that the inversion is visible
@@ -380,6 +380,11 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     // it until that shim goes too. `./http` fell to zero at T119b because it had
     // no such barrel; `./kernel` will fall when it does.
     //
+    // **50 -> 51 is the other event: a barrel moved.** `./kernel` gained
+    // `scopeRequestToActor` — how a route gate tells the request scope which
+    // actor it accepted — and the application's `src/kernel/index.ts` forwards
+    // the whole barrel, so the new name is comparable from its first day.
+    //
     // It is summed over the **five published** subpaths and not over every
     // comparison, which is what preserves that provenance: no host-internal
     // subpath was in the superseded measurement at all, so folding one in would
@@ -389,7 +394,7 @@ describe('the platform is one copy (feature 080, the relocation)', () => {
     const total = comparisons
       .filter((entry) => published.has(entry.subpath))
       .reduce((sum, entry) => sum + entry.shared.length, 0);
-    expect(total).toBe(50);
+    expect(total).toBe(51);
   });
 
   /**

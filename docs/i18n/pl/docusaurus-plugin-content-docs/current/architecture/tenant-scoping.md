@@ -39,6 +39,25 @@ danych — izolacja działa więc nawet wtedy, gdy usługa zapomni o jawnym filt
   a zamiennik jest odrzucany — żądanie kończy się błędem — gdy na żądanie klienta lub klucza API
   powiązanego z organizacją odpowiada kontekstem `system` albo `all`, a na żądanie administratora
   kontekstem `system`.
+
+  **O tym, czyje jest żądanie, decyduje trasa, a nie to, jakie ciasteczka są obecne.** Jedna
+  przeglądarka może mieć jednocześnie sesję administratora i sesję klienta — operator zalogowany
+  także w sklepie oraz każde żądanie wykonywane podczas impersonacji. Kontekst jest otwierany na
+  podstawie bieżącego aktora, którym jest sesja klienta, o ile jest obecna, a rozstrzyga go
+  zabezpieczenie samej trasy:
+  - trasa za `requireAdmin` działa jako administrator i w zakresie administratora, a wykonane
+    przez nią polecenie (Command) zapisuje administratora;
+  - trasa za `requireCustomer` działa jako klient i w zakresie klienta — podczas impersonacji
+    z zapisanym obok klienta administratorem, który go impersonuje;
+  - trasa bez żadnego z nich zachowuje kontekst bieżącego aktora;
+  - zabezpieczenie odrzuca żądanie, które niesie wyłącznie tę drugą sesję. Nigdy nie przechodzi
+    na zakres tamtej sesji.
+
+  Zabezpieczenie trasy jest jedynym źródłem obu odpowiedzi. Gdy zaakceptuje aktora, wywołuje
+  `scopeRequestToActor(request)` (`@endora-commerce/platform/kernel`), a platforma wyznacza
+  kontekst żądania ponownie, tym samym mapowaniem. Moduł publikujący własne zabezpieczenie, które
+  wybiera między sesjami, wywołuje tę funkcję tak samo; nie przyjmuje ona kontekstu, więc nie da
+  się nią żadnego wybrać.
 - **Globalne filtry MikroORM** (`org`, `customerAccount`) odczytują bieżący kontekst bezpośrednio
   w chwili wykonania zapytania i dodają warunek ograniczający do tenanta. Ponieważ odczytują
   kontekst przy każdym zapytaniu (a nie przy każdym forku EntityManagera), działają też w forkach

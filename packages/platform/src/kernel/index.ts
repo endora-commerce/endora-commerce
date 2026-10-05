@@ -127,6 +127,15 @@ export { type PlatformLogger } from './logging.js';
 export { enterSystemScope } from './scope.js';
 
 /**
+ * How a route gate tells the request scope which actor it accepted. A module
+ * that publishes a gate deciding *who* a request runs as — `auth` does — calls
+ * it after putting that actor on the request, so authorization and tenant scope
+ * cannot name two different actors. It derives through the composition's own
+ * mapping and takes no context, so it is not a way to choose one.
+ */
+export { scopeRequestToActor } from './request-scope-hook.js';
+
+/**
  * The audit seam (D-160.10). `AuditLogService` is the host's implementation and
  * is deliberately **not** published: Principle XIII routes a domain write
  * through `CommandBus.run`, which makes the bus the audit log's caller, and

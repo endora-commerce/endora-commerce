@@ -2159,6 +2159,8 @@ export function hostNpmrc(registry: string | null, scope: string): string {
 /** The two customer-facing surfaces A17 reads orders through. */
 export const CUSTOMER_ORDERS_PATH = '/api/v1/orders';
 export const EXTERNAL_ORDERS_PATH = '/api/v1/external/orders';
+/** The admin surface it reads them through when one browser holds two sessions. */
+export const ADMIN_ORDERS_PATH = '/api/v1/admin/orders';
 
 /** One actor's reads over the two organizations' orders. */
 export interface ActorOrderReads {
@@ -2192,6 +2194,86 @@ export interface ActorScopeObservation {
     readonly adminUserId: string;
     readonly entries: readonly { readonly action: string; readonly actorAdminUserId: string | null }[];
   } | null;
+  /**
+   * The same administrator and the same customer, asked with **both** session
+   * cookies on every request — one browser signed in to the Admin UI and to
+   * the storefront. `null` when the run did not get that far.
+   */
+  readonly twoSessions: TwoSessionsObservation | null;
+}
+
+/** What A17 read with an admin session and a customer session on one request. */
+export interface TwoSessionsObservation {
+  /** The organization the customer does not belong to. */
+  readonly otherOrganizationId: string;
+  /** The admin order list. */
+  readonly adminRoute: {
+    readonly listStatus: number | null;
+    readonly listedOrganizations: readonly string[];
+  };
+  /** The buyer order routes. */
+  readonly customerRoute: ActorOrderReads;
+  /** The administrator detaches the organization re-parented above. */
+  readonly reparent: { readonly status: number | null; readonly body: string };
+  /** The audit rows that second re-parent wrote about the organization. */
+  readonly auditEntries: readonly {
+    readonly action: string;
+    readonly actorAdminUserId: string | null;
+  }[];
+}
+
+/**
+ * The readings taken with two sessions on one request: the route decides which
+ * of them scopes it.
+ */
+function twoSessionsFailures(
+  own: string,
+  adminUserId: string,
+  observed: TwoSessionsObservation,
+): string[] {
+  const who = 'an administrator whose browser also holds a customer session';
+  const failures: string[] = [];
+  const { adminRoute } = observed;
+  if (adminRoute.listStatus !== 200) {
+    failures.push(
+      `${who} listed orders on the admin route and was answered ${String(adminRoute.listStatus)}`,
+    );
+  } else if (
+    !adminRoute.listedOrganizations.includes(own) ||
+    !adminRoute.listedOrganizations.includes(observed.otherOrganizationId)
+  ) {
+    failures.push(
+      `${who} listed orders on the admin route and the list does not hold both organizations' ` +
+        'orders, so the request was not scoped as the administrator',
+    );
+  }
+  failures.push(
+    ...orderReadFailures(
+      'a customer whose browser also holds an admin session',
+      own,
+      observed.customerRoute,
+    ),
+  );
+  if (observed.reparent.status !== 200) {
+    failures.push(
+      `${who} re-parented an organization and was answered ` +
+        `${String(observed.reparent.status)}: ${observed.reparent.body.slice(0, 200)}`,
+    );
+  } else {
+    const unattributed = observed.auditEntries.filter(
+      (entry) => entry.actorAdminUserId !== adminUserId,
+    );
+    if (observed.auditEntries.length === 0) {
+      failures.push(`${who} re-parented an organization and it wrote no audit entry about it`);
+    } else if (unattributed.length > 0) {
+      failures.push(
+        `${who} re-parented an organization and ` +
+          `${unattributed.map((entry) => `\`${entry.action}\``).join(', ')} does not record that ` +
+          'administrator as the actor',
+      );
+    }
+  }
+  return failures;
 }
 
 function orderReadFailures(who: string, own: string, reads: ActorOrderReads): string[] {
@@ -2244,6 +2326,14 @@ function orderReadFailures(who: string, own: string, reads: ActorOrderReads): st
  *    which the handler allows only to a platform-wide admin scope;
  *  - the Command that re-parent ran recorded that administrator as its actor.
  *
+ * And the same again with **two sessions on one request** — an admin session
+ * and a customer session, which is one browser signed in to the Admin UI and
+ * the storefront, and every request made while impersonating. The route
+ * decides which session scopes the request: the admin order list holds both
+ * organizations' orders, the buyer routes hold the customer's own and refuse
+ * the other's, and a re-parent run with both cookies succeeds and records the
+ * administrator.
+ *
  * The own-organization read is asked for in each case so a refusal cannot pass
  * for confinement: an actor that can read nothing is not scoped, it is broken.
  */
@@ -2263,12 +2353,13 @@ export function evaluateA17(observed: ActorScopeObservation): AssertionResult {
     observed.customer === null ||
     observed.apiKey === null ||
     observed.reparent === null ||
-    observed.audit === null
+    observed.audit === null ||
+    observed.twoSessions === null
   ) {
     return {
       id: 'A17',
       state: 'unmeasured',
-      detail: 'the instance served no request for this run to ask the four readings with',
+      detail: 'the instance served no request for this run to ask its readings with',
     };
   }
   const failures = [
@@ -2292,6 +2383,7 @@ export function evaluateA17(observed: ActorScopeObservation): AssertionResult {
       );
     }
   }
+  failures.push(...twoSessionsFailures(own, observed.audit.adminUserId, observed.twoSessions));
   if (failures.length > 0) {
     return { id: 'A17', state: 'fail', detail: failures.join('; ') };
   }
@@ -2303,6 +2395,10 @@ export function evaluateA17(observed: ActorScopeObservation): AssertionResult {
       "organization's order, are refused the other's by id and list only their own; an " +
       'administrator holding the platform role re-parented an organization, and ' +
       `${observed.audit.entries.map((entry) => `\`${entry.action}\``).join(', ')} names that ` +
-      'administrator as its actor',
+      'administrator as its actor; and an administrator whose browser also holds a customer ' +
+      "session lists both organizations' orders on the admin route, is confined to the " +
+      "customer's on the buyer routes, and re-parented an organization with " +
+      `${observed.twoSessions.auditEntries.map((entry) => `\`${entry.action}\``).join(', ')} ` +
+      'naming that administrator',
   };
 }

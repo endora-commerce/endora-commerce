@@ -162,15 +162,55 @@ export class OrgWriteOutOfScopeError extends Error {
 }
 
 /**
+ * The tenant context of **one request**, held so that it can be derived again.
+ *
+ * Every other execution carries its context by value: a worker job, a CLI
+ * command and an escape-hatch widening each know who they run as before they
+ * start. A request does not. Its context is opened in `onRequest`, from the
+ * actor the session cookies resolve to, and the route's own gate — which runs
+ * later, as a `preHandler` — is what decides whose request this is. A browser
+ * may hold an admin session and a customer session at once, and the gate is the
+ * first thing that knows which of the two the route accepts.
+ *
+ * The store cannot be re-entered from there: a gate is an `async` hook, and an
+ * `AsyncLocalStorage` frame opened inside one does not reach the handler (see
+ * {@link enterTenantContext}). So the request's frame holds this cell instead
+ * of the context itself, and {@link getTenantContext} reads through it.
+ *
+ * **It is not a setter for tenancy.** Nothing outside `kernel/` can reach a
+ * cell — the class is not on the `./tenancy` barrel — and the one writer,
+ * `kernel/request-scope-hook.ts`, only ever stores what the composition's own
+ * actor → context mapping answered for the request's current actor. An
+ * escape-hatch widening inside a request is still its own nested frame, by
+ * value, and is untouched by a rebind of the request around it.
+ */
+export class RequestTenantContextCell {
+  constructor(public current: TenantContext) {}
+}
+
+/**
  * The store is `TenantContext | undefined` rather than `TenantContext` so that
  * `runWithoutTenantContext` can express "no context" as a value it *runs* with
- * — see the note on that function for why it may not use `exit()`.
+ * — see the note on that function for why it may not use `exit()`. A request's
+ * frame holds a {@link RequestTenantContextCell} in its place.
  */
-const storage = new AsyncLocalStorage<TenantContext | undefined>();
+const storage = new AsyncLocalStorage<TenantContext | RequestTenantContextCell | undefined>();
 
 /** The ambient context for the current async execution, or `undefined` if none is set. */
 export function getTenantContext(): TenantContext | undefined {
-  return storage.getStore();
+  const store = storage.getStore();
+  return store instanceof RequestTenantContextCell ? store.current : store;
+}
+
+/**
+ * Run `fn` with `cell` as the ambient context holder for its entire async
+ * subtree. The request seam's form of {@link runWithTenantContext}.
+ */
+export function runWithRequestTenantContext<T>(
+  cell: RequestTenantContextCell,
+  fn: () => Promise<T>,
+): Promise<T> {
+  return storage.run(cell, fn);
 }
 
 /** Run `fn` with `ctx` as the ambient context for its entire async subtree. */

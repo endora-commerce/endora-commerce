@@ -1,7 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { asFunction } from 'awilix';
 import type { RequestMeta, ScopeEntryPointKind } from '@endora-commerce/contracts';
-import { runWithTenantContext, type TenantContext } from '../tenancy/tenant-context.js';
+import {
+  runWithRequestTenantContext,
+  runWithTenantContext,
+  type RequestTenantContextCell,
+  type TenantContext,
+} from '../tenancy/tenant-context.js';
 import { systemTenantContext } from '../tenancy/resolve-tenant-context.js';
 import { recordEscapeHatchAudit } from '../tenancy/escape-hatch.js';
 import type { ResolvedChannel } from './ports/sales-channel.js';
@@ -129,6 +134,16 @@ export interface EnterPlatformScopeOptions {
   readonly entryPoint?: ScopeEntryPointKind | undefined;
   /** Root to branch from. Defaults to the process-wide root container. */
   readonly container?: KernelContainer | undefined;
+  /**
+   * The request's tenant-context cell, when this scope is a request's.
+   *
+   * HTTP only. With it the ambient store holds the cell rather than `tenant`,
+   * so the request-scope hook can derive the context again once the route's
+   * gate has settled which actor the request runs as, and `scope.tenant`
+   * follows. It must have been created over the same `tenant` this scope is
+   * entered with.
+   */
+  readonly requestTenantCell?: RequestTenantContextCell | undefined;
 }
 
 /**
@@ -179,6 +194,7 @@ function createPlatformScope(
 ): PlatformScope {
   let channel = opts.channel ?? null;
   const requestMeta = opts.requestMeta ?? null;
+  const tenantCell = opts.requestTenantCell;
 
   /**
    * The awilix child, created on **first resolution** rather than on entry.
@@ -243,7 +259,9 @@ function createPlatformScope(
     get cradle(): KernelCradle {
       return resolutionScope().cradle;
     },
-    tenant,
+    get tenant(): TenantContext {
+      return tenantCell?.current ?? tenant;
+    },
     entryPoint: opts.entryPoint ?? 'http',
     get channel(): ResolvedChannel | null {
       return channel;
@@ -282,15 +300,17 @@ export async function enterPlatformScope<T>(
   // The ALS run is the OUTERMOST wrapper of the work — see rule 2 above. The
   // scope store nests inside the tenant store and is entered synchronously, so
   // both reach the handler through the same continuation chain.
-  return runWithTenantContext(tenant, async () =>
+  const work = async (): Promise<T> =>
     scopeStorage.run(scope, async () => {
       try {
         return await run(scope);
       } finally {
         await scope.dispose();
       }
-    }),
-  );
+    });
+  return opts.requestTenantCell
+    ? runWithRequestTenantContext(opts.requestTenantCell, work)
+    : runWithTenantContext(tenant, work);
 }
 
 /**

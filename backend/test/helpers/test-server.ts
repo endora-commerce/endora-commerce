@@ -14,7 +14,6 @@ import { buildServer, type ModulePlugin } from '@endora-commerce/platform/compos
 import type { ApiInterceptorRegistry } from '@endora-commerce/platform/composition';
 import { publishStateChanged, registryCache } from '@endora-commerce/platform/composition';
 import { effectiveState } from '@endora-commerce/platform/kernel';
-import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { type TenantContext } from '@endora-commerce/platform/tenancy';
 // Feature 072 — the generated module list, composed in one pass exactly as
 // `src/composition.ts` composes it (D-45). Issue #52 — and contributed into
@@ -34,6 +33,7 @@ import { MODULES } from '../../src/composition.generated.js';
 // `composeTestServer`, never through `composeModules`.
 import {
   platformLogger,
+  adminScopeOrUnresolved,
   resolveTenantContext,
   systemTenantContext,
   type DecorationRecord,
@@ -1307,23 +1307,20 @@ export async function setupBackendServer(
       // copy of it.
       //
       // And the same degrade the platform's mapping makes when an owner behind
-      // the port is absent (`kernel/actor-tenant-context.ts`, `adminScopeOrNone`,
-      // whose `unresolvedAdminScope` this spells out): no organization, and
-      // the refusal deferred to the first tenant-scoped read rather than raised
-      // here. This hook runs before every route, so refusing here would take
-      // down the module-presence projection and the palette registry in exactly
-      // the off-state the off-state tests put the platform in. It is the
-      // confined end, so nothing widens; any other failure still fails the
-      // request.
-      let scope: Parameters<typeof resolveTenantContext>[1];
-      try {
-        scope = await (
+      // the port is absent — the platform's own function, not a copy of its
+      // `catch` (`kernel/actor-tenant-context.ts`, `adminScopeOrUnresolved`):
+      // no organization, and the refusal deferred to the first tenant-scoped
+      // read rather than raised here. This hook runs before every route, so
+      // refusing here would take down the module-presence projection and the
+      // palette registry in exactly the off-state the off-state tests put the
+      // platform in. It is the confined end, so nothing widens; any other
+      // failure still fails the request. The cradle read is inside the
+      // callback because a gated port refuses at resolution.
+      const scope = await adminScopeOrUnresolved(() =>
+        (
           container.cradle as never as { adminTenantScopePort: AdminTenantScopePort }
-        ).adminTenantScopePort.resolveForAdmin(actor.adminUserId);
-      } catch (error) {
-        if (!(error instanceof ModuleDisabledError)) throw error;
-        scope = { allowAll: false, allowedOrganizationIds: [], unresolved: error };
-      }
+        ).adminTenantScopePort.resolveForAdmin(actor.adminUserId),
+      );
       return resolveTenantContext({ kind: 'admin', adminUserId: actor.adminUserId }, scope);
     }
     // Feature 062 — mirror production: a bound api key derives single-org
