@@ -2171,6 +2171,17 @@ when it was measured, and what was done about it.
   in both directions with **no line in CRM about whether `webhooks` is installed** — which is
   the property the file exists to hold. Not a row of §I; in a commit of its own and listed in
   `contracts/foreign-module-changes.md` §E.
+- **N-H1 (2026-10-06, after the merge of the admin wave into the second backend wave) — the
+  merged tree, and N-22 closed.** The merge of `43df36d42` conflicted in six files. Measured
+  after `pnpm run build:packages`: `typecheck` clean; `composer:check` and `manifests:check`
+  up to date; the OpenAPI baseline **already matched** (git had merged the two sides' paths,
+  as N-D1 found the time before). The two Polish translation-cache entries were rewritten
+  from the materialised pages, not merged. The module page keeps the admin wave's order —
+  features, then extension, activation, permissions, settings — with this wave's five sections
+  after *Attachments*. **N-22 / N-E12 applied, with the owner's approval:** one line in
+  `audit_logs`' `moduleIdForAuditAction` sends the `crm.` prefix to CRM's bundle, so the
+  platform-wide audit log shows the sentences the Opportunity's own history shows. In a commit
+  of its own; `contracts/foreign-module-changes.md` §K.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

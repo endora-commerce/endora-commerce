@@ -182,6 +182,19 @@ nothing, so both screens are identical without CRM — proven by the two `after-
 The Quote Request zone is added only once User Story 8 has landed. Left behind if CRM is
 removed: two zones nobody contributes to, in the shape of `organization.detail.after`.
 
+## K. `audit_logs` — one prefix, so the audit viewer labels CRM's actions (US11)
+
+| # | File | Change |
+| --- | --- | --- |
+| K1 | `packages/modules/audit_logs/src/backend/routes.admin.ts` | one line in `moduleIdForAuditAction`: `if (action.startsWith('crm.')) return 'crm';` |
+| K2 | `packages/modules/audit_logs/src/backend/routes.admin.test.ts` | the prefix cases, CRM's among three neighbours, and the fall-through to `core` |
+
+Approved by the owner on 2026-10-06 (research N-22, N-E12, N-H1). The function is a hard-coded
+prefix chain, not a registry: the line is the shape every other module's prefix has there.
+`audit_logs` gains no edge to `crm` and imports nothing of it; with CRM off or absent the line
+is never reached by a row, and a row written before CRM was removed falls back to its raw
+action code, as any unlabelled action does. Left behind if CRM is removed: that one line.
+
 ## F. Explicitly **not** changed
 
 - No column, table or migration of another module.

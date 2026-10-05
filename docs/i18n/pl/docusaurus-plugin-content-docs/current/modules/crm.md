@@ -703,9 +703,8 @@ Trzy rzeczy, o których warto wiedzieć:
   je spowodowała — powiązanie, status zamówienia.
 - Historia sięga 500 wpisów wstecz.
 
-Na ekranie **Dziennik audytu** całej platformy te same wpisy są pokazywane pod
-kodami akcji (`crm.opportunity.transition`), a nie jako zdania: ten ekran nie
-czyta jeszcze etykiet tego modułu.
+Na ekranie **Dziennik audytu** całej platformy te same wpisy są pokazywane
+wśród wszystkich pozostałych, jako te same zdania.
 
 ## Odwołania do produktów i zamówień
 

@@ -683,9 +683,8 @@ Three things to know:
   a link, an order's status — is.
 - The history reaches back 500 entries.
 
-On the platform-wide **Audit log** screen the same entries appear under their
-action codes (`crm.opportunity.transition`), not as sentences: that screen does
-not yet read this module's labels.
+On the platform-wide **Audit log** screen the same entries appear among
+everybody else's, as the same sentences.
 
 ## References to products and orders
 
