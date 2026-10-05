@@ -63,7 +63,7 @@ export default async function HomePage(): Promise<ReactNode> {
     getCategoryTree(ctx).catch(() => [] as Awaited<ReturnType<typeof getCategoryTree>>),
     listProducts({ limit: 4 }, ctx).catch(() => ({
       data: [],
-      pagination: { limit: 4, nextCursor: null, hasMore: false },
+      pagination: { limit: 4, cursor: null, hasMore: false },
     })),
   ]);
 

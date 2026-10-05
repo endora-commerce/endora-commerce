@@ -1,6 +1,7 @@
 import type {
   CategoryNode,
   FilterDefinition,
+  Pagination,
   ProductDetail,
   ProductListCapabilities,
   ProductListSort,
@@ -23,11 +24,14 @@ import { apiGet, apiGetForViewer, type RequestContext } from './client';
 
 export interface ListProductsResponse {
   data: ProductSummary[];
-  pagination: {
-    limit: number;
-    nextCursor: string | null;
-    hasMore: boolean;
-  };
+  /**
+   * The published contract's type and not a local copy of it. This used to be
+   * declared by hand with a `nextCursor` the API has never sent — the field is
+   * `cursor` — so every reader was handed `undefined`: no listing offered a
+   * second page and the sitemap asked for the first page until it gave up.
+   * Deriving it is what turns the next such drift into a compile error.
+   */
+  pagination: Pagination;
   /**
    * Feature 086 — what this page may offer this viewer. Absent from an older
    * backend, which is why the toolbar treats `undefined` as "no price

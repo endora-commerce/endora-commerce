@@ -62,6 +62,16 @@ type Ctx = Awaited<ReturnType<typeof getServerContext>>['ctx'];
 /** How many product URLs one sitemap emits. Below Google's 50 000 ceiling. */
 const PRODUCT_URL_LIMIT = 5000;
 
+/** How many products one request asks for. */
+const PRODUCT_PAGE_SIZE = 100;
+
+/**
+ * How many pages the product walk asks for at most — twice what full pages
+ * need to reach `PRODUCT_URL_LIMIT`, so short and empty pages are tolerated
+ * and the walk still ends without being told to.
+ */
+const PRODUCT_PAGE_LIMIT = (2 * PRODUCT_URL_LIMIT) / PRODUCT_PAGE_SIZE;
+
 export const dynamic = 'force-dynamic';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -98,20 +108,54 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return entries;
 }
 
+/**
+ * The products of this channel, one URL each.
+ *
+ * A walk over a remote, cursor-paginated list, and **bounded by construction**:
+ * the `for` below cannot run more than `PRODUCT_PAGE_LIMIT` times whatever the
+ * API answers. It used to be a `while` whose only exits were "the API said
+ * stop" and "enough URLs collected", reading a pagination field the API never
+ * sends — so the cursor never advanced, and a first page that came back empty
+ * while reporting more never collected a URL either. That loop had no exit, and
+ * because the answer is served from the data cache it did not yield to I/O: one
+ * request for `/sitemap.xml` held the whole process, and every other request
+ * with it, until somebody restarted it.
+ *
+ * The walk ends when there is nothing further to ask for (`hasMore` false or no
+ * cursor), when the API hands back a cursor already asked with (asking again
+ * can only return what it returned before), when enough URLs are collected, or
+ * at the page ceiling.
+ *
+ * **An empty page alone does not end it.** The list endpoint applies
+ * sales-channel membership and its attribute filters to a page it has already
+ * cut, so a page whose rows all belong to another channel is empty, reports
+ * more, and carries a cursor that does advance; stopping there would drop
+ * every product behind it. The page ceiling is what bounds a run of those.
+ *
+ * URLs are collected into a set: one product is advertised once, whatever the
+ * pages overlap by.
+ */
 async function productUrls(ctx: Ctx): Promise<string[]> {
+  const urls = new Set<string>();
   try {
-    const urls: string[] = [];
+    const asked = new Set<string>();
     let cursor: string | undefined;
-    while (urls.length < PRODUCT_URL_LIMIT) {
-      const page = await listProducts({ limit: 100, ...(cursor ? { cursor } : {}) }, ctx);
-      for (const product of page.data) urls.push(absoluteUrl(`/p/${product.slug}`));
-      if (!page.pagination.hasMore || page.pagination.nextCursor === null) break;
-      cursor = page.pagination.nextCursor;
+    for (let pages = 0; pages < PRODUCT_PAGE_LIMIT && urls.size < PRODUCT_URL_LIMIT; pages += 1) {
+      const page = await listProducts(
+        { limit: PRODUCT_PAGE_SIZE, ...(cursor ? { cursor } : {}) },
+        ctx,
+      );
+      for (const product of page.data) urls.add(absoluteUrl(`/p/${product.slug}`));
+      const next = page.pagination.cursor;
+      if (!page.pagination.hasMore || !next || asked.has(next)) break;
+      asked.add(next);
+      cursor = next;
     }
-    return urls.slice(0, PRODUCT_URL_LIMIT);
   } catch {
-    return [];
+    // Short rather than a 500, and short rather than empty: the pages already
+    // walked are real URLs, and a later page failing does not make them less so.
   }
+  return [...urls].slice(0, PRODUCT_URL_LIMIT);
 }
 
 async function categoryUrls(ctx: Ctx): Promise<string[]> {

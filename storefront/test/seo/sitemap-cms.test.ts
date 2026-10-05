@@ -56,7 +56,10 @@ async function sitemapUrls(): Promise<string[]> {
 describe('the sitemap tells crawlers the CMS pages exist', () => {
   beforeEach(() => {
     process.env['NEXT_PUBLIC_SITE_URL'] = ORIGIN;
-    listProducts.mockResolvedValue({ data: [], pagination: { hasMore: false, nextCursor: null } });
+    listProducts.mockResolvedValue({
+      data: [],
+      pagination: { cursor: null, hasMore: false, limit: 100 },
+    });
     getCategoryTree.mockResolvedValue([]);
     getBlogIndex.mockResolvedValue(null);
     getCmsPageIndex.mockResolvedValue({

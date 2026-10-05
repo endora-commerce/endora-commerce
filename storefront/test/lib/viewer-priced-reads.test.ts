@@ -72,7 +72,7 @@ const DISPLAY_MODE_BODY = { data: { displayMode: 'net_only' } };
 
 const LISTING_BODY = {
   data: [],
-  pagination: { limit: 4, nextCursor: null, hasMore: false },
+  pagination: { limit: 4, cursor: null, hasMore: false },
 };
 
 const ANONYMOUS: RequestContext = { salesChannelCode: 'pl_retail', locale: 'en-US' };
