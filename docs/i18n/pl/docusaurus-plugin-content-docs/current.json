@@ -65,6 +65,9 @@
   "sidebar.main.category.credit_limits": {
     "message": "credit_limits"
   },
+  "sidebar.main.category.crm": {
+    "message": "crm"
+  },
   "sidebar.main.category.currencies": {
     "message": "currencies"
   },

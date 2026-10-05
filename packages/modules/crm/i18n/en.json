@@ -1,0 +1,6 @@
+{
+  "adminRoles.permission.crm:read": "View sales opportunities",
+  "workflow.kind.open": "Open",
+  "workflow.kind.won": "Closed — won",
+  "workflow.kind.lost": "Closed — lost"
+}

@@ -11,4 +11,23 @@ describe('crm manifest', () => {
     const control = manifest.settings?.settings.find((s) => s.code === 'crm.enabled');
     expect(control).toMatchObject({ groupCode: 'crm', valueType: 'boolean', defaultValue: true });
   });
+
+  it('declares the two automatic-creation settings, both off by default', () => {
+    const codes = ['crm.auto_create_from_orders', 'crm.auto_create_from_quote_requests'];
+    for (const code of codes) {
+      const setting = manifest.settings?.settings.find((s) => s.code === code);
+      expect(setting, code).toMatchObject({ groupCode: 'crm', valueType: 'boolean', defaultValue: false });
+    }
+  });
+
+  it('declares only the permission a route enforces today, grouped under the module', () => {
+    expect(manifest.permissions).toEqual([
+      {
+        code: 'crm:read',
+        label: 'View sales opportunities',
+        module: 'crm',
+        requires: ['orders:read'],
+      },
+    ]);
+  });
 });

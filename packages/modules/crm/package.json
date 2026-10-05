@@ -33,7 +33,9 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "i18n",
+    "docs"
   ],
   "engines": {
     "node": ">=22.18.0"
@@ -46,12 +48,20 @@
   },
   "peerDependencies": {
     "@endora-commerce/contracts": "workspace:*",
-    "@endora-commerce/platform": "workspace:*"
+    "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6",
+    "@mikro-orm/migrations": "^6",
+    "@mikro-orm/postgresql": "^6",
+    "fastify": "^5.11.0"
   },
   "devDependencies": {
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
+    "@mikro-orm/core": "^6.6.13",
+    "@mikro-orm/migrations": "^6.6.13",
+    "@mikro-orm/postgresql": "^6.6.13",
     "@types/node": "^22.9.0",
+    "fastify": "^5.12.5",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   }

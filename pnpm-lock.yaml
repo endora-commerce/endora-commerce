@@ -1787,9 +1787,21 @@ importers:
       '@endora-commerce/platform':
         specifier: workspace:*
         version: link:../../platform
+      '@mikro-orm/core':
+        specifier: ^6.6.13
+        version: 6.6.16
+      '@mikro-orm/migrations':
+        specifier: ^6.6.13
+        version: 6.6.16(@mikro-orm/core@6.6.16)(@types/node@22.19.17)(pg@8.20.0)
+      '@mikro-orm/postgresql':
+        specifier: ^6.6.13
+        version: 6.6.16(@mikro-orm/core@6.6.16)
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
+      fastify:
+        specifier: ^5.12.5
+        version: 5.12.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

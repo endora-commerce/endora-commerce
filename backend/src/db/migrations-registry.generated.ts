@@ -128,6 +128,9 @@ import { Migration20260817T201111CreditLimitsReturnTopups } from '@endora-commer
 import { Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk } from '@endora-commerce/mod-credit-limits/migrations';
 import { Migration20260821T140323CreditLimitsReservationReservingOrganization } from '@endora-commerce/mod-credit-limits/migrations';
 
+// ── crm ─────────────────────────────────────────────────────────────────────
+import { Migration20261005T132439CrmInit } from '@endora-commerce/mod-crm/migrations';
+
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
 
@@ -419,6 +422,9 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('credit_limits', Migration20260817T201111CreditLimitsReturnTopups),
   migration('credit_limits', Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk),
   migration('credit_limits', Migration20260821T140323CreditLimitsReservationReservingOrganization),
+
+  // ── crm ─────────────────────────────────────────────────────────────────────
+  migration('crm', Migration20261005T132439CrmInit),
 
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),

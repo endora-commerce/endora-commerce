@@ -37,7 +37,7 @@ of the platform, not of what happens to be written.
 | [Compare Products](./comparisons.md) | Compare Products: customer-curated set with display modes, share link, and PDF export | @endora-commerce/mod-comparisons |
 | [Credentials](./credentials.md) | Reusable typed credential configurations (LLM, email adapter) referenced from settings | @endora-commerce/mod-credentials |
 | [credit_limits](./credit_limits.md) | Credit-limit grant + atomic reservation | @endora-commerce/mod-credit-limits |
-| `crm` | _no page yet_ | @endora-commerce/mod-crm |
+| [crm](./crm.md) | Sales opportunities with a configurable status workflow that linked orders follow | @endora-commerce/mod-crm |
 | [currencies](./currencies.md) | Pool of accepted ISO 4217 currencies + default | @endora-commerce/mod-currencies |
 | `custom_fields` | _no page yet_ | @endora-commerce/mod-custom-fields |
 | [customer_accounts](./customer_accounts.md) | Customer login, password reset, 2FA, role assignment | @endora-commerce/mod-customer-accounts |

@@ -1,0 +1,6 @@
+{
+  "adminRoles.permission.crm:read": "Przeglądanie szans sprzedażowych",
+  "workflow.kind.open": "Otwarta",
+  "workflow.kind.won": "Zamknięta — wygrana",
+  "workflow.kind.lost": "Zamknięta — przegrana"
+}

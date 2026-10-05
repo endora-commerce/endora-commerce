@@ -27,9 +27,18 @@ Everything below is a **peer** dependency, so the application resolves exactly o
 - `@endora-commerce/contracts`
 - `@endora-commerce/platform`
 
+**Third-party**
+
+- `@mikro-orm/core` ^6
+- `@mikro-orm/migrations` ^6
+- `@mikro-orm/postgresql` ^6
+- `fastify` ^5.11.0
+
 ## What the tarball carries
 
 - `dist/` — the compiled JavaScript and its type declarations
+- `i18n/` — the translation bundles this package ships (`en`, `pl`), loaded by the platform
+- `docs/` — the package’s own pages in the Endora Commerce documentation site
 
 ## Install
 

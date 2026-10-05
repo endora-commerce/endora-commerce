@@ -172,6 +172,14 @@ const modules = [
   },
   {
     type: 'category',
+    label: 'crm', key: 'crm',
+    link: { type: 'doc', id: 'modules/crm' },
+    items: [
+      'module-reference/crm',
+    ],
+  },
+  {
+    type: 'category',
     label: 'currencies', key: 'currencies',
     link: { type: 'doc', id: 'modules/currencies' },
     items: [
