@@ -1,5 +1,25 @@
 # @endora-commerce/mod-payments
 
+## 0.103.0
+
+### Patch Changes
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [08192f0]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+- Updated dependencies [9eb7ed9]
+- Updated dependencies [9b170e8]
+- Updated dependencies [11c0962]
+  - @endora-commerce/admin-kit@0.103.0
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/email-components@0.103.0
+  - @endora-commerce/platform@0.103.0
+  - @endora-commerce/mod-orders@0.103.0
+
 ## 0.102.0
 
 ### Patch Changes

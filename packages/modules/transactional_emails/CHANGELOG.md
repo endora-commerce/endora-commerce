@@ -1,5 +1,30 @@
 # @endora-commerce/mod-transactional-emails
 
+## 0.103.0
+
+### Minor Changes
+
+- d0e76fd: Transactional e-mail and its admin preview render the e-mail blocks other modules contribute through `emailBlockRendererRegistry`. Saved e-mail content, e-mail blocks and e-mail templates may now hold a block any composed module declares for the `email` context — save-time validation used to refuse every name outside the built-in set. A block whose module is switched off contributes nothing; a renderer that throws is logged with the block and its owner, and the message is still rendered and sent. Adds the `pageBuilder.blockPreview.unavailable` string (English and Polish).
+
+### Patch Changes
+
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [d0e76fd]
+- Updated dependencies [08192f0]
+- Updated dependencies [f052b7f]
+- Updated dependencies [2b339d3]
+- Updated dependencies [9eb7ed9]
+- Updated dependencies [11c0962]
+  - @endora-commerce/admin-kit@0.103.0
+  - @endora-commerce/contracts@0.103.0
+  - @endora-commerce/email-components@0.103.0
+  - @endora-commerce/page-builder-admin@0.103.0
+  - @endora-commerce/page-builder-core@0.103.0
+  - @endora-commerce/platform@0.103.0
+
 ## 0.102.0
 
 ### Minor Changes
