@@ -43,7 +43,9 @@ export type OpportunityWorkflowRule =
   | 'initial_must_be_open'
   | 'won_status_required'
   | 'lost_status_required'
-  | 'transition_unknown_status';
+  | 'transition_unknown_status'
+  | 'mapping_unknown_status'
+  | 'mapping_duplicate';
 
 export class OpportunityWorkflowConfigError extends Error {
   constructor(

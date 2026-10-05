@@ -848,20 +848,20 @@ export interface OpportunityTransitionGuard {
 }
 
 /**
+ * Container name: `opportunityTransitionGuardRegistry`. Owner: `crm`.
+ *
  * The registry a module pushes an {@link OpportunityTransitionGuard} into.
- * Owner: `crm`, under the container name `opportunityTransitionGuardRegistry`.
  *
- * **Not published yet.** `check:port-shape` holds that a contract carrying the
- * port marker has a registration behind it, so the marker line is added by the
- * change that registers the name (tasks.md T049) and not before — until then
- * this is a type, not a port a consumer may resolve.
+ * A **contribution seam**: registered ungated (a plain `ctx.di.register`),
+ * pushed into from a contribution-only boot hook, declared by the contributor
+ * as a `contributes-to` edge. A boot hook that resolved a gated port would stop
+ * the backend from starting whenever CRM was switched off.
  *
- * A contribution seam: registered ungated, pushed into from a contribution-only
- * boot hook, declared by the contributor as a `contributes-to` edge.
+ * **Owner off:** no transition can happen, so no guard runs.
  *
- * **Owner off:** no transition can happen, so no guard runs. **Contributor
- * off:** CRM skips a guard whose `ownerModuleId` is not effectively present at
- * dispatch — a switched-off module does not veto.
+ * **Enumeration policy: skipped while the contributing module is absent.** CRM
+ * skips a guard whose `ownerModuleId` is not effectively present at dispatch —
+ * a switched-off module does not veto.
  */
 export interface OpportunityTransitionGuardRegistryPort {
   register(guard: OpportunityTransitionGuard): void;
