@@ -4,7 +4,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { expectModuleAbsent } from '../../helpers/off-state.js';
+import { expectModuleAbsent, type OffStateProbe } from '../../helpers/off-state.js';
 
 /**
  * `crm` off-state — Constitution XVII item 6
@@ -31,7 +31,47 @@ import { expectModuleAbsent } from '../../helpers/off-state.js';
 describe('crm off-state (Constitution XVII)', () => {
   let h: BackendServerHandle;
   const admin = { b2b_session: 'stub-admin-session' };
-  const WORKFLOW_URL = '/api/v1/admin/crm/workflow';
+  const API = '/api/v1/admin/crm';
+  const WORKFLOW_URL = `${API}/workflow`;
+  const ID = '00000000-0000-4000-8000-00000000c0de';
+  const CHILD = '00000000-0000-4000-8000-00000000c0df';
+
+  /**
+   * Every route the module owns, as registered. The gate is applied where the
+   * routes are registered, so each of them is refused before its handler, its
+   * permission check or its body schema is reached — which is why the ids and
+   * bodies the probes carry need not name anything that exists.
+   */
+  const REGISTERED: ReadonlyArray<{ method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'; route: string; payload?: unknown }> = [
+    { method: 'GET', route: `${API}/workflow` },
+    { method: 'POST', route: `${API}/statuses`, payload: { code: 'off_state', defaultName: 'Off', kind: 'open' } },
+    { method: 'PATCH', route: `${API}/statuses/:code`, payload: { defaultName: 'Renamed' } },
+    { method: 'DELETE', route: `${API}/statuses/:code` },
+    { method: 'PUT', route: `${API}/transitions`, payload: { add: [] } },
+    { method: 'PUT', route: `${API}/order-status-mappings`, payload: { mappings: [] } },
+    { method: 'GET', route: `${API}/opportunities` },
+    { method: 'POST', route: `${API}/opportunities`, payload: { title: 'Off', organizationId: ID, currency: 'PLN' } },
+    { method: 'GET', route: `${API}/opportunities/:id` },
+    { method: 'PATCH', route: `${API}/opportunities/:id`, payload: { title: 'Off' } },
+    { method: 'DELETE', route: `${API}/opportunities/:id` },
+    { method: 'POST', route: `${API}/opportunities/:id/transition`, payload: { to: 'qualified' } },
+    { method: 'POST', route: `${API}/opportunities/:id/links`, payload: { documentKind: 'order', documentId: CHILD } },
+    { method: 'PATCH', route: `${API}/opportunities/:id/links/:linkId`, payload: { syncStatus: false } },
+    { method: 'DELETE', route: `${API}/opportunities/:id/links/:linkId` },
+    { method: 'POST', route: `${API}/opportunities/:id/propagations/:propagationId/retry` },
+    { method: 'POST', route: `${API}/opportunities/:id/propagations/:propagationId/dismiss` },
+  ];
+
+  const ROUTES: OffStateProbe[] = REGISTERED.map(({ method, route, payload }) => ({
+    method,
+    url: route
+      .replace(':id', ID)
+      .replace(':linkId', CHILD)
+      .replace(':propagationId', CHILD)
+      .replace(':code', 'new'),
+    cookies: admin,
+    ...(payload === undefined ? {} : { payload }),
+  }));
 
   beforeAll(async () => {
     h = await setupBackendServer();
@@ -50,7 +90,7 @@ describe('crm off-state (Constitution XVII)', () => {
 
   it('is absent from every surface while off, and restored after', async () => {
     await expectModuleAbsent(h, 'crm', {
-      routes: [{ url: WORKFLOW_URL, cookies: admin }],
+      routes: ROUTES,
       adminPresence: { cookies: admin },
       settingWrite: {
         code: 'crm.auto_create_from_orders',
@@ -63,5 +103,15 @@ describe('crm off-state (Constitution XVII)', () => {
   it('answers again once restored', async () => {
     const response = await h.app.inject({ method: 'GET', url: WORKFLOW_URL, cookies: admin });
     expect(response.statusCode, response.body).toBe(200);
+    const list = await h.app.inject({ method: 'GET', url: `${API}/opportunities`, cookies: admin });
+    expect(list.statusCode, list.body).toBe(200);
+  });
+
+  it('probes routes that exist — a refused path the module never registered would prove nothing', () => {
+    // The positive control for the whole list, without running a single write:
+    // every probed method and path is one the composed application routes.
+    for (const { method, route } of REGISTERED) {
+      expect(h.app.hasRoute({ method, url: route }), `${method} ${route}`).toBe(true);
+    }
   });
 });
