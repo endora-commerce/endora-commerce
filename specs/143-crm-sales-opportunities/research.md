@@ -1284,6 +1284,34 @@ when it was measured, and what was done about it.
   no event. `assignedAdminUserId=me` with no administrator behind the request answers an
   empty page. The assignee is not required to hold a CRM permission or to reach the
   Organization (R-9), so an assignee may be somebody who cannot open the Opportunity.
+- **N-B9 (2026-10-05, T085) — where a tagging is written, and the shapes §8 leaves open.**
+  `tag-service.ts` owns the tag list (Commands `crm.tag.create|update|delete` against
+  `crm_tag`); the **taggings** are written by `opportunity-service.ts`, in the Commands that
+  already hold the scoped parent — create, `PATCH`, and `setTags` (`crm.opportunity.tag_set`)
+  — so no child row is ever written from a file that did not load its Opportunity. T085's
+  "tagging in `tag-service.ts`" is therefore half true. Shapes: `POST /tags` answers 201
+  `{ data: OpportunityTag }`, `PATCH` 200 the same, `DELETE` 204, `PUT …/tags` 200
+  `{ data: OpportunityDetail }`. An unknown tag id on `PATCH`/`DELETE /tags/:id` is 404
+  `NOT_FOUND`; an unknown tag in a `tagIds` is 422 `VALIDATION_FAILED` and nothing is
+  replaced. Setting the set an Opportunity already has writes nothing (no version bump, no
+  audit entry); a real change bumps `version`. `tagIds` on `PATCH` absent = leave alone,
+  `[]` = clear. A tag's audit entry on delete carries the platform-wide `usageCount`, because
+  the tag leaves every Opportunity, not only the visible ones. Tags on an Opportunity are
+  ordered by name.
+- **N-B10 (2026-10-05, T084) — `crm_tags` joins the tables the tests clean themselves.** Like
+  the three workflow tables (N-21), `crm_tags` hangs off nothing the harness truncates;
+  `clearCrmTags` in `backend/test/helpers/seed-crm.ts` is called in `beforeAll` and
+  `afterAll` of the two tag files. The AND filter is a raw `group by … having
+  count(distinct tag_id) = n` whose ids only ever narrow the scoped `find`; the usage count
+  is raw SQL joined to `crm_opportunities` and constrained by `orgConstraintFor()`.
+- **N-B11 (2026-10-05, T085) — `crm` is not on `check:command-coverage`'s roster.** The
+  check's own output lists its "migrated modules" and `crm` is not among them, so a write
+  outside a Command in this module is reported by nothing. N-16's sentence about what that
+  check reads was about its rule, not about this module being held to it. Every write of
+  these stories is in a Command regardless, and the check run by hand against the module
+  (`tsx scripts/check-command-coverage.ts --strict --module crm`) reports 0 blocking; joining
+  the roster is one line in a file this feature's foreign-change list does not carry, and is
+  reported rather than done.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

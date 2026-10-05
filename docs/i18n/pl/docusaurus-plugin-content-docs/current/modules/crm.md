@@ -360,3 +360,37 @@ dostaje powiadomienia.
 Każde przypisanie trafia do historii zmian szansy, a inne moduły mogą na nie
 reagować: `crm.opportunity.assigned.v1` niesie nową i poprzednią osobę
 przypisaną.
+
+## Etykiety
+
+**Etykieta** to krótkie oznaczenie z kolorem — *Klient kluczowy*, *Przetarg*,
+*Odnowienie* — które szansa sprzedażowa może nosić, w dowolnej liczbie. Lista
+etykiet jest jedna dla całej platformy.
+
+- Nazwy etykiet są unikalne bez względu na wielkość liter: *Przetarg*
+  i *PRZETARG* to ta sama nazwa, a druga zostanie odrzucona z kodem
+  `CRM_TAG_NAME_TAKEN`.
+- Zmiana nazwy albo koloru etykiety zmienia ją na każdej szansie, która ją
+  nosi.
+- Usunięcie etykiety zdejmuje ją z każdej szansy, która ją nosiła. Nic innego
+  w tych szansach się nie zmienia.
+- Listę szans można filtrować po etykietach. Kilka etykiet oznacza *wszystkie
+  naraz*: szansa pojawia się na liście tylko wtedy, gdy nosi każdą ze
+  wskazanych etykiet.
+- Przy każdej etykiecie widać, ile szans ją nosi — liczone po szansach, które
+  pytająca osoba może zobaczyć, a nie po całej platformie.
+
+Zarządzanie listą etykiet jest konfiguracją i wymaga `crm:configure`.
+Nadawanie etykiet szansie to codzienna praca i wymaga `crm:write`.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/tags` | `crm:read` | Lista etykiet według nazwy, każda z `usageCount`. |
+| `POST /api/v1/admin/crm/tags` | `crm:configure` | Utworzenie etykiety: `{ "name", "color"? }`. |
+| `PATCH /api/v1/admin/crm/tags/:id` | `crm:configure` | Zmiana nazwy albo koloru. |
+| `DELETE /api/v1/admin/crm/tags/:id` | `crm:configure` | Usunięcie etykiety i zdjęcie jej z każdej szansy. |
+| `PUT /api/v1/admin/crm/opportunities/:id/tags` | `crm:write` | Zastąpienie etykiet szansy: `{ "tagIds": [...] }`. Odpowiedzią jest szansa. |
+| `GET /api/v1/admin/crm/opportunities?tagId=…&tagId=…` | `crm:read` | Szanse noszące każdą ze wskazanych etykiet. |
+
+Tworzenie i edycja szansy również mogą ustawić jej etykiety, przez `tagIds`.
+Etykieta, która nie istnieje, jest odrzucana i nic się nie zmienia.

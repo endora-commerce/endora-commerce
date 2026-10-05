@@ -42,5 +42,20 @@ It also gains assignment.
   `crm.opportunity.assigned`). The module declares a `degrades-without` edge on
   `admin_notifications`: with that module off, assignment works and nobody is notified.
 
-**`@endora-commerce/contracts`**: `ERROR_CODES` gains `CRM_ASSIGNEE_INVALID`. Additive; a
-consumer that switches exhaustively over `ErrorCode` gets a compile error until it handles it.
+
+And tags.
+
+- **`GET|POST /api/v1/admin/crm/tags`, `PATCH|DELETE /tags/:id`** — the platform-wide tag list.
+  Reading is `crm:read`; managing is `crm:configure`. A name is unique whatever its case: a
+  clash answers 409 **`CRM_TAG_NAME_TAKEN`**, a new member of `ERROR_CODES`. `usageCount`
+  counts only the opportunities the caller may see. Deleting a tag removes it from every
+  opportunity that carried it.
+- **`PUT /api/v1/admin/crm/opportunities/:id/tags`** (`crm:write`, `{ tagIds }`) replaces an
+  opportunity's tags and answers the opportunity.
+- **`tagIds` on create and on `PATCH`, and the `tagId` list filter, are accepted** — each
+  answered 422 until now. Several `tagId` values mean all of them. `tags` on a summary and a
+  detail is no longer always empty.
+
+**`@endora-commerce/contracts`**: `ERROR_CODES` gains `CRM_ASSIGNEE_INVALID` and
+`CRM_TAG_NAME_TAKEN`. Additive; a consumer that switches exhaustively over `ErrorCode` gets a
+compile error until it handles them.

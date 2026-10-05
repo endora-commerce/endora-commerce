@@ -356,3 +356,35 @@ is notified.
 Every assignment is in the opportunity's change history, and other modules can
 react to it: `crm.opportunity.assigned.v1` carries the new and the previous
 assignee.
+
+## Tags
+
+A **tag** is a short label with a colour — *Key account*, *Tender*, *Renewal* —
+that an opportunity may carry, any number of them. There is one tag list for
+the whole platform.
+
+- Tag names are unique whatever their case: *Tender* and *TENDER* are the same
+  name, and the second is refused with `CRM_TAG_NAME_TAKEN`.
+- Renaming or recolouring a tag changes it on every opportunity that carries
+  it.
+- Deleting a tag takes it off every opportunity that carried it. Nothing else
+  about those opportunities changes.
+- The list of opportunities can be filtered by tags. Several tags mean *all of
+  them*: an opportunity is listed only when it carries every tag named.
+- Each tag shows how many opportunities carry it — counted over the
+  opportunities the person asking may see, not over the whole platform.
+
+Managing the tag list is configuration and needs `crm:configure`. Putting tags
+on an opportunity is everyday work and needs `crm:write`.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/tags` | `crm:read` | The tag list, by name, each with `usageCount`. |
+| `POST /api/v1/admin/crm/tags` | `crm:configure` | Create a tag: `{ "name", "color"? }`. |
+| `PATCH /api/v1/admin/crm/tags/:id` | `crm:configure` | Rename or recolour. |
+| `DELETE /api/v1/admin/crm/tags/:id` | `crm:configure` | Delete, and untag every opportunity. |
+| `PUT /api/v1/admin/crm/opportunities/:id/tags` | `crm:write` | Replace the opportunity's tags: `{ "tagIds": [...] }`. Answers the opportunity. |
+| `GET /api/v1/admin/crm/opportunities?tagId=…&tagId=…` | `crm:read` | Opportunities carrying every tag named. |
+
+Creating or editing an opportunity may set its tags too, with `tagIds`. A tag
+that does not exist is refused, and nothing is changed.
