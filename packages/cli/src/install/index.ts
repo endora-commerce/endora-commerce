@@ -119,6 +119,7 @@ import { HOST_DIRECTORY_PREFIX, hostNpmrc, readReleaseIndex, writeHost } from '.
 import {
   COMPONENT_VOCABULARY,
   EVERYTHING,
+  adminPasswordProblem,
   parseAddress,
   parseOrigin,
   questionIdsFor,
@@ -1316,7 +1317,13 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
     try {
       const outcome = await askWizard(
         given,
-        given.io ?? { input: process.stdin, output: process.stdout, terminal: true },
+        given.io ?? {
+          input: process.stdin,
+          output: process.stdout,
+          terminal: true,
+          // A terminal that cannot move its cursor keeps the numbered list.
+          redraws: process.env['TERM'] !== 'dumb',
+        },
         {
           vocabulary: MEMBER_VOCABULARY,
           storefront: {
@@ -1508,6 +1515,13 @@ export async function runInstall(given: InstallOptions): Promise<InstallResult> 
           'the password is never generated: it is the one value you have to remember.',
       );
     }
+    // Refused here rather than by the step that creates the account, which
+    // runs after everything else has been written, installed and migrated.
+    const weakPassword =
+      admin.password === undefined || admin.password.trim().length === 0
+        ? null
+        : adminPasswordProblem(admin.password);
+    if (weakPassword !== null) refusals.add(`${weakPassword} Pass a longer \`--admin-password\`.`);
 
     if (options.demo === undefined) {
       // FR-124 — required, by 125 PR-2 option (c) as ruled (D-269).

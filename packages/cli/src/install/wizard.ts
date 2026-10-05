@@ -26,9 +26,13 @@
  *
  * ## What it is not
  *
- * Not a TUI and not a dependency: `node:readline` is Node core, a checklist is
- * a numbered list toggled by typing its numbers, and the whole of it is
- * assertable by feeding a string to a stream (§6.1, T4-I).
+ * Not a dependency: `node:readline` is Node core, and it is the whole of what
+ * draws this. The checklist has two renderings of one question. At a terminal
+ * that can move its cursor it is a list of checkboxes — arrows move, Space
+ * toggles, Enter accepts — redrawn in place. Anywhere else (a stream a test
+ * feeds, `TERM=dumb`) it is a numbered list toggled by typing its numbers, so
+ * the whole of it stays assertable by feeding a string to a stream (§6.1,
+ * T4-I). Both end in the same {@link selectionToFlags}.
  *
  * ## The demo question has no Enter answer
  *
@@ -39,14 +43,16 @@
  * authority for it.
  */
 import { Writable } from 'node:stream';
-import { createInterface } from 'node:readline';
+import { clearScreenDown, createInterface, moveCursor } from 'node:readline';
 
 import type { MemberDeclaration } from '../new-instance/index.js';
 
 import {
   COMPONENT_VOCABULARY,
   EVERYTHING,
+  ADMIN_PASSWORD_MIN_LENGTH,
   NOT_AN_ORIGIN,
+  adminPasswordProblem,
   parseOrigin,
   questionIdsFor,
   resolveSelection,
@@ -67,6 +73,11 @@ export interface WizardIo {
    * says `false`.
    */
   readonly terminal: boolean;
+  /**
+   * Whether that terminal can move its cursor, which is what redrawing the
+   * checklist in place takes. `false` on `TERM=dumb`; not given is yes.
+   */
+  readonly redraws?: boolean | undefined;
 }
 
 /** One row of §6.2, the table that is the contract (FR-146). */
@@ -403,6 +414,15 @@ export async function askWizard(
   let closed = false;
   rl.on('close', () => (closed = true));
 
+  const stopped = (question: string, id: QuestionId): WizardClosedError => {
+    const flags = QUESTION_TABLE[id].flags.join(' / ');
+    return new WizardClosedError(
+      `the answers stopped before "${question.trim()}" was answered. Pass ${flags} to ` +
+        'answer it on the command line, or `--non-interactive` with every answer to ask ' +
+        'nothing at all.',
+    );
+  };
+
   const ask = async (question: string, id: QuestionId, secret = false): Promise<string> => {
     if (closed) write(question);
     else {
@@ -412,14 +432,7 @@ export async function askWizard(
     if (secret) gate.muted = true;
     try {
       const next = await lines.next();
-      if (next.done === true) {
-        const flags = QUESTION_TABLE[id].flags.join(' / ');
-        throw new WizardClosedError(
-          `the answers stopped before "${question.trim()}" was answered. Pass ${flags} to ` +
-            'answer it on the command line, or `--non-interactive` with every answer to ask ' +
-            'nothing at all.',
-        );
-      }
+      if (next.done === true) throw stopped(question, id);
       return String(next.value).trim();
     } finally {
       if (secret) {
@@ -461,9 +474,9 @@ export async function askWizard(
       }
     }
 
-    // Q2 — which parts this machine runs (138 FR-017). The checklist is
-    // re-rendered after every toggle, so a dumb terminal and a test both read
-    // the same text.
+    // Q2 — which parts this machine runs (138 FR-017). Checkboxes where the
+    // terminal can redraw them; otherwise the numbered list, re-rendered after
+    // every toggle, so a dumb terminal and a test both read the same text.
     if (!fromFlags.has('parts')) {
       const rows = checklistRows(context.vocabulary, context.storefront);
       const toggleable = rows.filter((row) => row.fixed === null);
@@ -477,8 +490,76 @@ export async function askWizard(
         const selected = resolveSelection(flags.only, [], flags.storefront);
         return !('refusals' in selected) && selected.writesTree;
       };
-      for (;;) {
-        write('\nWhich parts should this machine run? Type the numbers to toggle, Enter to accept.\n');
+      const PARTS = 'Which parts should this machine run?';
+      if (io.terminal && io.redraws !== false && !closed) {
+        // A pseudo-terminal nobody sized reports 0 columns; that is not a width.
+        const reported = (io.output as { columns?: number }).columns ?? 0;
+        const columns = reported > 0 ? reported : 80;
+        let focus = 0;
+        let notice = '';
+        let drawn = 0;
+        const draw = (): void => {
+          const text = [
+            `${PARTS} ↑/↓ to move, Space to toggle, Enter to accept.`,
+            ...rows.map((row) => {
+              if (row.fixed !== null) {
+                return `   ${row.fixedValue ? '[x]' : '[ ]'} ${row.name} — ${row.describes} (${row.fixed})`;
+              }
+              const noTree = row.dispatch === 'member' && !writesTree();
+              return (
+                ` ${toggleable.indexOf(row) === focus ? '>' : ' '} ` +
+                `${unchecked.has(row.name) || noTree ? '[ ]' : '[x]'} ${row.name} — ${row.describes}` +
+                `${noTree ? ' (part of the instance tree, which this selection does not write)' : ''}`
+              );
+            }),
+            ...(notice.length === 0 ? [] : [notice]),
+          ];
+          if (drawn > 0) {
+            moveCursor(io.output, 0, -drawn);
+            clearScreenDown(io.output);
+          }
+          // A line wider than the terminal takes more than one of its rows, and
+          // the next redraw has to climb over all of them.
+          drawn = text.reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / columns)), 0);
+          write(`${text.join('\n')}\n`);
+        };
+        const onKey = (_typed: unknown, key: { readonly name?: string } | undefined): void => {
+          const name = key?.name;
+          if (name === 'up' || name === 'k') focus = (focus + toggleable.length - 1) % toggleable.length;
+          else if (name === 'down' || name === 'j') focus = (focus + 1) % toggleable.length;
+          else if (name === 'space') {
+            const row = toggleable[focus]!;
+            if (unchecked.has(row.name)) unchecked.delete(row.name);
+            else unchecked.add(row.name);
+            toggled = true;
+            notice = '';
+          } else return;
+          draw();
+        };
+        // `readline` goes on reading the keys into a line of its own; nothing
+        // of that reaches the screen, and the line Enter ends is the signal
+        // that the list was accepted — its text is never an answer.
+        gate.muted = true;
+        write('\n\x1b[?25l');
+        io.input.on('keypress', onKey);
+        try {
+          for (;;) {
+            draw();
+            const next = await lines.next();
+            if (next.done === true) throw stopped(PARTS, 'parts');
+            if (selectionToFlags(rows, unchecked) !== null) break;
+            notice = `  keep at least one of ${COMPONENT_VOCABULARY.join(', ')}.`;
+          }
+          // What was accepted, left on the screen with nothing focused.
+          focus = -1;
+          draw();
+        } finally {
+          io.input.off('keypress', onKey);
+          gate.muted = false;
+          write('\x1b[?25h');
+        }
+      } else for (;;) {
+        write(`\n${PARTS} Type the numbers to toggle, Enter to accept.\n`);
         for (const row of rows) {
           if (row.fixed !== null) {
             write(`      ${row.fixedValue ? '[x]' : '[ ]'} ${row.name} — ${row.describes} (${row.fixed})\n`);
@@ -701,11 +782,22 @@ export async function askWizard(
       prompted.push('admin-email');
     }
     if (asks('admin-password')) {
-      answers.adminPassword = await required(
-        'Administrator password (not shown): ',
-        'admin-password',
-        true,
-      );
+      // Asked again until it is one the instance will take: the step that
+      // creates the account is among the last, and a refusal there costs the
+      // whole run (see `adminPasswordProblem`).
+      for (;;) {
+        const password = await required(
+          `Administrator password (not shown, at least ${String(ADMIN_PASSWORD_MIN_LENGTH)} characters): `,
+          'admin-password',
+          true,
+        );
+        const problem = adminPasswordProblem(password);
+        if (problem === null) {
+          answers.adminPassword = password;
+          break;
+        }
+        write(`  ${problem}\n`);
+      }
       prompted.push('admin-password');
     }
     if (asks('admin-name')) {

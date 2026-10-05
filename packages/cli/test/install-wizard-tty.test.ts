@@ -43,7 +43,7 @@ const CONVERSATION: readonly (readonly [string, string])[] = [
   ['[Y/n]', '\r'],
   ['Install demo data? [y/n]', 'n\r'],
   ['Administrator e-mail:', 'owner@example.com\r'],
-  ['Administrator password (not shown):', `${PASSWORD}\r`],
+  ['Administrator password (not shown,', `${PASSWORD}\r`],
   ['Administrator first name:', 'Ada\r'],
   ['Administrator last name:', 'Lovelace\r'],
 ];
@@ -78,6 +78,21 @@ const ADMIN_ALONE: readonly (readonly [string, string])[] = [
 ];
 
 /**
+ * The same selection at a terminal that can move its cursor (`TERM=xterm`),
+ * where the parts question is a list of checkboxes: Space unchecks `api`, down,
+ * Space unchecks `admin`, Enter accepts. Each key waits for the redraw the one
+ * before it caused.
+ */
+const STOREFRONT_ALONE_BY_CHECKBOX: readonly (readonly [string, string])[] = [
+  ['Which directory should it be written to?', 'shop\r'],
+  ['Space to toggle', ' '],
+  [' > [ ] api', '\x1b[B'],
+  [' > [x] admin', ' '],
+  [' > [ ] admin', '\r'],
+  ...STOREFRONT_ALONE.slice(3),
+];
+
+/**
  * Where util-linux `script` is, resolved on **this** process's `PATH` — the
  * child's is deliberately empty — or `null` when it is not util-linux's.
  */
@@ -101,6 +116,8 @@ function converse(
   script: string,
   cwd: string,
   conversation: readonly (readonly [string, string])[] = CONVERSATION,
+  // `dumb` cannot move its cursor, so the parts question is the numbered list.
+  term = 'dumb',
 ): Promise<Run> {
   return new Promise((resolve) => {
     const command = `'${process.execPath}' '${ENDORA}' install`;
@@ -112,7 +129,7 @@ function converse(
         // run ends having read every answer and installed nothing.
         PATH: join(cwd, 'no-such-bin'),
         SHELL: '/bin/sh',
-        TERM: 'dumb',
+        TERM: term,
         HOME: cwd,
         DOCKER_HOST: 'unix:///nonexistent/endora-declared-absence.sock',
       },
@@ -229,6 +246,32 @@ describe('T4-A — spawned', () => {
           expect(run.screen, question).not.toContain(question);
         }
         expect(existsSync(join(parent, 'shop'))).toBe(false);
+      } finally {
+        rmSync(parent, { recursive: true, force: true });
+      }
+    },
+    TIMEOUT_MS + 15_000,
+  );
+
+  it(
+    'where the terminal can redraw, the parts are checkboxes: Space and the arrows select, no number is typed',
+    async () => {
+      const script = scriptPath();
+      expect(script, 'util-linux `script` is not on this machine').not.toBeNull();
+      const parent = mkdtempSync(join(tmpdir(), 'tty-checkbox-'));
+      try {
+        const run = await converse(script!, parent, STOREFRONT_ALONE_BY_CHECKBOX, 'xterm');
+        expect(run.timedOut, `still running after ${String(TIMEOUT_MS)} ms:\n${run.screen}`).toBe(false);
+        expect(run.answered, run.screen).toBe(STOREFRONT_ALONE_BY_CHECKBOX.length);
+        expect(run.code, run.screen).toBe(1);
+        expect(run.screen).not.toContain('Type the numbers');
+        // The storefront alone, as the numbered conversation above selects it:
+        // nothing about an administrator, and the secret unechoed.
+        expect(run.screen).toContain('1 thing to settle first');
+        expect(run.screen).not.toContain(SECRET);
+        expect(run.screen).not.toContain('Administrator');
+        // The cursor the list hid is given back.
+        expect(run.screen.lastIndexOf('\x1b[?25h')).toBeGreaterThan(run.screen.lastIndexOf('\x1b[?25l'));
       } finally {
         rmSync(parent, { recursive: true, force: true });
       }
