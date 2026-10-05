@@ -34,3 +34,10 @@ document's organization, the order's sales channel, the start status, the defaul
 `linkSource: "auto"`. Never a second opportunity for one document, and an order placed from a
 linked quote request joins that opportunity instead. `crm.opportunity.created.v1` now carries
 the real `source`. The package names `zod` as a peer, which every instance already installs.
+
+**Change history.** `GET /opportunities/:id/history` (`crm:read`; `limit`, `cursor`) answers
+what was done to an opportunity, newest first — `{ id, actedAt, action, actor { kind, id,
+name }, before, after }` — read from the platform's audit trail of that opportunity. It needs
+no `audit_log:read`, is refused with 404 for an opportunity the caller may not see, and reaches
+back 500 entries. `action` is the Command's own code; the label is `auditLog.<action>` in this
+package's bundle.

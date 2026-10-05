@@ -704,3 +704,43 @@ jego złożenie zostanie ogłoszone.
 Szansa dla zapytania ofertowego nie ma kanału sprzedaży, a jej ustawienie jest
 odczytywane dla całej platformy, nie dla kanału: moduł Zapytań ofertowych nie
 publikuje kanału, w którym zapytanie zostało przesłane.
+
+## Historia zmian
+
+Każda szansa sprzedażowa ma historię tego, co się z nią działo, od najnowszych
+wpisów: jej utworzenie, każda edycja, każda zmiana statusu, każde powiązanie i
+odwiązanie zamówienia lub zapytania ofertowego, każde przypisanie, zmiana
+etykiet, notatka, wiadomość i Załącznik.
+
+Każdy wpis mówi, **kiedy**, **co** (`action`), **kto** (`actor`) oraz jaki był
+stan **przed** i **po**:
+
+- `actor.kind` ma wartość `admin` z identyfikatorem i imieniem osoby albo
+  `system` — nikt nie zrobił tego ręcznie: szansę przesunęło zamówienie albo
+  szansa została utworzona automatycznie;
+- zmiana statusu zawiera `before.status` i `after.status`, przyczynę
+  (`after.cause`: `manual`, `order_status` albo `system`), zamówienie, które ją
+  spowodowało, jeśli było nim zamówienie (`after.causeOrderId`), oraz wpisany
+  przez kogoś powód;
+- edycja zawiera pola w brzmieniu sprzed zmiany i po niej.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/history` | `crm:read` | Historia zmian, od najnowszych. `limit` (domyślnie 50, najwyżej 200) i `cursor` służą do stronicowania. |
+
+Historia zmian to ślad audytowy platformy dla tej szansy, więc nie może
+rozminąć się z tym, co się wydarzyło — a **każdy, kto może czytać szansę, może
+czytać jej historię**. Uprawnienie otwierające dziennik audytu całej platformy
+nie jest potrzebne.
+
+Trzy rzeczy, o których warto wiedzieć:
+
+- Notatka, która została zmieniona albo usunięta, zostaje w historii ze swoją
+  treścią, taką, jaka była.
+- Przeliczenie wartości wyliczanej nie jest wpisem: wpisem jest zmiana, która
+  je spowodowała — powiązanie, status zamówienia.
+- Historia sięga 500 wpisów wstecz.
+
+Na ekranie **Dziennik audytu** całej platformy te same wpisy są pokazywane pod
+kodami akcji (`crm.opportunity.transition`), a nie jako zdania: ten ekran nie
+czyta jeszcze etykiet tego modułu.

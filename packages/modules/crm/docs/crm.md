@@ -689,3 +689,41 @@ is announced.
 An opportunity for a quote request has no sales channel, and its setting is
 read for the whole platform rather than per channel: the Quote Requests module
 does not publish the channel a request was submitted on.
+
+## Change history
+
+Every opportunity keeps a history of what was done to it, newest first: its
+creation, each edit, each status change, every order or quote request linked or
+unlinked, each assignment, tag change, note, message and attachment.
+
+Each entry says **when**, **what** (`action`), **who** (`actor`) and the state
+**before** and **after**:
+
+- `actor.kind` is `admin` with the person's id and name, or `system` — nobody
+  did it by hand: an order moved the opportunity, or the opportunity was created
+  automatically;
+- a status change carries `before.status` and `after.status`, what caused it
+  (`after.cause`: `manual`, `order_status` or `system`), the order that caused
+  it when one did (`after.causeOrderId`), and the reason somebody typed;
+- an edit carries the fields as they were and as they are.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/history` | `crm:read` | The history, newest first. `limit` (default 50, at most 200) and `cursor` page through it. |
+
+The history is the platform's audit trail of that opportunity, so it cannot
+disagree with what happened — and **anybody who may read the opportunity may
+read its history**. The permission that opens the platform-wide audit log is
+not needed.
+
+Three things to know:
+
+- A note that was edited or deleted stays in the history with its text, as it
+  was.
+- Recalculating a computed value is not an entry: the change that caused it —
+  a link, an order's status — is.
+- The history reaches back 500 entries.
+
+On the platform-wide **Audit log** screen the same entries appear under their
+action codes (`crm.opportunity.transition`), not as sentences: that screen does
+not yet read this module's labels.

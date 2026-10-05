@@ -1791,6 +1791,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/opportunities/{id}/history": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/opportunities/{id}/links": {
       "post": {
         "responses": {

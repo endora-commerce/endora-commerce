@@ -1784,6 +1784,55 @@ when it was measured, and what was done about it.
   Settings screen sends (`{ scope: 'all', value }`), asserts 200 while on, and asserts the
   refusal **by code** on both axes. The helper is shared by every module's off-state test and
   is not this feature's to change.
+- **N-E10 (2026-10-05, T121) — the history endpoint: what R-16 could not have known about
+  the audit port.** `AuditPort.query` takes `{ objectType, objectId, action, actor…, limit }`
+  and nothing else — **no cursor, no offset** — answers newest first, and caps `limit` at 500.
+  So `GET …/history?limit&cursor` cuts its pages from one capped read: the cursor is an
+  offset (opaque, base64url, 400 `VALIDATION_FAILED` when it is not one this endpoint issued),
+  `limit + offset + 1` rows are asked for to know whether a next page exists, and **a history
+  reaches back 500 entries** — the 501st and older are unreachable through this endpoint
+  until the port grows a cursor (a platform change, not this feature's). The entries are
+  exactly §11's six fields; `ipAddress`, `userAgent`, `requestId` and the impersonated
+  customer of the audit row are **not** returned — the tab is read by Sales Reps, not by
+  whoever holds `audit_log:read`. `actor.kind` is `admin` when the row has an administrator
+  and `system` otherwise (`{ kind: 'system', id: null, name: null }`); an administrator who has
+  since been deleted is `admin` with `name: null`. **Status history is not read**: the audit
+  entry of a transition already carries `status` before and after, `cause`, `causeOrderId`
+  (N-B3) and `reason`, which is everything the status-history row holds, and R-16 keeps that
+  table for analytics. Tenant safety is the parent-first rule (N-15): the Opportunity is
+  loaded through the scoped EntityManager, then entries are read by its id — an audit row
+  belongs to no Organization and nothing else filters it. `compose/history.ts` does not exist
+  (N-6); the section registers its own `ctx.routes`.
+- **N-E11 (2026-10-05, T120) — the sweep found no Command recording the wrong object, and
+  two tests now hold what it found.** `audit-coverage.test.ts` performs every audited
+  Opportunity action through the API — eighteen: the list of `data-model.md` § Audit actions
+  without `value_mode_set` (which is a field of `update`, never an action of its own) and with
+  `propagation_skip` (N-B3) — and asserts each is recorded under `crm_opportunity` and the
+  Opportunity's id; its last case holds that list equal to the `auditLog.crm.opportunity.*`
+  keys of the bundle. `opportunity-history-labels.test.ts` (module-local, no service) scans the
+  services for every `crm.<object>.<verb>` literal and holds each audited one to a sentence in
+  **both** bundles, and each `auditLog.crm.*` key to a Command that exists. Three actions are
+  never audited (`propagation_record`, `propagation_echo`, `value_recalculate` — `skipAudit`
+  on every path) and have no label. So the contract the admin tab relies on is: **label =
+  `auditLog.<action>` in CRM's bundle**, and the endpoint adds no label field of its own.
+- **N-E12 (2026-10-05, T121) — N-22 investigated: `moduleIdForAuditAction` is a hard-coded
+  prefix chain, not a registry.** It is one exported function at the bottom of
+  `packages/modules/audit_logs/src/backend/routes.admin.ts`: eighteen `if
+  (action.startsWith('<prefix>.')) return '<moduleId>'` lines — `settings`, `catalog`,
+  `sales_channels` and `audit_logs` itself name their prefixes there; `api_key.`, `order.`,
+  `organization.` and `impersonation.` are sent to `core` — ending in `return 'core'`. The
+  route puts its answer on every row as `actionModuleId`, and the viewer looks
+  `auditLog.<action>` up in that module's bundle. There is no roster, ledger, manifest field
+  or contribution seam a module joins; its only test (`routes.admin.test.ts`) asserts the
+  `tenant.` row. **The smallest correct fix is one line in that function** —
+  `if (action.startsWith('crm.')) return 'crm';` — after which `crm.opportunity.transition`
+  resolves to `auditLog.crm.opportunity.transition` in CRM's bundle, which exists in both
+  languages for every audited action (N-E11). **Not applied**: it is production code of
+  another module naming this one, not an exact-set ledger, and `audit_logs` is on no row of
+  `contracts/foreign-module-changes.md`. The durable repair is the one the function's shape
+  asks for — deriving the module from the manifests' declared audit prefixes — and is
+  `audit_logs`' to design. Until either lands, `/audit-log` shows CRM's rows under their raw
+  action codes; the Opportunity's own history is unaffected.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

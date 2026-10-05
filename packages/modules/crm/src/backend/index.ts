@@ -21,6 +21,7 @@ import {
   enterSystemScope,
   lazyPort,
   type ModuleContext,
+  type AuditPort,
   type RequireAdminFactory,
   type SettingsReadPort,
 } from '@endora-commerce/platform/kernel';
@@ -28,6 +29,7 @@ import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
 import { registerCrmAttachmentRoutes } from './routes/routes.attachments.js';
 import { registerCrmBoardRoutes } from './routes/routes.board.js';
 import { registerCrmCommentRoutes } from './routes/routes.comments.js';
+import { registerCrmHistoryRoutes } from './routes/routes.history.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
 import { registerCrmTagRoutes } from './routes/routes.tags.js';
@@ -41,6 +43,7 @@ import { OpportunityAssignmentService } from './services/opportunity-assignment-
 import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
 import { OpportunityAutoCreateService } from './services/opportunity-auto-create-service.js';
 import { OpportunityCommentService } from './services/opportunity-comment-service.js';
+import { OpportunityHistoryService } from './services/opportunity-history-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityService } from './services/opportunity-service.js';
 import { OpportunityTransitionGuardRegistry } from './services/opportunity-transition-guard-registry.js';
@@ -525,6 +528,33 @@ export function registerModule(ctx: ModuleContext): void {
   });
   // --- end of Placed documents ---------------------------------------------------
 
+  // --- Change history (User Story 11) ---------------------------------------
+  // The audit log is the history: one read of the kernel's audit port for the
+  // entries of one Opportunity, after the Opportunity itself was loaded through
+  // the tenant-scoped EntityManager. `auditLogService` is a platform service,
+  // not a module's port, and needs no manifest edge. The route is registered
+  // here, in a `ctx.routes` of its own, so the whole story is this one section.
+  ctx.di.register({
+    crmOpportunityHistoryService: ctx
+      .asFunction(
+        ({ emFactory, auditLogService }: CrmCradle & HistoryCradle) =>
+          new OpportunityHistoryService({
+            emFactory,
+            auditLog: auditLogService,
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<CrmCradle & HistoryCradle>();
+    await registerCrmHistoryRoutes(app, {
+      historyService: cradle.crmOpportunityHistoryService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of Change history -------------------------------------------------
+
   // --- Routes ----------------------------------------------------------------
   // All through `ctx.routes`, so every one of them stops with the module.
   ctx.routes(async (app) => {
@@ -579,6 +609,13 @@ interface ValueCradle {
   readonly processRunsWorkers: boolean;
   /** The connection a module may build a queue on; undefined where a composition wants none. */
   readonly moduleQueueRedis: Redis | undefined;
+}
+
+/** What the change-history section reads from the container. */
+interface HistoryCradle {
+  /** The kernel's audit port, under the name `audit_logs`' own route reads it by. */
+  readonly auditLogService: AuditPort;
+  readonly crmOpportunityHistoryService: OpportunityHistoryService;
 }
 
 /** What the placed-documents section reads from the container. */
