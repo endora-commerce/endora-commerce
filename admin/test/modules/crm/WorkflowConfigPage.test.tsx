@@ -175,6 +175,133 @@ describe('WorkflowConfigPage', () => {
     );
   });
 
+  describe('the reverse direction — an order status moves the opportunity (User Story 2)', () => {
+    const reverseTable = (): HTMLElement =>
+      screen.getByRole('table', { name: en('workflow.reverse.title') });
+
+    const targetFor = (orderStatus: string): HTMLElement =>
+      screen.getByLabelText(en('workflow.reverse.opportunityStatusFor', { name: orderStatus }));
+
+    const everyOrderFor = (orderStatus: string): HTMLElement =>
+      screen.getByRole('checkbox', {
+        name: en('workflow.reverse.requireAllFor', { name: orderStatus }),
+      });
+
+    it('offers one row per order status, with nothing mapped and the toggle unavailable', async () => {
+      await renderPage();
+      await waitFor(() => expect(reverseTable()).toBeInTheDocument());
+      for (const name of ['New', 'Paid', 'Completed']) {
+        expect(targetFor(name)).toHaveValue('');
+        expect(everyOrderFor(name)).toBeDisabled();
+        expect(everyOrderFor(name)).not.toBeChecked();
+      }
+    });
+
+    it('turns "only when every linked order is there" on by default when the target closes the opportunity', async () => {
+      await renderPage();
+      await waitFor(() => expect(reverseTable()).toBeInTheDocument());
+      await userEvent.selectOptions(targetFor('Completed'), 'won');
+      expect(everyOrderFor('Completed')).toBeEnabled();
+      expect(everyOrderFor('Completed')).toBeChecked();
+
+      // An open target does not wait for the other orders unless the operator says so.
+      await userEvent.selectOptions(targetFor('Paid'), 'qualified');
+      expect(everyOrderFor('Paid')).not.toBeChecked();
+
+      await userEvent.click(screen.getByRole('button', { name: en('workflow.mapping.save') }));
+      await waitFor(() =>
+        expect(putSpy).toHaveBeenCalledWith('/api/v1/admin/crm/order-status-mappings', {
+          mappings: [
+            {
+              direction: 'order_to_opportunity',
+              orderStatusCode: 'paid',
+              opportunityStatusCode: 'qualified',
+              requireAllOrders: false,
+            },
+            {
+              direction: 'order_to_opportunity',
+              orderStatusCode: 'completed',
+              opportunityStatusCode: 'won',
+              requireAllOrders: true,
+            },
+          ],
+        }),
+      );
+    });
+
+    it('sends the toggle as the operator left it, and both directions in one write', async () => {
+      await renderPage();
+      await waitFor(() => expect(reverseTable()).toBeInTheDocument());
+      await userEvent.selectOptions(
+        screen.getByLabelText(en('workflow.mapping.orderStatusFor', { name: 'Won' })),
+        'completed',
+      );
+      await userEvent.selectOptions(targetFor('Completed'), 'won');
+      await userEvent.click(everyOrderFor('Completed'));
+      expect(everyOrderFor('Completed')).not.toBeChecked();
+      await userEvent.click(screen.getByRole('button', { name: en('workflow.mapping.save') }));
+
+      await waitFor(() =>
+        expect(putSpy).toHaveBeenCalledWith('/api/v1/admin/crm/order-status-mappings', {
+          mappings: [
+            { direction: 'opportunity_to_order', opportunityStatusCode: 'won', orderStatusCode: 'completed' },
+            {
+              direction: 'order_to_opportunity',
+              orderStatusCode: 'completed',
+              opportunityStatusCode: 'won',
+              requireAllOrders: false,
+            },
+          ],
+        }),
+      );
+    });
+
+    it('shows the stored reverse mappings, flags an order status that no longer exists, and can remove it', async () => {
+      const stored = {
+        ...WORKFLOW,
+        orderStatusMappings: [
+          { direction: 'order_to_opportunity', orderStatusCode: 'paid', opportunityStatusCode: 'qualified', requireAllOrders: true, orderStatusKnown: true },
+          { direction: 'order_to_opportunity', orderStatusCode: 'archived', opportunityStatusCode: 'lost', requireAllOrders: false, orderStatusKnown: true },
+        ],
+      };
+      getSpy.mockImplementation((path: string) => {
+        if (path === WORKFLOW_PATH) return Promise.resolve({ data: stored });
+        if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
+        return Promise.reject(new Error(`unexpected GET ${path}`));
+      });
+      await renderPage();
+      await waitFor(() => expect(reverseTable()).toBeInTheDocument());
+
+      expect(targetFor('Paid')).toHaveValue('qualified');
+      // The stored choice wins over the default for an open target.
+      expect(everyOrderFor('Paid')).toBeChecked();
+
+      // `archived` is not among the order statuses the Orders module answers.
+      const gone = en('workflow.mapping.unknown', { code: 'archived' });
+      const row = within(reverseTable()).getByText(gone).closest('tr') as HTMLElement;
+      expect(within(row).getByText(en('workflow.reverse.unknownStatus'))).toBeInTheDocument();
+      expect(targetFor(gone)).toHaveValue('lost');
+
+      // Nothing was changed yet: the table is not dirty.
+      expect(screen.getByRole('button', { name: en('workflow.mapping.save') })).toBeDisabled();
+
+      await userEvent.selectOptions(targetFor(gone), '');
+      await userEvent.click(screen.getByRole('button', { name: en('workflow.mapping.save') }));
+      await waitFor(() =>
+        expect(putSpy).toHaveBeenCalledWith('/api/v1/admin/crm/order-status-mappings', {
+          mappings: [
+            {
+              direction: 'order_to_opportunity',
+              orderStatusCode: 'paid',
+              opportunityStatusCode: 'qualified',
+              requireAllOrders: true,
+            },
+          ],
+        }),
+      );
+    });
+  });
+
   it('keeps an unsaved mapping choice when another part of the workflow is saved', async () => {
     // Every write answers a fresh workflow. One that did not touch the mappings
     // must not throw away what the operator has chosen and not yet saved.

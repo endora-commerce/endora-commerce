@@ -49,8 +49,11 @@ five screens and three entries to the shell's "CRM" sidebar section:
   place — only the changed fields are sent, under `If-Match`, and a stale version is reported
   with a way to reload rather than retried — and may give a status change a reason; a holder
   of `crm:configure` can delete it, after a confirmation;
-- `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, and the
-  order status each opportunity status sets;
+- `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, the
+  order status each opportunity status sets, and — the reverse direction — the opportunity
+  status each order status leads to, with "only when every linked order is there" per row
+  (on by default when the target closes the opportunity) and a marker on a mapping whose
+  order status no longer exists;
 - `/crm/board` (`crm:read`) — the opportunities as cards in a column per status, on the
   `KanbanBoard` primitive of `@endora-commerce/admin-kit`. A holder of `crm:write` moves a
   card by dragging it (mouse, touch, keyboard) or from the card's "Move to…" menu, which

@@ -1673,6 +1673,21 @@ when it was measured, and what was done about it.
   totals to the list's answer for each. The tidy-up N-C2 names — one `conditions` function the
   list also calls — was **not** made: `opportunity-service.ts` is being edited on the sibling
   branch.
+- **N-D3 (2026-10-05, T063) — the reverse table is keyed by Order status, and one thing T063
+  asks for cannot be shown.** (a) One row per **Order** status, not per Opportunity status:
+  the server's rule for this direction is `mapping_duplicate_order_status`, so an Order status
+  has one choice and several rows may choose the same Opportunity status. (b) "Only when every
+  linked order is there" is ticked when the chosen target is of kind `won` or `lost` and is
+  re-applied whenever the target changes; a stored mapping shows what is stored. (c) **An
+  unknown Order status is decided from `GET /api/v1/admin/orders/statuses`**, as N-B1
+  recommends, not from `orderStatusKnown`: a mapped code the Orders module no longer answers
+  gets a row of its own, says so, and is removed by choosing "Leave the opportunity as it
+  is". (d) Both tables are one draft and one *Save mappings*, because the endpoint replaces
+  the whole set. (e) **Not done: "show the cause Order on `OverviewTab.tsx`".**
+  `OpportunityDetail` carries no status history — `causeOrderId` is on the events, in the
+  status-history table and in the audit entry (N-B3) — so the Overview has nothing to read
+  it from. The change history tab of User Story 11 is where it will be shown; adding a field
+  to the detail for it is a contract change no task asks for.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

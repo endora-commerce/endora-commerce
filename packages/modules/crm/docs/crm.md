@@ -53,7 +53,7 @@ when at least one of them is visible.
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
 | An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, the orders linked to it, and what became of those orders after each move. |
 | Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
-| Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, and the order status each opportunity status sets. |
+| Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, and the opportunity status each order status leads to. |
 
 The everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
 **Sales opportunities**, **New sales opportunity** and **Opportunity board**.
@@ -294,7 +294,17 @@ administrator is recorded as having made it.
 - when an order moves its opportunity, no other order of that opportunity is
   asked to follow.
 
-A mapping is sent to the same endpoint as the forward ones, with
+On the **Workflow** screen these mappings are the second table, *Opportunity
+status for each order status*: one row per order status, a choice of the
+opportunity status it leads to, and a checkbox, **Only when every linked order
+is there**. The checkbox is ticked for you when the chosen status closes the
+opportunity — one delivered order out of three should not win the deal — and
+left clear otherwise; change it either way before saving. A mapping whose
+order status has since been deleted from the order workflow stays in the table,
+marked *no longer exists*, until you set its row back to *Leave the opportunity
+as it is*. **Save mappings** saves both tables together.
+
+Over the API, a mapping is sent to the same endpoint as the forward ones, with
 `direction: "order_to_opportunity"` and, optionally, `requireAllOrders`. The
 set is replaced whole, both directions together:
 

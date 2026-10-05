@@ -188,8 +188,8 @@ own rules, with every outcome shown; register business logic on X → Y.
 - [x] T061 [US2] Implement the reverse half in `packages/modules/crm/src/backend/services/order-status-propagation-service.ts` (`onOrderStatusChanged`: echo suppression against forward rows, link/`syncStatus`/closed checks, mapping lookup, the any/all rule, apply through `OpportunityTransitionService` with `cause: 'order_status'`, record `skipped`) and make the transition service skip forward propagation for that cause (research R-5)
 - [x] T062 [US2] Create `packages/modules/crm/src/backend/compose/reverse-mapping.ts`: `ctx.subscribe('order.status_changed.v1', …)` parsing the payload with its Zod schema and running inside `enterSystemScope('crm: order status follows', …)`; register in `index.ts`; allow the reverse direction in `workflow-config-service.ts`; T058–T060 green; `check:subscribe-seam`, `check:entry-scope` green
   - A section of `index.ts` (N-6). No Zod schema exists for the event; the payload is read with a guard (`research.md` N-B2).
-- [ ] T063 [P] [US2] Admin: add the reverse-direction table and the "only when every linked Order is there" toggle (default on when the target closes) to `packages/modules/crm/src/admin/pages/workflow/OrderStatusMappings.tsx`; show the cause Order on `OverviewTab.tsx`; test in `admin/test/modules/crm/WorkflowConfigPage.test.tsx`; strings under `workflow.*`
-- [ ] T064 [US2] Docs section (+ Polish), regenerate if imports changed, full gate
+- [x] T063 [P] [US2] Admin: add the reverse-direction table and the "only when every linked Order is there" toggle (default on when the target closes) to `packages/modules/crm/src/admin/pages/workflow/OrderStatusMappings.tsx`; show the cause Order on `OverviewTab.tsx`; test in `admin/test/modules/crm/WorkflowConfigPage.test.tsx`; strings under `workflow.*`
+- [x] T064 [US2] Docs section (+ Polish), regenerate if imports changed, full gate
   - **Backend half done 2026-10-05** — the page and its Polish copy describe the reverse direction and its API; no import of the package changed, so nothing was regenerated; the gate ran. `research.md` N-B1…N-B4.
 
 ---

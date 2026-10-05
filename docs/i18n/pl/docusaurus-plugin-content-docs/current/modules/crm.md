@@ -52,7 +52,7 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
 | Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Jej status i zmiany, na które pozwala przepływ, powiązane z nią zamówienia oraz to, co stało się z tymi zamówieniami po każdej zmianie. |
 | Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
-| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi oraz status zamówienia ustawiany przez każdy status szansy. |
+| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy oraz status szansy, do którego prowadzi każdy status zamówienia. |
 
 Codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
 **Szanse sprzedażowe**, **Nowa szansa sprzedażowa** i **Tablica szans
@@ -306,7 +306,18 @@ i się zatrzymuje:
 - gdy zamówienie przesuwa swoją szansę, żadne inne zamówienie tej szansy nie
   jest proszone o podążanie.
 
-Mapowanie wysyła się na ten sam adres co mapowania w przód, z
+Na ekranie **Statusy i przepływ** te mapowania to druga tabela, *Status szansy
+dla każdego statusu zamówienia*: jeden wiersz dla każdego statusu zamówienia,
+wybór statusu szansy, do którego on prowadzi, oraz pole wyboru **Dopiero gdy są
+tam wszystkie powiązane zamówienia**. Pole jest zaznaczane automatycznie, gdy
+wybrany status zamyka szansę — jedno dostarczone zamówienie z trzech nie
+powinno wygrywać transakcji — a w pozostałych przypadkach zostaje puste; przed
+zapisaniem można je zmienić w obie strony. Mapowanie, którego status zamówienia
+został w międzyczasie usunięty z przepływu zamówień, zostaje w tabeli z
+oznaczeniem *już nie istnieje*, dopóki w jego wierszu nie zostanie wybrane *Nie
+zmieniaj szansy*. Przycisk **Zapisz mapowania** zapisuje obie tabele naraz.
+
+W API mapowanie wysyła się na ten sam adres co mapowania w przód, z
 `direction: "order_to_opportunity"` i opcjonalnie z `requireAllOrders`. Zbiór
 jest zastępowany w całości, oba kierunki razem:
 

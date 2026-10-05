@@ -306,5 +306,13 @@
   "workflow.mapping.unknown": "{code} (no longer exists)",
   "workflow.mapping.save": "Save mappings",
   "workflow.mapping.saved": "Mappings saved.",
-  "workflow.mapping.ordersUnavailable": "Order statuses could not be loaded, so mappings cannot be edited here. Your role needs permission to view orders."
+  "workflow.mapping.ordersUnavailable": "Order statuses could not be loaded, so mappings cannot be edited here. Your role needs permission to view orders.",
+  "workflow.reverse.title": "Opportunity status for each order status",
+  "workflow.reverse.description": "When a linked order that follows its opportunity reaches a status, the opportunity is moved to the status chosen here, if its workflow allows the move. A closed opportunity is never reopened.",
+  "workflow.reverse.col.requireAll": "Condition",
+  "workflow.reverse.none": "Leave the opportunity as it is",
+  "workflow.reverse.opportunityStatusFor": "Opportunity status for order status {name}",
+  "workflow.reverse.requireAll": "Only when every linked order is there",
+  "workflow.reverse.requireAllFor": "Only when every linked order is there — {name}",
+  "workflow.reverse.unknownStatus": "This order status no longer exists, so this mapping never applies. Choose “Leave the opportunity as it is” to remove it."
 }

@@ -306,5 +306,13 @@
   "workflow.mapping.unknown": "{code} (już nie istnieje)",
   "workflow.mapping.save": "Zapisz mapowania",
   "workflow.mapping.saved": "Mapowania zapisane.",
-  "workflow.mapping.ordersUnavailable": "Nie udało się wczytać statusów zamówień, więc mapowań nie można tu edytować. Twoja rola wymaga uprawnienia do przeglądania zamówień."
+  "workflow.mapping.ordersUnavailable": "Nie udało się wczytać statusów zamówień, więc mapowań nie można tu edytować. Twoja rola wymaga uprawnienia do przeglądania zamówień.",
+  "workflow.reverse.title": "Status szansy dla każdego statusu zamówienia",
+  "workflow.reverse.description": "Gdy powiązane zamówienie, które podąża za szansą, osiąga dany status, szansa jest przenoszona do wybranego tu statusu — o ile pozwala na to jej przepływ. Zamknięta szansa nigdy nie jest otwierana ponownie.",
+  "workflow.reverse.col.requireAll": "Warunek",
+  "workflow.reverse.none": "Nie zmieniaj szansy",
+  "workflow.reverse.opportunityStatusFor": "Status szansy dla statusu zamówienia {name}",
+  "workflow.reverse.requireAll": "Dopiero gdy są tam wszystkie powiązane zamówienia",
+  "workflow.reverse.requireAllFor": "Dopiero gdy są tam wszystkie powiązane zamówienia — {name}",
+  "workflow.reverse.unknownStatus": "Ten status zamówienia już nie istnieje, więc to mapowanie nigdy nie zadziała. Wybierz „Nie zmieniaj szansy”, aby je usunąć."
 }
