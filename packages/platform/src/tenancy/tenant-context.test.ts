@@ -79,6 +79,38 @@ describe('resolveTenantContext', () => {
     const ctx = resolveTenantContext({ kind: 'admin', adminUserId: 'a1' });
     expect(ctx.mode).toBe('all');
   });
+  describe('an admin scope that could not be resolved', () => {
+    const refusal = new Error('the module that decides this reach is absent');
+
+    it('never widens, whatever `allowAll` says', () => {
+      const ctx = resolveTenantContext(
+        { kind: 'admin', adminUserId: 'a1' },
+        { allowAll: true, unresolved: refusal },
+      );
+      expect(ctx.mode).toBe('allowed-set');
+      expect(ctx.allowedOrganizationIds).toEqual([]);
+      expect(ctx.scopeUnresolved).toBe(refusal);
+    });
+
+    it('holds no organization, whatever set was passed beside it', () => {
+      const ctx = resolveTenantContext(
+        { kind: 'admin', adminUserId: 'a1' },
+        { allowAll: false, allowedOrganizationIds: ['org-A', 'org-B'], unresolved: refusal },
+      );
+      expect(ctx.mode).toBe('allowed-set');
+      expect(ctx.allowedOrganizationIds).toEqual([]);
+      expect(ctx.scopeUnresolved).toBe(refusal);
+    });
+
+    it('leaves a resolved scope exactly as given', () => {
+      const ctx = resolveTenantContext(
+        { kind: 'admin', adminUserId: 'a1' },
+        { allowAll: false, allowedOrganizationIds: ['org-A'] },
+      );
+      expect(ctx.allowedOrganizationIds).toEqual(['org-A']);
+      expect(ctx.scopeUnresolved).toBeUndefined();
+    });
+  });
 });
 
 describe('ambient context store', () => {

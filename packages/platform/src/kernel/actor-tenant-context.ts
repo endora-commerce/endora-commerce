@@ -63,6 +63,16 @@ import { ModuleDisabledError } from './lifecycle/plugin-helpers.js';
  *    tenant-scoped read rather than raised here. See {@link adminScopeOrNone}
  *    for why that one arm does not refuse in the hook. It never widens.
  *
+ * ## Which actor
+ *
+ * `request.actor` **when the mapping is asked**, and it is asked twice for a
+ * request whose gate accepts a different actor from the ambient one: once by
+ * the scope hook in `onRequest`, and again when `auth`'s admin guard has put
+ * the admin session on a request that also carries a customer one
+ * (`scopeRequestToActor` in `./request-scope-hook.ts`). The mapping does not
+ * know or care which call it is — a context is always what the request's
+ * current actor may reach.
+ *
  * System scope is what remains for a request that identifies nobody: anonymous
  * traffic, whose guest-owned rows are scoped by their own token, and an API key
  * bound to no organization, whose surface is global data.
@@ -72,7 +82,14 @@ import { ModuleDisabledError } from './lifecycle/plugin-helpers.js';
 export interface ActorTenantScopeSources {
   /** `customer_accounts`' roll-up decision. */
   customerRollupScope(): CustomerRollupScopePort | undefined;
-  /** `organizations`' tree traversal: an organization and everything beneath it. */
+  /**
+   * `organizations`' tree traversal: an organization and everything beneath it.
+   *
+   * `undefined` says the composition has no traversal. Anything else must be
+   * safe to hand over **unasked**: the mapping obtains it for every customer
+   * and only a roll-up account ever calls it, so an owner that is absent has
+   * to refuse at `subtreeIds`, not here.
+   */
   organizationSubtree(): { subtreeIds(organizationId: string): Promise<string[]> } | undefined;
   /** `organizations`' answer for the reach of an admin. */
   adminTenantScope(): AdminTenantScopePort | undefined;
@@ -195,10 +212,32 @@ async function adminScopeOrNone(
   sources: ActorTenantScopeSources,
   adminUserId: string,
 ): Promise<AdminScopeInput> {
-  try {
+  return adminScopeOrUnresolved(async () => {
     const port = sources.adminTenantScope();
     if (port === undefined) return NO_ORGANIZATION;
-    return await port.resolveForAdmin(adminUserId);
+    return port.resolveForAdmin(adminUserId);
+  });
+}
+
+/**
+ * The degrade itself, as the one function every composition root runs: ask for
+ * an admin's scope, and answer {@link unresolvedAdminScope} when the asking is
+ * refused because a module is absent.
+ *
+ * `resolve` must do the **whole** asking inside the callback — reading the
+ * port off the container as well as calling it — because a gated port refuses
+ * at resolution, before any method runs, and a read made outside would escape
+ * the catch. Narrow on purpose: `ModuleDisabledError` and nothing else.
+ *
+ * It is exported for the test harness, whose mapping is its own and whose admin
+ * arm must degrade exactly as this one does; a second hand-written `catch` is
+ * how the two come to disagree about which errors are a presence answer.
+ */
+export async function adminScopeOrUnresolved(
+  resolve: () => Promise<AdminScopeInput>,
+): Promise<AdminScopeInput> {
+  try {
+    return await resolve();
   } catch (error) {
     if (error instanceof ModuleDisabledError) return unresolvedAdminScope(error);
     throw error;
@@ -213,6 +252,14 @@ async function adminScopeOrNone(
  * than a failure. A **registered** name is resolved on every call, so a gated
  * port keeps answering for its owner's current state and its refusal reaches
  * the caller.
+ *
+ * The tree traversal is the one whose cradle read is **deferred to its use**.
+ * The mapping takes it for every customer and hands it to the roll-up port as a
+ * callback, which only a roll-up account invokes. Resolving it up front would
+ * make a gated `organizationTreeService` refuse every signed-in customer while
+ * its owner is absent, where the only request that needs the tree is the one
+ * that walks it. Whether the name is registered is still answered eagerly:
+ * that is what decides between "no traversal here" and "ask when needed".
  */
 export function containerTenantScopeSources(container: KernelContainer): ActorTenantScopeSources {
   const read = <T>(name: string): T | undefined =>
@@ -222,7 +269,16 @@ export function containerTenantScopeSources(container: KernelContainer): ActorTe
   return {
     customerRollupScope: () => read<CustomerRollupScopePort>('customerRollupScopePort'),
     organizationSubtree: () =>
-      read<{ subtreeIds(organizationId: string): Promise<string[]> }>('organizationTreeService'),
+      container.hasRegistration('organizationTreeService')
+        ? {
+            subtreeIds: async (organizationId: string) =>
+              (
+                read<{ subtreeIds(organizationId: string): Promise<string[]> }>(
+                  'organizationTreeService',
+                ) as { subtreeIds(organizationId: string): Promise<string[]> }
+              ).subtreeIds(organizationId),
+          }
+        : undefined,
     adminTenantScope: () => read<AdminTenantScopePort>('adminTenantScopePort'),
   };
 }

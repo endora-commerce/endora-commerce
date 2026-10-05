@@ -30,6 +30,7 @@ import { ADMIN_SESSION_COOKIE_NAME } from '@endora-commerce/contracts';
 
 import {
   ADMIN_LOGIN_PATH,
+  ADMIN_ORDERS_PATH,
   CUSTOMER_ORDERS_PATH,
   EXTERNAL_ORDERS_PATH,
   type ActorOrderReads,
@@ -105,7 +106,8 @@ function stringAt(record: Record<string, unknown>, path: readonly string[], what
   return value;
 }
 
-interface PgClient {
+/** The slice of a `pg` client the fixture writes through. */
+export interface PgClient {
   query<Row>(text: string, values?: readonly unknown[]): Promise<{ rows: Row[] }>;
 }
 
@@ -114,7 +116,7 @@ interface PgClient {
  * definition: every required column with no default takes a value of its
  * declared type, and the three ownership columns take the ones given.
  */
-async function seedOrder(
+export async function seedOrder(
   client: PgClient,
   owner: { readonly organizationId: string; readonly customerAccountId: string },
   salesChannelId: string,
@@ -207,10 +209,11 @@ const NOT_ASKED: Omit<ActorScopeObservation, 'setupFailure'> = {
   apiKey: null,
   reparent: null,
   audit: null,
+  twoSessions: null,
 };
 
 /**
- * Ask A17's four readings of the instance serving at `base`.
+ * Ask A17's readings of the instance serving at `base`.
  *
  * `administrator` is the one A15 created with the instance's own CLI, so the
  * admin half is asked as the administrator a client would have.
@@ -291,10 +294,30 @@ export async function measureActorScope(
       body: { email: own.email, password: MEMBER_PASSWORD },
     });
     expectStatus(customerLogin, 200, `POST ${CUSTOMER_LOGIN_PATH}`);
+    const customerCookie = cookieHeader(customerLogin.cookies);
     const customer = await orderReads(
       base,
       CUSTOMER_ORDERS_PATH,
-      { cookie: cookieHeader(customerLogin.cookies) },
+      { cookie: customerCookie },
+      ownOrderId,
+      foreignOrderId,
+    );
+
+    // One browser signed in to both: every request below carries the admin
+    // session and the customer session, and the route decides which of them
+    // it runs as. Read before the re-parent, like the readings above.
+    const bothCookies = `${adminCookie}; ${customerCookie}`;
+    const customerRouteWithBoth = await orderReads(
+      base,
+      CUSTOMER_ORDERS_PATH,
+      { cookie: bothCookies },
+      ownOrderId,
+      foreignOrderId,
+    );
+    const adminRouteWithBoth = await orderReads(
+      base,
+      ADMIN_ORDERS_PATH,
+      { cookie: bothCookies },
       ownOrderId,
       foreignOrderId,
     );
@@ -338,6 +361,22 @@ export async function measureActorScope(
       [other.organizationId, before],
     );
 
+    // The second re-parent, with both cookies: the organization moved above is
+    // detached again. It is its own Command with its own audit rows, read from
+    // the database's clock after the first one's.
+    const beforeDetach = (await client.query<{ now: Date }>('select now() as now')).rows[0]?.now;
+    const detach = await call(
+      base,
+      'POST',
+      `${ADMIN_ORGANIZATIONS_PATH}/${other.organizationId}/parent`,
+      { cookie: bothCookies, body: { parentId: null } },
+    );
+    const detachAudit = await client.query<{ action: string; actor_admin_user_id: string | null }>(
+      'select action, actor_admin_user_id from audit_log_entries ' +
+        'where object_id = $1 and acted_at >= $2 order by acted_at asc',
+      [other.organizationId, beforeDetach],
+    );
+
     return {
       setupFailure: null,
       ownOrganizationId: own.organizationId,
@@ -347,6 +386,19 @@ export async function measureActorScope(
       audit: {
         adminUserId,
         entries: audit.rows.map((row) => ({
+          action: row.action,
+          actorAdminUserId: row.actor_admin_user_id,
+        })),
+      },
+      twoSessions: {
+        otherOrganizationId: other.organizationId,
+        adminRoute: {
+          listStatus: adminRouteWithBoth.listStatus,
+          listedOrganizations: adminRouteWithBoth.listedOrganizations,
+        },
+        customerRoute: customerRouteWithBoth,
+        reparent: { status: detach.status, body: detach.text },
+        auditEntries: detachAudit.rows.map((row) => ({
           action: row.action,
           actorAdminUserId: row.actor_admin_user_id,
         })),

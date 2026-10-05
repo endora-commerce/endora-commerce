@@ -1580,7 +1580,15 @@ describe('A17 — a request is confined to what its authenticated actor may reac
       adminUserId: ADMIN,
       entries: [{ action: 'organization.parent.assign', actorAdminUserId: ADMIN }],
     },
+    twoSessions: {
+      otherOrganizationId: OTHER,
+      adminRoute: { listStatus: 200, listedOrganizations: [OTHER, OWN] },
+      customerRoute: confined,
+      reparent: { status: 200, body: '{}' },
+      auditEntries: [{ action: 'organization.set_parent', actorAdminUserId: ADMIN }],
+    },
   };
+  const twoSessions = measured.twoSessions!;
 
   it('passes when every actor is confined and the admin is recorded', () => {
     const result = evaluateA17(measured);
@@ -1644,6 +1652,88 @@ describe('A17 — a request is confined to what its authenticated actor may reac
     expect(silent.detail).toContain('wrote no audit entry');
   });
 
+  /**
+   * One browser holding an admin session and a customer session. The route
+   * decides which of the two scopes the request, so the same cookies are read
+   * through an admin route and a buyer route and must give two answers.
+   */
+  describe('with an admin session and a customer session in one browser', () => {
+    it('fails when the admin route is confined to the customer`s organization', () => {
+      const result = evaluateA17({
+        ...measured,
+        twoSessions: {
+          ...twoSessions,
+          adminRoute: { listStatus: 200, listedOrganizations: [OWN] },
+        },
+      });
+      expect(result.state).toBe('fail');
+      expect(result.detail).toContain('also holds a customer session');
+      expect(result.detail).toContain('admin route');
+    });
+
+    it('fails when the admin route refuses that administrator', () => {
+      const result = evaluateA17({
+        ...measured,
+        twoSessions: { ...twoSessions, adminRoute: { listStatus: 401, listedOrganizations: [] } },
+      });
+      expect(result.state).toBe('fail');
+      expect(result.detail).toContain('answered 401');
+    });
+
+    it('fails when the buyer route reaches beyond the customer`s organization', () => {
+      const result = evaluateA17({
+        ...measured,
+        twoSessions: {
+          ...twoSessions,
+          customerRoute: { ...confined, listedOrganizations: [OTHER, OWN] },
+        },
+      });
+      expect(result.state).toBe('fail');
+      expect(result.detail).toContain('a customer whose browser also holds an admin session');
+    });
+
+    it('fails when that administrator cannot re-parent an organization', () => {
+      const result = evaluateA17({
+        ...measured,
+        twoSessions: {
+          ...twoSessions,
+          reparent: { status: 403, body: '{"error":{"code":"FORBIDDEN"}}' },
+          auditEntries: [],
+        },
+      });
+      expect(result.state).toBe('fail');
+      expect(result.detail).toContain('also holds a customer session');
+      expect(result.detail).toContain('403');
+    });
+
+    it('fails when the re-parent is recorded without that administrator as its actor', () => {
+      const unattributed = evaluateA17({
+        ...measured,
+        twoSessions: {
+          ...twoSessions,
+          auditEntries: [{ action: 'organization.set_parent', actorAdminUserId: null }],
+        },
+      });
+      expect(unattributed.state).toBe('fail');
+      expect(unattributed.detail).toContain('organization.set_parent');
+
+      const silent = evaluateA17({
+        ...measured,
+        twoSessions: { ...twoSessions, auditEntries: [] },
+      });
+      expect(silent.state).toBe('fail');
+      expect(silent.detail).toContain('wrote no audit entry');
+    });
+
+    it('does not judge a run that never asked with two sessions', () => {
+      expect(evaluateA17({ ...measured, twoSessions: null }).state).toBe('unmeasured');
+    });
+
+    it('says in its passing detail that the two-session readings were taken', () => {
+      expect(evaluateA17(measured).detail).toContain('also holds a customer session');
+    });
+  });
+
   it('is unmeasured, never a verdict, when the fixture could not be built', () => {
     const result = evaluateA17({
       setupFailure: 'POST /api/v1/organizations/register answered 500',
@@ -1652,6 +1742,7 @@ describe('A17 — a request is confined to what its authenticated actor may reac
       apiKey: null,
       reparent: null,
       audit: null,
+      twoSessions: null,
     });
     expect(result.state).toBe('unmeasured');
     expect(result.detail).toContain('answered 500');

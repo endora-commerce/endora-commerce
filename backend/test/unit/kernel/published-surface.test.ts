@@ -159,6 +159,17 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
   /** Row 13. */
   'scope.js': ['enterSystemScope'],
   /**
+   * How a route gate tells the request scope which actor it accepted. `auth`'s
+   * admin and customer guards call it, so the tenant context of a request is
+   * derived from the actor its gate authorized rather than from whichever
+   * session cookie was read first. A module publishing a gate of its own that
+   * chooses between sessions owes the same call, which is why it is published
+   * and `registerRequestScopeHook`, from the same file, is not: opening the
+   * scope is the host's, saying who was accepted is the gate's. It takes no
+   * context, so it widens nothing a module could not already reach.
+   */
+  'request-scope-hook.js': ['scopeRequestToActor'],
+  /**
    * D-160.10 — the port replaces the class. `RecordAuditInput` and
    * `AuditLogFilter` are the argument shapes of its own methods.
    */
@@ -590,6 +601,11 @@ const HOST_COMPOSITION_SURFACE: Readonly<Record<string, readonly string[]>> = {
     'ModuleRegistrationSink',
   ],
   'kernel/request-scope-hook.ts': ['registerRequestScopeHook'],
+  // The admin arm's degrade when a module behind the scope port is absent. The
+  // test harness writes its own actor → context mapping, and its admin arm
+  // must degrade exactly as the platform's does — so it calls the platform's
+  // function instead of carrying a second `catch`.
+  'kernel/actor-tenant-context.ts': ['adminScopeOrUnresolved'],
   'kernel/logging.ts': ['platformLogger'],
   // T119b. `kernel/public-api-base-url.ts` was here for `absolutizePublicUrl`,
   // and is gone with **D-223**, which took the application's last two reaches

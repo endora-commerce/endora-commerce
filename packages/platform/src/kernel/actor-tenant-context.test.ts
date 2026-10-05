@@ -269,6 +269,41 @@ describe('a composition missing the modules the mapping asks', () => {
     expect(response.statusCode).toBe(503);
   });
 
+  it('touches the tree owner only for an account that rolls up', async () => {
+    // `organizationTreeService` is a gated port: with its owner absent the
+    // **resolution** refuses, before any method is called. Only a roll-up
+    // account's traversal may meet that refusal — a customer who does not roll
+    // up never asked the tree anything and is confined as always.
+    const treeOwnerAbsent = (rollup: boolean): KernelContainer => {
+      const container = createRootContainer();
+      container.register({
+        customerRollupScopePort: asValue({
+          resolveSubtreeIds: async (
+            _customerAccountId: string,
+            organizationId: string | null,
+            subtreeIds: (id: string) => Promise<string[]>,
+          ) => (rollup && organizationId !== null ? subtreeIds(organizationId) : undefined),
+        }),
+        organizationTreeService: asFunction(() => {
+          throw new ModuleDisabledError('organizations');
+        }),
+      } as never);
+      return container;
+    };
+
+    const flat = await contextFor(await appOver(treeOwnerAbsent(false)), customer);
+    expect(flat.status).toBe(200);
+    expect(flat.tenant.mode).toBe('single-org');
+    expect(flat.tenant.organizationId).toBe(ORG_A);
+
+    const rollingUp = await (await appOver(treeOwnerAbsent(true))).inject({
+      method: 'GET',
+      url: '/context',
+      headers: { 'x-test-actor': JSON.stringify(customer) },
+    });
+    expect(rollingUp.statusCode).toBe(503);
+  });
+
   it('lets any other failure of a registered port fail the request instead of widening it', async () => {
     const container = createRootContainer();
     container.register({

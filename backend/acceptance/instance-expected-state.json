@@ -500,6 +500,12 @@
     "organization, a platform administrator able to re-parent one, and the Command that did it",
     "recording that administrator. Measured in `tarball` mode on the branch that makes the actor to",
     "tenant mapping the platform's own: 16 pass, 0 fail, 1 unmeasured (A12) of 17. `registry` is",
-    "left without a state for A17, so its first run after the next publish drifts and records it."
+    "left without a state for A17, so its first run after the next publish drifts and records it.",
+    "",
+    "2026-10-04 — A17 asks with two sessions as well. One browser holding an admin session and a",
+    "customer session: the admin order list holds both organizations' orders, the buyer routes are",
+    "confined to the customer's, and a re-parent run with both cookies succeeds and records the",
+    "administrator. The route decides which session scopes a request. Measured in `tarball` mode on",
+    "the branch that makes it so: the state is unchanged, 16 pass, 0 fail, 1 unmeasured (A12) of 17."
   ]
 }

@@ -61,6 +61,13 @@ export interface AdminPermissionChecker {
  * `test/contract/kernel/harness-parity.test.ts` both named — *"actor promotion
  * published as a port, resolved from the container"*.
  *
+ * **Promotion alone leaves the request scoped as the actor it replaced.** The
+ * request's tenant context was derived from the ambient actor before any gate
+ * ran, so a caller that promotes owes the second half:
+ * `scopeRequestToActor(request)` (`../request-scope-hook.ts`). `auth`'s two
+ * admin guards do both, and are what a route surface takes; this bare half is
+ * for a caller that then does the same.
+ *
  * `void` rather than a returned actor, because it mutates the request in place:
  * every caller reads `request.actor` afterwards, and a return value would be a
  * second answer to the question the decoration already answers.

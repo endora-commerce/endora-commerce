@@ -324,15 +324,30 @@ export interface TestAuthDeps {
  * so route-level guards see a resolved actor.
  */
 export function registerTestAuth(app: FastifyInstance, deps: TestAuthDeps): void {
+  // `request.testActor` is the harness's own name for the actor, read by the
+  // modules that take an injected actor resolver; `request.actor` is the
+  // production decoration `auth`'s plugin applies. They are **one slot**: the
+  // harness name is a view of the production one.
+  //
+  // It used to be a second property the hook below wrote beside the first, and
+  // the two parted the moment anything else wrote `request.actor` — which
+  // `auth`'s admin guard does, when it promotes the admin session of a request
+  // that also carries a customer one. The guard then authorized the admin while
+  // every `testActor` read, the tenant-context mapping among them, still
+  // answered the customer.
+  app.decorateRequest('testActor', {
+    getter(this: FastifyRequest): TestActor {
+      return (this as unknown as { actor: TestActor }).actor;
+    },
+    setter(this: FastifyRequest, value: TestActor): void {
+      (this as unknown as { actor: TestActor }).actor = value;
+    },
+  });
+
   app.addHook('onRequest', async (request: FastifyRequest) => {
-    // Mirror the resolved actor onto BOTH `request.testActor` (the harness's
-    // own decoration, read by modules that take an injected actor resolver)
-    // AND `request.actor` (the production decoration the auth plugin sets).
     // Some storefront routes — notably `comparisons` — read `request.actor`
-    // directly instead of through an injected resolver, so without this they
-    // would see `undefined` and 500 under the test harness.
+    // directly instead of through an injected resolver; both names answer.
     const setActor = (actor: TestActor): void => {
-      request.testActor = actor;
       (request as unknown as { actor: TestActor }).actor = actor;
     };
 
