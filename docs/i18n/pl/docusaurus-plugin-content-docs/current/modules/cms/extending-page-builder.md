@@ -334,9 +334,20 @@ dlatego:
 
 **Instalacja w storefroncie.** Właściciel storefrontu dodaje pakiet do swojego
 storefrontu (`pnpm add`) i go buduje. Polecenie `blocks:generate`, uruchamiane
-przez skrypty `dev` i `build` storefrontu, znajduje każdy zainstalowany pakiet
-modułu deklarujący `./storefront` lub `./blocks.css` i zapisuje rejestr oraz
-import arkusza stylów — nie trzeba dopisywać niczego w żadnym pliku.
+przez skrypty `dev` i `build` storefrontu utworzonego przez wydanie `0.103.0`
+lub nowsze, znajduje każdy zainstalowany pakiet modułu deklarujący
+`./storefront` lub `./blocks.css` i zapisuje rejestr oraz import arkusza
+stylów — nie trzeba dopisywać niczego w żadnym pliku.
+
+**Storefront utworzony przez wcześniejsze wydanie nie ma żadnej z tych rzeczy,
+a aktualizacja ich nie dodaje.** Aktualizacja przesuwa pakiety storefrontu
+i zostawia jego źródła takie, jakie zostały zapisane, więc taki storefront nie
+ma skryptu `blocks:generate`, katalogu `lib/page-builder/` ani reguły
+obecności modułów: warstwa storefrontu z pakietu nie jest w nim wyświetlana,
+a sekcja *Blok, którego nie wyświetla żaden pakiet* i wiersz storefrontu
+w sekcji *Gdy moduł jest wyłączony* poniżej go nie dotyczą, dopóki właściciel
+nie przeniesie plików ręcznie. Kroki opisuje przewodnik *Aktualizacja
+instancji*, w części *Bloki modułów w istniejącym storefroncie*.
 
 Gdy `endora install` zapisuje instancję i storefront w jednym przebiegu,
 dopisuje do zależności storefrontu moduły instancji, które publikują warstwę
