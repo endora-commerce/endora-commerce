@@ -809,6 +809,14 @@ when it was measured, and what was done about it.
   replace. `pnpm --filter '!backend' run test` runs four vitest processes at once by default;
   under a 6 GB cap it is run with `--workspace-concurrency=1`.
 
+- **N-12 (2026-10-05, T026) — two ledgers a story meets that `quickstart.md` does not name.**
+  `backend/test/contract/kernel/openapi-baseline.test.ts` compares the served OpenAPI document
+  with a committed fixture, so **every story that adds a route** regenerates
+  `backend/test/fixtures/openapi-baseline.json` (`UPDATE_OPENAPI_BASELINE=1`) and reviews the
+  diff; it is a contract test, so neither `test:unit:fast` nor the `quality` job reaches it.
+  And `backend/test/unit/tenancy/transitive-parent-chains.test.ts` asserts the set of
+  `@TransitivelyScoped` classes, which the seven CRM children joined.
+
 ## Open questions for the owner
 
 Each has the recommended default already applied in the artifacts; none blocks implementation.

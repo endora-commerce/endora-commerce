@@ -1677,6 +1677,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/workflow": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/currencies": {
       "get": {
         "responses": {

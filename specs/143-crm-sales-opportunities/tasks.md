@@ -65,7 +65,7 @@ contracts file. Nothing user-visible yet.
   - **Deviation (2026-10-05):** the three port interfaces are in `crm.ts`, but their `Container name:` marker lines are withheld until the change that registers each name (T049 for the guard registry; User Story 14 for the two ports) — `check:port-shape` refuses a marked port with no registration. `research.md` N-5.
 - [x] T007 Add the host's navigation group (owner ruling 2026-10-05, research R-19): `'crm'` in `AdminNavSectionNameSchema` in `packages/contracts/src/admin-contributions.ts`; `{ key: 'crm', labelKey: 'appShell.section.crm', items: [] }` after `sales` in `NAV` in `packages/admin-shell/src/components/AppShell.tsx`; `"appShell.section.crm": "CRM"` in `packages/modules/_i18n/i18n/en.json` and `pl.json`; update the tests T005 listed; T005 green; rebuild `contracts`, `admin-shell`, `mod-i18n`
 - [x] T008 [P] Write the changeset `.changeset/crm-module.md` (`minor`, never `major` in `0.x`) for the consumer of the packages: the new package `@endora-commerce/mod-crm`, the new `crm` exports of `@endora-commerce/contracts`, and the new `crm` member of `AdminNavSectionNameSchema`; verify with `pnpm --filter backend exec tsx scripts/check-release-intent.ts --since origin/master`
-- [ ] T009 Phase gate: `pnpm run build:packages`, `pnpm -r run typecheck`, `pnpm -r run lint`, `pnpm --filter backend run test:unit:fast`, `pnpm --filter '!backend' run test`
+- [x] T009 Phase gate: `pnpm run build:packages`, `pnpm -r run typecheck`, `pnpm -r run lint`, `pnpm --filter backend run test:unit:fast`, `pnpm --filter '!backend' run test`
 
 **Checkpoint**: the workspace installs and builds with an empty `crm` module registered.
 
@@ -106,7 +106,8 @@ registry), the activation axis, one gated route, and the off-state proof.
   - **Premise false (2026-10-05): collapsed to a single `index.ts`.** `check:port-dependencies` reads a module's registrations from the file exporting `registerModule` and from no other: with `ctx.di.register` in `compose/workflow.ts` it reported `crmWorkflowReadService` as *"resolved by crm and registered by no module"* (exit 1). **Every later "`compose/<area>.ts`" task means "a section of `packages/modules/crm/src/backend/index.ts`"**, which is therefore a hot file for every story. `research.md` N-6.
 - [x] T024 [P] Write `packages/modules/crm/docs/crm.md` — front matter `title` + one-sentence `description`, sections *What it does*, *Switching it on and off*, *Permissions*, placeholders for the per-story sections — and its Polish copy under `docs/i18n/pl/` per `docs/docs/contributing/documentation-i18n.md`; no relative link to a sibling module or to the site tree; run `composer:generate`, `check:module-docs`, `check:docs-translations`
 - [x] T025 T011 green: rebuild the package, run `off-state.test.ts`, then `pnpm --filter backend run check:off-state-coverage`
-- [ ] T026 Phase gate: the full block of `quickstart.md` § *Before calling any story done*; report every result with its output
+- [x] T026 Phase gate: the full block of `quickstart.md` § *Before calling any story done*; report every result with its output
+  - **2026-10-05:** green. Two things the block does not name and a route-adding story owes: `backend/test/fixtures/openapi-baseline.json` (regenerate with `UPDATE_OPENAPI_BASELINE=1`), and — under a memory cap — `--workspace-concurrency=1` on the `'!backend'` run. `research.md` N-11, N-12.
 
 **Checkpoint**: `crm` is installed, migrated, toggleable, absent when off. Stories may start.
 
