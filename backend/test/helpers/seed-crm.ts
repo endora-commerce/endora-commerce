@@ -383,3 +383,36 @@ export async function createCrmTag(
   if (response.statusCode !== 201) throw new Error(`createCrmTag: ${response.statusCode} ${response.body}`);
   return (response.json() as { data: { id: string; name: string; color: string; usageCount: number } }).data;
 }
+
+/**
+ * A file in the media library, as an upload leaves it — written straight to
+ * `assets`, as the library's own reference tests do: the subject of the CRM
+ * tests is what an Opportunity does with a file that already exists. `private`
+ * unless said otherwise, which is what an attachment has to be.
+ */
+export async function seedCrmAsset(
+  em: EntityManager,
+  overrides: { visibility?: 'public' | 'private'; filename?: string; mimeType?: string; sizeBytes?: number } = {},
+): Promise<{ id: string; filename: string; mimeType: string; sizeBytes: number }> {
+  const id = randomUUID();
+  const filename = overrides.filename ?? `brief-${id.slice(0, 8)}.pdf`;
+  const mimeType = overrides.mimeType ?? 'application/pdf';
+  const sizeBytes = overrides.sizeBytes ?? 2048;
+  const locator = `${id.slice(0, 2)}/${id.slice(2, 4)}/${id}.pdf`;
+  await em.getConnection().execute(
+    `insert into "assets"
+       ("id", "kind", "filename", "mime_type", "size_bytes", "storage_url", "visibility",
+        "storage_backend", "storage_locator", "created_at", "updated_at")
+     values (?, 'pdf', ?, ?, ?, ?, ?, 'local', ?, now(), now())`,
+    [id, filename, mimeType, sizeBytes, locator, overrides.visibility ?? 'private', locator],
+  );
+  return { id, filename, mimeType, sizeBytes };
+}
+
+/** Remove fixture assets: `assets` hangs off nothing the harness truncates. */
+export async function removeCrmAssets(em: EntityManager, ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await em
+    .getConnection()
+    .execute(`delete from "assets" where "id" in (${ids.map(() => '?').join(', ')})`, [...ids]);
+}
