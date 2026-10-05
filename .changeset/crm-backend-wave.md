@@ -70,6 +70,25 @@ And notes and internal messages.
   off it is stored and nobody is told.
 - Both are internal. The module still serves nothing outside `/api/v1/admin/crm`.
 
-**`@endora-commerce/contracts`**: `ERROR_CODES` gains `CRM_ASSIGNEE_INVALID`,
+And attachments.
+
+- **`GET|POST /api/v1/admin/crm/opportunities/:id/attachments`, `DELETE …/attachments/:attachmentId`.**
+  An attachment is a link to a file of the media library, by asset id. Reading is `crm:read`,
+  writing `crm:write`.
+- **Only a `private` asset can be attached** — a public one, and one that is not in the
+  library, answers 422. The library uploads as `public` by default, so the caller uploads with
+  `visibility: 'private'`.
+- **`url` is resolved by the module** through `assetsLibraryPort.getAsset`: a signed,
+  short-lived link, served under `crm:read` with no permission of the media library, and only
+  under an opportunity the caller may see. An asset already attached to an opportunity out of
+  the caller's reach is refused as nonexistent.
+- **The library refuses to delete an attached file.** The module contributes an
+  asset-reference descriptor (kind `crm_opportunity_attachment`) from a contribution-only boot
+  hook, so the protection holds while the module is switched off.
+- Attaching an asset the opportunity already has answers 200 with the existing attachment.
+
+**`@endora-commerce/contracts`**: `assetReferenceKindSchema` gains
+`'crm_opportunity_attachment'` — additive; a consumer that switches exhaustively over
+`AssetReferenceKind` gets a compile error until it handles it. `ERROR_CODES` gains `CRM_ASSIGNEE_INVALID`,
 `CRM_TAG_NAME_TAKEN` and `CRM_MESSAGE_IMMUTABLE`. Additive; a consumer that switches
 exhaustively over `ErrorCode` gets a compile error until it handles them.

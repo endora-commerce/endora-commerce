@@ -427,3 +427,38 @@ Zamówienie, zapytanie ofertowe, jego konto — ich nie zawiera.
 Edycja albo usunięcie cudzej notatki kończy się odpowiedzią 403; próba zrobienia
 tego z wiadomością — odpowiedzią 409 `CRM_MESSAGE_IMMUTABLE`, niezależnie od
 tego, kto pyta.
+
+## Załączniki
+
+Brief, rysunek, podpisana oferta — do szansy sprzedażowej można dołączać pliki.
+
+Sam plik jest przechowywany w **bibliotece mediów**. Najpierw jest tam
+przesyłany, a szansa przechowuje odnośnik do niego. Wynikają z tego dwie rzeczy.
+
+**Załącznik jest plikiem prywatnym.** Plik, który biblioteka mediów
+przechowuje jako publiczny, ma adres, który może otworzyć każdy, dlatego plik
+publiczny jest odrzucany jako Załącznik. Biblioteka mediów zapisuje przesłany
+plik jako publiczny, o ile nie wskazano inaczej: plik przeznaczony dla szansy
+przesyła się z `visibility: "private"`.
+
+**Pliku, który jest załączony, nie można usunąć z biblioteki mediów.**
+Biblioteka odmawia i wskazuje szansę po jej numerze. Najpierw trzeba usunąć
+Załącznik. Dotyczy to także czasu, gdy moduł CRM jest wyłączony — załączniki
+nadal istnieją, a ochrona razem z nimi.
+
+Każdy, kto może czytać szansę, może pobrać jej załączniki; żadne uprawnienie
+biblioteki mediów nie jest potrzebne. Każdy Załącznik na liście ma odnośnik do
+pobrania ważny przez kilka minut — aby dostać świeży, wystarczy ponownie
+odczytać listę.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | Załączniki, od najstarszego: nazwa pliku, typ, rozmiar, kto załączył oraz `url`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` | Załączenie pliku z biblioteki mediów: `{ "assetId" }`. |
+| `DELETE /api/v1/admin/crm/opportunities/:id/attachments/:attachmentId` | `crm:write` | Usunięcie załącznika. Plik zostaje w bibliotece mediów. |
+
+Załączenie pliku, który szansa już ma, niczego nie zmienia, a odpowiedzią jest
+istniejący Załącznik. Plik, którego nie ma w bibliotece mediów — albo który
+jest załączony do szansy niedostępnej dla pytającej osoby — jest odrzucany jak
+plik, który nie istnieje. Jeśli plik zniknął z biblioteki mediów, jego
+Załącznik nadal jest na liście, pod dawną nazwą, bez odnośnika.

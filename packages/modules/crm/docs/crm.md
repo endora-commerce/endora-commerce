@@ -421,3 +421,37 @@ their account — carries either.
 
 Editing or deleting somebody else's note answers 403; doing either to a message
 answers 409 `CRM_MESSAGE_IMMUTABLE`, whoever asks.
+
+## Attachments
+
+A brief, a drawing, a signed offer — files can be attached to an opportunity.
+
+The file itself is kept in the **media library**. It is uploaded there first,
+and the opportunity then holds a link to it. Two things follow.
+
+**An attachment is a private file.** A file the media library holds as public
+has an address anybody can open, so a public file is refused as an attachment.
+The media library stores an upload as public unless told otherwise: a file
+meant for an opportunity is uploaded with `visibility: "private"`.
+
+**A file that is attached cannot be deleted from the media library.** The
+library refuses, and names the opportunity by its number. Remove the attachment
+first. This holds while the CRM module is switched off, too — the attachments
+are still there, and so is the protection.
+
+Anybody who may read an opportunity may download its attachments; no
+permission of the media library is needed. Each attachment in the list carries
+a download link that is valid for a few minutes — read the list again for a
+fresh one.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | The attachments, oldest first: file name, type, size, who attached it, and `url`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` | Attach a file of the media library: `{ "assetId" }`. |
+| `DELETE /api/v1/admin/crm/opportunities/:id/attachments/:attachmentId` | `crm:write` | Remove the attachment. The file stays in the media library. |
+
+Attaching a file the opportunity already has changes nothing and answers the
+existing attachment. A file that is not in the media library — or that is
+attached to an opportunity the person asking may not see — is refused as one
+that does not exist. If a file has gone missing from the media library, its
+attachment is still listed, under the name it had, with no link.

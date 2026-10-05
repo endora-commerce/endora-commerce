@@ -1391,6 +1391,37 @@ when it was measured, and what was done about it.
   (e) §7 names no error for attaching the same asset twice; the unique `(opportunity_id,
   asset_id)` constraint exists, and no `CRM_*` code of §13 fits — answering the existing
   attachment (200, nothing written) avoids minting one.
+- **N-B17 (2026-10-05, T080) — User Story 5 unblocked and built.** The coordinator approved
+  the enum member (row A10 of `contracts/foreign-module-changes.md`, a commit of its own).
+  Before relying on "nothing else enumerates the kinds", six sibling literals were grepped
+  across the whole tree (admin, admin-kit, every module's admin pages, bundles, docs, tests):
+  each is named only by the contract, by its owner's descriptor and by its owner's tests; no
+  label map, no exhaustive switch, no exact-set expectation over kinds. Nothing else was
+  touched. What was built, and what N-B16 recommended that is now fact:
+  (a) **the backend enforces `private`** — a live asset whose `visibility` is not `private`
+  is 422 `VALIDATION_FAILED`; `AssetRecord` carries nothing that says what a file was uploaded
+  *for* (only `label` and `folderId`, both free), so purpose is not checked and the admin
+  screen **must** upload with `visibility: 'private'`;
+  (b) **`url` is `assetsLibraryPort.getAsset(assetId).url`**, resolved on every read, for live
+  assets only (`assetReadPort.findByIds(…, { liveOnly: true })` decides which — so the library
+  is never asked for something it would refuse, and no port call is wrapped in a `catch`);
+  (c) **a private file cannot be reached by attaching it elsewhere**: an asset already
+  attached to an Opportunity the caller's scoped EntityManager does not return is refused with
+  the same 422 as a missing one. **Residual, not closed:** a private library asset that is
+  attached to *no* Opportunity can be attached by anybody holding `crm:write` who knows its
+  uuid, and they then hold a link without `assets.read` — the port offers nothing to tell such
+  a file from an attachment-to-be;
+  (d) the same asset twice on one Opportunity answers 200 with the existing attachment and
+  writes nothing (§7 names no error for it); `POST` otherwise 201, `DELETE` 204, a child under
+  the wrong parent 404 `NOT_FOUND`;
+  (e) a file gone from the library leaves its attachment listed with the snapshot name,
+  `application/octet-stream`, size 0 and `url: null`;
+  (f) the descriptor's label is `Sales opportunity <number>` — the number and never the title,
+  because whoever deletes a file in the library need not be able to read the Opportunity;
+  (g) composing `crm` alone for the while-off test needed `salesChannelAttributionRegistry`
+  as a root value, as N-B16 predicted, and `lazyPort` resolved both registries from root
+  values. `check:port-dependencies` asked for no new edge: `assets_library` was already
+  binding.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
