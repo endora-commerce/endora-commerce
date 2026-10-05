@@ -132,7 +132,7 @@ export default async function CatalogPage({ searchParams }: PageProps): Promise<
           <Pagination
             basePath="/catalog"
             baseQuery={query.baseQuery}
-            nextCursor={products.pagination.nextCursor}
+            nextCursor={products.pagination.cursor}
             hasMore={products.pagination.hasMore}
             locale={locale}
           />

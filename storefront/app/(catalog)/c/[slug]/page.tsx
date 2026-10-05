@@ -187,7 +187,7 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
           <Pagination
             basePath={`/c/${node.slug}`}
             baseQuery={parsed.baseQuery}
-            nextCursor={products.pagination.nextCursor}
+            nextCursor={products.pagination.cursor}
             hasMore={products.pagination.hasMore}
             locale={locale}
           />
