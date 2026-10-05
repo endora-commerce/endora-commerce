@@ -1024,7 +1024,6 @@ when it was measured, and what was done about it.
   And `backend/test/unit/tenancy/transitive-parent-chains.test.ts` asserts the set of
   `@TransitivelyScoped` classes, which the seven CRM children joined.
 
-## Open questions for the owner
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,
