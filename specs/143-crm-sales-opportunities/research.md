@@ -1024,6 +1024,115 @@ when it was measured, and what was done about it.
   And `backend/test/unit/tenancy/transitive-parent-chains.test.ts` asserts the set of
   `@TransitivelyScoped` classes, which the seven CRM children joined.
 
+- **N-13 (2026-10-05, T038) — how a `CRM_*` code is minted, re-derived from `512b68e84` and
+  `packages/contracts/src/errors.ts`.** A code raised by a module of this repository **does**
+  join `ERROR_CODES` (row A7 applies), is declared in the manifest's `errorCodes`, and carries
+  a sentence under `errors.<CODE>` in both bundles. Two ledgers then account for it:
+  `MINTED_ERROR_CODES` in `backend/test/fixtures/error-code-routing/reference-ledgers.ts` (one
+  entry per code, `to: 'crm'`) and the `MIGRATED_MODULES` roster in
+  `backend/test/unit/_i18n/error-code-migration-progress.test.ts`. **Eleven** of the fourteen
+  codes of `contracts/admin-api.md` §13 are declared by User Story 1; `CRM_ASSIGNEE_INVALID`,
+  `CRM_MESSAGE_IMMUTABLE` and `CRM_TAG_NAME_TAKEN` join with their first raise site. Three
+  facts about the error envelope the contract does not state and a caller meets:
+  (a) the envelope **replaces** a declared code's `message` with the bundle sentence, filling
+  `{placeholders}` from the scalar members of `details` — so `CRM_TRANSITION_VETOED` raises
+  with `details.reason` and its bundle sentence is `{reason}` alone, which is what makes
+  "`message` is the guard's reason" true in both languages; (b) `details.code` is the
+  envelope's *refusal token* and selects `errors.<CODE>.<token>`, so `CRM_WORKFLOW_INVALID`
+  carries the rule as `details.rule` (the contract) **and** `details.code` (one sentence per
+  rule), and no other raise uses a member named `code`; (c) a body or query the Zod schema
+  refuses answers **400** `VALIDATION_FAILED`, not 422 — 422 is what a service raises.
+- **N-14 (2026-10-05, T041) — "the Organization is visible to the caller" is not what
+  `organizationDetailsPort` answers.** `Organization` is `@GlobalEntity` — it is the tenant,
+  not a tenant-scoped row — so the port finds every Organization whoever asks. Reach is asked
+  separately, with `isOrgInScope(organizationId)` from `@endora-commerce/platform/tenancy`,
+  and the two answers are one refusal: an out-of-scope Organization and a missing one both
+  answer 422 `VALIDATION_FAILED` on create. Without it the write would reach the tenant write
+  guard and come back as 403 from the backstop, which tells the caller the Organization
+  exists.
+- **N-15 (2026-10-05, T041/T043) — `@TransitivelyScoped` is a classification, not a filter.**
+  Nothing narrows a read of a child by its own id: the decorator registers the chain for the
+  classification check and attaches no MikroORM filter. The rule of R-12 — parent through the
+  scoped EntityManager first, then the child by `(opportunityId, id)` — is therefore the
+  *only* protection, and it lives in one function, `loadOpportunity`
+  (`services/opportunity-access.ts`), which every service calls first. Corollary met while
+  implementing: the unit of work does not order inserts across a foreign key it does not know
+  as a relation (the child columns are plain ids), so the create Command flushes the
+  Opportunity before it writes the creation row of its status history.
+- **N-16 (2026-10-05, T047/T048) — the `pending` rows are written inside the transition's
+  Command, by the transition service.** R-4 asks for a row "written `pending` before the
+  call"; they are written in the same transaction as the status change, so there is never a
+  moved Opportunity with no record of what it owes — strictly stronger, and still before the
+  call. `check:command-coverage` reads `em.create` in a helper of another file as an unaudited
+  write, so `OrderStatusPropagationService.forwardTargets(em, …)` only **reads** which Orders
+  are owed what, and the transition service's Command creates the rows. Recording an outcome
+  after the port call is a Command too (`crm.opportunity.propagation_record`) and writes **no
+  audit entry of its own** (`skipAudit`): it is the second half of a transition or a retry
+  that already has one, and `orders` audits the Order's own change. That action name is
+  therefore not in `data-model.md` § Audit actions and never appears in the audit log.
+- **N-17 (2026-10-05, T041) — `OpportunityStatusRef.name` is resolved from the acting
+  administrator's stored language.** The contract makes it a string. No module-facing seam
+  answers "which language is this request in" (`kernel/i18n/request-language.ts` is the
+  host's), so the label is `name[preferredLanguage]`, read through `adminUserReadPort`, then
+  the status's default name. `GET /workflow` still returns the whole per-language map for a
+  screen that wants to resolve it itself.
+- **N-18 (2026-10-05, US1) — what User Story 1 refuses rather than half-implements.** The
+  contracts were written for every story at once, so several request shapes are valid before
+  the story that acts on them. Each is refused with a sentence, never accepted and dropped:
+  a mapping with `direction: 'order_to_opportunity'` (US2 — 422), a link with
+  `documentKind: 'quote_request'` (US8 — 422), `tagIds` on create or edit (US6 — 422), and
+  the `assignedAdminUserId` / `tagId` list filters (US3, US6 — 422). `assignedAdminUserId` on
+  create and edit **is** accepted when it names an existing administrator and stored as
+  given; the default-assignee rule, the "active" refinement and `CRM_ASSIGNEE_INVALID` are
+  US3's. `tags` is `[]`, `references` is `[]`, `excludedDocuments` is `[]` and
+  `computedValue` is `0.00` until their stories.
+- **N-19 (2026-10-05, T048) — what *Retry* and *Dismiss* do at the edges.** A retry asks the
+  Order for what the Opportunity's status maps to **now** (the cause is usually a corrected
+  mapping), falling back to what the retired row asked when the mapping is gone. It is refused
+  with 409 `VERSION_CONFLICT` when the outcome is already settled (applied, dismissed), when
+  the Opportunity has since left the status the row was written for, or when the Order no
+  longer follows it. A child addressed under an Opportunity it does not belong to is 404
+  `NOT_FOUND` (the parent's own absence is 404 `CRM_OPPORTUNITY_NOT_FOUND`). A row left
+  `pending` for more than a minute — a process that stopped between the Opportunity's commit
+  and the Order's answer — is shown among the unresolved outcomes as `failed` and a retry
+  consumes it; the wire schema has no `pending` outcome.
+- **N-20 (2026-10-05, T039/T040) — shapes `contracts/admin-api.md` §4 leaves open.** Every
+  configuration write answers `{ data: OpportunityWorkflow }` (201 for `POST /statuses`, 200
+  otherwise), except `DELETE /statuses/:code`, which is 204. A status's `kind` cannot change
+  while Opportunities are in it (409 `CRM_STATUS_IN_USE`), because `closedAt` / `closedKind`
+  are stamped on those rows. `PATCH` with `isInitial: true` alone is audited as
+  `crm.status.set_initial`. An unknown status code on `PATCH` / `DELETE` is 404 `NOT_FOUND`.
+  Two rules joined `details.rule` beyond the five of the graph: `mapping_unknown_status` and
+  `mapping_duplicate`. The Order status a mapping names is not validated on write (N-8).
+- **N-21 (2026-10-05, T027–T034) — the tests restore the seeded workflow; they do not rely on
+  the harness.** The three seeded configuration tables hang off nothing the harness
+  truncates, and declaring them `volatileTables` would hand every later file an empty
+  workflow. `backend/test/helpers/seed-crm.ts` (**a new file under `backend/test/helpers/`** —
+  test fixtures for this feature, in the place the tree keeps per-feature seeds) carries
+  `restoreDefaultCrmWorkflow`, called in `beforeAll` *and* `afterAll` of every file that
+  changes the configuration. Also met: the test ORM hydrates a `null` column as `undefined`,
+  so an assertion on a nullable property compares `?? null`.
+- **N-22 (2026-10-05, T038) — the audit viewer will not find CRM's action labels, and that is
+  not repaired here.** The bundles carry `auditLog.crm.*` as `contracts/admin-surfaces.md` §7
+  asks. `audit_logs`' `moduleIdForAuditAction` maps an action prefix to a bundle through a
+  static chain that ends in `'core'`, so `crm.opportunity.transition` is looked up in the
+  `core` bundle and renders as its raw action on `/audit-log`. `audit_logs` is not on the
+  foreign-change list; the Opportunity's own history tab (US11) reads CRM's bundle and is
+  unaffected. Reported for the register rather than fixed.
+- **N-23 (2026-10-05, T050) — R-13's [unverified] descriptor shape, read from the tree.**
+  `SalesChannelAttributionDescriptor` is `{ ownerModuleId, consumer, tableName, columnName,
+  countForChannel(salesChannelId) }`. CRM's count is a raw statement, as `quote_requests`'
+  is and for its reason: the entity is organization-scoped and the question is platform-wide.
+  `sales_channels` is already a binding dependency (the foreign key), so no further edge is
+  declared and `check:port-dependencies` is green. A refused channel delete answers 422
+  `SALES_CHANNEL_HAS_ATTRIBUTIONS` naming `sales opportunity(ies)` and the count.
+- **N-24 (2026-10-05, T030) — the MVP walk maps five steps, not two.** `quickstart.md` asks
+  for "two forward mappings". The walk maps every status from `qualified` to `won` onto the
+  seeded Order workflow's own path (`paid` → `processing` → `shipment_ready` →
+  `shipment_sent` → `completed`), so the Order is read back after *every* step of the
+  Opportunity's workflow and ends completed when the Opportunity is won. The refused-Order
+  case (step 9) runs on a second Opportunity in the same test.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,

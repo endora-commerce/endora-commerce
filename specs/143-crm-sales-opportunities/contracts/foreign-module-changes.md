@@ -97,6 +97,7 @@ composer:check`, `manifests:check` and `overlay:check` are the proofs.
 | `backend/test/helpers/package-entities.ts` | when an integration test needs a CRM entity class by name (the harness's sanctioned door to a packaged module's entities) |
 | `backend/test/fixtures/error-code-routing/…`, `backend/test/unit/_i18n/error-code-migration-progress.test.ts` | if minting the `CRM_*` codes moves those ledgers (commit `512b68e84` is the worked example) |
 | `backend/test/fixtures/openapi-baseline.json` | every story that adds a route: regenerate with `UPDATE_OPENAPI_BASELINE=1` and review the diff (`backend/test/contract/kernel/openapi-baseline.test.ts`) |
+| `backend/test/helpers/seed-crm.ts` (**new**) | the fixtures the CRM contract and integration tests share, and the restore of the seeded workflow that makes them independent of run order (research N-21) |
 | `backend/test/unit/tenancy/transitive-parent-chains.test.ts` | the population of `@TransitivelyScoped` classes is asserted as a set; the seven CRM child classes joined it with their entities |
 | a recorded read size under `backend/` | **only** an entry whose band refuses the new file count; drift inside a band is left for the release pull request (`specs/conventions/check-estate.md` § *Measuring a read size* — read it first) |
 | `docs/i18n/pl/…` | the Polish copy of every docs page this feature writes or edits |
