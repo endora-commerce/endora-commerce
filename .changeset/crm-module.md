@@ -29,9 +29,11 @@ all under `/api/v1/admin/crm`:
   `POST …/propagations/:id/retry` and `…/dismiss` then address;
 - **the board** — `GET /board` (`crm:read`): one column per status in workflow order, each
   with `count`, `valueTotals` per currency, the first `perColumn` opportunities (default 50,
-  at most 200) and `hasMore`. It takes the list's filters except `statusCode` and `state`;
-  like the list it answers 422 for `tagId` and `assignedAdminUserId`, which a later release
-  serves. There is no board-specific write — moving a card is the transition endpoint.
+  at most 200) and `hasMore`. It takes the list's filters except `statusCode` and `state`,
+  with the list's meaning — `assignedAdminUserId` (`me`, `unassigned` or an administrator's
+  id) and a repeated `tagId` (every tag named) included — and applies them to the cards, the
+  counts and the totals alike. There is no board-specific write — moving a card is the
+  transition endpoint.
 
 **In the Admin UI** the package exports `./admin` (and `./tailwind.css`), which contributes
 five screens and three entries to the shell's "CRM" sidebar section:

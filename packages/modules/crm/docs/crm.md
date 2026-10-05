@@ -106,6 +106,7 @@ which rule it would break:
 | `transition_unknown_status` | A transition connects two statuses that exist. |
 | `mapping_unknown_status` | A mapping names an opportunity status that exists. |
 | `mapping_duplicate` | An opportunity status maps to one order status, not several. |
+| `mapping_duplicate_order_status` | An order status moves an opportunity to one status, not several. |
 
 A status that opportunities are in cannot be deleted and cannot change its
 kind; move the opportunities first. The start status cannot be deleted either —
@@ -137,7 +138,7 @@ closes the opportunity and stamps the moment; leaving one reopens it.
 
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/admin/crm/opportunities` | `crm:read` | List, with search (title, number, organization name), filters by status, by state (`open` / `won` / `lost`), organization, sales channel and creation date, sorting and paging. |
+| `GET /api/v1/admin/crm/opportunities` | `crm:read` | List, with search (title, number, organization name), filters by status, by state (`open` / `won` / `lost`), organization, assignee, tags, sales channel and creation date, sorting and paging. |
 | `POST /api/v1/admin/crm/opportunities` | `crm:write` | Create an opportunity. |
 | `GET /api/v1/admin/crm/opportunities/:id` | `crm:read` | One opportunity, with the statuses it may move to, its linked orders and any order change that was refused. |
 | `PATCH /api/v1/admin/crm/opportunities/:id` | `crm:write` | Edit it. Send the version you read in `If-Match`; a stale one is refused with `409`. |
@@ -204,7 +205,7 @@ and the menus.
 
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/admin/crm/board` | `crm:read` | One column per status, in workflow order: the status, `count`, `valueTotals` per currency, the first `perColumn` opportunities (default 50, at most 200) and `hasMore`. Takes the list's filters except `statusCode` and `state`. |
+| `GET /api/v1/admin/crm/board` | `crm:read` | One column per status, in workflow order: the status, `count`, `valueTotals` per currency, the first `perColumn` opportunities (default 50, at most 200) and `hasMore`. Takes the list's filters except `statusCode` and `state` — the assignee and tag filters included, with the same meaning. |
 
 There is no board-specific write: moving a card is
 `POST /api/v1/admin/crm/opportunities/:id/transition`. A column is continued
@@ -266,109 +267,6 @@ until somebody deals with it:
 | `POST /api/v1/admin/crm/opportunities/:id/propagations/:propagationId/retry` | `crm:write` | Ask the order again. |
 | `POST /api/v1/admin/crm/opportunities/:id/propagations/:propagationId/dismiss` | `crm:write` | Acknowledge a refusal. |
 
-## Adding your own logic to a status change
-
-Another module — typically a per-deployment overlay module — can react to an
-opportunity moving from status X to status Y, and can refuse the move. Both
-seams are published in `@endora-commerce/contracts`; neither needs a change to
-CRM.
-
-**React to a move** by subscribing to an event. For a move from `x` to `y`, CRM
-emits, in this order:
-
-| Event | When |
-| --- | --- |
-| `crm.opportunity.status.from_<x>_to_<y>.before` | before the change is written |
-| `crm.opportunity.status.from_<x>.before` | before the change is written |
-| `crm.opportunity.status_changed.v1` | after it is saved and the linked orders have been asked |
-| `crm.opportunity.status.from_<x>_to_<y>.after` | same |
-| `crm.opportunity.status.to_<y>.after` | same |
-| `crm.opportunity.closed.v1` | same, when `y` closes the opportunity |
-
-The names are built by `opportunityStatusEventName`, so a subscriber does not
-spell the pattern. A subscriber cannot stop the move, and one that fails does
-not undo it.
-
-```ts
-ctx.subscribe(opportunityStatusEventName('toAfter', { to: 'won' }), async (event) => {
-  await notifyFinance(event.opportunityId);
-});
-```
-
-**Refuse a move** by registering a guard. A guard names the moves it watches —
-from a status, to a status, or both — and refuses by throwing
-`OpportunityTransitionVetoError`. The sentence it throws is what the sales
-representative reads; nothing is written when a guard refuses.
-
-```ts
-ctx.onBoot(() => {
-  lazyPort<OpportunityTransitionGuardRegistryPort>(ctx, 'opportunityTransitionGuardRegistry').register({
-    ownerModuleId: 'acme_rules',
-    match: { to: 'won' },
-    guard: (event) => {
-      if (event.reason === null) throw new OpportunityTransitionVetoError('Say why the deal was won.', event.from, event.to);
-    },
-  });
-});
-```
-
-The module that registers a guard declares it in its manifest:
-`nonBindingDependencies: [{ moduleId: 'crm', name: 'opportunityTransitionGuardRegistry', kind: 'contributes-to' }]`.
-A guard belonging to a module that is switched off is skipped — a module that is
-off does not refuse anything.
-
-## Switching it on and off
-
-CRM is an optional module. It is on by default and an operator switches it
-off, and back on, on the **Modules** screen of the Admin UI
-(`/platform/modules`).
-
-While it is off:
-
-- every `/api/v1/admin/crm/…` endpoint answers `503` with the code
-  `MODULE_DISABLED`;
-- its screens, sidebar group, command-palette entries and settings disappear
-  from the Admin UI;
-- its permissions can no longer be granted to a role;
-- nothing it would do in the background happens.
-
-Nothing is deleted. Every opportunity, its history and the workflow
-configuration stay in the database, and everything is back exactly as it was
-when the module is switched on again.
-
-## Permissions
-
-| Code | What it allows |
-| --- | --- |
-| `crm:read` | View sales opportunities and the status workflow. |
-| `crm:write` | Create and edit opportunities, move them through the workflow, link and unlink orders, retry or dismiss a refused order change. |
-| `crm:configure` | Change the workflow — statuses, transitions and order-status mappings — and delete an opportunity. |
-
-A role that holds `crm:read` should also hold `orders:read`: an opportunity
-shows the orders linked to it, and those are read from the Orders module.
-`crm:write` and `crm:configure` each build on `crm:read`.
-
-No role receives a CRM permission automatically. Grant them on the
-**Roles** screen.
-
-## Settings
-
-| Setting | Default | Meaning |
-| --- | --- | --- |
-| `crm.enabled` | on | The switch described above. |
-| `crm.auto_create_from_orders` | off | *Coming.* Create an opportunity for every newly placed order. |
-| `crm.auto_create_from_quote_requests` | off | *Coming.* Create an opportunity for every newly submitted quote request. |
-
-## Coming
-
-- Moving an opportunity when one of its orders reaches a given status.
-- Assigning opportunities to sales representatives.
-- Notes, internal messages, attachments and tags.
-- Linking quote requests, and a value computed from the linked documents.
-- A change history for every opportunity.
-- Analytics: handling time, time in each status, results by sales
-  representative.
-
 ## An order that moves its opportunity
 
 The mapping also runs the other way: when a linked order reaches *this* order
@@ -408,9 +306,6 @@ set is replaced whole, both directions together:
   ]
 }
 ```
-
-One rule joins the ones above: `mapping_duplicate_order_status` — an order
-status moves an opportunity to one status, not several.
 
 `GET /api/v1/admin/crm/workflow` reports `orderStatusKnown` for every mapping.
 It turns `false` once the Orders module has answered that the order status does
@@ -559,3 +454,104 @@ existing attachment. A file that is not in the media library — or that is
 attached to an opportunity the person asking may not see — is refused as one
 that does not exist. If a file has gone missing from the media library, its
 attachment is still listed, under the name it had, with no link.
+
+## Adding your own logic to a status change
+
+Another module — typically a per-deployment overlay module — can react to an
+opportunity moving from status X to status Y, and can refuse the move. Both
+seams are published in `@endora-commerce/contracts`; neither needs a change to
+CRM.
+
+**React to a move** by subscribing to an event. For a move from `x` to `y`, CRM
+emits, in this order:
+
+| Event | When |
+| --- | --- |
+| `crm.opportunity.status.from_<x>_to_<y>.before` | before the change is written |
+| `crm.opportunity.status.from_<x>.before` | before the change is written |
+| `crm.opportunity.status_changed.v1` | after it is saved and the linked orders have been asked |
+| `crm.opportunity.status.from_<x>_to_<y>.after` | same |
+| `crm.opportunity.status.to_<y>.after` | same |
+| `crm.opportunity.closed.v1` | same, when `y` closes the opportunity |
+
+The names are built by `opportunityStatusEventName`, so a subscriber does not
+spell the pattern. A subscriber cannot stop the move, and one that fails does
+not undo it.
+
+```ts
+ctx.subscribe(opportunityStatusEventName('toAfter', { to: 'won' }), async (event) => {
+  await notifyFinance(event.opportunityId);
+});
+```
+
+**Refuse a move** by registering a guard. A guard names the moves it watches —
+from a status, to a status, or both — and refuses by throwing
+`OpportunityTransitionVetoError`. The sentence it throws is what the sales
+representative reads; nothing is written when a guard refuses.
+
+```ts
+ctx.onBoot(() => {
+  lazyPort<OpportunityTransitionGuardRegistryPort>(ctx, 'opportunityTransitionGuardRegistry').register({
+    ownerModuleId: 'acme_rules',
+    match: { to: 'won' },
+    guard: (event) => {
+      if (event.reason === null) throw new OpportunityTransitionVetoError('Say why the deal was won.', event.from, event.to);
+    },
+  });
+});
+```
+
+The module that registers a guard declares it in its manifest:
+`nonBindingDependencies: [{ moduleId: 'crm', name: 'opportunityTransitionGuardRegistry', kind: 'contributes-to' }]`.
+A guard belonging to a module that is switched off is skipped — a module that is
+off does not refuse anything.
+
+## Switching it on and off
+
+CRM is an optional module. It is on by default and an operator switches it
+off, and back on, on the **Modules** screen of the Admin UI
+(`/platform/modules`).
+
+While it is off:
+
+- every `/api/v1/admin/crm/…` endpoint answers `503` with the code
+  `MODULE_DISABLED`;
+- its screens, sidebar group, command-palette entries and settings disappear
+  from the Admin UI;
+- its permissions can no longer be granted to a role;
+- nothing it would do in the background happens.
+
+Nothing is deleted. Every opportunity, its history and the workflow
+configuration stay in the database, and everything is back exactly as it was
+when the module is switched on again.
+
+## Permissions
+
+| Code | What it allows |
+| --- | --- |
+| `crm:read` | View sales opportunities, the board, the status workflow and the tag list; read an opportunity's notes and messages and download its attachments. |
+| `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders, retry or dismiss a refused order change, write notes and messages, add and remove attachments. |
+| `crm:configure` | Change the workflow — statuses, transitions and order-status mappings in both directions — manage the tag list, and delete an opportunity. |
+
+A role that holds `crm:read` should also hold `orders:read`: an opportunity
+shows the orders linked to it, and those are read from the Orders module.
+`crm:write` and `crm:configure` each build on `crm:read`.
+
+No role receives a CRM permission automatically. Grant them on the
+**Roles** screen.
+
+## Settings
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `crm.enabled` | on | The switch described above. |
+| `crm.auto_create_from_orders` | off | *Coming.* Create an opportunity for every newly placed order. |
+| `crm.auto_create_from_quote_requests` | off | *Coming.* Create an opportunity for every newly submitted quote request. |
+
+## Coming
+
+- Linking quote requests, and a value computed from the linked documents.
+- Creating an opportunity automatically for a new order or quote request.
+- A change history for every opportunity.
+- Analytics: handling time, time in each status, results by sales
+  representative.

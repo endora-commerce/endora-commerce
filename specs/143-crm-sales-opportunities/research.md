@@ -1647,6 +1647,32 @@ when it was measured, and what was done about it.
   gzip) — **+42 363 bytes, +13.6 kB gzip** — with `@dnd-kit/core` in the entry chunk and the
   board page itself a lazy chunk of 21.18 kB (7.48 kB gzip). N-K3 predicted +41 989. The
   lever it names (`"sideEffects"` on the kit's manifest) is still not pulled.
+- **N-D1 (2026-10-05, after the merge of the backend wave) — what the merged tree owed, and
+  what it did not.** Measured on `367bd3d0e` after `pnpm run build:packages`: `typecheck` and
+  `lint` clean; `composer:check` and `manifests:check` up to date; the OpenAPI baseline
+  **already matched** (git had merged the two sides' CRM paths without a conflict, and
+  `UPDATE_OPENAPI_BASELINE` had nothing to write). Stale: the two Polish translation-cache
+  entries (taken from one side of the merge, while the materialised Polish pages had merged
+  cleanly and were the complete ones — the caches were rewritten from them); the module page's
+  *Coming* list and *Permissions* table, which still announced reverse mapping, assignment,
+  notes, attachments and tags as future; the sections of that page, which the merge had left
+  in arrival order (*Coming* in the middle); and one changeset saying the board refuses the
+  two filters "which a later release serves". `crm` joined `MIGRATED_MODULES` in
+  `backend/scripts/check-command-coverage.ts` (N-B11): the list's own header asks for a new
+  module "as it lands", and outside `--strict` a module that is not on it is only warned
+  about. The file is now a row of `contracts/foreign-module-changes.md` §E. Polish wording:
+  *Dismiss* is "Pomiń" on the button, in the module page and now in the audit label
+  ("Pominięto odmowę zmiany statusu zamówienia"); the page says "handlowiec" throughout.
+- **N-D2 (2026-10-05, T088 follow-up) — the board applies the assignee and tag filters, and
+  still states them twice.** `BoardService.conditions` gained the two filters N-C2 (c) left
+  owed, in the list's terms: `assignedAdminUserId` = `me` | `unassigned` | an id, and a
+  repeated `tagId` = every tag named, through the tag service's own
+  `opportunityIdsCarryingAll` (handed in as a function, as the list is). A filter nothing can
+  satisfy — a tag set no Opportunity carries, "mine" with nobody asking — answers every
+  column, empty, rather than an error. `board.contract.test.ts` holds cards, counts and
+  totals to the list's answer for each. The tidy-up N-C2 names — one `conditions` function the
+  list also calls — was **not** made: `opportunity-service.ts` is being edited on the sibling
+  branch.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

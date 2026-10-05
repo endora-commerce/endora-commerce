@@ -44,7 +44,7 @@
   "auditLog.crm.opportunity.link_remove": "Odłączono dokument od szansy sprzedażowej",
   "auditLog.crm.opportunity.link_sync_set": "Zmieniono podążanie statusu powiązanego zamówienia",
   "auditLog.crm.opportunity.propagation_retry": "Ponowiono zmianę statusu zamówienia",
-  "auditLog.crm.opportunity.propagation_dismiss": "Odrzucono odmowę zmiany statusu zamówienia",
+  "auditLog.crm.opportunity.propagation_dismiss": "Pominięto odmowę zmiany statusu zamówienia",
   "auditLog.crm.opportunity.propagation_skip": "Szansa nie podążyła za zmianą statusu zamówienia",
   "auditLog.crm.opportunity.assign": "Przypisano szansę sprzedażową",
   "auditLog.crm.opportunity.tag_set": "Zmieniono etykiety szansy sprzedażowej",

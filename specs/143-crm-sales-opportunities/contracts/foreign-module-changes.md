@@ -101,6 +101,7 @@ composer:check`, `manifests:check` and `overlay:check` are the proofs.
 | `backend/test/integration/sales_channels/delete-attribution-guard.test.ts` | the contributors of `salesChannelAttributionRegistry` are asserted as a set; `crm` joined it with its counter (US1, T050 — research N-25) |
 | `backend/test/helpers/seed-crm.ts` (**new**) | the fixtures the CRM contract and integration tests share, and the restore of the seeded workflow that makes them independent of run order (research N-21) |
 | `backend/test/unit/tenancy/transitive-parent-chains.test.ts` | the population of `@TransitivelyScoped` classes is asserted as a set; the seven CRM child classes joined it with their entities |
+| `backend/scripts/check-command-coverage.ts` | `'crm'` appended to `MIGRATED_MODULES` — the rollout ledger whose header asks for a new module "as it lands"; without the entry a write outside a Command in this module is a warning unless the run is `--strict` (research N-B11, N-D1) |
 | a recorded read size under `backend/` | **only** an entry whose band refuses the new file count; drift inside a band is left for the release pull request (`specs/conventions/check-estate.md` § *Measuring a read size* — read it first) |
 | `docs/i18n/pl/…` | the Polish copy of every docs page this feature writes or edits |
 | `docs/translation-cache/pl/…`, `docs/i18n/pl/docusaurus-plugin-content-docs/current.json` | the translation-cache entry beside every Polish copy, the generated reference page and module-map row in Polish, and the `sidebar.main.category.crm` id (research N-10) |

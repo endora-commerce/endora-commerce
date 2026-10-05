@@ -364,11 +364,12 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     crmBoardService: ctx
       .asFunction(
-        ({ emFactory, crmWorkflowReadService, crmOpportunityService }: CrmCradle) =>
+        ({ emFactory, crmWorkflowReadService, crmOpportunityService, crmTagService }: CrmCradle) =>
           new BoardService({
             emFactory,
             workflowRead: crmWorkflowReadService,
             listOpportunities: (query) => crmOpportunityService.list(query),
+            opportunityIdsCarryingAll: (em, tagIds) => crmTagService.opportunityIdsCarryingAll(em, tagIds),
             organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
           }),
