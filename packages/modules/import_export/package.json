@@ -72,10 +72,10 @@
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
     "@types/node": "^22.9.0",
-    "@types/react": "^19.2.14",
+    "@types/react": "^19.3.0",
     "fastify": "^5.12.5",
-    "lucide-react": "^1.11.0",
-    "react": "^19.2.5",
+    "lucide-react": "^1.49.0",
+    "react": "^19.3.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.11"
   }
