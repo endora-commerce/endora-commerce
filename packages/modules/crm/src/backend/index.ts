@@ -511,6 +511,22 @@ export function registerModule(ctx: ModuleContext): void {
             links: crmOpportunityLinkService,
             createForDocument: (input) => crmOpportunityService.createForDocument(input),
             events: eventBus,
+            // A document whose commit is still in flight is read again off the
+            // bus's dispatch chain — the bus awaits each subscriber before the
+            // next, and the webhook bridge is one of them. The work gets a
+            // system scope of its own (the handler's ends when it returns),
+            // does nothing if the module was switched off meanwhile, and never
+            // rejects: there is nobody left to hear it, so a failure is logged.
+            defer: (work) =>
+              enterSystemScope('crm: a placed document, read again after its commit', async () => {
+                if (!effectiveState.isPresent('crm')) return;
+                await work();
+              }).catch((error: unknown) => {
+                ctx.log.warn(
+                  { error: error instanceof Error ? error.message : String(error) },
+                  'crm: a placed document could not be handled after its commit',
+                );
+              }),
           }),
       )
       .singleton(),

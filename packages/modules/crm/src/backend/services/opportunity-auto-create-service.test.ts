@@ -39,6 +39,8 @@ function service(overrides: Partial<OpportunityAutoCreateServiceDeps> = {}) {
     },
     createForDocument: vi.fn(async () => ({ id: 'opp', number: 'OPP-000001' })),
     events: { emit: vi.fn() },
+    // Off the bus's chain in the composed module; here it simply runs.
+    defer: vi.fn((work: () => Promise<unknown>) => work().then(() => undefined)),
     sleep: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -64,22 +66,45 @@ describe('OpportunityAutoCreateService — a placed Order', () => {
     );
   });
 
-  it('waits for a commit that is still in flight — the Order is read again until it is there', async () => {
+  it('handles an Order that is readable at once without deferring anything', async () => {
+    const { deps, subject } = service();
+    expect(await subject.onOrderCreated(ORDER_ID)).toBe('created');
+    expect(deps.defer).not.toHaveBeenCalled();
+    expect(deps.sleep).not.toHaveBeenCalled();
+  });
+
+  it('does not wait on the bus for a commit still in flight: it answers at once and looks again, deferred', async () => {
     const findById = vi
       .fn<() => Promise<OrderRecord | null>>()
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null)
       .mockResolvedValue(order);
-    const { deps, subject } = service({ orders: { findById } as never });
-    expect(await subject.onOrderCreated(ORDER_ID)).toBe('created');
+    // Held back, as the composed module holds it off the dispatch chain.
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const defer = vi.fn((work: () => Promise<unknown>) => held.then(work).then(() => undefined));
+    const { deps, subject } = service({ orders: { findById } as never, defer });
+
+    // The handler's answer: one read, nothing slept through, nothing created yet.
+    expect(await subject.onOrderCreated(ORDER_ID)).toBe('deferred');
+    expect(findById).toHaveBeenCalledTimes(1);
+    expect(deps.sleep).not.toHaveBeenCalled();
+    expect(deps.createForDocument).not.toHaveBeenCalled();
+
+    release();
+    await subject.idle();
     expect(findById).toHaveBeenCalledTimes(3);
     expect(deps.sleep).toHaveBeenCalledTimes(2);
+    expect(deps.createForDocument).toHaveBeenCalledTimes(1);
   });
 
   it('gives up on an Order that never appears — it was rolled back — and creates nothing', async () => {
     const findById = vi.fn(async () => null);
     const { deps, subject } = service({ orders: { findById } as never });
-    expect(await subject.onOrderCreated(ORDER_ID)).toBe('document-not-found');
+    expect(await subject.onOrderCreated(ORDER_ID)).toBe('deferred');
+    await subject.idle();
     // A bounded wait: a little over two seconds in all, then no more reads.
     const waited = (deps.sleep.mock.calls as unknown as number[][]).reduce((sum, [ms = 0]) => sum + ms, 0);
     expect(waited).toBeGreaterThan(1000);
@@ -149,6 +174,22 @@ describe('OpportunityAutoCreateService — a submitted Quote Request', () => {
     expect(await subject.onQuoteRequestCreated(QUOTE_ID)).toBe('owner-absent');
     expect(load).not.toHaveBeenCalled();
     expect(deps.createForDocument).not.toHaveBeenCalled();
+  });
+
+  it('a deferred look asks for the owner’s presence again before every read', async () => {
+    let present = true;
+    const load = vi.fn(async () => null);
+    const { subject } = service({
+      quoteRequests: { isPresent: vi.fn(() => present), load } as never,
+      sleep: vi.fn(async () => {
+        // Switched off while the look was waiting.
+        present = false;
+      }),
+    });
+    expect(await subject.onQuoteRequestCreated(QUOTE_ID)).toBe('deferred');
+    await subject.idle();
+    // Read once while present; never again once it was not.
+    expect(load).toHaveBeenCalledTimes(1);
   });
 
   it('creates nothing for a request that is linked already, or while the setting is off', async () => {

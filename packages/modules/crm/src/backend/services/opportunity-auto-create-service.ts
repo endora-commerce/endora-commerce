@@ -3,13 +3,14 @@ import {
   type OpportunityDocumentKind,
   type OpportunityDocumentLinkedEvent,
   type OrderReadPort,
+  type OrderRecord,
   type OrganizationDetailsPort,
 } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { CRM_SETTING_CODES } from '../../manifest.js';
-import type { CrmQuoteRequests } from './crm-quote-requests.js';
+import type { CrmQuoteRequestDocument, CrmQuoteRequests } from './crm-quote-requests.js';
 import type { OpportunityLinkService } from './opportunity-link-service.js';
 import type { AutomaticOpportunityInput } from './opportunity-service.js';
 
@@ -27,6 +28,13 @@ export interface OpportunityAutoCreateServiceDeps {
   ) => Promise<{ id: string; number: string } | 'already-linked'>;
   /** Announces the link — the creating Command has declared its one event already. */
   events: { emit(eventName: string, payload: OpportunityDocumentLinkedEvent): void };
+  /**
+   * Runs `work` **off the bus's dispatch chain**, in a scope of its own, and
+   * answers when it has finished — never rejecting. The composition supplies
+   * it; see {@link OpportunityAutoCreateService} for why the wait must not be
+   * awaited by the handler.
+   */
+  defer: (work: () => Promise<unknown>) => Promise<void>;
   /** Injected so a test does not wait; `setTimeout` in the composed module. */
   sleep?: (milliseconds: number) => Promise<void>;
 }
@@ -38,7 +46,9 @@ export type AutoCreateOutcome =
   | 'already-linked'
   | 'setting-off'
   | 'document-not-found'
-  | 'owner-absent';
+  | 'owner-absent'
+  /** The document was not readable yet; it is read again off the bus's chain. */
+  | 'deferred';
 
 /**
  * How long a handler waits for a document its event has announced: the pauses
@@ -49,11 +59,14 @@ export type AutoCreateOutcome =
  * callback returns), and the bus runs a handler straight away. Measured through
  * the storefront route: a subscriber that reads the Order at once does not find
  * it on a cold connection and finds it five milliseconds later
- * (`research.md`, N-E7). So the first read is not the answer — a document that
- * is still missing after the last pause was rolled back, and nothing is created
- * for it.
+ * (`research.md`, N-E7). So a first read that finds nothing is not the answer —
+ * a document that is still missing after the last pause was rolled back, and
+ * nothing is created for it.
  */
 const COMMIT_WAIT_PAUSES = [10, 25, 75, 150, 250, 500, 1000] as const;
+
+/** What a deferred look found, once it has looked for the last time. */
+type Placed<T> = (document: T) => Promise<AutoCreateOutcome>;
 
 const booleanSetting = z.boolean();
 
@@ -76,17 +89,37 @@ const booleanSetting = z.boolean();
  * two handlers racing past it are stopped by the unique `(document_kind,
  * document_id)` constraint inside the one creating Command.
  *
+ * **A document that is not readable yet is not waited for on the bus.** The
+ * bus runs the subscribers of an event one after another and awaits each, so a
+ * handler that slept until a commit landed would hold every later subscriber
+ * of `order.created.v1` — the webhook bridge among them — for as long as it
+ * slept, and for the whole two seconds when the placement was rolled back. So
+ * the handler reads once; if the document is there it is handled at once, and
+ * if it is not, the reads that follow are handed to `defer`, which runs them
+ * off the chain in a scope of their own. {@link idle} answers when nothing
+ * deferred is still running.
+ *
  * Every call runs in the subscriber's system scope. Nothing here catches a
  * port's refusal: `orders`, `organizations` and `settings` cannot be switched
  * off, and `quote_requests`' presence is decided before its port is asked.
  */
 export class OpportunityAutoCreateService {
+  readonly #deferred = new Set<Promise<void>>();
+
   constructor(private readonly deps: OpportunityAutoCreateServiceDeps) {}
 
-  async onOrderCreated(orderId: string): Promise<AutoCreateOutcome> {
-    const order = await this.#whenCommitted(() => this.deps.orders.findById(orderId));
-    if (!order) return 'document-not-found';
+  /** Resolves once no deferred look is still running — for a test, or a shutdown, to wait on. */
+  async idle(): Promise<void> {
+    while (this.#deferred.size > 0) await Promise.all([...this.#deferred]);
+  }
 
+  async onOrderCreated(orderId: string): Promise<AutoCreateOutcome> {
+    const read = () => this.deps.orders.findById(orderId);
+    const order = await read();
+    return order ? this.#placedOrder(order) : this.#lookAgain(read, (late) => this.#placedOrder(late));
+  }
+
+  async #placedOrder(order: OrderRecord): Promise<AutoCreateOutcome> {
     if (await this.deps.links.linkOrderPlacedFromQuoteRequest(order)) return 'joined';
     if (await this.deps.links.opportunityIdOf('order', order.id)) return 'already-linked';
 
@@ -111,8 +144,17 @@ export class OpportunityAutoCreateService {
     // Presence first. The event comes from that module, so it is on — unless it
     // was switched off between the emit and this line.
     if (!this.deps.quoteRequests.isPresent()) return 'owner-absent';
-    const quoteRequest = await this.#whenCommitted(() => this.deps.quoteRequests.load(quoteRequestId));
-    if (!quoteRequest) return 'document-not-found';
+    // Asked again before every later read: a look that was deferred must not
+    // find the module switched off underneath it.
+    const read = async () =>
+      this.deps.quoteRequests.isPresent() ? this.deps.quoteRequests.load(quoteRequestId) : null;
+    const quoteRequest = await read();
+    return quoteRequest
+      ? this.#submittedQuoteRequest(quoteRequest)
+      : this.#lookAgain(read, (late) => this.#submittedQuoteRequest(late));
+  }
+
+  async #submittedQuoteRequest(quoteRequest: CrmQuoteRequestDocument): Promise<AutoCreateOutcome> {
     const { record } = quoteRequest;
 
     if (await this.deps.links.opportunityIdOf('quote_request', record.id)) return 'already-linked';
@@ -171,16 +213,26 @@ export class OpportunityAutoCreateService {
     return organization?.name ? `${documentNumber} — ${organization.name}` : documentNumber;
   }
 
-  /** Read a document its event announced, allowing for a commit that is still in flight. */
-  async #whenCommitted<T>(read: () => Promise<T | null>): Promise<T | null> {
+  /**
+   * The document was not there on the first read: its commit may still be in
+   * flight. Look again — after each pause, off the bus's chain — and handle it
+   * when it appears; a document that never does was rolled back.
+   */
+  #lookAgain<T>(read: () => Promise<T | null>, placed: Placed<T>): AutoCreateOutcome {
     const sleep =
       this.deps.sleep ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
-    let found = await read();
-    for (const pause of COMMIT_WAIT_PAUSES) {
-      if (found !== null) return found;
-      await sleep(pause);
-      found = await read();
-    }
-    return found;
+    const looking = this.deps.defer(async () => {
+      for (const pause of COMMIT_WAIT_PAUSES) {
+        await sleep(pause);
+        const found = await read();
+        if (found !== null) {
+          await placed(found);
+          return;
+        }
+      }
+    });
+    this.#deferred.add(looking);
+    void looking.then(() => this.#deferred.delete(looking));
+    return 'deferred';
   }
 }

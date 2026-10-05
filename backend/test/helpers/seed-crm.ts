@@ -458,10 +458,20 @@ export async function whenCrmEventSettled<T>(
   try {
     const result = await act();
     await settled;
+    // A placed document whose commit was still in flight when its event
+    // arrived is handled off the bus's chain; wait for that as well.
+    await crmPlacedDocumentsHandled(h);
     return result;
   } finally {
     off();
   }
+}
+
+/** Resolves once the module has no placed document left to look at again. */
+export async function crmPlacedDocumentsHandled(h: BackendServerHandle): Promise<void> {
+  await (
+    h.container.resolve('crmOpportunityAutoCreateService') as { idle(): Promise<void> }
+  ).idle();
 }
 
 /**
