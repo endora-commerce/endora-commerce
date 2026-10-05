@@ -1837,6 +1837,60 @@ when it was measured, and what was done about it.
   every Sales Rep's network panel, reported for whoever owns the shell's idle-logout read.
   Not verified by eye: a real screen reader, a physical touch device, dark theme, a popup
   blocker stricter than Chromium's default on the download's new tab (N-D8 (c)).
+- **N-G1 (2026-10-06, T160) — R-26's two [unverified] premises, read from the tree.**
+  (a) **The panel cannot be embedded as it was.** `CustomFieldValuesPanel` took a required
+  `save` and always rendered its own *Save custom fields* button; inside the create form that is
+  a second submit of half a form, for a record that does not exist yet. Row G8 was therefore
+  taken: the panel gained an **embedded mode** — `save` optional, `onChange(values)` told the
+  whole bag on every edit, no button without `save`. Two more optional props came with it,
+  **beyond G8's "onChange, no button"** and in the same file: `fieldErrors` (a refusal per
+  field key, shown at the field — a host that owns the write is the only one who learns which
+  field was refused, and T155 asks for exactly that) and `language` (labels were hard-coded to
+  `label['en']`; User Story 15's scenario 2 asks for the user's language). All three default to
+  the old behaviour, so the four existing hosts render and save exactly as before —
+  `admin/test/kit/kit-custom-field-values.test.tsx` and the `quote_requests` screen test pass
+  unchanged, with three cases added for the new mode. (b) **A required field absent on create
+  is refused**: `validateAndMerge(type, {}, {})` walks every definition and reports
+  `missing_required`, so the create form must offer the fields — which is why (a) was needed.
+- **N-G2 (2026-10-06, T159) — when the definitions are enforced.** One function,
+  `services/opportunity-custom-fields.ts`, called inside the create and the update Command.
+  A bag that is **absent** is not validated: the stored values are returned as they are. So a
+  `PATCH` that does not name `customFieldValues` never meets a field made required after the
+  Opportunity was created (contract §12a: "absent on a PATCH means leave the values as they
+  are"), and a `PATCH` that names it is held to **every** definition, required ones included.
+  The public `create` passes `customFieldValues ?? {}`, so a create by hand is always
+  validated; a caller that builds the create Command without a bag — the automatic creation
+  of User Story 9, on its own branch — creates an Opportunity with no custom values instead of
+  being refused by a field nobody was there to fill in. The audit snapshot carries
+  `customFieldValues` only when the bag is not empty, so an Opportunity without custom values
+  audits byte for byte as before. `project` strips a deleted definition's value on read; the
+  column keeps it (the platform's dormant-value rule).
+- **N-G3 (2026-10-06, T156/T157) — what `'opportunity'` joining the enum touched, and what it
+  did not.** The grep of T156, whole tree: **compile-coupled** — `SUPPORTED_ENTITIES` (H2) and
+  a second `Record` over the enum that §H does not name, `HOST_TABLE_BY_ENTITY` in
+  `custom-field-value.service.ts` (the `{table, column}` the definition-change guards probe;
+  `crm_opportunities.custom_field_values`), with its row in `value-probe-binding.test.ts` —
+  both H6. **Not touched**: `CustomFieldsPage.tsx` (its hard-coded list is a pre-fetch
+  fallback; the screen renders what `entity-types` answers), `host-managed.test.ts` (asserts
+  membership, not an exact set) and `value-matrix.test.ts` (its own list of five). **The
+  owner-absent refusal mints no code**: it is 409 `CUSTOM_FIELD_HOST_MANAGED`, the code whose
+  manifest note already says it "refuses a definition whose entity type another module
+  manages… about this registry rather than about whichever module happens to be named", with
+  a sentence that names no module. `effectiveState` is read in `routes.admin.ts` (H3), so
+  `custom_fields`' composition file is unchanged. **H5 has nothing to edit**: `custom_fields`
+  ships no documentation page (the module map says "no page yet"); the host type and the
+  owner-presence rule are documented on CRM's page instead.
+- **N-G4 (2026-10-06, T160) — the picker defect of N-D4 again, answered with `requires` this
+  time.** The panel reads `GET /api/v1/admin/custom-fields/definitions`, gated
+  `custom_fields:read`, which a Sales Rep holding only CRM's codes does not hold. Unlike
+  `admin_users:manage` in N-D4, that code grants nothing but reading field definitions, so
+  `crm:read` now names it in `requires` (the advisory the role editor shows) rather than CRM
+  growing a fifth lookup and the kit panel a `definitions` prop. On screen, the fields are
+  rendered — and the definitions asked for — only for a holder of `custom_fields:read`; a
+  person without it sees no section and no refused request, and a required field that then
+  refuses their create is named in the form's own error message. A holder of `crm:read`
+  without `crm:write` gets a read-only list (`CustomFieldValuesList`, module-private: the kit
+  panel has no read-only mode).
 
 ## Questions put to the owner — all decided on 2026-10-05
 

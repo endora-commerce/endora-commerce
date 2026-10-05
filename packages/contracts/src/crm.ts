@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
+import { customFieldValuesSchema } from './custom-fields.js';
 import type { QuoteRequestStatus } from './quote-requests.js';
 
 /**
@@ -235,6 +236,9 @@ export const CreateOpportunityRequestSchema = z.object({
   manualValue: decimalAmountSchema.nullable().optional(),
   expectedCloseDate: calendarDateSchema.nullable().optional(),
   tagIds: z.array(z.string().uuid()).max(50).optional(),
+  // §12a (US15) — operator-defined fields, keyed by definition key. On an edit,
+  // absent means "leave the values as they are".
+  customFieldValues: customFieldValuesSchema.optional(),
 });
 export type CreateOpportunityRequest = z.infer<typeof CreateOpportunityRequestSchema>;
 
@@ -365,6 +369,9 @@ export const OpportunityDetailSchema = OpportunitySummarySchema.extend({
   allowedTransitions: z.array(OpportunityStatusRefSchema),
   links: z.array(OpportunityLinkSchema),
   unresolvedPropagations: z.array(PropagationOutcomeSchema),
+  // §12a (US15) — the values of the fields defined today; a value whose
+  // definition was removed is not returned.
+  customFieldValues: customFieldValuesSchema,
 });
 export type OpportunityDetail = z.infer<typeof OpportunityDetailSchema>;
 

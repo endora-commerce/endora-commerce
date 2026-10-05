@@ -322,3 +322,73 @@ describe('CustomFieldValuesPanel — an empty entity type and a failed load are 
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
   });
 });
+
+describe('CustomFieldValuesPanel — embedded in a form of the host\'s own (feature 143)', () => {
+  it('renders the fields and no button, and tells the host the whole bag on every change', async () => {
+    getSpy.mockResolvedValue({ data: [definition()] });
+    const onChange = vi.fn();
+
+    renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" values={{ other: 1 }} onChange={onChange} />,
+      bundle,
+    );
+
+    const input = await screen.findByLabelText('Loyalty tier');
+    expect(screen.queryByRole('button', { name: COPY.save })).toBeNull();
+    await userEvent.type(input, 'go');
+    expect(onChange).toHaveBeenLastCalledWith({ other: 1, loyalty_tier: 'go' });
+  });
+
+  it('shows a refusal at the field it names, in either mode', async () => {
+    getSpy.mockResolvedValue({ data: [definition()] });
+
+    renderWithI18n(
+      <CustomFieldValuesPanel
+        entityType="customer"
+        values={{}}
+        onChange={(): void => {}}
+        fieldErrors={{ loyalty_tier: 'Field "loyalty_tier" is required.' }}
+      />,
+      bundle,
+    );
+
+    const input = await screen.findByLabelText('Loyalty tier');
+    const refusal = screen.getByRole('alert');
+    expect(refusal).toHaveTextContent('Field "loyalty_tier" is required.');
+    expect(input.parentElement).toContainElement(refusal);
+  });
+
+  it('labels a field and its options in the language it is given, the default label otherwise', async () => {
+    getSpy.mockResolvedValue({
+      data: [
+        definition({ label: { en: 'Loyalty tier', pl: 'Poziom lojalności' } }),
+        definition({
+          id: '00000000-0000-4000-8000-00000000d002',
+          key: 'segment',
+          label: {},
+          labelDefault: 'Segment',
+          valueType: 'select',
+          options: [
+            {
+              id: '00000000-0000-4000-8000-00000000e002',
+              value: 'smb',
+              label: { pl: 'MŚP' },
+              labelDefault: 'SMB',
+              isDefault: false,
+              sortOrder: 0,
+            },
+          ],
+        }),
+      ],
+    });
+
+    renderWithI18n(
+      <CustomFieldValuesPanel entityType="customer" values={{}} onChange={(): void => {}} language="pl" />,
+      bundle,
+    );
+
+    expect(await screen.findByLabelText('Poziom lojalności')).toBeTruthy();
+    expect(screen.getByLabelText('Segment')).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'MŚP' })).toBeTruthy();
+  });
+});

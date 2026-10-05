@@ -16,8 +16,27 @@ export interface CustomFieldValuesPanelProps {
   entityType: SupportedEntityType;
   /** Current stored values for the host record. */
   values: Record<string, unknown>;
-  /** Persist the edited bag. Host owns the write (its own endpoint). */
-  save: (values: Record<string, unknown>) => Promise<void>;
+  /**
+   * Persist the edited bag. Host owns the write (its own endpoint). Omit it,
+   * and pass `onChange`, to embed the fields in a form of the host's own: the
+   * panel then renders no button and the host submits the bag with its form.
+   */
+  save?: (values: Record<string, unknown>) => Promise<void>;
+  /**
+   * Told the whole edited bag on every change. With no `save`, this is the
+   * only way the values leave the panel (the embedded mode).
+   */
+  onChange?: (values: Record<string, unknown>) => void;
+  /**
+   * A refusal per field, keyed by definition key, shown at that field. The
+   * host owns the write, so the host is who learns which field was refused.
+   */
+  fieldErrors?: Readonly<Record<string, string>>;
+  /**
+   * The language field and option labels are shown in, falling back to the
+   * definition's default label. `en` when omitted, as before the prop existed.
+   */
+  language?: string;
 }
 
 /**
@@ -56,11 +75,21 @@ export interface CustomFieldValuesPanelProps {
  * uninstall. A platform that cannot serve this endpoint does not boot, so
  * `MODULE_DISABLED` is unreachable here and there is no branch to preserve for
  * it.
+ *
+ * **Embedded mode** (feature 143). A create form has no record to save a bag
+ * against, and a second button inside a form is a second way to submit half of
+ * it. With `onChange` and no `save` the panel is the same fields and no
+ * button: the host keeps the bag and sends it with its own request.
+ * `fieldErrors` and `language` are optional in both modes and change nothing
+ * for a caller that passes neither.
  */
 export function CustomFieldValuesPanel({
   entityType,
   values,
   save,
+  onChange,
+  fieldErrors,
+  language = 'en',
 }: CustomFieldValuesPanelProps): ReactNode {
   const t = useTranslation('core');
   const [defs, setDefs] = useState<CustomFieldDefinitionDto[]>([]);
@@ -90,11 +119,14 @@ export function CustomFieldValuesPanel({
     };
   }, [entityType]);
 
-  const set = useCallback((key: string, value: unknown): void => {
-    setDraft((prev) => ({ ...prev, [key]: value }));
-  }, []);
+  const set = (key: string, value: unknown): void => {
+    const next = { ...draft, [key]: value };
+    setDraft(next);
+    onChange?.(next);
+  };
 
   const onSave = useCallback(async (): Promise<void> => {
+    if (!save) return;
     setError(null);
     setSaving(true);
     try {
@@ -122,16 +154,24 @@ export function CustomFieldValuesPanel({
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        {defs.map((d) => (
-          <div key={d.id} className="space-y-1">
-            <Label htmlFor={`cf-${d.key}`}>
-              {d.label['en'] ?? d.labelDefault}
-              {d.required && <span className="text-destructive"> *</span>}
-            </Label>
-            {renderInput(d, draft[d.key], (v) => set(d.key, v))}
-          </div>
-        ))}
-        {defs.length > 0 && (
+        {defs.map((d) => {
+          const fieldError = fieldErrors?.[d.key];
+          return (
+            <div key={d.id} className="space-y-1">
+              <Label htmlFor={`cf-${d.key}`}>
+                {d.label[language] ?? d.labelDefault}
+                {d.required && <span className="text-destructive"> *</span>}
+              </Label>
+              {renderInput(d, draft[d.key], (v) => set(d.key, v), language)}
+              {fieldError ? (
+                <p role="alert" className="text-xs text-destructive">
+                  {fieldError}
+                </p>
+              ) : null}
+            </div>
+          );
+        })}
+        {save && defs.length > 0 && (
           <Button size="sm" disabled={saving} onClick={() => void onSave()}>
             {t('customFields.save')}
           </Button>
@@ -147,6 +187,7 @@ function renderInput(
   def: CustomFieldDefinitionDto,
   value: unknown,
   onChange: (v: unknown) => void,
+  language: string,
 ): ReactNode {
   switch (def.valueType) {
     case 'boolean':
@@ -188,7 +229,7 @@ function renderInput(
           <option value="">—</option>
           {def.options.map((o) => (
             <option key={o.id ?? o.value} value={o.value}>
-              {o.label['en'] ?? o.labelDefault}
+              {o.label[language] ?? o.labelDefault}
             </option>
           ))}
         </Select>
@@ -210,7 +251,7 @@ function renderInput(
                   )
                 }
               />
-              {o.label['en'] ?? o.labelDefault}
+              {o.label[language] ?? o.labelDefault}
             </label>
           ))}
         </div>

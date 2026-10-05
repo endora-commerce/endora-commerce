@@ -416,3 +416,72 @@ export async function removeCrmAssets(em: EntityManager, ids: readonly string[])
     .getConnection()
     .execute(`delete from "assets" where "id" in (${ids.map(() => '?').join(', ')})`, [...ids]);
 }
+
+const CUSTOM_FIELDS_API = '/api/v1/admin/custom-fields';
+
+/**
+ * Define a custom field for Opportunities through the real admin route, so the
+ * definitions cache and the Command's audit entry are the product's own.
+ */
+export async function defineCrmCustomField(
+  h: BackendServerHandle,
+  definition: {
+    key: string;
+    valueType: 'text' | 'number' | 'boolean' | 'date' | 'select' | 'multiselect';
+    required?: boolean;
+    labelDefault?: string;
+    label?: Record<string, string>;
+    options?: readonly string[];
+  },
+): Promise<{ id: string; key: string }> {
+  const response = await h.app.inject({
+    method: 'POST',
+    url: `${CUSTOM_FIELDS_API}/definitions`,
+    cookies: CRM_ADMIN,
+    payload: {
+      entityType: 'opportunity',
+      key: definition.key,
+      label: definition.label ?? {},
+      labelDefault: definition.labelDefault ?? definition.key,
+      valueType: definition.valueType,
+      required: definition.required ?? false,
+      sortOrder: 0,
+      config: {},
+      options: (definition.options ?? []).map((value, index) => ({
+        value,
+        label: {},
+        labelDefault: value,
+        isDefault: false,
+        sortOrder: index,
+      })),
+    },
+  });
+  if (response.statusCode !== 201) {
+    throw new Error(`defineCrmCustomField: ${response.statusCode} ${response.body}`);
+  }
+  return (response.json() as { data: { id: string; key: string } }).data;
+}
+
+/**
+ * Remove every custom field defined for Opportunities — through the route, so
+ * the cache forgets them too. A required field left behind would refuse every
+ * Opportunity a later test file creates.
+ */
+export async function removeCrmCustomFields(h: BackendServerHandle): Promise<void> {
+  const list = await h.app.inject({
+    method: 'GET',
+    url: `${CUSTOM_FIELDS_API}/definitions?entityType=opportunity`,
+    cookies: CRM_ADMIN,
+  });
+  if (list.statusCode !== 200) throw new Error(`removeCrmCustomFields: ${list.statusCode} ${list.body}`);
+  for (const definition of (list.json() as { data: Array<{ id: string }> }).data) {
+    const removed = await h.app.inject({
+      method: 'DELETE',
+      url: `${CUSTOM_FIELDS_API}/definitions/${definition.id}`,
+      cookies: CRM_ADMIN,
+    });
+    if (removed.statusCode !== 204) {
+      throw new Error(`removeCrmCustomFields: ${removed.statusCode} ${removed.body}`);
+    }
+  }
+}

@@ -181,6 +181,7 @@ export function detail(overrides: Partial<OpportunityDetail> = {}): OpportunityD
       },
     ],
     unresolvedPropagations: [],
+    customFieldValues: {},
     ...overrides,
   };
 }

@@ -23,6 +23,7 @@ import {
   SalesChannelSelect,
   useSalesChannelOptions,
 } from '../components/LookupPickers.js';
+import { customFieldIssues, NewOpportunityCustomFields } from '../components/OpportunityCustomFields.js';
 import { TagMultiSelect } from '../components/TagPicker.js';
 import { errorMessage, normaliseAmount } from '../lib/labels.js';
 
@@ -65,6 +66,11 @@ export function OpportunityCreatePage(): ReactNode {
   const [description, setDescription] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Operator-defined fields (US15): the bag the embedded panel reports, and
+  // the fields the server refused. `null` until a field is touched, so a form
+  // with no custom field sends no bag at all.
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown> | null>(null);
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   // One read for two fields: the channel picker, and the currencies offered —
@@ -132,15 +138,24 @@ export function OpportunityCreatePage(): ReactNode {
       ...(amount ? { manualValue: amount } : {}),
       ...(expectedCloseDate ? { expectedCloseDate } : {}),
       ...(description.trim() ? { description: description.trim() } : {}),
+      ...(customFieldValues ? { customFieldValues } : {}),
     };
 
     setBusy(true);
     setSubmitError(null);
+    setCustomFieldErrors({});
     try {
       const created = await crmApi.createOpportunity(body);
       navigate(`/crm/opportunities/${created.id}`);
     } catch (failure) {
-      setSubmitError(errorMessage(failure, t('opportunity.create.error.generic')));
+      const issues = customFieldIssues(failure);
+      setCustomFieldErrors(issues ?? {});
+      // The server's sentence, and what it said about each field — shown here
+      // as well as at the fields, because the fields are not on screen for
+      // somebody who may not read their definitions.
+      setSubmitError(
+        [errorMessage(failure, t('opportunity.create.error.generic')), ...Object.values(issues ?? {})].join(' '),
+      );
       setBusy(false);
     }
   };
@@ -351,6 +366,10 @@ export function OpportunityCreatePage(): ReactNode {
             </div>
           </CardContent>
         </Card>
+
+        <div className="mt-4">
+          <NewOpportunityCustomFields onChange={setCustomFieldValues} fieldErrors={customFieldErrors} />
+        </div>
 
         <StickyFormActions className="mt-4 flex justify-end gap-2">
           <Button

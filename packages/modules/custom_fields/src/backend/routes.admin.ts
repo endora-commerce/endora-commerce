@@ -19,7 +19,7 @@ import {
   SUPPORTED_ENTITIES,
   type SupportedEntityMeta,
 } from './services/custom-field-registry.js';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import { effectiveState, type RequireAdminFactory } from '@endora-commerce/platform/kernel';
 
 export interface CustomFieldsAdminDeps {
   definitionService: CustomFieldDefinitionService;
@@ -62,6 +62,34 @@ function assertNotHostManaged(entityType: string): void {
   }
 }
 
+/**
+ * Feature 143 — a host type follows its owner module. When an entity type's
+ * registry entry declares `ownerModuleId`, the type exists for the operator
+ * only while that module is effectively present (Constitution XVII). Generic:
+ * the one question asked is whether the named module is present.
+ */
+function isOwnerPresent(meta: SupportedEntityMeta | undefined): boolean {
+  return !meta?.ownerModuleId || effectiveState.isPresent(meta.ownerModuleId);
+}
+
+/**
+ * Refuse a definition mutation for a type whose owner module is not present.
+ * The same code as the host-managed refusal: both say that this registry will
+ * not change a definition whose entity type another module answers for.
+ * Nothing is deleted while the owner is off — the definitions are restored
+ * with it.
+ */
+function assertOwnerPresent(entityType: string): void {
+  const meta = isSupportedEntityType(entityType) ? SUPPORTED_ENTITIES[entityType] : undefined;
+  if (!isOwnerPresent(meta)) {
+    throw new HttpError(
+      409,
+      ERROR_CODES.CUSTOM_FIELD_HOST_MANAGED,
+      `Definitions for entity type "${entityType}" cannot be changed while the module that owns it is switched off.`,
+    );
+  }
+}
+
 function serialize({ definition, options }: CachedDefinition): Record<string, unknown> {
   return {
     id: definition.id,
@@ -100,7 +128,9 @@ export async function registerCustomFieldsAdminRoutes(
   /** Refuse mutating an existing definition whose entity type is host-managed (feature 061). */
   async function assertDefinitionNotHostManaged(id: string): Promise<void> {
     const def = await definitionService.getById(id);
-    if (def) assertNotHostManaged(def.definition.entityType);
+    if (!def) return;
+    assertNotHostManaged(def.definition.entityType);
+    assertOwnerPresent(def.definition.entityType);
   }
 
   // Feature 061 T037 — supported entity types + host-managed metadata, so the
@@ -112,7 +142,10 @@ export async function registerCustomFieldsAdminRoutes(
     async () => {
       const data: CustomFieldEntityTypeInfo[] = (
         Object.entries(SUPPORTED_ENTITIES) as Array<[SupportedEntityType, SupportedEntityMeta]>
-      ).map(([entityType, meta]) => ({
+      )
+        // A type whose owner module is off is not offered (feature 143).
+        .filter(([, meta]) => isOwnerPresent(meta))
+        .map(([entityType, meta]) => ({
         entityType,
         labelKey: meta.labelKey,
         ...(meta.managedBy
@@ -156,6 +189,7 @@ export async function registerCustomFieldsAdminRoutes(
     async (request, reply) => {
       const body = createCustomFieldDefinitionSchema.parse(request.body);
       assertNotHostManaged(body.entityType);
+      assertOwnerPresent(body.entityType);
       try {
         const created = await definitionService.create(body);
         const def = await definitionService.getById(created.id);

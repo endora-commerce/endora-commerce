@@ -6,6 +6,7 @@ import type {
   AssetReferenceRegistryPort,
   AssetsLibraryPort,
   CustomerAccountReadPort,
+  CustomFieldValuePort,
   OrderReadPort,
   OrderTransitionPort,
   OrganizationDetailsPort,
@@ -335,6 +336,12 @@ export function registerModule(ctx: ModuleContext): void {
             links: (opportunityId) => crmOpportunityLinkService.list(opportunityId),
             unresolvedPropagations: (opportunityId) =>
               crmOrderStatusPropagationService.listUnresolved(opportunityId),
+            // --- Custom fields (User Story 15) ------------------------------
+            // `custom_fields` validates and projects; the Opportunity's own
+            // Commands write. The owner is non-deactivatable, so this is a
+            // plain binding edge with no off state to degrade into.
+            customFields: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
+            // --- end of Custom fields ----------------------------------------
           }),
       )
       .singleton(),

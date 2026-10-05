@@ -14,7 +14,9 @@ import { CrmOpportunity, CrmStatusPropagation } from '../../helpers/package-enti
 import {
   changeOrderStatusAsOperator,
   createCrmOpportunity,
+  defineCrmCustomField,
   linkCrmOrder,
+  removeCrmCustomFields,
   restoreDefaultCrmWorkflow,
   seedCrmOrder,
   setCrmMappings,
@@ -225,6 +227,62 @@ describe('crm off-state (Constitution XVII)', () => {
         expect(await statusOf(pair.opportunityId)).toBe('new');
       });
     });
+  });
+
+  describe('operator-defined fields (User Story 15)', () => {
+    const detail = async (id: string) => {
+      const response = await h.app.inject({ method: 'GET', url: `${API}/opportunities/${id}`, cookies: admin });
+      expect(response.statusCode, response.body).toBe(200);
+      return (response.json() as { data: { customFieldValues: Record<string, unknown> } }).data;
+    };
+    const definitions = async () => {
+      const response = await h.app.inject({
+        method: 'GET',
+        url: '/api/v1/admin/custom-fields/definitions?entityType=opportunity',
+        cookies: admin,
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      return (response.json() as { data: Array<{ id: string; key: string; updatedAt: string }> }).data;
+    };
+
+    beforeAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      await removeCrmCustomFields(h);
+    });
+
+    afterAll(async () => {
+      await removeCrmCustomFields(h);
+    });
+
+    it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+      'keeps the definitions and the stored values across an off → on cycle (%s)',
+      async (axis) => {
+        await removeCrmCustomFields(h);
+        await defineCrmCustomField(h, { key: 'lead_source', valueType: 'select', options: ['referral'] });
+        const opportunity = await createCrmOpportunity(h, { customFieldValues: { lead_source: 'referral' } });
+        // Positive control: the value is there to be lost.
+        expect((await detail(opportunity.id)).customFieldValues).toEqual({ lead_source: 'referral' });
+        const before = await definitions();
+        expect(before.map((definition) => definition.key)).toEqual(['lead_source']);
+
+        await withModuleOff('crm', axis, async () => {
+          const offered = await h.app.inject({
+            method: 'GET',
+            url: '/api/v1/admin/custom-fields/entity-types',
+            cookies: admin,
+          });
+          expect(offered.statusCode, offered.body).toBe(200);
+          expect(
+            (offered.json() as { data: Array<{ entityType: string }> }).data.map((row) => row.entityType),
+          ).not.toContain('opportunity');
+          const read = await h.app.inject({ method: 'GET', url: `${API}/opportunities/${opportunity.id}`, cookies: admin });
+          expect(read.statusCode).toBe(503);
+        });
+
+        expect(await definitions()).toEqual(before);
+        expect((await detail(opportunity.id)).customFieldValues).toEqual({ lead_source: 'referral' });
+      },
+    );
   });
 
   it('probes routes that exist — a refused path the module never registered would prove nothing', () => {

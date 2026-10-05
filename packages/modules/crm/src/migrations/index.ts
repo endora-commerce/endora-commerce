@@ -11,7 +11,11 @@
  */
 
 import { Migration20261005T132439CrmInit } from './20261005T132439_crm_init.js';
+import { Migration20261005T215329CrmOpportunityCustomFieldValues } from './20261005T215329_crm_opportunity_custom_field_values.js';
 
-export const migrations = [Migration20261005T132439CrmInit];
+export const migrations = [
+  Migration20261005T132439CrmInit,
+  Migration20261005T215329CrmOpportunityCustomFieldValues,
+];
 
-export { Migration20261005T132439CrmInit };
+export { Migration20261005T132439CrmInit, Migration20261005T215329CrmOpportunityCustomFieldValues };

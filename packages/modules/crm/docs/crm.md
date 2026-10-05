@@ -636,3 +636,50 @@ No role receives a CRM permission automatically. Grant them on the
 - A change history for every opportunity.
 - Analytics: handling time, time in each status, results by sales
   representative.
+
+## Custom fields
+
+An opportunity can carry fields of your own — "Lead source", "Competitor",
+"Decision date" — defined without a deployment.
+
+**Defining them.** Open **Custom fields** in the Admin UI and choose
+**Opportunity** as the record type. A field has a key, a label per language, a
+type (text, number, yes/no, date, one of a list, several of a list) and may be
+required. This is the platform's own custom-fields screen; opportunities are
+one more record type on it, beside orders, organizations, customers and quote
+requests.
+
+**Filling them in.** The fields appear on the form that creates an opportunity
+and in a **Custom fields** section on the opportunity's *Overview*, labelled in
+your language. On the opportunity they have their own **Save custom fields**
+button; on the create form they are saved with the opportunity.
+
+- A value that breaks its field's definition — a required field left empty, an
+  option that is not on the list, text where a number is expected — is refused,
+  and the message is shown at that field. Nothing is saved.
+- A required field is asked for when an opportunity is created by hand, and
+  whenever the custom fields are saved. Editing something else on an
+  opportunity — its title, its value, its status — never asks for it, so a
+  field made required today does not block work on yesterday's opportunities.
+- An opportunity created automatically has no custom values until somebody
+  fills them in.
+- When a field is deleted, its values stop being shown.
+
+**Who sees them.** Whoever can see the opportunity sees its custom values, and
+nobody else: they are part of the opportunity. Showing the fields also needs
+the `custom_fields:read` permission, because the list of fields is read from
+the Custom fields module — a role that holds `crm:read` should hold it too.
+Somebody without it sees no custom fields section; if a required field then
+refuses their new opportunity, the form names the field in its error message.
+
+**For integrators.** `POST` and `PATCH /api/v1/admin/crm/opportunities` accept
+an optional `customFieldValues` object keyed by field key, and the opportunity
+answers with `customFieldValues`. On `PATCH`, the object names the fields it
+changes; leaving it out leaves every value as it is. A refused value answers
+`422 CUSTOM_FIELD_VALUE_INVALID` with one `{ path, issue }` per field. The
+write is part of the opportunity's own audit entry — there is no separate one.
+
+**With CRM switched off**, *Opportunity* is not offered on the Custom fields
+screen and its field definitions cannot be created, changed or deleted (`409`).
+Nothing is removed: switching CRM back on restores the definitions and every
+stored value.

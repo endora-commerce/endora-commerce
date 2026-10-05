@@ -71,11 +71,15 @@ export const manifest = defineModuleManifest({
   // `assets_library` own the ports the module's services resolve: linked Orders
   // and their status, the contact person, referenced Products, assignees and
   // authors, and the media library an attachment lives in.
+  //
+  // `custom_fields` owns `customFieldValueService`, which validates and
+  // projects an Opportunity's operator-defined fields (User Story 15).
   dependencies: [
     'admin_users',
     'assets_library',
     'auth',
     'catalog',
+    'custom_fields',
     'customer_accounts',
     'orders',
     'organizations',
@@ -128,7 +132,9 @@ export const manifest = defineModuleManifest({
       code: 'crm:read',
       label: 'View sales opportunities',
       module: 'crm',
-      requires: ['orders:read'],
+      // `custom_fields:read`: the operator-defined fields of an Opportunity
+      // are rendered from `custom_fields`' own definitions endpoint.
+      requires: ['orders:read', 'custom_fields:read'],
     },
     {
       code: 'crm:write',

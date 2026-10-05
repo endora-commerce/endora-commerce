@@ -654,3 +654,50 @@ ekranie **Role**.
 - Historia zmian każdej szansy.
 - Analityka: czas obsługi, czas w poszczególnych statusach, wyniki
   handlowców.
+
+## Pola niestandardowe
+
+Szansa sprzedażowa może mieć Twoje własne pola — „Źródło kontaktu",
+„Konkurent", „Data decyzji" — definiowane bez wdrożenia.
+
+**Definiowanie.** Otwórz **Pola niestandardowe** w panelu administracyjnym i
+wybierz typ rekordu **Szansa sprzedażowa**. Pole ma klucz, etykietę w każdym
+języku, typ (tekst, liczba, tak/nie, data, jedna pozycja z listy, kilka pozycji
+z listy) i może być wymagane. To istniejący ekran pól niestandardowych
+platformy; szanse sprzedażowe są na nim kolejnym typem rekordu, obok zamówień,
+organizacji, klientów i zapytań ofertowych.
+
+**Wypełnianie.** Pola pojawiają się w formularzu tworzenia szansy oraz w sekcji
+**Pola niestandardowe** na karcie *Przegląd* szansy, z etykietami w Twoim
+języku. Na ekranie szansy mają własny przycisk **Zapisz pola niestandardowe**;
+w formularzu tworzenia zapisują się razem z szansą.
+
+- Wartość niezgodna z definicją pola — puste pole wymagane, pozycja spoza
+  listy, tekst zamiast liczby — jest odrzucana, a komunikat pojawia się przy tym
+  polu. Nic nie zostaje zapisane.
+- Pole wymagane trzeba wypełnić przy ręcznym tworzeniu szansy oraz przy każdym
+  zapisie pól niestandardowych. Zmiana czegokolwiek innego — tytułu, wartości,
+  statusu — nigdy go nie wymaga, więc pole oznaczone dziś jako wymagane nie
+  blokuje pracy nad wczorajszymi szansami.
+- Szansa utworzona automatycznie nie ma wartości niestandardowych, dopóki ktoś
+  ich nie uzupełni.
+- Po usunięciu pola jego wartości przestają być pokazywane.
+
+**Kto je widzi.** Wartości niestandardowe widzi każdy, kto widzi szansę, i nikt
+inny: są częścią szansy. Do wyświetlenia pól potrzebne jest także uprawnienie
+`custom_fields:read`, bo lista pól pochodzi z modułu Pola niestandardowe — rola
+z uprawnieniem `crm:read` powinna je mieć. Osoba bez niego nie widzi sekcji pól
+niestandardowych; jeśli pole wymagane odrzuci jej nową szansę, formularz wskaże
+to pole w komunikacie o błędzie.
+
+**Dla integratorów.** `POST` i `PATCH /api/v1/admin/crm/opportunities`
+przyjmują opcjonalny obiekt `customFieldValues` z kluczami pól, a szansa zwraca
+`customFieldValues`. W `PATCH` obiekt wymienia pola, które zmienia; pominięcie
+go pozostawia wszystkie wartości bez zmian. Odrzucona wartość daje odpowiedź
+`422 CUSTOM_FIELD_VALUE_INVALID` z jednym wpisem `{ path, issue }` na pole.
+Zapis jest częścią wpisu audytowego samej szansy — osobnego wpisu nie ma.
+
+**Gdy CRM jest wyłączony**, *Szansa sprzedażowa* nie jest oferowana na ekranie
+pól niestandardowych, a definicji jej pól nie można tworzyć, zmieniać ani usuwać
+(`409`). Nic nie jest usuwane: ponowne włączenie CRM przywraca definicje i
+wszystkie zapisane wartości.

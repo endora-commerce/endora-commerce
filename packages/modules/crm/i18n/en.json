@@ -414,5 +414,9 @@
   "attachments.error.attach": "The file could not be attached.",
   "attachments.error.download": "The file could not be downloaded.",
   "attachments.error.remove": "The attachment could not be removed.",
-  "attachments.error.unavailable": "{name} is no longer in the media library, so it cannot be downloaded."
+  "attachments.error.unavailable": "{name} is no longer in the media library, so it cannot be downloaded.",
+  "customFields.heading": "Custom fields",
+  "customFields.value.yes": "Yes",
+  "customFields.value.no": "No",
+  "customFields.loadFailed": "The custom fields could not be loaded."
 }

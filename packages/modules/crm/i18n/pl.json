@@ -414,5 +414,9 @@
   "attachments.error.attach": "Nie udało się dołączyć pliku.",
   "attachments.error.download": "Nie udało się pobrać pliku.",
   "attachments.error.remove": "Nie udało się usunąć załącznika.",
-  "attachments.error.unavailable": "Pliku {name} nie ma już w bibliotece mediów, więc nie można go pobrać."
+  "attachments.error.unavailable": "Pliku {name} nie ma już w bibliotece mediów, więc nie można go pobrać.",
+  "customFields.heading": "Pola niestandardowe",
+  "customFields.value.yes": "Tak",
+  "customFields.value.no": "Nie",
+  "customFields.loadFailed": "Nie udało się wczytać pól niestandardowych."
 }
