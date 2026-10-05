@@ -23,6 +23,8 @@ behind.
 | A5 | `packages/modules/_i18n/i18n/en.json`, `pl.json` | `"appShell.section.crm": "CRM"` in both | Foundational | one unused key per language |
 | A6 | `packages/contracts/src/common.ts` | `OriginReferenceSchema` / `OriginReference` | US10 | a generic schema with two users |
 | A7 | `packages/contracts/src/errors.ts` | the `CRM_*` members — **only if** minting requires it (admin-api.md §13) | Foundational | unused members |
+| A8 | `scripts/check-naming.sh` | `crm` added to `allowed_proper_noun` — the id is an acronym, not a plural, and the check refuses it otherwise (research N-1) | Setup | one allow-list word naming no folder |
+| A9 | `backend/package.json` | `"@endora-commerce/mod-crm": "workspace:*"` — the generated registries import the package by bare specifier and no generator writes this line (research N-2) | Setup | a dependency on a missing member; remove with the module |
 
 A3–A5 are the owner's navigation ruling of 2026-10-05 (research R-19). They are a **host**
 change: the section belongs to the shell, CRM contributes entries to it. Recorded follow-up:

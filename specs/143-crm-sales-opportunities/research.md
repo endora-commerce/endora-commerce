@@ -737,13 +737,13 @@ when it was measured, and what was done about it.
   `mfa` and `pwa` are on `allowed_proper_noun`, and `cms` passes only because it ends in `s`
   and matches the plural pattern. No acronym passes by being an acronym. Every module that
   landed with a non-plural id did so with a one-word edit to one of those two lists in the
-  same change (`infakt` and `invoice_ledger` in `073e231c7` are the latest). **Not renamed and
-  no exemption added — T003 reserves both for the owner.** Implementation stopped here. The
-  two ways forward: the owner approves adding `crm` to `allowed_proper_noun` in
-  `scripts/check-naming.sh` (a file that would then join `contracts/foreign-module-changes.md`
-  § A), or names a plural id.
+  same change (`infakt` and `invoice_ledger` in `073e231c7` are the latest). **Resolved 2026-10-05**: the
+  coordinator relayed that the owner's requirements document names the module "CRM (crm)",
+  so the id is the owner's; `crm` was added to `allowed_proper_noun` in
+  `scripts/check-naming.sh`, which is now row A8 of `contracts/foreign-module-changes.md`.
 - **N-2 (2026-10-05, T002) — `backend/package.json` is a file this feature must touch and
-  `contracts/foreign-module-changes.md` does not list it.** The generated registries import
+  `contracts/foreign-module-changes.md` did not list it (now row A9, accepted by the
+  coordinator).** The generated registries import
   `@endora-commerce/mod-crm` by bare specifier, and pnpm links a workspace member only into a
   package that declares it; without the line `overlay:check` dies with `ERR_MODULE_NOT_FOUND`
   and the backend cannot boot. No generator writes that dependency (`manifests:generate`
