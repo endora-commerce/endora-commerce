@@ -91,10 +91,13 @@ export const manifest = defineModuleManifest({
    * which enforce `orders:read`. A role holding `crm:read` alone sees
    * Opportunities with their linked Orders unavailable.
    *
-   * Only the code a route of this module enforces today is declared. The
+   * Only the codes a route of this module enforces today are declared. The
    * inventory sweeps both directions — a code granted before its gate lands
    * fails as loudly as a gate with no code — so each later code is declared by
    * the change that adds its first `requireAdmin`.
+   *
+   * `crm:configure` also gates deleting an Opportunity: removing a record with
+   * its whole history is an administrator's act, not a step of daily work.
    */
   permissions: [
     {
@@ -102,6 +105,55 @@ export const manifest = defineModuleManifest({
       label: 'View sales opportunities',
       module: 'crm',
       requires: ['orders:read'],
+    },
+    {
+      code: 'crm:write',
+      label: 'Create and work sales opportunities',
+      module: 'crm',
+      requires: ['crm:read'],
+    },
+    {
+      code: 'crm:configure',
+      label: 'Configure the CRM workflow and tags',
+      module: 'crm',
+      requires: ['crm:read'],
+    },
+  ],
+  /**
+   * The refusals this module raises, each with its sentence under
+   * `errors.<CODE>` in `i18n/{en,pl}.json`. A code is declared by the change
+   * that adds its first raise site; the three left for later stories
+   * (`CRM_ASSIGNEE_INVALID`, `CRM_MESSAGE_IMMUTABLE`, `CRM_TAG_NAME_TAKEN`) are
+   * not here yet for that reason.
+   *
+   * `CRM_TRANSITION_VETOED` carries the guard's own sentence: the raise puts it
+   * in `details.reason` and both bundle sentences are that placeholder alone,
+   * so the Sales Rep reads what the guard's author wrote.
+   */
+  errorCodes: [
+    { code: 'CRM_OPPORTUNITY_NOT_FOUND' },
+    { code: 'CRM_INVALID_TRANSITION' },
+    { code: 'CRM_TRANSITION_VETOED' },
+    { code: 'CRM_TRANSITION_CONFLICT' },
+    { code: 'CRM_DOCUMENT_NOT_FOUND' },
+    { code: 'CRM_DOCUMENT_ALREADY_LINKED' },
+    { code: 'CRM_LINK_ORGANIZATION_MISMATCH' },
+    { code: 'CRM_STATUS_CODE_TAKEN' },
+    { code: 'CRM_STATUS_IN_USE' },
+    { code: 'CRM_STATUS_INITIAL_REQUIRED' },
+    // One sentence per broken rule: the raise carries the rule as its refusal
+    // token (`details.code`) beside `details.rule`, which the contract names.
+    {
+      code: 'CRM_WORKFLOW_INVALID',
+      tokens: [
+        'exactly_one_initial',
+        'initial_must_be_open',
+        'won_status_required',
+        'lost_status_required',
+        'transition_unknown_status',
+        'mapping_unknown_status',
+        'mapping_duplicate',
+      ],
     },
   ],
   i18n: { bundlesDir: 'i18n' },

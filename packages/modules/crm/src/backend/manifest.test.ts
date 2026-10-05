@@ -20,14 +20,32 @@ describe('crm manifest', () => {
     }
   });
 
-  it('declares only the permission a route enforces today, grouped under the module', () => {
+  it('declares the three permissions a route enforces today, grouped under the module', () => {
     expect(manifest.permissions).toEqual([
-      {
-        code: 'crm:read',
-        label: 'View sales opportunities',
-        module: 'crm',
-        requires: ['orders:read'],
-      },
+      { code: 'crm:read', label: 'View sales opportunities', module: 'crm', requires: ['orders:read'] },
+      { code: 'crm:write', label: 'Create and work sales opportunities', module: 'crm', requires: ['crm:read'] },
+      { code: 'crm:configure', label: 'Configure the CRM workflow and tags', module: 'crm', requires: ['crm:read'] },
     ]);
+  });
+
+  it('declares every error code it raises, each once', () => {
+    const codes = (manifest.errorCodes ?? []).map((entry) => entry.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    expect(codes).toEqual(
+      expect.arrayContaining([
+        'CRM_OPPORTUNITY_NOT_FOUND',
+        'CRM_INVALID_TRANSITION',
+        'CRM_TRANSITION_VETOED',
+        'CRM_TRANSITION_CONFLICT',
+        'CRM_DOCUMENT_NOT_FOUND',
+        'CRM_DOCUMENT_ALREADY_LINKED',
+        'CRM_LINK_ORGANIZATION_MISMATCH',
+        'CRM_STATUS_CODE_TAKEN',
+        'CRM_STATUS_IN_USE',
+        'CRM_STATUS_INITIAL_REQUIRED',
+        'CRM_WORKFLOW_INVALID',
+      ]),
+    );
+    expect(codes.every((code) => code.startsWith('CRM_'))).toBe(true);
   });
 });

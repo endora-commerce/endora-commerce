@@ -43,7 +43,9 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 
 | Kod | Etykieta | Wymaga też |
 | --- | --- | --- |
+| `crm:configure` | Configure the CRM workflow and tags | `crm:read` |
 | `crm:read` | View sales opportunities | `orders:read` |
+| `crm:write` | Create and work sales opportunities | `crm:read` |
 
 ## Paleta poleceń
 
