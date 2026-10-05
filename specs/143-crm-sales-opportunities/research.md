@@ -762,6 +762,53 @@ when it was measured, and what was done about it.
   test/unit/kernel/` goes through the default configuration, whose global setup connects to
   Postgres. The same files under `--config vitest.unit.config.ts` need no service.
 
+- **N-5 (2026-10-05, T006) — "every contract lands before the first story" meets
+  `check:port-shape`.** A contract type whose doc block carries the `Container name:` marker is
+  a *published port*, and the check refuses one with no registration behind it
+  (`container-name-unregistered`; its ledger says in as many words that it is not a queue).
+  `OpportunityReadPort`, `OpportunityTransitionPort` and
+  `OpportunityTransitionGuardRegistryPort` are registered by later stories, so the three
+  interfaces are in `crm.ts` **without** the marker line; each doc block names the container
+  name in prose and says which change adds the marker. That change is one comment line beside
+  the `providePort` / `di.register` call — the only contract edit a later story owes.
+- **N-6 (2026-10-05, T023) — the `compose/<area>.ts` premise is false; composition is one
+  file.** `check:subscribe-seam`, `check:container-imports`, `check:entry-presence` and
+  `check:module-boundary` were all green with a `registerWorkflow(ctx)` helper in
+  `compose/workflow.ts`. `check:port-dependencies` was not: it derives a module's registered
+  names (`moduleOwnedNames`) and its gated ports (`moduleRegistered`) from the module's
+  **entry-point file only** — the one exporting `registerModule`
+  (`backend/scripts/check-port-dependencies.ts`, the `moduleEntryPoints` loop). A
+  `ctx.di.register` in a helper file is an `instance-gap` ("registered by no module"), and a
+  `ctx.di.providePort` there would not read as a gated port at all, which is the fail-open
+  direction. Per T023 the module composes in `src/backend/index.ts`, one commented section
+  per area. Consequence for parallel stories: `index.ts` is edited by every story (it was
+  already on the shared-hot-file list, but as "one line per story", not one section).
+  Services, routes, domain code and tests stay one file per area as planned.
+- **N-7 (2026-10-05, T016) — seven child entities.** T016 says "eight" and lists seven;
+  `data-model.md` has seven child tables.
+- **N-8 (2026-10-05, T022) — nothing published answers "is this an Order status code".**
+  `OpportunityWorkflow.orderStatusMappings[].orderStatusKnown` needs it (T059). `orders`
+  publishes `orderReadPort`, `orderTransitionPort` (`applyStatus`, `isTerminal(orderId)`) and
+  others, none of which enumerates or tests a status code; `OrderStatusRegistry` is a
+  contribution `payment_methods` / `delivery_methods` receive from a composition root, not a
+  port. Until T059 decides — a new read on an `orders` port (a change to `orders`, not on the
+  foreign-change list), or computing the flag in the admin from `GET
+  /api/v1/admin/orders/statuses`, which the screen fetches anyway — the endpoint answers
+  `true`, and no mapping can exist yet.
+- **N-9 (2026-10-05, T019) — R-23's premise holds.** `orders` gates its admin list, detail
+  and status endpoints with `orders:read` (`packages/modules/orders/src/backend/routes.ts`),
+  so `crm:read` declares `requires: ['orders:read']`.
+- **N-10 (2026-10-05, T024) — a new module owes four Polish mirrors, not one.** Beside the
+  module page: the generated reference page (`generated:module-reference/crm`), the module
+  map's row, and `sidebar.main.category.crm` in
+  `docs/i18n/pl/docusaurus-plugin-content-docs/current.json`. `check:docs-translations` names
+  each. The skeleton commit already owed the module-map row; it was repaired with the page.
+- **N-11 (2026-10-05, T009/T026) — the test harness and the worktree's own services.** The
+  harness reads `TEST_DATABASE_URL`, `REDIS_URL`, `MEILISEARCH_URL` and
+  `MEILISEARCH_API_KEY`; nothing in it hard-codes a port beyond the defaults those variables
+  replace. `pnpm --filter '!backend' run test` runs four vitest processes at once by default;
+  under a 6 GB cap it is run with `--workspace-concurrency=1`.
+
 ## Open questions for the owner
 
 Each has the recommended default already applied in the artifacts; none blocks implementation.
