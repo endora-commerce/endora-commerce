@@ -392,6 +392,96 @@ there with links; switch the CRM module off and confirm the panel is gone.
 
 ---
 
+### User Story 15 — Operator-defined fields on an Opportunity (Priority: P3)
+
+An operator adds fields of their own to Opportunities — "Lead source", "Competitor",
+"Decision date" — on the platform's existing custom-fields screen, without a deployment. Sales
+Reps fill them in when creating an Opportunity and on its screen; the values are validated
+against the field's definition.
+
+**Why this priority**: every sales team tracks a few facts no product ships with. The
+platform already has the mechanism for Orders, Organizations, customers and Quote Requests.
+
+**Independent Test**: define a required select field for Opportunities on the custom-fields
+screen, create an Opportunity without it and see the field named in the refusal, fill it in,
+reopen the Opportunity and see the value.
+
+**Acceptance Scenarios**:
+
+1. **Given** the CRM module is on, **When** an operator opens the custom-fields screen,
+   **Then** "Opportunity" is among the record types they can define fields for.
+2. **Given** fields defined for Opportunities, **When** a Sales Rep creates or edits an
+   Opportunity, **Then** the fields are offered with their labels in the user's language, and
+   a value that breaks a field's definition is refused naming that field.
+3. **Given** an Opportunity with custom values, **When** it is read by anyone who may see it,
+   **Then** the values are shown; nobody who may not see the Opportunity can read them.
+4. **Given** the CRM module is switched off, **When** an operator opens the custom-fields
+   screen, **Then** "Opportunity" is not offered and its field definitions cannot be changed;
+   switching CRM back on restores definitions and values unchanged.
+
+---
+
+### User Story 16 — Other systems are told when an Opportunity changes status (Priority: P3)
+
+An operator subscribes an external system — a reporting tool, a chat channel, an ERP — to
+Opportunity events on the platform's existing webhooks screen. When an Opportunity is created,
+changes Status or closes, the subscribed address receives a signed notification.
+
+**Why this priority**: a pipeline that other systems cannot follow gets re-keyed by hand.
+
+**Independent Test**: create a webhook subscription for "Opportunity status changed", move an
+Opportunity, and confirm one delivery was queued for that address carrying the Opportunity,
+the previous and the new Status.
+
+**Acceptance Scenarios**:
+
+1. **Given** the CRM module is on, **When** an operator creates or edits a webhook
+   subscription, **Then** the Opportunity events — created, status changed, closed — are among
+   the events offered.
+2. **Given** a subscription to "status changed", **When** an Opportunity changes Status for
+   any reason, **Then** exactly one notification is queued for that subscription, with a
+   documented, versioned content.
+3. **Given** a subscription bound to one Organization, **When** an Opportunity of another
+   Organization changes Status, **Then** nothing is sent to it.
+4. **Given** the webhooks capability is switched off, **When** an Opportunity changes Status,
+   **Then** the change succeeds and nothing is sent.
+5. **Given** the CRM module is switched off, **When** the webhooks screen is opened, **Then**
+   the Opportunity events are not offered.
+
+---
+
+### User Story 17 — The Order and the Quote Request show their Opportunity (Priority: P3)
+
+Somebody looking at an Order sees, on that Order's screen, the Opportunity it belongs to —
+number, title, Status, assignee and value — with a link to it. If the Order belongs to none,
+they can link it to an existing Opportunity of the same Organization or start a new one from
+it. The Quote Request screen shows the same panel.
+
+**Why this priority**: people arrive at an Order from many places; the sales context should
+be one click away, in both directions.
+
+**Independent Test**: open a linked Order and confirm the panel shows its Opportunity and
+links to it; open an unlinked Order, choose "Create opportunity", complete the form and
+confirm the Order is linked; switch CRM off and confirm the Order screen is exactly as it was
+before this feature.
+
+**Acceptance Scenarios**:
+
+1. **Given** an Order linked to an Opportunity, **When** its screen is opened by a user who
+   may see Opportunities, **Then** a panel shows the Opportunity's number, title, Status,
+   assignee and value, and links to it.
+2. **Given** an Order linked to none, **When** the user chooses "Link to an opportunity",
+   **Then** they can pick an open Opportunity of the Order's Organization and the Order is
+   linked; **When** they choose "Create opportunity", **Then** the creation form opens for
+   that Organization and the Opportunity it creates is linked to the Order.
+3. **Given** a Quote Request, **When** its screen is opened, **Then** the same panel and the
+   same two actions are available for it.
+4. **Given** a user without permission to see Opportunities, or the CRM module switched off,
+   **When** an Order or Quote Request screen is opened, **Then** no panel, heading or empty
+   space appears, and the screen is identical to the one without the module.
+
+---
+
 ### Edge Cases
 
 - **A Status still in use is deleted** — refused while any Opportunity is in it; the start
@@ -553,6 +643,26 @@ there with links; switch the CRM module off and confirm the panel is gone.
 - **FR-075**: The module MUST be documented for operators and for developers, in English and
   Polish.
 
+**Cooperation added by the owner's second ruling (2026-10-05)**
+
+- **FR-076**: Operators MUST be able to define custom fields for Opportunities through the
+  platform's existing custom-fields capability, and users MUST be able to fill them in when
+  creating and editing an Opportunity. Values MUST be validated against their definition on
+  every write, refused per field, and visible only to those who may see the Opportunity.
+  While the CRM module is off, the Opportunity record type MUST NOT be offered for field
+  definition.
+- **FR-077**: Operators MUST be able to subscribe external systems, through the platform's
+  existing webhooks capability, to Opportunity events — at least "status changed", and also
+  "created" and "closed" (carrying won or lost). Each notification's content MUST be
+  documented and versioned, and MUST respect a subscription's Organization binding. With the
+  webhooks capability off, Opportunities MUST keep working; with CRM off, its events MUST NOT
+  be offered.
+- **FR-078**: The Order screen and the Quote Request screen MUST show the Opportunity the
+  document is linked to (number, title, Status, assignee, value, a link), and for an unlinked
+  document MUST offer linking it to an existing Opportunity of the same Organization and
+  starting a new Opportunity from it. With CRM off, or for a user who may not see
+  Opportunities, both screens MUST be identical to the ones without the module.
+
 ### Key Entities
 
 - **Opportunity** — number, title, description, Organization, optional contact person,
@@ -573,6 +683,8 @@ there with links; switch the CRM module off and confirm the panel is gone.
 - **Note / Message** — author, text, time, kind.
 - **Attachment** — a file in the platform's media library attached to an Opportunity.
 - **Reference** — a pointer from a text of an Opportunity to a Product or an Order.
+- **Custom field values** — the operator-defined fields of one Opportunity and their values;
+  the definitions belong to the platform's custom-fields capability.
 
 ## Success Criteria *(mandatory)*
 
@@ -601,6 +713,15 @@ there with links; switch the CRM module off and confirm the panel is gone.
 - **SC-009**: With automatic creation on, 100% of newly placed Orders and Quote Requests end
   up linked to exactly one Opportunity.
 
+- **SC-010**: An operator can add a custom field to Opportunities and see it on the
+  Opportunity form in under 1 minute, with no deployment; 100% of values that break a
+  definition are refused naming the field.
+- **SC-011**: 100% of Opportunity status changes produce exactly one queued notification per
+  matching webhook subscription, and 0 notifications reach a subscription bound to another
+  Organization.
+- **SC-012**: From an Order's screen a user reaches its Opportunity in one click; with the
+  CRM module off, the Order and Quote Request screens show no trace of it.
+
 ## Clarifications
 
 ### Owner rulings, 2026-10-05
@@ -612,6 +733,36 @@ there with links; switch the CRM module off and confirm the panel is gone.
   follow-up and nothing to do now. The group label is "CRM" in both English and Polish.
 - **Packaging**: CRM is a **free module in this repository** for now ("maybe paid someday").
   It must stay cleanly detachable; its destination does not change.
+
+### Owner rulings, 2026-10-05 (second round)
+
+The three questions this design had left open are **decided by the owner**, each as the
+default already applied:
+
+- **Quote Requests is not a hard dependency of CRM.** An operator may switch the Quote
+  Requests capability off while CRM is on; CRM keeps working and degrades as the Edge Cases
+  say (linked Quote Requests unavailable, not counted, not linkable).
+- **An Opportunity's transition stands when an Order refuses to follow.** The refusal is shown
+  per Order and can be retried or dismissed; it never undoes the Opportunity's move.
+- ~~The board uses the browser's native drag-and-drop.~~ **Reversed the same day — see the
+  third round below.**
+
+### Owner ruling, 2026-10-05 (third round) — the board uses a drag-and-drop library
+
+**The Opportunity board is built on the `@dnd-kit` drag-and-drop library**, replacing the
+native drag-and-drop default accepted in the second round. The owner's reason: *"I feel it may
+be useful not only in this module but in the future too."* Consequently the board's lanes and
+cards are a reusable, domain-free building block of the Admin UI's design system, which CRM is
+the first to use. The **"Move to…" menu stays**: dragging — by pointer, touch or keyboard — is
+never the only way to move a card.
+
+Three integrations this design had deferred are **in scope by the owner's request**: custom
+fields on Opportunities (User Story 15, FR-076), outbound webhooks for Opportunity events
+(User Story 16, FR-077), and the "linked Opportunity" panel on the Order screen — extended by
+this design to the Quote Request screen, at the cost of one more mount (User Story 17,
+FR-078). **Import/export stays deferred**: it is not a one-declaration integration — the
+platform's import/export capability holds each record type's adapter itself, so adding
+Opportunities means changing that capability and making it depend on CRM (`research.md` R-22).
 
 ## Assumptions
 
@@ -653,16 +804,22 @@ taken; the reasoning is in `research.md`.
   closing; a month is a calendar month in the platform's time zone.
 - **Messages do not send e-mail**; they use the Admin UI's notification bell. If that
   capability is switched off, messages still work without notifications.
-- **Runtime custom fields on Opportunities, import/export, outbound webhooks, e-mail
-  notifications and inclusion in the admin global search are not part of this feature**; each
-  is assessed in `research.md` with the reason and what it would take.
-- **The Quote Requests capability is optional for CRM** (see `research.md` R-17, an open
-  question for the owner): the owner listed Quote Requests among the dependencies; the design
-  integrates with it fully while it is on and keeps CRM working when an operator has switched
-  it off.
+- **Import/export of Opportunities, e-mail notifications and inclusion in the admin global
+  search are not part of this feature**; each is assessed in `research.md` R-22 with the
+  reason and what it would take. (Custom fields, outbound webhooks and the Order-screen panel
+  were on this list until the owner's second ruling of 2026-10-05 brought them into scope.)
+- **Webhook notifications carry what the event carries** — identifiers, statuses, the cause
+  and, for "closed", the value — and no free text (description, notes, messages).
+- **A custom field definition belongs to the record type, not to an Organization**, as for
+  every other record type on the platform; its values live on the Opportunity and are as
+  visible as the Opportunity is.
+- **The Quote Requests capability is optional for CRM** (owner decision, 2026-10-05 second
+  round — see Clarifications): the owner listed Quote Requests among the dependencies; the
+  design integrates with it fully while it is on and keeps CRM working when an operator has
+  switched it off.
 
 ## Dependencies
 
 Orders; Quote Requests; Organizations (including Sales-Rep assignment); customer accounts;
 Products (catalog); Admin UI users and roles; Sales Channels; the media library; Settings; the
-audit trail; Admin notifications.
+audit trail; Admin notifications; custom fields; webhooks.

@@ -14,7 +14,7 @@ Seven findings that contradict or narrow the leads this design was briefed with.
 
 | # | Lead | What the tree holds |
 | --- | --- | --- |
-| M1 | "`@dnd-kit` is already in the stack" | **It is not installed.** No `package.json` in the workspace names it, and `packages/admin-kit/src/components/reorder/useReorderList.ts` says so in its header: drag-reorder there is native HTML5 drag-and-drop, "the in-repo idiom". `AGENTS.md` § Stack is stale on this point. **[verified]** |
+| M1 | "`@dnd-kit` is already in the stack" | **It is not installed.** No `package.json` in the workspace names it, and `packages/admin-kit/src/components/reorder/useReorderList.ts` says so in its header: drag-reorder there is native HTML5 drag-and-drop, "the in-repo idiom". `AGENTS.md` § Stack was stale on this point **[verified]** — and becomes true with the owner's third ruling of 2026-10-05, which adds the library (R-20). The sentence in `AGENTS.md` is therefore left as it is. |
 | M2 | "decide how X→Y logic is exposed … consistent with how orders does it" | `OrderTransitionService.onOrderTransitionGuard` is **not published**: it is a method on a class reachable only through `orderTransitionServiceAccessor`, and its only callers are `orders`' own tests and docs page. What other modules actually consume is the four templated EventBus events plus `order.status_changed.v1`. **[verified]** `packages/modules/orders/src/backend/services/order-transition-service.ts`, `…/events/order-status-events.ts`, `…/index.ts` |
 | M3 | Quote Request statuses are configurable like Order statuses | They are a **fixed TypeScript union** — `Created from admin`, `Pending`, `Canceled`, `Approved`, `Completed`, `Expired` (`packages/modules/quote_requests/src/backend/entities/quote-request.entity.ts`; published as `QuoteRequestStatus` in `packages/contracts/src/quote-requests.ts`). **[verified]** |
 | M4 | "placed Quote Requests" raise an event to subscribe to | `rfq.created.v1` is emitted by the **customer** path only (`rfq-service.ts`). `RfqAdminService.createOnBehalf` emits nothing, and completion (`order-completion-reactor.ts`) emits nothing on the EventBus either. **[verified]** |
@@ -544,8 +544,8 @@ absent module emits nothing. `whenAbsent` states this sentence for the operator'
 The admin's `CustomerPicker` calls its API, which is a UI coupling expressed as an advisory
 `requires` on the permission, not a lifecycle edge.
 
-**Alternatives rejected.** *Binding `quote_requests`* — see above; it is one line to change if
-the owner prefers it (open question Q1). *`acknowledgedDependencies`* — exists to break
+**Alternatives rejected.** *Binding `quote_requests`* — see above; the owner confirmed the
+non-binding edge on 2026-10-05 (Q1). *`acknowledgedDependencies`* — exists to break
 manifest cycles; there is none here (`orders` and `quote_requests` do not declare `crm` and
 must never).
 
@@ -604,27 +604,68 @@ owner will have them moved into *Sales*: change `section: 'crm'` to `'sales'` in
 **Alternatives rejected.** *Placing the entries under `sales`* — the owner ruled against it.
 *Letting the manifest declare a section* — reopens D-23 for every module.
 
-## R-20. Board view
+## R-20. Board view — on `@dnd-kit`, as a reusable admin-kit primitive (owner ruling, third round)
 
-**Decision.** A new CRM admin page built with **native HTML5 drag-and-drop**, the idiom
-`useReorderList.ts` already uses, plus a per-card **"Move to…" menu** listing exactly the
-transitions the graph permits. Both call the one transition endpoint. No new runtime
-dependency (M1).
+**History.** This entry first chose native HTML5 drag-and-drop with no new dependency; the
+owner accepted that in the second round of 2026-10-05 and **reversed it the same day**: add
+`@dnd-kit`, because "it may be useful not only in this module but in the future too".
 
-**Rationale.** WCAG 2.2 SC 2.5.7 (Dragging Movements) requires a non-drag alternative anyway
-(`.claude/skills/ux-laws/SKILL.md` sets WCAG 2.2 AA as the floor), so the menu is not
-optional; once it exists, a drag library buys animation and touch polish only.
+**Decision.**
 
-**UX justification for a net-new component (Principle IX).** No board / column / card-lane
-primitive exists in `@endora-commerce/admin-kit`; `ResponsiveTable` and the reorder list model
-one ordered list, not N lists with moves between them. The board is written as
-`OpportunityBoard` inside the module and is a candidate for promotion to admin-kit if a second
-consumer appears.
+- **One new runtime dependency: `@dnd-kit/core`** — and only it. Latest stable on the public
+  registry on 2026-10-05: **`6.3.1`, MIT**, peers `react >=16.8.0` and `react-dom >=16.8.0`
+  (so React 19 is inside the declared range), own dependencies `@dnd-kit/accessibility`,
+  `@dnd-kit/utilities`, `tslib` **[verified]** with `pnpm view`. Range: `^6.3.1`.
+  **[unverified]** that it behaves correctly at runtime under React 19 — T148's tests are the
+  proof, and they are written before anything depends on the primitive.
+- **Not `@dnd-kit/sortable`** (`10.0.0`, MIT). It orders items *within* a list; an Opportunity
+  has no position inside its column (no column in `data-model.md` stores one), so nothing
+  would use it. A future consumer that needs ordered lanes adds it then, with its own
+  justification. Not `@dnd-kit/utilities` or `@dnd-kit/accessibility` by name either: they
+  arrive transitively and the primitive imports from `@dnd-kit/core` only.
+- **Where it lives: `packages/admin-kit`, not the CRM module.** A generic, domain-free
+  `KanbanBoard` under `packages/admin-kit/src/components/kanban/`, exported from the
+  `@endora-commerce/admin-kit/components` barrel (the barrel `EChart` and the reorder helpers
+  are exported from, and one a module's admin layer may name). It knows nothing about
+  Opportunities, statuses or the API: columns, items, `canDrop(item, column)`,
+  `onMove(item, from, to)`, `renderCard`, `renderColumnHeader`, and translated announcement
+  labels are all props.
+- **How the dependency is declared** — the pattern `echarts` already follows **[verified]**
+  in the three manifests: `peerDependencies` **and** `devDependencies` of
+  `packages/admin-kit/package.json` (hand-maintained), and `dependencies` of
+  `admin/package.json` (the application supplies the one copy every package resolves). The
+  CRM package imports `@endora-commerce/admin-kit/components` and never `@dnd-kit/*`, so
+  `manifests:generate` renders **no** `@dnd-kit` peer into `mod-crm` — which is the point of
+  the placement. **[unverified]** whether any other consumer of `admin-kit` in this workspace
+  (`packages/admin-shell`, the docs site, `create-endora-commerce`'s template) must also
+  declare the new peer for `pnpm install --frozen-lockfile` to stay quiet — T149 measures it.
+- **The "Move to…" menu stays, and it is CRM's, not the primitive's.** `@dnd-kit`'s
+  `KeyboardSensor` makes dragging keyboard-operable (WCAG 2.1.1) and its touch handling
+  repairs what native drag-and-drop lacks, but **WCAG 2.2 SC 2.5.7 (Dragging Movements, AA)
+  asks for a way to do the same with a single pointer *without dragging*** — a keyboard
+  alternative does not satisfy it. So every card keeps a menu listing exactly the transitions
+  the workflow permits, calling the same endpoint. It lives in CRM's card (`renderCard`),
+  because what the targets are is domain knowledge; the primitive's documentation states that
+  a consumer owes such an alternative.
+- Sensors: `PointerSensor` with a small activation distance (so a click on the card's link or
+  menu is not a drag), `KeyboardSensor`, and `DragOverlay` for the lifted card; announcements
+  through the library's live region with labels the consumer passes in both languages.
 
-**Alternatives rejected.** *Adding `@dnd-kit/core` + `@dnd-kit/sortable`* — a new runtime
-dependency in a peer set the generator derives for every consumer; justified only if native
-drag proves inadequate on touch devices, which the designer agent should judge on a device
-(open question Q3). *A table grouped by status* — not a board.
+**`AGENTS.md` § Stack** says "`@dnd-kit` for drag-drop". It was false when this design
+started (M1) and is true once T149 lands; the sentence is not edited.
+
+**Rationale.** The owner wants a reusable capability; a reusable capability belongs in the
+design system (Principle IX: "a new primitive that earns its place SHOULD be promoted"), and a
+dependency declared only by one detachable module would disappear with it.
+
+**Alternatives rejected.** *Native HTML5 drag-and-drop* (the earlier choice) — no reliable
+touch support, no keyboard operation of the drag itself, and the owner ruled it out.
+*Declaring `@dnd-kit` in the CRM package only* — a second board elsewhere would import a
+module, or declare it again. *`@dnd-kit/sortable` now* — unused. *Converting the existing
+`useReorderList` to `@dnd-kit` in this feature* — a refactor of working code nobody asked
+for; a candidate once the library has proved itself here. *A different library
+(`react-beautiful-dnd`, `pragmatic-drag-and-drop`)* — the owner named this one, and the first
+is unmaintained.
 
 ## R-21. References (mentions) to Products and Orders
 
@@ -653,9 +694,9 @@ drag proves inadequate on touch devices, which the designer agent should judge o
 
 | Module | Stance | One line |
 | --- | --- | --- |
-| `custom_fields` (Principle XIV) | **Later** | `supportedEntityTypeSchema` (`packages/contracts/src/custom-fields.ts`) is a closed enum in contracts; adding `opportunity` would show the type in the custom-fields admin even while CRM is off (a Principle XVII leak) until that enum becomes manifest-contributed. Nothing in this design blocks it: one JSONB column and one validation call. |
-| `import_export` | **Later** | Opportunities are created by people and by events; a bulk import has no asking user yet. |
-| `webhooks` | **Later** | CRM emits versioned events (`crm.opportunity.created.v1`, `.status_changed.v1`, `.closed.v1`) from day one, so exposing them outbound is the webhooks module's catalogue entry, not a CRM change. **[unverified]** how that catalogue is populated. |
+| `custom_fields` (Principle XIV) | **Now** (owner, 2026-10-05 second round) — R-26 | Was *Later*, for the Principle XVII leak a closed host-type enum causes. R-26 closes the leak with one generic field on the host registry instead of waiting for a manifest-contributed registry. |
+| `import_export` | **Later** — re-examined, still deferred | **Not a one-declaration integration.** `packages/modules/import_export/src/backend/index.ts` constructs one `ImportExportService` over a fixed set of other modules' ports (catalog, inventory, orders, customer accounts, organizations) and keeps each record type's handling inside itself **[verified]** for the composition, **[unverified]** for the service's internals. Adding Opportunities means editing that module and giving it an edge to `crm`; the right first step is a contribution registry there, which is its own feature. |
+| `webhooks` | **Now** (owner, 2026-10-05 second round) — R-27 | Was *Later* on the premise that exposing an event is "the webhooks module's catalogue entry". **There is no catalogue**: two hard-coded lists (R-27). |
 | `transactional_emails` | **Not** | Messages and assignment use the admin bell (R-11); nothing here addresses a customer. |
 | `search` (Meilisearch) | **Not** | The list filters in Postgres on indexed columns at this volume; an index is a second copy to keep tenant-scoped. |
 | `prompt_actions` | **Later** | Assistant tools ("move opportunity X to won") are a `contributes-to` push into `promptActionToolRegistry` once the transition port exists (User Story 14 publishes it). |
@@ -664,7 +705,7 @@ drag proves inadequate on touch devices, which the designer agent should judge o
 | `assets_library` | **Now** | R-15. |
 | `admin_notifications` | **Now**, degrading | R-11. |
 | `organizations` admin screen | **Now** | A panel in the existing `organization.detail.after` zone (User Story 14) — no change to `organizations`. |
-| `orders` admin screen | **Later** | Showing "linked Opportunity" on the Order detail needs a zone that does not exist (`order.detail.payment` is the payment tab only); adding one is a change to `orders` and `AdminZoneNameSchema` nobody asked for. |
+| `orders` and `quote_requests` admin screens | **Now** (owner, 2026-10-05 second round) — R-28 | Was *Later* because no suitable zone exists. The owner asked for it; R-28 adds the zone, and one for the Quote Request screen. |
 
 ## R-23. Permissions, palette, i18n, docs
 
@@ -722,6 +763,172 @@ operator to grant; a super-administrator holds them by wildcard **[unverified]**
 another module's tables. *Granting `sales_representative` the codes from a boot hook, as
 `blog` seeds its roles* — that role's rows are `admin_roles`' data; changing what an existing
 role may do on upgrade is an operator decision.
+
+## R-26. Custom fields on Opportunities (User Story 15)
+
+**What the tree holds [verified].**
+
+- The closest model is **`quote_requests`**: a `customFieldValues` JSONB column on the host
+  entity (`quote-request.entity.ts`), added by its own later migration
+  (`20260718T200342_quote_requests_quote_request_custom_field_values.ts`); the host calls
+  `customFieldValues.validateAndMerge('quote_request', currentBag, patch)` inside its own
+  write and maps `isCustomFieldValidationFailure` to 422 `CUSTOM_FIELD_VALUE_INVALID` with
+  per-field issues (`rfq-admin-service.ts`); the port is resolved as
+  `lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService')`; the admin renders
+  `CustomFieldValuesPanel` from `@endora-commerce/admin-kit/components` with `entityType`,
+  `values` and a `save` callback (`RfqDetail.tsx`).
+- **A host type is not registered by the host.** `supportedEntityTypeSchema`
+  (`packages/contracts/src/custom-fields.ts`) is a closed Zod enum, and
+  `SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta>` in
+  `packages/modules/custom_fields/src/backend/services/custom-field-registry.ts` is a static
+  map — the `Record` type makes the compiler demand an entry for every enum member. Its own
+  header says: "adding an entity is one entry here plus wiring the host's read/write path".
+  `GET /api/v1/admin/custom-fields/entity-types` serves the map to the admin screen.
+- **`custom_fields` is `nonDeactivatable`.**
+
+**Decision.**
+
+1. Add `'opportunity'` to `supportedEntityTypeSchema` and an entry to `SUPPORTED_ENTITIES`
+   (`orgOwned: true`), with the label `customFields.entity.opportunity` in `custom_fields`'
+   own bundles — the file that already holds `customFields.entity.order`.
+2. **Close the Principle XVII leak generically**: `SupportedEntityMeta` gains an optional
+   `ownerModuleId`. `entity-types` omits a type whose owner is not effectively present
+   (`effectiveState.isPresent`), and the definition mutation routes refuse such a type with a
+   409, beside the existing `assertNotHostManaged`. Existing types declare no owner and behave
+   exactly as before. The generic core still reads the marker's presence only, never which
+   module it names — the rule `managedBy` already follows (Principle XIV).
+3. CRM: a `custom_field_values jsonb not null default '{}'` column on `crm_opportunities`,
+   added by **a second CRM migration in this story** (the `quote_requests` precedent);
+   `validateAndMerge` inside the create and update Commands — so the host persists and audits
+   its own write, and the generic layer only validates (Principle XIV); `project` in the
+   serializers. Values inherit the Opportunity's tenant scope by construction: they are a
+   column on an `@OrgScoped` row.
+4. **Edge: `dependencies: ['custom_fields']`, a hard dependency — and the code forces
+   nothing else to be decided.** The owner is non-deactivatable, so there is no off state to
+   degrade into and no switch a binding edge could deaden; `quote_requests`, `organizations`
+   and `customers` declare it the same way.
+5. Admin: `CustomFieldValuesPanel` on the Opportunity's *Overview* tab, saving through the
+   Opportunity PATCH with `If-Match`. On the **create** form the same fields are needed — a
+   required field would otherwise refuse every creation. **[unverified]** whether the panel
+   can be embedded in a form without its own save button, and how `validateAndMerge` treats a
+   required field absent on create; T160 reads `CustomFieldValuesPanel.tsx` and
+   `custom-field-value.service.ts` first. If the panel cannot be embedded, it gains an
+   optional controlled mode (`onChange`, no button) in
+   `packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx` — a host
+   file, listed in `contracts/foreign-module-changes.md` as conditional.
+
+**Why a second migration is acceptable here.** The plan put the whole schema before the first
+story so that parallel stories never both regenerate the migration and entity registries.
+One story adding one migration and no entity keeps that property: it is the only story that
+regenerates `migrations-registry.generated.ts`. The alternative — adding the column to the
+init migration — means changing Phase 2 while it is being implemented.
+
+**Alternatives rejected.** *A manifest-contributed host-type registry* — the right end state
+(it would also let a third-party module be a host) and a redesign of an enum that types the
+custom-fields API; out of proportion here. *Leaving the leak* — "Opportunity" offered for
+field definition while CRM is off is exactly what Principle XVII forbids. *A CRM-owned field
+mechanism* — a second generic layer.
+
+## R-27. Outbound webhooks for Opportunity events (User Story 16)
+
+**What the tree holds [verified].** There is no registry, catalogue or manifest declaration.
+`packages/modules/webhooks/src/backend/index.ts` holds
+`BRIDGED_EVENT_TYPES = ['order.created.v1', 'order.status_changed.v1']` and calls
+`ctx.subscribe` once per member; `bridgeEventHandler` (`services/event-bridge.ts`) looks up
+active subscriptions for the event type — honouring a subscription's Organization binding from
+the payload's `organizationId` — and enqueues one delivery job each, sending **the event's own
+payload whole**. The admin screen offers a separate hard-coded list,
+`KNOWN_EVENT_TYPES` in `admin/pages/WebhooksPage.tsx`. `webhooks` is operator-switchable.
+
+**A defect found on the way, reported and not repaired here.** `KNOWN_EVENT_TYPES` offers
+thirteen event types; the backend bridges two. An operator can subscribe to
+`product.created.v1`, `rfq.created.v1`, `payment.settled.v1` and eight more, and will never
+receive one. It predates this feature and is outside its scope; it goes to the defect register.
+
+**Decision.** `webhooks` gains a **contribution seam**, and CRM is its first contributor.
+
+- `packages/contracts/src/webhooks.ts`: `WebhookEventDescriptor { ownerModuleId, eventType }`
+  and `WebhookEventRegistryPort { register(descriptor), owners(), list() }`. Container name
+  `webhookEventRegistry`, owner `webhooks`, registered ungated with `ctx.di.register` — the
+  shape and the reasons of `auditReferenceRegistry`.
+- In `webhooks`: `register` records the descriptor and bridges the type through the module's
+  own `ctx.subscribe`, so the bridge is gated on `webhooks`' effective state exactly as the
+  two built-in types are. **[unverified]** that a `ctx.subscribe` issued from inside a
+  registry method during the boot phase is accepted by the kernel and by
+  `check:subscribe-seam` (mechanically it is a push into the sink — `module-context.ts`); T167
+  proves it, and the fallback is for `webhooks` to subscribe in its own boot hook over
+  `list()`, with the ordering question that raises stated then.
+- `GET /api/v1/admin/webhooks/event-types` returns the contributed types whose owner is
+  effectively present; `WebhooksPage.tsx` offers them **in addition to** its existing list,
+  which is left untouched (see the defect above — changing it is a behaviour change to
+  `webhooks` nobody asked for).
+- CRM pushes three descriptors from a contribution-only boot hook and declares
+  `nonBindingDependencies: [{ moduleId: 'webhooks', name: 'webhookEventRegistry', kind:
+  'contributes-to' }]`. With `webhooks` off, nothing is delivered and nothing in CRM changes;
+  with `webhooks` absent from an instance, the push is dropped
+  (`contribution-sinks.ts`). No presence check and no `whenAbsent` — nothing degrades.
+
+**Which events.** `crm.opportunity.status_changed.v1` (the ask), plus
+`crm.opportunity.created.v1` and `crm.opportunity.closed.v1`. The cost of each is one
+descriptor. Closed-won and closed-lost are **one** event carrying `outcome`, not two types: an
+integrator filters on a field, and two types would be two subscriptions to keep in step.
+
+**Payload contract.** Because the bridge sends the event payload whole, **the event payload
+is the webhook payload**. `packages/contracts/src/crm.ts` therefore carries a strict Zod
+schema per offered event — `OpportunityStatusChangedEventV1Schema`,
+`OpportunityCreatedEventV1Schema`, `OpportunityClosedEventV1Schema` — and a test asserts every
+emitted event parses under `.strict()`, so a field added to the event is a deliberate,
+reviewed change to a public contract. The `.v1` suffix is the version; a breaking change is a
+`.v2` event offered beside it. No free text is in any of the three.
+
+**Alternatives rejected.** *Appending three strings to both hard-coded lists* — the smallest
+diff, and `webhooks` would name CRM's events and offer them with CRM off. *CRM calling a
+`webhookDispatchPort`* — every producer would re-implement "is webhooks present, then forward",
+and the catalogue would still need a second mechanism. *A manifest field `webhookEvents`* — no
+module reads other modules' manifests at composition today **[unverified by exhaustive
+search]**; a registry is the established contribution shape.
+
+## R-28. The linked-Opportunity panel on the Order and Quote Request screens (User Story 17)
+
+**What the tree holds [verified].** `OrderDetail.tsx` mounts exactly one zone,
+`order.detail.payment` — the body of the Payment tab — which cannot host a CRM panel.
+`RfqDetail.tsx` mounts none. The precedent for "a stack of panels another module may add to a
+detail screen" is `organization.detail.after`, `customer.detail.after` and
+`invoice.detail.after`, each one `<AdminZone name=… props={{ …Id }} />` at the end of the
+host's screen; "an empty zone renders nothing at all" (`OrganizationDetail.tsx`).
+`check:admin-zones` refuses a member no host renders (`unrendered-zone`) and a contribution to
+one (`contribution-to-unrendered-zone`), so the enum member and its mount must land together.
+
+**Decision.** Two new zones, each in the established shape, each mounted once:
+
+| Zone | Mounted in | Props |
+| --- | --- | --- |
+| `order.detail.after` | `packages/modules/orders/src/admin/pages/OrderDetail.tsx` | `OrderDetailZoneProps` (existing: `{ orderId }`) |
+| `quote_request.detail.after` | `packages/modules/quote_requests/src/admin/pages/RfqDetail.tsx` | `QuoteRequestDetailZoneProps` (new: `{ quoteRequestId }`) |
+
+Neither host learns who contributes; with no contributor — CRM off, absent, or the user
+lacking `crm:read` — the zone renders nothing and the screen is unchanged (FR-078).
+**[unverified]** where exactly in `OrderDetail.tsx` the mount belongs given its tab layout
+(below the tab panels, so it shows on every tab, is the recommendation); T175 decides with the
+file open.
+
+CRM contributes one component, `LinkedOpportunityPanel`, through two thin zone wrappers, fed
+by one new endpoint, `GET /api/v1/admin/crm/documents/:documentKind/:documentId/opportunity`
+(`crm:read`), answering the Opportunity's summary or `null`. The two actions are cheap and
+included: **"Link to an opportunity"** — a picker over the existing list endpoint filtered by
+the document's Organization and `state=open`, then the existing link endpoint; and **"Create
+opportunity"** — navigation to `/crm/opportunities/new?organizationId=…&linkDocumentKind=…
+&linkDocumentId=…`, where the create page, after a successful create, calls the existing link
+endpoint. No change to the create contract, so nothing already tasked moves.
+
+**The Quote Request panel is included** — it is the same component and one more mount — and
+its half depends on User Story 8, which is what makes Quote Requests linkable at all.
+
+**Alternatives rejected.** *Reusing `order.detail.payment`* — it is a tab body named for
+payments. *A new tab on the Order screen* — a tab for one small panel; the zone leaves the
+host free to add tabs later. *An `initialLinks` field on the create request* — atomic, and a
+change to a contract Phase 1 is implementing now; two calls are enough for an action whose
+second half can simply be retried from the panel.
 
 ---
 
@@ -818,11 +1025,13 @@ when it was measured, and what was done about it.
   `@TransitivelyScoped` classes, which the seven CRM children joined.
 
 ## Open questions for the owner
+## Questions put to the owner — all decided on 2026-10-05
 
-Each has the recommended default already applied in the artifacts; none blocks implementation.
+Nothing is open. The three questions this design raised were answered in the second round,
+and the third answer was reversed in the third round the same day.
 
-| # | Question | Default applied | If the owner chooses otherwise |
-| --- | --- | --- | --- |
-| **Q1** | Should switching the Quote Requests module off be *refused* while CRM is on (a hard dependency, as the brief's dependency list reads), or allowed with CRM degrading? | **Allowed; CRM degrades** (R-17). | Move `quote_requests` from `nonBindingDependencies` to `dependencies` and delete the presence checks — task T096 is the only one that changes shape. |
-| **Q2** | When an Order refuses the mapped status, should the Opportunity's own transition still stand? | **Yes — it stands, the refusal is shown and retryable** (R-4). | All-or-nothing needs a "would this apply?" method on `orderTransitionPort`, i.e. a change to `orders`, and still cannot be atomic. |
-| **Q3** | Is native drag-and-drop acceptable for the board, or should `@dnd-kit` be added for touch devices? | **Native + a "Move to…" menu, no new dependency** (R-20). | Add the dependency with a Complexity Tracking entry in `plan.md`; only `OpportunityBoard.tsx` changes. |
+| # | Question | Owner's decision |
+| --- | --- | --- |
+| **Q1** | Should switching the Quote Requests module off be refused while CRM is on, or allowed with CRM degrading? | **Allowed; CRM degrades** (R-17) — the default, accepted. |
+| **Q2** | When an Order refuses the mapped status, should the Opportunity's own transition still stand? | **Yes — it stands; the refusal is shown and retryable** (R-4) — the default, accepted. |
+| **Q3** | Native drag-and-drop for the board, or `@dnd-kit`? | **`@dnd-kit`** — the native default was accepted and then reversed: "it may be useful not only in this module but in the future too". R-20 is rewritten accordingly; the "Move to…" menu stays for WCAG 2.2 SC 2.5.7. |

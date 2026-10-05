@@ -15,7 +15,7 @@ Every component is a dynamic-import factory; the entry file exports data only.
 | `/crm/opportunities/new` | `OpportunityCreatePage` | `crm:write` | US1 |
 | `/crm/opportunities/:id` | `OpportunityDetail` | `crm:read` | US1 |
 | `/crm/workflow` | `WorkflowConfigPage` | `crm:configure` | US1 |
-| `/crm/board` | `OpportunityBoardPage` | `crm:read` | US7 |
+| `/crm/board` | `OpportunityBoardPage` (on `KanbanBoard` from `@endora-commerce/admin-kit/components`) | `crm:read` | US7 |
 | `/crm/tags` | `TagsPage` | `crm:configure` | US6 |
 | `/crm/analytics` | `AnalyticsPage` | `crm:analytics` | US13 |
 
@@ -95,6 +95,19 @@ Organization's open Opportunities and a "New opportunity" link to
 `price_lists`, `quick_order` and `sales_channels` contribute to it), so nothing changes in
 `organizations`.
 
+Two more contributions since the second ruling of 2026-10-05 (US17), into two **new** zones
+whose members and mounts are host changes (`foreign-module-changes.md` §J):
+
+| `zone` | Component | `weight` | `requiredPermission` | Props |
+| --- | --- | --- | --- | --- |
+| `order.detail.after` | `zones/OrderOpportunity` | 600 | `crm:read` | `OrderDetailZoneProps` `{ orderId }` |
+| `quote_request.detail.after` | `zones/QuoteRequestOpportunity` | 600 | `crm:read` | `QuoteRequestDetailZoneProps` `{ quoteRequestId }` |
+
+Both render `components/LinkedOpportunityPanel`: the linked Opportunity's number, title,
+status badge, assignee and value with a link to it; for an unlinked document, "Link to an
+opportunity" and "Create opportunity" for a holder of `crm:write`. The Quote Request
+contribution exists only once User Story 8 has made Quote Requests linkable.
+
 ## 6. Off-state contract (Principle XVII)
 
 Module state → what an operator and an API client observe.
@@ -105,6 +118,9 @@ Module state → what an operator and an API client observe.
 | sidebar "CRM" group | rendered for a holder of any CRM code | **not rendered** (no visible item ⇒ no heading) | not rendered |
 | palette actions | listed | absent | absent |
 | `organization.detail.after` panel | rendered | absent | absent |
+| `order.detail.after`, `quote_request.detail.after` panels | rendered | absent — the host screens are identical to those without the module | absent |
+| `opportunity` on the custom-fields screen | offered | **not offered**; its definitions cannot be changed | not offered |
+| CRM events on the webhooks screen | offered | **not offered**; nothing is delivered | not offered |
 | permission codes on `/admin-roles` | grantable | not grantable (vocabulary only) | not grantable |
 | Settings group "CRM" | editable | **not editable** | not editable |
 | `/platform/modules` row | switch on | switch off, actionable | blocked with the reason |
@@ -125,6 +141,14 @@ each case:
    on, and nothing retroactively afterwards (US9);
 3. `POST /api/v1/admin/orders` with an `origin` succeeds and produces the same Order whether
    CRM is on or off (US10 — the "orders behave identically" half of FR-070).
+4. definitions and stored custom values survive an off → on cycle (US15), and the document
+   route of US17 is 503 while off.
+
+The off-state halves that belong to another module's surface are proven in that module's
+tests: `backend/test/integration/custom_fields/entity-owner-presence.test.ts`,
+`backend/test/integration/webhooks/contributed-events.test.ts`, and the two host-screen tests
+`admin/test/modules/orders/OrderDetail.after-zone.test.tsx` /
+`admin/test/modules/quote_requests/RfqDetail.after-zone.test.tsx`.
 
 The story that adds a subscriber adds its off-state case in the same change.
 
