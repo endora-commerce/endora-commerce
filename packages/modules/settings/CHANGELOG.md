@@ -1,5 +1,14 @@
 # @endora-commerce/mod-settings
 
+## 0.103.1
+
+### Patch Changes
+
+- @endora-commerce/admin-kit@0.103.1
+  - @endora-commerce/contracts@0.103.1
+  - @endora-commerce/mod-credentials@0.103.1
+  - @endora-commerce/platform@0.103.1
+
 ## 0.103.0
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @endora-commerce/mod-shopping-lists
 
+## 0.103.1
+
+### Patch Changes
+
+- @endora-commerce/contracts@0.103.1
+  - @endora-commerce/platform@0.103.1
+
 ## 0.103.0
 
 ### Patch Changes
