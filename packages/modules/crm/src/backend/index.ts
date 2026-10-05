@@ -5,6 +5,7 @@ import type {
   AssetReadPort,
   AssetReferenceRegistryPort,
   AssetsLibraryPort,
+  CatalogProductReadPort,
   CustomerAccountReadPort,
   OrderReadPort,
   OrderTransitionPort,
@@ -49,6 +50,7 @@ import { OpportunityService } from './services/opportunity-service.js';
 import { OpportunityTransitionGuardRegistry } from './services/opportunity-transition-guard-registry.js';
 import { OpportunityTransitionService } from './services/opportunity-transition-service.js';
 import { OpportunityValueService } from './services/opportunity-value-service.js';
+import { ReferenceService } from './services/reference-service.js';
 import {
   OrderStatusPropagationService,
   type OrderStatusChange,
@@ -266,12 +268,13 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     crmOpportunityCommentService: ctx
       .asFunction(
-        ({ emFactory, commandBus, crmNotifier }: CrmCradle) =>
+        ({ emFactory, commandBus, crmNotifier, crmReferenceService }: CrmCradle & ReferencesCradle) =>
           new OpportunityCommentService({
             emFactory,
             commandBus,
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             notifier: crmNotifier,
+            references: crmReferenceService,
           }),
       )
       .singleton(),
@@ -339,7 +342,8 @@ export function registerModule(ctx: ModuleContext): void {
           crmOpportunityAssignmentService,
           crmTagService,
           crmOpportunityValueService,
-        }: CrmCradle & ValueCradle) =>
+          crmReferenceService,
+        }: CrmCradle & ValueCradle & ReferencesCradle) =>
           new OpportunityService({
             emFactory,
             commandBus,
@@ -354,6 +358,7 @@ export function registerModule(ctx: ModuleContext): void {
               crmOrderStatusPropagationService.listUnresolved(opportunityId),
             recalculateValue: (opportunityId) => crmOpportunityValueService.recalculate(opportunityId),
             excludedDocuments: (opportunity) => crmOpportunityValueService.excludedDocuments(opportunity),
+            references: crmReferenceService,
           }),
       )
       .singleton(),
@@ -528,6 +533,26 @@ export function registerModule(ctx: ModuleContext): void {
   });
   // --- end of Placed documents ---------------------------------------------------
 
+  // --- References (User Story 12) -------------------------------------------
+  // Products and Orders mentioned in a description, a note or a message. The
+  // Opportunity and the comment services store a text's references in the
+  // Command that saves the text and resolve them when they render it; the
+  // names come from `catalog`'s and `orders`' read ports, under the reader's
+  // scope, every time.
+  ctx.di.register({
+    crmReferenceService: ctx
+      .asFunction(
+        () =>
+          new ReferenceService({
+            products: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+  // --- end of References -------------------------------------------------------
+
   // --- Change history (User Story 11) ---------------------------------------
   // The audit log is the history: one read of the kernel's audit port for the
   // entries of one Opportunity, after the Opportunity itself was loaded through
@@ -609,6 +634,11 @@ interface ValueCradle {
   readonly processRunsWorkers: boolean;
   /** The connection a module may build a queue on; undefined where a composition wants none. */
   readonly moduleQueueRedis: Redis | undefined;
+}
+
+/** What the references section registers. */
+interface ReferencesCradle {
+  readonly crmReferenceService: ReferenceService;
 }
 
 /** What the change-history section reads from the container. */

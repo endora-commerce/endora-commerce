@@ -744,3 +744,42 @@ Trzy rzeczy, o których warto wiedzieć:
 Na ekranie **Dziennik audytu** całej platformy te same wpisy są pokazywane pod
 kodami akcji (`crm.opportunity.transition`), a nie jako zdania: ten ekran nie
 czyta jeszcze etykiet tego modułu.
+
+## Odwołania do produktów i zamówień
+
+Opis szansy sprzedażowej, notatka i wiadomość mogą wspominać **produkt** albo
+**zamówienie**. Wzmianka to znacznik w tekście:
+
+```text
+[[product:<identyfikator produktu>]]
+[[order:<identyfikator zamówienia>]]
+```
+
+Tekst jest zapisywany i zwracany dokładnie tak, jak został napisany — jako
+zwykły tekst; nic w nim nie jest traktowane jak znaczniki HTML. Obok każdego
+takiego tekstu API zwraca `references`: jeden wpis na każdy wspomniany produkt
+lub zamówienie, w kolejności występowania, każdy raz.
+
+```json
+{
+  "type": "product",
+  "id": "5d0c…",
+  "available": true,
+  "label": "Folia stretch 500 mm",
+  "url": "/catalog/products/5d0c…"
+}
+```
+
+- `label` to **aktualna** nazwa produktu w języku czytającego albo numer
+  zamówienia — sprawdzane przy każdym odczycie tekstu, więc produkt po zmianie
+  nazwy pokazuje nową nazwę.
+- `url` to miejsce, do którego wzmianka prowadzi w Admin UI.
+- Produkt, który już nie istnieje, oraz zamówienie organizacji niedostępnej dla
+  czytającego wracają z `"available": false`, **bez nazwy i bez odnośnika**.
+  Wzmianka zostaje w tekście; nic o jej celu nie jest pokazywane.
+
+Znacznik, który nie jest poprawny — nieznany typ, coś, co nie jest
+identyfikatorem — jest po prostu tekstem.
+
+`references` znajduje się na szansie (dla jej `description`) oraz na każdej
+notatce i wiadomości (dla jej `body`). Nie ma osobnego punktu końcowego.

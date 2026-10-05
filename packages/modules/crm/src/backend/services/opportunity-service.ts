@@ -38,6 +38,7 @@ import {
 } from '../domain/opportunity-status-graph.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
+import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
 import { effectiveOpportunityValue, loadOpportunity } from './opportunity-access.js';
@@ -48,6 +49,7 @@ import {
   type OpportunityAssignmentService,
 } from './opportunity-assignment-service.js';
 import { nextOpportunityNumber } from './opportunity-number.js';
+import { storedReferencesOf, type ReferenceService, type ReferenceSource } from './reference-service.js';
 import type { TagService } from './tag-service.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
@@ -71,6 +73,8 @@ export interface OpportunityServiceDeps {
   recalculateValue: (opportunityId: string) => Promise<unknown>;
   /** The linked documents a computed value leaves out, and why. */
   excludedDocuments: (opportunity: CrmOpportunity) => Promise<OpportunityExcludedDocument[]>;
+  /** The Products and Orders a text mentions: stored on write, resolved on read. */
+  references: ReferenceService;
 }
 
 /** An Opportunity the system creates for a document that was just placed. */
@@ -313,6 +317,11 @@ export class OpportunityService {
           cause: 'created',
         });
         for (const tag of tags) em.create(CrmOpportunityTag, { opportunityId: id, tagId: tag.id });
+        await this.#saveReferences(
+          em,
+          { opportunityId: id, kind: 'description', sourceId: null },
+          opportunity.description,
+        );
         if (options.document) {
           em.create(CrmOpportunityLink, {
             opportunityId: id,
@@ -477,7 +486,15 @@ export class OpportunityService {
         const tagChange =
           patch.tagIds === undefined ? null : await this.#replaceTags(em, opportunity.id, patch.tagIds);
         if (patch.title !== undefined) opportunity.title = patch.title;
-        if (patch.description !== undefined) opportunity.description = patch.description;
+        if (patch.description !== undefined) {
+          opportunity.description = patch.description;
+          // The references are derived from the text and saved with it.
+          await this.#saveReferences(
+            em,
+            { opportunityId: opportunity.id, kind: 'description', sourceId: null },
+            patch.description,
+          );
+        }
         if (patch.customerAccountId !== undefined) opportunity.customerAccountId = patch.customerAccountId;
         if (patch.salesChannelId !== undefined) opportunity.salesChannelId = patch.salesChannelId;
         if (patch.assignedAdminUserId !== undefined) {
@@ -595,6 +612,17 @@ export class OpportunityService {
     };
   }
 
+  /**
+   * Replace the stored references of one source with those its text carries
+   * now. **Call it inside the Command that saves the text, with that
+   * Command's EntityManager and an Opportunity that was loaded through the
+   * scoped one** — the rows carry no tenant column of their own.
+   */
+  async #saveReferences(em: EntityManager, source: ReferenceSource, text: string | null | undefined): Promise<void> {
+    await em.nativeDelete(CrmOpportunityReference, storedReferencesOf(source));
+    for (const row of this.deps.references.rowsFor(source, text)) em.create(CrmOpportunityReference, row);
+  }
+
   #initialStatus(graph: OpportunityStatusGraph) {
     try {
       return graph.initial();
@@ -685,7 +713,7 @@ export class OpportunityService {
 
   async #detail(opportunity: CrmOpportunity, graph: OpportunityStatusGraph): Promise<OpportunityDetail> {
     const language = await this.#viewerLanguage();
-    const [summaries, contact, links, unresolvedPropagations, excludedDocuments] = await Promise.all([
+    const [summaries, contact, links, unresolvedPropagations, excludedDocuments, references] = await Promise.all([
       this.#summaries([opportunity], graph, language),
       opportunity.customerAccountId
         ? this.deps.customerAccounts.findById(opportunity.customerAccountId)
@@ -693,15 +721,15 @@ export class OpportunityService {
       this.deps.links(opportunity.id),
       this.deps.unresolvedPropagations(opportunity.id),
       this.deps.excludedDocuments(opportunity),
+      this.deps.references.resolve(opportunity.description),
     ]);
     const summary = summaries[0];
     if (!summary) throw new Error('crm: an opportunity produced no summary.');
     return {
       ...summary,
+      // The text as stored, and beside it what its tokens name for this reader.
       description: opportunity.description ?? null,
-      // Reference tokens are resolved by the references story; the text is
-      // returned as stored until then.
-      references: [],
+      references,
       customerAccount: contact
         ? {
             id: contact.id,

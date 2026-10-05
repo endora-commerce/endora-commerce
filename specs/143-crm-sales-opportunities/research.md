@@ -1833,6 +1833,39 @@ when it was measured, and what was done about it.
   asks for — deriving the module from the manifests' declared audit prefixes — and is
   `audit_logs`' to design. Until either lands, `/audit-log` shows CRM's rows under their raw
   action codes; the Opportunity's own history is unaffected.
+- **N-E13 (2026-10-05, T126) — references: three places where the build departs from the
+  tasks' sketch.** (a) **The grammar stays in the contracts package**, where
+  `extractOpportunityReferenceTokens` already was (its doc block: "the one place the grammar
+  is written; the backend extracts with it and the admin's composer inserts with it").
+  `domain/reference-tokens.ts` is therefore a two-line door to it (`referenceTokensOf`, which
+  also answers for a text that is not there), and T124's cases — duplicates, malformed tokens,
+  10 000 characters of almost-tokens in under 250 ms — are held against that door. The
+  expression has no nested quantifier, so it is linear by construction. (b) **`syncForSource`
+  is not a method of the reference service.** `check:command-coverage` reads a write in a
+  helper of another file as unaudited (N-16; run by hand with `--module crm` it reported
+  exactly that), so `ReferenceService.rowsFor` only says which rows a text asks for, and the
+  delete-then-create is a private `#saveReferences` in each of the two services that own a
+  saving Command (`opportunity-service.ts`, `opportunity-comment-service.ts`) — where the
+  parent was loaded through the scoped EntityManager. (c) **On read the tokens come from the
+  text, not from the rows.** The text is the truth and the rows are an index of who mentions
+  what (the `(target_type, target_id)` index is for a later "where is this product
+  mentioned"); resolving from the text cannot be stale. `resolveMany` resolves a whole page of
+  comments in two port calls. `compose/references.ts` does not exist (N-6).
+- **N-E14 (2026-10-05, T125) — what a reference shows, and to whom.** A Product's label is
+  its name in the reader's stored language (`adminUserReadPort`, as N-17 does for statuses):
+  the exact locale, then any locale of the same language — the catalog keys names `en-US` /
+  `pl-PL` while an administrator's preference is `en` / `pl` — then any name, then the SKU.
+  An Order's label is its number (`businessId`). URLs are the Admin UI's own
+  (`/catalog/products/:id`, `/orders/:id`). **Unavailable** is: a Product that does not exist
+  or is soft-deleted (`liveOnly`), and an Order `orderReadPort.findByIds` does not return
+  under the reader's tenant scope — proven with a Sales Representative confined to one
+  Organization reading a description that names another Organization's Order (no label, no
+  URL, the number nowhere in the body; the platform administrator, as the control, sees it).
+  **Products are not tenant-scoped and no catalog permission is asked**: whoever may read
+  the Opportunity reads the names of the Products it mentions, as R-21 has it. A deleted
+  note's rows are removed; a message is immutable, so its rows never change. No endpoint was
+  added: `contracts/admin-api.md` §9 names none, and the composer's two pickers use the
+  catalog's and the Orders' own admin endpoints.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

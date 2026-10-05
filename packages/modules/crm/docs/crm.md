@@ -727,3 +727,42 @@ Three things to know:
 On the platform-wide **Audit log** screen the same entries appear under their
 action codes (`crm.opportunity.transition`), not as sentences: that screen does
 not yet read this module's labels.
+
+## References to products and orders
+
+The description of an opportunity, a note and a message can mention a
+**product** or an **order**. A mention is a token in the text:
+
+```text
+[[product:<product id>]]
+[[order:<order id>]]
+```
+
+The text is stored and returned exactly as it was written — plain text; nothing
+in it is treated as markup. Beside every such text the API returns
+`references`: one entry per product or order mentioned, in the order they
+appear, each once.
+
+```json
+{
+  "type": "product",
+  "id": "5d0c…",
+  "available": true,
+  "label": "Pallet wrap 500 mm",
+  "url": "/catalog/products/5d0c…"
+}
+```
+
+- `label` is the product's **current** name, in the reader's language, or the
+  order's number — looked up each time the text is read, so a renamed product
+  shows its new name.
+- `url` is where the mention leads in the Admin UI.
+- A product that no longer exists, and an order of an organization the reader
+  may not see, come back with `"available": false` and **no label and no
+  link**. The mention stays in the text; nothing about its target is shown.
+
+A token that is not well-formed — an unknown type, something that is not an id
+— is simply text.
+
+`references` is on the opportunity (for its `description`) and on every note
+and message (for its `body`). There is no separate endpoint.

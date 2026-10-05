@@ -41,3 +41,10 @@ name }, before, after }` — read from the platform's audit trail of that opport
 no `audit_log:read`, is refused with 404 for an opportunity the caller may not see, and reaches
 back 500 entries. `action` is the Command's own code; the label is `auditLog.<action>` in this
 package's bundle.
+
+**References to products and orders.** `[[product:<uuid>]]` and `[[order:<uuid>]]` in an
+opportunity's `description` and in a note's or message's `body` are now resolved:
+`references` beside each text — until now always `[]` — lists every product and order
+mentioned, `{ type, id, available, label, url }`, with the product's current name or the
+order's number. A target that is gone, or an order the reader may not see, is
+`available: false` with no label and no URL. The text itself is stored and returned unchanged.
