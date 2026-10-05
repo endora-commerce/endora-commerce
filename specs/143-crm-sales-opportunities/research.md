@@ -725,6 +725,43 @@ role may do on upgrade is an operator decision.
 
 ---
 
+## Implementation notes (premises re-derived while implementing)
+
+Dated notes from the implementing agent. Each records what a premise above turned out to be
+when it was measured, and what was done about it.
+
+- **N-1 (2026-10-05, T003) — R-1's [unverified] premise is false: `check:naming` refuses the
+  id `crm`.** `bash scripts/check-naming.sh` exits 1 with *"Backend module folder looks
+  singular: packages/modules/crm — Principle VI requires plural snake_case"*. The precedent
+  R-1 and `plan.md` cite does not carry: `seo` is on the script's `allowed_singular` list,
+  `mfa` and `pwa` are on `allowed_proper_noun`, and `cms` passes only because it ends in `s`
+  and matches the plural pattern. No acronym passes by being an acronym. Every module that
+  landed with a non-plural id did so with a one-word edit to one of those two lists in the
+  same change (`infakt` and `invoice_ledger` in `073e231c7` are the latest). **Not renamed and
+  no exemption added — T003 reserves both for the owner.** Implementation stopped here. The
+  two ways forward: the owner approves adding `crm` to `allowed_proper_noun` in
+  `scripts/check-naming.sh` (a file that would then join `contracts/foreign-module-changes.md`
+  § A), or names a plural id.
+- **N-2 (2026-10-05, T002) — `backend/package.json` is a file this feature must touch and
+  `contracts/foreign-module-changes.md` does not list it.** The generated registries import
+  `@endora-commerce/mod-crm` by bare specifier, and pnpm links a workspace member only into a
+  package that declares it; without the line `overlay:check` dies with `ERR_MODULE_NOT_FOUND`
+  and the backend cannot boot. No generator writes that dependency (`manifests:generate`
+  reconciles `admin/package.json` only), so it is one hand-added line,
+  `"@endora-commerce/mod-crm": "workspace:*"`, as every existing module has.
+- **N-3 (2026-10-05, T001) — three corrections to the skeleton's file list.** `tailwind.css`,
+  `LICENSE` and `README.md` are rendered by `manifests:generate`, not copied; `tailwind.css`
+  is rendered only once `src/admin/` exists, so the skeleton has none. `tsconfig.ui.json` is
+  present and unused until then (the rendered `build` / `typecheck` scripts name it only for a
+  package with an admin layer). And the rendered `test` script is a bare `vitest run` as soon
+  as `vitest.config.ts` exists, which exits non-zero on zero files — so the skeleton carries
+  one real test, `src/backend/manifest.test.ts`. It cannot sit beside `src/manifest.ts`:
+  `manifests:check` refuses any sibling of the root manifest as reachable through no subpath.
+- **N-4 (2026-10-05, T003) — `test/unit/kernel/` needs the service-free configuration to run
+  without Postgres.** `pnpm --filter backend exec vitest run test/unit/db/module-graph.test.ts
+  test/unit/kernel/` goes through the default configuration, whose global setup connects to
+  Postgres. The same files under `--config vitest.unit.config.ts` need no service.
+
 ## Open questions for the owner
 
 Each has the recommended default already applied in the artifacts; none blocks implementation.
