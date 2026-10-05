@@ -64,6 +64,7 @@ describe('crm off-state (Constitution XVII)', () => {
     { method: 'PATCH', route: `${API}/opportunities/:id`, payload: { title: 'Off' } },
     { method: 'DELETE', route: `${API}/opportunities/:id` },
     { method: 'POST', route: `${API}/opportunities/:id/transition`, payload: { to: 'qualified' } },
+    { method: 'POST', route: `${API}/opportunities/:id/assign`, payload: { adminUserId: null } },
     { method: 'POST', route: `${API}/opportunities/:id/links`, payload: { documentKind: 'order', documentId: CHILD } },
     { method: 'PATCH', route: `${API}/opportunities/:id/links/:linkId`, payload: { syncStatus: false } },
     { method: 'DELETE', route: `${API}/opportunities/:id/links/:linkId` },

@@ -188,6 +188,13 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'that would break a structural rule of the Opportunity workflow; `details.rule` names the ' +
       'rule and each rule has its own sentence.',
   },
+  CRM_ASSIGNEE_INVALID: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 3), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to assign an Opportunity to ' +
+      'somebody who is not an active administrator — unknown, deactivated or deleted.',
+  },
   CMS_SLUG_RESERVED: {
     to: 'cms',
     reason:

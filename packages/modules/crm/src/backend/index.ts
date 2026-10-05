@@ -1,11 +1,13 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  AdminNotificationRecordPort,
   AdminUserReadPort,
   CustomerAccountReadPort,
   OrderReadPort,
   OrderTransitionPort,
   OrganizationDetailsPort,
   SalesChannelAttributionRegistryPort,
+  SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
@@ -16,10 +18,13 @@ import {
   type ModuleContext,
   type RequireAdminFactory,
 } from '@endora-commerce/platform/kernel';
+import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
 import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
+import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
+import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityService } from './services/opportunity-service.js';
 import { OpportunityTransitionGuardRegistry } from './services/opportunity-transition-guard-registry.js';
@@ -70,6 +75,8 @@ interface CrmCradle {
   readonly crmWorkflowReadService: WorkflowReadService;
   readonly crmWorkflowConfigService: WorkflowConfigService;
   readonly crmOpportunityService: OpportunityService;
+  readonly crmNotifier: CrmNotifier;
+  readonly crmOpportunityAssignmentService: OpportunityAssignmentService;
   readonly crmOpportunityLinkService: OpportunityLinkService;
   readonly crmOrderStatusPropagationService: OrderStatusPropagationService;
   readonly crmOpportunityTransitionService: OpportunityTransitionService;
@@ -189,6 +196,35 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
 
+  // --- Assignment ------------------------------------------------------------
+  // Who holds an Opportunity. The Sales Reps of an Organization are
+  // `organizations`' relation and the administrators are `admin_users`'; both
+  // are read through their ports, lazily.
+  //
+  // The bell is `admin_notifications`', which an operator may switch off. This
+  // module degrades without it (the manifest's `degrades-without` edge): the
+  // notifier decides that module's presence before it asks, so an assignment
+  // succeeds either way and nothing here catches a refusal.
+  ctx.di.register({
+    crmNotifier: ctx
+      .asFunction(() =>
+        createCrmNotifier(lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort')),
+      )
+      .singleton(),
+    crmOpportunityAssignmentService: ctx
+      .asFunction(
+        ({ emFactory, commandBus, crmNotifier }: CrmCradle) =>
+          new OpportunityAssignmentService({
+            emFactory,
+            commandBus,
+            salesReps: lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            notifier: crmNotifier,
+          }),
+      )
+      .singleton(),
+  });
+
   // --- Opportunities -------------------------------------------------------
   // Create, list, read, edit, delete. The Organization, the contact person and
   // the assignee are read through their owners' ports.
@@ -201,6 +237,7 @@ export function registerModule(ctx: ModuleContext): void {
           crmWorkflowReadService,
           crmOpportunityLinkService,
           crmOrderStatusPropagationService,
+          crmOpportunityAssignmentService,
         }: CrmCradle) =>
           new OpportunityService({
             emFactory,
@@ -209,6 +246,7 @@ export function registerModule(ctx: ModuleContext): void {
             organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            assignment: crmOpportunityAssignmentService,
             links: (opportunityId) => crmOpportunityLinkService.list(opportunityId),
             unresolvedPropagations: (opportunityId) =>
               crmOrderStatusPropagationService.listUnresolved(opportunityId),
@@ -246,6 +284,11 @@ export function registerModule(ctx: ModuleContext): void {
       requireAdmin,
     });
     await registerCrmOpportunityRoutes(app, {
+      opportunityService: cradle.crmOpportunityService,
+      requireAdmin,
+    });
+    await registerCrmAssignmentRoutes(app, {
+      assignmentService: cradle.crmOpportunityAssignmentService,
       opportunityService: cradle.crmOpportunityService,
       requireAdmin,
     });

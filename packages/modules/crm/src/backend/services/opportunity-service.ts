@@ -30,6 +30,12 @@ import {
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { effectiveOpportunityValue, loadOpportunity } from './opportunity-access.js';
+import {
+  actingAdminUserId,
+  assignedEvent,
+  isActiveAdministrator,
+  type OpportunityAssignmentService,
+} from './opportunity-assignment-service.js';
 import { nextOpportunityNumber } from './opportunity-number.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
@@ -41,6 +47,8 @@ export interface OpportunityServiceDeps {
   organizations: OrganizationDetailsPort;
   customerAccounts: CustomerAccountReadPort;
   adminUsers: AdminUserReadPort;
+  /** The default assignee, who may be one, and telling them. */
+  assignment: OpportunityAssignmentService;
   /** The Opportunity's linked documents, rendered for the reader. */
   links: (opportunityId: string) => Promise<OpportunityLink[]>;
   /** Refused Order status changes nobody has retried or dismissed yet. */
@@ -109,15 +117,14 @@ function auditSnapshot(opportunity: CrmOpportunity): Record<string, unknown> {
  * `crm_opportunity` and the Opportunity's id.
  *
  * What other modules own is read through their ports: the Organization, the
- * contact person, the assignee. Tags and the default-assignee rule arrive with
- * their own stories; until then a request naming tags is refused rather than
- * accepted and dropped.
+ * contact person, the assignee. Tags arrive with their own story; until then a
+ * request naming tags is refused rather than accepted and dropped.
  */
 export class OpportunityService {
   constructor(private readonly deps: OpportunityServiceDeps) {}
 
   async create(input: CreateOpportunityRequest): Promise<OpportunityDetail> {
-    const { organizations, customerAccounts, adminUsers } = this.deps;
+    const { organizations, customerAccounts, assignment } = this.deps;
 
     // The Organization exists *and* the caller may see it. `organizations` is
     // not tenant-filtered (it is the tenant), so reach is asked separately —
@@ -135,16 +142,29 @@ export class OpportunityService {
       );
       if (!contact) throw invalid('The contact person does not belong to this organization.');
     }
-    if (input.assignedAdminUserId) {
-      const assignee = await adminUsers.findById(input.assignedAdminUserId, { activeOnly: true });
-      if (!assignee) throw invalid('The assignee is not an administrator of this platform.');
+    // Absent means "apply the default rule"; `null` means "nobody", explicitly.
+    const creator = actingAdminUserId();
+    let assignedAdminUserId: string | null;
+    if (input.assignedAdminUserId === undefined) {
+      assignedAdminUserId = await assignment.resolveDefault(input.organizationId, creator);
+    } else {
+      assignedAdminUserId = input.assignedAdminUserId;
+      if (assignedAdminUserId !== null) await assignment.assertAssignable(assignedAdminUserId);
     }
     this.#refuseTags(input.tagIds);
 
     const graph = await this.deps.workflowRead.loadGraph();
     const initial = this.#initialStatus(graph);
 
-    const created = await this.deps.commandBus.run(this.#createCommand(input, initial.code));
+    const created = await this.deps.commandBus.run(
+      this.#createCommand({ ...input, assignedAdminUserId }, initial.code),
+    );
+    await assignment.notifyAssigned({
+      opportunityId: created.id,
+      number: created.number,
+      title: input.title,
+      assignedAdminUserId,
+    });
     return this.get(created.id);
   }
 
@@ -212,11 +232,11 @@ export class OpportunityService {
   }
 
   async list(query: OpportunityListQuery): Promise<{ data: OpportunitySummary[]; pagination: Pagination }> {
-    // The assignee and tag filters arrive with their own stories. Refused
-    // rather than ignored: a filter that is accepted and not applied answers a
-    // different question than the one asked, and nothing on the page says so.
-    if (query.assignedAdminUserId !== undefined || (query.tagId && query.tagId.length > 0)) {
-      throw invalid('Filtering opportunities by assignee or by tag is not available yet.');
+    // The tag filter arrives with its own story. Refused rather than ignored:
+    // a filter that is accepted and not applied answers a different question
+    // than the one asked, and nothing on the page says so.
+    if (query.tagId && query.tagId.length > 0) {
+      throw invalid('Filtering opportunities by tag is not available yet.');
     }
     const em = this.deps.emFactory();
     const graph = await this.deps.workflowRead.loadGraph(em);
@@ -241,6 +261,17 @@ export class OpportunityService {
       conditions.push({ statusCode: { $in: codes } });
     }
     if (query.organizationId) conditions.push({ organizationId: query.organizationId });
+    if (query.assignedAdminUserId === 'unassigned') {
+      conditions.push({ assignedAdminUserId: null });
+    } else if (query.assignedAdminUserId === 'me') {
+      // "Mine" is whoever asks. With no administrator behind the request there
+      // is nobody for an Opportunity to be assigned to, and the answer is none.
+      const me = actingAdminUserId();
+      if (me === null) return { data: [], pagination: { cursor: null, hasMore: false, limit: query.limit } };
+      conditions.push({ assignedAdminUserId: me });
+    } else if (query.assignedAdminUserId !== undefined) {
+      conditions.push({ assignedAdminUserId: query.assignedAdminUserId });
+    }
     if (query.salesChannelId) conditions.push({ salesChannelId: query.salesChannelId });
     if (query.createdFrom) {
       conditions.push({ createdAt: { $gte: new Date(`${query.createdFrom}T00:00:00.000Z`) } });
@@ -302,13 +333,10 @@ export class OpportunityService {
       );
       if (!contact) throw invalid('The contact person does not belong to this organization.');
     }
-    if (patch.assignedAdminUserId) {
-      const assignee = await this.deps.adminUsers.findById(patch.assignedAdminUserId, { activeOnly: true });
-      if (!assignee) throw invalid('The assignee is not an administrator of this platform.');
-    }
+    if (patch.assignedAdminUserId) await this.deps.assignment.assertAssignable(patch.assignedAdminUserId);
     this.#refuseTags(patch.tagIds);
 
-    await this.deps.commandBus.run({
+    const reassigned = await this.deps.commandBus.run({
       action: 'crm.opportunity.update',
       objectType: 'crm_opportunity',
       objectId: id,
@@ -334,9 +362,29 @@ export class OpportunityService {
         if (patch.manualValue !== undefined) opportunity.manualValue = normalizeAmount(patch.manualValue);
         if (patch.expectedCloseDate !== undefined) opportunity.expectedCloseDate = patch.expectedCloseDate;
         opportunity.version += 1;
-        return { result: undefined, before, after: auditSnapshot(opportunity) };
+        // An edit that changes the assignee is an assignment too: announced
+        // with the previous one, and the new assignee is told.
+        const previousAdminUserId = (before.assignedAdminUserId as string | null) ?? null;
+        const assignedAdminUserId = opportunity.assignedAdminUserId ?? null;
+        return {
+          result:
+            previousAdminUserId === assignedAdminUserId
+              ? null
+              : {
+                  opportunityId: opportunity.id,
+                  organizationId: opportunity.organizationId,
+                  number: opportunity.number,
+                  title: opportunity.title,
+                  assignedAdminUserId,
+                  previousAdminUserId,
+                },
+          before,
+          after: auditSnapshot(opportunity),
+        };
       },
+      event: (result) => (result ? assignedEvent(result) : undefined),
     });
+    if (reassigned) await this.deps.assignment.notifyAssigned(reassigned);
     return this.get(id);
   }
 
@@ -432,7 +480,7 @@ export class OpportunityService {
           ? {
               id: assignee.id,
               name: `${assignee.firstName} ${assignee.lastName}`.trim() || assignee.email,
-              active: assignee.status === 'active' && assignee.deletedAt === null,
+              active: isActiveAdministrator(assignee),
             }
           : null,
         value: effectiveOpportunityValue(row),
