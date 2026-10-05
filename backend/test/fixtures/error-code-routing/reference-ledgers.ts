@@ -195,6 +195,13 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'did not exist when the prefix chain was deleted: the refusal to assign an Opportunity to ' +
       'somebody who is not an active administrator — unknown, deactivated or deleted.',
   },
+  CRM_TAG_NAME_TAKEN: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 6), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to create or rename a CRM ' +
+      'tag onto a name another tag already has, compared without regard to case.',
+  },
   CMS_SLUG_RESERVED: {
     to: 'cms',
     reason:

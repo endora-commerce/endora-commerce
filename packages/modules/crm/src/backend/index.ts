@@ -21,6 +21,7 @@ import {
 import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
+import { registerCrmTagRoutes } from './routes/routes.tags.js';
 import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
@@ -34,6 +35,7 @@ import {
   type OrderStatusChange,
 } from './services/order-status-propagation-service.js';
 import { registerOpportunitySalesChannelAttributions } from './services/sales-channel-attributions.js';
+import { TagService } from './services/tag-service.js';
 import { WorkflowConfigService } from './services/workflow-config-service.js';
 import { WorkflowReadService } from './services/workflow-read-service.js';
 import { CrmOpportunity } from './entities/crm-opportunity.entity.js';
@@ -76,6 +78,7 @@ interface CrmCradle {
   readonly crmWorkflowConfigService: WorkflowConfigService;
   readonly crmOpportunityService: OpportunityService;
   readonly crmNotifier: CrmNotifier;
+  readonly crmTagService: TagService;
   readonly crmOpportunityAssignmentService: OpportunityAssignmentService;
   readonly crmOpportunityLinkService: OpportunityLinkService;
   readonly crmOrderStatusPropagationService: OrderStatusPropagationService;
@@ -225,6 +228,15 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
+  // --- Tags ------------------------------------------------------------------
+  // The tag list is platform configuration. What a tag is on is a child of an
+  // Opportunity and is written by the Opportunity service, under its parent.
+  ctx.di.register({
+    crmTagService: ctx
+      .asFunction(({ emFactory, commandBus }: CrmCradle) => new TagService({ emFactory, commandBus }))
+      .singleton(),
+  });
+
   // --- Opportunities -------------------------------------------------------
   // Create, list, read, edit, delete. The Organization, the contact person and
   // the assignee are read through their owners' ports.
@@ -238,6 +250,7 @@ export function registerModule(ctx: ModuleContext): void {
           crmOpportunityLinkService,
           crmOrderStatusPropagationService,
           crmOpportunityAssignmentService,
+          crmTagService,
         }: CrmCradle) =>
           new OpportunityService({
             emFactory,
@@ -247,6 +260,7 @@ export function registerModule(ctx: ModuleContext): void {
             customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             assignment: crmOpportunityAssignmentService,
+            tags: crmTagService,
             links: (opportunityId) => crmOpportunityLinkService.list(opportunityId),
             unresolvedPropagations: (opportunityId) =>
               crmOrderStatusPropagationService.listUnresolved(opportunityId),
@@ -294,6 +308,11 @@ export function registerModule(ctx: ModuleContext): void {
     });
     await registerCrmLinkRoutes(app, {
       linkService: cradle.crmOpportunityLinkService,
+      requireAdmin,
+    });
+    await registerCrmTagRoutes(app, {
+      tagService: cradle.crmTagService,
+      opportunityService: cradle.crmOpportunityService,
       requireAdmin,
     });
     await registerCrmTransitionRoutes(app, {

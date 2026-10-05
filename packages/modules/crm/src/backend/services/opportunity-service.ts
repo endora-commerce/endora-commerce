@@ -29,6 +29,7 @@ import {
 } from '../domain/opportunity-status-graph.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
+import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
 import { effectiveOpportunityValue, loadOpportunity } from './opportunity-access.js';
 import {
   actingAdminUserId,
@@ -37,6 +38,7 @@ import {
   type OpportunityAssignmentService,
 } from './opportunity-assignment-service.js';
 import { nextOpportunityNumber } from './opportunity-number.js';
+import type { TagService } from './tag-service.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
 export interface OpportunityServiceDeps {
@@ -49,6 +51,8 @@ export interface OpportunityServiceDeps {
   adminUsers: AdminUserReadPort;
   /** The default assignee, who may be one, and telling them. */
   assignment: OpportunityAssignmentService;
+  /** The tag list: which tags exist, and which an Opportunity carries. */
+  tags: TagService;
   /** The Opportunity's linked documents, rendered for the reader. */
   links: (opportunityId: string) => Promise<OpportunityLink[]>;
   /** Refused Order status changes nobody has retried or dismissed yet. */
@@ -117,8 +121,11 @@ function auditSnapshot(opportunity: CrmOpportunity): Record<string, unknown> {
  * `crm_opportunity` and the Opportunity's id.
  *
  * What other modules own is read through their ports: the Organization, the
- * contact person, the assignee. Tags arrive with their own story; until then a
- * request naming tags is refused rather than accepted and dropped.
+ * contact person, the assignee.
+ *
+ * **Taggings are written here**, not by the tag service: a tagging is a child
+ * of the Opportunity, so it is written under a parent that was loaded through
+ * the scoped EntityManager, inside a Command recorded against that parent.
  */
 export class OpportunityService {
   constructor(private readonly deps: OpportunityServiceDeps) {}
@@ -151,7 +158,6 @@ export class OpportunityService {
       assignedAdminUserId = input.assignedAdminUserId;
       if (assignedAdminUserId !== null) await assignment.assertAssignable(assignedAdminUserId);
     }
-    this.#refuseTags(input.tagIds);
 
     const graph = await this.deps.workflowRead.loadGraph();
     const initial = this.#initialStatus(graph);
@@ -182,6 +188,8 @@ export class OpportunityService {
         if (input.salesChannelId && (await em.count(SalesChannel, { id: input.salesChannelId })) === 0) {
           throw invalid('The sales channel does not exist.');
         }
+        // Refused before anything is written: a tag that does not exist is 422.
+        const tags = await this.deps.tags.resolve(em, input.tagIds ?? []);
         const opportunity = em.create(CrmOpportunity, {
           id,
           number: await nextOpportunityNumber(em),
@@ -211,10 +219,14 @@ export class OpportunityService {
           actorAdminUserId: actor.actorAdminUserId,
           cause: 'created',
         });
+        for (const tag of tags) em.create(CrmOpportunityTag, { opportunityId: id, tagId: tag.id });
         return {
           result: { id, organizationId: opportunity.organizationId, number: opportunity.number },
           before: null,
-          after: auditSnapshot(opportunity),
+          after: {
+            ...auditSnapshot(opportunity),
+            ...(tags.length > 0 ? { tags: tags.map((tag) => tag.name) } : {}),
+          },
         };
       },
       event: (result) => {
@@ -232,12 +244,6 @@ export class OpportunityService {
   }
 
   async list(query: OpportunityListQuery): Promise<{ data: OpportunitySummary[]; pagination: Pagination }> {
-    // The tag filter arrives with its own story. Refused rather than ignored:
-    // a filter that is accepted and not applied answers a different question
-    // than the one asked, and nothing on the page says so.
-    if (query.tagId && query.tagId.length > 0) {
-      throw invalid('Filtering opportunities by tag is not available yet.');
-    }
     const em = this.deps.emFactory();
     const graph = await this.deps.workflowRead.loadGraph(em);
     const conditions: FilterQuery<CrmOpportunity>[] = [];
@@ -259,6 +265,15 @@ export class OpportunityService {
     if (query.state) {
       const codes = graph.statuses.filter((status) => status.kind === query.state).map((s) => s.code);
       conditions.push({ statusCode: { $in: codes } });
+    }
+    if (query.tagId && query.tagId.length > 0) {
+      // Every tag named must be carried (AND). The ids come from an unscoped
+      // statement and only ever narrow the scoped read below.
+      const carrying = await this.deps.tags.opportunityIdsCarryingAll(em, query.tagId);
+      if (carrying.length === 0) {
+        return { data: [], pagination: { cursor: null, hasMore: false, limit: query.limit } };
+      }
+      conditions.push({ id: { $in: carrying } });
     }
     if (query.organizationId) conditions.push({ organizationId: query.organizationId });
     if (query.assignedAdminUserId === 'unassigned') {
@@ -334,7 +349,6 @@ export class OpportunityService {
       if (!contact) throw invalid('The contact person does not belong to this organization.');
     }
     if (patch.assignedAdminUserId) await this.deps.assignment.assertAssignable(patch.assignedAdminUserId);
-    this.#refuseTags(patch.tagIds);
 
     const reassigned = await this.deps.commandBus.run({
       action: 'crm.opportunity.update',
@@ -351,6 +365,9 @@ export class OpportunityService {
           throw invalid('The sales channel does not exist.');
         }
         const before = auditSnapshot(opportunity);
+        // Absent means "leave the tags as they are"; present replaces the set.
+        const tagChange =
+          patch.tagIds === undefined ? null : await this.#replaceTags(em, opportunity.id, patch.tagIds);
         if (patch.title !== undefined) opportunity.title = patch.title;
         if (patch.description !== undefined) opportunity.description = patch.description;
         if (patch.customerAccountId !== undefined) opportunity.customerAccountId = patch.customerAccountId;
@@ -378,8 +395,10 @@ export class OpportunityService {
                   assignedAdminUserId,
                   previousAdminUserId,
                 },
-          before,
-          after: auditSnapshot(opportunity),
+          before: tagChange ? { ...before, tags: tagChange.before } : before,
+          after: tagChange
+            ? { ...auditSnapshot(opportunity), tags: tagChange.after }
+            : auditSnapshot(opportunity),
         };
       },
       event: (result) => (result ? assignedEvent(result) : undefined),
@@ -405,12 +424,63 @@ export class OpportunityService {
   }
 
   /**
-   * Tags are a later story's. A request naming some is refused, because
-   * accepting it and storing nothing would be an edit that silently did not
-   * happen.
+   * Replace an Opportunity's whole tag set (`PUT …/tags`). One Command against
+   * the Opportunity, with the tag names before and after; setting the set it
+   * already has writes nothing.
    */
-  #refuseTags(tagIds: readonly string[] | undefined): void {
-    if (tagIds && tagIds.length > 0) throw invalid('Tags are not available on opportunities yet.');
+  async setTags(id: string, tagIds: readonly string[]): Promise<OpportunityDetail> {
+    // The parent first: an Opportunity the caller cannot see is a 404 before
+    // the tags are looked at.
+    await loadOpportunity(this.deps.emFactory(), id);
+    await this.deps.commandBus.run({
+      action: 'crm.opportunity.tag_set',
+      objectType: 'crm_opportunity',
+      objectId: id,
+      run: async ({ em }) => {
+        const opportunity = await loadOpportunity(em, id, { lockMode: LockMode.PESSIMISTIC_WRITE });
+        const change = await this.#replaceTags(em, opportunity.id, tagIds);
+        if (!change.changed) return { result: undefined, skipAudit: true };
+        opportunity.version += 1;
+        return { result: undefined, before: { tags: change.before }, after: { tags: change.after } };
+      },
+    });
+    return this.get(id);
+  }
+
+  /**
+   * The write behind every way of setting an Opportunity's tags. **Call it
+   * inside a Command, with an Opportunity that was loaded through the scoped
+   * EntityManager** — the taggings carry no tenant column of their own.
+   */
+  async #replaceTags(
+    em: EntityManager,
+    opportunityId: string,
+    tagIds: readonly string[],
+  ): Promise<{ changed: boolean; before: string[]; after: string[] }> {
+    const wanted = await this.deps.tags.resolve(em, tagIds);
+    const current = await em.find(CrmOpportunityTag, { opportunityId });
+    const currentTags = await this.deps.tags.resolve(
+      em,
+      current.map((tagging) => tagging.tagId),
+    );
+    const wantedIds = new Set(wanted.map((tag) => tag.id));
+    const currentIds = new Set(current.map((tagging) => tagging.tagId));
+    let changed = false;
+    for (const tagging of current) {
+      if (wantedIds.has(tagging.tagId)) continue;
+      em.remove(tagging);
+      changed = true;
+    }
+    for (const tag of wanted) {
+      if (currentIds.has(tag.id)) continue;
+      em.create(CrmOpportunityTag, { opportunityId, tagId: tag.id });
+      changed = true;
+    }
+    return {
+      changed,
+      before: currentTags.map((tag) => tag.name),
+      after: wanted.map((tag) => tag.name),
+    };
   }
 
   #initialStatus(graph: OpportunityStatusGraph) {
@@ -460,10 +530,14 @@ export class OpportunityService {
     const assigneeIds = [
       ...new Set(rows.map((row) => row.assignedAdminUserId).filter((id): id is string => Boolean(id))),
     ];
-    const [organizations, assignees, resolvedLanguage] = await Promise.all([
+    const [organizations, assignees, resolvedLanguage, tags] = await Promise.all([
       this.deps.organizations.findByIds(organizationIds),
       assigneeIds.length > 0 ? this.deps.adminUsers.findByIds(assigneeIds) : Promise.resolve([]),
       language ?? this.#viewerLanguage(),
+      this.deps.tags.refsFor(
+        this.deps.emFactory(),
+        rows.map((row) => row.id),
+      ),
     ]);
     const organizationNames = new Map(organizations.map((organization) => [organization.id, organization.name]));
     const assigneeById = new Map(assignees.map((admin) => [admin.id, admin]));
@@ -488,8 +562,7 @@ export class OpportunityService {
         currency: row.currency,
         salesChannelId: row.salesChannelId ?? null,
         expectedCloseDate: row.expectedCloseDate ?? null,
-        // Tags arrive with their own story; an Opportunity carries none before it.
-        tags: [],
+        tags: tags.get(row.id) ?? [],
         closedAt: row.closedAt ? row.closedAt.toISOString() : null,
         closedKind: row.closedKind ?? null,
         createdAt: row.createdAt.toISOString(),

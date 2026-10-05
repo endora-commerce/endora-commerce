@@ -1768,6 +1768,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/opportunities/{id}/tags": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/opportunities/{id}/transition": {
       "post": {
         "responses": {
@@ -1796,6 +1805,38 @@
       }
     },
     "/api/v1/admin/crm/statuses/{code}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/tags": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/tags/{id}": {
       "delete": {
         "responses": {
           "200": {
