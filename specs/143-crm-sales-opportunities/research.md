@@ -1250,6 +1250,40 @@ when it was measured, and what was done about it.
   the next time that Order reaches that same status by somebody else's hand the change is
   taken for the echo, once. Not repaired: it needs an Order to leave a status and return to
   it across a deactivation, and the cost is one unfollowed change.
+- **N-B5 (2026-10-05, T068) — the Sales Rep port's container name is
+  `organizationSalesRepScopePort`, not `salesRepAssignmentPort`.** R-9, R-17 and
+  `contracts/events-and-ports.md` §5 name the *type* (`SalesRepAssignmentPort`) as if it were
+  the container name. The `Container name:` marker in `packages/contracts/src/organizations.ts`
+  says `organizationSalesRepScopePort`, which is what `quote_requests` resolves, and what CRM
+  resolves. `listForOrganization` answers rows with `adminUserId` and `createdAt`, unordered;
+  the rule sorts them itself and breaks a tie on the date by id. `organizations` is already a
+  binding dependency, so no edge was added.
+- **N-B6 (2026-10-05, T066/T068) — "active" is two columns, and `activeOnly` reads one.**
+  `adminUserReadPort.findById(id, { activeOnly: true })` excludes soft-deleted administrators
+  only; a deactivated one (`status: 'inactive'`) is returned. User Story 1 validated an
+  assignee with it and so accepted a deactivated administrator. An assignee is now held to
+  `status === 'active' && deletedAt === null` in one predicate
+  (`isActiveAdministrator`), used by the default rule, by `POST /assign`, by create and by
+  `PATCH` — and the refusal is 422 `CRM_ASSIGNEE_INVALID` on all three, where create and
+  `PATCH` answered 422 `VALIDATION_FAILED` before.
+- **N-B7 (2026-10-05, T069) — R-11's [unverified] premise: no key/params variant has
+  landed.** `RecordAdminNotificationInput` still takes `title: string`, as it does for
+  `organizations`, `catalog`, `product_feeds` and `pim_ergonode`. CRM's title is a finished
+  English sentence (`Opportunity OPP-000123 "<title>" was assigned to you`); the Opportunity's
+  title is in it, which is internal to administrators who already see bell entries. The
+  notifier returns `'recorded' | 'not-present'`, decides presence before the call and catches
+  nothing. The edge is `degrades-without` with a `reason`; `check:port-dependencies` accepted
+  it with no ledger edit. The generated reference page gained the row, and with it its Polish
+  mirror and cache entry.
+- **N-B8 (2026-10-05, T068/T070) — what the contract leaves open about assignment.** The
+  default assignee of an Opportunity somebody else created **is** notified (the story's
+  independent test); `crm.opportunity.assigned.v1` is emitted by `POST /assign` and by a
+  `PATCH` that changes the assignee, **not** on create, whose Command already declares
+  `crm.opportunity.created.v1` and a Command declares one event. Naming the assignee the
+  Opportunity already has answers 200 and writes nothing — no version bump, no audit entry,
+  no event. `assignedAdminUserId=me` with no administrator behind the request answers an
+  empty page. The assignee is not required to hold a CRM permission or to reach the
+  Organization (R-9), so an assignee may be somebody who cannot open the Opportunity.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

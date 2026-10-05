@@ -315,3 +315,44 @@ has used yet reads `true`.
 
 While the module is switched off, an order's status change moves nothing, and
 it is not caught up afterwards.
+
+## Who holds an opportunity
+
+Every opportunity has at most one **assignee** — the person working it. Any
+active administrator may be the assignee.
+
+When an opportunity is created without saying who holds it, the assignee is
+chosen from the sales representatives assigned to the opportunity's
+organization:
+
+1. the person creating the opportunity, if they are one of them;
+2. otherwise the one who has been assigned to the organization the longest;
+3. otherwise nobody — the opportunity is created unassigned.
+
+A sales representative who has been deactivated is passed over. A request that
+names an assignee, or says explicitly that there is none, is taken at its word
+and the rule does not apply.
+
+**The assignee does not decide who can see an opportunity.** A sales
+representative restricted to certain organizations sees every opportunity of
+those organizations, whoever holds it — and does not see an opportunity of
+another organization even when it is assigned to them.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `POST /api/v1/admin/crm/opportunities/:id/assign` | `crm:write` | Assign, reassign, or — with `{ "adminUserId": null }` — unassign. Answers the opportunity. |
+| `GET /api/v1/admin/crm/opportunities?assignedAdminUserId=…` | `crm:read` | `me` for the caller's own, `unassigned`, or an administrator's id. |
+
+Somebody who is not an active administrator cannot be assigned: the request is
+refused with `CRM_ASSIGNEE_INVALID`. Editing an opportunity may change its
+assignee too, under the same rule.
+
+A person is told when an opportunity becomes theirs — on the notification bell
+of the Admin UI, with a link to the opportunity. Nobody is told about taking an
+opportunity themselves. The bell belongs to the **Admin notifications** module:
+while that module is switched off, assigning works exactly as before and nobody
+is notified.
+
+Every assignment is in the opportunity's change history, and other modules can
+react to it: `crm.opportunity.assigned.v1` carries the new and the previous
+assignee.

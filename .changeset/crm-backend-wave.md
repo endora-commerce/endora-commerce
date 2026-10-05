@@ -1,5 +1,6 @@
 ---
 '@endora-commerce/mod-crm': minor
+'@endora-commerce/contracts': minor
 ---
 
 The CRM module's backend gains the reverse direction of status following.
@@ -21,3 +22,25 @@ The CRM module's backend gains the reverse direction of status following.
 - **`orderStatusKnown` on `GET /workflow` is no longer always `true`.** It is `false` once the
   Orders module has answered `unknown_status` for that order status, and `true` again when an
   order next accepts it. A mapping nobody has used yet reads `true`.
+
+It also gains assignment.
+
+- **`POST /api/v1/admin/crm/opportunities/:id/assign`** (`crm:write`, `{ adminUserId: uuid | null }`)
+  assigns, reassigns or unassigns and answers the opportunity. It emits
+  `crm.opportunity.assigned.v1` with the previous assignee, as does a `PATCH` that changes the
+  assignee.
+- **A new opportunity gets a default assignee** when the request names none: among the active
+  sales representatives assigned to its organization, the creator if they are one of them,
+  otherwise the longest-standing. `assignedAdminUserId: null` still means "nobody".
+- **The list accepts `assignedAdminUserId`** — `me`, `unassigned` or an administrator's id —
+  which answered 422 until now.
+- **`CRM_ASSIGNEE_INVALID`** (422) is raised for an assignee who is not an active
+  administrator, on `/assign`, on create and on `PATCH`. **Behaviour change:** create and
+  `PATCH` answered `VALIDATION_FAILED` for an unknown assignee and *accepted* a deactivated
+  one.
+- **The new assignee is notified** through `adminNotificationRecordPort` (kind
+  `crm.opportunity.assigned`). The module declares a `degrades-without` edge on
+  `admin_notifications`: with that module off, assignment works and nobody is notified.
+
+**`@endora-commerce/contracts`**: `ERROR_CODES` gains `CRM_ASSIGNEE_INVALID`. Additive; a
+consumer that switches exhaustively over `ErrorCode` gets a compile error until it handles it.

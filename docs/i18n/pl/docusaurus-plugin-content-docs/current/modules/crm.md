@@ -320,3 +320,43 @@ razem go przyjmie; mapowanie, którego nikt jeszcze nie użył, ma `true`.
 
 Gdy moduł jest wyłączony, zmiana statusu zamówienia niczego nie przesuwa i nie
 jest później nadrabiana.
+
+## Kto prowadzi szansę
+
+Każda szansa sprzedażowa ma najwyżej jedną **osobę przypisaną** — tę, która nad
+nią pracuje. Przypisany może zostać każdy aktywny administrator.
+
+Gdy szansa jest tworzona bez wskazania, kto ją prowadzi, osoba przypisana jest
+wybierana spośród Handlowców przypisanych do organizacji tej szansy:
+
+1. osoba tworząca szansę, jeśli jest jednym z nich;
+2. w przeciwnym razie Handlowiec przypisany do organizacji najdłużej;
+3. w przeciwnym razie nikt — szansa powstaje jako nieprzypisana.
+
+Handlowiec, którego konto zostało dezaktywowane, jest pomijany. Żądanie, które
+wskazuje osobę przypisaną albo wprost mówi, że jej nie ma, jest wykonywane
+dosłownie i reguła nie ma zastosowania.
+
+**Przypisanie nie decyduje o tym, kto widzi szansę.** Handlowiec ograniczony do
+wybranych organizacji widzi każdą szansę tych organizacji, niezależnie od tego,
+kto ją prowadzi — i nie widzi szansy innej organizacji, nawet jeśli jest do
+niego przypisana.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `POST /api/v1/admin/crm/opportunities/:id/assign` | `crm:write` | Przypisanie, zmiana przypisania albo — z `{ "adminUserId": null }` — jego zdjęcie. Odpowiedzią jest szansa. |
+| `GET /api/v1/admin/crm/opportunities?assignedAdminUserId=…` | `crm:read` | `me` — szanse wywołującego, `unassigned` — nieprzypisane, albo identyfikator administratora. |
+
+Osoby, która nie jest aktywnym administratorem, nie można przypisać: żądanie
+jest odrzucane z kodem `CRM_ASSIGNEE_INVALID`. Edycja szansy również może
+zmienić osobę przypisaną — na tej samej zasadzie.
+
+Osoba dowiaduje się, że szansa została jej przypisana — z dzwonka powiadomień
+w Admin UI, z odnośnikiem do szansy. Nikt nie jest powiadamiany o tym, że sam
+wziął szansę. Dzwonek należy do modułu **Powiadomienia administratora**: gdy
+ten moduł jest wyłączony, przypisywanie działa dokładnie tak samo, a nikt nie
+dostaje powiadomienia.
+
+Każde przypisanie trafia do historii zmian szansy, a inne moduły mogą na nie
+reagować: `crm.opportunity.assigned.v1` niesie nową i poprzednią osobę
+przypisaną.
