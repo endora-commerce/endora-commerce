@@ -508,6 +508,8 @@ export const ERROR_CODES = {
   CRM_ASSIGNEE_INVALID: 'CRM_ASSIGNEE_INVALID',
   /** Another CRM tag already has this name, whatever its case. */
   CRM_TAG_NAME_TAKEN: 'CRM_TAG_NAME_TAKEN',
+  /** A message on an Opportunity cannot be edited or deleted once sent. */
+  CRM_MESSAGE_IMMUTABLE: 'CRM_MESSAGE_IMMUTABLE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
