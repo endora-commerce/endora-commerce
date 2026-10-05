@@ -702,6 +702,31 @@ export const OpportunityContactLookupResponseSchema = dataEnvelope(
   z.array(OpportunityContactOptionSchema),
 );
 
+/**
+ * The Quote Requests of one Organization that can still be linked — the open
+ * ones, plus the one whose number is typed in full. Gated by CRM's own code:
+ * the quote desk's list is behind `rfqs:handle`, the right to handle quotes,
+ * which linking one to an Opportunity does not need (research N-H2).
+ */
+export const OpportunityQuoteRequestLookupQuerySchema = z.object({
+  organizationId: z.string().uuid(),
+  q: lookupSearchSchema,
+  limit: lookupLimitSchema,
+});
+export type OpportunityQuoteRequestLookupQuery = z.infer<
+  typeof OpportunityQuoteRequestLookupQuerySchema
+>;
+
+export const OpportunityQuoteRequestOptionSchema = z.object({
+  id: z.string().uuid(),
+  number: z.string(),
+  status: z.string(),
+});
+export type OpportunityQuoteRequestOption = z.infer<typeof OpportunityQuoteRequestOptionSchema>;
+export const OpportunityQuoteRequestLookupResponseSchema = dataEnvelope(
+  z.array(OpportunityQuoteRequestOptionSchema),
+);
+
 // ---------------------------------------------------------------------------
 // §11 History
 // ---------------------------------------------------------------------------

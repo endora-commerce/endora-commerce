@@ -929,6 +929,7 @@ której się wybiera.
 | `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Wszystkie kanały sprzedaży: `id`, `code`, `name` w każdym języku, `active`, `systemDefault` oraz waluty, w których kanał sprzedaje. |
 | `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Aktywni administratorzy, według imienia i nazwiska: `id`, `name`. |
 | `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Członkowie jednej organizacji widocznej dla pytającego: `id`, `name`, `email`. |
+| `GET /api/v1/admin/crm/lookups/quote-requests?organizationId=…&q=…` | `crm:write` | Zapytania ofertowe jednej organizacji widocznej dla pytającego, które można powiązać: otwarte oraz to, którego numer wpisano w całości. `id`, `number`, `status`. Gdy moduł Zapytania ofertowe jest wyłączony, odpowiedzią jest `503`. |
 
 Waluty proponowane przy tworzeniu szansy to te, w których sprzedają aktywne
 kanały sprzedaży.

@@ -73,6 +73,7 @@ describe('crm off-state (Constitution XVII)', () => {
     { method: 'GET', route: `${API}/lookups/sales-channels` },
     { method: 'GET', route: `${API}/lookups/assignees` },
     { method: 'GET', route: `${API}/lookups/contacts` },
+    { method: 'GET', route: `${API}/lookups/quote-requests` },
     { method: 'POST', route: `${API}/statuses`, payload: { code: 'off_state', defaultName: 'Off', kind: 'open' } },
     { method: 'PATCH', route: `${API}/statuses/:code`, payload: { defaultName: 'Renamed' } },
     { method: 'DELETE', route: `${API}/statuses/:code` },

@@ -906,6 +906,7 @@ the person may see, and is no more than a name to choose by.
 | `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Every sales channel: `id`, `code`, `name` per language, `active`, `systemDefault`, and the currencies it sells in. |
 | `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Active administrators, by name: `id`, `name`. |
 | `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Members of one organization the caller may see: `id`, `name`, `email`. |
+| `GET /api/v1/admin/crm/lookups/quote-requests?organizationId=…&q=…` | `crm:write` | Quote requests of one organization the caller may see that can be linked: the open ones, and the one whose number is typed in full. `id`, `number`, `status`. Answers `503` while the Quote Requests module is off. |
 
 The currencies offered when an opportunity is created are the ones the active
 sales channels sell in.

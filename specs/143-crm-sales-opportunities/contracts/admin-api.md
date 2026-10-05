@@ -183,6 +183,7 @@ endpoint; there is no board-specific write.
 | `GET /lookups/sales-channels` | `crm:read` | — | `{ data: [{ id, code, name: Record<lang, string>, active, systemDefault, defaultCurrency, currencies }] }` |
 | `GET /lookups/assignees` | `crm:read` | `q?`, `limit?` | `{ data: [{ id, name }] }` — active administrators (the rule of §5) |
 | `GET /lookups/contacts` | `crm:write` | `organizationId` (required), `q?`, `limit?` | `{ data: [{ id, name, email }] }` — empty for an Organization out of scope |
+| `GET /lookups/quote-requests` | `crm:write` | `organizationId` (required), `q?`, `limit?` | `{ data: [{ id, number, status }] }` — the Organization's open Quote Requests, plus the one whose number is typed in full; empty for an Organization out of scope; 503 `MODULE_DISABLED` (`details.module: "quote_requests"`) while that module is off (research N-H2) |
 
 Schemas: `OpportunityOrganizationLookupQuerySchema`, `OpportunityAssigneeLookupQuerySchema`,
 `OpportunityContactLookupQuerySchema` and the four `…LookupResponseSchema`. The CRM screens'

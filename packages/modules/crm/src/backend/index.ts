@@ -31,6 +31,7 @@ import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
 import { registerCrmAttachmentRoutes } from './routes/routes.attachments.js';
 import { registerCrmBoardRoutes } from './routes/routes.board.js';
 import { registerCrmCommentRoutes } from './routes/routes.comments.js';
+import { registerCrmDocumentLookupRoutes } from './routes/routes.document-lookups.js';
 import { registerCrmHistoryRoutes } from './routes/routes.history.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmLookupRoutes } from './routes/routes.lookups.js';
@@ -40,6 +41,7 @@ import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
 import { BoardService } from './services/board-service.js';
 import { registerCrmAssetReferences } from './services/crm-asset-references.js';
+import { CrmDocumentLookupService } from './services/crm-document-lookup-service.js';
 import { CrmLookupService } from './services/crm-lookup-service.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
 import { createCrmQuoteRequests, type CrmQuoteRequests } from './services/crm-quote-requests.js';
@@ -650,6 +652,32 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
   // --- end of Lookups ----------------------------------------------------------
+
+  // --- Document lookups (research N-H2) --------------------------------------
+  // The Quote Requests an Opportunity's link picker chooses from, through
+  // `quote_requests`' read port and behind `crm:write` — the quote desk's own
+  // list asks for the right to handle quotes. Absent with that module off.
+  ctx.di.register({
+    crmDocumentLookupService: ctx
+      .asFunction(
+        ({ crmQuoteRequests }: ValueCradle) =>
+          new CrmDocumentLookupService({
+            quoteRequestPresence: crmQuoteRequests,
+            quoteRequests: lazyPort<QuoteRequestReadPort>(ctx, 'quoteRequestReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<
+      CrmCradle & { readonly crmDocumentLookupService: CrmDocumentLookupService }
+    >();
+    await registerCrmDocumentLookupRoutes(app, {
+      documentLookupService: cradle.crmDocumentLookupService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of Document lookups -----------------------------------------------
 
   // --- Routes ----------------------------------------------------------------
   // All through `ctx.routes`, so every one of them stops with the module.
