@@ -145,9 +145,8 @@ export const manifest = defineModuleManifest({
   ],
   /**
    * The refusals this module raises, each with its sentence under
-   * `errors.<CODE>` in `i18n/{en,pl}.json`. A code is declared by the change
-   * that adds its first raise site; the one left for a later story
-   * (`CRM_MESSAGE_IMMUTABLE`) is not here yet for that reason.
+   * `errors.<CODE>` in `i18n/{en,pl}.json`. Each code was declared by the
+   * change that added its first raise site.
    *
    * `CRM_TRANSITION_VETOED` carries the guard's own sentence: the raise puts it
    * in `details.reason` and both bundle sentences are that placeholder alone,
@@ -166,6 +165,7 @@ export const manifest = defineModuleManifest({
     { code: 'CRM_STATUS_INITIAL_REQUIRED' },
     { code: 'CRM_ASSIGNEE_INVALID' },
     { code: 'CRM_TAG_NAME_TAKEN' },
+    { code: 'CRM_MESSAGE_IMMUTABLE' },
     // One sentence per broken rule: the raise carries the rule as its refusal
     // token (`details.code`) beside `details.rule`, which the contract names.
     {

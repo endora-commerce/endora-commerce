@@ -19,6 +19,7 @@ import {
   type RequireAdminFactory,
 } from '@endora-commerce/platform/kernel';
 import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
+import { registerCrmCommentRoutes } from './routes/routes.comments.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
 import { registerCrmTagRoutes } from './routes/routes.tags.js';
@@ -26,6 +27,7 @@ import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
 import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
+import { OpportunityCommentService } from './services/opportunity-comment-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityService } from './services/opportunity-service.js';
 import { OpportunityTransitionGuardRegistry } from './services/opportunity-transition-guard-registry.js';
@@ -79,6 +81,7 @@ interface CrmCradle {
   readonly crmOpportunityService: OpportunityService;
   readonly crmNotifier: CrmNotifier;
   readonly crmTagService: TagService;
+  readonly crmOpportunityCommentService: OpportunityCommentService;
   readonly crmOpportunityAssignmentService: OpportunityAssignmentService;
   readonly crmOpportunityLinkService: OpportunityLinkService;
   readonly crmOrderStatusPropagationService: OrderStatusPropagationService;
@@ -228,6 +231,25 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
+  // --- Notes and messages ------------------------------------------------------
+  // Internal to administrators: nothing outside this module's admin routes
+  // reads them. A message tells the people in the conversation through the
+  // same notifier an assignment uses, so it is stored whether or not the bell
+  // is switched on.
+  ctx.di.register({
+    crmOpportunityCommentService: ctx
+      .asFunction(
+        ({ emFactory, commandBus, crmNotifier }: CrmCradle) =>
+          new OpportunityCommentService({
+            emFactory,
+            commandBus,
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            notifier: crmNotifier,
+          }),
+      )
+      .singleton(),
+  });
+
   // --- Tags ------------------------------------------------------------------
   // The tag list is platform configuration. What a tag is on is a child of an
   // Opportunity and is written by the Opportunity service, under its parent.
@@ -304,6 +326,10 @@ export function registerModule(ctx: ModuleContext): void {
     await registerCrmAssignmentRoutes(app, {
       assignmentService: cradle.crmOpportunityAssignmentService,
       opportunityService: cradle.crmOpportunityService,
+      requireAdmin,
+    });
+    await registerCrmCommentRoutes(app, {
+      commentService: cradle.crmOpportunityCommentService,
       requireAdmin,
     });
     await registerCrmLinkRoutes(app, {

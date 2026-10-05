@@ -202,6 +202,13 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'did not exist when the prefix chain was deleted: the refusal to create or rename a CRM ' +
       'tag onto a name another tag already has, compared without regard to case.',
   },
+  CRM_MESSAGE_IMMUTABLE: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 4), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to edit or delete an ' +
+      'internal message on an Opportunity, which is immutable once sent, whoever asks.',
+  },
   CMS_SLUG_RESERVED: {
     to: 'cms',
     reason:
