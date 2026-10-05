@@ -34,4 +34,14 @@ export const OPPORTUNITY_TABS: readonly OpportunityTab[] = [
     labelKey: 'opportunity.tabs.overview',
     component: lazy(() => import('./tabs/OverviewTab.js')),
   },
+  {
+    id: 'notes',
+    labelKey: 'opportunity.tabs.notes',
+    component: lazy(() => import('./tabs/NotesTab.js')),
+  },
+  {
+    id: 'messages',
+    labelKey: 'opportunity.tabs.messages',
+    component: lazy(() => import('./tabs/MessagesTab.js')),
+  },
 ];

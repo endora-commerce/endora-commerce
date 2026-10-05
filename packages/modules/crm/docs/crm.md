@@ -451,6 +451,15 @@ module is switched off, a message is stored all the same and nobody is told.
 to the customer, and nothing the customer can open — an order, a quote request,
 their account — carries either.
 
+In the Admin UI an opportunity has a **Notes** tab and a **Messages** tab. Each
+lists its entries oldest first, with who wrote each and when, and — for a
+holder of `crm:write` — a field under the list to write the next one.
+
+- On **Notes**, your own notes carry **Edit** and **Delete**; a colleague's
+  carry neither. An edited note is marked *edited*. Deleting asks first.
+- On **Messages** nothing can be edited or deleted, and the tab says so above
+  the conversation.
+
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | The opportunity's notes, oldest first. `kind=message` for the conversation. `kind` is required. |

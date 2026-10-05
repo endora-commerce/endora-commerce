@@ -1767,6 +1767,19 @@ when it was measured, and what was done about it.
   Opportunity still carries no tags field (N-C1 (b)); the *Tags* section is the one place.
   (i) `GET /tags` is `crm:read` while the screen opens on `crm:configure`: every control on
   it is a write, as on *Workflow*.
+- **N-D7 (2026-10-05, T076) — what the Notes and Messages tabs do that T076 leaves open.**
+  (a) **One thread component for both tabs** (`components/CommentThread.tsx`) beside the one
+  composer T076 names; the two tab files only hand it their sentences, so no key is composed
+  at run time. (b) **"Mine" is `useAuth().me.adminUser.id` against `author.id`**, and *Edit* /
+  *Delete* are offered for a **note**, to its **author**, who also holds `crm:write` — the
+  platform administrator sees neither on a colleague's note, which is what the server
+  answers (N-B12). The server's refusal is still shown if one comes. (c) **A note is edited
+  in place**, not in a dialog; a refused edit keeps what was typed. Deleting asks first and
+  says the text stays in the change history. (d) A written entry is appended from the
+  endpoint's answer rather than by reading the list again; the lists are not polled, so a
+  colleague's message appears on the next visit to the tab. (e) An empty entry is refused on
+  screen; the 10 000-character limit is the field's `maxLength`. (f) **With the second tab
+  the tab strip appears** (N-28 (i)); the tabs are not routes, so a link cannot open one.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

@@ -8,6 +8,8 @@ import type {
   CreateOpportunityRequest,
   CreateOpportunityStatusRequest,
   CreateOpportunityTagRequest,
+  OpportunityComment,
+  OpportunityCommentKind,
   OpportunityBoard,
   OpportunityDetail,
   OpportunityLink,
@@ -260,6 +262,40 @@ export const crmApi = {
     return data(
       apiClient.put<{ data: OpportunityWorkflow }>(`${BASE}/order-status-mappings`, { mappings }),
     );
+  },
+
+  // --- §6 Notes and messages -----------------------------------------------
+
+  /** Oldest first. `kind` is required by the endpoint: the two are separate lists. */
+  listComments(id: string, kind: OpportunityCommentKind): Promise<OpportunityComment[]> {
+    return data(
+      apiClient.get<{ data: OpportunityComment[] }>(
+        `${BASE}/opportunities/${id}/comments?kind=${kind}`,
+      ),
+    );
+  },
+
+  addComment(id: string, kind: OpportunityCommentKind, body: string): Promise<OpportunityComment> {
+    return data(
+      apiClient.post<{ data: OpportunityComment }>(`${BASE}/opportunities/${id}/comments`, {
+        kind,
+        body,
+      }),
+    );
+  },
+
+  /** A note, by its author. A message answers 409 `CRM_MESSAGE_IMMUTABLE` whoever asks. */
+  updateComment(id: string, commentId: string, body: string): Promise<OpportunityComment> {
+    return data(
+      apiClient.patch<{ data: OpportunityComment }>(
+        `${BASE}/opportunities/${id}/comments/${commentId}`,
+        { body },
+      ),
+    );
+  },
+
+  deleteComment(id: string, commentId: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/opportunities/${id}/comments/${commentId}`);
   },
 
   // --- §8 Tags --------------------------------------------------------------

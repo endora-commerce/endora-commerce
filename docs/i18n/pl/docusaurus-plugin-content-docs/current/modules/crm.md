@@ -466,6 +466,16 @@ jest zapisywana tak samo, a nikt nie dostaje powiadomienia.
 ustawienia, które pokazałoby ją klientowi, i nic, co klient może otworzyć —
 Zamówienie, zapytanie ofertowe, jego konto — ich nie zawiera.
 
+W Admin UI szansa ma kartę **Notatki** i kartę **Wiadomości**. Każda pokazuje
+wpisy od najstarszego, z autorem i datą, a posiadaczowi uprawnienia `crm:write`
+— także pole pod listą, w którym pisze się następny wpis.
+
+- Na karcie **Notatki** przy własnych notatkach są przyciski **Edytuj** i
+  **Usuń**; przy notatkach innych osób ich nie ma. Zmieniona notatka jest
+  oznaczona jako *edytowano*. Usunięcie wymaga potwierdzenia.
+- Na karcie **Wiadomości** niczego nie można edytować ani usunąć, o czym karta
+  informuje nad rozmową.
+
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | Notatki szansy, od najstarszej. `kind=message` — rozmowa. Parametr `kind` jest wymagany. |

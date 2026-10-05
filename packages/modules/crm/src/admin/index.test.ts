@@ -165,7 +165,7 @@ describe('crm admin copy', () => {
   it('ships no key under its own prefixes that no screen asks for', () => {
     const text = sources.map((source) => source.text).join('\n');
     const own = Object.keys(en).filter((key) =>
-      /^(opportunity|links|propagation|workflow|board|assignment|tags)\./.test(key),
+      /^(opportunity|links|propagation|workflow|board|assignment|tags|comments)\./.test(key),
     );
     const unused = own.filter((key) => {
       if (text.includes(`'${key}'`)) return false;

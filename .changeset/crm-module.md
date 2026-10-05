@@ -64,7 +64,10 @@ six screens and four entries to the shell's "CRM" sidebar section:
   holds the opportunity and lets a holder of `crm:write` reassign or unassign it in one
   choice; an assignee who has been deactivated is marked *inactive* here, on the list and on
   the board. The *Tags* section shows the opportunity's tags, and a holder of `crm:write`
-  ticks and unticks them, each change saved at once;
+  ticks and unticks them, each change saved at once. Two further tabs, **Notes** and
+  **Messages**, list the opportunity's notes and its internal conversation, oldest first, over
+  one composer: a note shows *Edit* and *Delete* to its author only, a message shows neither
+  to anybody;
 - `/crm/tags` (`crm:configure`) — the tag list with each tag's usage count: add, rename,
   recolour, and delete after a confirmation naming how many opportunities lose the tag;
 - `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, the
