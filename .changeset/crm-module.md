@@ -6,10 +6,10 @@
 A new module package, `@endora-commerce/mod-crm` (module id `crm`), and the contract surface it
 is built against.
 
-**`@endora-commerce/mod-crm`** is new. In this release it is the module's backend and no
-screen yet. An instance that installs it gains thirteen `crm_`-prefixed tables and a default
-status workflow of six statuses on its next migration run; an instance that does not is
-unaffected. What it serves, all under `/api/v1/admin/crm`:
+**`@endora-commerce/mod-crm`** is new: a backend and the Admin UI screens over it. An instance
+that installs it gains thirteen `crm_`-prefixed tables and a default status workflow of six
+statuses on its next migration run; an instance that does not is unaffected. What it serves,
+all under `/api/v1/admin/crm`:
 
 - **the workflow and its configuration** — `GET /workflow`, `POST|PATCH|DELETE /statuses`,
   `PUT /transitions`, `PUT /order-status-mappings`. Every change re-validates the whole
@@ -27,6 +27,24 @@ unaffected. What it serves, all under `/api/v1/admin/crm`:
   outcome (`applied`, `already_there`, `not_permitted`, `vetoed`, `unknown_status`,
   `not_found`, `failed`) is an element of `propagation`, which
   `POST …/propagations/:id/retry` and `…/dismiss` then address.
+
+**In the Admin UI** the package exports `./admin` (and `./tailwind.css`), which contributes
+four screens and two entries to the shell's "CRM" sidebar section:
+
+- `/crm/opportunities` (`crm:read`) — the list, with search and filters by state, status,
+  organization, sales channel and creation date;
+- `/crm/opportunities/new` (`crm:write`) — create an opportunity by hand; an `organizationId`
+  query parameter preselects the organization;
+- `/crm/opportunities/:id` (`crm:read`) — the status control, which offers exactly the
+  transitions the workflow allows; the linked orders, with linking by search, the
+  status-following switch and unlinking; and, per linked order, the outcome of each move, with
+  *Retry* and *Dismiss* on a refused one;
+- `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, and the
+  order status each opportunity status sets.
+
+Two command-palette actions, `open-opportunities` and `new-opportunity`, open the first two.
+The admin layer's peers — `@endora-commerce/admin-kit`, `react`, `react-router-dom` and
+`lucide-react` — are optional, so a backend-only installation is not asked for them.
 
 Its activation control is `crm.enabled` (on by default, switchable on `/platform/modules`).
 Its permissions are `crm:read`, `crm:write` and `crm:configure`; no role receives one
