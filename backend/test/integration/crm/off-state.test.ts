@@ -4,7 +4,12 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { expectModuleAbsent, type OffStateProbe } from '../../helpers/off-state.js';
+import {
+  expectModuleAbsent,
+  withModuleOff,
+  type OffStateAxis,
+  type OffStateProbe,
+} from '../../helpers/off-state.js';
 
 /**
  * `crm` off-state — Constitution XVII item 6
@@ -99,6 +104,37 @@ describe('crm off-state (Constitution XVII)', () => {
       },
     });
   });
+
+  /** The command-palette entries the server advertises for this module, in id order. */
+  const paletteActionIds = async (): Promise<string[]> => {
+    const response = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/admin-actions?language=en',
+      cookies: admin,
+    });
+    expect(response.statusCode, 'the palette registry must answer').toBe(200);
+    const body = response.json() as { data: { data: { actionId: string; moduleId: string }[] } };
+    return body.data.data
+      .filter((action) => action.moduleId === 'crm')
+      .map((action) => action.actionId)
+      .sort();
+  };
+
+  it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+    'advertises its palette actions while on and none while %s',
+    async (axis) => {
+      // The palette's Actions group is resolved by the server, from the
+      // manifests, against the effective enabled-set — no admin-side test can
+      // see it. Positive control first: a registry answering nothing to anybody
+      // would otherwise pass.
+      const declared = ['new-opportunity', 'open-opportunities'];
+      expect(await paletteActionIds()).toEqual(declared);
+      await withModuleOff('crm', axis, async () => {
+        expect(await paletteActionIds()).toEqual([]);
+      });
+      expect(await paletteActionIds()).toEqual(declared);
+    },
+  );
 
   it('answers again once restored', async () => {
     const response = await h.app.inject({ method: 'GET', url: WORKFLOW_URL, cookies: admin });
