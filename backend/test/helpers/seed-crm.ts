@@ -342,3 +342,18 @@ export async function changeOrderStatusAsOperator(
     off();
   }
 }
+
+/**
+ * Assign `adminUserId` to `organizationId` as its Sales Rep, as of `assignedAt`
+ * — the row `organizations` keeps, written directly so a test can state which
+ * assignment is the longest-standing.
+ */
+export async function assignCrmSalesRep(
+  em: EntityManager,
+  organizationId: string,
+  adminUserId: string,
+  assignedAt: Date = new Date(),
+): Promise<void> {
+  em.create(OrganizationSalesRepAssignment, { organizationId, adminUserId, createdAt: assignedAt });
+  await em.flush();
+}

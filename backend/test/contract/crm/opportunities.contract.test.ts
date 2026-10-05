@@ -442,8 +442,17 @@ describe('crm opportunities (contract)', () => {
       }
     });
 
-    it('refuses the assignee and tag filters until their stories land, rather than ignoring them', async () => {
-      for (const query of ['?assignedAdminUserId=me', '?tagId=00000000-0000-4000-8000-00000000dead']) {
+    it('accepts the assignee filter in each of its three forms', async () => {
+      for (const query of ['?assignedAdminUserId=me', '?assignedAdminUserId=unassigned', `?assignedAdminUserId=${TEST_ADMIN_ID}`]) {
+        const response = await call('GET', `/opportunities${query}`);
+        expect(response.statusCode, `${query} ${response.body}`).toBe(200);
+      }
+      const malformed = await call('GET', '/opportunities?assignedAdminUserId=somebody');
+      expect(malformed.statusCode, malformed.body).toBe(400);
+    });
+
+    it('refuses the tag filter until its story lands, rather than ignoring it', async () => {
+      for (const query of ['?tagId=00000000-0000-4000-8000-00000000dead']) {
         const response = await call('GET', `/opportunities${query}`);
         expect(response.statusCode, `${query} ${response.body}`).toBe(422);
         expect(response.json().error.code).toBe('VALIDATION_FAILED');
