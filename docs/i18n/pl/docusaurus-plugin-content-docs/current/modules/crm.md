@@ -266,3 +266,57 @@ ekranie **Role**.
 - Historia zmian każdej szansy.
 - Analityka: czas obsługi, czas w poszczególnych statusach, wyniki
   przedstawicieli handlowych.
+
+## Zamówienie, które przesuwa swoją szansę
+
+Mapowanie działa też w drugą stronę: gdy powiązane zamówienie osiągnie *ten*
+status zamówienia, szansa sprzedażowa przechodzi do *tamtego* statusu. Jeden
+status zamówienia mapuje się na najwyżej jeden status szansy; kilka statusów
+zamówienia może prowadzić do tego samego.
+
+Nie ma znaczenia, kto zmienił zamówienie — administrator, zaksięgowana
+płatność czy nadana przesyłka. Szansa podąża za nim przez własny przepływ:
+przejście musi istnieć, wszystko, co zarejestrowano, aby je odrzucać, może je
+odrzucić, a wszystko, co nasłuchuje zmiany statusu szansy, usłyszy także tę.
+Zmiana jest zapisywana jako spowodowana przez zamówienie i wskazuje je; żaden
+administrator nie jest zapisywany jako jej autor.
+
+| Sytuacja | Co się dzieje |
+| --- | --- |
+| Zamówienie nie podąża za szansą (podążanie za statusem jest wyłączone) albo nie jest powiązane z żadną | Nic. |
+| Szansa jest już zamknięta — wygrana albo przegrana | Nic. **Mapowanie nigdy nie otwiera ponownie zamkniętej szansy.** |
+| Przepływ nie ma przejścia ze statusu szansy do statusu z mapowania albo coś je odrzuciło | Szansa zostaje tam, gdzie była, a pominięta zmiana jest na niej zapisywana razem z powodem. |
+| Mapowanie jest oznaczone *tylko gdy każde powiązane zamówienie tam jest* | Szansa czeka, aż każde powiązane zamówienie, które za nią podąża, znajdzie się w statusie zamówienia zmapowanym na ten sam status szansy. |
+
+**Mapowania w obu kierunkach nie tworzą pętli.** Zmiana przechodzi jeden krok
+i się zatrzymuje:
+
+- gdy szansa zmienia status, a jej zamówienia za nią podążają, zmiany tych
+  zamówień są rozpoznawane jako własne zmiany szansy i nie przesuwają jej
+  ponownie;
+- gdy zamówienie przesuwa swoją szansę, żadne inne zamówienie tej szansy nie
+  jest proszone o podążanie.
+
+Mapowanie wysyła się na ten sam adres co mapowania w przód, z
+`direction: "order_to_opportunity"` i opcjonalnie z `requireAllOrders`. Zbiór
+jest zastępowany w całości, oba kierunki razem:
+
+```json
+{
+  "mappings": [
+    { "direction": "opportunity_to_order", "opportunityStatusCode": "won", "orderStatusCode": "completed" },
+    { "direction": "order_to_opportunity", "orderStatusCode": "completed", "opportunityStatusCode": "won", "requireAllOrders": true }
+  ]
+}
+```
+
+Do opisanych wyżej reguł dochodzi jedna: `mapping_duplicate_order_status` —
+status zamówienia przesuwa szansę do jednego statusu, a nie do kilku.
+
+`GET /api/v1/admin/crm/workflow` podaje `orderStatusKnown` dla każdego
+mapowania. Wartość zmienia się na `false`, gdy moduł Zamówień odpowie, że taki
+status zamówienia nie istnieje, i wraca do `true`, gdy zamówienie następnym
+razem go przyjmie; mapowanie, którego nikt jeszcze nie użył, ma `true`.
+
+Gdy moduł jest wyłączony, zmiana statusu zamówienia niczego nie przesuwa i nie
+jest później nadrabiana.

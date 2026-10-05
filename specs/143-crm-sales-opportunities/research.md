@@ -1210,6 +1210,46 @@ when it was measured, and what was done about it.
   edit to the component (`specs/conventions/building-packages.md`). The two domain-freedom
   cases read the **source** file: no `opportunit|status|crm` in it, and `@dnd-kit/core` the
   only `@dnd-kit/*` specifier.
+- **N-B1 (2026-10-05, T059) — `orderStatusKnown` is computed from what the Orders port has
+  answered, not from the Order workflow.** Re-derived: `orders` publishes `orderReadPort`,
+  `orderListPort` (whose `counts` holds only statuses some Order is in), `orderPlacementPort`,
+  `orderStatusAnnouncePort`, `orderTransitionPort` and a payment-status apply port — none
+  lists or tests a configured status code, and N-8 stands. No port was added and `orders` was
+  not edited. What CRM does hold is the transition port's own answers, one row per Order it
+  asked: for each Order status code, the latest forward outcome that says anything about the
+  *status* (`applied`, `already_there`, `not_permitted`, `vetoed`, `unknown_status`) decides —
+  `false` when it is `unknown_status`, `true` otherwise, and `true` for a code nobody has
+  asked for yet. So the flag is **evidence, not validation**: it cannot warn before the first
+  refusal, and a reverse-only Order status that never occurs never turns `false`. The admin
+  screen, which fetches `GET /api/v1/admin/orders/statuses` for its picker, can tell sooner
+  and should prefer its own answer; a real one needs a read on an `orders` port, which is a
+  foreign change this feature's list does not carry.
+- **N-B2 (2026-10-05, T062) — there is no Zod schema for `order.status_changed.v1`.** T062
+  asks for the payload to be parsed "with its Zod schema". The event's shape is a TypeScript
+  type inside `orders` (`OrderEvents` in `order-service.ts`); the contracts package has none,
+  and the CRM package does not depend on `zod`. The subscriber reads the three fields it uses
+  (`orderId`, `organizationId`, `to`) with a hand-written guard in `index.ts` and drops an
+  event that lacks one. The coarse event carries no actor, so "who changed the Order" is not
+  known to the handler — which is why the echo is recognised by row, as R-5 says.
+- **N-B3 (2026-10-05, T061) — how the reverse half is wired and what it records.** The
+  transition service already depends on the propagation service, so `onOrderStatusChanged`
+  takes the "move this Opportunity on an Order's behalf" function as an argument from the
+  subscriber in `index.ts` rather than holding the transition service. Marking a forward row
+  `echoed` is a Command with `skipAudit` (`crm.opportunity.propagation_echo`). A refused
+  Order-caused move is one Command, `crm.opportunity.propagation_skip`, that writes the
+  `skipped` row **and an audit entry** — an action `data-model.md` § Audit actions does not
+  list. It is audited because the spec's scenario 3 wants the skipped change "recorded on the
+  Opportunity with the reason", `unresolvedPropagations` is forward-only by `data-model.md`,
+  and the Opportunity's history tab reads the audit log. A closed Opportunity, a missing
+  mapping and an unmet "every Order" rule record nothing. `requireAllOrders` is stored `false`
+  on a forward mapping whatever the request says. A new `details.rule`,
+  `mapping_duplicate_order_status`, joins the seven.
+- **N-B4 (2026-10-05, T058) — an echo marker that is never consumed.** A forward row is
+  matched as an echo while it is `pending` or `applied` and not yet `echoed`. If the module is
+  switched off between asking an Order and hearing the event, the row stays unconsumed, and
+  the next time that Order reaches that same status by somebody else's hand the change is
+  taken for the echo, once. Not repaired: it needs an Order to leave a status and return to
+  it across a deactivation, and the cost is one unfollowed change.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

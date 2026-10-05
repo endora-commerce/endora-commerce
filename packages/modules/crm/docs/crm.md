@@ -264,3 +264,54 @@ No role receives a CRM permission automatically. Grant them on the
 - A change history for every opportunity.
 - Analytics: handling time, time in each status, results by sales
   representative.
+
+## An order that moves its opportunity
+
+The mapping also runs the other way: when a linked order reaches *this* order
+status, move its opportunity to *that* status. One order status maps to at most
+one opportunity status; several order statuses may lead to the same one.
+
+It does not matter who changed the order — an administrator, a payment that
+arrived, a shipment that was sent. The opportunity follows, through its own
+workflow: the transition must exist, anything registered to refuse it may
+refuse it, and everything that listens to an opportunity's status change hears
+this one too. The change is recorded as caused by the order, and names it; no
+administrator is recorded as having made it.
+
+| Situation | What happens |
+| --- | --- |
+| The order does not follow its opportunity (status following is off), or is linked to none | Nothing. |
+| The opportunity is already closed, won or lost | Nothing. **A mapping never reopens a closed opportunity.** |
+| The workflow has no transition from the opportunity's status to the mapped one, or something refused it | The opportunity stays where it is, and the skipped change is recorded on it with the reason. |
+| The mapping is marked *only when every linked order is there* | The opportunity waits until every linked order that follows it is in an order status mapped to that same opportunity status. |
+
+**Mappings in both directions do not loop.** A change goes one hop and stops:
+
+- when an opportunity moves and its orders follow, those orders' changes are
+  recognised as the opportunity's own and do not move it again;
+- when an order moves its opportunity, no other order of that opportunity is
+  asked to follow.
+
+A mapping is sent to the same endpoint as the forward ones, with
+`direction: "order_to_opportunity"` and, optionally, `requireAllOrders`. The
+set is replaced whole, both directions together:
+
+```json
+{
+  "mappings": [
+    { "direction": "opportunity_to_order", "opportunityStatusCode": "won", "orderStatusCode": "completed" },
+    { "direction": "order_to_opportunity", "orderStatusCode": "completed", "opportunityStatusCode": "won", "requireAllOrders": true }
+  ]
+}
+```
+
+One rule joins the ones above: `mapping_duplicate_order_status` — an order
+status moves an opportunity to one status, not several.
+
+`GET /api/v1/admin/crm/workflow` reports `orderStatusKnown` for every mapping.
+It turns `false` once the Orders module has answered that the order status does
+not exist, and back to `true` when an order next accepts it; a mapping nobody
+has used yet reads `true`.
+
+While the module is switched off, an order's status change moves nothing, and
+it is not caught up afterwards.
