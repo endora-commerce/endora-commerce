@@ -22,6 +22,7 @@ import {
   lazyPort,
   type ModuleContext,
   type RequireAdminFactory,
+  type SettingsReadPort,
 } from '@endora-commerce/platform/kernel';
 import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
 import { registerCrmAttachmentRoutes } from './routes/routes.attachments.js';
@@ -38,6 +39,7 @@ import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js'
 import { createCrmQuoteRequests, type CrmQuoteRequests } from './services/crm-quote-requests.js';
 import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
 import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
+import { OpportunityAutoCreateService } from './services/opportunity-auto-create-service.js';
 import { OpportunityCommentService } from './services/opportunity-comment-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityService } from './services/opportunity-service.js';
@@ -457,17 +459,10 @@ export function registerModule(ctx: ModuleContext): void {
       );
     });
   }
-  // An Order placed from a linked Quote Request joins that Opportunity
-  // (FR-027); the link service recalculates the value once it has.
-  ctx.subscribe('order.created.v1', async (payload) => {
-    const orderId = readEventId(payload, 'orderId');
-    if (!orderId) return;
-    await enterSystemScope('crm: an order placed from a linked quote request', async () => {
-      const order = await lazyPort<OrderReadPort>(ctx, 'orderReadPort').findById(orderId);
-      if (!order) return;
-      await ctx.cradle<CrmCradle>().crmOpportunityLinkService.linkOrderPlacedFromQuoteRequest(order);
-    });
-  });
+  // `order.created.v1` — an Order placed from a linked Quote Request joining
+  // that Opportunity (FR-027) — is one branch of the placed-document
+  // subscriber in the next section; the link service recalculates the value
+  // once the Order has joined.
 
   // The consumer of the recalculation queue, attached where `app.log` exists
   // and through `ctx.worker`, which is what stops it with the module. Built
@@ -485,6 +480,50 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
   // --- end of Value and Quote Requests ---------------------------------------
+
+  // --- Placed documents (User Story 9) -----------------------------------------
+  // One subscriber per placed document, with the branches of research R-8 in
+  // its service: an Order placed from a linked Quote Request joins that
+  // Opportunity whatever the settings say; otherwise, with the setting on for
+  // the document, an Opportunity is created for it and linked.
+  //
+  // `ctx.subscribe`, so nothing is created while the module is off, and nothing
+  // is created afterwards for a document placed meanwhile. Each handler starts
+  // a system scope and the service works on the one Organization the document
+  // names.
+  ctx.di.register({
+    crmOpportunityAutoCreateService: ctx
+      .asFunction(
+        ({ eventBus, crmQuoteRequests, crmOpportunityLinkService, crmOpportunityService }: CrmCradle & ValueCradle) =>
+          new OpportunityAutoCreateService({
+            orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            settings: lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
+            quoteRequests: crmQuoteRequests,
+            links: crmOpportunityLinkService,
+            createForDocument: (input) => crmOpportunityService.createForDocument(input),
+            events: eventBus,
+          }),
+      )
+      .singleton(),
+  });
+  ctx.subscribe('order.created.v1', async (payload) => {
+    const orderId = readEventId(payload, 'orderId');
+    if (!orderId) return;
+    await enterSystemScope('crm: an order was placed', () =>
+      ctx.cradle<PlacedDocumentsCradle>().crmOpportunityAutoCreateService.onOrderCreated(orderId),
+    );
+  });
+  // Emitted for a Quote Request a customer submits. `quote_requests` emits
+  // nothing while it is off.
+  ctx.subscribe('rfq.created.v1', async (payload) => {
+    const quoteRequestId = readEventId(payload, 'rfqId');
+    if (!quoteRequestId) return;
+    await enterSystemScope('crm: a quote request was submitted', () =>
+      ctx.cradle<PlacedDocumentsCradle>().crmOpportunityAutoCreateService.onQuoteRequestCreated(quoteRequestId),
+    );
+  });
+  // --- end of Placed documents ---------------------------------------------------
 
   // --- Routes ----------------------------------------------------------------
   // All through `ctx.routes`, so every one of them stops with the module.
@@ -540,6 +579,11 @@ interface ValueCradle {
   readonly processRunsWorkers: boolean;
   /** The connection a module may build a queue on; undefined where a composition wants none. */
   readonly moduleQueueRedis: Redis | undefined;
+}
+
+/** What the placed-documents section reads from the container. */
+interface PlacedDocumentsCradle {
+  readonly crmOpportunityAutoCreateService: OpportunityAutoCreateService;
 }
 
 /** The `quote_requests` events after which a linked Quote Request may count differently. */

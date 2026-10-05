@@ -13,17 +13,21 @@ import {
 } from '../../helpers/off-state.js';
 import { CrmOpportunity, CrmOpportunityLink, CrmStatusPropagation } from '../../helpers/package-entities.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { CRM_SETTING_CODES } from '../../../../packages/modules/crm/src/manifest.js';
 import {
   changeOrderStatusAsOperator,
   createCrmOpportunity,
   linkCrmOrder,
   linkCrmQuoteRequest,
+  placeCrmOrder,
   restoreDefaultCrmWorkflow,
   seedCrmOrder,
   setCrmCountingStatuses,
   setCrmMappings,
+  setCrmSetting,
   submitCrmQuoteRequest,
   whenCrmEventSettled,
+  writeCrmSetting,
 } from '../../helpers/seed-crm.js';
 
 /**
@@ -321,6 +325,77 @@ describe('crm off-state (Constitution XVII)', () => {
         expect(await linksOf(conversion.opportunityId)).toBe(1);
       },
     );
+  });
+
+  describe('automatic creation (order.created.v1, rfq.created.v1) and its two settings', () => {
+    const SETTINGS = [
+      CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS,
+      CRM_SETTING_CODES.AUTO_CREATE_FROM_QUOTE_REQUESTS,
+    ] as const;
+
+    const opportunityCount = () => h.em().count(CrmOpportunity, {}, { filters: false });
+
+    const placeOrder = () => whenCrmEventSettled(h, 'order.created.v1', () => true, () => placeCrmOrder(h));
+
+    const submitQuoteRequest = () =>
+      whenCrmEventSettled(h, 'rfq.created.v1', () => true, () => submitCrmQuoteRequest(h));
+
+    beforeAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+      for (const code of SETTINGS) await setCrmSetting(h, code, true);
+    });
+
+    afterAll(async () => {
+      for (const code of SETTINGS) await setCrmSetting(h, code, false);
+      await restoreDefaultCrmWorkflow(h.em());
+    });
+
+    it('creates an Opportunity per placed document while on — the positive control', async () => {
+      const before = await opportunityCount();
+      await placeOrder();
+      await submitQuoteRequest();
+      expect(await opportunityCount()).toBe(before + 2);
+    });
+
+    it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+      'creates nothing while %s with both settings on, and nothing retroactively afterwards',
+      async (axis) => {
+        const before = await opportunityCount();
+        let orderId = '';
+        await withModuleOff('crm', axis, async () => {
+          orderId = (await placeOrder()).id;
+          await submitQuoteRequest();
+          expect(await opportunityCount()).toBe(before);
+        });
+        // Back on: the documents placed meanwhile stay without an Opportunity.
+        expect(await opportunityCount()).toBe(before);
+        expect(
+          await h.em().count(CrmOpportunityLink, { documentKind: 'order', documentId: orderId }, { filters: false }),
+        ).toBe(0);
+        // And the next one placed gets its own again.
+        await placeOrder();
+        expect(await opportunityCount()).toBe(before + 1);
+      },
+    );
+
+    it.each(SETTINGS)('%s is writable while on and refused while off', async (code) => {
+      // The positive control, with the body the Settings screen sends: a
+      // malformed write is refused in every state and would prove nothing.
+      const whileOn = await writeCrmSetting(h, code, true);
+      expect(whileOn.statusCode, whileOn.body).toBe(200);
+      for (const axis of ['deactivated', 'platform-unavailable'] as const) {
+        await withModuleOff('crm', axis, async () => {
+          const refused = await writeCrmSetting(h, code, false);
+          // By name: a body the schema refuses is a 400 as well.
+          expect(refused.statusCode, `${axis}: ${refused.body}`).toBe(400);
+          expect(refused.json().error.code, `${axis}: ${refused.body}`).toBe('MODULE_SETTING_READ_ONLY');
+        });
+      }
+      // Nothing was written through the refused calls.
+      const after = await writeCrmSetting(h, code, true);
+      expect(after.statusCode, after.body).toBe(200);
+    });
   });
 
   it('probes routes that exist — a refused path the module never registered would prove nothing', () => {

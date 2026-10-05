@@ -9,6 +9,16 @@ import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-comm
  * workers, admin surfaces — stops with it. Nothing is dropped while it is off.
  */
 
+/**
+ * The module's setting codes, for the code that reads them and the tests that
+ * write them.
+ */
+export const CRM_SETTING_CODES = {
+  ENABLED: 'crm.enabled',
+  AUTO_CREATE_FROM_ORDERS: 'crm.auto_create_from_orders',
+  AUTO_CREATE_FROM_QUOTE_REQUESTS: 'crm.auto_create_from_quote_requests',
+} as const;
+
 const settings = defineModuleSettingsManifest({
   moduleCode: 'crm',
   groups: [
@@ -20,7 +30,7 @@ const settings = defineModuleSettingsManifest({
   settings: [
     {
       // The operator's activation control. Platform-wide.
-      code: 'crm.enabled',
+      code: CRM_SETTING_CODES.ENABLED,
       name: 'CRM enabled',
       description:
         'Switches the CRM on or off: the sales opportunity screens, the status workflow and its configuration, and the link between an opportunity and its orders. Nothing is dropped — every opportunity, its history and the workflow configuration stay in the database and resume where they were.',
@@ -29,19 +39,22 @@ const settings = defineModuleSettingsManifest({
       defaultValue: true,
     },
     {
-      code: 'crm.auto_create_from_orders',
+      // What `backend/test/integration/crm/auto-create.test.ts` proves, and no
+      // more: placed after it is switched on, read for the order's sales
+      // channel, never a second opportunity for one document.
+      code: CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS,
       name: 'Create an opportunity for every new order',
       description:
-        'When on, an order placed after this is switched on gets a sales opportunity of its own, linked to it. Never for an order that is already linked to an opportunity or was created from one. Off by default.',
+        'When on, an order placed after this is switched on gets a sales opportunity of its own, linked to it: for the order\'s organization and sales channel, in the start status, assigned by the default rule, with a value calculated from the order. Never for an order that is already linked to an opportunity, and never for an order placed from a quote request that is linked to one — that order joins the same opportunity. Can be set per sales channel. Off by default.',
       groupCode: 'crm',
       valueType: 'boolean',
       defaultValue: false,
     },
     {
-      code: 'crm.auto_create_from_quote_requests',
+      code: CRM_SETTING_CODES.AUTO_CREATE_FROM_QUOTE_REQUESTS,
       name: 'Create an opportunity for every new quote request',
       description:
-        'When on, a quote request submitted after this is switched on gets a sales opportunity of its own, linked to it. Never for a quote request that is already linked to an opportunity or was created from one. Off by default.',
+        'When on, a quote request a customer submits after this is switched on gets a sales opportunity of its own, linked to it: for the quote request\'s organization, in the start status, assigned by the default rule, with a value calculated from the quote request. Never for a quote request that is already linked to an opportunity. Needs the Quote Requests module to be on. Off by default.',
       groupCode: 'crm',
       valueType: 'boolean',
       defaultValue: false,

@@ -1730,6 +1730,60 @@ when it was measured, and what was done about it.
   shared test server offers neither, so `value.test.ts` runs the job's body
   (`recalculateAll` in a system scope) through the container. `bullmq` and `ioredis` joined
   the rendered `package.json` as peers, as T102 predicted.
+- **N-E7 (2026-10-05, T103) — the premise "the `order.created.v1` subscriber sees the
+  committed Order" is FALSE, measured.** `orders` emits the event from **inside** the
+  transaction that places the Order (`order-service.ts`: `await tx.flush()`, then the emit,
+  then more work, then the transactional callback returns), the storefront route calls
+  `placeOrder` with no event scope around it, and the bus runs a handler at once. A probe
+  subscriber reading through `orderReadPort.findById` on three storefront placements
+  (`POST /api/v1/cart/items`, `POST /api/v1/orders`): the first placement was **not found**
+  at once and found 5 ms later; the second and third were found at once — a race with the
+  commit that a warm connection usually wins. (`quote_requests`' completion reactor reads the
+  same way and has the same exposure; it never shows, because of N-E3.) `orders` is not
+  edited. The CRM handler **waits for the commit**: it reads the document again after 10, 25,
+  75, 150, 250, 500 and 1000 ms (about two seconds in all) and gives up — creating nothing —
+  for a document that never appears, which is what a rolled-back placement looks like. The
+  pauses are a constant in `opportunity-auto-create-service.ts`; the unit test injects the
+  sleep and holds both the retry and the bound. **The repair that removes the wait is
+  `orders`'**: emit after the commit, or run the placement inside `EventBus.run`. Reported, not
+  made — it is on no list of this feature.
+- **N-E8 (2026-10-05, T106) — what automatic creation decided.** (a) **The Opportunity and its
+  link are one Command** (`crm.opportunity.create`, with the link written by
+  `OpportunityService.createForDocument`): the unique `(document_kind, document_id)`
+  constraint then rolls a second Opportunity back together with its refused link, so a
+  redelivered event or two racing handlers cannot leave an Opportunity without its document.
+  T106 sketched "create through `OpportunityService`, then link"; two Commands could. The
+  constraint violation is answered `already-linked`. (b) A Command declares one event, and
+  that one is `crm.opportunity.created.v1` (`source: 'order' | 'quote_request'`);
+  `crm.opportunity.document_linked.v1` (`linkSource: 'auto'`) is emitted by the service after
+  the commit — once per created Opportunity and never for a rolled-back one, which is what
+  `contracts/events-and-ports.md` §1.2 promises, by other means. (c) The audit entry of an
+  automatic creation has no actor, and its after-state carries `source` and `linkedDocument`.
+  (d) **A Quote Request's Sales Channel is not published** — `QuoteRequestRecord` has no
+  `salesChannelId` although the row does, and `contracts/foreign-module-changes.md` §F
+  forbids changing that port — so an Opportunity created from a Quote Request has **no Sales
+  Channel**, and `crm.auto_create_from_quote_requests` is read platform-wide (`null`), not
+  per channel. For an Order both follow the Order's channel, and a per-channel override is
+  honoured in both directions (`auto-create.test.ts`). (e) A Sales Channel that no longer
+  exists is left out rather than failing the creation. (f) The contact person is not set:
+  R-8 does not list it. (g) An Order an administrator places on a customer's behalf goes
+  through the same `placeOrder` and gets its Opportunity; a Quote Request an administrator
+  creates emits no `rfq.created.v1` and gets none until US10's event. (h) The unified
+  `order.created.v1` subscriber replaced User Story 8's: quote conversion first, whatever the
+  setting says, then "already linked", then the setting. `compose/auto-create.ts` does not
+  exist (N-6). (i) `zod` joined the package's peers — the settings port takes a Zod schema —
+  which closes N-B2's "the CRM package does not depend on `zod`".
+- **N-E9 (2026-10-05, T104) — the off-state harness's "setting is not editable while off"
+  probe is vacuous, for every module. Pre-existing, reported, not repaired.**
+  `expectSettingWriteRefused` in `backend/test/helpers/off-state.ts` sends
+  `PUT /api/v1/admin/settings/:code/value` with `{ value }`. The route parses
+  `SetValueRequestSchema` first, which requires `scope`, so the call answers 400
+  `VALIDATION_FAILED` **while the module is on** as well (measured here, on `crm`), and the
+  helper asserts only `>= 400`. The real refusal is also a 400, `MODULE_SETTING_READ_ONLY`.
+  CRM's own off-state file therefore writes each of its two settings with the body the
+  Settings screen sends (`{ scope: 'all', value }`), asserts 200 while on, and asserts the
+  refusal **by code** on both axes. The helper is shared by every module's off-state test and
+  is not this feature's to change.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

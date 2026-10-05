@@ -25,3 +25,12 @@ as peers, which every instance already installs.
 **The Quote Requests module is optional for CRM.** It is declared as an edge CRM degrades
 without, so an operator can switch the quote desk off while CRM is on: linked quote requests
 then show as unavailable and count for nothing, and linking one answers `503 MODULE_DISABLED`.
+
+**Opportunities created automatically.** `crm.auto_create_from_orders` and
+`crm.auto_create_from_quote_requests` now do what they say (both stay off by default): a
+placed order, or a quote request a customer submits, gets an opportunity of its own — the
+document's organization, the order's sales channel, the start status, the default assignee,
+`source: "order" | "quote_request"`, a computed value — linked to it with
+`linkSource: "auto"`. Never a second opportunity for one document, and an order placed from a
+linked quote request joins that opportunity instead. `crm.opportunity.created.v1` now carries
+the real `source`. The package names `zod` as a peer, which every instance already installs.

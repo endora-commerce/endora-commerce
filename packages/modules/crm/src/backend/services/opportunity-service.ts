@@ -1,4 +1,10 @@
-import { LockMode, QueryOrder, raw, type FilterQuery } from '@mikro-orm/core';
+import {
+  LockMode,
+  QueryOrder,
+  raw,
+  UniqueConstraintViolationException,
+  type FilterQuery,
+} from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   CRM_EVENTS,
@@ -8,9 +14,11 @@ import {
   type CustomerAccountReadPort,
   type OpportunityCreatedEvent,
   type OpportunityDetail,
+  type OpportunityDocumentKind,
   type OpportunityExcludedDocument,
   type OpportunityLink,
   type OpportunityListQuery,
+  type OpportunitySource,
   type OpportunityStatusRef,
   type OpportunitySummary,
   type OrganizationDetailsPort,
@@ -29,6 +37,7 @@ import {
   type OpportunityStatusGraph,
 } from '../domain/opportunity-status-graph.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
+import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
 import { effectiveOpportunityValue, loadOpportunity } from './opportunity-access.js';
@@ -62,6 +71,24 @@ export interface OpportunityServiceDeps {
   recalculateValue: (opportunityId: string) => Promise<unknown>;
   /** The linked documents a computed value leaves out, and why. */
   excludedDocuments: (opportunity: CrmOpportunity) => Promise<OpportunityExcludedDocument[]>;
+}
+
+/** An Opportunity the system creates for a document that was just placed. */
+export interface AutomaticOpportunityInput {
+  title: string;
+  organizationId: string;
+  currency: string;
+  salesChannelId: string | null;
+  source: Exclude<OpportunitySource, 'manual'>;
+  /** The document it is created for, linked in the same Command. */
+  document: { kind: OpportunityDocumentKind; id: string };
+}
+
+/** What the create Command writes beside the request's own fields. */
+interface CreateOptions {
+  source: OpportunitySource;
+  /** A document linked to the Opportunity in the same transaction (`link_source = 'auto'`). */
+  document?: { kind: OpportunityDocumentKind; id: string };
 }
 
 const FALLBACK_LANGUAGE = 'en';
@@ -179,10 +206,71 @@ export class OpportunityService {
     return this.get(created.id);
   }
 
+  /**
+   * Create an Opportunity for a document that was just placed, **and link the
+   * document in the same Command** (research R-8).
+   *
+   * One transaction is what makes automatic creation idempotent: a document
+   * belongs to at most one Opportunity by a unique constraint, so when the
+   * same event is handled twice — delivered again, or two handlers racing —
+   * the second Command's link is refused and its Opportunity is rolled back
+   * with it. That refusal is the answer `already-linked`, not an error; the
+   * Command reads no other module's port, so nothing else can be mistaken for
+   * it.
+   *
+   * Runs in the caller's scope — a subscriber's system scope — with the
+   * Organization given explicitly. Nobody is the creator, so the default
+   * assignee is the Organization's longest-standing active Sales Rep, and they
+   * are told. A Sales Channel that no longer exists is left out rather than
+   * failing the creation.
+   */
+  async createForDocument(
+    input: AutomaticOpportunityInput,
+  ): Promise<{ id: string; number: string } | 'already-linked'> {
+    const assignedAdminUserId = await this.deps.assignment.resolveDefault(input.organizationId, null);
+    const graph = await this.deps.workflowRead.loadGraph();
+    const initial = this.#initialStatus(graph);
+    const salesChannelId =
+      input.salesChannelId !== null &&
+      (await this.deps.emFactory().count(SalesChannel, { id: input.salesChannelId })) > 0
+        ? input.salesChannelId
+        : null;
+
+    let created: { id: string; organizationId: string; number: string };
+    try {
+      created = await this.deps.commandBus.run(
+        this.#createCommand(
+          {
+            title: input.title.slice(0, 200),
+            organizationId: input.organizationId,
+            currency: input.currency,
+            salesChannelId,
+            assignedAdminUserId,
+            valueMode: 'computed',
+          },
+          initial.code,
+          { source: input.source, document: input.document },
+        ),
+      );
+    } catch (error) {
+      if (error instanceof UniqueConstraintViolationException) return 'already-linked';
+      throw error;
+    }
+    await this.deps.recalculateValue(created.id);
+    await this.deps.assignment.notifyAssigned({
+      opportunityId: created.id,
+      number: created.number,
+      title: input.title,
+      assignedAdminUserId,
+    });
+    return { id: created.id, number: created.number };
+  }
+
   /** The create Command. The id is fixed up front so the audit entry and the row agree. */
   #createCommand(
     input: CreateOpportunityRequest,
     initialStatusCode: string,
+    options: CreateOptions = { source: 'manual' },
   ): Command<{ id: string; organizationId: string; number: string }> {
     const id = randomUUID();
     return {
@@ -209,7 +297,7 @@ export class OpportunityService {
           manualValue: normalizeAmount(input.manualValue),
           currency: input.currency,
           expectedCloseDate: input.expectedCloseDate ?? null,
-          source: 'manual',
+          source: options.source,
           createdByAdminUserId: actor.actorAdminUserId,
         });
         // Written now, not at commit: the history row below names this one
@@ -225,12 +313,26 @@ export class OpportunityService {
           cause: 'created',
         });
         for (const tag of tags) em.create(CrmOpportunityTag, { opportunityId: id, tagId: tag.id });
+        if (options.document) {
+          em.create(CrmOpportunityLink, {
+            opportunityId: id,
+            documentKind: options.document.kind,
+            documentId: options.document.id,
+            syncStatus: true,
+            linkSource: 'auto',
+            linkedByAdminUserId: null,
+          });
+        }
         return {
           result: { id, organizationId: opportunity.organizationId, number: opportunity.number },
           before: null,
           after: {
             ...auditSnapshot(opportunity),
+            source: options.source,
             ...(tags.length > 0 ? { tags: tags.map((tag) => tag.name) } : {}),
+            ...(options.document
+              ? { linkedDocument: { documentKind: options.document.kind, documentId: options.document.id } }
+              : {}),
           },
         };
       },
@@ -241,7 +343,7 @@ export class OpportunityService {
           opportunityId: result.id,
           organizationId: result.organizationId,
           number: result.number,
-          source: 'manual',
+          source: options.source,
         };
         return { eventName: CRM_EVENTS.CREATED, payload };
       },

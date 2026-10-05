@@ -8,6 +8,12 @@ import {
   OrganizationSalesRepAssignment,
 } from './package-entities.js';
 import { SEED_PRODUCT_101_ID } from './seed-catalog.js';
+import {
+  SEED_ADDRESS_BILLING_ID,
+  SEED_ADDRESS_DELIVERY_ID,
+  SEED_DELIVERY_METHOD_ID,
+  SEED_PAYMENT_METHOD_ID,
+} from './seed-commerce.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 import type { BackendServerHandle } from './test-server.js';
 
@@ -513,4 +519,51 @@ export function setCrmCountingStatuses(
     cookies,
     payload: counting,
   });
+}
+
+/**
+ * One Order placed the way a customer places it: a line in the cart, then
+ * `POST /api/v1/orders` — the storefront route, with everything placement does
+ * behind it. Stock is the caller's to provide.
+ */
+export async function placeCrmOrder(h: BackendServerHandle): Promise<{ id: string; businessId: string }> {
+  const added = await h.app.inject({
+    method: 'POST',
+    url: '/api/v1/cart/items',
+    cookies: CRM_CUSTOMER,
+    payload: { productId: SEED_PRODUCT_101_ID, quantity: 1 },
+  });
+  if (added.statusCode !== 200) throw new Error(`placeCrmOrder (cart): ${added.statusCode} ${added.body}`);
+  const placed = await h.app.inject({
+    method: 'POST',
+    url: '/api/v1/orders',
+    cookies: CRM_CUSTOMER,
+    payload: {
+      deliveryAddressId: SEED_ADDRESS_DELIVERY_ID,
+      billingAddressId: SEED_ADDRESS_BILLING_ID,
+      deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+      paymentMethodId: SEED_PAYMENT_METHOD_ID,
+    },
+  });
+  if (placed.statusCode !== 201) throw new Error(`placeCrmOrder: ${placed.statusCode} ${placed.body}`);
+  return (placed.json() as { data: { id: string; businessId: string } }).data;
+}
+
+/**
+ * `PUT /api/v1/admin/settings/:code/value` for every Sales Channel — the write
+ * the Settings screen makes. Returns the raw response for the caller to judge.
+ */
+export function writeCrmSetting(h: BackendServerHandle, code: string, value: unknown) {
+  return h.app.inject({
+    method: 'PUT',
+    url: `/api/v1/admin/settings/${code}/value`,
+    cookies: CRM_ADMIN,
+    payload: { scope: 'all', value },
+  });
+}
+
+/** {@link writeCrmSetting}, failing the test on a refusal. */
+export async function setCrmSetting(h: BackendServerHandle, code: string, value: unknown): Promise<void> {
+  const response = await writeCrmSetting(h, code, value);
+  if (response.statusCode >= 400) throw new Error(`setCrmSetting ${code}: ${response.statusCode} ${response.body}`);
 }

@@ -64,7 +64,8 @@
     "ioredis": "^5",
     "lucide-react": "^1",
     "react": "^19",
-    "react-router-dom": "^7"
+    "react-router-dom": "^7",
+    "zod": "^4"
   },
   "peerDependenciesMeta": {
     "@endora-commerce/admin-kit": {
@@ -96,6 +97,7 @@
     "react": "^19.2.5",
     "react-router-dom": "^7.18.2",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "zod": "^4.2.0"
   }
 }

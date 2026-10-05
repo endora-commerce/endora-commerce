@@ -365,8 +365,8 @@ ekranie **Role**.
 | Ustawienie | Domyślnie | Znaczenie |
 | --- | --- | --- |
 | `crm.enabled` | włączone | Przełącznik opisany powyżej. |
-| `crm.auto_create_from_orders` | wyłączone | *Wkrótce.* Tworzenie szansy dla każdego nowo złożonego zamówienia. |
-| `crm.auto_create_from_quote_requests` | wyłączone | *Wkrótce.* Tworzenie szansy dla każdego nowo przesłanego zapytania ofertowego. |
+| `crm.auto_create_from_orders` | wyłączone | Tworzenie szansy dla każdego nowo złożonego zamówienia — patrz *Szanse tworzone automatycznie*. |
+| `crm.auto_create_from_quote_requests` | wyłączone | Tworzenie szansy dla każdego nowo przesłanego zapytania ofertowego — patrz *Szanse tworzone automatycznie*. |
 
 ## Wkrótce
 
@@ -661,3 +661,46 @@ CRM nie wymaga modułu Zapytań ofertowych. Gdy jest on wyłączony:
 
 Nic nie ginie: po ponownym włączeniu powiązania znów pokazują swoje dokumenty.
 Wartość wyliczana uwzględni zapytania ofertowe przy najbliższym przeliczeniu.
+
+## Szanse tworzone automatycznie
+
+Dwa ustawienia sprawiają, że CRM sam otwiera szansę sprzedażową. Oba są
+domyślnie **wyłączone**.
+
+| Ustawienie | Gdy jest włączone |
+| --- | --- |
+| `crm.auto_create_from_orders` | Każde zamówienie złożone od tej chwili dostaje własną szansę. Ustawienie może być różne dla kanałów sprzedaży; decyduje kanał zamówienia. |
+| `crm.auto_create_from_quote_requests` | Każde Zapytanie ofertowe przesłane przez klienta od tej chwili dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
+
+Szansa utworzona w ten sposób:
+
+- należy do organizacji dokumentu, a w przypadku zamówienia — do kanału
+  sprzedaży zamówienia;
+- zaczyna w statusie początkowym przepływu;
+- jest przypisywana zgodnie z regułą domyślną — do najdłużej przypisanego,
+  aktywnego handlowca organizacji, który dostaje powiadomienie — albo do nikogo,
+  gdy organizacja żadnego nie ma;
+- ma w tytule numer dokumentu i nazwę organizacji;
+- jest powiązana z dokumentem, a jej wartość jest z niego **wyliczana** (patrz
+  *Zapytania ofertowe i wartość wyliczana*), w walucie dokumentu;
+- zapisuje, skąd pochodzi: `source` ma wartość `order` albo `quote_request`.
+
+Co **nie** jest tworzone:
+
+- nic dla dokumentu, który jest już powiązany z szansą;
+- nic dla zamówienia złożonego z zapytania ofertowego powiązanego z szansą —
+  zamówienie dołącza do tej szansy, niezależnie od ustawień;
+- nic dla dokumentów, które istniały przed włączeniem ustawienia;
+- nic, gdy moduł CRM jest wyłączony, i nic później dla dokumentów złożonych w
+  tym czasie;
+- nic dla zapytania ofertowego, które administrator tworzy w Admin UI w
+  imieniu klienta: tylko Zapytanie ofertowe przesłane przez klienta ogłasza się
+  samo. (Zamówienie złożone przez administratora w imieniu klienta jest
+  zamówieniem jak każde inne i dostaje swoją szansę.)
+
+Każdy dokument dostaje co najwyżej jedną szansę, bez względu na to, ile razy
+jego złożenie zostanie ogłoszone.
+
+Szansa dla zapytania ofertowego nie ma kanału sprzedaży, a jej ustawienie jest
+odczytywane dla całej platformy, nie dla kanału: moduł Zapytań ofertowych nie
+publikuje kanału, w którym zapytanie zostało przesłane.

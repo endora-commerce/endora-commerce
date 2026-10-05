@@ -356,8 +356,8 @@ No role receives a CRM permission automatically. Grant them on the
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `crm.enabled` | on | The switch described above. |
-| `crm.auto_create_from_orders` | off | *Coming.* Create an opportunity for every newly placed order. |
-| `crm.auto_create_from_quote_requests` | off | *Coming.* Create an opportunity for every newly submitted quote request. |
+| `crm.auto_create_from_orders` | off | Create an opportunity for every newly placed order — see *Opportunities created automatically*. |
+| `crm.auto_create_from_quote_requests` | off | Create an opportunity for every newly submitted quote request — see *Opportunities created automatically*. |
 
 ## Coming
 
@@ -645,3 +645,47 @@ CRM does not need the Quote Requests module. While it is switched off:
 
 Nothing is lost: switched back on, the links show their documents again. A
 computed value picks the quote requests up again at its next recalculation.
+
+## Opportunities created automatically
+
+Two settings make the CRM open an opportunity by itself. Both are **off** by
+default.
+
+| Setting | When it is on |
+| --- | --- |
+| `crm.auto_create_from_orders` | Every order placed from then on gets an opportunity of its own. The setting can differ per sales channel; the order's channel decides. |
+| `crm.auto_create_from_quote_requests` | Every quote request a customer submits from then on gets an opportunity of its own. Needs the Quote Requests module to be on. |
+
+An opportunity created this way:
+
+- belongs to the document's organization and, for an order, to the order's
+  sales channel;
+- starts in the workflow's start status;
+- is assigned by the default rule — the organization's longest-standing active
+  sales representative, who is notified — or to nobody when the organization
+  has none;
+- is titled with the document's number and the organization's name;
+- is linked to the document, and its value is **computed** from it (see *Quote
+  requests and a computed value*), in the document's currency;
+- records where it came from: `source` is `order` or `quote_request`.
+
+What is **not** created:
+
+- nothing for a document that is already linked to an opportunity;
+- nothing for an order placed from a quote request that is linked to an
+  opportunity — the order joins that opportunity instead, whatever the settings
+  say;
+- nothing for documents that existed before the setting was switched on;
+- nothing while the CRM module is switched off, and nothing afterwards for the
+  documents placed in the meantime;
+- nothing for a quote request an administrator creates in the Admin UI on a
+  customer's behalf: only a quote request submitted by a customer announces
+  itself. (An order an administrator places on a customer's behalf is an order
+  like any other, and gets its opportunity.)
+
+Each document gets at most one opportunity, however many times its placement
+is announced.
+
+An opportunity for a quote request has no sales channel, and its setting is
+read for the whole platform rather than per channel: the Quote Requests module
+does not publish the channel a request was submitted on.
