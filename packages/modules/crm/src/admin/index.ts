@@ -1,5 +1,5 @@
 /**
- * `crm`'s admin surface — six routes and four sidebar rows
+ * `crm`'s admin surface — seven routes and five sidebar rows
  * (`specs/143-crm-sales-opportunities/contracts/admin-surfaces.md` §1–§2).
  *
  * **A sidebar group of its own.** Both rows sit in the host's `crm` section
@@ -7,9 +7,9 @@
  * its position are the shell's, and a module joins it by naming it.
  *
  * **Only what has shipped** — User Story 1's four screens, User Story 7's
- * board and User Story 6's tag list. Analytics adds its route and its row with
- * the story that ships the page — a sidebar or palette entry pointing at a route
- * that does not exist is a defect (Principle XVI).
+ * board, User Story 6's tag list and User Story 13's analytics. A sidebar or
+ * palette entry pointing at a route that does not exist is a defect
+ * (Principle XVI), so each arrived with the story that shipped its page.
  *
  * **This entry exports data and nothing else**; every component is a
  * dynamic-import factory, so none of the screens is in the admin's entry chunk.
@@ -37,10 +37,18 @@ const WRITE_PERMISSION = 'crm:write';
  */
 const CONFIGURE_PERMISSION = 'crm:configure';
 
+/**
+ * The code that opens analytics, and the one every `GET /analytics/*` enforces:
+ * a code of its own, because how the whole team is doing is not shown to
+ * everybody who works an Opportunity.
+ */
+const ANALYTICS_PERMISSION = 'crm:analytics';
+
 const OPPORTUNITIES_PATH = '/crm/opportunities';
 const WORKFLOW_PATH = '/crm/workflow';
 const BOARD_PATH = '/crm/board';
 const TAGS_PATH = '/crm/tags';
+const ANALYTICS_PATH = '/crm/analytics';
 
 export const contributions: AdminContributions = {
   routes: [
@@ -84,6 +92,11 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/TagsPage.js'),
       requiredPermission: CONFIGURE_PERMISSION,
     },
+    {
+      path: ANALYTICS_PATH,
+      component: () => import('./pages/AnalyticsPage.js'),
+      requiredPermission: ANALYTICS_PERMISSION,
+    },
   ],
   nav: [
     {
@@ -103,6 +116,14 @@ export const contributions: AdminContributions = {
       requiredPermission: READ_PERMISSION,
     },
     {
+      to: ANALYTICS_PATH,
+      labelKey: 'nav.analytics.label',
+      icon: 'LineChart',
+      section: 'crm',
+      weight: 300,
+      requiredPermission: ANALYTICS_PERMISSION,
+    },
+    {
       to: TAGS_PATH,
       labelKey: 'nav.tags.label',
       icon: 'Tag',
@@ -115,8 +136,7 @@ export const contributions: AdminContributions = {
       labelKey: 'nav.workflow.label',
       icon: 'ListChecks',
       section: 'crm',
-      // Last of the group: configuration is visited rarely, and the row a
-      // later story adds (analytics 300) sorts before it.
+      // Last of the group: configuration is visited rarely.
       weight: 500,
       requiredPermission: CONFIGURE_PERMISSION,
     },

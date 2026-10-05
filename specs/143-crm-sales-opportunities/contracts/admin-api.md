@@ -228,6 +228,26 @@ All `crm:analytics`, all take `from`, `to` (ISO dates) and optional `salesChanne
 | `GET /analytics/top-opportunities` | `limit` (default 10), `basis` (`created\|closed`) | `OpportunitySummary[]` |
 | `GET /analytics/average-value` | — | `[{ currency, average, count }]` |
 
+What the range selects, per figure (settled while implementing — research N-F2):
+
+- **`from` / `to` are whole days, UTC, both included** — the convention of §1's `createdFrom` /
+  `createdTo`. Months are UTC calendar months. `from` after `to` is 422 `VALIDATION_FAILED`; a
+  malformed query is 400.
+- **handling-time** — Opportunities whose `closedAt` is in the range (so still closed);
+  `averageSeconds` is `closedAt − createdAt`, `null` when nothing closed.
+- **time-in-status** — *stays that began in the range*: from a status-history entry to the next
+  entry of the same Opportunity, or to now for one that has not ended. One row per `statusCode`
+  asked, in the order asked, `{ averageSeconds: null, sampleCount: 0 }` for a status nobody
+  entered; with no `statusCode`, every status of the workflow in its order.
+- **rep-effectiveness** — Opportunities closed as **won** in the range and assigned to
+  somebody, by the calendar month of `closedAt` and the current assignee; ordered by month,
+  then `wonCount` descending. `wonValue` is per currency; a currency with no value is omitted.
+- **top-opportunities** — ranked by effective value **within each currency**: `limit` is per
+  currency (max 100), the answer is ordered by currency and then highest first. `basis`
+  chooses `createdAt` (default) or `closedAt`. An Opportunity with no value is not ranked.
+- **average-value** — Opportunities **created** in the range that have a value, per currency.
+- No figure adds two currencies. Tenant scope is ambient in every statement.
+
 ## 12a. Custom field values (US15)
 
 No new endpoint. `CreateOpportunityRequestSchema` and `UpdateOpportunityRequestSchema` gain an

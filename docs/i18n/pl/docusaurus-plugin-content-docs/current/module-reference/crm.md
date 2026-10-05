@@ -44,6 +44,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 
 | Kod | Etykieta | Wymaga też |
 | --- | --- | --- |
+| `crm:analytics` | View CRM analytics | `crm:read` |
 | `crm:configure` | Configure the CRM workflow and tags | `crm:read` |
 | `crm:read` | View sales opportunities | `orders:read` |
 | `crm:write` | Create and work sales opportunities | `crm:read` |
@@ -53,6 +54,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | Akcja | Otwiera | Uprawnienie |
 | --- | --- | --- |
 | `new-opportunity` | `/crm/opportunities/new` | `crm:write` |
+| `open-crm-analytics` | `/crm/analytics` | `crm:analytics` |
 | `open-opportunities` | `/crm/opportunities` | `crm:read` |
 | `open-opportunity-board` | `/crm/board` | `crm:read` |
 

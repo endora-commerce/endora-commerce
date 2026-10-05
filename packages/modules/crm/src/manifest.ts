@@ -142,6 +142,15 @@ export const manifest = defineModuleManifest({
       module: 'crm',
       requires: ['crm:read'],
     },
+    // A code of its own: how the whole team is doing is not shown to everybody
+    // who works an Opportunity. `crm:read` because the screen names statuses
+    // and offers its Sales Channel and Sales Rep filters from `crm:read` reads.
+    {
+      code: 'crm:analytics',
+      label: 'View CRM analytics',
+      module: 'crm',
+      requires: ['crm:read'],
+    },
   ],
   /**
    * The refusals this module raises, each with its sentence under
@@ -185,9 +194,11 @@ export const manifest = defineModuleManifest({
   ],
   /**
    * The command palette (Principle XVI): the landing surface, the one thing a
-   * Sales Rep starts from it daily, and the board. Curated, not a route dump —
-   * the workflow configuration is reached from the sidebar by the few who
-   * configure it.
+   * Sales Rep starts from it daily, the board, and analytics — the one screen
+   * that opens on a code of its own, so for a manager holding it the palette
+   * would otherwise offer nothing of what that code is for. Curated, not a
+   * route dump — the workflow configuration is reached from the sidebar by the
+   * few who configure it.
    *
    * Each `requiredPermission` is the code the target route itself enforces
    * (`src/admin/index.ts`), so the palette never advertises a screen the
@@ -223,6 +234,16 @@ export const manifest = defineModuleManifest({
       requiredPermission: 'crm:read',
       keywords: ['crm', 'opportunity', 'board', 'kanban', 'pipeline', 'szansa', 'tablica', 'lejek'],
       weight: 322,
+    },
+    {
+      id: 'open-crm-analytics',
+      labelKey: 'actions.openCrmAnalytics.label',
+      descriptionKey: 'actions.openCrmAnalytics.description',
+      icon: 'LineChart',
+      targetRoute: '/crm/analytics',
+      requiredPermission: 'crm:analytics',
+      keywords: ['crm', 'analytics', 'report', 'statistics', 'sales rep', 'analityka', 'raport', 'handlowiec'],
+      weight: 323,
     },
   ],
   i18n: { bundlesDir: 'i18n' },

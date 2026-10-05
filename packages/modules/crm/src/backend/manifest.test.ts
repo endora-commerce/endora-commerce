@@ -20,11 +20,12 @@ describe('crm manifest', () => {
     }
   });
 
-  it('declares the three permissions a route enforces today, grouped under the module', () => {
+  it('declares the four permissions a route enforces today, grouped under the module', () => {
     expect(manifest.permissions).toEqual([
       { code: 'crm:read', label: 'View sales opportunities', module: 'crm', requires: ['orders:read'] },
       { code: 'crm:write', label: 'Create and work sales opportunities', module: 'crm', requires: ['crm:read'] },
       { code: 'crm:configure', label: 'Configure the CRM workflow and tags', module: 'crm', requires: ['crm:read'] },
+      { code: 'crm:analytics', label: 'View CRM analytics', module: 'crm', requires: ['crm:read'] },
     ]);
   });
 

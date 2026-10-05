@@ -59,6 +59,11 @@ describe('crm off-state (Constitution XVII)', () => {
   const REGISTERED: ReadonlyArray<{ method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE'; route: string; payload?: unknown }> = [
     { method: 'GET', route: `${API}/workflow` },
     { method: 'GET', route: `${API}/board` },
+    { method: 'GET', route: `${API}/analytics/handling-time` },
+    { method: 'GET', route: `${API}/analytics/time-in-status` },
+    { method: 'GET', route: `${API}/analytics/rep-effectiveness` },
+    { method: 'GET', route: `${API}/analytics/top-opportunities` },
+    { method: 'GET', route: `${API}/analytics/average-value` },
     { method: 'GET', route: `${API}/lookups/organizations` },
     { method: 'GET', route: `${API}/lookups/sales-channels` },
     { method: 'GET', route: `${API}/lookups/assignees` },
@@ -157,7 +162,7 @@ describe('crm off-state (Constitution XVII)', () => {
       // manifests, against the effective enabled-set — no admin-side test can
       // see it. Positive control first: a registry answering nothing to anybody
       // would otherwise pass.
-      const declared = ['new-opportunity', 'open-opportunities', 'open-opportunity-board'];
+      const declared = ['new-opportunity', 'open-crm-analytics', 'open-opportunities', 'open-opportunity-board'];
       expect(await paletteActionIds()).toEqual(declared);
       await withModuleOff('crm', axis, async () => {
         expect(await paletteActionIds()).toEqual([]);

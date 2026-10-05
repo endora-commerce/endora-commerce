@@ -326,6 +326,17 @@ export class OpportunityService {
     };
   }
 
+  /**
+   * The list's rendering of rows a caller has **already read through the scoped
+   * EntityManager** — what lets another read of this module (analytics' most
+   * valuable Opportunities) answer the same card the list does, without
+   * restating how a status, an assignee or a value is rendered.
+   */
+  async summarize(rows: readonly CrmOpportunity[]): Promise<OpportunitySummary[]> {
+    if (rows.length === 0) return [];
+    return this.#summaries(rows, await this.deps.workflowRead.loadGraph(this.deps.emFactory()));
+  }
+
   async get(id: string): Promise<OpportunityDetail> {
     const em = this.deps.emFactory();
     const opportunity = await loadOpportunity(em, id);

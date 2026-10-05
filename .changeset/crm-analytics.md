@@ -23,3 +23,24 @@ Nothing here changes behaviour a released version had.
 - **The Attachments tab offers *Add a file* to every holder of `crm:write`**, by button or by
   dropping a file, and no longer asks for `assets.write`. `@endora-commerce/mod-crm` gains
   `@fastify/multipart` as a peer dependency.
+
+**CRM analytics.**
+
+- **Five reads under `/api/v1/admin/crm/analytics/`**, each gated by the new permission
+  **`crm:analytics`** and taking `from`, `to` (`YYYY-MM-DD`, both included, UTC) and optional
+  `salesChannelId`, `assignedAdminUserId`: `handling-time` (creation to closing, over the
+  opportunities closed in the range, with won and lost apart), `time-in-status` (average
+  length of the stays that began in the range, per status; `statusCode` repeats),
+  `rep-effectiveness` (opportunities closed as won per calendar month and assignee, with
+  their value per currency), `top-opportunities` (`OpportunitySummary` rows, the highest
+  values per currency; `limit` is per currency, `basis` is `created` or `closed`) and
+  `average-value` (per currency, over the opportunities created in the range). Amounts in
+  different currencies are never added. Figures are computed live, each from one grouped
+  statement, and are confined to the organizations the caller may see. A range that ends
+  before it begins answers 422.
+- **A new screen, CRM → Analytics** (`/crm/analytics`), with a sidebar row between *Board* and
+  *Tags* and a command-palette action, `open-crm-analytics`. Two figures are drawn as charts
+  through the design system's `EChart`; each chart has a table of the same numbers under it.
+- The request and response schemas of these reads were already exported from
+  `@endora-commerce/contracts`; they are served now.
+

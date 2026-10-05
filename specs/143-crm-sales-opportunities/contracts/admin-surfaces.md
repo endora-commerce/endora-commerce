@@ -55,10 +55,13 @@ Analytics / Analityka, Tags / Etykiety, Workflow / Statusy i przepływ.
 | `open-opportunities` | `/crm/opportunities` | `crm:read` | `CircleDollarSign` | 320 | US1 |
 | `new-opportunity` | `/crm/opportunities/new` | `crm:write` | `PlusCircle` | 321 | US1 |
 | `open-opportunity-board` | `/crm/board` | `crm:read` | `PanelLeft` | 322 | US7 |
+| `open-crm-analytics` | `/crm/analytics` | `crm:analytics` | `LineChart` | 323 | US13 |
 
 Keys `actions.<camelId>.label` / `.description` in both bundles; keywords in both languages
-(`crm`, `opportunity`, `pipeline`, `szansa`, `sprzedaż`, `lejek`). Three entries, deliberately:
-the landing surface and the two things a Sales Rep does daily.
+(`crm`, `opportunity`, `pipeline`, `szansa`, `sprzedaż`, `lejek`). Four entries, deliberately:
+the landing surface, the two things a Sales Rep does daily, and — added with User Story 13 —
+analytics, the one screen that opens on a code of its own: for a manager holding
+`crm:analytics` the palette would otherwise offer nothing that code is for (research N-F2).
 `check:action-route-permissions` holds each code to the one enforced on its route.
 
 ## 4. Permissions (manifest `permissions`)

@@ -21,6 +21,7 @@ import {
   type ModuleContext,
   type RequireAdminFactory,
 } from '@endora-commerce/platform/kernel';
+import { registerCrmAnalyticsRoutes } from './routes/routes.analytics.js';
 import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
 import { registerCrmAttachmentUploadRoutes } from './routes/routes.attachment-upload.js';
 import { registerCrmAttachmentRoutes } from './routes/routes.attachments.js';
@@ -32,6 +33,7 @@ import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
 import { registerCrmTagRoutes } from './routes/routes.tags.js';
 import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
+import { AnalyticsService } from './services/analytics-service.js';
 import { BoardService } from './services/board-service.js';
 import { registerCrmAssetReferences } from './services/crm-asset-references.js';
 import { CrmLookupService } from './services/crm-lookup-service.js';
@@ -445,6 +447,34 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
   // --- end of Attachment upload -------------------------------------------------
+
+  // --- Analytics (User Story 13) -----------------------------------------------
+  // Five figures over a range of days, each one grouped statement constrained
+  // to the Organizations the caller reaches. The most valuable Opportunities
+  // are rendered by the list's own renderer, handed in as a function, so a row
+  // there is the card the list shows. One service, one `ctx.routes` under the
+  // module's own `crm:analytics`, this one section.
+  ctx.di.register({
+    crmAnalyticsService: ctx
+      .asFunction(
+        ({ emFactory, crmWorkflowReadService, crmOpportunityService }: CrmCradle) =>
+          new AnalyticsService({
+            emFactory,
+            workflowRead: crmWorkflowReadService,
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            summarize: (rows) => crmOpportunityService.summarize(rows),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<CrmCradle & { readonly crmAnalyticsService: AnalyticsService }>();
+    await registerCrmAnalyticsRoutes(app, {
+      analyticsService: cradle.crmAnalyticsService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of Analytics --------------------------------------------------------
 
   // --- Routes ----------------------------------------------------------------
   // All through `ctx.routes`, so every one of them stops with the module.

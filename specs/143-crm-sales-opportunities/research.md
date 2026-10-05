@@ -1893,6 +1893,135 @@ when it was measured, and what was done about it.
   `lib/upload-attachment.ts`, which posts multipart with `fetch` — the kit's client is
   JSON-only — and throws the client's own `ApiError` so the server's sentence is shown.
   `attachments.uploadNotAllowed` is gone.
+- **N-F2 (2026-10-06, T129–T133) — analytics: what R-18 and §12 left open, and what was
+  measured.** New files only — `services/analytics-service.ts`, `routes/routes.analytics.ts`,
+  one delimited section of `index.ts` (`compose/analytics.ts` does not exist, N-6) — plus the
+  one edit named in (g).
+  (a) **What a range selects is a decision per figure**, and R-18's table does not make it.
+  *Handling time* and the *rep ranking* go by `closed_at` (R-18 says so); *average value* goes
+  by `created_at` — "in range" in R-18, and the creation date is the only one every valued
+  Opportunity has; *most valuable* by either (`basis`); *time in status* counts the **stays
+  that began in the range**, each from its history row to the next row of the same Opportunity
+  (`lead(changed_at)` over the Opportunity's whole history, so a stay that began in the range
+  and ended after it is measured in full) or to `now()` for one that has not ended — T129's
+  "an Opportunity still in the status". All of it is written into `contracts/admin-api.md`
+  §12 and the module page.
+  (b) **"The platform's time zone" does not exist.** `spec.md` assumes "a month is a calendar
+  month in the platform's time zone"; no setting, constant or environment input in the tree
+  names one (searched `time_zone|timezone` over the platform package and every manifest).
+  Days and months are therefore **UTC** — what `GET /opportunities` already does with
+  `createdFrom` / `createdTo` — and the screen and the page say so. An operator in Warsaw sees
+  an Opportunity closed at 00:30 on the 1st counted in the month before. Reported for a
+  decision: a platform time-zone setting is a host change, not this story's.
+  (c) **`top-opportunities` ranks within each currency, and `limit` is per currency.** The
+  contract draws a flat `OpportunitySummary[]` with `limit` 10. A single ranking over PLN and
+  EUR amounts compares numbers that are not comparable, and the owner's rule is that
+  currencies are never mixed; so the statement is `row_number() over (partition by currency
+  order by value desc, number)` and the answer — still a flat array of the same schema — is
+  ordered by currency, then highest first. A reading of `limit` the contract did not state;
+  §12 now does.
+  (d) **The rep is the current assignee**, read off the Opportunity at the time of asking, not
+  whoever held it when it was won — the status history records who moved it, not who held it.
+  An Opportunity won while assigned to nobody is in no row (`adminUser` is not nullable in
+  the schema); it is still in the handling time and in the lists. A currency in which a rep's
+  won Opportunities carry no value is omitted from `wonValue`, as the board omits it.
+  (e) **Tenant scope is written into every statement** from `orgConstraintFor()` — the model
+  T131 names — because these are aggregates handed to the connection, which the entity filter
+  never sees; the predicate builder is exported and the service refuses to run a statement for
+  a reader who reaches no Organization. The status history is only ever read joined to its
+  Opportunity (N-15). `top-opportunities` reads its ranked ids **again** through the scoped
+  EntityManager before rendering, so the filter has the last word. Proven with a Sales
+  Representative confined to one Organization against the platform administrator as the
+  positive control, figure by figure, each against a hand computation
+  (`analytics.test.ts`, whose header carries the fixture and the arithmetic).
+  (f) **The effective value is stated a third time.** `data-model.md` defines it as one SQL
+  expression; the list (`opportunity-service.ts`) and the board (`board-service.ts`) each hold
+  a private copy and neither file exports it. Analytics has the same expression under one
+  name (`EFFECTIVE_VALUE`) and reads `computed_value` as stored — whatever maintains it. One
+  exported fragment for all three is the tidy-up after the value story merges; it was not
+  made here because both other files are being edited on a sibling branch.
+  (g) **One edit outside the new files: `OpportunityService.summarize(rows)`**, eleven lines
+  between `list` and `get`. The contract answers `OpportunitySummary[]` for the most valuable
+  Opportunities, the renderer is the service's private `#summaries`, and `list` cannot be asked
+  for "these ids" or "closed between". The alternatives were a second copy of the rendering
+  (status label, assignee marker, tags, value) in the analytics service, which would drift
+  with the next field, or N calls to `get` — an N+1 by construction. The method renders rows
+  the caller has already read through the scoped EntityManager and decides nothing.
+  (h) **Cost (SC-007), measured** on the test harness (`app.inject`, this worktree's Postgres,
+  ten Organizations, eight reps, four history rows per Opportunity, twelve requests each with
+  the first two discarded; statements counted off the ORM's query log, less the seven the
+  request pipeline issues for a platform administrator and eleven for a confined one):
+  | Endpoint | Statements | Median, 300 in the month | Median, 1 000 in the month |
+  | --- | --- | --- | --- |
+  | `handling-time` | 1 | 10 ms | 9 ms |
+  | `time-in-status`, statuses selected | 1 | 15 ms | 17 ms |
+  | `time-in-status`, every status | 3 (two read the workflow) | 16 ms | 20 ms |
+  | `rep-effectiveness` | 3 (one aggregate, the names through `adminUserReadPort`) | 12 ms | 10 ms |
+  | `top-opportunities` (10 per currency) | 10 (the ranking, the scoped re-read, the list's renderer) | 22 ms | 20 ms |
+  | `top-opportunities`, `limit=100`, `basis=closed` | 10 | 32 ms (92 kB) | 37 ms (118 kB) |
+  | `average-value` | 1 | 8 ms | 8 ms |
+  The worst single request of the run was 45 ms; a confined manager's figures were within 3 ms
+  of the administrator's. `analytics.test.ts` holds the part a loaded machine cannot move:
+  each endpoint issues the same number of statements after sixty more Opportunities as
+  before. **[unverified]**: a cold database, a real network, a history table of millions of
+  rows (the stay window is narrowed to Opportunities with a change in the range, which the
+  `changed_at` index serves, and was not measured at that size), and an allowed set of
+  hundreds of Organizations.
+  (i) **`crm:analytics` is declared with its first gate** (`contracts/admin-surfaces.md` §4),
+  `requires: ['crm:read']`: the screen names statuses from `GET /workflow` and offers its two
+  pickers from `/lookups/*`, all `crm:read`. The five reads ask for `crm:analytics` alone, and
+  the contract test gives a role holding every *other* CRM code 403. A role holding the
+  analytics code and not `crm:read` still gets every figure; statuses are then shown by code
+  and the pickers say they could not be read.
+  (j) **A fourth palette action, `open-crm-analytics`.** §3 said "three entries, deliberately";
+  the coordinator's brief for this story asked for the action, and the argument for it is
+  that the screen opens on a code of its own — for a manager holding it, the palette offered
+  nothing that code is for. §3, the off-state test's exact list and the package's declaration
+  test follow.
+  (k) **On the screen.** One set of filters (range presets and two dates, Sales Channel, Sales
+  Rep — CRM's own lookup pickers, N-D4) and five independent reads, each in a region named by
+  its heading with its own loading, empty and failed state; a change applies at once. Two
+  charts through the kit's `EChart` (time in status, the rep ranking), each `aria-hidden`
+  above a table of the same numbers; the other three figures are text and tables. `mod-crm`
+  does not import `echarts` — the option is typed through the kit's `EChartProps` — so it
+  gains no peer. A chart is a canvas and knows no custom property, so its colours are read off
+  the theme's tokens (`--foreground`, `--muted-foreground`, `--border`, `--primary`) and read
+  again when the root's class changes; a bar of time-in-status takes its status's own colour,
+  with the status named on the axis. **The shell has no theme switch** — `theme.css` defines
+  `.dark` and nothing sets it — so dark was looked at by setting the class by hand. Durations
+  and months are formatted by `Intl` (unit and plural form in the language on screen), and a
+  count follows a colon so no Polish plural is hand-written.
+- **N-F3 (2026-10-06, T182 / T132) — the upload and the analytics screen, walked in a
+  browser.** N-30's arrangement (headless Chromium, the admin's Vite dev server serving the
+  module's `dist`, the backend test composition on a throw-away `_test` database of this
+  worktree's Postgres, created and dropped with its template), seeded with 46 Opportunities
+  created from June to September 2026 in two currencies, three Organizations and four reps.
+  **Attachments, as a role holding `crm:read`, `crm:write`, `orders:read` — 17 of 17**: *Add a
+  file* offered and the hint naming 25 MB; one `201 POST …/attachments/upload` and no request
+  to `/api/v1/admin/assets`; the file listed with size and uploader and announced; *Download*
+  re-reading the list and opening the signed link, whose bytes were the uploaded bytes; a
+  25 MB + 1 byte file refused on screen and not sent; removal; a file dropped on the dashed
+  area uploaded the same way; at 390 px the button 44 px tall and no sideways scroll.
+  **Analytics — 27 of 27**: the sidebar row between *Board* and *Tags*; the palette action;
+  the five reads for the current month, then for *This year*; won and lost apart; the average
+  per currency; two canvases, each `aria-hidden` with its table; a table per currency for the
+  most valuable; two statuses selected asking that one figure only; the Sales Rep filter
+  narrowing all five; the closing-date basis; a range ending before it begins asking for
+  nothing; the filters reached by keyboard in reading order; a manager confined to one
+  Organization shown that Organization's Opportunities only; a role without `crm:analytics`
+  offered no row and asking for no figure; no failed request, no console error.
+  **Polish — 8 of 8**, with no key and no English sentence left on either screen.
+  **One defect found and fixed:** at 390 px each chart was 478 px wide inside a 324 px card —
+  a grid item is as wide as its widest content, and the tables' minimum width set it. The
+  cards are `min-w-0` now and the charts measure 324 px; the page never scrolled sideways,
+  so only the measurement showed it. The native filter controls are 44 px tall on a phone;
+  the two lookup pickers are the kit's `Combobox` at 36 px, as on every other CRM screen.
+  **Seen and not this story's:** with `.dark` set by hand the cards, the tables and the
+  charts take the dark tokens and the page background behind them stays light — the shell
+  has no dark theme to switch to; a currency is formatted by its own locale (`31.220,00 €`
+  beside `26 398,53 zł`), which is `formatMoney`'s rule everywhere; and the attachment table
+  of T081 breaks a long file name letter by letter at 390 px. Not verified by eye: a real
+  screen reader, a physical touch device, zoom at 200 %.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

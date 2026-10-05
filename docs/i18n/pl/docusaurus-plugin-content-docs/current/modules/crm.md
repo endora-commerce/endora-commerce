@@ -52,12 +52,13 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
 | Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Jej status i zmiany, na które pozwala przepływ, powiązane z nią zamówienia oraz to, co stało się z tymi zamówieniami po każdej zmianie. |
 | Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
+| Analityka | **CRM → Analityka** (`/crm/analytics`) | `crm:analytics` | Pięć wskaźników dla wybranego zakresu dni: czas obsługi, czas w każdym statusie, najskuteczniejsi handlowcy, najcenniejsze szanse i średnia wartość. |
 | Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
 | Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy oraz status szansy, do którego prowadzi każdy status zamówienia. |
 
 Codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
-**Szanse sprzedażowe**, **Nowa szansa sprzedażowa** i **Tablica szans
-sprzedażowych**.
+**Szanse sprzedażowe**, **Nowa szansa sprzedażowa**, **Tablica szans
+sprzedażowych** i **Analityka CRM**.
 
 Pierwsze przejście przez moduł, od początku do końca:
 
@@ -560,6 +561,56 @@ do szansy niedostępnej dla pytającej osoby — jest odrzucany jak plik, który
 istnieje. Jeśli plik zniknął z biblioteki mediów, jego załącznik nadal jest na
 liście, pod dawną nazwą, bez odnośnika.
 
+## Analityka
+
+Ekran **CRM → Analityka** pokazuje, jak przebiegały szanse sprzedażowe w
+wybranym zakresie dni. Otwiera się dla roli z uprawnieniem `crm:analytics`.
+
+Wybierz zakres — bieżący miesiąc, poprzedni miesiąc, ostatnie 90 dni, bieżący
+rok albo dwie własne daty — oraz, jeśli chcesz, jeden kanał sprzedaży i jednego
+handlowca. Wszystkie wskaźniki są od razu przeliczane. Kierownik, który ma
+dostęp tylko do wybranych organizacji, dostaje wskaźniki wyłącznie dla nich.
+
+| Wskaźnik | Co oznacza | Które szanse są liczone |
+| --- | --- | --- |
+| Średni czas obsługi szansy | Średni czas od utworzenia szansy do jej zamknięcia. Podawany łącznie dla wszystkich zamkniętych szans oraz osobno dla wygranych i przegranych. | Zamknięte w wybranym zakresie. Szansa otwarta ponownie nie jest liczona, dopóki nie zostanie znów zamknięta. |
+| Średni czas w statusie | Jak długo szansa pozostaje w statusie: od zmiany, która ją do niego wprowadziła, do jej następnej zmiany — średnio dla każdego wejścia w ten status. Szansa, która nadal jest w statusie, jest liczona do chwili obecnej. Można wybrać pokazywane statusy albo zobaczyć wszystkie. | Każde wejście w status, które nastąpiło w wybranym zakresie. |
+| Najskuteczniejsi handlowcy | Ile szans każdy handlowiec zamknął jako wygrane i ile były warte — za cały zakres oraz miesiąc po miesiącu. Handlowiec to osoba, do której szansa jest przypisana. | Zamknięte jako wygrane w wybranym zakresie i przypisane do kogoś. |
+| Najcenniejsze szanse | Dziesięć szans o najwyższej wartości, każda z odnośnikiem do szansy. Można wybrać, czy zakres dotyczy daty utworzenia, czy daty zamknięcia. | Utworzone — albo zamknięte — w wybranym zakresie i mające wartość. |
+| Średnia wartość szansy | Średnia wartość szansy sprzedażowej. | Utworzone w wybranym zakresie i mające wartość. |
+
+**Kwoty w różnych walutach nigdy nie są sumowane.** Platforma nie ma kursów
+walut, dlatego każdy wskaźnik dotyczący wartości jest podawany osobno dla
+każdej waluty: średnia dla każdej waluty, lista najcenniejszych szans dla
+każdej waluty oraz wartość wygranych szans handlowca dla każdej waluty.
+
+**Wartość** szansy to ta, która jest na niej pokazana: kwota wpisana ręcznie
+albo — gdy szansa ma wartość obliczaną — kwota obliczona z powiązanych z nią
+dokumentów.
+
+**Dni i miesiące są liczone w czasie UTC**, a zakres obejmuje obie swoje daty
+w całości.
+
+Czas w statusie i ranking handlowców są przedstawione na wykresach. Pod każdym
+wykresem jest tabela z tymi samymi liczbami, więc żadna informacja nie jest
+podana wyłącznie na wykresie.
+
+Wskaźniki są obliczane w chwili, gdy ekran o nie pyta; nic nie jest zapisywane
+z wyprzedzeniem.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/analytics/handling-time` | `crm:analytics` | `averageSeconds` i `closedCount` oraz ta sama para dla `won` i dla `lost`. |
+| `GET /api/v1/admin/crm/analytics/time-in-status` | `crm:analytics` | Wiersz dla każdego statusu: `statusCode`, `averageSeconds`, `sampleCount`. Powtórzony parametr `statusCode=` wybiera statusy; bez niego — wszystkie statusy przepływu w jego kolejności. |
+| `GET /api/v1/admin/crm/analytics/rep-effectiveness` | `crm:analytics` | Wiersz dla każdego miesiąca kalendarzowego i handlowca: `month` (`YYYY-MM`), `adminUser`, `wonCount` oraz `wonValue` dla każdej waluty. |
+| `GET /api/v1/admin/crm/analytics/top-opportunities` | `crm:analytics` | Szanse o najwyższej wartości: `limit` (domyślnie 10, najwyżej 100) **dla każdej waluty**, w kolejności walut, a potem od najwyższej. `basis=created`, o ile nie podano `basis=closed`. |
+| `GET /api/v1/admin/crm/analytics/average-value` | `crm:analytics` | Wiersz dla każdej waluty: `currency`, `average`, `count`. |
+
+Każdy punkt przyjmuje `from` i `to` (`YYYY-MM-DD`) oraz opcjonalnie
+`salesChannelId` i `assignedAdminUserId`. Dla zakresu, który kończy się przed
+swoim początkiem, odpowiedzią jest 422. Wskaźnik, dla którego nie ma czego
+uśredniać, ma wartość `null`, a nie zero.
+
 ## Własna logika przy zmianie statusu
 
 Inny moduł — zwykle moduł nakładkowy danego wdrożenia — może zareagować na
@@ -636,10 +687,13 @@ dokładnie do poprzedniego stanu.
 | `crm:read` | Przeglądanie szans sprzedażowych, tablicy, przepływu statusów i listy etykiet; czytanie notatek i wiadomości szansy oraz pobieranie jej załączników. |
 | `crm:write` | Tworzenie i edycja szans, przenoszenie ich w przepływie, przypisywanie handlowca, nadawanie etykiet, wiązanie i odłączanie zamówień, ponawianie lub pomijanie odmowy zmiany zamówienia, pisanie notatek i wiadomości, przesyłanie, dodawanie i usuwanie załączników. |
 | `crm:configure` | Zmiana przepływu — statusów, przejść i mapowań statusów zamówień w obu kierunkach — zarządzanie listą etykiet oraz usuwanie szansy. |
+| `crm:analytics` | Otwieranie ekranu Analityka i odczyt jego pięciu wskaźników. |
 
 Rola z uprawnieniem `crm:read` powinna mieć także `orders:read`: szansa
 pokazuje powiązane z nią zamówienia, a te są odczytywane z modułu Zamówienia.
-Uprawnienia `crm:write` i `crm:configure` opierają się na `crm:read`.
+Uprawnienia `crm:write`, `crm:configure` i `crm:analytics` opierają się na
+`crm:read`: ekran Analityka nazywa statusy i podpowiada filtry kanału sprzedaży
+oraz handlowca na podstawie tego, co odczytuje `crm:read`.
 
 **Nic więcej nie jest potrzebne.** Pola wyboru organizacji, kanału sprzedaży,
 handlowca i osoby kontaktowej — w filtrach listy i tablicy oraz w formularzach
@@ -676,5 +730,3 @@ ekranie **Role**.
 - Automatyczne tworzenie szansy dla nowego zamówienia albo zapytania
   ofertowego.
 - Historia zmian każdej szansy.
-- Analityka: czas obsługi, czas w poszczególnych statusach, wyniki
-  handlowców.

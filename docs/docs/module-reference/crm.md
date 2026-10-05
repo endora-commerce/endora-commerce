@@ -44,6 +44,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 
 | Code | Label | Also needs |
 | --- | --- | --- |
+| `crm:analytics` | View CRM analytics | `crm:read` |
 | `crm:configure` | Configure the CRM workflow and tags | `crm:read` |
 | `crm:read` | View sales opportunities | `orders:read` |
 | `crm:write` | Create and work sales opportunities | `crm:read` |
@@ -53,6 +54,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | Action | Opens | Permission |
 | --- | --- | --- |
 | `new-opportunity` | `/crm/opportunities/new` | `crm:write` |
+| `open-crm-analytics` | `/crm/analytics` | `crm:analytics` |
 | `open-opportunities` | `/crm/opportunities` | `crm:read` |
 | `open-opportunity-board` | `/crm/board` | `crm:read` |
 

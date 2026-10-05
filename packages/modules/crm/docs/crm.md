@@ -53,11 +53,13 @@ when at least one of them is visible.
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
 | An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, the orders linked to it, and what became of those orders after each move. |
 | Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
+| Analytics | **CRM → Analytics** (`/crm/analytics`) | `crm:analytics` | Five figures over a range of days: handling time, time in each status, the most effective sales reps, the most valuable opportunities and the average value. |
 | Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
 | Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, and the opportunity status each order status leads to. |
 
 The everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
-**Sales opportunities**, **New sales opportunity** and **Opportunity board**.
+**Sales opportunities**, **New sales opportunity**, **Opportunity board** and
+**CRM analytics**.
 
 A first walk through the module, start to finish:
 
@@ -540,6 +542,55 @@ asking may not see — is refused as one that does not exist. If a file has gone
 missing from the media library, its attachment is still listed, under the name
 it had, with no link.
 
+## Analytics
+
+**CRM → Analytics** shows how the opportunities of a chosen range of days
+went. It opens for a role that holds `crm:analytics`.
+
+Choose the range — this month, last month, the last 90 days, this year, or two
+dates of your own — and, if you wish, one sales channel and one sales rep.
+Every figure is recomputed at once. A manager restricted to a set of
+organizations gets figures over those organizations only.
+
+| Figure | What it is | Which opportunities count |
+| --- | --- | --- |
+| Average handling time | The time from creating an opportunity to closing it, averaged. Given for every closed opportunity together, and for won and lost apart. | Those closed in the range. An opportunity that was reopened is not counted until it is closed again. |
+| Average time in status | How long an opportunity stays in a status: from the change that put it there to its next change, averaged over every time the status was entered. An opportunity that is still in the status is counted up to now. Choose the statuses to show, or see them all. | Every entry into the status that happened in the range. |
+| Most effective sales reps | How many opportunities each sales rep closed as won, and what they were worth — for the whole range, and month by month. The sales rep is the person the opportunity is assigned to. | Those closed as won in the range and assigned to somebody. |
+| Most valuable opportunities | The ten opportunities with the highest value, each a link to the opportunity. Choose whether the range goes by the creation date or by the closing date. | Those created — or closed — in the range that have a value. |
+| Average opportunity value | The mean value of an opportunity. | Those created in the range that have a value. |
+
+**Amounts in different currencies are never added together.** The platform has
+no exchange rate, so every figure about value is given per currency: an average
+for each currency, a list of the most valuable opportunities for each currency,
+and each sales rep's won value for each currency.
+
+The **value** of an opportunity is the one shown on it: the amount entered by
+hand, or — when the opportunity is set to be computed — the amount computed
+from its linked documents.
+
+**Days and months are counted in UTC**, and a range includes both of its dates
+in full.
+
+Time in status and the ranking of sales reps are drawn as charts. Each chart
+has a table under it with the same numbers, so nothing is said by a chart
+alone.
+
+The figures are computed at the moment the screen asks for them; nothing is
+stored in advance.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/analytics/handling-time` | `crm:analytics` | `averageSeconds` and `closedCount`, and the same pair for `won` and for `lost`. |
+| `GET /api/v1/admin/crm/analytics/time-in-status` | `crm:analytics` | A row per status: `statusCode`, `averageSeconds`, `sampleCount`. Repeat `statusCode=` to choose statuses; without it, every status of the workflow in its order. |
+| `GET /api/v1/admin/crm/analytics/rep-effectiveness` | `crm:analytics` | A row per calendar month and sales rep: `month` (`YYYY-MM`), `adminUser`, `wonCount`, and `wonValue` per currency. |
+| `GET /api/v1/admin/crm/analytics/top-opportunities` | `crm:analytics` | The opportunities with the highest value: `limit` (10 unless given, 100 at most) **for each currency**, ordered by currency and then highest first. `basis=created` unless `basis=closed`. |
+| `GET /api/v1/admin/crm/analytics/average-value` | `crm:analytics` | A row per currency: `currency`, `average`, `count`. |
+
+Each takes `from` and `to` (`YYYY-MM-DD`) and, optionally, `salesChannelId` and
+`assignedAdminUserId`. A range that ends before it begins answers 422. A
+figure with nothing to average answers `null`, not zero.
+
 ## Adding your own logic to a status change
 
 Another module — typically a per-deployment overlay module — can react to an
@@ -617,10 +668,13 @@ when the module is switched on again.
 | `crm:read` | View sales opportunities, the board, the status workflow and the tag list; read an opportunity's notes and messages and download its attachments. |
 | `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders, retry or dismiss a refused order change, write notes and messages, upload, add and remove attachments. |
 | `crm:configure` | Change the workflow — statuses, transitions and order-status mappings in both directions — manage the tag list, and delete an opportunity. |
+| `crm:analytics` | Open the Analytics screen and read its five figures. |
 
 A role that holds `crm:read` should also hold `orders:read`: an opportunity
 shows the orders linked to it, and those are read from the Orders module.
-`crm:write` and `crm:configure` each build on `crm:read`.
+`crm:write`, `crm:configure` and `crm:analytics` each build on `crm:read`:
+the Analytics screen names statuses and offers its sales channel and sales rep
+filters from what `crm:read` reads.
 
 **Nothing else is needed.** The fields that choose an organization, a sales
 channel, an assignee or a contact person — in the filters of the list and the
@@ -655,5 +709,3 @@ No role receives a CRM permission automatically. Grant them on the
 - Linking quote requests, and a value computed from the linked documents.
 - Creating an opportunity automatically for a new order or quote request.
 - A change history for every opportunity.
-- Analytics: handling time, time in each status, results by sales
-  representative.
