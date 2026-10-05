@@ -153,6 +153,7 @@ export const manifest = defineModuleManifest({
         'transition_unknown_status',
         'mapping_unknown_status',
         'mapping_duplicate',
+        'mapping_duplicate_order_status',
       ],
     },
   ],

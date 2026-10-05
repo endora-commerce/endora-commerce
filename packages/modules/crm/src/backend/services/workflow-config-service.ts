@@ -326,28 +326,28 @@ export class WorkflowConfigService {
         const codes = new Set((await em.find(CrmOpportunityStatus, {})).map((status) => status.code));
         const seen = new Set<string>();
         for (const mapping of input.mappings) {
-          if (mapping.direction !== 'opportunity_to_order') {
-            // The reverse direction — an Order's status moving its Opportunity —
-            // lands with its subscriber; accepting a mapping nothing acts on
-            // would be configuration that silently does nothing.
-            throw new HttpError(
-              422,
-              ERROR_CODES.VALIDATION_FAILED,
-              'Mappings from an order status to an opportunity status are not available yet.',
-            );
-          }
           if (!codes.has(mapping.opportunityStatusCode)) {
             throw workflowInvalid(
               'mapping_unknown_status',
               `A mapping names an opportunity status that is not configured: ${mapping.opportunityStatusCode}.`,
             );
           }
-          const key = `${mapping.direction}:${mapping.opportunityStatusCode}`;
+          // Uniqueness is per direction, on the side the mapping is read from:
+          // one Order status per Opportunity status going forward, one
+          // Opportunity status per Order status coming back. Several Order
+          // statuses may lead to one Opportunity status.
+          const forward = mapping.direction === 'opportunity_to_order';
+          const key = `${mapping.direction}:${forward ? mapping.opportunityStatusCode : mapping.orderStatusCode}`;
           if (seen.has(key)) {
-            throw workflowInvalid(
-              'mapping_duplicate',
-              `The opportunity status "${mapping.opportunityStatusCode}" is mapped more than once.`,
-            );
+            throw forward
+              ? workflowInvalid(
+                  'mapping_duplicate',
+                  `The opportunity status "${mapping.opportunityStatusCode}" is mapped more than once.`,
+                )
+              : workflowInvalid(
+                  'mapping_duplicate_order_status',
+                  `The order status "${mapping.orderStatusCode}" is mapped more than once.`,
+                );
           }
           seen.add(key);
         }
@@ -367,7 +367,8 @@ export class WorkflowConfigService {
             direction: mapping.direction,
             opportunityStatusCode: mapping.opportunityStatusCode,
             orderStatusCode: mapping.orderStatusCode,
-            requireAllOrders: mapping.requireAllOrders ?? false,
+            // The "every Order" rule is a property of the reverse direction only.
+            requireAllOrders: mapping.direction === 'order_to_opportunity' && (mapping.requireAllOrders ?? false),
           });
         }
         return { before, after: { mappings: describe(input.mappings) } };

@@ -10,6 +10,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
+import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import { CrmOrderStatusMapping } from '../entities/crm-order-status-mapping.entity.js';
 import {
@@ -27,6 +28,44 @@ export interface OrderStatusPropagationServiceDeps {
 }
 
 const FORWARD = 'opportunity_to_order' as const;
+const REVERSE = 'order_to_opportunity' as const;
+
+/** `order.status_changed.v1`, as much of it as the reverse direction reads. */
+export interface OrderStatusChange {
+  orderId: string;
+  organizationId: string;
+  to: string;
+}
+
+/**
+ * Moves an Opportunity on an Order's behalf. Handed in by the composition
+ * rather than held: the transition service already depends on this one for the
+ * forward direction, and the reverse direction must go through that same
+ * service — its graph, its guards, its events — rather than around it.
+ */
+export type ApplyOrderCausedTransition = (
+  opportunityId: string,
+  to: string,
+  causeOrderId: string,
+) => Promise<unknown>;
+
+/** What became of one Order status change, for the caller's log and the tests. */
+export type ReverseMappingResult =
+  | { kind: 'echo' }
+  | { kind: 'ignored'; why: 'not_linked' | 'not_following' | 'closed' | 'no_mapping' | 'already_there' | 'waiting_for_orders' }
+  | { kind: 'moved'; opportunityId: string; to: string }
+  | { kind: 'skipped'; opportunityId: string; to: string; detail: string };
+
+/**
+ * The refusals of the Opportunity's own workflow. An Order-caused move that
+ * meets one is recorded as `skipped`; anything else is a defect and is thrown.
+ */
+const WORKFLOW_REFUSALS: readonly string[] = [
+  ERROR_CODES.CRM_INVALID_TRANSITION,
+  ERROR_CODES.CRM_TRANSITION_VETOED,
+  ERROR_CODES.CRM_TRANSITION_CONFLICT,
+  ERROR_CODES.VALIDATION_FAILED,
+];
 
 /** The answers that leave an Order where it was and want somebody's attention. */
 const REFUSALS: readonly CrmPropagationOutcome[] = [
@@ -64,9 +103,13 @@ function isUnresolved(row: CrmStatusPropagation): boolean {
 }
 
 /**
- * The forward direction of status following: an Opportunity's transition asks
- * its linked Orders to move (`specs/143-crm-sales-opportunities/research.md`
- * R-4).
+ * Status following across the Opportunity ↔ Order link, in both directions.
+ *
+ * **Forward** — an Opportunity's transition asks its linked Orders to move
+ * (`specs/143-crm-sales-opportunities/research.md` R-4). **Reverse** — an
+ * Order's status moves its Opportunity (R-5): {@link onOrderStatusChanged},
+ * which carries its own account. The rest of this header is the forward
+ * direction's.
  *
  * Three steps, on three different footings:
  *
@@ -145,6 +188,178 @@ export class OrderStatusPropagationService {
       { orderBy: { createdAt: 'asc', id: 'asc' } },
     );
     return this.#render(rows.filter(isUnresolved));
+  }
+
+  /**
+   * The reverse direction: an Order changed status, whoever changed it
+   * (`specs/143-crm-sales-opportunities/research.md` R-5).
+   *
+   * **Runs with no request behind it** — the caller has entered a system scope,
+   * so nothing here is narrowed by an ambient tenant. The Opportunity is found
+   * through the Order's link, and the link is honoured only when the
+   * Opportunity belongs to the Organization the event names.
+   *
+   * In this order, each step able to end the matter:
+   *
+   * 1. **Echo.** A forward row asked this Order for exactly this status and has
+   *    not seen its echo yet: the change is CRM's own. The row is marked and
+   *    nothing moves — the first half of the one-hop rule.
+   * 2. The Order is linked to an Opportunity and follows it; the Opportunity is
+   *    open. **A closed Opportunity is never reopened by a mapping.**
+   * 3. The Order status has a reverse mapping.
+   * 4. A mapping marked "every Order" waits until every following Order is in a
+   *    status whose reverse mapping names the same Opportunity status. Waiting
+   *    is not recorded — it would be a row per Order event.
+   * 5. The move goes through the transition service, as the system, with the
+   *    Order as its cause: the workflow's graph and its guards apply, and a
+   *    refusal by either is recorded as a `skipped` outcome with the reason.
+   *    The transition service asks no Order to follow a move with this cause —
+   *    the second half of the one-hop rule.
+   */
+  async onOrderStatusChanged(
+    change: OrderStatusChange,
+    apply: ApplyOrderCausedTransition,
+  ): Promise<ReverseMappingResult> {
+    const em = this.deps.emFactory();
+
+    // --- 1. our own echo ---------------------------------------------------------
+    const asked = await em.findOne(
+      CrmStatusPropagation,
+      {
+        orderId: change.orderId,
+        direction: FORWARD,
+        orderStatusCode: change.to,
+        outcome: { $in: ['pending', 'applied'] },
+        echoed: false,
+      },
+      { orderBy: { createdAt: 'desc' } },
+    );
+    if (asked) {
+      await this.deps.commandBus.run({
+        action: 'crm.opportunity.propagation_echo',
+        objectType: 'crm_opportunity',
+        objectId: asked.opportunityId,
+        run: async ({ em: tx }) => {
+          const row = await tx.findOneOrFail(CrmStatusPropagation, {
+            id: asked.id,
+            opportunityId: asked.opportunityId,
+          });
+          row.echoed = true;
+          // Bookkeeping on a row whose transition is already audited; an entry
+          // of its own would say "CRM noticed what CRM did".
+          return { result: undefined, skipAudit: true };
+        },
+      });
+      return { kind: 'echo' };
+    }
+
+    // --- 2. the link, and the Opportunity behind it ------------------------------
+    const link = await em.findOne(CrmOpportunityLink, { documentKind: 'order', documentId: change.orderId });
+    if (!link) return { kind: 'ignored', why: 'not_linked' };
+    if (!link.syncStatus) return { kind: 'ignored', why: 'not_following' };
+    const opportunity = await em.findOne(CrmOpportunity, {
+      id: link.opportunityId,
+      organizationId: change.organizationId,
+    });
+    if (!opportunity) return { kind: 'ignored', why: 'not_linked' };
+    if (opportunity.closedKind || opportunity.closedAt) return { kind: 'ignored', why: 'closed' };
+
+    // --- 3. the mapping -----------------------------------------------------------
+    const mapping = await em.findOne(CrmOrderStatusMapping, {
+      direction: REVERSE,
+      orderStatusCode: change.to,
+    });
+    if (!mapping) return { kind: 'ignored', why: 'no_mapping' };
+    const target = mapping.opportunityStatusCode;
+    if (opportunity.statusCode === target) return { kind: 'ignored', why: 'already_there' };
+
+    // --- 4. "only when every linked Order is there" -------------------------------
+    if (mapping.requireAllOrders && !(await this.#everyFollowingOrderLeadsTo(em, opportunity.id, target))) {
+      return { kind: 'ignored', why: 'waiting_for_orders' };
+    }
+
+    // --- 5. the move, through the workflow ----------------------------------------
+    try {
+      await apply(opportunity.id, target, change.orderId);
+      return { kind: 'moved', opportunityId: opportunity.id, to: target };
+    } catch (error) {
+      // Narrow on purpose: only the workflow's own refusals become an outcome.
+      // A switched-off module, a failed write or a throwing guard stay errors.
+      rethrowIfModuleDisabled(error);
+      if (!(error instanceof HttpError) || !WORKFLOW_REFUSALS.includes(error.code)) throw error;
+      const reason = (error.details as { reason?: unknown } | undefined)?.reason;
+      const detail = typeof reason === 'string' && reason ? reason : error.message;
+      await this.#recordSkipped(opportunity.id, {
+        orderId: change.orderId,
+        orderStatusCode: change.to,
+        opportunityStatusCode: target,
+        from: opportunity.statusCode,
+        detail,
+      });
+      return { kind: 'skipped', opportunityId: opportunity.id, to: target, detail };
+    }
+  }
+
+  /**
+   * Whether every Order that follows the Opportunity is in a status whose
+   * reverse mapping names `target`. The statuses are read through `orders`'
+   * own port, as they are now; an Order that cannot be read does not qualify.
+   */
+  async #everyFollowingOrderLeadsTo(em: EntityManager, opportunityId: string, target: string): Promise<boolean> {
+    const links = await em.find(CrmOpportunityLink, { opportunityId, documentKind: 'order', syncStatus: true });
+    if (links.length === 0) return false;
+    const [orders, mappings] = await Promise.all([
+      this.deps.orders.findByIds(links.map((link) => link.documentId)),
+      em.find(CrmOrderStatusMapping, { direction: REVERSE, opportunityStatusCode: target }),
+    ]);
+    const qualifying = new Set(mappings.map((mapping) => mapping.orderStatusCode));
+    const statusByOrder = new Map(orders.map((order) => [order.id, order.status]));
+    return links.every((link) => {
+      const status = statusByOrder.get(link.documentId);
+      return status !== undefined && qualifying.has(status);
+    });
+  }
+
+  /**
+   * An Order asked for a move the Opportunity's workflow refused. Recorded on
+   * the Opportunity twice over, in one Command: as a `skipped` outcome row,
+   * and as an audit entry — the Opportunity's history is the audit trail, and
+   * "the Order was completed and this did not follow, because …" is something
+   * the person working the Opportunity is owed.
+   */
+  async #recordSkipped(
+    opportunityId: string,
+    skipped: { orderId: string; orderStatusCode: string; opportunityStatusCode: string; from: string; detail: string },
+  ): Promise<void> {
+    await this.deps.commandBus.run({
+      action: 'crm.opportunity.propagation_skip',
+      objectType: 'crm_opportunity',
+      objectId: opportunityId,
+      run: async ({ em }) => {
+        const row = em.create(CrmStatusPropagation, {
+          opportunityId,
+          orderId: skipped.orderId,
+          direction: REVERSE,
+          opportunityStatusCode: skipped.opportunityStatusCode,
+          orderStatusCode: skipped.orderStatusCode,
+          outcome: 'skipped',
+          detail: skipped.detail,
+          resolvedAt: new Date(),
+        });
+        return {
+          result: undefined,
+          before: { status: skipped.from },
+          after: {
+            status: skipped.from,
+            propagationId: row.id,
+            orderId: skipped.orderId,
+            orderStatusCode: skipped.orderStatusCode,
+            skippedStatus: skipped.opportunityStatusCode,
+            reason: skipped.detail,
+          },
+        };
+      },
+    });
   }
 
   /**

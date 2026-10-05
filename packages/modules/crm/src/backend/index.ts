@@ -11,6 +11,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import {
   effectiveState,
+  enterSystemScope,
   lazyPort,
   type ModuleContext,
   type RequireAdminFactory,
@@ -23,7 +24,10 @@ import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityService } from './services/opportunity-service.js';
 import { OpportunityTransitionGuardRegistry } from './services/opportunity-transition-guard-registry.js';
 import { OpportunityTransitionService } from './services/opportunity-transition-service.js';
-import { OrderStatusPropagationService } from './services/order-status-propagation-service.js';
+import {
+  OrderStatusPropagationService,
+  type OrderStatusChange,
+} from './services/order-status-propagation-service.js';
 import { registerOpportunitySalesChannelAttributions } from './services/sales-channel-attributions.js';
 import { WorkflowConfigService } from './services/workflow-config-service.js';
 import { WorkflowReadService } from './services/workflow-read-service.js';
@@ -158,6 +162,33 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
 
+  // --- Reverse mapping -----------------------------------------------------
+  // An Order's status moves its Opportunity. `order.status_changed.v1` is the
+  // coarse event every Order status change emits, whoever caused it — the
+  // operator, a payment, a shipment, or this module's own forward direction,
+  // whose echo the handler recognises and drops.
+  //
+  // `ctx.subscribe`, so the handler does not run while the module is off; a
+  // change made meanwhile is not replayed. There is no request behind an
+  // event, so the work starts a system scope of its own and the service
+  // constrains by the Organization the event names.
+  ctx.subscribe('order.status_changed.v1', async (payload) => {
+    const change = readOrderStatusChange(payload);
+    if (!change) return;
+    await enterSystemScope('crm: order status follows', async () => {
+      const cradle = ctx.cradle<CrmCradle>();
+      await cradle.crmOrderStatusPropagationService.onOrderStatusChanged(
+        change,
+        (opportunityId, to, causeOrderId) =>
+          cradle.crmOpportunityTransitionService.apply(opportunityId, to, {
+            actor: { kind: 'system' },
+            cause: 'order_status',
+            causeOrderId,
+          }),
+      );
+    });
+  });
+
   // --- Opportunities -------------------------------------------------------
   // Create, list, read, edit, delete. The Organization, the contact person and
   // the assignee are read through their owners' ports.
@@ -229,6 +260,21 @@ export function registerModule(ctx: ModuleContext): void {
       requireAdmin,
     });
   });
+}
+
+/**
+ * The part of `order.status_changed.v1` the reverse mapping reads, taken off a
+ * payload the bus hands over untyped. `orders` publishes the event's shape as a
+ * TypeScript type of its own module and no schema in the contracts package, so
+ * the three fields are checked here, by hand, and an event that does not carry
+ * them is dropped rather than acted on.
+ */
+function readOrderStatusChange(payload: unknown): OrderStatusChange | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+  const { orderId, organizationId, to } = payload as Record<string, unknown>;
+  if (typeof orderId !== 'string' || typeof organizationId !== 'string' || typeof to !== 'string') return null;
+  if (!orderId || !organizationId || !to) return null;
+  return { orderId, organizationId, to };
 }
 
 /**
