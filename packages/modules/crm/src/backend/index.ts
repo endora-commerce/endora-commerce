@@ -29,6 +29,7 @@ import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
 import { registerCrmAttachmentRoutes } from './routes/routes.attachments.js';
 import { registerCrmBoardRoutes } from './routes/routes.board.js';
 import { registerCrmCommentRoutes } from './routes/routes.comments.js';
+import { registerCrmDocumentRoutes } from './routes/routes.documents.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmLookupRoutes } from './routes/routes.lookups.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
@@ -39,6 +40,7 @@ import { BoardService } from './services/board-service.js';
 import { registerCrmAssetReferences } from './services/crm-asset-references.js';
 import { registerCrmAuditReferences } from './services/crm-audit-references.js';
 import { CrmLookupService } from './services/crm-lookup-service.js';
+import { DocumentOpportunityService } from './services/document-opportunity-service.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
 import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
 import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
@@ -426,6 +428,34 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
   // --- end of Lookups ----------------------------------------------------------
+
+  // --- The Opportunity of a document (User Story 17) ---------------------------
+  // One read for the panel CRM contributes to the Order screen: which
+  // Opportunity an Order is linked to. The Order is checked through `orders`'
+  // read port, under the caller's scope, before anything is said about a link.
+  // One service, one `ctx.routes`, this one section.
+  ctx.di.register({
+    crmDocumentOpportunityService: ctx
+      .asFunction(
+        ({ emFactory, crmOpportunityService }: CrmCradle) =>
+          new DocumentOpportunityService({
+            emFactory,
+            orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            getOpportunity: (opportunityId) => crmOpportunityService.get(opportunityId),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<
+      CrmCradle & { readonly crmDocumentOpportunityService: DocumentOpportunityService }
+    >();
+    await registerCrmDocumentRoutes(app, {
+      documentOpportunityService: cradle.crmDocumentOpportunityService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of The Opportunity of a document ------------------------------------
 
   // --- Published ports and the audit reference (User Story 14) -----------------
   // What another module, or a deployment's overlay, reads and moves an

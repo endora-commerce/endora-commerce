@@ -125,5 +125,6 @@ export const contributions: AdminContributions = {
   // the chunk, the code the panel's own reads enforce.
   zones: [
     zoneComponent('organization.detail.after', () => import('./zones/OrganizationOpportunities.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
+    zoneComponent('order.detail.after', () => import('./zones/OrderOpportunity.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
   ],
 };

@@ -782,3 +782,41 @@ modułów, których dane demonstracyjne modułu nie mogą tworzyć ani odczytywa
 Demonstracyjny lejek jest więc krokiem kompozycji demo instancji, a nie tego
 modułu, i nie wchodzi w skład tego wydania. Domyślny przepływ statusów jest
 instalowany zawsze, więc tablica ma swoje kolumny od pierwszego uruchomienia.
+
+## Szansa na ekranie zamówienia
+
+Ekran zamówienia kończy się panelem **Powiązana szansa**, niezależnie od
+otwartej zakładki.
+
+- **Zamówienie powiązane z szansą** pokazuje numer i tytuł szansy (odnośnik do
+  niej), jej status, przypisanego handlowca i wartość.
+- **Zamówienie niepowiązane** informuje o tym i daje osobie z uprawnieniem
+  `crm:write` dwie akcje:
+  - **Powiąż z szansą** wyświetla otwarte szanse organizacji, do której należy
+    zamówienie (sto najnowszych); wybierz jedną i potwierdź. Zamówienie należy
+    najwyżej do jednej szansy i tylko do szansy własnej organizacji — odmowa
+    jest pokazywana w panelu.
+  - **Utwórz szansę** otwiera formularz tworzenia z wybraną organizacją
+    zamówienia. Po zapisaniu szansy zamówienie zostaje z nią powiązane, a
+    szansa się otwiera. Jeśli powiązanie zostanie odrzucone, szansa i tak jest
+    już utworzona: formularz o tym informuje i prowadzi do niej, a zamówienie
+    można powiązać z ekranu samej szansy.
+- Panel widzi każdy, kto ma uprawnienie `crm:read`. Bez niego oraz przy
+  wyłączonym CRM ekran zamówienia wygląda dokładnie tak jak bez modułu — bez
+  panelu, nagłówka, pustego miejsca i bez żadnego zapytania.
+
+Zapytania ofertowe otrzymają ten sam panel, gdy będzie je można powiązać z
+szansą.
+
+Dla integratorów: `GET /api/v1/admin/crm/documents/order/{orderId}/opportunity`
+(`crm:read`) zwraca `{ "data": <podsumowanie szansy> }` albo `{ "data": null }`
+dla zamówienia bez powiązania. Zamówienie, które nie istnieje albo którego
+wywołujący nie może zobaczyć, daje `404 CRM_DOCUMENT_NOT_FOUND` — tę samą
+odpowiedź w obu przypadkach, niezależnie od tego, czy jest powiązane. Rodzaj
+inny niż rodzaj dokumentu daje `422`. Formularz tworzenia przyjmuje w adresie
+`linkDocumentKind=order` i `linkDocumentId=<id zamówienia>` obok
+`organizationId`.
+
+Dla autorów modułów: panel jest wkładem CRM do strefy panelu administracyjnego
+`order.detail.after`, którą osadza moduł Zamówienia i do której może wnosić
+każdy moduł. Zamówienia nie importują CRM i nie deklarują od niego zależności.

@@ -384,6 +384,9 @@ export const OpportunityTransitionResultSchema = z.object({
 export type OpportunityTransitionResult = z.infer<typeof OpportunityTransitionResultSchema>;
 
 export const OpportunityListResponseSchema = collectionEnvelope(OpportunitySummarySchema);
+// §12b (US17) — the Opportunity a document is linked to, or `null` for a
+// document that exists, is visible to the caller and is linked to none.
+export const OpportunityOfDocumentResponseSchema = dataEnvelope(OpportunitySummarySchema.nullable());
 export const OpportunityDetailResponseSchema = dataEnvelope(OpportunityDetailSchema);
 export const OpportunityLinkResponseSchema = dataEnvelope(OpportunityLinkSchema);
 export const OpportunityTransitionResponseSchema = dataEnvelope(OpportunityTransitionResultSchema);

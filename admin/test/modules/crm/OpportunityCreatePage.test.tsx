@@ -227,3 +227,68 @@ describe('OpportunityCreatePage', () => {
     expect(navigateSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('OpportunityCreatePage — created from an order (User Story 17)', () => {
+  const ORDER = '00000000-0000-4000-8000-0000000000c1';
+  const FROM_ORDER = `/crm/opportunities/new?organizationId=${ORGANIZATION_ID}&linkDocumentKind=order&linkDocumentId=${ORDER}`;
+  const LINK_URL = `/api/v1/admin/crm/opportunities/${OPPORTUNITY_ID}/links`;
+
+  async function fillAndSubmit(): Promise<void> {
+    await userEvent.type(screen.getByLabelText(en('opportunity.field.title'), { exact: false }), 'Fleet');
+    await chooseCurrency('PLN');
+    await userEvent.click(submitButton());
+  }
+
+  it('says the new opportunity will be linked to the order', () => {
+    renderPage(FROM_ORDER);
+    expect(screen.getByText(en('orderPanel.createForm.hint'))).toBeTruthy();
+  });
+
+  it('links the order once the opportunity exists, then opens the opportunity', async () => {
+    postSpy.mockImplementation((path: string) =>
+      Promise.resolve({ data: path === LINK_URL ? { id: 'link-1' } : detail() }),
+    );
+    renderPage(FROM_ORDER);
+    await fillAndSubmit();
+
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith(`/crm/opportunities/${OPPORTUNITY_ID}`));
+    expect(postSpy.mock.calls.map(([path]) => path)).toEqual(['/api/v1/admin/crm/opportunities', LINK_URL]);
+    expect(postSpy.mock.calls[1]?.[1]).toEqual({ documentKind: 'order', documentId: ORDER });
+    // The create request itself is unchanged: the link is a second call.
+    expect(postSpy.mock.calls[0]?.[1]).not.toHaveProperty('linkDocumentId');
+  });
+
+  it('shows a refused link, keeps the opportunity reachable and does not create a second one', async () => {
+    postSpy.mockImplementation((path: string) =>
+      path === LINK_URL
+        ? Promise.reject(
+            new ApiError(409, {
+              error: { code: 'CRM_DOCUMENT_ALREADY_LINKED', message: 'This order is already linked.', requestId: 'r' },
+            } as never),
+          )
+        : Promise.resolve({ data: detail() }),
+    );
+    renderPage(FROM_ORDER);
+    await fillAndSubmit();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      en('orderPanel.createForm.linkFailed', { number: detail().number, reason: 'This order is already linked.' }),
+    );
+    expect(screen.getByRole('link', { name: en('orderPanel.createForm.open') })).toHaveAttribute(
+      'href',
+      `/crm/opportunities/${OPPORTUNITY_ID}`,
+    );
+    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(submitButton()).toBeDisabled();
+  });
+
+  it('makes no link call without the two parameters, or with a kind it does not know', async () => {
+    postSpy.mockResolvedValue({ data: detail() });
+    renderPage(`/crm/opportunities/new?organizationId=${ORGANIZATION_ID}&linkDocumentKind=invoice&linkDocumentId=${ORDER}`);
+    expect(screen.queryByText(en('orderPanel.createForm.hint'))).toBeNull();
+    await fillAndSubmit();
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalled());
+    expect(postSpy).toHaveBeenCalledTimes(1);
+  });
+});

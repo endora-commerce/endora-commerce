@@ -94,6 +94,7 @@ describe('crm off-state (Constitution XVII)', () => {
     { method: 'DELETE', route: `${API}/opportunities/:id/links/:linkId` },
     { method: 'POST', route: `${API}/opportunities/:id/propagations/:propagationId/retry` },
     { method: 'POST', route: `${API}/opportunities/:id/propagations/:propagationId/dismiss` },
+    { method: 'GET', route: `${API}/documents/:documentKind/:documentId/opportunity` },
   ];
 
   const ROUTES: OffStateProbe[] = REGISTERED.map(({ method, route, payload }) => ({
@@ -104,7 +105,9 @@ describe('crm off-state (Constitution XVII)', () => {
       .replace(':commentId', CHILD)
       .replace(':attachmentId', CHILD)
       .replace(':propagationId', CHILD)
-      .replace(':code', 'new'),
+      .replace(':code', 'new')
+      .replace(':documentKind', 'order')
+      .replace(':documentId', CHILD),
     cookies: admin,
     ...(payload === undefined ? {} : { payload }),
   }));

@@ -3,6 +3,7 @@
 '@endora-commerce/contracts': minor
 '@endora-commerce/mod-custom-fields': minor
 '@endora-commerce/admin-kit': minor
+'@endora-commerce/mod-orders': minor
 ---
 
 More of the new CRM module, in the same first release as `crm-module.md` describes. Nothing
@@ -51,3 +52,23 @@ here changes behaviour a released version had.
   holder of `crm:write`. `organizations` is unchanged.
 - **No demo data.** The manifest keeps `demo: false`; a demo pipeline needs rows of other
   modules and is a step of the instance's demo composition, not of this module.
+
+**The order screen shows its opportunity.**
+
+- **A new admin zone, `order.detail.after`**, in `AdminZoneNameSchema` and `AdminZonePropsMap`
+  of `@endora-commerce/contracts` (props: the existing `OrderDetailZoneProps`), mounted once by
+  `@endora-commerce/mod-orders` at the end of the order screen, below the tabs. `orders` names
+  no contributor; with nothing contributed the screen is unchanged. A module adds a panel with
+  `zoneComponent('order.detail.after', …)`.
+- **`GET /api/v1/admin/crm/documents/:documentKind/:documentId/opportunity`** (`crm:read`)
+  answers the summary of the opportunity an order is linked to, or `{ data: null }`; `404
+  CRM_DOCUMENT_NOT_FOUND` for an order that is missing or outside the caller's scope; `422` for
+  any other kind, `quote_request` included until quote requests can be linked.
+  `OpportunityOfDocumentResponseSchema` is the response schema.
+- **A "Linked opportunity" panel on the order screen**, contributed by `crm` to that zone under
+  `crm:read`: the opportunity's number, title, status, assignee and value, or — for a holder of
+  `crm:write` — "Link to an opportunity" and "Create opportunity".
+- **The create form honours `linkDocumentKind=order` and `linkDocumentId`** beside
+  `organizationId`: after a successful create it links the order through the existing link
+  endpoint and then opens the opportunity. The create request itself is unchanged.
+

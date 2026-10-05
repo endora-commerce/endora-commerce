@@ -764,3 +764,39 @@ own demo data may not create or read. A demo pipeline is therefore a step of
 the instance's demo composition rather than of this module, and is not part of
 this release. The default workflow is always installed, so a board has its
 columns from the first start.
+
+## The opportunity on the order's screen
+
+An order's screen ends with a **Linked opportunity** panel, whichever tab is
+open.
+
+- **An order linked to an opportunity** shows the opportunity's number and
+  title (a link to it), its status, who it is assigned to and its value.
+- **An order linked to none** says so and offers two actions to whoever holds
+  `crm:write`:
+  - **Link to an opportunity** lists the open opportunities of the order's
+    organization (the hundred newest); choose one and confirm. An order
+    belongs to at most one opportunity, and only to one of its own
+    organization — a refusal is shown in the panel.
+  - **Create opportunity** opens the create form with the order's organization
+    chosen. When the opportunity is saved the order is linked to it and the
+    opportunity opens. If the link is refused, the opportunity has still been
+    created: the form says so and links to it, and the order can be linked from
+    the opportunity's own screen.
+- The panel is shown to whoever holds `crm:read`. Without it, and with CRM
+  switched off, the order's screen is exactly as it is without the module — no
+  panel, no heading, no empty space, no request.
+
+Quote requests get the same panel once they can be linked to an opportunity.
+
+For integrators: `GET /api/v1/admin/crm/documents/order/{orderId}/opportunity`
+(`crm:read`) answers `{ "data": <the opportunity's summary> }`, or
+`{ "data": null }` for an order linked to none. An order that does not exist or
+is not the caller's to see answers `404 CRM_DOCUMENT_NOT_FOUND` — the same
+answer for both, whether or not it is linked. A kind other than a document
+kind answers `422`. The create form accepts `linkDocumentKind=order` and
+`linkDocumentId=<order id>` beside `organizationId` in its address.
+
+For module authors: the panel is CRM's contribution to the `order.detail.after`
+admin zone, which the Orders module mounts and which any module may contribute
+to. Orders does not import CRM and declares no dependency on it.

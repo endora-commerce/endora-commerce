@@ -1959,6 +1959,73 @@ when it was measured, and what was done about it.
   no new route — and *New opportunity* is shown to a holder of `crm:write` only, because the
   create route is gated on it. The list screen does not read filters from its URL, so "see
   them all" links to the unfiltered list.
+- **N-G8 (2026-10-06, T175) — the Order half of User Story 17, and why the Quote Request
+  zone is not in the enum.** User Story 8 (quote-request links) is on another branch, so —
+  as the phase header says — `quote_request.detail.after` was left out of
+  `AdminZoneNameSchema` **entirely**: `check:admin-zones` refuses a member no host renders,
+  and a mount in `RfqDetail.tsx` for a panel that cannot yet be linked would be a zone with a
+  contributor that says "not yet". Only `'order.detail.after'` was added (props: the existing
+  `OrderDetailZoneProps`), with its one mount. **R-28's [unverified] position, decided with
+  the file open:** the last child of `OrderDetail.tsx`'s fragment, after the `Card` that
+  holds the tab strip and every tab body — so it is there on every tab, and with nobody
+  contributing the screen's last element is that card. The host's test
+  (`admin/test/modules/orders/OrderDetail.after-zone.test.tsx`) uses a stand-in contributor,
+  not CRM, and compares the screen's markup three ways: no registry entry, a contributor
+  whose module is not present, and a contributor whose permission the person lacks — all
+  equal, with a fourth render (the contribution shown) as the control that the comparison
+  can fail. `packages/modules/orders/src/admin/index.ts` carries a header comment saying
+  "the four it hosts"; it now hosts five and that comment was **not** edited (the file is not
+  a row of §J).
+- **N-G9 (2026-10-06, T176) — the document endpoint, and what it refuses.** New files
+  (`services/document-opportunity-service.ts`, `routes/routes.documents.ts`) and one
+  delimited section of `index.ts`; `opportunity-link-service.ts` was not edited — T176 names
+  "`findByDocument` on the link service" and "`compose/links.ts`", and neither is where it
+  went (N-6, and the sibling branch is editing that service). (a) **The document is read
+  first**, through `orderReadPort` under the caller's scope: missing, malformed id and out of
+  scope are one 404 `CRM_DOCUMENT_NOT_FOUND`, *before* the link is looked at, so `null` versus
+  a refusal never tells a stranger whether another Organization's Order has an Opportunity.
+  (b) **Then parent-first** (N-15): the link names the Opportunity, the scoped EntityManager
+  decides whether the caller may have it. (c) **The summary is cut from the detail** —
+  `OpportunitySummarySchema.parse(await opportunityService.get(id))` — so the Opportunity is
+  rendered by the one code path that renders it and `opportunity-service.ts` gained nothing.
+  (d) **An unknown kind is 422**, validated in the service: a route schema would answer 400
+  (N-13 (c)) and the contract says 422. (e) **`quote_request` is 422 on this branch**, with
+  the sentence the link endpoint already uses for that kind (N-18's rule: refused, not
+  accepted and dropped). **What the Quote Request half replaces:** that branch of
+  `findForDocument` — validate through `quoteRequestReadPort` under the caller's scope,
+  answer 503 `MODULE_DISABLED` while `quote_requests` is off — nothing else in the service.
+- **N-G10 (2026-10-06, T177/T178) — the panel, and three things the tasks leave open.**
+  (a) **Strings are under `orderPanel.*`**, not `links.*` as T177 says: the coordinator's
+  merge rule for this branch, and `links.*` is the Opportunity screen's own section, edited on
+  another branch. (b) **The Organization of an unlinked Order is read from `orders`' own
+  admin endpoint** (`GET /api/v1/admin/orders/:id`, `orders:read`). §12b adds one read and
+  "nothing else", the zone hands over an id only, and `{ data: null }` carries no
+  Organization — while whoever is on the Order's screen holds `orders:read` by construction.
+  It is read only for an unlinked Order in front of a holder of `crm:write`; a linked Order
+  costs one request. (c) **The picker is a select of the Organization's hundred newest open
+  Opportunities** from the list endpoint, not a search box: it is the contract's "list of §1
+  filtered by `organizationId` and `state=open`", and an Organization with more than a
+  hundred open Opportunities links from the Opportunity's screen instead. (d) **"Create
+  opportunity" is two requests**, as R-28 decided: the create page honours
+  `linkDocumentKind=order` + `linkDocumentId`, calls the link endpoint after a successful
+  create and then navigates. A refused link leaves the Opportunity created: the form shows
+  the server's sentence, links to the Opportunity and disables *Create* so a second click
+  cannot create a second one. `linkDocumentKind=quote_request` is ignored until that kind is
+  linkable. (e) The thin wrapper is `zones/OrderOpportunity.tsx`; `LinkedOpportunityPanel`
+  takes `documentKind`, `documentId` and a `loadOrganizationId` function, which is all the
+  Quote Request wrapper has to supply.
+- **N-G11 (2026-10-06) — what remains of User Story 17, exactly.** After User Story 8 is on
+  the same branch: (1) `'quote_request.detail.after'` and `QuoteRequestDetailZoneProps
+  { quoteRequestId }` in `packages/contracts/src/admin-contributions.ts`, with (2) the one
+  mount and the `AdminZone` import in `RfqDetail.tsx`, in one change; (3)
+  `admin/test/modules/quote_requests/RfqDetail.after-zone.test.tsx` on the model of the
+  Order host test; (4) the `quote_request` branch of `DocumentOpportunityService` (N-G9 (e))
+  with its contract cases — linked, unlinked, out of scope, 503 while `quote_requests` is
+  off; (5) `zones/QuoteRequestOpportunity.tsx` and its `zoneComponent` line, widening
+  `LinkedOpportunityPanelProps['documentKind']`, `crmApi.opportunityOfDocument`'s callers and
+  the create page's `linkDocument` to the second kind, plus a `loadOrganizationId` for a
+  Quote Request; (6) the zone in `quote_requests`' docs page (+ Polish) and `mod-quote-requests`
+  in the changeset. Tasks T172, T175, T176, T177 and T179 are left unticked for that half.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

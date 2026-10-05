@@ -203,3 +203,9 @@ szablon platformy.
 - **Zakres dostępu** — `order-access-service.ts` to jedyne miejsce egzekwujące regułę dostępu dla
   zwykłego użytkownika, administratora organizacji i administratora platformy; nowe rodzaje
   użytkowników dodaje się właśnie tam.
+- **Panele na ekranie zamówienia** — strefa panelu administracyjnego `order.detail.after` jest
+  osadzona raz, na końcu ekranu zamówienia, pod jego zakładkami, i przekazuje wkładowi
+  `{ orderId }`. Moduł dodaje panel, deklarując `zoneComponent('order.detail.after', …)` we
+  własnych wkładach do panelu administracyjnego; ten moduł nie wymienia żadnego z nich. Gdy nikt
+  nic nie wnosi — nie ma takiego modułu, moduł jest wyłączony albo osoba nie ma uprawnienia
+  wymaganego przez panel — strefa nie renderuje niczego, a ekran jest dokładnie taki jak bez niej.

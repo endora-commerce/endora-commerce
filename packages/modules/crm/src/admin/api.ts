@@ -219,6 +219,32 @@ export const crmApi = {
 
   // --- §3 Links ------------------------------------------------------------
 
+  /**
+   * The Opportunity a document is linked to, or `null` for one linked to none
+   * (§12b). 404 `CRM_DOCUMENT_NOT_FOUND` when the document is not the caller's
+   * to see.
+   */
+  opportunityOfDocument(
+    documentKind: 'order' | 'quote_request',
+    documentId: string,
+  ): Promise<OpportunitySummary | null> {
+    return data(
+      apiClient.get<{ data: OpportunitySummary | null }>(
+        `${BASE}/documents/${documentKind}/${documentId}/opportunity`,
+      ),
+    );
+  },
+
+  /**
+   * The Organization an Order belongs to — read from `orders`' own admin
+   * endpoint (`orders:read`, which whoever is on the Order's screen holds).
+   */
+  orderOrganizationId(orderId: string): Promise<string | null> {
+    return apiClient
+      .get<{ data: { organizationId?: string | null } }>(`${ORDERS_BASE}/${orderId}`)
+      .then((envelope) => envelope.data.organizationId ?? null);
+  },
+
   addLink(id: string, body: CreateOpportunityLinkRequest): Promise<OpportunityLink> {
     return data(
       apiClient.post<{ data: OpportunityLink }>(`${BASE}/opportunities/${id}/links`, body),
