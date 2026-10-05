@@ -143,6 +143,28 @@ closes the opportunity and stamps the moment; leaving one reopens it.
 | `DELETE /api/v1/admin/crm/opportunities/:id` | `crm:configure` | Delete it, with its links and history. |
 | `POST /api/v1/admin/crm/opportunities/:id/transition` | `crm:write` | Move it to another status. |
 
+## Editing and deleting an opportunity
+
+On an opportunity's screen, **Edit** — beside the *Details* heading, for a
+holder of `crm:write` — turns the details into a form: the title, the
+description, the contact person, the sales channel, the expected close date and
+the value. The organization and the currency are shown and cannot be changed.
+The value is either **entered by hand** or **calculated from linked
+documents**; the figure you entered is kept while the calculated one is shown.
+
+Saving sends only the fields you changed. If the opportunity was changed in the
+meantime — by a colleague, or by a status change you made yourself while the
+form was open — nothing is saved and the form says so: press **Reload the
+opportunity** to see the latest version, then make your changes again. Nothing
+is ever overwritten silently.
+
+A status change can carry a **reason**: write it in the field under the status
+buttons before pressing one. It is optional and is recorded with the change.
+
+**Delete**, in the header of the screen, is for a holder of `crm:configure`. It
+asks first, and removes the opportunity together with its status history and
+its links; the linked orders themselves are not touched.
+
 ## Linking orders
 
 An existing order can be linked to an opportunity. The order must belong to the

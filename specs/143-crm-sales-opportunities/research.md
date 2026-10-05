@@ -1274,6 +1274,37 @@ when it was measured, and what was done about it.
   and fixed**: an unsaved mapping choice was discarded when another write on the screen
   returned (the table reset its draft on the workflow object's identity) — a jsdom test now
   holds it. Not verified by eye: a real screen reader, a physical touch device, dark theme.
+- **N-C1 (2026-10-05, T181) — the edit form, the delete control and the reason, which T054
+  did not ask for.** N-28 (g) and (h) recorded that `PATCH` and `DELETE` were served and
+  unused and that the transition's `reason` was never asked for; T181 closes all three.
+  (a) **The form is in place, not a dialog and not a route**: *Edit* beside the *Details*
+  heading swaps the definition list for the form. No route was added, so
+  `contracts/admin-surfaces.md` §1 is unchanged, and seven fields with two comboboxes are
+  not squeezed into the module's `max-w-lg` `ModalDialog`. (b) **What the form sends is
+  `UpdateOpportunityRequestSchema` minus two fields**: `title`, `description`,
+  `customerAccountId`, `salesChannelId`, `expectedCloseDate`, `valueMode`, `manualValue`.
+  `organizationId` and `currency` are refused by the schema (`.strict()`) and are shown as a
+  sentence; `assignedAdminUserId` has its own endpoint and story (US3) and `tagIds` is refused
+  until US6 (N-18) — neither is in the form. Only changed fields are sent (N-28 (c)'s rule),
+  an untouched form is no request, and a cleared optional field is sent as `null`.
+  (c) **`If-Match` is the version the draft was read at, not the one on screen.** A status
+  change bumps `version` too (`opportunity-transition-service.ts`), so an operator who opens
+  the form, moves the status and then saves gets the same 409 as one who lost a race with a
+  colleague. The sentence therefore says "has changed since you opened this form" and blames
+  nobody. On 409 saving is disabled and *Reload the opportunity* reads it again and restarts
+  the draft from it; the draft is not merged, because a merge is a silent overwrite of
+  whichever field both sides touched. (d) **Value mode is offered although the computed figure
+  is `0.00` until US8** (N-18): the endpoint accepts `valueMode` today and the brief asked for
+  it. An operator who chooses "calculated from linked documents" before US8 lands sees a value
+  of zero — true, and not useful. The manual figure is kept while the mode is `computed` and
+  is not sent from that mode. (e) **The contact picker cannot show the person already chosen**:
+  the kit's `CustomerPicker` labels a value only from accounts it has searched for and takes
+  no `selectedLabel`, so the form names the current person in a line under it until another is
+  picked. A one-prop repair in the kit, not made here. (f) **Delete is in the page header**,
+  gated on `crm:configure` like the endpoint, behind `ModalDialog`, and navigates to the list;
+  the dialog names the number and the title and says the linked Orders are not changed.
+  (g) **The reason is one optional field under the status buttons**, sent with the next move
+  and then cleared; the board's moves (US7) send none.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

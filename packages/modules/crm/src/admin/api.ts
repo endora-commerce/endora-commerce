@@ -13,6 +13,7 @@ import type {
   Pagination,
   PropagationOutcome,
   SetOpportunityTransitionsRequest,
+  UpdateOpportunityRequest,
   UpdateOpportunityStatusRequest,
 } from '@endora-commerce/contracts';
 
@@ -114,13 +115,36 @@ export const crmApi = {
     return data(apiClient.post<{ data: OpportunityDetail }>(`${BASE}/opportunities`, body));
   },
 
+  /**
+   * Edit an Opportunity. `version` is the one the edited values were read at,
+   * sent as `If-Match`: the server answers 409 `VERSION_CONFLICT` when somebody
+   * else saved in between, and nothing is written.
+   */
+  updateOpportunity(
+    id: string,
+    body: UpdateOpportunityRequest,
+    version: number,
+  ): Promise<OpportunityDetail> {
+    return data(
+      apiClient.patch<{ data: OpportunityDetail }>(`${BASE}/opportunities/${id}`, body, {
+        headers: { 'If-Match': `"${version}"` },
+      }),
+    );
+  },
+
+  /** Gated `crm:configure`: the Opportunity goes with its links and its history. */
+  deleteOpportunity(id: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/opportunities/${id}`);
+  },
+
   // --- §2 Transition -------------------------------------------------------
 
-  transition(id: string, to: string): Promise<OpportunityTransitionResult> {
+  /** `reason` is optional and recorded with the status change. */
+  transition(id: string, to: string, reason?: string): Promise<OpportunityTransitionResult> {
     return data(
       apiClient.post<{ data: OpportunityTransitionResult }>(
         `${BASE}/opportunities/${id}/transition`,
-        { to },
+        reason ? { to, reason } : { to },
       ),
     );
   },
@@ -134,13 +158,17 @@ export const crmApi = {
   },
 
   dismissPropagation(id: string, propagationId: string): Promise<void> {
-    return apiClient.post<void>(`${BASE}/opportunities/${id}/propagations/${propagationId}/dismiss`);
+    return apiClient.post<void>(
+      `${BASE}/opportunities/${id}/propagations/${propagationId}/dismiss`,
+    );
   },
 
   // --- §3 Links ------------------------------------------------------------
 
   addLink(id: string, body: CreateOpportunityLinkRequest): Promise<OpportunityLink> {
-    return data(apiClient.post<{ data: OpportunityLink }>(`${BASE}/opportunities/${id}/links`, body));
+    return data(
+      apiClient.post<{ data: OpportunityLink }>(`${BASE}/opportunities/${id}/links`, body),
+    );
   },
 
   setLinkSync(id: string, linkId: string, syncStatus: boolean): Promise<OpportunityLink> {

@@ -21,27 +21,13 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
-import { errorMessage } from '../lib/labels.js';
+import { errorMessage, normaliseAmount } from '../lib/labels.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type FieldErrors = Partial<
   Record<'title' | 'organization' | 'currency' | 'value', string | undefined>
 >;
-
-/**
- * A typed amount as the decimal string the API takes, or `null` when it is not
- * an amount.
- *
- * Liberal in what it accepts: spaces as thousands separators and a comma as
- * the decimal mark are what a Polish keyboard produces, and refusing them
- * would make the operator retype a number that was never ambiguous.
- */
-function normaliseAmount(raw: string): string | null {
-  const compact = raw.replace(/[\s ]/g, '').replace(',', '.');
-  if (!/^\d{1,12}(\.\d{1,2})?$/.test(compact)) return null;
-  return Number(compact).toFixed(2);
-}
 
 /**
  * Creating an Opportunity by hand (`specs/143-crm-sales-opportunities/`, User

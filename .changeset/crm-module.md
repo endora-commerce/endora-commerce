@@ -38,7 +38,10 @@ four screens and two entries to the shell's "CRM" sidebar section:
 - `/crm/opportunities/:id` (`crm:read`) — the status control, which offers exactly the
   transitions the workflow allows; the linked orders, with linking by search, the
   status-following switch and unlinking; and, per linked order, the outcome of each move, with
-  *Retry* and *Dismiss* on a refused one;
+  *Retry* and *Dismiss* on a refused one. A holder of `crm:write` edits the opportunity in
+  place — only the changed fields are sent, under `If-Match`, and a stale version is reported
+  with a way to reload rather than retried — and may give a status change a reason; a holder
+  of `crm:configure` can delete it, after a confirmation;
 - `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, and the
   order status each opportunity status sets.
 

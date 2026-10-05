@@ -1,7 +1,8 @@
 import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import type { OpportunityDetail as OpportunityDetailData } from '@endora-commerce/contracts';
-import { cn, statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
+import { cn, statusBadgeStyle, useAuth } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -13,6 +14,7 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
+import { ModalDialog } from '../components/ModalDialog.js';
 import { errorMessage } from '../lib/labels.js';
 import { OPPORTUNITY_TABS } from './opportunity-detail/tabs.js';
 
@@ -24,6 +26,11 @@ const LIST_PATH = '/crm/opportunities';
  * The page owns the read and the header; everything else is a tab, declared as
  * data in `opportunity-detail/tabs.ts`. With a single tab there is nothing to
  * choose between, so the strip appears with the second one.
+ *
+ * **Deleting is the page's**, not a tab's: it removes the Opportunity with its
+ * links and its history, is gated `crm:configure` like the endpoint, asks first,
+ * and leaves for the list. It sits in the header, away from the status buttons
+ * a Sales Rep presses all day.
  */
 export function OpportunityDetail(): ReactNode {
   const { id = '' } = useParams<{ id: string }>();
@@ -34,6 +41,24 @@ export function OpportunityDetail(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(OPPORTUNITY_TABS[0]?.id ?? '');
   const sequence = useRef(0);
+  const navigate = useNavigate();
+  const { hasPermission } = useAuth();
+  const canDelete = hasPermission('crm:configure');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const remove = async (): Promise<void> => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await crmApi.deleteOpportunity(id);
+      void navigate(LIST_PATH);
+    } catch (failure) {
+      setDeleteError(errorMessage(failure, t('opportunity.delete.error')));
+      setDeleting(false);
+    }
+  };
 
   const reload = useCallback(async (): Promise<void> => {
     const current = ++sequence.current;
@@ -85,7 +110,8 @@ export function OpportunityDetail(): ReactNode {
     );
   }
 
-  const tab = OPPORTUNITY_TABS.find((candidate) => candidate.id === activeTab) ?? OPPORTUNITY_TABS[0];
+  const tab =
+    OPPORTUNITY_TABS.find((candidate) => candidate.id === activeTab) ?? OPPORTUNITY_TABS[0];
   const TabComponent = tab?.component;
 
   return (
@@ -104,7 +130,60 @@ export function OpportunityDetail(): ReactNode {
           organization: opportunity.organization.name,
         })}
         back={back}
+        actions={
+          canDelete ? (
+            <Button
+              variant="outline"
+              className="min-h-11 text-destructive hover:text-destructive sm:min-h-9"
+              onClick={(): void => {
+                setDeleteError(null);
+                setConfirmingDelete(true);
+              }}
+            >
+              <Trash2 aria-hidden="true" className="size-4" />
+              {t('opportunity.delete.open')}
+            </Button>
+          ) : undefined
+        }
       />
+
+      {confirmingDelete ? (
+        <ModalDialog
+          title={t('opportunity.delete.title')}
+          busy={deleting}
+          onClose={(): void => setConfirmingDelete(false)}
+          footer={
+            <>
+              <Button
+                variant="outline"
+                className="min-h-11 sm:min-h-9"
+                disabled={deleting}
+                onClick={(): void => setConfirmingDelete(false)}
+              >
+                {tCore('common.action.cancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                className="min-h-11 sm:min-h-9"
+                disabled={deleting}
+                aria-busy={deleting}
+                onClick={(): void => void remove()}
+              >
+                {t('opportunity.delete.confirm')}
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm">
+            {t('opportunity.delete.body', { number: opportunity.number, title: opportunity.title })}
+          </p>
+          {deleteError ? (
+            <Alert variant="destructive" className="mt-4">
+              <AlertDescription>{deleteError}</AlertDescription>
+            </Alert>
+          ) : null}
+        </ModalDialog>
+      ) : null}
 
       {/* A later read that failed leaves the last good one on screen. */}
       {error ? (

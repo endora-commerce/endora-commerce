@@ -2,7 +2,14 @@ import { useId, useState, type ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import type { OpportunityDetail, OpportunityTransitionResult } from '@endora-commerce/contracts';
 import { ApiError, formatDateTime, statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Badge, Button } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Input,
+  Label,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
 import { errorMessage } from '../lib/labels.js';
@@ -25,11 +32,18 @@ export interface StatusControlProps {
  * move the workflow lacks is not on screen to be attempted (FR-015, FR-016).
  * The server still decides: a guard's veto or a concurrent change is shown in
  * its own words, and nothing on screen changes.
+ *
+ * A move may carry a **reason** (`contracts/admin-api.md` §2, optional): what is
+ * written in the field goes with the next move and is recorded in the
+ * Opportunity's history. It is never required — a required reason would make
+ * every move two steps.
  */
 export function StatusControl(props: StatusControlProps): ReactNode {
   const { opportunity, canWrite, onMoved, reload } = props;
   const t = useTranslation('crm');
   const labelId = useId();
+  const reasonId = useId();
+  const [reason, setReason] = useState('');
   const [movingTo, setMovingTo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -39,8 +53,10 @@ export function StatusControl(props: StatusControlProps): ReactNode {
     setError(null);
     setNotice('');
     try {
-      const result = await crmApi.transition(opportunity.id, to);
+      const result = await crmApi.transition(opportunity.id, to, reason.trim() || undefined);
       onMoved(result);
+      // A reason belongs to one change; the next one starts without it.
+      setReason('');
       setNotice(t('opportunity.status.moved', { status: result.opportunity.status.name }));
     } catch (failure) {
       setError(errorMessage(failure, t('opportunity.status.error')));
@@ -75,34 +91,53 @@ export function StatusControl(props: StatusControlProps): ReactNode {
       ) : transitions.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t('opportunity.status.none')}</p>
       ) : (
-        <div
-          role="group"
-          aria-labelledby={labelId}
-          aria-busy={movingTo !== null}
-          className="flex flex-wrap items-center gap-2"
-        >
-          <span id={labelId} className="inline-flex items-center gap-1 text-sm text-muted-foreground">
-            {t('opportunity.status.moveTo')}
-            <ArrowRight aria-hidden="true" className="size-4" />
-          </span>
-          {transitions.map((target) => (
-            <Button
-              key={target.code}
-              variant="outline"
-              className="min-h-11 sm:min-h-9"
-              disabled={movingTo !== null}
-              aria-busy={movingTo === target.code}
-              onClick={(): void => void move(target.code)}
+        <>
+          <div
+            role="group"
+            aria-labelledby={labelId}
+            aria-busy={movingTo !== null}
+            className="flex flex-wrap items-center gap-2"
+          >
+            <span
+              id={labelId}
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground"
             >
-              <span
-                aria-hidden="true"
-                className="size-2.5 rounded-full border border-black/10"
-                style={{ backgroundColor: target.color }}
-              />
-              {target.name}
-            </Button>
-          ))}
-        </div>
+              {t('opportunity.status.moveTo')}
+              <ArrowRight aria-hidden="true" className="size-4" />
+            </span>
+            {transitions.map((target) => (
+              <Button
+                key={target.code}
+                variant="outline"
+                className="min-h-11 sm:min-h-9"
+                disabled={movingTo !== null}
+                aria-busy={movingTo === target.code}
+                onClick={(): void => void move(target.code)}
+              >
+                <span
+                  aria-hidden="true"
+                  className="size-2.5 rounded-full border border-black/10"
+                  style={{ backgroundColor: target.color }}
+                />
+                {target.name}
+              </Button>
+            ))}
+          </div>
+          <div className="max-w-xl space-y-1">
+            <Label htmlFor={reasonId}>{t('opportunity.status.reason')}</Label>
+            <Input
+              id={reasonId}
+              value={reason}
+              maxLength={2000}
+              disabled={movingTo !== null}
+              aria-describedby={`${reasonId}-hint`}
+              onChange={(event): void => setReason(event.target.value)}
+            />
+            <p id={`${reasonId}-hint`} className="text-xs text-muted-foreground">
+              {t('opportunity.status.reasonHint')}
+            </p>
+          </div>
+        </>
       )}
 
       {error ? (

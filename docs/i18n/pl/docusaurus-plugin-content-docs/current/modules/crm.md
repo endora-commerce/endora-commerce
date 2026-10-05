@@ -146,6 +146,29 @@ ją ponownie.
 | `DELETE /api/v1/admin/crm/opportunities/:id` | `crm:configure` | Usunięcie szansy razem z jej powiązaniami i historią. |
 | `POST /api/v1/admin/crm/opportunities/:id/transition` | `crm:write` | Przeniesienie szansy do innego statusu. |
 
+## Edycja i usuwanie szansy
+
+Na ekranie szansy przycisk **Edytuj** — obok nagłówka *Szczegóły*, dla
+posiadacza uprawnienia `crm:write` — zamienia szczegóły w formularz: tytuł,
+opis, osoba kontaktowa, kanał sprzedaży, planowana data zamknięcia i
+wartość. Organizacja i waluta są pokazane i nie można ich zmienić. Wartość jest
+**wpisana ręcznie** albo **wyliczana z powiązanych dokumentów**; wpisana kwota
+zostaje zachowana na czas pokazywania wyliczonej.
+
+Zapis wysyła tylko zmienione pola. Jeśli szansa została w międzyczasie
+zmieniona — przez inną osobę albo przez zmianę statusu wykonaną przez Ciebie
+przy otwartym formularzu — nic nie zostaje zapisane, a formularz o tym
+informuje: naciśnij **Wczytaj szansę ponownie**, aby zobaczyć aktualną wersję,
+i wprowadź zmiany jeszcze raz. Nic nie jest nadpisywane po cichu.
+
+Zmiana statusu może mieć **powód**: wpisz go w polu pod przyciskami statusów,
+zanim naciśniesz jeden z nich. Powód jest opcjonalny i zostaje zapisany razem
+ze zmianą.
+
+**Usuń**, w nagłówku ekranu, jest dla posiadacza uprawnienia `crm:configure`.
+Najpierw pyta o potwierdzenie, a następnie usuwa szansę razem z historią
+statusów i powiązaniami; same powiązane zamówienia pozostają bez zmian.
+
 ## Wiązanie zamówień
 
 Istniejące zamówienie można powiązać z szansą. Zamówienie musi należeć do

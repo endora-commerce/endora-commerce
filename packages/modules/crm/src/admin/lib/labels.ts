@@ -68,3 +68,17 @@ export function calendarDateLabel(date: string | null | undefined): string {
   if (!year || !month || !day) return date;
   return new Date(year, month - 1, day).toLocaleDateString();
 }
+
+/**
+ * A typed amount as the decimal string the API takes, or `null` when it is not
+ * an amount.
+ *
+ * Liberal in what it accepts: spaces as thousands separators and a comma as
+ * the decimal mark are what a Polish keyboard produces, and refusing them
+ * would make the operator retype a number that was never ambiguous.
+ */
+export function normaliseAmount(raw: string): string | null {
+  const compact = raw.replace(/[\s ]/g, '').replace(',', '.');
+  if (!/^\d{1,12}(\.\d{1,2})?$/.test(compact)) return null;
+  return Number(compact).toFixed(2);
+}

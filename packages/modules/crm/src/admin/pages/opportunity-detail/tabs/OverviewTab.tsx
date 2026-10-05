@@ -1,11 +1,18 @@
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { OpportunityTransitionResult, PropagationOutcome } from '@endora-commerce/contracts';
+import { Pencil } from 'lucide-react';
+import type {
+  OpportunityDetail,
+  OpportunityTransitionResult,
+  PropagationOutcome,
+} from '@endora-commerce/contracts';
 import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { listScopeSalesChannels } from '@endora-commerce/admin-kit/components';
+import { Button } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type OrderStatusOption } from '../../../api.js';
 import { LinkedDocuments } from '../../../components/LinkedDocuments.js';
+import { OpportunityEditForm } from '../../../components/OpportunityEditForm.js';
 import { PropagationOutcomes } from '../../../components/PropagationOutcomes.js';
 import { StatusControl } from '../../../components/StatusControl.js';
 import { calendarDateLabel, moneyLabel, NO_VALUE } from '../../../lib/labels.js';
@@ -36,6 +43,9 @@ export function OverviewTab(props: OpportunityTabProps): ReactNode {
   /** Outcomes of the moves and retries made during this visit, newest move first. */
   const [recent, setRecent] = useState<PropagationOutcome[]>([]);
   const [outcomesShown, setOutcomesShown] = useState(false);
+  const [editing, setEditing] = useState(false);
+  /** Spoken once an edit is saved; the details below are the visible confirmation. */
+  const [editNotice, setEditNotice] = useState('');
 
   // Order status names are `orders`' and need `orders:read`. Without them the
   // codes are shown — less friendly, still true.
@@ -67,7 +77,10 @@ export function OverviewTab(props: OpportunityTabProps): ReactNode {
         const channel = page.items.find((item) => item.id === salesChannelId);
         setSalesChannelName(
           channel
-            ? (channel.name[language] ?? channel.name['en-US'] ?? Object.values(channel.name)[0] ?? channel.code)
+            ? (channel.name[language] ??
+                channel.name['en-US'] ??
+                Object.values(channel.name)[0] ??
+                channel.code)
             : null,
         );
       })
@@ -116,6 +129,14 @@ export function OverviewTab(props: OpportunityTabProps): ReactNode {
     setRecent((previous) => previous.filter((item) => item.id !== id));
   };
 
+  const onEdited = (next: OpportunityDetail): void => {
+    setEditing(false);
+    if (next !== opportunity) {
+      onChange(next);
+      setEditNotice(t('opportunity.edit.saved'));
+    }
+  };
+
   const contact = opportunity.customerAccount;
 
   return (
@@ -153,69 +174,107 @@ export function OverviewTab(props: OpportunityTabProps): ReactNode {
         reload={reload}
       />
 
-      <section aria-labelledby={detailsHeadingId} className="space-y-3">
-        <h2 id={detailsHeadingId} className="text-sm font-semibold tracking-tight">
-          {t('opportunity.section.details')}
-        </h2>
-        <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <dt className="text-xs text-muted-foreground">{t('opportunity.field.organization')}</dt>
-            <dd>
-              <Link
-                to={`/organizations/${opportunity.organization.id}`}
-                className="text-primary underline-offset-4 hover:underline"
+      {editing ? (
+        <section>
+          <OpportunityEditForm
+            opportunity={opportunity}
+            onSaved={onEdited}
+            onReloaded={onChange}
+            onCancel={(): void => setEditing(false)}
+          />
+        </section>
+      ) : (
+        <section aria-labelledby={detailsHeadingId} className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id={detailsHeadingId} className="text-sm font-semibold tracking-tight">
+              {t('opportunity.section.details')}
+            </h2>
+            {canWrite ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="min-h-11 sm:min-h-9"
+                onClick={(): void => {
+                  setEditNotice('');
+                  setEditing(true);
+                }}
               >
-                {opportunity.organization.name}
-              </Link>
-            </dd>
+                <Pencil aria-hidden="true" className="size-4" />
+                {t('opportunity.edit.open')}
+              </Button>
+            ) : null}
           </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">{t('opportunity.field.contact')}</dt>
-            <dd>
-              {contact ? (
-                <>
-                  <span>{contact.name}</span>
-                  <span className="block text-xs text-muted-foreground">{contact.email}</span>
-                </>
-              ) : (
-                NO_VALUE
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">{t('opportunity.field.salesChannel')}</dt>
-            <dd>{salesChannelName ?? NO_VALUE}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">{t('opportunity.field.value')}</dt>
-            <dd className="tabular-nums">{moneyLabel(opportunity.value, opportunity.currency)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">
-              {t('opportunity.field.expectedCloseDate')}
-            </dt>
-            <dd>{calendarDateLabel(opportunity.expectedCloseDate)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">{t('opportunity.field.source')}</dt>
-            <dd>{t(`opportunity.source.${opportunity.source}`)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">{t('opportunity.field.created')}</dt>
-            <dd>{formatDateTime(opportunity.createdAt)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">{t('opportunity.field.updated')}</dt>
-            <dd>{formatDateTime(opportunity.updatedAt)}</dd>
-          </div>
-          <div className="sm:col-span-2 lg:col-span-3">
-            <dt className="text-xs text-muted-foreground">{t('opportunity.field.description')}</dt>
-            <dd className="whitespace-pre-wrap break-words">
-              {opportunity.description ? opportunity.description : NO_VALUE}
-            </dd>
-          </div>
-        </dl>
-      </section>
+          <p role="status" className="sr-only">
+            {editNotice}
+          </p>
+          <dl className="grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {t('opportunity.field.organization')}
+              </dt>
+              <dd>
+                <Link
+                  to={`/organizations/${opportunity.organization.id}`}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  {opportunity.organization.name}
+                </Link>
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('opportunity.field.contact')}</dt>
+              <dd>
+                {contact ? (
+                  <>
+                    <span>{contact.name}</span>
+                    <span className="block text-xs text-muted-foreground">{contact.email}</span>
+                  </>
+                ) : (
+                  NO_VALUE
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {t('opportunity.field.salesChannel')}
+              </dt>
+              <dd>{salesChannelName ?? NO_VALUE}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('opportunity.field.value')}</dt>
+              <dd className="tabular-nums">
+                {moneyLabel(opportunity.value, opportunity.currency)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">
+                {t('opportunity.field.expectedCloseDate')}
+              </dt>
+              <dd>{calendarDateLabel(opportunity.expectedCloseDate)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('opportunity.field.source')}</dt>
+              <dd>{t(`opportunity.source.${opportunity.source}`)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('opportunity.field.created')}</dt>
+              <dd>{formatDateTime(opportunity.createdAt)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('opportunity.field.updated')}</dt>
+              <dd>{formatDateTime(opportunity.updatedAt)}</dd>
+            </div>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <dt className="text-xs text-muted-foreground">
+                {t('opportunity.field.description')}
+              </dt>
+              <dd className="whitespace-pre-wrap break-words">
+                {opportunity.description ? opportunity.description : NO_VALUE}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
     </div>
   );
 }
