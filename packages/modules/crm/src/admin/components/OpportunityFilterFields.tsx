@@ -162,7 +162,7 @@ export function OpportunityFilterFields(props: OpportunityFilterFieldsProps): Re
       ) : null}
       <div className="space-y-1">
         {/* The multi-select's trigger is a button; the visible label names it. */}
-        <span className="block text-sm font-medium leading-none">{t('tags.filter.label')}</span>
+        <span className="text-sm font-medium leading-none">{t('tags.filter.label')}</span>
         <TagMultiSelect
           ariaLabel={t('tags.filter.label')}
           selected={filters.tagIds}

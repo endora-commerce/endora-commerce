@@ -261,7 +261,7 @@ export function OpportunityCreatePage(): ReactNode {
               </div>
 
               <div className="space-y-1">
-                <span className="block text-sm font-medium leading-none">{t('tags.section')}</span>
+                <span className="text-sm font-medium leading-none">{t('tags.section')}</span>
                 <TagMultiSelect
                   ariaLabel={t('tags.section')}
                   selected={tagIds}

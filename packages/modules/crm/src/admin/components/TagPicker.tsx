@@ -86,7 +86,9 @@ export function TagMultiSelect(props: TagMultiSelectProps): ReactNode {
         disabled={(props.disabled ?? false) || loading || tags.length === 0}
         searchable={tags.length > 8}
         searchPlaceholder={t('tags.picker.search')}
-        {...(props.className ? { className: props.className } : {})}
+        // The kit's trigger is an inline-level button: as a flex item it leaves
+        // no descender gap under it, so the field lines up with its neighbours.
+        className={`flex [&>button]:flex-1 ${props.className ?? ''}`.trim()}
       />
       {failed ? (
         <p role="alert" className="mt-1 text-xs text-destructive">

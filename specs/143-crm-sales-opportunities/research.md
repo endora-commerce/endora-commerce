@@ -1800,6 +1800,43 @@ when it was measured, and what was done about it.
   existing attachment (N-B17 (d)); the list does not grow a second row. (e) Removing asks
   first and says the file stays in the library. (f) A size is rendered by `Intl.NumberFormat`
   with a unit, in binary steps, so no unit string is hand-written in either language.
+- **N-D9 (2026-10-05, the stories' browser walk) — user stories 2–6 and the picker repair,
+  walked in a browser.** N-30's arrangement: headless Chromium (Playwright 1.60) against the
+  admin's Vite dev server and the backend test composition on a throw-away `_test` database on
+  this worktree's Postgres, created and dropped with its template — the stub admin session,
+  real routes, real `orders` and a real media-library upload. **The dev server serves the
+  module's `dist`**, not its source: an edit to a screen is invisible to it until
+  `pnpm --filter @endora-commerce/mod-crm run build`, which is how the one fix below first
+  appeared not to work. **English, 1440 px — 32 of 35 checks on the first pass; the three that
+  failed were the walk's own misreads, named below, and one of them had aborted the
+  assignment block, which then passed 9 of 9 on its own after the selector was corrected. The
+  whole walk was not repeated end to end afterwards.** What was seen: the Tags
+  row between *Board* and *Workflow*; a reverse mapping *Paid → Qualified* (toggle clear) and
+  *Completed → Won* (toggle ticked by default) saved in one write, then the Order's status
+  changed **on the Order screen** and the linked Opportunity read back as *Qualified*; an
+  unassigned Opportunity assigned by choosing a person, the list and the board filtered to
+  *Mine* showing exactly it and *Unassigned* the other three; a tag created, the same name in
+  another case refused in the dialog with the server's sentence, the Opportunity tagged, the
+  list and the board filtered to it; a note added, edited in place and marked *edited*, a
+  message sent with no way to change it; a file uploaded (`201 POST /api/v1/admin/assets`,
+  `201 POST …/attachments`), listed with its size and uploader, downloaded — the list read
+  again and a new tab opened on `…/assets/file/<id>?token=…&exp=…` — and removed. **The role
+  holding only `crm:read` and `orders:read`**: the Organization and Sales Channel filters of
+  the list and the board offered their options and narrowed both, every lookup answered 200,
+  and nothing a CRM screen asked for was refused. **Polish — 6 of 6**: the sidebar rows, the
+  *Handlowiec* filter and column, the *Handlowiec* and *Etykiety* sections, the four tabs, no
+  untranslated key, no failed request.
+  **One defect found and fixed:** the tag filter sat 6 px above its neighbours in the filter
+  bar — its label was a block-level `span` where the kit's `Label` is inline, and the kit's
+  `MultiSelect` trigger is an inline-level button with a descender gap under it. Measured
+  before (label top 261 against 265) and after (265, control 285, as the Organization field).
+  **The walk's own three misreads:** `getByText('Unassigned')` also matched the hint under the
+  field; Chromium logs a console line for the deliberate 409 of the tag-name refusal; and
+  **the shell asks `GET /api/v1/admin/settings/admin.idle_logout_minutes` on every page, which
+  answers 403 to this role** — not a CRM request and not repaired here, but a red line in
+  every Sales Rep's network panel, reported for whoever owns the shell's idle-logout read.
+  Not verified by eye: a real screen reader, a physical touch device, dark theme, a popup
+  blocker stricter than Chromium's default on the download's new tab (N-D8 (c)).
 
 ## Questions put to the owner — all decided on 2026-10-05
 
