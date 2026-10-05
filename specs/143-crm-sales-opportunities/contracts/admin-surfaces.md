@@ -46,7 +46,7 @@ so `admin/src/lib/admin-actions/icon-map.ts` is not edited.
 
 Label keys are relative to the module namespace and live in
 `packages/modules/crm/i18n/{en,pl}.json`: Opportunities / Szanse sprzedażowe, Board / Tablica,
-Analytics / Analityka, Tags / Tagi, Workflow / Statusy i przepływ.
+Analytics / Analityka, Tags / Etykiety, Workflow / Statusy i przepływ.
 
 ## 3. Command palette (manifest `actions`)
 

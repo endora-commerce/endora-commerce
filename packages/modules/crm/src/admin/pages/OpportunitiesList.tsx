@@ -27,6 +27,7 @@ import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-k
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type OpportunityListParams, type OpportunitySort } from '../api.js';
 import { AssigneeName } from '../components/AssigneeName.js';
+import { TagChips } from '../components/TagPicker.js';
 import { CursorPagination, MAX_PAGE_LIMIT } from '../components/CursorPagination.js';
 import {
   NO_SHARED_FILTERS,
@@ -194,7 +195,12 @@ export function OpportunitiesList(): ReactNode {
       id: 'title',
       header: t('opportunity.list.col.title'),
       primary: true,
-      render: (row) => row.title,
+      render: (row) => (
+        <div className="space-y-1">
+          <span>{row.title}</span>
+          <TagChips tags={row.tags} />
+        </div>
+      ),
     },
     {
       id: 'organization',

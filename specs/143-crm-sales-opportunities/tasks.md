@@ -252,8 +252,8 @@ own rules, with every outcome shown; register business logic on X → Y.
 - [x] T083 [P] [US6] Contract tests `backend/test/contract/crm/tags.contract.test.ts` (`contracts/admin-api.md` §8; `crm:configure` for CRUD, `crm:write` for tagging)
 - [x] T084 [P] [US6] Integration test `backend/test/integration/crm/tags.test.ts`: create/rename/recolour/delete; a case-insensitively duplicate name is 409 `CRM_TAG_NAME_TAKEN`; deleting a tag in use removes it from its Opportunities; `PUT …/tags` replaces the set and is audited; the list with two `tagId` values returns only Opportunities carrying both; `usageCount` counts only Opportunities the caller may see
 - [x] T085 [US6] Implement `packages/modules/crm/src/backend/services/tag-service.ts` (Commands per `data-model.md`), `routes/routes.tags.ts`, `compose/tags.ts`; add the `tagId` filter and `tags` to the summary in `opportunity-service.ts`; register; T083–T084 green
-- [ ] T086 [P] [US6] Admin: `pages/TagsPage.tsx` (table, dialog, delete confirmation naming the usage count), route `/crm/tags` and its nav row in `src/admin/index.ts`, a tag `MultiSelect` on the create form, on `OverviewTab.tsx` and as a list filter; tests `admin/test/modules/crm/tags.test.tsx`; strings under `tags.*`
-- [ ] T087 [US6] Docs section (+ Polish), regenerate (new admin route), full gate
+- [x] T086 [P] [US6] Admin: `pages/TagsPage.tsx` (table, dialog, delete confirmation naming the usage count), route `/crm/tags` and its nav row in `src/admin/index.ts`, a tag `MultiSelect` on the create form, on `OverviewTab.tsx` and as a list filter; tests `admin/test/modules/crm/tags.test.tsx`; strings under `tags.*`
+- [x] T087 [US6] Docs section (+ Polish), regenerate (new admin route), full gate
   - **Backend half done 2026-10-05** — the page and its Polish copy describe tags and their API; `off-state.test.ts` probes the five routes, the OpenAPI baseline holds them; the gate ran. Left for the admin half: the admin route and its regeneration. `research.md` N-B9…N-B11.
 
 ---

@@ -48,10 +48,11 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 
 | Ekran | Gdzie | Uprawnienie | Do czego służy |
 | --- | --- | --- | --- |
-| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, handlowiec, kanał sprzedaży i data utworzenia. |
+| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży i data utworzenia. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
 | Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Jej status i zmiany, na które pozwala przepływ, powiązane z nią zamówienia oraz to, co stało się z tymi zamówieniami po każdej zmianie. |
 | Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
+| Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
 | Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy oraz status szansy, do którego prowadzi każdy status zamówienia. |
 
 Codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
@@ -202,8 +203,8 @@ szansa pozostaje przeniesiona: karta zostaje oznaczona, a powiadomienie nad
 tablicą wymienia każde takie zamówienie z przyczyną i prowadzi do szansy, gdzie
 zmianę można ponowić albo pominąć.
 
-Pole wyszukiwania oraz filtry organizacji, handlowca, kanału sprzedaży i daty
-utworzenia są takie same jak na liście i zawężają każdą kolumnę — jej karty, liczbę i
+Pole wyszukiwania oraz filtry organizacji, handlowca, etykiet, kanału sprzedaży
+i daty utworzenia są takie same jak na liście i zawężają każdą kolumnę — jej karty, liczbę i
 sumy. Kolumna, która zawiera więcej szans, niż pokazuje, podaje ich liczbę i
 ma przycisk **Pokaż więcej**.
 
@@ -416,6 +417,20 @@ etykiet jest jedna dla całej platformy.
 
 Zarządzanie listą etykiet jest konfiguracją i wymaga `crm:configure`.
 Nadawanie etykiet szansie to codzienna praca i wymaga `crm:write`.
+
+W Admin UI:
+
+- **CRM → Etykiety** to lista etykiet z informacją, ile widocznych dla Ciebie
+  szans ma każdą z nich. Przycisk **Dodaj etykietę** otwiera krótki formularz
+  z nazwą i kolorem; ołówek zmienia nazwę lub kolor; kosz usuwa etykietę — po
+  potwierdzeniu, które podaje, ile szans ją straci.
+- **Na ekranie szansy** sekcja *Etykiety* pokazuje jej etykiety. Posiadacz
+  uprawnienia `crm:write` zaznacza je i odznacza na liście poniżej; każda
+  zmiana jest zapisywana od razu.
+- **W formularzu nowej szansy** pole *Etykiety* pozwala nadać je od początku.
+- **Na liście i na tablicy** filtr *Etykiety (wszystkie naraz)* zawęża widok do
+  szans, które mają każdą zaznaczoną etykietę. Lista pokazuje etykiety szansy
+  pod jej tytułem, a tablica — na karcie.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |

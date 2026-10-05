@@ -23,6 +23,7 @@ import {
   SalesChannelSelect,
   useSalesChannelOptions,
 } from '../components/LookupPickers.js';
+import { TagMultiSelect } from '../components/TagPicker.js';
 import { errorMessage, normaliseAmount } from '../lib/labels.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -57,6 +58,7 @@ export function OpportunityCreatePage(): ReactNode {
   const [customerAccountId, setCustomerAccountId] = useState<string | null>(null);
   const [salesChannelId, setSalesChannelId] = useState<string | null>(null);
   const [assigneeId, setAssigneeId] = useState<string | null>(null);
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const [currency, setCurrency] = useState('');
   const [value, setValue] = useState('');
   const [expectedCloseDate, setExpectedCloseDate] = useState('');
@@ -126,6 +128,7 @@ export function OpportunityCreatePage(): ReactNode {
       // Absent means "apply the default rule" (the Organization's Sales Reps);
       // only a person the operator chose is sent.
       ...(assigneeId ? { assignedAdminUserId: assigneeId } : {}),
+      ...(tagIds.length > 0 ? { tagIds } : {}),
       ...(amount ? { manualValue: amount } : {}),
       ...(expectedCloseDate ? { expectedCloseDate } : {}),
       ...(description.trim() ? { description: description.trim() } : {}),
@@ -255,6 +258,16 @@ export function OpportunityCreatePage(): ReactNode {
                   emptyMessage={t('assignment.picker.empty')}
                 />
                 <p className="text-xs text-muted-foreground">{t('assignment.create.hint')}</p>
+              </div>
+
+              <div className="space-y-1">
+                <span className="block text-sm font-medium leading-none">{t('tags.section')}</span>
+                <TagMultiSelect
+                  ariaLabel={t('tags.section')}
+                  selected={tagIds}
+                  onChange={setTagIds}
+                  className="w-full"
+                />
               </div>
 
               <div className="space-y-1">

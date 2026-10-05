@@ -37,7 +37,7 @@ function adminSources(directory: URL = ADMIN_ROOT): { path: string; text: string
 }
 
 describe('crm admin contributions', () => {
-  it('declares the four screens of User Story 1 and the board, each on the code its route enforces', () => {
+  it('declares the four screens of User Story 1, the board and the tag list, each on the code its route enforces', () => {
     expect(
       (contributions.routes ?? []).map((route) => [route.path, route.requiredPermission]),
     ).toEqual([
@@ -46,6 +46,7 @@ describe('crm admin contributions', () => {
       ['/crm/opportunities/:id', 'crm:read'],
       ['/crm/workflow', 'crm:configure'],
       ['/crm/board', 'crm:read'],
+      ['/crm/tags', 'crm:configure'],
     ]);
     expect((contributions.routes ?? []).filter((route) => route.index)).toHaveLength(1);
   });
@@ -60,12 +61,13 @@ describe('crm admin contributions', () => {
     expect(entry).not.toMatch(/^import .* from '\.\/(pages|components)\//m);
   });
 
-  it('puts every sidebar row in the CRM section — opportunities, the board, workflow last', () => {
+  it('puts every sidebar row in the CRM section — opportunities, the board, tags, workflow last', () => {
     expect(
       (contributions.nav ?? []).map((row) => [row.to, row.section, row.requiredPermission]),
     ).toEqual([
       ['/crm/opportunities', 'crm', 'crm:read'],
       ['/crm/board', 'crm', 'crm:read'],
+      ['/crm/tags', 'crm', 'crm:configure'],
       ['/crm/workflow', 'crm', 'crm:configure'],
     ]);
     const weights = (contributions.nav ?? []).map((row) => row.weight ?? 0);
@@ -163,7 +165,7 @@ describe('crm admin copy', () => {
   it('ships no key under its own prefixes that no screen asks for', () => {
     const text = sources.map((source) => source.text).join('\n');
     const own = Object.keys(en).filter((key) =>
-      /^(opportunity|links|propagation|workflow|board|assignment)\./.test(key),
+      /^(opportunity|links|propagation|workflow|board|assignment|tags)\./.test(key),
     );
     const unused = own.filter((key) => {
       if (text.includes(`'${key}'`)) return false;

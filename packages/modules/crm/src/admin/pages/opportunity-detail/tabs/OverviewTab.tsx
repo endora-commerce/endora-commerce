@@ -16,6 +16,7 @@ import { salesChannelLabel } from '../../../components/LookupPickers.js';
 import { OpportunityEditForm } from '../../../components/OpportunityEditForm.js';
 import { PropagationOutcomes } from '../../../components/PropagationOutcomes.js';
 import { StatusControl } from '../../../components/StatusControl.js';
+import { TagsSection } from '../../../components/TagsSection.js';
 import { calendarDateLabel, moneyLabel, NO_VALUE } from '../../../lib/labels.js';
 import type { OpportunityTabProps } from '../tabs.js';
 
@@ -162,6 +163,8 @@ export function OverviewTab(props: OpportunityTabProps): ReactNode {
       ) : null}
 
       <AssigneeSection opportunity={opportunity} canWrite={canWrite} onChange={onChange} />
+
+      <TagsSection opportunity={opportunity} canWrite={canWrite} onChange={onChange} />
 
       <LinkedDocuments
         opportunity={opportunity}

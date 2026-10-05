@@ -247,6 +247,10 @@ export function crmLookupResponse(path: string): Promise<unknown> | undefined {
             ? matching([{ id: CONTACT_ID, name: 'Jan Kowalski', email: 'jan@acme.example' }])
             : [],
       });
+    // The tag list every screen with a tag filter reads; a test about tags
+    // answers it itself, before falling through to here.
+    case '/api/v1/admin/crm/tags':
+      return Promise.resolve({ data: [] });
     default:
       return undefined;
   }

@@ -49,10 +49,11 @@ when at least one of them is visible.
 
 | Screen | Where | Permission | What it is for |
 | --- | --- | --- | --- |
-| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, assignee, sales channel and creation date. |
+| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, assignee, tags, sales channel and creation date. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
 | An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, the orders linked to it, and what became of those orders after each move. |
 | Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
+| Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
 | Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, and the opportunity status each order status leads to. |
 
 The everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
@@ -195,8 +196,8 @@ succeeds but a linked order could not follow, the opportunity stays moved: the
 card is marked, and a notice above the board names each order with the reason
 and links to the opportunity, where the change can be retried or dismissed.
 
-The search box and the organization, assignee, sales channel and creation-date
-filters are the list's, and narrow every column, its count and its totals alike. A
+The search box and the organization, assignee, tags, sales channel and
+creation-date filters are the list's, and narrow every column, its count and its totals alike. A
 column that holds more opportunities than are shown says how many, with **Show
 more**.
 
@@ -400,6 +401,20 @@ the whole platform.
 
 Managing the tag list is configuration and needs `crm:configure`. Putting tags
 on an opportunity is everyday work and needs `crm:write`.
+
+In the Admin UI:
+
+- **CRM → Tags** is the tag list, with how many of the opportunities you can
+  see carry each tag. **Add tag** opens a small form with a name and a colour;
+  the pencil renames or recolours; the bin deletes, after a confirmation that
+  says how many opportunities will lose the tag.
+- **On an opportunity**, the *Tags* section shows its tags. A holder of
+  `crm:write` ticks and unticks them in the list under it; each change is saved
+  at once.
+- **On the new-opportunity form** the *Tags* field sets them from the start.
+- **On the list and the board** the *Tags (all of them)* filter narrows to the
+  opportunities carrying every tag ticked. The list shows each opportunity's
+  tags under its title, the board on its card.
 
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |

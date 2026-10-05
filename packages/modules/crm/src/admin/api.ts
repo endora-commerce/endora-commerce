@@ -7,11 +7,13 @@ import type {
   OpportunitySalesChannelOption,
   CreateOpportunityRequest,
   CreateOpportunityStatusRequest,
+  CreateOpportunityTagRequest,
   OpportunityBoard,
   OpportunityDetail,
   OpportunityLink,
   OpportunityStatusKind,
   OpportunitySummary,
+  OpportunityTag,
   OpportunityTransitionResult,
   OpportunityWorkflow,
   OrderStatusMapping,
@@ -20,6 +22,7 @@ import type {
   SetOpportunityTransitionsRequest,
   UpdateOpportunityRequest,
   UpdateOpportunityStatusRequest,
+  UpdateOpportunityTagRequest,
 } from '@endora-commerce/contracts';
 
 /**
@@ -54,6 +57,8 @@ export interface OpportunityFilterParams {
   organizationId?: string;
   /** `me`, `unassigned`, or an administrator's id. */
   assignedAdminUserId?: string;
+  /** Every tag named must be carried (AND). */
+  tagId?: readonly string[];
   salesChannelId?: string;
   createdFrom?: string;
   createdTo?: string;
@@ -99,6 +104,7 @@ export interface LinkableOrder {
 function appendSharedFilters(qs: URLSearchParams, params: OpportunityFilterParams): void {
   if (params.organizationId) qs.set('organizationId', params.organizationId);
   if (params.assignedAdminUserId) qs.set('assignedAdminUserId', params.assignedAdminUserId);
+  for (const tagId of params.tagId ?? []) qs.append('tagId', tagId);
   if (params.salesChannelId) qs.set('salesChannelId', params.salesChannelId);
   if (params.createdFrom) qs.set('createdFrom', params.createdFrom);
   if (params.createdTo) qs.set('createdTo', params.createdTo);
@@ -253,6 +259,33 @@ export const crmApi = {
   setOrderStatusMappings(mappings: OrderStatusMapping[]): Promise<OpportunityWorkflow> {
     return data(
       apiClient.put<{ data: OpportunityWorkflow }>(`${BASE}/order-status-mappings`, { mappings }),
+    );
+  },
+
+  // --- §8 Tags --------------------------------------------------------------
+
+  /** The platform's tag list, by name, each with how many visible Opportunities carry it. */
+  listTags(): Promise<OpportunityTag[]> {
+    return data(apiClient.get<{ data: OpportunityTag[] }>(`${BASE}/tags`));
+  },
+
+  createTag(body: CreateOpportunityTagRequest): Promise<OpportunityTag> {
+    return data(apiClient.post<{ data: OpportunityTag }>(`${BASE}/tags`, body));
+  },
+
+  updateTag(id: string, body: UpdateOpportunityTagRequest): Promise<OpportunityTag> {
+    return data(apiClient.patch<{ data: OpportunityTag }>(`${BASE}/tags/${id}`, body));
+  },
+
+  /** Takes the tag off every Opportunity that carried it. */
+  deleteTag(id: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/tags/${id}`);
+  },
+
+  /** Replaces the Opportunity's whole tag set. Answers the Opportunity. */
+  setOpportunityTags(id: string, tagIds: readonly string[]): Promise<OpportunityDetail> {
+    return data(
+      apiClient.put<{ data: OpportunityDetail }>(`${BASE}/opportunities/${id}/tags`, { tagIds }),
     );
   },
 

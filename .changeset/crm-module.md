@@ -45,14 +45,15 @@ all under `/api/v1/admin/crm`:
   opportunity is chosen from the currencies the active sales channels sell in.
 
 **In the Admin UI** the package exports `./admin` (and `./tailwind.css`), which contributes
-five screens and three entries to the shell's "CRM" sidebar section:
+six screens and four entries to the shell's "CRM" sidebar section:
 
 - `/crm/opportunities` (`crm:read`) — the list, with search and filters by state, status,
-  organization, assignee ("mine", "unassigned" or a chosen person), sales channel and creation
-  date, and a column naming who holds each opportunity;
+  organization, assignee ("mine", "unassigned" or a chosen person), tags (every tag chosen),
+  sales channel and creation date, a column naming who holds each opportunity, and each
+  opportunity's tags under its title;
 - `/crm/opportunities/new` (`crm:write`) — create an opportunity by hand; an `organizationId`
   query parameter preselects the organization, and the assignee is optional — left empty, the
-  default rule chooses;
+  default rule chooses — and tags can be set from the start;
 - `/crm/opportunities/:id` (`crm:read`) — the status control, which offers exactly the
   transitions the workflow allows; the linked orders, with linking by search, the
   status-following switch and unlinking; and, per linked order, the outcome of each move, with
@@ -62,7 +63,10 @@ five screens and three entries to the shell's "CRM" sidebar section:
   of `crm:configure` can delete it, after a confirmation. The *Assignee* section names who
   holds the opportunity and lets a holder of `crm:write` reassign or unassign it in one
   choice; an assignee who has been deactivated is marked *inactive* here, on the list and on
-  the board;
+  the board. The *Tags* section shows the opportunity's tags, and a holder of `crm:write`
+  ticks and unticks them, each change saved at once;
+- `/crm/tags` (`crm:configure`) — the tag list with each tag's usage count: add, rename,
+  recolour, and delete after a confirmation naming how many opportunities lose the tag;
 - `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, the
   order status each opportunity status sets, and — the reverse direction — the opportunity
   status each order status leads to, with "only when every linked order is there" per row
@@ -73,7 +77,7 @@ five screens and three entries to the shell's "CRM" sidebar section:
   card by dragging it (mouse, touch, keyboard) or from the card's "Move to…" menu, which
   lists exactly the statuses the workflow allows; a refused move puts the card back with the
   server's reason, and a linked order that did not follow is reported on the card and above
-  the board. It shares its filters with the list.
+  the board. It shares its filters with the list — the assignee and tag filters included.
 
 Three command-palette actions — `open-opportunities`, `new-opportunity` and
 `open-opportunity-board` — open the list, the create screen and the board.

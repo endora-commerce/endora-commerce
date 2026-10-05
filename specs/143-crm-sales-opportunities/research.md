@@ -1751,6 +1751,22 @@ when it was measured, and what was done about it.
   marker. (e) The marker is the summary's `assignee.active`; `board.card.unassigned` was
   folded into `assignment.unassigned`. (f) The edit form still has no assignee field
   (N-C1 (b)): the section above it is the one place to change it.
+- **N-D6 (2026-10-05, T086) — what the tag screens do that T086 leaves open.** (a) **In
+  Polish a tag is "Etykieta"**, on the sidebar row too (`contracts/admin-surfaces.md` §2 said
+  "Tagi"; the coordinator's brief and the module page say "Etykiety", and the contract line
+  was brought in line). (b) **No palette action**: §3 of that contract names three and the
+  tag list is not one of them. (c) **Tagging on the Opportunity is one gesture** — each tick
+  is a `PUT …/tags` with the whole set, in the tag list's order, and the answer is put on
+  screen; there is no *Save*. (d) **The tag control is the kit's `MultiSelect`** in all three
+  places (Opportunity, create form, filter), fed by one `GET /tags` per screen; with no tags
+  defined it is disabled and says so. (e) The filter is labelled "Tags (all of them)"
+  because several tags mean AND, which a bare "Tags" would not say. (f) The delete
+  confirmation names `usageCount`, which is the number of Opportunities **the operator can
+  see** carrying the tag (N-B9) and says so — the tag leaves the others as well. (g) An edit
+  sends only the changed fields; an untouched dialog is no request. (h) The edit form of an
+  Opportunity still carries no tags field (N-C1 (b)); the *Tags* section is the one place.
+  (i) `GET /tags` is `crm:read` while the screen opens on `crm:configure`: every control on
+  it is a write, as on *Workflow*.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

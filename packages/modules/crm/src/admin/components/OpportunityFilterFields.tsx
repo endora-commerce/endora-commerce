@@ -4,10 +4,11 @@ import { Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { OpportunityFilterParams } from '../api.js';
 import { AssigneeLookup, OrganizationLookup, SalesChannelLookup } from './LookupPickers.js';
+import { TagMultiSelect } from './TagPicker.js';
 
 /**
  * The filters the list and the board share, as the two screens hold them:
- * text, Organization, assignee, Sales Channel and the creation-date range
+ * text, Organization, assignee, tags, Sales Channel and the creation-date range
  * (`specs/143-crm-sales-opportunities/contracts/admin-api.md` §1, §10).
  */
 export interface SharedOpportunityFilters {
@@ -16,6 +17,8 @@ export interface SharedOpportunityFilters {
   /** Anyone (`''`), the operator's own, nobody's, or one person's — chosen in `assigneeId`. */
   assignee: AssigneeFilter;
   assigneeId: string | null;
+  /** Every tag chosen must be carried — the list's AND. */
+  tagIds: readonly string[];
   salesChannelId: string | null;
   createdFrom: string;
   createdTo: string;
@@ -30,6 +33,7 @@ export const NO_SHARED_FILTERS: SharedOpportunityFilters = {
   organizationId: null,
   assignee: '',
   assigneeId: null,
+  tagIds: [],
   salesChannelId: null,
   createdFrom: '',
   createdTo: '',
@@ -40,6 +44,7 @@ export function hasSharedFilters(filters: SharedOpportunityFilters): boolean {
     filters.q.trim() !== '' ||
     filters.organizationId !== null ||
     filters.assignee !== '' ||
+    filters.tagIds.length > 0 ||
     filters.salesChannelId !== null ||
     filters.createdFrom !== '' ||
     filters.createdTo !== ''
@@ -58,6 +63,7 @@ export function sharedFilterParams(filters: SharedOpportunityFilters): Opportuni
     ...(filters.q.trim() ? { q: filters.q.trim() } : {}),
     ...(filters.organizationId ? { organizationId: filters.organizationId } : {}),
     ...(assigneeParam(filters) ? { assignedAdminUserId: assigneeParam(filters) as string } : {}),
+    ...(filters.tagIds.length > 0 ? { tagId: filters.tagIds } : {}),
     ...(filters.salesChannelId ? { salesChannelId: filters.salesChannelId } : {}),
     ...(filters.createdFrom ? { createdFrom: filters.createdFrom } : {}),
     ...(filters.createdTo ? { createdTo: filters.createdTo } : {}),
@@ -154,6 +160,16 @@ export function OpportunityFilterFields(props: OpportunityFilterFieldsProps): Re
           />
         </div>
       ) : null}
+      <div className="space-y-1">
+        {/* The multi-select's trigger is a button; the visible label names it. */}
+        <span className="block text-sm font-medium leading-none">{t('tags.filter.label')}</span>
+        <TagMultiSelect
+          ariaLabel={t('tags.filter.label')}
+          selected={filters.tagIds}
+          onChange={(tagIds): void => onChange({ tagIds })}
+          className="w-full"
+        />
+      </div>
       <div className="space-y-1">
         <Label htmlFor={`${idPrefix}-channel`}>{t('opportunity.list.filter.salesChannel')}</Label>
         <SalesChannelLookup
