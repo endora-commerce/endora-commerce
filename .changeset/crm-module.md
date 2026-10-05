@@ -26,10 +26,15 @@ all under `/api/v1/admin/crm`:
   change is not an error**: the response is 200, the opportunity has moved, and each order's
   outcome (`applied`, `already_there`, `not_permitted`, `vetoed`, `unknown_status`,
   `not_found`, `failed`) is an element of `propagation`, which
-  `POST …/propagations/:id/retry` and `…/dismiss` then address.
+  `POST …/propagations/:id/retry` and `…/dismiss` then address;
+- **the board** — `GET /board` (`crm:read`): one column per status in workflow order, each
+  with `count`, `valueTotals` per currency, the first `perColumn` opportunities (default 50,
+  at most 200) and `hasMore`. It takes the list's filters except `statusCode` and `state`;
+  like the list it answers 422 for `tagId` and `assignedAdminUserId`, which a later release
+  serves. There is no board-specific write — moving a card is the transition endpoint.
 
 **In the Admin UI** the package exports `./admin` (and `./tailwind.css`), which contributes
-four screens and two entries to the shell's "CRM" sidebar section:
+five screens and three entries to the shell's "CRM" sidebar section:
 
 - `/crm/opportunities` (`crm:read`) — the list, with search and filters by state, status,
   organization, sales channel and creation date;
@@ -43,9 +48,16 @@ four screens and two entries to the shell's "CRM" sidebar section:
   with a way to reload rather than retried — and may give a status change a reason; a holder
   of `crm:configure` can delete it, after a confirmation;
 - `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, and the
-  order status each opportunity status sets.
+  order status each opportunity status sets;
+- `/crm/board` (`crm:read`) — the opportunities as cards in a column per status, on the
+  `KanbanBoard` primitive of `@endora-commerce/admin-kit`. A holder of `crm:write` moves a
+  card by dragging it (mouse, touch, keyboard) or from the card's "Move to…" menu, which
+  lists exactly the statuses the workflow allows; a refused move puts the card back with the
+  server's reason, and a linked order that did not follow is reported on the card and above
+  the board. It shares its filters with the list.
 
-Two command-palette actions, `open-opportunities` and `new-opportunity`, open the first two.
+Three command-palette actions — `open-opportunities`, `new-opportunity` and
+`open-opportunity-board` — open the list, the create screen and the board.
 The admin layer's peers — `@endora-commerce/admin-kit`, `react`, `react-router-dom` and
 `lucide-react` — are optional, so a backend-only installation is not asked for them.
 

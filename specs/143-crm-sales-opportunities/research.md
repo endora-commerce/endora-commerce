@@ -1305,6 +1305,136 @@ when it was measured, and what was done about it.
   the dialog names the number and the title and says the linked Orders are not changed.
   (g) **The reason is one optional field under the status buttons**, sent with the next move
   and then cleared; the board's moves (US7) send none.
+- **N-C2 (2026-10-05, T088/T090) — the board endpoint: two reads, the tenant filter applied
+  by name, and two filters it refuses.** `GET /board` is new files only —
+  `services/board-service.ts`, `routes/routes.board.ts` — and one delimited section of
+  `src/backend/index.ts` with a `ctx.routes` of its own (`compose/board.ts` does not exist,
+  N-6). (a) **The cards are the list's.** `OpportunityService.list` is called once per
+  status with `statusCode: [code], limit: perColumn`, so a card is rendered, ordered and
+  language-resolved by the one code path that already does it, and `hasMore` is the list's.
+  The service takes the list as a function and edits nothing in `opportunity-service.ts`.
+  (b) **The figures are one grouped statement** over `CrmOpportunity` — `count(*)` and the
+  sum of the effective value, grouped by status and currency. A QueryBuilder does **not** take
+  the entity filters on its own (MikroORM 6.6: `QueryBuilder.applyFilters()` is a separate
+  call); the service calls it, so the tenant predicate is the platform's and none is written
+  by hand. `board.contract.test.ts` proves it with a Sales Representative confined to one
+  Organization: the other Organization's Opportunity is in no column, no count and no total,
+  with the platform administrator's answer as the positive control. A currency whose
+  Opportunities carry no value is counted and has no total. (c) **The filters are stated
+  twice** — in the list for the cards, in `BoardService.conditions` for the figures — because
+  unifying them means editing `list`, which another branch is editing now. The contract test
+  holds the two to the same answers for `q` (title and organization name),
+  `organizationId`, `salesChannelId` and the creation dates. **Owed after the US3 / US6
+  merges:** `tagId` and `assignedAdminUserId` are refused by the board with 422 — it refuses
+  before it reads, so it never answers cards filtered one way and counts another — and the
+  story that teaches the list either filter adds it to `conditions` and replaces the 422 case
+  of the test. Moving `conditions` into a function `list` also calls is the tidy-up that
+  becomes possible then. (d) A malformed query (`perColumn=0`, `201`, a non-uuid id) answers
+  **400** `VALIDATION_FAILED` — the platform's answer for a schema failure, where T088's
+  first draft assumed 422. (e) **SC-006, measured** on the test harness (`app.inject`, one
+  Organization, this worktree's Postgres): 500 open Opportunities over four statuses, twelve
+  requests each, the first two discarded — `perColumn=50` median **56 ms** (max 64 ms, 99 kB),
+  `perColumn=200` median **65 ms** (max 96 ms, 247 kB, every card of every column); the list
+  at `limit=200` for comparison, 24 ms. Sequential per-column list calls are the bulk of it
+  and were kept sequential on purpose: asking six columns at once takes six connections from
+  the pool for one request. **[unverified]**: a real network, a cold database, and a
+  Sales Representative's allowed-set predicate at that size.
+- **N-C3 (2026-10-05, T089/T091) — what the board screen does that the tasks could not have
+  known.** (a) **A card's permitted moves come from `GET /workflow`, not from the card.** The
+  board answers `OpportunitySummary`, which has no `allowedTransitions` (only the detail
+  does). `canDrop` and the "Move to…" menu are therefore the workflow's edges out of the
+  card's status — the same graph the server walks — which is also why the lanes can be drawn,
+  in a loading state, before `GET /board` has answered. A guard's veto is not in the graph and
+  is met when the server refuses. (b) **The page moves the card, not the primitive.** The
+  primitive's optimistic projection only covers a drag; the menu is a first-class path
+  (SC 2.5.7), so the page relocates the card in its own state for both, adjusts the two lanes'
+  counts and per-currency totals in cents, and puts the card back at its old index on a
+  refusal. The promise handed to `KanbanBoard.onMove` still rejects — that is the primitive's
+  rollback and its spoken message (`labels.moveFailed`, with the server's sentence) — after
+  the page has set the visible error. (c) **After a refusal the board is read again only when
+  the refusal says the board is stale**: any 409 but `CRM_TRANSITION_VETOED`. A veto changed
+  nothing, and re-reading would collapse a lane the operator had expanded. (d) **A refused
+  Order is shown twice and dismissed once**: a notice above the board names each Order with
+  the Order workflow's own reason and links to the Opportunity (where *Retry* and *Dismiss*
+  live), and the card carries a count for the rest of the visit. Dismissing the notice hides
+  the notice; the card's marker and the Opportunity's unresolved outcome are untouched. The
+  marker does not survive a reload — `OpportunitySummary` carries no unresolved-outcome count,
+  and adding one is a contract change no task asked for. (e) **"Move to…" is a disclosure,
+  not a floating menu**: a labelled button revealing a list of buttons inside the card. The
+  kit's `RowActionMenu` is the only menu it publishes and its trigger is a fixed 32 px icon
+  with no visible label; the `DropdownMenu` parts are not on a barrel a module may name. In
+  the page flow it cannot be clipped by the lane, needs no positioning, and each target is a
+  full-width, 44 px-tall button on a phone. Its accessible name contains its visible label
+  (SC 2.5.3): "Move to… — <title>". (f) **A lane is continued from the list endpoint.** §10
+  has `perColumn` and `hasMore` and no cursor, so *Show more* asks
+  `GET /opportunities?statusCode=<code>&limit=200` under the same filters — the first time
+  replacing the lane's cards with that longer first page (same order, N-C2 (a)), then
+  following the list's cursor. One redundant read of at most `perColumn` rows, against a
+  contract change. (g) **The card's title link is inline, not block.** A link never starts a
+  drag (the primitive's rule), so a block-level title took the whole first row of the card
+  away from the pointer — found in the browser, not by a test. (h) The transition's `reason`
+  is not asked for on the board; a move there is one gesture.
+- **N-C4 (2026-10-05, T092) — the filter fields are one component for both screens.**
+  `components/OpportunityFilterFields.tsx` renders the five filters §1 and §10 share (text,
+  Organization, Sales Channel, created from / to); the list passes its two own fields (state,
+  status) as children, and `OpportunitiesList.test.tsx` passes unchanged. `api.ts` has the
+  matching `OpportunityFilterParams` and one `appendSharedFilters`. The assignee and tag
+  filters are in neither screen and cannot be sent — the types do not carry them. The story
+  that serves one adds a field to that component, a key to `SharedOpportunityFilters` and a
+  line to `sharedFilterParams` / `appendSharedFilters`; neither screen is restructured. The
+  board has no sort control: its lanes are in the list's default order (newest first), which
+  is what makes (f) of N-C3 seamless.
+- **N-C5 (2026-10-05, T093) — the board in a browser, and what a person still has to
+  check.** Headless Chromium (Playwright 1.60) against the admin's Vite dev server and the
+  backend test composition on a throw-away `_test` database (N-30's arrangement; created and
+  dropped), seeded with 64 Opportunities in six statuses, an Order in a terminal status linked
+  to one of them, and a guard vetoing one deal's move to *won*. **Desktop, 1440 px — 24 of 24
+  checks**: the sidebar row between *Opportunities* and *Workflow*; the palette action; a
+  mouse drag onto an allowed lane (one `POST …/transition`, 200); a drop on a refused lane
+  (nothing called); the keyboard path from the handle — Space, →, Space — with each
+  announcement read back from the live region, a keyboard drop on a refused lane and Escape;
+  the "Move to…" menu listing exactly *Proposal, Lost* for a *Qualified* card, moving it, and
+  closing on Escape with focus back on its button; the Order that did not follow, above the
+  board and on the card; the vetoed drag (card back in *Negotiation*, the guard's sentence on
+  screen and in the live region); a move refused because the transition had been removed
+  under the board (the server's sentence, and the board re-read); search; *Show more*
+  (50 → 54 through the list endpoint); tab order inside a card (handle → title → menu); no
+  console error or warning once the shell had loaded, no failed request but the three
+  deliberate 409s. (On a first paint the shell asks for every module's `nav.*` keys before the
+  bundles arrive and warns per key, CRM's three included; the labels are right a moment
+  later. That is the shell's and was left alone.)
+  **Read-only role**: cards, no handle, no menu, the explanation. **390 px with touch
+  emulation**: the page does not scroll sideways and the board scrolls inside its region; a
+  tap on "Move to…" (212 × 44 px) moves the card; a swipe over a card scrolls the board and
+  lifts nothing; a 400 ms press lifts it and a drop moves it. **Polish**: the row *Tablica*,
+  the heading, the lanes, the menu, the handle's name and every announcement, with no key and
+  no English string left; no sideways scroll at 390 px.
+  **Found on the way, not defects of this story's code but worth a decision:**
+  (1) six lanes are 1 796 px and the content area beside the sidebar is 1 136 px at 1440, so
+  the two last lanes are reached by scrolling the board (the library scrolls it while a card
+  is dragged to the edge); (2) lanes are as tall as their longest one — fifty cards is about
+  8 000 px of page — because the primitive gives a lane no height of its own; (3) the
+  primitive's drag handle is 28 × 28 px, above WCAG 2.2 SC 2.5.8's 24 px and below this
+  repository's 44 px rule; (4) a role with `crm:read` and `orders:read` only gets 403 from
+  the Organization and Sales Channel pickers of the shared filter bar (their endpoints have
+  their own codes) — on the list as on the board; (5) an arrow key sent with no pause after the
+  Space that lifts a card is ignored — observed; the library appears to attach its key
+  listeners a tick after the lift — which a script meets and a hand cannot; (6) a card lifted with the keyboard stays lifted if the
+  pointer is then used elsewhere, until Escape.
+  **Not verified, and owed to `endora-commerce-designer` before T093 is ticked:** a physical
+  touch device (press-and-hold feel, the 250 ms delay against scrolling, drag near the screen
+  edge, the 28 px handle under a thumb); a real screen reader in both languages (NVDA /
+  VoiceOver: whether the handle's role description, the instructions and the live-region
+  sentences are spoken once and in a sensible order, and how the disclosure's group is
+  announced); dark theme and contrast of the dimmed refused lanes; zoom at 200 % and reflow
+  at 320 px; reduced motion; a board with a dozen statuses; long titles and long Organization
+  names; Polish plural forms where a count follows a colon by design.
+- **N-C6 (2026-10-05, T091) — N-K3's prediction, measured with the real consumer.**
+  `pnpm --filter admin run build` before this story: entry chunk **1 874 213 bytes**
+  (595.22 kB gzip), no chunk containing `@dnd-kit`. After: **1 916 576 bytes** (608.86 kB
+  gzip) — **+42 363 bytes, +13.6 kB gzip** — with `@dnd-kit/core` in the entry chunk and the
+  board page itself a lazy chunk of 21.18 kB (7.48 kB gzip). N-K3 predicted +41 989. The
+  lever it names (`"sideEffects"` on the kit's manifest) is still not pulled.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

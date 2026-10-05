@@ -52,10 +52,11 @@ when at least one of them is visible.
 | Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, sales channel and creation date. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
 | An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, the orders linked to it, and what became of those orders after each move. |
+| Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
 | Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, and the order status each opportunity status sets. |
 
-Both everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
-**Sales opportunities** and **New sales opportunity**.
+The everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
+**Sales opportunities**, **New sales opportunity** and **Opportunity board**.
 
 A first walk through the module, start to finish:
 
@@ -164,6 +165,50 @@ buttons before pressing one. It is optional and is recorded with the change.
 **Delete**, in the header of the screen, is for a holder of `crm:configure`. It
 asks first, and removes the opportunity together with its status history and
 its links; the linked orders themselves are not touched.
+
+## The board
+
+**CRM → Board** shows the opportunities you may see as cards, in one column per
+status, in the workflow's order. Each column's header carries the number of
+opportunities in that status and their value, one total per currency; each card
+shows the opportunity's title, number, organization, value, who it is assigned
+to and its tags. The card's title opens the opportunity.
+
+A card is moved to another status in either of two ways, and both do exactly
+what the status buttons on the opportunity's own screen do — linked orders
+included:
+
+- **Drag it** to another column: with a mouse; on a touch screen by pressing
+  the card for a moment and then dragging; or with the keyboard — focus the
+  grip at the card's left edge, press Space or Enter to pick the card up, the
+  left and right arrow keys to choose a column, Space or Enter to drop it, and
+  Escape to cancel. While a card is lifted, the columns the workflow does not
+  allow it to enter are dimmed and marked, and a drop on one changes nothing.
+- **Use the card's "Move to…" menu**, which lists exactly the statuses the
+  workflow allows from where the card is. It needs no dragging at all.
+
+The card moves at once. If the move is refused — the workflow no longer allows
+it, a business rule vetoes it, or somebody moved the opportunity first — the
+card returns to its column and the reason is shown above the board. If the move
+succeeds but a linked order could not follow, the opportunity stays moved: the
+card is marked, and a notice above the board names each order with the reason
+and links to the opportunity, where the change can be retried or dismissed.
+
+The search box and the organization, sales channel and creation-date filters
+are the list's, and narrow every column, its count and its totals alike. A
+column that holds more opportunities than are shown says how many, with **Show
+more**.
+
+An administrator who may read but not write sees the board without the grips
+and the menus.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/board` | `crm:read` | One column per status, in workflow order: the status, `count`, `valueTotals` per currency, the first `perColumn` opportunities (default 50, at most 200) and `hasMore`. Takes the list's filters except `statusCode` and `state`. |
+
+There is no board-specific write: moving a card is
+`POST /api/v1/admin/crm/opportunities/:id/transition`. A column is continued
+from the list endpoint, filtered to that status.
 
 ## Linking orders
 
@@ -319,7 +364,6 @@ No role receives a CRM permission automatically. Grant them on the
 - Moving an opportunity when one of its orders reaches a given status.
 - Assigning opportunities to sales representatives.
 - Notes, internal messages, attachments and tags.
-- A board view with a column per status.
 - Linking quote requests, and a value computed from the linked documents.
 - A change history for every opportunity.
 - Analytics: handling time, time in each status, results by sales

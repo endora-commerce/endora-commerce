@@ -52,10 +52,12 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, kanał sprzedaży i data utworzenia. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
 | Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Jej status i zmiany, na które pozwala przepływ, powiązane z nią zamówienia oraz to, co stało się z tymi zamówieniami po każdej zmianie. |
+| Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
 | Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi oraz status zamówienia ustawiany przez każdy status szansy. |
 
-Oba codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
-**Szanse sprzedażowe** i **Nowa szansa sprzedażowa**.
+Codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
+**Szanse sprzedażowe**, **Nowa szansa sprzedażowa** i **Tablica szans
+sprzedażowych**.
 
 Pierwsze przejście przez moduł, od początku do końca:
 
@@ -168,6 +170,53 @@ ze zmianą.
 **Usuń**, w nagłówku ekranu, jest dla posiadacza uprawnienia `crm:configure`.
 Najpierw pyta o potwierdzenie, a następnie usuwa szansę razem z historią
 statusów i powiązaniami; same powiązane zamówienia pozostają bez zmian.
+
+## Tablica
+
+**CRM → Tablica** pokazuje szanse, które możesz zobaczyć, jako karty — po
+jednej kolumnie dla każdego statusu, w kolejności przepływu. Nagłówek kolumny
+podaje liczbę szans w tym statusie i ich wartość, osobną sumę dla każdej
+waluty; karta pokazuje tytuł szansy, numer, organizację, wartość, osobę, do
+której jest przypisana, oraz tagi. Tytuł na karcie otwiera szansę.
+
+Kartę można przenieść do innego statusu na dwa sposoby i oba robią dokładnie
+to samo, co przyciski statusów na ekranie szansy — łącznie z powiązanymi
+zamówieniami:
+
+- **Przeciągnij ją** do innej kolumny: myszą; na ekranie dotykowym — po
+  krótkim przytrzymaniu karty; albo klawiaturą — ustaw fokus na uchwycie przy
+  lewej krawędzi karty, naciśnij spację lub Enter, aby ją podnieść, strzałki w
+  lewo i w prawo, aby wybrać kolumnę, spację lub Enter, aby ją upuścić, oraz
+  Escape, aby anulować. Gdy karta jest podniesiona, kolumny, do których
+  przepływ nie pozwala jej przenieść, są przygaszone i oznaczone, a upuszczenie
+  na taką kolumnę niczego nie zmienia.
+- **Użyj menu „Przenieś do…” na karcie**, które zawiera dokładnie te statusy,
+  na które przepływ pozwala z bieżącego statusu karty. Nie wymaga ono żadnego
+  przeciągania.
+
+Karta przenosi się od razu. Jeśli zmiana zostanie odrzucona — przepływ już na
+nią nie pozwala, zablokowała ją reguła biznesowa albo ktoś przeniósł szansę
+wcześniej — karta wraca do swojej kolumny, a przyczyna pojawia się nad tablicą.
+Jeśli zmiana się powiedzie, ale powiązane zamówienie nie mogło za nią podążyć,
+szansa pozostaje przeniesiona: karta zostaje oznaczona, a powiadomienie nad
+tablicą wymienia każde takie zamówienie z przyczyną i prowadzi do szansy, gdzie
+zmianę można ponowić albo pominąć.
+
+Pole wyszukiwania oraz filtry organizacji, kanału sprzedaży i daty utworzenia
+są takie same jak na liście i zawężają każdą kolumnę — jej karty, liczbę i
+sumy. Kolumna, która zawiera więcej szans, niż pokazuje, podaje ich liczbę i
+ma przycisk **Pokaż więcej**.
+
+Administrator, który może tylko przeglądać, widzi tablicę bez uchwytów i bez
+menu.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/board` | `crm:read` | Po jednej kolumnie dla każdego statusu, w kolejności przepływu: status, `count`, `valueTotals` dla każdej waluty, pierwsze `perColumn` szans (domyślnie 50, najwyżej 200) oraz `hasMore`. Przyjmuje filtry listy z wyjątkiem `statusCode` i `state`. |
+
+Tablica nie ma własnej operacji zapisu: przeniesienie karty to
+`POST /api/v1/admin/crm/opportunities/:id/transition`. Kolejne karty kolumny
+pochodzą z endpointu listy, zawężonego do tego statusu.
 
 ## Wiązanie zamówień
 
@@ -324,7 +373,6 @@ ekranie **Role**.
 - Przesuwanie szansy, gdy jedno z jej zamówień osiągnie wskazany status.
 - Przypisywanie szans przedstawicielom handlowym.
 - Notatki, wiadomości wewnętrzne, załączniki i tagi.
-- Widok tablicy z kolumną dla każdego statusu.
 - Wiązanie zapytań ofertowych oraz wartość obliczana z powiązanych dokumentów.
 - Historia zmian każdej szansy.
 - Analityka: czas obsługi, czas w poszczególnych statusach, wyniki
