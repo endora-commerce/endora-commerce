@@ -1342,6 +1342,52 @@ when it was measured, and what was done about it.
   `/api/v1/orders/:id/comments` and `/api/v1/quote-requests`, asserting the markers are in
   none and that the customer really is shown that Order; and it asserts the admin endpoint
   refuses the customer's session.
+- **N-B15 (2026-10-05, T080) — User Story 5 is STOPPED before any code: the asset-reference
+  descriptor needs a foreign edit this feature's list does not carry.** An
+  `AssetReferenceDescriptor` answers `AssetReference[]`, and `AssetReference.kind` is a
+  **closed Zod enum**, `assetReferenceKindSchema` in `packages/contracts/src/assets-library.ts`
+  (nine members: four of `catalog`, one of `cms`, one of `megamenu`, three of `blog`). There
+  is no member a CRM attachment can truthfully carry, so the descriptor
+  T080 asks for cannot be written without adding one — e.g. `'crm_opportunity_attachment'` —
+  to that file. It is one line, it is how `megamenu` and `blog` joined (the only two files
+  naming `megamenu_item_target` are that contract and `megamenu`'s own descriptor; no label
+  map elsewhere consumes the enum), and it is **not** a row of
+  `contracts/foreign-module-changes.md` (§A lists `crm.ts`, `index.ts`,
+  `admin-contributions.ts`, `common.ts`, `errors.ts`). Attachments without the descriptor
+  would be attachments the library may delete from under an Opportunity (FR-044), so the
+  story was not half-built: T078–T080 are untouched. **What unblocks it:** a row in §A for
+  that enum member, with the `@endora-commerce/contracts` changeset saying so.
+- **N-B16 (2026-10-05, T080) — R-15's [unverified] premises, re-derived from the tree for
+  whoever resumes User Story 5.** (a) **An upload is `public` by default**
+  (`packages/modules/assets_library/src/backend/routes.admin.ts`, `let visibility … =
+  'public'`); `private` is a multipart field sent *before* the file part, which the kit's
+  `uploadAsset(file, { visibility: 'private' })` does. So "attachments are uploaded private"
+  is the admin screen's act unless the backend refuses a non-private asset on attach — the
+  recommendation here is that it does (422), because nothing else stands between a customer's
+  brief and a stable public URL. (b) **A private asset is served through a signed, expiring
+  URL** — `…/assets/file/<id>?token=…&exp=…`, TTL from the adapter's `privateUrlTtlSec` (300 s
+  in the adapter's tests) — produced by `AssetsLibraryService.resolveUrl` and carried as
+  `AssetDetail.url`. An administrator gets it from `GET /api/v1/admin/assets/:id`
+  (`fetchAssetDetail`), **which is gated `assets.read`**: a Sales Rep holding only CRM
+  permissions cannot use it. So `OpportunityAttachment.url` has to be resolved by CRM, through
+  `assetsLibraryPort.getAsset(assetId).url`, at read time — and the screen should re-read the
+  list before opening a link, since the one it holds may have expired. `getAsset` also builds
+  the deletion-protection `references` list (one query per registered descriptor), which is
+  acceptable for a handful of attachments and would not be for a list of Opportunities.
+  (c) **Name, MIME type and size come from `assetReadPort.findByIds(ids, { liveOnly: true })`**
+  — `AssetRecord.filename`, `.mimeType`, `.sizeBytes` (a decimal **string**; the wire schema
+  wants a number), `.visibility`. `resolvePublicUrls` on the same port answers stable URLs for
+  public assets only and nothing for private ones. Both ports are `assets_library`'s, already
+  a binding dependency. (d) The registry's enumeration policy is *honoured while the
+  contributor is absent*, so the push is a contribution-only `ctx.onBoot` with no presence
+  probe; `backend/test/integration/blog/asset-reference-while-off.test.ts` composes the module
+  alone, while off, against a registry of its own, asserts the owner registered, that the
+  Library's `softDelete` answers 409 `ASSET_REFERENCED` naming the module's kind, and — the
+  control — that the same delete succeeds through an empty registry. Composing `crm` alone
+  needs `salesChannelAttributionRegistry` supplied as a root value too (its other boot hook).
+  (e) §7 names no error for attaching the same asset twice; the unique `(opportunity_id,
+  asset_id)` constraint exists, and no `CRM_*` code of §13 fits — answering the existing
+  attachment (200, nothing written) avoids minting one.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
