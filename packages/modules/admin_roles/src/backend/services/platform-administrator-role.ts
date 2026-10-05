@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AdminRole } from '../entities/admin-role.entity.js';
 
@@ -23,7 +24,8 @@ const FULL_ACCESS: readonly string[] = ['*'];
 export type PlatformAdministratorRoleOutcome = 'created' | 'restored' | 'unchanged';
 
 /**
- * Make sure the role exists and grants everything. Idempotent.
+ * Make sure the role exists and grants everything. Idempotent, and safe to run
+ * from several processes at once.
  *
  * It takes an `EntityManager` and nothing else because its two callers have
  * nothing else in common: the install hook has no container (`module:install`
@@ -42,18 +44,39 @@ export async function ensurePlatformAdministratorRole(
   // for the Command Bus to attribute the write to. This is the role the first
   // administrator is given, so it is written before anybody could sign in to
   // write it; every later role write goes through the audited admin surface.
-  const existing = await em.findOne(AdminRole, { code: PLATFORM_ADMINISTRATOR_ROLE_CODE });
-  if (existing === null) {
-    em.persist(
-      em.create(AdminRole, {
+  const before = await em.findOne(AdminRole, { code: PLATFORM_ADMINISTRATOR_ROLE_CODE });
+  if (before === null) {
+    // `insert … on conflict ("code") do nothing`, not a plain insert. Several
+    // processes run this at once — an instance starts an API process and a
+    // worker, and each ensures the role at boot — and on a database that does
+    // not hold it yet they all found nothing a moment ago. One insert wins; the
+    // others must be a no-op rather than a unique violation, which would fail
+    // the boot hook and stop the process (and, inside the install's
+    // transaction, abort it). Whoever lost reads the winner's row below.
+    const now = new Date();
+    const inserted = await em
+      .createQueryBuilder(AdminRole)
+      // Every column, spelled out: a query-builder insert is a statement, not
+      // an entity, so none of `AdminRole`'s initialisers runs for it.
+      .insert({
+        id: randomUUID(),
         code: PLATFORM_ADMINISTRATOR_ROLE_CODE,
         name: PLATFORM_ADMINISTRATOR_ROLE_NAME,
         permissions: [...FULL_ACCESS],
-      }),
-    );
-    await em.flush();
-    return 'created';
+        requiresTwoFactor: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflict('code')
+      .ignore()
+      .execute<{ affectedRows: number }>('run');
+    if (inserted.affectedRows > 0) return 'created';
   }
+  // `refresh`: the row this EntityManager may already hold is the one read
+  // before a concurrent writer finished.
+  const existing =
+    before ??
+    (await em.findOneOrFail(AdminRole, { code: PLATFORM_ADMINISTRATOR_ROLE_CODE }, { refresh: true }));
   const permissions = existing.permissions ?? [];
   if (permissions.length === 1 && permissions[0] === FULL_ACCESS[0]) return 'unchanged';
   existing.permissions = [...FULL_ACCESS];

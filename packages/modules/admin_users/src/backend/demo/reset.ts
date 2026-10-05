@@ -6,8 +6,11 @@
  * other column, and this is the table the host's `truncate … cascade` emptied
  * outright — including the account a developer had created for themselves.
  *
- * The role each account holds is unassigned first, by the composition: `reset`
- * runs the composition's withdrawal before any module's (§5.5).
+ * The accounts are deleted **with their role still on them**. Nothing unassigns
+ * it first: an account that outlived a withdrawal that stopped part-way would
+ * otherwise be an administrator with no role. This module's withdrawal runs
+ * before `admin_roles`' — the reverse of the order they are seeded in — so no
+ * row references a role by the time that module removes its own.
  */
 import type { DemoResetResult, ModuleDemoContext } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';

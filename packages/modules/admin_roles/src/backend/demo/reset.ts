@@ -9,10 +9,10 @@
  * `truncate … cascade`, which took all four with it — and, through the cascade,
  * the `admin_users` rows pointing at them.
  *
- * The demo administrators' **assignment** to these roles is withdrawn first, by
- * the composition: `reset` runs the composition's withdrawal before any module's
- * (§5.5), which is also what leaves no `admin_users` row referencing a role
- * deleted below.
+ * The demo administrators are gone by the time this runs: module withdrawals run
+ * in the reverse of the seeding order, so `admin_users` — which depends on this
+ * module — removes its accounts first, which is what leaves no `admin_users` row
+ * referencing a role deleted below. Their role is never unassigned on the way.
  */
 import type { DemoResetResult, ModuleDemoContext } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';

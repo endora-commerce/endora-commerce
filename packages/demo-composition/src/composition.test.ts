@@ -67,7 +67,29 @@ describe('the step list is the demo shop the platform repository has always seed
     expect(DEMO_COMPOSITION_STEP_NAMES).toContain('product↔category and channel↔product bridges');
   });
 
+  it('pairs the administrators with their roles before any other step', () => {
+    // An administrator without a role is refused everywhere, and every later
+    // step can fail; the pairing depends on none of them.
+    expect(DEMO_COMPOSITION_STEP_NAMES[0]).toBe('demo administrators take their roles');
+  });
+
   it('keeps the sales channels as the one foundation step (§5.5a)', () => {
     expect(DEMO_FOUNDATION_STEP_NAMES).toEqual(["the demo's two sales channels"]);
+  });
+});
+
+describe('withdrawing the composition never leaves an administrator without a role', () => {
+  it('writes nothing for the role step: the accounts are deleted with their role on them', async () => {
+    // Only the two admin modules are present, so the role step is the one step
+    // that runs — over an EntityManager that throws on any use. A withdrawal
+    // that unassigned the roles would reach it; the accounts' own module
+    // removes them later in the same reset, and a reset that stops in between
+    // must not leave them role-less.
+    const composition = createDemoComposition({
+      em: untouchable,
+      isPresent: (moduleId) => moduleId === 'admin_users' || moduleId === 'admin_roles',
+    });
+    const result = await composition.withdraw();
+    expect(result.applied).toEqual(['demo administrators take their roles']);
   });
 });
