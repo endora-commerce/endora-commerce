@@ -1,6 +1,6 @@
 {
   "name": "@endora-commerce/demo-composition",
-  "version": "0.103.0",
+  "version": "0.103.1",
   "type": "module",
   "description": "The Endora Commerce demo shop's composition: the wiring between modules' demo data that no one module may own — which channel sells the demo products, which role each demo administrator holds, the menu, the prices and the stock. Installed only when an instance asks for demo data.",
   "license": "MIT",

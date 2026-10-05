@@ -1,5 +1,22 @@
 # @endora-commerce/mod-cms
 
+## 0.103.1
+
+### Patch Changes
+
+- 7f6a4ba: The Page Builder extension guide this package ships no longer says that every storefront runs
+  `blocks:generate`. That is true of a storefront created by release `0.103.0` or later. A storefront
+  created earlier keeps its source through an upgrade — `endora upgrade` moves its packages only — so
+  it has no `blocks:generate` script, no `lib/page-builder/` and no rule for a switched-off module's
+  block until its owner brings those files over. The guide now says so and names where the steps
+  are: _Upgrading an instance_, under _Module blocks in an existing storefront_. No code changes.
+- @endora-commerce/admin-kit@0.103.1
+  - @endora-commerce/cms-components@0.103.1
+  - @endora-commerce/contracts@0.103.1
+  - @endora-commerce/page-builder-admin@0.103.1
+  - @endora-commerce/page-builder-core@0.103.1
+  - @endora-commerce/platform@0.103.1
+
 ## 0.103.0
 
 ### Minor Changes
