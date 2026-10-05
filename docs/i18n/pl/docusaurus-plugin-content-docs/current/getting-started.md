@@ -120,12 +120,15 @@ ona jest, a podsumowanie na końcu wymienia każdą rekomendację przyjętą w t
 | Czy uruchomić usługi deweloperskie | tak | `--no-services` |
 | Czy wgrać dane demonstracyjne | **brak** — musisz odpowiedzieć | `--demo` lub `--no-demo` |
 | E-mail administratora | brak | `--admin-email <address>` |
-| Hasło administratora | brak | `--admin-password <secret>` |
+| Hasło administratora, co najmniej 12 znaków | brak | `--admin-password <secret>` |
 | Imię i nazwisko administratora | brak | `--admin-first-name <text>`, `--admin-last-name <text>` |
 
 **Części** to lista do zaznaczenia: trzy komponenty, które instalator może przygotować — `api`,
-`admin` i `storefront` — oraz `docs`, witryna dokumentacji Twojej instancji. Wpisz numer wiersza,
-żeby go przełączyć, i naciśnij Enter, żeby zatwierdzić. Pozostawienie wszystkich wierszy
+`admin` i `storefront` — oraz `docs`, witryna dokumentacji Twojej instancji. Między wierszami
+przechodzisz strzałkami, Spacja zaznacza lub odznacza wiersz, Enter zatwierdza. (Terminal, który
+nie potrafi przerysować listy — `TERM=dumb` — pokazuje ją z numerami: wpisz numer wiersza, żeby go
+przełączyć.) O hasło krótsze niż 12 znaków instalator pyta od razu ponownie, a podane przez
+`--admin-password` odrzuca, zanim cokolwiek zapisze. Pozostawienie wszystkich wierszy
 zaznaczonych to instalacja opisana dotąd na tej stronie. Odznaczenie komponentu jest tym samym, co
 wskazanie pozostałych przez `--only`: instalator pomija wtedy pytania, które przestały mieć sens,
 a zamiast nich pyta, gdzie są pozostałe komponenty — zobacz

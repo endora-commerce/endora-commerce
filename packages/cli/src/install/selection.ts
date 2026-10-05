@@ -165,6 +165,26 @@ export function parseOrigin(value: string): string | null {
   return url.origin;
 }
 
+/**
+ * The shortest administrator password the instance accepts — the bound
+ * `admin_users`' `create` command and the platform's hasher both hold. Stated
+ * here as well because that command is one of the last steps of an install: a
+ * password it refuses is otherwise found out after the tree is written, the
+ * packages are installed and the database is migrated.
+ */
+export const ADMIN_PASSWORD_MIN_LENGTH = 12;
+
+/**
+ * Why a password cannot be the administrator's, or `null` when it can.
+ *
+ * Trimmed first, as the command that creates the account trims it.
+ */
+export function adminPasswordProblem(password: string): string | null {
+  return password.trim().length < ADMIN_PASSWORD_MIN_LENGTH
+    ? `the administrator password must be at least ${String(ADMIN_PASSWORD_MIN_LENGTH)} characters.`
+    : null;
+}
+
 /** A public address: an origin, and the base path a component is served under at it. */
 export interface Address {
   readonly origin: string;

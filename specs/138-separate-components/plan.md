@@ -90,6 +90,9 @@ shape.
 
 ## Wizard wording
 
+At a terminal that can move its cursor the same rows are checkboxes — arrows move, Space toggles,
+Enter accepts — with no numbers; the numbered form below is what a stream or `TERM=dumb` reads.
+
 ```
 Which parts should this machine run? Type the numbers to toggle, Enter to accept.
    1. [x] api — the API and the workers — the part every other one talks to

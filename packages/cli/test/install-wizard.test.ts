@@ -224,7 +224,7 @@ describe('T4-B / SC-107 — the question set is the flag set, and both reach one
 
 describe('T4-C / FR-147 — a supplied flag is reported, not re-asked', () => {
   it('one line names the flags and how many answers they gave; their questions are not asked', async () => {
-    const { io, screen } = terminal(['y', 'owner@example.com', 'pw', 'Ada', 'Lovelace']);
+    const { io, screen } = terminal(['y', 'owner@example.com', 'a-long-enough-pw', 'Ada', 'Lovelace']);
     await askWizard(
       { dir: 'acme-shop', services: false, without: ['admin'] },
       io,
@@ -247,7 +247,7 @@ describe('T4-D / R6.3a — the checklist is the template\'s member vocabulary', 
       ...MEMBER_VOCABULARY,
       { name: 'analytics', describes: 'a member the template gained next year', fixed: null },
     ];
-    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
+    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'a-long-enough-pw', 'A', 'B']);
     const outcome = await askWizard({}, io, { vocabulary, storefront: NO_STOREFRONT_HERE });
     expect(screen()).toMatch(/\d\. \[x\] analytics — a member the template gained next year/);
     expect(outcome.answers.without).toEqual([]);
@@ -311,7 +311,7 @@ describe('T4-F / FR-152 — no positive MEMBER selector, and the backend cannot 
 
   it('`--without backend` stays refused, and the checklist has no backend row to uncheck', async () => {
     expect(await main(['new', 'instance', 'x', '--without', 'backend'], PACKAGE_ROOT)).toBe(1);
-    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
+    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'a-long-enough-pw', 'A', 'B']);
     await askWizard({}, io, { vocabulary: MEMBER_VOCABULARY, storefront: NO_STOREFRONT_HERE });
     expect(screen()).not.toContain('backend —');
     // What the run stands up is the `api` row; unchecking it leaves the member
@@ -357,7 +357,7 @@ describe('T4-G / FR-151 — the checklist dispatches each row to its own axis', 
   });
 
   it('where no storefront can be written, the row is fixed and says why', async () => {
-    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
+    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'a-long-enough-pw', 'A', 'B']);
     const outcome = await askWizard({}, io, {
       vocabulary: MEMBER_VOCABULARY,
       storefront: NO_STOREFRONT_HERE,
@@ -383,7 +383,7 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
   const asked = (text: string, question: string): number => text.split(question).length - 1;
 
   it('the list is api, admin, storefront, docs — numbered, pre-checked, worded as the plan words it', async () => {
-    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
+    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'a-long-enough-pw', 'A', 'B']);
     await askWizard({}, io, HERE);
     expect(screen()).toContain(
       [
@@ -397,7 +397,7 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
   });
 
   it('Enter on everything is the answers of a flagless run: no `only`, and the seven questions', async () => {
-    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
+    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'a-long-enough-pw', 'A', 'B']);
     const outcome = await askWizard({}, io, HERE);
     expect(outcome.answers.only).toBeUndefined();
     expect(outcome.answers).toMatchObject({ without: [], storefront: true, services: true, demo: false });
@@ -408,7 +408,7 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
   });
 
   it('none of the three checked re-asks, and says why', async () => {
-    const { io, screen } = terminal(['acme', '1 2 3', '', '1', '', '', '', '', '', '', 'n', 'e@x.io', 'pw', 'A', 'B']);
+    const { io, screen } = terminal(['acme', '1 2 3', '', '1', '', '', '', '', '', '', 'n', 'e@x.io', 'a-long-enough-pw', 'A', 'B']);
     const outcome = await askWizard({}, io, HERE);
     expect(screen()).toContain('  keep at least one of api, admin, storefront.');
     expect(outcome.answers.only).toEqual(['api']);
@@ -524,7 +524,7 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
       'n',
       'n',
       'e@x.io',
-      'pw',
+      'a-long-enough-pw',
       'A',
       'B',
     ]);
@@ -570,7 +570,7 @@ describe('138 FR-017 / FR-018 — one component, and the questions that follow f
       'n',
       'n',
       'e@x.io',
-      'pw',
+      'a-long-enough-pw',
       'A',
       'B',
     ]);
@@ -856,6 +856,129 @@ describe('the storefront row, outside a checkout', () => {
     });
     expect(screen()).toMatch(/^\s+\[ \] storefront — .*carries no reference storefront/m);
     expect(result.storefrontDir).toBeNull();
+  });
+});
+
+describe('the administrator password is checked where it is given, not where it is used', () => {
+  const HERE = { vocabulary: MEMBER_VOCABULARY, storefront: NO_STOREFRONT_HERE };
+
+  it('a password the instance would refuse is asked for again, at once, and says why', async () => {
+    const { io, screen } = terminal(['', '', '', 'n', 'e@x.io', 'too-short', 'long-enough-now', 'A', 'B']);
+    const outcome = await askWizard({}, io, HERE);
+    expect(outcome.answers.adminPassword).toBe('long-enough-now');
+    expect(screen().split('Administrator password (not shown').length - 1).toBe(2);
+    expect(screen()).toContain('the administrator password must be at least 12 characters.');
+    // Refused before the name was asked — not after the questions.
+    expect(screen().indexOf('at least 12 characters.')).toBeLessThan(
+      screen().indexOf('Administrator first name'),
+    );
+    expect(outcome.prompted.filter((id) => id === 'admin-password')).toHaveLength(1);
+  });
+
+  it('given as a flag it is refused with the other preconditions, before anything is written or run', async () => {
+    const root = host();
+    const { steps, run } = recorder();
+    await expect(
+      runInstall({
+        ...ADMIN,
+        adminPassword: 'too-short',
+        dir: 'acme-shop',
+        cwd: root,
+        storefront: false,
+        services: false,
+        demo: false,
+        nonInteractive: true,
+        portInUse: NO_PORT_TAKEN,
+        run,
+      }),
+    ).rejects.toThrow(/administrator password must be at least 12 characters/);
+    expect(steps).toEqual([]);
+    expect(existsSync(join(root, 'acme-shop'))).toBe(false);
+  });
+});
+
+/**
+ * The same question at a terminal that can redraw: checkboxes. Driven through
+ * `readline`'s own key decoding — the bytes a terminal sends — one key at a
+ * time, each after the list it acts on has been drawn.
+ */
+describe('the parts checklist at a terminal that redraws — arrows, Space, Enter', () => {
+  const HERE = { vocabulary: MEMBER_VOCABULARY, storefront: { available: true, reason: '' } };
+  const DOWN = '\x1b[B';
+  const UP = '\x1b[A';
+
+  /** Type `keys` at the checklist, one per redraw, then the rest as lines. */
+  async function atCheckboxes(
+    keys: readonly string[],
+    rest: readonly string[],
+  ): Promise<{ readonly outcome: Awaited<ReturnType<typeof askWizard>>; readonly screen: string }> {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    let screen = '';
+    let seen = 0;
+    const pending = [...keys];
+    let finished = false;
+    output.on('data', (chunk: Buffer) => {
+      screen += chunk.toString();
+      const draws = screen.split('Space to toggle').length - 1;
+      if (draws === seen || finished) return;
+      seen = draws;
+      const key = pending.shift();
+      if (key !== undefined) setImmediate(() => input.write(key));
+      else {
+        finished = true;
+        setImmediate(() => input.write(`${rest.map((line) => `${line}\r`).join('')}`));
+      }
+    });
+    const asking = askWizard({ dir: 'shop' }, { input, output, terminal: true }, HERE);
+    const outcome = await asking;
+    return { outcome, screen };
+  }
+
+  const ADMINISTRATOR = ['', 'n', 'e@x.io', 'a-long-enough-pw', 'A', 'B'];
+
+  it('Enter on the untouched list is the recommendation, and nothing asks for a number', async () => {
+    const { outcome, screen } = await atCheckboxes(['\r'], ADMINISTRATOR);
+    expect(screen).toContain('↑/↓ to move, Space to toggle, Enter to accept.');
+    expect(screen).toContain(' > [x] api — ');
+    expect(screen).not.toContain('Type the numbers');
+    expect(outcome.answers.only).toBeUndefined();
+    expect(outcome.answers.without).toEqual([]);
+    expect(outcome.recommended).toContain('parts');
+  });
+
+  it('Space unchecks the focused row, arrows move the focus and wrap', async () => {
+    // api off; down to admin, off; up twice wraps past api to docs… and back.
+    const { outcome, screen } = await atCheckboxes(
+      [' ', DOWN, ' ', UP, UP, DOWN, '\r'],
+      // Storefront alone: the layout, where the API is, where it is served,
+      // the channel, the secret.
+      ['', 'https://api.example.com', 'https://shop.example.com', '', 'a-secret'],
+    );
+    expect(outcome.answers.only).toEqual(['storefront']);
+    expect(outcome.prompted).toContain('parts');
+    expect(screen).toContain(' > [ ] admin — ');
+    // What Space typed into `readline`'s own line never became an answer.
+    expect(outcome.answers.apiUrl).toBe('https://api.example.com');
+  });
+
+  it('none of the three checked is not accepted: it says so and stays on the list', async () => {
+    const { outcome, screen } = await atCheckboxes(
+      [' ', DOWN, ' ', DOWN, ' ', '\r', ' ', '\r'],
+      ['', 'https://api.example.com', 'https://shop.example.com', '', 'a-secret'],
+    );
+    expect(screen).toContain('keep at least one of api, admin, storefront.');
+    expect(outcome.answers.only).toEqual(['storefront']);
+  });
+
+  it('a terminal that cannot redraw keeps the numbered list', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    let screen = '';
+    output.on('data', (chunk: Buffer) => (screen += chunk.toString()));
+    input.end(['', '', 'n', 'e@x.io', 'a-long-enough-pw', 'A', 'B'].map((line) => `${line}\n`).join(''));
+    await askWizard({ dir: 'shop' }, { input, output, terminal: true, redraws: false }, HERE);
+    expect(screen).toContain('Type the numbers to toggle, Enter to accept.');
   });
 });
 
