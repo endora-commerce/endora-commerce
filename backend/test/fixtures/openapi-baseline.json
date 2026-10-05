@@ -1927,6 +1927,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/value-counting-statuses": {
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/workflow": {
       "get": {
         "responses": {

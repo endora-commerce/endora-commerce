@@ -63,6 +63,7 @@
   "auditLog.crm.status.set_initial": "Start status changed",
   "auditLog.crm.status.set_transitions": "Opportunity status transitions changed",
   "auditLog.crm.mapping.set": "Order status mappings changed",
+  "auditLog.crm.value_counting.set": "Value counting statuses changed",
   "opportunity.list.title": "Sales opportunities",
   "opportunity.list.description": "Every deal your team is working on, from first contact to won or lost.",
   "opportunity.list.new": "New opportunity",

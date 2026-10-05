@@ -105,6 +105,24 @@ export const manifest = defineModuleManifest({
         'of the gate and answers `not-present` in its return type; nothing in this module fails ' +
         'closed on it, and no table of that owner is referenced from this module\'s schema.',
     },
+    // `quote_requests` is operator-switchable too. A shop that sells without
+    // quotes still wants a pipeline, so the quote desk's switch must not be
+    // held by this module (owner decision of 2026-10-05, research R-17).
+    {
+      moduleId: 'quote_requests',
+      name: 'quoteRequestReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'Quote Requests linked to Opportunities show as unavailable, stop counting toward ' +
+        'computed values, and can no longer be linked or created from one. ' +
+        'Opportunities and their Orders keep working',
+      reason:
+        'Every call into this owner goes through `crm-quote-requests.ts`, whose callers ask ' +
+        '`isPresent()` in front of the gate: a linked Quote Request is skipped when it renders ' +
+        'and when a value is computed, and linking one answers 503 from that decision rather ' +
+        'than from a caught refusal. A link holds the Quote Request by value, so no table of ' +
+        'that owner is referenced from this module\'s schema.',
+    },
   ],
   settings,
   // Constitution XVII — the operator's activation control.

@@ -39,6 +39,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `sales_channels` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `settings` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `admin_notifications` | nie | degrades-without `adminNotificationRecordPort` — CRM przestaje powiadamiać o przypisaniach i wiadomościach; wszystko inne w CRM działa dalej |
+| `quote_requests` | nie | degrades-without `quoteRequestReadPort` — zapytania ofertowe powiązane z szansami sprzedażowymi są pokazywane jako niedostępne, przestają liczyć się do wartości wyliczanych i nie można ich już wiązać ani tworzyć z szansy. Szanse i ich zamówienia działają dalej |
 
 ## Uprawnienia
 

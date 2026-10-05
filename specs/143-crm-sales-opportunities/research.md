@@ -1647,6 +1647,89 @@ when it was measured, and what was done about it.
   gzip) — **+42 363 bytes, +13.6 kB gzip** — with `@dnd-kit/core` in the entry chunk and the
   board page itself a lazy chunk of 21.18 kB (7.48 kB gzip). N-K3 predicted +41 989. The
   lever it names (`"sideEffects"` on the kit's manifest) is still not pulled.
+- **N-E1 (2026-10-05, T095) — R-14's [unverified] premise about how a quote is totalled,
+  re-derived; the formula stands with two corrections.** `RfqDetail.tsx` shows, per line,
+  `agreedUnitPrice × quantity`, falling back to `desiredUnitPrice × quantity`; its total row is
+  `Σ agreedUnitPrice × quantity` and is shown **only when every line has an agreed price**
+  (`rfq-service.ts`' `summarize` computes the same `totalAtAgreedPrice`, `null` otherwise).
+  **The packaging unit's base quantity multiplies nothing** on that screen, so it multiplies
+  nothing here. CRM's figure is `Σ quantity × (agreedUnitPrice ?? desiredUnitPrice)`, which is
+  the sum of the desk's line totals and equals its total row whenever it shows one
+  (`value.test.ts` compares the two after an agreed revision). Corrections: (a) **quote prices
+  are net** — the desk adds VAT below the net total from `rfqService.taxRateForOrganization`,
+  which `quoteRequestReadPort` does not publish, so CRM counts the **net** total; (b)
+  `QuoteRequestLineRecord`'s doc comment says "the money columns are deliberately absent"
+  while the interface carries `lineCurrency`, `agreedUnitPrice` and `desiredUnitPrice` (added
+  for the ERP export callers) — the comment is stale, the fields are published, and no change
+  to `QuoteRequestReadPort` was needed. `findById` and `listItems` are one call each per
+  linked Quote Request; the port has no batch read.
+- **N-E2 (2026-10-05, T102) — `OrderRecord.total` is gross.** `order-service.ts` computes it as
+  `subtotal + taxTotal + deliveryTotal + paymentSurcharge − discountTotal`: what the customer
+  pays, delivery included. It is used as published. So a computed value adds **gross Order
+  totals and net Quote Request totals**; neither is converted, each is what its own screen
+  shows, and the docs page says so in both languages. **Currency**: an Opportunity has one;
+  nothing is converted (R-14's "no rate source" still holds for a module — `currencies` is a
+  module with its own ports, and converting is a feature nobody specified). A counting document
+  in another currency is left out and named in `excludedDocuments` with
+  `reason: 'currency_mismatch'`; a Quote Request with lines in several currencies counts its
+  matching lines and is named as well. A document that would not have counted anyway is not
+  named. Linking a document in another currency is **not** refused.
+- **N-E3 (2026-10-05, T095) — nothing in the tree writes `orders.source_quote_request_id`. A
+  pre-existing defect of the quote-to-order flow, reported and not repaired.** The column, the
+  `OrderRecord.sourceQuoteRequestId` field and `quote_requests`' `order-completion-reactor.ts`
+  (which completes a Quote Request and sets `convertedOrderId` when an Order names it) all
+  exist; `placeOrder` never sets the field, and `POST /quote-requests/:id/convert-to-order`
+  fills a cart that keeps no reference to the request. So today no Order placed through the
+  product carries its source, no Quote Request is ever completed by one, and
+  `quote_requests`' own test of the reactor writes the Order row by hand
+  (`backend/test/integration/quote_requests/off-state.test.ts`, "written directly rather than
+  checked out"). **Consequence for this feature:** FR-027 (the Order joins the Opportunity of
+  its Quote Request) and FR-033's "counted once" are implemented against the published
+  contract and proven with that same fixture, and are **unreachable from the storefront until
+  `orders` records the source** — a change to `carts`/`orders` that is on no list of this
+  feature. Until then an Order placed from a linked Quote Request is a separate, unlinked
+  Order, and with automatic creation on (US9) gets an Opportunity of its own.
+- **N-E4 (2026-10-05, T098–T100) — what the value story decided that the contract leaves
+  open.** (a) `computed_value` is maintained **only while the mode is `computed`**; a `PATCH`
+  that makes the mode `computed` recalculates, and `manualValue` is kept either way. (b) A
+  recalculation is a Command with `skipAudit` (`crm.opportunity.value_recalculate` — never in
+  the audit log) and **does not bump `version`**, so an open edit form is not invalidated by a
+  linked Order being paid. It evaluates under a row lock, so two recalculations of one
+  Opportunity are serial. (c) `excludedDocuments` is **evaluated on read** of the detail (the
+  stored figure has no room for names) and is `[]` in manual mode. (d) `PUT
+  /value-counting-statuses` answers **202 `{ data: OpportunityWorkflow }`**, sorted and
+  de-duplicated; an Order status code is not validated (N-8), a Quote Request status outside
+  the six is 400. (e) **"Counted once" is decided from either side**: `convertedOrderId` on
+  the Quote Request *or* `sourceQuoteRequestId` on the Order — the first is written by
+  `quote_requests`' own `order.created.v1` subscriber, which may run after CRM's. (f) A Quote
+  Request reaching `Completed` announces nothing (`quote_requests` emits no event for it), so
+  a value that counted it as `Approved` is corrected at the next trigger, not at once.
+  (g) With `quote_requests` switched off and on again, a stored value catches up at its next
+  recalculation, not at the flip — nothing subscribes to another module's activation.
+  (h) `syncStatus` is stored for a Quote Request link and means nothing.
+- **N-E5 (2026-10-05, T099) — the `degrades-without` edge, and one sentence that had to
+  shrink.** The manifest schema caps `whenAbsent` at 200 characters; the sentence of
+  `contracts/events-and-ports.md` §5 is 213. The manifest says "…stop counting toward computed
+  values, and can no longer be linked or created from one. Opportunities and their Orders keep
+  working" (190 characters) — the same statement; the contract's wording was not edited.
+  Presence is decided in one file, `services/crm-quote-requests.ts`: rendering and the value
+  skip an absent owner, and linking throws `ModuleDisabledError('quote_requests')` **from that
+  decision**, so the answer is 503 `MODULE_DISABLED` on both axes (deactivated and
+  platform-unavailable) and no refusal is ever caught. `check:port-dependencies` accepted the
+  edge with no ledger edit. An existing Quote Request link can be removed while the owner is
+  off.
+- **N-E6 (2026-10-05, T100) — composition: three more subscriptions and a queue, in one
+  delimited section of `index.ts`.** `compose/value.ts` does not exist (N-6). The value
+  subscriber of `order.status_changed.v1` is a **second** `ctx.subscribe` beside the reverse
+  mapping's rather than a line inside it (`contracts/events-and-ports.md` §2 draws one
+  handler); they share nothing, and the bus runs them in registration order, so the value is
+  recalculated after the Opportunity has moved. The four `rfq.*` payloads carry `rfqId` only —
+  no Organization — so the handler finds the link by document and works in a system scope.
+  The queue is `crm-value-recalculation`; its producer is built lazily on `moduleQueueRedis`
+  and its consumer only where `processRunsWorkers` says so, attached with `ctx.worker`. The
+  shared test server offers neither, so `value.test.ts` runs the job's body
+  (`recalculateAll` in a system scope) through the container. `bullmq` and `ioredis` joined
+  the rendered `package.json` as peers, as T102 predicted.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

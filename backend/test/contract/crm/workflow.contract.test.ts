@@ -13,6 +13,7 @@ import {
   restoreDefaultCrmWorkflow,
   seedCrmAdmin,
   seedCrmOrder,
+  setCrmCountingStatuses,
   transitionCrmOpportunity,
 } from '../../helpers/seed-crm.js';
 
@@ -61,6 +62,7 @@ describe('crm workflow configuration (contract)', () => {
       ['DELETE', '/statuses/qualified', undefined],
       ['PUT', '/transitions', { add: [{ fromStatusCode: 'new', toStatusCode: 'proposal' }] }],
       ['PUT', '/order-status-mappings', { mappings: [] }],
+      ['PUT', '/value-counting-statuses', { order: ['paid'], quoteRequest: ['Approved'] }],
     ] as const)('%s %s answers 403 to a holder of crm:read only', async (method, path, payload) => {
       const response = await call(method, path, payload, viewer.cookies);
       expect(response.statusCode, response.body).toBe(403);
@@ -76,6 +78,55 @@ describe('crm workflow configuration (contract)', () => {
       expect(current.statuses.map((status) => status.code)).not.toContain('gated');
       expect(current.statuses.find((status) => status.code === 'qualified')?.defaultName).toBe('Qualified');
       expect(current.transitions).not.toContainEqual({ fromStatusCode: 'new', toStatusCode: 'proposal' });
+      expect(current.valueCountingStatuses).toEqual({ order: [], quoteRequest: [] });
+    });
+  });
+
+  describe('PUT /value-counting-statuses', () => {
+    it('replaces the set and answers 202 with the workflow', async () => {
+      const saved = await setCrmCountingStatuses(h, {
+        order: ['paid', 'completed', 'paid'],
+        quoteRequest: ['Approved', 'Completed'],
+      });
+      expect(saved.statusCode, saved.body).toBe(202);
+      const body = OpportunityWorkflowResponseSchema.parse(saved.json()).data;
+      // Sorted, and a status named twice is held once.
+      expect(body.valueCountingStatuses).toEqual({
+        order: ['completed', 'paid'],
+        quoteRequest: ['Approved', 'Completed'],
+      });
+      expect((await workflow()).valueCountingStatuses).toEqual(body.valueCountingStatuses);
+
+      const replaced = await setCrmCountingStatuses(h, { order: ['processing'], quoteRequest: [] });
+      expect(replaced.statusCode, replaced.body).toBe(202);
+      expect((await workflow()).valueCountingStatuses).toEqual({ order: ['processing'], quoteRequest: [] });
+    });
+
+    it('accepts an empty configuration — nothing counts', async () => {
+      const saved = await setCrmCountingStatuses(h, { order: [], quoteRequest: [] });
+      expect(saved.statusCode, saved.body).toBe(202);
+      expect((await workflow()).valueCountingStatuses).toEqual({ order: [], quoteRequest: [] });
+    });
+
+    it('refuses a Quote Request status that is not one of the six, and a body missing a half — the schema', async () => {
+      const unknown = await call('PUT', '/value-counting-statuses', { order: [], quoteRequest: ['Shipped'] });
+      expect(unknown.statusCode, unknown.body).toBe(400);
+      const partial = await call('PUT', '/value-counting-statuses', { order: ['paid'] });
+      expect(partial.statusCode, partial.body).toBe(400);
+      expect((await workflow()).valueCountingStatuses).toEqual({ order: [], quoteRequest: [] });
+    });
+
+    it('is audited as crm.value_counting.set with the set before and after', async () => {
+      await setCrmCountingStatuses(h, { order: ['paid'], quoteRequest: [] });
+      await setCrmCountingStatuses(h, { order: [], quoteRequest: ['Pending'] });
+      const entries = await h.auditLogService.query({ action: 'crm.value_counting.set' });
+      const latest = entries.find(
+        (entry) => JSON.stringify(entry.stateAfter) === JSON.stringify({ order: [], quoteRequest: ['Pending'] }),
+      );
+      expect(latest, JSON.stringify(entries.map((entry) => entry.stateAfter))).toBeDefined();
+      expect(latest?.objectType).toBe('crm_value_counting');
+      expect(latest?.stateBefore).toEqual({ order: ['paid'], quoteRequest: [] });
+      await setCrmCountingStatuses(h, { order: [], quoteRequest: [] });
     });
   });
 

@@ -63,6 +63,7 @@
   "auditLog.crm.status.set_initial": "Zmieniono status początkowy",
   "auditLog.crm.status.set_transitions": "Zmieniono przejścia między statusami szans",
   "auditLog.crm.mapping.set": "Zmieniono mapowanie statusów zamówień",
+  "auditLog.crm.value_counting.set": "Zmieniono statusy liczone do wartości szans",
   "opportunity.list.title": "Szanse sprzedażowe",
   "opportunity.list.description": "Wszystkie tematy sprzedażowe zespołu — od pierwszego kontaktu do wygranej lub przegranej.",
   "opportunity.list.new": "Nowa szansa",

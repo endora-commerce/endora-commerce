@@ -4,6 +4,7 @@ import {
   type CreateOpportunityStatusRequest,
   type SetOpportunityTransitionsRequest,
   type SetOrderStatusMappingsRequest,
+  type SetValueCountingStatusesRequest,
   type UpdateOpportunityStatusRequest,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -15,6 +16,7 @@ import {
 import { CrmOpportunityStatus } from '../entities/crm-opportunity-status.entity.js';
 import { CrmOpportunityStatusTransition } from '../entities/crm-opportunity-status-transition.entity.js';
 import { CrmOrderStatusMapping } from '../entities/crm-order-status-mapping.entity.js';
+import { CrmValueCountingStatus } from '../entities/crm-value-counting-status.entity.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
 type AuditState = Record<string, unknown> | null;
@@ -61,6 +63,12 @@ export class WorkflowConfigService {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly workflowRead: WorkflowReadService,
+    /**
+     * Asks for every computed Opportunity to be recalculated. It only
+     * enqueues: the work is a queue consumer's (Constitution X), never this
+     * request's.
+     */
+    private readonly requestValueRecalculation: () => Promise<unknown> = async () => undefined,
   ) {}
 
   /**
@@ -374,5 +382,46 @@ export class WorkflowConfigService {
         return { before, after: { mappings: describe(input.mappings) } };
       },
     );
+  }
+
+  /**
+   * Replace the set of statuses from which a linked document's value counts
+   * (FR-031), and ask for every computed Opportunity to be recalculated.
+   *
+   * An Order status is held by value and not checked, for the reason a mapping
+   * is not: the Order workflow is the operator's, and a code no Order is in
+   * simply never counts. The Quote Request statuses are a fixed set and the
+   * request schema holds them to it.
+   *
+   * The recalculation is **enqueued after the commit** and not awaited as
+   * work: until the job has run, the stored figures are the old ones.
+   */
+  async setValueCountingStatuses(input: SetValueCountingStatusesRequest): Promise<void> {
+    await this.commandBus.run({
+      action: 'crm.value_counting.set',
+      objectType: 'crm_value_counting',
+      objectId: 'counting',
+      run: async ({ em }) => {
+        const existing = await em.find(CrmValueCountingStatus, {});
+        const describe = (kind: 'order' | 'quote_request') =>
+          existing
+            .filter((row) => row.documentKind === kind)
+            .map((row) => row.statusCode)
+            .sort();
+        const before = { order: describe('order'), quoteRequest: describe('quote_request') };
+        const order = [...new Set(input.order)].sort();
+        const quoteRequest = [...new Set(input.quoteRequest)].sort();
+        em.remove(existing);
+        // Flushed before the inserts: the unique index would see the old and
+        // the new row for one status side by side otherwise.
+        await em.flush();
+        for (const statusCode of order) em.create(CrmValueCountingStatus, { documentKind: 'order', statusCode });
+        for (const statusCode of quoteRequest) {
+          em.create(CrmValueCountingStatus, { documentKind: 'quote_request', statusCode });
+        }
+        return { result: undefined, before, after: { order, quoteRequest } };
+      },
+    });
+    await this.requestValueRecalculation();
   }
 }

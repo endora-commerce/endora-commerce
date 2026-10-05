@@ -559,3 +559,89 @@ existing attachment. A file that is not in the media library — or that is
 attached to an opportunity the person asking may not see — is refused as one
 that does not exist. If a file has gone missing from the media library, its
 attachment is still listed, under the name it had, with no link.
+
+## Quote requests and a computed value
+
+### Linking quote requests
+
+A quote request is linked to an opportunity the way an order is, through the
+same endpoint with `"documentKind": "quote_request"`. It must belong to the
+opportunity's organization, and it belongs to at most one opportunity. An
+opportunity can hold several quote requests and several orders.
+
+A linked quote request is listed with its number, its status and its value.
+The "follow the opportunity's status" switch means nothing for one: a quote
+request keeps its own status.
+
+When an order is placed from a linked quote request, the order is linked to
+the same opportunity by itself (`linkSource: "quote_conversion"`). This relies
+on the order recording which quote request it came from.
+
+### The value of an opportunity
+
+An opportunity's value is either **typed in** or **computed** from its linked
+documents — chosen per opportunity (`valueMode`: `manual` or `computed`). The
+typed figure is kept when the mode is switched to computed, and is back when it
+is switched to manual again.
+
+A computed value is the sum of:
+
+- every linked **order** whose status is a counting order status, at the
+  order's **total** — the gross amount the customer pays: goods, tax, delivery
+  and any payment surcharge, less discounts;
+- every linked **quote request** whose status is a counting quote request
+  status, at the **sum of quantity × unit price** over its lines. The unit
+  price is the agreed price, or the price the customer asked for while none has
+  been agreed. Quote prices are **net of tax** — this is the figure the quote
+  request's own screen shows as its net total.
+
+The two are not on the same basis, and neither is converted: each document
+counts at the figure its own screen shows.
+
+**Counted once.** An order placed from a linked quote request and that quote
+request are one piece of business. While the order counts, the quote request is
+left out.
+
+**One currency.** An opportunity has one currency and nothing is converted. A
+document in another currency that would otherwise count is left out, and the
+opportunity names it: `excludedDocuments` on the opportunity lists each one as
+`{ kind, id, reason: "currency_mismatch" }`. A quote request with lines in
+several currencies counts the lines in the opportunity's currency and is named
+as well.
+
+The value follows the documents: it is recalculated when a document is linked
+or unlinked, when a linked order changes status, when a linked quote request is
+modified, approved, canceled or expires, and when the mode becomes computed.
+A recalculation is not an entry in the opportunity's history.
+
+### Which statuses count
+
+Which statuses make a document count is part of the workflow configuration,
+and **nothing counts until it is set**: a computed value is 0 with an empty
+configuration.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `PUT /api/v1/admin/crm/value-counting-statuses` | `crm:configure` | Replace the set: `{ "order": ["paid", "completed"], "quoteRequest": ["Approved"] }`. |
+
+`order` holds order status codes; `quoteRequest` holds any of `Created from
+admin`, `Pending`, `Canceled`, `Approved`, `Completed`, `Expired`. The current
+set is `valueCountingStatuses` on `GET /api/v1/admin/crm/workflow`.
+
+The endpoint answers **202**: the set is saved, and every computed opportunity
+is then recalculated in the background (queue `crm-value-recalculation`). Until
+that has run, opportunities show the figures of the previous configuration.
+
+### With the Quote Requests module switched off
+
+CRM does not need the Quote Requests module. While it is switched off:
+
+- opportunities, their orders and everything else keep working;
+- a linked quote request is still listed, as **unavailable** — no number, no
+  status, no value;
+- it adds nothing to a computed value;
+- linking a quote request answers `503 MODULE_DISABLED`; an existing link can
+  still be removed.
+
+Nothing is lost: switched back on, the links show their documents again. A
+computed value picks the quote requests up again at its next recalculation.

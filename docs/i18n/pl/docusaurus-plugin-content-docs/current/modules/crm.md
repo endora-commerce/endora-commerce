@@ -573,3 +573,91 @@ istniejący Załącznik. Plik, którego nie ma w bibliotece mediów — albo kt�
 jest załączony do szansy niedostępnej dla pytającej osoby — jest odrzucany jak
 plik, który nie istnieje. Jeśli plik zniknął z biblioteki mediów, jego
 Załącznik nadal jest na liście, pod dawną nazwą, bez odnośnika.
+
+## Zapytania ofertowe i wartość wyliczana
+
+### Wiązanie zapytań ofertowych
+
+Zapytanie ofertowe wiąże się z szansą sprzedażową tak samo jak zamówienie, tym
+samym punktem końcowym, z `"documentKind": "quote_request"`. Musi należeć do
+organizacji szansy i należy do co najwyżej jednej szansy. Szansa może mieć
+kilka zapytań ofertowych i kilka zamówień.
+
+Powiązane Zapytanie ofertowe jest na liście z numerem, statusem i wartością.
+Przełącznik „podążaj za statusem szansy” nic dla niego nie znaczy: Zapytanie
+ofertowe zachowuje własny status.
+
+Gdy z powiązanego zapytania ofertowego zostaje złożone zamówienie, zamówienie
+samo wiąże się z tą samą szansą (`linkSource: "quote_conversion"`). Działa to
+wtedy, gdy zamówienie zapisuje, z którego zapytania ofertowego powstało.
+
+### Wartość szansy
+
+Wartość szansy jest albo **wpisana ręcznie**, albo **wyliczana** z powiązanych
+dokumentów — do wyboru dla każdej szansy (`valueMode`: `manual` lub
+`computed`). Wpisana kwota zostaje zachowana po przełączeniu na wyliczanie i
+wraca po ponownym przełączeniu na tryb ręczny.
+
+Wartość wyliczana to suma:
+
+- każdego powiązanego **zamówienia**, którego status jest statusem liczonym, w
+  kwocie **sumy zamówienia** — kwoty brutto, którą płaci klient: towary,
+  podatek, dostawa i ewentualna dopłata za płatność, pomniejszone o rabaty;
+- każdego powiązanego **zapytania ofertowego**, którego status jest statusem
+  liczonym, w kwocie **sumy ilość × cena jednostkowa** po jego pozycjach. Cena
+  jednostkowa to cena uzgodniona, a dopóki żadnej nie uzgodniono — cena, o którą
+  prosił klient. Ceny w zapytaniach ofertowych są **netto** — to kwota, którą
+  ekran zapytania ofertowego pokazuje jako sumę netto.
+
+Te dwie kwoty nie mają tej samej podstawy i żadna nie jest przeliczana: każdy
+dokument liczy się w kwocie, którą pokazuje jego własny ekran.
+
+**Liczone raz.** Zamówienie złożone z powiązanego zapytania ofertowego i to
+zapytanie to jedna transakcja. Dopóki liczy się zamówienie, Zapytanie ofertowe
+jest pomijane.
+
+**Jedna waluta.** Szansa ma jedną walutę i nic nie jest przeliczane. Dokument w
+innej walucie, który w przeciwnym razie by się liczył, jest pomijany, a szansa
+go wskazuje: `excludedDocuments` na szansie wymienia każdy taki dokument jako
+`{ kind, id, reason: "currency_mismatch" }`. Zapytanie ofertowe z pozycjami w
+kilku walutach liczy pozycje w walucie szansy i również jest wskazywane.
+
+Wartość podąża za dokumentami: jest przeliczana, gdy dokument zostaje powiązany
+albo odwiązany, gdy powiązane zamówienie zmienia status, gdy powiązane
+Zapytanie ofertowe zostaje zmienione, zatwierdzone, anulowane albo wygasa, oraz
+gdy tryb zmienia się na wyliczany. Przeliczenie nie jest wpisem w historii
+szansy.
+
+### Które statusy się liczą
+
+To, które statusy sprawiają, że dokument się liczy, jest częścią konfiguracji
+przepływu, i **nic się nie liczy, dopóki nie zostanie to ustawione**: przy
+pustej konfiguracji wartość wyliczana wynosi 0.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `PUT /api/v1/admin/crm/value-counting-statuses` | `crm:configure` | Zastąpienie zbioru: `{ "order": ["paid", "completed"], "quoteRequest": ["Approved"] }`. |
+
+`order` zawiera kody statusów zamówień; `quoteRequest` — dowolne z `Created
+from admin`, `Pending`, `Canceled`, `Approved`, `Completed`, `Expired`.
+Bieżący zbiór to `valueCountingStatuses` w odpowiedzi
+`GET /api/v1/admin/crm/workflow`.
+
+Punkt końcowy odpowiada **202**: zbiór jest zapisany, a każda szansa z
+wartością wyliczaną jest następnie przeliczana w tle (kolejka
+`crm-value-recalculation`). Do tego czasu szanse pokazują kwoty poprzedniej
+konfiguracji.
+
+### Gdy moduł Zapytań ofertowych jest wyłączony
+
+CRM nie wymaga modułu Zapytań ofertowych. Gdy jest on wyłączony:
+
+- szanse, ich zamówienia i wszystko inne działają dalej;
+- powiązane Zapytanie ofertowe nadal jest na liście, jako **niedostępne** — bez
+  numeru, statusu i wartości;
+- nie dodaje niczego do wartości wyliczanej;
+- próba powiązania zapytania ofertowego kończy się odpowiedzią
+  `503 MODULE_DISABLED`; istniejące powiązanie nadal można usunąć.
+
+Nic nie ginie: po ponownym włączeniu powiązania znów pokazują swoje dokumenty.
+Wartość wyliczana uwzględni zapytania ofertowe przy najbliższym przeliczeniu.

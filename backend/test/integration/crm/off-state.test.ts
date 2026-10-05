@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -10,14 +11,19 @@ import {
   type OffStateAxis,
   type OffStateProbe,
 } from '../../helpers/off-state.js';
-import { CrmOpportunity, CrmStatusPropagation } from '../../helpers/package-entities.js';
+import { CrmOpportunity, CrmOpportunityLink, CrmStatusPropagation } from '../../helpers/package-entities.js';
+import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
   changeOrderStatusAsOperator,
   createCrmOpportunity,
   linkCrmOrder,
+  linkCrmQuoteRequest,
   restoreDefaultCrmWorkflow,
   seedCrmOrder,
+  setCrmCountingStatuses,
   setCrmMappings,
+  submitCrmQuoteRequest,
+  whenCrmEventSettled,
 } from '../../helpers/seed-crm.js';
 
 /**
@@ -64,6 +70,7 @@ describe('crm off-state (Constitution XVII)', () => {
     { method: 'DELETE', route: `${API}/statuses/:code` },
     { method: 'PUT', route: `${API}/transitions`, payload: { add: [] } },
     { method: 'PUT', route: `${API}/order-status-mappings`, payload: { mappings: [] } },
+    { method: 'PUT', route: `${API}/value-counting-statuses`, payload: { order: [], quoteRequest: [] } },
     { method: 'GET', route: `${API}/opportunities` },
     { method: 'POST', route: `${API}/opportunities`, payload: { title: 'Off', organizationId: ID, currency: 'PLN' } },
     { method: 'GET', route: `${API}/opportunities/:id` },
@@ -221,6 +228,99 @@ describe('crm off-state (Constitution XVII)', () => {
         expect(await statusOf(pair.opportunityId)).toBe('new');
       });
     });
+  });
+
+  describe('the value subscribers (order.status_changed.v1, rfq.*, order.created.v1)', () => {
+    const storedValue = async (opportunityId: string) =>
+      (await h.em().findOneOrFail(CrmOpportunity, { id: opportunityId }, { filters: false })).computedValue;
+
+    const linksOf = async (opportunityId: string) =>
+      h.em().count(CrmOpportunityLink, { opportunityId }, { filters: false });
+
+    const computedWithOrder = async () => {
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+      const order = await seedCrmOrder(h.em());
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+      return { opportunityId: opportunity.id, orderId: order.id };
+    };
+
+    const computedWithQuoteRequest = async () => {
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+      const rfq = await submitCrmQuoteRequest(h);
+      expect((await linkCrmQuoteRequest(h, opportunity.id, rfq.id)).statusCode).toBe(201);
+      return { opportunityId: opportunity.id, rfq };
+    };
+
+    const cancelQuoteRequest = (rfq: { id: string; version: number }) =>
+      whenCrmEventSettled(h, 'rfq.canceled.v1', (payload) => payload['rfqId'] === rfq.id, async () => {
+        const response = await h.app.inject({
+          method: 'POST',
+          url: `/api/v1/admin/quote-requests/${rfq.id}/cancel`,
+          cookies: admin,
+          headers: { 'if-match': `"${rfq.version}"` },
+          payload: { reason: 'Off-state probe' },
+        });
+        expect(response.statusCode, response.body).toBe(200);
+      });
+
+    const announceOrder = (orderId: string) =>
+      whenCrmEventSettled(h, 'order.created.v1', (payload) => payload['orderId'] === orderId, async () => {
+        h.eventBus.emit('order.created.v1' as never, {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          orderId,
+          organizationId: TEST_ORGANIZATION_ID,
+        } as never);
+      });
+
+    beforeAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      const configured = await setCrmCountingStatuses(h, { order: ['paid'], quoteRequest: ['Pending'] });
+      expect(configured.statusCode, configured.body).toBe(202);
+    });
+
+    afterAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+    });
+
+    it('recalculate while on — the positive controls', async () => {
+      const withOrder = await computedWithOrder();
+      await changeOrderStatusAsOperator(h, withOrder.orderId, 'paid');
+      expect(await storedValue(withOrder.opportunityId)).toBe('123.00');
+
+      const withQuote = await computedWithQuoteRequest();
+      expect(await storedValue(withQuote.opportunityId)).toBe('84.00');
+      await cancelQuoteRequest(withQuote.rfq);
+      expect(await storedValue(withQuote.opportunityId)).toBe('0.00');
+
+      const conversion = await computedWithQuoteRequest();
+      const placed = await seedCrmOrder(h.em(), { sourceQuoteRequestId: conversion.rfq.id });
+      await announceOrder(placed.id);
+      expect(await linksOf(conversion.opportunityId)).toBe(2);
+    });
+
+    it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+      'recalculate nothing and link nothing while %s, and nothing is replayed afterwards',
+      async (axis) => {
+        const withOrder = await computedWithOrder();
+        const withQuote = await computedWithQuoteRequest();
+        const conversion = await computedWithQuoteRequest();
+        const placed = await seedCrmOrder(h.em(), { sourceQuoteRequestId: conversion.rfq.id });
+
+        await withModuleOff('crm', axis, async () => {
+          await changeOrderStatusAsOperator(h, withOrder.orderId, 'paid');
+          expect(await storedValue(withOrder.opportunityId)).toBe('0.00');
+          await cancelQuoteRequest(withQuote.rfq);
+          expect(await storedValue(withQuote.opportunityId)).toBe('84.00');
+          await announceOrder(placed.id);
+          expect(await linksOf(conversion.opportunityId)).toBe(1);
+        });
+
+        expect(await storedValue(withOrder.opportunityId)).toBe('0.00');
+        expect(await storedValue(withQuote.opportunityId)).toBe('84.00');
+        expect(await linksOf(conversion.opportunityId)).toBe(1);
+      },
+    );
   });
 
   it('probes routes that exist — a refused path the module never registered would prove nothing', () => {

@@ -8,6 +8,7 @@ import {
   type CustomerAccountReadPort,
   type OpportunityCreatedEvent,
   type OpportunityDetail,
+  type OpportunityExcludedDocument,
   type OpportunityLink,
   type OpportunityListQuery,
   type OpportunityStatusRef,
@@ -57,6 +58,10 @@ export interface OpportunityServiceDeps {
   links: (opportunityId: string) => Promise<OpportunityLink[]>;
   /** Refused Order status changes nobody has retried or dismissed yet. */
   unresolvedPropagations: (opportunityId: string) => Promise<PropagationOutcome[]>;
+  /** Recalculates a computed Opportunity's value — asked when its mode becomes `computed`. */
+  recalculateValue: (opportunityId: string) => Promise<unknown>;
+  /** The linked documents a computed value leaves out, and why. */
+  excludedDocuments: (opportunity: CrmOpportunity) => Promise<OpportunityExcludedDocument[]>;
 }
 
 const FALLBACK_LANGUAGE = 'en';
@@ -350,6 +355,7 @@ export class OpportunityService {
     }
     if (patch.assignedAdminUserId) await this.deps.assignment.assertAssignable(patch.assignedAdminUserId);
 
+    let becameComputed = false;
     const reassigned = await this.deps.commandBus.run({
       action: 'crm.opportunity.update',
       objectType: 'crm_opportunity',
@@ -383,6 +389,7 @@ export class OpportunityService {
         // with the previous one, and the new assignee is told.
         const previousAdminUserId = (before.assignedAdminUserId as string | null) ?? null;
         const assignedAdminUserId = opportunity.assignedAdminUserId ?? null;
+        becameComputed = before.valueMode !== 'computed' && opportunity.valueMode === 'computed';
         return {
           result:
             previousAdminUserId === assignedAdminUserId
@@ -404,6 +411,9 @@ export class OpportunityService {
       event: (result) => (result ? assignedEvent(result) : undefined),
     });
     if (reassigned) await this.deps.assignment.notifyAssigned(reassigned);
+    // The stored computed figure is not maintained while the mode is manual,
+    // so it is brought up to date the moment it becomes the value.
+    if (becameComputed) await this.deps.recalculateValue(id);
     return this.get(id);
   }
 
@@ -573,13 +583,14 @@ export class OpportunityService {
 
   async #detail(opportunity: CrmOpportunity, graph: OpportunityStatusGraph): Promise<OpportunityDetail> {
     const language = await this.#viewerLanguage();
-    const [summaries, contact, links, unresolvedPropagations] = await Promise.all([
+    const [summaries, contact, links, unresolvedPropagations, excludedDocuments] = await Promise.all([
       this.#summaries([opportunity], graph, language),
       opportunity.customerAccountId
         ? this.deps.customerAccounts.findById(opportunity.customerAccountId)
         : Promise.resolve(null),
       this.deps.links(opportunity.id),
       this.deps.unresolvedPropagations(opportunity.id),
+      this.deps.excludedDocuments(opportunity),
     ]);
     const summary = summaries[0];
     if (!summary) throw new Error('crm: an opportunity produced no summary.');
@@ -598,7 +609,7 @@ export class OpportunityService {
         : null,
       manualValue: opportunity.manualValue ?? null,
       computedValue: opportunity.computedValue,
-      excludedDocuments: [],
+      excludedDocuments,
       source: opportunity.source,
       version: opportunity.version,
       allowedTransitions: graph

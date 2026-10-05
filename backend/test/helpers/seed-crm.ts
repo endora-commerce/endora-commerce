@@ -7,6 +7,7 @@ import {
   Organization,
   OrganizationSalesRepAssignment,
 } from './package-entities.js';
+import { SEED_PRODUCT_101_ID } from './seed-catalog.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 import type { BackendServerHandle } from './test-server.js';
 
@@ -107,7 +108,13 @@ export async function restoreDefaultCrmWorkflow(em: EntityManager): Promise<void
  */
 export async function seedCrmOrder(
   em: EntityManager,
-  overrides: { organizationId?: string; status?: string } = {},
+  overrides: {
+    organizationId?: string;
+    status?: string;
+    total?: string;
+    currency?: string;
+    sourceQuoteRequestId?: string;
+  } = {},
 ): Promise<{ id: string; businessId: string | null }> {
   const order = em.create(Order, {
     organizationId: overrides.organizationId ?? TEST_ORGANIZATION_ID,
@@ -123,9 +130,10 @@ export async function seedCrmOrder(
     subtotal: '100.00',
     taxTotal: '23.00',
     deliveryTotal: '0.00',
-    total: '123.00',
-    currency: 'PLN',
+    total: overrides.total ?? '123.00',
+    currency: overrides.currency ?? 'PLN',
     placedAt: new Date(),
+    ...(overrides.sourceQuoteRequestId ? { sourceQuoteRequestId: overrides.sourceQuoteRequestId } : {}),
   });
   await em.persistAndFlush(order);
   return { id: order.id, businessId: order.businessId ?? null };
@@ -415,4 +423,94 @@ export async function removeCrmAssets(em: EntityManager, ids: readonly string[])
   await em
     .getConnection()
     .execute(`delete from "assets" where "id" in (${ids.map(() => '?').join(', ')})`, [...ids]);
+}
+
+/** The storefront customer of the test Organization. */
+export const CRM_CUSTOMER = { b2b_session: 'stub-customer-session' };
+
+/**
+ * Run `act` and wait until every subscriber of the `eventName` it causes has
+ * finished — the event that satisfies `matches`.
+ *
+ * The bus dispatches to its handlers one after another and awaits each, so a
+ * handler registered here, after the composed application's own, runs once
+ * theirs have returned. That is what lets a test assert what a subscriber did,
+ * or that it did nothing, without sleeping.
+ */
+export async function whenCrmEventSettled<T>(
+  h: BackendServerHandle,
+  eventName: string,
+  matches: (payload: Record<string, unknown>) => boolean,
+  act: () => Promise<T>,
+): Promise<T> {
+  let off: () => void = () => undefined;
+  const settled = new Promise<void>((resolve) => {
+    off = h.eventBus.on(eventName as never, (payload: unknown) => {
+      if (matches((payload ?? {}) as Record<string, unknown>)) resolve();
+    });
+  });
+  try {
+    const result = await act();
+    await settled;
+    return result;
+  } finally {
+    off();
+  }
+}
+
+/**
+ * A Quote Request submitted by the test Organization's customer through the
+ * storefront API — `Pending`, one line of the seeded product.
+ */
+export async function submitCrmQuoteRequest(
+  h: BackendServerHandle,
+  line: { quantity?: number; desiredUnitPrice?: number } = {},
+): Promise<{ id: string; businessId: string; version: number }> {
+  const response = await h.app.inject({
+    method: 'POST',
+    url: '/api/v1/quote-requests',
+    cookies: CRM_CUSTOMER,
+    payload: {
+      items: [
+        {
+          productId: SEED_PRODUCT_101_ID,
+          quantity: line.quantity ?? 7,
+          desiredUnitPrice: line.desiredUnitPrice ?? 12,
+        },
+      ],
+    },
+  });
+  if (response.statusCode !== 201) {
+    throw new Error(`submitCrmQuoteRequest: ${response.statusCode} ${response.body}`);
+  }
+  return (response.json() as { data: { id: string; businessId: string; version: number } }).data;
+}
+
+/** `POST /opportunities/:id/links` for a Quote Request. */
+export function linkCrmQuoteRequest(
+  h: BackendServerHandle,
+  opportunityId: string,
+  quoteRequestId: string,
+  cookies: Record<string, string> = CRM_ADMIN,
+) {
+  return h.app.inject({
+    method: 'POST',
+    url: `${CRM_API}/opportunities/${opportunityId}/links`,
+    cookies,
+    payload: { documentKind: 'quote_request', documentId: quoteRequestId },
+  });
+}
+
+/** `PUT /value-counting-statuses`; returns the raw response for the caller to judge. */
+export function setCrmCountingStatuses(
+  h: BackendServerHandle,
+  counting: { order: string[]; quoteRequest: string[] },
+  cookies: Record<string, string> = CRM_ADMIN,
+) {
+  return h.app.inject({
+    method: 'PUT',
+    url: `${CRM_API}/value-counting-statuses`,
+    cookies,
+    payload: counting,
+  });
 }
