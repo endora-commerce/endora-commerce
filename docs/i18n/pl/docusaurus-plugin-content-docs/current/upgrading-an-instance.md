@@ -76,7 +76,11 @@ Jeśli instancja jest już w żądanej wersji, polecenie to mówi i niczego nie 
   wymieniona i zachowana.
 - **Własnych plików storefrontu.** Storefront to Twoje repozytorium; przesuwają się tylko jego
   pakiety wydania. `--no-storefront` zostawia go całkowicie w spokoju, a
-  `--storefront-dir <path>` wskazuje storefront, który nie leży obok instancji.
+  `--storefront-dir <path>` wskazuje storefront, który nie leży obok instancji. Storefront
+  zachowuje więc źródła, z którymi powstał: gdy wydanie zmienia storefront, jaki dostaje nowa
+  instalacja, Twój zyska tę zmianę dopiero wtedy, gdy sam ją przeniesiesz — zmianę z wydania
+  `0.103.0` opisuje sekcja
+  [Bloki modułów w istniejącym storefroncie](#storefront-block-renderers).
 
 ## Po zakończeniu
 
@@ -147,7 +151,49 @@ bloki i szablony nie wymagają zmian.
 
 ### Po aktualizacji do wydania 0.103.0 {#after-0-103-0}
 
-Dwie rzeczy, których aktualizacja nie zrobi za Ciebie.
+Wydanie `0.103.0` usuwa błąd izolacji tenantów w każdej instancji utworzonej z opublikowanych
+pakietów do wydania `0.102.0` włącznie: żądania nie były ograniczane do organizacji klienta ani
+klucza API, który je wysyłał, zasięg administratora nie wynikał z jego roli, a wpisy audytu nie
+zapisywały administratora, który wykonał operację. **Poprawką jest sama aktualizacja.** Niczego
+w instancji nie trzeba w tym celu edytować — `backend/src/index.ts` zostaje bez zmian.
+
+**Przenieś wszystkie pakiety `@endora-commerce/*` razem.** `pnpm run upgrade` tak robi. Jeśli
+ustawiasz wersje ręcznie, nie zostaw żadnego z tyłu: gdy platforma jest zaktualizowana,
+a `@endora-commerce/mod-organizations` zostaje we wcześniejszej wersji, żaden administrator —
+także administrator platformy — nie ma dostępu do żadnej organizacji, a ekrany ograniczone do
+organizacji są puste. Backend zapisuje wtedy przy starcie ostrzeżenie, w którym pada nazwa
+`adminTenantScopePort`.
+
+Trzy rzeczy, których aktualizacja nie zrobi za Ciebie.
+
+**Przypisz rolę każdemu kontu administratora, które jej nie ma.** Uprawnienia administratora
+i organizacje, do których ma dostęp, wynikają z roli przypisanej do konta. Konto bez roli było
+dotąd traktowane jak konto z dostępem do wszystkich organizacji; od wydania `0.103.0` jest
+odrzucane. Nadal może się zalogować i wylogować, a każda trasa panelu chroniona uprawnieniem —
+oraz pierwszy odczyt danych organizacji na każdej innej — odpowiada `403 ADMIN_ROLE_REQUIRED`.
+Aktualizacja nie przypisuje takim kontom żadnej roli, bo każda domyślna oznaczałaby nadanie
+dostępu, o którym nikt nie zdecydował. Backend przy każdym starcie zapisuje ostrzeżenie z liczbą
+takich kont; brak ostrzeżenia oznacza, że ich nie ma.
+
+Administrator, który może się zalogować, wybiera rolę na ekranie **Użytkownicy**. Gdy nie może
+żaden, uruchom w katalogu głównym instancji:
+
+```bash
+pnpm run admin:create -- --email=<adres e-mail konta> --password-stdin \
+  --first-name=<imię> --last-name=<nazwisko> [--role=<kod>]
+```
+
+Polecenie znajduje konto po adresie e-mail i je aktualizuje: przypisuje rolę administratora
+platformy (`platform_admin`) albo rolę wskazaną przez `--role`, **i ustawia podane hasło** —
+dotychczasowe hasło konta przestaje działać. Ustawia też konto jako aktywne, więc nie uruchamiaj
+go dla konta, które celowo zdezaktywowano. `--password-stdin` wczytuje hasło, co najmniej
+12 znaków, ze standardowego wejścia. Od tego wydania każda instancja ma rolę `platform_admin`:
+każdy start upewnia się, że istnieje, i nie da się jej już usunąć. Zobacz
+[Każdy administrator ma rolę](./modules/admin_users.md#każdy-administrator-ma-rolę).
+
+Jeśli coś Twojego tworzy konta administratorów przez API, musi teraz przesyłać rolę już przy
+tworzeniu: `POST /api/v1/admin/admin-users` bez `adminRoleId` oraz `PATCH`, który ustawia je na
+`null`, odpowiadają `400 ADMIN_USER_ROLE_REQUIRED`.
 
 **Uruchom raz przebieg próbny naprawy zamówień.** Wcześniejsze wydanie mogło zostawić zamówienie
 anulowane albo opłacone, a mimo to nadal trzymające stan magazynowy lub rezerwację limitu
@@ -174,6 +220,64 @@ Obok bloku `esbuild` w tym pliku dodaj:
 ```ts
 oxc: { jsx: { runtime: 'automatic', importSource: 'react' } },
 ```
+
+#### Bloki modułów w istniejącym storefroncie {#storefront-block-renderers}
+
+Od wydania `0.103.0` pakiet modułu może zawierać komponenty, które wyświetlają w storefroncie
+jego własne bloki Page Buildera, a storefront utworzony przez wydanie `0.103.0` lub nowsze
+podłącza je sam. **Storefront utworzony wcześniej nie zyskuje tego przez aktualizację**:
+aktualizacja przesuwa jego pakiety, a nie źródła. Po aktualizacji buduje się i wyświetla strony,
+które wyświetlał wcześniej. Czego mu brakuje:
+
+- blok, który wyświetla wyłącznie pakiet modułu, nie jest rysowany — nie ma skryptu
+  `blocks:generate`, który znalazłby pakiet, ani niczego, co zaimportowałoby jego komponent;
+- blok modułu, który wyłączyłeś, nie jest ukrywany, podczas gdy nowszy storefront nie wyświetla
+  w jego miejscu niczego;
+- nie ma pliku `lib/page-builder/local-blocks.tsx` na blok, który storefront wyświetla sam.
+
+Jeśli nie korzystasz z żadnej z tych rzeczy, możesz zostawić storefront bez zmian. Żeby go
+uzupełnić, weź pliki ze storefrontu zapisanego przez nowe CLI. Utwórz go obok swojego — ustawienia
+wczyta z pliku `.env`, który skopiujesz, a nic nie zostanie zainstalowane ani uruchomione:
+
+```bash
+mkdir ../storefront-0.103.0
+cp ../my-shop-storefront/.env ../storefront-0.103.0/.env
+pnpm exec endora new storefront ../storefront-0.103.0
+```
+
+Następnie przenieś z tego katalogu do swojego storefrontu:
+
+1. **Skopiuj pliki, które są nowe**: `components/BlockRenderScope.tsx`, katalog
+   `lib/page-builder/`, `scripts/block-discovery.mjs`, `scripts/generate-blocks.mjs`,
+   `app/blocks.generated.css` oraz testy `test/block-registry.test.ts`
+   i `test/ssr/module-blocks.test.tsx`.
+2. **Weź nową wersję plików, które się zmieniły** — a jeśli któryś edytowałeś, nanieś różnicę
+   ręcznie: `components/PageBuilderRender.tsx`, `app/layout.tsx`, `app/globals.css`,
+   `app/blog/_components/BlogCategoryPage.tsx`, `app/blog/_components/BlogPostBody.tsx`,
+   `components/Megamenu/MenuCmsBlockEmbed.tsx`, `lib/api/module-presence.ts`,
+   `scripts/theme-discovery.mjs` oraz testy `test/lib/module-presence.test.ts`
+   i `test/ssr/block-degradation.test.tsx`.
+   `diff -ru ../my-shop-storefront ../storefront-0.103.0` pokazuje każdą różnicę, obok Twoich
+   własnych zmian.
+3. **Dodaj skrypt do `package.json`** i uruchamiaj go w `dev` i `build`, po `themes:generate`:
+
+   ```json
+   "dev": "pnpm run themes:generate && pnpm run blocks:generate && node --env-file-if-exists=.env node_modules/next/dist/bin/next dev",
+   "build": "pnpm run themes:generate && pnpm run blocks:generate && next build && pnpm run check:themes",
+   "blocks:generate": "node scripts/generate-blocks.mjs",
+   ```
+
+4. Jeśli Twój storefront gdziekolwiek sam montuje komponent `<Render>` z Pucka, użyj tam
+   `PageBuilderRender`: to jedyne miejsce, w którym stosowane są bloki modułów i reguła
+   wyłączonego modułu.
+5. Uruchom `pnpm run typecheck`, `pnpm test` i `pnpm run build`, a potem usuń katalog, z którego
+   kopiowałeś.
+
+Na ile ta procedura została sprawdzona: na storefroncie utworzonym przez wydanie `0.102.0`
+i od tego czasu nieedytowanym daje te same pliki, które ma storefront `0.103.0`, a sprawdzanie
+typów, testy i build przechodzą. Nie sprawdzono jej na storefroncie, którego pliki zmieniono, ani
+przez wyświetlenie bloku modułu w storefroncie uzupełnionym w ten sposób — przed wdrożeniem
+sprawdź strony, które zawierają treść z Page Buildera.
 
 ## Instancja niespójna od początku
 

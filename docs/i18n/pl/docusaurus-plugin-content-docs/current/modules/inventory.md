@@ -157,8 +157,9 @@ Gdy `backorderEnabled = true`, każda z pięciu strategii pozwala złożyć zam�
 jest oznaczana jako sprzedaż na zamówienie w magazynie pierwszego wyboru.
 
 Składanie zamówienia zapisuje jeden wiersz `stock_allocations` dla każdej pozycji. Anulowanie
-uruchamia `OrderService.releaseAllocations(orderId)`, które dla każdej alokacji zmniejsza
-`stock_levels.reserved` i zapisuje `released_at`.
+zamówienia oddaje ten stan: zwolnienie dla każdej alokacji zmniejsza `stock_levels.reserved`
+i zapisuje `released_at`. Co je uruchamia i co się dzieje, gdy nie może się zakończyć, opisuje
+następna sekcja.
 
 ## Rezerwacja i zwolnienie
 
@@ -168,9 +169,24 @@ wierszu `(product_id, variant_id, warehouse_id)`. Magazyn domyślny jest wyznacz
 wykonywane po kolei; to, które przegra, kończy się `409 STOCK_UNAVAILABLE`, chyba że produkt ma
 `backorderEnabled = true` — wtedy pozycja przechodzi z `is_backorder = true`.
 
-`releaseAllocations(orderId)` jest idempotentne — już zwolnione wiersze są pomijane dzięki
-`released_at IS NULL`. Uruchamia się automatycznie przy anulowaniu zamówienia, razem ze zwolnieniem
-limitu kredytowego.
+Zwolnienie jest **działaniem następczym** anulowania. Moduł `orders` zapisuje je w tej samej
+transakcji co status anulowania, podejmuje próbę w tym samym żądaniu i ponawia je w tle, aż się
+zakończy — nieudane zwolnienie nie zostawia więc już anulowanego zamówienia, które trzyma stan
+i którego nic nie może zwolnić. Obok zapisywane jest zwolnienie limitu kredytowego; oba są od
+siebie niezależne i niepowodzenie jednego nie wstrzymuje drugiego. Działania następcze,
+powiadomienie na stronie zamówienia w panelu oraz polecenie dla operatora, które naprawia
+zamówienia pozostawione przez wcześniejszą wersję, opisuje strona modułu `orders`.
+
+Sam zapis należy do tego modułu: `InventoryReservationApplyPort.releaseForOrderItems`
+(`@endora-commerce/mod-inventory/ports`) aktualizuje `stock_allocations` i `stock_levels`
+w transakcji otwartej przez wywołującego, więc zmniejszenie licznika i zapis `released_at` to
+jedna operacja. Jest idempotentny — już zwolnione wiersze są pomijane dzięki
+`released_at IS NULL`, więc ponowienie niczego nie zwalnia drugi raz — i nigdy nie sprowadza
+`reserved` poniżej zera.
+
+Dopóki moduł `inventory` jest wyłączony, nic nie jest zwalniane: wiersze alokacji i liczniki
+zostają dokładnie takie, jakie były, oczekiwanie nie liczy się jako nieudana próba, a zwolnienie
+wykonuje się w ciągu minuty od ponownego włączenia modułu.
 
 ## Powiadomienia o dostępności
 

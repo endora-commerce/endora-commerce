@@ -329,10 +329,20 @@ A storefront renderer runs once on the server and once in the browser, so:
   `useBlockRenderEnvironment().language`, with English as the fallback.
 
 **Installing it in a storefront.** A storefront owner adds the package to
-their storefront (`pnpm add`) and builds. `blocks:generate`, which the
-storefront's `dev` and `build` scripts run, finds every installed module
-package that declares `./storefront` or `./blocks.css` and writes the registry
-and the stylesheet import — there is no line to add to any file.
+their storefront (`pnpm add`) and builds. `blocks:generate`, which the `dev`
+and `build` scripts of a storefront created by release `0.103.0` or later run,
+finds every installed module package that declares `./storefront` or
+`./blocks.css` and writes the registry and the stylesheet import — there is no
+line to add to any file.
+
+**A storefront created by an earlier release has none of this, and upgrading
+does not add it.** An upgrade moves a storefront's packages and leaves its
+source as it was written, so such a storefront has no `blocks:generate`
+script, no `lib/page-builder/` and no presence rule: a package's storefront
+layer is not rendered there, and neither *A block no package renders* nor the
+storefront row of *When the module is switched off* below applies to it, until
+its owner brings the files over by hand. The steps are in the *Upgrading an
+instance* guide, under *Module blocks in an existing storefront*.
 
 When `endora install` writes an instance and a storefront in one run, it adds
 the instance's modules that publish a storefront layer to the storefront's

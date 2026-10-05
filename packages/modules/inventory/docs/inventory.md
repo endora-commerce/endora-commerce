@@ -153,13 +153,17 @@ Five strategies live in `fulfilment-strategy-resolver.ts`:
 
 When `backorderEnabled = true`, all five strategies allow the line to go through with the residual flagged as a backorder against the first-choice warehouse.
 
-The order-placement path writes one `stock_allocations` row per order item. Cancellation runs `OrderService.releaseAllocations(orderId)` which decrements `stock_levels.reserved` per allocation and stamps `released_at`.
+The order-placement path writes one `stock_allocations` row per order item. Cancelling the order gives that stock back: the release decrements `stock_levels.reserved` per allocation and stamps `released_at`. What starts it, and what happens when it cannot complete, is the next section.
 
 ## Reserve / release contract
 
 `OrderService.placeOrder` opens a `SELECT … FOR UPDATE` per `(product_id, variant_id, warehouse_id)` row inside the placement transaction. The default warehouse is resolved from `warehouse_channel_assignments` for the order's sales channel. Concurrent placers serialise; the loser raises `409 STOCK_UNAVAILABLE` unless `backorderEnabled = true` on the product, in which case the line goes through with `is_backorder = true`.
 
-`releaseAllocations(orderId)` is idempotent — already-released rows are filtered out by `released_at IS NULL`. It runs automatically on order cancellation alongside the credit-limit release.
+A cancellation owes the release as a **follow-up**. The `orders` module records it in the same transaction as the cancelled status, attempts it in the same request, and retries it from a background sweep until it completes — so a release that fails no longer leaves a cancelled order holding stock with nothing able to give it back. The credit-limit release is recorded beside it and the two are independent: one failing does not hold the other. The `orders` module's page describes follow-ups, the notice on the admin order page and the operator command that repairs orders stranded by an earlier version.
+
+The write itself is this module's: `InventoryReservationApplyPort.releaseForOrderItems` (`@endora-commerce/mod-inventory/ports`) updates `stock_allocations` and `stock_levels` on the transaction the caller opens, so the counter decrement and the `released_at` stamp are one operation. It is idempotent — already-released rows are filtered out by `released_at IS NULL`, so a retry releases nothing a second time — and it never drives `reserved` below zero.
+
+While `inventory` is switched off nothing is released: the allocation rows and the counters stay exactly as they were, the wait is not counted as a failed attempt, and the release runs within a minute of the module being switched back on.
 
 ## Notify-when-available
 
