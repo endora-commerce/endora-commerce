@@ -2026,6 +2026,43 @@ when it was measured, and what was done about it.
   the create page's `linkDocument` to the second kind, plus a `loadOrganizationId` for a
   Quote Request; (6) the zone in `quote_requests`' docs page (+ Polish) and `mod-quote-requests`
   in the changeset. Tasks T172, T175, T176, T177 and T179 are left unticked for that half.
+- **N-G12 (2026-10-06) — user stories 14, 15 and the Order half of 17, walked in a browser.**
+  N-30's arrangement: headless Chromium (Playwright 1.60) against the admin's Vite dev server
+  and the backend test composition on a throw-away `_test` database on this worktree's
+  Postgres, created and dropped with its template — the stub admin session, real routes, real
+  `orders`, real `custom_fields`. The dev server serves each module's `dist` (N-D9), so the
+  `orders` and `crm` admin halves were rebuilt first; the first pass showed no panel on the
+  Order screen for exactly that reason. **English, 1440 px — 29 of 29**: *Opportunity* among
+  the record types of the custom-fields screen; a required select and an optional text field
+  defined there; the create form showing both with no button of their own, refusing the
+  missing required field **at the field**, then creating; the values on the Opportunity,
+  edited and saved through one `PATCH`, and an emptied required field refused at the field;
+  the *Open opportunities* panel on the Organization (statuses and values, no lost
+  Opportunity, *New opportunity* carrying the Organization); a linked Order showing number,
+  title, status, assignee and value with a link; an unlinked Order linked by picking an open
+  Opportunity (the picker offers no lost one); *Create opportunity* from an Order ending on an
+  Opportunity that lists that Order, and the Order then showing it. **CRM off — 12 of 12,
+  each screen waited for before it was judged**: the Order screen rendered, with no panel, no
+  request to `/admin/crm/`, and its text exactly the "on" screen's minus the panel; no CRM
+  group in the sidebar; no panel and no CRM request on the Organization screen; *Opportunity*
+  not among the record types; all three back after switching on. **Polish — 5 of 5**:
+  *Powiązana szansa*, *Otwarte szanse sprzedażowe* / *Nowa szansa*, the record type *Szansa
+  sprzedażowa*, *Pola niestandardowe* on the Opportunity, no untranslated key.
+  **One defect found and fixed:** a cleared choice, number or date did not clear. The kit
+  panel reports such a field as `undefined`, JSON drops the key, and a key the `PATCH` does
+  not name keeps its stored value — so the field came back after saving, and an emptied
+  *required* field was not refused. The Opportunity's save now sends a stored-and-now-empty
+  field as `null` (`withCleared`), which the server clears or, for a required field, refuses;
+  one admin case and one integration case hold it. **The same gap exists for the panel's four
+  other hosts** (their `save` passes the bag through unchanged) — the kit's, pre-existing, and
+  not repaired here. **The walk's own misreads, all timing:** the first two passes judged
+  three screens while the shell still showed "Loading the module's screen…" — which made the
+  first off-state checks pass vacuously and is why that part was re-run on its own with an
+  explicit wait and a positive control. **Seen and not this feature's:** the Organization
+  screen's own `GET …/pricing/display-mode-overrides/organization/:id` answers 404 for an
+  Organization with no override, with or without CRM. Not verified by eye: a real screen
+  reader, a physical touch device, dark theme, 390 px (the three panels are cards of the
+  host's own width and their tables scroll inside them — measured by nothing here).
 
 ## Questions put to the owner — all decided on 2026-10-05
 

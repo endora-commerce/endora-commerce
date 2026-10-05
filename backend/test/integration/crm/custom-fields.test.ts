@@ -152,7 +152,27 @@ describe('crm custom fields on an opportunity (User Story 15)', () => {
     });
   });
 
-  it('audits the values in the Opportunity’s own Command — one entry per write, no second one', async () => {
+  it('clears an optional value sent as null, and refuses to clear a required one', async () => {
+    const created = OpportunityDetailResponseSchema.parse(
+      (await post({ customFieldValues: { lead_source: 'referral', seats: 3 } })).json(),
+    ).data;
+    const cleared = await call('PATCH', `/opportunities/${created.id}`, {
+      headers: { 'if-match': `"${created.version}"` },
+      payload: { customFieldValues: { seats: null } },
+    });
+    expect(cleared.statusCode, cleared.body).toBe(200);
+    const after = OpportunityDetailResponseSchema.parse(cleared.json()).data;
+    expect(after.customFieldValues).toEqual({ lead_source: 'referral' });
+
+    const refused = await call('PATCH', `/opportunities/${created.id}`, {
+      headers: { 'if-match': `"${after.version}"` },
+      payload: { customFieldValues: { lead_source: null } },
+    });
+    expect(refused.statusCode, refused.body).toBe(422);
+    expect(issues(refused).details.map((issue) => issue.path)).toEqual(['lead_source']);
+  });
+
+    it('audits the values in the Opportunity’s own Command — one entry per write, no second one', async () => {
     const created = OpportunityDetailResponseSchema.parse(
       (await post({ customFieldValues: { lead_source: 'referral' } })).json(),
     ).data;

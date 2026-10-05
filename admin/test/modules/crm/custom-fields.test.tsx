@@ -153,6 +153,17 @@ describe('custom fields on the Opportunity (Overview)', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(saved));
   });
 
+  it('sends a cleared choice as null, so the stored value does not come back', async () => {
+    patchSpy.mockResolvedValue({ data: detail({ version: 5, customFieldValues: { competitor: 'Globex' } }) });
+    renderOverview();
+    await userEvent.selectOptions(await screen.findByLabelText(/Lead source/), '');
+    await userEvent.click(screen.getByRole('button', { name: core('customFields.save') }));
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
+    expect(patchSpy.mock.calls[0]?.[1]).toEqual({
+      customFieldValues: { lead_source: null, competitor: 'Globex' },
+    });
+  });
+
   it('shows a refusal at the field it names', async () => {
     patchSpy.mockRejectedValue(refusal());
     renderOverview();
