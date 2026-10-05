@@ -299,7 +299,7 @@ recalculation; `manual_value` is kept when switching away so switching back rest
 | Code | Type | Default | Purpose |
 | --- | --- | --- | --- |
 | `crm.enabled` | boolean | `true` | the activation control (`activation.settingCode`) |
-| `crm.auto_create_from_orders` | boolean | `false` | FR-060 |
+| `crm.auto_create_from_orders` | boolean | `false` | FR-060 — declared in the Foundational phase (the off-state proof needs a non-activation setting), behaviour in US9 |
 | `crm.auto_create_from_quote_requests` | boolean | `false` | FR-060 |
 
 No secret is involved, so no `secret` value type. The workflow, the mappings and the counting

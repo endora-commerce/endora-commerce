@@ -180,7 +180,7 @@ docs/i18n/pl/…                           # Polish copies of the docs pages tou
    registered from a plugin body is what `check:subscribe-seam` refuses; a function called
    synchronously from `registerModule` with `ctx` is the composition itself. **[unverified]**
    that `check:subscribe-seam`, `check:port-dependencies` and `check:container-imports` follow
-   a `ctx` passed into a helper in another file — T012 proves it on the first area file and
+   a `ctx` passed into a helper in another file — T023 proves it on the first area file and
    falls back to one `index.ts` if any of them does not.)
 2. **Data-driven tabs and area-prefixed i18n keys** (`contracts/admin-surfaces.md` §1, §7).
 

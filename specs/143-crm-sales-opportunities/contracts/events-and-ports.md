@@ -183,7 +183,7 @@ Every one resolved with `lazyPort<T>(ctx, '<literal name>')`, `T` from
 | `catalogProductReadPort` (`catalog`) | reference labels | `dependencies` |
 | `settingsReadPort` (`settings`) | the two automatic-creation settings | `dependencies` |
 | `requireAdmin` (`auth`) | every route | `dependencies` |
-| `assetReferenceRegistry` (`assets_library`) | deletion protection | `dependencies` (also read for attachment metadata — **[unverified]** which read port; T086) |
+| `assetReferenceRegistry` (`assets_library`) | deletion protection | `dependencies` (also read for attachment metadata — **[unverified]** which read port; T080) |
 | `salesChannelAttributionRegistry` (`sales_channels`) | channel-delete guard | `dependencies` |
 | `auditReferenceRegistry` (`audit_logs`) | recent-activity labels | `contributes-to` |
 | `adminNotificationRecordPort` (`admin_notifications`) | assignment and message notifications | `degrades-without` |

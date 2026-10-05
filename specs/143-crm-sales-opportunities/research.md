@@ -368,7 +368,7 @@ off. Kinds: `crm.opportunity.assigned`, `crm.opportunity.message`.
 `specs/093-backend-delivered-prose/`'s open work for every caller of this port, and CRM joins
 the existing population rather than inventing a private fix. `check:default-language-prose`
 only refuses non-English literals, so the English sentence passes. **[unverified]** whether
-feature 093 has landed a key/params variant since; T076 checks before writing the call.
+feature 093 has landed a key/params variant since; T069 checks before writing the call.
 
 **Alternatives rejected.** *E-mail* — needs templates, recipients' addresses and an opt-out;
 the owner asked for messages "in the Admin UI". *A hard dependency on `admin_notifications`* —
@@ -420,7 +420,7 @@ channel" is `null`, never a default (D-47…D-51, as `QuoteRequest.salesChannelI
 CRM contributes a counter to `salesChannelAttributionRegistry` (`contributes-to`
 `sales_channels`), as `quote_requests` does, so the channel-delete guard sees Opportunities
 attributed to a channel. The column has a foreign key to `sales_channels(id)` `on delete
-restrict`. **[unverified]** the exact descriptor shape — T058 reads
+restrict`. **[unverified]** the exact descriptor shape — T050 reads
 `packages/modules/quote_requests/src/backend/services/sales-channel-attributions.ts`.
 
 **Alternatives rejected.** *Scoping Opportunities to the request's resolved channel* — admin
@@ -474,7 +474,7 @@ as `blog`, `cms`, `catalog` and `megamenu` do, so the library refuses to delete 
 Opportunity uses (FR-044). Download goes through the library's own URL for the asset.
 
 **[unverified]**: the visibility an uploaded file gets by default (`private` vs public) and
-how an admin fetches a private one — T084 reads `assets-api.ts` and the returns flow, and the
+how an admin fetches a private one — T080 reads `assets-api.ts` and the returns flow, and the
 attachment must be uploaded **private**.
 
 **Alternatives rejected.** *CRM-owned storage* — a second storage backend. *Storing the

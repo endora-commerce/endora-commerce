@@ -208,4 +208,4 @@ Declared in the manifest's `errorCodes`, sentences under `errors.<CODE>` in
 How a new code is minted — whether it must also become a member of `ERROR_CODES` in
 `packages/contracts/src/errors.ts`, and which fixtures record it — is **not** established by
 this design: commit `512b68e84` ("record the two minted error codes") is the most recent
-worked example and task T010 reads it first.
+worked example and task T038 reads it first.
