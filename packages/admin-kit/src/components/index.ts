@@ -81,6 +81,8 @@ export { useFocusTrap } from './hooks/useFocusTrap.js';
 export { useViewportTier } from './hooks/useViewportTier.js';
 export type { ViewportTier } from './hooks/useViewportTier.js';
 export { MethodAvailabilityCaption, MethodAvailabilityCell, MethodNotOfferedNotice } from './payment-method-availability/MethodAvailabilityCell.js';
+export { KanbanBoard } from './kanban/index.js';
+export type { KanbanBoardLabels, KanbanBoardProps, KanbanCardRenderState, KanbanColumnRenderState, KanbanColumnState, KanbanDropState } from './kanban/index.js';
 export { ReorderAnnouncer } from './reorder/ReorderAnnouncer.js';
 export type { ReorderAnnouncerProps } from './reorder/ReorderAnnouncer.js';
 export { moveItem, useReorderList } from './reorder/useReorderList.js';

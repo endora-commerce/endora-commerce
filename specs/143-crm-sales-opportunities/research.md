@@ -1142,6 +1142,74 @@ when it was measured, and what was done about it.
   it is added to §E there, beside the other set-asserting ledger CRM joined, **in a commit of
   its own and without the coordinator's prior acceptance** — it is the one edit of this story
   to an existing file outside the listed set.
+- **N-K1 (2026-10-05, T148) — R-20's [unverified] premise holds: `@dnd-kit/core` 6.3.1 runs
+  under React 19.** Resolved against `react`/`react-dom` 19.2.5. Two measurements. The
+  primitive's tests (`admin/test/components/KanbanBoard.test.tsx`, 22 cases) drive the
+  library's real sensors, collision detection and live region under jsdom with nothing of the
+  library mocked — only geometry is substituted, because jsdom lays nothing out. And a
+  throw-away page (not committed) mounting the board inside `<StrictMode>` was driven in
+  headless Chromium 148 through Playwright: mouse drag, press-and-hold touch drag, a swipe
+  that must *not* lift, the keyboard path, the refused lane, the rejected promise, and a
+  390 px viewport. Sixteen assertions, all passing, with no console error or warning.
+  **[unverified]**: a physical touch device and a real screen reader — T093's audit.
+- **N-K2 (2026-10-05, T149) — no other consumer of `admin-kit` has to declare the peer.**
+  `pnpm install --lockfile-only` then `pnpm install --frozen-lockfile` exit 0 with no warning
+  naming `@dnd-kit`; the lockfile gains three packages (`core`, `accessibility`, `utilities`)
+  and two importer entries, and `manifests:check` reports every module manifest unchanged.
+  `packages/admin-shell` and `packages/page-builder-admin` name the kit as a workspace peer
+  and inherit nothing. The docs site does not depend on the kit. The scaffold
+  (`adminMemberPackages` in `packages/cli/src/new-instance/template.ts`) writes exactly four
+  dependencies into an instance's admin member — the kit, the shell, `react`, `react-dom` —
+  and **none** of the kit's other peers: `echarts`, `lucide-react` and the Radix packages
+  reach an instance only because pnpm installs missing peers by itself
+  (`autoInstallPeers: true`, the pnpm 9 default and the first setting in this lockfile).
+  `@dnd-kit/core` arrives the same way, so the template is unchanged. Two things follow that
+  nothing here measures: a scaffolded install against a *published* kit carrying this peer
+  cannot be run before a release exists **[unverified]**; and `@dnd-kit/core` itself peers
+  `react-dom`, which the kit does not declare (the Radix packages already put it in that
+  position) — satisfied by the application in every arrangement the scaffold produces.
+- **N-K3 (2026-10-05, T150) — the plan's [unverified] "paid only on the board route" is
+  FALSE once a consumer exists, and no check holds it.** Nothing analyses the admin build's
+  chunks (no `manualChunks`, no size gate). Measured with `pnpm --filter admin run build`:
+  with no consumer the primitive is tree-shaken out completely — no chunk contains
+  `@dnd-kit` and the entry chunk is 1 872 781 bytes, its hash unchanged. With a
+  dynamically-imported consumer (a throw-away `import()` of a file that imports `KanbanBoard`
+  from `@endora-commerce/admin-kit/components`, which is the shape T091's lazy page has)
+  `@dnd-kit/core` lands in the **entry chunk**, which grows to 1 914 770 bytes (+41 989); the
+  lazy chunk holds 7.76 kB. The cause is not this component: the shell reaches the
+  `components` barrel statically, the kit's `package.json` carries no `sideEffects` field, so
+  Rollup must assume every module the barrel names has import-time effects and keeps them
+  with the entry. `echarts` is in the entry chunk today for the same reason. One further
+  build, with `"sideEffects": ["*.css"]` added to the kit's manifest and nothing else changed,
+  put `@dnd-kit/core` in the lazy chunk (50.32 kB, 17.09 kB gzip) and shrank the entry to
+  652 527 bytes. **That flag is not part of this change**: it re-chunks the whole admin, and
+  it is only safe if no module of the kit relies on being imported for its effect — which
+  needs its own verification, not a board story's. Recorded as the lever; the cost accepted
+  until someone pulls it is ~42 kB (uncompressed) in the entry from the day T091 lands.
+- **N-K4 (2026-10-05, T150) — three places where the primitive departs from R-20's sketch,
+  each for a reason the sketch could not have known.** (a) **`MouseSensor` + `TouchSensor`,
+  not `PointerSensor`.** A pointer-event sensor only works on touch if every card carries
+  `touch-action: none`, and a narrow board whose lanes are full of cards could then not be
+  scrolled with a finger. The pair keeps a swipe a scroll (measured in Chromium: the board
+  scrolled, nothing lifted) and makes a 250 ms press a lift. The activation distance R-20
+  asks for is on the mouse sensor (8 px). (b) **Keyboard drag starts from a handle button
+  inside the card, not from the card.** The library's default puts `role="button"` on the
+  draggable; a button's descendants are presentational to assistive technology, so the card's
+  own link and its "Move to…" menu — the SC 2.5.7 path — would disappear from it. The card
+  is the mouse/touch surface, the handle is the keyboard one, and "focus a card" in T148
+  reads "focus the card's handle". (c) **A coordinate getter and a collision rule of its
+  own.** The library's default keyboard step is 25 px, a dozen presses per lane; here one
+  arrow is one lane, and the lane is chosen by horizontal span, because lanes are as tall as
+  their content and "closest centre" picks a short neighbour over a tall target. The
+  announcements are the library's (`DndContext`'s `accessibility`) as R-20 says, with one
+  addition it cannot make: a move the caller's promise rejects is known only after the drag
+  has ended, so it is spoken through the kit's existing `ReorderAnnouncer`.
+- **N-K5 (2026-10-05, T148) — the primitive's test reads the kit's `dist`.** It imports
+  `@endora-commerce/admin-kit/components`, as the other `admin/test/kit` tests and every
+  consumer do, so `pnpm --filter @endora-commerce/admin-kit run build` precedes it after an
+  edit to the component (`specs/conventions/building-packages.md`). The two domain-freedom
+  cases read the **source** file: no `opportunit|status|crm` in it, and `@dnd-kit/core` the
+  only `@dnd-kit/*` specifier.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
