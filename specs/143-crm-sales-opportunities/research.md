@@ -1968,6 +1968,19 @@ when it was measured, and what was done about it.
   need each other — the check refuses the line while nothing resolves the name, and the edge
   while the line is missing — so the story's commit is red on that one check until the commit
   after it.
+- **N-E21 (2026-10-05, T169) — a second ledger derived about the edge, found only by the
+  whole fast suite.** `backend/test/unit/kernel/contribution-absent-owner.test.ts` derives
+  every `contributes-to` edge from the registered manifests and holds the set, both ways, to a
+  table of compositions: each contributor is composed once with its owner's names withheld —
+  an instance that never installed the owner — where the boot must survive and nothing may be
+  pushed, and once with them present, where the push must arrive. CRM's edge into
+  `webhookEventRegistry` is the fourth contributor; without a `crm` entry the file is red, and
+  no targeted run over the CRM or the webhooks directories opens it (`AGENTS.md` § traps, "a
+  ledger derived about the files you changed"). The entry composes `crm` by its published
+  specifier, supplies the two registries of modules CRM declares in `dependencies`, and passes
+  in both directions with **no line in CRM about whether `webhooks` is installed** — which is
+  the property the file exists to hold. Not a row of §I; in a commit of its own and listed in
+  `contracts/foreign-module-changes.md` §E.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
