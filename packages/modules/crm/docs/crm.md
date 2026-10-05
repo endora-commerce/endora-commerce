@@ -9,8 +9,8 @@ The CRM module keeps track of **sales opportunities**: a deal a sales
 representative is working with one customer organization, from the first
 contact to the moment it is won or lost.
 
-This page grows with the module. The sections marked *coming* describe
-capabilities that are designed and not yet shipped.
+This page grows with the module. Whatever is marked *coming* is designed and
+not yet shipped.
 
 ## What it does
 
@@ -41,6 +41,42 @@ see. An administrator restricted to a set of organizations sees only those
 organizations' opportunities; to them, another organization's opportunity does
 not exist.
 
+## In the Admin UI
+
+The module adds a **CRM** group to the sidebar, directly after *Sales*. An
+administrator sees the entries their role allows, and the group itself only
+when at least one of them is visible.
+
+| Screen | Where | Permission | What it is for |
+| --- | --- | --- | --- |
+| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, sales channel and creation date. |
+| New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
+| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, the orders linked to it, and what became of those orders after each move. |
+| Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, and the order status each opportunity status sets. |
+
+Both everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
+**Sales opportunities** and **New sales opportunity**.
+
+A first walk through the module, start to finish:
+
+1. On **Workflow**, check the statuses — which one is the start status, which
+   close an opportunity as won or lost — and the arrows between them. Under
+   *Order status for each opportunity status*, choose what each status should
+   do to a linked order, and save.
+2. On **Opportunities**, press **New opportunity**, fill in the title, the
+   organization and the currency, and create it. You land on the opportunity.
+3. Under *Linked orders*, search the organization's orders by number and link
+   one. It follows the opportunity's status unless you untick that for it.
+4. Under *Status*, press the status to move to. Only the moves the workflow
+   allows are offered.
+5. Under *Order status changes*, read what happened to each linked order. An
+   order that could not be moved is listed with the reason and two buttons,
+   **Retry** and **Dismiss**; it stays there, on every later visit, until one of
+   them is pressed.
+
+An administrator who may read but not write sees the same screens without the
+controls that change anything.
+
 ## Configuring the workflow
 
 The workflow is the operator's. A status has a **code** (lowercase letters,
@@ -52,7 +88,10 @@ one.
 A transition is a directed step from one status to another. An opportunity can
 only make a step that is configured, so the set of transitions is what the
 status control offers a sales representative. A closing status may have
-transitions out of it: reopening is a transition like any other.
+transitions out of it: reopening is a transition like any other. On the
+**Workflow** screen transitions are drawn as a graph; add one by choosing its
+two ends under the graph, or by pressing **Connect** and clicking the two
+statuses, and remove one by selecting its arrow.
 
 A change that would leave the workflow broken is refused, and the refusal says
 which rule it would break:
@@ -255,7 +294,6 @@ No role receives a CRM permission automatically. Grant them on the
 
 ## Coming
 
-- Screens in the Admin UI for everything above.
 - Moving an opportunity when one of its orders reaches a given status.
 - Assigning opportunities to sales representatives.
 - Notes, internal messages, attachments and tags.

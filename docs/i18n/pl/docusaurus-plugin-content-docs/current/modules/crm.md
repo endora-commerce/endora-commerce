@@ -9,8 +9,8 @@ Moduł CRM prowadzi **szanse sprzedażowe**: transakcje, nad którymi
 przedstawiciel handlowy pracuje z jedną organizacją klienta — od pierwszego
 kontaktu do chwili, gdy szansa zostaje wygrana albo przegrana.
 
-Ta strona rośnie razem z modułem. Sekcje oznaczone jako *wkrótce* opisują
-możliwości, które są zaprojektowane, ale jeszcze niedostępne.
+Ta strona rośnie razem z modułem. Wszystko, co oznaczono jako *wkrótce*, jest
+zaprojektowane, ale jeszcze niedostępne.
 
 ## Co robi
 
@@ -41,6 +41,44 @@ Szanse są widoczne zgodnie z organizacjami, które administrator może
 oglądać. Administrator ograniczony do wybranych organizacji widzi wyłącznie
 ich szanse; z jego perspektywy szansa innej organizacji nie istnieje.
 
+## W Admin UI
+
+Moduł dodaje do menu bocznego grupę **CRM**, bezpośrednio pod grupą
+*Sprzedaż*. Administrator widzi te pozycje, na które pozwala jego rola, a samą
+grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
+
+| Ekran | Gdzie | Uprawnienie | Do czego służy |
+| --- | --- | --- | --- |
+| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, kanał sprzedaży i data utworzenia. |
+| Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
+| Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Jej status i zmiany, na które pozwala przepływ, powiązane z nią zamówienia oraz to, co stało się z tymi zamówieniami po każdej zmianie. |
+| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi oraz status zamówienia ustawiany przez każdy status szansy. |
+
+Oba codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
+**Szanse sprzedażowe** i **Nowa szansa sprzedażowa**.
+
+Pierwsze przejście przez moduł, od początku do końca:
+
+1. Na ekranie **Statusy i przepływ** sprawdź statusy — który jest początkowy,
+   które zamykają szansę jako wygraną lub przegraną — oraz strzałki między
+   nimi. W sekcji *Status zamówienia dla każdego statusu szansy* wybierz, co
+   każdy status ma zrobić z powiązanym zamówieniem, i zapisz.
+2. Na ekranie **Szanse sprzedażowe** kliknij **Nowa szansa**, podaj tytuł,
+   organizację i walutę, a następnie utwórz szansę. Trafisz na jej ekran.
+3. W sekcji *Powiązane zamówienia* wyszukaj zamówienie tej organizacji po
+   numerze i je powiąż. Będzie podążać za statusem szansy, chyba że to dla
+   niego odznaczysz.
+4. W sekcji *Status* kliknij status, na który chcesz zmienić. Dostępne są
+   tylko zmiany dozwolone przez przepływ.
+5. W sekcji *Zmiany statusów zamówień* przeczytaj, co stało się z każdym
+   powiązanym zamówieniem. Zamówienie, którego nie udało się przenieść, jest
+   tam wymienione z przyczyną i dwoma przyciskami: **Ponów** i **Pomiń**;
+   pozostaje tam przy każdej kolejnej wizycie, dopóki handlowiec nie użyje
+   jednego z nich.
+
+Administrator, który może tylko przeglądać, widzi te same ekrany bez
+elementów, które cokolwiek zmieniają.
+
 ## Konfigurowanie przepływu
 
 Przepływ należy do operatora. Status ma **kod** (małe litery, cyfry
@@ -52,7 +90,10 @@ szansa — i musi to być status otwarty.
 Przejście to skierowany krok z jednego statusu do drugiego. Szansa może
 wykonać tylko skonfigurowany krok, więc zbiór przejść wyznacza to, co kontrolka
 statusu proponuje przedstawicielowi handlowemu. Status zamykający może mieć
-przejścia wychodzące: ponowne otwarcie jest przejściem jak każde inne.
+przejścia wychodzące: ponowne otwarcie jest przejściem jak każde inne. Na
+ekranie **Statusy i przepływ** przejścia są narysowane jako graf; nowe dodaje
+się, wybierając jego dwa końce pod grafem albo klikając **Połącz** i dwa
+statusy, a usuwa — zaznaczając jego strzałkę.
 
 Zmiana, która zepsułaby przepływ, jest odrzucana, a odmowa wskazuje regułę,
 którą by naruszyła:
@@ -257,7 +298,6 @@ ekranie **Role**.
 
 ## Wkrótce
 
-- Ekrany w Admin UI dla wszystkiego, co opisano powyżej.
 - Przesuwanie szansy, gdy jedno z jej zamówień osiągnie wskazany status.
 - Przypisywanie szans przedstawicielom handlowym.
 - Notatki, wiadomości wewnętrzne, załączniki i tagi.
