@@ -1312,6 +1312,36 @@ when it was measured, and what was done about it.
   (`tsx scripts/check-command-coverage.ts --strict --module crm`) reports 0 blocking; joining
   the roster is one line in a file this feature's foreign-change list does not carry, and is
   reported rather than done.
+- **N-B12 (2026-10-05, T075) — what §6 leaves open about notes and messages.** `POST` answers
+  201 `{ data: OpportunityComment }`, `PATCH` 200 the same, `DELETE` 204; `GET` requires
+  `kind` (400 without it — the schema has no default). The refusals of `PATCH`/`DELETE` are
+  evaluated in this order: the Opportunity as the caller may see it (404
+  `CRM_OPPORTUNITY_NOT_FOUND`), the comment under it (404 `NOT_FOUND`, also for a note already
+  deleted and for a comment of another Opportunity), a message (409 `CRM_MESSAGE_IMMUTABLE`
+  **whoever asks**, the author included), and only then authorship (403 `FORBIDDEN`). So the
+  platform administrator cannot edit a colleague's note: authorship is not a permission. A
+  `PATCH` with the body a note already has writes nothing. Deletion is soft (`deleted_at`),
+  as the entity's header says. **The audit entries carry the text** (`body` in the after-state
+  of `note_add` / `message_add`, both states of `note_update`, the before-state of
+  `note_delete`): "stays in the audit trail" is otherwise unverifiable, and the audit log is
+  read by administrators only. `references` is `[]` until User Story 12.
+- **N-B13 (2026-10-05, T075) — who a message tells.** The assignee at the moment of sending
+  and every earlier *message* author on that Opportunity (note authors are not participants),
+  each once, never the sender — computed inside the Command, before the message joins the
+  thread, and notified after the commit through `crm-notifier.ts` (kind
+  `crm.opportunity.message`, an English title naming the Opportunity, the first 200
+  characters of the message as the bell entry's body). A participant who has since been
+  deactivated is still a recipient; the bell entry is inert for somebody who cannot sign in.
+  A recipient is not checked against the Opportunity's tenant scope: an earlier author could
+  only have written there by reaching it, and the assignee is whoever was chosen (N-B8).
+- **N-B14 (2026-10-05, T074) — how "no customer-facing route returns a note or a message" is
+  held.** The module registers nothing outside `/api/v1/admin/crm` (`contracts/admin-api.md`
+  says so, and the off-state list is every route it has). The test writes a note and a
+  message with marker strings on an Opportunity linked to an Order, then reads, as the
+  customer of that Organization, `/api/v1/orders`, `/api/v1/orders/:id`,
+  `/api/v1/orders/:id/comments` and `/api/v1/quote-requests`, asserting the markers are in
+  none and that the customer really is shown that Order; and it asserts the admin endpoint
+  refuses the customer's session.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

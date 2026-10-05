@@ -388,3 +388,36 @@ on an opportunity is everyday work and needs `crm:write`.
 
 Creating or editing an opportunity may set its tags too, with `tagIds`. A tag
 that does not exist is refused, and nothing is changed.
+
+## Notes and internal messages
+
+People working an opportunity write on it in two ways.
+
+A **note** is something to remember — what the customer said, what was agreed,
+what to do next. Whoever wrote a note may edit it or delete it; nobody else
+may, whatever their permissions. An edited note shows that it was edited. A
+deleted note is no longer listed, and what it said stays in the opportunity's
+change history.
+
+A **message** is part of a conversation between the people working the
+opportunity. Messages are listed in the order they were sent, and **a message
+cannot be changed or deleted once it is sent** — not by its author, not by
+anybody: the attempt is refused with `CRM_MESSAGE_IMMUTABLE`. A message tells
+the opportunity's assignee and everybody who has already written in that
+conversation, except the person who sent it, on the notification bell of the
+Admin UI with a link to the opportunity. While the **Admin notifications**
+module is switched off, a message is stored all the same and nobody is told.
+
+**Both are internal.** Neither a note nor a message has a setting that shows it
+to the customer, and nothing the customer can open — an order, a quote request,
+their account — carries either.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | The opportunity's notes, oldest first. `kind=message` for the conversation. `kind` is required. |
+| `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Write one: `{ "kind": "note" \| "message", "body" }`. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edit a note: `{ "body" }`. Its author only. |
+| `DELETE /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Delete a note. Its author only. |
+
+Editing or deleting somebody else's note answers 403; doing either to a message
+answers 409 `CRM_MESSAGE_IMMUTABLE`, whoever asks.

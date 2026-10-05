@@ -56,6 +56,20 @@ And tags.
   answered 422 until now. Several `tagId` values mean all of them. `tags` on a summary and a
   detail is no longer always empty.
 
-**`@endora-commerce/contracts`**: `ERROR_CODES` gains `CRM_ASSIGNEE_INVALID` and
-`CRM_TAG_NAME_TAKEN`. Additive; a consumer that switches exhaustively over `ErrorCode` gets a
-compile error until it handles them.
+And notes and internal messages.
+
+- **`GET|POST /api/v1/admin/crm/opportunities/:id/comments`, `PATCH|DELETE …/comments/:commentId`.**
+  `kind` is `note` or `message`, and is required on the list. Reading is `crm:read`, writing
+  `crm:write`.
+- **A note is its author's**: anybody else editing or deleting it answers 403, whatever they
+  hold. A deleted note is no longer listed; its text stays in the audit trail.
+- **A message is immutable**: editing or deleting one answers 409 **`CRM_MESSAGE_IMMUTABLE`**,
+  a new member of `ERROR_CODES`, whoever asks. A message notifies the assignee and every
+  earlier author of a message on that opportunity, except its sender, through
+  `adminNotificationRecordPort` (kind `crm.opportunity.message`); with `admin_notifications`
+  off it is stored and nobody is told.
+- Both are internal. The module still serves nothing outside `/api/v1/admin/crm`.
+
+**`@endora-commerce/contracts`**: `ERROR_CODES` gains `CRM_ASSIGNEE_INVALID`,
+`CRM_TAG_NAME_TAKEN` and `CRM_MESSAGE_IMMUTABLE`. Additive; a consumer that switches
+exhaustively over `ErrorCode` gets a compile error until it handles them.

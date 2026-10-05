@@ -394,3 +394,36 @@ Nadawanie etykiet szansie to codzienna praca i wymaga `crm:write`.
 
 Tworzenie i edycja szansy również mogą ustawić jej etykiety, przez `tagIds`.
 Etykieta, która nie istnieje, jest odrzucana i nic się nie zmienia.
+
+## Notatki i wiadomości wewnętrzne
+
+Osoby pracujące nad szansą sprzedażową piszą w niej na dwa sposoby.
+
+**Notatka** to coś do zapamiętania — co powiedział klient, co ustalono, co
+zrobić dalej. Autor notatki może ją edytować albo usunąć; nikt inny nie może,
+bez względu na uprawnienia. Przy edytowanej notatce widać, że była edytowana.
+Usunięta notatka znika z listy, a jej treść zostaje w historii zmian szansy.
+
+**Wiadomość** jest częścią rozmowy między osobami pracującymi nad szansą.
+Wiadomości są wyświetlane w kolejności wysłania, a **wiadomości nie można
+zmienić ani usunąć po wysłaniu** — nie może tego zrobić ani autor, ani nikt
+inny: próba jest odrzucana z kodem `CRM_MESSAGE_IMMUTABLE`. O wiadomości
+dowiadują się osoba przypisana do szansy i wszyscy, którzy już napisali w tej
+rozmowie — poza nadawcą — z dzwonka powiadomień w Admin UI, z odnośnikiem do
+szansy. Gdy moduł **Powiadomienia administratora** jest wyłączony, wiadomość
+jest zapisywana tak samo, a nikt nie dostaje powiadomienia.
+
+**Jedno i drugie jest wewnętrzne.** Ani Notatka, ani Wiadomość nie ma
+ustawienia, które pokazałoby ją klientowi, i nic, co klient może otworzyć —
+Zamówienie, zapytanie ofertowe, jego konto — ich nie zawiera.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | Notatki szansy, od najstarszej. `kind=message` — rozmowa. Parametr `kind` jest wymagany. |
+| `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Dodanie: `{ "kind": "note" \| "message", "body" }`. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edycja notatki: `{ "body" }`. Tylko autor. |
+| `DELETE /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Usunięcie notatki. Tylko autor. |
+
+Edycja albo usunięcie cudzej notatki kończy się odpowiedzią 403; próba zrobienia
+tego z wiadomością — odpowiedzią 409 `CRM_MESSAGE_IMMUTABLE`, niezależnie od
+tego, kto pyta.
