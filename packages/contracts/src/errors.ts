@@ -504,6 +504,8 @@ export const ERROR_CODES = {
   CRM_STATUS_INITIAL_REQUIRED: 'CRM_STATUS_INITIAL_REQUIRED',
   /** The change would break a structural rule of the workflow; `details.rule` names it. */
   CRM_WORKFLOW_INVALID: 'CRM_WORKFLOW_INVALID',
+  /** The assignee named is not an active administrator of this platform. */
+  CRM_ASSIGNEE_INVALID: 'CRM_ASSIGNEE_INVALID',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
