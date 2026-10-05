@@ -29,6 +29,9 @@ change: the section belongs to the shell, CRM contributes entries to it. Recorde
 if the group ends up with one or two links, the owner will have them moved to `sales`, and
 A3–A5 are then reverted.
 
+Sections G–J were added on 2026-10-05 for the owner's second and third rulings; A1's "all CRM
+Zod schemas" is extended additively by US15, US16 and US17.
+
 ## B. `orders` — one optional, opaque pass-through (US10 only)
 
 | # | File | Change |
@@ -98,15 +101,89 @@ No `root-dispositions.json` entry is owed for `specs/143-crm-sales-opportunities
 was retired from the canonical tree (the header of `backend/scripts/lib/root-dispositions.ts`
 says so, and its record file is not in this repository).
 
+## G. `admin-kit` and the admin application — the board primitive and its dependency (US7)
+
+Owner ruling of 2026-10-05, third round: the board is built on `@dnd-kit`, as a reusable
+primitive of the design system. This is a **host package** change.
+
+| # | File | Change |
+| --- | --- | --- |
+| G1 | `packages/admin-kit/package.json` | `@dnd-kit/core` `^6.3.1` in `peerDependencies` **and** `devDependencies` (the `echarts` pattern) |
+| G2 | `admin/package.json` | `@dnd-kit/core` `^6.3.1` in `dependencies` |
+| G3 | `pnpm-lock.yaml` | `pnpm install --lockfile-only` |
+| G4 | `packages/admin-kit/src/components/kanban/KanbanBoard.tsx`, `index.ts` (**new**) | the generic board: lanes, cards, `canDrop`, `onMove`, render props, announcements |
+| G5 | `packages/admin-kit/src/components/index.ts` | export `KanbanBoard` and its types |
+| G6 | `admin/test/components/KanbanBoard.test.tsx` (**new**) | the primitive's tests |
+| G7 | another consumer of `@endora-commerce/admin-kit` (`packages/admin-shell/package.json`, the docs site, the `create-endora-commerce` template) | **only if** `pnpm install --frozen-lockfile` reports the new peer unmet there — T149 measures it and names the file |
+| G8 | `packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx` | **conditional, US15**: an optional controlled mode (`onChange`, no save button), only if the panel cannot be embedded in the create form as it is — T160 decides after reading it |
+
+`packages/modules/crm` declares **nothing** for `@dnd-kit`: it imports the primitive from
+`@endora-commerce/admin-kit/components`. Left behind if CRM is removed: a design-system
+component with no consumer yet, and one peer — which is what "reusable" means.
+
+## H. `custom_fields` — Opportunities as a host type (US15)
+
+| # | File | Change |
+| --- | --- | --- |
+| H1 | `packages/contracts/src/custom-fields.ts` | add `'opportunity'` to `supportedEntityTypeSchema` |
+| H2 | `packages/modules/custom_fields/src/backend/services/custom-field-registry.ts` | optional `ownerModuleId` on `SupportedEntityMeta`; the `opportunity` entry (`orgOwned: true`, `ownerModuleId: 'crm'`) — compile-coupled to H1, because the map is a `Record` over the enum |
+| H3 | `packages/modules/custom_fields/src/backend/routes.admin.ts` | `entity-types` omits a type whose owner is not effectively present; definition mutations for such a type are refused |
+| H4 | `packages/modules/custom_fields/i18n/en.json`, `pl.json` | `customFields.entity.opportunity` |
+| H5 | `packages/modules/custom_fields/docs/…` (+ Polish copy) | the new host type and the owner-presence rule |
+| H6 | every exhaustive switch or enumerating test over `SupportedEntityType` | found by grep in T156, repaired in the same change, named in the pull request |
+
+`custom_fields` learns one string, `'crm'`, as a registry value — the same way it already
+holds `'catalog'` in `managedBy`. It imports nothing from CRM and reads the marker's presence
+only. Existing host types declare no owner and behave exactly as before, which
+`entity-owner-presence.test.ts` proves. Left behind if CRM is removed: an enum member and a
+registry entry whose owner is never present, so the type is never offered — inert, and
+removable with the module.
+
+## I. `webhooks` — a contribution seam for event types (US16)
+
+| # | File | Change |
+| --- | --- | --- |
+| I1 | `packages/contracts/src/webhooks.ts` | `WebhookEventDescriptor`, `WebhookEventRegistryPort` |
+| I2 | `packages/modules/webhooks/src/backend/services/webhook-event-registry.ts` (**new**) | the registry; bridges each contributed type through the module's own gated subscription |
+| I3 | `packages/modules/webhooks/src/backend/index.ts` | register `webhookEventRegistry` ungated |
+| I4 | `packages/modules/webhooks/src/backend/routes.ts` | `GET /api/v1/admin/webhooks/event-types` |
+| I5 | `packages/modules/webhooks/src/admin/pages/WebhooksPage.tsx` | offer the contributed types **after** the existing `KNOWN_EVENT_TYPES`, which is not edited |
+| I6 | `packages/modules/webhooks/docs/webhooks.md` (+ Polish copy) | the seam |
+
+`webhooks` names no CRM event and gains no edge to `crm`. `BRIDGED_EVENT_TYPES` and
+`KNOWN_EVENT_TYPES` are untouched, so the module behaves identically when nobody contributes.
+**Reported, not repaired**: `KNOWN_EVENT_TYPES` offers thirteen types of which the backend
+bridges two — a pre-existing defect for the register.
+
+## J. Two detail-screen zones (US17)
+
+| # | File | Change |
+| --- | --- | --- |
+| J1 | `packages/contracts/src/admin-contributions.ts` | `'order.detail.after'` and `'quote_request.detail.after'` in `AdminZoneNameSchema` and `AdminZonePropsMap`; new `QuoteRequestDetailZoneProps { quoteRequestId }` |
+| J2 | `packages/modules/orders/src/admin/pages/OrderDetail.tsx` | one line: `<AdminZone name="order.detail.after" props={{ orderId: id }} />` |
+| J3 | `packages/modules/quote_requests/src/admin/pages/RfqDetail.tsx` | one line: the Quote Request mount (and the `AdminZone` import) |
+| J4 | both modules' docs pages (+ Polish copies) | the new zone |
+
+A member and its mount land in one change (`check:admin-zones` refuses a member nothing
+renders, and a contribution to one). Neither host names a contributor; an empty zone renders
+nothing, so both screens are identical without CRM — proven by the two `after-zone` tests.
+The Quote Request zone is added only once User Story 8 has landed. Left behind if CRM is
+removed: two zones nobody contributes to, in the shape of `organization.detail.after`.
+
 ## F. Explicitly **not** changed
 
 - No column, table or migration of another module.
 - No import of `@endora-commerce/mod-crm` by any other module package; `orders` and
   `quote_requests` gain no manifest edge to `crm`.
-- No new zone in `AdminZoneNameSchema`: CRM contributes to the existing
-  `organization.detail.after` only.
-- No change to `OrderTransitionPort`, `OrderStatusActor`, `QuoteRequestReadPort`,
-  `supportedEntityTypeSchema` or `KnownIconNameSchema`.
-- No new runtime dependency in any `package.json` (the generator may add *existing* workspace
-  packages and already-used third-party peers to `mod-crm`'s own manifest; that is derivation,
-  not a new dependency).
+- No change to `OrderTransitionPort`, `OrderStatusActor`, `QuoteRequestReadPort` or
+  `KnownIconNameSchema`.
+- No `@dnd-kit` declaration in `packages/modules/crm` or any other module package, and no new
+  runtime dependency anywhere other than `@dnd-kit/core` in the two manifests of §G (the
+  generator may add *existing* workspace packages and already-used third-party peers to
+  `mod-crm`'s own manifest; that is derivation, not a new dependency).
+- No change to `BRIDGED_EVENT_TYPES` or `KNOWN_EVENT_TYPES` in `webhooks`, to any existing
+  custom-field host type, or to `order.detail.payment`.
+- Nothing in `import_export`: that integration stays deferred (research R-22).
+
+(Until the owner's second ruling of 2026-10-05 this section also said "no new zone" and "no
+change to `supportedEntityTypeSchema`"; §H and §J are those two changes, now in scope.)

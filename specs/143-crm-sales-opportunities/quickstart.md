@@ -77,6 +77,10 @@ New*; link an Order on the Opportunity's *Overview*; use the status control; ope
 | US12 | `vitest run test/integration/crm/references.test.ts` | extraction, resolution, unavailable targets |
 | US13 | `vitest run test/integration/crm/analytics.test.ts` | each figure against a hand-computed fixture |
 | US14 | `vitest run test/integration/crm/ports.test.ts` | read/transition ports, gated while off |
+| US7 (primitive) | `pnpm --filter admin exec vitest run test/components/KanbanBoard.test.tsx` | the reusable board on `@dnd-kit/core`: pointer and keyboard moves, refused drops, announcements — and React 19 compatibility |
+| US15 | `vitest run test/integration/crm/custom-fields.test.ts test/integration/custom_fields/entity-owner-presence.test.ts` | per-field validation on an Opportunity; the host type hidden while CRM is off |
+| US16 | `vitest run test/integration/crm/webhooks.test.ts test/integration/webhooks/contributed-events.test.ts` | one delivery per status change, Organization binding, strict payloads, both off states |
+| US17 | `vitest run test/contract/crm/document-opportunity.contract.test.ts` and `pnpm --filter admin exec vitest run test/modules/crm/linked-opportunity-panel.test.tsx test/modules/orders/OrderDetail.after-zone.test.tsx test/modules/quote_requests/RfqDetail.after-zone.test.tsx` | the panel and its two actions; host screens identical with no contributor |
 
 (All `vitest run` lines are `pnpm --filter backend exec vitest run …` unless they say
 otherwise.)

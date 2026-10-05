@@ -11,6 +11,13 @@ stories that each added a migration or an entity in parallel worktrees would col
 generated files. With the schema and every `@Entity()` class in place first, later stories add
 services, routes and pages only.
 
+**One exception, added on 2026-10-05**: User Story 15 (custom fields) adds one column to
+`crm_opportunities` in a second migration of its own, because it came into scope while the
+init migration was being implemented. It adds no entity, and it is the only story that
+regenerates the migration registry, so the no-collision property holds. No other table changes
+for the stories added that day: webhooks deliver existing events, and the Order / Quote
+Request panel reads `crm_opportunity_links`.
+
 Conventions: `id uuid` primary key (`randomUUID()`), `created_at` / `updated_at timestamptz`,
 camelCase properties mapped to snake_case columns (Principle VI). Money is `numeric(14,2)`
 held as a string in TypeScript, as `orders.total` is. Entity classes live in
@@ -152,6 +159,7 @@ and the configuration screen says why.
 | `closed_kind` | varchar(8), nullable | `won` \| `lost` |
 | `created_by_admin_user_id` | uuid, nullable | `null` for automatic creation |
 | `version` | integer, default 0 | optimistic concurrency on PATCH (`If-Match`), as `quote_requests` |
+| `custom_field_values` | jsonb, not null, default `{}` | **added by US15 in a second migration** (`migration:new -- --module crm --name opportunity_custom_field_values`), not by the init migration; the value bag of the platform's custom-fields layer for host type `opportunity`. Validated through `customFieldValueService.validateAndMerge` inside the Opportunity's own create/update Command; inherits the row's tenant scope |
 | `created_at`, `updated_at` | timestamptz | `created_at` indexed |
 
 Effective value (API field `value`, and every SQL aggregate):

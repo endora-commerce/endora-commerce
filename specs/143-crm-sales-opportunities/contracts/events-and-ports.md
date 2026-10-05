@@ -199,3 +199,57 @@ Every one resolved with `lazyPort<T>(ctx, '<literal name>')`, `T` from
 
 The kernel's `AuditPort` (cradle name `auditLogService`) and `CommandBus` are platform
 services, not module ports, and need no manifest edge.
+
+Two more edges since the second ruling of 2026-10-05:
+
+| Port (owner) | Used for | Edge |
+| --- | --- | --- |
+| `customFieldValueService` (`custom_fields`, type `CustomFieldValuePort`) | validate and project an Opportunity's custom values | `dependencies` — the owner is non-deactivatable, so there is no off state to degrade into |
+| `webhookEventRegistry` (`webhooks`, **new** — §6) | offer CRM's events for outbound delivery | `contributes-to` — a push at boot; nothing degrades, so no `whenAbsent` |
+
+## 6. Outbound webhooks (US16)
+
+Three events are offered to the platform's webhooks capability. **The webhook payload is the
+event payload**: the delivery bridge serialises the event whole. Each therefore has a strict,
+versioned Zod schema in `packages/contracts/src/crm.ts`, and a test holds every emitted event
+to it — adding a field is a reviewed change to a public contract; removing or renaming one is
+a new `.v2` event offered beside the old.
+
+| Event type | Schema | Fields beyond `eventId`, `occurredAt` |
+| --- | --- | --- |
+| `crm.opportunity.status_changed.v1` | `OpportunityStatusChangedEventV1Schema` | `opportunityId`, `number`, `organizationId`, `salesChannelId \| null`, `from`, `to`, `fromKind`, `toKind`, `actor { kind, adminUserId? }`, `cause`, `causeOrderId?`, `reason \| null` |
+| `crm.opportunity.created.v1` | `OpportunityCreatedEventV1Schema` | `opportunityId`, `number`, `organizationId`, `source` |
+| `crm.opportunity.closed.v1` | `OpportunityClosedEventV1Schema` | `opportunityId`, `organizationId`, `outcome` (`won \| lost`), `value \| null`, `currency` |
+
+`reason` on a status change is the short text a user typed for that transition; no
+description, note, message or title is in any payload. `organizationId` is always present,
+which is what lets a subscription bound to one Organization receive only its own events.
+Closed-won and closed-lost are one event with `outcome`, not two types.
+
+The seam in `webhooks` (owner `webhooks`, container name `webhookEventRegistry`, type in
+`packages/contracts/src/webhooks.ts`):
+
+```ts
+export interface WebhookEventDescriptor {
+  /** The contributing module — an absent owner's event types are not offered. */
+  readonly ownerModuleId: string;
+  /** A versioned EventBus event name, e.g. `crm.opportunity.status_changed.v1`. */
+  readonly eventType: string;
+}
+export interface WebhookEventRegistryPort {
+  register(descriptor: WebhookEventDescriptor): void;
+  owners(): readonly string[];
+  /** Event types whose owner is effectively present. */
+  list(): readonly WebhookEventDescriptor[];
+}
+```
+
+A contribution seam: registered ungated, pushed to from a contribution-only boot hook,
+bridged by `webhooks`' own gated subscription. `webhooks` names no contributor's event.
+`GET /api/v1/admin/webhooks/event-types` serves `list()` to the subscription form.
+
+| State | What an operator observes |
+| --- | --- |
+| both on | CRM's three events are offered; matching subscriptions receive them |
+| `webhooks` off | Opportunities work unchanged; nothing is delivered; events emitted meanwhile are not delivered later |
+| `crm` off | its events are not offered; existing subscriptions naming them stay stored and receive nothing |

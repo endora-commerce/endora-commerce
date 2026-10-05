@@ -238,12 +238,23 @@ own rules, with every outcome shown; register business logic on X → Y.
 **Independent Test**: `admin/test/modules/crm/board.test.tsx` and
 `backend/test/contract/crm/board.contract.test.ts`.
 
+**Owner ruling, 2026-10-05 (third round)**: the board is built on **`@dnd-kit`**, as a
+reusable, domain-free `KanbanBoard` primitive in `packages/admin-kit` that CRM is the first
+to consume (research R-20; `plan.md` § Complexity Tracking carries the Constitution IV
+justification). T089, T091 and T093 were rewritten in place for it; T148–T151 are new and
+**run before T091** — order inside this phase: T088, T089, T148 (tests) → T149 → T150 → T090,
+T091 → T092 → T151 → T093.
+
 - [ ] T088 [P] [US7] Contract + integration tests `backend/test/contract/crm/board.contract.test.ts`: `GET /board` returns one column per status in `weight` order with `count`, `valueTotals` per currency, at most `perColumn` items and `hasMore`; filters by tag, assignee, Sales Channel, Organization; an out-of-scope Opportunity is in no column and in no count
-- [ ] T089 [P] [US7] Admin test `admin/test/modules/crm/board.test.tsx`: columns render from the response; the card's **"Move to…" menu lists exactly `allowedTransitions`** and calls the transition endpoint; a drop on a permitted column calls the same endpoint; a drop on a non-permitted column calls nothing, returns the card and shows the reason; a refused Order outcome after a move is surfaced; keyboard operation of the menu; the filter bar drives the query
+- [ ] T089 [P] [US7] Admin test `admin/test/modules/crm/board.test.tsx` over CRM's board (the `KanbanBoard` primitive itself is proven by T148): columns render from the response in `weight` order with count and value totals; the card's **"Move to…" menu lists exactly `allowedTransitions`** and calls the transition endpoint — this is the single-pointer, non-drag path WCAG 2.2 SC 2.5.7 requires and it is tested as a first-class path, not a fallback; `canDrop` handed to the primitive is true exactly for `allowedTransitions`; an `onMove` from the primitive calls the same transition endpoint, moves the card optimistically and rolls it back with the server's reason on a refusal; a refused Order outcome after a move is surfaced on the card; the filter bar drives the query
 - [ ] T090 [US7] Implement `packages/modules/crm/src/backend/services/board-service.ts` (one query per column or one windowed query — measure against SC-006 with 500 open Opportunities and record the timing), `routes/routes.board.ts`, `compose/board.ts`; register; T088 green
-- [ ] T091 [US7] Implement `packages/modules/crm/src/admin/components/OpportunityBoard.tsx` with **native HTML5 drag-and-drop** (model: `packages/admin-kit/src/components/reorder/useReorderList.ts` — no `@dnd-kit`, research R-20) and the per-card menu, and `pages/OpportunityBoardPage.tsx`; optimistic move with rollback on refusal; `aria-live` announcement of a move; states: loading, empty column, error; T089 green
+- [ ] T091 [US7] Implement `packages/modules/crm/src/admin/components/OpportunityBoard.tsx` on **`KanbanBoard` from `@endora-commerce/admin-kit/components`** (T150) — CRM imports the primitive and **never `@dnd-kit/*` directly**, so `manifests:generate` renders no `@dnd-kit` peer into `mod-crm` — and `pages/OpportunityBoardPage.tsx`: columns from `GET /board`, `canDrop` from each card's `allowedTransitions`, `onMove` → the transition endpoint with optimistic move and rollback, `renderCard` with title, Organization, assignee, value, tags and the "Move to…" menu, announcement labels from the module's bundles in both languages; states: loading, empty column, error; T089 green
 - [ ] T092 [US7] Add the route `/crm/board` and its nav row to `src/admin/index.ts`, the palette action `open-opportunity-board` to `src/manifest.ts`, strings under `board.*`; `check:action-route-permissions` green
-- [ ] T093 [US7] Docs section (+ Polish), regenerate, full gate; hand the screen to `endora-commerce-designer` for a UX/accessibility audit on a touch device (owner question Q3)
+- [ ] T093 [US7] Docs section (+ Polish) — including that a card can be moved by dragging (pointer, touch, keyboard) or from its "Move to…" menu; regenerate; full gate; hand the screen to `endora-commerce-designer` for a UX/accessibility audit on a touch device and with a screen reader (the drag announcements and the non-drag path)
+- [ ] T148 [P] [US7] **Primitive tests first** — `admin/test/components/KanbanBoard.test.tsx` (beside the other admin-kit component tests; read one, e.g. the reorder list's, for the harness): renders one lane per column with `renderColumnHeader` and one card per item with `renderCard`; a pointer drag onto a lane whose `canDrop` is true calls `onMove(itemId, fromColumnId, toColumnId)` exactly once; onto a lane whose `canDrop` is false calls nothing and the card returns; dropping on the source lane calls nothing; **keyboard**: focus a card, lift with Space, move between lanes with the arrow keys, drop with Space, cancel with Escape — each announced through the live region with the consumer's labels; a click on an interactive element inside a card (a link, a menu button) does not start a drag; the component carries no CRM vocabulary (grep the file for `opportunit|status|crm`). These tests are also the proof that `@dnd-kit/core` works under React 19 (research R-20, [unverified])
+- [ ] T149 [US7] Add the dependency (Constitution IV — justified in `plan.md` § Complexity Tracking; **`@dnd-kit/core` only**, range `^6.3.1`, MIT; re-check the latest stable and its licence with `pnpm view @dnd-kit/core version license peerDependencies` and use what it answers if newer within the same major): `peerDependencies` **and** `devDependencies` of `packages/admin-kit/package.json`, and `dependencies` of `admin/package.json` — the pattern `echarts` follows in those two files. Do **not** add `@dnd-kit/sortable`, and do not add anything to `packages/modules/crm`. Run `pnpm install --lockfile-only`, then `pnpm install --frozen-lockfile` and read its output for an unmet-peer warning naming `@dnd-kit/core`: if another workspace consumer of `@endora-commerce/admin-kit` (check `packages/admin-shell/package.json`, the docs site, the `create-endora-commerce` template) must declare the peer too, add it there in the same commit and name the file in the pull request; commit `pnpm-lock.yaml`; `manifests:check` green (no module manifest may have moved)
+- [ ] T150 [US7] Implement the reusable primitive `packages/admin-kit/src/components/kanban/KanbanBoard.tsx` (+ `index.ts`) and export it and its types from `packages/admin-kit/src/components/index.ts`: generic over column and item (`columns`, `itemsByColumn`, `getItemId`, `canDrop(item, columnId)`, `onMove(itemId, from, to)`, `renderCard`, `renderColumnHeader`, `labels`), built on `DndContext`, `useDraggable`, `useDroppable`, `DragOverlay`, `PointerSensor` (activation distance so clicks stay clicks), `KeyboardSensor` and the library's announcements; design tokens and primitives of the kit only; a doc comment stating that a consumer owes a non-drag alternative (WCAG 2.2 SC 2.5.7) because the primitive cannot know the targets' meaning; T148 green; `pnpm --filter @endora-commerce/admin-kit run build`; `check:platform-surface` and the admin-kit surface tests green
+- [ ] T151 [P] [US7] Changeset `.changeset/admin-kit-kanban-board.md` (`minor`) written for the consumer of `@endora-commerce/admin-kit`: the new `KanbanBoard` export **and the new peer dependency `@dnd-kit/core`** an application must provide; `check:release-intent --since origin/master` green. `AGENTS.md` § Stack already says "`@dnd-kit` for drag-drop" and is now true — do not edit it
 
 ---
 
@@ -361,6 +372,78 @@ owners' own tests below.
 
 ---
 
+## Phase 16A: User Story 15 — Operator-defined fields on an Opportunity (Priority: P3)
+
+**Added by the owner's second ruling of 2026-10-05.** Phases 16A–16C are numbered so that no
+existing phase heading or task id moves; their ids continue from T152.
+
+**Goal**: Opportunities are a custom-field host — define on the existing custom-fields
+screen, fill in on create and detail, validated per field, absent from that screen while CRM
+is off (research R-26).
+
+**Independent Test**: `backend/test/integration/crm/custom-fields.test.ts`.
+
+**Contracts note**: T006 wrote every contract known on its day. This story and the next two
+**add** to `packages/contracts/src/crm.ts` (and to two other contract files); nothing existing
+changes shape.
+
+- [ ] T152 [P] [US15] Integration + contract test `backend/test/integration/crm/custom-fields.test.ts` with real `custom_fields`: with a required `select` and an optional `number` defined for `opportunity`, create without the required field is 422 `CUSTOM_FIELD_VALUE_INVALID` naming the field; an unknown option and a wrong type are refused per field; a valid create and a PATCH (`If-Match`) persist and the detail returns the projected values; a PATCH without `customFieldValues` leaves them untouched; the write is one audit entry (the Opportunity's own Command — no second one); a scoped admin cannot read another Organization's values (404, as for the Opportunity)
+- [ ] T153 [P] [US15] `custom_fields` test first — `backend/test/integration/custom_fields/entity-owner-presence.test.ts`: `GET /api/v1/admin/custom-fields/entity-types` includes `opportunity` while `crm` is on and omits it while `crm` is deactivated (`withModuleOff`); creating, editing or deleting a definition for a type whose owner is absent is refused 409; **every existing type** (`category`, `order`, `organization`, `customer`, `quote_request`, `product`) answers exactly as before in both states
+- [ ] T154 [P] [US15] Extend `backend/test/integration/crm/migration.test.ts` (the `custom_field_values` column: jsonb, not null, default `{}`) and `backend/test/integration/crm/off-state.test.ts` (definitions and stored values survive an off → on cycle unchanged)
+- [ ] T155 [P] [US15] Admin test `admin/test/modules/crm/custom-fields.test.tsx`: the detail's Overview renders the fields for `entityType="opportunity"` and saves through the Opportunity PATCH with `If-Match`; the create form renders them and sends `customFieldValues`; a per-field refusal is shown at its field
+- [ ] T156 [US15] One compile-coupled change (`SUPPORTED_ENTITIES` is a `Record` over the enum): add `'opportunity'` to `supportedEntityTypeSchema` in `packages/contracts/src/custom-fields.ts`; add the entry `opportunity: { labelKey: 'customFields.entity.opportunity', orgOwned: true, ownerModuleId: 'crm' }` and the optional `ownerModuleId` field on `SupportedEntityMeta` in `packages/modules/custom_fields/src/backend/services/custom-field-registry.ts`; add `customFields.entity.opportunity` ("Opportunity" / "Szansa sprzedażowa") to `packages/modules/custom_fields/i18n/en.json` and `pl.json`; add `customFieldValues` (optional on create and update, present on detail) to the Opportunity schemas in `packages/contracts/src/crm.ts`; first `grep -rn "supportedEntityTypeSchema\|SUPPORTED_ENTITY_TYPES\|SupportedEntityType" packages backend/test admin/test` and update every exhaustive switch or enumerating test the new member breaks, naming them in the pull request
+- [ ] T157 [US15] `custom_fields`: in `packages/modules/custom_fields/src/backend/routes.admin.ts`, omit from `entity-types` a type whose `ownerModuleId` is not `effectiveState.isPresent`, and refuse definition mutations for such a type beside `assertNotHostManaged` (generic — only the marker's presence is read, never which module it names); T153 green; the existing `backend/test/{contract,integration}/custom_fields/` suites still green
+- [ ] T158 [US15] CRM schema: `pnpm --filter backend run migration:new -- --module crm --name opportunity_custom_field_values` (never pick a stamp) adding `custom_field_values jsonb not null default '{}'` to `crm_opportunities`; export it from `packages/modules/crm/src/migrations/index.ts`; add the `customFieldValues` property to `crm-opportunity.entity.ts`; `composer:generate` and commit the migrations registry — **this is the only story after Phase 2 that adds a migration; it adds no entity**; T154 (migration half) green
+- [ ] T159 [US15] CRM service: add `custom_fields` to `dependencies` in `packages/modules/crm/src/manifest.ts` (non-deactivatable owner — a plain binding edge, as `quote_requests` declares it); in `opportunity-service.ts` call `lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService').validateAndMerge('opportunity', currentBag, patch)` **inside** the create and update Commands, mapping `isCustomFieldValidationFailure` to 422 `CUSTOM_FIELD_VALUE_INVALID` with per-field issues (model: `packages/modules/quote_requests/src/backend/services/rfq-admin-service.ts`), and `project('opportunity', bag)` in the detail serializer; T152 green; `check:port-dependencies`, `check:command-coverage` green
+- [ ] T160 [US15] Admin: **read `packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx` and `packages/modules/custom_fields/src/backend/services/custom-field-value.service.ts` first** (research R-26, [unverified]: can the panel be embedded in a form without its own save button; how is a required field treated on create). Render `CustomFieldValuesPanel` on `opportunity-detail/tabs/OverviewTab.tsx` (model: `RfqDetail.tsx`) and the same fields on `OpportunityCreatePage.tsx`; **only if** the panel cannot be embedded, add an optional controlled mode (`onChange`, no button) to the admin-kit panel — a host file, `contracts/foreign-module-changes.md` §G — with its own test and a line in the changeset; T155 green
+- [ ] T161 [US15] Docs: a *Custom fields* section in `packages/modules/crm/docs/crm.md` and the new host type in `packages/modules/custom_fields/docs/` (+ Polish copies); changeset naming the new enum member and `ownerModuleId` for consumers of `contracts` and `mod-custom-fields`; regenerate; full gate
+
+---
+
+## Phase 16B: User Story 16 — Other systems are told when an Opportunity changes status (Priority: P3)
+
+**Goal**: Opportunity events offered on the webhooks screen and delivered through the
+existing queue; `webhooks` gains a contribution seam and names no CRM event (research R-27).
+
+**Independent Test**: `backend/test/integration/crm/webhooks.test.ts`.
+
+- [ ] T162 [P] [US16] Contract test in `packages/contracts/src/crm.test.ts`: `OpportunityStatusChangedEventV1Schema`, `OpportunityCreatedEventV1Schema` and `OpportunityClosedEventV1Schema` are `.strict()`, carry `eventId`, `occurredAt`, `opportunityId`, `organizationId` and the fields of `contracts/events-and-ports.md` §6, and contain no free-text field (`description`, `title` excepted only where §6 lists it)
+- [ ] T163 [P] [US16] `webhooks` test first — `backend/test/integration/webhooks/contributed-events.test.ts`: a descriptor registered through `webhookEventRegistry` makes its event type bridged — an active subscription to it gets one job enqueued per emitted event, an Organization-bound subscription only for its Organization's events, none while `webhooks` is deactivated; `GET /api/v1/admin/webhooks/event-types` lists a contributed type while its owner is present and omits it while the owner is off; the two built-in types behave exactly as before; registering the same type twice does not double-deliver
+- [ ] T164 [P] [US16] Integration test `backend/test/integration/crm/webhooks.test.ts`: with a subscription to `crm.opportunity.status_changed.v1`, a transition (manual, and one caused by an Order) enqueues exactly one delivery whose payload parses under the strict schema; create and close enqueue theirs, `closed` carrying `outcome`; **every event CRM emits parses under its strict schema** (subscribe in the test and parse); with `webhooks` deactivated the transition succeeds and nothing is enqueued; with `crm` deactivated its three types are not offered
+- [ ] T165 [P] [US16] Admin test `admin/test/modules/webhooks/contributed-event-types.test.tsx`: the subscription form offers the types the endpoint returns in addition to its existing options, and is unchanged when the endpoint returns none
+- [ ] T166 [US16] Contracts: `WebhookEventDescriptor` and `WebhookEventRegistryPort` in `packages/contracts/src/webhooks.ts`; the three strict event schemas in `packages/contracts/src/crm.ts`, with the existing event payload types redefined as their inferred types so there is one definition; T162 green
+- [ ] T167 [US16] `webhooks` backend: `packages/modules/webhooks/src/backend/services/webhook-event-registry.ts` (records descriptors, de-duplicates, bridges each new type through the module's own `ctx.subscribe` reusing `bridgeEventHandler`, `list()` filtered by the owner's effective presence) registered **ungated** with `ctx.di.register` in `packages/modules/webhooks/src/backend/index.ts`, and `GET /api/v1/admin/webhooks/event-types` in `routes.ts` under the gate the module's other admin routes use. **Prove first** (research R-27, [unverified]) that a `ctx.subscribe` issued from the registry during the boot phase is accepted by the kernel and by `check:subscribe-seam`; if not, subscribe from a `webhooks` boot hook over `list()` and state how contributions registered by later boot hooks are still reached; T163 green; existing `webhooks` suites still green
+- [ ] T168 [P] [US16] `webhooks` admin: `packages/modules/webhooks/src/admin/pages/WebhooksPage.tsx` fetches `event-types` and offers them after `KNOWN_EVENT_TYPES`, which is **left as it is** (it lists eleven types nothing bridges — a pre-existing defect reported with this feature, not repaired in it); T165 green
+- [ ] T169 [US16] CRM: `packages/modules/crm/src/backend/compose/webhooks.ts` — a **contribution-only** `ctx.onBoot` (no presence probe) registering the three descriptors with `ownerModuleId: 'crm'`; declare `nonBindingDependencies: [{ moduleId: 'webhooks', name: 'webhookEventRegistry', kind: 'contributes-to' }]` in `src/manifest.ts`; make every emit site build its payload through the strict schema's type; register in `index.ts`; T164 green; `check:port-dependencies`, `check:entry-presence` green
+- [ ] T170 [US16] Docs: the three events with a payload example each and the versioning rule in `packages/modules/crm/docs/crm.md`; the contribution seam in `packages/modules/webhooks/docs/webhooks.md` (+ Polish copies); changeset for `contracts` and `mod-webhooks`; regenerate; full gate
+
+---
+
+## Phase 16C: User Story 17 — The Order and the Quote Request show their Opportunity (Priority: P3)
+
+**Goal**: a panel contributed by CRM into a new zone on the Order screen and on the Quote
+Request screen; neither host imports CRM, both look identical without it (research R-28).
+
+**Independent Test**: `admin/test/modules/crm/linked-opportunity-panel.test.tsx` and
+`backend/test/contract/crm/document-opportunity.contract.test.ts`.
+
+**The Quote Request half** (the `RfqDetail.tsx` mount and its wrapper) needs User Story 8;
+the Order half needs User Story 1 only. If US8 has not landed, do the Order half and leave
+`quote_request.detail.after` out of the enum entirely — `check:admin-zones` refuses a member
+nothing renders.
+
+- [ ] T171 [P] [US17] Contract test `backend/test/contract/crm/document-opportunity.contract.test.ts`: `GET /api/v1/admin/crm/documents/:documentKind/:documentId/opportunity` answers the linked Opportunity's summary, `{ data: null }` for an unlinked document, 404 for a document outside the caller's scope, 422 for an unknown kind; gated `crm:read`
+- [ ] T172 [P] [US17] Host tests first — `admin/test/modules/orders/OrderDetail.after-zone.test.tsx` and `admin/test/modules/quote_requests/RfqDetail.after-zone.test.tsx`: with a contribution registered, the zone renders it with `{ orderId }` / `{ quoteRequestId }`; **with none, the rendered screen is identical to today's** (no heading, no wrapper element, no spacing)
+- [ ] T173 [P] [US17] Admin test `admin/test/modules/crm/linked-opportunity-panel.test.tsx`: linked → number, title, status badge, assignee, value and a link to `/crm/opportunities/:id`; unlinked → "Link to an opportunity" (a picker over open Opportunities of the document's Organization, then the link endpoint) and "Create opportunity" (navigates with `organizationId`, `linkDocumentKind`, `linkDocumentId`); absent without `crm:read`; the write actions absent without `crm:write`
+- [ ] T174 [P] [US17] Extend `backend/test/integration/crm/off-state.test.ts` (the new route is 503 while off) and `admin/test/modules/crm/OpportunityCreatePage.test.tsx` (with the two link parameters, a successful create is followed by one link call and navigation to the detail; a failed link is shown, the Opportunity still exists)
+- [ ] T175 [US17] Zones, each landing with its mount: `'order.detail.after'` (props `OrderDetailZoneProps`) and `'quote_request.detail.after'` (new `QuoteRequestDetailZoneProps { quoteRequestId }`) in `AdminZoneNameSchema` and `AdminZonePropsMap` in `packages/contracts/src/admin-contributions.ts`, each with a doc comment in the file's own style; `<AdminZone name="order.detail.after" props={{ orderId: id }} />` in `packages/modules/orders/src/admin/pages/OrderDetail.tsx` — decide the position with the file open (below the tab panels, visible on every tab, is the recommendation; research R-28, [unverified]) — and the Quote Request mount in `packages/modules/quote_requests/src/admin/pages/RfqDetail.tsx`; T172 green; `check:admin-zones` green
+- [ ] T176 [US17] CRM backend: `findByDocument` on the link service and `packages/modules/crm/src/backend/routes/routes.documents.ts` (validate the document through its owner's read port under the caller's scope first; the Quote Request kind only while `quote_requests` is present), composed in `compose/links.ts`; schema in `packages/contracts/src/crm.ts`; T171 green
+- [ ] T177 [US17] CRM admin: `packages/modules/crm/src/admin/components/LinkedOpportunityPanel.tsx` and two thin wrappers `zones/OrderOpportunity.tsx`, `zones/QuoteRequestOpportunity.tsx`, contributed with `zoneComponent('order.detail.after', …)` and `zoneComponent('quote_request.detail.after', …)` in `src/admin/index.ts`, `requiredPermission: 'crm:read'`; strings under `links.*`; T173 green
+- [ ] T178 [US17] `OpportunityCreatePage.tsx`: honour `linkDocumentKind` + `linkDocumentId` — after a successful create, call the link endpoint, then navigate; T174 green
+- [ ] T179 [US17] Docs: the panel in `packages/modules/crm/docs/crm.md`; the new zone in `packages/modules/orders/docs/orders.md` and `packages/modules/quote_requests/docs/quote_requests.md` (+ Polish copies); changeset for `contracts`, `mod-orders`, `mod-quote-requests`; regenerate; full gate **including the `orders` and `quote_requests` admin test directories**
+
+---
+
 ## Phase 17: Polish & Cross-Cutting Concerns
 
 - [ ] T141 [P] Read `packages/modules/crm/docs/crm.md` end to end as an operator and as a developer; make it one coherent page; verify the Polish copy matches section for section; `pnpm --filter docs run build`
@@ -368,6 +451,7 @@ owners' own tests below.
 - [ ] T143 [P] Accessibility and UX pass over the seven screens against `.claude/skills/ux-laws/SKILL.md` (WCAG 2.2 AA: focus order, target sizes, non-drag alternative on the board, colour is never the only carrier of a status) — hand to `endora-commerce-designer`, fix what it reports
 - [ ] T144 Read-size bands: run the read-size test; for an entry whose band **refuses** the new file count only, read `specs/conventions/check-estate.md` § *Measuring a read size* first, re-measure on a pristine clone and re-record; leave in-band drift for the release pull request
 - [ ] T145 Deletion probe (Principle I): on a scratch branch, delete `packages/modules/crm/` and `packages/contracts/src/crm.ts` with its export, regenerate, and confirm `pnpm -r run typecheck` and `pnpm --filter backend run test:unit:fast` pass with nothing else changed but the generated files — record the result; do not commit the probe
+- [ ] T180 Extend the deletion probe of T145 for the stories added on 2026-10-05: with `packages/modules/crm/` gone, confirm `custom_fields` hides the `opportunity` type (its owner is absent), `webhooks` offers no CRM event, the Order and Quote Request screens render with empty zones, and `KanbanBoard` still builds and passes T148 in `admin-kit` with no consumer — record the result; do not commit the probe
 - [ ] T146 Full verification, as CI runs it: every command of `quickstart.md` § *Before calling any story done*, plus `pnpm --filter backend exec vitest run test/contract/crm test/integration/crm test/integration/orders test/integration/quote_requests test/contract/orders test/contract/quote_requests`; report each with its output (a merge-request pipeline does not run these — D-198)
 - [ ] T147 Hand `spec.md` ↔ implementation consistency to `endora-commerce-product-owner`: every FR and acceptance scenario against the tests named in *Requirement traceability* below
 
@@ -400,6 +484,9 @@ owners' own tests below.
 | US12 | US1 | reaches into comments only if US4 landed |
 | US13 | US1 | rep ranking is meaningful once US3 landed |
 | US14 | US1 | demo data (T139) is best written last |
+| US15 | US1 | the **only** story after Phase 2 that adds a migration (no entity); touches `custom_fields` |
+| US16 | US1 | touches `webhooks`; needs only the events US1 emits |
+| US17 | US1 (Order half), US8 (Quote Request half) | touches `orders` and `quote_requests` admin screens |
 
 ### Parallel worktrees without file collisions
 
@@ -411,6 +498,30 @@ migration or entity registry**. Three groups can be in flight at once:
 - **Wave B**: US4 (after or with US3), US7 (best after US3 + US6), US9 (best after US8), US12
   (best after US4).
 - **Wave C**: US10 (after US8), US14 (last).
+
+**The stories added on 2026-10-05:**
+
+- **US16 joins Wave A.** Its CRM half is one new `compose/webhooks.ts`; its other files are
+  `webhooks`' own, which no other story touches. Shared hot files: `src/backend/index.ts`,
+  `src/manifest.ts`, `docs/crm.md`, and `packages/contracts/src/crm.ts`.
+- **US15 joins Wave B.** It edits `opportunity-service.ts`, `OverviewTab.tsx` and
+  `OpportunityCreatePage.tsx`, which US3, US6, US8 and US12 also extend, and it is the one
+  story that regenerates `migrations-registry.generated.ts` — so it conflicts with no other
+  story on a generated file, but **must re-run `composer:generate` after any rebase**. Shared
+  hot files besides those: `src/manifest.ts`, `packages/contracts/src/crm.ts`, the i18n
+  bundles, `docs/crm.md`, `migration.test.ts`, `off-state.test.ts`.
+- **US17 joins Wave C.** It edits `OrderDetail.tsx` (no other story does — US10 edits
+  `OrderCreatePage.tsx`) and `RfqDetail.tsx` (likewise), `OpportunityCreatePage.tsx`,
+  `compose/links.ts`, `src/admin/index.ts`, and
+  `packages/contracts/src/admin-contributions.ts` — the file Phase 1's T007 edits, so it
+  rebases over that trivially.
+- **`packages/contracts/src/crm.ts` is now a shared hot file** for US15, US16 and US17, each
+  adding its own exports.
+- **US7's primitive (T148–T150) touches `packages/admin-kit`, `admin/package.json` and
+  `pnpm-lock.yaml`.** No other story adds a dependency, so the lockfile conflicts only with
+  stories whose `manifests:generate` moves a module's rendered peers (US8 adds `bullmq` /
+  `ioredis` to `mod-crm`): after a rebase, re-run `pnpm install --lockfile-only` rather than
+  resolving the lockfile by hand.
 
 **Shared hot files** — two stories both add *lines* here and the second to merge rebases:
 `packages/modules/crm/src/backend/index.ts` (one `register<Area>(ctx)` line),
@@ -468,14 +579,17 @@ owner's success criterion and it is shippable on its own.
 
 One pull request per story after US1, each independently verifiable by the test named in its
 header and each leaving the module releasable. Suggested order for a single developer:
-US2 → US3 → US4 → US6 → US7 → US8 → US5 → US9 → US10 → US11 → US12 → US13 → US14.
+US2 → US3 → US4 → US6 → US7 → US8 → US5 → US9 → US10 → US11 → US12 → US13 → US16 → US15 →
+US17 → US14.
 
 ### Nothing is dropped
 
-Every requirement of the owner's brief has a story (see the traceability table). Three
-integrations are **deliberately deferred**, each with its reason in `research.md` R-22:
-runtime custom fields on Opportunities, import/export, and the "linked Opportunity" panel on
-the Order detail screen. None was asked for by name.
+Every requirement of the owner's brief has a story (see the traceability table). Of the three
+integrations first deferred, **two are in scope since the owner's second ruling of
+2026-10-05** — custom fields on Opportunities (US15) and the linked-Opportunity panel on the
+Order screen (US17, extended to the Quote Request screen) — together with outbound webhooks
+(US16). **One stays deferred**, with its reason in `research.md` R-22: import/export, which is
+not a one-declaration integration.
 
 ---
 
@@ -499,7 +613,7 @@ the Order detail screen. None was asked for by name.
 | FR-044 | US5 | T078, T079 |
 | FR-045 | US12 | T124, T125 |
 | FR-050 | US6 (+ US7 for the board filter) | T084, T088 |
-| FR-051 | US7 | T088, T089 |
+| FR-051 | US7 | T088, T089, T148 |
 | FR-052 | US11 | T119, T120 |
 | FR-053 | US13 | T129 |
 | FR-060, FR-061 | US9 | T103 |
@@ -509,6 +623,9 @@ the Order detail screen. None was asked for by name.
 | FR-073 | every story | `check:command-coverage`, T120 |
 | FR-074 | US14 | T134 |
 | FR-075 | Foundational, every story, Polish | `check:module-docs`, `check:docs-translations`, T141 |
+| FR-076 | US15 | T152, T153, T155 |
+| FR-077 | US16 | T162, T163, T164 |
+| FR-078 | US17 | T171, T172, T173 |
 
 ## Notes
 

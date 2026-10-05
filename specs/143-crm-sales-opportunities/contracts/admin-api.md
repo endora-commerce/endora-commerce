@@ -194,6 +194,29 @@ All `crm:analytics`, all take `from`, `to` (ISO dates) and optional `salesChanne
 | `GET /analytics/top-opportunities` | `limit` (default 10), `basis` (`created\|closed`) | `OpportunitySummary[]` |
 | `GET /analytics/average-value` | — | `[{ currency, average, count }]` |
 
+## 12a. Custom field values (US15)
+
+No new endpoint. `CreateOpportunityRequestSchema` and `UpdateOpportunityRequestSchema` gain an
+optional `customFieldValues: Record<string, unknown>` (the platform's `customFieldValuesSchema`
+envelope), and `OpportunityDetail` gains `customFieldValues` — the projected bag. A value that
+breaks its definition answers **422 `CUSTOM_FIELD_VALUE_INVALID`** with one issue per field
+(`{ path: <field key>, issue }`); that code is owned by the custom-fields capability and is
+not declared by `crm`. Absent on a PATCH means "leave the values as they are".
+
+The host type is `opportunity`. Its definitions are managed on the existing custom-fields
+admin API and screen, which offers the type only while `crm` is effectively present.
+
+## 12b. The Opportunity of a document (US17)
+
+`GET /documents/:documentKind/:documentId/opportunity` · `crm:read` ·
+`documentKind ∈ order | quote_request` → `{ data: OpportunitySummary | null }`.
+
+`null` — the document exists, is visible to the caller and is linked to no Opportunity.
+404 `CRM_DOCUMENT_NOT_FOUND` — the document is missing or outside the caller's scope (the two
+are indistinguishable). 422 for an unknown kind. 503 `MODULE_DISABLED` for `quote_request`
+while `quote_requests` is off. Linking from the panel uses §3's endpoint and the list of §1
+filtered by `organizationId` and `state=open`; nothing else is added.
+
 ## 13. Error codes owned by `crm`
 
 Declared in the manifest's `errorCodes`, sentences under `errors.<CODE>` in
