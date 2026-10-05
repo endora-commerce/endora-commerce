@@ -357,3 +357,29 @@ export async function assignCrmSalesRep(
   em.create(OrganizationSalesRepAssignment, { organizationId, adminUserId, createdAt: assignedAt });
   await em.flush();
 }
+
+/**
+ * Drop every CRM tag (and, by cascade, every tagging). `crm_tags` is platform
+ * configuration that hangs off nothing the harness truncates, so a file that
+ * creates tags clears them in `beforeAll` and `afterAll`, for the reason
+ * {@link restoreDefaultCrmWorkflow} is called in both.
+ */
+export async function clearCrmTags(em: EntityManager): Promise<void> {
+  await em.getConnection().execute('delete from "crm_tags"');
+}
+
+/** `POST /tags` as the platform administrator; fails the test on anything but 201. */
+export async function createCrmTag(
+  h: BackendServerHandle,
+  name: string,
+  color?: string,
+): Promise<{ id: string; name: string; color: string; usageCount: number }> {
+  const response = await h.app.inject({
+    method: 'POST',
+    url: `${CRM_API}/tags`,
+    cookies: CRM_ADMIN,
+    payload: { name, ...(color ? { color } : {}) },
+  });
+  if (response.statusCode !== 201) throw new Error(`createCrmTag: ${response.statusCode} ${response.body}`);
+  return (response.json() as { data: { id: string; name: string; color: string; usageCount: number } }).data;
+}
