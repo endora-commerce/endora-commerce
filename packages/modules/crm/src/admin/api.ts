@@ -46,15 +46,14 @@ export type OpportunitySort = 'createdAt' | 'updatedAt' | 'value' | 'expectedClo
 
 /**
  * The filters the list and the board share (`contracts/admin-api.md` §1, §10).
- *
- * `assignedAdminUserId` and `tagId` are deliberately absent: both endpoints
- * answer 422 for them until their stories land, so a type that cannot carry
- * them is the guard. The story that serves one adds it **here** and to
+ * A filter both endpoints accept is added **here** and to
  * {@link appendSharedFilters}, and both screens can then send it.
  */
 export interface OpportunityFilterParams {
   q?: string;
   organizationId?: string;
+  /** `me`, `unassigned`, or an administrator's id. */
+  assignedAdminUserId?: string;
   salesChannelId?: string;
   createdFrom?: string;
   createdTo?: string;
@@ -99,6 +98,7 @@ export interface LinkableOrder {
 
 function appendSharedFilters(qs: URLSearchParams, params: OpportunityFilterParams): void {
   if (params.organizationId) qs.set('organizationId', params.organizationId);
+  if (params.assignedAdminUserId) qs.set('assignedAdminUserId', params.assignedAdminUserId);
   if (params.salesChannelId) qs.set('salesChannelId', params.salesChannelId);
   if (params.createdFrom) qs.set('createdFrom', params.createdFrom);
   if (params.createdTo) qs.set('createdTo', params.createdTo);
@@ -194,6 +194,17 @@ export const crmApi = {
   dismissPropagation(id: string, propagationId: string): Promise<void> {
     return apiClient.post<void>(
       `${BASE}/opportunities/${id}/propagations/${propagationId}/dismiss`,
+    );
+  },
+
+  // --- §5 Assignment -------------------------------------------------------
+
+  /** Assign, reassign or — with `null` — unassign. Answers the Opportunity. */
+  assign(id: string, adminUserId: string | null): Promise<OpportunityDetail> {
+    return data(
+      apiClient.post<{ data: OpportunityDetail }>(`${BASE}/opportunities/${id}/assign`, {
+        adminUserId,
+      }),
     );
   },
 

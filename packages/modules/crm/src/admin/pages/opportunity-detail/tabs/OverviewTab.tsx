@@ -10,6 +10,7 @@ import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type OrderStatusOption } from '../../../api.js';
+import { AssigneeSection } from '../../../components/AssigneeSection.js';
 import { LinkedDocuments } from '../../../components/LinkedDocuments.js';
 import { salesChannelLabel } from '../../../components/LookupPickers.js';
 import { OpportunityEditForm } from '../../../components/OpportunityEditForm.js';
@@ -159,6 +160,8 @@ export function OverviewTab(props: OpportunityTabProps): ReactNode {
           onDismissed={onDismissed}
         />
       ) : null}
+
+      <AssigneeSection opportunity={opportunity} canWrite={canWrite} onChange={onChange} />
 
       <LinkedDocuments
         opportunity={opportunity}

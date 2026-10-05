@@ -128,6 +128,7 @@ describe('crm admin copy', () => {
       'opportunity.state.': ['open', 'won', 'lost'],
       'opportunity.source.': ['manual', 'order', 'quote_request'],
       'opportunity.status.closed.': ['won', 'lost'],
+      'assignment.filter.option.': ['me', 'unassigned', 'person'],
       'opportunity.list.sortOption.': [
         'createdAt.desc',
         'createdAt.asc',
@@ -162,7 +163,7 @@ describe('crm admin copy', () => {
   it('ships no key under its own prefixes that no screen asks for', () => {
     const text = sources.map((source) => source.text).join('\n');
     const own = Object.keys(en).filter((key) =>
-      /^(opportunity|links|propagation|workflow|board)\./.test(key),
+      /^(opportunity|links|propagation|workflow|board|assignment)\./.test(key),
     );
     const unused = own.filter((key) => {
       if (text.includes(`'${key}'`)) return false;

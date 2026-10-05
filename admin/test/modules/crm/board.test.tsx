@@ -222,7 +222,7 @@ describe('OpportunityBoardPage — columns and cards', () => {
     expect(within(card).getByText('Key account')).toBeInTheDocument();
     // An Opportunity nobody is assigned to says so.
     const other = within(lane('New')).getByRole('link', { name: 'Fleet renewal' }).closest('li') as HTMLElement;
-    expect(within(other).getByText(en('board.card.unassigned'))).toBeInTheDocument();
+    expect(within(other).getByText(en('assignment.unassigned'))).toBeInTheDocument();
   });
 
   it('names the board and every card handle from the module bundle', async () => {

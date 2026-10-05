@@ -17,6 +17,7 @@ import { StickyFormActions } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
 import {
+  AssigneeLookup,
   ContactLookup,
   OrganizationLookup,
   SalesChannelSelect,
@@ -55,6 +56,7 @@ export function OpportunityCreatePage(): ReactNode {
   const [organizationName, setOrganizationName] = useState('');
   const [customerAccountId, setCustomerAccountId] = useState<string | null>(null);
   const [salesChannelId, setSalesChannelId] = useState<string | null>(null);
+  const [assigneeId, setAssigneeId] = useState<string | null>(null);
   const [currency, setCurrency] = useState('');
   const [value, setValue] = useState('');
   const [expectedCloseDate, setExpectedCloseDate] = useState('');
@@ -121,6 +123,9 @@ export function OpportunityCreatePage(): ReactNode {
       currency,
       ...(customerAccountId ? { customerAccountId } : {}),
       ...(salesChannelId ? { salesChannelId } : {}),
+      // Absent means "apply the default rule" (the Organization's Sales Reps);
+      // only a person the operator chose is sent.
+      ...(assigneeId ? { assignedAdminUserId: assigneeId } : {}),
       ...(amount ? { manualValue: amount } : {}),
       ...(expectedCloseDate ? { expectedCloseDate } : {}),
       ...(description.trim() ? { description: description.trim() } : {}),
@@ -237,6 +242,19 @@ export function OpportunityCreatePage(): ReactNode {
                   placeholder={t('opportunity.picker.salesChannelPlaceholder')}
                   emptyMessage={t('opportunity.picker.salesChannelEmpty')}
                 />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="crm-create-assignee">{t('assignment.label')}</Label>
+                <AssigneeLookup
+                  id="crm-create-assignee"
+                  ariaLabel={t('assignment.label')}
+                  value={assigneeId}
+                  onChange={setAssigneeId}
+                  placeholder={t('assignment.picker.placeholder')}
+                  emptyMessage={t('assignment.picker.empty')}
+                />
+                <p className="text-xs text-muted-foreground">{t('assignment.create.hint')}</p>
               </div>
 
               <div className="space-y-1">

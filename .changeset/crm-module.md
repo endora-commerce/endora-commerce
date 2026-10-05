@@ -48,16 +48,21 @@ all under `/api/v1/admin/crm`:
 five screens and three entries to the shell's "CRM" sidebar section:
 
 - `/crm/opportunities` (`crm:read`) — the list, with search and filters by state, status,
-  organization, sales channel and creation date;
+  organization, assignee ("mine", "unassigned" or a chosen person), sales channel and creation
+  date, and a column naming who holds each opportunity;
 - `/crm/opportunities/new` (`crm:write`) — create an opportunity by hand; an `organizationId`
-  query parameter preselects the organization;
+  query parameter preselects the organization, and the assignee is optional — left empty, the
+  default rule chooses;
 - `/crm/opportunities/:id` (`crm:read`) — the status control, which offers exactly the
   transitions the workflow allows; the linked orders, with linking by search, the
   status-following switch and unlinking; and, per linked order, the outcome of each move, with
   *Retry* and *Dismiss* on a refused one. A holder of `crm:write` edits the opportunity in
   place — only the changed fields are sent, under `If-Match`, and a stale version is reported
   with a way to reload rather than retried — and may give a status change a reason; a holder
-  of `crm:configure` can delete it, after a confirmation;
+  of `crm:configure` can delete it, after a confirmation. The *Assignee* section names who
+  holds the opportunity and lets a holder of `crm:write` reassign or unassign it in one
+  choice; an assignee who has been deactivated is marked *inactive* here, on the list and on
+  the board;
 - `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, the
   order status each opportunity status sets, and — the reverse direction — the opportunity
   status each order status leads to, with "only when every linked order is there" per row

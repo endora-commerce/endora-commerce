@@ -26,6 +26,7 @@ import {
 import { ResponsiveTable, type ResponsiveColumn } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type OpportunityListParams, type OpportunitySort } from '../api.js';
+import { AssigneeName } from '../components/AssigneeName.js';
 import { CursorPagination, MAX_PAGE_LIMIT } from '../components/CursorPagination.js';
 import {
   NO_SHARED_FILTERS,
@@ -74,9 +75,7 @@ function hasFilters(filters: Filters): boolean {
  *
  * The fields the board has too are one component, `OpportunityFilterFields`;
  * the state and the status are the list's alone, because the board's columns
- * *are* the statuses. The filters by assignee and by tag are not here: the
- * endpoint refuses them until their stories land, and a control that produces
- * an error is worse than one that is absent.
+ * *are* the statuses.
  */
 export function OpportunitiesList(): ReactNode {
   const t = useTranslation('crm');
@@ -211,6 +210,12 @@ export function OpportunitiesList(): ReactNode {
           {row.status.name}
         </Badge>
       ),
+    },
+    {
+      id: 'assignee',
+      header: t('assignment.label'),
+      hideOnMobile: true,
+      render: (row) => <AssigneeName assignee={row.assignee} />,
     },
     {
       id: 'value',

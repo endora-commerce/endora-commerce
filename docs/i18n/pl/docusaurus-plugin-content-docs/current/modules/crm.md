@@ -48,7 +48,7 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 
 | Ekran | Gdzie | Uprawnienie | Do czego służy |
 | --- | --- | --- | --- |
-| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, kanał sprzedaży i data utworzenia. |
+| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, handlowiec, kanał sprzedaży i data utworzenia. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
 | Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Jej status i zmiany, na które pozwala przepływ, powiązane z nią zamówienia oraz to, co stało się z tymi zamówieniami po każdej zmianie. |
 | Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
@@ -202,8 +202,8 @@ szansa pozostaje przeniesiona: karta zostaje oznaczona, a powiadomienie nad
 tablicą wymienia każde takie zamówienie z przyczyną i prowadzi do szansy, gdzie
 zmianę można ponowić albo pominąć.
 
-Pole wyszukiwania oraz filtry organizacji, kanału sprzedaży i daty utworzenia
-są takie same jak na liście i zawężają każdą kolumnę — jej karty, liczbę i
+Pole wyszukiwania oraz filtry organizacji, handlowca, kanału sprzedaży i daty
+utworzenia są takie same jak na liście i zawężają każdą kolumnę — jej karty, liczbę i
 sumy. Kolumna, która zawiera więcej szans, niż pokazuje, podaje ich liczbę i
 ma przycisk **Pokaż więcej**.
 
@@ -358,6 +358,23 @@ dosłownie i reguła nie ma zastosowania.
 wybranych organizacji widzi każdą szansę tych organizacji, niezależnie od tego,
 kto ją prowadzi — i nie widzi szansy innej organizacji, nawet jeśli jest do
 niego przypisana.
+
+W Admin UI:
+
+- **W formularzu nowej szansy** pole *Handlowiec* jest opcjonalne. Jeśli
+  zostanie puste, wybiera opisana wyżej reguła; jeśli wskażesz osobę, szansa
+  jest jej.
+- **Na ekranie szansy** sekcja *Handlowiec* pokazuje, kto ją prowadzi.
+  Posiadacz uprawnienia `crm:write` zmienia to w tym samym miejscu: wybranie
+  osoby od razu przypisuje jej szansę, a wyczyszczenie pola zostawia szansę
+  nieprzypisaną. Niczego nie trzeba zapisywać.
+- **Na liście** jest kolumna *Handlowiec*, a lista i tablica mają filtr
+  *Handlowiec*: **Dowolny**, **Moje**, **Nieprzypisane** albo **Wybrana
+  osoba…** — ta ostatnia opcja dodaje pole wyboru osoby.
+- Handlowiec, którego konto zostało w międzyczasie dezaktywowane, jest
+  oznaczony jako **nieaktywny** wszędzie, gdzie pojawia się jego imię i
+  nazwisko: na liście, na kartach tablicy i na ekranie szansy. Szansa pozostaje
+  jego, dopóki ktoś jej nie przypisze komuś innemu.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |

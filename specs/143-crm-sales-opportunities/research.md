@@ -1737,6 +1737,20 @@ when it was measured, and what was done about it.
   Organization's name on the Overview links to `/organizations/:id`, which a role without
   `customers:read` cannot open — a link, not a failing read; and the kit's pickers
   themselves, which every other module's screens still use.
+- **N-D5 (2026-10-05, T071) — what the assignment screens do that T071 leaves open.**
+  (a) **The picker is CRM's `AssigneeLookup`, not the kit's `AdminUserPicker`** T071 names:
+  that one reads `admin_users`' list under `admin_users:manage` (N-D4). (b) **On the
+  Opportunity, choosing is assigning** — one field, no *Save*; clearing it posts
+  `{ adminUserId: null }`. A refusal is shown in the server's sentence and the field returns
+  to the current assignee. (c) **The create form sends an assignee only when one is chosen**;
+  empty means "apply the default rule" (absent), and there is no way on that form to ask for
+  "explicitly nobody" (`null`) — unassign on the Opportunity afterwards. (d) **The filter is a
+  select plus a conditional field**: *Anyone / Mine / Unassigned / A specific person…*; "a
+  specific person" filters nothing until somebody is chosen. It is one of the shared filter
+  fields, so the board has it too (N-C4), and the board's cards carry the same *inactive*
+  marker. (e) The marker is the summary's `assignee.active`; `board.card.unassigned` was
+  folded into `assignment.unassigned`. (f) The edit form still has no assignee field
+  (N-C1 (b)): the section above it is the one place to change it.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

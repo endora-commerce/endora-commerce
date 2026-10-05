@@ -14,6 +14,7 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import { Badge, Button } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { AssigneeName } from './AssigneeName.js';
 import { errorMessage, moneyLabel } from '../lib/labels.js';
 import { MoveToMenu } from './MoveToMenu.js';
 
@@ -139,7 +140,7 @@ export function OpportunityBoard(props: OpportunityBoardProps): ReactNode {
         <p className="text-sm tabular-nums">{moneyLabel(item.value, item.currency)}</p>
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <User aria-hidden="true" className="size-3.5 shrink-0" />
-          <span>{item.assignee ? item.assignee.name : t('board.card.unassigned')}</span>
+          <AssigneeName assignee={item.assignee} />
         </p>
         {item.tags.length > 0 ? (
           <ul role="list" className="flex flex-wrap gap-1">

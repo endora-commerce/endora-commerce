@@ -49,7 +49,7 @@ when at least one of them is visible.
 
 | Screen | Where | Permission | What it is for |
 | --- | --- | --- | --- |
-| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, sales channel and creation date. |
+| Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, assignee, sales channel and creation date. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
 | An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, the orders linked to it, and what became of those orders after each move. |
 | Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
@@ -195,8 +195,8 @@ succeeds but a linked order could not follow, the opportunity stays moved: the
 card is marked, and a notice above the board names each order with the reason
 and links to the opportunity, where the change can be retried or dismissed.
 
-The search box and the organization, sales channel and creation-date filters
-are the list's, and narrow every column, its count and its totals alike. A
+The search box and the organization, assignee, sales channel and creation-date
+filters are the list's, and narrow every column, its count and its totals alike. A
 column that holds more opportunities than are shown says how many, with **Show
 more**.
 
@@ -346,6 +346,21 @@ and the rule does not apply.
 representative restricted to certain organizations sees every opportunity of
 those organizations, whoever holds it — and does not see an opportunity of
 another organization even when it is assigned to them.
+
+In the Admin UI:
+
+- **On the new-opportunity form** the *Assignee* field is optional. Leave it
+  empty and the rule above chooses; pick a person and it is theirs.
+- **On an opportunity**, the *Assignee* section names who holds it. A holder of
+  `crm:write` changes it there: choosing a person assigns the opportunity to
+  them at once, and clearing the field leaves it unassigned. There is nothing
+  to save.
+- **On the list** there is an *Assignee* column, and both the list and the
+  board have an *Assignee* filter: **Anyone**, **Mine**, **Unassigned**, or
+  **A specific person…**, which adds a field to choose them.
+- An assignee whose account has since been deactivated is marked **inactive**
+  wherever their name is shown — the list, the board's cards and the
+  opportunity. The opportunity stays theirs until somebody reassigns it.
 
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
