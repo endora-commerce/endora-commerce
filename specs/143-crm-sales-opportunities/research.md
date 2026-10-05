@@ -1211,6 +1211,70 @@ when it was measured, and what was done about it.
   cases read the **source** file: no `opportunit|status|crm` in it, and `@dnd-kit/core` the
   only `@dnd-kit/*` specifier.
 
+- **N-26 (2026-10-05, T053) — `PaginationFooter` cannot be fed by a cursor-paged endpoint.**
+  T053 and `plan.md` name the kit's `PaginationFooter` for the list. Its props are a
+  zero-based `page`, a `pageSize` and a **`total`**, and it renders "Showing X–Y of Z" and
+  "Page N of M". `GET /opportunities` answers `{ cursor, hasMore, limit }` and no total (the
+  platform's `paginationSchema`; offset totals are deliberately not part of it), so the
+  component could only be handed an invented number. The list uses a module-private
+  `components/CursorPagination.tsx` instead: rows per page, the page number, Previous / Next
+  over a trail of the cursors that led to the page on screen, on the kit's `Button` / `Select`
+  and the shared `common.pagination.*` copy. Page sizes above the endpoint's maximum of 200
+  are not offered (`PAGE_SIZE_OPTIONS` goes to 500). A promotion candidate for the kit, which
+  has no footer for the cursor shape; the alternative — adding a `total` to the list answer —
+  is a contract change and a count query per page, and was not made.
+- **N-27 (2026-10-05, T037) — the kit's `CustomerPicker` cannot be driven from an admin test.**
+  It takes `apiClient` from the kit's own `lib/api-client.js`, not through the `./lib` barrel,
+  so the `vi.mock('@endora-commerce/admin-kit/lib', …)` every packaged screen's test uses does
+  not reach its request, and the request then meets the suite's "no network" guard. That is
+  the state `SalesChannelPicker.tsx` records for "the kit's five older data-fetching
+  components". The create-page test therefore replaces `CustomerPicker` (and nothing else)
+  through the `./components` barrel and asserts what the screen owes it: the Organization it
+  is scoped to, that it is disabled until one is chosen, and that its value is cleared when
+  the Organization changes. The real picker was exercised in the browser walk (N-30). The
+  one-line repair — importing `apiClient` from `../../lib/index.js` as the three newer pickers
+  do — is the kit's and was not made here.
+- **N-28 (2026-10-05, T052/T054) — what the screens add that the contract leaves open.**
+  (a) **No dialog primitive exists in the kit**; `components/ModalDialog.tsx` is
+  module-private (scrim, `aria-labelledby`, Escape, the kit's `useFocusTrap`) and a promotion
+  candidate. (b) **Delete is offered for every status**, in use or not: `inUseCount` counts
+  only the Opportunities the operator may see, so the server decides and its sentence is
+  shown. (c) **An edit sends only the changed fields** — a restated, unchanged `kind` on a
+  status in use would turn every rename into `CRM_STATUS_IN_USE`. (d) **A status is named in
+  the Admin UI's two languages** (`en`, `pl`), which are the keys N-17's resolution reads.
+  (e) **`orderStatusKnown` is also derived on screen** (N-8): a mapped Order status missing
+  from `GET /api/v1/admin/orders/statuses` is shown as "… (no longer exists)". (f) Saving the
+  forward mappings sends any `order_to_opportunity` mapping back unchanged, so the table
+  cannot delete what User Story 2 will add. (g) **The Opportunity screen has no edit form and
+  no delete control** — neither is in T054 or in the success scenario; `PATCH` and `DELETE`
+  are served and unused by the admin. (h) The transition's optional `reason` is not asked
+  for. (i) With one tab the tab strip is not rendered; it appears with the second entry of
+  `tabs.ts`.
+- **N-29 (2026-10-05, T055) — a key-coverage test, because nothing else holds it.**
+  `i18n:hardcoded` refuses a literal and says nothing about a key that no bundle carries; the
+  resolver renders such a key as `crm.some.key`. `packages/modules/crm/src/admin/index.test.ts`
+  scans the admin sources for every key a screen asks for, enumerates the seven families
+  composed at run time, and holds each to **both** bundles — and, in the other direction,
+  refuses a key under the screens' prefixes that no screen asks for. The admin tests render
+  over the shipped English bundle for the same reason. Polish wording: *Dismiss* is
+  "Pomiń" on the button while `auditLog.crm.opportunity.propagation_dismiss` (the backend
+  half's, not touched) says "Odrzucono odmowę…"; the module page's Polish copy says
+  "przedstawiciel handlowy" where the bundles and the new section say "handlowiec".
+- **N-30 (2026-10-05, T057) — the success scenario, walked in a browser.** Headless Chromium
+  (Playwright 1.60) against the admin's Vite dev server and the backend **test composition**
+  (`setupBackendServer`, listening on a port) over a throw-away `_test` database on this
+  worktree's own Postgres — the stub admin session, real routes, real `orders`. Not a
+  production boot: authentication, CORS and the install hooks are outside what it shows.
+  Walked: the CRM sidebar group; add a status and two transitions; four forward mappings;
+  create by hand (required-field errors first); the list with a matching and a non-matching
+  search; link an Order by search; four moves, the Order following `paid` → `processing` →
+  `shipment_ready`; the move to *won* answered `not_permitted` ("no edge from
+  "shipment_ready" to "completed"") with *Retry* (refused again) and *Dismiss*; the same
+  screens at 390 px and in Polish. No failed request and no page error. **One defect found
+  and fixed**: an unsaved mapping choice was discarded when another write on the screen
+  returned (the table reset its draft on the workflow object's identity) — a jsdom test now
+  holds it. Not verified by eye: a real screen reader, a physical touch device, dark theme.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,
