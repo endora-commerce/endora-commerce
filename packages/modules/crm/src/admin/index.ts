@@ -1,14 +1,14 @@
 /**
- * `crm`'s admin surface — five routes and three sidebar rows
+ * `crm`'s admin surface — six routes and four sidebar rows
  * (`specs/143-crm-sales-opportunities/contracts/admin-surfaces.md` §1–§2).
  *
  * **A sidebar group of its own.** Both rows sit in the host's `crm` section
  * (owner ruling of 2026-10-05), not under *Sales*: the section, its heading and
  * its position are the shell's, and a module joins it by naming it.
  *
- * **Only what has shipped** — User Story 1's four screens and User Story 7's
- * board. The tags screen and analytics add their route and their row with the
- * story that ships the page — a sidebar or palette entry pointing at a route
+ * **Only what has shipped** — User Story 1's four screens, User Story 7's
+ * board and User Story 6's tag list. Analytics adds its route and its row with
+ * the story that ships the page — a sidebar or palette entry pointing at a route
  * that does not exist is a defect (Principle XVI).
  *
  * **This entry exports data and nothing else**; every component is a
@@ -40,6 +40,7 @@ const CONFIGURE_PERMISSION = 'crm:configure';
 const OPPORTUNITIES_PATH = '/crm/opportunities';
 const WORKFLOW_PATH = '/crm/workflow';
 const BOARD_PATH = '/crm/board';
+const TAGS_PATH = '/crm/tags';
 
 export const contributions: AdminContributions = {
   routes: [
@@ -75,6 +76,14 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/OpportunityBoardPage.js'),
       requiredPermission: READ_PERMISSION,
     },
+    {
+      // The tag list is read by every screen (`GET /tags` is `crm:read`), but
+      // this screen exists to manage it, and every control on it is a write
+      // gated `crm:configure` — so it opens on that code, as Workflow does.
+      path: TAGS_PATH,
+      component: () => import('./pages/TagsPage.js'),
+      requiredPermission: CONFIGURE_PERMISSION,
+    },
   ],
   nav: [
     {
@@ -94,12 +103,20 @@ export const contributions: AdminContributions = {
       requiredPermission: READ_PERMISSION,
     },
     {
+      to: TAGS_PATH,
+      labelKey: 'nav.tags.label',
+      icon: 'Tag',
+      section: 'crm',
+      weight: 400,
+      requiredPermission: CONFIGURE_PERMISSION,
+    },
+    {
       to: WORKFLOW_PATH,
       labelKey: 'nav.workflow.label',
       icon: 'ListChecks',
       section: 'crm',
-      // Last of the group: configuration is visited rarely, and the rows the
-      // later stories add (analytics 300, tags 400) sort before it.
+      // Last of the group: configuration is visited rarely, and the row a
+      // later story adds (analytics 300) sorts before it.
       weight: 500,
       requiredPermission: CONFIGURE_PERMISSION,
     },

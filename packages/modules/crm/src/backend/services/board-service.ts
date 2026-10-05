@@ -1,7 +1,6 @@
 import { raw, type FilterQuery } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
-  ERROR_CODES,
   type AdminUserReadPort,
   type OpportunityBoard,
   type OpportunityBoardColumn,
@@ -12,10 +11,10 @@ import {
   type OrganizationDetailsPort,
   type Pagination,
 } from '@endora-commerce/contracts';
-import { HttpError } from '@endora-commerce/platform/http';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import { resolveOpportunityStatusName } from '../domain/opportunity-status-graph.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
+import { actingAdminUserId } from './opportunity-assignment-service.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
 export interface BoardServiceDeps {
@@ -30,6 +29,12 @@ export interface BoardServiceDeps {
   listOpportunities: (
     query: OpportunityListQuery,
   ) => Promise<{ data: OpportunitySummary[]; pagination: Pagination }>;
+  /**
+   * The Opportunities carrying every one of the tags named — the tag service's
+   * own answer, the one the list narrows by. Unscoped ids: they only ever
+   * narrow the scoped statement below.
+   */
+  opportunityIdsCarryingAll: (em: EntityManager, tagIds: readonly string[]) => Promise<string[]>;
   /** Ports of other modules — lazy, resolved per call, never captured. */
   organizations: OrganizationDetailsPort;
   adminUsers: AdminUserReadPort;
@@ -40,6 +45,11 @@ const FALLBACK_LANGUAGE = 'en';
 /** The effective value of a row, as the list's `sort=value` computes it. */
 const VALUE_EXPRESSION = (alias: string): string =>
   `case when ${alias}."value_mode" = 'manual' then ${alias}."manual_value" else ${alias}."computed_value" end`;
+
+interface ColumnFigure {
+  count: number;
+  valueTotals: OpportunityCurrencyTotal[];
+}
 
 interface ColumnAggregateRow {
   status_code: string;
@@ -66,30 +76,24 @@ interface ColumnAggregateRow {
  * in no count.
  *
  * **The filters are stated twice** — in the list for the cards and here for the
- * figures — and the contract test holds the two to the same answers. The
- * assignee and tag filters are refused here as the list refuses them
- * (`research.md` N-18): the stories that teach the list to apply them add them
- * to {@link BoardService.conditions} in the same change.
+ * figures — and the contract test holds the two to the same answers, the
+ * assignee filter (`me` | `unassigned` | an administrator's id) and the tag
+ * filter (repeated = every tag named) included.
  */
 export class BoardService {
   constructor(private readonly deps: BoardServiceDeps) {}
 
   async get(query: OpportunityBoardQuery): Promise<OpportunityBoard> {
-    if (query.assignedAdminUserId !== undefined || (query.tagId && query.tagId.length > 0)) {
-      throw new HttpError(
-        422,
-        ERROR_CODES.VALIDATION_FAILED,
-        'Filtering opportunities by assignee or by tag is not available yet.',
-      );
-    }
     const em = this.deps.emFactory();
     const { perColumn, ...filters } = query;
     const [graph, conditions, language] = await Promise.all([
       this.deps.workflowRead.loadGraph(em),
-      this.conditions(query),
+      this.conditions(em, query),
       this.viewerLanguage(),
     ]);
-    const figures = await this.figures(em, conditions);
+    // `null`: a filter no Opportunity can satisfy. The columns are still
+    // answered — the list says "none" for each on its own.
+    const figures = conditions === null ? new Map<string, ColumnFigure>() : await this.figures(em, conditions);
 
     const columns: OpportunityBoardColumn[] = [];
     // One status after another: a board is a handful of columns, and asking for
@@ -123,10 +127,14 @@ export class BoardService {
   }
 
   /**
-   * The board's filters as conditions on `CrmOpportunity` — the same five the
-   * list applies, in the same terms.
+   * The board's filters as conditions on `CrmOpportunity` — the ones the list
+   * applies, in the same terms. `null` when a filter can match nothing: a tag
+   * set no Opportunity carries, or "mine" with no administrator asking.
    */
-  private async conditions(query: OpportunityBoardQuery): Promise<FilterQuery<CrmOpportunity>[]> {
+  private async conditions(
+    em: EntityManager,
+    query: OpportunityBoardQuery,
+  ): Promise<FilterQuery<CrmOpportunity>[] | null> {
     const conditions: FilterQuery<CrmOpportunity>[] = [];
     if (query.q) {
       const like = `%${query.q.replace(/[\\%_]/g, (match) => `\\${match}`)}%`;
@@ -139,7 +147,21 @@ export class BoardService {
         ],
       });
     }
+    if (query.tagId && query.tagId.length > 0) {
+      const carrying = await this.deps.opportunityIdsCarryingAll(em, query.tagId);
+      if (carrying.length === 0) return null;
+      conditions.push({ id: { $in: carrying } });
+    }
     if (query.organizationId) conditions.push({ organizationId: query.organizationId });
+    if (query.assignedAdminUserId === 'unassigned') {
+      conditions.push({ assignedAdminUserId: null });
+    } else if (query.assignedAdminUserId === 'me') {
+      const me = actingAdminUserId();
+      if (me === null) return null;
+      conditions.push({ assignedAdminUserId: me });
+    } else if (query.assignedAdminUserId !== undefined) {
+      conditions.push({ assignedAdminUserId: query.assignedAdminUserId });
+    }
     if (query.salesChannelId) conditions.push({ salesChannelId: query.salesChannelId });
     if (query.createdFrom) {
       conditions.push({ createdAt: { $gte: new Date(`${query.createdFrom}T00:00:00.000Z`) } });
@@ -157,7 +179,7 @@ export class BoardService {
   private async figures(
     em: EntityManager,
     conditions: FilterQuery<CrmOpportunity>[],
-  ): Promise<Map<string, { count: number; valueTotals: OpportunityCurrencyTotal[] }>> {
+  ): Promise<Map<string, ColumnFigure>> {
     const qb = em
       .createQueryBuilder(CrmOpportunity, 'o')
       .select([
@@ -174,7 +196,7 @@ export class BoardService {
     await qb.applyFilters();
     const rows = (await qb.execute('all', false)) as ColumnAggregateRow[];
 
-    const figures = new Map<string, { count: number; valueTotals: OpportunityCurrencyTotal[] }>();
+    const figures = new Map<string, ColumnFigure>();
     for (const row of rows) {
       const figure = figures.get(row.status_code) ?? { count: 0, valueTotals: [] };
       const count = Number(row.count);

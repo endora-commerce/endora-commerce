@@ -6,14 +6,15 @@ import type {
   OpportunityStatusRef,
   OpportunitySummary,
 } from '@endora-commerce/contracts';
-import { statusBadgeStyle } from '@endora-commerce/admin-kit/lib';
 import {
   KanbanBoard,
   type KanbanBoardLabels,
   type KanbanCardRenderState,
 } from '@endora-commerce/admin-kit/components';
-import { Badge, Button } from '@endora-commerce/admin-kit/ui';
+import { Button } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { AssigneeName } from './AssigneeName.js';
+import { TagChips } from './TagPicker.js';
 import { errorMessage, moneyLabel } from '../lib/labels.js';
 import { MoveToMenu } from './MoveToMenu.js';
 
@@ -139,19 +140,9 @@ export function OpportunityBoard(props: OpportunityBoardProps): ReactNode {
         <p className="text-sm tabular-nums">{moneyLabel(item.value, item.currency)}</p>
         <p className="flex items-center gap-1 text-xs text-muted-foreground">
           <User aria-hidden="true" className="size-3.5 shrink-0" />
-          <span>{item.assignee ? item.assignee.name : t('board.card.unassigned')}</span>
+          <AssigneeName assignee={item.assignee} />
         </p>
-        {item.tags.length > 0 ? (
-          <ul role="list" className="flex flex-wrap gap-1">
-            {item.tags.map((tag) => (
-              <li key={tag.id}>
-                <Badge className="font-normal" style={statusBadgeStyle(tag.color)}>
-                  {tag.name}
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <TagChips tags={item.tags} />
         {refused > 0 ? (
           <p className="flex items-start gap-1 text-xs font-medium text-destructive">
             <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />

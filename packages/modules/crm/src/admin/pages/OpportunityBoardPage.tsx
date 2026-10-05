@@ -133,9 +133,8 @@ function viewOf(board: OpportunityBoardData): BoardColumnView[] {
  * cursor of its own. The cards are the list's first page in the list's order,
  * so the first continuation replaces them with a longer page of the same order.
  *
- * The filter fields are the list's (`OpportunityFilterFields`). The assignee
- * and tag filters are in neither yet: both endpoints refuse them until their
- * stories land.
+ * The filter fields are the list's (`OpportunityFilterFields`), the assignee
+ * filter included.
  */
 export function OpportunityBoardPage(): ReactNode {
   const t = useTranslation('crm');

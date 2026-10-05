@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { CreateOpportunityRequest } from '@endora-commerce/contracts';
 import {
@@ -10,17 +10,20 @@ import {
   Input,
   Label,
   PageHeader,
+  Select,
   Textarea,
 } from '@endora-commerce/admin-kit/ui';
-import {
-  CurrencyPicker,
-  CustomerPicker,
-  OrganizationPicker,
-  SalesChannelPicker,
-  StickyFormActions,
-} from '@endora-commerce/admin-kit/components';
+import { StickyFormActions } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
+import {
+  AssigneeLookup,
+  ContactLookup,
+  OrganizationLookup,
+  SalesChannelSelect,
+  useSalesChannelOptions,
+} from '../components/LookupPickers.js';
+import { TagMultiSelect } from '../components/TagPicker.js';
 import { errorMessage, normaliseAmount } from '../lib/labels.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -54,6 +57,8 @@ export function OpportunityCreatePage(): ReactNode {
   const [organizationName, setOrganizationName] = useState('');
   const [customerAccountId, setCustomerAccountId] = useState<string | null>(null);
   const [salesChannelId, setSalesChannelId] = useState<string | null>(null);
+  const [assigneeId, setAssigneeId] = useState<string | null>(null);
+  const [tagIds, setTagIds] = useState<string[]>([]);
   const [currency, setCurrency] = useState('');
   const [value, setValue] = useState('');
   const [expectedCloseDate, setExpectedCloseDate] = useState('');
@@ -62,6 +67,21 @@ export function OpportunityCreatePage(): ReactNode {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
+  // One read for two fields: the channel picker, and the currencies offered —
+  // the ones the platform's active channels sell in. The currency dictionary is
+  // another module's list behind another module's permission (research N-D4).
+  const salesChannels = useSalesChannelOptions();
+  const currencies = useMemo(
+    () =>
+      [
+        ...new Set(
+          salesChannels.channels
+            .filter((channel) => channel.active)
+            .flatMap((channel) => [channel.defaultCurrency, ...channel.currencies]),
+        ),
+      ].sort(),
+    [salesChannels.channels],
+  );
 
   // The preselected Organization arrives as an id; its name is what the picker
   // shows. A failed lookup leaves the id in place — the create still works.
@@ -105,6 +125,10 @@ export function OpportunityCreatePage(): ReactNode {
       currency,
       ...(customerAccountId ? { customerAccountId } : {}),
       ...(salesChannelId ? { salesChannelId } : {}),
+      // Absent means "apply the default rule" (the Organization's Sales Reps);
+      // only a person the operator chose is sent.
+      ...(assigneeId ? { assignedAdminUserId: assigneeId } : {}),
+      ...(tagIds.length > 0 ? { tagIds } : {}),
       ...(amount ? { manualValue: amount } : {}),
       ...(expectedCloseDate ? { expectedCloseDate } : {}),
       ...(description.trim() ? { description: description.trim() } : {}),
@@ -174,7 +198,7 @@ export function OpportunityCreatePage(): ReactNode {
                   {t('opportunity.field.organization')}
                   {required}
                 </Label>
-                <OrganizationPicker
+                <OrganizationLookup
                   id="crm-create-organization"
                   ariaLabel={t('opportunity.field.organization')}
                   value={organizationId}
@@ -194,7 +218,7 @@ export function OpportunityCreatePage(): ReactNode {
 
               <div className="space-y-1">
                 <Label htmlFor="crm-create-contact">{t('opportunity.field.contact')}</Label>
-                <CustomerPicker
+                <ContactLookup
                   // Remounted per Organization: the picker caches what it found.
                   key={organizationId ?? 'none'}
                   id="crm-create-contact"
@@ -211,7 +235,8 @@ export function OpportunityCreatePage(): ReactNode {
 
               <div className="space-y-1">
                 <Label htmlFor="crm-create-channel">{t('opportunity.field.salesChannel')}</Label>
-                <SalesChannelPicker
+                <SalesChannelSelect
+                  source={salesChannels}
                   id="crm-create-channel"
                   ariaLabel={t('opportunity.field.salesChannel')}
                   value={salesChannelId}
@@ -219,6 +244,29 @@ export function OpportunityCreatePage(): ReactNode {
                   activeOnly
                   placeholder={t('opportunity.picker.salesChannelPlaceholder')}
                   emptyMessage={t('opportunity.picker.salesChannelEmpty')}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="crm-create-assignee">{t('assignment.label')}</Label>
+                <AssigneeLookup
+                  id="crm-create-assignee"
+                  ariaLabel={t('assignment.label')}
+                  value={assigneeId}
+                  onChange={setAssigneeId}
+                  placeholder={t('assignment.picker.placeholder')}
+                  emptyMessage={t('assignment.picker.empty')}
+                />
+                <p className="text-xs text-muted-foreground">{t('assignment.create.hint')}</p>
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-sm font-medium leading-none">{t('tags.section')}</span>
+                <TagMultiSelect
+                  ariaLabel={t('tags.section')}
+                  selected={tagIds}
+                  onChange={setTagIds}
+                  className="w-full"
                 />
               </div>
 
@@ -257,9 +305,8 @@ export function OpportunityCreatePage(): ReactNode {
                   {t('opportunity.field.currency')}
                   {required}
                 </Label>
-                <CurrencyPicker
+                <Select
                   id="crm-create-currency"
-                  includeBlank
                   required
                   value={currency}
                   aria-invalid={errors.currency !== undefined}
@@ -268,7 +315,19 @@ export function OpportunityCreatePage(): ReactNode {
                     setCurrency(event.target.value);
                     setErrors((previous) => ({ ...previous, currency: undefined }));
                   }}
-                />
+                >
+                  <option value="">{t('opportunity.field.currencyChoose')}</option>
+                  {currencies.map((code) => (
+                    <option key={code} value={code}>
+                      {code}
+                    </option>
+                  ))}
+                </Select>
+                {salesChannels.failed ? (
+                  <p role="alert" className="text-xs text-destructive">
+                    {t('opportunity.picker.loadError')}
+                  </p>
+                ) : null}
                 <p
                   id="crm-create-currency-hint"
                   className={

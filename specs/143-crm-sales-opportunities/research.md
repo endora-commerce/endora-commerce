@@ -1647,6 +1647,196 @@ when it was measured, and what was done about it.
   gzip) — **+42 363 bytes, +13.6 kB gzip** — with `@dnd-kit/core` in the entry chunk and the
   board page itself a lazy chunk of 21.18 kB (7.48 kB gzip). N-K3 predicted +41 989. The
   lever it names (`"sideEffects"` on the kit's manifest) is still not pulled.
+- **N-D1 (2026-10-05, after the merge of the backend wave) — what the merged tree owed, and
+  what it did not.** Measured on `367bd3d0e` after `pnpm run build:packages`: `typecheck` and
+  `lint` clean; `composer:check` and `manifests:check` up to date; the OpenAPI baseline
+  **already matched** (git had merged the two sides' CRM paths without a conflict, and
+  `UPDATE_OPENAPI_BASELINE` had nothing to write). Stale: the two Polish translation-cache
+  entries (taken from one side of the merge, while the materialised Polish pages had merged
+  cleanly and were the complete ones — the caches were rewritten from them); the module page's
+  *Coming* list and *Permissions* table, which still announced reverse mapping, assignment,
+  notes, attachments and tags as future; the sections of that page, which the merge had left
+  in arrival order (*Coming* in the middle); and one changeset saying the board refuses the
+  two filters "which a later release serves". `crm` joined `MIGRATED_MODULES` in
+  `backend/scripts/check-command-coverage.ts` (N-B11): the list's own header asks for a new
+  module "as it lands", and outside `--strict` a module that is not on it is only warned
+  about. The file is now a row of `contracts/foreign-module-changes.md` §E. Polish wording:
+  *Dismiss* is "Pomiń" on the button, in the module page and now in the audit label
+  ("Pominięto odmowę zmiany statusu zamówienia"); the page says "handlowiec" throughout.
+- **N-D2 (2026-10-05, T088 follow-up) — the board applies the assignee and tag filters, and
+  still states them twice.** `BoardService.conditions` gained the two filters N-C2 (c) left
+  owed, in the list's terms: `assignedAdminUserId` = `me` | `unassigned` | an id, and a
+  repeated `tagId` = every tag named, through the tag service's own
+  `opportunityIdsCarryingAll` (handed in as a function, as the list is). A filter nothing can
+  satisfy — a tag set no Opportunity carries, "mine" with nobody asking — answers every
+  column, empty, rather than an error. `board.contract.test.ts` holds cards, counts and
+  totals to the list's answer for each. The tidy-up N-C2 names — one `conditions` function the
+  list also calls — was **not** made: `opportunity-service.ts` is being edited on the sibling
+  branch.
+- **N-D3 (2026-10-05, T063) — the reverse table is keyed by Order status, and one thing T063
+  asks for cannot be shown.** (a) One row per **Order** status, not per Opportunity status:
+  the server's rule for this direction is `mapping_duplicate_order_status`, so an Order status
+  has one choice and several rows may choose the same Opportunity status. (b) "Only when every
+  linked order is there" is ticked when the chosen target is of kind `won` or `lost` and is
+  re-applied whenever the target changes; a stored mapping shows what is stored. (c) **An
+  unknown Order status is decided from `GET /api/v1/admin/orders/statuses`**, as N-B1
+  recommends, not from `orderStatusKnown`: a mapped code the Orders module no longer answers
+  gets a row of its own, says so, and is removed by choosing "Leave the opportunity as it
+  is". (d) Both tables are one draft and one *Save mappings*, because the endpoint replaces
+  the whole set. (e) **Not done: "show the cause Order on `OverviewTab.tsx`".**
+  `OpportunityDetail` carries no status history — `causeOrderId` is on the events, in the
+  status-history table and in the audit entry (N-B3) — so the Overview has nothing to read
+  it from. The change history tab of User Story 11 is where it will be shown; adding a field
+  to the detail for it is a contract change no task asks for.
+- **N-D4 (2026-10-05, the picker defect of N-C5 (4)) — CRM answers its own pickers; `requires`
+  was not the fix.** Measured first: the kit's `OrganizationPicker` reads
+  `GET /api/v1/admin/organizations` (`customers:read` or `customers:manage`),
+  `SalesChannelPicker` reads `/api/v1/admin/sales-channels` (`sales_channels:read`),
+  `CustomerPicker` reads `/api/v1/admin/customers` (`customers:read`), `AdminUserPicker` —
+  which T071 names for the assignee — reads `/api/v1/admin/admin-users`
+  (**`admin_users:manage`**), and `CurrencyPicker` reads `/api/v1/admin/dictionary/currencies`
+  (the dictionary's *write* code). So the defect was wider than the report: the create form's
+  contact and currency fields failed the same way, and the assignee picker would have.
+  **How `requires` is consumed:** `missingPermissionRequirements` in
+  `packages/contracts/src/admin.ts` and the role editor — a suggestion beside a checkbox;
+  "nothing here refuses anything". It is how `rfqs:handle` names `price_lists:read` (D-173),
+  and `quote_requests`' own list uses the kit's `OrganizationPicker` with no requirement
+  declared for it — whether its Sales Rep meets the same 403 was not measured here. **Why it was not used here:** declaring
+  `customers:read`, `sales_channels:read`, `admin_users:manage` and a dictionary write code
+  as what a Sales Rep "should also hold" would make assigning an Opportunity cost the right
+  to manage administrators. That is a wider grant than any CRM screen needs, and an operator
+  following the advisory would hand it out.
+  **What was built:** four reads under `/api/v1/admin/crm/lookups/` — `organizations`,
+  `sales-channels`, `assignees` (`crm:read`: the list and the board filter by them) and
+  `contacts` (`crm:write`: chosen on the forms only) — in one new service
+  (`services/crm-lookup-service.ts`), one new route file and one delimited section of
+  `index.ts`. Each goes through the owner's published read port (`organizationDetailsPort`,
+  `adminUserReadPort`, `customerAccountReadPort`) or, for channels, the kernel's `SalesChannel`
+  entity the module already reads; every owner was already a binding dependency, so the
+  manifest's edges did not change and `check:port-dependencies` asked for nothing.
+  **Tenant scope is applied by name** (N-14: the Organization port answers whoever asks): a
+  platform administrator searches by name through the port; a confined one is offered the
+  Organizations of `orgConstraintFor()` and nothing else, searched in memory so a page of
+  platform-wide matches can never crowd theirs out; contact persons are offered only for an
+  Organization `isOrgInScope` accepts, and an out-of-scope one answers an empty list, not a
+  refusal. Answers are the minimum a picker shows: `id` + `name` (an assignee's e-mail is
+  searched and not returned; a contact's is returned because the screen shows it).
+  **No other module's gate changed**, and `lookups.contract.test.ts` holds that: the same
+  role still gets 403 from all four owners' lists, with the platform administrator as the
+  positive control.
+  **On the screens** the kit's pickers were replaced by `components/LookupPickers.tsx` — the
+  same props, on the kit's `Combobox` — in the filter bar, the create form and the edit form;
+  `admin/test/modules/crm/lookups.test.tsx` makes every foreign list reject and asserts none
+  was asked. Three things fell out: (a) the contact picker is now driven by the tests instead
+  of stubbed (N-27) and names the person already chosen itself (N-C1 (e)), so
+  `opportunity.edit.contactCurrent` is gone; (b) **the currency of a new Opportunity is chosen
+  from the currencies the active Sales Channels sell in**, not from the currency dictionary —
+  a behaviour change of the create form, made because the dictionary's list is behind its
+  write code and neither `dictionaries` nor `currencies` is a dependency of this module;
+  (c) the Overview's Sales Channel name comes from the same lookup. **Left as it is:** the
+  Organization's name on the Overview links to `/organizations/:id`, which a role without
+  `customers:read` cannot open — a link, not a failing read; and the kit's pickers
+  themselves, which every other module's screens still use.
+- **N-D5 (2026-10-05, T071) — what the assignment screens do that T071 leaves open.**
+  (a) **The picker is CRM's `AssigneeLookup`, not the kit's `AdminUserPicker`** T071 names:
+  that one reads `admin_users`' list under `admin_users:manage` (N-D4). (b) **On the
+  Opportunity, choosing is assigning** — one field, no *Save*; clearing it posts
+  `{ adminUserId: null }`. A refusal is shown in the server's sentence and the field returns
+  to the current assignee. (c) **The create form sends an assignee only when one is chosen**;
+  empty means "apply the default rule" (absent), and there is no way on that form to ask for
+  "explicitly nobody" (`null`) — unassign on the Opportunity afterwards. (d) **The filter is a
+  select plus a conditional field**: *Anyone / Mine / Unassigned / A specific person…*; "a
+  specific person" filters nothing until somebody is chosen. It is one of the shared filter
+  fields, so the board has it too (N-C4), and the board's cards carry the same *inactive*
+  marker. (e) The marker is the summary's `assignee.active`; `board.card.unassigned` was
+  folded into `assignment.unassigned`. (f) The edit form still has no assignee field
+  (N-C1 (b)): the section above it is the one place to change it.
+- **N-D6 (2026-10-05, T086) — what the tag screens do that T086 leaves open.** (a) **In
+  Polish a tag is "Etykieta"**, on the sidebar row too (`contracts/admin-surfaces.md` §2 said
+  "Tagi"; the coordinator's brief and the module page say "Etykiety", and the contract line
+  was brought in line). (b) **No palette action**: §3 of that contract names three and the
+  tag list is not one of them. (c) **Tagging on the Opportunity is one gesture** — each tick
+  is a `PUT …/tags` with the whole set, in the tag list's order, and the answer is put on
+  screen; there is no *Save*. (d) **The tag control is the kit's `MultiSelect`** in all three
+  places (Opportunity, create form, filter), fed by one `GET /tags` per screen; with no tags
+  defined it is disabled and says so. (e) The filter is labelled "Tags (all of them)"
+  because several tags mean AND, which a bare "Tags" would not say. (f) The delete
+  confirmation names `usageCount`, which is the number of Opportunities **the operator can
+  see** carrying the tag (N-B9) and says so — the tag leaves the others as well. (g) An edit
+  sends only the changed fields; an untouched dialog is no request. (h) The edit form of an
+  Opportunity still carries no tags field (N-C1 (b)); the *Tags* section is the one place.
+  (i) `GET /tags` is `crm:read` while the screen opens on `crm:configure`: every control on
+  it is a write, as on *Workflow*.
+- **N-D7 (2026-10-05, T076) — what the Notes and Messages tabs do that T076 leaves open.**
+  (a) **One thread component for both tabs** (`components/CommentThread.tsx`) beside the one
+  composer T076 names; the two tab files only hand it their sentences, so no key is composed
+  at run time. (b) **"Mine" is `useAuth().me.adminUser.id` against `author.id`**, and *Edit* /
+  *Delete* are offered for a **note**, to its **author**, who also holds `crm:write` — the
+  platform administrator sees neither on a colleague's note, which is what the server
+  answers (N-B12). The server's refusal is still shown if one comes. (c) **A note is edited
+  in place**, not in a dialog; a refused edit keeps what was typed. Deleting asks first and
+  says the text stays in the change history. (d) A written entry is appended from the
+  endpoint's answer rather than by reading the list again; the lists are not polled, so a
+  colleague's message appears on the next visit to the tab. (e) An empty entry is refused on
+  screen; the 10 000-character limit is the field's `maxLength`. (f) **With the second tab
+  the tab strip appears** (N-28 (i)); the tabs are not routes, so a link cannot open one.
+- **N-D8 (2026-10-05, T081) — the Attachments tab, and one permission it cannot work
+  around.** (a) **The upload is the media library's, and so is its gate.** The kit's
+  `AssetUploader` posts multipart to `POST /api/v1/admin/assets`, which is
+  `assets.write` — a code a Sales Rep holding only CRM's does not hold. The tab therefore
+  offers *Add a file* to a holder of `crm:write` **and** `assets.write`, and tells a holder of
+  `crm:write` alone why there is no button; listing, downloading and removing need nothing of
+  the library's. This is the same shape as the picker defect (N-D4) and was **not** repaired
+  the same way: a CRM-owned upload would have to carry multipart through a port that takes
+  none today. Reported for a decision — an upload seam on `assetsLibraryPort`, or
+  `assets.write` named in `crm:write`'s `requires`. (b) `visibility: 'private'` is passed as
+  the uploader's `defaults`, and the test asserts it: the backend refuses anything else
+  (N-B17 (a)). (c) **Download reads the list again and opens the link it was just given**
+  (`window.open(url, '_blank', 'noopener,noreferrer')`), because the one on screen may be
+  minutes old; `url: null` on that read — the file gone from the library (N-B17 (e)) — is
+  said and nothing is opened. The open happens after an `await`; browsers honour it inside
+  the transient-activation window of the click, which a slow list read could outlast
+  **[unverified beyond the browser walk]**. (d) Attaching the same asset twice answers the
+  existing attachment (N-B17 (d)); the list does not grow a second row. (e) Removing asks
+  first and says the file stays in the library. (f) A size is rendered by `Intl.NumberFormat`
+  with a unit, in binary steps, so no unit string is hand-written in either language.
+- **N-D9 (2026-10-05, the stories' browser walk) — user stories 2–6 and the picker repair,
+  walked in a browser.** N-30's arrangement: headless Chromium (Playwright 1.60) against the
+  admin's Vite dev server and the backend test composition on a throw-away `_test` database on
+  this worktree's Postgres, created and dropped with its template — the stub admin session,
+  real routes, real `orders` and a real media-library upload. **The dev server serves the
+  module's `dist`**, not its source: an edit to a screen is invisible to it until
+  `pnpm --filter @endora-commerce/mod-crm run build`, which is how the one fix below first
+  appeared not to work. **English, 1440 px — 32 of 35 checks on the first pass; the three that
+  failed were the walk's own misreads, named below, and one of them had aborted the
+  assignment block, which then passed 9 of 9 on its own after the selector was corrected. The
+  whole walk was not repeated end to end afterwards.** What was seen: the Tags
+  row between *Board* and *Workflow*; a reverse mapping *Paid → Qualified* (toggle clear) and
+  *Completed → Won* (toggle ticked by default) saved in one write, then the Order's status
+  changed **on the Order screen** and the linked Opportunity read back as *Qualified*; an
+  unassigned Opportunity assigned by choosing a person, the list and the board filtered to
+  *Mine* showing exactly it and *Unassigned* the other three; a tag created, the same name in
+  another case refused in the dialog with the server's sentence, the Opportunity tagged, the
+  list and the board filtered to it; a note added, edited in place and marked *edited*, a
+  message sent with no way to change it; a file uploaded (`201 POST /api/v1/admin/assets`,
+  `201 POST …/attachments`), listed with its size and uploader, downloaded — the list read
+  again and a new tab opened on `…/assets/file/<id>?token=…&exp=…` — and removed. **The role
+  holding only `crm:read` and `orders:read`**: the Organization and Sales Channel filters of
+  the list and the board offered their options and narrowed both, every lookup answered 200,
+  and nothing a CRM screen asked for was refused. **Polish — 6 of 6**: the sidebar rows, the
+  *Handlowiec* filter and column, the *Handlowiec* and *Etykiety* sections, the four tabs, no
+  untranslated key, no failed request.
+  **One defect found and fixed:** the tag filter sat 6 px above its neighbours in the filter
+  bar — its label was a block-level `span` where the kit's `Label` is inline, and the kit's
+  `MultiSelect` trigger is an inline-level button with a descender gap under it. Measured
+  before (label top 261 against 265) and after (265, control 285, as the Organization field).
+  **The walk's own three misreads:** `getByText('Unassigned')` also matched the hint under the
+  field; Chromium logs a console line for the deliberate 409 of the tag-name refusal; and
+  **the shell asks `GET /api/v1/admin/settings/admin.idle_logout_minutes` on every page, which
+  answers 403 to this role** — not a CRM request and not repaired here, but a red line in
+  every Sales Rep's network panel, reported for whoever owns the shell's idle-logout read.
+  Not verified by eye: a real screen reader, a physical touch device, dark theme, a popup
+  blocker stricter than Chromium's default on the download's new tab (N-D8 (c)).
 - **N-E1 (2026-10-05, T095) — R-14's [unverified] premise about how a quote is totalled,
   re-derived; the formula stands with two corrections.** `RfqDetail.tsx` shows, per line,
   `agreedUnitPrice × quantity`, falling back to `desiredUnitPrice × quantity`; its total row is

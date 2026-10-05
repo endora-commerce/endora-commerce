@@ -29,32 +29,62 @@ all under `/api/v1/admin/crm`:
   `POST …/propagations/:id/retry` and `…/dismiss` then address;
 - **the board** — `GET /board` (`crm:read`): one column per status in workflow order, each
   with `count`, `valueTotals` per currency, the first `perColumn` opportunities (default 50,
-  at most 200) and `hasMore`. It takes the list's filters except `statusCode` and `state`;
-  like the list it answers 422 for `tagId` and `assignedAdminUserId`, which a later release
-  serves. There is no board-specific write — moving a card is the transition endpoint.
+  at most 200) and `hasMore`. It takes the list's filters except `statusCode` and `state`,
+  with the list's meaning — `assignedAdminUserId` (`me`, `unassigned` or an administrator's
+  id) and a repeated `tagId` (every tag named) included — and applies them to the cards, the
+  counts and the totals alike. There is no board-specific write — moving a card is the
+  transition endpoint.
+
+- **lookups for its own pickers** — `GET /lookups/organizations`, `/lookups/sales-channels`,
+  `/lookups/assignees` (`crm:read`) and `/lookups/contacts` (`crm:write`). The screens'
+  Organization, Sales Channel, assignee and contact-person pickers read these instead of the
+  admin lists of the modules that own those rows, so a role holding only `crm:read`,
+  `crm:write` and `orders:read` can filter and fill in every form; the owners' endpoints and
+  their permissions are unchanged. Organizations and contact persons are narrowed to the
+  caller's tenant scope, and an answer carries an id and a label only. The currency of a new
+  opportunity is chosen from the currencies the active sales channels sell in.
 
 **In the Admin UI** the package exports `./admin` (and `./tailwind.css`), which contributes
-five screens and three entries to the shell's "CRM" sidebar section:
+six screens and four entries to the shell's "CRM" sidebar section:
 
 - `/crm/opportunities` (`crm:read`) — the list, with search and filters by state, status,
-  organization, sales channel and creation date;
+  organization, assignee ("mine", "unassigned" or a chosen person), tags (every tag chosen),
+  sales channel and creation date, a column naming who holds each opportunity, and each
+  opportunity's tags under its title;
 - `/crm/opportunities/new` (`crm:write`) — create an opportunity by hand; an `organizationId`
-  query parameter preselects the organization;
+  query parameter preselects the organization, and the assignee is optional — left empty, the
+  default rule chooses — and tags can be set from the start;
 - `/crm/opportunities/:id` (`crm:read`) — the status control, which offers exactly the
   transitions the workflow allows; the linked orders, with linking by search, the
   status-following switch and unlinking; and, per linked order, the outcome of each move, with
   *Retry* and *Dismiss* on a refused one. A holder of `crm:write` edits the opportunity in
   place — only the changed fields are sent, under `If-Match`, and a stale version is reported
   with a way to reload rather than retried — and may give a status change a reason; a holder
-  of `crm:configure` can delete it, after a confirmation;
-- `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, and the
-  order status each opportunity status sets;
+  of `crm:configure` can delete it, after a confirmation. The *Assignee* section names who
+  holds the opportunity and lets a holder of `crm:write` reassign or unassign it in one
+  choice; an assignee who has been deactivated is marked *inactive* here, on the list and on
+  the board. The *Tags* section shows the opportunity's tags, and a holder of `crm:write`
+  ticks and unticks them, each change saved at once. Two further tabs, **Notes** and
+  **Messages**, list the opportunity's notes and its internal conversation, oldest first, over
+  one composer: a note shows *Edit* and *Delete* to its author only, a message shows neither
+  to anybody. An **Attachments** tab lists the files with name, size and who attached each,
+  uploads a new one to the media library as a **private** file and attaches it (the upload is
+  the library's and needs its `assets.write` beside `crm:write`), reads the list again right
+  before a download because the links are short-lived, and removes an attachment after a
+  confirmation;
+- `/crm/tags` (`crm:configure`) — the tag list with each tag's usage count: add, rename,
+  recolour, and delete after a confirmation naming how many opportunities lose the tag;
+- `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, the
+  order status each opportunity status sets, and — the reverse direction — the opportunity
+  status each order status leads to, with "only when every linked order is there" per row
+  (on by default when the target closes the opportunity) and a marker on a mapping whose
+  order status no longer exists;
 - `/crm/board` (`crm:read`) — the opportunities as cards in a column per status, on the
   `KanbanBoard` primitive of `@endora-commerce/admin-kit`. A holder of `crm:write` moves a
   card by dragging it (mouse, touch, keyboard) or from the card's "Move to…" menu, which
   lists exactly the statuses the workflow allows; a refused move puts the card back with the
   server's reason, and a linked order that did not follow is reported on the card and above
-  the board. It shares its filters with the list.
+  the board. It shares its filters with the list — the assignee and tag filters included.
 
 Three command-palette actions — `open-opportunities`, `new-opportunity` and
 `open-opportunity-board` — open the list, the create screen and the board.

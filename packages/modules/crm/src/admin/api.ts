@@ -1,13 +1,22 @@
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import type {
   CreateOpportunityLinkRequest,
+  OpportunityAssigneeOption,
+  OpportunityContactOption,
+  OpportunityOrganizationOption,
+  OpportunitySalesChannelOption,
   CreateOpportunityRequest,
   CreateOpportunityStatusRequest,
+  CreateOpportunityTagRequest,
+  OpportunityAttachment,
+  OpportunityComment,
+  OpportunityCommentKind,
   OpportunityBoard,
   OpportunityDetail,
   OpportunityLink,
   OpportunityStatusKind,
   OpportunitySummary,
+  OpportunityTag,
   OpportunityTransitionResult,
   OpportunityWorkflow,
   OrderStatusMapping,
@@ -16,6 +25,7 @@ import type {
   SetOpportunityTransitionsRequest,
   UpdateOpportunityRequest,
   UpdateOpportunityStatusRequest,
+  UpdateOpportunityTagRequest,
 } from '@endora-commerce/contracts';
 
 /**
@@ -26,12 +36,13 @@ import type {
  * validates with — so a screen and a route cannot disagree about a field
  * without one of them failing to compile.
  *
- * Three reads are **not** CRM's: the Order statuses a mapping is chosen from
- * and the Orders an Opportunity can be linked to come from `orders`' own admin
- * endpoints, and the name of a preselected Organization from `organizations`'.
+ * Two reads are **not** CRM's: the Order statuses a mapping is chosen from and
+ * the Orders an Opportunity can be linked to come from `orders`' own admin
+ * endpoints, under `orders:read` — the code `crm:read` names in its `requires`.
  * CRM does not proxy them (§4), and naming the endpoint rather than importing
  * that module's client is the sanctioned way for one module's screen to read
- * another's data.
+ * another's data. Everything a **picker** chooses from — Organizations, Sales
+ * Channels, assignees, contact persons — is CRM's own (§10a, research N-D4).
  */
 
 const BASE = '/api/v1/admin/crm';
@@ -41,15 +52,16 @@ export type OpportunitySort = 'createdAt' | 'updatedAt' | 'value' | 'expectedClo
 
 /**
  * The filters the list and the board share (`contracts/admin-api.md` §1, §10).
- *
- * `assignedAdminUserId` and `tagId` are deliberately absent: both endpoints
- * answer 422 for them until their stories land, so a type that cannot carry
- * them is the guard. The story that serves one adds it **here** and to
+ * A filter both endpoints accept is added **here** and to
  * {@link appendSharedFilters}, and both screens can then send it.
  */
 export interface OpportunityFilterParams {
   q?: string;
   organizationId?: string;
+  /** `me`, `unassigned`, or an administrator's id. */
+  assignedAdminUserId?: string;
+  /** Every tag named must be carried (AND). */
+  tagId?: readonly string[];
   salesChannelId?: string;
   createdFrom?: string;
   createdTo?: string;
@@ -94,6 +106,8 @@ export interface LinkableOrder {
 
 function appendSharedFilters(qs: URLSearchParams, params: OpportunityFilterParams): void {
   if (params.organizationId) qs.set('organizationId', params.organizationId);
+  if (params.assignedAdminUserId) qs.set('assignedAdminUserId', params.assignedAdminUserId);
+  for (const tagId of params.tagId ?? []) qs.append('tagId', tagId);
   if (params.salesChannelId) qs.set('salesChannelId', params.salesChannelId);
   if (params.createdFrom) qs.set('createdFrom', params.createdFrom);
   if (params.createdTo) qs.set('createdTo', params.createdTo);
@@ -192,6 +206,17 @@ export const crmApi = {
     );
   },
 
+  // --- §5 Assignment -------------------------------------------------------
+
+  /** Assign, reassign or — with `null` — unassign. Answers the Opportunity. */
+  assign(id: string, adminUserId: string | null): Promise<OpportunityDetail> {
+    return data(
+      apiClient.post<{ data: OpportunityDetail }>(`${BASE}/opportunities/${id}/assign`, {
+        adminUserId,
+      }),
+    );
+  },
+
   // --- §3 Links ------------------------------------------------------------
 
   addLink(id: string, body: CreateOpportunityLinkRequest): Promise<OpportunityLink> {
@@ -240,6 +265,93 @@ export const crmApi = {
     );
   },
 
+  // --- §6 Notes and messages -----------------------------------------------
+
+  /** Oldest first. `kind` is required by the endpoint: the two are separate lists. */
+  listComments(id: string, kind: OpportunityCommentKind): Promise<OpportunityComment[]> {
+    return data(
+      apiClient.get<{ data: OpportunityComment[] }>(
+        `${BASE}/opportunities/${id}/comments?kind=${kind}`,
+      ),
+    );
+  },
+
+  addComment(id: string, kind: OpportunityCommentKind, body: string): Promise<OpportunityComment> {
+    return data(
+      apiClient.post<{ data: OpportunityComment }>(`${BASE}/opportunities/${id}/comments`, {
+        kind,
+        body,
+      }),
+    );
+  },
+
+  /** A note, by its author. A message answers 409 `CRM_MESSAGE_IMMUTABLE` whoever asks. */
+  updateComment(id: string, commentId: string, body: string): Promise<OpportunityComment> {
+    return data(
+      apiClient.patch<{ data: OpportunityComment }>(
+        `${BASE}/opportunities/${id}/comments/${commentId}`,
+        { body },
+      ),
+    );
+  },
+
+  deleteComment(id: string, commentId: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/opportunities/${id}/comments/${commentId}`);
+  },
+
+  // --- §7 Attachments ------------------------------------------------------
+
+  /**
+   * Oldest first. Each carries `url`, a signed link valid for a few minutes —
+   * read the list again right before opening one.
+   */
+  listAttachments(id: string): Promise<OpportunityAttachment[]> {
+    return data(
+      apiClient.get<{ data: OpportunityAttachment[] }>(`${BASE}/opportunities/${id}/attachments`),
+    );
+  },
+
+  /** Link a **private** asset of the media library; a public one is refused with 422. */
+  addAttachment(id: string, assetId: string): Promise<OpportunityAttachment> {
+    return data(
+      apiClient.post<{ data: OpportunityAttachment }>(`${BASE}/opportunities/${id}/attachments`, {
+        assetId,
+      }),
+    );
+  },
+
+  /** Removes the link; the file stays in the media library. */
+  removeAttachment(id: string, attachmentId: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/opportunities/${id}/attachments/${attachmentId}`);
+  },
+
+  // --- §8 Tags --------------------------------------------------------------
+
+  /** The platform's tag list, by name, each with how many visible Opportunities carry it. */
+  listTags(): Promise<OpportunityTag[]> {
+    return data(apiClient.get<{ data: OpportunityTag[] }>(`${BASE}/tags`));
+  },
+
+  createTag(body: CreateOpportunityTagRequest): Promise<OpportunityTag> {
+    return data(apiClient.post<{ data: OpportunityTag }>(`${BASE}/tags`, body));
+  },
+
+  updateTag(id: string, body: UpdateOpportunityTagRequest): Promise<OpportunityTag> {
+    return data(apiClient.patch<{ data: OpportunityTag }>(`${BASE}/tags/${id}`, body));
+  },
+
+  /** Takes the tag off every Opportunity that carried it. */
+  deleteTag(id: string): Promise<void> {
+    return apiClient.delete<void>(`${BASE}/tags/${id}`);
+  },
+
+  /** Replaces the Opportunity's whole tag set. Answers the Opportunity. */
+  setOpportunityTags(id: string, tagIds: readonly string[]): Promise<OpportunityDetail> {
+    return data(
+      apiClient.put<{ data: OpportunityDetail }>(`${BASE}/opportunities/${id}/tags`, { tagIds }),
+    );
+  },
+
   // --- §10 Board ------------------------------------------------------------
 
   /** One column per status, with its figures and its first cards. A read; a move is `transition`. */
@@ -247,7 +359,15 @@ export const crmApi = {
     return data(apiClient.get<{ data: OpportunityBoard }>(`${BASE}/board${boardQuery(params)}`));
   },
 
-  // --- Other modules' endpoints, by path --------------------------------------
+  // --- §10a Lookups — what the pickers choose from ----------------------------
+
+  lookupOrganizations(query = ''): Promise<OpportunityOrganizationOption[]> {
+    return data(
+      apiClient.get<{ data: OpportunityOrganizationOption[] }>(
+        `${BASE}/lookups/organizations${query ? `?q=${encodeURIComponent(query)}` : ''}`,
+      ),
+    );
+  },
 
   /**
    * The name of one Organization, or `null` when it cannot be read — a label
@@ -255,10 +375,39 @@ export const crmApi = {
    */
   organizationName(organizationId: string): Promise<string | null> {
     return apiClient
-      .get<{ data: { name?: string } }>(`/api/v1/admin/organizations/${organizationId}`)
-      .then((envelope) => envelope.data.name ?? null)
+      .get<{ data: OpportunityOrganizationOption[] }>(
+        `${BASE}/lookups/organizations?id=${organizationId}`,
+      )
+      .then((envelope) => envelope.data[0]?.name ?? null)
       .catch(() => null);
   },
+
+  lookupSalesChannels(): Promise<OpportunitySalesChannelOption[]> {
+    return data(
+      apiClient.get<{ data: OpportunitySalesChannelOption[] }>(`${BASE}/lookups/sales-channels`),
+    );
+  },
+
+  lookupAssignees(query = ''): Promise<OpportunityAssigneeOption[]> {
+    return data(
+      apiClient.get<{ data: OpportunityAssigneeOption[] }>(
+        `${BASE}/lookups/assignees${query ? `?q=${encodeURIComponent(query)}` : ''}`,
+      ),
+    );
+  },
+
+  /** Gated `crm:write`: a contact person is chosen on the forms only. */
+  lookupContacts(organizationId: string, query = ''): Promise<OpportunityContactOption[]> {
+    const qs = new URLSearchParams({ organizationId });
+    if (query) qs.set('q', query);
+    return data(
+      apiClient.get<{ data: OpportunityContactOption[] }>(
+        `${BASE}/lookups/contacts?${qs.toString()}`,
+      ),
+    );
+  },
+
+  // --- Other modules' endpoints, by path --------------------------------------
 
   listOrderStatuses(): Promise<OrderStatusOption[]> {
     return apiClient

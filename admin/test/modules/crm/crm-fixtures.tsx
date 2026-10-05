@@ -198,3 +198,69 @@ export function propagation(overrides: Partial<PropagationOutcome> = {}): Propag
     ...overrides,
   };
 }
+
+export const CHANNEL_ID = '00000000-0000-4000-8000-0000000000f2';
+export const CONTACT_ID = '00000000-0000-4000-8000-0000000000f1';
+export const ADMIN_ID = '00000000-0000-4000-8000-0000000000aa';
+export const OTHER_ADMIN_ID = '00000000-0000-4000-8000-0000000000ab';
+
+/**
+ * CRM's own lookup endpoints (`contracts/admin-api.md` §10a), as a test's GET
+ * stub answers them — or `undefined` for any other path, so a stub falls
+ * through to its own cases. The pickers of every CRM screen read these and
+ * nothing of another module's.
+ */
+export function crmLookupResponse(path: string): Promise<unknown> | undefined {
+  const [route, query = ''] = path.split('?');
+  const params = new URLSearchParams(query);
+  const q = (params.get('q') ?? '').toLowerCase();
+  const matching = <T extends { name: string }>(rows: T[]): T[] =>
+    rows.filter((row) => row.name.toLowerCase().includes(q));
+  switch (route) {
+    case '/api/v1/admin/crm/lookups/organizations':
+      return Promise.resolve({ data: matching([{ id: ORGANIZATION_ID, name: 'Acme' }]) });
+    case '/api/v1/admin/crm/lookups/sales-channels':
+      return Promise.resolve({
+        data: [
+          {
+            id: CHANNEL_ID,
+            code: 'B2B',
+            name: { 'en-US': 'Wholesale' },
+            active: true,
+            systemDefault: true,
+            defaultCurrency: 'PLN',
+            currencies: ['PLN', 'EUR'],
+          },
+        ],
+      });
+    case '/api/v1/admin/crm/lookups/assignees':
+      return Promise.resolve({
+        data: matching([
+          { id: ADMIN_ID, name: 'Anna Nowak' },
+          { id: OTHER_ADMIN_ID, name: 'Piotr Zielony' },
+        ]),
+      });
+    case '/api/v1/admin/crm/lookups/contacts':
+      return Promise.resolve({
+        data:
+          params.get('organizationId') === ORGANIZATION_ID
+            ? matching([{ id: CONTACT_ID, name: 'Jan Kowalski', email: 'jan@acme.example' }])
+            : [],
+      });
+    // The tag list every screen with a tag filter reads; a test about tags
+    // answers it itself, before falling through to here.
+    case '/api/v1/admin/crm/tags':
+      return Promise.resolve({ data: [] });
+    default:
+      return undefined;
+  }
+}
+
+/** Admin lists of other modules a CRM screen must never read (research N-D4). */
+export const FOREIGN_PICKER_ENDPOINTS = [
+  '/api/v1/admin/organizations',
+  '/api/v1/admin/sales-channels',
+  '/api/v1/admin/customers',
+  '/api/v1/admin/admin-users',
+  '/api/v1/admin/dictionary',
+] as const;

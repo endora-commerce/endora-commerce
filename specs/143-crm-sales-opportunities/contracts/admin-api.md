@@ -175,6 +175,20 @@ url | null }]`. Token grammar: `[[product:<uuid>]]`, `[[order:<uuid>]]`.
 total }], items: OpportunitySummary[], hasMore }] } }`. Moving a card is §2's transition
 endpoint; there is no board-specific write.
 
+## 10a. Lookups — what the pickers choose from (research N-D4)
+
+| Method · Path | Gate | Query | Response |
+| --- | --- | --- | --- |
+| `GET /lookups/organizations` | `crm:read` | `q?`, `id?` (uuid — one, by id), `limit?` (default 20, max 50) | `{ data: [{ id, name }] }` — only Organizations in the caller's scope |
+| `GET /lookups/sales-channels` | `crm:read` | — | `{ data: [{ id, code, name: Record<lang, string>, active, systemDefault, defaultCurrency, currencies }] }` |
+| `GET /lookups/assignees` | `crm:read` | `q?`, `limit?` | `{ data: [{ id, name }] }` — active administrators (the rule of §5) |
+| `GET /lookups/contacts` | `crm:write` | `organizationId` (required), `q?`, `limit?` | `{ data: [{ id, name, email }] }` — empty for an Organization out of scope |
+
+Schemas: `OpportunityOrganizationLookupQuerySchema`, `OpportunityAssigneeLookupQuerySchema`,
+`OpportunityContactLookupQuerySchema` and the four `…LookupResponseSchema`. The CRM screens'
+pickers read these and no admin list of another module; the Order statuses and the Order
+search of §3–§4 remain `orders`' own endpoints under `orders:read`. A malformed query is 400.
+
 ## 11. History (US11)
 
 `GET /opportunities/:id/history?limit&cursor` · `crm:read` →

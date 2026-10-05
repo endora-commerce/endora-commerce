@@ -1,26 +1,39 @@
 import type { ReactNode } from 'react';
 import { Search } from 'lucide-react';
-import { Input, Label } from '@endora-commerce/admin-kit/ui';
-import { OrganizationPicker, SalesChannelPicker } from '@endora-commerce/admin-kit/components';
+import { Input, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import type { OpportunityFilterParams } from '../api.js';
+import { AssigneeLookup, OrganizationLookup, SalesChannelLookup } from './LookupPickers.js';
+import { TagMultiSelect } from './TagPicker.js';
 
 /**
  * The filters the list and the board share, as the two screens hold them:
- * text, Organization, Sales Channel and the creation-date range
+ * text, Organization, assignee, tags, Sales Channel and the creation-date range
  * (`specs/143-crm-sales-opportunities/contracts/admin-api.md` §1, §10).
  */
 export interface SharedOpportunityFilters {
   q: string;
   organizationId: string | null;
+  /** Anyone (`''`), the operator's own, nobody's, or one person's — chosen in `assigneeId`. */
+  assignee: AssigneeFilter;
+  assigneeId: string | null;
+  /** Every tag chosen must be carried — the list's AND. */
+  tagIds: readonly string[];
   salesChannelId: string | null;
   createdFrom: string;
   createdTo: string;
 }
 
+export type AssigneeFilter = '' | 'me' | 'unassigned' | 'person';
+
+const ASSIGNEE_FILTERS: readonly Exclude<AssigneeFilter, ''>[] = ['me', 'unassigned', 'person'];
+
 export const NO_SHARED_FILTERS: SharedOpportunityFilters = {
   q: '',
   organizationId: null,
+  assignee: '',
+  assigneeId: null,
+  tagIds: [],
   salesChannelId: null,
   createdFrom: '',
   createdTo: '',
@@ -30,10 +43,18 @@ export function hasSharedFilters(filters: SharedOpportunityFilters): boolean {
   return (
     filters.q.trim() !== '' ||
     filters.organizationId !== null ||
+    filters.assignee !== '' ||
+    filters.tagIds.length > 0 ||
     filters.salesChannelId !== null ||
     filters.createdFrom !== '' ||
     filters.createdTo !== ''
   );
+}
+
+/** `me` / `unassigned` as they are; "a person" only once somebody is chosen. */
+function assigneeParam(filters: SharedOpportunityFilters): string | null {
+  if (filters.assignee === 'person') return filters.assigneeId;
+  return filters.assignee === '' ? null : filters.assignee;
 }
 
 /** What the screens hold, as the query parameters both endpoints take. */
@@ -41,6 +62,8 @@ export function sharedFilterParams(filters: SharedOpportunityFilters): Opportuni
   return {
     ...(filters.q.trim() ? { q: filters.q.trim() } : {}),
     ...(filters.organizationId ? { organizationId: filters.organizationId } : {}),
+    ...(assigneeParam(filters) ? { assignedAdminUserId: assigneeParam(filters) as string } : {}),
+    ...(filters.tagIds.length > 0 ? { tagId: filters.tagIds } : {}),
     ...(filters.salesChannelId ? { salesChannelId: filters.salesChannelId } : {}),
     ...(filters.createdFrom ? { createdFrom: filters.createdFrom } : {}),
     ...(filters.createdTo ? { createdTo: filters.createdTo } : {}),
@@ -98,7 +121,7 @@ export function OpportunityFilterFields(props: OpportunityFilterFieldsProps): Re
         <Label htmlFor={`${idPrefix}-organization`}>
           {t('opportunity.list.filter.organization')}
         </Label>
-        <OrganizationPicker
+        <OrganizationLookup
           id={`${idPrefix}-organization`}
           ariaLabel={t('opportunity.list.filter.organization')}
           value={filters.organizationId}
@@ -108,8 +131,48 @@ export function OpportunityFilterFields(props: OpportunityFilterFieldsProps): Re
         />
       </div>
       <div className="space-y-1">
+        <Label htmlFor={`${idPrefix}-assignee`}>{t('assignment.filter.label')}</Label>
+        <Select
+          id={`${idPrefix}-assignee`}
+          value={filters.assignee}
+          onChange={(event): void =>
+            onChange({ assignee: event.target.value as AssigneeFilter, assigneeId: null })
+          }
+        >
+          <option value="">{t('assignment.filter.anyone')}</option>
+          {ASSIGNEE_FILTERS.map((option) => (
+            <option key={option} value={option}>
+              {t(`assignment.filter.option.${option}`)}
+            </option>
+          ))}
+        </Select>
+      </div>
+      {filters.assignee === 'person' ? (
+        <div className="space-y-1">
+          <Label htmlFor={`${idPrefix}-assignee-person`}>{t('assignment.filter.person')}</Label>
+          <AssigneeLookup
+            id={`${idPrefix}-assignee-person`}
+            ariaLabel={t('assignment.filter.person')}
+            value={filters.assigneeId}
+            onChange={(assigneeId): void => onChange({ assigneeId })}
+            placeholder={t('assignment.picker.placeholder')}
+            emptyMessage={t('assignment.picker.empty')}
+          />
+        </div>
+      ) : null}
+      <div className="space-y-1">
+        {/* The multi-select's trigger is a button; the visible label names it. */}
+        <span className="text-sm font-medium leading-none">{t('tags.filter.label')}</span>
+        <TagMultiSelect
+          ariaLabel={t('tags.filter.label')}
+          selected={filters.tagIds}
+          onChange={(tagIds): void => onChange({ tagIds })}
+          className="w-full"
+        />
+      </div>
+      <div className="space-y-1">
         <Label htmlFor={`${idPrefix}-channel`}>{t('opportunity.list.filter.salesChannel')}</Label>
-        <SalesChannelPicker
+        <SalesChannelLookup
           id={`${idPrefix}-channel`}
           ariaLabel={t('opportunity.list.filter.salesChannel')}
           value={filters.salesChannelId}

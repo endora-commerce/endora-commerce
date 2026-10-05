@@ -13,7 +13,9 @@ import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
   CRM_ADMIN,
   CRM_API,
+  clearCrmTags,
   createCrmOpportunity,
+  createCrmTag,
   restoreDefaultCrmWorkflow,
   seedCrmAdmin,
   seedCrmOrganization,
@@ -35,8 +37,8 @@ describe('crm board (contract)', () => {
   let h: BackendServerHandle;
   let otherOrganizationId: string;
   let salesChannelId: string;
-  let viewer: { cookies: { b2b_session: string }; undo: () => void };
-  let stranger: { cookies: { b2b_session: string }; undo: () => void };
+  let viewer: { cookies: { b2b_session: string }; adminUserId: string; undo: () => void };
+  let stranger: { cookies: { b2b_session: string }; adminUserId: string; undo: () => void };
   let rep: { cookies: { b2b_session: string }; undo: () => void };
 
   /** Every Opportunity of this file carries it, so a search isolates them from nothing else. */
@@ -215,11 +217,120 @@ describe('crm board (contract)', () => {
     expect(column(data, 'won').count).toBe(1);
   });
 
-  it('refuses the assignee and tag filters until their stories serve them, as the list does', async () => {
-    for (const query of ['?assignedAdminUserId=me', '?tagId=00000000-0000-4000-8000-00000000dead']) {
-      const response = await h.app.inject({ method: 'GET', url: `${CRM_API}/board${query}`, cookies: CRM_ADMIN });
-      expect(response.statusCode, `${query} ${response.body}`).toBe(422);
-    }
+  describe('the assignee and tag filters, as the list applies them', () => {
+    /** A second marker, so these Opportunities are in none of the figures asserted above. */
+    const PICK = 'boardpick';
+    let red: { id: string };
+    let blue: { id: string };
+
+    const pick = (title: string, body: Record<string, unknown>, status?: readonly string[]) =>
+      make(title, { title: `${PICK} ${title}`, ...body }, status);
+
+    const total = (data: OpportunityBoard): number =>
+      data.columns.reduce((sum, entry) => sum + entry.count, 0);
+
+    /** The list's answer for the same filters — the board must never say anything else. */
+    const listed = async (query: string, cookies: Record<string, string> = CRM_ADMIN): Promise<string[]> => {
+      const response = await h.app.inject({
+        method: 'GET',
+        url: `${CRM_API}/opportunities?q=${PICK}&${query}`,
+        cookies,
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      return OpportunityListResponseSchema.parse(response.json())
+        .data.map((item) => item.title)
+        .sort();
+    };
+
+    const onBoard = (data: OpportunityBoard): string[] =>
+      data.columns.flatMap((entry) => entry.items.map((item) => item.title)).sort();
+
+    beforeAll(async () => {
+      await clearCrmTags(h.em());
+      red = await createCrmTag(h, 'board red');
+      blue = await createCrmTag(h, 'board blue');
+      // mine (viewer's), red + blue, 10.00 — nobody's, red, 20.00 —
+      // the stranger's, blue, 30.00, qualified.
+      await pick('mine', { assignedAdminUserId: viewer.adminUserId, tagIds: [red.id, blue.id], manualValue: '10.00' });
+      await pick('nobody', { assignedAdminUserId: null, tagIds: [red.id], manualValue: '20.00' });
+      await pick(
+        'theirs',
+        { assignedAdminUserId: stranger.adminUserId, tagIds: [blue.id], manualValue: '30.00' },
+        ['qualified'],
+      );
+    });
+
+    afterAll(async () => {
+      await clearCrmTags(h.em());
+    });
+
+    it('assignedAdminUserId=me is whoever asks', async () => {
+      const mine = await board(`?q=${PICK}&assignedAdminUserId=me`, viewer.cookies);
+      expect(onBoard(mine)).toEqual([`${PICK} mine`]);
+      expect(column(mine, 'new')).toMatchObject({
+        count: 1,
+        valueTotals: [{ currency: 'PLN', total: '10.00' }],
+      });
+      expect(total(mine)).toBe(1);
+      expect(onBoard(mine)).toEqual(await listed('assignedAdminUserId=me', viewer.cookies));
+      // Somebody else asking the same question gets their own answer.
+      expect(total(await board(`?q=${PICK}&assignedAdminUserId=me`))).toBe(0);
+    });
+
+    it('assignedAdminUserId=unassigned answers the Opportunities nobody holds', async () => {
+      const data = await board(`?q=${PICK}&assignedAdminUserId=unassigned`);
+      expect(onBoard(data)).toEqual([`${PICK} nobody`]);
+      expect(column(data, 'new')).toMatchObject({
+        count: 1,
+        valueTotals: [{ currency: 'PLN', total: '20.00' }],
+      });
+      expect(total(data)).toBe(1);
+      expect(onBoard(data)).toEqual(await listed('assignedAdminUserId=unassigned'));
+    });
+
+    it('assignedAdminUserId=<uuid> answers that administrator\'s', async () => {
+      const data = await board(`?q=${PICK}&assignedAdminUserId=${stranger.adminUserId}`);
+      expect(onBoard(data)).toEqual([`${PICK} theirs`]);
+      expect(column(data, 'qualified')).toMatchObject({
+        count: 1,
+        valueTotals: [{ currency: 'PLN', total: '30.00' }],
+      });
+      expect(total(data)).toBe(1);
+      expect(onBoard(data)).toEqual(await listed(`assignedAdminUserId=${stranger.adminUserId}`));
+    });
+
+    it('tagId narrows to the Opportunities carrying the tag; repeated, to those carrying every one', async () => {
+      const byRed = await board(`?q=${PICK}&tagId=${red.id}`);
+      expect(onBoard(byRed)).toEqual([`${PICK} mine`, `${PICK} nobody`]);
+      expect(column(byRed, 'new')).toMatchObject({
+        count: 2,
+        valueTotals: [{ currency: 'PLN', total: '30.00' }],
+      });
+      expect(total(byRed)).toBe(2);
+      expect(onBoard(byRed)).toEqual(await listed(`tagId=${red.id}`));
+
+      const byBlue = await board(`?q=${PICK}&tagId=${blue.id}`);
+      expect(onBoard(byBlue)).toEqual([`${PICK} mine`, `${PICK} theirs`]);
+      expect(column(byBlue, 'qualified').count).toBe(1);
+
+      const byBoth = await board(`?q=${PICK}&tagId=${red.id}&tagId=${blue.id}`);
+      expect(onBoard(byBoth)).toEqual([`${PICK} mine`]);
+      expect(total(byBoth)).toBe(1);
+      expect(onBoard(byBoth)).toEqual(await listed(`tagId=${red.id}&tagId=${blue.id}`));
+    });
+
+    it('a tag nothing carries answers every column, empty', async () => {
+      const data = await board(`?q=${PICK}&tagId=00000000-0000-4000-8000-00000000dead`);
+      expect(data.columns).toHaveLength(6);
+      expect(total(data)).toBe(0);
+      expect(onBoard(data)).toEqual([]);
+    });
+
+    it('combines both filters', async () => {
+      const data = await board(`?q=${PICK}&tagId=${red.id}&assignedAdminUserId=unassigned`);
+      expect(onBoard(data)).toEqual([`${PICK} nobody`]);
+      expect(total(data)).toBe(1);
+    });
   });
 
   it('refuses a malformed query', async () => {

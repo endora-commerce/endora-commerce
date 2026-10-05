@@ -6,8 +6,7 @@ description: Szanse sprzedażowe z konfigurowalnym przepływem statusów, za kt�
 # `crm`
 
 Moduł CRM prowadzi **szanse sprzedażowe**: transakcje, nad którymi
-przedstawiciel handlowy pracuje z jedną organizacją klienta — od pierwszego
-kontaktu do chwili, gdy szansa zostaje wygrana albo przegrana.
+handlowiec pracuje z jedną organizacją klienta — od pierwszego kontaktu do chwili, gdy szansa zostaje wygrana albo przegrana.
 
 Ta strona rośnie razem z modułem. Wszystko, co oznaczono jako *wkrótce*, jest
 zaprojektowane, ale jeszcze niedostępne.
@@ -49,11 +48,12 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 
 | Ekran | Gdzie | Uprawnienie | Do czego służy |
 | --- | --- | --- | --- |
-| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, kanał sprzedaży i data utworzenia. |
+| Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży i data utworzenia. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
 | Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Jej status i zmiany, na które pozwala przepływ, powiązane z nią zamówienia oraz to, co stało się z tymi zamówieniami po każdej zmianie. |
 | Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
-| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi oraz status zamówienia ustawiany przez każdy status szansy. |
+| Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
+| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy oraz status szansy, do którego prowadzi każdy status zamówienia. |
 
 Codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
 **Szanse sprzedażowe**, **Nowa szansa sprzedażowa** i **Tablica szans
@@ -91,7 +91,7 @@ szansa — i musi to być status otwarty.
 
 Przejście to skierowany krok z jednego statusu do drugiego. Szansa może
 wykonać tylko skonfigurowany krok, więc zbiór przejść wyznacza to, co kontrolka
-statusu proponuje przedstawicielowi handlowemu. Status zamykający może mieć
+statusu proponuje handlowcowi. Status zamykający może mieć
 przejścia wychodzące: ponowne otwarcie jest przejściem jak każde inne. Na
 ekranie **Statusy i przepływ** przejścia są narysowane jako graf; nowe dodaje
 się, wybierając jego dwa końce pod grafem albo klikając **Połącz** i dwa
@@ -109,6 +109,7 @@ którą by naruszyła:
 | `transition_unknown_status` | Przejście łączy dwa istniejące statusy. |
 | `mapping_unknown_status` | Mapowanie wskazuje istniejący status szansy. |
 | `mapping_duplicate` | Status szansy mapuje się na jeden status zamówienia, a nie na kilka. |
+| `mapping_duplicate_order_status` | Status zamówienia przesuwa szansę do jednego statusu, a nie do kilku. |
 
 Statusu, w którym znajdują się szanse, nie można usunąć ani zmienić jego
 rodzaju; najpierw trzeba przenieść szanse. Statusu początkowego również nie
@@ -141,7 +142,7 @@ ją ponownie.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
-| `GET /api/v1/admin/crm/opportunities` | `crm:read` | Lista z wyszukiwaniem (tytuł, numer, nazwa organizacji), filtrami według statusu, stanu (`open` / `won` / `lost`), organizacji, kanału sprzedaży i daty utworzenia, z sortowaniem i stronicowaniem. |
+| `GET /api/v1/admin/crm/opportunities` | `crm:read` | Lista z wyszukiwaniem (tytuł, numer, nazwa organizacji), filtrami według statusu, stanu (`open` / `won` / `lost`), organizacji, handlowca, etykiet, kanału sprzedaży i daty utworzenia, z sortowaniem i stronicowaniem. |
 | `POST /api/v1/admin/crm/opportunities` | `crm:write` | Utworzenie szansy. |
 | `GET /api/v1/admin/crm/opportunities/:id` | `crm:read` | Jedna szansa wraz ze statusami, do których może przejść, powiązanymi zamówieniami i każdą odrzuconą zmianą zamówienia. |
 | `PATCH /api/v1/admin/crm/opportunities/:id` | `crm:write` | Edycja. Odczytaną wersję należy przesłać w nagłówku `If-Match`; nieaktualna jest odrzucana kodem `409`. |
@@ -177,7 +178,7 @@ statusów i powiązaniami; same powiązane zamówienia pozostają bez zmian.
 jednej kolumnie dla każdego statusu, w kolejności przepływu. Nagłówek kolumny
 podaje liczbę szans w tym statusie i ich wartość, osobną sumę dla każdej
 waluty; karta pokazuje tytuł szansy, numer, organizację, wartość, osobę, do
-której jest przypisana, oraz tagi. Tytuł na karcie otwiera szansę.
+której jest przypisana, oraz etykiety. Tytuł na karcie otwiera szansę.
 
 Kartę można przenieść do innego statusu na dwa sposoby i oba robią dokładnie
 to samo, co przyciski statusów na ekranie szansy — łącznie z powiązanymi
@@ -202,8 +203,8 @@ szansa pozostaje przeniesiona: karta zostaje oznaczona, a powiadomienie nad
 tablicą wymienia każde takie zamówienie z przyczyną i prowadzi do szansy, gdzie
 zmianę można ponowić albo pominąć.
 
-Pole wyszukiwania oraz filtry organizacji, kanału sprzedaży i daty utworzenia
-są takie same jak na liście i zawężają każdą kolumnę — jej karty, liczbę i
+Pole wyszukiwania oraz filtry organizacji, handlowca, etykiet, kanału sprzedaży
+i daty utworzenia są takie same jak na liście i zawężają każdą kolumnę — jej karty, liczbę i
 sumy. Kolumna, która zawiera więcej szans, niż pokazuje, podaje ich liczbę i
 ma przycisk **Pokaż więcej**.
 
@@ -212,7 +213,7 @@ menu.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
-| `GET /api/v1/admin/crm/board` | `crm:read` | Po jednej kolumnie dla każdego statusu, w kolejności przepływu: status, `count`, `valueTotals` dla każdej waluty, pierwsze `perColumn` szans (domyślnie 50, najwyżej 200) oraz `hasMore`. Przyjmuje filtry listy z wyjątkiem `statusCode` i `state`. |
+| `GET /api/v1/admin/crm/board` | `crm:read` | Po jednej kolumnie dla każdego statusu, w kolejności przepływu: status, `count`, `valueTotals` dla każdej waluty, pierwsze `perColumn` szans (domyślnie 50, najwyżej 200) oraz `hasMore`. Przyjmuje filtry listy z wyjątkiem `statusCode` i `state` — także filtr handlowca i filtr etykiet, w tym samym znaczeniu. |
 
 Tablica nie ma własnej operacji zapisu: przeniesienie karty to
 `POST /api/v1/admin/crm/opportunities/:id/transition`. Kolejne karty kolumny
@@ -268,115 +269,13 @@ dopóki ktoś się nim nie zajmie:
 - **Ponów** prosi zamówienie jeszcze raz — po poprawieniu mapowania albo gdy
   zamówienie przeszło do statusu, z którego zmapowany jest osiągalny.
   Zamówienie jest proszone o to, na co status szansy mapuje się *teraz*.
-- **Odrzuć** przyjmuje odmowę do wiadomości i zostawia zamówienie tam, gdzie
+- **Pomiń** przyjmuje odmowę do wiadomości i zostawia zamówienie tam, gdzie
   jest.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
 | `POST /api/v1/admin/crm/opportunities/:id/propagations/:propagationId/retry` | `crm:write` | Ponowna prośba do zamówienia. |
 | `POST /api/v1/admin/crm/opportunities/:id/propagations/:propagationId/dismiss` | `crm:write` | Przyjęcie odmowy do wiadomości. |
-
-## Własna logika przy zmianie statusu
-
-Inny moduł — zwykle moduł nakładkowy danego wdrożenia — może zareagować na
-przejście szansy ze statusu X do statusu Y, a także je odrzucić. Oba punkty
-zaczepienia są opublikowane w `@endora-commerce/contracts`; żaden nie wymaga
-zmiany w CRM.
-
-**Reakcja na przejście** polega na subskrypcji zdarzenia. Dla przejścia z `x`
-do `y` CRM emituje, w tej kolejności:
-
-| Zdarzenie | Kiedy |
-| --- | --- |
-| `crm.opportunity.status.from_<x>_to_<y>.before` | przed zapisaniem zmiany |
-| `crm.opportunity.status.from_<x>.before` | przed zapisaniem zmiany |
-| `crm.opportunity.status_changed.v1` | po zapisaniu i po tym, jak poproszono powiązane zamówienia |
-| `crm.opportunity.status.from_<x>_to_<y>.after` | jak wyżej |
-| `crm.opportunity.status.to_<y>.after` | jak wyżej |
-| `crm.opportunity.closed.v1` | jak wyżej, gdy `y` zamyka szansę |
-
-Nazwy buduje funkcja `opportunityStatusEventName`, więc subskrybent nie
-zapisuje wzorca ręcznie. Subskrybent nie może zatrzymać przejścia, a jego błąd
-go nie cofa.
-
-```ts
-ctx.subscribe(opportunityStatusEventName('toAfter', { to: 'won' }), async (event) => {
-  await notifyFinance(event.opportunityId);
-});
-```
-
-**Odrzucenie przejścia** polega na zarejestrowaniu strażnika. Strażnik
-wskazuje przejścia, które obserwuje — ze statusu, do statusu albo oba — i
-odmawia, rzucając `OpportunityTransitionVetoError`. Zdanie, które rzuca, czyta
-przedstawiciel handlowy; gdy strażnik odmawia, nic nie jest zapisywane.
-
-```ts
-ctx.onBoot(() => {
-  lazyPort<OpportunityTransitionGuardRegistryPort>(ctx, 'opportunityTransitionGuardRegistry').register({
-    ownerModuleId: 'acme_rules',
-    match: { to: 'won' },
-    guard: (event) => {
-      if (event.reason === null) throw new OpportunityTransitionVetoError('Say why the deal was won.', event.from, event.to);
-    },
-  });
-});
-```
-
-Moduł rejestrujący strażnika deklaruje to w swoim manifeście:
-`nonBindingDependencies: [{ moduleId: 'crm', name: 'opportunityTransitionGuardRegistry', kind: 'contributes-to' }]`.
-Strażnik należący do wyłączonego modułu jest pomijany — moduł, który jest
-wyłączony, niczego nie odrzuca.
-
-## Włączanie i wyłączanie
-
-CRM jest modułem opcjonalnym. Domyślnie jest włączony, a operator wyłącza go
-i włącza ponownie na ekranie **Moduły** w Admin UI (`/platform/modules`).
-
-Gdy jest wyłączony:
-
-- każdy punkt końcowy `/api/v1/admin/crm/…` odpowiada kodem `503` z kodem
-  błędu `MODULE_DISABLED`;
-- jego ekrany, grupa w menu bocznym, pozycje palety poleceń i ustawienia
-  znikają z Admin UI;
-- jego uprawnień nie można już nadać roli;
-- nic, co moduł robiłby w tle, się nie dzieje.
-
-Nic nie jest usuwane. Każda szansa, jej historia i konfiguracja przepływu
-pozostają w bazie danych, a po ponownym włączeniu modułu wszystko wraca
-dokładnie do poprzedniego stanu.
-
-## Uprawnienia
-
-| Kod | Na co pozwala |
-| --- | --- |
-| `crm:read` | Przeglądanie szans sprzedażowych i przepływu statusów. |
-| `crm:write` | Tworzenie i edycja szans, przenoszenie ich w przepływie, wiązanie i odłączanie zamówień, ponawianie lub odrzucanie odmowy zmiany zamówienia. |
-| `crm:configure` | Zmiana przepływu — statusów, przejść i mapowań statusów zamówień — oraz usuwanie szansy. |
-
-Rola z uprawnieniem `crm:read` powinna mieć także `orders:read`: szansa
-pokazuje powiązane z nią zamówienia, a te są odczytywane z modułu Zamówienia.
-Uprawnienia `crm:write` i `crm:configure` opierają się na `crm:read`.
-
-Żadna rola nie otrzymuje uprawnień CRM automatycznie. Nadaje się je na
-ekranie **Role**.
-
-## Ustawienia
-
-| Ustawienie | Domyślnie | Znaczenie |
-| --- | --- | --- |
-| `crm.enabled` | włączone | Przełącznik opisany powyżej. |
-| `crm.auto_create_from_orders` | wyłączone | Tworzenie szansy dla każdego nowo złożonego zamówienia — patrz *Szanse tworzone automatycznie*. |
-| `crm.auto_create_from_quote_requests` | wyłączone | Tworzenie szansy dla każdego nowo przesłanego zapytania ofertowego — patrz *Szanse tworzone automatycznie*. |
-
-## Wkrótce
-
-- Przesuwanie szansy, gdy jedno z jej zamówień osiągnie wskazany status.
-- Przypisywanie szans przedstawicielom handlowym.
-- Notatki, wiadomości wewnętrzne, załączniki i tagi.
-- Wiązanie zapytań ofertowych oraz wartość obliczana z powiązanych dokumentów.
-- Historia zmian każdej szansy.
-- Analityka: czas obsługi, czas w poszczególnych statusach, wyniki
-  przedstawicieli handlowych.
 
 ## Zamówienie, które przesuwa swoją szansę
 
@@ -408,7 +307,18 @@ i się zatrzymuje:
 - gdy zamówienie przesuwa swoją szansę, żadne inne zamówienie tej szansy nie
   jest proszone o podążanie.
 
-Mapowanie wysyła się na ten sam adres co mapowania w przód, z
+Na ekranie **Statusy i przepływ** te mapowania to druga tabela, *Status szansy
+dla każdego statusu zamówienia*: jeden wiersz dla każdego statusu zamówienia,
+wybór statusu szansy, do którego on prowadzi, oraz pole wyboru **Dopiero gdy są
+tam wszystkie powiązane zamówienia**. Pole jest zaznaczane automatycznie, gdy
+wybrany status zamyka szansę — jedno dostarczone zamówienie z trzech nie
+powinno wygrywać transakcji — a w pozostałych przypadkach zostaje puste; przed
+zapisaniem można je zmienić w obie strony. Mapowanie, którego status zamówienia
+został w międzyczasie usunięty z przepływu zamówień, zostaje w tabeli z
+oznaczeniem *już nie istnieje*, dopóki w jego wierszu nie zostanie wybrane *Nie
+zmieniaj szansy*. Przycisk **Zapisz mapowania** zapisuje obie tabele naraz.
+
+W API mapowanie wysyła się na ten sam adres co mapowania w przód, z
 `direction: "order_to_opportunity"` i opcjonalnie z `requireAllOrders`. Zbiór
 jest zastępowany w całości, oba kierunki razem:
 
@@ -420,9 +330,6 @@ jest zastępowany w całości, oba kierunki razem:
   ]
 }
 ```
-
-Do opisanych wyżej reguł dochodzi jedna: `mapping_duplicate_order_status` —
-status zamówienia przesuwa szansę do jednego statusu, a nie do kilku.
 
 `GET /api/v1/admin/crm/workflow` podaje `orderStatusKnown` dla każdego
 mapowania. Wartość zmienia się na `false`, gdy moduł Zamówień odpowie, że taki
@@ -452,6 +359,23 @@ dosłownie i reguła nie ma zastosowania.
 wybranych organizacji widzi każdą szansę tych organizacji, niezależnie od tego,
 kto ją prowadzi — i nie widzi szansy innej organizacji, nawet jeśli jest do
 niego przypisana.
+
+W Admin UI:
+
+- **W formularzu nowej szansy** pole *Handlowiec* jest opcjonalne. Jeśli
+  zostanie puste, wybiera opisana wyżej reguła; jeśli wskażesz osobę, szansa
+  jest jej.
+- **Na ekranie szansy** sekcja *Handlowiec* pokazuje, kto ją prowadzi.
+  Posiadacz uprawnienia `crm:write` zmienia to w tym samym miejscu: wybranie
+  osoby od razu przypisuje jej szansę, a wyczyszczenie pola zostawia szansę
+  nieprzypisaną. Niczego nie trzeba zapisywać.
+- **Na liście** jest kolumna *Handlowiec*, a lista i tablica mają filtr
+  *Handlowiec*: **Dowolny**, **Moje**, **Nieprzypisane** albo **Wybrana
+  osoba…** — ta ostatnia opcja dodaje pole wyboru osoby.
+- Handlowiec, którego konto zostało w międzyczasie dezaktywowane, jest
+  oznaczony jako **nieaktywny** wszędzie, gdzie pojawia się jego imię i
+  nazwisko: na liście, na kartach tablicy i na ekranie szansy. Szansa pozostaje
+  jego, dopóki ktoś jej nie przypisze komuś innemu.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
@@ -494,6 +418,20 @@ etykiet jest jedna dla całej platformy.
 Zarządzanie listą etykiet jest konfiguracją i wymaga `crm:configure`.
 Nadawanie etykiet szansie to codzienna praca i wymaga `crm:write`.
 
+W Admin UI:
+
+- **CRM → Etykiety** to lista etykiet z informacją, ile widocznych dla Ciebie
+  szans ma każdą z nich. Przycisk **Dodaj etykietę** otwiera krótki formularz
+  z nazwą i kolorem; ołówek zmienia nazwę lub kolor; kosz usuwa etykietę — po
+  potwierdzeniu, które podaje, ile szans ją straci.
+- **Na ekranie szansy** sekcja *Etykiety* pokazuje jej etykiety. Posiadacz
+  uprawnienia `crm:write` zaznacza je i odznacza na liście poniżej; każda
+  zmiana jest zapisywana od razu.
+- **W formularzu nowej szansy** pole *Etykiety* pozwala nadać je od początku.
+- **Na liście i na tablicy** filtr *Etykiety (wszystkie naraz)* zawęża widok do
+  szans, które mają każdą zaznaczoną etykietę. Lista pokazuje etykiety szansy
+  pod jej tytułem, a tablica — na karcie.
+
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/tags` | `crm:read` | Lista etykiet według nazwy, każda z `usageCount`. |
@@ -528,6 +466,16 @@ jest zapisywana tak samo, a nikt nie dostaje powiadomienia.
 ustawienia, które pokazałoby ją klientowi, i nic, co klient może otworzyć —
 Zamówienie, zapytanie ofertowe, jego konto — ich nie zawiera.
 
+W Admin UI szansa ma kartę **Notatki** i kartę **Wiadomości**. Każda pokazuje
+wpisy od najstarszego, z autorem i datą, a posiadaczowi uprawnienia `crm:write`
+— także pole pod listą, w którym pisze się następny wpis.
+
+- Na karcie **Notatki** przy własnych notatkach są przyciski **Edytuj** i
+  **Usuń**; przy notatkach innych osób ich nie ma. Zmieniona notatka jest
+  oznaczona jako *edytowano*. Usunięcie wymaga potwierdzenia.
+- Na karcie **Wiadomości** niczego nie można edytować ani usunąć, o czym karta
+  informuje nad rozmową.
+
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | Notatki szansy, od najstarszej. `kind=message` — rozmowa. Parametr `kind` jest wymagany. |
@@ -561,6 +509,20 @@ Każdy, kto może czytać szansę, może pobrać jej załączniki; żadne uprawn
 biblioteki mediów nie jest potrzebne. Każdy Załącznik na liście ma odnośnik do
 pobrania ważny przez kilka minut — aby dostać świeży, wystarczy ponownie
 odczytać listę.
+
+W Admin UI szansa ma kartę **Załączniki**: listę plików z nazwą, rozmiarem,
+osobą, która plik dodała, i datą dodania.
+
+- **Dodaj plik** przesyła plik do biblioteki mediów jako prywatny i dołącza go
+  do szansy. Przesyłanie korzysta z mechanizmu biblioteki mediów, więc rola
+  potrzebuje uprawnienia `assets.write` oprócz `crm:write`; rola bez niego
+  widzi zamiast przycisku zdanie, które to wyjaśnia.
+- Przycisk pobierania przygotowuje świeży odnośnik w chwili kliknięcia i
+  otwiera plik w nowej karcie. Jeśli pliku nie ma już w bibliotece mediów,
+  ekran o tym informuje i niczego nie otwiera.
+- Kosz usuwa Załącznik po potwierdzeniu. Plik pozostaje w bibliotece mediów.
+
+Osoba, która może tylko czytać, widzi listę i przyciski pobierania.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
@@ -872,3 +834,121 @@ wysyłane — a to, co wydarzyło się w tym czasie, nie jest wysyłane późnie
 wyłączony jest moduł CRM, jego trzy typy zdarzeń nie są oferowane; subskrypcja,
 która wskazuje któryś z nich, zostaje zachowana i po prostu nic nie dostaje,
 dopóki CRM nie wróci.
+
+## Własna logika przy zmianie statusu
+
+Inny moduł — zwykle moduł nakładkowy danego wdrożenia — może zareagować na
+przejście szansy ze statusu X do statusu Y, a także je odrzucić. Oba punkty
+zaczepienia są opublikowane w `@endora-commerce/contracts`; żaden nie wymaga
+zmiany w CRM.
+
+**Reakcja na przejście** polega na subskrypcji zdarzenia. Dla przejścia z `x`
+do `y` CRM emituje, w tej kolejności:
+
+| Zdarzenie | Kiedy |
+| --- | --- |
+| `crm.opportunity.status.from_<x>_to_<y>.before` | przed zapisaniem zmiany |
+| `crm.opportunity.status.from_<x>.before` | przed zapisaniem zmiany |
+| `crm.opportunity.status_changed.v1` | po zapisaniu i po tym, jak poproszono powiązane zamówienia |
+| `crm.opportunity.status.from_<x>_to_<y>.after` | jak wyżej |
+| `crm.opportunity.status.to_<y>.after` | jak wyżej |
+| `crm.opportunity.closed.v1` | jak wyżej, gdy `y` zamyka szansę |
+
+Nazwy buduje funkcja `opportunityStatusEventName`, więc subskrybent nie
+zapisuje wzorca ręcznie. Subskrybent nie może zatrzymać przejścia, a jego błąd
+go nie cofa.
+
+```ts
+ctx.subscribe(opportunityStatusEventName('toAfter', { to: 'won' }), async (event) => {
+  await notifyFinance(event.opportunityId);
+});
+```
+
+**Odrzucenie przejścia** polega na zarejestrowaniu strażnika. Strażnik
+wskazuje przejścia, które obserwuje — ze statusu, do statusu albo oba — i
+odmawia, rzucając `OpportunityTransitionVetoError`. Zdanie, które rzuca, czyta
+handlowiec; gdy strażnik odmawia, nic nie jest zapisywane.
+
+```ts
+ctx.onBoot(() => {
+  lazyPort<OpportunityTransitionGuardRegistryPort>(ctx, 'opportunityTransitionGuardRegistry').register({
+    ownerModuleId: 'acme_rules',
+    match: { to: 'won' },
+    guard: (event) => {
+      if (event.reason === null) throw new OpportunityTransitionVetoError('Say why the deal was won.', event.from, event.to);
+    },
+  });
+});
+```
+
+Moduł rejestrujący strażnika deklaruje to w swoim manifeście:
+`nonBindingDependencies: [{ moduleId: 'crm', name: 'opportunityTransitionGuardRegistry', kind: 'contributes-to' }]`.
+Strażnik należący do wyłączonego modułu jest pomijany — moduł, który jest
+wyłączony, niczego nie odrzuca.
+
+## Włączanie i wyłączanie
+
+CRM jest modułem opcjonalnym. Domyślnie jest włączony, a operator wyłącza go
+i włącza ponownie na ekranie **Moduły** w Admin UI (`/platform/modules`).
+
+Gdy jest wyłączony:
+
+- każdy punkt końcowy `/api/v1/admin/crm/…` odpowiada kodem `503` z kodem
+  błędu `MODULE_DISABLED`;
+- jego ekrany, grupa w menu bocznym, pozycje palety poleceń i ustawienia
+  znikają z Admin UI;
+- jego uprawnień nie można już nadać roli;
+- nic, co moduł robiłby w tle, się nie dzieje.
+
+Nic nie jest usuwane. Każda szansa, jej historia i konfiguracja przepływu
+pozostają w bazie danych, a po ponownym włączeniu modułu wszystko wraca
+dokładnie do poprzedniego stanu.
+
+## Uprawnienia
+
+| Kod | Na co pozwala |
+| --- | --- |
+| `crm:read` | Przeglądanie szans sprzedażowych, tablicy, przepływu statusów i listy etykiet; czytanie historii zmian szansy, jej notatek i wiadomości oraz pobieranie jej załączników. |
+| `crm:write` | Tworzenie i edycja szans, przenoszenie ich w przepływie, przypisywanie handlowca, nadawanie etykiet, wiązanie i odłączanie zamówień oraz zapytań ofertowych, wybór między wartością wpisaną a wyliczaną, ponawianie lub pomijanie odmowy zmiany zamówienia, pisanie notatek i wiadomości, dodawanie i usuwanie załączników (przesłanie nowego pliku wymaga też uprawnienia `assets.write` biblioteki mediów). |
+| `crm:configure` | Zmiana przepływu — statusów, przejść i mapowań statusów zamówień w obu kierunkach oraz statusów liczonych do wartości wyliczanej — zarządzanie listą etykiet oraz usuwanie szansy. |
+
+Rola z uprawnieniem `crm:read` powinna mieć także `orders:read`: szansa
+pokazuje powiązane z nią zamówienia, a te są odczytywane z modułu Zamówienia.
+Uprawnienia `crm:write` i `crm:configure` opierają się na `crm:read`.
+
+**Nic więcej nie jest potrzebne.** Pola wyboru organizacji, kanału sprzedaży,
+handlowca i osoby kontaktowej — w filtrach listy i tablicy oraz w formularzach
+— korzystają z własnych list podpowiedzi modułu CRM, więc handlowiec nie
+potrzebuje uprawnień do przeglądania klientów, kanałów sprzedaży ani
+administratorów, żeby pracować z szansą. Lista podpowiedzi jest zawężona do
+organizacji, które dana osoba może zobaczyć, i zawiera wyłącznie nazwę, po
+której się wybiera.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/lookups/organizations?q=…` | `crm:read` | Organizacje widoczne dla pytającego, według nazwy: `id`, `name`. Parametr `id=…` zwraca jedną. |
+| `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Wszystkie kanały sprzedaży: `id`, `code`, `name` w każdym języku, `active`, `systemDefault` oraz waluty, w których kanał sprzedaje. |
+| `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Aktywni administratorzy, według imienia i nazwiska: `id`, `name`. |
+| `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Członkowie jednej organizacji widocznej dla pytającego: `id`, `name`, `email`. |
+
+Waluty proponowane przy tworzeniu szansy to te, w których sprzedają aktywne
+kanały sprzedaży.
+
+Żadna rola nie otrzymuje uprawnień CRM automatycznie. Nadaje się je na
+ekranie **Role**.
+
+## Ustawienia
+
+| Ustawienie | Domyślnie | Znaczenie |
+| --- | --- | --- |
+| `crm.enabled` | włączone | Przełącznik opisany powyżej. |
+| `crm.auto_create_from_orders` | Każde zamówienie złożone od tej chwili dostaje własną szansę. Ustawienie może być różne dla kanałów sprzedaży; decyduje kanał zamówienia. |
+| `crm.auto_create_from_quote_requests` | Każde Zapytanie ofertowe przesłane przez klienta od tej chwili dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
+
+## Wkrótce
+
+- Ekrany wartości wyliczanej, historii zmian i odwołań. Ich punkty końcowe są
+  opisane powyżej i działają już dziś.
+- Tworzenie zamówienia albo zapytania ofertowego z poziomu szansy.
+- Analityka: czas obsługi, czas w poszczególnych statusach, wyniki
+  handlowców.
