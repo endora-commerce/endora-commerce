@@ -6,21 +6,36 @@ import type {
   OpportunityHistoryEntry,
   OpportunityWorkflowStatus,
 } from '@endora-commerce/contracts';
-import { formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { formatDateTime, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { crmApi } from '../api.js';
+import { crmApi, type OrderStatusOption } from '../api.js';
+import {
+  humaniseKey,
+  LABELLED_HISTORY_FIELDS,
+  SILENT_HISTORY_FIELDS,
+} from '../lib/history-fields.js';
 import {
   calendarDateLabel,
   errorMessage,
   moneyLabel,
   NO_VALUE,
+  orderStatusLabel,
   workflowStatusLabel,
 } from '../lib/labels.js';
+import {
+  customFieldLabel,
+  customFieldValueLabel,
+  useCanSeeCustomFields,
+  useOpportunityFieldDefinitions,
+} from './OpportunityCustomFields.js';
 
 const PAGE_SIZE = 50;
 /** A long text (a description, a note) is cut here; the whole of it is where it lives. */
 const TEXT_LIMIT = 280;
+const ORDERS_READ = 'orders:read';
+const RETRY_ACTION = 'crm.opportunity.propagation_retry';
+const NOT_FOLLOWED_ACTION = 'crm.opportunity.propagation_skip';
 
 type State = Record<string, unknown>;
 
@@ -42,37 +57,30 @@ function same(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Identifiers that say nothing to a reader and are never a row of their own.
- * The ones that *name* something a person knows — the assignee, an Order — are
- * not here: they are resolved to a name where one is known.
- */
-const SILENT_FIELDS: ReadonlySet<string> = new Set([
-  'linkId',
-  'commentId',
-  'attachmentId',
-  'assetId',
-  'propagationId',
-  'linkedByAdminUserId',
-  // Who wrote a note or a message is the entry's own actor, named above it.
-  'authorAdminUserId',
-  'version',
-  'cause',
-  'causeOrderId',
-  'status',
-]);
-
-/**
  * What an entry changed, field by field: for an edit the fields whose value
  * differs, for something that only appeared (a creation, a link, a note) the
  * fields it arrived with, for something removed the fields it had.
  *
  * The status of a status change and its cause are not here — the entry shows
  * them as a sentence of their own.
+ *
+ * **A retry is one statement, not an edit.** Its `before` is the refusal it
+ * starts from and its `after` the attempt it opens, so the two share almost no
+ * key and a field-by-field comparison reads "outcome: refused → nothing". What
+ * it says instead: which Order, the status asked of it, and the refusal that is
+ * being retried — under a name of its own (`retriedOutcome`), because the
+ * entry does not carry what the retry led to.
  */
-export function historyChanges(entry: Pick<OpportunityHistoryEntry, 'before' | 'after'>): HistoryChange[] {
+export function historyChanges(
+  entry: Pick<OpportunityHistoryEntry, 'before' | 'after'> & { action?: string },
+): HistoryChange[] {
   const before = asState(entry.before);
   const after = asState(entry.after);
-  const shown = (field: string): boolean => !SILENT_FIELDS.has(field);
+  const shown = (field: string): boolean => !SILENT_HISTORY_FIELDS.has(field);
+  if (before && after && entry.action === RETRY_ACTION) {
+    const { outcome, ...rest } = before;
+    return historyChanges({ before: null, after: { ...rest, retriedOutcome: outcome, ...after } });
+  }
   if (before && after) {
     return [...new Set([...Object.keys(before), ...Object.keys(after)])]
       .filter(shown)
@@ -86,40 +94,6 @@ export function historyChanges(entry: Pick<OpportunityHistoryEntry, 'before' | '
     .filter((field) => only[field] !== null && only[field] !== undefined && only[field] !== '')
     .map((field) => ({ field, after: only[field] }));
 }
-
-/** The fields this screen has a label for; any other is shown under its own name. */
-const FIELD_LABELS: ReadonlySet<string> = new Set([
-  'title',
-  'description',
-  'customerAccountId',
-  'salesChannelId',
-  'assignedAdminUserId',
-  'valueMode',
-  'manualValue',
-  'expectedCloseDate',
-  'currency',
-  'organizationId',
-  'number',
-  'source',
-  'tags',
-  'documentKind',
-  'documentId',
-  'linkedDocument',
-  'syncStatus',
-  'linkSource',
-  'orderId',
-  'orderStatusCode',
-  'skippedStatus',
-  'outcome',
-  'dismissed',
-  'deleted',
-  'reason',
-  'body',
-  'length',
-  'kind',
-  'fileName',
-  'statusCode',
-]);
 
 export interface OpportunityHistoryProps {
   opportunity: OpportunityDetail;
@@ -136,8 +110,17 @@ export interface OpportunityHistoryProps {
  * *to* in the statuses' names, never their codes, and — when an Order caused
  * it — names that Order and links to it. Anything else lists the fields that
  * changed, as they were and as they are, with identifiers replaced by what
- * they name wherever this screen knows it (the assignee, a linked Order) and
- * left out where it does not.
+ * they name wherever this screen knows it (the assignee, the Organization, a
+ * linked Order) and left out where it does not.
+ *
+ * **Nothing is shown as it is stored.** Every key an audited state can carry
+ * has a label (`lib/history-fields.ts`, held to the services by
+ * `index.test.ts`); custom field values are a line per field under the
+ * field's own label, or its code for a reader who may not read the
+ * definitions; an outcome is the sentence the Overview's propagation section
+ * says; an Order status is its name, and is a row only for somebody holding
+ * `orders:read`. A key this screen was never told about is "Other change" with
+ * the key in words — never the key itself, never JSON.
  *
  * The history is cursor-paginated: *Show earlier changes* appends the next
  * page under the ones already read, so a reader scanning back keeps their
@@ -148,12 +131,15 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
   const t = useTranslation('crm');
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
+  const canReadOrders = useAuth().hasPermission(ORDERS_READ);
+  const canSeeCustomFields = useCanSeeCustomFields();
   const [entries, setEntries] = useState<OpportunityHistoryEntry[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
   const [statuses, setStatuses] = useState<OpportunityWorkflowStatus[]>([]);
+  const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const sequence = useRef(0);
 
   const load = useCallback(
@@ -200,6 +186,39 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
       alive = false;
     };
   }, []);
+
+  /** Whether any entry read so far carries `field` — what decides if its names are worth asking for. */
+  const carries = useCallback(
+    (field: string): boolean =>
+      (entries ?? []).some(
+        (entry) => field in (asState(entry.before) ?? {}) || field in (asState(entry.after) ?? {}),
+      ),
+    [entries],
+  );
+
+  // Order status names are `orders`' and need `orders:read` — the source the
+  // Overview's linked Orders use. Asked only once an entry names a status.
+  const wantsOrderStatuses = canReadOrders && carries('orderStatusCode');
+  useEffect(() => {
+    if (!wantsOrderStatuses) return undefined;
+    let alive = true;
+    crmApi
+      .listOrderStatuses()
+      .then((found) => {
+        if (alive) setOrderStatuses(found);
+      })
+      .catch(() => {
+        if (alive) setOrderStatuses([]);
+      });
+    return (): void => {
+      alive = false;
+    };
+  }, [wantsOrderStatuses]);
+
+  // The fields' own labels, for somebody `custom_fields` lets read them.
+  const { definitions } = useOpportunityFieldDefinitions(
+    canSeeCustomFields && carries('customFieldValues'),
+  );
 
   /** Administrators this page can name: the assignee and everybody who acted. */
   const people = useMemo(() => {
@@ -260,10 +279,23 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
         return document('order', raw);
       case 'assignedAdminUserId':
         return people.get(String(raw)) ?? t('history.value.someone');
-      case 'customerAccountId':
-      case 'salesChannelId':
       case 'organizationId':
+        // An Opportunity's Organization is the one on this screen.
+        return raw === opportunity.organization.id
+          ? opportunity.organization.name
+          : t('history.value.set');
+      case 'customerAccountId':
+        return opportunity.customerAccount && raw === opportunity.customerAccount.id
+          ? opportunity.customerAccount.name
+          : t('history.value.set');
+      case 'salesChannelId':
+        // The detail carries the channel's id, not its name.
         return t('history.value.set');
+      case 'orderStatusCode':
+        return orderStatusLabel(String(raw), orderStatuses, language);
+      case 'outcome':
+      case 'retriedOutcome':
+        return outcome(String(raw), entry);
       case 'source':
         return t(`opportunity.source.${raw === 'order' || raw === 'quote_request' ? raw : 'manual'}`);
       case 'linkSource':
@@ -280,10 +312,87 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
         break;
     }
     if (typeof raw === 'boolean') return raw ? t('links.following.on') : t('links.following.off');
-    if (Array.isArray(raw)) return raw.length === 0 ? NO_VALUE : raw.map(String).join(', ');
-    if (typeof raw === 'object') return JSON.stringify(raw);
+    return plain(raw);
+  };
+
+  /** Any value in words: a list as a list, a structure as `name: value` pairs — never JSON. */
+  const plain = (raw: unknown): string => {
+    if (raw === null || raw === undefined || raw === '') return NO_VALUE;
+    if (typeof raw === 'boolean') return raw ? t('links.following.on') : t('links.following.off');
+    if (Array.isArray(raw)) return raw.length === 0 ? NO_VALUE : raw.map(plain).join(', ');
+    if (typeof raw === 'object') {
+      const pairs = Object.entries(raw).map(([key, item]) => `${humaniseKey(key)}: ${plain(item)}`);
+      return pairs.length === 0 ? NO_VALUE : pairs.join('; ');
+    }
     const text = String(raw);
     return text.length > TEXT_LIMIT ? `${text.slice(0, TEXT_LIMIT)}…` : text;
+  };
+
+  /**
+   * An outcome as a sentence. For an Order that did not follow the Opportunity
+   * it is the sentence of the Overview's propagation section, with the status
+   * that was asked of the Order named as that section names it. For an
+   * Opportunity that did not follow an Order the direction is the other one,
+   * and so are the words.
+   */
+  const outcome = (code: string, entry: OpportunityHistoryEntry): string => {
+    if (entry.action === NOT_FOLLOWED_ACTION) {
+      return t(`history.notFollowed.${code === 'failed' ? 'failed' : 'skipped'}`);
+    }
+    const state = { ...asState(entry.before), ...asState(entry.after) };
+    const status =
+      typeof state.orderStatusCode === 'string'
+        ? orderStatusLabel(state.orderStatusCode, orderStatuses, language)
+        : NO_VALUE;
+    const key = `propagation.outcome.${code}`;
+    const sentence = t(key, { status });
+    // An outcome this bundle has no sentence for is still words, not a code.
+    return sentence === key ? humaniseKey(code) : sentence;
+  };
+
+  const fieldLabel = (field: string): string =>
+    LABELLED_HISTORY_FIELDS.has(field)
+      ? t(`history.field.${field}`)
+      : t('history.field.other', { field: humaniseKey(field) });
+
+  /** Custom field values: a line per field — every one that arrived, or only the ones an edit changed. */
+  const customFields = (change: HistoryChange): ReactNode => {
+    const edited = 'before' in change;
+    const before = asState(change.before) ?? {};
+    const after = asState(change.after) ?? {};
+    const words = { yes: t('customFields.value.yes'), no: t('customFields.value.no') };
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((key) =>
+      edited
+        ? !same(before[key], after[key])
+        : after[key] !== null && after[key] !== undefined && after[key] !== '',
+    );
+    if (keys.length === 0) return NO_VALUE;
+    return (
+      <ul className="space-y-0.5">
+        {keys.map((key) => {
+          const definition = definitions.find((candidate) => candidate.key === key);
+          const shownValue = (raw: unknown): string =>
+            customFieldValueLabel(definition, raw, language, words);
+          return (
+            <li key={key}>
+              <span className="text-muted-foreground">{customFieldLabel(definition, key, language)}</span>
+              {': '}
+              {edited ? (
+                <>
+                  <span className="sr-only">{t('history.status.from')}</span>
+                  <span className="text-muted-foreground line-through decoration-muted-foreground/60">
+                    {shownValue(before[key])}
+                  </span>
+                  <ArrowRight aria-hidden="true" className="mx-1.5 inline size-3.5 text-muted-foreground" />
+                  <span className="sr-only">{t('history.status.to')}</span>
+                </>
+              ) : null}
+              <span>{shownValue(after[key])}</span>
+            </li>
+          );
+        })}
+      </ul>
+    );
   };
 
   const actor = (entry: OpportunityHistoryEntry): string => {
@@ -363,7 +472,10 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
       ) : (
         <ol aria-label={t('history.title')} className="space-y-3">
           {entries.map((entry) => {
-            const changes = historyChanges(entry);
+            // An Order's status is `orders`' to show: no row without `orders:read`.
+            const changes = historyChanges(entry).filter(
+              (change) => canReadOrders || change.field !== 'orderStatusCode',
+            );
             return (
               <li key={entry.id} className="space-y-2 rounded-md border border-border p-3">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -381,12 +493,12 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
                     {changes.map((change) => (
                       <div key={change.field} className="contents">
                         <dt className="text-xs text-muted-foreground sm:pt-0.5">
-                          {FIELD_LABELS.has(change.field)
-                            ? t(`history.field.${change.field}`)
-                            : change.field}
+                          {fieldLabel(change.field)}
                         </dt>
                         <dd className="whitespace-pre-wrap break-words">
-                          {'before' in change ? (
+                          {change.field === 'customFieldValues' ? (
+                            customFields(change)
+                          ) : 'before' in change ? (
                             <>
                               <span className="sr-only">{t('history.status.from')}</span>
                               <span className="text-muted-foreground line-through decoration-muted-foreground/60">
@@ -399,7 +511,9 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
                               <span className="sr-only">{t('history.status.to')}</span>
                             </>
                           ) : null}
-                          <span>{value(change.field, change.after, entry)}</span>
+                          {change.field === 'customFieldValues' ? null : (
+                            <span>{value(change.field, change.after, entry)}</span>
+                          )}
                         </dd>
                       </div>
                     ))}

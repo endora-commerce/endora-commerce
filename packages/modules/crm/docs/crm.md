@@ -913,8 +913,11 @@ In the Admin UI the history is the **Change history** tab of an opportunity.
 Each entry is a sentence — *Opportunity status changed*, *Note added* — with
 who did it and when. A status change shows the two statuses by name; when an
 order caused it, the entry names that order and links to it. An edit lists the
-fields that changed, as they were and as they are. *Show earlier changes* reads
-the next page.
+fields that changed, as they were and as they are. Custom field values are
+listed a line per field under the fields' own labels — or under their codes for
+somebody without `custom_fields:read` — and an order's status is shown by name,
+to somebody holding `orders:read` only. *Show earlier changes* reads the next
+page.
 
 ## References to products and orders
 

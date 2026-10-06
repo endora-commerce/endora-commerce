@@ -3412,6 +3412,37 @@ when it was measured, and what was done about it.
   CRM's; the Organization screen itself asks for a price display override that does not
   exist (404), which is not CRM's request. Not verified by eye: a screen reader, a physical
   touch device, dark theme.
+- **N-T1 (2026-10-07, after the browser walk of N-P9) — the Change history tab showed
+  stored values to the operator, and N-H4's "identifiers are never printed" had not covered
+  the rest of the state.** Four things, all in the tab; the endpoint is unchanged.
+  (a) **`customFieldValues`** had no label and fell through to `JSON.stringify`. It is now
+  "Custom fields", a line per field as *label: value* — every field for a creation, only the
+  changed ones (before → after) for an edit — with the definitions read from `custom_fields`'
+  admin API by a reader holding `custom_fields:read` (the hook the Overview's read-only list
+  now shares) and **only once an entry carries the key**; without the permission, or for a
+  field deleted since, the line stands under the field's code, and a choice reads as its
+  stored value. (b) **A retry is one statement, not an edit.** Its `before` is the refusal
+  and its `after` the new attempt, so a field-by-field comparison printed
+  `not_permitted → —`. It now lists the Order, the status asked of it and the refusal — as
+  the sentence of `propagation.outcome.*`, under "Refusal retried" rather than "Outcome",
+  because the entry does not carry what the retry led to (`propagation_record` is
+  `skipAudit`, N-16). `propagation_skip` is the reverse direction and those sentences would
+  be false of it ("this order could not be moved…"), so it has two of its own,
+  `history.notFollowed.*`. **An Order status is a row only with `orders:read`**, by name from
+  `GET /orders/statuses`, falling back to the code; the outcome sentence names the status
+  exactly as the Overview's propagation section does, code included for a reader without the
+  names — it is the same sentence that reader already sees there. (c) The Organization and
+  the contact person are named when the id is the one the detail carries; a Sales Channel
+  stays "Set", because the detail carries its id and not its name. (d) **The label set is
+  held to the services**: `src/admin/lib/history-fields.ts` has the labelled and the silent
+  keys, and `src/admin/index.test.ts` reads every `before` / `after` literal and
+  `auditSnapshot` in the files declaring a `crm.opportunity.*` action — a key in neither set
+  fails it (seen red with `customFieldValues` taken out). `linkedByAdminUserId` and
+  `authorAdminUserId` were already silent; `length` had a label and was missing from the
+  family the copy test enumerated, which now reads the set itself. A key from anywhere else
+  renders as "Other change (key in words)", a structure as `name: value` pairs. Nine of the
+  ten new cases of `admin/test/modules/crm/history.test.tsx` were seen red first; the tenth
+  (an unnamed Order status falls back to its code) held before and is kept as the rule.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
