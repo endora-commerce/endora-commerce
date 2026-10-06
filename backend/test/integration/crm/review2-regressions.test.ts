@@ -24,6 +24,7 @@ import {
   removeCrmCustomFields,
   restoreDefaultCrmWorkflow,
   seedCrmOrder,
+  seedCrmOrganization,
   setCrmCountingStatuses,
   setCrmMappings,
   submitCrmQuoteRequest,
@@ -390,6 +391,44 @@ describe('crm second review regressions', () => {
       ]);
       watchRequests().mockRejectedValue(new Error('redis is away'));
       expect((await detail(opportunity.id)).value).toBe('0.00');
+    });
+  });
+
+  // --- N-S4: a link never crosses a tenant, whatever an Order claims it came from ---
+  describe('an Order of another Organization naming a linked Quote Request as its source', () => {
+    it('is not linked to that Opportunity, and creates nothing', async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+      const rfq = await submitCrmQuoteRequest(h);
+      expect((await linkCrmQuoteRequest(h, opportunity.id, rfq.id)).statusCode).toBe(201);
+
+      const organizationB = await seedCrmOrganization(h.em(), 'review2 other');
+      const foreign = await seedCrmOrder(h.em(), {
+        organizationId: organizationB,
+        status: 'paid',
+        sourceQuoteRequestId: rfq.id,
+      });
+      const service = h.container.resolve('crmOpportunityAutoCreateService') as {
+        onOrderCreated(orderId: string): Promise<string>;
+      };
+      const outcome = await enterSystemScope('test: a foreign order claims a source', () =>
+        service.onOrderCreated(foreign.id),
+      );
+
+      expect(outcome).not.toBe('joined');
+      expect((await detail(opportunity.id)).links.map((link) => link.documentId)).toEqual([rfq.id]);
+      const linked = (await h
+        .em()
+        .execute(`select "opportunity_id" from "crm_opportunity_links" where "document_id" = ?`, [
+          foreign.id,
+        ])) as unknown[];
+      expect(linked).toEqual([]);
+      const created = (await h
+        .em()
+        .execute(`select count(*)::int as n from "crm_opportunities" where "organization_id" = ?`, [
+          organizationB,
+        ])) as Array<{ n: number }>;
+      expect(created[0]?.n).toBe(0);
     });
   });
 });
