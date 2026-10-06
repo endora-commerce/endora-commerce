@@ -2114,6 +2114,14 @@ when it was measured, and what was done about it.
   sentence. Those are the Opportunity's change history (R-16 reads it from the audit trail),
   so removing them is a design change to that story rather than a fix; whether
   `audit_logs` should scope a read by the entry's subject is a question for its owner.
+- **N-R7 (2026-10-06, review finding 7) — a date the calendar does not have is refused by
+  the contract.** `calendarDateSchema` was the shape `YYYY-MM-DD` and nothing more, so
+  `2026-13-45` reached `new Date(…)` in the list and the board (an `Invalid Date` bound into
+  a statement) and `2026-02-31` reached a `date` column: 500 each. The schema now also asks
+  that the day exists — round-tripped through a UTC date, leap years included, year `0000`
+  refused — so every consumer answers the envelope's 400 `VALIDATION_FAILED`: the list's and
+  the board's `createdFrom` / `createdTo`, `expectedCloseDate` on create and PATCH, and the
+  analytics range, which shares the schema.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

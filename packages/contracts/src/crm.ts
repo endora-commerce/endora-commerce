@@ -108,7 +108,19 @@ const currencyCodeSchema = z
   .string()
   .regex(/^[A-Z]{3}$/, 'Currency must be an ISO 4217 code, e.g. PLN');
 
-const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD');
+/** Whether `YYYY-MM-DD` names a day the calendar has: `2026-02-31` and `2026-13-01` do not. */
+function isCalendarDate(value: string): boolean {
+  const [year = 0, month = 0, day = 0] = value.split('-').map(Number);
+  if (year < 1) return false;
+  const date = new Date(0);
+  date.setUTCFullYear(year, month - 1, day);
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'YYYY-MM-DD')
+  .refine(isCalendarDate, 'Not a date of the calendar');
 
 /** A non-negative decimal held as a string, as `numeric(14,2)` money is everywhere. */
 const decimalAmountSchema = z

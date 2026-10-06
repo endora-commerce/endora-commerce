@@ -466,4 +466,31 @@ describe('crm opportunities (contract)', () => {
       expect(ids(await list(`?q=${MARK}`, viewer.cookies))).toHaveLength(4);
     });
   });
+
+  describe('a date the calendar does not have is a 400, not a 500 (review finding 7)', () => {
+    it.each([
+      ['the list filter', 'GET', '/opportunities?createdFrom=2026-13-45'],
+      ['the board filter', 'GET', '/board?createdTo=2026-13-45'],
+      ['the analytics range', 'GET', '/analytics/handling-time?from=2026-02-30&to=2026-03-01'],
+    ] as const)('%s', async (_label, method, path) => {
+      const response = await call(method, path);
+      expect(response.statusCode, response.body).toBe(400);
+      expect(response.json().error.code).toBe('VALIDATION_FAILED');
+    });
+
+    it('expectedCloseDate on create and on PATCH', async () => {
+      const created = await call('POST', '/opportunities', {
+        payload: { title: 'Bad date', organizationId: TEST_ORGANIZATION_ID, currency: 'PLN', expectedCloseDate: '2026-02-31' },
+      });
+      expect(created.statusCode, created.body).toBe(400);
+      expect(created.json().error.code).toBe('VALIDATION_FAILED');
+
+      const opportunity = await create({ expectedCloseDate: '2024-02-29' });
+      expect(opportunity.expectedCloseDate).toBe('2024-02-29');
+      const patched = await call('PATCH', `/opportunities/${opportunity.id}`, {
+        payload: { expectedCloseDate: '2025-02-29' },
+      });
+      expect(patched.statusCode, patched.body).toBe(400);
+    });
+  });
 });
