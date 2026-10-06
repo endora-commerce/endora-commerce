@@ -20,13 +20,26 @@ import { enterSystemScope, type PlatformLogger } from '@endora-commerce/platform
 export const VALUE_RECALCULATION_QUEUE = 'crm-value-recalculation';
 export const VALUE_RECALCULATION_JOB = 'recalculate-all';
 
-export type ValueRecalculationJobData = Record<string, never>;
+/** One Opportunity, asked for by the value service when it could not settle a figure itself. */
+export const VALUE_RECALCULATION_ONE_JOB = 'recalculate-one';
+
+export type ValueRecalculationJobData = { opportunityId?: string };
 
 const SCOPE_REASON = 'crm: recalculate computed opportunity values';
+
+/** How often a job is run before BullMQ records it as failed, and how long it waits in between. */
+const JOB_ATTEMPTS = 3;
+const JOB_BACKOFF = { type: 'exponential', delay: 5_000 } as const;
 
 export interface ValueRecalculationProducer {
   /** Ask for one pass. Answers whether a job was enqueued. */
   enqueue(): Promise<boolean>;
+  /**
+   * Ask for one Opportunity. **At most one job per Opportunity waits at a
+   * time**: the job's id is the Opportunity's, and BullMQ adds nothing under an
+   * id it still holds — so asking a hundred times costs one recalculation.
+   */
+  enqueueOne(opportunityId: string): Promise<boolean>;
   close(): Promise<void>;
 }
 
@@ -36,16 +49,34 @@ export interface ValueRecalculationProducer {
  */
 export function createValueRecalculationProducer(redis: Redis | undefined): ValueRecalculationProducer {
   let queue: Queue<ValueRecalculationJobData> | undefined;
+  const open = (connection: Redis): Queue<ValueRecalculationJobData> =>
+    (queue ??= new Queue<ValueRecalculationJobData>(VALUE_RECALCULATION_QUEUE, {
+      connection,
+      // A pass is worth nothing once it has run; a failed one is kept a
+      // while for whoever looks at the queue. A failure is tried again, later:
+      // nothing else is coming to do what the job was asked for.
+      defaultJobOptions: {
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 100 },
+        attempts: JOB_ATTEMPTS,
+        backoff: JOB_BACKOFF,
+      },
+    }));
   return {
     async enqueue(): Promise<boolean> {
       if (redis === undefined) return false;
-      queue ??= new Queue<ValueRecalculationJobData>(VALUE_RECALCULATION_QUEUE, {
-        connection: redis,
-        // A pass is worth nothing once it has run; a failed one is kept a
-        // while for whoever looks at the queue.
-        defaultJobOptions: { removeOnComplete: { count: 20 }, removeOnFail: { count: 100 } },
-      });
-      await queue.add(VALUE_RECALCULATION_JOB, {});
+      await open(redis).add(VALUE_RECALCULATION_JOB, {});
+      return true;
+    },
+    async enqueueOne(opportunityId: string): Promise<boolean> {
+      if (redis === undefined) return false;
+      await open(redis).add(
+        VALUE_RECALCULATION_ONE_JOB,
+        { opportunityId },
+        // Removed the moment it ends, either way: a kept job would hold its id
+        // and refuse the next request for the same Opportunity.
+        { jobId: `opportunity-${opportunityId}`, removeOnComplete: true, removeOnFail: true },
+      );
       return true;
     },
     async close(): Promise<void> {
@@ -58,16 +89,26 @@ export function createValueRecalculationProducer(redis: Redis | undefined): Valu
 export interface ValueRecalculationDeps {
   /** One pass over every computed Opportunity; answers how many figures changed. */
   readonly recalculateAll: () => Promise<number>;
+  /** One Opportunity; answers whether its figure changed. */
+  readonly recalculateOne: (opportunityId: string) => Promise<boolean>;
   readonly log: PlatformLogger;
 }
 
 /**
  * The body of one job: one pass. A failure fails the job — unlike a periodic
- * tick there is no next one coming, so BullMQ's record of the failure is the
- * only trace.
+ * tick there is no next one coming — and BullMQ runs it again after a pause,
+ * {@link JOB_ATTEMPTS} times in all; its record of the last failure is the
+ * only trace after that.
  */
-export function valueRecalculationJob(deps: ValueRecalculationDeps): () => Promise<void> {
-  return async () => {
+export function valueRecalculationJob(
+  deps: ValueRecalculationDeps,
+): (job?: { data?: ValueRecalculationJobData }) => Promise<void> {
+  return async (job) => {
+    const opportunityId = job?.data?.opportunityId;
+    if (opportunityId) {
+      await deps.recalculateOne(opportunityId);
+      return;
+    }
     const changed = await deps.recalculateAll();
     deps.log.info({ changed }, 'crm: computed opportunity values recalculated');
   };
@@ -93,12 +134,16 @@ export function startValueRecalculation(
     // The scope is written at the site that has no caller — the function
     // BullMQ invokes: there is no request behind a job, and the pass is
     // platform-wide by design.
-    new Worker<ValueRecalculationJobData>(VALUE_RECALCULATION_QUEUE, () => enterSystemScope(SCOPE_REASON, job), {
-      connection: moduleQueueRedis,
-      // One pass at a time per process: two at once would only contend for the
-      // same rows.
-      concurrency: 1,
-    }),
+    new Worker<ValueRecalculationJobData>(
+      VALUE_RECALCULATION_QUEUE,
+      (queued) => enterSystemScope(SCOPE_REASON, () => job(queued)),
+      {
+        connection: moduleQueueRedis,
+        // One pass at a time per process: two at once would only contend for
+        // the same rows.
+        concurrency: 1,
+      },
+    ),
   );
   return true;
 }

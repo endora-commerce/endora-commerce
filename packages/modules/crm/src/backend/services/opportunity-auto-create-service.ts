@@ -42,6 +42,12 @@ export interface OpportunityAutoCreateServiceDeps {
    * awaited by the handler.
    */
   defer: (work: () => Promise<unknown>) => Promise<void>;
+  /**
+   * Whether this module is still present. A deferred look waits up to two
+   * seconds, and an operator may switch the module off in any of them: it is
+   * asked after every pause, right before the document is read and handled.
+   */
+  stillPresent: () => boolean;
   /** Injected so a test does not wait; `setTimeout` in the composed module. */
   sleep?: (milliseconds: number) => Promise<void>;
 }
@@ -284,6 +290,8 @@ export class OpportunityAutoCreateService {
     const looking = this.deps.defer(async () => {
       for (const pause of COMMIT_WAIT_PAUSES) {
         await sleep(pause);
+        // Off behaves as if never installed: nothing is read, nothing created.
+        if (!this.deps.stillPresent()) return;
         const found = await read();
         if (found !== null) {
           await placed(found);

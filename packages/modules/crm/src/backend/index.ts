@@ -161,7 +161,16 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ commandBus, crmWorkflowReadService, crmValueRecalculationProducer }: CrmCradle & ValueCradle) =>
           new WorkflowConfigService(commandBus, crmWorkflowReadService, () =>
-            crmValueRecalculationProducer.enqueue(),
+            // After the configuration's commit: a queue that cannot be reached
+            // must not answer 500 for a set that was saved. It is logged, and
+            // the figures follow whatever next asks for them.
+            crmValueRecalculationProducer.enqueue().catch((error: unknown) => {
+              ctx.log.warn(
+                { error: error instanceof Error ? error.message : String(error) },
+                'crm: the recalculation of computed values could not be scheduled',
+              );
+              return false;
+            }),
           ),
       )
       .singleton(),
@@ -257,21 +266,39 @@ export function registerModule(ctx: ModuleContext): void {
   // change made meanwhile is not replayed. There is no request behind an
   // event, so the work starts a system scope of its own and the service
   // constrains by the Organization the event names.
+  //
+  // **One handler, and the value first** (research N-S2). The same event is
+  // what a computed value follows, and a status that both counts and closes
+  // the Opportunity must be counted before the close is announced:
+  // `crm.opportunity.closed.v1` carries the value, and an outbound webhook
+  // sends it whole. Two subscribers ran in registration order, which had the
+  // announcement leave before the figure it names was written. The move runs
+  // from a `finally`, so a recalculation that fails does not cost the
+  // Opportunity its move — as when the two were handlers of their own.
   ctx.subscribe('order.status_changed.v1', async (payload) => {
-    const change = readOrderStatusChange(payload);
-    if (!change) return;
-    await enterSystemScope('crm: order status follows', async () => {
-      const cradle = ctx.cradle<CrmCradle>();
-      await cradle.crmOrderStatusPropagationService.onOrderStatusChanged(
-        change,
-        (opportunityId, to, causeOrderId) =>
-          cradle.crmOpportunityTransitionService.apply(opportunityId, to, {
-            actor: { kind: 'system' },
-            cause: 'order_status',
-            causeOrderId,
-          }),
+    const orderId = readEventId(payload, 'orderId');
+    if (!orderId) return;
+    try {
+      await enterSystemScope('crm: value follows an order status', () =>
+        ctx.cradle<ValueCradle>().crmOpportunityValueService.recalculateForDocument('order', orderId),
       );
-    });
+    } finally {
+      const change = readOrderStatusChange(payload);
+      if (change) {
+        await enterSystemScope('crm: order status follows', async () => {
+          const cradle = ctx.cradle<CrmCradle>();
+          await cradle.crmOrderStatusPropagationService.onOrderStatusChanged(
+            change,
+            (opportunityId, to, causeOrderId) =>
+              cradle.crmOpportunityTransitionService.apply(opportunityId, to, {
+                actor: { kind: 'system' },
+                cause: 'order_status',
+                causeOrderId,
+              }),
+          );
+        });
+      }
+    }
   });
 
   // --- Assignment ------------------------------------------------------------
@@ -408,7 +435,7 @@ export function registerModule(ctx: ModuleContext): void {
             customFields: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
             // --- end of Custom fields ----------------------------------------
             recalculateValue: (opportunityId) => crmOpportunityValueService.recalculate(opportunityId),
-            excludedDocuments: (opportunity) => crmOpportunityValueService.excludedDocuments(opportunity),
+            liveFigure: (opportunity) => crmOpportunityValueService.liveFigure(opportunity),
             references: crmReferenceService,
           }),
       )
@@ -478,13 +505,29 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
     crmOpportunityValueService: ctx
       .asFunction(
-        ({ emFactory, commandBus, crmQuoteRequests, crmOwnerReadChecks }: CrmCradle & ValueCradle) =>
+        ({
+          emFactory,
+          commandBus,
+          crmQuoteRequests,
+          crmOwnerReadChecks,
+          crmValueRecalculationProducer,
+        }: CrmCradle & ValueCradle) =>
           new OpportunityValueService({
             emFactory,
             commandBus,
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             quoteRequests: crmQuoteRequests,
             mayRead: crmOwnerReadChecks,
+            // A queue that cannot be reached is logged and no more: the figure
+            // is derived, and whatever changes it next asks again.
+            requestRecalculation: (opportunityId) =>
+              crmValueRecalculationProducer.enqueueOne(opportunityId).catch((error: unknown) => {
+                ctx.log.warn(
+                  { opportunityId, error: error instanceof Error ? error.message : String(error) },
+                  'crm: a value recalculation could not be scheduled',
+                );
+                return false;
+              }),
           }),
       )
       .singleton(),
@@ -499,13 +542,9 @@ export function registerModule(ctx: ModuleContext): void {
   // change made meanwhile is not replayed. There is no request behind an
   // event: each starts a system scope, and the value service reads only what
   // hangs off the one Opportunity the document is linked to.
-  ctx.subscribe('order.status_changed.v1', async (payload) => {
-    const orderId = readEventId(payload, 'orderId');
-    if (!orderId) return;
-    await enterSystemScope('crm: value follows an order status', () =>
-      ctx.cradle<ValueCradle>().crmOpportunityValueService.recalculateForDocument('order', orderId),
-    );
-  });
+  //
+  // An Order's status is followed by the handler of the reverse-mapping
+  // section above, which recalculates before it moves the Opportunity.
   // A Quote Request approved, canceled, modified (its prices) or expired.
   // `quote_requests` emits none of these while it is off.
   for (const eventName of QUOTE_REQUEST_VALUE_EVENTS) {
@@ -536,6 +575,7 @@ export function registerModule(ctx: ModuleContext): void {
       processRunsWorkers: cradle.processRunsWorkers,
       moduleQueueRedis: cradle.moduleQueueRedis,
       recalculateAll: () => cradle.crmOpportunityValueService.recalculateAll(),
+      recalculateOne: (opportunityId) => cradle.crmOpportunityValueService.recalculate(opportunityId),
       log: ctx.log,
       attach: (worker) => ctx.worker(worker, { logger: app.log }),
     });
@@ -569,12 +609,12 @@ export function registerModule(ctx: ModuleContext): void {
             // A document whose commit is still in flight is read again off the
             // bus's dispatch chain — the bus awaits each subscriber before the
             // next, and the webhook bridge is one of them. The work gets a
-            // system scope of its own (the handler's ends when it returns),
-            // does nothing if the module was switched off meanwhile, and never
-            // rejects: there is nobody left to hear it, so a failure is logged.
+            // system scope of its own (the handler's ends when it returns) and
+            // never rejects: there is nobody left to hear it, so a failure is
+            // logged. Whether the module is still on is asked by the work
+            // itself, after every pause — `stillPresent`, below.
             defer: (work) =>
               enterSystemScope('crm: a placed document, read again after its commit', async () => {
-                if (!effectiveState.isPresent('crm')) return;
                 await work();
               }).catch((error: unknown) => {
                 ctx.log.warn(
@@ -582,6 +622,7 @@ export function registerModule(ctx: ModuleContext): void {
                   'crm: a placed document could not be handled after its commit',
                 );
               }),
+            stillPresent: () => effectiveState.isPresent('crm'),
           }),
       )
       .singleton(),

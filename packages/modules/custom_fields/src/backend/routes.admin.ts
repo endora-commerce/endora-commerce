@@ -73,6 +73,18 @@ function isOwnerPresent(meta: SupportedEntityMeta | undefined): boolean {
 }
 
 /**
+ * Whether a stored definition is served: one of a type whose owner module is
+ * not present is not — "off behaves as if never installed" covers what an
+ * operator defined for the module's entity as well as the entity. The rows
+ * stay, and are served again with the owner.
+ */
+function isDefinitionServed({ definition }: CachedDefinition): boolean {
+  return isOwnerPresent(
+    isSupportedEntityType(definition.entityType) ? SUPPORTED_ENTITIES[definition.entityType] : undefined,
+  );
+}
+
+/**
  * Refuse a definition mutation for a type whose owner module is not present.
  * The same code as the host-managed refusal: both say that this registry will
  * not change a definition whose entity type another module answers for.
@@ -169,7 +181,7 @@ export async function registerCustomFieldsAdminRoutes(
       const raw = request.query.entityType;
       const entityType = raw ? supportedEntityTypeSchema.parse(raw) : undefined;
       const defs = await definitionService.listAll(entityType);
-      return { data: defs.map(serialize) };
+      return { data: defs.filter(isDefinitionServed).map(serialize) };
     },
   );
 
@@ -178,7 +190,10 @@ export async function registerCustomFieldsAdminRoutes(
     { preHandler: requireAdmin('custom_fields:read') },
     async (request) => {
       const def = await definitionService.getById(request.params.id);
-      if (!def) throw new HttpError(404, ERROR_CODES.CUSTOM_FIELD_NOT_FOUND, 'Custom field not found.');
+      // The same 404 for a definition whose type's owner module is off.
+      if (!def || !isDefinitionServed(def)) {
+        throw new HttpError(404, ERROR_CODES.CUSTOM_FIELD_NOT_FOUND, 'Custom field not found.');
+      }
       return { data: serialize(def) };
     },
   );

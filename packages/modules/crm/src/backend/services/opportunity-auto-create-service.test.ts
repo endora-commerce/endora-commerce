@@ -41,6 +41,7 @@ function service(overrides: Partial<OpportunityAutoCreateServiceDeps> = {}) {
     events: { emit: vi.fn() },
     // Off the bus's chain in the composed module; here it simply runs.
     defer: vi.fn((work: () => Promise<unknown>) => work().then(() => undefined)),
+    stillPresent: () => true,
     sleep: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -98,6 +99,22 @@ describe('OpportunityAutoCreateService — a placed Order', () => {
     expect(findById).toHaveBeenCalledTimes(3);
     expect(deps.sleep).toHaveBeenCalledTimes(2);
     expect(deps.createForDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it('a deferred look stops, reading nothing more, once the module is switched off between two pauses', async () => {
+    const findById = vi.fn<() => Promise<OrderRecord | null>>().mockResolvedValueOnce(null).mockResolvedValue(order);
+    // On for the first pause, off from the second.
+    const stillPresent = vi.fn<() => boolean>().mockReturnValueOnce(true).mockReturnValue(false);
+    findById.mockResolvedValueOnce(null);
+    const { deps, subject } = service({ orders: { findById } as never, stillPresent });
+
+    expect(await subject.onOrderCreated(ORDER_ID)).toBe('deferred');
+    await subject.idle();
+
+    // The handler's read, and the one look made while the module was on.
+    expect(findById).toHaveBeenCalledTimes(2);
+    expect(stillPresent).toHaveBeenCalledTimes(2);
+    expect(deps.createForDocument).not.toHaveBeenCalled();
   });
 
   it('gives up on an Order that never appears — it was rolled back — and creates nothing', async () => {

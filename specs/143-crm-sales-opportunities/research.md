@@ -3251,6 +3251,116 @@ when it was measured, and what was done about it.
   (`mod-crm`, `contracts`, `mod-orders`, `mod-quote-requests`, `mod-webhooks`,
   `mod-custom-fields`, `mod-audit-logs`, `admin-shell` with `mod-i18n`) and three for the
   kit's three unrelated meanings. The shell's CRM section had no changeset before.
+- **N-S1 (2026-10-06, second review, finding 1) — a Command of this module asks no other
+  module, and what replaced the lock's guarantee.** A value recalculation locked the
+  Opportunity and then read its documents through `orderReadPort` / `quoteRequestReadPort`.
+  A port obtains an EntityManager of its own, so every recalculation held one pooled
+  connection while it waited for a second: with as many in flight as the pool has
+  connections (ten) each waited for the others until the pool's 60 s timeout. Measured: 14
+  at once, 10 rejected after 61.7 s. **Now:** the documents are read *before* the Command;
+  the Command locks the Opportunity, re-checks the mode, re-reads the link set and writes.
+  The lock used to guarantee "the figure read last is the one that stays"; two checks hold
+  that instead. (a) A link set that differs under the lock from the one evaluated writes
+  nothing and the Opportunity is evaluated again. (b) After **every write** the Opportunity
+  is evaluated once more, and a figure is left only when an evaluation that began after its
+  commit agrees with it — so of two overlapping recalculations whichever writes last also
+  looks last. (b) is what covers a document changing *status or amount* mid-recalculation,
+  which the link set cannot see, and it works across processes (the API and a worker),
+  which an in-process mutex would not. Cost: a figure that changes is evaluated twice, one
+  that does not, once. Three passes at most (`MAX_PASSES`), then the figure is left and the
+  queue is asked for that one Opportunity. **The same rule, one other site:** an
+  Opportunity's create and edit called `customFieldValueService.validateAndMerge` inside
+  their Commands (a cached read, but a read through another module's EntityManager on a
+  cold cache). Both validate before the Command now. An edit merges against the values it
+  read; the Command applies the result only if the locked row still holds those values,
+  and otherwise the edit validates again against what the row holds — three times at most,
+  then 409 `VERSION_CONFLICT`. A consequence for the order of refusals: an invalid custom
+  field is refused before an unknown Sales Channel or tag, which the Command still checks.
+  **No other site:** every `commandBus.run` body under `src/backend/services/` was read —
+  `forwardTargets`, `tags.resolve`, `#saveReferences` and `#messageRecipients` read this
+  module's own tables on the Command's EntityManager. **`check:transaction-context` does
+  not see this pattern** and a small addition would not make it: the rule finds
+  connection-level SQL written inside a transaction, and "this call is another module's
+  port" is not lexical — a port is a constructor dependency typed by a contracts interface,
+  so the rule would need the type checker or a per-module list of dependency names.
+- **N-S2 (2026-10-06, second review, finding 2) — one handler for `order.status_changed.v1`,
+  value first; and the announced value is read after the commit.** Two `ctx.subscribe`
+  handlers ran in registration order: the reverse mapping moved the Opportunity and
+  announced `crm.opportunity.closed.v1` before the value subscriber wrote the figure, so
+  the public payload said `0.00` for a win worth `123.00`. One handler now recalculates and
+  then applies the mapping, the second from a `finally` so a recalculation that throws does
+  not cost the move (the bus used to isolate the two). Still one `ctx.subscribe`, so the
+  off-state gating is unchanged; the echo and one-hop rules are the propagation service's
+  and are not touched. Independently of that ordering, `OpportunityTransitionService` now
+  reads the Opportunity again after its commit and after the Orders were asked, and
+  announces *that* effective value: a manual transition whose forward propagation changes
+  a linked Order's counting status had the same stale figure. A failed re-read announces
+  the figure the Command held. `status_changed.v1` carries no value and is unchanged.
+- **N-S3 (2026-10-06, second review, finding 3) — the detail answers a live figure; the
+  stored one still lags for everything else.** `quote_requests`' `patchDraft` emits no
+  event, so a customer editing a linked Pending request left `computed_value` at the old
+  amount (that module is not changed here). The detail already evaluated the documents to
+  name the excluded ones; `OpportunityValueService.liveFigure` returns that evaluation's
+  value as well, the detail answers it as `value` and `computedValue`, and when it differs
+  from the stored column the service asks the queue for that Opportunity — the read writes
+  nothing. The request is a job `recalculate-one` on the existing queue whose id is the
+  Opportunity's and which is removed the moment it ends, so at most one waits per
+  Opportunity however often the screen is opened. No queue in the composition, or Redis
+  away: the request is dropped (logged in the second case) and the read is unaffected.
+  **What remains:** the list's `sort=value`, the board's totals and every analytics figure
+  read the stored column and lag until that job runs or the next announced change; in a
+  composition without queues they lag until the next announced change, a link change or
+  the next counting save. An Opportunity nobody opens is not corrected by this at all. The
+  repair that closes it is an event from `quote_requests` on a draft edit. A second
+  consequence: between a counting save and its job the detail already shows the new
+  figure while the list shows the old one (`value.test.ts` held the detail to the old one
+  and now reads the column).
+- **N-S4 (2026-10-06, second review, finding 4) — the cross-Organization guard of FR-027 has
+  a test.** `linkOrderPlacedFromQuoteRequest` compares the Opportunity's Organization with
+  the Order's; removing the comparison left every suite green. The case: an Order of B
+  naming A's linked Quote Request as its source is not linked, and nothing is created in B.
+  Mutation confirmed (`'joined'` with the comparison removed).
+- **N-S5 (2026-10-06, second review, finding 5) — a refusal's `detail` is the Order's.**
+  N-R3 withheld an Order's number from a caller without `orders:read`; the refusal's
+  `detail` is the Order workflow's own sentence and names the status the Order is in ("no
+  edge from "processing" to "completed""). It is `null` for such a caller in the detail's
+  `unresolvedPropagations` and in the answers of `POST …/transition` and `…/retry` — all
+  three go through the one `#render`. `orderStatusCode` stays: it is the status *this
+  module's mapping* asked for, readable by anybody who reads the workflow.
+- **N-S6 (2026-10-06, second review, finding 6) — definitions of an absent owner's type are
+  not served.** `custom_fields`' `GET /definitions` and `GET /definitions/:id` now apply
+  the registry's `isOwnerPresent` (§ H of the foreign-change list already names the file):
+  left out of the list, 404 `CUSTOM_FIELD_NOT_FOUND` by id, served again with the owner.
+  Not changed: a mutation of such a definition still answers the 409 it did, which tells a
+  holder of `custom_fields:write` that the id exists.
+- **N-S7 (2026-10-06, second review, finding 7) — six guards, each with a test confirmed by
+  removing the guard.** Saving the counting statuses enqueues a pass, and the function
+  BullMQ invokes enters a system scope: both in `value-recalculation-queue.test.ts`, the
+  first test of this module that puts a real BullMQ queue and the module's own producer
+  and consumer on a real Redis. **A trap met while writing it:** the harness leaves a
+  `system` tenant context ambient around a test, so "the pass could read a scoped table"
+  proves nothing and neither does the context's mode — the assertion is on the scope's
+  *reason*. The other four: the unique-constraint answer of `createForDocument` under three
+  concurrent deliveries; the recalculation's row lock (a recalculation with nothing to
+  write waits for a transaction that holds the row); the deferred look's presence check;
+  the first recalculation of an Opportunity created for an Order that already counts
+  (asserted on the stored column — the detail would hide its absence since N-S3).
+- **N-S8 (2026-10-06, second review, read-only findings).** (a) `recalculateAll` goes on
+  past an Opportunity that throws and fails at the end naming how many it left; a module
+  switched off still ends it at once. Jobs are enqueued with `attempts: 3` and a 5 s
+  exponential backoff. (b) A failed `enqueue()` after a counting configuration committed
+  is logged and the answer stays 202; the 202 body is the workflow and has no field to say
+  "not scheduled", and none was added. (c) The deferred look asks `stillPresent()` after
+  every pause, before it reads — one check, moved out of the composition's `defer`, where
+  it was asked once before up to two seconds of waiting. (d) **Not fixed:** the change
+  history at its 500-entry reach answers `hasMore: false`. Saying so needs a field the
+  shared collection envelope does not have — a contracts change, an OpenAPI baseline and
+  a line in the history tab, on a branch where the contracts are being amended elsewhere.
+- **N-S9 (2026-10-06, second review, question 8) — a document created from a closed
+  Opportunity is linked to it. Decided: allowed.** A closed Opportunity accepts a link made
+  by hand, so it accepts the document created from it; the Opportunity stays closed, and a
+  mapping never reopens it (N-R4). Pinned in `create-from-opportunity.test.ts`. The
+  contracts are not edited here.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

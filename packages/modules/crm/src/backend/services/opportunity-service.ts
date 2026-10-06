@@ -32,6 +32,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { getTenantContext, isOrgInScope } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
+import { isDeepStrictEqual } from 'util';
 import {
   OpportunityWorkflowConfigError,
   resolveOpportunityStatusName,
@@ -77,8 +78,13 @@ export interface OpportunityServiceDeps {
   customFields: CustomFieldValuePort;
   /** Recalculates a computed Opportunity's value — asked when its mode becomes `computed`. */
   recalculateValue: (opportunityId: string) => Promise<unknown>;
-  /** The linked documents a computed value leaves out, and why. */
-  excludedDocuments: (opportunity: CrmOpportunity) => Promise<OpportunityExcludedDocument[]>;
+  /**
+   * What a computed Opportunity is worth now, and the linked documents that
+   * figure leaves out; `null` for a manual one.
+   */
+  liveFigure: (
+    opportunity: CrmOpportunity,
+  ) => Promise<{ value: string; excludedDocuments: OpportunityExcludedDocument[] } | null>;
   /** The Products and Orders a text mentions: stored on write, resolved on read. */
   references: ReferenceService;
 }
@@ -101,7 +107,12 @@ interface CreateOptions {
   document?: { kind: OpportunityDocumentKind; id: string };
 }
 
+/** What an edit that changed the assignee hands on: the announcement, and whom to tell. */
+type ReassignedOpportunity = Parameters<typeof assignedEvent>[0] & { number: string };
+
 const FALLBACK_LANGUAGE = 'en';
+/** How many times an edit validates its custom fields again before it answers a conflict. */
+const MAX_CUSTOM_FIELD_REVALIDATIONS = 3;
 const FALLBACK_COLOR = '#64748b';
 
 function invalid(message: string): HttpError {
@@ -228,13 +239,18 @@ export class OpportunityService {
     const graph = await this.deps.workflowRead.loadGraph();
     const initial = this.#initialStatus(graph);
 
+    // --- Custom fields (US15): a create by hand is always held to the
+    // definitions, so a required field is asked for even when none is sent.
+    // Validated here, before the Command: the Command reads no other module's
+    // port (research N-S1).
+    const customFieldValues = await mergeOpportunityCustomFields(
+      this.deps.customFields,
+      {},
+      input.customFieldValues ?? {},
+    );
+
     const created = await this.deps.commandBus.run(
-      this.#createCommand(
-        // --- Custom fields (US15): a create by hand is always held to the
-        // definitions, so a required field is asked for even when none is sent.
-        { ...input, assignedAdminUserId, customFieldValues: input.customFieldValues ?? {} },
-        initial.code,
-      ),
+      this.#createCommand({ ...input, assignedAdminUserId, customFieldValues }, initial.code),
     );
     await assignment.notifyAssigned({
       opportunityId: created.id,
@@ -315,7 +331,11 @@ export class OpportunityService {
     return { id: created.id, number: created.number };
   }
 
-  /** The create Command. The id is fixed up front so the audit entry and the row agree. */
+  /**
+   * The create Command. The id is fixed up front so the audit entry and the row
+   * agree. `input.customFieldValues` is the bag to store — already validated by
+   * the caller, outside the transaction — and absent means none.
+   */
   #createCommand(
     input: CreateOpportunityRequest,
     initialStatusCode: string,
@@ -341,12 +361,7 @@ export class OpportunityService {
         if (!start) throw startStatusGone();
         // Refused before anything is written: a tag that does not exist is 422.
         const tags = await this.deps.tags.resolve(em, input.tagIds ?? []);
-        // --- Custom fields (US15) — refused before anything is written.
-        const customFieldValues = await mergeOpportunityCustomFields(
-          this.deps.customFields,
-          {},
-          input.customFieldValues,
-        );
+        const customFieldValues = input.customFieldValues ?? {};
         const opportunity = em.create(CrmOpportunity, {
           id,
           number: await nextOpportunityNumber(em),
@@ -536,8 +551,67 @@ export class OpportunityService {
       await this.deps.assignment.assertAssignable(patch.assignedAdminUserId, visible.organizationId);
     }
 
+    // --- Custom fields (US15) — absent leaves the values as they are. Merged
+    // and validated before the Command, against the values read here; the
+    // Command uses the result only if the Opportunity still holds those values
+    // once it is locked, and otherwise this is done again (research N-S1).
+    let validatedAgainst = visible.customFieldValues ?? {};
+    let customFieldValues = await mergeOpportunityCustomFields(
+      this.deps.customFields,
+      validatedAgainst,
+      patch.customFieldValues,
+    );
+
     let becameComputed = false;
-    const reassigned = await this.deps.commandBus.run({
+    let reassigned: ReassignedOpportunity | null = null;
+    for (let attempt = 0; ; attempt += 1) {
+      const stale: { current: Record<string, unknown> | null } = { current: null };
+      reassigned = await this.#updateCommand(id, patch, ifMatch, {
+        customFieldValues,
+        validatedAgainst,
+        onStale: (bag) => {
+          stale.current = bag;
+        },
+        onBecameComputed: () => {
+          becameComputed = true;
+        },
+      });
+      if (stale.current === null) break;
+      if (attempt + 1 >= MAX_CUSTOM_FIELD_REVALIDATIONS) {
+        throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The opportunity was updated concurrently.');
+      }
+      validatedAgainst = stale.current;
+      customFieldValues = await mergeOpportunityCustomFields(
+        this.deps.customFields,
+        validatedAgainst,
+        patch.customFieldValues,
+      );
+    }
+    if (reassigned) await this.deps.assignment.notifyAssigned(reassigned);
+    // The stored computed figure is not maintained while the mode is manual,
+    // so it is brought up to date the moment it becomes the value.
+    if (becameComputed) await this.deps.recalculateValue(id);
+    return this.get(id);
+  }
+
+  /**
+   * The edit Command. `custom` carries the custom-field bag the caller merged
+   * and validated outside the transaction, and the bag it was validated
+   * against: when the locked Opportunity holds another, nothing is written and
+   * `onStale` is handed the bag it holds now.
+   */
+  #updateCommand(
+    id: string,
+    patch: UpdateOpportunityRequest,
+    ifMatch: number | null,
+    custom: {
+      customFieldValues: Record<string, unknown>;
+      validatedAgainst: Record<string, unknown>;
+      onStale: (current: Record<string, unknown>) => void;
+      onBecameComputed: () => void;
+    },
+  ): Promise<ReassignedOpportunity | null> {
+    return this.deps.commandBus.run({
       action: 'crm.opportunity.update',
       objectType: 'crm_opportunity',
       objectId: id,
@@ -550,6 +624,13 @@ export class OpportunityService {
         }
         if (patch.salesChannelId && (await em.count(SalesChannel, { id: patch.salesChannelId })) === 0) {
           throw invalid('The sales channel does not exist.');
+        }
+        if (
+          patch.customFieldValues !== undefined &&
+          !isDeepStrictEqual(opportunity.customFieldValues ?? {}, custom.validatedAgainst)
+        ) {
+          custom.onStale({ ...(opportunity.customFieldValues ?? {}) });
+          return { result: null, skipAudit: true };
         }
         const before = auditSnapshot(opportunity);
         // Absent means "leave the tags as they are"; present replaces the set.
@@ -573,18 +654,13 @@ export class OpportunityService {
         if (patch.valueMode !== undefined) opportunity.valueMode = patch.valueMode;
         if (patch.manualValue !== undefined) opportunity.manualValue = normalizeAmount(patch.manualValue);
         if (patch.expectedCloseDate !== undefined) opportunity.expectedCloseDate = patch.expectedCloseDate;
-        // --- Custom fields (US15) — absent leaves the values as they are.
-        opportunity.customFieldValues = await mergeOpportunityCustomFields(
-          this.deps.customFields,
-          opportunity.customFieldValues,
-          patch.customFieldValues,
-        );
+        if (patch.customFieldValues !== undefined) opportunity.customFieldValues = custom.customFieldValues;
         opportunity.version += 1;
         // An edit that changes the assignee is an assignment too: announced
         // with the previous one, and the new assignee is told.
         const previousAdminUserId = (before.assignedAdminUserId as string | null) ?? null;
         const assignedAdminUserId = opportunity.assignedAdminUserId ?? null;
-        becameComputed = before.valueMode !== 'computed' && opportunity.valueMode === 'computed';
+        if (before.valueMode !== 'computed' && opportunity.valueMode === 'computed') custom.onBecameComputed();
         return {
           result:
             previousAdminUserId === assignedAdminUserId
@@ -605,11 +681,6 @@ export class OpportunityService {
       },
       event: (result) => (result ? assignedEvent(result) : undefined),
     });
-    if (reassigned) await this.deps.assignment.notifyAssigned(reassigned);
-    // The stored computed figure is not maintained while the mode is manual,
-    // so it is brought up to date the moment it becomes the value.
-    if (becameComputed) await this.deps.recalculateValue(id);
-    return this.get(id);
   }
 
   async delete(id: string): Promise<void> {
@@ -789,20 +860,23 @@ export class OpportunityService {
 
   async #detail(opportunity: CrmOpportunity, graph: OpportunityStatusGraph): Promise<OpportunityDetail> {
     const language = await this.#viewerLanguage();
-    const [summaries, contact, links, unresolvedPropagations, excludedDocuments, references] = await Promise.all([
+    const [summaries, contact, links, unresolvedPropagations, live, references] = await Promise.all([
       this.#summaries([opportunity], graph, language),
       opportunity.customerAccountId
         ? this.deps.customerAccounts.findById(opportunity.customerAccountId)
         : Promise.resolve(null),
       this.deps.links(opportunity.id),
       this.deps.unresolvedPropagations(opportunity.id),
-      this.deps.excludedDocuments(opportunity),
+      this.deps.liveFigure(opportunity),
       this.deps.references.resolve(opportunity.description),
     ]);
     const summary = summaries[0];
     if (!summary) throw new Error('crm: an opportunity produced no summary.');
     return {
       ...summary,
+      // A computed Opportunity shows what its documents add up to as they are
+      // read for this screen; the stored figure catches up off the request.
+      ...(live ? { value: live.value } : {}),
       // The text as stored, and beside it what its tokens name for this reader.
       description: opportunity.description ?? null,
       references,
@@ -814,8 +888,8 @@ export class OpportunityService {
           }
         : null,
       manualValue: opportunity.manualValue ?? null,
-      computedValue: opportunity.computedValue,
-      excludedDocuments,
+      computedValue: live ? live.value : opportunity.computedValue,
+      excludedDocuments: live ? live.excludedDocuments : [],
       source: opportunity.source,
       version: opportunity.version,
       allowedTransitions: graph

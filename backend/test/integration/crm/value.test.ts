@@ -456,8 +456,16 @@ describe('crm computed value and Quote Request links (US8)', () => {
           order: ['completed'],
           quoteRequest: [],
         });
-        // Saved, not yet applied: the endpoint only enqueues.
-        expect((await detail(first.id)).value).toBe('123.00');
+        // Saved, not yet applied: the endpoint only enqueues. The stored
+        // figure — what the list, the board and the analytics read — is the
+        // job's to change; the detail already answers the live one (N-S3).
+        const stored = (await h
+          .em()
+          .execute(`select "computed_value" from "crm_opportunities" where "id" = ?`, [first.id])) as Array<{
+          computed_value: string;
+        }>;
+        expect(stored[0]?.computed_value).toBe('123.00');
+        expect((await detail(first.id)).value).toBe('0.00');
 
         expect(await runRecalculationJob()).toBeGreaterThanOrEqual(2);
         expect((await detail(first.id)).value).toBe('0.00');
