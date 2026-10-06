@@ -128,8 +128,18 @@ describe('quote_requests — rfq.created_by_admin.v1 and the origin of an admin-
   });
 
   it('answers the same response with and without an origin — it is not stored and not returned', async () => {
-    const plain = await createAsAdmin();
-    const withOrigin = await createAsAdmin({ origin: { type: 'crm_opportunity', id: randomUUID() } });
+    // Both announcements are waited for: the emitter does not wait for its
+    // subscribers, and one still on its way would be heard by the next case.
+    const {
+      result: [plain, withOrigin],
+    } = await announced(
+      async () =>
+        [
+          await createAsAdmin(),
+          await createAsAdmin({ origin: { type: 'crm_opportunity', id: randomUUID() } }),
+        ] as const,
+      { byAdmin: 2 },
+    );
     expect(plain.statusCode, plain.body).toBe(201);
     expect(withOrigin.statusCode, withOrigin.body).toBe(201);
     const plainData = (plain.json() as { data: Record<string, unknown> }).data;
