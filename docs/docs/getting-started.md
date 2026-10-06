@@ -116,12 +116,15 @@ there is one, and the closing summary names every recommendation you accepted th
 | Whether to start the development services | yes | `--no-services` |
 | Whether to load demo data | **none** — you must answer | `--demo` or `--no-demo` |
 | The administrator's e-mail | none | `--admin-email <address>` |
-| The administrator's password | none | `--admin-password <secret>` |
+| The administrator's password, at least 12 characters | none | `--admin-password <secret>` |
 | The administrator's first and last name | none | `--admin-first-name <text>`, `--admin-last-name <text>` |
 
 **The parts** are a checklist: the three components a run can stand up — `api`, `admin` and
-`storefront` — and `docs`, a documentation site for your instance. Type a row's number to toggle
-it, Enter to accept. Leaving every row checked is the run this page has described so far.
+`storefront` — and `docs`, a documentation site for your instance. Move between the rows with the
+arrow keys, press Space to check or uncheck one, Enter to accept. (A terminal that cannot redraw
+the list — `TERM=dumb` — shows it numbered instead: type a row's number to toggle it.) A password
+shorter than 12 characters is asked for again at once, and one given as `--admin-password` is
+refused before anything is written. Leaving every row checked is the run this page has described so far.
 Unchecking a component is the same as naming the others with `--only`: the run then drops the
 questions that no longer apply and asks where the other components are instead — see
 [Standing the components up separately](#one-component-per-machine). `docs` is left out with
