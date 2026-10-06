@@ -2,7 +2,7 @@
  * `crm`'s admin surface — seven routes and five sidebar rows
  * (`specs/143-crm-sales-opportunities/contracts/admin-surfaces.md` §1–§2).
  *
- * **A sidebar group of its own.** Both rows sit in the host's `crm` section
+ * **A sidebar group of its own.** All five rows sit in the host's `crm` section
  * (owner ruling of 2026-10-05), not under *Sales*: the section, its heading and
  * its position are the shell's, and a module joins it by naming it.
  *
