@@ -549,7 +549,7 @@ Somebody who may only read sees the list and the download buttons.
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | The attachments, oldest first: file name, type, size, who attached it, and `url`. |
 | `POST /api/v1/admin/crm/opportunities/:id/attachments/upload` | `crm:write` | Upload a file and attach it: `multipart/form-data` with one `file` part. |
-| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` | Attach a file that is already in the media library as a private file: `{ "assetId" }`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` and `assets.read` | Attach a file that is already in the media library as a private file: `{ "assetId" }`. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/attachments/:attachmentId` | `crm:write` | Remove the attachment. The file stays in the media library. |
 
 The upload answers the new attachment. It answers 413 `CRM_ATTACHMENT_TOO_LARGE`
@@ -560,8 +560,11 @@ stored, and a file that was stored but could not be attached is removed from
 the media library again.
 
 Attaching by `assetId` is for an integration that has already put a file in the
-media library; the Admin UI does not use it. Attaching a file the opportunity
-already has changes nothing and answers the existing attachment. A file that is
+media library; the Admin UI does not use it. It asks for the media library's
+read permission, `assets.read`, as well as `crm:write`: naming a file of the
+library by its id is reading the library, so only somebody who could open the
+file there may attach it. Uploading a file needs `crm:write` alone. Attaching
+a file the opportunity already has changes nothing and answers the existing attachment. A file that is
 not in the media library — or that is attached to an opportunity the person
 asking may not see — is refused as one that does not exist. If a file has gone
 missing from the media library, its attachment is still listed, under the name

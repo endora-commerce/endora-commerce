@@ -84,7 +84,10 @@ describe('crm attachments', () => {
     h = await setupBackendServer();
     await restoreDefaultCrmWorkflow(h.em());
     organizationB = await seedCrmOrganization(h.em(), 'Attachments B');
-    rep = await seedCrmSalesRep(h.em(), [TEST_ORGANIZATION_ID], ['crm:read', 'crm:write', 'orders:read']);
+    // `assets.read`: attaching a file by its id asks for the library's read
+    // permission as well, and the isolation cases below are about what a
+    // person who passes that gate still cannot reach.
+    rep = await seedCrmSalesRep(h.em(), [TEST_ORGANIZATION_ID], ['crm:read', 'crm:write', 'orders:read', 'assets.read']);
     crmOnly = await seedCrmAdmin(h.em(), 'attachment-crm-only', ['crm:read', 'crm:write']);
   });
 
@@ -99,8 +102,9 @@ describe('crm attachments', () => {
     const opportunity = await createCrmOpportunity(h);
     const file = await asset({ filename: 'technical-drawing.pdf', sizeBytes: 123_456 });
 
-    const attached = await attach(opportunity.id, file.id, crmOnly.cookies);
-    expect(attached.uploadedBy.id).toBe(crmOnly.adminUserId);
+    // By somebody who may read the library: attaching by id asks for that too.
+    const attached = await attach(opportunity.id, file.id, rep.cookies);
+    expect(attached.uploadedBy.id).toBe(rep.adminUserId);
 
     const listed = await list(opportunity.id);
     expect(listed).toHaveLength(1);

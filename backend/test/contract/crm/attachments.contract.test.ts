@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  ERROR_CODES,
   OpportunityAttachmentListResponseSchema,
   OpportunityAttachmentResponseSchema,
 } from '@endora-commerce/contracts';
@@ -28,6 +29,8 @@ import {
 describe('crm attachments (contract)', () => {
   let h: BackendServerHandle;
   let viewer: { cookies: { b2b_session: string }; undo: () => void };
+  let writer: { cookies: { b2b_session: string }; undo: () => void };
+  let librarian: { cookies: { b2b_session: string }; undo: () => void };
   let opportunityId: string;
   const assets: string[] = [];
   const MISSING = '00000000-0000-4000-8000-00000000dead';
@@ -55,11 +58,15 @@ describe('crm attachments (contract)', () => {
     h = await setupBackendServer();
     await restoreDefaultCrmWorkflow(h.em());
     viewer = await seedCrmAdmin(h.em(), 'attachment-viewer', ['crm:read']);
+    writer = await seedCrmAdmin(h.em(), 'attachment-writer', ['crm:read', 'crm:write']);
+    librarian = await seedCrmAdmin(h.em(), 'attachment-librarian', ['crm:read', 'crm:write', 'assets.read']);
     opportunityId = (await createCrmOpportunity(h)).id;
   });
 
   afterAll(async () => {
     viewer.undo();
+    writer.undo();
+    librarian.undo();
     await removeCrmAssets(h.em(), assets);
     await teardownBackendServer(h);
   });
@@ -96,10 +103,17 @@ describe('crm attachments (contract)', () => {
       }
     });
 
-    it('is gated crm:write, and answers 404 for an Opportunity that does not exist', async () => {
+    it('is gated crm:write and assets.read, and answers 404 for an Opportunity that does not exist', async () => {
       const file = await asset();
-      const refused = await call('POST', `/opportunities/${opportunityId}/attachments`, { assetId: file.id }, viewer.cookies);
-      expect(refused.statusCode, refused.body).toBe(403);
+      // Naming a file of the library by its id is reading the library: `crm:write`
+      // alone is refused, and so is the library's code without CRM's.
+      for (const cookies of [viewer.cookies, writer.cookies]) {
+        const refused = await call('POST', `/opportunities/${opportunityId}/attachments`, { assetId: file.id }, cookies);
+        expect(refused.statusCode, refused.body).toBe(403);
+        expect(refused.json().error.code).toBe(ERROR_CODES.FORBIDDEN);
+      }
+      const allowed = await call('POST', `/opportunities/${opportunityId}/attachments`, { assetId: file.id }, librarian.cookies);
+      expect(allowed.statusCode, allowed.body).toBe(201);
       const missing = await call('POST', `/opportunities/${MISSING}/attachments`, { assetId: file.id });
       expect(missing.statusCode, missing.body).toBe(404);
       expect(missing.json().error.code).toBe('CRM_OPPORTUNITY_NOT_FOUND');

@@ -18,6 +18,7 @@ import {
   removeCrmAssets,
   restoreDefaultCrmWorkflow,
   seedCrmAdmin,
+  seedCrmAsset,
   seedCrmOrganization,
   seedCrmSalesRep,
 } from '../../helpers/seed-crm.js';
@@ -41,6 +42,7 @@ describe('crm attachment upload', () => {
   type Seeded = { cookies: { b2b_session: string }; adminUserId: string; undo: () => void };
   let rep: Seeded;
   let crmOnly: Seeded;
+  let withLibrary: Seeded;
   let organizationB: string;
   let store: Awaited<ReturnType<typeof useTemporaryAssetStore>>;
   const assets: string[] = [];
@@ -78,11 +80,13 @@ describe('crm attachment upload', () => {
     organizationB = await seedCrmOrganization(h.em(), 'Upload B');
     rep = await seedCrmSalesRep(h.em(), [TEST_ORGANIZATION_ID], ['crm:read', 'crm:write', 'orders:read']);
     crmOnly = await seedCrmAdmin(h.em(), 'upload-crm-only', ['crm:read', 'crm:write']);
+    withLibrary = await seedCrmAdmin(h.em(), 'upload-with-library', ['crm:read', 'crm:write', 'assets.read']);
   });
 
   afterAll(async () => {
     rep.undo();
     crmOnly.undo();
+    withLibrary.undo();
     await removeCrmAssets(h.em(), assets);
     await store.undo();
     await teardownBackendServer(h);
@@ -132,6 +136,41 @@ describe('crm attachment upload', () => {
     // The library's half of the write is the library's entry.
     const stored = await h.auditLogService.query({ action: 'asset.upload', objectId: attached.assetId });
     expect(stored).toHaveLength(1);
+  });
+
+  it('keeps a private file of the library out of reach of crm:write alone — attaching by id asks for assets.read', async () => {
+    const opportunity = await createCrmOpportunity(h);
+    // A private file of the library, attached to nothing, whose id is known.
+    const file = await seedCrmAsset(h.em());
+    assets.push(file.id);
+    const attachById = (cookies: Record<string, string>) =>
+      h.app.inject({
+        method: 'POST',
+        url: `${CRM_API}/opportunities/${opportunity.id}/attachments`,
+        cookies,
+        payload: { assetId: file.id },
+      });
+
+    const refused = await attachById(crmOnly.cookies);
+    expect(refused.statusCode, refused.body).toBe(403);
+    expect(refused.json().error.code).toBe(ERROR_CODES.FORBIDDEN);
+    expect(refused.body).not.toContain('token=');
+    // Nothing was attached, so the list hands out no signed link to it.
+    expect(await list(opportunity.id, crmOnly.cookies)).toEqual([]);
+    expect(await h.em().count(CrmOpportunityAttachment, { opportunityId: opportunity.id })).toBe(0);
+
+    // The upload is unchanged: CRM's own code is still enough to add a file.
+    const uploaded = await upload(
+      opportunity.id,
+      { filename: 'own-file.png', mime: 'image/png', value: TINY_PNG },
+      crmOnly.cookies,
+    );
+    expect((await list(opportunity.id, crmOnly.cookies)).map((row) => row.id)).toEqual([uploaded.id]);
+
+    // Somebody who may read the library may attach what they could already open there.
+    const allowed = await attachById(withLibrary.cookies);
+    expect(allowed.statusCode, allowed.body).toBe(201);
+    expect(OpportunityAttachmentResponseSchema.parse(allowed.json()).data.assetId).toBe(file.id);
   });
 
   it('is protected from deletion in the library like any other attachment', async () => {

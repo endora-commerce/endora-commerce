@@ -2722,6 +2722,32 @@ when it was measured, and what was done about it.
   now reads the composed application's route table (`printRoutes`, HEAD left out) and compares
   it with the list as an exact set — 45 method-and-path pairs. It was complete after the
   merge; the test was seen to fail with the history route taken off the list.
+- **N-I5 (2026-10-06, T183) — N-F1 (f)'s narrowing (i), applied. A decision of the
+  session's coordinator that the owner may reverse — it is one `preHandler`.**
+  `POST /opportunities/:id/attachments { assetId }` is now gated `crm:write` **and**
+  `assets.read` — the code as `assets_library`' manifest declares it, with a dot, not a
+  colon. `RequireAdminFactory` takes one code, so the conjunction is two `preHandler`s in
+  order, `crm:write` first: a caller without CRM's code is told about CRM's code, and the
+  refusal for the library's is the platform's own 403 `FORBIDDEN`, no code minted. This
+  closes N-B17's residual: a holder of `crm:write` who knows the uuid of a private library
+  asset can no longer attach it and read a signed link off the list, because the people who
+  may attach by id are now exactly the people who could already open the file in the
+  library. A route gate is the right place here, unlike `rfqs:handle` (N-R13):
+  `assets_library` is non-deactivatable, so its code can always be granted and the
+  foreign-gate sweep reads the gate as `owner-locked`. **Unchanged:** the upload of §7a stays
+  `crm:write` alone (the integration test holds both halves in one case, with the same
+  role), listing and downloading stay `crm:read`, removing stays `crm:write`; the Admin UI
+  never called the by-id endpoint (N-F1 (f)), so no screen changes; the active-content
+  refusal of N-R1 still applies to a file attached by id. **Not declared in the manifest:**
+  `crm:write` does not name `assets.read` in `requires`, because a Sales Rep needs it for
+  nothing the screens do — the advisory would tell every role editor to grant the library
+  to people who only upload. **What it costs:** a client that attached by id with
+  `crm:write` alone is now refused; §7's gate column says so. The tenant-isolation cases of
+  `integration/crm/attachments.test.ts` give their Sales Rep `assets.read`, since they are
+  about what a person who passes the gate still cannot reach. A rule keyed on what a file
+  was uploaded *for* remains impossible without a foreign change, as N-F1 (f) ends. Both
+  new cases were seen red before the gate existed (the contract case and the upload case);
+  the implementation is the parked commit `6f8a0088e`, re-applied.
 - **N-J1 (2026-10-06, T117) — where the origin branch sits, and what it is made of.** The
   claim is checked in a file of its own, `services/opportunity-origin-link-service.ts`; the
   placed-document service (`opportunity-auto-create-service.ts`) calls it through one optional

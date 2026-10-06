@@ -568,7 +568,7 @@ Osoba, która może tylko czytać, widzi listę i przyciski pobierania.
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/attachments` | `crm:read` | Załączniki, od najstarszego: nazwa pliku, typ, rozmiar, kto załączył oraz `url`. |
 | `POST /api/v1/admin/crm/opportunities/:id/attachments/upload` | `crm:write` | Przesłanie pliku i załączenie go: `multipart/form-data` z jedną częścią `file`. |
-| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` | Załączenie pliku, który już jest w bibliotece mediów jako prywatny: `{ "assetId" }`. |
+| `POST /api/v1/admin/crm/opportunities/:id/attachments` | `crm:write` i `assets.read` | Załączenie pliku, który już jest w bibliotece mediów jako prywatny: `{ "assetId" }`. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/attachments/:attachmentId` | `crm:write` | Usunięcie załącznika. Plik zostaje w bibliotece mediów. |
 
 Odpowiedzią na przesłanie pliku jest nowy załącznik. Dla pliku większego niż
@@ -580,7 +580,11 @@ zapisane, a plik, który został zapisany, ale nie dał się załączyć, jest z
 biblioteki mediów usuwany.
 
 Załączanie po `assetId` jest przeznaczone dla integracji, która sama umieściła
-plik w bibliotece mediów; Admin UI z niego nie korzysta. Załączenie pliku,
+plik w bibliotece mediów; Admin UI z niego nie korzysta. Wymaga uprawnienia
+odczytu biblioteki mediów, `assets.read`, oprócz `crm:write`: wskazanie pliku
+biblioteki po identyfikatorze jest odczytem biblioteki, więc załączyć go może
+tylko osoba, która mogłaby otworzyć go w bibliotece. Przesłanie własnego pliku
+wymaga samego `crm:write`. Załączenie pliku,
 który szansa już ma, niczego nie zmienia, a odpowiedzią jest istniejący
 załącznik. Plik, którego nie ma w bibliotece mediów — albo który jest załączony
 do szansy niedostępnej dla pytającej osoby — jest odrzucany jak plik, który nie

@@ -170,7 +170,7 @@ the text's `length` — never the text (research N-R6); §11 therefore returns n
 | Method · Path | Gate | Request | Response |
 | --- | --- | --- | --- |
 | `GET /opportunities/:id/attachments` | `crm:read` | — | `{ data: OpportunityAttachment[] }` |
-| `POST /opportunities/:id/attachments` | `crm:write` | `{ assetId: uuid }` | 201 |
+| `POST /opportunities/:id/attachments` | `crm:write` **and** `assets.read` (research N-I5) | `{ assetId: uuid }` | 201; 403 `FORBIDDEN` without either |
 | `POST /opportunities/:id/attachments/upload` | `crm:write` | multipart, one `file` part (§7a) | 201 |
 | `DELETE /opportunities/:id/attachments/:attachmentId` | `crm:write` | — | 204 |
 
