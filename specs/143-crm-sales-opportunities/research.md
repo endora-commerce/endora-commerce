@@ -2143,6 +2143,21 @@ when it was measured, and what was done about it.
   return is gone with the ids; the statement says none. Measured on the test database with
   70 000 Opportunities of another Organization carrying the tag, for a Sales Rep who reaches
   none of them: 1 162 ms before, 36 ms after — what the list takes with no tag filter.
+- **N-R11 (2026-10-06, review finding 11) — eleven guards had no test; each has one now,
+  and each test was seen red against its guard taken out.** The review removed them one at
+  a time with the suite green. `backend/test/integration/crm/review-guards.test.ts` (and one
+  case of `review-regressions.test.ts`) hold: the reverse direction ignoring an event whose
+  Organization is not the Opportunity's; PATCH refusing a contact person of another
+  Organization; a status's `kind` not changing while an Opportunity is in it; the five
+  workflow-configuration writes answering 403 to `crm:read` + `crm:write` without
+  `crm:configure`; retry refusing once the Opportunity moved on, and for an Order that no
+  longer follows (following switched off, and the link gone — two halves of one condition);
+  a second dismissal; the echo marker matching only the status the Order was asked for, and
+  being consumed once; reopening clearing `closedAt` and `closedKind`; a stale `pending` row
+  shown as unresolved. Two things the tests had to learn: a 409 `VERSION_CONFLICT` reaches
+  the caller with the envelope's own sentence, so *which* refusal it was is asserted by
+  what was not written, never by the message; and a stale `pending` row is rendered
+  `failed` — `pending` is not an outcome the contract shows anybody.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
