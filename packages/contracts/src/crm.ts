@@ -87,7 +87,7 @@ export const opportunityReferenceTypeSchema = z.enum(['product', 'order']);
 export type OpportunityReferenceType = z.infer<typeof opportunityReferenceTypeSchema>;
 
 /** The six `QuoteRequestStatus` values — a fixed union, unlike Order statuses. */
-const QUOTE_REQUEST_STATUS_VALUES = [
+export const QUOTE_REQUEST_STATUS_VALUES = [
   'Created from admin',
   'Pending',
   'Canceled',
@@ -168,6 +168,32 @@ export function extractOpportunityReferenceTokens(text: string): OpportunityRefe
     tokens.push({ type, id });
   }
   return tokens;
+}
+
+/** A stretch of plain text, or one well-formed token, in the order they appear. */
+export type OpportunityReferenceTextPart =
+  | { kind: 'text'; text: string }
+  | ({ kind: 'reference' } & OpportunityReferenceToken);
+
+/**
+ * `text` cut at its well-formed tokens, for a screen that shows each token as
+ * a link: the parts, joined back, are the text. A malformed token stays text.
+ */
+export function splitOpportunityReferenceText(text: string): OpportunityReferenceTextPart[] {
+  const parts: OpportunityReferenceTextPart[] = [];
+  let cursor = 0;
+  for (const match of text.matchAll(new RegExp(REFERENCE_TOKEN_SOURCE, 'g'))) {
+    const start = match.index ?? 0;
+    if (start > cursor) parts.push({ kind: 'text', text: text.slice(cursor, start) });
+    parts.push({
+      kind: 'reference',
+      type: match[1] as OpportunityReferenceType,
+      id: (match[2] as string).toLowerCase(),
+    });
+    cursor = start + match[0].length;
+  }
+  if (cursor < text.length) parts.push({ kind: 'text', text: text.slice(cursor) });
+  return parts;
 }
 
 /**

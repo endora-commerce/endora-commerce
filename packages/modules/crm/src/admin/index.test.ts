@@ -148,6 +148,21 @@ describe('crm admin copy', () => {
         'failed',
         'skipped',
       ],
+      // Wave 2 — value, history, references (User Stories 8, 11, 12).
+      'value.excluded.kind.': ['order', 'quote_request'],
+      'value.excluded.reason.': ['currency_mismatch'],
+      'history.document.open.': ['order', 'quote_request'],
+      'history.linkSource.': ['manual', 'auto', 'created_from_opportunity', 'quote_conversion'],
+      'history.field.': [
+        'title', 'description', 'customerAccountId', 'salesChannelId', 'assignedAdminUserId',
+        'valueMode', 'manualValue', 'expectedCloseDate', 'currency', 'organizationId', 'number',
+        'source', 'tags', 'documentKind', 'documentId', 'linkedDocument', 'syncStatus',
+        'linkSource', 'orderId', 'orderStatusCode', 'skippedStatus', 'outcome', 'dismissed',
+        'deleted', 'reason', 'body', 'kind', 'fileName', 'statusCode',
+      ],
+      'references.kind.': ['product', 'order'],
+      'references.inserted.': ['product', 'order'],
+      'references.unavailable.': ['product', 'order'],
     };
     const composed = sources.flatMap(({ text }) =>
       [...text.matchAll(/\bt\(\s*`([^`$]+)\$\{/g)].map((match) => match[1] as string),

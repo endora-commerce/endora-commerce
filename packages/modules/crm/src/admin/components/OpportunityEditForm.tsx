@@ -12,12 +12,12 @@ import {
   Input,
   Label,
   Select,
-  Textarea,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
 import { errorMessage, normaliseAmount } from '../lib/labels.js';
 import { ContactLookup, SalesChannelLookup } from './LookupPickers.js';
+import { ReferenceTextarea } from './ReferenceTextarea.js';
 
 export interface OpportunityEditFormProps {
   opportunity: OpportunityDetail;
@@ -317,12 +317,13 @@ export function OpportunityEditForm(props: OpportunityEditFormProps): ReactNode 
 
       <div className="space-y-1">
         <Label htmlFor="crm-edit-description">{t('opportunity.field.description')}</Label>
-        <Textarea
+        <ReferenceTextarea
           id="crm-edit-description"
           rows={5}
           value={draft.description}
           maxLength={20000}
-          onChange={(event): void => set({ description: event.target.value })}
+          organizationId={base.organization.id}
+          onValueChange={(description): void => set({ description })}
         />
       </div>
 

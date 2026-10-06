@@ -1,7 +1,8 @@
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
-import { Alert, AlertDescription, Button, Label, Textarea } from '@endora-commerce/admin-kit/ui';
+import { Alert, AlertDescription, Button, Label } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { errorMessage } from '../lib/labels.js';
+import { ReferenceTextarea } from './ReferenceTextarea.js';
 
 /** A comment body's limit — `commentBodySchema` in `@endora-commerce/contracts`. */
 export const COMMENT_MAX_LENGTH = 10_000;
@@ -11,14 +12,16 @@ export interface CommentComposerProps {
   label: string;
   placeholder: string;
   submitLabel: string;
+  /** The Opportunity's Organization — whose Orders a reference may name. */
+  organizationId: string;
   /** Sends the text; a rejection is shown here and what was typed is kept. */
   onSubmit: (body: string) => Promise<void>;
 }
 
 /**
- * The one composer of the Notes and Messages tabs (User Story 4): a plain
- * `Textarea` and a button. User Story 12 swaps the textarea for the one that
- * inserts product and order references; nothing else here changes with it.
+ * The one composer of the Notes and Messages tabs (User Story 4): a textarea
+ * and a button. The textarea is the one that inserts product and order
+ * references (User Story 12).
  */
 export function CommentComposer(props: CommentComposerProps): ReactNode {
   const t = useTranslation('crm');
@@ -55,8 +58,9 @@ export function CommentComposer(props: CommentComposerProps): ReactNode {
         </Alert>
       ) : null}
       <Label htmlFor={`${fieldId}-body`}>{props.label}</Label>
-      <Textarea
+      <ReferenceTextarea
         id={`${fieldId}-body`}
+        organizationId={props.organizationId}
         rows={4}
         value={body}
         maxLength={COMMENT_MAX_LENGTH}
@@ -64,8 +68,8 @@ export function CommentComposer(props: CommentComposerProps): ReactNode {
         disabled={busy}
         aria-invalid={problem !== null}
         {...(problem ? { 'aria-describedby': `${fieldId}-problem` } : {})}
-        onChange={(event): void => {
-          setBody(event.target.value);
+        onValueChange={(next): void => {
+          setBody(next);
           setProblem(null);
         }}
       />

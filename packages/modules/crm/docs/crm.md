@@ -51,7 +51,7 @@ when at least one of them is visible.
 | --- | --- | --- | --- |
 | Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, assignee, tags, sales channel and creation date. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
-| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, the orders linked to it, and what became of those orders after each move. |
+| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, its value, the orders and quote requests linked to it, and what became of those orders after each move; on further tabs its notes, messages, attachments and **change history**. |
 | Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
 | Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
 | Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, and the opportunity status each order status leads to. |
@@ -605,6 +605,31 @@ CRM does not need the Quote Requests module. While it is switched off:
 Nothing is lost: switched back on, the links show their documents again. A
 computed value picks the quote requests up again at its next recalculation.
 
+### In the Admin UI
+
+On an opportunity's **Overview**:
+
+- **Linked quote requests** lists each one with its number, its status and its
+  net value, next to *Linked orders*. A holder of `crm:write` searches the
+  organization's quote requests by number and links one, or unlinks one. The
+  search offers the open quote requests; a closed one is found by typing its
+  full number. Linking does not need the permission to handle quotes.
+- **Value** shows the figure and whether it is *entered by hand* or a *computed
+  value*, and one button switches between the two. For a computed value it
+  lists every document that was **left out**, with the reason, and reminds you
+  that your own estimate is kept.
+
+On **CRM → Workflow**, *Statuses that count towards a computed value* is two
+lists of checkboxes — order statuses and quote request statuses — saved
+together. *This and every later status* ticks an order status and all that
+follow it. After saving, the screen says that the values are being recalculated
+in the background: until that has finished, lists and the board still show the
+figures of the previous settings.
+
+With the Quote Requests module switched off, the quote request list of an
+opportunity that has none disappears, one that has some shows them as
+unavailable and says why, and the workflow screen offers order statuses only.
+
 ## Opportunities created automatically
 
 Two settings make the CRM open an opportunity by itself. Both are **off** by
@@ -686,6 +711,13 @@ Three things to know:
 On the platform-wide **Audit log** screen the same entries appear among
 everybody else's, as the same sentences.
 
+In the Admin UI the history is the **Change history** tab of an opportunity.
+Each entry is a sentence — *Opportunity status changed*, *Note added* — with
+who did it and when. A status change shows the two statuses by name; when an
+order caused it, the entry names that order and links to it. An edit lists the
+fields that changed, as they were and as they are. *Show earlier changes* reads
+the next page.
+
 ## References to products and orders
 
 The description of an opportunity, a note and a message can mention a
@@ -724,6 +756,18 @@ A token that is not well-formed — an unknown type, something that is not an id
 
 `references` is on the opportunity (for its `description`) and on every note
 and message (for its `body`). There is no separate endpoint.
+
+In the Admin UI the description field and the note and message fields carry
+two buttons, **Insert product** and **Insert order**. Each opens a search;
+choosing a result writes the token where the cursor was. Once saved, the text
+shows the product's name or the order's number as a link in its place, and
+*Product unavailable* / *Order unavailable* for a target that is gone or that
+you may not see.
+
+The two searches are the catalogue's and the Orders module's own, so *Insert
+product* is offered to a role that also holds `catalog:read` and *Insert order*
+to one that holds `orders:read`; orders are offered for the opportunity's
+organization only. A token typed or pasted by hand works without either.
 
 ## Telling other systems: webhooks
 
@@ -924,8 +968,6 @@ No role receives a CRM permission automatically. Grant them on the
 
 ## Coming
 
-- The screens for the computed value, the change history and references. Their
-  endpoints are described above and work today.
 - Creating an order or a quote request from within an opportunity.
 - Analytics: handling time, time in each status, results by sales
   representative.

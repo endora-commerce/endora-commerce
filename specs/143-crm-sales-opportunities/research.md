@@ -2182,6 +2182,64 @@ when it was measured, and what was done about it.
   `audit_logs`' `moduleIdForAuditAction` sends the `crm.` prefix to CRM's bundle, so the
   platform-wide audit log shows the sentences the Opportunity's own history shows. In a commit
   of its own; `contracts/foreign-module-changes.md` §K.
+- **N-H2 (2026-10-06, T101) — the Quote Request picker reads a lookup of CRM's own; the port
+  decides what it can offer.** `GET /api/v1/admin/quote-requests` is gated `rfqs:handle` — the
+  right to handle quotes — which is N-D4's case again, so the picker reads
+  `GET /api/v1/admin/crm/lookups/quote-requests?organizationId&q` (`crm:write`; one new
+  service, one new route file, one delimited section of `index.ts`). `QuoteRequestReadPort`
+  has **no search**: it lists the *open* requests of given Organizations and finds one by its
+  exact number. So the lookup offers the Organization's open Quote Requests narrowed by the
+  typed fragment, plus the one whose number is typed in full, whatever its status (tried as
+  typed and upper-cased) — an approved or completed request is linked by its number, and the
+  picker's empty message says so. The answer is `id`, `number`, `status`; **no amount**
+  (`listItems` is one port call per request). Tenant scope by name (`isOrgInScope`): an
+  Organization out of reach answers an empty list. With `quote_requests` off it answers 503
+  `MODULE_DISABLED` from the same door as linking (N-E5). `document-lookups.contract.test.ts`
+  holds the gate, the shape, both isolation cases and that the desk's own list still refuses
+  the role. **The test was written before the service but run only after it** — its red was
+  not observed.
+- **N-H3 (2026-10-06, T127) — the reference pickers are the owners' lists, offered by
+  permission; no product lookup was added, because the catalog's port cannot search.**
+  `CatalogProductReadPort` finds by id and by exact SKU and lists everything; a CRM-owned
+  product search would be `listAll()` filtered in memory or an edit to another module's port,
+  and neither is this feature's. So *Insert product* is the kit's `ProductPicker`
+  (`GET /api/v1/admin/catalog/products`, `catalog:read`), fetched lazily on first press, and
+  is **not offered** to a role without that code; *Insert order* searches `orders`' list for
+  the Opportunity's Organization, as the link picker does, and needs `orders:read` — which
+  `crm:read` already names in `requires`. `catalog:read` was **not** added to `requires`: the
+  feature degrades to a plain textarea, and a token typed by hand resolves all the same
+  (N-E14 asks for no catalog permission to *read* a name). The splitter a screen needs to
+  render tokens joined the grammar's one home (`splitOpportunityReferenceText` in
+  `packages/contracts/src/crm.ts`). The textarea's own announcement is `aria-live="polite"`
+  and not `role="status"`: the comment thread around it owns the one status of its tab, and
+  one existing test (`comments.test.tsx`, "sends a message") now waits for the composer
+  instead of assuming the lazy tab has rendered.
+- **N-H4 (2026-10-06, T122) — what the Change history tab does with a row the endpoint
+  answers raw.** The label is `auditLog.<action>` in CRM's bundle (N-E11), with a generic
+  sentence for an action that has none. `before` / `after` are `unknown` on the wire, so the
+  tab decides what is readable: a status change is a sentence (names from `GET /workflow`,
+  codes only if that read fails) with its cause — the Order by number when the Opportunity
+  still links it, otherwise a link that says "Order (open)" — and its reason; an edit lists
+  only the fields that differ; a creation, a link or a note lists what it arrived with.
+  **Identifiers are never printed**: `linkId`, `commentId`, `attachmentId`, `assetId`,
+  `propagationId` and `version` are dropped; an assignee is named when this page knows the
+  name (the current assignee, anybody who acted in the pages read) and is otherwise "Another
+  administrator"; a contact person or Sales Channel that changed is "Set". Naming every
+  administrator would need the assignee lookup per page, and was not built. Pagination
+  appends ("Show earlier changes") rather than paging back and forth: the endpoint's cursor
+  is an offset into one capped read (N-E10), and a reader scanning back keeps their place.
+- **N-H5 (2026-10-06) — the two automatic-creation Settings are on the Settings screen, in
+  English only, and that is the platform's, not this module's.** `SettingRowEditor.tsx`
+  renders `setting.name` and `setting.description` straight from the manifest; there is no
+  bundle key, no `labelKey` and no per-language field for a Setting anywhere in
+  `packages/modules/settings` — every module's Settings read in English whatever the
+  operator's language. Nothing was added: there is no label to add a translation *to*. Both
+  Settings are listed under the **CRM** group with the sentences T105 wrote, and the
+  generated reference page shows them in both languages' pages under the same English name.
+  A translatable Setting name is a change to the settings manifest contract — for the
+  register. The value screens: the counting-status save says its 202 in words
+  (`value.counting.accepted`), and the value section reads the figure from the detail it was
+  just handed, never from a list.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

@@ -12,9 +12,12 @@ import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n'
 import { crmApi, type OrderStatusOption } from '../../../api.js';
 import { AssigneeSection } from '../../../components/AssigneeSection.js';
 import { LinkedDocuments } from '../../../components/LinkedDocuments.js';
+import { LinkedQuoteRequests } from '../../../components/LinkedQuoteRequests.js';
 import { salesChannelLabel } from '../../../components/LookupPickers.js';
 import { OpportunityEditForm } from '../../../components/OpportunityEditForm.js';
+import { OpportunityValue } from '../../../components/OpportunityValue.js';
 import { PropagationOutcomes } from '../../../components/PropagationOutcomes.js';
+import { ReferenceText } from '../../../components/ReferenceText.js';
 import { StatusControl } from '../../../components/StatusControl.js';
 import { TagsSection } from '../../../components/TagsSection.js';
 import { calendarDateLabel, moneyLabel, NO_VALUE } from '../../../lib/labels.js';
@@ -174,6 +177,17 @@ export function OverviewTab(props: OpportunityTabProps): ReactNode {
         reload={reload}
       />
 
+      {/* --- User Story 8: Quote Requests and the value ------------------- */}
+      <LinkedQuoteRequests opportunity={opportunity} canWrite={canWrite} reload={reload} />
+
+      <OpportunityValue
+        opportunity={opportunity}
+        canWrite={canWrite}
+        onChange={onChange}
+        reload={reload}
+      />
+      {/* --- end of User Story 8 ------------------------------------------ */}
+
       {editing ? (
         <section>
           <OpportunityEditForm
@@ -269,7 +283,14 @@ export function OverviewTab(props: OpportunityTabProps): ReactNode {
                 {t('opportunity.field.description')}
               </dt>
               <dd className="whitespace-pre-wrap break-words">
-                {opportunity.description ? opportunity.description : NO_VALUE}
+                {opportunity.description ? (
+                  <ReferenceText
+                    text={opportunity.description}
+                    references={opportunity.references}
+                  />
+                ) : (
+                  NO_VALUE
+                )}
               </dd>
             </div>
           </dl>

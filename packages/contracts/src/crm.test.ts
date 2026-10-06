@@ -531,3 +531,31 @@ describe('outbound webhook event schemas (events-and-ports.md §6)', () => {
     rejects(crm.OpportunityCreatedEventV1Schema, { ...created, source: 'import' });
   });
 });
+
+describe('splitOpportunityReferenceText', () => {
+  const product = '11111111-1111-4111-8111-111111111111';
+  const order = '22222222-2222-4222-8222-2222222222AB';
+
+  it('cuts a text at its tokens and keeps everything else as text', () => {
+    const text = `Ask about [[product:${product}]] and [[order:${order}]].`;
+    const parts = crm.splitOpportunityReferenceText(text);
+    expect(parts).toEqual([
+      { kind: 'text', text: 'Ask about ' },
+      { kind: 'reference', type: 'product', id: product },
+      { kind: 'text', text: ' and ' },
+      { kind: 'reference', type: 'order', id: order.toLowerCase() },
+      { kind: 'text', text: '.' },
+    ]);
+  });
+
+  it('leaves a malformed token, and markup, as text', () => {
+    const text = '[[product:not-a-uuid]] <b>bold</b> [[invoice:1]]';
+    expect(crm.splitOpportunityReferenceText(text)).toEqual([{ kind: 'text', text }]);
+  });
+
+  it('answers nothing for an empty text and repeats a token as often as it appears', () => {
+    expect(crm.splitOpportunityReferenceText('')).toEqual([]);
+    const twice = `[[product:${product}]][[product:${product}]]`;
+    expect(crm.splitOpportunityReferenceText(twice)).toHaveLength(2);
+  });
+});

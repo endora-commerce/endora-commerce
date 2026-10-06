@@ -13,7 +13,9 @@ import type {
   OpportunityCommentKind,
   OpportunityBoard,
   OpportunityDetail,
+  OpportunityHistoryEntry,
   OpportunityLink,
+  OpportunityQuoteRequestOption,
   OpportunityStatusKind,
   OpportunitySummary,
   OpportunityTag,
@@ -23,6 +25,7 @@ import type {
   Pagination,
   PropagationOutcome,
   SetOpportunityTransitionsRequest,
+  SetValueCountingStatusesRequest,
   UpdateOpportunityRequest,
   UpdateOpportunityStatusRequest,
   UpdateOpportunityTagRequest,
@@ -404,6 +407,51 @@ export const crmApi = {
       apiClient.get<{ data: OpportunityContactOption[] }>(
         `${BASE}/lookups/contacts?${qs.toString()}`,
       ),
+    );
+  },
+
+  // --- Wave 2: value, Quote Requests, history (User Stories 8, 11) ----------
+
+  /**
+   * The Organization's Quote Requests that can be linked — CRM's own lookup,
+   * behind `crm:write` (research N-H2). Rejects with 503 `MODULE_DISABLED`
+   * while `quote_requests` is off.
+   */
+  lookupQuoteRequests(
+    organizationId: string,
+    query = '',
+  ): Promise<OpportunityQuoteRequestOption[]> {
+    const qs = new URLSearchParams({ organizationId });
+    const q = query.trim();
+    if (q) qs.set('q', q);
+    return data(
+      apiClient.get<{ data: OpportunityQuoteRequestOption[] }>(
+        `${BASE}/lookups/quote-requests?${qs.toString()}`,
+      ),
+    );
+  },
+
+  /**
+   * Answers **202**: the set is saved, and every computed Opportunity is
+   * recalculated afterwards, by a queue job — the figures on screen are the
+   * previous configuration's until it has run.
+   */
+  setValueCountingStatuses(body: SetValueCountingStatusesRequest): Promise<OpportunityWorkflow> {
+    return data(
+      apiClient.put<{ data: OpportunityWorkflow }>(`${BASE}/value-counting-statuses`, body),
+    );
+  },
+
+  /** Newest first; `cursor` is the one the previous page answered. */
+  getHistory(
+    id: string,
+    params: { cursor?: string; limit?: number } = {},
+  ): Promise<{ data: OpportunityHistoryEntry[]; pagination: Pagination }> {
+    const qs = new URLSearchParams();
+    if (params.cursor) qs.set('cursor', params.cursor);
+    if (params.limit) qs.set('limit', String(params.limit));
+    return apiClient.get<{ data: OpportunityHistoryEntry[]; pagination: Pagination }>(
+      `${BASE}/opportunities/${id}/history${queryTail(qs)}`,
     );
   },
 

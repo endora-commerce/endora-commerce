@@ -267,7 +267,11 @@ describe('the Messages tab', () => {
       data: comment({ id: ID(6), kind: 'message', body: 'Sent today.', createdAt: '2026-10-05T15:00:00.000Z' }),
     });
     const panel = await open();
-    await userEvent.type(within(panel).getByLabelText(en('comments.messages.composer.label')), 'Sent today.');
+    // The tab is a lazy chunk: wait for the composer rather than assume it is there.
+    await userEvent.type(
+      await within(panel).findByLabelText(en('comments.messages.composer.label')),
+      'Sent today.',
+    );
     await userEvent.click(
       within(panel).getByRole('button', { name: en('comments.messages.composer.submit') }),
     );

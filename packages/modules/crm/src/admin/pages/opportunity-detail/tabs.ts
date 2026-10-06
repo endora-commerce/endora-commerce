@@ -49,4 +49,10 @@ export const OPPORTUNITY_TABS: readonly OpportunityTab[] = [
     labelKey: 'opportunity.tabs.attachments',
     component: lazy(() => import('./tabs/AttachmentsTab.js')),
   },
+  // User Story 11 — the owner named this tab "Change history" / "Historia zmian".
+  {
+    id: 'history',
+    labelKey: 'opportunity.tabs.history',
+    component: lazy(() => import('./tabs/HistoryTab.js')),
+  },
 ];

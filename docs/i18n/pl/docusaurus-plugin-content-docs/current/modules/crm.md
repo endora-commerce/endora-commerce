@@ -50,7 +50,7 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | --- | --- | --- | --- |
 | Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży i data utworzenia. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
-| Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Jej status i zmiany, na które pozwala przepływ, powiązane z nią zamówienia oraz to, co stało się z tymi zamówieniami po każdej zmianie. |
+| Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Jej status i zmiany, na które pozwala przepływ, jej wartość, powiązane z nią zamówienia i zapytania ofertowe oraz to, co stało się z tymi zamówieniami po każdej zmianie; na kolejnych kartach — notatki, wiadomości, załączniki i **historia zmian**. |
 | Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
 | Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
 | Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy oraz status szansy, do którego prowadzi każdy status zamówienia. |
@@ -624,6 +624,32 @@ CRM nie wymaga modułu Zapytań ofertowych. Gdy jest on wyłączony:
 Nic nie ginie: po ponownym włączeniu powiązania znów pokazują swoje dokumenty.
 Wartość wyliczana uwzględni zapytania ofertowe przy najbliższym przeliczeniu.
 
+### W Admin UI
+
+Na karcie **Przegląd** szansy sprzedażowej:
+
+- **Powiązane zapytania ofertowe** — lista z numerem, statusem i wartością
+  netto każdego z nich, obok sekcji *Powiązane zamówienia*. Posiadacz
+  uprawnienia `crm:write` wyszukuje zapytania ofertowe organizacji po numerze
+  i wiąże je albo odłącza. Wyszukiwarka podpowiada zapytania otwarte; zamknięte
+  znajdziesz, wpisując jego pełny numer. Do powiązania nie jest potrzebne
+  uprawnienie do obsługi zapytań ofertowych.
+- **Wartość** — kwota oraz informacja, czy jest *wpisana ręcznie*, czy jest to
+  *wartość wyliczana*; jeden przycisk przełącza między nimi. Przy wartości
+  wyliczanej widać każdy dokument **pominięty** w sumie, wraz z powodem, oraz
+  przypomnienie, że Twój własny szacunek jest zachowany.
+
+Na ekranie **CRM → Statusy i przepływ** sekcja *Statusy liczone do wartości
+wyliczanej* to dwie listy pól wyboru — statusy zamówień i statusy zapytań
+ofertowych — zapisywane razem. Przycisk *Ten i wszystkie kolejne* zaznacza
+status zamówienia i wszystkie następne. Po zapisaniu ekran informuje, że
+wartości są przeliczane w tle: dopóki przeliczanie się nie zakończy, listy
+i tablica pokazują jeszcze kwoty według poprzednich ustawień.
+
+Gdy moduł Zapytania ofertowe jest wyłączony, lista zapytań znika z szansy,
+która żadnego nie ma; szansa, która je ma, pokazuje je jako niedostępne
+i wyjaśnia dlaczego, a ekran przepływu proponuje wyłącznie statusy zamówień.
+
 ## Szanse tworzone automatycznie
 
 Dwa ustawienia sprawiają, że CRM sam otwiera szansę sprzedażową. Oba są
@@ -706,6 +732,13 @@ Trzy rzeczy, o których warto wiedzieć:
 Na ekranie **Dziennik audytu** całej platformy te same wpisy są pokazywane
 wśród wszystkich pozostałych, jako te same zdania.
 
+W Admin UI historia to karta **Historia zmian** szansy sprzedażowej. Każdy
+wpis jest zdaniem — *Zmieniono status szansy sprzedażowej*, *Dodano notatkę* —
+z informacją, kto i kiedy to zrobił. Zmiana statusu pokazuje oba statusy z
+nazwy; jeśli spowodowało ją zamówienie, wpis wskazuje to zamówienie i prowadzi
+do niego. Edycja wymienia zmienione pola: jak było i jak jest. Przycisk *Pokaż
+wcześniejsze zmiany* wczytuje kolejną stronę.
+
 ## Odwołania do produktów i zamówień
 
 Opis szansy sprzedażowej, notatka i wiadomość mogą wspominać **produkt** albo
@@ -744,6 +777,19 @@ identyfikatorem — jest po prostu tekstem.
 
 `references` znajduje się na szansie (dla jej `description`) oraz na każdej
 notatce i wiadomości (dla jej `body`). Nie ma osobnego punktu końcowego.
+
+W Admin UI pole opisu oraz pola notatki i wiadomości mają dwa przyciski:
+**Wstaw produkt** i **Wstaw zamówienie**. Każdy otwiera wyszukiwarkę; wybranie
+wyniku wpisuje token w miejscu kursora. Po zapisaniu tekst pokazuje w tym
+miejscu nazwę produktu albo numer zamówienia jako odnośnik, a dla celu, który
+zniknął albo którego nie możesz zobaczyć — *Produkt niedostępny* /
+*Zamówienie niedostępne*.
+
+Obie wyszukiwarki należą do katalogu i do modułu Zamówienia, dlatego przycisk
+*Wstaw produkt* widzi rola, która ma także `catalog:read`, a *Wstaw
+zamówienie* — rola z `orders:read`; proponowane są wyłącznie zamówienia
+organizacji tej szansy. Token wpisany albo wklejony ręcznie działa bez żadnego
+z tych uprawnień.
 
 ## Powiadamianie innych systemów: webhooki
 
@@ -947,8 +993,6 @@ ekranie **Role**.
 
 ## Wkrótce
 
-- Ekrany wartości wyliczanej, historii zmian i odwołań. Ich punkty końcowe są
-  opisane powyżej i działają już dziś.
 - Tworzenie zamówienia albo zapytania ofertowego z poziomu szansy.
 - Analityka: czas obsługi, czas w poszczególnych statusach, wyniki
   handlowców.

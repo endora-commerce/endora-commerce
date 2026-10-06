@@ -13,6 +13,7 @@ export function MessagesTab(props: OpportunityTabProps): ReactNode {
   return (
     <CommentThread
       opportunityId={props.opportunity.id}
+      organizationId={props.opportunity.organization.id}
       kind="message"
       copy={{
         title: t('opportunity.tabs.messages'),
