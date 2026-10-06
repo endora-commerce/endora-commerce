@@ -1,4 +1,4 @@
-import { UniqueConstraintViolationException } from '@mikro-orm/core';
+import { raw, UniqueConstraintViolationException, type FilterQuery } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
@@ -11,6 +11,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { orgConstraintFor, type OrgConstraint } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
+import type { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
 import { CrmTag } from '../entities/crm-tag.entity.js';
 import { isUuid } from './opportunity-access.js';
@@ -185,20 +186,17 @@ export class TagService {
   }
 
   /**
-   * The ids of the Opportunities carrying **every** one of `tagIds`. Not
-   * tenant-narrowed: the caller intersects it with a scoped read.
+   * "Carries **every** one of `tagIds`", as conditions on an Opportunity — one
+   * `in (subquery)` per tag, so the database joins and no id is ever read into
+   * the process or bound into a statement (research N-R10). They only narrow:
+   * the tenant constraint is the scoped read's they are added to.
    */
-  async opportunityIdsCarryingAll(em: EntityManager, tagIds: readonly string[]): Promise<string[]> {
-    const ids = [...new Set(tagIds)];
-    if (ids.length === 0) return [];
-    const rows = (await em.execute(
-      `select "opportunity_id" from "crm_opportunity_tags"
-        where "tag_id" in (${ids.map(() => '?').join(', ')})
-        group by "opportunity_id"
-       having count(distinct "tag_id") = ?`,
-      [...ids, ids.length],
-    )) as Array<{ opportunity_id: string }>;
-    return rows.map((row) => row.opportunity_id);
+  carryingEvery(tagIds: readonly string[]): FilterQuery<CrmOpportunity>[] {
+    return [...new Set(tagIds)].map((tagId) => ({
+      id: {
+        $in: raw('(select t."opportunity_id" from "crm_opportunity_tags" t where t."tag_id" = ?)', [tagId]),
+      },
+    }));
   }
 
   async #assertNameFree(em: EntityManager, name: string, exceptId: string | null): Promise<void> {

@@ -383,7 +383,7 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             workflowRead: crmWorkflowReadService,
             listOpportunities: (query) => crmOpportunityService.list(query),
-            opportunityIdsCarryingAll: (em, tagIds) => crmTagService.opportunityIdsCarryingAll(em, tagIds),
+            carryingEveryTag: (tagIds) => crmTagService.carryingEvery(tagIds),
             organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
           }),

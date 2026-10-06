@@ -30,11 +30,11 @@ export interface BoardServiceDeps {
     query: OpportunityListQuery,
   ) => Promise<{ data: OpportunitySummary[]; pagination: Pagination }>;
   /**
-   * The Opportunities carrying every one of the tags named — the tag service's
-   * own answer, the one the list narrows by. Unscoped ids: they only ever
-   * narrow the scoped statement below.
+   * "Carries every one of the tags named", as conditions — the tag service's
+   * own answer, the one the list narrows by. They only ever narrow the scoped
+   * statement below.
    */
-  opportunityIdsCarryingAll: (em: EntityManager, tagIds: readonly string[]) => Promise<string[]>;
+  carryingEveryTag: (tagIds: readonly string[]) => FilterQuery<CrmOpportunity>[];
   /** Ports of other modules — lazy, resolved per call, never captured. */
   organizations: OrganizationDetailsPort;
   adminUsers: AdminUserReadPort;
@@ -88,7 +88,7 @@ export class BoardService {
     const { perColumn, ...filters } = query;
     const [graph, conditions, language] = await Promise.all([
       this.deps.workflowRead.loadGraph(em),
-      this.conditions(em, query),
+      this.conditions(query),
       this.viewerLanguage(),
     ]);
     // `null`: a filter no Opportunity can satisfy. The columns are still
@@ -128,13 +128,10 @@ export class BoardService {
 
   /**
    * The board's filters as conditions on `CrmOpportunity` — the ones the list
-   * applies, in the same terms. `null` when a filter can match nothing: a tag
-   * set no Opportunity carries, or "mine" with no administrator asking.
+   * applies, in the same terms. `null` when a filter can match nothing:
+   * "mine" with no administrator asking.
    */
-  private async conditions(
-    em: EntityManager,
-    query: OpportunityBoardQuery,
-  ): Promise<FilterQuery<CrmOpportunity>[] | null> {
+  private async conditions(query: OpportunityBoardQuery): Promise<FilterQuery<CrmOpportunity>[] | null> {
     const conditions: FilterQuery<CrmOpportunity>[] = [];
     if (query.q) {
       const like = `%${query.q.replace(/[\\%_]/g, (match) => `\\${match}`)}%`;
@@ -148,9 +145,7 @@ export class BoardService {
       });
     }
     if (query.tagId && query.tagId.length > 0) {
-      const carrying = await this.deps.opportunityIdsCarryingAll(em, query.tagId);
-      if (carrying.length === 0) return null;
-      conditions.push({ id: { $in: carrying } });
+      conditions.push(...this.deps.carryingEveryTag(query.tagId));
     }
     if (query.organizationId) conditions.push({ organizationId: query.organizationId });
     if (query.assignedAdminUserId === 'unassigned') {

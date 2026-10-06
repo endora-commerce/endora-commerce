@@ -269,13 +269,9 @@ export class OpportunityService {
       conditions.push({ statusCode: { $in: codes } });
     }
     if (query.tagId && query.tagId.length > 0) {
-      // Every tag named must be carried (AND). The ids come from an unscoped
-      // statement and only ever narrow the scoped read below.
-      const carrying = await this.deps.tags.opportunityIdsCarryingAll(em, query.tagId);
-      if (carrying.length === 0) {
-        return { data: [], pagination: { cursor: null, hasMore: false, limit: query.limit } };
-      }
-      conditions.push({ id: { $in: carrying } });
+      // Every tag named must be carried (AND): subqueries that only ever
+      // narrow the scoped read below.
+      conditions.push(...this.deps.tags.carryingEvery(query.tagId));
     }
     if (query.organizationId) conditions.push({ organizationId: query.organizationId });
     if (query.assignedAdminUserId === 'unassigned') {

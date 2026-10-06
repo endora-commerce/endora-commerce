@@ -2131,6 +2131,18 @@ when it was measured, and what was done about it.
   `VALIDATION_FAILED` before the service is called. `contracts/admin-api.md` §1's row is
   left as it reads (it names the header and the 409) to keep this change out of a table
   other branches edit; the 400 belongs in it.
+- **N-R10 (2026-10-06, review finding 10) — the tag filter is a subquery, not a list of
+  ids.** `opportunityIdsCarryingAll` read the id of every Opportunity on the platform
+  carrying the tags — unscoped, by design — into the process and bound them all back into
+  the list's and the board's statements: one parameter per tagged Opportunity, whoever asked
+  and however few of them they reach. `TagService.carryingEvery` now answers conditions: one
+  `"id" in (select "opportunity_id" from "crm_opportunity_tags" where "tag_id" = ?)` per
+  distinct tag, AND-ed with the rest — which is "every tag named" without a `group by` —
+  added to the same scoped read as before, so the tenant constraint is untouched and the
+  planner drives from whichever side is smaller. The early "no Opportunity carries them"
+  return is gone with the ids; the statement says none. Measured on the test database with
+  70 000 Opportunities of another Organization carrying the tag, for a Sales Rep who reaches
+  none of them: 1 162 ms before, 36 ms after — what the list takes with no tag filter.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

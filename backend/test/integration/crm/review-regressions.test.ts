@@ -458,6 +458,73 @@ describe('crm review regressions', () => {
     });
   });
 
+  describe('finding 10 — the tag filter is the database’s work, not a list of ids', () => {
+    const BULK = Number(process.env.CRM_REVIEW_TAG_BULK ?? 3000);
+
+    it('names no Opportunity id in a statement, however many Opportunities out of reach carry the tag', async () => {
+      const conn = h.em().getConnection();
+      const tagged = async (name: string) => {
+        const created = await call('POST', '/tags', CRM_ADMIN, { name: `${name}-${randomUUID().slice(0, 8)}` });
+        expect(created.statusCode, created.body).toBe(201);
+        return (created.json() as { data: { id: string } }).data.id;
+      };
+      const [both, second] = [await tagged('review-bulk'), await tagged('review-second')];
+      // B's, by the thousand, all carrying the first tag — none of them the rep's to see.
+      await conn.execute(
+        `insert into "crm_opportunities"
+           ("id", "number", "title", "organization_id", "status_code", "currency", "created_at", "updated_at")
+         select gen_random_uuid(), 'RVW-' || g, 'bulk ' || g, ?, 'new', 'PLN', now(), now()
+           from generate_series(1, ${BULK}) g`,
+        [organizationB],
+      );
+      await conn.execute(
+        `insert into "crm_opportunity_tags" ("opportunity_id", "tag_id", "created_at")
+         select o."id", ?, now() from "crm_opportunities" o where o."number" like 'RVW-%'`,
+        [both],
+      );
+      const logger = h.em().config.getLogger() as unknown as { logQuery: (context: unknown) => void };
+      const original = logger.logQuery;
+      try {
+        const mine = await createCrmOpportunity(h, { organizationId: organizationA, tagIds: [both, second] });
+        await createCrmOpportunity(h, { organizationId: organizationA, tagIds: [second] });
+
+        let widest = 0;
+        logger.logQuery = (context: unknown): void => {
+          widest = Math.max(widest, (context as { params?: unknown[] }).params?.length ?? 0);
+          original.call(logger, context);
+        };
+        const started = Date.now();
+        const list = await call('GET', `/opportunities?tagId=${both}`, rep.cookies);
+        const elapsed = Date.now() - started;
+        const pair = await call('GET', `/opportunities?tagId=${both}&tagId=${second}`, rep.cookies);
+        const board = await call('GET', `/board?tagId=${both}&tagId=${second}`, rep.cookies);
+        const everyone = await call('GET', `/opportunities?tagId=${both}&limit=1`, CRM_ADMIN);
+        logger.logQuery = original;
+        if (process.env.CRM_REVIEW_TAG_BULK) console.log(`tag filter over ${BULK} tagged out of reach: ${elapsed} ms`);
+
+        for (const response of [list, pair]) {
+          expect(response.statusCode, response.body).toBe(200);
+          expect((response.json() as { data: Array<{ id: string }> }).data.map((row) => row.id)).toEqual([mine.id]);
+        }
+        expect(board.statusCode, board.body).toBe(200);
+        const columns = (board.json() as { data: { columns: Array<{ count: number; items: Array<{ id: string }> }> } })
+          .data.columns;
+        expect(columns.reduce((sum, column) => sum + column.count, 0)).toBe(1);
+        expect(columns.flatMap((column) => column.items.map((item) => item.id))).toEqual([mine.id]);
+        // The control: the tagged thousands are there for somebody who reaches them.
+        expect((everyone.json() as { pagination: { hasMore: boolean } }).pagination.hasMore).toBe(true);
+        // A statement carries the tags asked for and the caller's reach — never
+        // one parameter per Opportunity that carries the tag.
+        expect(widest).toBeGreaterThan(0);
+        expect(widest).toBeLessThan(100);
+      } finally {
+        logger.logQuery = original;
+        await conn.execute(`delete from "crm_opportunities" where "number" like 'RVW-%'`);
+        await conn.execute(`delete from "crm_tags" where "id" in (?, ?)`, [both, second]);
+      }
+    }, 120_000);
+  });
+
   describe('reach, where no test held it', () => {
     it('answers no contact for an Organization out of the caller’s reach', async () => {
       const response = await call('GET', `/lookups/contacts?organizationId=${organizationB}`, rep.cookies);
