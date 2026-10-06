@@ -20,6 +20,7 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type LinkableOrder, type OrderStatusOption } from '../api.js';
+import { CreateDocumentButton, CreatedDocumentNotice } from './CreateFromOpportunity.js';
 import { errorMessage, moneyLabel, orderStatusLabel } from '../lib/labels.js';
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -156,9 +157,13 @@ export function LinkedDocuments(props: LinkedDocumentsProps): ReactNode {
 
   return (
     <section aria-labelledby={headingId} className="space-y-3" aria-busy={busy !== null}>
-      <h2 id={headingId} className="text-sm font-semibold tracking-tight">
-        {t('links.title')}
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id={headingId} className="text-sm font-semibold tracking-tight">
+          {t('links.title')}
+        </h2>
+        <CreateDocumentButton kind="order" opportunity={opportunity} />
+      </div>
+      <CreatedDocumentNotice kind="order" opportunity={opportunity} reload={reload} />
 
       {error ? (
         <Alert variant="destructive">

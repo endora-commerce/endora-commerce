@@ -539,5 +539,15 @@
   "references.kind.order": "Zamówienie:",
   "references.unavailable.product": "Produkt niedostępny",
   "references.unavailable.order": "Zamówienie niedostępne",
-  "references.unavailableHint": "Już nie istnieje albo Twoja rola nie daje do niego dostępu."
+  "references.unavailableHint": "Już nie istnieje albo Twoja rola nie daje do niego dostępu.",
+  "origin.order.create": "Utwórz zamówienie",
+  "origin.order.linking": "Wiążemy nowe zamówienie z tą szansą…",
+  "origin.order.linked": "Zamówienie {number} zostało utworzone i powiązane z tą szansą.",
+  "origin.order.notLinked": "Zamówienie zostało utworzone, ale nie jest powiązane z tą szansą — być może należy do innej organizacji.",
+  "origin.order.open": "Otwórz zamówienie",
+  "origin.quote.create": "Utwórz zapytanie ofertowe",
+  "origin.quote.linking": "Wiążemy nowe zapytanie ofertowe z tą szansą…",
+  "origin.quote.linked": "Zapytanie ofertowe {number} zostało utworzone i powiązane z tą szansą.",
+  "origin.quote.notLinked": "Zapytanie ofertowe zostało utworzone, ale nie jest powiązane z tą szansą — być może należy do innej organizacji.",
+  "origin.quote.open": "Otwórz zapytanie ofertowe"
 }

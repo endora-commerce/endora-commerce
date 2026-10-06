@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Copy, Plus, Trash2 } from 'lucide-react';
 import { ApiError, apiClient, useUnsavedChangesPrompt, formatMoney as formatMoneyShared } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Separator, PageHeader, Combobox } from '@endora-commerce/admin-kit/ui';
@@ -127,6 +127,45 @@ interface PreviewResponse {
   messages: Array<{ productId: string; code: string }>;
 }
 
+/**
+ * What another screen may hand this one in the query string when it opens it
+ * (feature 143, US10) — all of it optional, and none of it interpreted:
+ *
+ * - `originType` + `originId`: where the order is being created from. Sent on
+ *   the create request as `origin` and otherwise unread. A pair that is not
+ *   well-formed is dropped rather than sent, because the request would be
+ *   refused for it.
+ * - `organizationId`, `customerAccountId`, `salesChannelId`: what to preselect.
+ *   The organization narrows the customer search; the other two arrive chosen.
+ * - `returnTo`: a path inside this application to go back to — from the Back
+ *   button, and after the order is created, when the id of the new order is
+ *   handed over in the navigation state as `createdDocument`.
+ */
+interface OpenedWith {
+  origin: { type: string; id: string } | null;
+  organizationId: string;
+  customerAccountId: string;
+  salesChannelId: string;
+  returnTo: string | null;
+}
+
+const ORIGIN_TYPE = /^[a-z][a-z0-9_]{0,63}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function readOpenedWith(params: URLSearchParams): OpenedWith {
+  const type = params.get('originType') ?? '';
+  const id = params.get('originId') ?? '';
+  const returnTo = params.get('returnTo') ?? '';
+  return {
+    origin: ORIGIN_TYPE.test(type) && UUID.test(id) ? { type, id } : null,
+    organizationId: params.get('organizationId') ?? '',
+    customerAccountId: params.get('customerAccountId') ?? '',
+    salesChannelId: params.get('salesChannelId') ?? '',
+    // A path of this application only: never a scheme, a host or `//`.
+    returnTo: /^\/(?![/\\])/.test(returnTo) ? returnTo : null,
+  };
+}
+
 const CUSTOMER_SEARCH_DEBOUNCE_MS = 250;
 const PREVIEW_DEBOUNCE_MS = 250;
 
@@ -148,6 +187,8 @@ function formatMoney(amount: number, currency: string): string {
 function CustomerPicker(props: {
   value: string | null;
   onChange: (next: string | null) => void;
+  /** Narrows the search to one organization's customers, and offers them at once. */
+  organizationId?: string;
 }): ReactNode {
   const t = useTranslation('core');
   const [options, setOptions] = useState<ComboboxOption<string>[]>([]);
@@ -155,6 +196,7 @@ function CustomerPicker(props: {
   const [searching, setSearching] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seqRef = useRef(0);
+  const organizationId = props.organizationId ?? '';
 
   useEffect(
     () => (): void => {
@@ -170,6 +212,7 @@ function CustomerPicker(props: {
         const params = new URLSearchParams({ page: '1', pageSize: '20', status: 'active' });
         const trimmed = query.trim();
         if (trimmed.length > 0) params.set('q', trimmed);
+        if (organizationId) params.set('organizationId', organizationId);
         const res = await apiClient.get<{ data: AdminCustomerListItem[] }>(
           `/api/v1/admin/customers?${params.toString()}`,
         );
@@ -193,8 +236,32 @@ function CustomerPicker(props: {
         if (seq === seqRef.current) setSearching(false);
       }
     },
-    [],
+    [organizationId],
   );
+
+  // Opened with an organization: its customers are offered before anything is typed.
+  useEffect(() => {
+    if (organizationId) void runSearch('', ++seqRef.current);
+  }, [organizationId, runSearch]);
+
+  // Opened with a customer already chosen: read it once, for its name.
+  const initialValue = useRef(props.value);
+  useEffect(() => {
+    const id = initialValue.current;
+    if (!id) return;
+    let alive = true;
+    void apiClient
+      .get<{ data: AdminCustomerListItem }>(`/api/v1/admin/customers/${id}`)
+      .then((res) => {
+        if (alive) setCache((prev) => new Map(prev).set(res.data.id, res.data));
+      })
+      .catch(() => {
+        // Left without a name; the search still finds the customer.
+      });
+    return (): void => {
+      alive = false;
+    };
+  }, []);
 
   const handleSearchChange = useCallback(
     (query: string): void => {
@@ -361,9 +428,12 @@ function AddressPicker(props: {
 export function OrderCreatePage(): ReactNode {
   const t = useTranslation('core');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Read once: what the page was opened with does not change under the form.
+  const [openedWith] = useState(() => readOpenedWith(searchParams));
 
-  const [customerAccountId, setCustomerAccountId] = useState('');
-  const [salesChannelId, setSalesChannelId] = useState('');
+  const [customerAccountId, setCustomerAccountId] = useState(openedWith.customerAccountId);
+  const [salesChannelId, setSalesChannelId] = useState(openedWith.salesChannelId);
   const [deliveryMethodId, setDeliveryMethodId] = useState('');
   const [paymentMethodId, setPaymentMethodId] = useState('');
   const [deliveryChoice, setDeliveryChoice] = useState<AddressChoice>({ mode: 'existing', id: '' });
@@ -377,8 +447,8 @@ export function OrderCreatePage(): ReactNode {
   // Warn before leaving with a partially-filled order draft.
   const dirty =
     !submitted &&
-    (customerAccountId !== '' ||
-      salesChannelId !== '' ||
+    (customerAccountId !== openedWith.customerAccountId ||
+      salesChannelId !== openedWith.salesChannelId ||
       deliveryMethodId !== '' ||
       paymentMethodId !== '' ||
       customerNote !== '' ||
@@ -578,9 +648,14 @@ export function OrderCreatePage(): ReactNode {
         items: items
           .filter((it) => it.productId.trim() && it.quantity > 0)
           .map((it) => ({ productId: it.productId.trim(), quantity: it.quantity })),
+        ...(openedWith.origin ? { origin: openedWith.origin } : {}),
       });
       setSubmitted(true);
-      navigate(`/orders/${res.data.id}`);
+      if (openedWith.returnTo) {
+        navigate(openedWith.returnTo, { state: { createdDocument: { id: res.data.id } } });
+      } else {
+        navigate(`/orders/${res.data.id}`);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('orderCreate.error'));
     } finally {
@@ -630,7 +705,7 @@ export function OrderCreatePage(): ReactNode {
         description={t('orderCreate.description')}
         actions={
           <Button asChild variant="outline">
-            <Link to="/orders">
+            <Link to={openedWith.returnTo ?? '/orders'}>
               <ArrowLeft />
               {t('common.action.back')}
             </Link>
@@ -656,6 +731,7 @@ export function OrderCreatePage(): ReactNode {
             <CustomerPicker
               value={customerAccountId === '' ? null : customerAccountId}
               onChange={(next): void => setCustomerAccountId(next ?? '')}
+              organizationId={openedWith.organizationId}
             />
           </div>
           {selectField(

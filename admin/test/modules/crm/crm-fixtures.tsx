@@ -73,13 +73,22 @@ export function renderCrm(
     readonly pattern?: string;
     /** Modules present besides the ones every CRM screen assumes — `quote_requests`, for one. */
     readonly alsoPresent?: readonly string[];
+    /** The navigation state the screen is arrived at with, if any. */
+    readonly state?: unknown;
   } = {},
 ): RenderResult {
   const path = options.path ?? '/';
+  const [pathname = '/', search = ''] = path.split('?');
   return renderWithI18n(
     withSession(
       <AppLanguageContext.Provider value={{ language: 'en', setLanguage: (): void => {} }}>
-        <MemoryRouter initialEntries={[path]}>
+        <MemoryRouter
+          initialEntries={[
+            options.state === undefined
+              ? path
+              : { pathname, search: search ? `?${search}` : '', state: options.state },
+          ]}
+        >
           <Routes>
             <Route path={options.pattern ?? '*'} element={ui} />
           </Routes>

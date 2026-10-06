@@ -5,6 +5,7 @@ import {
   type OrderReadPort,
   type OrderRecord,
   type OrganizationDetailsPort,
+  type OriginReference,
 } from '@endora-commerce/contracts';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { randomUUID } from 'crypto';
@@ -12,6 +13,7 @@ import { z } from 'zod';
 import { CRM_SETTING_CODES } from '../../manifest.js';
 import type { CrmQuoteRequestDocument, CrmQuoteRequests } from './crm-quote-requests.js';
 import type { OpportunityLinkService } from './opportunity-link-service.js';
+import type { OriginatedDocument, OriginLinkOutcome } from './opportunity-origin-link-service.js';
 import type { AutomaticOpportunityInput } from './opportunity-service.js';
 
 export interface OpportunityAutoCreateServiceDeps {
@@ -22,6 +24,11 @@ export interface OpportunityAutoCreateServiceDeps {
   /** Quote Requests, behind their presence decision. */
   quoteRequests: CrmQuoteRequests;
   links: Pick<OpportunityLinkService, 'linkOrderPlacedFromQuoteRequest' | 'opportunityIdOf'>;
+  /**
+   * Links a document to the Opportunity its `origin` names (User Story 10) —
+   * the checks are that service's. Absent in a composition that knows no origin.
+   */
+  linkByOrigin?: (origin: OriginReference, document: OriginatedDocument) => Promise<OriginLinkOutcome>;
   /** Creates the Opportunity and links the document in one Command. */
   createForDocument: (
     input: AutomaticOpportunityInput,
@@ -43,6 +50,8 @@ export interface OpportunityAutoCreateServiceDeps {
 export type AutoCreateOutcome =
   | 'created'
   | 'joined'
+  /** Linked to the Opportunity the document was created from. */
+  | 'linked-to-origin'
   | 'already-linked'
   | 'setting-off'
   | 'document-not-found'
@@ -76,14 +85,20 @@ const booleanSetting = z.boolean();
  *
  * The decision for an Order, in this order:
  *
+ * 0. it was created from an Opportunity (its event carries an `origin` naming
+ *    one, and the claim holds) → it is linked to **that** Opportunity,
+ *    whatever the setting says, and none is created for it (FR-026). An origin
+ *    that does not hold is as good as none;
  * 1. it was placed from a Quote Request that is linked to an Opportunity → it
  *    joins that Opportunity, **whatever the setting says** (FR-027);
  * 2. it is linked already → nothing;
  * 3. `crm.auto_create_from_orders` is on for the Order's Sales Channel → an
  *    Opportunity is created for it and linked.
  *
- * For a Quote Request: linked already → nothing; else
- * `crm.auto_create_from_quote_requests` on → created and linked.
+ * For a Quote Request: created from an Opportunity → linked to it; linked
+ * already → nothing; else `crm.auto_create_from_quote_requests` on → created
+ * and linked. One an administrator creates is announced by
+ * `rfq.created_by_admin.v1` and takes the same path.
  *
  * **Idempotent.** The same event handled twice finds the link at step 2, and
  * two handlers racing past it are stopped by the unique `(document_kind,
@@ -113,13 +128,24 @@ export class OpportunityAutoCreateService {
     while (this.#deferred.size > 0) await Promise.all([...this.#deferred]);
   }
 
-  async onOrderCreated(orderId: string): Promise<AutoCreateOutcome> {
+  async onOrderCreated(orderId: string, origin: OriginReference | null = null): Promise<AutoCreateOutcome> {
     const read = () => this.deps.orders.findById(orderId);
     const order = await read();
-    return order ? this.#placedOrder(order) : this.#lookAgain(read, (late) => this.#placedOrder(late));
+    return order
+      ? this.#placedOrder(order, origin)
+      : this.#lookAgain(read, (late) => this.#placedOrder(late, origin));
   }
 
-  async #placedOrder(order: OrderRecord): Promise<AutoCreateOutcome> {
+  async #placedOrder(order: OrderRecord, origin: OriginReference | null): Promise<AutoCreateOutcome> {
+    // First, and before anything is created: an Order created from an
+    // Opportunity must not get a second one. `order.created.v1` names no actor.
+    const linked = await this.#linkToOrigin(origin, {
+      kind: 'order',
+      id: order.id,
+      organizationId: order.organizationId,
+      createdByAdminUserId: null,
+    });
+    if (linked) return linked;
     if (await this.deps.links.linkOrderPlacedFromQuoteRequest(order)) return 'joined';
     if (await this.deps.links.opportunityIdOf('order', order.id)) return 'already-linked';
 
@@ -140,7 +166,17 @@ export class OpportunityAutoCreateService {
     });
   }
 
-  async onQuoteRequestCreated(quoteRequestId: string): Promise<AutoCreateOutcome> {
+  /**
+   * `origin` and `createdByAdminUserId` come with `rfq.created_by_admin.v1`;
+   * a Quote Request a customer submits has neither.
+   */
+  async onQuoteRequestCreated(
+    quoteRequestId: string,
+    origin: OriginReference | null = null,
+    createdByAdminUserId: string | null = null,
+  ): Promise<AutoCreateOutcome> {
+    const submitted = (quoteRequest: CrmQuoteRequestDocument) =>
+      this.#submittedQuoteRequest(quoteRequest, origin, createdByAdminUserId);
     // Presence first. The event comes from that module, so it is on — unless it
     // was switched off between the emit and this line.
     if (!this.deps.quoteRequests.isPresent()) return 'owner-absent';
@@ -149,13 +185,23 @@ export class OpportunityAutoCreateService {
     const read = async () =>
       this.deps.quoteRequests.isPresent() ? this.deps.quoteRequests.load(quoteRequestId) : null;
     const quoteRequest = await read();
-    return quoteRequest
-      ? this.#submittedQuoteRequest(quoteRequest)
-      : this.#lookAgain(read, (late) => this.#submittedQuoteRequest(late));
+    return quoteRequest ? submitted(quoteRequest) : this.#lookAgain(read, submitted);
   }
 
-  async #submittedQuoteRequest(quoteRequest: CrmQuoteRequestDocument): Promise<AutoCreateOutcome> {
+  async #submittedQuoteRequest(
+    quoteRequest: CrmQuoteRequestDocument,
+    origin: OriginReference | null,
+    createdByAdminUserId: string | null,
+  ): Promise<AutoCreateOutcome> {
     const { record } = quoteRequest;
+
+    const linked = await this.#linkToOrigin(origin, {
+      kind: 'quote_request',
+      id: record.id,
+      organizationId: record.organizationId,
+      createdByAdminUserId,
+    });
+    if (linked) return linked;
 
     if (await this.deps.links.opportunityIdOf('quote_request', record.id)) return 'already-linked';
 
@@ -180,6 +226,20 @@ export class OpportunityAutoCreateService {
       source: 'quote_request',
       document: { kind: 'quote_request', id: record.id },
     });
+  }
+
+  /**
+   * The outcome when the document's origin settled where it belongs, or `null`
+   * when the document is to be handled as one that had no origin.
+   */
+  async #linkToOrigin(
+    origin: OriginReference | null,
+    document: OriginatedDocument,
+  ): Promise<AutoCreateOutcome | null> {
+    if (!origin || !this.deps.linkByOrigin) return null;
+    const outcome = await this.deps.linkByOrigin(origin, document);
+    if (outcome === 'linked') return 'linked-to-origin';
+    return outcome === 'already-linked' ? 'already-linked' : null;
   }
 
   async #create(input: AutomaticOpportunityInput): Promise<AutoCreateOutcome> {

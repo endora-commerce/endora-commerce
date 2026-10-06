@@ -539,5 +539,15 @@
   "references.kind.order": "Order:",
   "references.unavailable.product": "Product unavailable",
   "references.unavailable.order": "Order unavailable",
-  "references.unavailableHint": "It no longer exists, or your role does not give access to it."
+  "references.unavailableHint": "It no longer exists, or your role does not give access to it.",
+  "origin.order.create": "Create order",
+  "origin.order.linking": "Linking the new order to this opportunity…",
+  "origin.order.linked": "Order {number} was created and linked to this opportunity.",
+  "origin.order.notLinked": "The order was created, but it is not linked to this opportunity — it may belong to a different organization.",
+  "origin.order.open": "Open the order",
+  "origin.quote.create": "Create quote request",
+  "origin.quote.linking": "Linking the new quote request to this opportunity…",
+  "origin.quote.linked": "Quote request {number} was created and linked to this opportunity.",
+  "origin.quote.notLinked": "The quote request was created, but it is not linked to this opportunity — it may belong to a different organization.",
+  "origin.quote.open": "Open the quote request"
 }
