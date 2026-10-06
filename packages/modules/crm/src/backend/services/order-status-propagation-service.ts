@@ -292,7 +292,22 @@ export class OrderStatusPropagationService {
       rethrowIfModuleDisabled(error);
       // Closed while this event was being applied: the same answer as step 2.
       if (isClosedToOrderCausedMove(error)) return { kind: 'ignored', why: 'closed' };
-      if (!(error instanceof HttpError) || !WORKFLOW_REFUSALS.includes(error.code)) throw error;
+      if (!(error instanceof HttpError) || !WORKFLOW_REFUSALS.includes(error.code)) {
+        // Still an error, and thrown as one — but not a silent one: the Order
+        // has moved and the Opportunity has not, so the Opportunity is left a
+        // `failed` outcome saying what went wrong, as the forward direction
+        // leaves one. The original failure is what the caller is given, even if
+        // recording it fails too.
+        await this.#recordSkipped(opportunity.id, {
+          orderId: change.orderId,
+          orderStatusCode: change.to,
+          opportunityStatusCode: target,
+          from: opportunity.statusCode,
+          outcome: 'failed',
+          detail: error instanceof Error ? error.message : String(error),
+        }).catch(() => undefined);
+        throw error;
+      }
       const reason = (error.details as { reason?: unknown } | undefined)?.reason;
       const detail = typeof reason === 'string' && reason ? reason : error.message;
       await this.#recordSkipped(opportunity.id, {
@@ -300,6 +315,7 @@ export class OrderStatusPropagationService {
         orderStatusCode: change.to,
         opportunityStatusCode: target,
         from: opportunity.statusCode,
+        outcome: 'skipped',
         detail,
       });
       return { kind: 'skipped', opportunityId: opportunity.id, to: target, detail };
@@ -327,7 +343,8 @@ export class OrderStatusPropagationService {
   }
 
   /**
-   * An Order asked for a move the Opportunity's workflow refused. Recorded on
+   * An Order asked for a move the Opportunity's workflow refused (`skipped`), or
+   * one that failed for any other reason (`failed`). Recorded on
    * the Opportunity twice over, in one Command: as a `skipped` outcome row,
    * and as an audit entry — the Opportunity's history is the audit trail, and
    * "the Order was completed and this did not follow, because …" is something
@@ -335,7 +352,14 @@ export class OrderStatusPropagationService {
    */
   async #recordSkipped(
     opportunityId: string,
-    skipped: { orderId: string; orderStatusCode: string; opportunityStatusCode: string; from: string; detail: string },
+    skipped: {
+      orderId: string;
+      orderStatusCode: string;
+      opportunityStatusCode: string;
+      from: string;
+      outcome: 'skipped' | 'failed';
+      detail: string;
+    },
   ): Promise<void> {
     await this.deps.commandBus.run({
       action: 'crm.opportunity.propagation_skip',
@@ -348,7 +372,7 @@ export class OrderStatusPropagationService {
           direction: REVERSE,
           opportunityStatusCode: skipped.opportunityStatusCode,
           orderStatusCode: skipped.orderStatusCode,
-          outcome: 'skipped',
+          outcome: skipped.outcome,
           detail: skipped.detail,
           resolvedAt: new Date(),
         });
@@ -361,6 +385,7 @@ export class OrderStatusPropagationService {
             orderId: skipped.orderId,
             orderStatusCode: skipped.orderStatusCode,
             skippedStatus: skipped.opportunityStatusCode,
+            outcome: skipped.outcome,
             reason: skipped.detail,
           },
         };

@@ -2086,6 +2086,19 @@ when it was measured, and what was done about it.
   `closedAt`. The refusal is 409 `CRM_INVALID_TRANSITION` carrying `details.closed`, which
   the reverse direction reads as `ignored: closed` — the answer it already gives for an
   Opportunity that was closed all along — rather than as a `skipped` outcome.
+- **N-R5 (2026-10-06, review finding 5) — an Order-caused move that fails for a reason
+  other than a workflow refusal leaves a `failed` row and an audit entry before it is
+  rethrown.** Only the four workflow refusals became a `skipped` outcome (N-B); a throwing
+  guard, a failed write or anything else was rethrown into the event bus, which logs a
+  handler's error and goes on — so the Order had moved, the Opportunity had not, and nothing
+  on the Opportunity said so. The catch now writes a reverse-direction row with
+  `outcome: 'failed'` and the message, through the same Command as a skip
+  (`crm.opportunity.propagation_skip`, whose audit `stateAfter` gains `outcome`), and then
+  throws the original error. **It is not listed in `unresolvedPropagations`, by the model's
+  design**: that list is forward-only (`data-model.md`; `isUnresolved`), because retry and
+  dismiss mean "ask the Order again", which has no reverse reading. The row and the audit
+  entry — which is what the Opportunity's change history is read from — are the record.
+  `ModuleDisabledError` is rethrown first, as before, and records nothing.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

@@ -347,4 +347,57 @@ describe('crm reverse mapping — an Order moves its Opportunity', () => {
       expect(removed.statusCode, removed.body).toBe(200);
     }
   });
+
+  it('leaves a failed outcome, with what went wrong, when an Order-caused move fails for a reason other than a refusal (review finding 5)', async () => {
+    const opportunity = await createCrmOpportunity(h);
+    const order = await seedCrmOrder(h.em());
+    expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+
+    const registry = h.container.resolve<OpportunityTransitionGuardRegistryPort>(
+      'opportunityTransitionGuardRegistry',
+    );
+    let active = true;
+    registry.register({
+      ownerModuleId: 'crm',
+      match: { from: 'new', to: 'qualified' },
+      guard: (event) => {
+        if (!active || event.opportunityId !== opportunity.id) return;
+        // Not a veto: a guard that broke.
+        throw new Error('guard dependency unavailable');
+      },
+    });
+    try {
+      await changeOrderStatusAsOperator(h, order.id, 'paid');
+    } finally {
+      active = false;
+    }
+
+    // The Order moved, the Opportunity did not — and the Opportunity says so.
+    expect(await orderStatus(order.id)).toBe('paid');
+    expect((await detail(opportunity.id)).status.code).toBe('new');
+    expect(await propagationRows(opportunity.id)).toEqual([
+      expect.objectContaining({
+        orderId: order.id,
+        direction: 'order_to_opportunity',
+        orderStatusCode: 'paid',
+        opportunityStatusCode: 'qualified',
+        outcome: 'failed',
+        detail: 'guard dependency unavailable',
+      }),
+    ]);
+    const audit = await h.auditLogService.query({
+      action: 'crm.opportunity.propagation_skip',
+      objectId: opportunity.id,
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      stateAfter: {
+        status: 'new',
+        orderId: order.id,
+        skippedStatus: 'qualified',
+        outcome: 'failed',
+        reason: 'guard dependency unavailable',
+      },
+    });
+  });
 });
