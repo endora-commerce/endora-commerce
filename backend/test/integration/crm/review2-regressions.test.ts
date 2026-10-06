@@ -29,10 +29,14 @@ import {
   setCrmCountingStatuses,
   setCrmForwardMappings,
   setCrmMappings,
+  setCrmSetting,
   submitCrmQuoteRequest,
   transitionCrmOpportunity,
 } from '../../helpers/seed-crm.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { withModuleOff } from '../../helpers/off-state.js';
+import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { CRM_SETTING_CODES } from '../../../../packages/modules/crm/src/manifest.js';
 
 /**
  * The scenarios a second independent review of the module broke it with
@@ -486,6 +490,137 @@ describe('crm second review regressions', () => {
       } finally {
         writer.undo();
         await restoreDefaultCrmWorkflow(h.em());
+      }
+    });
+  });
+
+  // --- N-S7: guards a mutation used to survive -----------------------------------
+  describe('guards that had no test', () => {
+    const autoCreate = () =>
+      h.container.resolve('crmOpportunityAutoCreateService') as {
+        onOrderCreated(orderId: string): Promise<string>;
+        idle(): Promise<void>;
+      };
+
+    const opportunitiesOf = async (orderId: string) =>
+      (await h.em().execute(
+        `select o."id", o."computed_value" from "crm_opportunities" o
+           join "crm_opportunity_links" l on l."opportunity_id" = o."id"
+          where l."document_id" = ?`,
+        [orderId],
+      )) as Array<{ id: string; computed_value: string }>;
+
+    /** `orders`' read port answering "not there yet" to the first read of `orderId`: a commit still in flight. */
+    const notReadableAtFirst = (orderId: string) => {
+      const port = h.container.resolve('orderReadPort') as OrderReadPort;
+      const original = port.findById.bind(port);
+      let asked = false;
+      vi.spyOn(port, 'findById').mockImplementation(async (id) => {
+        if (id === orderId && !asked) {
+          asked = true;
+          return null;
+        }
+        return original(id);
+      });
+    };
+
+    it('the same placed Order announced three times at one instant yields one Opportunity and no error', async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS, true);
+      try {
+        const order = await seedCrmOrder(h.em());
+        const outcomes = await Promise.allSettled(
+          ['a', 'b', 'c'].map((delivery) =>
+            enterSystemScope(`test: redelivery ${delivery}`, () => autoCreate().onOrderCreated(order.id)),
+          ),
+        );
+        // The losers of the race are answered by the unique constraint, as a value.
+        expect(outcomes.map((outcome) => outcome.status)).toEqual(['fulfilled', 'fulfilled', 'fulfilled']);
+        expect(await opportunitiesOf(order.id)).toHaveLength(1);
+        const orphans = (await h.em().execute(
+          `select count(*)::int as n from "crm_opportunities" o
+            where o."source" = 'order' and o."organization_id" = ?
+              and not exists (select 1 from "crm_opportunity_links" l where l."opportunity_id" = o."id")`,
+          [TEST_ORGANIZATION_ID],
+        )) as Array<{ n: number }>;
+        expect(orphans[0]?.n).toBe(0);
+      } finally {
+        await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS, false);
+      }
+    });
+
+    it('an Opportunity created for an Order that already counts is stored with that Order’s value', async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      expect((await setCrmCountingStatuses(h, { order: ['paid'], quoteRequest: [] })).statusCode).toBe(202);
+      await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS, true);
+      try {
+        const order = await seedCrmOrder(h.em(), { status: 'paid', total: '48.50' });
+        const outcome = await enterSystemScope('test: a counting order is placed', () =>
+          autoCreate().onOrderCreated(order.id),
+        );
+        expect(outcome).toBe('created');
+        // The stored column, not the detail: the detail answers a live figure.
+        expect((await opportunitiesOf(order.id)).map((row) => row.computed_value)).toEqual(['48.50']);
+      } finally {
+        await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS, false);
+      }
+    });
+
+    it('a recalculation waits for whoever holds the Opportunity’s row', async () => {
+      expect((await setCrmCountingStatuses(h, { order: ['paid'], quoteRequest: [] })).statusCode).toBe(202);
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+      const order = await seedCrmOrder(h.em(), { status: 'paid', total: '10.00' });
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+      // The figure is right already, so nothing but the lock can make it wait.
+      expect(await storedComputedValue(opportunity.id)).toBe('10.00');
+
+      let recalculation: Promise<unknown> = Promise.resolve();
+      let whileHeld = '';
+      await h.em().transactional(async (tx) => {
+        await tx.execute(`select 1 from "crm_opportunities" where "id" = ? for update`, [opportunity.id]);
+        recalculation = enterSystemScope('test: a recalculation meets a held row', () =>
+          valueService().recalculate(opportunity.id),
+        );
+        whileHeld = await Promise.race([
+          recalculation.then(() => 'finished'),
+          new Promise<string>((resolve) => setTimeout(() => resolve('waiting'), 500)),
+        ]);
+      });
+      expect(whileHeld).toBe('waiting');
+      await expect(recalculation).resolves.toBe(false);
+    });
+
+    it('a placed Order read again after its commit is handled — and not at all while crm is off', async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS, true);
+      try {
+        // The control: the deferred look does create, with the module on.
+        const handled = await seedCrmOrder(h.em());
+        notReadableAtFirst(handled.id);
+        expect(
+          await enterSystemScope('test: an order whose commit is in flight', () =>
+            autoCreate().onOrderCreated(handled.id),
+          ),
+        ).toBe('deferred');
+        await autoCreate().idle();
+        expect(await opportunitiesOf(handled.id)).toHaveLength(1);
+        vi.restoreAllMocks();
+
+        // Announced while the module was on its way off: the look that was
+        // deferred finds the module gone and does nothing.
+        const ignored = await seedCrmOrder(h.em());
+        notReadableAtFirst(ignored.id);
+        await withModuleOff('crm', 'deactivated', async () => {
+          expect(
+            await enterSystemScope('test: an order placed while crm is off', () =>
+              autoCreate().onOrderCreated(ignored.id),
+            ),
+          ).toBe('deferred');
+          await autoCreate().idle();
+        });
+        expect(await opportunitiesOf(ignored.id)).toEqual([]);
+      } finally {
+        await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS, false);
       }
     });
   });
