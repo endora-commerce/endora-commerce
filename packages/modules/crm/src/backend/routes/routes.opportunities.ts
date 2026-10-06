@@ -1,9 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   CreateOpportunityRequestSchema,
+  ERROR_CODES,
   OpportunityListQuerySchema,
   UpdateOpportunityRequestSchema,
 } from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { OpportunityService } from '../services/opportunity-service.js';
 
@@ -12,12 +14,25 @@ export interface OpportunityRoutesDeps {
   requireAdmin: RequireAdminFactory;
 }
 
-/** The version a client last read, from `If-Match: "<version>"`; `null` when it sent none. */
+/**
+ * The version a client last read, from `If-Match: "<version>"`; `null` when it
+ * sent none, or `*`. A header that is there and cannot be read is 400: taking
+ * it for "no precondition" would turn a guarded write into an unguarded one.
+ */
 function parseIfMatch(request: FastifyRequest): number | null {
   const header = request.headers['if-match'];
-  if (!header || typeof header !== 'string') return null;
-  const version = Number.parseInt(header.replace(/^"|"$/g, ''), 10);
-  return Number.isFinite(version) ? version : null;
+  if (header === undefined) return null;
+  const value = typeof header === 'string' ? header.trim() : '';
+  if (value === '*') return null;
+  const match = /^(?:"(\d{1,9})"|(\d{1,9}))$/.exec(value);
+  if (!match) {
+    throw new HttpError(
+      400,
+      ERROR_CODES.VALIDATION_FAILED,
+      'If-Match must carry the version last read, as in the ETag: "3".',
+    );
+  }
+  return Number(match[1] ?? match[2]);
 }
 
 function setEtag(reply: FastifyReply, version: number): void {

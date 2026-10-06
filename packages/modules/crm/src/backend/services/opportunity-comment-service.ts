@@ -11,7 +11,8 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { randomUUID } from 'crypto';
 import { CrmOpportunityComment } from '../entities/crm-opportunity-comment.entity.js';
 import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.entity.js';
-import type { CrmNotifier } from './crm-notifier.js';
+import type { AdminReach } from './admin-reach.js';
+import { tellAfterCommit, type CrmNotifier } from './crm-notifier.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
 import { storedReferencesOf, type ReferenceService, type ReferenceSource } from './reference-service.js';
@@ -24,18 +25,12 @@ export interface OpportunityCommentServiceDeps {
   notifier: CrmNotifier;
   /** The Products and Orders a text mentions: stored on write, resolved on read. */
   references: ReferenceService;
+  /** Whether another administrator may reach an Organization. */
+  canReach: AdminReach;
 }
-
-/** How much of a message a bell entry quotes. */
-const EXCERPT_LENGTH = 200;
 
 function commentNotFound(): HttpError {
   return new HttpError(404, ERROR_CODES.NOT_FOUND, 'This note or message does not belong to this opportunity.');
-}
-
-function excerpt(body: string): string {
-  const flat = body.replace(/\s+/g, ' ').trim();
-  return flat.length > EXCERPT_LENGTH ? `${flat.slice(0, EXCERPT_LENGTH - 1)}…` : flat;
 }
 
 /**
@@ -58,8 +53,11 @@ function excerpt(body: string): string {
  * A comment is a child of an Opportunity and carries no tenant column, so
  * every method loads the Opportunity through the scoped EntityManager first
  * and addresses the comment by `(opportunityId, id)`. Every write is a Command
- * recorded against the Opportunity, with the text — the audit trail is where a
- * deleted note's wording survives.
+ * recorded against the Opportunity — **without the text**: the audit trail is
+ * not tenant-scoped, so it says that something was written, by whom and how
+ * long it was, and a deleted note's wording survives in its own kept row
+ * (research N-R6). The references a text carries are an index of ids, written
+ * by the same Command and never part of its audited state.
  */
 export class OpportunityCommentService {
   constructor(private readonly deps: OpportunityCommentServiceDeps) {}
@@ -105,21 +103,33 @@ export class OpportunityCommentService {
           comment.body,
         );
         return {
-          result: { comment, recipients, number: opportunity.number, title: opportunity.title },
+          result: { comment, recipients, number: opportunity.number, organizationId: opportunity.organizationId },
           before: null,
-          after: { commentId: comment.id, kind: comment.kind, body: comment.body },
+          // Never the text: the audit trail is not tenant-scoped, and a note
+          // or a message is read only under its Opportunity (research N-R6).
+          after: {
+            commentId: comment.id,
+            kind: comment.kind,
+            authorAdminUserId: author,
+            length: comment.body.length,
+          },
         };
       },
     });
 
-    // After the commit: the message exists whatever becomes of the bell.
+    // After the commit: the message exists whatever becomes of the bell. The
+    // entry says that there is a message and on which Opportunity, by number —
+    // never what it says: a bell is read outside the tenant scope. Somebody who
+    // can no longer reach the Organization is not told at all.
     for (const recipient of written.recipients) {
-      await this.deps.notifier.notify({
-        kind: 'crm.opportunity.message',
-        targetAdminUserId: recipient,
-        opportunityId,
-        title: `New message on opportunity ${written.number} "${written.title}"`,
-        body: excerpt(written.comment.body),
+      await tellAfterCommit(opportunityId, async () => {
+        if (!(await this.deps.canReach(recipient, written.organizationId))) return;
+        await this.deps.notifier.notify({
+          kind: 'crm.opportunity.message',
+          targetAdminUserId: recipient,
+          opportunityId,
+          title: `New message on opportunity ${written.number}`,
+        });
       });
     }
     const [rendered] = await this.#render([written.comment]);
@@ -135,7 +145,7 @@ export class OpportunityCommentService {
       objectId: opportunityId,
       run: async ({ em }) => {
         const note = await this.#loadOwnNote(em, opportunityId, commentId, 'edited');
-        const before = { commentId: note.id, body: note.body };
+        const before = { commentId: note.id, length: note.body.length };
         if (note.body === body) return { result: note, skipAudit: true };
         note.body = body;
         note.editedAt = new Date();
@@ -144,7 +154,7 @@ export class OpportunityCommentService {
           { opportunityId: note.opportunityId, kind: 'comment', sourceId: note.id },
           body,
         );
-        return { result: note, before, after: { commentId: note.id, body: note.body } };
+        return { result: note, before, after: { commentId: note.id, length: note.body.length } };
       },
     });
     const [rendered] = await this.#render([comment]);
@@ -172,7 +182,7 @@ export class OpportunityCommentService {
         );
         return {
           result: undefined,
-          before: { commentId: note.id, body: note.body },
+          before: { commentId: note.id, length: note.body.length },
           after: { commentId: note.id, deleted: true },
         };
       },

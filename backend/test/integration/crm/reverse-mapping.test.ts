@@ -296,4 +296,108 @@ describe('crm reverse mapping — an Order moves its Opportunity', () => {
     expect((await detail(opportunity.id)).status.code).toBe('new');
     expect(await history(opportunity.id)).toHaveLength(1);
   });
+
+  it('never reopens an Opportunity that was closed while the Order’s event was being applied (review finding 4)', async () => {
+    // `shipment_sent` maps to `new`. With `qualified → new` added, that target is
+    // reachable both from the open status the Opportunity is in when the event
+    // arrives and from the closed one it is moved to meanwhile (`lost → new`).
+    const edge = [{ fromStatusCode: 'qualified', toStatusCode: 'new' }];
+    const put = (payload: unknown) =>
+      h.app.inject({ method: 'PUT', url: `${CRM_API}/transitions`, cookies: CRM_ADMIN, payload: payload as Record<string, unknown> });
+    const added = await put({ add: edge });
+    expect(added.statusCode, added.body).toBe(200);
+
+    const registry = h.container.resolve<OpportunityTransitionGuardRegistryPort>(
+      'opportunityTransitionGuardRegistry',
+    );
+    let fired = false;
+    let armed = true;
+    try {
+      const opportunity = await createCrmOpportunity(h);
+      await walk(opportunity.id, 'qualified');
+      const order = await seedCrmOrder(h.em(), { status: 'shipment_ready' });
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+
+      // The interleaving a second request would produce, made deterministic:
+      // between the Order-caused move's read and its locked write, somebody
+      // closes the Opportunity.
+      registry.register({
+        ownerModuleId: 'crm',
+        match: { from: 'qualified', to: 'new' },
+        guard: async (event) => {
+          if (!armed || fired || event.opportunityId !== opportunity.id) return;
+          fired = true;
+          const closed = await transitionCrmOpportunity(h, opportunity.id, 'lost');
+          expect(closed.statusCode, closed.body).toBe(200);
+        },
+      });
+      await changeOrderStatusAsOperator(h, order.id, 'shipment_sent');
+
+      expect(fired).toBe(true);
+      const after = await detail(opportunity.id);
+      expect(after.status.code).toBe('lost');
+      expect(after.closedKind).toBe('lost');
+      // created, qualified, lost — and no fourth row reopening it.
+      expect((await history(opportunity.id)).map((row) => row.toStatusCode)).toEqual(['new', 'qualified', 'lost']);
+      // The same answer as for one that was closed all along: nothing to record.
+      expect(await propagationRows(opportunity.id)).toEqual([]);
+    } finally {
+      armed = false;
+      const removed = await put({ remove: edge });
+      expect(removed.statusCode, removed.body).toBe(200);
+    }
+  });
+
+  it('leaves a failed outcome, with what went wrong, when an Order-caused move fails for a reason other than a refusal (review finding 5)', async () => {
+    const opportunity = await createCrmOpportunity(h);
+    const order = await seedCrmOrder(h.em());
+    expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+
+    const registry = h.container.resolve<OpportunityTransitionGuardRegistryPort>(
+      'opportunityTransitionGuardRegistry',
+    );
+    let active = true;
+    registry.register({
+      ownerModuleId: 'crm',
+      match: { from: 'new', to: 'qualified' },
+      guard: (event) => {
+        if (!active || event.opportunityId !== opportunity.id) return;
+        // Not a veto: a guard that broke.
+        throw new Error('guard dependency unavailable');
+      },
+    });
+    try {
+      await changeOrderStatusAsOperator(h, order.id, 'paid');
+    } finally {
+      active = false;
+    }
+
+    // The Order moved, the Opportunity did not — and the Opportunity says so.
+    expect(await orderStatus(order.id)).toBe('paid');
+    expect((await detail(opportunity.id)).status.code).toBe('new');
+    expect(await propagationRows(opportunity.id)).toEqual([
+      expect.objectContaining({
+        orderId: order.id,
+        direction: 'order_to_opportunity',
+        orderStatusCode: 'paid',
+        opportunityStatusCode: 'qualified',
+        outcome: 'failed',
+        detail: 'guard dependency unavailable',
+      }),
+    ]);
+    const audit = await h.auditLogService.query({
+      action: 'crm.opportunity.propagation_skip',
+      objectId: opportunity.id,
+    });
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      stateAfter: {
+        status: 'new',
+        orderId: order.id,
+        skippedStatus: 'qualified',
+        outcome: 'failed',
+        reason: 'guard dependency unavailable',
+      },
+    });
+  });
 });

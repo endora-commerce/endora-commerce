@@ -16,6 +16,7 @@ import type {
   OrderTransitionPort,
   OrganizationDetailsPort,
   QuoteRequestReadPort,
+  PermissionReadPort,
   SalesChannelAttributionRegistryPort,
   SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
@@ -53,6 +54,8 @@ import { registerCrmAssetReferences } from './services/crm-asset-references.js';
 import { registerCrmAuditReferences } from './services/crm-audit-references.js';
 import { CrmDocumentLookupService } from './services/crm-document-lookup-service.js';
 import { CrmLookupService } from './services/crm-lookup-service.js';
+import { createAdminReach } from './services/admin-reach.js';
+import { createOrdersReadCheck } from './services/orders-permission.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
 import { createCrmQuoteRequests, type CrmQuoteRequests } from './services/crm-quote-requests.js';
 import { DocumentOpportunityService } from './services/document-opportunity-service.js';
@@ -166,6 +169,7 @@ export function registerModule(ctx: ModuleContext): void {
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             quoteRequests: crmQuoteRequests,
             linksChanged: (opportunityId) => crmOpportunityValueService.recalculate(opportunityId),
+            canReadOrders: createOrdersReadCheck(lazyPort<PermissionReadPort>(ctx, 'permissionService')),
           }),
       )
       .singleton(),
@@ -199,6 +203,7 @@ export function registerModule(ctx: ModuleContext): void {
             commandBus,
             orderTransitions: lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            canReadOrders: createOrdersReadCheck(lazyPort<PermissionReadPort>(ctx, 'permissionService')),
           }),
       )
       .singleton(),
@@ -275,6 +280,7 @@ export function registerModule(ctx: ModuleContext): void {
             salesReps: lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             notifier: crmNotifier,
+            canReach: createAdminReach(lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort')),
           }),
       )
       .singleton(),
@@ -295,6 +301,7 @@ export function registerModule(ctx: ModuleContext): void {
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             notifier: crmNotifier,
             references: crmReferenceService,
+            canReach: createAdminReach(lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort')),
           }),
       )
       .singleton(),
@@ -421,7 +428,7 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             workflowRead: crmWorkflowReadService,
             listOpportunities: (query) => crmOpportunityService.list(query),
-            opportunityIdsCarryingAll: (em, tagIds) => crmTagService.opportunityIdsCarryingAll(em, tagIds),
+            carryingEveryTag: (tagIds) => crmTagService.carryingEvery(tagIds),
             organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
           }),

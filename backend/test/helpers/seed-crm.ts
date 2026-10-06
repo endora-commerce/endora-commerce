@@ -646,3 +646,12 @@ export async function setCrmSetting(h: BackendServerHandle, code: string, value:
   const response = await writeCrmSetting(h, code, value);
   if (response.statusCode >= 400) throw new Error(`setCrmSetting ${code}: ${response.statusCode} ${response.body}`);
 }
+
+/** Take an Organization back from a Sales Rep: they no longer reach it. */
+export async function unassignCrmSalesRep(
+  em: EntityManager,
+  organizationId: string,
+  adminUserId: string,
+): Promise<void> {
+  await em.nativeDelete(OrganizationSalesRepAssignment, { organizationId, adminUserId });
+}

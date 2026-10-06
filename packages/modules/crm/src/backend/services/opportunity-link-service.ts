@@ -19,6 +19,7 @@ import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import type { CrmQuoteRequestDocument, CrmQuoteRequests } from './crm-quote-requests.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
+import type { OrdersReadCheck } from './orders-permission.js';
 
 export interface OpportunityLinkServiceDeps {
   emFactory: () => EntityManager;
@@ -32,6 +33,8 @@ export interface OpportunityLinkServiceDeps {
    * committed — what keeps a computed value following its documents.
    */
   linksChanged: (opportunityId: string) => Promise<unknown>;
+  /** Whether the caller holds `orders:read`: without it a linked Order shows nothing of itself. */
+  canReadOrders: OrdersReadCheck;
 }
 
 /** What a link is rendered from: the document as the reader may see it. */
@@ -370,7 +373,10 @@ export class OpportunityLinkService {
    */
   async #render(links: readonly CrmOpportunityLink[]): Promise<OpportunityLink[]> {
     const orderIds = links.filter((link) => link.documentKind === 'order').map((link) => link.documentId);
-    const orders = orderIds.length > 0 ? await this.deps.orders.findByIds(orderIds) : [];
+    // An Order's number, status and total are `orders`' to show: a caller
+    // without `orders:read` sees that a document is linked, and no more.
+    const orders =
+      orderIds.length > 0 && (await this.deps.canReadOrders()) ? await this.deps.orders.findByIds(orderIds) : [];
     const documents = new Map<string, LinkedDocument>(
       orders.map((order) => [`order:${order.id}`, { kind: 'order', order }]),
     );

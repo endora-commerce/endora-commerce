@@ -28,7 +28,7 @@ import {
   submitCrmQuoteRequest,
   transitionCrmOpportunity,
 } from '../../helpers/seed-crm.js';
-import { CrmOpportunityStatusHistory, Order } from '../../helpers/package-entities.js';
+import { CrmOpportunityStatusHistory, CrmStatusPropagation, Order } from '../../helpers/package-entities.js';
 
 /**
  * Linking Orders and moving an Opportunity
@@ -507,6 +507,89 @@ describe('crm links and transition (contract)', () => {
         expect(refused.statusCode, `${action} ${refused.body}`).toBe(403);
       }
       expect((await detail(opportunity.id)).unresolvedPropagations.map((row) => row.id)).toEqual([refusal.id]);
+    });
+
+    it('lets one of two simultaneous retries of one outcome through: the Order is asked once more, not twice (review finding 8)', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const order = await seedCrmOrder(h.em());
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+      const moved = await transitionCrmOpportunity(h, opportunity.id, 'lost');
+      expect(moved.statusCode, moved.body).toBe(200);
+      const refusal = OpportunityTransitionResponseSchema.parse(moved.json()).data.propagation[0]!;
+      expect(refusal.outcome).toBe('not_permitted');
+
+      const path = `/opportunities/${opportunity.id}/propagations/${refusal.id}/retry`;
+      const answers = await Promise.all([call('POST', path), call('POST', path)]);
+      expect(answers.map((answer) => answer.statusCode).sort()).toEqual([200, 409]);
+
+      // The retired refusal and the one retry that replaced it — not two.
+      const rows = await h.em().find(CrmStatusPropagation, { opportunityId: opportunity.id }, { filters: false });
+      expect(rows).toHaveLength(2);
+      expect((await detail(opportunity.id)).unresolvedPropagations).toHaveLength(1);
+      const audit = await h.auditLogService.query({
+        action: 'crm.opportunity.propagation_retry',
+        objectId: opportunity.id,
+      });
+      expect(audit).toHaveLength(1);
+    });
+  });
+
+  describe('an Order is `orders`’ to show and to follow — crm:write alone is not orders:read (review finding 3)', () => {
+    let crmOnly: { cookies: { b2b_session: string }; undo: () => void };
+
+    beforeAll(async () => {
+      crmOnly = await seedCrmAdmin(h.em(), 'links-crm-only', ['crm:read', 'crm:write']);
+    });
+
+    afterAll(() => {
+      crmOnly.undo();
+    });
+
+    it('refuses linking an Order and switching its following without orders:read — 403, nothing written', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const order = await seedCrmOrder(h.em());
+
+      const linked = await linkCrmOrder(h, opportunity.id, order.id, { cookies: crmOnly.cookies });
+      expect(linked.statusCode, linked.body).toBe(403);
+      expect(linked.body).not.toContain(order.id);
+      expect((await detail(opportunity.id)).links).toEqual([]);
+
+      // Linked by somebody who may: the crm-only caller cannot decide whether it follows…
+      const link = OpportunityLinkResponseSchema.parse((await linkCrmOrder(h, opportunity.id, order.id)).json()).data;
+      const path = `/opportunities/${opportunity.id}/links/${link.id}`;
+      const toggled = await call('PATCH', path, { syncStatus: false }, crmOnly.cookies);
+      expect(toggled.statusCode, toggled.body).toBe(403);
+      expect((await detail(opportunity.id)).links[0]?.syncStatus).toBe(true);
+
+      // …and may still take the link off, which shows nothing and moves nothing.
+      const removed = await call('DELETE', path, undefined, crmOnly.cookies);
+      expect(removed.statusCode, removed.body).toBe(204);
+    });
+
+    it('shows a linked Order as unavailable — no number, status or total — to a reader without orders:read', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const order = await seedCrmOrder(h.em());
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+      // `lost` asks the Order for a status it cannot reach: an unresolved outcome naming it.
+      expect((await transitionCrmOpportunity(h, opportunity.id, 'lost')).statusCode).toBe(200);
+
+      // The control: somebody holding orders:read is shown the Order.
+      const full = await detail(opportunity.id);
+      expect(full.links[0]).toMatchObject({ documentId: order.id, available: true });
+      expect(full.links[0]?.number).toEqual(expect.any(String));
+      expect(full.unresolvedPropagations[0]?.orderNumber).toBe(full.links[0]?.number);
+
+      const read = await call('GET', `/opportunities/${opportunity.id}`, undefined, crmOnly.cookies);
+      expect(read.statusCode, read.body).toBe(200);
+      const narrowed = OpportunityDetailResponseSchema.parse(read.json()).data;
+      expect(narrowed.links).toHaveLength(1);
+      expect(narrowed.links[0]).toMatchObject({ documentKind: 'order', documentId: order.id, available: false });
+      for (const member of ['number', 'status', 'total', 'currency'] as const) {
+        expect(narrowed.links[0], member).not.toHaveProperty(member);
+      }
+      expect(narrowed.unresolvedPropagations).toHaveLength(1);
+      expect(narrowed.unresolvedPropagations[0]?.orderNumber).toBeNull();
+      expect(read.body).not.toContain(full.links[0]?.number ?? 'no-number');
     });
   });
 });

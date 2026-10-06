@@ -21,6 +21,7 @@ import {
   seedCrmAdmin,
   seedCrmOrganization,
   seedCrmSalesRep,
+  unassignCrmSalesRep,
 } from '../../helpers/seed-crm.js';
 
 /**
@@ -261,7 +262,7 @@ describe('crm assignment — the default assignee, reassignment, and the assigne
     it('shows a Sales Rep an Opportunity of their Organization that somebody else holds', async () => {
       const reachable = await organization('Rep reaches');
       const unreachable = await organization('Rep does not reach');
-      const rep = await seedCrmSalesRep(h.em(), [reachable], ['crm:read', 'crm:write', 'orders:read']);
+      const rep = await seedCrmSalesRep(h.em(), [reachable, unreachable], ['crm:read', 'crm:write', 'orders:read']);
       seeded.push(rep);
 
       // The rep is the Organization's only Sales Rep, so the default would be
@@ -271,6 +272,8 @@ describe('crm assignment — the default assignee, reassignment, and the assigne
         organizationId: unreachable,
         assignedAdminUserId: rep.adminUserId,
       });
+      // Given to the rep while they reached it; the Organization is then taken from them.
+      await unassignCrmSalesRep(h.em(), unreachable, rep.adminUserId);
 
       const visible = await listIds('', rep.cookies);
       expect(visible).toContain(held.id);
@@ -280,6 +283,38 @@ describe('crm assignment — the default assignee, reassignment, and the assigne
       expect(await listIds('?assignedAdminUserId=me', rep.cookies)).toEqual([]);
       const hidden = await call('GET', `/opportunities/${elsewhere.id}`, { cookies: rep.cookies });
       expect(hidden.statusCode, hidden.body).toBe(404);
+    });
+  });
+
+  describe('an Opportunity is not given to somebody who cannot open it (review finding 2)', () => {
+    it('refuses an assignee who cannot reach the Organization — assign, create and PATCH, 422 CRM_ASSIGNEE_INVALID', async () => {
+      const theirs = await organization('Confined rep reaches');
+      const foreign = await organization('Confined rep does not reach');
+      const rep = await seedCrmSalesRep(h.em(), [theirs], ['crm:read', 'crm:write']);
+      seeded.push(rep);
+      const opportunity = await createCrmOpportunity(h, { organizationId: foreign, assignedAdminUserId: null });
+
+      const assigned = await call('POST', `/opportunities/${opportunity.id}/assign`, {
+        payload: { adminUserId: rep.adminUserId },
+      });
+      const patched = await call('PATCH', `/opportunities/${opportunity.id}`, {
+        payload: { assignedAdminUserId: rep.adminUserId },
+      });
+      const created = await call('POST', '/opportunities', {
+        payload: { title: 'Out of reach', organizationId: foreign, currency: 'PLN', assignedAdminUserId: rep.adminUserId },
+      });
+      for (const response of [assigned, patched, created]) {
+        expect(response.statusCode, response.body).toBe(422);
+        expect(response.json().error.code).toBe('CRM_ASSIGNEE_INVALID');
+      }
+      expect((await detail(opportunity.id)).assignee).toBeNull();
+
+      // The control: the same person is assignable where they do reach.
+      const own = await createCrmOpportunity(h, { organizationId: theirs, assignedAdminUserId: null });
+      const allowed = await call('POST', `/opportunities/${own.id}/assign`, {
+        payload: { adminUserId: rep.adminUserId },
+      });
+      expect(allowed.statusCode, allowed.body).toBe(200);
     });
   });
 });

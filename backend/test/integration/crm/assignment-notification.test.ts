@@ -70,7 +70,9 @@ describe('crm assignment notification', () => {
       linkPath: `/crm/opportunities/${opportunity.id}`,
     });
     expect(recorded[0]?.title).toContain(opportunity.number);
-    expect(recorded[0]?.title).toContain('Forklift fleet');
+    // By number alone: a bell is read outside the tenant scope (review finding 2).
+    expect(recorded[0]?.title).not.toContain('Forklift fleet');
+    expect(recorded[0]?.body ?? null).toBeNull();
   });
 
   it('records none for a self-assignment, an unassignment, or an assignment that changes nothing', async () => {

@@ -1,3 +1,4 @@
+import { LockMode } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
@@ -186,7 +187,10 @@ export class WorkflowConfigService {
         objectId: code,
       },
       async (em) => {
-        const status = await em.findOne(CrmOpportunityStatus, { code });
+        // Locked before the count below: a transition (or a creation) into this
+        // status holds the row shared until it commits, so this waits for it
+        // and then counts what it wrote (research N-R12).
+        const status = await em.findOne(CrmOpportunityStatus, { code }, { lockMode: LockMode.PESSIMISTIC_WRITE });
         if (!status) throw statusNotFound(code);
         const before = snapshot(status);
 
@@ -240,7 +244,10 @@ export class WorkflowConfigService {
     await this.#configure(
       { action: 'crm.status.delete', objectType: 'crm_opportunity_status', objectId: code },
       async (em) => {
-        const status = await em.findOne(CrmOpportunityStatus, { code });
+        // Locked before the count below: a transition (or a creation) into this
+        // status holds the row shared until it commits, so this waits for it
+        // and then counts what it wrote (research N-R12).
+        const status = await em.findOne(CrmOpportunityStatus, { code }, { lockMode: LockMode.PESSIMISTIC_WRITE });
         if (!status) throw statusNotFound(code);
         if (status.isInitial) {
           throw new HttpError(

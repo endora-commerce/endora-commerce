@@ -2839,6 +2839,172 @@ when it was measured, and what was done about it.
   spinner for a moment; and the first product the search offers for "Example" is one the test
   catalogue cannot sell (409 from `orders`, shown by the form) — the walk names the simple
   product instead. Not verified by eye: 390 px, a screen reader, dark theme.
+- **N-R1 (2026-10-06, review finding 1) — an attachment is never a document a browser runs,
+  and its link is a download.** The media library serves a private file from the API's
+  origin, `inline`, under the stored type and with no content policy of its own, and the CRM
+  upload is open to `crm:write` alone — so `offer.html` was a page running with the reader's
+  session. CRM's half (`services/attachment-active-content.ts`): the upload **and** the
+  attach-by-id refuse a file whose name *or* declared/stored type is HTML, XHTML, SVG, XML/XSL
+  (any `+xml`) or JavaScript — either is enough, so `offer.html` declared `text/plain` and
+  `offer.txt` declared `text/html` are both refused, before a byte is stored. The answer is
+  415 with the library's own `ASSET_UPLOAD_TYPE_NOT_ALLOWED`, not a minted `CRM_*` code: it is
+  the refusal this endpoint already passes on when the library's policy says no (N-F1), so a
+  caller handles one code. The link handed out carries `download=1`, which the library's
+  file route answers with `Content-Disposition: attachment`; a store's own signed address
+  (S3/GCS, whose signature covers the query) is handed on untouched. **Not CRM's and still
+  open:** the library route itself serves `inline` without `nosniff` or a sandboxing policy
+  to anybody who drops the flag from a link, and the type stored is the declared one when
+  the content sniff recognises nothing — reported for `assets_library`' owner.
+- **N-R2 (2026-10-06, review finding 2) — a bell entry names the Opportunity by number, and
+  nobody is assigned or told who cannot reach its Organization.** `admin_notifications`
+  rows are read by their target outside the tenant scope, and R-9's "any active
+  administrator may be the assignee" let a confined Sales Rep be handed an Opportunity of an
+  Organization they cannot open — and then be sent its title and 200 characters of each
+  message. Three changes. (a) The title of both entries is the number alone and the message
+  entry has no body. (b) The reach of an administrator *other than the caller* **is**
+  determinable through a published port: `organizations`' `adminTenantScopePort`
+  (`resolveForAdmin`), the one the request-scope hook builds a caller's own scope from —
+  wrapped once in `services/admin-reach.ts`; `organizations` is already a declared
+  dependency. (c) `assertAssignable` takes the Organization and answers the existing 422
+  `CRM_ASSIGNEE_INVALID` for somebody out of reach (assign, create, PATCH), and each
+  recipient's reach is asked again when an entry is written, because reach is lost later:
+  an assignee whose Sales Rep assignment was removed stays the assignee and is no longer
+  told. The default assignee is unaffected — it is drawn from the Organization's own Sales
+  Reps. R-9's sentence "the assignee decides nothing about visibility" stays true.
+- **N-R3 (2026-10-06, review finding 3) — what of an Order `crm:write` alone reaches, decided
+  rather than left as it fell.** A role holding `crm:read` + `crm:write` and not `orders:read`
+  could link any Order of an Organization it reaches, read its number, status and total off
+  the link, and move it by transitioning the Opportunity. Three decisions. **(a) Choosing
+  which Orders follow asks for `orders:read`** (the code `orders`' manifest gates its own read
+  surface with): `POST …/links` with `documentKind: 'order'` and `PATCH …/links/:linkId` carry
+  a second `requireAdmin('orders:read')` in their `preHandler` and answer 403 without it;
+  removing a link asks for nothing more. **(b) A reader without `orders:read` is shown a
+  linked Order as `available: false`** — no number, status, total or currency — and a
+  propagation outcome with `orderNumber: null`. The check is `services/orders-permission.ts`,
+  over `admin_roles`' `permissionService` port (`listPermissions`, wildcard honoured); the
+  system — a subscriber, a worker — is nobody's session and is not narrowed. Left as it is
+  and worth knowing: the Opportunity's *computed value* is a sum over the linked documents
+  and is shown to every `crm:read` holder, so one linked Order's total is derivable from it.
+  **(c) The propagation itself is not gated on the acting administrator's `orders:write`,
+  on purpose.** Which Order status a transition asks for is workflow configuration, written
+  by a `crm:configure` holder; the Sales Rep who moves the Opportunity triggers a rule, and
+  `orders` records the change against the actor CRM hands it. Gating it on
+  `orders:write` would make "the Order follows the Opportunity" true only for administrators
+  who could have moved the Order by hand, which is not the feature (FR-020…FR-022).
+  `contracts/admin-api.md` §2 and §3 now say both.
+- **N-R4 (2026-10-06, review finding 4) — "a closed Opportunity is never reopened by a
+  mapping" is the transition service's rule now, not only the subscriber's.** The reverse
+  direction looked at `closedKind` on its own read and then called `apply()`, whose
+  re-evaluation after a lost race (N-B's `locked.statusCode !== from → evaluate again`)
+  knew nothing of that rule: an Opportunity closed between the two was moved by the Order
+  wherever the workflow had an edge out of the closed status (`lost → new` is seeded). For
+  `cause: 'order_status'`, `apply()` now refuses on **every** evaluation when the current
+  status's kind is not `open`, and again under the lock by the row's own `closedKind` /
+  `closedAt`. The refusal is 409 `CRM_INVALID_TRANSITION` carrying `details.closed`, which
+  the reverse direction reads as `ignored: closed` — the answer it already gives for an
+  Opportunity that was closed all along — rather than as a `skipped` outcome.
+- **N-R5 (2026-10-06, review finding 5) — an Order-caused move that fails for a reason
+  other than a workflow refusal leaves a `failed` row and an audit entry before it is
+  rethrown.** Only the four workflow refusals became a `skipped` outcome (N-B); a throwing
+  guard, a failed write or anything else was rethrown into the event bus, which logs a
+  handler's error and goes on — so the Order had moved, the Opportunity had not, and nothing
+  on the Opportunity said so. The catch now writes a reverse-direction row with
+  `outcome: 'failed'` and the message, through the same Command as a skip
+  (`crm.opportunity.propagation_skip`, whose audit `stateAfter` gains `outcome`), and then
+  throws the original error. **It is not listed in `unresolvedPropagations`, by the model's
+  design**: that list is forward-only (`data-model.md`; `isUnresolved`), because retry and
+  dismiss mean "ask the Order again", which has no reverse reading. The row and the audit
+  entry — which is what the Opportunity's change history is read from — are the record.
+  `ModuleDisabledError` is rethrown first, as before, and records nothing.
+- **N-R6 (2026-10-06, review finding 6) — a note's or a message's text is not written into
+  the audit trail.** `audit_logs` is `@GlobalEntity`: an administrator holding
+  `audit_log:read` reads every entry, whatever Organizations their role confines them to,
+  while a note is read only under an Opportunity loaded through the tenant-scoped
+  EntityManager. `note_add` / `message_add` / `note_update` / `note_delete` carried `body`
+  in their audited state, so the trail was a second, unscoped copy of the conversation.
+  They now carry the comment's id, its kind, its author and the text's **length** — that
+  something was written, by whom, and that an edit changed it — and never the text; a
+  deleted note's row is kept, marked, and is still where what it said is read. **Left as it
+  is, and the same shape:** the Opportunity's own audited state (`auditSnapshot`) carries
+  its title and description, a transition's entry carries the optional `reason`, an
+  attachment's entry the file name, and a skipped or failed Order-caused move the guard's
+  sentence. Those are the Opportunity's change history (R-16 reads it from the audit trail),
+  so removing them is a design change to that story rather than a fix; whether
+  `audit_logs` should scope a read by the entry's subject is a question for its owner.
+- **N-R7 (2026-10-06, review finding 7) — a date the calendar does not have is refused by
+  the contract.** `calendarDateSchema` was the shape `YYYY-MM-DD` and nothing more, so
+  `2026-13-45` reached `new Date(…)` in the list and the board (an `Invalid Date` bound into
+  a statement) and `2026-02-31` reached a `date` column: 500 each. The schema now also asks
+  that the day exists — round-tripped through a UTC date, leap years included, year `0000`
+  refused — so every consumer answers the envelope's 400 `VALIDATION_FAILED`: the list's and
+  the board's `createdFrom` / `createdTo`, `expectedCloseDate` on create and PATCH, and the
+  analytics range, which shares the schema.
+- **N-R9 (2026-10-06, review finding 9) — an `If-Match` that cannot be read is 400, not
+  "no precondition".** `PATCH /opportunities/:id` read the header with `parseInt` and took
+  anything unparseable for an absent header, so a client that sent a garbled version had its
+  guarded write applied unguarded — and `"1abc"` was read as `1`. The header is now the
+  version exactly, quoted as the `ETag` gives it or bare (`"3"`, `3`), or `*`, which like an
+  absent header asks for nothing; a weak validator, a list or anything else answers 400
+  `VALIDATION_FAILED` before the service is called. `contracts/admin-api.md` §1's row is
+  left as it reads (it names the header and the 409) to keep this change out of a table
+  other branches edit; the 400 belongs in it.
+- **N-R10 (2026-10-06, review finding 10) — the tag filter is a subquery, not a list of
+  ids.** `opportunityIdsCarryingAll` read the id of every Opportunity on the platform
+  carrying the tags — unscoped, by design — into the process and bound them all back into
+  the list's and the board's statements: one parameter per tagged Opportunity, whoever asked
+  and however few of them they reach. `TagService.carryingEvery` now answers conditions: one
+  `"id" in (select "opportunity_id" from "crm_opportunity_tags" where "tag_id" = ?)` per
+  distinct tag, AND-ed with the rest — which is "every tag named" without a `group by` —
+  added to the same scoped read as before, so the tenant constraint is untouched and the
+  planner drives from whichever side is smaller. The early "no Opportunity carries them"
+  return is gone with the ids; the statement says none. Measured on the test database with
+  70 000 Opportunities of another Organization carrying the tag, for a Sales Rep who reaches
+  none of them: 1 162 ms before, 36 ms after — what the list takes with no tag filter.
+- **N-R11 (2026-10-06, review finding 11) — eleven guards had no test; each has one now,
+  and each test was seen red against its guard taken out.** The review removed them one at
+  a time with the suite green. `backend/test/integration/crm/review-guards.test.ts` (and one
+  case of `review-regressions.test.ts`) hold: the reverse direction ignoring an event whose
+  Organization is not the Opportunity's; PATCH refusing a contact person of another
+  Organization; a status's `kind` not changing while an Opportunity is in it; the five
+  workflow-configuration writes answering 403 to `crm:read` + `crm:write` without
+  `crm:configure`; retry refusing once the Opportunity moved on, and for an Order that no
+  longer follows (following switched off, and the link gone — two halves of one condition);
+  a second dismissal; the echo marker matching only the status the Order was asked for, and
+  being consumed once; reopening clearing `closedAt` and `closedKind`; a stale `pending` row
+  shown as unresolved. Two things the tests had to learn: a 409 `VERSION_CONFLICT` reaches
+  the caller with the envelope's own sentence, so *which* refusal it was is asserted by
+  what was not written, never by the message; and a stale `pending` row is rendered
+  `failed` — `pending` is not an outcome the contract shows anybody.
+- **N-R12 (2026-10-06, review finding 12) — three "likely" defects, taken one at a time.**
+  **(a) A bell that cannot be written does not turn a committed write into a 500.** An
+  assignment (assign, create, PATCH) and a message are committed before anybody is told, and
+  the telling — the reach lookup and `admin_notifications`' port — ran bare after it: a
+  failure there answered 500 for a write that had happened, and a client retrying a message
+  posted it twice. `tellAfterCommit` (`services/crm-notifier.ts`) is the one place that
+  tolerates it: `rethrowIfModuleDisabled` first, as composition item 7 asks of a narrow
+  tolerance, then a `console.warn` naming the Opportunity and the error — the module holds
+  no logger, and `orders`' own after-commit e-mail helper logs the same way. The notifier
+  itself still catches nothing.
+  **(b) A status is not deleted, or re-defined, under an Opportunity on its way into it.**
+  `crm_opportunities.status_code` is held by value (R-2: no foreign key), "in use" was a
+  count, and the count could not see a transition that had not committed — nor could a
+  transition see a delete that had: either order left an Opportunity in a status the
+  workflow no longer has, or closed/open against what the status now means. The two sides
+  now meet on the status's own row. Whoever puts an Opportunity into a status — the
+  transition Command, and the create Command for the start status — reads that row
+  `for share` inside the Command, after the Opportunity's own lock, and holds it to the
+  commit; `updateStatus` and `deleteStatus` read it `for update` before they count. So a
+  configuration write waits for a move in flight and then counts it (409
+  `CRM_STATUS_IN_USE`), and a move that waited for a configuration write finds the row gone
+  or its kind changed, writes nothing and is evaluated again from the top against the
+  workflow as it is now — 422 for a deleted target, the new `closedKind` for a re-defined
+  one; a creation answers 409 `VERSION_CONFLICT`. One lock order everywhere (Opportunity,
+  then status; configuration takes the status alone), so the two cannot deadlock.
+  **(c) Left: one `getAsset` call per attachment.** The list signs a link per file through
+  `assetsLibraryPort.getAsset`, and that port has no batch read (`upload`, `getAsset`,
+  `patchAsset`, `softDelete`); `assetReadPort.findByIds`, which the list already uses for
+  the rows, answers no link. Batching it is a method on `assets_library`' port — its
+  owner's change, not a loop to restructure here.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

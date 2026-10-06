@@ -225,4 +225,47 @@ describe('crm attachment upload', () => {
       expect(response.body).not.toContain('theirs.png');
     });
   });
+
+  describe('a document a browser would render and run is not an attachment (review finding 1)', () => {
+    const page = '<!doctype html><script>fetch("/api/v1/admin/crm/opportunities",{credentials:"include"})</script>';
+
+    it.each([
+      { filename: 'offer.html', mime: 'text/html', value: page },
+      { filename: 'offer.htm', mime: 'application/octet-stream', value: page },
+      { filename: 'logo.svg', mime: 'image/svg+xml', value: '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>' },
+      { filename: 'feed.xml', mime: 'application/xml', value: '<?xml version="1.0"?><a/>' },
+      { filename: 'app.js', mime: 'text/javascript', value: 'alert(1)' },
+      // The mismatches: either the name or the declared type is enough.
+      { filename: 'offer.html', mime: 'text/plain', value: page },
+      { filename: 'offer.txt', mime: 'text/html', value: page },
+    ])('refuses $filename declared $mime — 415, nothing stored, nothing attached', async (file) => {
+      const opportunity = await createCrmOpportunity(h);
+      const name = `refused-${Date.now()}-${file.filename}`;
+      const refused = await uploadCrmAttachment(h, opportunity.id, { ...file, filename: name }, crmOnly.cookies);
+      expect(refused.statusCode, refused.body).toBe(415);
+      expect(refused.json().error.code).toBe(ERROR_CODES.ASSET_UPLOAD_TYPE_NOT_ALLOWED);
+      expect(await assetsNamed(name)).toBe(0);
+      expect(await list(opportunity.id)).toEqual([]);
+    });
+
+    it('still takes a PDF and a PNG, and hands their links out as downloads', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      await upload(
+        opportunity.id,
+        { filename: 'offer.pdf', mime: 'application/pdf', value: Buffer.from('%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n') },
+        crmOnly.cookies,
+      );
+      await upload(opportunity.id, { filename: 'photo.png', mime: 'image/png', value: TINY_PNG }, crmOnly.cookies);
+      const rows = await list(opportunity.id, crmOnly.cookies);
+      expect(rows.map((row) => row.fileName)).toEqual(['offer.pdf', 'photo.png']);
+
+      for (const row of rows) {
+        const link = new URL(row.url ?? '');
+        expect(link.searchParams.get('download')).toBe('1');
+        const served = await h.app.inject({ method: 'GET', url: `${link.pathname}${link.search}` });
+        expect(served.statusCode, served.body).toBe(200);
+        expect(String(served.headers['content-disposition'])).toMatch(/^attachment;/);
+      }
+    });
+  });
 });

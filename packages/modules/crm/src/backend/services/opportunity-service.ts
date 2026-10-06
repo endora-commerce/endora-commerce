@@ -40,6 +40,7 @@ import {
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.entity.js';
+import { CrmOpportunityStatus } from '../entities/crm-opportunity-status.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
 import { effectiveOpportunityValue, effectiveOpportunityValueSql } from '../domain/effective-value.js';
@@ -200,7 +201,9 @@ export class OpportunityService {
       assignedAdminUserId = await assignment.resolveDefault(input.organizationId, creator);
     } else {
       assignedAdminUserId = input.assignedAdminUserId;
-      if (assignedAdminUserId !== null) await assignment.assertAssignable(assignedAdminUserId);
+      if (assignedAdminUserId !== null) {
+        await assignment.assertAssignable(assignedAdminUserId, input.organizationId);
+      }
     }
 
     const graph = await this.deps.workflowRead.loadGraph();
@@ -216,8 +219,8 @@ export class OpportunityService {
     );
     await assignment.notifyAssigned({
       opportunityId: created.id,
+      organizationId: input.organizationId,
       number: created.number,
-      title: input.title,
       assignedAdminUserId,
     });
     return this.get(created.id);
@@ -274,10 +277,13 @@ export class OpportunityService {
       throw error;
     }
     await this.deps.recalculateValue(created.id);
+    // By number only, and only to somebody who reaches the Organization — the
+    // rule of every assignment (research N-R2). The title of an Opportunity
+    // created for a document carries that document's number.
     await this.deps.assignment.notifyAssigned({
       opportunityId: created.id,
+      organizationId: created.organizationId,
       number: created.number,
-      title: input.title,
       assignedAdminUserId,
     });
     return { id: created.id, number: created.number };
@@ -297,6 +303,17 @@ export class OpportunityService {
       run: async ({ em, actor }) => {
         if (input.salesChannelId && (await em.count(SalesChannel, { id: input.salesChannelId })) === 0) {
           throw invalid('The sales channel does not exist.');
+        }
+        // The start status, held until this commits, as a transition holds its
+        // target: it cannot be deleted under an Opportunity being created in it
+        // (research N-R12). Gone already means the workflow changed meanwhile.
+        const start = await em.findOne(
+          CrmOpportunityStatus,
+          { code: initialStatusCode },
+          { lockMode: LockMode.PESSIMISTIC_READ },
+        );
+        if (!start) {
+          throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The workflow changed while this was being created.');
         }
         // Refused before anything is written: a tag that does not exist is 422.
         const tags = await this.deps.tags.resolve(em, input.tagIds ?? []);
@@ -403,13 +420,9 @@ export class OpportunityService {
       conditions.push({ statusCode: { $in: codes } });
     }
     if (query.tagId && query.tagId.length > 0) {
-      // Every tag named must be carried (AND). The ids come from an unscoped
-      // statement and only ever narrow the scoped read below.
-      const carrying = await this.deps.tags.opportunityIdsCarryingAll(em, query.tagId);
-      if (carrying.length === 0) {
-        return { data: [], pagination: { cursor: null, hasMore: false, limit: query.limit } };
-      }
-      conditions.push({ id: { $in: carrying } });
+      // Every tag named must be carried (AND): subqueries that only ever
+      // narrow the scoped read below.
+      conditions.push(...this.deps.tags.carryingEvery(query.tagId));
     }
     if (query.organizationId) conditions.push({ organizationId: query.organizationId });
     if (query.assignedAdminUserId === 'unassigned') {
@@ -495,7 +508,9 @@ export class OpportunityService {
       );
       if (!contact) throw invalid('The contact person does not belong to this organization.');
     }
-    if (patch.assignedAdminUserId) await this.deps.assignment.assertAssignable(patch.assignedAdminUserId);
+    if (patch.assignedAdminUserId) {
+      await this.deps.assignment.assertAssignable(patch.assignedAdminUserId, visible.organizationId);
+    }
 
     let becameComputed = false;
     const reassigned = await this.deps.commandBus.run({

@@ -343,4 +343,29 @@ describe('crm attachments', () => {
     expect(row).toMatchObject({ id: attached.id, fileName: 'vanished.pdf', sizeBytes: 0, url: null });
     expect(row?.uploadedBy.id).toBe(TEST_ADMIN_ID);
   });
+
+  describe('a document a browser would render and run is not an attachment (review finding 1)', () => {
+    it.each([
+      { filename: 'offer.html', mimeType: 'text/html' },
+      { filename: 'logo.svg', mimeType: 'image/svg+xml' },
+      { filename: 'offer.html', mimeType: 'text/plain' },
+      { filename: 'offer.txt', mimeType: 'text/html' },
+    ])('refuses to attach a library file $filename stored as $mimeType — 415', async (overrides) => {
+      const opportunity = await createCrmOpportunity(h);
+      const file = await asset(overrides);
+      const response = await call('POST', `/opportunities/${opportunity.id}/attachments`, { assetId: file.id });
+      expect(response.statusCode, response.body).toBe(415);
+      expect(response.json().error.code).toBe('ASSET_UPLOAD_TYPE_NOT_ALLOWED');
+      expect(await list(opportunity.id)).toEqual([]);
+    });
+
+    it('hands the link out as a download, never as a page to render', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const file = await asset();
+      await attach(opportunity.id, file.id);
+      const [row] = await list(opportunity.id);
+      expect(row?.url).toMatch(/[?&]download=1(&|$)/);
+      expect(row?.url).toMatch(/[?&]token=/);
+    });
+  });
 });

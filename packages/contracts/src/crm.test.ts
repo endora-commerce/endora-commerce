@@ -93,6 +93,20 @@ describe('§1 opportunities', () => {
     });
   });
 
+  it('refuses a well-formed date the calendar does not have, wherever a date is taken', () => {
+    const body = { title: 'x', organizationId: UUID_A, currency: 'PLN' };
+    for (const impossible of ['2026-02-31', '2026-13-01', '2026-00-10', '2026-04-31', '2025-02-29', '0000-01-01']) {
+      rejects(crm.CreateOpportunityRequestSchema, { ...body, expectedCloseDate: impossible });
+      rejects(crm.UpdateOpportunityRequestSchema, { expectedCloseDate: impossible });
+      rejects(crm.OpportunityListQuerySchema, { createdFrom: impossible });
+      rejects(crm.OpportunityListQuerySchema, { createdTo: impossible });
+    }
+    for (const real of ['2024-02-29', '2026-12-31', '2026-01-01']) {
+      accepts(crm.CreateOpportunityRequestSchema, { ...body, expectedCloseDate: real });
+      accepts(crm.OpportunityListQuerySchema, { createdFrom: real, createdTo: real });
+    }
+  });
+
   it('update: accepts a partial body and refuses the two immutable fields', () => {
     accepts(crm.UpdateOpportunityRequestSchema, { title: 'Renamed', manualValue: null });
     rejects(crm.UpdateOpportunityRequestSchema, { organizationId: UUID_B });

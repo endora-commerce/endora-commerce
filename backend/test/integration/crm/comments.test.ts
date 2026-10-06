@@ -18,6 +18,7 @@ import {
   seedCrmOrder,
   seedCrmOrganization,
   seedCrmSalesRep,
+  unassignCrmSalesRep,
 } from '../../helpers/seed-crm.js';
 
 /**
@@ -118,9 +119,13 @@ describe('crm notes and messages', () => {
       expect(audit).toHaveLength(1);
       expect(audit[0]).toMatchObject({
         objectType: 'crm_opportunity',
-        stateBefore: { commentId: note.id, body: 'Budget confirmed for Q3.' },
-        stateAfter: { commentId: note.id, body: 'Budget confirmed for Q4.' },
+        stateBefore: { commentId: note.id, length: 'Budget confirmed for Q3.'.length },
+        stateAfter: { commentId: note.id, length: 'Budget confirmed for Q4.'.length },
       });
+      // What was written is the note's; the audit trail is not tenant-scoped
+      // and carries no text of it (review finding 6).
+      const everything = await h.auditLogService.query({ objectId: opportunity.id });
+      expect(JSON.stringify(everything)).not.toContain('Budget confirmed');
     });
 
     it('disappears from the list when its author deletes it, and stays in the audit trail', async () => {
@@ -136,7 +141,17 @@ describe('crm notes and messages', () => {
       const deleted = await h.auditLogService.query({ action: 'crm.opportunity.note_delete', objectId: opportunity.id });
       expect(added).toHaveLength(2);
       expect(deleted).toHaveLength(1);
-      expect(deleted[0]).toMatchObject({ stateBefore: { commentId: gone.id, body: 'Written in haste.' } });
+      expect(deleted[0]).toMatchObject({
+        stateBefore: { commentId: gone.id, length: 'Written in haste.'.length },
+        stateAfter: { commentId: gone.id, deleted: true },
+      });
+      expect(added.map((entry) => entry.stateAfter)).toContainEqual({
+        commentId: gone.id,
+        kind: 'note',
+        authorAdminUserId: TEST_ADMIN_ID,
+        length: 'Written in haste.'.length,
+      });
+      expect(JSON.stringify([...added, ...deleted])).not.toContain('Written in haste');
       // The row is kept, marked: the history stays truthful about what was written.
       const row = await h.em().findOneOrFail(CrmOpportunityComment, { id: gone.id }, { filters: false });
       expect(row.deletedAt).toBeInstanceOf(Date);
@@ -168,6 +183,10 @@ describe('crm notes and messages', () => {
       expect((await list(opportunity.id, 'message')).map((m) => m.body)).toEqual(['Sent as written.']);
       const audit = await h.auditLogService.query({ action: 'crm.opportunity.message_add', objectId: opportunity.id });
       expect(audit).toHaveLength(1);
+      expect(audit[0]).toMatchObject({
+        stateAfter: { commentId: message.id, kind: 'message', length: 'Sent as written.'.length },
+      });
+      expect(JSON.stringify(audit)).not.toContain('Sent as written');
     });
 
     it('notifies the assignee and everybody who already wrote in the thread — never the author', async () => {
@@ -199,6 +218,9 @@ describe('crm notes and messages', () => {
         linkPath: `/crm/opportunities/${opportunity.id}`,
       });
       expect(sample.title).toContain(opportunity.number);
+      // The entry says there is a message, never what it says (review finding 2).
+      expect(sample.title).not.toContain('Conveyor line');
+      expect(sample.body ?? null).toBeNull();
     });
 
     it('is still stored, and tells nobody, while admin_notifications is deactivated', async () => {
@@ -304,6 +326,38 @@ describe('crm notes and messages', () => {
         expect([401, 403], `${kind} ${response.body}`).toContain(response.statusCode);
         expect(response.body).not.toContain(NOTE);
         expect(response.body).not.toContain(MESSAGE);
+      }
+    });
+  });
+
+  describe('a bell entry reaches only somebody who can open the Opportunity (review finding 2)', () => {
+    it('tells nobody who can no longer reach the Organization, and still tells the others', async () => {
+      const organizationId = await seedCrmOrganization(h.em(), 'Comments, reach lost');
+      const leaving = await seedCrmSalesRep(h.em(), [organizationId], ['crm:read', 'crm:write']);
+      try {
+        const opportunity = await createCrmOpportunity(h, {
+          title: 'SECRET-TITLE takeover',
+          organizationId,
+          assignedAdminUserId: leaving.adminUserId,
+        });
+        // The colleague joins the conversation; the assignee, who reaches it, is told.
+        await add(opportunity.id, 'message', 'First.', colleague.cookies);
+        expect(await messageNotifications(opportunity.id)).toEqual([leaving.adminUserId]);
+
+        await unassignCrmSalesRep(h.em(), organizationId, leaving.adminUserId);
+        expect((await call('GET', `/opportunities/${opportunity.id}`, undefined, leaving.cookies)).statusCode).toBe(404);
+
+        await add(opportunity.id, 'message', 'SECRET-BODY margin is 42 percent');
+        // Only the colleague: the assignee is still the assignee, and is not told.
+        expect(await messageNotifications(opportunity.id)).toEqual([leaving.adminUserId, colleague.adminUserId]);
+
+        const bell = await h.em().find(AdminNotification, { subjectId: opportunity.id }, { filters: false });
+        const text = JSON.stringify(bell.map((row) => ({ title: row.title, body: row.body })));
+        expect(text).toContain(opportunity.number);
+        expect(text).not.toContain('SECRET-TITLE');
+        expect(text).not.toContain('SECRET-BODY');
+      } finally {
+        leaving.undo();
       }
     });
   });
