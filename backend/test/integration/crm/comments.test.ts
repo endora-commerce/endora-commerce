@@ -119,9 +119,13 @@ describe('crm notes and messages', () => {
       expect(audit).toHaveLength(1);
       expect(audit[0]).toMatchObject({
         objectType: 'crm_opportunity',
-        stateBefore: { commentId: note.id, body: 'Budget confirmed for Q3.' },
-        stateAfter: { commentId: note.id, body: 'Budget confirmed for Q4.' },
+        stateBefore: { commentId: note.id, length: 'Budget confirmed for Q3.'.length },
+        stateAfter: { commentId: note.id, length: 'Budget confirmed for Q4.'.length },
       });
+      // What was written is the note's; the audit trail is not tenant-scoped
+      // and carries no text of it (review finding 6).
+      const everything = await h.auditLogService.query({ objectId: opportunity.id });
+      expect(JSON.stringify(everything)).not.toContain('Budget confirmed');
     });
 
     it('disappears from the list when its author deletes it, and stays in the audit trail', async () => {
@@ -137,7 +141,17 @@ describe('crm notes and messages', () => {
       const deleted = await h.auditLogService.query({ action: 'crm.opportunity.note_delete', objectId: opportunity.id });
       expect(added).toHaveLength(2);
       expect(deleted).toHaveLength(1);
-      expect(deleted[0]).toMatchObject({ stateBefore: { commentId: gone.id, body: 'Written in haste.' } });
+      expect(deleted[0]).toMatchObject({
+        stateBefore: { commentId: gone.id, length: 'Written in haste.'.length },
+        stateAfter: { commentId: gone.id, deleted: true },
+      });
+      expect(added.map((entry) => entry.stateAfter)).toContainEqual({
+        commentId: gone.id,
+        kind: 'note',
+        authorAdminUserId: TEST_ADMIN_ID,
+        length: 'Written in haste.'.length,
+      });
+      expect(JSON.stringify([...added, ...deleted])).not.toContain('Written in haste');
       // The row is kept, marked: the history stays truthful about what was written.
       const row = await h.em().findOneOrFail(CrmOpportunityComment, { id: gone.id }, { filters: false });
       expect(row.deletedAt).toBeInstanceOf(Date);
@@ -169,6 +183,10 @@ describe('crm notes and messages', () => {
       expect((await list(opportunity.id, 'message')).map((m) => m.body)).toEqual(['Sent as written.']);
       const audit = await h.auditLogService.query({ action: 'crm.opportunity.message_add', objectId: opportunity.id });
       expect(audit).toHaveLength(1);
+      expect(audit[0]).toMatchObject({
+        stateAfter: { commentId: message.id, kind: 'message', length: 'Sent as written.'.length },
+      });
+      expect(JSON.stringify(audit)).not.toContain('Sent as written');
     });
 
     it('notifies the assignee and everybody who already wrote in the thread — never the author', async () => {

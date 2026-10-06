@@ -93,7 +93,14 @@ export class OpportunityCommentService {
         return {
           result: { comment, recipients, number: opportunity.number, organizationId: opportunity.organizationId },
           before: null,
-          after: { commentId: comment.id, kind: comment.kind, body: comment.body },
+          // Never the text: the audit trail is not tenant-scoped, and a note
+          // or a message is read only under its Opportunity (research N-R6).
+          after: {
+            commentId: comment.id,
+            kind: comment.kind,
+            authorAdminUserId: author,
+            length: comment.body.length,
+          },
         };
       },
     });
@@ -124,11 +131,11 @@ export class OpportunityCommentService {
       objectId: opportunityId,
       run: async ({ em }) => {
         const note = await this.#loadOwnNote(em, opportunityId, commentId, 'edited');
-        const before = { commentId: note.id, body: note.body };
+        const before = { commentId: note.id, length: note.body.length };
         if (note.body === body) return { result: note, skipAudit: true };
         note.body = body;
         note.editedAt = new Date();
-        return { result: note, before, after: { commentId: note.id, body: note.body } };
+        return { result: note, before, after: { commentId: note.id, length: note.body.length } };
       },
     });
     const [rendered] = await this.#render([comment]);
@@ -150,7 +157,7 @@ export class OpportunityCommentService {
         note.deletedAt = new Date();
         return {
           result: undefined,
-          before: { commentId: note.id, body: note.body },
+          before: { commentId: note.id, length: note.body.length },
           after: { commentId: note.id, deleted: true },
         };
       },

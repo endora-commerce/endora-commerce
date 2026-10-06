@@ -2099,6 +2099,21 @@ when it was measured, and what was done about it.
   dismiss mean "ask the Order again", which has no reverse reading. The row and the audit
   entry — which is what the Opportunity's change history is read from — are the record.
   `ModuleDisabledError` is rethrown first, as before, and records nothing.
+- **N-R6 (2026-10-06, review finding 6) — a note's or a message's text is not written into
+  the audit trail.** `audit_logs` is `@GlobalEntity`: an administrator holding
+  `audit_log:read` reads every entry, whatever Organizations their role confines them to,
+  while a note is read only under an Opportunity loaded through the tenant-scoped
+  EntityManager. `note_add` / `message_add` / `note_update` / `note_delete` carried `body`
+  in their audited state, so the trail was a second, unscoped copy of the conversation.
+  They now carry the comment's id, its kind, its author and the text's **length** — that
+  something was written, by whom, and that an edit changed it — and never the text; a
+  deleted note's row is kept, marked, and is still where what it said is read. **Left as it
+  is, and the same shape:** the Opportunity's own audited state (`auditSnapshot`) carries
+  its title and description, a transition's entry carries the optional `reason`, an
+  attachment's entry the file name, and a skipped or failed Order-caused move the guard's
+  sentence. Those are the Opportunity's change history (R-16 reads it from the audit trail),
+  so removing them is a design change to that story rather than a fix; whether
+  `audit_logs` should scope a read by the entry's subject is a question for its owner.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
