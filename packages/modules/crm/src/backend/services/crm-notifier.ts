@@ -1,5 +1,5 @@
 import type { AdminNotificationRecordPort } from '@endora-commerce/contracts';
-import { effectiveState } from '@endora-commerce/platform/kernel';
+import { effectiveState, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 
 /** `not-present` is the operator's choice — the bell is switched off — never a failure. */
 export type CrmNotificationOutcome = 'recorded' | 'not-present';
@@ -60,4 +60,28 @@ export function createCrmNotifier(adminNotifications: AdminNotificationRecordPor
       return 'recorded';
     },
   };
+}
+
+/**
+ * Tell somebody about a write **that has already committed**
+ * (`specs/143-crm-sales-opportunities/research.md` N-R12).
+ *
+ * The assignment, or the message, is stored by the time anybody is told. If
+ * telling fails — the bell's store, or the reach lookup that precedes it — the
+ * request would answer 500 for a write that happened, and a client that
+ * retries would post the message twice. So the failure is tolerated here,
+ * narrowly and on purpose: it is logged and the caller goes on to answer what
+ * it wrote. A module switched off is not a failure of this kind and is thrown
+ * as it is.
+ */
+export async function tellAfterCommit(opportunityId: string, tell: () => Promise<void>): Promise<void> {
+  try {
+    await tell();
+  } catch (error) {
+    rethrowIfModuleDisabled(error);
+    console.warn('crm: a notification about a committed change could not be written', {
+      opportunityId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }

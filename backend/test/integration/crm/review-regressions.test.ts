@@ -459,7 +459,7 @@ describe('crm review regressions', () => {
   });
 
   describe('finding 10 — the tag filter is the database’s work, not a list of ids', () => {
-    const BULK = Number(process.env.CRM_REVIEW_TAG_BULK ?? 3000);
+    const BULK = 3000;
 
     it('names no Opportunity id in a statement, however many Opportunities out of reach carry the tag', async () => {
       const conn = h.em().getConnection();
@@ -493,14 +493,11 @@ describe('crm review regressions', () => {
           widest = Math.max(widest, (context as { params?: unknown[] }).params?.length ?? 0);
           original.call(logger, context);
         };
-        const started = Date.now();
         const list = await call('GET', `/opportunities?tagId=${both}`, rep.cookies);
-        const elapsed = Date.now() - started;
         const pair = await call('GET', `/opportunities?tagId=${both}&tagId=${second}`, rep.cookies);
         const board = await call('GET', `/board?tagId=${both}&tagId=${second}`, rep.cookies);
         const everyone = await call('GET', `/opportunities?tagId=${both}&limit=1`, CRM_ADMIN);
         logger.logQuery = original;
-        if (process.env.CRM_REVIEW_TAG_BULK) console.log(`tag filter over ${BULK} tagged out of reach: ${elapsed} ms`);
 
         for (const response of [list, pair]) {
           expect(response.statusCode, response.body).toBe(200);
@@ -523,6 +520,71 @@ describe('crm review regressions', () => {
         await conn.execute(`delete from "crm_tags" where "id" in (?, ?)`, [both, second]);
       }
     }, 120_000);
+  });
+
+  describe('finding 12 — a bell that cannot be written does not undo what was committed', () => {
+    type RecordPort = { record: (input: unknown) => Promise<unknown> };
+    /** `admin_notifications`' port answering with a failure for as long as `work` runs. */
+    const withTheBellFailing = async <T>(work: () => Promise<T>): Promise<{ result: T; asked: number }> => {
+      const port = h.container.resolve<RecordPort>('adminNotificationRecordPort');
+      const original = port.record;
+      let asked = 0;
+      port.record = async () => {
+        asked += 1;
+        throw new Error('bell store unavailable');
+      };
+      try {
+        return { result: await work(), asked };
+      } finally {
+        port.record = original;
+      }
+    };
+    const assigneeOf = async (opportunityId: string) =>
+      ((await call('GET', `/opportunities/${opportunityId}`)).json() as { data: { assignee: { id: string } | null } })
+        .data.assignee?.id ?? null;
+
+    it('answers the assignment it made — on assign, on create and on PATCH', async () => {
+      const opportunity = await createCrmOpportunity(h, { organizationId: organizationA, assignedAdminUserId: null });
+
+      const assigned = await withTheBellFailing(() =>
+        call('POST', `/opportunities/${opportunity.id}/assign`, CRM_ADMIN, { adminUserId: crmOnly.adminUserId }),
+      );
+      expect(assigned.asked, 'the control: the bell was asked, and failed').toBe(1);
+      expect(assigned.result.statusCode, assigned.result.body).toBe(200);
+      expect(await assigneeOf(opportunity.id)).toBe(crmOnly.adminUserId);
+
+      const created = await withTheBellFailing(() =>
+        call('POST', '/opportunities', CRM_ADMIN, {
+          title: 'Created with the bell down',
+          organizationId: organizationA,
+          currency: 'PLN',
+          assignedAdminUserId: crmOnly.adminUserId,
+        }),
+      );
+      expect(created.asked).toBe(1);
+      expect(created.result.statusCode, created.result.body).toBe(201);
+
+      const patched = await withTheBellFailing(() =>
+        call('PATCH', `/opportunities/${opportunity.id}`, CRM_ADMIN, { assignedAdminUserId: rep.adminUserId }),
+      );
+      expect(patched.asked).toBe(1);
+      expect(patched.result.statusCode, patched.result.body).toBe(200);
+      expect(await assigneeOf(opportunity.id)).toBe(rep.adminUserId);
+    });
+
+    it('answers the message it stored', async () => {
+      const opportunity = await createCrmOpportunity(h, {
+        organizationId: organizationA,
+        assignedAdminUserId: crmOnly.adminUserId,
+      });
+      const posted = await withTheBellFailing(() =>
+        call('POST', `/opportunities/${opportunity.id}/comments`, CRM_ADMIN, { kind: 'message', body: 'Still here' }),
+      );
+      expect(posted.asked).toBe(1);
+      expect(posted.result.statusCode, posted.result.body).toBe(201);
+      const listed = await call('GET', `/opportunities/${opportunity.id}/comments?kind=message`);
+      expect(listed.body).toContain('Still here');
+    });
   });
 
   describe('reach, where no test held it', () => {

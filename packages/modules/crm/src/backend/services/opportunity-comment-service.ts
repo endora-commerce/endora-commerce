@@ -11,7 +11,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { randomUUID } from 'crypto';
 import { CrmOpportunityComment } from '../entities/crm-opportunity-comment.entity.js';
 import type { AdminReach } from './admin-reach.js';
-import type { CrmNotifier } from './crm-notifier.js';
+import { tellAfterCommit, type CrmNotifier } from './crm-notifier.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
 
@@ -110,12 +110,14 @@ export class OpportunityCommentService {
     // never what it says: a bell is read outside the tenant scope. Somebody who
     // can no longer reach the Organization is not told at all.
     for (const recipient of written.recipients) {
-      if (!(await this.deps.canReach(recipient, written.organizationId))) continue;
-      await this.deps.notifier.notify({
-        kind: 'crm.opportunity.message',
-        targetAdminUserId: recipient,
-        opportunityId,
-        title: `New message on opportunity ${written.number}`,
+      await tellAfterCommit(opportunityId, async () => {
+        if (!(await this.deps.canReach(recipient, written.organizationId))) return;
+        await this.deps.notifier.notify({
+          kind: 'crm.opportunity.message',
+          targetAdminUserId: recipient,
+          opportunityId,
+          title: `New message on opportunity ${written.number}`,
+        });
       });
     }
     const [rendered] = await this.#render([written.comment]);

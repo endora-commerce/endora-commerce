@@ -2158,6 +2158,16 @@ when it was measured, and what was done about it.
   the caller with the envelope's own sentence, so *which* refusal it was is asserted by
   what was not written, never by the message; and a stale `pending` row is rendered
   `failed` — `pending` is not an outcome the contract shows anybody.
+- **N-R12 (2026-10-06, review finding 12) — three "likely" defects, taken one at a time.**
+  **(a) A bell that cannot be written does not turn a committed write into a 500.** An
+  assignment (assign, create, PATCH) and a message are committed before anybody is told, and
+  the telling — the reach lookup and `admin_notifications`' port — ran bare after it: a
+  failure there answered 500 for a write that had happened, and a client retrying a message
+  posted it twice. `tellAfterCommit` (`services/crm-notifier.ts`) is the one place that
+  tolerates it: `rethrowIfModuleDisabled` first, as composition item 7 asks of a narrow
+  tolerance, then a `console.warn` naming the Opportunity and the error — the module holds
+  no logger, and `orders`' own after-commit e-mail helper logs the same way. The notifier
+  itself still catches nothing.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
