@@ -94,3 +94,27 @@ export type OrganizationRole = z.infer<typeof organizationRoleSchema>;
 /** Supported Sales Channel visibility modes (R-18 + FR-106). */
 export const productVisibilitySchema = z.enum(['public', 'logged_in_only', 'organization_restricted']);
 export type ProductVisibility = z.infer<typeof productVisibilitySchema>;
+
+/**
+ * Where a document was created from: an opaque reference a creating screen
+ * hands to a create request, and the owner of the document hands on, unread,
+ * on the event that announces it.
+ *
+ * `type` names a kind of thing in the vocabulary of whoever sent it (a
+ * lower-case identifier, e.g. `crm_opportunity`) and `id` names the one. The
+ * module that accepts it validates the shape and nothing else: it does not
+ * store it, return it, or branch on it — so it behaves the same whether or not
+ * anybody listens. A listener that recognises the `type` decides for itself
+ * whether the reference is one it may act on.
+ */
+export const OriginReferenceSchema = z
+  .object({
+    type: z
+      .string()
+      .max(64)
+      .regex(/^[a-z][a-z0-9_]*$/)
+      .describe('A lower-case identifier naming the kind of origin, e.g. crm_opportunity'),
+    id: uuidSchema,
+  })
+  .strict();
+export type OriginReference = z.infer<typeof OriginReferenceSchema>;

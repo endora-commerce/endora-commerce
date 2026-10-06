@@ -7,6 +7,8 @@ import {
   type InventoryFulfilmentPlanningPort,
   type InventoryStockReadPort,
   type NextAction,
+  type OrderCreatedEventPayload,
+  type OriginReference,
   type PlaceOrderRequest,
   type PromotionApplication,
   type PromotionApplyPort,
@@ -156,7 +158,7 @@ import {
 
 
 export interface OrderEvents extends Record<string, EventBase> {
-  'order.created.v1': EventBase & { orderId: string; organizationId: string };
+  'order.created.v1': EventBase & OrderCreatedEventPayload;
   'order.status_changed.v1': EventBase & {
     orderId: string;
     // Feature 062 — additive: tenant key for org-scoped webhook delivery
@@ -1199,6 +1201,9 @@ export class OrderService {
   async placeOrder(
     ctx: CustomerContext,
     req: PlaceOrderRequest,
+    // Not on `OrderPlacementPort`: only this module's own admin create path
+    // hands an origin on. It is echoed on `order.created.v1` and read nowhere.
+    options?: { origin?: OriginReference },
   ): Promise<Order> {
     const em = this.emFactory();
     const order = await em.transactional(async (tx) => {
@@ -1957,6 +1962,7 @@ export class OrderService {
         occurredAt: new Date().toISOString(),
         orderId: order.id,
         organizationId: ctx.organizationId,
+        ...(options?.origin ? { origin: options.origin } : {}),
       });
 
       // Feature 045 (T092) — one fire-and-forget event per finalized redemption

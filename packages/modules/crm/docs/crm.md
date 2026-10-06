@@ -9,9 +9,6 @@ The CRM module keeps track of **sales opportunities**: a deal a sales
 representative is working with one customer organization, from the first
 contact to the moment it is won or lost.
 
-This page grows with the module. Whatever is marked *coming* is designed and
-not yet shipped.
-
 ## What it does
 
 An opportunity belongs to exactly one organization and moves through a
@@ -710,7 +707,7 @@ default.
 | Setting | When it is on |
 | --- | --- |
 | `crm.auto_create_from_orders` | Every order placed from then on gets an opportunity of its own. The setting can differ per sales channel; the order's channel decides. |
-| `crm.auto_create_from_quote_requests` | Every quote request a customer submits from then on gets an opportunity of its own. Needs the Quote Requests module to be on. |
+| `crm.auto_create_from_quote_requests` | Every quote request created from then on — submitted by a customer or prepared by an administrator — gets an opportunity of its own. Needs the Quote Requests module to be on. |
 
 An opportunity created this way:
 
@@ -734,10 +731,13 @@ What is **not** created:
 - nothing for documents that existed before the setting was switched on;
 - nothing while the CRM module is switched off, and nothing afterwards for the
   documents placed in the meantime;
-- nothing for a quote request an administrator creates in the Admin UI on a
-  customer's behalf: only a quote request submitted by a customer announces
-  itself. (An order an administrator places on a customer's behalf is an order
-  like any other, and gets its opportunity.)
+- nothing for an order or a quote request created from within an opportunity:
+  it is linked to that opportunity instead, whatever the settings say (see
+  *Creating an order or a quote request from an opportunity*).
+
+An order or a quote request an administrator creates on a customer's behalf,
+from the document's own screen, is a document like any other and gets its
+opportunity.
 
 Each document gets at most one opportunity, however many times its placement
 is announced.
@@ -745,6 +745,53 @@ is announced.
 An opportunity for a quote request has no sales channel, and its setting is
 read for the whole platform rather than per channel: the Quote Requests module
 does not publish the channel a request was submitted on.
+
+## Creating an order or a quote request from an opportunity
+
+On the **Overview** of an opportunity, the *Linked orders* section has a
+**Create order** button and the *Linked quote requests* section a **Create
+quote request** button. Each opens the platform's own create screen — the one
+under **Orders** or **Quote requests** — already narrowed to the opportunity's
+organization: the customer search offers that organization's people, the
+opportunity's contact person arrives chosen, and so does its sales channel on
+an order.
+
+Fill the screen in as usual and save. You are brought back to the opportunity,
+which says that the new document is being linked and then that it is; the
+document is in its list from then on, marked in the change history as *created
+from the opportunity*. An order created this way follows the opportunity's
+status like any linked order, and both kinds count towards a computed value.
+
+What to expect:
+
+- **No second opportunity.** With automatic creation switched on, a document
+  created from an opportunity is linked to that opportunity and gets none of
+  its own.
+- **The same organization only.** The create screen lets you pick any customer
+  you may see. If you save the document for a customer of another organization
+  it is created, but it is **not** linked: the opportunity says so on your
+  return and offers a link to the document. Nothing about the opportunity is
+  changed.
+- **Who sees the buttons.** *Create order* needs `crm:write` and
+  `orders:write`; *Create quote request* needs `crm:write` and `rfqs:handle`.
+  The create screens also search customers, which needs `customers:read`.
+- **With the Quote Requests module switched off** there is no *Create quote
+  request* button. *Create order* is unaffected.
+- **With the CRM module switched off** the create screens work exactly as they
+  always have, and nothing is linked — then or later.
+
+For integrators: the link is made by the module's subscribers of
+`order.created.v1` and `rfq.created_by_admin.v1`, from the `origin` those
+events carry — `{ type: 'crm_opportunity', id: <opportunity id> }`. The Orders
+and Quote Requests modules hand that value on without reading it. The CRM
+module links only when the opportunity exists and belongs to the same
+organization as the document, and — where the event names the administrator
+who created the document, as the quote request event does — when that
+administrator can reach the opportunity's organization; otherwise it writes a
+warning to the log and treats the document as one created without an origin.
+An event delivered twice links once. No endpoint of the CRM module is involved,
+and sending an `origin` yourself, in a request to either create endpoint, has
+the same effect.
 
 ## Change history
 
@@ -1195,7 +1242,7 @@ No role receives a CRM permission automatically. Grant them on the
 | --- | --- | --- |
 | `crm.enabled` | on | The switch described above. |
 | `crm.auto_create_from_orders` | off | Every order placed from then on gets an opportunity of its own. The setting can differ per sales channel; the order's channel decides. |
-| `crm.auto_create_from_quote_requests` | off | Every quote request a customer submits from then on gets an opportunity of its own. Needs the Quote Requests module to be on. |
+| `crm.auto_create_from_quote_requests` | off | Every quote request created from then on — submitted by a customer or prepared by an administrator — gets an opportunity of its own. Needs the Quote Requests module to be on. |
 
 ## Demo data
 
@@ -1206,7 +1253,3 @@ own demo data may not create or read. A demo pipeline is therefore a step of
 the instance's demo composition rather than of this module, and is not part of
 this release. The default workflow is always installed, so a board has its
 columns from the first start.
-
-## Coming
-
-- Creating an order or a quote request from within an opportunity.

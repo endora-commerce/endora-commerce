@@ -98,6 +98,7 @@ const PREVIEW = {
 };
 
 const BUNDLE = passthroughBundle('core', [
+  'common.action.back',
   'orderCreate.field.customer',
   'orderCreate.field.salesChannel',
   'orderCreate.field.paymentMethod',
@@ -115,6 +116,7 @@ beforeEach(() => {
     if (path.includes('/addresses')) {
       return Promise.resolve({ data: { personal: [], organization: [ORG_ADDRESS] } });
     }
+    if (path === '/api/v1/admin/customers/cust-1') return Promise.resolve({ data: CUSTOMER });
     if (path.startsWith('/api/v1/admin/customers')) return Promise.resolve({ data: [CUSTOMER] });
     if (path.startsWith('/api/v1/admin/catalog/products')) return Promise.resolve({ data: [PRODUCT] });
     if (path.startsWith('/api/v1/admin/sales-channels')) {
@@ -145,10 +147,10 @@ async function pick(comboLabel: string, optionLabel: string): Promise<void> {
  * The page under the real session and presence providers, with no zone
  * contribution — see the note at the top of the file.
  */
-function renderPage(): void {
+function renderPage(entry = '/orders/new'): void {
   renderWithI18n(
     withSession(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <OrderCreatePage />
       </MemoryRouter>,
       {
@@ -197,5 +199,139 @@ describe('OrderCreatePage', () => {
   it('keeps submit disabled until required fields are filled', async () => {
     renderPage();
     expect(screen.getByText('orderCreate.submit')).toBeDisabled();
+  });
+
+  /**
+   * Opened from another screen (feature 143, US10): the query string may name
+   * where the order is being created from, what to preselect, and where to go
+   * back to. The page reads all of it as opaque — it never learns what an
+   * origin *is*.
+   */
+  describe('opened with an origin', () => {
+    const ORIGIN_ID = '00000000-0000-4000-8000-0000000000b1';
+    const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000a1';
+    const RETURN_TO = `/crm/opportunities/${ORIGIN_ID}?created=order`;
+    const entry = (params: Record<string, string>): string =>
+      `/orders/new?${new URLSearchParams(params).toString()}`;
+
+    it('preselects the customer and the sales channel, sends the origin, and returns to where it came from', async () => {
+      renderPage(
+        entry({
+          originType: 'crm_opportunity',
+          originId: ORIGIN_ID,
+          organizationId: ORGANIZATION_ID,
+          customerAccountId: 'cust-1',
+          salesChannelId: 'chan-1',
+          returnTo: RETURN_TO,
+        }),
+      );
+
+      // Neither picker is touched: both arrive chosen, by name.
+      await waitFor(() => expect(screen.getByLabelText('customerAccountId')).toHaveValue('Jan Kowalski'));
+      await waitFor(() => expect(screen.getByLabelText('salesChannelId')).toHaveValue('Channel 1'));
+
+      await pick('paymentMethodId', 'Payment 1');
+      await pick('deliveryMethodId', 'Delivery 1');
+      await userEvent.type(screen.getByLabelText('product-0'), 'Wid');
+      await pick('product-0', 'Widget');
+
+      const submit = screen.getByText('orderCreate.submit');
+      await waitFor(() => expect(submit).not.toBeDisabled());
+      await userEvent.click(submit);
+
+      expect(postSpy).toHaveBeenCalledWith('/api/v1/admin/orders', {
+        customerAccountId: 'cust-1',
+        salesChannelId: 'chan-1',
+        deliveryMethodId: 'del-1',
+        paymentMethodId: 'pay-1',
+        deliveryAddressId: 'addr-1',
+        billingAddressId: 'addr-1',
+        items: [{ productId: 'prod-1', quantity: 1 }],
+        origin: { type: 'crm_opportunity', id: ORIGIN_ID },
+      });
+      await waitFor(() =>
+        expect(navigateSpy).toHaveBeenCalledWith(RETURN_TO, {
+          state: { createdDocument: { id: 'new-order-1' } },
+        }),
+      );
+    });
+
+    it('offers only the customers of the organization it was given', async () => {
+      renderPage(entry({ originType: 'crm_opportunity', originId: ORIGIN_ID, organizationId: ORGANIZATION_ID }));
+
+      // Offered before anything is typed, and narrowed to the organization.
+      await waitFor(() =>
+        expect(
+          getSpy.mock.calls.some(
+            ([path]) =>
+              typeof path === 'string' &&
+              path.startsWith('/api/v1/admin/customers?') &&
+              new URLSearchParams(path.split('?')[1]).get('organizationId') === ORGANIZATION_ID,
+          ),
+        ).toBe(true),
+      );
+      const searches = (): string[] =>
+        getSpy.mock.calls
+          .map(([path]) => String(path))
+          .filter((path) => path.startsWith('/api/v1/admin/customers?'));
+      // A typed search stays inside the organization as well.
+      await userEvent.type(screen.getByLabelText('customerAccountId'), 'Jan');
+      await waitFor(() => expect(searches().some((path) => path.includes('q=Jan'))).toBe(true));
+      for (const path of searches()) {
+        expect(new URLSearchParams(path.split('?')[1]).get('organizationId')).toBe(ORGANIZATION_ID);
+      }
+    });
+
+    it('leads back to where it came from, and does not call an arriving selection unsaved work', async () => {
+      renderPage(
+        entry({ originType: 'crm_opportunity', originId: ORIGIN_ID, customerAccountId: 'cust-1', returnTo: RETURN_TO }),
+      );
+      const back = screen.getByRole('link', { name: 'common.action.back' });
+      expect(back).toHaveAttribute('href', RETURN_TO);
+
+      // The customer arrived chosen and its default address followed by itself:
+      // nothing here was typed, so leaving at once asks nothing.
+      await waitFor(() => expect(screen.getByLabelText('deliveryAddress-existing')).toHaveValue('Acme HQ ★'));
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      try {
+        await userEvent.click(back);
+        expect(confirm).not.toHaveBeenCalled();
+
+        // A choice the operator made is unsaved work, as it always was.
+        await pick('paymentMethodId', 'Payment 1');
+        await userEvent.click(back);
+        expect(confirm).toHaveBeenCalledTimes(1);
+      } finally {
+        confirm.mockRestore();
+      }
+    });
+
+    it.each([
+      ['an id that is not a uuid', { originType: 'crm_opportunity', originId: 'nope' }],
+      ['a type that is not an identifier', { originType: 'CRM Opportunity', originId: ORIGIN_ID }],
+      ['a type alone', { originType: 'crm_opportunity' }],
+    ])('sends no origin for %s', async (_label, params) => {
+      renderPage(entry({ ...params, customerAccountId: 'cust-1', salesChannelId: 'chan-1' }));
+      await waitFor(() => expect(screen.getByLabelText('customerAccountId')).toHaveValue('Jan Kowalski'));
+      await pick('paymentMethodId', 'Payment 1');
+      await pick('deliveryMethodId', 'Delivery 1');
+      await userEvent.type(screen.getByLabelText('product-0'), 'Wid');
+      await pick('product-0', 'Widget');
+      const submit = screen.getByText('orderCreate.submit');
+      await waitFor(() => expect(submit).not.toBeDisabled());
+      await userEvent.click(submit);
+
+      const [, body] = postSpy.mock.calls.find(([path]) => path === '/api/v1/admin/orders') ?? [];
+      expect(body).not.toHaveProperty('origin');
+      await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith('/orders/new-order-1'));
+    });
+
+    it.each(['https://evil.example/x', '//evil.example/x', 'crm/opportunities'])(
+      'does not follow a return address that leaves the application: %s',
+      async (returnTo) => {
+        renderPage(entry({ returnTo }));
+        expect(screen.getByRole('link', { name: 'common.action.back' })).toHaveAttribute('href', '/orders');
+      },
+    );
   });
 });

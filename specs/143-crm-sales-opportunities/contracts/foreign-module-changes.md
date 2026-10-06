@@ -40,10 +40,10 @@ Zod schemas" is extended additively by US15, US16 and US17.
 | # | File | Change |
 | --- | --- | --- |
 | B1 | `packages/contracts/src/orders.ts` | `adminCreateOrderRequestSchema` gains `origin: OriginReferenceSchema.optional()`; the `order.created.v1` payload type gains `origin?: OriginReference` |
-| B2 | `packages/modules/orders/src/backend/routes.ts` | `POST /api/v1/admin/orders` forwards `body.origin` to the creation service |
+| B2 | `packages/modules/orders/src/backend/routes.ts` | `POST /api/v1/admin/orders` forwards `body.origin` to the creation service — **as built: not edited**; the route already hands the parsed body whole to the service (research N-J3 b) |
 | B3 | `packages/modules/orders/src/backend/services/order-creation-admin-service.ts` | `AdminCreateOrderInput.origin?`; passed to `placeOrder` |
 | B4 | `packages/modules/orders/src/backend/services/order-service.ts` | `placeOrder(ctx, req, options?: { origin?: OriginReference })`; the `order.created.v1` emit spreads `origin` when present; the local `Events` map type follows |
-| B5 | `packages/modules/orders/src/admin/pages/OrderCreatePage.tsx` | read `originType`, `originId`, `customerAccountId` from the query string; preselect the customer; send `origin` |
+| B5 | `packages/modules/orders/src/admin/pages/OrderCreatePage.tsx` | read `originType`, `originId`, `customerAccountId` from the query string; preselect the customer; send `origin`. **As built**, also `organizationId` (narrows the customer search), `salesChannelId` (preselected) and `returnTo` (an in-app path for Back and for the redirect after creating, which hands `{ createdDocument: { id } }` in the navigation state) — research N-J4 |
 | B6 | `packages/modules/orders/docs/orders.md` (+ Polish copy) | document `origin` on the event and the endpoint |
 
 Rules that keep this generic:
@@ -63,8 +63,8 @@ Rules that keep this generic:
 | # | File | Change |
 | --- | --- | --- |
 | C1 | `packages/contracts/src/quote-requests.ts` | `adminCreateQuoteRequestSchema` gains `origin: OriginReferenceSchema.optional()`; export the `rfq.created_by_admin.v1` payload type |
-| C2 | `packages/modules/quote_requests/src/backend/services/rfq-admin-service.ts` | `createOnBehalf` emits `rfq.created_by_admin.v1 { rfqId, organizationId, adminUserId, origin: origin ?? null }` after its write |
-| C3 | `packages/modules/quote_requests/src/admin/pages/RfqCreatePage.tsx` | read the same three query parameters; preselect the customer; send `origin` |
+| C2 | `packages/modules/quote_requests/src/backend/services/rfq-admin-service.ts` | `createOnBehalf` emits `rfq.created_by_admin.v1 { rfqId, organizationId, adminUserId, origin: origin ?? null }` after its write. **As built**, the event's type (`RfqAdminEvents`) is declared in this file too, and the emit widens the bus locally: the shared `RfqEvents` map is in `rfq-service.ts`, which is not a row here (research N-J3 c) |
+| C3 | `packages/modules/quote_requests/src/admin/pages/RfqCreatePage.tsx` | read the same three query parameters; preselect the customer; send `origin`. **As built**, also `organizationId` and `returnTo`, as B5 (no `salesChannelId`: a quote request takes none) — research N-J4 |
 | C4 | `packages/modules/quote_requests/docs/quote_requests.md` (+ Polish copy) | document the new event |
 
 Why a **new** event rather than emitting `rfq.created.v1` from the admin path: that event is

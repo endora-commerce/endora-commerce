@@ -2,6 +2,8 @@
 '@endora-commerce/mod-crm': minor
 '@endora-commerce/contracts': minor
 '@endora-commerce/mod-audit-logs': patch
+'@endora-commerce/mod-orders': minor
+'@endora-commerce/mod-quote-requests': minor
 ---
 
 The second wave of CRM's Admin UI, and what it needed from its neighbours.
@@ -24,3 +26,33 @@ The second wave of CRM's Admin UI, and what it needed from its neighbours.
   `[[order:…]]` tokens from a search, and the saved text shows each as a link — or as
   unavailable. `@endora-commerce/contracts` gains `splitOpportunityReferenceText`, the
   quote-request lookup schemas and the exported `QUOTE_REQUEST_STATUS_VALUES`.
+- **Create an order or a quote request from within an opportunity.** The Opportunity's
+  *Linked orders* and *Linked quote requests* sections gain **Create order** (`crm:write` +
+  `orders:write`) and **Create quote request** (`crm:write` + `rfqs:handle`, hidden while the
+  Quote Requests module is off). Each opens the owner's create screen narrowed to the
+  opportunity's organization; the created document is linked to the opportunity as
+  `created_from_opportunity`, and gets no second opportunity when automatic creation is on.
+  A quote request an administrator creates **without** an origin is now a candidate for
+  `crm.auto_create_from_quote_requests`, as a customer's submission is.
+- **`@endora-commerce/contracts`** gains `OriginReferenceSchema` / `OriginReference`
+  (`{ type, id }`: a lower-case identifier of at most 64 characters and a UUID, strict), the
+  optional `origin` on `adminCreateOrderRequestSchema` and `adminCreateQuoteRequestSchema`, and
+  the event payload types `OrderCreatedEventPayload` and `RfqCreatedByAdminEventPayload` with
+  the name `RFQ_CREATED_BY_ADMIN_EVENT`. All additive: a request without `origin` validates
+  as before.
+- **`@endora-commerce/mod-orders`** — additive. `POST /api/v1/admin/orders` accepts the
+  optional `origin` and echoes it on `order.created.v1`; the key is absent from the event when
+  the request carried none, so an existing subscriber sees the payload it always saw — an
+  outbound webhook for `order.created.v1` included, whose payload is the event's and so
+  carries `origin` for such an order. The value is not stored, not returned and not
+  interpreted, and the storefront placement cannot set it. `OrderService.placeOrder` takes an optional third argument `{ origin? }`;
+  `OrderPlacementPort` is unchanged. The create-order screen (`/orders/new`) reads
+  `originType`, `originId`, `organizationId`, `customerAccountId`, `salesChannelId` and
+  `returnTo` from its query string; opened without them it behaves as before.
+- **`@endora-commerce/mod-quote-requests`** — additive. A new in-process event,
+  `rfq.created_by_admin.v1` (`rfqId`, `organizationId`, `adminUserId`, `origin | null`), is
+  emitted once per quote request created through `POST /api/v1/admin/quote-requests`, which
+  accepts the same optional `origin`. `rfq.created.v1` is still emitted for a customer's
+  submission only. The create screen (`/quote-requests/new`) reads `originType`, `originId`,
+  `organizationId`, `customerAccountId` and `returnTo`; opened without them it behaves as
+  before.

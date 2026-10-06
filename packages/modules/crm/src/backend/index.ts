@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   AdminNotificationRecordPort,
+  AdminTenantScopePort,
   AdminUserReadPort,
   AssetReadPort,
   AssetReferenceRegistryPort,
@@ -62,6 +63,7 @@ import { OpportunityAutoCreateService } from './services/opportunity-auto-create
 import { OpportunityCommentService } from './services/opportunity-comment-service.js';
 import { OpportunityHistoryService } from './services/opportunity-history-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
+import { OpportunityOriginLinkService, readEventOrigin } from './services/opportunity-origin-link-service.js';
 import { OpportunityReadPortService } from './services/opportunity-read-port.js';
 import { OpportunityTransitionPortService } from './services/opportunity-transition-port.js';
 import { OpportunityService } from './services/opportunity-service.js';
@@ -535,6 +537,8 @@ export function registerModule(ctx: ModuleContext): void {
             quoteRequests: crmQuoteRequests,
             links: crmOpportunityLinkService,
             createForDocument: (input) => crmOpportunityService.createForDocument(input),
+            linkByOrigin: (origin, document) =>
+              ctx.cradle<OriginCradle>().crmOpportunityOriginLinkService.link(origin, document),
             events: eventBus,
             // A document whose commit is still in flight is read again off the
             // bus's dispatch chain — the bus awaits each subscriber before the
@@ -560,7 +564,9 @@ export function registerModule(ctx: ModuleContext): void {
     const orderId = readEventId(payload, 'orderId');
     if (!orderId) return;
     await enterSystemScope('crm: an order was placed', () =>
-      ctx.cradle<PlacedDocumentsCradle>().crmOpportunityAutoCreateService.onOrderCreated(orderId),
+      ctx
+        .cradle<PlacedDocumentsCradle>()
+        .crmOpportunityAutoCreateService.onOrderCreated(orderId, readEventOrigin(payload)),
     );
   });
   // Emitted for a Quote Request a customer submits. `quote_requests` emits
@@ -573,6 +579,46 @@ export function registerModule(ctx: ModuleContext): void {
     );
   });
   // --- end of Placed documents ---------------------------------------------------
+
+  // --- Created from an Opportunity (User Story 10) -------------------------------
+  // The create screens of `orders` and `quote_requests` hand an opaque `origin`
+  // to their create requests, and the owners hand it on, unread, on
+  // `order.created.v1` and `rfq.created_by_admin.v1`. An origin is a claim: the
+  // service below checks it — same Organization as the document, and within
+  // reach of the administrator the event names — before it links anything. It
+  // is the first branch of the placed-document service above, so a document
+  // created from an Opportunity never gets a second one.
+  //
+  // `rfq.created_by_admin.v1` is the only announcement of a Quote Request an
+  // administrator creates; without an origin that holds it is handled as a
+  // submitted one. `quote_requests` emits nothing while it is off.
+  ctx.di.register({
+    crmOpportunityOriginLinkService: ctx
+      .asFunction(
+        ({ emFactory, crmOpportunityLinkService }: CrmCradle) =>
+          new OpportunityOriginLinkService({
+            emFactory,
+            links: crmOpportunityLinkService,
+            adminScope: lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort'),
+            warn: (fields, message) => ctx.log.warn(fields, message),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.subscribe('rfq.created_by_admin.v1', async (payload) => {
+    const quoteRequestId = readEventId(payload, 'rfqId');
+    if (!quoteRequestId) return;
+    await enterSystemScope('crm: an administrator created a quote request', () =>
+      ctx
+        .cradle<PlacedDocumentsCradle>()
+        .crmOpportunityAutoCreateService.onQuoteRequestCreated(
+          quoteRequestId,
+          readEventOrigin(payload),
+          readEventId(payload, 'adminUserId'),
+        ),
+    );
+  });
+  // --- end of Created from an Opportunity ----------------------------------------
 
   // --- References (User Story 12) -------------------------------------------
   // Products and Orders mentioned in a description, a note or a message. The
@@ -894,6 +940,11 @@ interface HistoryCradle {
 /** What the placed-documents section reads from the container. */
 interface PlacedDocumentsCradle {
   readonly crmOpportunityAutoCreateService: OpportunityAutoCreateService;
+}
+
+/** What the created-from-an-Opportunity section registers. */
+interface OriginCradle {
+  readonly crmOpportunityOriginLinkService: OpportunityOriginLinkService;
 }
 
 /** The `quote_requests` events after which a linked Quote Request may count differently. */

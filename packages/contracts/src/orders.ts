@@ -3,8 +3,10 @@ import {
   addressSnapshotSchema,
   isoDateTimeSchema,
   multilingualStringSchema,
+  OriginReferenceSchema,
   paymentStatusSchema,
   uuidSchema,
+  type OriginReference,
 } from './common.js';
 
 /**
@@ -600,6 +602,12 @@ export const adminCreateOrderRequestSchema = z
         notifyCustomer: z.boolean(),
       })
       .optional(),
+    /**
+     * Where the order is being created from — opaque to `orders`, which
+     * validates its shape and echoes it on `order.created.v1`. Not stored and
+     * not returned. Only this admin request may carry it.
+     */
+    origin: OriginReferenceSchema.optional(),
   })
   .superRefine((val, ctx) => {
     if ((val.deliveryAddressId == null) === (val.deliveryAddress == null)) {
@@ -618,6 +626,17 @@ export const adminCreateOrderRequestSchema = z
     }
   });
 export type AdminCreateOrderRequest = z.infer<typeof adminCreateOrderRequestSchema>;
+
+/**
+ * Payload of `order.created.v1`, beyond the event envelope (`eventId`,
+ * `occurredAt`). `origin` is present only for an order an administrator
+ * created with one; the key is absent otherwise.
+ */
+export interface OrderCreatedEventPayload {
+  orderId: string;
+  organizationId: string;
+  origin?: OriginReference;
+}
 
 // --- External order intake (feature 062, contracts/orders-api-key-intake.md) ---
 

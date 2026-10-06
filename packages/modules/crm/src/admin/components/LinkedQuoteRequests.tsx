@@ -24,6 +24,7 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
+import { CreateDocumentButton, CreatedDocumentNotice } from './CreateFromOpportunity.js';
 import { errorMessage, moneyLabel } from '../lib/labels.js';
 
 const SEARCH_DEBOUNCE_MS = 250;
@@ -177,9 +178,13 @@ export function LinkedQuoteRequests(props: LinkedQuoteRequestsProps): ReactNode 
 
   return (
     <section aria-labelledby={headingId} className="space-y-3" aria-busy={busy !== null}>
-      <h2 id={headingId} className="text-sm font-semibold tracking-tight">
-        {t('links.quote.title')}
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id={headingId} className="text-sm font-semibold tracking-tight">
+          {t('links.quote.title')}
+        </h2>
+        {present ? <CreateDocumentButton kind="quote_request" opportunity={opportunity} /> : null}
+      </div>
+      <CreatedDocumentNotice kind="quote_request" opportunity={opportunity} reload={reload} />
 
       {!present ? (
         <Alert>

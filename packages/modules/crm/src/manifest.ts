@@ -41,7 +41,8 @@ const settings = defineModuleSettingsManifest({
     {
       // What `backend/test/integration/crm/auto-create.test.ts` proves, and no
       // more: placed after it is switched on, read for the order's sales
-      // channel, never a second opportunity for one document.
+      // channel, never a second opportunity for one document. An order created
+      // from within an opportunity is linked to it first (`create-from-opportunity.test.ts`).
       code: CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS,
       name: 'Create an opportunity for every new order',
       description:
@@ -54,7 +55,7 @@ const settings = defineModuleSettingsManifest({
       code: CRM_SETTING_CODES.AUTO_CREATE_FROM_QUOTE_REQUESTS,
       name: 'Create an opportunity for every new quote request',
       description:
-        'When on, a quote request a customer submits after this is switched on gets a sales opportunity of its own, linked to it: for the quote request\'s organization, in the start status, assigned by the default rule, with a value calculated from the quote request. Never for a quote request that is already linked to an opportunity. Needs the Quote Requests module to be on. Off by default.',
+        'When on, a quote request created after this is switched on — submitted by a customer, or prepared by an administrator on a customer\'s behalf — gets a sales opportunity of its own, linked to it: for the quote request\'s organization, in the start status, assigned by the default rule, with a value calculated from the quote request. Never for a quote request that is already linked to an opportunity, which includes one created from within an opportunity. Needs the Quote Requests module to be on. Off by default.',
       groupCode: 'crm',
       valueType: 'boolean',
       defaultValue: false,

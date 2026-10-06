@@ -8,6 +8,7 @@ import { seedCartForStubCustomer, SEED_PAYMENT_METHOD_ID } from '../../helpers/s
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { EventBus } from '@endora-commerce/platform/events';
+import { adminCreateOrderRequestSchema, placeOrderRequestSchema } from '@endora-commerce/contracts';
 import { OrderService, type OrderEventBus } from '../../../../packages/modules/orders/dist/backend/services/order-service.js';
 import { PaymentAdapterRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/payment-adapter-registry.js';
 import { EnumOrderStatusRegistry } from '../../../../packages/modules/payment_methods/src/backend/services/order-status-registry.port.js';
@@ -53,6 +54,45 @@ describe('Admin create order on behalf (US3)', () => {
     const order = (res.json() as { data: { status: string; placedOnBehalfByAdminUserId: string | null } }).data;
     expect(order.status).toBe('new');
     expect(order.placedOnBehalfByAdminUserId).toBeTruthy();
+  });
+
+  /**
+   * The optional, opaque `origin` (feature 143, US10): accepted on this request
+   * and on no other, validated for shape, and absent from the response.
+   */
+  it('accepts an optional origin and answers the order without it', async () => {
+    const payload = {
+      customerAccountId: TEST_CUSTOMER_ID,
+      salesChannelId: SALES_CHANNEL_ID,
+      items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }],
+      deliveryMethodId: DELIVERY_METHOD_ID,
+      paymentMethodId: SEED_PAYMENT_METHOD_ID,
+      deliveryAddressId: DELIVERY_ADDRESS_ID,
+      billingAddressId: BILLING_ADDRESS_ID,
+    };
+    const origin = { type: 'crm_opportunity', id: '00000000-0000-4000-8000-00000000c0de' };
+    expect(adminCreateOrderRequestSchema.safeParse(payload).success).toBe(true);
+    expect(adminCreateOrderRequestSchema.safeParse({ ...payload, origin }).success).toBe(true);
+    expect(adminCreateOrderRequestSchema.safeParse({ ...payload, origin: { type: 'crm_opportunity' } }).success).toBe(false);
+    expect(placeOrderRequestSchema.safeParse({ ...payload, origin }).data ?? {}).not.toHaveProperty('origin');
+
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/orders',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: { ...payload, origin },
+    });
+    expect(res.statusCode, res.body).toBe(201);
+    expect((res.json() as { data: Record<string, unknown> }).data).not.toHaveProperty('origin');
+
+    const refused = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/orders',
+      cookies: { b2b_session: 'stub-admin-session' },
+      payload: { ...payload, origin: { type: 'crm_opportunity', id: 'not-a-uuid' } },
+    });
+    expect(refused.statusCode, refused.body).toBe(400);
+    expect((refused.json() as { error: { code: string } }).error.code).toBe('VALIDATION_FAILED');
   });
 
   it('blocks placement below the minimum order value (FR-035)', async () => {

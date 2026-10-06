@@ -205,3 +205,75 @@ describe('OpportunityAutoCreateService — a submitted Quote Request', () => {
     expect(off.deps.createForDocument).not.toHaveBeenCalled();
   });
 });
+
+describe('OpportunityAutoCreateService — a document created from an Opportunity (User Story 10)', () => {
+  const origin = { type: 'crm_opportunity', id: '00000000-0000-4000-8000-0000000000e1' };
+  const ADMIN_ID = '00000000-0000-4000-8000-0000000000f1';
+
+  it('links an Order to its origin first: no quote conversion, no setting, no Opportunity created', async () => {
+    const linkByOrigin = vi.fn(async () => 'linked' as const);
+    const { deps, subject } = service({ linkByOrigin });
+    expect(await subject.onOrderCreated(ORDER_ID, origin)).toBe('linked-to-origin');
+    expect(linkByOrigin).toHaveBeenCalledWith(origin, {
+      kind: 'order',
+      id: ORDER_ID,
+      organizationId: ORGANIZATION_ID,
+      createdByAdminUserId: null,
+    });
+    expect(deps.links.linkOrderPlacedFromQuoteRequest).not.toHaveBeenCalled();
+    expect(deps.settings.get).not.toHaveBeenCalled();
+    expect(deps.createForDocument).not.toHaveBeenCalled();
+  });
+
+  it('creates nothing either when the Order is linked already', async () => {
+    const { deps, subject } = service({ linkByOrigin: vi.fn(async () => 'already-linked' as const) });
+    expect(await subject.onOrderCreated(ORDER_ID, origin)).toBe('already-linked');
+    expect(deps.createForDocument).not.toHaveBeenCalled();
+  });
+
+  it.each(['refused', 'not-ours'] as const)(
+    'handles an Order whose origin was %s as one that had none',
+    async (outcome) => {
+      const { deps, subject } = service({ linkByOrigin: vi.fn(async () => outcome) });
+      expect(await subject.onOrderCreated(ORDER_ID, origin)).toBe('created');
+      expect(deps.createForDocument).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('asks nothing of the origin service for an Order that has no origin', async () => {
+    const linkByOrigin = vi.fn();
+    const { subject } = service({ linkByOrigin });
+    expect(await subject.onOrderCreated(ORDER_ID)).toBe('created');
+    expect(linkByOrigin).not.toHaveBeenCalled();
+  });
+
+  it('carries the origin through a deferred look, to the Order as it reads after its commit', async () => {
+    const findById = vi.fn<() => Promise<OrderRecord | null>>().mockResolvedValueOnce(null).mockResolvedValue(order);
+    const linkByOrigin = vi.fn(async () => 'linked' as const);
+    const { deps, subject } = service({ orders: { findById } as never, linkByOrigin });
+    expect(await subject.onOrderCreated(ORDER_ID, origin)).toBe('deferred');
+    await subject.idle();
+    expect(linkByOrigin).toHaveBeenCalledWith(origin, expect.objectContaining({ kind: 'order', id: ORDER_ID }));
+    expect(deps.createForDocument).not.toHaveBeenCalled();
+  });
+
+  it('links a Quote Request an administrator created, naming that administrator', async () => {
+    const linkByOrigin = vi.fn(async () => 'linked' as const);
+    const { deps, subject } = service({ linkByOrigin });
+    expect(await subject.onQuoteRequestCreated(QUOTE_ID, origin, ADMIN_ID)).toBe('linked-to-origin');
+    expect(linkByOrigin).toHaveBeenCalledWith(origin, {
+      kind: 'quote_request',
+      id: QUOTE_ID,
+      organizationId: ORGANIZATION_ID,
+      createdByAdminUserId: ADMIN_ID,
+    });
+    expect(deps.settings.get).not.toHaveBeenCalled();
+    expect(deps.createForDocument).not.toHaveBeenCalled();
+  });
+
+  it('a Quote Request whose origin was refused is handled as a submitted one', async () => {
+    const { deps, subject } = service({ linkByOrigin: vi.fn(async () => 'refused' as const) });
+    expect(await subject.onQuoteRequestCreated(QUOTE_ID, origin, ADMIN_ID)).toBe('created');
+    expect(deps.createForDocument).toHaveBeenCalledTimes(1);
+  });
+});

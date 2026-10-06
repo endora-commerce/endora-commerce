@@ -169,11 +169,28 @@ transition X→Y additionally emits four **templated** events (built by
 (synchronous, veto-capable) and `order.status.from_<x>_to_<y>.after`,
 `order.status.to_<y>.after` (post-commit, isolated).
 
+`order.created.v1` carries `orderId` and `organizationId`. For an order an
+administrator created with an `origin` (see *Create on behalf* below) it also
+carries that `origin`, unchanged; for every other order the key is absent.
+The value travels wherever the event does — an outbound webhook subscribed to
+`order.created.v1` receives it in the payload.
+
 ## Admin operations
 
 - **Create on behalf** — `POST /api/v1/admin/orders` builds the customer's cart
   from admin-entered items and runs on-behalf `placeOrder`; the customer is
-  emailed to pay it.
+  emailed to pay it. The request may carry an optional
+  `origin: { type, id }` saying where the order is being created from — `type`
+  a lower-case identifier of the sender's own (letters, digits, underscores),
+  `id` a UUID. The module validates the shape and hands the value on, unread,
+  on `order.created.v1`: it is not stored, not returned and changes nothing
+  about the order. A module that recognises the `type` may act on it — the CRM
+  module links such an order to the opportunity it was created from. Only this
+  request accepts it; a storefront placement cannot set one. The create screen
+  (`/orders/new`) reads the same from its query string when another screen
+  opens it — `originType`, `originId`, plus `organizationId`,
+  `customerAccountId` and `salesChannelId` to preselect, and `returnTo`, a path
+  inside the Admin UI to go back to once the order exists.
 - **List** — `GET /api/v1/admin/orders` server-side filter/sort/search +
   per-status counts; `GET …/export` streams CSV; saved views via
   `…/list-views` (private or shared).
