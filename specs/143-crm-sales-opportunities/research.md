@@ -2075,6 +2075,17 @@ when it was measured, and what was done about it.
   `orders:write` would make "the Order follows the Opportunity" true only for administrators
   who could have moved the Order by hand, which is not the feature (FR-020…FR-022).
   `contracts/admin-api.md` §2 and §3 now say both.
+- **N-R4 (2026-10-06, review finding 4) — "a closed Opportunity is never reopened by a
+  mapping" is the transition service's rule now, not only the subscriber's.** The reverse
+  direction looked at `closedKind` on its own read and then called `apply()`, whose
+  re-evaluation after a lost race (N-B's `locked.statusCode !== from → evaluate again`)
+  knew nothing of that rule: an Opportunity closed between the two was moved by the Order
+  wherever the workflow had an edge out of the closed status (`lost → new` is seeded). For
+  `cause: 'order_status'`, `apply()` now refuses on **every** evaluation when the current
+  status's kind is not `open`, and again under the lock by the row's own `closedKind` /
+  `closedAt`. The refusal is 409 `CRM_INVALID_TRANSITION` carrying `details.closed`, which
+  the reverse direction reads as `ignored: closed` — the answer it already gives for an
+  Opportunity that was closed all along — rather than as a `skipped` outcome.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

@@ -296,4 +296,55 @@ describe('crm reverse mapping — an Order moves its Opportunity', () => {
     expect((await detail(opportunity.id)).status.code).toBe('new');
     expect(await history(opportunity.id)).toHaveLength(1);
   });
+
+  it('never reopens an Opportunity that was closed while the Order’s event was being applied (review finding 4)', async () => {
+    // `shipment_sent` maps to `new`. With `qualified → new` added, that target is
+    // reachable both from the open status the Opportunity is in when the event
+    // arrives and from the closed one it is moved to meanwhile (`lost → new`).
+    const edge = [{ fromStatusCode: 'qualified', toStatusCode: 'new' }];
+    const put = (payload: unknown) =>
+      h.app.inject({ method: 'PUT', url: `${CRM_API}/transitions`, cookies: CRM_ADMIN, payload: payload as Record<string, unknown> });
+    const added = await put({ add: edge });
+    expect(added.statusCode, added.body).toBe(200);
+
+    const registry = h.container.resolve<OpportunityTransitionGuardRegistryPort>(
+      'opportunityTransitionGuardRegistry',
+    );
+    let fired = false;
+    let armed = true;
+    try {
+      const opportunity = await createCrmOpportunity(h);
+      await walk(opportunity.id, 'qualified');
+      const order = await seedCrmOrder(h.em(), { status: 'shipment_ready' });
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+
+      // The interleaving a second request would produce, made deterministic:
+      // between the Order-caused move's read and its locked write, somebody
+      // closes the Opportunity.
+      registry.register({
+        ownerModuleId: 'crm',
+        match: { from: 'qualified', to: 'new' },
+        guard: async (event) => {
+          if (!armed || fired || event.opportunityId !== opportunity.id) return;
+          fired = true;
+          const closed = await transitionCrmOpportunity(h, opportunity.id, 'lost');
+          expect(closed.statusCode, closed.body).toBe(200);
+        },
+      });
+      await changeOrderStatusAsOperator(h, order.id, 'shipment_sent');
+
+      expect(fired).toBe(true);
+      const after = await detail(opportunity.id);
+      expect(after.status.code).toBe('lost');
+      expect(after.closedKind).toBe('lost');
+      // created, qualified, lost — and no fourth row reopening it.
+      expect((await history(opportunity.id)).map((row) => row.toStatusCode)).toEqual(['new', 'qualified', 'lost']);
+      // The same answer as for one that was closed all along: nothing to record.
+      expect(await propagationRows(opportunity.id)).toEqual([]);
+    } finally {
+      armed = false;
+      const removed = await put({ remove: edge });
+      expect(removed.statusCode, removed.body).toBe(200);
+    }
+  });
 });

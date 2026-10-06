@@ -18,6 +18,7 @@ import {
   type CrmPropagationOutcome,
 } from '../entities/crm-status-propagation.entity.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
+import { isClosedToOrderCausedMove } from './opportunity-transition-service.js';
 import type { OrdersReadCheck } from './orders-permission.js';
 
 export interface OrderStatusPropagationServiceDeps {
@@ -289,6 +290,8 @@ export class OrderStatusPropagationService {
       // Narrow on purpose: only the workflow's own refusals become an outcome.
       // A switched-off module, a failed write or a throwing guard stay errors.
       rethrowIfModuleDisabled(error);
+      // Closed while this event was being applied: the same answer as step 2.
+      if (isClosedToOrderCausedMove(error)) return { kind: 'ignored', why: 'closed' };
       if (!(error instanceof HttpError) || !WORKFLOW_REFUSALS.includes(error.code)) throw error;
       const reason = (error.details as { reason?: unknown } | undefined)?.reason;
       const detail = typeof reason === 'string' && reason ? reason : error.message;

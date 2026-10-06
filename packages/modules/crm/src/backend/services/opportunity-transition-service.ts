@@ -64,6 +64,30 @@ function ambientActor(): OpportunityStatusActor {
   return actor?.kind === 'admin' && actor.id ? { kind: 'admin', adminUserId: actor.id } : { kind: 'system' };
 }
 
+
+/**
+ * The refusal of an Order-caused move of a closed Opportunity. `details.closed`
+ * is what lets the reverse direction tell it from a missing edge: it is not a
+ * skipped change to record, it is nothing to do.
+ */
+export function closedToOrderCausedMove(from: string, to: string): HttpError {
+  return new HttpError(
+    409,
+    ERROR_CODES.CRM_INVALID_TRANSITION,
+    `A closed opportunity is not moved from "${from}" to "${to}" by an order.`,
+    { from, to, closed: true },
+  );
+}
+
+/** Whether `error` is {@link closedToOrderCausedMove}'s refusal. */
+export function isClosedToOrderCausedMove(error: unknown): boolean {
+  return (
+    error instanceof HttpError &&
+    error.code === ERROR_CODES.CRM_INVALID_TRANSITION &&
+    (error.details as { closed?: unknown } | undefined)?.closed === true
+  );
+}
+
 /**
  * Moves an Opportunity along its workflow
  * (`specs/143-crm-sales-opportunities/research.md` R-3).
@@ -116,6 +140,12 @@ export class OpportunityTransitionService {
       if (toKind === undefined) {
         throw new HttpError(422, ERROR_CODES.VALIDATION_FAILED, `Unknown opportunity status "${to}".`);
       }
+      // A closed Opportunity is never reopened on an Order's behalf — asked on
+      // every evaluation, so it also holds for one that was closed between the
+      // caller's own look and the lock below (which sends the request back here).
+      if (cause === 'order_status' && (graph.kindOf(from) ?? 'open') !== 'open') {
+        throw closedToOrderCausedMove(from, to);
+      }
       if (!graph.canTransition(from, to)) {
         throw new HttpError(
           409,
@@ -158,6 +188,10 @@ export class OpportunityTransitionService {
           // Somebody moved the Opportunity between the read above and this
           // lock. Nothing is written; the caller is evaluated again from the top.
           if (locked.statusCode !== from) return { result: null, skipAudit: true };
+          // Under the lock, by the row's own account of itself.
+          if (cause === 'order_status' && (locked.closedKind || locked.closedAt)) {
+            throw closedToOrderCausedMove(from, to);
+          }
 
           locked.statusCode = to;
           locked.closedAt = toKind === 'open' ? null : new Date();
