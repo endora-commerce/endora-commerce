@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
+import { customFieldValuesSchema } from './custom-fields.js';
 import type { QuoteRequestStatus } from './quote-requests.js';
 
 /**
@@ -235,6 +236,9 @@ export const CreateOpportunityRequestSchema = z.object({
   manualValue: decimalAmountSchema.nullable().optional(),
   expectedCloseDate: calendarDateSchema.nullable().optional(),
   tagIds: z.array(z.string().uuid()).max(50).optional(),
+  // §12a (US15) — operator-defined fields, keyed by definition key. On an edit,
+  // absent means "leave the values as they are".
+  customFieldValues: customFieldValuesSchema.optional(),
 });
 export type CreateOpportunityRequest = z.infer<typeof CreateOpportunityRequestSchema>;
 
@@ -365,6 +369,9 @@ export const OpportunityDetailSchema = OpportunitySummarySchema.extend({
   allowedTransitions: z.array(OpportunityStatusRefSchema),
   links: z.array(OpportunityLinkSchema),
   unresolvedPropagations: z.array(PropagationOutcomeSchema),
+  // §12a (US15) — the values of the fields defined today; a value whose
+  // definition was removed is not returned.
+  customFieldValues: customFieldValuesSchema,
 });
 export type OpportunityDetail = z.infer<typeof OpportunityDetailSchema>;
 
@@ -377,6 +384,9 @@ export const OpportunityTransitionResultSchema = z.object({
 export type OpportunityTransitionResult = z.infer<typeof OpportunityTransitionResultSchema>;
 
 export const OpportunityListResponseSchema = collectionEnvelope(OpportunitySummarySchema);
+// §12b (US17) — the Opportunity a document is linked to, or `null` for a
+// document that exists, is visible to the caller and is linked to none.
+export const OpportunityOfDocumentResponseSchema = dataEnvelope(OpportunitySummarySchema.nullable());
 export const OpportunityDetailResponseSchema = dataEnvelope(OpportunityDetailSchema);
 export const OpportunityLinkResponseSchema = dataEnvelope(OpportunityLinkSchema);
 export const OpportunityTransitionResponseSchema = dataEnvelope(OpportunityTransitionResultSchema);
@@ -988,12 +998,9 @@ export interface OpportunityRecord {
 }
 
 /**
- * Reading Opportunities from another module. Owner: `crm`, under the container
- * name `opportunityReadPort`.
+ * Container name: `opportunityReadPort`. Owner: `crm`.
  *
- * **Not published yet** — the port marker line is added by the change that
- * registers the name (tasks.md, User Story 14), for the reason
- * {@link OpportunityTransitionGuardRegistryPort} gives.
+ * Reading Opportunities from another module.
  *
  * Reads run under the **caller's** ambient tenant context.
  *
@@ -1026,12 +1033,9 @@ export type OpportunityTransitionOutcome =
   | { applied: false; reason: OpportunityTransitionRefusal; from: string | null; detail: string };
 
 /**
- * Moving an Opportunity from another module. Owner: `crm`, under the container
- * name `opportunityTransitionPort`.
+ * Container name: `opportunityTransitionPort`. Owner: `crm`.
  *
- * **Not published yet** — the port marker line is added by the change that
- * registers the name (tasks.md, User Story 14), for the reason
- * {@link OpportunityTransitionGuardRegistryPort} gives.
+ * Moving an Opportunity from another module.
  *
  * **Call this after your own commit, never inside your transaction** — the
  * implementation obtains its own EntityManager. A refusal is a value, not an

@@ -6,6 +6,7 @@ import {
   type AdminUserReadPort,
   type CreateOpportunityRequest,
   type CustomerAccountReadPort,
+  type CustomFieldValuePort,
   type OpportunityCreatedEvent,
   type OpportunityDetail,
   type OpportunityLink,
@@ -39,6 +40,7 @@ import {
 } from './opportunity-assignment-service.js';
 import { nextOpportunityNumber } from './opportunity-number.js';
 import type { TagService } from './tag-service.js';
+import { mergeOpportunityCustomFields } from './opportunity-custom-fields.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
 export interface OpportunityServiceDeps {
@@ -57,6 +59,8 @@ export interface OpportunityServiceDeps {
   links: (opportunityId: string) => Promise<OpportunityLink[]>;
   /** Refused Order status changes nobody has retried or dismissed yet. */
   unresolvedPropagations: (opportunityId: string) => Promise<PropagationOutcome[]>;
+  /** Operator-defined fields (US15): `custom_fields` validates, this service writes. */
+  customFields: CustomFieldValuePort;
 }
 
 const FALLBACK_LANGUAGE = 'en';
@@ -105,6 +109,11 @@ function auditSnapshot(opportunity: CrmOpportunity): Record<string, unknown> {
     manualValue: opportunity.manualValue ?? null,
     currency: opportunity.currency,
     expectedCloseDate: opportunity.expectedCloseDate ?? null,
+    // Only once there is something to say: an Opportunity with no custom
+    // values audits exactly as it did before the fields existed.
+    ...(Object.keys(opportunity.customFieldValues ?? {}).length > 0
+      ? { customFieldValues: { ...opportunity.customFieldValues } }
+      : {}),
   };
 }
 
@@ -163,7 +172,12 @@ export class OpportunityService {
     const initial = this.#initialStatus(graph);
 
     const created = await this.deps.commandBus.run(
-      this.#createCommand({ ...input, assignedAdminUserId }, initial.code),
+      this.#createCommand(
+        // --- Custom fields (US15): a create by hand is always held to the
+        // definitions, so a required field is asked for even when none is sent.
+        { ...input, assignedAdminUserId, customFieldValues: input.customFieldValues ?? {} },
+        initial.code,
+      ),
     );
     await assignment.notifyAssigned({
       opportunityId: created.id,
@@ -190,6 +204,12 @@ export class OpportunityService {
         }
         // Refused before anything is written: a tag that does not exist is 422.
         const tags = await this.deps.tags.resolve(em, input.tagIds ?? []);
+        // --- Custom fields (US15) — refused before anything is written.
+        const customFieldValues = await mergeOpportunityCustomFields(
+          this.deps.customFields,
+          {},
+          input.customFieldValues,
+        );
         const opportunity = em.create(CrmOpportunity, {
           id,
           number: await nextOpportunityNumber(em),
@@ -206,6 +226,7 @@ export class OpportunityService {
           expectedCloseDate: input.expectedCloseDate ?? null,
           source: 'manual',
           createdByAdminUserId: actor.actorAdminUserId,
+          customFieldValues,
         });
         // Written now, not at commit: the history row below names this one
         // through a foreign key the unit of work knows nothing about (the
@@ -389,6 +410,12 @@ export class OpportunityService {
         if (patch.valueMode !== undefined) opportunity.valueMode = patch.valueMode;
         if (patch.manualValue !== undefined) opportunity.manualValue = normalizeAmount(patch.manualValue);
         if (patch.expectedCloseDate !== undefined) opportunity.expectedCloseDate = patch.expectedCloseDate;
+        // --- Custom fields (US15) — absent leaves the values as they are.
+        opportunity.customFieldValues = await mergeOpportunityCustomFields(
+          this.deps.customFields,
+          opportunity.customFieldValues,
+          patch.customFieldValues,
+        );
         opportunity.version += 1;
         // An edit that changes the assignee is an assignment too: announced
         // with the previous one, and the new assignee is told.
@@ -617,6 +644,7 @@ export class OpportunityService {
         .map((code) => this.#statusRef(graph, code, language)),
       links,
       unresolvedPropagations,
+      customFieldValues: await this.deps.customFields.project('opportunity', opportunity.customFieldValues ?? {}),
     };
   }
 }

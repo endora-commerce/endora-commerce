@@ -212,3 +212,10 @@ payment e-mail renderer registry (`payments/services/payment-email-renderer.ts`)
 - **Access scoping** — `order-access-service.ts` is the single place that
   enforces the Regular User / Organization Admin / Admin User scoping rule;
   add new actor kinds here.
+- **Panels on the order screen** — the admin zone `order.detail.after` is
+  mounted once at the end of an order's screen, below its tabs, and hands a
+  contribution `{ orderId }`. A module adds a panel by declaring
+  `zoneComponent('order.detail.after', …)` in its own admin contributions; this
+  module names no contributor. With nothing contributed — no such module, the
+  module switched off, or a person without the panel's permission — the zone
+  renders nothing and the screen is exactly the one without it.

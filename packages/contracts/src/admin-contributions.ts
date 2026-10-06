@@ -329,6 +329,22 @@ export const AdminZoneNameSchema = z.enum([
    */
   'order.detail.payment',
   /**
+   * The stack of panels an order's detail screen ends with.
+   *
+   * Mounted **once** per order, below the tab panels, so a contribution is
+   * visible whichever tab is open — on `organization.detail.after`'s terms and
+   * for its reasons: every contribution renders its own card, the host puts no
+   * chrome around the zone, and an empty zone renders nothing at all, so the
+   * screen is identical to one without the member. Props:
+   * {@link OrderDetailZoneProps}, the order's id and nothing else (Z3).
+   *
+   * It is not `order.detail.payment`: that member is the body of one tab and
+   * is named for what fills it. This one is for a module that has something to
+   * say about the order as a whole. The first contributor is `crm`'s
+   * linked-opportunity panel; `orders` names no contributor and gains no edge.
+   */
+  'order.detail.after',
+  /**
    * The per-row action cell of the order detail's Delivery tab.
    *
    * Mounted **once per shipment attempt**, each mount carrying that attempt's
@@ -663,6 +679,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'organization.detail.after': OrganizationDetailZoneProps;
   'customer.detail.after': CustomerDetailZoneProps;
   'order.detail.payment': OrderDetailZoneProps;
+  'order.detail.after': OrderDetailZoneProps;
   'order.shipment.row.actions': OrderShipmentRowZoneProps;
   'order.shipments.tab.actions': OrderShipmentsActionsZoneProps;
   'order.entry.tabs': OrderEntryTabsZoneProps;

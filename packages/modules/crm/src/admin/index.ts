@@ -14,7 +14,7 @@
  * **This entry exports data and nothing else**; every component is a
  * dynamic-import factory, so none of the screens is in the admin's entry chunk.
  */
-import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import { zoneComponent, type AdminContributions } from '@endora-commerce/admin-kit/contributions';
 
 /**
  * The code that opens the list and one Opportunity.
@@ -140,5 +140,11 @@ export const contributions: AdminContributions = {
       weight: 500,
       requiredPermission: CONFIGURE_PERMISSION,
     },
+  ],
+  // Panels CRM adds to screens other modules own. Each is one line: the zone,
+  // the chunk, the code the panel's own reads enforce.
+  zones: [
+    zoneComponent('organization.detail.after', () => import('./zones/OrganizationOpportunities.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
+    zoneComponent('order.detail.after', () => import('./zones/OrderOpportunity.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
   ],
 };

@@ -2022,6 +2022,232 @@ when it was measured, and what was done about it.
   beside `26 398,53 zł`), which is `formatMoney`'s rule everywhere; and the attachment table
   of T081 breaks a long file name letter by letter at 390 px. Not verified by eye: a real
   screen reader, a physical touch device, zoom at 200 %.
+- **N-G1 (2026-10-06, T160) — R-26's two [unverified] premises, read from the tree.**
+  (a) **The panel cannot be embedded as it was.** `CustomFieldValuesPanel` took a required
+  `save` and always rendered its own *Save custom fields* button; inside the create form that is
+  a second submit of half a form, for a record that does not exist yet. Row G8 was therefore
+  taken: the panel gained an **embedded mode** — `save` optional, `onChange(values)` told the
+  whole bag on every edit, no button without `save`. Two more optional props came with it,
+  **beyond G8's "onChange, no button"** and in the same file: `fieldErrors` (a refusal per
+  field key, shown at the field — a host that owns the write is the only one who learns which
+  field was refused, and T155 asks for exactly that) and `language` (labels were hard-coded to
+  `label['en']`; User Story 15's scenario 2 asks for the user's language). All three default to
+  the old behaviour, so the four existing hosts render and save exactly as before —
+  `admin/test/kit/kit-custom-field-values.test.tsx` and the `quote_requests` screen test pass
+  unchanged, with three cases added for the new mode. (b) **A required field absent on create
+  is refused**: `validateAndMerge(type, {}, {})` walks every definition and reports
+  `missing_required`, so the create form must offer the fields — which is why (a) was needed.
+- **N-G2 (2026-10-06, T159) — when the definitions are enforced.** One function,
+  `services/opportunity-custom-fields.ts`, called inside the create and the update Command.
+  A bag that is **absent** is not validated: the stored values are returned as they are. So a
+  `PATCH` that does not name `customFieldValues` never meets a field made required after the
+  Opportunity was created (contract §12a: "absent on a PATCH means leave the values as they
+  are"), and a `PATCH` that names it is held to **every** definition, required ones included.
+  The public `create` passes `customFieldValues ?? {}`, so a create by hand is always
+  validated; a caller that builds the create Command without a bag — the automatic creation
+  of User Story 9, on its own branch — creates an Opportunity with no custom values instead of
+  being refused by a field nobody was there to fill in. The audit snapshot carries
+  `customFieldValues` only when the bag is not empty, so an Opportunity without custom values
+  audits byte for byte as before. `project` strips a deleted definition's value on read; the
+  column keeps it (the platform's dormant-value rule).
+- **N-G3 (2026-10-06, T156/T157) — what `'opportunity'` joining the enum touched, and what it
+  did not.** The grep of T156, whole tree: **compile-coupled** — `SUPPORTED_ENTITIES` (H2) and
+  a second `Record` over the enum that §H does not name, `HOST_TABLE_BY_ENTITY` in
+  `custom-field-value.service.ts` (the `{table, column}` the definition-change guards probe;
+  `crm_opportunities.custom_field_values`), with its row in `value-probe-binding.test.ts` —
+  both H6. **Not touched**: `CustomFieldsPage.tsx` (its hard-coded list is a pre-fetch
+  fallback; the screen renders what `entity-types` answers), `host-managed.test.ts` (asserts
+  membership, not an exact set) and `value-matrix.test.ts` (its own list of five). **The
+  owner-absent refusal mints no code**: it is 409 `CUSTOM_FIELD_HOST_MANAGED`, the code whose
+  manifest note already says it "refuses a definition whose entity type another module
+  manages… about this registry rather than about whichever module happens to be named", with
+  a sentence that names no module. `effectiveState` is read in `routes.admin.ts` (H3), so
+  `custom_fields`' composition file is unchanged. **H5 has nothing to edit**: `custom_fields`
+  ships no documentation page (the module map says "no page yet"); the host type and the
+  owner-presence rule are documented on CRM's page instead.
+- **N-G4 (2026-10-06, T160) — the picker defect of N-D4 again, answered with `requires` this
+  time.** The panel reads `GET /api/v1/admin/custom-fields/definitions`, gated
+  `custom_fields:read`, which a Sales Rep holding only CRM's codes does not hold. Unlike
+  `admin_users:manage` in N-D4, that code grants nothing but reading field definitions, so
+  `crm:read` now names it in `requires` (the advisory the role editor shows) rather than CRM
+  growing a fifth lookup and the kit panel a `definitions` prop. On screen, the fields are
+  rendered — and the definitions asked for — only for a holder of `custom_fields:read`; a
+  person without it sees no section and no refused request, and a required field that then
+  refuses their create is named in the form's own error message. A holder of `crm:read`
+  without `crm:write` gets a read-only list (`CustomFieldValuesList`, module-private: the kit
+  panel has no read-only mode).
+- **N-G5 (2026-10-06, T139) — R-24's design cannot be built inside the module, and T139 is
+  STOPPED, not half-built.** R-24 and T139 ask for a module-own demo body
+  (`src/backend/demo/`) that seeds Opportunities "for the demo Organizations, a few linked to
+  demo Orders". Three facts from the tree: (a) **a module's demo body may write only its own
+  tables, read no other module's table and resolve no other module's port** — the doc block of
+  `ModuleDemoManifest` in `packages/contracts/src/modules.ts` (§2.1–§2.2), which adds that
+  "wiring that spans modules is a composition and belongs to the instance". An Opportunity is
+  CRM's row whose `organization_id` is a foreign key into `organizations`' demo row, which the
+  body may not look up. The tree's own precedent is exact: `organizations`' `demo/rows.ts`
+  says the demo buyer and the demo credit limit are "another module's row against this one's
+  and are therefore composition steps", and both live in
+  `packages/demo-composition/src/composition.ts` ("credit limit granted to the demo
+  organisation"). (b) **That file is not a row of `contracts/foreign-module-changes.md`.**
+  (c) **There is no demo Order anywhere**: `orders` declares no `demo`, and none of the ten
+  composition steps places one — so "one linked to a demo Order" needs a demo Order to be
+  invented first, through `orders`' placement path, which is a second unlisted foreign change
+  and a much larger one. What a compliant module-own body could seed — tags and Order-status
+  mappings — shows an empty board, which is the thing R-24 says "demonstrates nothing"; it was
+  not built, so the manifest still says `demo: false`, and the module page says in so many
+  words that CRM ships no demo data. **What unblocks it:** a §-row admitting
+  `packages/demo-composition/src/composition.ts` (+ its test and the recorded delta of
+  `backend/test/integration/demo/demo-shop.test.ts`), and a decision on whether the demo gains
+  an Order. With both, the step is: find the demo Organization by its tax id, create a dozen
+  Opportunities across the six seeded statuses through `CrmOpportunity` rows keyed on fixed
+  ids, write `order_to_opportunity` / `opportunity_to_order` mappings for the seeded Order
+  workflow (N-24's path: `qualified → paid`, `proposal → processing`, `negotiation →
+  shipment_ready`, `won → completed`), and link one Opportunity to the demo Order; `withdraw`
+  deletes by those ids. The owner's standing position (demo data is optional and opt-in) is
+  met either way — `endora demo seed` is the opt-in.
+- **N-G6 (2026-10-06, T137) — the two ports, and what the contract leaves open.** Registered
+  with `ctx.di.providePort` in one delimited section of `src/backend/index.ts` (N-6), and the
+  two `Container name:` marker lines N-5 withheld are now in `packages/contracts/src/crm.ts`
+  — `check:port-shape` and `check:port-dependencies` are green with them.
+  (a) **`findByDocument` is parent-first**: the link row is read only to learn which
+  Opportunity to ask for, and the Opportunity is then read through the scoped EntityManager,
+  so a document linked to an Opportunity the caller may not see answers `null` (N-15).
+  (b) **`not_found` covers "outside the caller's scope"**, as 404 does on the HTTP API.
+  (c) **A malformed id is `null` / `not_found`**, never a database error. (d) **`cause`** is
+  `manual` for an `admin` actor and `system` for a `system` one; the port cannot be asked for
+  `order_status`, which is the reverse mapping's own. (e) **A concurrent move is thrown**, not
+  returned: `CRM_TRANSITION_CONFLICT` is not one of the contract's outcomes, and the `catch`
+  tolerates exactly `CRM_TRANSITION_VETOED` after `rethrowIfModuleDisabled`. (f) The callers
+  of a port carry their own tenant context; with none, the tenant guard refuses the read
+  (`MissingTenantContextError`) — the tests enter one with `resolveTenantContext`.
+  (g) **The audit reference** is `referenceType: 'crm_opportunity'` (the `objectType` every
+  CRM Command records), label = the title, url `/crm/opportunities/:id`, read through the
+  scoped EntityManager so a reader confined to other Organizations gets no title. **The edge
+  is `dependencies: ['audit_logs']`, not the `contributes-to` entry T137 and
+  `contracts/events-and-ports.md` §5 name**: `check:port-dependencies` refuses a
+  `contributes-to` edge to a registry whose absent-contributor policy is not listed in its
+  `CONTRIBUTION_POLICY_STATED` ledger, and offers "declare the edge in `dependencies`" as the
+  other answer — which is what the registry's four existing contributors (`catalog`,
+  `customer_accounts`, `inventory`, `price_lists`) do, costs an operator nothing
+  (`audit_logs` cannot be switched off) and edits no check ledger. `backend/test/integration/audit_logs/reference-contributions.test.ts`
+  asserts the registry's contributors as an exact set and gained `crm` — a ledger of N-25's
+  kind, in a commit of its own, now a row of `contracts/foreign-module-changes.md` §E.
+  **N-22 still stands**: `audit_logs`' action-label lookup is a separate static chain and was
+  not touched.
+- **N-G7 (2026-10-06, T138) — the Organization panel.** `organization.detail.after` exists
+  and is mounted once at the end of `OrganizationDetail.tsx`; a contribution is one
+  `zoneComponent(zone, () => import(…), { weight, requiredPermission })` in the module's
+  `contributions.zones`, exactly as `carts` declares its own, and the renderer applies both
+  presence axes and the permission before the chunk is fetched — nothing in `organizations`
+  changed. Weight 600 (after `carts`' 400). The panel lists the ten newest **open**
+  Opportunities from the existing list endpoint (`state=open&organizationId=…&limit=10`) —
+  no new route — and *New opportunity* is shown to a holder of `crm:write` only, because the
+  create route is gated on it. The list screen does not read filters from its URL, so "see
+  them all" links to the unfiltered list.
+- **N-G8 (2026-10-06, T175) — the Order half of User Story 17, and why the Quote Request
+  zone is not in the enum.** User Story 8 (quote-request links) is on another branch, so —
+  as the phase header says — `quote_request.detail.after` was left out of
+  `AdminZoneNameSchema` **entirely**: `check:admin-zones` refuses a member no host renders,
+  and a mount in `RfqDetail.tsx` for a panel that cannot yet be linked would be a zone with a
+  contributor that says "not yet". Only `'order.detail.after'` was added (props: the existing
+  `OrderDetailZoneProps`), with its one mount. **R-28's [unverified] position, decided with
+  the file open:** the last child of `OrderDetail.tsx`'s fragment, after the `Card` that
+  holds the tab strip and every tab body — so it is there on every tab, and with nobody
+  contributing the screen's last element is that card. The host's test
+  (`admin/test/modules/orders/OrderDetail.after-zone.test.tsx`) uses a stand-in contributor,
+  not CRM, and compares the screen's markup three ways: no registry entry, a contributor
+  whose module is not present, and a contributor whose permission the person lacks — all
+  equal, with a fourth render (the contribution shown) as the control that the comparison
+  can fail. `packages/modules/orders/src/admin/index.ts` carries a header comment saying
+  "the four it hosts"; it now hosts five and that comment was **not** edited (the file is not
+  a row of §J).
+- **N-G9 (2026-10-06, T176) — the document endpoint, and what it refuses.** New files
+  (`services/document-opportunity-service.ts`, `routes/routes.documents.ts`) and one
+  delimited section of `index.ts`; `opportunity-link-service.ts` was not edited — T176 names
+  "`findByDocument` on the link service" and "`compose/links.ts`", and neither is where it
+  went (N-6, and the sibling branch is editing that service). (a) **The document is read
+  first**, through `orderReadPort` under the caller's scope: missing, malformed id and out of
+  scope are one 404 `CRM_DOCUMENT_NOT_FOUND`, *before* the link is looked at, so `null` versus
+  a refusal never tells a stranger whether another Organization's Order has an Opportunity.
+  (b) **Then parent-first** (N-15): the link names the Opportunity, the scoped EntityManager
+  decides whether the caller may have it. (c) **The summary is cut from the detail** —
+  `OpportunitySummarySchema.parse(await opportunityService.get(id))` — so the Opportunity is
+  rendered by the one code path that renders it and `opportunity-service.ts` gained nothing.
+  (d) **An unknown kind is 422**, validated in the service: a route schema would answer 400
+  (N-13 (c)) and the contract says 422. (e) **`quote_request` is 422 on this branch**, with
+  the sentence the link endpoint already uses for that kind (N-18's rule: refused, not
+  accepted and dropped). **What the Quote Request half replaces:** that branch of
+  `findForDocument` — validate through `quoteRequestReadPort` under the caller's scope,
+  answer 503 `MODULE_DISABLED` while `quote_requests` is off — nothing else in the service.
+- **N-G10 (2026-10-06, T177/T178) — the panel, and three things the tasks leave open.**
+  (a) **Strings are under `orderPanel.*`**, not `links.*` as T177 says: the coordinator's
+  merge rule for this branch, and `links.*` is the Opportunity screen's own section, edited on
+  another branch. (b) **The Organization of an unlinked Order is read from `orders`' own
+  admin endpoint** (`GET /api/v1/admin/orders/:id`, `orders:read`). §12b adds one read and
+  "nothing else", the zone hands over an id only, and `{ data: null }` carries no
+  Organization — while whoever is on the Order's screen holds `orders:read` by construction.
+  It is read only for an unlinked Order in front of a holder of `crm:write`; a linked Order
+  costs one request. (c) **The picker is a select of the Organization's hundred newest open
+  Opportunities** from the list endpoint, not a search box: it is the contract's "list of §1
+  filtered by `organizationId` and `state=open`", and an Organization with more than a
+  hundred open Opportunities links from the Opportunity's screen instead. (d) **"Create
+  opportunity" is two requests**, as R-28 decided: the create page honours
+  `linkDocumentKind=order` + `linkDocumentId`, calls the link endpoint after a successful
+  create and then navigates. A refused link leaves the Opportunity created: the form shows
+  the server's sentence, links to the Opportunity and disables *Create* so a second click
+  cannot create a second one. `linkDocumentKind=quote_request` is ignored until that kind is
+  linkable. (e) The thin wrapper is `zones/OrderOpportunity.tsx`; `LinkedOpportunityPanel`
+  takes `documentKind`, `documentId` and a `loadOrganizationId` function, which is all the
+  Quote Request wrapper has to supply.
+- **N-G11 (2026-10-06) — what remains of User Story 17, exactly.** After User Story 8 is on
+  the same branch: (1) `'quote_request.detail.after'` and `QuoteRequestDetailZoneProps
+  { quoteRequestId }` in `packages/contracts/src/admin-contributions.ts`, with (2) the one
+  mount and the `AdminZone` import in `RfqDetail.tsx`, in one change; (3)
+  `admin/test/modules/quote_requests/RfqDetail.after-zone.test.tsx` on the model of the
+  Order host test; (4) the `quote_request` branch of `DocumentOpportunityService` (N-G9 (e))
+  with its contract cases — linked, unlinked, out of scope, 503 while `quote_requests` is
+  off; (5) `zones/QuoteRequestOpportunity.tsx` and its `zoneComponent` line, widening
+  `LinkedOpportunityPanelProps['documentKind']`, `crmApi.opportunityOfDocument`'s callers and
+  the create page's `linkDocument` to the second kind, plus a `loadOrganizationId` for a
+  Quote Request; (6) the zone in `quote_requests`' docs page (+ Polish) and `mod-quote-requests`
+  in the changeset. Tasks T172, T175, T176, T177 and T179 are left unticked for that half.
+- **N-G12 (2026-10-06) — user stories 14, 15 and the Order half of 17, walked in a browser.**
+  N-30's arrangement: headless Chromium (Playwright 1.60) against the admin's Vite dev server
+  and the backend test composition on a throw-away `_test` database on this worktree's
+  Postgres, created and dropped with its template — the stub admin session, real routes, real
+  `orders`, real `custom_fields`. The dev server serves each module's `dist` (N-D9), so the
+  `orders` and `crm` admin halves were rebuilt first; the first pass showed no panel on the
+  Order screen for exactly that reason. **English, 1440 px — 29 of 29**: *Opportunity* among
+  the record types of the custom-fields screen; a required select and an optional text field
+  defined there; the create form showing both with no button of their own, refusing the
+  missing required field **at the field**, then creating; the values on the Opportunity,
+  edited and saved through one `PATCH`, and an emptied required field refused at the field;
+  the *Open opportunities* panel on the Organization (statuses and values, no lost
+  Opportunity, *New opportunity* carrying the Organization); a linked Order showing number,
+  title, status, assignee and value with a link; an unlinked Order linked by picking an open
+  Opportunity (the picker offers no lost one); *Create opportunity* from an Order ending on an
+  Opportunity that lists that Order, and the Order then showing it. **CRM off — 12 of 12,
+  each screen waited for before it was judged**: the Order screen rendered, with no panel, no
+  request to `/admin/crm/`, and its text exactly the "on" screen's minus the panel; no CRM
+  group in the sidebar; no panel and no CRM request on the Organization screen; *Opportunity*
+  not among the record types; all three back after switching on. **Polish — 5 of 5**:
+  *Powiązana szansa*, *Otwarte szanse sprzedażowe* / *Nowa szansa*, the record type *Szansa
+  sprzedażowa*, *Pola niestandardowe* on the Opportunity, no untranslated key.
+  **One defect found and fixed:** a cleared choice, number or date did not clear. The kit
+  panel reports such a field as `undefined`, JSON drops the key, and a key the `PATCH` does
+  not name keeps its stored value — so the field came back after saving, and an emptied
+  *required* field was not refused. The Opportunity's save now sends a stored-and-now-empty
+  field as `null` (`withCleared`), which the server clears or, for a required field, refuses;
+  one admin case and one integration case hold it. **The same gap exists for the panel's four
+  other hosts** (their `save` passes the bag through unchanged) — the kit's, pre-existing, and
+  not repaired here. **The walk's own misreads, all timing:** the first two passes judged
+  three screens while the shell still showed "Loading the module's screen…" — which made the
+  first off-state checks pass vacuously and is why that part was re-run on its own with an
+  explicit wait and a positive control. **Seen and not this feature's:** the Organization
+  screen's own `GET …/pricing/display-mode-overrides/organization/:id` answers 404 for an
+  Organization with no override, with or without CRM. Not verified by eye: a real screen
+  reader, a physical touch device, dark theme, 390 px (the three panels are cards of the
+  host's own width and their tables scroll inside them — measured by nothing here).
 
 ## Questions put to the owner — all decided on 2026-10-05
 

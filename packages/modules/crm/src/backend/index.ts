@@ -5,7 +5,11 @@ import type {
   AssetReadPort,
   AssetReferenceRegistryPort,
   AssetsLibraryPort,
+  AuditReferenceRegistryPort,
   CustomerAccountReadPort,
+  CustomFieldValuePort,
+  OpportunityReadPort,
+  OpportunityTransitionPort,
   OrderReadPort,
   OrderTransitionPort,
   OrganizationDetailsPort,
@@ -27,6 +31,7 @@ import { registerCrmAttachmentUploadRoutes } from './routes/routes.attachment-up
 import { registerCrmAttachmentRoutes } from './routes/routes.attachments.js';
 import { registerCrmBoardRoutes } from './routes/routes.board.js';
 import { registerCrmCommentRoutes } from './routes/routes.comments.js';
+import { registerCrmDocumentRoutes } from './routes/routes.documents.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmLookupRoutes } from './routes/routes.lookups.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
@@ -36,13 +41,17 @@ import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
 import { AnalyticsService } from './services/analytics-service.js';
 import { BoardService } from './services/board-service.js';
 import { registerCrmAssetReferences } from './services/crm-asset-references.js';
+import { registerCrmAuditReferences } from './services/crm-audit-references.js';
 import { CrmLookupService } from './services/crm-lookup-service.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
+import { DocumentOpportunityService } from './services/document-opportunity-service.js';
 import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
 import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
 import { OpportunityAttachmentUploadService } from './services/opportunity-attachment-upload-service.js';
 import { OpportunityCommentService } from './services/opportunity-comment-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
+import { OpportunityReadPortService } from './services/opportunity-read-port.js';
+import { OpportunityTransitionPortService } from './services/opportunity-transition-port.js';
 import { OpportunityService } from './services/opportunity-service.js';
 import { OpportunityTransitionGuardRegistry } from './services/opportunity-transition-guard-registry.js';
 import { OpportunityTransitionService } from './services/opportunity-transition-service.js';
@@ -339,6 +348,12 @@ export function registerModule(ctx: ModuleContext): void {
             links: (opportunityId) => crmOpportunityLinkService.list(opportunityId),
             unresolvedPropagations: (opportunityId) =>
               crmOrderStatusPropagationService.listUnresolved(opportunityId),
+            // --- Custom fields (User Story 15) ------------------------------
+            // `custom_fields` validates and projects; the Opportunity's own
+            // Commands write. The owner is non-deactivatable, so this is a
+            // plain binding edge with no off state to degrade into.
+            customFields: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
+            // --- end of Custom fields ----------------------------------------
           }),
       )
       .singleton(),
@@ -475,6 +490,73 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
   // --- end of Analytics --------------------------------------------------------
+
+  // --- The Opportunity of a document (User Story 17) ---------------------------
+  // One read for the panel CRM contributes to the Order screen: which
+  // Opportunity an Order is linked to. The Order is checked through `orders`'
+  // read port, under the caller's scope, before anything is said about a link.
+  // One service, one `ctx.routes`, this one section.
+  ctx.di.register({
+    crmDocumentOpportunityService: ctx
+      .asFunction(
+        ({ emFactory, crmOpportunityService }: CrmCradle) =>
+          new DocumentOpportunityService({
+            emFactory,
+            orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            getOpportunity: (opportunityId) => crmOpportunityService.get(opportunityId),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<
+      CrmCradle & { readonly crmDocumentOpportunityService: DocumentOpportunityService }
+    >();
+    await registerCrmDocumentRoutes(app, {
+      documentOpportunityService: cradle.crmDocumentOpportunityService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of The Opportunity of a document ------------------------------------
+
+  // --- Published ports and the audit reference (User Story 14) -----------------
+  // What another module, or a deployment's overlay, reads and moves an
+  // Opportunity through. Both are `providePort`: gated, so a consumer resolving
+  // either while this module is off gets `ModuleDisabledError` (503
+  // `MODULE_DISABLED`) and nothing half-executes.
+  ctx.di.providePort<OpportunityReadPort>(
+    'opportunityReadPort',
+    ctx
+      .asFunction(
+        ({ emFactory, crmWorkflowReadService }: CrmCradle) =>
+          new OpportunityReadPortService(emFactory, crmWorkflowReadService),
+      )
+      .singleton(),
+  );
+  ctx.di.providePort<OpportunityTransitionPort>(
+    'opportunityTransitionPort',
+    ctx
+      .asFunction(
+        ({ emFactory, crmWorkflowReadService, crmOpportunityTransitionService }: CrmCradle) =>
+          new OpportunityTransitionPortService(emFactory, crmWorkflowReadService, crmOpportunityTransitionService),
+      )
+      .singleton(),
+  );
+  /**
+   * The audit-reference resolver — a **contribution** hook.
+   *
+   * It pushes an inert resolver into `auditReferenceRegistry`, an ungated
+   * registry `audit_logs` owns, and carries no presence probe: the registry's
+   * own enumeration policy skips this entry while the module is absent, and a
+   * probe here would make that survive a reactivation until the next restart.
+   */
+  ctx.onBoot(() => {
+    registerCrmAuditReferences(
+      lazyPort<AuditReferenceRegistryPort>(ctx, 'auditReferenceRegistry'),
+      ctx.cradle<CrmCradle>().emFactory,
+    );
+  });
+  // --- end of Published ports --------------------------------------------------
 
   // --- Routes ----------------------------------------------------------------
   // All through `ctx.routes`, so every one of them stops with the module.

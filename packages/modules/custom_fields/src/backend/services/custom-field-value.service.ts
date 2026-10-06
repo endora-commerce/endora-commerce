@@ -33,6 +33,7 @@ const HOST_TABLE_BY_ENTITY: Record<SupportedEntityType, { table: string; column:
   customer: { table: 'customer_accounts', column: 'custom_field_values' },
   quote_request: { table: 'quote_requests', column: 'custom_field_values' },
   product: { table: 'products', column: 'attribute_values' },
+  opportunity: { table: 'crm_opportunities', column: 'custom_field_values' },
 };
 
 const DEFAULT_TEXT_MAX = 10_000;

@@ -33,6 +33,18 @@ export interface SupportedEntityMeta {
     readonly labelKey: string;
     readonly route: string;
   };
+  /**
+   * Optional owner marker (feature 143). When present, the host entity belongs
+   * to a module an operator may switch off, and the type follows it: the
+   * entity-types listing omits the type and the generic admin mutation routes
+   * refuse its definitions while that module is not effectively present
+   * (Constitution XVII — a module that is off behaves as if never installed).
+   * Definitions and stored values are left untouched and are offered again
+   * when the owner returns. Generic, like `managedBy`: consumers ask only
+   * whether the named module is present, never which module it is. A type that
+   * declares no owner is always offered.
+   */
+  readonly ownerModuleId?: string;
 }
 
 export const SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta> = {
@@ -51,6 +63,7 @@ export const SUPPORTED_ENTITIES: Record<SupportedEntityType, SupportedEntityMeta
       route: '/catalog/attributes',
     },
   },
+  opportunity: { labelKey: 'customFields.entity.opportunity', orgOwned: true, ownerModuleId: 'crm' },
 };
 
 /** All registered entity-type codes. */

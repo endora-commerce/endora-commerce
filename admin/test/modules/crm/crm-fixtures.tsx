@@ -32,6 +32,8 @@ function shippedBundle(relativePath: string): Record<string, string> {
 }
 
 const CRM_BUNDLE = shippedBundle('../packages/modules/crm/i18n/en.json');
+/** The shipped English bundle, for a test that mounts a zone rather than a screen. */
+export const CRM_BUNDLE_EN = CRM_BUNDLE;
 const CORE_BUNDLE = shippedBundle('../packages/modules/_i18n/i18n/en.json');
 
 function sentence(
@@ -181,6 +183,7 @@ export function detail(overrides: Partial<OpportunityDetail> = {}): OpportunityD
       },
     ],
     unresolvedPropagations: [],
+    customFieldValues: {},
     ...overrides,
   };
 }

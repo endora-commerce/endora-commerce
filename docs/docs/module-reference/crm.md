@@ -31,8 +31,10 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | --- | --- | --- |
 | `admin_users` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `assets_library` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `audit_logs` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `auth` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `catalog` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
+| `custom_fields` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `customer_accounts` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `orders` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `organizations` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
@@ -46,7 +48,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | --- | --- | --- |
 | `crm:analytics` | View CRM analytics | `crm:read` |
 | `crm:configure` | Configure the CRM workflow and tags | `crm:read` |
-| `crm:read` | View sales opportunities | `orders:read` |
+| `crm:read` | View sales opportunities | `orders:read`, `custom_fields:read` |
 | `crm:write` | Create and work sales opportunities | `crm:read` |
 
 ## Command palette

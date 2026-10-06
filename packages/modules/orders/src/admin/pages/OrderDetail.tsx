@@ -794,6 +794,12 @@ export function OrderDetail(): ReactNode {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* The panels other modules add to an order, below the tab panels so they
+          are there whichever tab is open. No chrome around the zone: every
+          contribution renders its own card, and an empty zone renders nothing
+          at all — the screen is then exactly the one above. */}
+      <AdminZone name="order.detail.after" props={{ orderId: id }} />
     </>
   );
 }

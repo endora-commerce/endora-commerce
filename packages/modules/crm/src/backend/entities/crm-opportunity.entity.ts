@@ -116,6 +116,14 @@ export class CrmOpportunity {
   @Property({ type: 'uuid', nullable: true })
   createdByAdminUserId?: string | null;
 
+  /**
+   * Operator-defined field values, keyed by definition key (User Story 15).
+   * Validated by `custom_fields` and written by the Opportunity's own Commands;
+   * it inherits this row's tenant scope.
+   */
+  @Property({ type: 'json' })
+  customFieldValues: Record<string, unknown> = {};
+
   /** Optimistic concurrency on PATCH (`If-Match`). */
   @Property({ type: 'integer' })
   version: number = 0;

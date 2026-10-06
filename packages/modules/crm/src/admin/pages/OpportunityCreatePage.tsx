@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { CreateOpportunityRequest } from '@endora-commerce/contracts';
 import {
   Alert,
@@ -23,6 +23,7 @@ import {
   SalesChannelSelect,
   useSalesChannelOptions,
 } from '../components/LookupPickers.js';
+import { customFieldIssues, NewOpportunityCustomFields } from '../components/OpportunityCustomFields.js';
 import { TagMultiSelect } from '../components/TagPicker.js';
 import { errorMessage, normaliseAmount } from '../lib/labels.js';
 
@@ -42,6 +43,12 @@ type FieldErrors = Partial<
  *
  * `?organizationId=<uuid>` preselects the Organization, which is how a "New
  * opportunity" link on an Organization's own screen arrives here.
+ *
+ * `?linkDocumentKind=order&linkDocumentId=<uuid>` is how "Create opportunity"
+ * on an Order's screen arrives: once the Opportunity exists, the Order is
+ * linked to it through the link endpoint, and then the Opportunity is opened.
+ * Two requests, not one: if the link is refused the Opportunity still exists,
+ * the form says so and links to it, and the Order can be linked from there.
  */
 export function OpportunityCreatePage(): ReactNode {
   const t = useTranslation('crm');
@@ -51,6 +58,16 @@ export function OpportunityCreatePage(): ReactNode {
   const requestedOrganization = searchParams.get('organizationId');
   const preselected =
     requestedOrganization && UUID.test(requestedOrganization) ? requestedOrganization : null;
+
+  // --- The document this Opportunity is being created from (US17) -----------
+  const requestedLinkId = searchParams.get('linkDocumentId');
+  const linkDocument =
+    searchParams.get('linkDocumentKind') === 'order' && requestedLinkId && UUID.test(requestedLinkId)
+      ? ({ documentKind: 'order', documentId: requestedLinkId } as const)
+      : null;
+  /** Created, but the document could not be linked: the Opportunity to open, and why. */
+  const [unlinked, setUnlinked] = useState<{ id: string; number: string; reason: string } | null>(null);
+  // --- end ------------------------------------------------------------------
 
   const [title, setTitle] = useState('');
   const [organizationId, setOrganizationId] = useState<string | null>(preselected);
@@ -65,6 +82,11 @@ export function OpportunityCreatePage(): ReactNode {
   const [description, setDescription] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Operator-defined fields (US15): the bag the embedded panel reports, and
+  // the fields the server refused. `null` until a field is touched, so a form
+  // with no custom field sends no bag at all.
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown> | null>(null);
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   // One read for two fields: the channel picker, and the currencies offered —
@@ -132,15 +154,38 @@ export function OpportunityCreatePage(): ReactNode {
       ...(amount ? { manualValue: amount } : {}),
       ...(expectedCloseDate ? { expectedCloseDate } : {}),
       ...(description.trim() ? { description: description.trim() } : {}),
+      ...(customFieldValues ? { customFieldValues } : {}),
     };
 
     setBusy(true);
     setSubmitError(null);
+    setCustomFieldErrors({});
     try {
       const created = await crmApi.createOpportunity(body);
+      if (linkDocument) {
+        try {
+          await crmApi.addLink(created.id, linkDocument);
+        } catch (failure) {
+          // The Opportunity exists; submitting again would create a second one.
+          setUnlinked({
+            id: created.id,
+            number: created.number,
+            reason: errorMessage(failure, t('orderPanel.createForm.linkFailedGeneric')),
+          });
+          setBusy(false);
+          return;
+        }
+      }
       navigate(`/crm/opportunities/${created.id}`);
     } catch (failure) {
-      setSubmitError(errorMessage(failure, t('opportunity.create.error.generic')));
+      const issues = customFieldIssues(failure);
+      setCustomFieldErrors(issues ?? {});
+      // The server's sentence, and what it said about each field — shown here
+      // as well as at the fields, because the fields are not on screen for
+      // somebody who may not read their definitions.
+      setSubmitError(
+        [errorMessage(failure, t('opportunity.create.error.generic')), ...Object.values(issues ?? {})].join(' '),
+      );
       setBusy(false);
     }
   };
@@ -166,6 +211,20 @@ export function OpportunityCreatePage(): ReactNode {
               <Alert variant="destructive">
                 <AlertDescription>{submitError}</AlertDescription>
               </Alert>
+            ) : null}
+
+            {unlinked ? (
+              <Alert variant="destructive">
+                <AlertDescription>
+                  {t('orderPanel.createForm.linkFailed', { number: unlinked.number, reason: unlinked.reason })}{' '}
+                  <Link to={`/crm/opportunities/${unlinked.id}`} className="font-medium underline underline-offset-4">
+                    {t('orderPanel.createForm.open')}
+                  </Link>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {linkDocument && !unlinked ? (
+              <p className="text-sm text-muted-foreground">{t('orderPanel.createForm.hint')}</p>
             ) : null}
 
             <p className="text-xs text-muted-foreground">{t('opportunity.create.requiredHint')}</p>
@@ -352,6 +411,10 @@ export function OpportunityCreatePage(): ReactNode {
           </CardContent>
         </Card>
 
+        <div className="mt-4">
+          <NewOpportunityCustomFields onChange={setCustomFieldValues} fieldErrors={customFieldErrors} />
+        </div>
+
         <StickyFormActions className="mt-4 flex justify-end gap-2">
           <Button
             type="button"
@@ -361,7 +424,7 @@ export function OpportunityCreatePage(): ReactNode {
           >
             {tCore('common.action.cancel')}
           </Button>
-          <Button type="submit" disabled={busy} aria-busy={busy}>
+          <Button type="submit" disabled={busy || unlinked !== null} aria-busy={busy}>
             {busy ? t('opportunity.create.submitting') : t('opportunity.create.submit')}
           </Button>
         </StickyFormActions>

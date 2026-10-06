@@ -730,3 +730,169 @@ ekranie **Role**.
 - Automatyczne tworzenie szansy dla nowego zamówienia albo zapytania
   ofertowego.
 - Historia zmian każdej szansy.
+
+## Pola niestandardowe
+
+Szansa sprzedażowa może mieć Twoje własne pola — „Źródło kontaktu",
+„Konkurent", „Data decyzji" — definiowane bez wdrożenia.
+
+**Definiowanie.** Otwórz **Pola niestandardowe** w panelu administracyjnym i
+wybierz typ rekordu **Szansa sprzedażowa**. Pole ma klucz, etykietę w każdym
+języku, typ (tekst, liczba, tak/nie, data, jedna pozycja z listy, kilka pozycji
+z listy) i może być wymagane. To istniejący ekran pól niestandardowych
+platformy; szanse sprzedażowe są na nim kolejnym typem rekordu, obok zamówień,
+organizacji, klientów i zapytań ofertowych.
+
+**Wypełnianie.** Pola pojawiają się w formularzu tworzenia szansy oraz w sekcji
+**Pola niestandardowe** na karcie *Przegląd* szansy, z etykietami w Twoim
+języku. Na ekranie szansy mają własny przycisk **Zapisz pola niestandardowe**;
+w formularzu tworzenia zapisują się razem z szansą.
+
+- Wartość niezgodna z definicją pola — puste pole wymagane, pozycja spoza
+  listy, tekst zamiast liczby — jest odrzucana, a komunikat pojawia się przy tym
+  polu. Nic nie zostaje zapisane.
+- Pole wymagane trzeba wypełnić przy ręcznym tworzeniu szansy oraz przy każdym
+  zapisie pól niestandardowych. Zmiana czegokolwiek innego — tytułu, wartości,
+  statusu — nigdy go nie wymaga, więc pole oznaczone dziś jako wymagane nie
+  blokuje pracy nad wczorajszymi szansami.
+- Szansa utworzona automatycznie nie ma wartości niestandardowych, dopóki ktoś
+  ich nie uzupełni.
+- Po usunięciu pola jego wartości przestają być pokazywane.
+
+**Kto je widzi.** Wartości niestandardowe widzi każdy, kto widzi szansę, i nikt
+inny: są częścią szansy. Do wyświetlenia pól potrzebne jest także uprawnienie
+`custom_fields:read`, bo lista pól pochodzi z modułu Pola niestandardowe — rola
+z uprawnieniem `crm:read` powinna je mieć. Osoba bez niego nie widzi sekcji pól
+niestandardowych; jeśli pole wymagane odrzuci jej nową szansę, formularz wskaże
+to pole w komunikacie o błędzie.
+
+**Dla integratorów.** `POST` i `PATCH /api/v1/admin/crm/opportunities`
+przyjmują opcjonalny obiekt `customFieldValues` z kluczami pól, a szansa zwraca
+`customFieldValues`. W `PATCH` obiekt wymienia pola, które zmienia; pominięcie
+go pozostawia wszystkie wartości bez zmian. Odrzucona wartość daje odpowiedź
+`422 CUSTOM_FIELD_VALUE_INVALID` z jednym wpisem `{ path, issue }` na pole.
+Zapis jest częścią wpisu audytowego samej szansy — osobnego wpisu nie ma.
+
+**Gdy CRM jest wyłączony**, *Szansa sprzedażowa* nie jest oferowana na ekranie
+pól niestandardowych, a definicji jej pól nie można tworzyć, zmieniać ani usuwać
+(`409`). Nic nie jest usuwane: ponowne włączenie CRM przywraca definicje i
+wszystkie zapisane wartości.
+
+## Szanse sprzedażowe na ekranie organizacji
+
+Ekran organizacji kończy się panelem **Otwarte szanse sprzedażowe**: szanse
+prowadzone z tą organizacją, które nie zostały jeszcze wygrane ani przegrane, od
+najnowszej — każda z numerem i tytułem (odnośnik do szansy), statusem i
+wartością. **Nowa szansa** otwiera formularz tworzenia z wybraną już
+organizacją.
+
+- Panel widzi każdy, kto ma uprawnienie `crm:read`; **Nowa szansa** wymaga
+  `crm:write`.
+- Panel pokazuje dziesięć najnowszych szans, a gdy jest ich więcej, prowadzi do
+  listy szans.
+- Osoba ograniczona do wybranych organizacji widzi panel tylko na ekranach tych
+  organizacji — tak jak każdą inną listę szans.
+- Gdy CRM jest wyłączony, ekran organizacji nie pokazuje niczego z CRM — ani
+  panelu, ani nagłówka, ani żadnego zapytania.
+
+Ostatnia aktywność na pulpicie nazywa szansę jej tytułem i prowadzi do jej
+ekranu. Gdy CRM jest wyłączony albo gdy ktoś nie może zobaczyć danej szansy,
+wpis pozostaje, ale bez tytułu i bez odnośnika.
+
+## Odczyt i zmiana statusu szansy z innego modułu
+
+Dla programistów. Inny moduł albo nakładka wdrożenia pracuje z szansami przez
+dwa opublikowane porty — nigdy przez tabele ani klasy CRM. Oba typy eksportuje
+`@endora-commerce/contracts`.
+
+| Nazwa w kontenerze | Typ | Co robi |
+| --- | --- | --- |
+| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByDocument(kind, documentId)` i `listOpenForOrganization(organizationId)`. Każda zwraca zwykłe wartości `OpportunityRecord` — id, numer, tytuł, organizację, kod i rodzaj statusu, osobę przypisaną, wartość, walutę, daty — albo `null` / pustą listę. |
+| `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` przeprowadza szansę przez skonfigurowany przepływ, razem ze strażnikami i zdarzeniami, i zwraca wynik jako wartość. |
+
+```ts
+import type { OpportunityTransitionPort } from '@endora-commerce/contracts';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+
+const opportunities = lazyPort<OpportunityTransitionPort>(ctx, 'opportunityTransitionPort');
+
+const outcome = await opportunities.applyStatus({
+  opportunityId,
+  to: 'won',
+  actor: { kind: 'system' },
+  reason: 'Contract signed in the ERP',
+});
+if (!outcome.applied && outcome.reason !== 'already_there') {
+  // 'not_found' | 'unknown_status' | 'not_permitted' | 'vetoed', with `detail`
+}
+```
+
+- **Odmowa jest wartością, nie wyjątkiem.** `applied: true` niesie `from` i
+  `to`. `already_there` oznacza, że szansa jest już tam, gdzie miała być, i nic
+  nie zapisano. `not_found` obejmuje także szansę spoza organizacji
+  wywołującego. `not_permitted` oznacza, że przepływ nie ma takiego przejścia;
+  `vetoed` — że odmówił strażnik, a `detail` to jego własne zdanie.
+- **Wywołuj port po własnym zatwierdzeniu transakcji**, nigdy w jej trakcie:
+  port otwiera własną.
+- **Odczyty i zmiany działają w zakresie organizacji wywołującego.** Wywołujący
+  ograniczony do wybranych organizacji nie odczyta ani nie przesunie szansy
+  innej organizacji.
+- **Zadeklaruj zależność w manifeście.** Moduł, który nie może działać bez CRM,
+  wpisuje `crm` w `dependencies`. Moduł, który może, wpisuje go w
+  `nonBindingDependencies` z `kind: 'degrades-without'`, nazwą portu i zdaniem
+  `whenAbsent`, które operator przeczyta przed wyłączeniem CRM.
+- **Gdy CRM jest wyłączony, oba porty odmawiają**: pobranie któregokolwiek
+  rzuca `ModuleDisabledError` (HTTP `503 MODULE_DISABLED`). Nie otaczaj
+  wywołania gołym `catch` — moduł, który ma działać dalej, pyta najpierw
+  `effectiveState.isPresent('crm')`.
+
+Aby reagować na zmianę statusu, a nie ją wywoływać, subskrybuj zdarzenia albo
+zarejestruj strażnika — opisuje to sekcja o własnej logice przy zmianie statusu.
+
+## Dane demonstracyjne
+
+CRM nie dostarcza danych demonstracyjnych: `endora demo seed` nie tworzy żadnej
+szansy. Szansa zawsze należy do organizacji, a szansa demonstracyjna powiązana z
+zamówieniem wymaga także demonstracyjnego zamówienia — to wiersze innych
+modułów, których dane demonstracyjne modułu nie mogą tworzyć ani odczytywać.
+Demonstracyjny lejek jest więc krokiem kompozycji demo instancji, a nie tego
+modułu, i nie wchodzi w skład tego wydania. Domyślny przepływ statusów jest
+instalowany zawsze, więc tablica ma swoje kolumny od pierwszego uruchomienia.
+
+## Szansa na ekranie zamówienia
+
+Ekran zamówienia kończy się panelem **Powiązana szansa**, niezależnie od
+otwartej zakładki.
+
+- **Zamówienie powiązane z szansą** pokazuje numer i tytuł szansy (odnośnik do
+  niej), jej status, przypisanego handlowca i wartość.
+- **Zamówienie niepowiązane** informuje o tym i daje osobie z uprawnieniem
+  `crm:write` dwie akcje:
+  - **Powiąż z szansą** wyświetla otwarte szanse organizacji, do której należy
+    zamówienie (sto najnowszych); wybierz jedną i potwierdź. Zamówienie należy
+    najwyżej do jednej szansy i tylko do szansy własnej organizacji — odmowa
+    jest pokazywana w panelu.
+  - **Utwórz szansę** otwiera formularz tworzenia z wybraną organizacją
+    zamówienia. Po zapisaniu szansy zamówienie zostaje z nią powiązane, a
+    szansa się otwiera. Jeśli powiązanie zostanie odrzucone, szansa i tak jest
+    już utworzona: formularz o tym informuje i prowadzi do niej, a zamówienie
+    można powiązać z ekranu samej szansy.
+- Panel widzi każdy, kto ma uprawnienie `crm:read`. Bez niego oraz przy
+  wyłączonym CRM ekran zamówienia wygląda dokładnie tak jak bez modułu — bez
+  panelu, nagłówka, pustego miejsca i bez żadnego zapytania.
+
+Zapytania ofertowe otrzymają ten sam panel, gdy będzie je można powiązać z
+szansą.
+
+Dla integratorów: `GET /api/v1/admin/crm/documents/order/{orderId}/opportunity`
+(`crm:read`) zwraca `{ "data": <podsumowanie szansy> }` albo `{ "data": null }`
+dla zamówienia bez powiązania. Zamówienie, które nie istnieje albo którego
+wywołujący nie może zobaczyć, daje `404 CRM_DOCUMENT_NOT_FOUND` — tę samą
+odpowiedź w obu przypadkach, niezależnie od tego, czy jest powiązane. Rodzaj
+inny niż rodzaj dokumentu daje `422`. Formularz tworzenia przyjmuje w adresie
+`linkDocumentKind=order` i `linkDocumentId=<id zamówienia>` obok
+`organizationId`.
+
+Dla autorów modułów: panel jest wkładem CRM do strefy panelu administracyjnego
+`order.detail.after`, którą osadza moduł Zamówienia i do której może wnosić
+każdy moduł. Zamówienia nie importują CRM i nie deklarują od niego zależności.

@@ -1731,6 +1731,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/documents/{documentKind}/{documentId}/opportunity": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/lookups/assignees": {
       "get": {
         "responses": {

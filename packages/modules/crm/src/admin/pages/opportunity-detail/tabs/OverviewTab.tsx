@@ -12,6 +12,7 @@ import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n'
 import { crmApi, type OrderStatusOption } from '../../../api.js';
 import { AssigneeSection } from '../../../components/AssigneeSection.js';
 import { LinkedDocuments } from '../../../components/LinkedDocuments.js';
+import { OpportunityCustomFields } from '../../../components/OpportunityCustomFields.js';
 import { salesChannelLabel } from '../../../components/LookupPickers.js';
 import { OpportunityEditForm } from '../../../components/OpportunityEditForm.js';
 import { PropagationOutcomes } from '../../../components/PropagationOutcomes.js';
@@ -173,6 +174,8 @@ export function OverviewTab(props: OpportunityTabProps): ReactNode {
         canWrite={canWrite}
         reload={reload}
       />
+
+      <OpportunityCustomFields opportunity={opportunity} canWrite={canWrite} onChange={onChange} />
 
       {editing ? (
         <section>

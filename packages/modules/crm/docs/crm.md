@@ -709,3 +709,167 @@ No role receives a CRM permission automatically. Grant them on the
 - Linking quote requests, and a value computed from the linked documents.
 - Creating an opportunity automatically for a new order or quote request.
 - A change history for every opportunity.
+
+## Custom fields
+
+An opportunity can carry fields of your own — "Lead source", "Competitor",
+"Decision date" — defined without a deployment.
+
+**Defining them.** Open **Custom fields** in the Admin UI and choose
+**Opportunity** as the record type. A field has a key, a label per language, a
+type (text, number, yes/no, date, one of a list, several of a list) and may be
+required. This is the platform's own custom-fields screen; opportunities are
+one more record type on it, beside orders, organizations, customers and quote
+requests.
+
+**Filling them in.** The fields appear on the form that creates an opportunity
+and in a **Custom fields** section on the opportunity's *Overview*, labelled in
+your language. On the opportunity they have their own **Save custom fields**
+button; on the create form they are saved with the opportunity.
+
+- A value that breaks its field's definition — a required field left empty, an
+  option that is not on the list, text where a number is expected — is refused,
+  and the message is shown at that field. Nothing is saved.
+- A required field is asked for when an opportunity is created by hand, and
+  whenever the custom fields are saved. Editing something else on an
+  opportunity — its title, its value, its status — never asks for it, so a
+  field made required today does not block work on yesterday's opportunities.
+- An opportunity created automatically has no custom values until somebody
+  fills them in.
+- When a field is deleted, its values stop being shown.
+
+**Who sees them.** Whoever can see the opportunity sees its custom values, and
+nobody else: they are part of the opportunity. Showing the fields also needs
+the `custom_fields:read` permission, because the list of fields is read from
+the Custom fields module — a role that holds `crm:read` should hold it too.
+Somebody without it sees no custom fields section; if a required field then
+refuses their new opportunity, the form names the field in its error message.
+
+**For integrators.** `POST` and `PATCH /api/v1/admin/crm/opportunities` accept
+an optional `customFieldValues` object keyed by field key, and the opportunity
+answers with `customFieldValues`. On `PATCH`, the object names the fields it
+changes; leaving it out leaves every value as it is. A refused value answers
+`422 CUSTOM_FIELD_VALUE_INVALID` with one `{ path, issue }` per field. The
+write is part of the opportunity's own audit entry — there is no separate one.
+
+**With CRM switched off**, *Opportunity* is not offered on the Custom fields
+screen and its field definitions cannot be created, changed or deleted (`409`).
+Nothing is removed: switching CRM back on restores the definitions and every
+stored value.
+
+## Opportunities on the organization's screen
+
+An organization's screen ends with an **Open opportunities** panel: the
+opportunities being worked with that organization that are not yet won or lost,
+newest first, each with its number and title (a link to the opportunity), its
+status and its value. **New opportunity** opens the create form with the
+organization already chosen.
+
+- The panel is shown to whoever holds `crm:read`; **New opportunity** needs
+  `crm:write`.
+- It lists the ten newest and, when there are more, links to the opportunity
+  list.
+- Somebody confined to certain organizations sees the panel only on those
+  organizations' screens, like every other opportunity list.
+- With CRM switched off the organization's screen shows nothing of it — no
+  panel, no heading, no request.
+
+The dashboard's recent activity names an opportunity by its title and links to
+its screen. With CRM switched off, and for somebody who may not see that
+opportunity, the entry stays and carries no title and no link.
+
+## Reading and moving an opportunity from another module
+
+For developers. Another module, or a deployment's overlay, works with
+opportunities through two published ports and never through CRM's tables or
+classes. Both types are exported by `@endora-commerce/contracts`.
+
+| Container name | Type | What it does |
+| --- | --- | --- |
+| `opportunityReadPort` | `OpportunityReadPort` | `findById(id)`, `findByDocument(kind, documentId)` and `listOpenForOrganization(organizationId)`. Each answers plain `OpportunityRecord` values — id, number, title, organization, status code and kind, assignee, value, currency, dates — or `null` / an empty list. |
+| `opportunityTransitionPort` | `OpportunityTransitionPort` | `applyStatus({ opportunityId, to, actor, reason? })` moves an opportunity through the configured workflow, guards and events included, and answers what happened as a value. |
+
+```ts
+import type { OpportunityTransitionPort } from '@endora-commerce/contracts';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+
+const opportunities = lazyPort<OpportunityTransitionPort>(ctx, 'opportunityTransitionPort');
+
+const outcome = await opportunities.applyStatus({
+  opportunityId,
+  to: 'won',
+  actor: { kind: 'system' },
+  reason: 'Contract signed in the ERP',
+});
+if (!outcome.applied && outcome.reason !== 'already_there') {
+  // 'not_found' | 'unknown_status' | 'not_permitted' | 'vetoed', with `detail`
+}
+```
+
+- **A refusal is a value, not an exception.** `applied: true` carries `from`
+  and `to`. `already_there` means the opportunity is where you wanted it and
+  nothing was written. `not_found` also covers an opportunity outside the
+  caller's organizations. `not_permitted` means the workflow has no such
+  transition; `vetoed` means a guard refused, and `detail` is the guard's own
+  sentence.
+- **Call it after your own commit**, never inside your transaction: the port
+  opens its own.
+- **Reads and moves run under the caller's tenant scope.** A caller confined to
+  some organizations cannot read or move an opportunity of another.
+- **Declare the edge in your manifest.** A module that cannot work without CRM
+  lists `crm` in `dependencies`. One that can lists it in
+  `nonBindingDependencies` with `kind: 'degrades-without'`, the port's name and
+  a `whenAbsent` sentence an operator will read before switching CRM off.
+- **With CRM switched off both ports fail closed**: resolving either throws
+  `ModuleDisabledError` (HTTP `503 MODULE_DISABLED`). Do not wrap the call in a
+  bare `catch` — a consumer that degrades asks
+  `effectiveState.isPresent('crm')` first.
+
+To react to a status change rather than cause one, subscribe to the events or
+register a guard, as *Adding your own logic to a status change* describes.
+
+## Demo data
+
+CRM ships no demo data: `endora demo seed` creates no opportunity. An
+opportunity always belongs to an organization, and a demo opportunity linked to
+an order needs a demo order as well — rows of other modules, which a module's
+own demo data may not create or read. A demo pipeline is therefore a step of
+the instance's demo composition rather than of this module, and is not part of
+this release. The default workflow is always installed, so a board has its
+columns from the first start.
+
+## The opportunity on the order's screen
+
+An order's screen ends with a **Linked opportunity** panel, whichever tab is
+open.
+
+- **An order linked to an opportunity** shows the opportunity's number and
+  title (a link to it), its status, who it is assigned to and its value.
+- **An order linked to none** says so and offers two actions to whoever holds
+  `crm:write`:
+  - **Link to an opportunity** lists the open opportunities of the order's
+    organization (the hundred newest); choose one and confirm. An order
+    belongs to at most one opportunity, and only to one of its own
+    organization — a refusal is shown in the panel.
+  - **Create opportunity** opens the create form with the order's organization
+    chosen. When the opportunity is saved the order is linked to it and the
+    opportunity opens. If the link is refused, the opportunity has still been
+    created: the form says so and links to it, and the order can be linked from
+    the opportunity's own screen.
+- The panel is shown to whoever holds `crm:read`. Without it, and with CRM
+  switched off, the order's screen is exactly as it is without the module — no
+  panel, no heading, no empty space, no request.
+
+Quote requests get the same panel once they can be linked to an opportunity.
+
+For integrators: `GET /api/v1/admin/crm/documents/order/{orderId}/opportunity`
+(`crm:read`) answers `{ "data": <the opportunity's summary> }`, or
+`{ "data": null }` for an order linked to none. An order that does not exist or
+is not the caller's to see answers `404 CRM_DOCUMENT_NOT_FOUND` — the same
+answer for both, whether or not it is linked. A kind other than a document
+kind answers `422`. The create form accepts `linkDocumentKind=order` and
+`linkDocumentId=<order id>` beside `organizationId` in its address.
+
+For module authors: the panel is CRM's contribution to the `order.detail.after`
+admin zone, which the Orders module mounts and which any module may contribute
+to. Orders does not import CRM and declares no dependency on it.

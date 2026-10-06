@@ -80,6 +80,22 @@ describe('crm init migration', () => {
     expect(found.map((row) => row.table_name)).toEqual([...TABLES]);
   });
 
+  it('adds the custom-field value bag to the opportunity — jsonb, not null, empty by default', async () => {
+    const found = await rows<{ data_type: string; is_nullable: string; column_default: string | null }>(
+      `select data_type, is_nullable, column_default from information_schema.columns
+        where table_schema = current_schema() and table_name = 'crm_opportunities'
+          and column_name = 'custom_field_values'`,
+    );
+    expect(found).toEqual([{ data_type: 'jsonb', is_nullable: 'NO', column_default: `'{}'::jsonb` }]);
+    // The bag is the host row's own column: no other CRM table gained one.
+    const elsewhere = await rows<{ table_name: string }>(
+      `select table_name from information_schema.columns
+        where table_schema = current_schema() and table_name like 'crm\\_%'
+          and column_name = 'custom_field_values' and table_name <> 'crm_opportunities'`,
+    );
+    expect(elsewhere).toEqual([]);
+  });
+
   it('creates the opportunity number sequence', async () => {
     const found = await rows<{ sequence_name: string }>(
       `select sequence_name from information_schema.sequences
