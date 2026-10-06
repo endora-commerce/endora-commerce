@@ -24,6 +24,7 @@ import {
   seedCrmOrganization,
   seedCrmSalesRep,
   setCrmSetting,
+  transitionCrmOpportunity,
   whenCrmEventSettled,
 } from '../../helpers/seed-crm.js';
 
@@ -232,6 +233,23 @@ describe('crm — documents created from an Opportunity (US10)', () => {
       const { result: order, created } = await createdBy(() => createOrder({ type: ORIGIN_TYPE, id: opportunity.id }));
       expect(created).toEqual([]);
       expect((await detail(opportunity.id)).links).toEqual([
+        expect.objectContaining({ documentId: order.id, linkSource: 'created_from_opportunity' }),
+      ]);
+    });
+
+    it('is linked to a closed Opportunity too, which stays closed — as a link made by hand would be', async () => {
+      // Decided, not incidental (research N-S9): a closed Opportunity takes a
+      // document by hand, so it takes the one created from it. Nothing reopens it.
+      const opportunity = await createCrmOpportunity(h);
+      const closed = await transitionCrmOpportunity(h, opportunity.id, 'lost');
+      expect(closed.statusCode, closed.body).toBe(200);
+
+      const { result: order, created } = await createdBy(() => createOrder({ type: ORIGIN_TYPE, id: opportunity.id }));
+
+      expect(created).toEqual([]);
+      const after = await detail(opportunity.id);
+      expect(after.status.kind).toBe('lost');
+      expect(after.links).toEqual([
         expect.objectContaining({ documentId: order.id, linkSource: 'created_from_opportunity' }),
       ]);
     });
