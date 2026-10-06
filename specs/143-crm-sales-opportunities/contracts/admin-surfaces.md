@@ -64,11 +64,22 @@ analytics, the one screen that opens on a code of its own: for a manager holding
 `crm:analytics` the palette would otherwise offer nothing that code is for (research N-F2).
 `check:action-route-permissions` holds each code to the one enforced on its route.
 
+**Four of the seven routes, and that is the rule, not a shortfall.** `/crm/tags` and
+`/crm/workflow` are reached from the sidebar only, and `/crm/opportunities/:id` is not a
+destination a palette can name. Principle XVI asks a module for its primary landing surface
+plus the few highest-value operator actions and says "a module MUST NOT enumerate every route
+it owns"; the quality gate lists an exhaustive route dump as a violation. Tags and the
+workflow are configured rarely, by the few who hold `crm:configure`. `spec.md` FR-071 and
+SC-008 first asked for "every CRM screen … from the command palette" and were amended on
+2026-10-06 to this (`spec.md` § Clarifications, A-2). Adding either screen later is one
+manifest `actions` entry and four bundle keys — a judgement under the same principle, not a
+contract change.
+
 ## 4. Permissions (manifest `permissions`)
 
 | `code` | `label` (English default) | `requires` |
 | --- | --- | --- |
-| `crm:read` | View sales opportunities | `orders:read` |
+| `crm:read` | View sales opportunities | `orders:read`, `custom_fields:read` |
 | `crm:write` | Create and work sales opportunities | `crm:read` |
 | `crm:configure` | Configure the CRM workflow and tags | `crm:read` |
 | `crm:analytics` | View CRM analytics | `crm:read` |
@@ -79,6 +90,18 @@ analytics, the one screen that opens on a code of its own: for a manager holding
   Orders' details and searches Orders through `orders`' own endpoints; the exact code those
   endpoints enforce is read from `packages/modules/orders/src/backend/routes.ts` before this
   line is written.
+- `custom_fields:read` is named as well (as built — research N-G4): the operator-defined
+  fields of an Opportunity are rendered from `custom_fields`' own definitions endpoint, which
+  that code gates, and it grants nothing beyond reading definitions. A holder of `crm:read`
+  without it sees no custom-fields section and no refused request.
+- **Codes of other modules that CRM asks for and does not name in `requires`**, each
+  deliberately: `rfqs:handle` (to link or see a Quote Request — asked by the services after
+  presence, never by a route gate, because its owner can be switched off; research N-R13),
+  `catalog:read` (a Product's name in a reference), `assets.read` (attaching a library file
+  by id — a Sales Rep needs it for nothing the screens do; research N-I5), and
+  `orders:write` / `rfqs:handle` on the two "create from an Opportunity" buttons. A role
+  without one of them sees the corresponding record as unavailable, or no button, and is
+  told why.
 - Proof: `backend/test/contract/admin_users/permission-inventory.test.ts` — both directions
   plus labels. A code is declared in the same change as its first `requireAdmin('…')`, never
   before (`grantable ⇒ enforced` fails otherwise) — so `crm:analytics` is declared by US13 and
@@ -166,6 +189,10 @@ The story that adds a subscriber adds its off-state case in the same change.
 | `auditLog.crm.*` | audit action labels for the history tab and the audit viewer |
 | `opportunity.*`, `workflow.*`, `links.*`, `propagation.*` | US1 screens |
 | `assignment.*`, `comments.*`, `attachments.*`, `tags.*`, `board.*`, `value.*`, `history.*`, `references.*`, `analytics.*` | one prefix per later story |
+| `customFields.*` | the custom-fields section of the create form and the Overview (US15) |
+| `organizationPanel.*` | the panel on the Organization screen (US14, §5) |
+| `orderPanel.*` | the linked-Opportunity panel on the Order and Quote Request screens (US17, §5) |
+| `origin.*` | the "create from an Opportunity" buttons and their return messages (US10) |
 
 A story writes only under its own prefix, which is what keeps two stories' edits to the same
 two JSON files from conflicting beyond line adjacency.

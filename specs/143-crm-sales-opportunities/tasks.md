@@ -418,6 +418,11 @@ owners' own tests below.
 **Added by the owner's second ruling of 2026-10-05.** Phases 16A–16C are numbered so that no
 existing phase heading or task id moves; their ids continue from T152.
 
+> **Note on T161 (2026-10-06).** The task names `packages/modules/custom_fields/docs/` — that
+> directory does not exist: `custom_fields` ships no documentation page, so the "new host
+> type" half of T161 had nothing to edit and was documented on CRM's own page instead
+> (`research.md` N-G3; `contracts/foreign-module-changes.md` H5, struck).
+
 **Goal**: Opportunities are a custom-field host — define on the existing custom-fields
 screen, fill in on create and detail, validated per field, absent from that screen while CRM
 is off (research R-26).
@@ -503,6 +508,13 @@ nothing renders.
 
 ## Dependencies & Execution Order
 
+> **Note on file names (2026-10-06).** This section and a task line in almost every story —
+> from T023 to T176; `grep -n 'compose/' tasks.md` lists them — name
+> `src/backend/compose/<area>.ts` files. **None of them exists.** The premise was measured false at T023: composition is the single
+> file `packages/modules/crm/src/backend/index.ts`, one delimited section per area
+> (`research.md` N-6). Read every `compose/<area>.ts` below as "the `<area>` section of
+> `index.ts`"; the task lines are left as they were written.
+
 ### Phase dependencies
 
 - **Phase 1 → Phase 2 → Phase 3 (US1)**: strictly sequential. One developer, one worktree.
@@ -534,8 +546,11 @@ nothing renders.
 
 ### Parallel worktrees without file collisions
 
-No story after Phase 2 adds a migration or an entity, so **no two stories regenerate the
-migration or entity registry**. Three groups can be in flight at once:
+No story after Phase 2 adds an entity, and exactly one — US15, see below — adds a migration
+(`20261005T215329_crm_opportunity_custom_field_values.ts`, one column), so **no two stories
+regenerate the migration or entity registry**. (This sentence first read "No story after
+Phase 2 adds a migration or an entity", which stopped being true when US15 came into scope;
+corrected 2026-10-06.) Three groups can be in flight at once:
 
 - **Wave A** (after US1): US2, US3, US5, US6, US8, US11, US13 — each owns its own
   `compose/<area>.ts`, service, routes file, admin page/tab and test files.
@@ -642,7 +657,7 @@ not a one-declaration integration.
 | Requirement | Story | Proving test (task) |
 | --- | --- | --- |
 | FR-001, FR-002, FR-003, FR-004, FR-005 | US1 | T028, T030, T037 |
-| FR-006 | US1 (+ every story adding a read) | T031, and the out-of-scope case in T074, T079, T084, T088, T119, T125, T129 |
+| FR-006 | US1 (+ every story adding a read) | T031, and the out-of-scope case in T074, T079, T084, T088, T119, T125, T129, T182; the owner-permission cases of T184 and T185 |
 | FR-010 – FR-014 | Foundational, US1 | T010, T012, T027, T036 |
 | FR-015 | US1 | T032 |
 | FR-016 | US1 | T030, T033 |
@@ -650,11 +665,11 @@ not a one-declaration integration.
 | FR-021, FR-022, FR-023 | US1 | T030, T034 |
 | FR-024, FR-025 | US2 | T058 |
 | FR-026 | US10 | T108–T112 |
-| FR-027 | US8 | T095 |
-| FR-030 – FR-033 | US8 | T094, T095 |
+| FR-027 | US8 | T095 — **against a fixture only**: the test writes the Order's `sourceQuoteRequestId` by hand, because nothing in the product records it (research N-E3); the requirement is not reachable from the storefront or the Admin UI until `orders` does |
+| FR-030 – FR-033 | US8 | T094, T095 — FR-033's "counted once" on the same fixture as FR-027 (research N-E3) |
 | FR-040, FR-041 | US3 | T065, T066 |
 | FR-042, FR-043 | US4 | T073, T074 |
-| FR-044 | US5 | T078, T079 |
+| FR-044 | US5 | T078, T079, T182, T183 |
 | FR-045 | US12 | T124, T125 |
 | FR-050 | US6 (+ US7 for the board filter) | T084, T088 |
 | FR-051 | US7 | T088, T089, T148 |
@@ -662,14 +677,14 @@ not a one-declaration integration.
 | FR-053 | US13 | T129 |
 | FR-060, FR-061 | US9 | T103 |
 | FR-070 | Foundational + every story with a subscriber | T011, T060, T097, T104, T111 |
-| FR-071 | Setup, US1, US6, US7, US13 | T005, T036, T037, and `check:action-route-permissions` |
+| FR-071 | Setup, US1, US6, US7, US13 | T005, `packages/modules/crm/src/admin/index.test.ts` (T055, research N-29 — every sidebar row and palette action points at a declared route), the palette case of `off-state.test.ts` (T057), and `check:action-route-permissions`. The palette carries four curated actions; *Tags* and *Workflow* are reached from the sidebar only (`contracts/admin-surfaces.md` §3), which FR-071's "every screen" does not yet say |
 | FR-072 | every story | `check:bundle-pairing`, `registered-bundles-shape.test.ts`, `i18n:hardcoded` |
 | FR-073 | every story | `check:command-coverage`, T120 |
 | FR-074 | US14 | T134 |
 | FR-075 | Foundational, every story, Polish | `check:module-docs`, `check:docs-translations`, T141 |
 | FR-076 | US15 | T152, T153, T155 |
 | FR-077 | US16 | T162, T163, T164 |
-| FR-078 | US17 | T171, T172, T173 |
+| FR-078 | US17 | T171, T172, T173, and `admin/test/modules/crm/quote-request-opportunity-panel.test.tsx` for the Quote Request half |
 
 ## Notes
 

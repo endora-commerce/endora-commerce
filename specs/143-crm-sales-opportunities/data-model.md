@@ -18,6 +18,13 @@ regenerates the migration registry, so the no-collision property holds. No other
 for the stories added that day: webhooks deliver existing events, and the Order / Quote
 Request panel reads `crm_opportunity_links`.
 
+**As built, the module has two migrations** in `packages/modules/crm/src/migrations/`:
+`20261005T132439_crm_init.ts` — the thirteen tables, the sequence, the seeded workflow — and
+`20261005T215329_crm_opportunity_custom_field_values.ts`, which adds
+`crm_opportunities.custom_field_values jsonb not null default '{}'` and nothing else. Both
+are in `backend/src/db/migrations-registry.generated.ts`; the names carry the timestamps
+`migration:new` wrote and were not chosen.
+
 Conventions: `id uuid` primary key (`randomUUID()`), `created_at` / `updated_at timestamptz`,
 camelCase properties mapped to snake_case columns (Principle VI). Money is `numeric(14,2)`
 held as a string in TypeScript, as `orders.total` is. Entity classes live in
@@ -165,6 +172,16 @@ and the configuration screen says why.
 Effective value (API field `value`, and every SQL aggregate):
 `CASE value_mode WHEN 'manual' THEN manual_value ELSE computed_value END`.
 
+**That rule is written in exactly one file**, `src/backend/domain/effective-value.ts`, in both
+forms: `effectiveOpportunityValue(row)` over a loaded row and
+`effectiveOpportunityValueSql(alias)` as a SQL expression. The detail, the list's
+`sort=value`, the board's column totals and the five analytics statements all read it from
+there, and `effective-value.test.ts` scans the module's sources so that no other file spells
+it out (research N-I2). Two readings worth knowing: a manual Opportunity nobody has valued is
+`null` (skipped by `sum`, not ranked); a computed Opportunity with nothing counting is `0.00`
+(it is in the average and at the bottom of a ranking). `computed_value` is maintained only
+while the mode is `computed`, and a recalculation does not bump `version` (research N-E4).
+
 Additional indexes: `(organization_id, status_code)`; `(assigned_admin_user_id, status_code)`;
 `(closed_kind, closed_at)`.
 
@@ -224,6 +241,14 @@ vetoed | failed`; *Retry* inserts a new row and sets `dismissed_at` on the old o
 is reverse-direction only (the Opportunity graph refused, a guard vetoed, or the "all Orders"
 rule is not yet met — the last is **not** recorded, to avoid a row per Order event).
 "Unresolved" for the UI = forward rows with a refusing outcome and `dismissed_at is null`.
+
+As built: the `pending` rows are written inside the transition's own Command, in the same
+transaction as the status change (research N-16); a forward row left `pending` for more than
+a minute is shown as `failed` — the wire schema has no `pending` outcome (N-19); and a
+reverse-direction row may also be `failed`, written when an Order-caused move fails for a
+reason other than a workflow refusal, before the error is rethrown (N-R5). A reverse row is
+never in the unresolved list: retry and dismiss mean "ask the Order again", which has no
+reverse reading.
 
 ### `crm_tags`
 
@@ -286,7 +311,36 @@ leaving one for an `open` status clears both; moving between two closing statuse
 both.
 
 **Value mode** — `manual ↔ computed` at any time; switching to `computed` triggers a
-recalculation; `manual_value` is kept when switching away so switching back restores it.
+recalculation; `manual_value` is kept when switching away so switching back restores it. A
+mode switch is part of `PATCH /opportunities/:id` and is audited as `crm.opportunity.update`;
+there is no action of its own for it.
+
+## Locking (added by the review fixes — research N-R4, N-R12, N-R13)
+
+`crm_opportunities.status_code` holds a status **by value**, with no foreign key, so nothing
+in the schema stops a status being deleted or re-defined under an Opportunity that is on its
+way into it. The services close that with row locks, in one order everywhere — **the
+Opportunity first, then the status row**; a configuration write takes the status row alone —
+so no two of them can deadlock.
+
+| Who | Row | Lock | Where |
+| --- | --- | --- | --- |
+| a transition | the Opportunity | `for update` | `services/opportunity-transition-service.ts` |
+| a transition | the **target** status row | `for share`, held to the commit | same Command, after the Opportunity's lock |
+| creating an Opportunity | the **start** status row | `for share`, held to the commit | `services/opportunity-service.ts`, the create Command |
+| `PATCH /statuses/:code`, `DELETE /statuses/:code` | that status row | `for update`, **before** the in-use count | `services/workflow-config-service.ts` |
+| edit, delete, tag, assign, retry, value recalculation | the Opportunity | `for update` | each service's Command |
+
+What follows from it: a configuration write waits for a move in flight and then counts it
+(409 `CRM_STATUS_IN_USE`); a move that waited for a configuration write finds its target gone
+or its kind changed, writes nothing, and is evaluated again from the top against the workflow
+as it now is (422 for a deleted target; the new `closedKind` for a re-defined one); a
+creation whose start status went away answers 409 `VERSION_CONFLICT` to a person and is
+retried once, in the start status the workflow has by then, for an automatic creation. For a
+move caused by an Order, "a closed Opportunity is never reopened" is re-checked under the
+Opportunity's lock on every evaluation. A value recalculation locks the Opportunity alone and
+writes `computed_value` alone. A document linked automatically or by `origin` writes a link
+row and takes no lock.
 
 ## Validation rules (from the requirements)
 
@@ -294,8 +348,9 @@ recalculation; `manual_value` is kept when switching away so switching back rest
 | --- | --- |
 | title 1…200 chars; Organization exists and is visible to the caller | FR-001, FR-002, FR-006 |
 | contact person, when given, belongs to the Organization | FR-002 |
-| assignee, when given, is an active Admin UI user | FR-040 |
-| a linked document exists, is visible to the caller, belongs to the Opportunity's Organization, and is linked nowhere else | FR-020 |
+| assignee, when given, is an active Admin UI user **who can reach the Opportunity's Organization** (422 `CRM_ASSIGNEE_INVALID` otherwise — research N-R2) | FR-040 |
+| a linked document exists, is visible to the caller, belongs to the Opportunity's Organization, and is linked nowhere else; the caller holds the document owner's read permission (`orders:read`, `rfqs:handle` — research N-R3, N-R13) | FR-020, FR-079 |
+| an attachment is not a file a browser runs (HTML, XHTML, SVG, XML/XSL, JavaScript, by name or by type) and is at most 25 MB (research N-R1, N-F1) | FR-044, FR-080 |
 | a transition is in the graph and no guard vetoes it | FR-013, FR-015 |
 | a mapping names an existing Opportunity status; at most one per key per direction | FR-021, FR-024 |
 | a tag name is unique case-insensitively, 1…64 chars | FR-050 |
@@ -316,15 +371,46 @@ exactly as Order statuses are.
 
 ## Audit actions (Principle XIII)
 
-All through `CommandBus.run`. Object type `crm_opportunity` with the Opportunity's id for
-everything about one Opportunity: `crm.opportunity.create`, `.update`, `.delete`,
-`.transition`, `.assign`, `.value_mode_set`, `.link_add`, `.link_remove`, `.link_sync_set`,
-`.propagation_retry`, `.propagation_dismiss`, `.tag_set`, `.note_add`, `.note_update`,
-`.note_delete`, `.message_add`, `.attachment_add`, `.attachment_remove`.
-Object type `crm_opportunity_status`: `crm.status.create`, `.update`, `.delete`,
-`.set_initial`, `.set_transitions`. Object type `crm_status_mapping`: `crm.mapping.set`.
-Object type `crm_value_counting`: `crm.value_counting.set`. Object type `crm_tag`:
-`crm.tag.create`, `.update`, `.delete`.
+All through `CommandBus.run`. The set below is the one the module emits — every
+`'crm.<object>.<verb>'` literal in `src/backend/services/` — and
+`src/backend/services/opportunity-history-labels.test.ts` holds it: every audited action has a
+label under `auditLog.<action>` in both bundles, and no label names an action no Command
+declares.
+
+| Object type | Actions that write an audit entry |
+| --- | --- |
+| `crm_opportunity` (the Opportunity's id) | `crm.opportunity.create`, `.update`, `.delete`, `.transition`, `.assign`, `.link_add`, `.link_remove`, `.link_sync_set`, `.propagation_retry`, `.propagation_dismiss`, `.propagation_skip`, `.tag_set`, `.note_add`, `.note_update`, `.note_delete`, `.message_add`, `.attachment_add`, `.attachment_remove` |
+| `crm_opportunity_status` | `crm.status.create`, `.update`, `.delete`, `.set_initial`, `.set_transitions` |
+| `crm_status_mapping` | `crm.mapping.set` |
+| `crm_value_counting` | `crm.value_counting.set` |
+| `crm_tag` | `crm.tag.create`, `.update`, `.delete` |
+
+Three more Commands run through the bus and **never** write an audit entry (`skipAudit` on
+every path), so they can never appear in a history and carry no label:
+`crm.opportunity.propagation_record` (the second half of a transition or a retry that already
+has an entry — research N-16), `crm.opportunity.propagation_echo` (marking a forward row as
+echoed — N-B3) and `crm.opportunity.value_recalculate` (a derived figure — N-E4).
+
+Corrections to this section's first version, as built:
+
+- **`crm.opportunity.propagation_skip` was missing.** An Order-caused move the Opportunity
+  did not follow — refused by the workflow or a guard (`skipped`), or failed for another
+  reason (`failed`) — is one Command that writes the reverse-direction propagation row *and*
+  an audit entry, because the change history is read from the audit trail and a skipped
+  change must be "recorded on the Opportunity with the reason" (research N-B3, N-R5).
+- **`crm.opportunity.value_mode_set` was listed and nothing emits it.** A mode switch is a
+  field of `PATCH /opportunities/:id` and is audited as `crm.opportunity.update`.
+- `PATCH /statuses/:code` with `isInitial: true` alone is audited as `crm.status.set_initial`;
+  any other status edit as `crm.status.update` (research N-20).
+- A write that changes nothing writes no entry: naming the assignee already there, a note
+  saved with the text it has, a tag set equal to the current one.
+- **A note's or a message's text is never in an audited state** — the entries carry the
+  comment's id, kind, author and the text's length (research N-R6). The Opportunity's own
+  entries do carry its title and description, a transition's its optional `reason`, an
+  attachment's the file name.
+
+`crm.opportunity.assigned` and `crm.opportunity.message` are not audit actions: they are the
+*kinds* of the two notification-bell entries (`services/crm-notifier.ts`).
 
 System-driven writes (subscribers, the recalculation worker) run their Commands inside
 `enterSystemScope('<reason>', …)`; `computed_value` maintenance is a derived figure and uses

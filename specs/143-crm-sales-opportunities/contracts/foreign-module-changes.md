@@ -8,6 +8,19 @@ the module's own directory, why each change is generic rather than CRM-specific,
 story carries it. **A file not on this page is not touched by this feature**; an implementer
 who finds a need to touch one stops and reports it.
 
+**Reconciled with the tree on 2026-10-06** (branch `po/143-crm`, merge base `dc8daa72f`).
+The oracle is
+
+```bash
+git diff --stat $(git merge-base origin/master HEAD)..HEAD -- . \
+  ':!packages/modules/crm' ':!specs' ':!backend/test' ':!admin/test' ':!docs' \
+  ':!.changeset' ':!pnpm-lock.yaml'
+```
+
+which names **55 files**: every one of them is a row below, and every production file a row
+names is among them — except the three rows that say in so many words that nothing was edited
+(B2, G7, H5). Tests, docs mirrors and changesets, which that command leaves out, are §E.
+
 The test for every row: *delete `packages/modules/crm/` and regenerate — does the platform
 still compile, boot and pass its suites?* Yes for every row; the last column says what is left
 behind.
@@ -16,13 +29,13 @@ behind.
 
 | # | File | Change | Story | Left behind if CRM is removed |
 | --- | --- | --- | --- | --- |
-| A1 | `packages/contracts/src/crm.ts` (**new**) | all CRM Zod schemas, port and event types | Foundational | an unused contract file — delete with the module |
-| A2 | `packages/contracts/src/index.ts` | `export * from './crm.js';` | Foundational | one line |
+| A1 | `packages/contracts/src/crm.ts` (**new**), `packages/contracts/src/crm.test.ts` (**new**) | all CRM Zod schemas, port and event types; the co-located test of those schemas | Foundational | an unused contract file and its test — delete with the module |
+| A2 | `packages/contracts/src/index.ts` | `export * from './crm.js';` and the comment above it | Foundational | two lines |
 | A3 | `packages/contracts/src/admin-contributions.ts` | add `'crm'` to `AdminNavSectionNameSchema` | Foundational | an enum member no module joins — harmless, the shell hides an empty section |
-| A4 | `packages/admin-shell/src/components/AppShell.tsx` | add `{ key: 'crm', labelKey: 'appShell.section.crm', items: [] }` to `NAV`, after `sales` | Foundational | an empty, never-rendered section |
+| A4 | `packages/admin-shell/src/components/AppShell.tsx` | add `{ key: 'crm', labelKey: 'appShell.section.crm', items: [] }` to `NAV`, after `sales` — ten lines with the comment that says why the section is the host's | Foundational | an empty, never-rendered section |
 | A5 | `packages/modules/_i18n/i18n/en.json`, `pl.json` | `"appShell.section.crm": "CRM"` in both | Foundational | one unused key per language |
 | A6 | `packages/contracts/src/common.ts` | `OriginReferenceSchema` / `OriginReference` | US10 | a generic schema with two users |
-| A7 | `packages/contracts/src/errors.ts` | the `CRM_*` members — **only if** minting requires it (admin-api.md §13) | Foundational | unused members |
+| A7 | `packages/contracts/src/errors.ts` | the fifteen `CRM_*` members of `ERROR_CODES` — minting does require it (research N-13; admin-api.md §13) | US1 and each story that adds a raise site | unused members |
 | A8 | `scripts/check-naming.sh` | `crm` added to `allowed_proper_noun` — the id is an acronym, not a plural, and the check refuses it otherwise (research N-1) | Setup | one allow-list word naming no folder |
 | A9 | `backend/package.json` | `"@endora-commerce/mod-crm": "workspace:*"` — the generated registries import the package by bare specifier and no generator writes this line (research N-2) | Setup | a dependency on a missing member; remove with the module |
 | A10 | `packages/contracts/src/assets-library.ts` | `'crm_opportunity_attachment'` added to `assetReferenceKindSchema` — the kind an asset-reference descriptor answers is a closed enum, and no existing member fits an Opportunity attachment (research N-B15; approved by the coordinator 2026-10-05). Nothing else in the tree enumerates or renders the kinds: each sibling literal is named only by this file, by its owner's descriptor and by its owner's tests | US5 | an enum member no descriptor answers |
@@ -44,7 +57,7 @@ Zod schemas" is extended additively by US15, US16 and US17.
 | B3 | `packages/modules/orders/src/backend/services/order-creation-admin-service.ts` | `AdminCreateOrderInput.origin?`; passed to `placeOrder` |
 | B4 | `packages/modules/orders/src/backend/services/order-service.ts` | `placeOrder(ctx, req, options?: { origin?: OriginReference })`; the `order.created.v1` emit spreads `origin` when present; the local `Events` map type follows |
 | B5 | `packages/modules/orders/src/admin/pages/OrderCreatePage.tsx` | read `originType`, `originId`, `customerAccountId` from the query string; preselect the customer; send `origin`. **As built**, also `organizationId` (narrows the customer search), `salesChannelId` (preselected) and `returnTo` (an in-app path for Back and for the redirect after creating, which hands `{ createdDocument: { id } }` in the navigation state) — research N-J4 |
-| B6 | `packages/modules/orders/docs/orders.md` (+ Polish copy) | document `origin` on the event and the endpoint |
+| B6 | `packages/modules/orders/docs/orders.md` (+ Polish copy) | document `origin` on the event and the endpoint — and that it reaches outbound webhooks, because `webhooks` bridges `order.created.v1` whole (research N-J7) |
 
 Rules that keep this generic:
 
@@ -91,6 +104,23 @@ The set of artefacts is the generator's to state, not this table's: read what
 `composer:generate` reports it wrote and commit exactly that. `pnpm --filter backend run
 composer:check`, `manifests:check` and `overlay:check` are the proofs.
 
+**As built**, the generated files that changed outside the module, each as its generator
+wrote it: `backend/src/composition.generated.ts`, `backend/src/manifest-index.generated.ts`,
+`backend/src/db/migrations-registry.generated.ts` (both CRM migrations),
+`backend/src/db/entities-registry.generated.ts`, `backend/test/entities.generated.ts`,
+`admin/src/modules.generated.ts`, `admin/src/tailwind.generated.css` (one `@import` of
+`@endora-commerce/mod-crm/tailwind.css` — its header names `composer:generate`),
+`admin/package.json` (the `@endora-commerce/mod-crm` line; the `@dnd-kit/core` line beside
+it is G2, written by hand), `docs/sidebars.modules.generated.js`,
+`docs/docs/modules/module-map.generated.md` and `docs/docs/module-reference/crm.md`.
+
+### D2. Speckit plumbing — two files the feature workflow writes, not the feature
+
+| File | What changed | Does it belong in the pull request? |
+| --- | --- | --- |
+| `AGENTS.md` | Only the auto-generated appendix at the bottom (*Active Technologies*, *Recent Changes*) and the `Last updated` date: two lines for this feature added, two `089-*` lines rotated out of *Recent Changes*. Written by `.specify/scripts/bash/update-agent-context.sh`, which `/speckit.plan` runs and which is pinned to this file. No rule, route or section of the router changed, and `backend/test/unit/docs/agents-router.test.ts` is unaffected | **Yes** — it is what `/speckit.plan` produces and what the file's own *Feature workflow* section describes; every planned feature before this one carried the same appendix lines to `master` (the `068-*`, `072-*`, `089-*`, `094-*`, `119-*` lines there). It is a hot file: a feature planned in parallel edits the same lines, so expect a trivial conflict on rebase and keep both sides' *Active Technologies* lines |
+| `.specify/feature.json` | `feature_directory` now names `specs/143-crm-sales-opportunities` instead of `specs/130-comarch-xl-sync`. Written by `/speckit.specify`; it tells the later speckit commands which directory is current | **Yes, by precedent** — the file is tracked and a feature's own commits have carried the pointer to `master` every time (`git log origin/master -- .specify/feature.json` lists them: `3d2065f58` for the Infakt feature, `d0ba9cfc1` for Pimcore, `107eb2143` for product feeds and `9b84c8b51` for the kernel extraction are four). It is one line that the next `/speckit.specify` overwrites, so a conflict there is resolved by taking whichever feature was specified last |
+
 ## E. Test harness and ledgers — only where a check asks
 
 | File | When |
@@ -109,6 +139,17 @@ composer:check`, `manifests:check` and `overlay:check` are the proofs.
 | `docs/i18n/pl/…` | the Polish copy of every docs page this feature writes or edits |
 | `docs/translation-cache/pl/…`, `docs/i18n/pl/docusaurus-plugin-content-docs/current.json` | the translation-cache entry beside every Polish copy, the generated reference page and module-map row in Polish, and the `sidebar.main.category.crm` id (research N-10) |
 | `docs/docs/module-reference/crm.md` | generated by `composer:generate` and committed, as every module's reference page is |
+| `backend/test/helpers/seed-crm-analytics.ts`, `backend/test/helpers/crm-attachment-upload.ts` (**new**) | the hand-computed analytics fixture (US13) and the multipart request the upload tests share (US5, T182) |
+| `backend/test/entities.generated.ts` | generated beside the entities registry; the thirteen CRM classes joined it |
+| `backend/test/contract/orders/admin-create.test.ts`, `backend/test/integration/orders/admin-create-origin.test.ts` (**new**) | the tests §B owes: `origin` accepted, echoed on the event, absent when not sent, refused when malformed (400) |
+| `backend/test/contract/quote_requests/admin-routes.test.ts`, `backend/test/integration/quote_requests/admin-create-origin.test.ts` (**new**) | the tests §C owes: `rfq.created_by_admin.v1` once, with the origin or `null`; `rfq.created.v1` still not emitted on that path |
+| `backend/test/integration/custom_fields/entity-owner-presence.test.ts` (**new**) | §H's proof: a host type whose owner is off is not offered and its definitions cannot be changed; existing types unaffected |
+| `backend/test/integration/webhooks/contributed-events.test.ts` (**new**), `admin/test/modules/webhooks/contributed-event-types.test.tsx` (**new**) | §I's proofs |
+| `admin/test/kit/kit-custom-field-values.test.tsx` | three cases for the panel's embedded mode (G8) |
+| `admin/test/modules/orders/OrderCreatePage.test.tsx`, `admin/test/modules/quote_requests/RfqCreatePage.origin.test.tsx` (**new**) | B5 and C3: the query parameters, and the exact request body when opened without them |
+| `admin/test/modules/orders/OrderDetail.after-zone.test.tsx`, `admin/test/modules/quote_requests/RfqDetail.after-zone.test.tsx` (**new**) | §J's proofs: an empty zone renders nothing |
+| `admin/test/modules/quote_requests/RfqDetail.custom-fields.test.tsx`, `RfqDetail.validity.test.tsx` | the screen now ends with a zone (J3), so these two existing tests render it under the session providers, with no contribution; no assertion changed |
+| `.changeset/*.md` | nine changesets, one per meaning (`specs/conventions/release-intent.md`) |
 
 No `root-dispositions.json` entry is owed for `specs/143-crm-sales-opportunities/`: that check
 was retired from the canonical tree (the header of `backend/scripts/lib/root-dispositions.ts`
@@ -127,8 +168,8 @@ primitive of the design system. This is a **host package** change.
 | G4 | `packages/admin-kit/src/components/kanban/KanbanBoard.tsx`, `index.ts` (**new**) | the generic board: lanes, cards, `canDrop`, `onMove`, render props, announcements |
 | G5 | `packages/admin-kit/src/components/index.ts` | export `KanbanBoard` and its types |
 | G6 | `admin/test/components/KanbanBoard.test.tsx` (**new**) | the primitive's tests |
-| G7 | another consumer of `@endora-commerce/admin-kit` (`packages/admin-shell/package.json`, the docs site, the `create-endora-commerce` template) | **only if** `pnpm install --frozen-lockfile` reports the new peer unmet there — T149 measures it and names the file |
-| G8 | `packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx` | **conditional, US15**: an optional controlled mode (`onChange`, no save button), only if the panel cannot be embedded in the create form as it is — T160 decides after reading it |
+| G7 | another consumer of `@endora-commerce/admin-kit` (`packages/admin-shell/package.json`, the docs site, the `create-endora-commerce` template) | **only if** `pnpm install --frozen-lockfile` reports the new peer unmet there — T149 measures it and names the file. **As built: not triggered, no file edited** (research N-K2) |
+| G8 | `packages/admin-kit/src/components/custom-field-values/CustomFieldValuesPanel.tsx` | **conditional, US15**: an optional controlled mode (`onChange`, no save button), only if the panel cannot be embedded in the create form as it is — T160 decides after reading it. **As built: taken.** `save` became optional, `onChange(values)` reports the whole bag, and two more optional props came in the same file — `fieldErrors` (a refusal shown at its field) and `language` (labels were hard-coded to English). All default to the old behaviour, so the four existing hosts are unchanged (research N-G1) |
 
 `packages/modules/crm` declares **nothing** for `@dnd-kit`: it imports the primitive from
 `@endora-commerce/admin-kit/components`. Left behind if CRM is removed: a design-system
@@ -142,11 +183,12 @@ component with no consumer yet, and one peer — which is what "reusable" means.
 | H2 | `packages/modules/custom_fields/src/backend/services/custom-field-registry.ts` | optional `ownerModuleId` on `SupportedEntityMeta`; the `opportunity` entry (`orgOwned: true`, `ownerModuleId: 'crm'`) — compile-coupled to H1, because the map is a `Record` over the enum |
 | H3 | `packages/modules/custom_fields/src/backend/routes.admin.ts` | `entity-types` omits a type whose owner is not effectively present; definition mutations for such a type are refused |
 | H4 | `packages/modules/custom_fields/i18n/en.json`, `pl.json` | `customFields.entity.opportunity` |
-| H5 | `packages/modules/custom_fields/docs/…` (+ Polish copy) | the new host type and the owner-presence rule |
-| H6 | every exhaustive switch or enumerating test over `SupportedEntityType` | found by grep in T156, repaired in the same change, named in the pull request |
+| H5 | ~~`packages/modules/custom_fields/docs/…` (+ Polish copy) — the new host type and the owner-presence rule~~ | **Struck: not edited, and cannot be.** `custom_fields` ships no documentation page — there is no `packages/modules/custom_fields/docs/` directory and the module map says "no page yet". The host type and the owner-presence rule are documented on CRM's own page instead (research N-G3). Still owed, outside this feature: `docs/docs/architecture/custom-fields.md` describes `managedBy` and not the new `ownerModuleId` marker |
+| H6 | every exhaustive switch or enumerating test over `SupportedEntityType` | found by grep in T156, repaired in the same change. **As built, two files**: `packages/modules/custom_fields/src/backend/services/custom-field-value.service.ts` — one line, the `opportunity` entry of `HOST_TABLE_BY_ENTITY`, a second `Record` over the enum (the `{ table, column }` the definition-change guards probe: `crm_opportunities.custom_field_values`); and its row in `packages/modules/custom_fields/src/backend/services/value-probe-binding.test.ts` (research N-G3) |
 
 `custom_fields` learns one string, `'crm'`, as a registry value — the same way it already
-holds `'catalog'` in `managedBy`. It imports nothing from CRM and reads the marker's presence
+holds `'catalog'` in `managedBy` — and one table name, `crm_opportunities`, as the value of
+H6's map, the same way that map already holds every other host's table. It imports nothing from CRM and reads the marker's presence
 only. Existing host types declare no owner and behave exactly as before, which
 `entity-owner-presence.test.ts` proves. Left behind if CRM is removed: an enum member and a
 registry entry whose owner is never present, so the type is never offered — inert, and
@@ -157,7 +199,7 @@ removable with the module.
 | # | File | Change |
 | --- | --- | --- |
 | I1 | `packages/contracts/src/webhooks.ts` | `WebhookEventDescriptor`, `WebhookEventRegistryPort` |
-| I2 | `packages/modules/webhooks/src/backend/services/webhook-event-registry.ts` (**new**) | the registry; bridges each contributed type through the module's own gated subscription |
+| I2 | `packages/modules/webhooks/src/backend/services/webhook-event-registry.ts` (**new**), `webhook-event-registry.test.ts` (**new**, beside it) | the registry; bridges each contributed type through the module's own gated subscription; its co-located unit test |
 | I3 | `packages/modules/webhooks/src/backend/index.ts` | register `webhookEventRegistry` ungated |
 | I4 | `packages/modules/webhooks/src/backend/routes.ts` | `GET /api/v1/admin/webhooks/event-types` |
 | I5 | `packages/modules/webhooks/src/admin/pages/WebhooksPage.tsx` | offer the contributed types **after** the existing `KNOWN_EVENT_TYPES`, which is not edited |
@@ -173,7 +215,7 @@ bridges two — a pre-existing defect for the register.
 | # | File | Change |
 | --- | --- | --- |
 | J1 | `packages/contracts/src/admin-contributions.ts` | `'order.detail.after'` and `'quote_request.detail.after'` in `AdminZoneNameSchema` and `AdminZonePropsMap`; new `QuoteRequestDetailZoneProps { quoteRequestId }` |
-| J2 | `packages/modules/orders/src/admin/pages/OrderDetail.tsx` | one line: `<AdminZone name="order.detail.after" props={{ orderId: id }} />` |
+| J2 | `packages/modules/orders/src/admin/pages/OrderDetail.tsx` | one element, `<AdminZone name="order.detail.after" props={{ orderId: id }} />`, with its import and a comment — six lines |
 | J3 | `packages/modules/quote_requests/src/admin/pages/RfqDetail.tsx` | one line: the Quote Request mount (and the `AdminZone` import) |
 | J4 | both modules' docs pages (+ Polish copies) | the new zone |
 

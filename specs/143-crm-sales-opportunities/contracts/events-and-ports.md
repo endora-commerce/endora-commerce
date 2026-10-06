@@ -26,6 +26,7 @@ For a transition `x → y` (status codes), in this order:
 | 6 | `crm.opportunity.status_changed.v1` | after commit | no |
 | 7 | `crm.opportunity.status.from_<x>_to_<y>.after` | after commit | no |
 | 8 | `crm.opportunity.status.to_<y>.after` | after commit | no |
+| 9 | `crm.opportunity.closed.v1` (§1.2) | after commit, only when `y` is a `won` or `lost` status | no |
 
 Payload `OpportunityStatusEvent`: `opportunityId`, `organizationId`, `salesChannelId | null`,
 `from`, `to`, `fromKind`, `toKind` (`open | won | lost`), `actor` (`{ kind: 'admin' |
@@ -44,19 +45,51 @@ transition.
 subscriber that reads the linked Orders sees their new statuses — the ordering
 `OrderTransitionService` keeps between its follow-ups and its announcement.
 
+**Rows 6–9 are delivered inside one `EventBus.run`** (as built — research N-E19;
+`services/opportunity-transition-service.ts`, step 5). The bus holds them back and dispatches
+them one after another, each to all of its subscribers before the next, so the order above is
+the order every subscriber sees, whoever else subscribes — emitted bare, each event starts a
+dispatch chain of its own and an awaiting subscriber of row 6 would receive it after rows 7
+and 8. Two consequences a caller meets: **the transition answers once its after-subscribers
+have run**, and they are emitted in a `finally`, so they are announced even when asking the
+Orders threw. A subscriber's failure is still isolated by the bus and neither undoes nor fails
+the transition. Rows 2–3 are emitted bare: they are passive and nothing is promised about
+them beyond "ahead of the write". *A coordinator decision, owner informed, reversible
+(`spec.md` § Clarifications, D-5).*
+
 ### 1.2 Lifecycle
 
 | Event | Payload beyond `EventBase` |
 | --- | --- |
-| `crm.opportunity.created.v1` | `opportunityId`, `organizationId`, `number`, `source` |
-| `crm.opportunity.closed.v1` | `opportunityId`, `organizationId`, `outcome` (`won|lost`), `value`, `currency` |
-| `crm.opportunity.assigned.v1` | `opportunityId`, `organizationId`, `assignedAdminUserId | null`, `previousAdminUserId | null` |
-| `crm.opportunity.document_linked.v1` | `opportunityId`, `organizationId`, `documentKind`, `documentId`, `linkSource` |
+| `crm.opportunity.created.v1` | `opportunityId`, `number`, `organizationId`, `source` (`manual \| order \| quote_request`) |
+| `crm.opportunity.closed.v1` | `opportunityId`, `organizationId`, `outcome` (`won \| lost`), `value \| null` (the effective value when it closed), `currency` |
+| `crm.opportunity.assigned.v1` | `opportunityId`, `organizationId`, `assignedAdminUserId \| null`, `previousAdminUserId \| null` |
+| `crm.opportunity.document_linked.v1` | `opportunityId`, `organizationId`, `documentKind` (`order \| quote_request`), `documentId`, `linkSource` (`manual \| auto \| created_from_opportunity \| quote_conversion`) |
+
+The names are the members of `CRM_EVENTS` in `packages/contracts/src/crm.ts`; the payload
+types are `OpportunityCreatedEvent`, `OpportunityClosedEvent`, `OpportunityAssignedEvent` and
+`OpportunityDocumentLinkedEvent` there. `status_changed`, `created` and `closed` have strict
+Zod schemas because they are offered to outbound webhooks (§6); `assigned` and
+`document_linked` are in-process only and are plain interfaces.
 
 `created`, `assigned` and `document_linked` are declared through their Command's
 `event(result)`, so each is dispatched exactly once per committed Command and never for a
 rolled-back one (Principle XIII). `closed` accompanies a status change and is emitted by the
-transition service after commit, beside the status events of §1.1.
+transition service after commit, as row 9 of §1.1.
+
+As built, three refinements:
+
+- **`assigned` is not emitted on create.** A Command declares one event and the create
+  Command declares `created`; `assigned` is emitted by `POST …/assign` and by a `PATCH` that
+  changes the assignee, and not when the assignee named is the one already there (research
+  N-B8).
+- **`document_linked` for an automatically created Opportunity is emitted by the service,
+  after the creating Command has committed** — that Command has already declared `created`
+  (`services/opportunity-auto-create-service.ts`, `#announceLink`; `linkSource: 'auto'`). For
+  a link written by hand, by `origin` or by quote conversion it is the link Command's own
+  event.
+- **No event is emitted for an unlink**, for a tag, a note, a message or an attachment, or
+  for a value recalculation. A consumer that needs those reads the Opportunity.
 
 ## 2. Events CRM consumes
 
@@ -66,7 +99,7 @@ work inside `enterSystemScope('crm: <what>', …)` and constrains by `organizati
 
 | Event (owner) | Handler | Story |
 | --- | --- | --- |
-| `order.status_changed.v1` (`orders`) | echo suppression, reverse mapping, value recalculation | US2, US8 |
+| `order.status_changed.v1` (`orders`) | echo suppression and reverse mapping; value recalculation — **two** `ctx.subscribe` calls, run by the bus in registration order, so the value is recalculated after the Opportunity has moved (research N-E6) | US2, US8 |
 | `order.created.v1` (`orders`) | link by `origin`; link by quote conversion; automatic creation | US8, US9, US10 |
 | `rfq.created.v1` (`quote_requests`) | automatic creation | US9 |
 | `rfq.created_by_admin.v1` (`quote_requests`, **new** — see `foreign-module-changes.md`) | link by `origin`; automatic creation | US9, US10 |
@@ -75,6 +108,26 @@ work inside `enterSystemScope('crm: <what>', …)` and constrains by `organizati
 Handlers are idempotent: linking is guarded by the unique `(document_kind, document_id)`
 constraint, recalculation is a pure function of current state, and the reverse mapping is a
 no-op when the Opportunity is already at its target.
+
+Payloads as consumed (as built):
+
+- `order.created.v1` — `orderId`, `organizationId` and, new with this feature, an optional
+  `origin: { type, id }` (`OriginReference`, `packages/contracts/src/common.ts`). It names
+  **no actor**, which is why the origin link cannot ask whether the Order's creator holds
+  `crm:write` (research N-J2; `spec.md` § Clarifications, D-9). `orders` emits it inside the
+  placing transaction, so the handler re-reads the Order after its commit (research N-E7,
+  N-E18).
+- `rfq.created_by_admin.v1` — `RfqCreatedByAdminEventPayload` in
+  `packages/contracts/src/quote-requests.ts`: `rfqId`, `organizationId`, `adminUserId`,
+  `origin: OriginReference | null`. Emitted by `quote_requests`, once per Quote Request
+  created through the admin path; the customer path stays `rfq.created.v1` and never this.
+- The four value events carry `rfqId` only, so the handler finds the link by document.
+- **Quote conversion** ("link by quote conversion" above) reads
+  `OrderRecord.sourceQuoteRequestId`, which nothing in the platform writes today — the
+  branch is built and proven against a fixture, and is not reachable from the product
+  (research N-E3; `spec.md` § Clarifications, A-1).
+- A Quote Request reaching `Completed` announces nothing, so there is no handler for it
+  (research N-E4 (f)).
 
 ## 3. The guard registry — refusing a transition
 
@@ -173,39 +226,51 @@ EntityManager.
 Every one resolved with `lazyPort<T>(ctx, '<literal name>')`, `T` from
 `@endora-commerce/contracts`, never captured in a singleton, never wrapped in a bare `catch`.
 
-| Port (owner) | Used for | Edge |
-| --- | --- | --- |
-| `orderReadPort` (`orders`) | validate and render linked Orders; value | `dependencies` |
-| `orderTransitionPort` (`orders`) | forward propagation | `dependencies` |
-| `organizationDetailsPort`, `salesRepAssignmentPort` (`organizations`) | validate the Organization; default assignee | `dependencies` |
-| `customerAccountReadPort` (`customer_accounts`) | validate and render the contact person | `dependencies` |
-| `adminUserReadPort` (`admin_users`) | assignee validation, author and actor names | `dependencies` |
-| `catalogProductReadPort` (`catalog`) | reference labels | `dependencies` |
-| `settingsReadPort` (`settings`) | the two automatic-creation settings | `dependencies` |
-| `requireAdmin` (`auth`) | every route | `dependencies` |
-| `assetReferenceRegistry` (`assets_library`) | deletion protection | `dependencies` (also read for attachment metadata — **[unverified]** which read port; T080) |
-| `salesChannelAttributionRegistry` (`sales_channels`) | channel-delete guard | `dependencies` |
-| `auditReferenceRegistry` (`audit_logs`) | recent-activity labels | `contributes-to` |
-| `adminNotificationRecordPort` (`admin_notifications`) | assignment and message notifications | `degrades-without` |
-| `quoteRequestReadPort` (`quote_requests`) | linked Quote Requests; value | `degrades-without` |
+The table is the complete set as built: every `lazyPort<…>(ctx, '…')` in
+`packages/modules/crm/src/backend/index.ts` (the one composition file — research N-6), with
+the owner each name's `Container name:` marker or `providePort` call states, and the edge as
+`packages/modules/crm/src/manifest.ts` declares it. `pnpm --filter backend run
+check:port-dependencies` holds the two together.
 
-`whenAbsent` sentences (rendered to the operator switching the owner off):
+| Port — container name (owner) | Type | Used for | Edge |
+| --- | --- | --- | --- |
+| `orderReadPort` (`orders`) | `OrderReadPort` | validate and render linked Orders; value; references; automatic creation | `dependencies` |
+| `orderTransitionPort` (`orders`) | `OrderTransitionPort` | forward propagation | `dependencies` |
+| `organizationDetailsPort` (`organizations`) | `OrganizationDetailsPort` | validate and name the Organization | `dependencies` |
+| `organizationSalesRepScopePort` (`organizations`) | `SalesRepAssignmentPort` | the default assignee — the Sales Reps assigned to the Organization. **The container name is not the type's name** (research N-B5) | `dependencies` |
+| `adminTenantScopePort` (`organizations`) | `AdminTenantScopePort` | whether an administrator *other than the caller* can reach an Organization: assignee validation, who is told by the bell, the creator's reach on the `origin` path (research N-R2, N-J2) | `dependencies` |
+| `customerAccountReadPort` (`customer_accounts`) | `CustomerAccountReadPort` | validate and render the contact person | `dependencies` |
+| `adminUserReadPort` (`admin_users`) | `AdminUserReadPort` | assignee validation, author and actor names, the acting administrator's language | `dependencies` |
+| `permissionService` (`admin_roles`) | `PermissionReadPort` | whether the reader holds the *owner's* read code for a linked Order, a linked Quote Request or a referenced Product — `orders:read`, `rfqs:handle`, `catalog:read` (research N-R3, N-R13) | none of its own: `admin_roles` is in the dependency closure through `admin_users`, which is what the check asks for; both are non-deactivatable |
+| `catalogProductReadPort` (`catalog`) | `CatalogProductReadPort` | reference labels | `dependencies` |
+| `settingsReadPort` (`settings`) | `SettingsReadPort` | the two automatic-creation settings | `dependencies` |
+| `assetReadPort` (`assets_library`) | `AssetReadPort` | an attachment's metadata (name, type, size) | `dependencies` |
+| `assetsLibraryPort` (`assets_library`) | `AssetsLibraryPort` | `upload` for the CRM-owned upload; `getAsset` for a download link; `softDelete` for a file stored and then not attached (research N-F1) | `dependencies` |
+| `assetReferenceRegistry` (`assets_library`) | `AssetReferenceRegistryPort` | deletion protection — a push from a contribution-only boot hook | `dependencies` |
+| `salesChannelAttributionRegistry` (`sales_channels`) | `SalesChannelAttributionRegistryPort` | channel-delete guard — a push from a contribution-only boot hook | `dependencies` |
+| `auditReferenceRegistry` (`audit_logs`) | `AuditReferenceRegistryPort` | recent-activity labels — a push from a contribution-only boot hook | **`dependencies`**, not `contributes-to` as this page first said: the check refuses a `contributes-to` edge into a registry whose absent-contributor policy is not on its ledger, and a binding edge to a non-deactivatable owner is what the registry's four other contributors declare (research N-G6) |
+| `customFieldValueService` (`custom_fields`) | `CustomFieldValuePort` | validate and project an Opportunity's custom values | `dependencies` — the owner is non-deactivatable, so there is no off state to degrade into |
+| `adminNotificationRecordPort` (`admin_notifications`) | `AdminNotificationRecordPort` | assignment and message notifications | `degrades-without` |
+| `quoteRequestReadPort` (`quote_requests`) | `QuoteRequestReadPort` | linked Quote Requests; value; the Quote Request lookup | `degrades-without` |
+| `webhookEventRegistry` (`webhooks`, **new** — §6) | `WebhookEventRegistryPort` | offer CRM's events for outbound delivery | `contributes-to` — a push at boot; nothing degrades, so no `whenAbsent` |
+
+`requireAdmin` (`auth`, a `dependencies` entry) gates every route; it is read from the cradle
+in each `ctx.routes` body rather than through `lazyPort`.
+
+`whenAbsent` sentences (rendered to the operator switching the owner off), as the manifest
+has them:
 
 - `admin_notifications` — "CRM stops notifying people about assignments and messages;
-  everything else in CRM keeps working."
+  everything else in CRM keeps working"
 - `quote_requests` — "Quote Requests linked to Opportunities show as unavailable, stop
-  counting toward computed Opportunity values, and can no longer be linked or created from an
-  Opportunity. Opportunities and their Orders keep working."
+  counting toward computed values, and can no longer be linked or created from one.
+  Opportunities and their Orders keep working" (shortened from this page's first wording to
+  fit the manifest schema's 200 characters — research N-E5).
 
-The kernel's `AuditPort` (cradle name `auditLogService`) and `CommandBus` are platform
-services, not module ports, and need no manifest edge.
-
-Two more edges since the second ruling of 2026-10-05:
-
-| Port (owner) | Used for | Edge |
-| --- | --- | --- |
-| `customFieldValueService` (`custom_fields`, type `CustomFieldValuePort`) | validate and project an Opportunity's custom values | `dependencies` — the owner is non-deactivatable, so there is no off state to degrade into |
-| `webhookEventRegistry` (`webhooks`, **new** — §6) | offer CRM's events for outbound delivery | `contributes-to` — a push at boot; nothing degrades, so no `whenAbsent` |
+Platform services read from the cradle, which are not module ports and need no manifest
+edge: the kernel's `AuditPort` (cradle name `auditLogService`), `commandBus`, `eventBus`,
+`emFactory`, `moduleQueueRedis` and `processRunsWorkers`. `effectiveState` and
+`enterSystemScope` are imported from the platform's barrels.
 
 ## 6. Outbound webhooks (US16)
 

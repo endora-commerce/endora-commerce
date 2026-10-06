@@ -15,6 +15,11 @@
   platform error envelope otherwise.
 - Tenant scope is ambient. A resource of an Organization the caller may not see answers
   **404 `CRM_OPPORTUNITY_NOT_FOUND`**, the same as a missing one.
+- A body or a query the Zod schema refuses answers **400 `VALIDATION_FAILED`**; 422 is what
+  a service raises for a well-formed request it cannot honour (research N-13 (c)). A child
+  resource — a propagation outcome, a link, a comment, an attachment — addressed under an
+  Opportunity it does not belong to answers **404 `NOT_FOUND`**; the parent's own absence is
+  404 `CRM_OPPORTUNITY_NOT_FOUND`.
 - Schema names below are the exports of `packages/contracts/src/crm.ts`.
 
 ## 1. Opportunities (US1; fields extended by US3, US6, US8)
@@ -77,6 +82,26 @@ status answers 200 with an empty `propagation`.
 **A refused Order change is not an HTTP error.** The Opportunity moved; the response is 200
 and the refusal is an element of `propagation` with `outcome` and `detail` (FR-022).
 
+**Retry and dismiss at the edges** (as built — research N-19, N-R11):
+
+- *Retry* asks the Order for what the Opportunity's status maps to **now** — the usual cause
+  of a retry is a corrected mapping — and falls back to what the retired row asked when the
+  mapping is gone. It answers 200 with the new `PropagationOutcome`; the old row is
+  dismissed.
+- *Retry* is refused with **409 `VERSION_CONFLICT`**, and nothing is written, when the
+  outcome is already settled (applied, or dismissed), when the Opportunity has since left the
+  status the row was written for, or when the Order no longer follows it (status following
+  switched off, or the link gone). Which of the three it was is not in the response: the
+  envelope answers that code with its own sentence.
+- *Dismiss* of an outcome that is not unresolved — already dismissed, or applied — is
+  refused with the same 409.
+- `:propagationId` under an Opportunity it does not belong to is **404 `NOT_FOUND`**.
+- There is no `pending` outcome on the wire. A row left pending for more than a minute — a
+  process that stopped between the Opportunity's commit and the Order's answer — is listed
+  among `unresolvedPropagations` as `failed`, and a retry consumes it.
+- The transition answers once the after-events of `events-and-ports.md` §1.1 have been
+  delivered to their subscribers (research N-E19).
+
 **Moving a followed Order is a consequence of the workflow, not an act of the caller.** The
 transition is gated `crm:write` and nothing more: the Order status a transition asks for was
 mapped by somebody holding `crm:configure`, and it is applied whether or not the acting
@@ -120,12 +145,15 @@ Opportunity), 422 `CRM_LINK_ORGANIZATION_MISMATCH`, 503 `MODULE_DISABLED` for
 | Method · Path | Gate | Request | Response |
 | --- | --- | --- | --- |
 | `GET /workflow` | `crm:read` | — | `{ data: OpportunityWorkflow }` |
-| `POST /statuses` | `crm:configure` | `CreateOpportunityStatusRequestSchema` | 201 |
-| `PATCH /statuses/:code` | `crm:configure` | `UpdateOpportunityStatusRequestSchema` | 200 |
+| `POST /statuses` | `crm:configure` | `CreateOpportunityStatusRequestSchema` | 201 `{ data: OpportunityWorkflow }` |
+| `PATCH /statuses/:code` | `crm:configure` | `UpdateOpportunityStatusRequestSchema` | 200 `{ data: OpportunityWorkflow }` |
 | `DELETE /statuses/:code` | `crm:configure` | — | 204 |
 | `PUT /transitions` | `crm:configure` | `{ add?: Edge[], remove?: Edge[] }` | 200 `{ data: OpportunityWorkflow }` |
-| `PUT /order-status-mappings` | `crm:configure` | `{ mappings: OrderStatusMapping[] }` (replaces the set) | 200 |
-| `PUT /value-counting-statuses` | `crm:configure` | `{ order: string[], quoteRequest: QuoteRequestStatus[] }` | 202 (recalculation enqueued) |
+| `PUT /order-status-mappings` | `crm:configure` | `{ mappings: OrderStatusMapping[] }` (replaces the set) | 200 `{ data: OpportunityWorkflow }` |
+| `PUT /value-counting-statuses` | `crm:configure` | `{ order: string[], quoteRequest: QuoteRequestStatus[] }` | 202 `{ data: OpportunityWorkflow }` (recalculation enqueued) |
+
+**Every configuration write answers the whole workflow** — the screen redraws from one
+response — except `DELETE`, which is 204 (as built — research N-20, N-E4 (d)).
 
 `OpportunityWorkflow`: `statuses [{ code, name, defaultName, kind, isInitial, weight, color,
 inUseCount }]`, `transitions [{ fromStatusCode, toStatusCode }]`,
@@ -138,6 +166,29 @@ all need the statuses to render.
 Errors: 409 `CRM_STATUS_CODE_TAKEN`, 409 `CRM_STATUS_IN_USE`, 409
 `CRM_STATUS_INITIAL_REQUIRED`, 422 `CRM_WORKFLOW_INVALID` (`details.rule` names the broken
 invariant).
+
+Refusals as built (research N-20, N-B3, N-R12):
+
+- **404 `NOT_FOUND`** for `PATCH` or `DELETE` of a status code the workflow does not have.
+- **409 `CRM_STATUS_IN_USE`** also for a `PATCH` that changes a status's `kind` while any
+  Opportunity is in it — `closedAt` / `closedKind` are stamped on those rows. Both it and
+  `DELETE` wait for a transition in flight into that status and then count it
+  (`data-model.md` § Locking).
+- **`details.rule`** of 422 `CRM_WORKFLOW_INVALID` is one of eight values, the same eight
+  the manifest declares as that code's tokens: `exactly_one_initial`,
+  `initial_must_be_open`, `won_status_required`, `lost_status_required`,
+  `transition_unknown_status`, `mapping_unknown_status`, `mapping_duplicate`,
+  `mapping_duplicate_order_status`. The rule is also in `details.code`, which is what
+  selects one sentence per rule in the bundles (research N-13 (b)).
+- `PATCH` with `isInitial: true` moves the start flag from the status that had it.
+- `requireAllOrders` is stored `false` on an `opportunity_to_order` mapping whatever the
+  request says.
+- **An Order status code is not validated on write**, in a mapping or in the counting set:
+  nothing `orders` publishes answers "is this an Order status code" (research N-8).
+  `orderStatusKnown` on read is evidence from what the Orders port has already answered,
+  not validation — it is `true` for a code nobody has asked for yet (research N-B1) — and
+  `unknown_status` as a propagation outcome is where an unknown code shows first. A Quote Request status outside the platform's six is 400.
+- The counting sets are stored sorted and de-duplicated.
 
 Order statuses offered in the mapping and counting pickers are fetched by the admin screen
 from the Orders API it already has (`GET /api/v1/admin/orders/statuses`, `orders`' gate) — CRM
@@ -226,7 +277,7 @@ R-21's "no catalog permission is asked").
 ## 10. Board (US7)
 
 `GET /board` · `crm:read` · query: the list filters minus `statusCode`/`state`, plus
-`perColumn?` (default 50) → `{ data: { columns: [{ status, count, valueTotals: [{ currency,
+`perColumn?` (default 50, max 200) → `{ data: { columns: [{ status, count, valueTotals: [{ currency,
 total }], items: OpportunitySummary[], hasMore }] } }`. Moving a card is §2's transition
 endpoint; there is no board-specific write.
 
@@ -321,7 +372,24 @@ Declared in the manifest's `errorCodes`, sentences under `errors.<CODE>` in
 `CRM_STATUS_INITIAL_REQUIRED`, `CRM_WORKFLOW_INVALID`, `CRM_ASSIGNEE_INVALID`,
 `CRM_MESSAGE_IMMUTABLE`, `CRM_TAG_NAME_TAKEN`, `CRM_ATTACHMENT_TOO_LARGE` (§7a).
 
-How a new code is minted — whether it must also become a member of `ERROR_CODES` in
-`packages/contracts/src/errors.ts`, and which fixtures record it — is **not** established by
-this design: commit `512b68e84` ("record the two minted error codes") is the most recent
-worked example and task T038 reads it first.
+Fifteen codes; the same fifteen are the manifest's `errorCodes` and members of `ERROR_CODES`.
+
+**How a code is minted** (established while implementing — research N-13; this paragraph
+first said the design did not establish it): a code raised by a module of this repository
+joins `ERROR_CODES` in `packages/contracts/src/errors.ts`
+(`foreign-module-changes.md` A7), is declared in the manifest's `errorCodes` by the change
+that adds its first raise site, and carries a sentence under `errors.<CODE>` in both
+bundles. Two ledgers then account for it: `MINTED_ERROR_CODES` in
+`backend/test/fixtures/error-code-routing/reference-ledgers.ts` (one entry per code,
+`to: 'crm'`) and the `MIGRATED_MODULES` roster of
+`backend/test/unit/_i18n/error-code-migration-progress.test.ts`.
+
+Three facts about the envelope a caller meets: it **replaces** a declared code's `message`
+with the bundle sentence, filling `{placeholders}` from the scalar members of `details` — so
+`CRM_TRANSITION_VETOED` raises with `details.reason` and its sentence is `{reason}` alone,
+which is what makes "`message` is the guard's reason" true in both languages; `details.code`
+is the envelope's refusal token and selects `errors.<CODE>.<token>` (only
+`CRM_WORKFLOW_INVALID` uses one); and codes this module raises but does not own keep their
+owner's sentence — `VALIDATION_FAILED`, `VERSION_CONFLICT`, `NOT_FOUND`, `FORBIDDEN`,
+`MODULE_DISABLED`, `CUSTOM_FIELD_VALUE_INVALID`, `ASSET_UPLOAD_TYPE_NOT_ALLOWED`,
+`ASSET_UPLOAD_TOO_LARGE`, `ASSET_STORAGE_UNAVAILABLE`.
