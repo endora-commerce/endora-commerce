@@ -2054,6 +2054,27 @@ when it was measured, and what was done about it.
   an assignee whose Sales Rep assignment was removed stays the assignee and is no longer
   told. The default assignee is unaffected — it is drawn from the Organization's own Sales
   Reps. R-9's sentence "the assignee decides nothing about visibility" stays true.
+- **N-R3 (2026-10-06, review finding 3) — what of an Order `crm:write` alone reaches, decided
+  rather than left as it fell.** A role holding `crm:read` + `crm:write` and not `orders:read`
+  could link any Order of an Organization it reaches, read its number, status and total off
+  the link, and move it by transitioning the Opportunity. Three decisions. **(a) Choosing
+  which Orders follow asks for `orders:read`** (the code `orders`' manifest gates its own read
+  surface with): `POST …/links` with `documentKind: 'order'` and `PATCH …/links/:linkId` carry
+  a second `requireAdmin('orders:read')` in their `preHandler` and answer 403 without it;
+  removing a link asks for nothing more. **(b) A reader without `orders:read` is shown a
+  linked Order as `available: false`** — no number, status, total or currency — and a
+  propagation outcome with `orderNumber: null`. The check is `services/orders-permission.ts`,
+  over `admin_roles`' `permissionService` port (`listPermissions`, wildcard honoured); the
+  system — a subscriber, a worker — is nobody's session and is not narrowed. Left as it is
+  and worth knowing: the Opportunity's *computed value* is a sum over the linked documents
+  and is shown to every `crm:read` holder, so one linked Order's total is derivable from it.
+  **(c) The propagation itself is not gated on the acting administrator's `orders:write`,
+  on purpose.** Which Order status a transition asks for is workflow configuration, written
+  by a `crm:configure` holder; the Sales Rep who moves the Opportunity triggers a rule, and
+  `orders` records the change against the actor CRM hands it. Gating it on
+  `orders:write` would make "the Order follows the Opportunity" true only for administrators
+  who could have moved the Order by hand, which is not the feature (FR-020…FR-022).
+  `contracts/admin-api.md` §2 and §3 now say both.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

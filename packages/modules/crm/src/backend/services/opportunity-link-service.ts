@@ -15,12 +15,15 @@ import { randomUUID } from 'crypto';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
+import type { OrdersReadCheck } from './orders-permission.js';
 
 export interface OpportunityLinkServiceDeps {
   emFactory: () => EntityManager;
   commandBus: CommandBus;
   /** `orders`' read port — lazy, resolved per call. */
   orders: OrderReadPort;
+  /** Whether the caller holds `orders:read`: without it a linked Order shows nothing of itself. */
+  canReadOrders: OrdersReadCheck;
 }
 
 function linkNotFound(): HttpError {
@@ -219,7 +222,10 @@ export class OpportunityLinkService {
    */
   async #render(links: readonly CrmOpportunityLink[]): Promise<OpportunityLink[]> {
     const orderIds = links.filter((link) => link.documentKind === 'order').map((link) => link.documentId);
-    const orders = orderIds.length > 0 ? await this.deps.orders.findByIds(orderIds) : [];
+    // An Order's number, status and total are `orders`' to show: a caller
+    // without `orders:read` sees that a document is linked, and no more.
+    const orders =
+      orderIds.length > 0 && (await this.deps.canReadOrders()) ? await this.deps.orders.findByIds(orderIds) : [];
     const byId = new Map(orders.map((order) => [order.id, order]));
     return links.map((link) => toLink(link, link.documentKind === 'order' ? byId.get(link.documentId) : undefined));
   }

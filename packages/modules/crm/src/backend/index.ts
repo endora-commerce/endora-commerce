@@ -10,6 +10,7 @@ import type {
   OrderReadPort,
   OrderTransitionPort,
   OrganizationDetailsPort,
+  PermissionReadPort,
   SalesChannelAttributionRegistryPort,
   SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
@@ -39,6 +40,7 @@ import { BoardService } from './services/board-service.js';
 import { registerCrmAssetReferences } from './services/crm-asset-references.js';
 import { CrmLookupService } from './services/crm-lookup-service.js';
 import { createAdminReach } from './services/admin-reach.js';
+import { createOrdersReadCheck } from './services/orders-permission.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
 import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
 import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
@@ -134,6 +136,7 @@ export function registerModule(ctx: ModuleContext): void {
             emFactory,
             commandBus,
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            canReadOrders: createOrdersReadCheck(lazyPort<PermissionReadPort>(ctx, 'permissionService')),
           }),
       )
       .singleton(),
@@ -167,6 +170,7 @@ export function registerModule(ctx: ModuleContext): void {
             commandBus,
             orderTransitions: lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            canReadOrders: createOrdersReadCheck(lazyPort<PermissionReadPort>(ctx, 'permissionService')),
           }),
       )
       .singleton(),

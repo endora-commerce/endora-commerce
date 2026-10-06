@@ -18,6 +18,7 @@ import {
   type CrmPropagationOutcome,
 } from '../entities/crm-status-propagation.entity.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
+import type { OrdersReadCheck } from './orders-permission.js';
 
 export interface OrderStatusPropagationServiceDeps {
   emFactory: () => EntityManager;
@@ -25,6 +26,8 @@ export interface OrderStatusPropagationServiceDeps {
   /** `orders`' ports — lazy, resolved per call, never captured. */
   orderTransitions: OrderTransitionPort;
   orders: OrderReadPort;
+  /** Whether the caller holds `orders:read`: without it an outcome names no Order number. */
+  canReadOrders: OrdersReadCheck;
 }
 
 const FORWARD = 'opportunity_to_order' as const;
@@ -507,7 +510,9 @@ export class OrderStatusPropagationService {
 
   async #render(rows: readonly CrmStatusPropagation[]): Promise<PropagationOutcome[]> {
     if (rows.length === 0) return [];
-    const orders = await this.deps.orders.findByIds([...new Set(rows.map((row) => row.orderId))]);
+    const orders = (await this.deps.canReadOrders())
+      ? await this.deps.orders.findByIds([...new Set(rows.map((row) => row.orderId))])
+      : [];
     const numbers = new Map(orders.map((order) => [order.id, order.businessId]));
     return rows.map((row) => ({
       id: row.id,

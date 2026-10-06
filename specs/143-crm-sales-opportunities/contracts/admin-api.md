@@ -77,6 +77,12 @@ status answers 200 with an empty `propagation`.
 **A refused Order change is not an HTTP error.** The Opportunity moved; the response is 200
 and the refusal is an element of `propagation` with `outcome` and `detail` (FR-022).
 
+**Moving a followed Order is a consequence of the workflow, not an act of the caller.** The
+transition is gated `crm:write` and nothing more: the Order status a transition asks for was
+mapped by somebody holding `crm:configure`, and it is applied whether or not the acting
+administrator holds `orders:write` (research N-R3). What does ask for `orders:read` is
+deciding *which* Orders follow — §3.
+
 ## 3. Links (US1 orders; US8 quote requests)
 
 | Method · Path | Gate | Request | Response |
@@ -87,6 +93,11 @@ and the refusal is an element of `propagation` with `outcome` and `detail` (FR-0
 
 `OpportunityLink`: `id`, `documentKind`, `documentId`, `available`, and when available
 `number`, `status`, `total`, `currency`; `syncStatus`, `linkSource`, `createdAt`.
+
+**`orders:read` as well as `crm:write`** for `POST` with `documentKind: 'order'` and for
+`PATCH` — 403 `FORBIDDEN` without it. And a reader without `orders:read` is shown a linked
+Order as `available: false`, with no `number`, `status`, `total` or `currency`, and a
+`PropagationOutcome` with `orderNumber: null` (research N-R3).
 
 Errors: 404 `CRM_DOCUMENT_NOT_FOUND` (missing or out of the caller's scope), 409
 `CRM_DOCUMENT_ALREADY_LINKED` (`details.opportunityId` only if the caller may see that
@@ -124,7 +135,9 @@ does not proxy them.
 ## 5. Assignment (US3)
 
 `POST /opportunities/:id/assign` · `crm:write` · `{ adminUserId: uuid | null }` →
-`{ data: OpportunityDetail }`. 422 `CRM_ASSIGNEE_INVALID` for an unknown or inactive user.
+`{ data: OpportunityDetail }`. 422 `CRM_ASSIGNEE_INVALID` for an unknown or inactive user,
+and for one who cannot reach the Opportunity's Organization (research N-R2) — the same on
+create and `PATCH`.
 
 ## 6. Notes and messages (US4)
 
@@ -166,6 +179,9 @@ it with the Command of the row above. No permission of the media library is aske
 - 400 `VALIDATION_FAILED` — not multipart, or no `file` part.
 - 413 `CRM_ATTACHMENT_TOO_LARGE` (`details.maxMb`) — over `OPPORTUNITY_ATTACHMENT_MAX_BYTES`
   (25 MB), the bound on what the route reads into memory.
+- 415 `ASSET_UPLOAD_TYPE_NOT_ALLOWED` — the file's name or its declared type is HTML, XHTML,
+  SVG, XML/XSL or JavaScript; either is enough, and nothing is stored (research N-R1). The
+  same refusal answers `POST …/attachments { assetId }` for such a file of the library.
 - The library's refusals pass through unchanged: 413 `ASSET_UPLOAD_TOO_LARGE`, 415
   `ASSET_UPLOAD_TYPE_NOT_ALLOWED`, 503 `ASSET_STORAGE_UNAVAILABLE`.
 - A file stored and then not attached is soft-deleted in the library again.
