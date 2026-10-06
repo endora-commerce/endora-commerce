@@ -246,6 +246,10 @@ export function OpportunityBoard(props: OpportunityBoardProps): ReactNode {
       }
       renderCard={renderCard}
       labels={labels}
+      // Never taller than the window, so fifty cards in one status scroll in
+      // their lane and the sideways scroll bar of a wide workflow stays in
+      // view; never lower than 28rem, so a short window still shows cards.
+      className="max-h-[max(28rem,calc(100dvh-8rem))]"
     />
   );
 }

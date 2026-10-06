@@ -406,7 +406,7 @@ export function OpportunityBoardPage(): ReactNode {
         description={t('board.description')}
         actions={
           canWrite ? (
-            <Button asChild>
+            <Button className="min-h-11 sm:min-h-9" asChild>
               <Link to="/crm/opportunities/new">
                 <Plus aria-hidden="true" />
                 {t('opportunity.list.new')}

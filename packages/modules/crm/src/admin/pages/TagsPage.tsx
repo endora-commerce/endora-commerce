@@ -108,7 +108,7 @@ export function TagsPage(): ReactNode {
         <Alert variant="destructive" className="mb-4">
           <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
             <span>{error}</span>
-            <Button variant="outline" size="sm" onClick={(): void => void load()}>
+            <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
               {tCore('common.action.retry')}
             </Button>
           </AlertDescription>
@@ -319,10 +319,10 @@ function TagDialog(props: {
           />
         </div>
         <div className="flex flex-wrap justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+          <Button className="min-h-11 sm:min-h-9" type="button" variant="outline" disabled={busy} onClick={onClose}>
             {tCore('common.action.cancel')}
           </Button>
-          <Button type="submit" disabled={busy} aria-busy={busy}>
+          <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy} aria-busy={busy}>
             {busy ? tCore('common.state.saving') : tCore('common.action.save')}
           </Button>
         </div>

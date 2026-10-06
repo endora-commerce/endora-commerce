@@ -243,7 +243,7 @@ export function OpportunitiesList(): ReactNode {
   ];
 
   const newOpportunity = (
-    <Button asChild>
+    <Button className="min-h-11 sm:min-h-9" asChild>
       <Link to="/crm/opportunities/new">
         <Plus aria-hidden="true" />
         {t('opportunity.list.new')}
@@ -258,7 +258,7 @@ export function OpportunitiesList(): ReactNode {
       </div>
       <div className="b2b-empty__title">{t('opportunity.list.noResults.title')}</div>
       <div className="b2b-empty__sub">{t('opportunity.list.noResults.body')}</div>
-      <Button variant="outline" onClick={clear}>
+      <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={clear}>
         <X aria-hidden="true" />
         {t('opportunity.list.filter.clear')}
       </Button>
@@ -350,7 +350,7 @@ export function OpportunitiesList(): ReactNode {
               </Select>
             </div>
             {filtered ? (
-              <Button variant="ghost" size="sm" onClick={clear}>
+              <Button className="min-h-11 sm:min-h-8" variant="ghost" size="sm" onClick={clear}>
                 <X aria-hidden="true" />
                 {t('opportunity.list.filter.clear')}
               </Button>
@@ -365,7 +365,7 @@ export function OpportunitiesList(): ReactNode {
             <Alert variant="destructive">
               <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
                 <span>{error}</span>
-                <Button variant="outline" size="sm" onClick={(): void => void load()}>
+                <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
                   {tCore('common.action.retry')}
                 </Button>
               </AlertDescription>

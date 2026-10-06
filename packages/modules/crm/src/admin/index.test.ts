@@ -101,6 +101,34 @@ describe('crm admin contributions', () => {
   });
 });
 
+describe('crm admin target sizes', () => {
+  it('gives every button 44 px of height on a touch screen', () => {
+    // The kit's buttons are 36 px (32 px for `sm`) — right for a pointer, short
+    // of the repository's 44 px rule for a finger
+    // (`.claude/skills/ux-laws/SKILL.md`, Fitts). Every CRM button therefore
+    // carries `min-h-11` with a `sm:` step back down; this holds the next one
+    // to it. jsdom lays nothing out, so the class is what can be held.
+    const short: string[] = [];
+    for (const { path, text } of adminSources()) {
+      for (const match of text.matchAll(/<Button\b/g)) {
+        let end = match.index + match[0].length;
+        for (let depth = 0; end < text.length; end += 1) {
+          const char = text[end];
+          if (char === '{') depth += 1;
+          else if (char === '}') depth -= 1;
+          else if (char === '>' && depth === 0) break;
+        }
+        const tag = text.slice(match.index, end + 1);
+        if (!/\bmin-h-11\b/.test(tag)) {
+          const line = text.slice(0, match.index).split('\n').length;
+          short.push(`${path.slice(path.indexOf('/src/admin/') + 11)}:${line}`);
+        }
+      }
+    }
+    expect(short).toEqual([]);
+  });
+});
+
 describe('crm admin copy', () => {
   const en = bundle('en');
   const pl = bundle('pl');

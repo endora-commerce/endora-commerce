@@ -252,7 +252,7 @@ export function LinkedDocuments(props: LinkedDocumentsProps): ReactNode {
                   </TableCell>
                   {canWrite ? (
                     <TableCell className="text-right">
-                      <Button
+                      <Button className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
                         variant="ghost"
                         size="sm"
                         disabled={busy !== null}
@@ -297,7 +297,7 @@ export function LinkedDocuments(props: LinkedDocumentsProps): ReactNode {
                 emptyMessage={searchFailed ? t('links.error.search') : t('links.add.empty')}
               />
             </div>
-            <Button
+            <Button className="min-h-11 sm:min-h-9"
               variant="outline"
               disabled={!selected || busy !== null}
               aria-busy={busy === 'add'}

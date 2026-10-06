@@ -333,7 +333,7 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
       <Alert variant="destructive">
         <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
           <span>{error}</span>
-          <Button variant="outline" size="sm" onClick={(): void => void load(null)}>
+          <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load(null)}>
             {tCore('common.action.retry')}
           </Button>
         </AlertDescription>

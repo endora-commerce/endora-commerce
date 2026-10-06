@@ -241,6 +241,15 @@ describe('OpportunityBoardPage — columns and cards', () => {
   });
 });
 
+describe('OpportunityBoardPage — a board that fits the window', () => {
+  it('bounds the board to the window, so a long lane scrolls on its own', async () => {
+    await renderBoard();
+    const board = await screen.findByRole('region', { name: en('board.label') });
+    // Never taller than the window, and never so low that a lane shows no card.
+    expect(board.className).toContain('max-h-[max(28rem,calc(100dvh-8rem))]');
+  });
+});
+
 describe('OpportunityBoardPage — the "Move to…" menu', () => {
   it('lists exactly the transitions the workflow allows from the card’s status', async () => {
     await renderBoard();

@@ -357,7 +357,7 @@ export function OrderStatusMappings(props: OrderStatusMappingsProps): ReactNode 
         <p role="status" className="text-sm text-muted-foreground">
           {notice}
         </p>
-        <Button disabled={!dirty || busy} aria-busy={busy} onClick={(): void => void save()}>
+        <Button className="min-h-11 sm:min-h-9" disabled={!dirty || busy} aria-busy={busy} onClick={(): void => void save()}>
           {t('workflow.mapping.save')}
         </Button>
       </div>

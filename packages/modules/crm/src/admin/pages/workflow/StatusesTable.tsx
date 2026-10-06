@@ -74,7 +74,7 @@ export function StatusesTable(props: StatusesTableProps): ReactNode {
               <TableCell className="text-right tabular-nums">{status.inUseCount}</TableCell>
               <TableCell className="text-right">
                 <div className="flex justify-end gap-1">
-                  <Button
+                  <Button className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
                     variant="ghost"
                     size="sm"
                     aria-label={t('workflow.status.editLabel', { name })}
@@ -82,7 +82,7 @@ export function StatusesTable(props: StatusesTableProps): ReactNode {
                   >
                     <Pencil aria-hidden="true" />
                   </Button>
-                  <Button
+                  <Button className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-0"
                     variant="ghost"
                     size="sm"
                     aria-label={t('workflow.status.deleteLabel', { name })}

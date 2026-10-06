@@ -144,7 +144,7 @@ export function CommentThread(props: CommentThreadProps): ReactNode {
         <Alert variant="destructive">
           <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
             <span>{error}</span>
-            <Button variant="outline" size="sm" onClick={(): void => void load()}>
+            <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
               {tCore('common.action.retry')}
             </Button>
           </AlertDescription>

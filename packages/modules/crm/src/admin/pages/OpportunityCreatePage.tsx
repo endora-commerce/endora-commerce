@@ -430,7 +430,7 @@ export function OpportunityCreatePage(): ReactNode {
         </div>
 
         <StickyFormActions className="mt-4 flex justify-end gap-2">
-          <Button
+          <Button className="min-h-11 sm:min-h-9"
             type="button"
             variant="outline"
             disabled={busy}
@@ -438,7 +438,7 @@ export function OpportunityCreatePage(): ReactNode {
           >
             {tCore('common.action.cancel')}
           </Button>
-          <Button type="submit" disabled={busy || unlinked !== null} aria-busy={busy}>
+          <Button className="min-h-11 sm:min-h-9" type="submit" disabled={busy || unlinked !== null} aria-busy={busy}>
             {busy ? t('opportunity.create.submitting') : t('opportunity.create.submit')}
           </Button>
         </StickyFormActions>

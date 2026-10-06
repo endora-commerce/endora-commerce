@@ -96,10 +96,10 @@ export function OpportunityDetail(): ReactNode {
             <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
               <span>{error ?? t('opportunity.detail.error')}</span>
               <span className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={(): void => void reload()}>
+                <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void reload()}>
                   {tCore('common.action.retry')}
                 </Button>
-                <Button asChild variant="ghost" size="sm">
+                <Button className="min-h-11 sm:min-h-8" asChild variant="ghost" size="sm">
                   <Link to={LIST_PATH}>{t('opportunity.detail.back')}</Link>
                 </Button>
               </span>

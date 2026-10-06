@@ -33,6 +33,12 @@
 //    role on the whole card, because a button's descendants are presentational
 //    to assistive technology and the card's own link and menu would vanish.
 //
+// **Height is the caller's.** Unbounded, a lane is as tall as its cards and the
+// page scrolls. Give the board a maximum height through `className` and every
+// lane takes it: the lane's cards scroll inside the lane, under its header, and
+// the board's own sideways scroll bar stays in view. Lifting a card near a
+// lane's edge scrolls that lane, as it scrolls the board near the board's.
+//
 // **Optimistic by contract.** When `onMove` returns a promise the card is shown
 // in its new lane while the promise is pending and returns to where the
 // caller's data has it when the promise settles — which is the new lane if the
@@ -316,8 +322,10 @@ function laneData<TColumn>(over: Over | null): LaneData<TColumn> | undefined {
   return over?.data.current as LaneData<TColumn> | undefined;
 }
 
+// `gap-2` and `p-2` are what keep the handle's 44 px hit area — 8 px around its
+// 28 px picture — off the card's own content and inside the card.
 const CARD_SHELL =
-  'flex items-start gap-1 rounded-md border bg-card p-2 text-card-foreground shadow-sm';
+  'flex items-start gap-2 rounded-md border bg-card p-2 text-card-foreground shadow-sm';
 
 interface KanbanCardProps<TItem> {
   item: TItem;
@@ -377,7 +385,7 @@ function KanbanCard<TItem>(props: KanbanCardProps<TItem>): ReactNode {
           {...attributes}
           aria-label={handleLabel}
           onKeyDown={onHandleKeyDown}
-          className="inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-disabled:cursor-default aria-disabled:opacity-50"
+          className="relative inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded-md text-muted-foreground after:absolute after:-inset-2 after:content-[''] hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-disabled:cursor-default aria-disabled:opacity-50"
         >
           <GripVertical aria-hidden="true" className="size-4" />
         </button>
@@ -421,7 +429,10 @@ function KanbanLane<TColumn>(props: KanbanLaneProps<TColumn>): ReactNode {
       data-drop-state={dropState}
       data-drop-over={isOver || undefined}
       className={cn(
-        'relative flex w-72 max-w-[85vw] shrink-0 flex-col rounded-lg border bg-muted/50 transition-colors motion-reduce:transition-none',
+        // Lanes share the board's width down to a readable minimum, then the
+        // board scrolls sideways. A lane is stretched to the board's height,
+        // which is what lets the list below scroll when that height is bounded.
+        'relative flex min-w-64 max-w-[min(24rem,85vw)] flex-1 basis-64 flex-col rounded-lg border bg-muted/50 transition-colors motion-reduce:transition-none',
         dropState === 'allowed' && 'border-dashed border-primary',
         dropState === 'allowed' && isOver && 'bg-primary/10 ring-2 ring-ring',
         dropState === 'refused' && 'opacity-60',
@@ -434,7 +445,11 @@ function KanbanLane<TColumn>(props: KanbanLaneProps<TColumn>): ReactNode {
         <Ban aria-hidden="true" className="absolute right-2 top-2 size-4 text-destructive" />
       ) : null}
       {slot === null ? null : <div className="px-3 pt-2">{slot}</div>}
-      <ul role="list" className="flex min-h-16 flex-1 flex-col gap-2 p-3">
+      {/* The cards scroll, the header and the footer do not. It only ever
+          scrolls when the caller bounded the board's height (`className`);
+          unbounded, the lane is as tall as its cards, as before. `min-h-16`
+          keeps an empty lane a target worth aiming at. */}
+      <ul role="list" className="flex min-h-16 flex-1 flex-col gap-2 overflow-y-auto p-3">
         {children}
       </ul>
       {footer === undefined ? null : <div className="px-3 pb-3">{footer(state)}</div>}

@@ -541,6 +541,47 @@ describe('KanbanBoard — read-only', () => {
   });
 });
 
+describe('KanbanBoard — size and scrolling', () => {
+  // jsdom lays nothing out, so these hold the classes that carry the layout;
+  // what they do in a browser is measured there (research N-P3).
+  const classes = (element: Element): string[] => element.className.split(/\s+/);
+
+  it('gives the drag handle a 44 px hit area around its 28 px picture', () => {
+    render(<Board />);
+    const handle = classes(screen.getByRole('button', { name: 'Move First' }));
+    expect(handle).toEqual(expect.arrayContaining(['relative', 'h-7', 'w-7']));
+    // 28 px + 8 px on every side, drawn by a pseudo-element so the card is no taller.
+    expect(handle).toEqual(expect.arrayContaining(['after:absolute', 'after:-inset-2']));
+    // The card keeps that area clear of its own content.
+    const card = classes(screen.getByRole('button', { name: 'Move First' }).closest('li') as Element);
+    expect(card).toContain('gap-2');
+  });
+
+  it('lets a lane scroll its own cards, under a header that stays put', () => {
+    render(<Board />);
+    const lane = screen.getByRole('group', { name: 'Lane To do' });
+    expect(classes(lane)).toContain('flex-col');
+    const list = classes(within(lane).getByRole('list'));
+    expect(list).toEqual(expect.arrayContaining(['min-h-16', 'flex-1', 'overflow-y-auto']));
+    // The header is the lane's child and not the list's, so it does not scroll away.
+    expect(within(lane).getByRole('list')).not.toContainElement(within(lane).getByRole('heading'));
+  });
+
+  it('bounds nothing itself: the height is the caller’s, through className', () => {
+    render(<Board className="max-h-96" />);
+    const board = screen.getByRole('region', { name: 'Test board' });
+    expect(classes(board)).toContain('max-h-96');
+    expect(classes(board).some((name) => name.startsWith('h-'))).toBe(false);
+  });
+
+  it('lets lanes share the width they are given and keeps a readable minimum', () => {
+    render(<Board />);
+    const lane = classes(screen.getByRole('group', { name: 'Lane To do' }));
+    expect(lane).toEqual(expect.arrayContaining(['min-w-64', 'flex-1', 'basis-64']));
+    expect(lane).not.toContain('w-72');
+  });
+});
+
 describe('KanbanBoard — domain-free', () => {
   it('carries no vocabulary of its first consumer', () => {
     const source = readFileSync(

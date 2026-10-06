@@ -154,7 +154,7 @@ export function WorkflowConfigPage(): ReactNode {
           <Alert variant="destructive">
             <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
               <span>{loadError ?? t('workflow.error.load')}</span>
-              <Button variant="outline" size="sm" onClick={(): void => void load()}>
+              <Button className="min-h-11 sm:min-h-8" variant="outline" size="sm" onClick={(): void => void load()}>
                 {tCore('common.action.retry')}
               </Button>
             </AlertDescription>
@@ -182,7 +182,7 @@ export function WorkflowConfigPage(): ReactNode {
             <CardTitle>{t('workflow.statuses.title')}</CardTitle>
             <CardDescription>{t('workflow.statuses.description')}</CardDescription>
           </div>
-          <Button variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
+          <Button className="min-h-11 sm:min-h-9" variant="outline" onClick={(): void => setDialog({ kind: 'create' })}>
             <Plus aria-hidden="true" />
             {t('workflow.status.add')}
           </Button>
@@ -264,14 +264,14 @@ export function WorkflowConfigPage(): ReactNode {
           onClose={(): void => setPendingDelete(null)}
           footer={
             <>
-              <Button
+              <Button className="min-h-11 sm:min-h-9"
                 variant="outline"
                 disabled={deleting}
                 onClick={(): void => setPendingDelete(null)}
               >
                 {tCore('common.action.cancel')}
               </Button>
-              <Button
+              <Button className="min-h-11 sm:min-h-9"
                 variant="destructive"
                 disabled={deleting}
                 aria-busy={deleting}

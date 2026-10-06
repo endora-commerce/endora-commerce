@@ -130,7 +130,7 @@ export function OrganizationOpportunities({ organizationId }: OrganizationOpport
           {state.phase === 'ready' && state.hasMore ? (
             <p className="text-sm text-muted-foreground">
               {t('organizationPanel.more', { count: state.rows.length })}{' '}
-              <Link to="/crm/opportunities" className="text-primary underline-offset-4 hover:underline">
+              <Link to="/crm/opportunities" className="text-primary underline underline-offset-4">
                 {t('organizationPanel.all')}
               </Link>
             </p>

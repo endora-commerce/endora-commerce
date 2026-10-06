@@ -44,7 +44,7 @@ export function CursorPagination(props: CursorPaginationProps): ReactNode {
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
         {tCore('common.pagination.rowsPerPage')}
         <Select
-          className="h-8 w-auto text-xs"
+          className="h-11 w-auto text-xs sm:h-8"
           value={props.pageSize}
           onChange={(event): void => {
             const next = Number.parseInt(event.target.value, 10) as PageSizeOption;
@@ -62,7 +62,7 @@ export function CursorPagination(props: CursorPaginationProps): ReactNode {
         <span className="text-xs text-muted-foreground">
           {t('opportunity.list.page', { page: props.page })}
         </span>
-        <Button
+        <Button className="min-h-11 sm:min-h-8"
           variant="outline"
           size="sm"
           disabled={!props.hasPrevious || props.busy}
@@ -71,7 +71,7 @@ export function CursorPagination(props: CursorPaginationProps): ReactNode {
           <ChevronLeft aria-hidden="true" />
           {tCore('common.pagination.previous')}
         </Button>
-        <Button
+        <Button className="min-h-11 sm:min-h-8"
           variant="outline"
           size="sm"
           disabled={!props.hasNext || props.busy}

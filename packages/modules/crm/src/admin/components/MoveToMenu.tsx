@@ -65,7 +65,9 @@ export function MoveToMenu(props: MoveToMenuProps): ReactNode {
         <ChevronDown
           aria-hidden="true"
           className={
-            open ? 'size-4 rotate-180 transition-transform' : 'size-4 transition-transform'
+            open
+              ? 'size-4 rotate-180 transition-transform motion-reduce:transition-none'
+              : 'size-4 transition-transform motion-reduce:transition-none'
           }
         />
       </Button>
