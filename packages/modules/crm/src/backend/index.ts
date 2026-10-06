@@ -6,6 +6,7 @@ import type {
   AssetReferenceRegistryPort,
   AssetsLibraryPort,
   AuditReferenceRegistryPort,
+  CatalogProductReadPort,
   CustomerAccountReadPort,
   CustomFieldValuePort,
   OpportunityReadPort,
@@ -13,17 +14,22 @@ import type {
   OrderReadPort,
   OrderTransitionPort,
   OrganizationDetailsPort,
+  QuoteRequestReadPort,
   SalesChannelAttributionRegistryPort,
   SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
+import { CRM_WEBHOOK_EVENT_TYPES, type WebhookEventRegistryPort } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
+import type { Redis } from 'ioredis';
 import {
   effectiveState,
   enterSystemScope,
   lazyPort,
   type ModuleContext,
+  type AuditPort,
   type RequireAdminFactory,
+  type SettingsReadPort,
 } from '@endora-commerce/platform/kernel';
 import { registerCrmAnalyticsRoutes } from './routes/routes.analytics.js';
 import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
@@ -32,6 +38,8 @@ import { registerCrmAttachmentRoutes } from './routes/routes.attachments.js';
 import { registerCrmBoardRoutes } from './routes/routes.board.js';
 import { registerCrmCommentRoutes } from './routes/routes.comments.js';
 import { registerCrmDocumentRoutes } from './routes/routes.documents.js';
+import { registerCrmDocumentLookupRoutes } from './routes/routes.document-lookups.js';
+import { registerCrmHistoryRoutes } from './routes/routes.history.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmLookupRoutes } from './routes/routes.lookups.js';
 import { registerCrmOpportunityRoutes } from './routes/routes.opportunities.js';
@@ -42,19 +50,25 @@ import { AnalyticsService } from './services/analytics-service.js';
 import { BoardService } from './services/board-service.js';
 import { registerCrmAssetReferences } from './services/crm-asset-references.js';
 import { registerCrmAuditReferences } from './services/crm-audit-references.js';
+import { CrmDocumentLookupService } from './services/crm-document-lookup-service.js';
 import { CrmLookupService } from './services/crm-lookup-service.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
+import { createCrmQuoteRequests, type CrmQuoteRequests } from './services/crm-quote-requests.js';
 import { DocumentOpportunityService } from './services/document-opportunity-service.js';
 import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
 import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
 import { OpportunityAttachmentUploadService } from './services/opportunity-attachment-upload-service.js';
+import { OpportunityAutoCreateService } from './services/opportunity-auto-create-service.js';
 import { OpportunityCommentService } from './services/opportunity-comment-service.js';
+import { OpportunityHistoryService } from './services/opportunity-history-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityReadPortService } from './services/opportunity-read-port.js';
 import { OpportunityTransitionPortService } from './services/opportunity-transition-port.js';
 import { OpportunityService } from './services/opportunity-service.js';
 import { OpportunityTransitionGuardRegistry } from './services/opportunity-transition-guard-registry.js';
 import { OpportunityTransitionService } from './services/opportunity-transition-service.js';
+import { OpportunityValueService } from './services/opportunity-value-service.js';
+import { ReferenceService } from './services/reference-service.js';
 import {
   OrderStatusPropagationService,
   type OrderStatusChange,
@@ -63,6 +77,11 @@ import { registerOpportunitySalesChannelAttributions } from './services/sales-ch
 import { TagService } from './services/tag-service.js';
 import { WorkflowConfigService } from './services/workflow-config-service.js';
 import { WorkflowReadService } from './services/workflow-read-service.js';
+import {
+  createValueRecalculationProducer,
+  startValueRecalculation,
+  type ValueRecalculationProducer,
+} from './workers/value-recalculation-worker.js';
 import { CrmOpportunity } from './entities/crm-opportunity.entity.js';
 import { CrmOpportunityAttachment } from './entities/crm-opportunity-attachment.entity.js';
 import { CrmOpportunityComment } from './entities/crm-opportunity-comment.entity.js';
@@ -123,8 +142,10 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
     crmWorkflowConfigService: ctx
       .asFunction(
-        ({ commandBus, crmWorkflowReadService }: CrmCradle) =>
-          new WorkflowConfigService(commandBus, crmWorkflowReadService),
+        ({ commandBus, crmWorkflowReadService, crmValueRecalculationProducer }: CrmCradle & ValueCradle) =>
+          new WorkflowConfigService(commandBus, crmWorkflowReadService, () =>
+            crmValueRecalculationProducer.enqueue(),
+          ),
       )
       .singleton(),
   });
@@ -136,11 +157,13 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     crmOpportunityLinkService: ctx
       .asFunction(
-        ({ emFactory, commandBus }: CrmCradle) =>
+        ({ emFactory, commandBus, crmQuoteRequests, crmOpportunityValueService }: CrmCradle & ValueCradle) =>
           new OpportunityLinkService({
             emFactory,
             commandBus,
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            quoteRequests: crmQuoteRequests,
+            linksChanged: (opportunityId) => crmOpportunityValueService.recalculate(opportunityId),
           }),
       )
       .singleton(),
@@ -263,12 +286,13 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     crmOpportunityCommentService: ctx
       .asFunction(
-        ({ emFactory, commandBus, crmNotifier }: CrmCradle) =>
+        ({ emFactory, commandBus, crmNotifier, crmReferenceService }: CrmCradle & ReferencesCradle) =>
           new OpportunityCommentService({
             emFactory,
             commandBus,
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             notifier: crmNotifier,
+            references: crmReferenceService,
           }),
       )
       .singleton(),
@@ -335,7 +359,9 @@ export function registerModule(ctx: ModuleContext): void {
           crmOrderStatusPropagationService,
           crmOpportunityAssignmentService,
           crmTagService,
-        }: CrmCradle) =>
+          crmOpportunityValueService,
+          crmReferenceService,
+        }: CrmCradle & ValueCradle & ReferencesCradle) =>
           new OpportunityService({
             emFactory,
             commandBus,
@@ -354,6 +380,9 @@ export function registerModule(ctx: ModuleContext): void {
             // plain binding edge with no off state to degrade into.
             customFields: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
             // --- end of Custom fields ----------------------------------------
+            recalculateValue: (opportunityId) => crmOpportunityValueService.recalculate(opportunityId),
+            excludedDocuments: (opportunity) => crmOpportunityValueService.excludedDocuments(opportunity),
+            references: crmReferenceService,
           }),
       )
       .singleton(),
@@ -405,6 +434,216 @@ export function registerModule(ctx: ModuleContext): void {
     });
   });
   // --- end of Board ----------------------------------------------------------
+
+  // --- Value and Quote Requests (User Story 8) -------------------------------
+  // A computed value is a stored figure this section keeps true: it is asked
+  // again when a link changes (the link service), when the mode becomes
+  // `computed` (the Opportunity service), when a linked document's status or
+  // amount changes (the subscribers below), and — for every computed
+  // Opportunity at once — when the counting configuration is saved (the queue).
+  //
+  // `quote_requests` is operator-switchable and this module degrades without
+  // it: `crmQuoteRequests` is the one door to its read port, and every caller
+  // asks `isPresent()` before it goes through.
+  ctx.di.register({
+    crmQuoteRequests: ctx
+      .asFunction(() => createCrmQuoteRequests(lazyPort<QuoteRequestReadPort>(ctx, 'quoteRequestReadPort')))
+      .singleton(),
+    crmOpportunityValueService: ctx
+      .asFunction(
+        ({ emFactory, commandBus, crmQuoteRequests }: CrmCradle & ValueCradle) =>
+          new OpportunityValueService({
+            emFactory,
+            commandBus,
+            orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            quoteRequests: crmQuoteRequests,
+          }),
+      )
+      .singleton(),
+    // The producing side of the recalculation queue. `moduleQueueRedis` is
+    // undefined in a composition that wants no queues; nothing is enqueued then.
+    crmValueRecalculationProducer: ctx
+      .asFunction(({ moduleQueueRedis }: ValueCradle) => createValueRecalculationProducer(moduleQueueRedis))
+      .singleton(),
+  });
+
+  // `ctx.subscribe`, so none of these runs while the module is off, and a
+  // change made meanwhile is not replayed. There is no request behind an
+  // event: each starts a system scope, and the value service reads only what
+  // hangs off the one Opportunity the document is linked to.
+  ctx.subscribe('order.status_changed.v1', async (payload) => {
+    const orderId = readEventId(payload, 'orderId');
+    if (!orderId) return;
+    await enterSystemScope('crm: value follows an order status', () =>
+      ctx.cradle<ValueCradle>().crmOpportunityValueService.recalculateForDocument('order', orderId),
+    );
+  });
+  // A Quote Request approved, canceled, modified (its prices) or expired.
+  // `quote_requests` emits none of these while it is off.
+  for (const eventName of QUOTE_REQUEST_VALUE_EVENTS) {
+    ctx.subscribe(eventName, async (payload) => {
+      const quoteRequestId = readEventId(payload, 'rfqId');
+      if (!quoteRequestId) return;
+      await enterSystemScope('crm: value follows a quote request', () =>
+        ctx.cradle<ValueCradle>().crmOpportunityValueService.recalculateForDocument(
+          'quote_request',
+          quoteRequestId,
+        ),
+      );
+    });
+  }
+  // `order.created.v1` — an Order placed from a linked Quote Request joining
+  // that Opportunity (FR-027) — is one branch of the placed-document
+  // subscriber in the next section; the link service recalculates the value
+  // once the Order has joined.
+
+  // The consumer of the recalculation queue, attached where `app.log` exists
+  // and through `ctx.worker`, which is what stops it with the module. Built
+  // only where the host says this process consumes queues and offers a
+  // connection; the shared test server says neither and drives the pass itself.
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<CrmCradle & ValueCradle>();
+    app.addHook('onClose', () => cradle.crmValueRecalculationProducer.close());
+    startValueRecalculation({
+      processRunsWorkers: cradle.processRunsWorkers,
+      moduleQueueRedis: cradle.moduleQueueRedis,
+      recalculateAll: () => cradle.crmOpportunityValueService.recalculateAll(),
+      log: ctx.log,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+    });
+  });
+  // --- end of Value and Quote Requests ---------------------------------------
+
+  // --- Placed documents (User Story 9) -----------------------------------------
+  // One subscriber per placed document, with the branches of research R-8 in
+  // its service: an Order placed from a linked Quote Request joins that
+  // Opportunity whatever the settings say; otherwise, with the setting on for
+  // the document, an Opportunity is created for it and linked.
+  //
+  // `ctx.subscribe`, so nothing is created while the module is off, and nothing
+  // is created afterwards for a document placed meanwhile. Each handler starts
+  // a system scope and the service works on the one Organization the document
+  // names.
+  ctx.di.register({
+    crmOpportunityAutoCreateService: ctx
+      .asFunction(
+        ({ eventBus, crmQuoteRequests, crmOpportunityLinkService, crmOpportunityService }: CrmCradle & ValueCradle) =>
+          new OpportunityAutoCreateService({
+            orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
+            settings: lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
+            quoteRequests: crmQuoteRequests,
+            links: crmOpportunityLinkService,
+            createForDocument: (input) => crmOpportunityService.createForDocument(input),
+            events: eventBus,
+            // A document whose commit is still in flight is read again off the
+            // bus's dispatch chain — the bus awaits each subscriber before the
+            // next, and the webhook bridge is one of them. The work gets a
+            // system scope of its own (the handler's ends when it returns),
+            // does nothing if the module was switched off meanwhile, and never
+            // rejects: there is nobody left to hear it, so a failure is logged.
+            defer: (work) =>
+              enterSystemScope('crm: a placed document, read again after its commit', async () => {
+                if (!effectiveState.isPresent('crm')) return;
+                await work();
+              }).catch((error: unknown) => {
+                ctx.log.warn(
+                  { error: error instanceof Error ? error.message : String(error) },
+                  'crm: a placed document could not be handled after its commit',
+                );
+              }),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.subscribe('order.created.v1', async (payload) => {
+    const orderId = readEventId(payload, 'orderId');
+    if (!orderId) return;
+    await enterSystemScope('crm: an order was placed', () =>
+      ctx.cradle<PlacedDocumentsCradle>().crmOpportunityAutoCreateService.onOrderCreated(orderId),
+    );
+  });
+  // Emitted for a Quote Request a customer submits. `quote_requests` emits
+  // nothing while it is off.
+  ctx.subscribe('rfq.created.v1', async (payload) => {
+    const quoteRequestId = readEventId(payload, 'rfqId');
+    if (!quoteRequestId) return;
+    await enterSystemScope('crm: a quote request was submitted', () =>
+      ctx.cradle<PlacedDocumentsCradle>().crmOpportunityAutoCreateService.onQuoteRequestCreated(quoteRequestId),
+    );
+  });
+  // --- end of Placed documents ---------------------------------------------------
+
+  // --- References (User Story 12) -------------------------------------------
+  // Products and Orders mentioned in a description, a note or a message. The
+  // Opportunity and the comment services store a text's references in the
+  // Command that saves the text and resolve them when they render it; the
+  // names come from `catalog`'s and `orders`' read ports, under the reader's
+  // scope, every time.
+  ctx.di.register({
+    crmReferenceService: ctx
+      .asFunction(
+        () =>
+          new ReferenceService({
+            products: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
+            orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+  // --- end of References -------------------------------------------------------
+
+  // --- Change history (User Story 11) ---------------------------------------
+  // The audit log is the history: one read of the kernel's audit port for the
+  // entries of one Opportunity, after the Opportunity itself was loaded through
+  // the tenant-scoped EntityManager. `auditLogService` is a platform service,
+  // not a module's port, and needs no manifest edge. The route is registered
+  // here, in a `ctx.routes` of its own, so the whole story is this one section.
+  ctx.di.register({
+    crmOpportunityHistoryService: ctx
+      .asFunction(
+        ({ emFactory, auditLogService }: CrmCradle & HistoryCradle) =>
+          new OpportunityHistoryService({
+            emFactory,
+            auditLog: auditLogService,
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<CrmCradle & HistoryCradle>();
+    await registerCrmHistoryRoutes(app, {
+      historyService: cradle.crmOpportunityHistoryService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of Change history -------------------------------------------------
+
+  // --- Outbound webhooks (User Story 16) ----------------------------------------
+  /**
+   * The events this module offers to outbound webhooks — a **contribution**
+   * hook.
+   *
+   * It pushes three event names into `webhookEventRegistry`, an ungated
+   * registry `webhooks` owns, and carries no presence probe: the registry
+   * leaves out a contributor that is not present when it is read, so a push
+   * made while this module is off costs nothing, and one skipped here would
+   * make switching the module on need a restart before its events were
+   * offered. `webhooks` bridges each pushed type through its own gated
+   * subscription and sends the event payload whole — which is why the three
+   * have strict schemas in the contracts package.
+   *
+   * Nothing is read back and nothing degrades: with `webhooks` off the events
+   * are emitted as ever and nobody is told; in an instance without `webhooks`
+   * the push is dropped by the platform.
+   */
+  ctx.onBoot(() => {
+    const registry = lazyPort<WebhookEventRegistryPort>(ctx, 'webhookEventRegistry');
+    for (const eventType of CRM_WEBHOOK_EVENT_TYPES) registry.register({ ownerModuleId: 'crm', eventType });
+  });
+  // --- end of Outbound webhooks --------------------------------------------------
 
   // --- Lookups (research N-D4) -------------------------------------------------
   // What the screens' pickers choose from — Organizations, Sales Channels,
@@ -558,6 +797,32 @@ export function registerModule(ctx: ModuleContext): void {
   });
   // --- end of Published ports --------------------------------------------------
 
+  // --- Document lookups (research N-H2) --------------------------------------
+  // The Quote Requests an Opportunity's link picker chooses from, through
+  // `quote_requests`' read port and behind `crm:write` — the quote desk's own
+  // list asks for the right to handle quotes. Absent with that module off.
+  ctx.di.register({
+    crmDocumentLookupService: ctx
+      .asFunction(
+        ({ crmQuoteRequests }: ValueCradle) =>
+          new CrmDocumentLookupService({
+            quoteRequestPresence: crmQuoteRequests,
+            quoteRequests: lazyPort<QuoteRequestReadPort>(ctx, 'quoteRequestReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<
+      CrmCradle & { readonly crmDocumentLookupService: CrmDocumentLookupService }
+    >();
+    await registerCrmDocumentLookupRoutes(app, {
+      documentLookupService: cradle.crmDocumentLookupService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of Document lookups -----------------------------------------------
+
   // --- Routes ----------------------------------------------------------------
   // All through `ctx.routes`, so every one of them stops with the module.
   ctx.routes(async (app) => {
@@ -601,6 +866,49 @@ export function registerModule(ctx: ModuleContext): void {
       requireAdmin,
     });
   });
+}
+
+/** What the value section reads from the container, beside {@link CrmCradle}. */
+interface ValueCradle {
+  readonly crmQuoteRequests: CrmQuoteRequests;
+  readonly crmOpportunityValueService: OpportunityValueService;
+  readonly crmValueRecalculationProducer: ValueRecalculationProducer;
+  /** Whether this process runs queue consumers — the platform's one answer. */
+  readonly processRunsWorkers: boolean;
+  /** The connection a module may build a queue on; undefined where a composition wants none. */
+  readonly moduleQueueRedis: Redis | undefined;
+}
+
+/** What the references section registers. */
+interface ReferencesCradle {
+  readonly crmReferenceService: ReferenceService;
+}
+
+/** What the change-history section reads from the container. */
+interface HistoryCradle {
+  /** The kernel's audit port, under the name `audit_logs`' own route reads it by. */
+  readonly auditLogService: AuditPort;
+  readonly crmOpportunityHistoryService: OpportunityHistoryService;
+}
+
+/** What the placed-documents section reads from the container. */
+interface PlacedDocumentsCradle {
+  readonly crmOpportunityAutoCreateService: OpportunityAutoCreateService;
+}
+
+/** The `quote_requests` events after which a linked Quote Request may count differently. */
+const QUOTE_REQUEST_VALUE_EVENTS = [
+  'rfq.approved.v1',
+  'rfq.canceled.v1',
+  'rfq.modified.v1',
+  'rfq.expired.v1',
+] as const;
+
+/** One uuid-shaped field of a payload the bus hands over untyped, or `null`. */
+function readEventId(payload: unknown, field: string): string | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+  const value = (payload as Record<string, unknown>)[field];
+  return typeof value === 'string' && value ? value : null;
 }
 
 /**

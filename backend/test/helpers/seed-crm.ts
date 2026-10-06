@@ -7,6 +7,13 @@ import {
   Organization,
   OrganizationSalesRepAssignment,
 } from './package-entities.js';
+import { SEED_PRODUCT_101_ID } from './seed-catalog.js';
+import {
+  SEED_ADDRESS_BILLING_ID,
+  SEED_ADDRESS_DELIVERY_ID,
+  SEED_DELIVERY_METHOD_ID,
+  SEED_PAYMENT_METHOD_ID,
+} from './seed-commerce.js';
 import { ADMIN_COOKIES, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from './test-actors.js';
 import type { BackendServerHandle } from './test-server.js';
 
@@ -107,7 +114,13 @@ export async function restoreDefaultCrmWorkflow(em: EntityManager): Promise<void
  */
 export async function seedCrmOrder(
   em: EntityManager,
-  overrides: { organizationId?: string; status?: string } = {},
+  overrides: {
+    organizationId?: string;
+    status?: string;
+    total?: string;
+    currency?: string;
+    sourceQuoteRequestId?: string;
+  } = {},
 ): Promise<{ id: string; businessId: string | null }> {
   const order = em.create(Order, {
     organizationId: overrides.organizationId ?? TEST_ORGANIZATION_ID,
@@ -123,9 +136,10 @@ export async function seedCrmOrder(
     subtotal: '100.00',
     taxTotal: '23.00',
     deliveryTotal: '0.00',
-    total: '123.00',
-    currency: 'PLN',
+    total: overrides.total ?? '123.00',
+    currency: overrides.currency ?? 'PLN',
     placedAt: new Date(),
+    ...(overrides.sourceQuoteRequestId ? { sourceQuoteRequestId: overrides.sourceQuoteRequestId } : {}),
   });
   await em.persistAndFlush(order);
   return { id: order.id, businessId: order.businessId ?? null };
@@ -484,4 +498,151 @@ export async function removeCrmCustomFields(h: BackendServerHandle): Promise<voi
       throw new Error(`removeCrmCustomFields: ${removed.statusCode} ${removed.body}`);
     }
   }
+}
+
+/** The storefront customer of the test Organization. */
+export const CRM_CUSTOMER = { b2b_session: 'stub-customer-session' };
+
+/**
+ * Run `act` and wait until every subscriber of the `eventName` it causes has
+ * finished — the event that satisfies `matches`.
+ *
+ * The bus dispatches to its handlers one after another and awaits each, so a
+ * handler registered here, after the composed application's own, runs once
+ * theirs have returned. That is what lets a test assert what a subscriber did,
+ * or that it did nothing, without sleeping.
+ */
+export async function whenCrmEventSettled<T>(
+  h: BackendServerHandle,
+  eventName: string,
+  matches: (payload: Record<string, unknown>) => boolean,
+  act: () => Promise<T>,
+): Promise<T> {
+  let off: () => void = () => undefined;
+  const settled = new Promise<void>((resolve) => {
+    off = h.eventBus.on(eventName as never, (payload: unknown) => {
+      if (matches((payload ?? {}) as Record<string, unknown>)) resolve();
+    });
+  });
+  try {
+    const result = await act();
+    await settled;
+    // A placed document whose commit was still in flight when its event
+    // arrived is handled off the bus's chain; wait for that as well.
+    await crmPlacedDocumentsHandled(h);
+    return result;
+  } finally {
+    off();
+  }
+}
+
+/** Resolves once the module has no placed document left to look at again. */
+export async function crmPlacedDocumentsHandled(h: BackendServerHandle): Promise<void> {
+  await (
+    h.container.resolve('crmOpportunityAutoCreateService') as { idle(): Promise<void> }
+  ).idle();
+}
+
+/**
+ * A Quote Request submitted by the test Organization's customer through the
+ * storefront API — `Pending`, one line of the seeded product.
+ */
+export async function submitCrmQuoteRequest(
+  h: BackendServerHandle,
+  line: { quantity?: number; desiredUnitPrice?: number } = {},
+): Promise<{ id: string; businessId: string; version: number }> {
+  const response = await h.app.inject({
+    method: 'POST',
+    url: '/api/v1/quote-requests',
+    cookies: CRM_CUSTOMER,
+    payload: {
+      items: [
+        {
+          productId: SEED_PRODUCT_101_ID,
+          quantity: line.quantity ?? 7,
+          desiredUnitPrice: line.desiredUnitPrice ?? 12,
+        },
+      ],
+    },
+  });
+  if (response.statusCode !== 201) {
+    throw new Error(`submitCrmQuoteRequest: ${response.statusCode} ${response.body}`);
+  }
+  return (response.json() as { data: { id: string; businessId: string; version: number } }).data;
+}
+
+/** `POST /opportunities/:id/links` for a Quote Request. */
+export function linkCrmQuoteRequest(
+  h: BackendServerHandle,
+  opportunityId: string,
+  quoteRequestId: string,
+  cookies: Record<string, string> = CRM_ADMIN,
+) {
+  return h.app.inject({
+    method: 'POST',
+    url: `${CRM_API}/opportunities/${opportunityId}/links`,
+    cookies,
+    payload: { documentKind: 'quote_request', documentId: quoteRequestId },
+  });
+}
+
+/** `PUT /value-counting-statuses`; returns the raw response for the caller to judge. */
+export function setCrmCountingStatuses(
+  h: BackendServerHandle,
+  counting: { order: string[]; quoteRequest: string[] },
+  cookies: Record<string, string> = CRM_ADMIN,
+) {
+  return h.app.inject({
+    method: 'PUT',
+    url: `${CRM_API}/value-counting-statuses`,
+    cookies,
+    payload: counting,
+  });
+}
+
+/**
+ * One Order placed the way a customer places it: a line in the cart, then
+ * `POST /api/v1/orders` — the storefront route, with everything placement does
+ * behind it. Stock is the caller's to provide.
+ */
+export async function placeCrmOrder(h: BackendServerHandle): Promise<{ id: string; businessId: string }> {
+  const added = await h.app.inject({
+    method: 'POST',
+    url: '/api/v1/cart/items',
+    cookies: CRM_CUSTOMER,
+    payload: { productId: SEED_PRODUCT_101_ID, quantity: 1 },
+  });
+  if (added.statusCode !== 200) throw new Error(`placeCrmOrder (cart): ${added.statusCode} ${added.body}`);
+  const placed = await h.app.inject({
+    method: 'POST',
+    url: '/api/v1/orders',
+    cookies: CRM_CUSTOMER,
+    payload: {
+      deliveryAddressId: SEED_ADDRESS_DELIVERY_ID,
+      billingAddressId: SEED_ADDRESS_BILLING_ID,
+      deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+      paymentMethodId: SEED_PAYMENT_METHOD_ID,
+    },
+  });
+  if (placed.statusCode !== 201) throw new Error(`placeCrmOrder: ${placed.statusCode} ${placed.body}`);
+  return (placed.json() as { data: { id: string; businessId: string } }).data;
+}
+
+/**
+ * `PUT /api/v1/admin/settings/:code/value` for every Sales Channel — the write
+ * the Settings screen makes. Returns the raw response for the caller to judge.
+ */
+export function writeCrmSetting(h: BackendServerHandle, code: string, value: unknown) {
+  return h.app.inject({
+    method: 'PUT',
+    url: `/api/v1/admin/settings/${code}/value`,
+    cookies: CRM_ADMIN,
+    payload: { scope: 'all', value },
+  });
+}
+
+/** {@link writeCrmSetting}, failing the test on a refusal. */
+export async function setCrmSetting(h: BackendServerHandle, code: string, value: unknown): Promise<void> {
+  const response = await writeCrmSetting(h, code, value);
+  if (response.statusCode >= 400) throw new Error(`setCrmSetting ${code}: ${response.statusCode} ${response.body}`);
 }

@@ -11,7 +11,6 @@ import {
   Label,
   PageHeader,
   Select,
-  Textarea,
 } from '@endora-commerce/admin-kit/ui';
 import { StickyFormActions } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -24,6 +23,7 @@ import {
   useSalesChannelOptions,
 } from '../components/LookupPickers.js';
 import { customFieldIssues, NewOpportunityCustomFields } from '../components/OpportunityCustomFields.js';
+import { ReferenceTextarea } from '../components/ReferenceTextarea.js';
 import { TagMultiSelect } from '../components/TagPicker.js';
 import { errorMessage, normaliseAmount } from '../lib/labels.js';
 
@@ -400,12 +400,14 @@ export function OpportunityCreatePage(): ReactNode {
 
             <div className="space-y-1">
               <Label htmlFor="crm-create-description">{t('opportunity.field.description')}</Label>
-              <Textarea
+              {/* User Story 12: the description may refer to products and orders. */}
+              <ReferenceTextarea
                 id="crm-create-description"
                 rows={5}
                 value={description}
                 maxLength={20000}
-                onChange={(event): void => setDescription(event.target.value)}
+                organizationId={organizationId}
+                onValueChange={setDescription}
               />
             </div>
           </CardContent>

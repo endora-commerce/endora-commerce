@@ -9,6 +9,16 @@ import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-comm
  * workers, admin surfaces — stops with it. Nothing is dropped while it is off.
  */
 
+/**
+ * The module's setting codes, for the code that reads them and the tests that
+ * write them.
+ */
+export const CRM_SETTING_CODES = {
+  ENABLED: 'crm.enabled',
+  AUTO_CREATE_FROM_ORDERS: 'crm.auto_create_from_orders',
+  AUTO_CREATE_FROM_QUOTE_REQUESTS: 'crm.auto_create_from_quote_requests',
+} as const;
+
 const settings = defineModuleSettingsManifest({
   moduleCode: 'crm',
   groups: [
@@ -20,7 +30,7 @@ const settings = defineModuleSettingsManifest({
   settings: [
     {
       // The operator's activation control. Platform-wide.
-      code: 'crm.enabled',
+      code: CRM_SETTING_CODES.ENABLED,
       name: 'CRM enabled',
       description:
         'Switches the CRM on or off: the sales opportunity screens, the status workflow and its configuration, and the link between an opportunity and its orders. Nothing is dropped — every opportunity, its history and the workflow configuration stay in the database and resume where they were.',
@@ -29,19 +39,22 @@ const settings = defineModuleSettingsManifest({
       defaultValue: true,
     },
     {
-      code: 'crm.auto_create_from_orders',
+      // What `backend/test/integration/crm/auto-create.test.ts` proves, and no
+      // more: placed after it is switched on, read for the order's sales
+      // channel, never a second opportunity for one document.
+      code: CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS,
       name: 'Create an opportunity for every new order',
       description:
-        'When on, an order placed after this is switched on gets a sales opportunity of its own, linked to it. Never for an order that is already linked to an opportunity or was created from one. Off by default.',
+        'When on, an order placed after this is switched on gets a sales opportunity of its own, linked to it: for the order\'s organization and sales channel, in the start status, assigned by the default rule, with a value calculated from the order. Never for an order that is already linked to an opportunity, and never for an order placed from a quote request that is linked to one — that order joins the same opportunity. Can be set per sales channel. Off by default.',
       groupCode: 'crm',
       valueType: 'boolean',
       defaultValue: false,
     },
     {
-      code: 'crm.auto_create_from_quote_requests',
+      code: CRM_SETTING_CODES.AUTO_CREATE_FROM_QUOTE_REQUESTS,
       name: 'Create an opportunity for every new quote request',
       description:
-        'When on, a quote request submitted after this is switched on gets a sales opportunity of its own, linked to it. Never for a quote request that is already linked to an opportunity or was created from one. Off by default.',
+        'When on, a quote request a customer submits after this is switched on gets a sales opportunity of its own, linked to it: for the quote request\'s organization, in the start status, assigned by the default rule, with a value calculated from the quote request. Never for a quote request that is already linked to an opportunity. Needs the Quote Requests module to be on. Off by default.',
       groupCode: 'crm',
       valueType: 'boolean',
       defaultValue: false,
@@ -115,6 +128,39 @@ export const manifest = defineModuleManifest({
         'The one call into this owner is `crm-notifier.ts`, which decides its presence in front ' +
         'of the gate and answers `not-present` in its return type; nothing in this module fails ' +
         'closed on it, and no table of that owner is referenced from this module\'s schema.',
+    },
+    // CRM offers three of its events to outbound webhooks by pushing their
+    // names into `webhooks`' registry from a contribution-only boot hook. A
+    // push, and nothing read back: with `webhooks` off or absent nothing is
+    // delivered and nothing in this module changes, so there is no
+    // `whenAbsent` to state.
+    {
+      moduleId: 'webhooks',
+      name: 'webhookEventRegistry',
+      kind: 'contributes-to',
+      reason:
+        'A push, from this module\'s contribution-only boot hook, of the three event names it ' +
+        'offers for outbound delivery. Nothing is read back: the registry is a plain ' +
+        'registration that leaves out every event type whose owner is not present when it is ' +
+        'read, and `webhooks` bridges and delivers through its own gated subscription.',
+    },
+    // `quote_requests` is operator-switchable too. A shop that sells without
+    // quotes still wants a pipeline, so the quote desk's switch must not be
+    // held by this module (owner decision of 2026-10-05, research R-17).
+    {
+      moduleId: 'quote_requests',
+      name: 'quoteRequestReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'Quote Requests linked to Opportunities show as unavailable, stop counting toward ' +
+        'computed values, and can no longer be linked or created from one. ' +
+        'Opportunities and their Orders keep working',
+      reason:
+        'Every call into this owner goes through `crm-quote-requests.ts`, whose callers ask ' +
+        '`isPresent()` in front of the gate: a linked Quote Request is skipped when it renders ' +
+        'and when a value is computed, and linking one answers 503 from that decision rather ' +
+        'than from a caught refusal. A link holds the Quote Request by value, so no table of ' +
+        'that owner is referenced from this module\'s schema.',
     },
   ],
   settings,

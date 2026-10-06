@@ -12,6 +12,7 @@ export function NotesTab(props: OpportunityTabProps): ReactNode {
   return (
     <CommentThread
       opportunityId={props.opportunity.id}
+      organizationId={props.opportunity.organization.id}
       kind="note"
       copy={{
         title: t('opportunity.tabs.notes'),

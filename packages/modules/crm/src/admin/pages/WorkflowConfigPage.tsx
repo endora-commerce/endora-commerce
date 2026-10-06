@@ -27,6 +27,7 @@ import { errorMessage, workflowStatusLabel } from '../lib/labels.js';
 import { OrderStatusMappings } from './workflow/OrderStatusMappings.js';
 import { StatusDialog, type StatusDialogSubmit } from './workflow/StatusDialog.js';
 import { StatusesTable } from './workflow/StatusesTable.js';
+import { ValueCountingStatuses } from './workflow/ValueCountingStatuses.js';
 
 type DialogState = { kind: 'create' } | { kind: 'edit'; status: OpportunityWorkflowStatus } | null;
 
@@ -212,7 +213,7 @@ export function WorkflowConfigPage(): ReactNode {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="mb-4">
         <CardHeader>
           <CardTitle>{t('workflow.mapping.title')}</CardTitle>
           <CardDescription>{t('workflow.mapping.description')}</CardDescription>
@@ -226,6 +227,25 @@ export function WorkflowConfigPage(): ReactNode {
           />
         </CardContent>
       </Card>
+
+      {/* --- User Story 8: which statuses count towards a computed value --- */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('value.counting.title')}</CardTitle>
+          <CardDescription>{t('value.counting.description')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ValueCountingStatuses
+            workflow={workflow}
+            orderStatuses={orderStatuses}
+            language={language}
+            onSave={async (body): Promise<void> => {
+              setWorkflow(await crmApi.setValueCountingStatuses(body));
+            }}
+          />
+        </CardContent>
+      </Card>
+      {/* --- end of User Story 8 ------------------------------------------- */}
 
       {dialog ? (
         <StatusDialog

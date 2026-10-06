@@ -8,13 +8,14 @@ import {
   Badge,
   Button,
   Label,
-  Textarea,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
 import { errorMessage } from '../lib/labels.js';
 import { COMMENT_MAX_LENGTH, CommentComposer } from './CommentComposer.js';
 import { ModalDialog } from './ModalDialog.js';
+import { ReferenceText } from './ReferenceText.js';
+import { ReferenceTextarea } from './ReferenceTextarea.js';
 
 /** The sentences one tab says; the thread itself knows no wording of its own kind. */
 export interface CommentThreadCopy {
@@ -31,6 +32,8 @@ export interface CommentThreadCopy {
 
 export interface CommentThreadProps {
   opportunityId: string;
+  /** The Opportunity's Organization — whose Orders a reference may name. */
+  organizationId: string;
   kind: OpportunityCommentKind;
   copy: CommentThreadCopy;
 }
@@ -49,7 +52,7 @@ export interface CommentThreadProps {
  * refusal if one comes anyway.
  */
 export function CommentThread(props: CommentThreadProps): ReactNode {
-  const { opportunityId, kind, copy } = props;
+  const { opportunityId, organizationId, kind, copy } = props;
   const t = useTranslation('crm');
   const tCore = useTranslation('core');
   const { hasPermission, me } = useAuth();
@@ -209,15 +212,16 @@ export function CommentThread(props: CommentThreadProps): ReactNode {
                 {editing ? (
                   <div className="mt-2 space-y-2">
                     <Label htmlFor={`${editFieldId}-${item.id}`}>{t('comments.edit.label')}</Label>
-                    <Textarea
+                    <ReferenceTextarea
                       id={`${editFieldId}-${item.id}`}
+                      organizationId={organizationId}
                       rows={4}
                       value={draft}
                       maxLength={COMMENT_MAX_LENGTH}
                       disabled={saving}
                       autoFocus
                       aria-invalid={editError !== null}
-                      onChange={(event): void => setDraft(event.target.value)}
+                      onValueChange={setDraft}
                     />
                     {editError ? (
                       <p role="alert" className="text-xs text-destructive">
@@ -246,7 +250,9 @@ export function CommentThread(props: CommentThreadProps): ReactNode {
                     </div>
                   </div>
                 ) : (
-                  <p className="mt-2 whitespace-pre-wrap break-words text-sm">{item.body}</p>
+                  <p className="mt-2 whitespace-pre-wrap break-words text-sm">
+                    <ReferenceText text={item.body} references={item.references} />
+                  </p>
                 )}
               </li>
             );
@@ -264,6 +270,7 @@ export function CommentThread(props: CommentThreadProps): ReactNode {
           label={copy.composerLabel}
           placeholder={copy.composerPlaceholder}
           submitLabel={copy.composerSubmit}
+          organizationId={organizationId}
           onSubmit={add}
         />
       ) : null}

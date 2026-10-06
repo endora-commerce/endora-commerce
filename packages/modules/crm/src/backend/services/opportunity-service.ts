@@ -1,4 +1,10 @@
-import { LockMode, QueryOrder, raw, type FilterQuery } from '@mikro-orm/core';
+import {
+  LockMode,
+  QueryOrder,
+  raw,
+  UniqueConstraintViolationException,
+  type FilterQuery,
+} from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   CRM_EVENTS,
@@ -9,8 +15,11 @@ import {
   type CustomFieldValuePort,
   type OpportunityCreatedEvent,
   type OpportunityDetail,
+  type OpportunityDocumentKind,
+  type OpportunityExcludedDocument,
   type OpportunityLink,
   type OpportunityListQuery,
+  type OpportunitySource,
   type OpportunityStatusRef,
   type OpportunitySummary,
   type OrganizationDetailsPort,
@@ -29,6 +38,8 @@ import {
   type OpportunityStatusGraph,
 } from '../domain/opportunity-status-graph.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
+import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
+import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
 import { effectiveOpportunityValue, loadOpportunity } from './opportunity-access.js';
@@ -39,6 +50,7 @@ import {
   type OpportunityAssignmentService,
 } from './opportunity-assignment-service.js';
 import { nextOpportunityNumber } from './opportunity-number.js';
+import { storedReferencesOf, type ReferenceService, type ReferenceSource } from './reference-service.js';
 import type { TagService } from './tag-service.js';
 import { mergeOpportunityCustomFields } from './opportunity-custom-fields.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
@@ -61,6 +73,30 @@ export interface OpportunityServiceDeps {
   unresolvedPropagations: (opportunityId: string) => Promise<PropagationOutcome[]>;
   /** Operator-defined fields (US15): `custom_fields` validates, this service writes. */
   customFields: CustomFieldValuePort;
+  /** Recalculates a computed Opportunity's value — asked when its mode becomes `computed`. */
+  recalculateValue: (opportunityId: string) => Promise<unknown>;
+  /** The linked documents a computed value leaves out, and why. */
+  excludedDocuments: (opportunity: CrmOpportunity) => Promise<OpportunityExcludedDocument[]>;
+  /** The Products and Orders a text mentions: stored on write, resolved on read. */
+  references: ReferenceService;
+}
+
+/** An Opportunity the system creates for a document that was just placed. */
+export interface AutomaticOpportunityInput {
+  title: string;
+  organizationId: string;
+  currency: string;
+  salesChannelId: string | null;
+  source: Exclude<OpportunitySource, 'manual'>;
+  /** The document it is created for, linked in the same Command. */
+  document: { kind: OpportunityDocumentKind; id: string };
+}
+
+/** What the create Command writes beside the request's own fields. */
+interface CreateOptions {
+  source: OpportunitySource;
+  /** A document linked to the Opportunity in the same transaction (`link_source = 'auto'`). */
+  document?: { kind: OpportunityDocumentKind; id: string };
 }
 
 const FALLBACK_LANGUAGE = 'en';
@@ -188,10 +224,71 @@ export class OpportunityService {
     return this.get(created.id);
   }
 
+  /**
+   * Create an Opportunity for a document that was just placed, **and link the
+   * document in the same Command** (research R-8).
+   *
+   * One transaction is what makes automatic creation idempotent: a document
+   * belongs to at most one Opportunity by a unique constraint, so when the
+   * same event is handled twice — delivered again, or two handlers racing —
+   * the second Command's link is refused and its Opportunity is rolled back
+   * with it. That refusal is the answer `already-linked`, not an error; the
+   * Command reads no other module's port, so nothing else can be mistaken for
+   * it.
+   *
+   * Runs in the caller's scope — a subscriber's system scope — with the
+   * Organization given explicitly. Nobody is the creator, so the default
+   * assignee is the Organization's longest-standing active Sales Rep, and they
+   * are told. A Sales Channel that no longer exists is left out rather than
+   * failing the creation.
+   */
+  async createForDocument(
+    input: AutomaticOpportunityInput,
+  ): Promise<{ id: string; number: string } | 'already-linked'> {
+    const assignedAdminUserId = await this.deps.assignment.resolveDefault(input.organizationId, null);
+    const graph = await this.deps.workflowRead.loadGraph();
+    const initial = this.#initialStatus(graph);
+    const salesChannelId =
+      input.salesChannelId !== null &&
+      (await this.deps.emFactory().count(SalesChannel, { id: input.salesChannelId })) > 0
+        ? input.salesChannelId
+        : null;
+
+    let created: { id: string; organizationId: string; number: string };
+    try {
+      created = await this.deps.commandBus.run(
+        this.#createCommand(
+          {
+            title: input.title.slice(0, 200),
+            organizationId: input.organizationId,
+            currency: input.currency,
+            salesChannelId,
+            assignedAdminUserId,
+            valueMode: 'computed',
+          },
+          initial.code,
+          { source: input.source, document: input.document },
+        ),
+      );
+    } catch (error) {
+      if (error instanceof UniqueConstraintViolationException) return 'already-linked';
+      throw error;
+    }
+    await this.deps.recalculateValue(created.id);
+    await this.deps.assignment.notifyAssigned({
+      opportunityId: created.id,
+      number: created.number,
+      title: input.title,
+      assignedAdminUserId,
+    });
+    return { id: created.id, number: created.number };
+  }
+
   /** The create Command. The id is fixed up front so the audit entry and the row agree. */
   #createCommand(
     input: CreateOpportunityRequest,
     initialStatusCode: string,
+    options: CreateOptions = { source: 'manual' },
   ): Command<{ id: string; organizationId: string; number: string }> {
     const id = randomUUID();
     return {
@@ -224,7 +321,7 @@ export class OpportunityService {
           manualValue: normalizeAmount(input.manualValue),
           currency: input.currency,
           expectedCloseDate: input.expectedCloseDate ?? null,
-          source: 'manual',
+          source: options.source,
           createdByAdminUserId: actor.actorAdminUserId,
           customFieldValues,
         });
@@ -241,12 +338,31 @@ export class OpportunityService {
           cause: 'created',
         });
         for (const tag of tags) em.create(CrmOpportunityTag, { opportunityId: id, tagId: tag.id });
+        await this.#saveReferences(
+          em,
+          { opportunityId: id, kind: 'description', sourceId: null },
+          opportunity.description,
+        );
+        if (options.document) {
+          em.create(CrmOpportunityLink, {
+            opportunityId: id,
+            documentKind: options.document.kind,
+            documentId: options.document.id,
+            syncStatus: true,
+            linkSource: 'auto',
+            linkedByAdminUserId: null,
+          });
+        }
         return {
           result: { id, organizationId: opportunity.organizationId, number: opportunity.number },
           before: null,
           after: {
             ...auditSnapshot(opportunity),
+            source: options.source,
             ...(tags.length > 0 ? { tags: tags.map((tag) => tag.name) } : {}),
+            ...(options.document
+              ? { linkedDocument: { documentKind: options.document.kind, documentId: options.document.id } }
+              : {}),
           },
         };
       },
@@ -257,7 +373,7 @@ export class OpportunityService {
           opportunityId: result.id,
           organizationId: result.organizationId,
           number: result.number,
-          source: 'manual',
+          source: options.source,
         };
         return { eventName: CRM_EVENTS.CREATED, payload };
       },
@@ -382,6 +498,7 @@ export class OpportunityService {
     }
     if (patch.assignedAdminUserId) await this.deps.assignment.assertAssignable(patch.assignedAdminUserId);
 
+    let becameComputed = false;
     const reassigned = await this.deps.commandBus.run({
       action: 'crm.opportunity.update',
       objectType: 'crm_opportunity',
@@ -401,7 +518,15 @@ export class OpportunityService {
         const tagChange =
           patch.tagIds === undefined ? null : await this.#replaceTags(em, opportunity.id, patch.tagIds);
         if (patch.title !== undefined) opportunity.title = patch.title;
-        if (patch.description !== undefined) opportunity.description = patch.description;
+        if (patch.description !== undefined) {
+          opportunity.description = patch.description;
+          // The references are derived from the text and saved with it.
+          await this.#saveReferences(
+            em,
+            { opportunityId: opportunity.id, kind: 'description', sourceId: null },
+            patch.description,
+          );
+        }
         if (patch.customerAccountId !== undefined) opportunity.customerAccountId = patch.customerAccountId;
         if (patch.salesChannelId !== undefined) opportunity.salesChannelId = patch.salesChannelId;
         if (patch.assignedAdminUserId !== undefined) {
@@ -421,6 +546,7 @@ export class OpportunityService {
         // with the previous one, and the new assignee is told.
         const previousAdminUserId = (before.assignedAdminUserId as string | null) ?? null;
         const assignedAdminUserId = opportunity.assignedAdminUserId ?? null;
+        becameComputed = before.valueMode !== 'computed' && opportunity.valueMode === 'computed';
         return {
           result:
             previousAdminUserId === assignedAdminUserId
@@ -442,6 +568,9 @@ export class OpportunityService {
       event: (result) => (result ? assignedEvent(result) : undefined),
     });
     if (reassigned) await this.deps.assignment.notifyAssigned(reassigned);
+    // The stored computed figure is not maintained while the mode is manual,
+    // so it is brought up to date the moment it becomes the value.
+    if (becameComputed) await this.deps.recalculateValue(id);
     return this.get(id);
   }
 
@@ -519,6 +648,17 @@ export class OpportunityService {
       before: currentTags.map((tag) => tag.name),
       after: wanted.map((tag) => tag.name),
     };
+  }
+
+  /**
+   * Replace the stored references of one source with those its text carries
+   * now. **Call it inside the Command that saves the text, with that
+   * Command's EntityManager and an Opportunity that was loaded through the
+   * scoped one** — the rows carry no tenant column of their own.
+   */
+  async #saveReferences(em: EntityManager, source: ReferenceSource, text: string | null | undefined): Promise<void> {
+    await em.nativeDelete(CrmOpportunityReference, storedReferencesOf(source));
+    for (const row of this.deps.references.rowsFor(source, text)) em.create(CrmOpportunityReference, row);
   }
 
   #initialStatus(graph: OpportunityStatusGraph) {
@@ -611,22 +751,23 @@ export class OpportunityService {
 
   async #detail(opportunity: CrmOpportunity, graph: OpportunityStatusGraph): Promise<OpportunityDetail> {
     const language = await this.#viewerLanguage();
-    const [summaries, contact, links, unresolvedPropagations] = await Promise.all([
+    const [summaries, contact, links, unresolvedPropagations, excludedDocuments, references] = await Promise.all([
       this.#summaries([opportunity], graph, language),
       opportunity.customerAccountId
         ? this.deps.customerAccounts.findById(opportunity.customerAccountId)
         : Promise.resolve(null),
       this.deps.links(opportunity.id),
       this.deps.unresolvedPropagations(opportunity.id),
+      this.deps.excludedDocuments(opportunity),
+      this.deps.references.resolve(opportunity.description),
     ]);
     const summary = summaries[0];
     if (!summary) throw new Error('crm: an opportunity produced no summary.');
     return {
       ...summary,
+      // The text as stored, and beside it what its tokens name for this reader.
       description: opportunity.description ?? null,
-      // Reference tokens are resolved by the references story; the text is
-      // returned as stored until then.
-      references: [],
+      references,
       customerAccount: contact
         ? {
             id: contact.id,
@@ -636,7 +777,7 @@ export class OpportunityService {
         : null,
       manualValue: opportunity.manualValue ?? null,
       computedValue: opportunity.computedValue,
-      excludedDocuments: [],
+      excludedDocuments,
       source: opportunity.source,
       version: opportunity.version,
       allowedTransitions: graph

@@ -3,6 +3,7 @@ import {
   CreateOpportunityStatusRequestSchema,
   SetOpportunityTransitionsRequestSchema,
   SetOrderStatusMappingsRequestSchema,
+  SetValueCountingStatusesRequestSchema,
   UpdateOpportunityStatusRequestSchema,
 } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -91,6 +92,20 @@ export async function registerCrmWorkflowRoutes(
     async (request) => {
       await config.setOrderStatusMappings(SetOrderStatusMappingsRequestSchema.parse(request.body));
       return workflow();
+    },
+  );
+
+  // 202: the set is saved when this answers; the figures it changes are
+  // recalculated by a queue consumer afterwards.
+  app.put(
+    '/api/v1/admin/crm/value-counting-statuses',
+    {
+      preHandler: requireAdmin('crm:configure'),
+      schema: { body: SetValueCountingStatusesRequestSchema },
+    },
+    async (request, reply) => {
+      await config.setValueCountingStatuses(SetValueCountingStatusesRequestSchema.parse(request.body));
+      return reply.code(202).send(await workflow());
     },
   );
 }

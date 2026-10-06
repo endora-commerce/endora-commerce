@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   setupBackendServer,
@@ -10,16 +11,25 @@ import {
   type OffStateAxis,
   type OffStateProbe,
 } from '../../helpers/off-state.js';
-import { CrmOpportunity, CrmStatusPropagation } from '../../helpers/package-entities.js';
+import { CrmOpportunity, CrmOpportunityLink, CrmStatusPropagation } from '../../helpers/package-entities.js';
+import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { CRM_SETTING_CODES } from '../../../../packages/modules/crm/src/manifest.js';
 import {
   changeOrderStatusAsOperator,
   createCrmOpportunity,
   defineCrmCustomField,
   linkCrmOrder,
   removeCrmCustomFields,
+  linkCrmQuoteRequest,
+  placeCrmOrder,
   restoreDefaultCrmWorkflow,
   seedCrmOrder,
+  setCrmCountingStatuses,
   setCrmMappings,
+  setCrmSetting,
+  submitCrmQuoteRequest,
+  whenCrmEventSettled,
+  writeCrmSetting,
 } from '../../helpers/seed-crm.js';
 
 /**
@@ -70,11 +80,13 @@ describe('crm off-state (Constitution XVII)', () => {
     { method: 'GET', route: `${API}/lookups/sales-channels` },
     { method: 'GET', route: `${API}/lookups/assignees` },
     { method: 'GET', route: `${API}/lookups/contacts` },
+    { method: 'GET', route: `${API}/lookups/quote-requests` },
     { method: 'POST', route: `${API}/statuses`, payload: { code: 'off_state', defaultName: 'Off', kind: 'open' } },
     { method: 'PATCH', route: `${API}/statuses/:code`, payload: { defaultName: 'Renamed' } },
     { method: 'DELETE', route: `${API}/statuses/:code` },
     { method: 'PUT', route: `${API}/transitions`, payload: { add: [] } },
     { method: 'PUT', route: `${API}/order-status-mappings`, payload: { mappings: [] } },
+    { method: 'PUT', route: `${API}/value-counting-statuses`, payload: { order: [], quoteRequest: [] } },
     { method: 'GET', route: `${API}/opportunities` },
     { method: 'POST', route: `${API}/opportunities`, payload: { title: 'Off', organizationId: ID, currency: 'PLN' } },
     { method: 'GET', route: `${API}/opportunities/:id` },
@@ -82,6 +94,7 @@ describe('crm off-state (Constitution XVII)', () => {
     { method: 'DELETE', route: `${API}/opportunities/:id` },
     { method: 'POST', route: `${API}/opportunities/:id/transition`, payload: { to: 'qualified' } },
     { method: 'POST', route: `${API}/opportunities/:id/assign`, payload: { adminUserId: null } },
+    { method: 'GET', route: `${API}/opportunities/:id/history` },
     { method: 'GET', route: `${API}/opportunities/:id/attachments` },
     { method: 'POST', route: `${API}/opportunities/:id/attachments`, payload: { assetId: CHILD } },
     { method: 'DELETE', route: `${API}/opportunities/:id/attachments/:attachmentId` },
@@ -292,6 +305,170 @@ describe('crm off-state (Constitution XVII)', () => {
         expect((await detail(opportunity.id)).customFieldValues).toEqual({ lead_source: 'referral' });
       },
     );
+  });
+
+  describe('the value subscribers (order.status_changed.v1, rfq.*, order.created.v1)', () => {
+    const storedValue = async (opportunityId: string) =>
+      (await h.em().findOneOrFail(CrmOpportunity, { id: opportunityId }, { filters: false })).computedValue;
+
+    const linksOf = async (opportunityId: string) =>
+      h.em().count(CrmOpportunityLink, { opportunityId }, { filters: false });
+
+    const computedWithOrder = async () => {
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+      const order = await seedCrmOrder(h.em());
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+      return { opportunityId: opportunity.id, orderId: order.id };
+    };
+
+    const computedWithQuoteRequest = async () => {
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+      const rfq = await submitCrmQuoteRequest(h);
+      expect((await linkCrmQuoteRequest(h, opportunity.id, rfq.id)).statusCode).toBe(201);
+      return { opportunityId: opportunity.id, rfq };
+    };
+
+    const cancelQuoteRequest = (rfq: { id: string; version: number }) =>
+      whenCrmEventSettled(h, 'rfq.canceled.v1', (payload) => payload['rfqId'] === rfq.id, async () => {
+        const response = await h.app.inject({
+          method: 'POST',
+          url: `/api/v1/admin/quote-requests/${rfq.id}/cancel`,
+          cookies: admin,
+          headers: { 'if-match': `"${rfq.version}"` },
+          payload: { reason: 'Off-state probe' },
+        });
+        expect(response.statusCode, response.body).toBe(200);
+      });
+
+    const announceOrder = (orderId: string) =>
+      whenCrmEventSettled(h, 'order.created.v1', (payload) => payload['orderId'] === orderId, async () => {
+        h.eventBus.emit('order.created.v1' as never, {
+          eventId: randomUUID(),
+          occurredAt: new Date().toISOString(),
+          orderId,
+          organizationId: TEST_ORGANIZATION_ID,
+        } as never);
+      });
+
+    beforeAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      const configured = await setCrmCountingStatuses(h, { order: ['paid'], quoteRequest: ['Pending'] });
+      expect(configured.statusCode, configured.body).toBe(202);
+    });
+
+    afterAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+    });
+
+    it('recalculate while on — the positive controls', async () => {
+      const withOrder = await computedWithOrder();
+      await changeOrderStatusAsOperator(h, withOrder.orderId, 'paid');
+      expect(await storedValue(withOrder.opportunityId)).toBe('123.00');
+
+      const withQuote = await computedWithQuoteRequest();
+      expect(await storedValue(withQuote.opportunityId)).toBe('84.00');
+      await cancelQuoteRequest(withQuote.rfq);
+      expect(await storedValue(withQuote.opportunityId)).toBe('0.00');
+
+      const conversion = await computedWithQuoteRequest();
+      const placed = await seedCrmOrder(h.em(), { sourceQuoteRequestId: conversion.rfq.id });
+      await announceOrder(placed.id);
+      expect(await linksOf(conversion.opportunityId)).toBe(2);
+    });
+
+    it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+      'recalculate nothing and link nothing while %s, and nothing is replayed afterwards',
+      async (axis) => {
+        const withOrder = await computedWithOrder();
+        const withQuote = await computedWithQuoteRequest();
+        const conversion = await computedWithQuoteRequest();
+        const placed = await seedCrmOrder(h.em(), { sourceQuoteRequestId: conversion.rfq.id });
+
+        await withModuleOff('crm', axis, async () => {
+          await changeOrderStatusAsOperator(h, withOrder.orderId, 'paid');
+          expect(await storedValue(withOrder.opportunityId)).toBe('0.00');
+          await cancelQuoteRequest(withQuote.rfq);
+          expect(await storedValue(withQuote.opportunityId)).toBe('84.00');
+          await announceOrder(placed.id);
+          expect(await linksOf(conversion.opportunityId)).toBe(1);
+        });
+
+        expect(await storedValue(withOrder.opportunityId)).toBe('0.00');
+        expect(await storedValue(withQuote.opportunityId)).toBe('84.00');
+        expect(await linksOf(conversion.opportunityId)).toBe(1);
+      },
+    );
+  });
+
+  describe('automatic creation (order.created.v1, rfq.created.v1) and its two settings', () => {
+    const SETTINGS = [
+      CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS,
+      CRM_SETTING_CODES.AUTO_CREATE_FROM_QUOTE_REQUESTS,
+    ] as const;
+
+    const opportunityCount = () => h.em().count(CrmOpportunity, {}, { filters: false });
+
+    const placeOrder = () => whenCrmEventSettled(h, 'order.created.v1', () => true, () => placeCrmOrder(h));
+
+    const submitQuoteRequest = () =>
+      whenCrmEventSettled(h, 'rfq.created.v1', () => true, () => submitCrmQuoteRequest(h));
+
+    beforeAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      await h.em().execute(`update "stock_levels" set "on_hand" = 10000`);
+      for (const code of SETTINGS) await setCrmSetting(h, code, true);
+    });
+
+    afterAll(async () => {
+      for (const code of SETTINGS) await setCrmSetting(h, code, false);
+      await restoreDefaultCrmWorkflow(h.em());
+    });
+
+    it('creates an Opportunity per placed document while on — the positive control', async () => {
+      const before = await opportunityCount();
+      await placeOrder();
+      await submitQuoteRequest();
+      expect(await opportunityCount()).toBe(before + 2);
+    });
+
+    it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+      'creates nothing while %s with both settings on, and nothing retroactively afterwards',
+      async (axis) => {
+        const before = await opportunityCount();
+        let orderId = '';
+        await withModuleOff('crm', axis, async () => {
+          orderId = (await placeOrder()).id;
+          await submitQuoteRequest();
+          expect(await opportunityCount()).toBe(before);
+        });
+        // Back on: the documents placed meanwhile stay without an Opportunity.
+        expect(await opportunityCount()).toBe(before);
+        expect(
+          await h.em().count(CrmOpportunityLink, { documentKind: 'order', documentId: orderId }, { filters: false }),
+        ).toBe(0);
+        // And the next one placed gets its own again.
+        await placeOrder();
+        expect(await opportunityCount()).toBe(before + 1);
+      },
+    );
+
+    it.each(SETTINGS)('%s is writable while on and refused while off', async (code) => {
+      // The positive control, with the body the Settings screen sends: a
+      // malformed write is refused in every state and would prove nothing.
+      const whileOn = await writeCrmSetting(h, code, true);
+      expect(whileOn.statusCode, whileOn.body).toBe(200);
+      for (const axis of ['deactivated', 'platform-unavailable'] as const) {
+        await withModuleOff('crm', axis, async () => {
+          const refused = await writeCrmSetting(h, code, false);
+          // By name: a body the schema refuses is a 400 as well.
+          expect(refused.statusCode, `${axis}: ${refused.body}`).toBe(400);
+          expect(refused.json().error.code, `${axis}: ${refused.body}`).toBe('MODULE_SETTING_READ_ONLY');
+        });
+      }
+      // Nothing was written through the refused calls.
+      const after = await writeCrmSetting(h, code, true);
+      expect(after.statusCode, after.body).toBe(200);
+    });
   });
 
   it('probes routes that exist — a refused path the module never registered would prove nothing', () => {

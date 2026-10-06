@@ -1837,6 +1837,340 @@ when it was measured, and what was done about it.
   every Sales Rep's network panel, reported for whoever owns the shell's idle-logout read.
   Not verified by eye: a real screen reader, a physical touch device, dark theme, a popup
   blocker stricter than Chromium's default on the download's new tab (N-D8 (c)).
+- **N-E1 (2026-10-05, T095) — R-14's [unverified] premise about how a quote is totalled,
+  re-derived; the formula stands with two corrections.** `RfqDetail.tsx` shows, per line,
+  `agreedUnitPrice × quantity`, falling back to `desiredUnitPrice × quantity`; its total row is
+  `Σ agreedUnitPrice × quantity` and is shown **only when every line has an agreed price**
+  (`rfq-service.ts`' `summarize` computes the same `totalAtAgreedPrice`, `null` otherwise).
+  **The packaging unit's base quantity multiplies nothing** on that screen, so it multiplies
+  nothing here. CRM's figure is `Σ quantity × (agreedUnitPrice ?? desiredUnitPrice)`, which is
+  the sum of the desk's line totals and equals its total row whenever it shows one
+  (`value.test.ts` compares the two after an agreed revision). Corrections: (a) **quote prices
+  are net** — the desk adds VAT below the net total from `rfqService.taxRateForOrganization`,
+  which `quoteRequestReadPort` does not publish, so CRM counts the **net** total; (b)
+  `QuoteRequestLineRecord`'s doc comment says "the money columns are deliberately absent"
+  while the interface carries `lineCurrency`, `agreedUnitPrice` and `desiredUnitPrice` (added
+  for the ERP export callers) — the comment is stale, the fields are published, and no change
+  to `QuoteRequestReadPort` was needed. `findById` and `listItems` are one call each per
+  linked Quote Request; the port has no batch read.
+- **N-E2 (2026-10-05, T102) — `OrderRecord.total` is gross.** `order-service.ts` computes it as
+  `subtotal + taxTotal + deliveryTotal + paymentSurcharge − discountTotal`: what the customer
+  pays, delivery included. It is used as published. So a computed value adds **gross Order
+  totals and net Quote Request totals**; neither is converted, each is what its own screen
+  shows, and the docs page says so in both languages. **Currency**: an Opportunity has one;
+  nothing is converted (R-14's "no rate source" still holds for a module — `currencies` is a
+  module with its own ports, and converting is a feature nobody specified). A counting document
+  in another currency is left out and named in `excludedDocuments` with
+  `reason: 'currency_mismatch'`; a Quote Request with lines in several currencies counts its
+  matching lines and is named as well. A document that would not have counted anyway is not
+  named. Linking a document in another currency is **not** refused.
+- **N-E3 (2026-10-05, T095) — nothing in the tree writes `orders.source_quote_request_id`. A
+  pre-existing defect of the quote-to-order flow, reported and not repaired.** The column, the
+  `OrderRecord.sourceQuoteRequestId` field and `quote_requests`' `order-completion-reactor.ts`
+  (which completes a Quote Request and sets `convertedOrderId` when an Order names it) all
+  exist; `placeOrder` never sets the field, and `POST /quote-requests/:id/convert-to-order`
+  fills a cart that keeps no reference to the request. So today no Order placed through the
+  product carries its source, no Quote Request is ever completed by one, and
+  `quote_requests`' own test of the reactor writes the Order row by hand
+  (`backend/test/integration/quote_requests/off-state.test.ts`, "written directly rather than
+  checked out"). **Consequence for this feature:** FR-027 (the Order joins the Opportunity of
+  its Quote Request) and FR-033's "counted once" are implemented against the published
+  contract and proven with that same fixture, and are **unreachable from the storefront until
+  `orders` records the source** — a change to `carts`/`orders` that is on no list of this
+  feature. Until then an Order placed from a linked Quote Request is a separate, unlinked
+  Order, and with automatic creation on (US9) gets an Opportunity of its own.
+- **N-E4 (2026-10-05, T098–T100) — what the value story decided that the contract leaves
+  open.** (a) `computed_value` is maintained **only while the mode is `computed`**; a `PATCH`
+  that makes the mode `computed` recalculates, and `manualValue` is kept either way. (b) A
+  recalculation is a Command with `skipAudit` (`crm.opportunity.value_recalculate` — never in
+  the audit log) and **does not bump `version`**, so an open edit form is not invalidated by a
+  linked Order being paid. It evaluates under a row lock, so two recalculations of one
+  Opportunity are serial. (c) `excludedDocuments` is **evaluated on read** of the detail (the
+  stored figure has no room for names) and is `[]` in manual mode. (d) `PUT
+  /value-counting-statuses` answers **202 `{ data: OpportunityWorkflow }`**, sorted and
+  de-duplicated; an Order status code is not validated (N-8), a Quote Request status outside
+  the six is 400. (e) **"Counted once" is decided from either side**: `convertedOrderId` on
+  the Quote Request *or* `sourceQuoteRequestId` on the Order — the first is written by
+  `quote_requests`' own `order.created.v1` subscriber, which may run after CRM's. (f) A Quote
+  Request reaching `Completed` announces nothing (`quote_requests` emits no event for it), so
+  a value that counted it as `Approved` is corrected at the next trigger, not at once.
+  (g) With `quote_requests` switched off and on again, a stored value catches up at its next
+  recalculation, not at the flip — nothing subscribes to another module's activation.
+  (h) `syncStatus` is stored for a Quote Request link and means nothing.
+- **N-E5 (2026-10-05, T099) — the `degrades-without` edge, and one sentence that had to
+  shrink.** The manifest schema caps `whenAbsent` at 200 characters; the sentence of
+  `contracts/events-and-ports.md` §5 is 213. The manifest says "…stop counting toward computed
+  values, and can no longer be linked or created from one. Opportunities and their Orders keep
+  working" (190 characters) — the same statement; the contract's wording was not edited.
+  Presence is decided in one file, `services/crm-quote-requests.ts`: rendering and the value
+  skip an absent owner, and linking throws `ModuleDisabledError('quote_requests')` **from that
+  decision**, so the answer is 503 `MODULE_DISABLED` on both axes (deactivated and
+  platform-unavailable) and no refusal is ever caught. `check:port-dependencies` accepted the
+  edge with no ledger edit. An existing Quote Request link can be removed while the owner is
+  off.
+- **N-E6 (2026-10-05, T100) — composition: three more subscriptions and a queue, in one
+  delimited section of `index.ts`.** `compose/value.ts` does not exist (N-6). The value
+  subscriber of `order.status_changed.v1` is a **second** `ctx.subscribe` beside the reverse
+  mapping's rather than a line inside it (`contracts/events-and-ports.md` §2 draws one
+  handler); they share nothing, and the bus runs them in registration order, so the value is
+  recalculated after the Opportunity has moved. The four `rfq.*` payloads carry `rfqId` only —
+  no Organization — so the handler finds the link by document and works in a system scope.
+  The queue is `crm-value-recalculation`; its producer is built lazily on `moduleQueueRedis`
+  and its consumer only where `processRunsWorkers` says so, attached with `ctx.worker`. The
+  shared test server offers neither, so `value.test.ts` runs the job's body
+  (`recalculateAll` in a system scope) through the container. `bullmq` and `ioredis` joined
+  the rendered `package.json` as peers, as T102 predicted.
+- **N-E7 (2026-10-05, T103) — the premise "the `order.created.v1` subscriber sees the
+  committed Order" is FALSE, measured.** `orders` emits the event from **inside** the
+  transaction that places the Order (`order-service.ts`: `await tx.flush()`, then the emit,
+  then more work, then the transactional callback returns), the storefront route calls
+  `placeOrder` with no event scope around it, and the bus runs a handler at once. A probe
+  subscriber reading through `orderReadPort.findById` on three storefront placements
+  (`POST /api/v1/cart/items`, `POST /api/v1/orders`): the first placement was **not found**
+  at once and found 5 ms later; the second and third were found at once — a race with the
+  commit that a warm connection usually wins. (`quote_requests`' completion reactor reads the
+  same way and has the same exposure; it never shows, because of N-E3.) `orders` is not
+  edited. The CRM handler **waits for the commit**: it reads the document again after 10, 25,
+  75, 150, 250, 500 and 1000 ms (about two seconds in all) and gives up — creating nothing —
+  for a document that never appears, which is what a rolled-back placement looks like. The
+  pauses are a constant in `opportunity-auto-create-service.ts`; the unit test injects the
+  sleep and holds both the retry and the bound. **The repair that removes the wait is
+  `orders`'**: emit after the commit, or run the placement inside `EventBus.run`. Reported, not
+  made — it is on no list of this feature.
+- **N-E8 (2026-10-05, T106) — what automatic creation decided.** (a) **The Opportunity and its
+  link are one Command** (`crm.opportunity.create`, with the link written by
+  `OpportunityService.createForDocument`): the unique `(document_kind, document_id)`
+  constraint then rolls a second Opportunity back together with its refused link, so a
+  redelivered event or two racing handlers cannot leave an Opportunity without its document.
+  T106 sketched "create through `OpportunityService`, then link"; two Commands could. The
+  constraint violation is answered `already-linked`. (b) A Command declares one event, and
+  that one is `crm.opportunity.created.v1` (`source: 'order' | 'quote_request'`);
+  `crm.opportunity.document_linked.v1` (`linkSource: 'auto'`) is emitted by the service after
+  the commit — once per created Opportunity and never for a rolled-back one, which is what
+  `contracts/events-and-ports.md` §1.2 promises, by other means. (c) The audit entry of an
+  automatic creation has no actor, and its after-state carries `source` and `linkedDocument`.
+  (d) **A Quote Request's Sales Channel is not published** — `QuoteRequestRecord` has no
+  `salesChannelId` although the row does, and `contracts/foreign-module-changes.md` §F
+  forbids changing that port — so an Opportunity created from a Quote Request has **no Sales
+  Channel**, and `crm.auto_create_from_quote_requests` is read platform-wide (`null`), not
+  per channel. For an Order both follow the Order's channel, and a per-channel override is
+  honoured in both directions (`auto-create.test.ts`). (e) A Sales Channel that no longer
+  exists is left out rather than failing the creation. (f) The contact person is not set:
+  R-8 does not list it. (g) An Order an administrator places on a customer's behalf goes
+  through the same `placeOrder` and gets its Opportunity; a Quote Request an administrator
+  creates emits no `rfq.created.v1` and gets none until US10's event. (h) The unified
+  `order.created.v1` subscriber replaced User Story 8's: quote conversion first, whatever the
+  setting says, then "already linked", then the setting. `compose/auto-create.ts` does not
+  exist (N-6). (i) `zod` joined the package's peers — the settings port takes a Zod schema —
+  which closes N-B2's "the CRM package does not depend on `zod`".
+- **N-E9 (2026-10-05, T104) — the off-state harness's "setting is not editable while off"
+  probe is vacuous, for every module. Pre-existing, reported, not repaired.**
+  `expectSettingWriteRefused` in `backend/test/helpers/off-state.ts` sends
+  `PUT /api/v1/admin/settings/:code/value` with `{ value }`. The route parses
+  `SetValueRequestSchema` first, which requires `scope`, so the call answers 400
+  `VALIDATION_FAILED` **while the module is on** as well (measured here, on `crm`), and the
+  helper asserts only `>= 400`. The real refusal is also a 400, `MODULE_SETTING_READ_ONLY`.
+  CRM's own off-state file therefore writes each of its two settings with the body the
+  Settings screen sends (`{ scope: 'all', value }`), asserts 200 while on, and asserts the
+  refusal **by code** on both axes. The helper is shared by every module's off-state test and
+  is not this feature's to change.
+- **N-E10 (2026-10-05, T121) — the history endpoint: what R-16 could not have known about
+  the audit port.** `AuditPort.query` takes `{ objectType, objectId, action, actor…, limit }`
+  and nothing else — **no cursor, no offset** — answers newest first, and caps `limit` at 500.
+  So `GET …/history?limit&cursor` cuts its pages from one capped read: the cursor is an
+  offset (opaque, base64url, 400 `VALIDATION_FAILED` when it is not one this endpoint issued),
+  `limit + offset + 1` rows are asked for to know whether a next page exists, and **a history
+  reaches back 500 entries** — the 501st and older are unreachable through this endpoint
+  until the port grows a cursor (a platform change, not this feature's). The entries are
+  exactly §11's six fields; `ipAddress`, `userAgent`, `requestId` and the impersonated
+  customer of the audit row are **not** returned — the tab is read by Sales Reps, not by
+  whoever holds `audit_log:read`. `actor.kind` is `admin` when the row has an administrator
+  and `system` otherwise (`{ kind: 'system', id: null, name: null }`); an administrator who has
+  since been deleted is `admin` with `name: null`. **Status history is not read**: the audit
+  entry of a transition already carries `status` before and after, `cause`, `causeOrderId`
+  (N-B3) and `reason`, which is everything the status-history row holds, and R-16 keeps that
+  table for analytics. Tenant safety is the parent-first rule (N-15): the Opportunity is
+  loaded through the scoped EntityManager, then entries are read by its id — an audit row
+  belongs to no Organization and nothing else filters it. `compose/history.ts` does not exist
+  (N-6); the section registers its own `ctx.routes`.
+- **N-E11 (2026-10-05, T120) — the sweep found no Command recording the wrong object, and
+  two tests now hold what it found.** `audit-coverage.test.ts` performs every audited
+  Opportunity action through the API — eighteen: the list of `data-model.md` § Audit actions
+  without `value_mode_set` (which is a field of `update`, never an action of its own) and with
+  `propagation_skip` (N-B3) — and asserts each is recorded under `crm_opportunity` and the
+  Opportunity's id; its last case holds that list equal to the `auditLog.crm.opportunity.*`
+  keys of the bundle. `opportunity-history-labels.test.ts` (module-local, no service) scans the
+  services for every `crm.<object>.<verb>` literal and holds each audited one to a sentence in
+  **both** bundles, and each `auditLog.crm.*` key to a Command that exists. Three actions are
+  never audited (`propagation_record`, `propagation_echo`, `value_recalculate` — `skipAudit`
+  on every path) and have no label. So the contract the admin tab relies on is: **label =
+  `auditLog.<action>` in CRM's bundle**, and the endpoint adds no label field of its own.
+- **N-E12 (2026-10-05, T121) — N-22 investigated: `moduleIdForAuditAction` is a hard-coded
+  prefix chain, not a registry.** It is one exported function at the bottom of
+  `packages/modules/audit_logs/src/backend/routes.admin.ts`: eighteen `if
+  (action.startsWith('<prefix>.')) return '<moduleId>'` lines — `settings`, `catalog`,
+  `sales_channels` and `audit_logs` itself name their prefixes there; `api_key.`, `order.`,
+  `organization.` and `impersonation.` are sent to `core` — ending in `return 'core'`. The
+  route puts its answer on every row as `actionModuleId`, and the viewer looks
+  `auditLog.<action>` up in that module's bundle. There is no roster, ledger, manifest field
+  or contribution seam a module joins; its only test (`routes.admin.test.ts`) asserts the
+  `tenant.` row. **The smallest correct fix is one line in that function** —
+  `if (action.startsWith('crm.')) return 'crm';` — after which `crm.opportunity.transition`
+  resolves to `auditLog.crm.opportunity.transition` in CRM's bundle, which exists in both
+  languages for every audited action (N-E11). **Not applied**: it is production code of
+  another module naming this one, not an exact-set ledger, and `audit_logs` is on no row of
+  `contracts/foreign-module-changes.md`. The durable repair is the one the function's shape
+  asks for — deriving the module from the manifests' declared audit prefixes — and is
+  `audit_logs`' to design. Until either lands, `/audit-log` shows CRM's rows under their raw
+  action codes; the Opportunity's own history is unaffected.
+- **N-E13 (2026-10-05, T126) — references: three places where the build departs from the
+  tasks' sketch.** (a) **The grammar stays in the contracts package**, where
+  `extractOpportunityReferenceTokens` already was (its doc block: "the one place the grammar
+  is written; the backend extracts with it and the admin's composer inserts with it").
+  `domain/reference-tokens.ts` is therefore a two-line door to it (`referenceTokensOf`, which
+  also answers for a text that is not there), and T124's cases — duplicates, malformed tokens,
+  10 000 characters of almost-tokens in under 250 ms — are held against that door. The
+  expression has no nested quantifier, so it is linear by construction. (b) **`syncForSource`
+  is not a method of the reference service.** `check:command-coverage` reads a write in a
+  helper of another file as unaudited (N-16; run by hand with `--module crm` it reported
+  exactly that), so `ReferenceService.rowsFor` only says which rows a text asks for, and the
+  delete-then-create is a private `#saveReferences` in each of the two services that own a
+  saving Command (`opportunity-service.ts`, `opportunity-comment-service.ts`) — where the
+  parent was loaded through the scoped EntityManager. (c) **On read the tokens come from the
+  text, not from the rows.** The text is the truth and the rows are an index of who mentions
+  what (the `(target_type, target_id)` index is for a later "where is this product
+  mentioned"); resolving from the text cannot be stale. `resolveMany` resolves a whole page of
+  comments in two port calls. `compose/references.ts` does not exist (N-6).
+- **N-E14 (2026-10-05, T125) — what a reference shows, and to whom.** A Product's label is
+  its name in the reader's stored language (`adminUserReadPort`, as N-17 does for statuses):
+  the exact locale, then any locale of the same language — the catalog keys names `en-US` /
+  `pl-PL` while an administrator's preference is `en` / `pl` — then any name, then the SKU.
+  An Order's label is its number (`businessId`). URLs are the Admin UI's own
+  (`/catalog/products/:id`, `/orders/:id`). **Unavailable** is: a Product that does not exist
+  or is soft-deleted (`liveOnly`), and an Order `orderReadPort.findByIds` does not return
+  under the reader's tenant scope — proven with a Sales Representative confined to one
+  Organization reading a description that names another Organization's Order (no label, no
+  URL, the number nowhere in the body; the platform administrator, as the control, sees it).
+  **Products are not tenant-scoped and no catalog permission is asked**: whoever may read
+  the Opportunity reads the names of the Products it mentions, as R-21 has it. A deleted
+  note's rows are removed; a message is immutable, so its rows never change. No endpoint was
+  added: `contracts/admin-api.md` §9 names none, and the composer's two pickers use the
+  catalog's and the Orders' own admin endpoints.
+- **N-E15 (2026-10-05, T163) — the reported webhooks defect, verified before touching the
+  module; it is as R-27 says, and a little worse.** `KNOWN_EVENT_TYPES` in
+  `packages/modules/webhooks/src/admin/pages/WebhooksPage.tsx` offers **thirteen** event
+  types. `BRIDGED_EVENT_TYPES` in `packages/modules/webhooks/src/backend/index.ts` holds
+  **two** — `order.created.v1`, `order.status_changed.v1` — and the loop over it was the
+  module's only `ctx.subscribe`; `bridgeEventHandler` is called from nowhere else, and no other
+  module adds a job to the delivery queue. `POST /api/v1/admin/webhooks` accepts any non-empty
+  string as an event type. So a subscription to any of the other **eleven** is stored and never
+  receives a delivery. Of those eleven, **six are emitted** by something in the tree and simply
+  not bridged (`product.created.v1`, `product.updated.v1`, `product.archived.v1`,
+  `rfq.created.v1`, `rfq.expired.v1`, `credit_limit.adjusted.v1`), and **five are emitted by
+  nothing at all** (`rfq.quoted.v1`, `rfq.accepted.v1`, `order.cancelled.v1`,
+  `payment.settled.v1`, `credit_limit.reservation_released.v1` — no `emit` of those names
+  exists outside tests; `order.cancelled.v1` is declared in `orders`' event map and emitted
+  nowhere). **Not repaired**: `contracts/foreign-module-changes.md` §I and §F
+  leave both lists untouched. The seam this story adds is the repair's shape — the six emitted
+  types need one `register` each from their owners, and the five need deleting from the form
+  — and is for the defect register.
+- **N-E16 (2026-10-05, T167) — R-27's [unverified] premise holds: a `ctx.subscribe` issued
+  from the registry during the boot phase is accepted, by the kernel and by
+  `check:subscribe-seam`.** The kernel: `ModuleContext.subscribe` is
+  `sink.unsubscribes.push(subscribeForModule(module.id, eventBus, event, handler))` with no
+  `isRegistering` guard — `subscribeForModule` calls `bus.on` at once, with the handler
+  wrapped in `effectiveState.isPresent('webhooks')`, so a late subscription is gated exactly
+  as an early one. The only thing that differs is bookkeeping: `composeModules` copies each
+  module's `unsubscribes` into its result when registration ends, so a later one is not in
+  that copy — and **nothing in the tree reads that copy** (it is collected and never called;
+  the bus lives and dies with its composition), so nothing is lost by it. The check: it is
+  static, flags `<bus>.on(<event>, …)` in a module's files, and has nothing to say about a
+  `ctx.subscribe` wherever it is called from; it is green. Proven end to end by
+  `backend/test/integration/webhooks/contributed-events.test.ts`, which registers its
+  descriptor **after** `runBootHooks()` has returned — later than any boot hook can — and
+  observes the job enqueued, the Organization binding honoured, and nothing enqueued on either
+  off axis. So the fallback (subscribing from a `webhooks` boot hook over `list()`) was not
+  needed, and the ordering question it raises never arises: a contribution is bridged the
+  moment it is pushed, whichever boot hook pushes it. The registry takes the subscribing
+  function from `index.ts` (`bridge`), where `ctx` is, and the two built-in types now go
+  through the same function. A contribution naming a type the module bridges already is
+  recorded and **not** bridged a second time.
+- **N-E17 (2026-10-05, T166/T169) — what the webhook contract fixed in place.** The three
+  payload types are now `z.infer` of their strict schemas (`OpportunityStatusChangedEvent`,
+  `OpportunityCreatedEvent`, `OpportunityClosedEvent`), so every emit site is typed by the
+  schema and there is one definition; `OpportunityStatusEvent` (the four templated events and
+  what a guard is handed) stays an interface — it is not offered to webhooks.
+  `CRM_WEBHOOK_EVENT_TYPES` and `CRM_WEBHOOK_EVENT_SCHEMAS` name the three for the contributor
+  and the tests. `occurredAt` is held to an ISO date-time with offset and `currency` to a
+  three-letter code; `reason` to 2000 characters (the transition request's own limit).
+  `crm/webhooks.test.ts` subscribes to the three on the bus through a manual create, a
+  computed one, six transitions including reopen, won and lost, and an automatic creation from
+  a placed Order, and parses every payload under `.strict()`. `GET
+  /api/v1/admin/webhooks/event-types` answers `{ data: [{ ownerModuleId, eventType }] }` under
+  `integrations:manage`, the gate of the module's other routes; no response schema was added
+  to the contracts package beyond the two interfaces §I1 lists. The edge is `contributes-to`
+  with a `reason` and no `whenAbsent`; `check:port-dependencies` and `check:port-shape`
+  accepted the new container name with no ledger edit. Two test files the seam needed are new
+  and are not rows of §I: `backend/test/integration/webhooks/contributed-events.test.ts` (T163)
+  and `admin/test/modules/webhooks/contributed-event-types.test.tsx` (T165).
+- **N-E18 (2026-10-05, T106 — a correction to N-E7) — the wait for a commit must not be
+  awaited on the bus, and for one story it was.** `EventBus.dispatch` runs the subscribers of
+  an event one after another and awaits each. User Story 9's handler slept until the Order was
+  readable, so every later subscriber of `order.created.v1` waited with it — a few
+  milliseconds when the race was lost, **the whole two seconds for an Order that never
+  commits**. It was found by a neighbour's test, not by CRM's:
+  `backend/test/integration/webhooks/off-state-bridge.test.ts` announces an Order that does not
+  exist and gives the bridge 50 ms. Repaired in `opportunity-auto-create-service.ts`: the
+  handler reads **once**; a document that is there is handled in the handler, as before; one
+  that is not is looked for again through `defer`, which the composition supplies — off the
+  dispatch chain, in a system scope of its own (the handler's ends when it returns), doing
+  nothing if the module was switched off meanwhile, and logging rather than rejecting. The
+  handler answers `deferred` at once. `idle()` resolves when no deferred look is running;
+  `whenCrmEventSettled` in `seed-crm.ts` waits on it, which is what keeps "nothing was
+  created" a measurement rather than a race. A deferred look for a Quote Request asks for
+  `quote_requests`' presence again before every read. The lesson for any subscriber in this
+  module: read, decide, and never sleep in a handler.
+- **N-E19 (2026-10-05, T169) — the first real second subscriber broke the order of the
+  transition hooks, and the transition now delivers them in one bus scope.**
+  `contracts/events-and-ports.md` §1.1 lists the after-events "in this order". They were
+  emitted bare: outside a scope `EventBus.emit` starts one dispatch chain **per event**, and
+  the chains run side by side. While no event had an awaiting subscriber the order of emission
+  was the order of arrival. The webhook bridge is now a subscriber of
+  `crm.opportunity.status_changed.v1` and awaits a subscription lookup, so a later subscriber
+  of that event received it **after** the two templated after-events —
+  `transition-hooks.test.ts`, written for User Story 1, failed on exactly that. The transition
+  service now emits its after-events inside one `EventBus.run`, which holds them back and
+  dispatches them one after another, each to all of its subscribers before the next. Two
+  consequences: the documented order is the order every subscriber sees, whoever else
+  subscribes; and **the transition answers once its after-subscribers have run** — as
+  `POST /opportunities` already does for `created.v1`, a Command's event being dispatched in the
+  Command's own scope. A subscriber's failure is still isolated by the bus and cannot undo or
+  fail the transition. The two `.before` events are emitted bare as before: they are passive,
+  nothing is promised about them beyond "ahead of the write", and only the test subscribes.
+- **N-E20 (2026-10-05, T169) — one check-estate ledger learned of the new registry.**
+  `check:port-dependencies` refuses a `contributes-to` edge into a registry whose owner has
+  not stated what it does with an absent contributor's entry, and reads that statement from
+  `CONTRIBUTION_POLICY_STATED` in `backend/scripts/check-port-dependencies.ts` (one line per
+  registry — `email:emailBlockRendererRegistry` joined it the same way in `f1d5a4ad6`). The
+  line `'webhooks:webhookEventRegistry': 'skip'` is that statement, and it mirrors the doc
+  block of `WebhookEventRegistryPort`. The file is not a row of §I; the line is in a commit of
+  its own and is listed in `contracts/foreign-module-changes.md` §E. The edge and the line
+  need each other — the check refuses the line while nothing resolves the name, and the edge
+  while the line is missing — so the story's commit is red on that one check until the commit
+  after it.
+- **N-E21 (2026-10-05, T169) — a second ledger derived about the edge, found only by the
+  whole fast suite.** `backend/test/unit/kernel/contribution-absent-owner.test.ts` derives
+  every `contributes-to` edge from the registered manifests and holds the set, both ways, to a
+  table of compositions: each contributor is composed once with its owner's names withheld —
+  an instance that never installed the owner — where the boot must survive and nothing may be
+  pushed, and once with them present, where the push must arrive. CRM's edge into
+  `webhookEventRegistry` is the fourth contributor; without a `crm` entry the file is red, and
+  no targeted run over the CRM or the webhooks directories opens it (`AGENTS.md` § traps, "a
+  ledger derived about the files you changed"). The entry composes `crm` by its published
+  specifier, supplies the two registries of modules CRM declares in `dependencies`, and passes
+  in both directions with **no line in CRM about whether `webhooks` is installed** — which is
+  the property the file exists to hold. Not a row of §I; in a commit of its own and listed in
+  `contracts/foreign-module-changes.md` §E.
 - **N-F1 (2026-10-06, T182) — the upload seam N-D8 said did not exist does: `assetsLibraryPort.upload`.**
   N-D8 (a) left the Attachments tab without *Add a file* for a role holding only CRM's
   permissions, on the premise that "a CRM-owned upload would have to carry multipart through a
@@ -2248,6 +2582,92 @@ when it was measured, and what was done about it.
   Organization with no override, with or without CRM. Not verified by eye: a real screen
   reader, a physical touch device, dark theme, 390 px (the three panels are cards of the
   host's own width and their tables scroll inside them — measured by nothing here).
+- **N-H1 (2026-10-06, after the merge of the admin wave into the second backend wave) — the
+  merged tree, and N-22 closed.** The merge of `43df36d42` conflicted in six files. Measured
+  after `pnpm run build:packages`: `typecheck` clean; `composer:check` and `manifests:check`
+  up to date; the OpenAPI baseline **already matched** (git had merged the two sides' paths,
+  as N-D1 found the time before). The two Polish translation-cache entries were rewritten
+  from the materialised pages, not merged. The module page keeps the admin wave's order —
+  features, then extension, activation, permissions, settings — with this wave's five sections
+  after *Attachments*. **N-22 / N-E12 applied, with the owner's approval:** one line in
+  `audit_logs`' `moduleIdForAuditAction` sends the `crm.` prefix to CRM's bundle, so the
+  platform-wide audit log shows the sentences the Opportunity's own history shows. In a commit
+  of its own; `contracts/foreign-module-changes.md` §K.
+- **N-H2 (2026-10-06, T101) — the Quote Request picker reads a lookup of CRM's own; the port
+  decides what it can offer.** `GET /api/v1/admin/quote-requests` is gated `rfqs:handle` — the
+  right to handle quotes — which is N-D4's case again, so the picker reads
+  `GET /api/v1/admin/crm/lookups/quote-requests?organizationId&q` (`crm:write`; one new
+  service, one new route file, one delimited section of `index.ts`). `QuoteRequestReadPort`
+  has **no search**: it lists the *open* requests of given Organizations and finds one by its
+  exact number. So the lookup offers the Organization's open Quote Requests narrowed by the
+  typed fragment, plus the one whose number is typed in full, whatever its status (tried as
+  typed and upper-cased) — an approved or completed request is linked by its number, and the
+  picker's empty message says so. The answer is `id`, `number`, `status`; **no amount**
+  (`listItems` is one port call per request). Tenant scope by name (`isOrgInScope`): an
+  Organization out of reach answers an empty list. With `quote_requests` off it answers 503
+  `MODULE_DISABLED` from the same door as linking (N-E5). `document-lookups.contract.test.ts`
+  holds the gate, the shape, both isolation cases and that the desk's own list still refuses
+  the role. **The test was written before the service but run only after it** — its red was
+  not observed.
+- **N-H3 (2026-10-06, T127) — the reference pickers are the owners' lists, offered by
+  permission; no product lookup was added, because the catalog's port cannot search.**
+  `CatalogProductReadPort` finds by id and by exact SKU and lists everything; a CRM-owned
+  product search would be `listAll()` filtered in memory or an edit to another module's port,
+  and neither is this feature's. So *Insert product* is the kit's `ProductPicker`
+  (`GET /api/v1/admin/catalog/products`, `catalog:read`), fetched lazily on first press, and
+  is **not offered** to a role without that code; *Insert order* searches `orders`' list for
+  the Opportunity's Organization, as the link picker does, and needs `orders:read` — which
+  `crm:read` already names in `requires`. `catalog:read` was **not** added to `requires`: the
+  feature degrades to a plain textarea, and a token typed by hand resolves all the same
+  (N-E14 asks for no catalog permission to *read* a name). The splitter a screen needs to
+  render tokens joined the grammar's one home (`splitOpportunityReferenceText` in
+  `packages/contracts/src/crm.ts`). The textarea's own announcement is `aria-live="polite"`
+  and not `role="status"`: the comment thread around it owns the one status of its tab, and
+  one existing test (`comments.test.tsx`, "sends a message") now waits for the composer
+  instead of assuming the lazy tab has rendered.
+- **N-H4 (2026-10-06, T122) — what the Change history tab does with a row the endpoint
+  answers raw.** The label is `auditLog.<action>` in CRM's bundle (N-E11), with a generic
+  sentence for an action that has none. `before` / `after` are `unknown` on the wire, so the
+  tab decides what is readable: a status change is a sentence (names from `GET /workflow`,
+  codes only if that read fails) with its cause — the Order by number when the Opportunity
+  still links it, otherwise a link that says "Order (open)" — and its reason; an edit lists
+  only the fields that differ; a creation, a link or a note lists what it arrived with.
+  **Identifiers are never printed**: `linkId`, `commentId`, `attachmentId`, `assetId`,
+  `propagationId` and `version` are dropped; an assignee is named when this page knows the
+  name (the current assignee, anybody who acted in the pages read) and is otherwise "Another
+  administrator"; a contact person or Sales Channel that changed is "Set". Naming every
+  administrator would need the assignee lookup per page, and was not built. Pagination
+  appends ("Show earlier changes") rather than paging back and forth: the endpoint's cursor
+  is an offset into one capped read (N-E10), and a reader scanning back keeps their place.
+- **N-H5 (2026-10-06) — the two automatic-creation Settings are on the Settings screen, in
+  English only, and that is the platform's, not this module's.** `SettingRowEditor.tsx`
+  renders `setting.name` and `setting.description` straight from the manifest; there is no
+  bundle key, no `labelKey` and no per-language field for a Setting anywhere in
+  `packages/modules/settings` — every module's Settings read in English whatever the
+  operator's language. Nothing was added: there is no label to add a translation *to*. Both
+  Settings are listed under the **CRM** group with the sentences T105 wrote, and the
+  generated reference page shows them in both languages' pages under the same English name.
+  A translatable Setting name is a change to the settings manifest contract — for the
+  register. The value screens: the counting-status save says its 202 in words
+  (`value.counting.accepted`), and the value section reads the figure from the detail it was
+  just handed, never from a list.
+- **N-H6 (2026-10-06) — User Story 10 (T108–T118) was not started; nothing of it is in the
+  tree.** The session that finished the merge and the admin halves of User Stories 8, 11 and
+  12 ran out of its time budget before Phase 12, and a story that edits `orders` and
+  `quote_requests` is not one to leave half-made. What the next session inherits, all of it
+  already measured: `order.created.v1` is emitted inside the placing transaction, so the
+  origin branch belongs in the existing deferred re-read of
+  `opportunity-auto-create-service.ts` (N-E7) and must run **before** the "already linked" and
+  setting branches, so that an Order created from an Opportunity is linked with
+  `linkSource: 'created_from_opportunity'` and gets no second Opportunity (N-E8 (g) is the
+  case that would otherwise create one); a Quote Request an administrator creates emits no
+  event today (N-E8 (g)), which is why `rfq.created_by_admin.v1` is new; the link must be
+  refused silently when the Opportunity is not reachable by the creating administrator or
+  belongs to another Organization; the Opportunity screen's two buttons belong beside the two
+  link sections of the Overview (`LinkedDocuments.tsx`, `LinkedQuoteRequests.tsx`), the second
+  only while `useModulePresence().isPresent('quote_requests')`; and the foreign files are
+  exactly the rows of `contracts/foreign-module-changes.md` §A–§C. The off-state file already
+  lists every CRM route; T111 adds the two foreign create requests carrying an `origin`.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

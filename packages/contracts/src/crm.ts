@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoDateTimeSchema } from './common.js';
 import { collectionEnvelope, dataEnvelope } from './envelopes.js';
 import { customFieldValuesSchema } from './custom-fields.js';
 import type { QuoteRequestStatus } from './quote-requests.js';
@@ -87,7 +88,7 @@ export const opportunityReferenceTypeSchema = z.enum(['product', 'order']);
 export type OpportunityReferenceType = z.infer<typeof opportunityReferenceTypeSchema>;
 
 /** The six `QuoteRequestStatus` values — a fixed union, unlike Order statuses. */
-const QUOTE_REQUEST_STATUS_VALUES = [
+export const QUOTE_REQUEST_STATUS_VALUES = [
   'Created from admin',
   'Pending',
   'Canceled',
@@ -168,6 +169,32 @@ export function extractOpportunityReferenceTokens(text: string): OpportunityRefe
     tokens.push({ type, id });
   }
   return tokens;
+}
+
+/** A stretch of plain text, or one well-formed token, in the order they appear. */
+export type OpportunityReferenceTextPart =
+  | { kind: 'text'; text: string }
+  | ({ kind: 'reference' } & OpportunityReferenceToken);
+
+/**
+ * `text` cut at its well-formed tokens, for a screen that shows each token as
+ * a link: the parts, joined back, are the text. A malformed token stays text.
+ */
+export function splitOpportunityReferenceText(text: string): OpportunityReferenceTextPart[] {
+  const parts: OpportunityReferenceTextPart[] = [];
+  let cursor = 0;
+  for (const match of text.matchAll(new RegExp(REFERENCE_TOKEN_SOURCE, 'g'))) {
+    const start = match.index ?? 0;
+    if (start > cursor) parts.push({ kind: 'text', text: text.slice(cursor, start) });
+    parts.push({
+      kind: 'reference',
+      type: match[1] as OpportunityReferenceType,
+      id: (match[2] as string).toLowerCase(),
+    });
+    cursor = start + match[0].length;
+  }
+  if (cursor < text.length) parts.push({ kind: 'text', text: text.slice(cursor) });
+  return parts;
 }
 
 /**
@@ -722,6 +749,31 @@ export const OpportunityContactLookupResponseSchema = dataEnvelope(
   z.array(OpportunityContactOptionSchema),
 );
 
+/**
+ * The Quote Requests of one Organization that can still be linked — the open
+ * ones, plus the one whose number is typed in full. Gated by CRM's own code:
+ * the quote desk's list is behind `rfqs:handle`, the right to handle quotes,
+ * which linking one to an Opportunity does not need (research N-H2).
+ */
+export const OpportunityQuoteRequestLookupQuerySchema = z.object({
+  organizationId: z.string().uuid(),
+  q: lookupSearchSchema,
+  limit: lookupLimitSchema,
+});
+export type OpportunityQuoteRequestLookupQuery = z.infer<
+  typeof OpportunityQuoteRequestLookupQuerySchema
+>;
+
+export const OpportunityQuoteRequestOptionSchema = z.object({
+  id: z.string().uuid(),
+  number: z.string(),
+  status: z.string(),
+});
+export type OpportunityQuoteRequestOption = z.infer<typeof OpportunityQuoteRequestOptionSchema>;
+export const OpportunityQuoteRequestLookupResponseSchema = dataEnvelope(
+  z.array(OpportunityQuoteRequestOptionSchema),
+);
+
 // ---------------------------------------------------------------------------
 // §11 History
 // ---------------------------------------------------------------------------
@@ -888,27 +940,89 @@ export interface OpportunityStatusEvent extends CrmEventEnvelope {
   reason: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Events offered to outbound webhooks (`contracts/events-and-ports.md` §6)
+// ---------------------------------------------------------------------------
+//
+// The webhook delivery bridge serialises an event whole, so for these three
+// **the event payload is the webhook payload** — a public, versioned contract.
+// Each has a strict schema, the payload type is inferred from it (one
+// definition), and a test holds every event the module emits to it. Adding a
+// field is a reviewed change here; removing or renaming one is a new `.v2`
+// event offered beside the old. No description, title, note or message is in
+// any of them: `reason` is the short text somebody typed for one transition.
+
+const webhookEventEnvelopeShape = {
+  eventId: z.string().min(1),
+  occurredAt: isoDateTimeSchema,
+};
+
 /** Payload of `crm.opportunity.status_changed.v1`. */
-export interface OpportunityStatusChangedEvent extends OpportunityStatusEvent {
-  number: string;
-}
+export const OpportunityStatusChangedEventV1Schema = z
+  .object({
+    ...webhookEventEnvelopeShape,
+    opportunityId: z.string().uuid(),
+    number: z.string().min(1),
+    /** Always present — what lets a subscription bound to one Organization receive only its own events. */
+    organizationId: z.string().uuid(),
+    salesChannelId: z.string().uuid().nullable(),
+    from: z.string().min(1),
+    to: z.string().min(1),
+    fromKind: opportunityStatusKindSchema,
+    toKind: opportunityStatusKindSchema,
+    actor: z
+      .object({ kind: z.enum(['admin', 'system']), adminUserId: z.string().uuid().optional() })
+      .strict(),
+    cause: z.enum(['manual', 'order_status', 'system']),
+    /** The Order whose status caused the move, when `cause` is `order_status`. */
+    causeOrderId: z.string().uuid().optional(),
+    reason: z.string().max(2000).nullable(),
+  })
+  .strict();
+export type OpportunityStatusChangedEvent = z.infer<typeof OpportunityStatusChangedEventV1Schema>;
 
 /** Payload of `crm.opportunity.created.v1`. */
-export interface OpportunityCreatedEvent extends CrmEventEnvelope {
-  opportunityId: string;
-  organizationId: string;
-  number: string;
-  source: OpportunitySource;
-}
+export const OpportunityCreatedEventV1Schema = z
+  .object({
+    ...webhookEventEnvelopeShape,
+    opportunityId: z.string().uuid(),
+    number: z.string().min(1),
+    organizationId: z.string().uuid(),
+    source: opportunitySourceSchema,
+  })
+  .strict();
+export type OpportunityCreatedEvent = z.infer<typeof OpportunityCreatedEventV1Schema>;
 
-/** Payload of `crm.opportunity.closed.v1`. */
-export interface OpportunityClosedEvent extends CrmEventEnvelope {
-  opportunityId: string;
-  organizationId: string;
-  outcome: OpportunityClosedKind;
-  value: string | null;
-  currency: string;
-}
+/**
+ * Payload of `crm.opportunity.closed.v1` — one event for won and lost, told
+ * apart by `outcome`.
+ */
+export const OpportunityClosedEventV1Schema = z
+  .object({
+    ...webhookEventEnvelopeShape,
+    opportunityId: z.string().uuid(),
+    organizationId: z.string().uuid(),
+    outcome: opportunityClosedKindSchema,
+    /** The Opportunity's effective value when it closed; `null` when it has none. */
+    value: z.string().nullable(),
+    currency: currencyCodeSchema,
+  })
+  .strict();
+export type OpportunityClosedEvent = z.infer<typeof OpportunityClosedEventV1Schema>;
+
+/** The event types CRM offers to outbound webhooks, in the order they are offered. */
+export const CRM_WEBHOOK_EVENT_TYPES = [
+  CRM_EVENTS.STATUS_CHANGED,
+  CRM_EVENTS.CREATED,
+  CRM_EVENTS.CLOSED,
+] as const;
+
+/** The strict schema of each offered event's payload, by event type. */
+export const CRM_WEBHOOK_EVENT_SCHEMAS = {
+  [CRM_EVENTS.STATUS_CHANGED]: OpportunityStatusChangedEventV1Schema,
+  [CRM_EVENTS.CREATED]: OpportunityCreatedEventV1Schema,
+  [CRM_EVENTS.CLOSED]: OpportunityClosedEventV1Schema,
+} as const;
 
 /** Payload of `crm.opportunity.assigned.v1`. */
 export interface OpportunityAssignedEvent extends CrmEventEnvelope {

@@ -19,11 +19,13 @@ import {
   CRM_API,
   createCrmOpportunity,
   linkCrmOrder,
+  linkCrmQuoteRequest,
   restoreDefaultCrmWorkflow,
   seedCrmAdmin,
   seedCrmOrder,
   seedCrmOrganization,
   setCrmForwardMappings,
+  submitCrmQuoteRequest,
   transitionCrmOpportunity,
 } from '../../helpers/seed-crm.js';
 import { CrmOpportunityStatusHistory, Order } from '../../helpers/package-entities.js';
@@ -177,6 +179,77 @@ describe('crm links and transition (contract)', () => {
       const order = await seedCrmOrder(h.em());
       const refused = await linkCrmOrder(h, opportunity.id, order.id, { cookies: viewer.cookies });
       expect(refused.statusCode, refused.body).toBe(403);
+    });
+  });
+
+  describe('POST /opportunities/:id/links — documentKind: quote_request', () => {
+    it('links a Quote Request — 201, the link schema, the document rendered from its owner', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const rfq = await submitCrmQuoteRequest(h, { quantity: 4, desiredUnitPrice: 2.5 });
+      const response = await linkCrmQuoteRequest(h, opportunity.id, rfq.id);
+      expect(response.statusCode, response.body).toBe(201);
+      const link = OpportunityLinkResponseSchema.parse(response.json()).data;
+      expect(link).toMatchObject({
+        documentKind: 'quote_request',
+        documentId: rfq.id,
+        available: true,
+        number: rfq.businessId,
+        status: 'Pending',
+        total: '10.00',
+        currency: 'PLN',
+        linkSource: 'manual',
+      });
+      const read = await detail(opportunity.id);
+      expect(read.links.map((item) => item.id)).toEqual([link.id]);
+    });
+
+    it('is audited as link_add and emits crm.opportunity.document_linked.v1 once', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const rfq = await submitCrmQuoteRequest(h);
+      const seen: unknown[] = [];
+      const off = h.eventBus.on('crm.opportunity.document_linked.v1', (payload: unknown) => {
+        seen.push(payload);
+      });
+      try {
+        expect((await linkCrmQuoteRequest(h, opportunity.id, rfq.id)).statusCode).toBe(201);
+      } finally {
+        off();
+      }
+      expect(seen).toEqual([
+        expect.objectContaining({
+          opportunityId: opportunity.id,
+          documentKind: 'quote_request',
+          documentId: rfq.id,
+          linkSource: 'manual',
+        }),
+      ]);
+      const entries = await h.auditLogService.query({
+        action: 'crm.opportunity.link_add',
+        objectId: opportunity.id,
+      });
+      expect(entries).toHaveLength(1);
+      expect(entries[0]?.objectType).toBe('crm_opportunity');
+    });
+
+    it('answers the link refusals with their codes: 404, 409, 422, and 403 without crm:write', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const missing = await linkCrmQuoteRequest(h, opportunity.id, randomUUID());
+      expect(missing.statusCode, missing.body).toBe(404);
+      expect(missing.json().error.code).toBe('CRM_DOCUMENT_NOT_FOUND');
+
+      const rfq = await submitCrmQuoteRequest(h);
+      const gated = await linkCrmQuoteRequest(h, opportunity.id, rfq.id, viewer.cookies);
+      expect(gated.statusCode, gated.body).toBe(403);
+
+      const foreign = await createCrmOpportunity(h, { organizationId: otherOrganizationId });
+      const mismatch = await linkCrmQuoteRequest(h, foreign.id, rfq.id);
+      expect(mismatch.statusCode, mismatch.body).toBe(422);
+      expect(mismatch.json().error.code).toBe('CRM_LINK_ORGANIZATION_MISMATCH');
+
+      expect((await linkCrmQuoteRequest(h, opportunity.id, rfq.id)).statusCode).toBe(201);
+      const taken = await linkCrmQuoteRequest(h, (await createCrmOpportunity(h)).id, rfq.id);
+      expect(taken.statusCode, taken.body).toBe(409);
+      expect(taken.json().error.code).toBe('CRM_DOCUMENT_ALREADY_LINKED');
     });
   });
 

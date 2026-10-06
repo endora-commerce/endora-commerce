@@ -10,9 +10,11 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { randomUUID } from 'crypto';
 import { CrmOpportunityComment } from '../entities/crm-opportunity-comment.entity.js';
+import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.entity.js';
 import type { CrmNotifier } from './crm-notifier.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
+import { storedReferencesOf, type ReferenceService, type ReferenceSource } from './reference-service.js';
 
 export interface OpportunityCommentServiceDeps {
   emFactory: () => EntityManager;
@@ -20,6 +22,8 @@ export interface OpportunityCommentServiceDeps {
   /** `admin_users`' port — lazy, resolved per call, never captured. */
   adminUsers: AdminUserReadPort;
   notifier: CrmNotifier;
+  /** The Products and Orders a text mentions: stored on write, resolved on read. */
+  references: ReferenceService;
 }
 
 /** How much of a message a bell entry quotes. */
@@ -95,6 +99,11 @@ export class OpportunityCommentService {
           authorAdminUserId: author,
           body: input.body,
         });
+        await this.#saveReferences(
+          em,
+          { opportunityId: opportunity.id, kind: 'comment', sourceId: comment.id },
+          comment.body,
+        );
         return {
           result: { comment, recipients, number: opportunity.number, title: opportunity.title },
           before: null,
@@ -130,6 +139,11 @@ export class OpportunityCommentService {
         if (note.body === body) return { result: note, skipAudit: true };
         note.body = body;
         note.editedAt = new Date();
+        await this.#saveReferences(
+          em,
+          { opportunityId: note.opportunityId, kind: 'comment', sourceId: note.id },
+          body,
+        );
         return { result: note, before, after: { commentId: note.id, body: note.body } };
       },
     });
@@ -150,6 +164,12 @@ export class OpportunityCommentService {
       run: async ({ em }) => {
         const note = await this.#loadOwnNote(em, opportunityId, commentId, 'deleted');
         note.deletedAt = new Date();
+        // A deleted note mentions nothing any more.
+        await this.#saveReferences(
+          em,
+          { opportunityId: note.opportunityId, kind: 'comment', sourceId: note.id },
+          null,
+        );
         return {
           result: undefined,
           before: { commentId: note.id, body: note.body },
@@ -157,6 +177,17 @@ export class OpportunityCommentService {
         };
       },
     });
+  }
+
+  /**
+   * Replace the stored references of one source with those its text carries
+   * now. **Call it inside the Command that saves the text, with that
+   * Command's EntityManager and an Opportunity that was loaded through the
+   * scoped one** — the rows carry no tenant column of their own.
+   */
+  async #saveReferences(em: EntityManager, source: ReferenceSource, text: string | null | undefined): Promise<void> {
+    await em.nativeDelete(CrmOpportunityReference, storedReferencesOf(source));
+    for (const row of this.deps.references.rowsFor(source, text)) em.create(CrmOpportunityReference, row);
   }
 
   /** The administrator writing. The routes are admin-gated, so there always is one. */
@@ -218,18 +249,21 @@ export class OpportunityCommentService {
 
   async #render(rows: readonly CrmOpportunityComment[]): Promise<OpportunityComment[]> {
     if (rows.length === 0) return [];
-    const authors = await this.deps.adminUsers.findByIds([...new Set(rows.map((row) => row.authorAdminUserId))]);
+    const [authors, references] = await Promise.all([
+      this.deps.adminUsers.findByIds([...new Set(rows.map((row) => row.authorAdminUserId))]),
+      // One resolution for the whole page: two port calls, however many comments.
+      this.deps.references.resolveMany(rows.map((row) => row.body)),
+    ]);
     const names = new Map(
       authors.map((admin) => [admin.id, `${admin.firstName} ${admin.lastName}`.trim() || admin.email]),
     );
-    return rows.map((row) => ({
+    return rows.map((row, index) => ({
       id: row.id,
       kind: row.kind,
       author: { id: row.authorAdminUserId, name: names.get(row.authorAdminUserId) ?? '' },
+      // The text as stored, and beside it what its tokens name for this reader.
       body: row.body,
-      // Reference tokens are resolved by the references story; the text is
-      // returned as stored until then.
-      references: [],
+      references: references[index] ?? [],
       editedAt: row.editedAt ? row.editedAt.toISOString() : null,
       createdAt: row.createdAt.toISOString(),
     }));

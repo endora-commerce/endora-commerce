@@ -73,6 +73,8 @@ export function renderCrm(
     readonly permissions?: readonly string[];
     readonly path?: string;
     readonly pattern?: string;
+    /** Modules present besides the ones every CRM screen assumes — `quote_requests`, for one. */
+    readonly alsoPresent?: readonly string[];
   } = {},
 ): RenderResult {
   const path = options.path ?? '/';
@@ -87,7 +89,9 @@ export function renderCrm(
       </AppLanguageContext.Provider>,
       {
         session: adminSession({ permissions: options.permissions ?? EVERY_CRM_PERMISSION }),
-        presence: modulePresence({ present: ['crm', 'orders', 'organizations', 'sales_channels'] }),
+        presence: modulePresence({
+          present: ['crm', 'orders', 'organizations', 'sales_channels', ...(options.alsoPresent ?? [])],
+        }),
         registry: [],
       },
     ),

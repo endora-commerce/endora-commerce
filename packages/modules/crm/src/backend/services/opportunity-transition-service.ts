@@ -26,7 +26,12 @@ import type { WorkflowReadService } from './workflow-read-service.js';
 export interface OpportunityTransitionServiceDeps {
   emFactory: () => EntityManager;
   commandBus: CommandBus;
-  events: OpportunityEventSink;
+  /**
+   * The event bus: `emit`, and `run` — the scope in which emitted events are
+   * held back and then dispatched one after another, each to all of its
+   * subscribers before the next.
+   */
+  events: OpportunityEventSink & { run<T>(fn: () => Promise<T>): Promise<T> };
   workflowRead: WorkflowReadService;
   guards: OpportunityTransitionGuardRegistry;
   propagation: OrderStatusPropagationService;
@@ -86,6 +91,15 @@ function ambientActor(): OpportunityStatusActor {
  * have been asked, so a subscriber that reads a linked Order sees its new
  * status — and they are emitted from a `finally`, so a failure while asking
  * does not suppress the announcement of a transition that did commit.
+ *
+ * **And they are delivered in the order they are announced.** They are emitted
+ * inside one bus scope, which dispatches them one after another, each to every
+ * subscriber before the next. Emitted bare, each event would start a chain of
+ * its own, and a subscriber of two of them would see them in whatever order
+ * the *other* subscribers of each happened to finish — which stopped being
+ * hypothetical the day the webhook bridge subscribed to the coarse event. The
+ * transition therefore answers once its after-subscribers have run, as a
+ * Command's own event already makes it.
  *
  * A transition caused by an Order's own status (`cause: 'order_status'`) asks
  * no Order to follow: a change that came from an Order never pushes others.
@@ -235,7 +249,9 @@ export class OpportunityTransitionService {
           reason,
         });
       } finally {
-        emitOpportunityStatusAfter(this.deps.events, event, applied);
+        await this.deps.events.run(async () => {
+          emitOpportunityStatusAfter(this.deps.events, event, applied);
+        });
       }
 
       return { opportunityId: opportunity.id, from, to, changed: true, propagation };

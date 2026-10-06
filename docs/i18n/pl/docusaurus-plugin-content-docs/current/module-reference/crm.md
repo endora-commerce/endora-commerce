@@ -41,6 +41,8 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `sales_channels` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `settings` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `admin_notifications` | nie | degrades-without `adminNotificationRecordPort` — CRM przestaje powiadamiać o przypisaniach i wiadomościach; wszystko inne w CRM działa dalej |
+| `quote_requests` | nie | degrades-without `quoteRequestReadPort` — zapytania ofertowe powiązane z szansami sprzedażowymi są pokazywane jako niedostępne, przestają liczyć się do wartości wyliczanych i nie można ich już wiązać ani tworzyć z szansy. Szanse i ich zamówienia działają dalej |
+| `webhooks` | nie | contributes-to `webhookEventRegistry` |
 
 ## Uprawnienia
 
@@ -48,7 +50,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | --- | --- | --- |
 | `crm:analytics` | View CRM analytics | `crm:read` |
 | `crm:configure` | Configure the CRM workflow and tags | `crm:read` |
-| `crm:read` | View sales opportunities | `orders:read` |
+| `crm:read` | View sales opportunities | `orders:read`, `custom_fields:read` |
 | `crm:write` | Create and work sales opportunities | `crm:read` |
 
 ## Paleta poleceń

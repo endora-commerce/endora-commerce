@@ -32,6 +32,9 @@ import { registerModule as registerInventory } from '../../../../packages/module
 // `assertTransitiveParentsResolve` refuses at ORM init — which would fail every
 // file in the process rather than this one.
 import { registerModule as registerOrders } from '@endora-commerce/mod-orders/backend';
+// `crm` by its published specifier for the same reason: `CrmOpportunity` is the
+// `@TransitivelyScoped` parent of seven child classes.
+import { registerModule as registerCrm } from '@endora-commerce/mod-crm/backend';
 
 /**
  * **A contribution to a registry that was never registered is dropped**
@@ -188,6 +191,14 @@ const COMPOSERS: Readonly<
   orders: (withOwner, ownerNames) =>
     compose('orders', registerOrders, ownerNames, withOwner, {
       emailDefaultsPort: { register: () => {} },
+      salesChannelAttributionRegistry: { register: () => {} },
+    }),
+  // `crm` offers three of its events to `webhooks`' registry
+  // (`specs/143-crm-sales-opportunities/`, User Story 16). Its two other boot
+  // hooks push into registries of modules it declares in `dependencies`.
+  crm: (withOwner, ownerNames) =>
+    compose('crm', registerCrm, ownerNames, withOwner, {
+      assetReferenceRegistry: { register: () => {} },
       salesChannelAttributionRegistry: { register: () => {} },
     }),
   inventory: (withOwner, ownerNames) =>

@@ -1,5 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { createWebhookRequestSchema, updateWebhookRequestSchema } from '@endora-commerce/contracts';
+import {
+  createWebhookRequestSchema,
+  updateWebhookRequestSchema,
+  type WebhookEventDescriptor,
+} from '@endora-commerce/contracts';
 import type { WebhookService } from './services/webhook-service.js';
 import type { Webhook } from './entities/webhook.entity.js';
 import type { WebhookDelivery } from './entities/webhook-delivery.entity.js';
@@ -25,13 +29,31 @@ export interface WebhooksAdminDeps {
    * behind `requireAdmin(...)`, so the actor is an admin by the time it runs.
    */
   resolveAdminUserId: (request: FastifyRequest) => string;
+  /**
+   * The event types other modules offer, whose owner is effectively present —
+   * `webhookEventRegistry.list()`, read per request.
+   */
+  eventTypes: () => readonly WebhookEventDescriptor[];
 }
 
 export async function registerWebhooksAdminRoutes(
   app: FastifyInstance,
   deps: WebhooksAdminDeps,
 ): Promise<void> {
-  const { webhookService, requireAdmin, resolveAdminUserId } = deps;
+  const { webhookService, requireAdmin, resolveAdminUserId, eventTypes } = deps;
+
+  // The event types contributed by other modules, for the subscription form
+  // to offer beside its own. A type whose owner is switched off is not listed.
+  app.get(
+    '/api/v1/admin/webhooks/event-types',
+    { preHandler: requireAdmin('integrations:manage') },
+    async () => ({
+      data: eventTypes().map((descriptor) => ({
+        ownerModuleId: descriptor.ownerModuleId,
+        eventType: descriptor.eventType,
+      })),
+    }),
+  );
 
   app.get(
     '/api/v1/admin/webhooks',

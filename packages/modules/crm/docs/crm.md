@@ -51,7 +51,7 @@ when at least one of them is visible.
 | --- | --- | --- | --- |
 | Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, assignee, tags, sales channel and creation date. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
-| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, the orders linked to it, and what became of those orders after each move. |
+| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, its value, the orders and quote requests linked to it, and what became of those orders after each move; on further tabs its notes, messages, attachments and **change history**. |
 | Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
 | Analytics | **CRM → Analytics** (`/crm/analytics`) | `crm:analytics` | Five figures over a range of days: handling time, time in each status, the most effective sales reps, the most valuable opportunities and the average value. |
 | Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
@@ -591,124 +591,341 @@ Each takes `from` and `to` (`YYYY-MM-DD`) and, optionally, `salesChannelId` and
 `assignedAdminUserId`. A range that ends before it begins answers 422. A
 figure with nothing to average answers `null`, not zero.
 
-## Adding your own logic to a status change
+## Quote requests and a computed value
 
-Another module — typically a per-deployment overlay module — can react to an
-opportunity moving from status X to status Y, and can refuse the move. Both
-seams are published in `@endora-commerce/contracts`; neither needs a change to
-CRM.
+### Linking quote requests
 
-**React to a move** by subscribing to an event. For a move from `x` to `y`, CRM
-emits, in this order:
+A quote request is linked to an opportunity the way an order is, through the
+same endpoint with `"documentKind": "quote_request"`. It must belong to the
+opportunity's organization, and it belongs to at most one opportunity. An
+opportunity can hold several quote requests and several orders.
 
-| Event | When |
-| --- | --- |
-| `crm.opportunity.status.from_<x>_to_<y>.before` | before the change is written |
-| `crm.opportunity.status.from_<x>.before` | before the change is written |
-| `crm.opportunity.status_changed.v1` | after it is saved and the linked orders have been asked |
-| `crm.opportunity.status.from_<x>_to_<y>.after` | same |
-| `crm.opportunity.status.to_<y>.after` | same |
-| `crm.opportunity.closed.v1` | same, when `y` closes the opportunity |
+A linked quote request is listed with its number, its status and its value.
+The "follow the opportunity's status" switch means nothing for one: a quote
+request keeps its own status.
 
-The names are built by `opportunityStatusEventName`, so a subscriber does not
-spell the pattern. A subscriber cannot stop the move, and one that fails does
-not undo it.
+When an order is placed from a linked quote request, the order is linked to
+the same opportunity by itself (`linkSource: "quote_conversion"`). This relies
+on the order recording which quote request it came from.
 
-```ts
-ctx.subscribe(opportunityStatusEventName('toAfter', { to: 'won' }), async (event) => {
-  await notifyFinance(event.opportunityId);
-});
-```
+### The value of an opportunity
 
-**Refuse a move** by registering a guard. A guard names the moves it watches —
-from a status, to a status, or both — and refuses by throwing
-`OpportunityTransitionVetoError`. The sentence it throws is what the sales
-representative reads; nothing is written when a guard refuses.
+An opportunity's value is either **typed in** or **computed** from its linked
+documents — chosen per opportunity (`valueMode`: `manual` or `computed`). The
+typed figure is kept when the mode is switched to computed, and is back when it
+is switched to manual again.
 
-```ts
-ctx.onBoot(() => {
-  lazyPort<OpportunityTransitionGuardRegistryPort>(ctx, 'opportunityTransitionGuardRegistry').register({
-    ownerModuleId: 'acme_rules',
-    match: { to: 'won' },
-    guard: (event) => {
-      if (event.reason === null) throw new OpportunityTransitionVetoError('Say why the deal was won.', event.from, event.to);
-    },
-  });
-});
-```
+A computed value is the sum of:
 
-The module that registers a guard declares it in its manifest:
-`nonBindingDependencies: [{ moduleId: 'crm', name: 'opportunityTransitionGuardRegistry', kind: 'contributes-to' }]`.
-A guard belonging to a module that is switched off is skipped — a module that is
-off does not refuse anything.
+- every linked **order** whose status is a counting order status, at the
+  order's **total** — the gross amount the customer pays: goods, tax, delivery
+  and any payment surcharge, less discounts;
+- every linked **quote request** whose status is a counting quote request
+  status, at the **sum of quantity × unit price** over its lines. The unit
+  price is the agreed price, or the price the customer asked for while none has
+  been agreed. Quote prices are **net of tax** — this is the figure the quote
+  request's own screen shows as its net total.
 
-## Switching it on and off
+The two are not on the same basis, and neither is converted: each document
+counts at the figure its own screen shows.
 
-CRM is an optional module. It is on by default and an operator switches it
-off, and back on, on the **Modules** screen of the Admin UI
-(`/platform/modules`).
+**Counted once.** An order placed from a linked quote request and that quote
+request are one piece of business. While the order counts, the quote request is
+left out.
 
-While it is off:
+**One currency.** An opportunity has one currency and nothing is converted. A
+document in another currency that would otherwise count is left out, and the
+opportunity names it: `excludedDocuments` on the opportunity lists each one as
+`{ kind, id, reason: "currency_mismatch" }`. A quote request with lines in
+several currencies counts the lines in the opportunity's currency and is named
+as well.
 
-- every `/api/v1/admin/crm/…` endpoint answers `503` with the code
-  `MODULE_DISABLED`;
-- its screens, sidebar group, command-palette entries and settings disappear
-  from the Admin UI;
-- its permissions can no longer be granted to a role;
-- nothing it would do in the background happens.
+The value follows the documents: it is recalculated when a document is linked
+or unlinked, when a linked order changes status, when a linked quote request is
+modified, approved, canceled or expires, and when the mode becomes computed.
+A recalculation is not an entry in the opportunity's history.
 
-Nothing is deleted. Every opportunity, its history and the workflow
-configuration stay in the database, and everything is back exactly as it was
-when the module is switched on again.
+### Which statuses count
 
-## Permissions
-
-| Code | What it allows |
-| --- | --- |
-| `crm:read` | View sales opportunities, the board, the status workflow and the tag list; read an opportunity's notes and messages and download its attachments. |
-| `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders, retry or dismiss a refused order change, write notes and messages, upload, add and remove attachments. |
-| `crm:configure` | Change the workflow — statuses, transitions and order-status mappings in both directions — manage the tag list, and delete an opportunity. |
-| `crm:analytics` | Open the Analytics screen and read its five figures. |
-
-A role that holds `crm:read` should also hold `orders:read`: an opportunity
-shows the orders linked to it, and those are read from the Orders module.
-`crm:write`, `crm:configure` and `crm:analytics` each build on `crm:read`:
-the Analytics screen names statuses and offers its sales channel and sales rep
-filters from what `crm:read` reads.
-
-**Nothing else is needed.** The fields that choose an organization, a sales
-channel, an assignee or a contact person — in the filters of the list and the
-board, and on the forms — read CRM's own lookups, so a sales representative
-does not need permission to browse customers, sales channels or administrators
-to work an opportunity. What a lookup offers is narrowed to the organizations
-the person may see, and is no more than a name to choose by.
+Which statuses make a document count is part of the workflow configuration,
+and **nothing counts until it is set**: a computed value is 0 with an empty
+configuration.
 
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/admin/crm/lookups/organizations?q=…` | `crm:read` | Organizations the caller may see, by name: `id`, `name`. `id=…` answers one. |
-| `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Every sales channel: `id`, `code`, `name` per language, `active`, `systemDefault`, and the currencies it sells in. |
-| `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Active administrators, by name: `id`, `name`. |
-| `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Members of one organization the caller may see: `id`, `name`, `email`. |
+| `PUT /api/v1/admin/crm/value-counting-statuses` | `crm:configure` | Replace the set: `{ "order": ["paid", "completed"], "quoteRequest": ["Approved"] }`. |
 
-The currencies offered when an opportunity is created are the ones the active
-sales channels sell in.
+`order` holds order status codes; `quoteRequest` holds any of `Created from
+admin`, `Pending`, `Canceled`, `Approved`, `Completed`, `Expired`. The current
+set is `valueCountingStatuses` on `GET /api/v1/admin/crm/workflow`.
 
-No role receives a CRM permission automatically. Grant them on the
-**Roles** screen.
+The endpoint answers **202**: the set is saved, and every computed opportunity
+is then recalculated in the background (queue `crm-value-recalculation`). Until
+that has run, opportunities show the figures of the previous configuration.
 
-## Settings
+### With the Quote Requests module switched off
 
-| Setting | Default | Meaning |
+CRM does not need the Quote Requests module. While it is switched off:
+
+- opportunities, their orders and everything else keep working;
+- a linked quote request is still listed, as **unavailable** — no number, no
+  status, no value;
+- it adds nothing to a computed value;
+- linking a quote request answers `503 MODULE_DISABLED`; an existing link can
+  still be removed.
+
+Nothing is lost: switched back on, the links show their documents again. A
+computed value picks the quote requests up again at its next recalculation.
+
+### In the Admin UI
+
+On an opportunity's **Overview**:
+
+- **Linked quote requests** lists each one with its number, its status and its
+  net value, next to *Linked orders*. A holder of `crm:write` searches the
+  organization's quote requests by number and links one, or unlinks one. The
+  search offers the open quote requests; a closed one is found by typing its
+  full number. Linking does not need the permission to handle quotes.
+- **Value** shows the figure and whether it is *entered by hand* or a *computed
+  value*, and one button switches between the two. For a computed value it
+  lists every document that was **left out**, with the reason, and reminds you
+  that your own estimate is kept.
+
+On **CRM → Workflow**, *Statuses that count towards a computed value* is two
+lists of checkboxes — order statuses and quote request statuses — saved
+together. *This and every later status* ticks an order status and all that
+follow it. After saving, the screen says that the values are being recalculated
+in the background: until that has finished, lists and the board still show the
+figures of the previous settings.
+
+With the Quote Requests module switched off, the quote request list of an
+opportunity that has none disappears, one that has some shows them as
+unavailable and says why, and the workflow screen offers order statuses only.
+
+## Opportunities created automatically
+
+Two settings make the CRM open an opportunity by itself. Both are **off** by
+default.
+
+| Setting | When it is on |
+| --- | --- |
+| `crm.auto_create_from_orders` | Every order placed from then on gets an opportunity of its own. The setting can differ per sales channel; the order's channel decides. |
+| `crm.auto_create_from_quote_requests` | Every quote request a customer submits from then on gets an opportunity of its own. Needs the Quote Requests module to be on. |
+
+An opportunity created this way:
+
+- belongs to the document's organization and, for an order, to the order's
+  sales channel;
+- starts in the workflow's start status;
+- is assigned by the default rule — the organization's longest-standing active
+  sales representative, who is notified — or to nobody when the organization
+  has none;
+- is titled with the document's number and the organization's name;
+- is linked to the document, and its value is **computed** from it (see *Quote
+  requests and a computed value*), in the document's currency;
+- records where it came from: `source` is `order` or `quote_request`.
+
+What is **not** created:
+
+- nothing for a document that is already linked to an opportunity;
+- nothing for an order placed from a quote request that is linked to an
+  opportunity — the order joins that opportunity instead, whatever the settings
+  say;
+- nothing for documents that existed before the setting was switched on;
+- nothing while the CRM module is switched off, and nothing afterwards for the
+  documents placed in the meantime;
+- nothing for a quote request an administrator creates in the Admin UI on a
+  customer's behalf: only a quote request submitted by a customer announces
+  itself. (An order an administrator places on a customer's behalf is an order
+  like any other, and gets its opportunity.)
+
+Each document gets at most one opportunity, however many times its placement
+is announced.
+
+An opportunity for a quote request has no sales channel, and its setting is
+read for the whole platform rather than per channel: the Quote Requests module
+does not publish the channel a request was submitted on.
+
+## Change history
+
+Every opportunity keeps a history of what was done to it, newest first: its
+creation, each edit, each status change, every order or quote request linked or
+unlinked, each assignment, tag change, note, message and attachment.
+
+Each entry says **when**, **what** (`action`), **who** (`actor`) and the state
+**before** and **after**:
+
+- `actor.kind` is `admin` with the person's id and name, or `system` — nobody
+  did it by hand: an order moved the opportunity, or the opportunity was created
+  automatically;
+- a status change carries `before.status` and `after.status`, what caused it
+  (`after.cause`: `manual`, `order_status` or `system`), the order that caused
+  it when one did (`after.causeOrderId`), and the reason somebody typed;
+- an edit carries the fields as they were and as they are.
+
+| Verb + Path | Permission | Purpose |
 | --- | --- | --- |
-| `crm.enabled` | on | The switch described above. |
-| `crm.auto_create_from_orders` | off | *Coming.* Create an opportunity for every newly placed order. |
-| `crm.auto_create_from_quote_requests` | off | *Coming.* Create an opportunity for every newly submitted quote request. |
+| `GET /api/v1/admin/crm/opportunities/:id/history` | `crm:read` | The history, newest first. `limit` (default 50, at most 200) and `cursor` page through it. |
 
-## Coming
+The history is the platform's audit trail of that opportunity, so it cannot
+disagree with what happened — and **anybody who may read the opportunity may
+read its history**. The permission that opens the platform-wide audit log is
+not needed.
 
-- Linking quote requests, and a value computed from the linked documents.
-- Creating an opportunity automatically for a new order or quote request.
-- A change history for every opportunity.
+Three things to know:
+
+- A note that was edited or deleted stays in the history with its text, as it
+  was.
+- Recalculating a computed value is not an entry: the change that caused it —
+  a link, an order's status — is.
+- The history reaches back 500 entries.
+
+On the platform-wide **Audit log** screen the same entries appear among
+everybody else's, as the same sentences.
+
+In the Admin UI the history is the **Change history** tab of an opportunity.
+Each entry is a sentence — *Opportunity status changed*, *Note added* — with
+who did it and when. A status change shows the two statuses by name; when an
+order caused it, the entry names that order and links to it. An edit lists the
+fields that changed, as they were and as they are. *Show earlier changes* reads
+the next page.
+
+## References to products and orders
+
+The description of an opportunity, a note and a message can mention a
+**product** or an **order**. A mention is a token in the text:
+
+```text
+[[product:<product id>]]
+[[order:<order id>]]
+```
+
+The text is stored and returned exactly as it was written — plain text; nothing
+in it is treated as markup. Beside every such text the API returns
+`references`: one entry per product or order mentioned, in the order they
+appear, each once.
+
+```json
+{
+  "type": "product",
+  "id": "5d0c…",
+  "available": true,
+  "label": "Pallet wrap 500 mm",
+  "url": "/catalog/products/5d0c…"
+}
+```
+
+- `label` is the product's **current** name, in the reader's language, or the
+  order's number — looked up each time the text is read, so a renamed product
+  shows its new name.
+- `url` is where the mention leads in the Admin UI.
+- A product that no longer exists, and an order of an organization the reader
+  may not see, come back with `"available": false` and **no label and no
+  link**. The mention stays in the text; nothing about its target is shown.
+
+A token that is not well-formed — an unknown type, something that is not an id
+— is simply text.
+
+`references` is on the opportunity (for its `description`) and on every note
+and message (for its `body`). There is no separate endpoint.
+
+In the Admin UI the description field and the note and message fields carry
+two buttons, **Insert product** and **Insert order**. Each opens a search;
+choosing a result writes the token where the cursor was. Once saved, the text
+shows the product's name or the order's number as a link in its place, and
+*Product unavailable* / *Order unavailable* for a target that is gone or that
+you may not see.
+
+The two searches are the catalogue's and the Orders module's own, so *Insert
+product* is offered to a role that also holds `catalog:read` and *Insert order*
+to one that holds `orders:read`; orders are offered for the opportunity's
+organization only. A token typed or pasted by hand works without either.
+
+## Telling other systems: webhooks
+
+Three things that happen to an opportunity can be sent to another system
+through the platform's **webhooks**: when it is created, when its status
+changes, and when it is closed. On the *Webhooks* screen they appear among the
+event types a subscription can choose, and they are delivered like every other
+webhook — signed, retried, listed among the deliveries.
+
+| Event type | Sent when |
+| --- | --- |
+| `crm.opportunity.created.v1` | an opportunity is created — by hand or automatically |
+| `crm.opportunity.status_changed.v1` | an opportunity moves to another status, whatever moved it |
+| `crm.opportunity.closed.v1` | an opportunity enters a status that closes it, won or lost |
+
+Closing as won and closing as lost are **one** event: `outcome` says which. A
+move into a closing status sends both `status_changed` and `closed`.
+
+**What is sent is the event itself**, exactly these fields and no other:
+
+```json
+{
+  "eventId": "8f0c2c2e-3f0b-4d0a-9a55-0d5e6b7a1c11",
+  "occurredAt": "2026-10-05T12:00:00.000Z",
+  "opportunityId": "5d0c7c1e-6a0f-4f55-8a53-0f3f7cbe0a01",
+  "number": "OPP-000123",
+  "organizationId": "6a3b1e9d-0c1f-4a8e-9a2d-4b7f0c5d2e02",
+  "source": "manual"
+}
+```
+
+`crm.opportunity.created.v1` — `source` is `manual`, `order` or `quote_request`.
+
+```json
+{
+  "eventId": "1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed",
+  "occurredAt": "2026-10-05T12:05:00.000Z",
+  "opportunityId": "5d0c7c1e-6a0f-4f55-8a53-0f3f7cbe0a01",
+  "number": "OPP-000123",
+  "organizationId": "6a3b1e9d-0c1f-4a8e-9a2d-4b7f0c5d2e02",
+  "salesChannelId": null,
+  "from": "negotiation",
+  "to": "won",
+  "fromKind": "open",
+  "toKind": "won",
+  "actor": { "kind": "admin", "adminUserId": "0b8f5f0e-2a0e-4f55-8a53-0f3f7cbe0a01" },
+  "cause": "manual",
+  "reason": "Contract signed"
+}
+```
+
+`crm.opportunity.status_changed.v1` — `actor.kind` is `admin` (with
+`adminUserId`) or `system`; `cause` is `manual`, `order_status` or `system`, and
+when an order caused the move `causeOrderId` names it. `reason` is the short
+text somebody typed for that move, or `null`.
+
+```json
+{
+  "eventId": "c3a1f0de-52c7-4d0c-8a44-2f7e7a9f3b10",
+  "occurredAt": "2026-10-05T12:05:00.000Z",
+  "opportunityId": "5d0c7c1e-6a0f-4f55-8a53-0f3f7cbe0a01",
+  "organizationId": "6a3b1e9d-0c1f-4a8e-9a2d-4b7f0c5d2e02",
+  "outcome": "won",
+  "value": "1500.00",
+  "currency": "PLN"
+}
+```
+
+`crm.opportunity.closed.v1` — `outcome` is `won` or `lost`; `value` is the
+opportunity's value when it closed, or `null` when it has none.
+
+Things to rely on:
+
+- **No free text of an opportunity is ever sent**: no title, no description, no
+  note, no message. `reason` is the only text, and it is what was typed for one
+  status change.
+- **`organizationId` is always there**, so a subscription bound to one
+  organization receives that organization's opportunities only.
+- **The version is in the name.** A `.v1` event keeps its fields. A field may
+  be added to it; if one ever has to be removed or renamed, that is a new
+  `.v2` event, offered beside the old one.
+
+With the Webhooks module switched off, opportunities work as ever and nothing
+is sent — and what happened meanwhile is not sent later. With the CRM module
+switched off, its three event types are not offered; a subscription that names
+one is kept and simply receives nothing until CRM is back.
 
 ## Custom fields
 
@@ -778,6 +995,93 @@ The dashboard's recent activity names an opportunity by its title and links to
 its screen. With CRM switched off, and for somebody who may not see that
 opportunity, the entry stays and carries no title and no link.
 
+## The opportunity on the order's screen
+
+An order's screen ends with a **Linked opportunity** panel, whichever tab is
+open.
+
+- **An order linked to an opportunity** shows the opportunity's number and
+  title (a link to it), its status, who it is assigned to and its value.
+- **An order linked to none** says so and offers two actions to whoever holds
+  `crm:write`:
+  - **Link to an opportunity** lists the open opportunities of the order's
+    organization (the hundred newest); choose one and confirm. An order
+    belongs to at most one opportunity, and only to one of its own
+    organization — a refusal is shown in the panel.
+  - **Create opportunity** opens the create form with the order's organization
+    chosen. When the opportunity is saved the order is linked to it and the
+    opportunity opens. If the link is refused, the opportunity has still been
+    created: the form says so and links to it, and the order can be linked from
+    the opportunity's own screen.
+- The panel is shown to whoever holds `crm:read`. Without it, and with CRM
+  switched off, the order's screen is exactly as it is without the module — no
+  panel, no heading, no empty space, no request.
+
+Quote requests get the same panel once they can be linked to an opportunity.
+
+For integrators: `GET /api/v1/admin/crm/documents/order/{orderId}/opportunity`
+(`crm:read`) answers `{ "data": <the opportunity's summary> }`, or
+`{ "data": null }` for an order linked to none. An order that does not exist or
+is not the caller's to see answers `404 CRM_DOCUMENT_NOT_FOUND` — the same
+answer for both, whether or not it is linked. A kind other than a document
+kind answers `422`. The create form accepts `linkDocumentKind=order` and
+`linkDocumentId=<order id>` beside `organizationId` in its address.
+
+For module authors: the panel is CRM's contribution to the `order.detail.after`
+admin zone, which the Orders module mounts and which any module may contribute
+to. Orders does not import CRM and declares no dependency on it.
+
+## Adding your own logic to a status change
+
+Another module — typically a per-deployment overlay module — can react to an
+opportunity moving from status X to status Y, and can refuse the move. Both
+seams are published in `@endora-commerce/contracts`; neither needs a change to
+CRM.
+
+**React to a move** by subscribing to an event. For a move from `x` to `y`, CRM
+emits, in this order:
+
+| Event | When |
+| --- | --- |
+| `crm.opportunity.status.from_<x>_to_<y>.before` | before the change is written |
+| `crm.opportunity.status.from_<x>.before` | before the change is written |
+| `crm.opportunity.status_changed.v1` | after it is saved and the linked orders have been asked |
+| `crm.opportunity.status.from_<x>_to_<y>.after` | same |
+| `crm.opportunity.status.to_<y>.after` | same |
+| `crm.opportunity.closed.v1` | same, when `y` closes the opportunity |
+
+The names are built by `opportunityStatusEventName`, so a subscriber does not
+spell the pattern. A subscriber cannot stop the move, and one that fails does
+not undo it.
+
+```ts
+ctx.subscribe(opportunityStatusEventName('toAfter', { to: 'won' }), async (event) => {
+  await notifyFinance(event.opportunityId);
+});
+```
+
+**Refuse a move** by registering a guard. A guard names the moves it watches —
+from a status, to a status, or both — and refuses by throwing
+`OpportunityTransitionVetoError`. The sentence it throws is what the sales
+representative reads; nothing is written when a guard refuses.
+
+```ts
+ctx.onBoot(() => {
+  lazyPort<OpportunityTransitionGuardRegistryPort>(ctx, 'opportunityTransitionGuardRegistry').register({
+    ownerModuleId: 'acme_rules',
+    match: { to: 'won' },
+    guard: (event) => {
+      if (event.reason === null) throw new OpportunityTransitionVetoError('Say why the deal was won.', event.from, event.to);
+    },
+  });
+});
+```
+
+The module that registers a guard declares it in its manifest:
+`nonBindingDependencies: [{ moduleId: 'crm', name: 'opportunityTransitionGuardRegistry', kind: 'contributes-to' }]`.
+A guard belonging to a module that is switched off is skipped — a module that is
+off does not refuse anything.
+
 ## Reading and moving an opportunity from another module
 
 For developers. Another module, or a deployment's overlay, works with
@@ -828,6 +1132,71 @@ if (!outcome.applied && outcome.reason !== 'already_there') {
 To react to a status change rather than cause one, subscribe to the events or
 register a guard, as *Adding your own logic to a status change* describes.
 
+## Switching it on and off
+
+CRM is an optional module. It is on by default and an operator switches it
+off, and back on, on the **Modules** screen of the Admin UI
+(`/platform/modules`).
+
+While it is off:
+
+- every `/api/v1/admin/crm/…` endpoint answers `503` with the code
+  `MODULE_DISABLED`;
+- its screens, sidebar group, command-palette entries and settings disappear
+  from the Admin UI;
+- its permissions can no longer be granted to a role;
+- nothing it would do in the background happens.
+
+Nothing is deleted. Every opportunity, its history and the workflow
+configuration stay in the database, and everything is back exactly as it was
+when the module is switched on again.
+
+## Permissions
+
+| Code | What it allows |
+| --- | --- |
+| `crm:read` | View sales opportunities, the board, the status workflow and the tag list; read an opportunity's change history, its notes and messages, and download its attachments. |
+| `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders and quote requests, choose whether the value is typed in or computed, retry or dismiss a refused order change, write notes and messages, upload, add and remove attachments. |
+| `crm:configure` | Change the workflow — statuses, transitions and order-status mappings in both directions, and which statuses count towards a computed value — manage the tag list, and delete an opportunity. |
+| `crm:analytics` | Open the Analytics screen and read its five figures. |
+
+A role that holds `crm:read` should also hold `orders:read` and
+`custom_fields:read`: an opportunity shows the orders linked to it, which are
+read from the Orders module, and its custom fields, whose definitions are read
+from the Custom Fields module. The **Roles** screen suggests both.
+`crm:write`, `crm:configure` and `crm:analytics` each build on `crm:read`:
+the Analytics screen names statuses and offers its sales channel and sales rep
+filters from what `crm:read` reads.
+
+**Nothing else is needed.** The fields that choose an organization, a sales
+channel, an assignee or a contact person — in the filters of the list and the
+board, and on the forms — read CRM's own lookups, so a sales representative
+does not need permission to browse customers, sales channels or administrators
+to work an opportunity. What a lookup offers is narrowed to the organizations
+the person may see, and is no more than a name to choose by.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/lookups/organizations?q=…` | `crm:read` | Organizations the caller may see, by name: `id`, `name`. `id=…` answers one. |
+| `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Every sales channel: `id`, `code`, `name` per language, `active`, `systemDefault`, and the currencies it sells in. |
+| `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Active administrators, by name: `id`, `name`. |
+| `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Members of one organization the caller may see: `id`, `name`, `email`. |
+| `GET /api/v1/admin/crm/lookups/quote-requests?organizationId=…&q=…` | `crm:write` | Quote requests of one organization the caller may see that can be linked: the open ones, and the one whose number is typed in full. `id`, `number`, `status`. Answers `503` while the Quote Requests module is off. |
+
+The currencies offered when an opportunity is created are the ones the active
+sales channels sell in.
+
+No role receives a CRM permission automatically. Grant them on the
+**Roles** screen.
+
+## Settings
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `crm.enabled` | on | The switch described above. |
+| `crm.auto_create_from_orders` | off | Every order placed from then on gets an opportunity of its own. The setting can differ per sales channel; the order's channel decides. |
+| `crm.auto_create_from_quote_requests` | off | Every quote request a customer submits from then on gets an opportunity of its own. Needs the Quote Requests module to be on. |
+
 ## Demo data
 
 CRM ships no demo data: `endora demo seed` creates no opportunity. An
@@ -838,38 +1207,6 @@ the instance's demo composition rather than of this module, and is not part of
 this release. The default workflow is always installed, so a board has its
 columns from the first start.
 
-## The opportunity on the order's screen
+## Coming
 
-An order's screen ends with a **Linked opportunity** panel, whichever tab is
-open.
-
-- **An order linked to an opportunity** shows the opportunity's number and
-  title (a link to it), its status, who it is assigned to and its value.
-- **An order linked to none** says so and offers two actions to whoever holds
-  `crm:write`:
-  - **Link to an opportunity** lists the open opportunities of the order's
-    organization (the hundred newest); choose one and confirm. An order
-    belongs to at most one opportunity, and only to one of its own
-    organization — a refusal is shown in the panel.
-  - **Create opportunity** opens the create form with the order's organization
-    chosen. When the opportunity is saved the order is linked to it and the
-    opportunity opens. If the link is refused, the opportunity has still been
-    created: the form says so and links to it, and the order can be linked from
-    the opportunity's own screen.
-- The panel is shown to whoever holds `crm:read`. Without it, and with CRM
-  switched off, the order's screen is exactly as it is without the module — no
-  panel, no heading, no empty space, no request.
-
-Quote requests get the same panel once they can be linked to an opportunity.
-
-For integrators: `GET /api/v1/admin/crm/documents/order/{orderId}/opportunity`
-(`crm:read`) answers `{ "data": <the opportunity's summary> }`, or
-`{ "data": null }` for an order linked to none. An order that does not exist or
-is not the caller's to see answers `404 CRM_DOCUMENT_NOT_FOUND` — the same
-answer for both, whether or not it is linked. A kind other than a document
-kind answers `422`. The create form accepts `linkDocumentKind=order` and
-`linkDocumentId=<order id>` beside `organizationId` in its address.
-
-For module authors: the panel is CRM's contribution to the `order.detail.after`
-admin zone, which the Orders module mounts and which any module may contribute
-to. Orders does not import CRM and declares no dependency on it.
+- Creating an order or a quote request from within an opportunity.

@@ -101,6 +101,8 @@ composer:check`, `manifests:check` and `overlay:check` are the proofs.
 | `backend/test/integration/sales_channels/delete-attribution-guard.test.ts` | the contributors of `salesChannelAttributionRegistry` are asserted as a set; `crm` joined it with its counter (US1, T050 — research N-25) |
 | `backend/test/integration/audit_logs/reference-contributions.test.ts` | the contributors of `auditReferenceRegistry` are asserted as a set; `crm` joined it with its resolver (US14, T137 — research N-G6) |
 | `backend/test/helpers/seed-crm.ts` (**new**) | the fixtures the CRM contract and integration tests share, and the restore of the seeded workflow that makes them independent of run order (research N-21) |
+| `backend/scripts/check-port-dependencies.ts` | `CONTRIBUTION_POLICY_STATED` gains `'webhooks:webhookEventRegistry': 'skip'` — the check refuses a `contributes-to` edge into a registry whose owner's absent-contributor policy is not stated there, and User Story 16 adds both the registry and its first contributor (research N-E20). One line and its comment, in a commit of its own |
+| `backend/test/unit/kernel/contribution-absent-owner.test.ts` | every `contributes-to` edge the manifests declare is held, two ways, to a composition that proves the push survives an owner the instance never installed; `crm` joined it with its edge into `webhookEventRegistry` (US16, T169 — research N-E21). One composer entry and its import, in a commit of its own |
 | `backend/test/unit/tenancy/transitive-parent-chains.test.ts` | the population of `@TransitivelyScoped` classes is asserted as a set; the seven CRM child classes joined it with their entities |
 | `backend/scripts/check-command-coverage.ts` | `'crm'` appended to `MIGRATED_MODULES` — the rollout ledger whose header asks for a new module "as it lands"; without the entry a write outside a Command in this module is a warning unless the run is `--strict` (research N-B11, N-D1) |
 | a recorded read size under `backend/` | **only** an entry whose band refuses the new file count; drift inside a band is left for the release pull request (`specs/conventions/check-estate.md` § *Measuring a read size* — read it first) |
@@ -180,6 +182,19 @@ renders, and a contribution to one). Neither host names a contributor; an empty 
 nothing, so both screens are identical without CRM — proven by the two `after-zone` tests.
 The Quote Request zone is added only once User Story 8 has landed. Left behind if CRM is
 removed: two zones nobody contributes to, in the shape of `organization.detail.after`.
+
+## K. `audit_logs` — one prefix, so the audit viewer labels CRM's actions (US11)
+
+| # | File | Change |
+| --- | --- | --- |
+| K1 | `packages/modules/audit_logs/src/backend/routes.admin.ts` | one line in `moduleIdForAuditAction`: `if (action.startsWith('crm.')) return 'crm';` |
+| K2 | `packages/modules/audit_logs/src/backend/routes.admin.test.ts` | the prefix cases, CRM's among three neighbours, and the fall-through to `core` |
+
+Approved by the owner on 2026-10-06 (research N-22, N-E12, N-H1). The function is a hard-coded
+prefix chain, not a registry: the line is the shape every other module's prefix has there.
+`audit_logs` gains no edge to `crm` and imports nothing of it; with CRM off or absent the line
+is never reached by a row, and a row written before CRM was removed falls back to its raw
+action code, as any unlabelled action does. Left behind if CRM is removed: that one line.
 
 ## F. Explicitly **not** changed
 
