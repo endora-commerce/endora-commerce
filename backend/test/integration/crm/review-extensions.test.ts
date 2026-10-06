@@ -35,6 +35,7 @@ import {
   whenCrmEventSettled,
 } from '../../helpers/seed-crm.js';
 import { TINY_PNG, uploadCrmAttachment, useTemporaryAssetStore } from '../../helpers/crm-attachment-upload.js';
+import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
 
 /**
  * The review's fixes (`specs/143-crm-sales-opportunities/research.md` N-R1 …
@@ -155,6 +156,26 @@ describe('crm review fixes, on the code written after them', () => {
       const linked = await linkCrmQuoteRequest(h, opportunity.id, quote.id, withQuotes.cookies);
       expect(linked.statusCode, linked.body).toBe(201);
     });
+
+    it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+      'answers 503, not 403, to somebody without rfqs:handle while quote_requests is %s — presence is decided first',
+      async (axis) => {
+        const quote = await submitCrmQuoteRequest(h);
+        const opportunity = await createCrmOpportunity(h);
+        // While on, the same caller is refused for the permission.
+        expect((await linkCrmQuoteRequest(h, opportunity.id, quote.id, crmOnly.cookies)).statusCode).toBe(403);
+        await withModuleOff('quote_requests', axis, async () => {
+          // The code cannot be granted while its module is off; the answer is about the module.
+          for (const response of [
+            await linkCrmQuoteRequest(h, opportunity.id, quote.id, crmOnly.cookies),
+            await call('GET', `/lookups/quote-requests?organizationId=${TEST_ORGANIZATION_ID}`, crmOnly.cookies),
+          ]) {
+            expect(response.statusCode, `${axis}: ${response.body}`).toBe(503);
+            expect(response.json().error.code).toBe('MODULE_DISABLED');
+          }
+        });
+      },
+    );
 
     it('names a document a computed value leaves out only to somebody who may read that document', async () => {
       expect((await setCrmCountingStatuses(h, { order: ['new'], quoteRequest: [] })).statusCode).toBe(202);

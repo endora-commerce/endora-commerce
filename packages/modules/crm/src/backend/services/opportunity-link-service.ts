@@ -19,7 +19,7 @@ import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import type { CrmQuoteRequestDocument, CrmQuoteRequests } from './crm-quote-requests.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
-import type { OwnerReadChecks } from './owner-read-permissions.js';
+import { assertMayReadQuoteRequests, type OwnerReadChecks } from './owner-read-permissions.js';
 
 export interface OpportunityLinkServiceDeps {
   emFactory: () => EntityManager;
@@ -363,6 +363,9 @@ export class OpportunityLinkService {
     // Presence first. With the quote desk switched off there is nothing to
     // link to, and the answer is the one that module's own routes give.
     if (!this.deps.quoteRequests.isPresent()) throw new ModuleDisabledError('quote_requests');
+    // Then the code that module reads a request with: the answer to a link
+    // shows the request's number, status and amount (research N-R13).
+    await assertMayReadQuoteRequests(this.deps.mayRead.quoteRequests);
     const quoteRequest = await this.deps.quoteRequests.load(documentId);
     if (!quoteRequest) {
       throw new HttpError(404, ERROR_CODES.CRM_DOCUMENT_NOT_FOUND, 'Quote request not found.');

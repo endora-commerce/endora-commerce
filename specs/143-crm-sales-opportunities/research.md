@@ -3023,8 +3023,14 @@ when it was measured, and what was done about it.
   ask for it beside `crm:write`. **This reverses N-H2 on one point**: the lookup was built so
   that a Sales Rep "needs no code of the quote desk to link", and it now asks for that code —
   it keeps its narrower answer (`id`, `number`, `status`, one Organization) and its place as
-  the picker's source. The owner may prefer N-H2; the reversal is one `preHandler` in two
-  route files and one line in the link renderer. (b) **`excludedDocuments`** names a document
+  the picker's source. The owner may prefer N-H2; the reversal is one call in the link
+  service, one in the lookup service and one line in the link renderer. **The code is asked
+  by the services, after presence, and not by `requireAdmin` on a route** — the first version
+  gated the two routes, and two things refused it: with `quote_requests` off the routes
+  answered 403 where §3 and §10a say 503 `MODULE_DISABLED` (a case holds both axes), and
+  `backend/test/unit/admin_roles/foreign-gates.test.ts` (D-173) reports a route gate naming a
+  switchable module's code as debt — while its owner is off the code can be granted to
+  nobody. `orders` cannot be switched off, so `orders:read` stays a route gate. (b) **`excludedDocuments`** names a document
   only to a reader who may read that kind — an entry says the document's status counts and its
   currency differs. The filter is on what is shown; `#evaluate` is untouched, because a
   recalculation runs under whoever's request caused it and the stored figure must not depend

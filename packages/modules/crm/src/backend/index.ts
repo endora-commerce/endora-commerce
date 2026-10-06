@@ -877,10 +877,11 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     crmDocumentLookupService: ctx
       .asFunction(
-        ({ crmQuoteRequests }: ValueCradle) =>
+        ({ crmQuoteRequests, crmOwnerReadChecks }: CrmCradle & ValueCradle) =>
           new CrmDocumentLookupService({
             quoteRequestPresence: crmQuoteRequests,
             quoteRequests: lazyPort<QuoteRequestReadPort>(ctx, 'quoteRequestReadPort'),
+            mayReadQuoteRequests: crmOwnerReadChecks.quoteRequests,
           }),
       )
       .singleton(),

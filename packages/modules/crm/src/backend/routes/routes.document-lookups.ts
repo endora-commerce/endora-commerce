@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import { OpportunityQuoteRequestLookupQuerySchema } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { CrmDocumentLookupService } from '../services/crm-document-lookup-service.js';
-import { QUOTE_REQUESTS_READ_PERMISSION } from '../services/owner-read-permissions.js';
 
 export interface DocumentLookupRoutesDeps {
   documentLookupService: CrmDocumentLookupService;
@@ -15,7 +14,9 @@ export interface DocumentLookupRoutesDeps {
  * `crm:write`: a document is chosen only to be linked, and a link is a write —
  * **and `rfqs:handle`**, the code the Quote Requests module reads one with
  * (research N-R13): the answer names an Organization's Quote Requests and their
- * statuses, and linking one asks for the same code.
+ * statuses, and linking one asks for the same code. That second code is asked
+ * by the service, after it has decided the module is present: off is 503, as
+ * the contract has it, whoever asks.
  */
 export async function registerCrmDocumentLookupRoutes(
   app: FastifyInstance,
@@ -25,7 +26,7 @@ export async function registerCrmDocumentLookupRoutes(
 
   app.get(
     '/api/v1/admin/crm/lookups/quote-requests',
-    { preHandler: [requireAdmin('crm:write'), requireAdmin(QUOTE_REQUESTS_READ_PERMISSION)] },
+    { preHandler: requireAdmin('crm:write') },
     async (request) => ({
       data: await lookups.quoteRequests(
         OpportunityQuoteRequestLookupQuerySchema.parse(request.query ?? {}),

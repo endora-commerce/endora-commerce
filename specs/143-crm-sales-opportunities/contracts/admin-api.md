@@ -102,7 +102,9 @@ Order as `available: false`, with no `number`, `status`, `total` or `currency`, 
 **`rfqs:handle` as well as `crm:write`** for `POST` with `documentKind: 'quote_request'` — the
 one code `quote_requests` declares, and the one its own admin list and detail are read with —
 and a reader without it is shown a linked Quote Request as `available: false`, by the same
-rule (research N-R13). `DELETE` asks for `crm:write` alone, for either kind.
+rule (research N-R13). `DELETE` asks for `crm:write` alone, for either kind. While
+`quote_requests` is off the answer is 503 `MODULE_DISABLED` whoever asks: that module's
+presence is decided before its code is.
 
 **`excludedDocuments` follows the same rule**: an entry of kind `order` is returned to a
 reader holding `orders:read`, one of kind `quote_request` to a reader holding `rfqs:handle`.

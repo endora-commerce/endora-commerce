@@ -1,4 +1,5 @@
-import type { PermissionReadPort } from '@endora-commerce/contracts';
+import { ERROR_CODES, type PermissionReadPort } from '@endora-commerce/contracts';
+import { HttpError } from '@endora-commerce/platform/http';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
 
 /** The permission `orders` gates its own read surface with (its manifest's `orders:read`). */
@@ -47,6 +48,26 @@ export function createOwnerReadCheck(permissions: PermissionReadPort, permission
     const held = await permissions.listPermissions(adminUserId);
     return held.includes('*') || held.includes(permission);
   };
+}
+
+/**
+ * 403 for a caller who asks for something of a Quote Request without the code
+ * that module reads one with.
+ *
+ * **Asked by a service, after `quote_requests`' presence is decided — never by
+ * a `requireAdmin` on a route.** That module can be switched off, and while it
+ * is off its code cannot be granted to anybody: a route gate naming it would
+ * answer 403 where the contract says 503 `MODULE_DISABLED`, and is the shape
+ * the platform's foreign-gate sweep refuses (D-173). `orders` cannot be
+ * switched off, so its code is asked on the route.
+ */
+export async function assertMayReadQuoteRequests(check: OwnerReadCheck): Promise<void> {
+  if (await check()) return;
+  throw new HttpError(
+    403,
+    ERROR_CODES.FORBIDDEN,
+    'This needs the permission to handle quote requests as well.',
+  );
 }
 
 export function createOwnerReadChecks(permissions: PermissionReadPort): OwnerReadChecks {

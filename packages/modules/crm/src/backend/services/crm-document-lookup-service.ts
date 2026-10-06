@@ -7,21 +7,26 @@ import type {
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
 import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import type { CrmQuoteRequests } from './crm-quote-requests.js';
+import { assertMayReadQuoteRequests, type OwnerReadCheck } from './owner-read-permissions.js';
 
 export interface CrmDocumentLookupServiceDeps {
   /** The one door to `quote_requests`' presence (research N-E5). */
   quoteRequestPresence: Pick<CrmQuoteRequests, 'isPresent'>;
   /** `quote_requests`' read port — lazy, resolved per call, never captured. */
   quoteRequests: QuoteRequestReadPort;
+  /** Whether the caller holds the code `quote_requests` reads a request with. */
+  mayReadQuoteRequests: OwnerReadCheck;
 }
 
 /**
  * The documents an Opportunity's link picker chooses from that CRM answers
  * itself (`specs/143-crm-sales-opportunities/research.md` N-H2, after N-D4).
  *
- * **Quote Requests only.** The quote desk's list is gated `rfqs:handle` — the
- * right to handle quotes — which a Sales Rep linking one to an Opportunity has
- * no reason to hold. Orders are still searched through `orders`' own list:
+ * **Quote Requests only**, and for a holder of `rfqs:handle` — the code the
+ * quote desk reads a request with (research N-R13, which reverses N-H2 on this
+ * point): what another module owns is offered to somebody who may read it
+ * there. The answer stays narrower than the desk's own list — one
+ * Organization, three fields. Orders are still searched through `orders`' own list:
  * `crm:read` names `orders:read` as what its holder should also hold, and the
  * Opportunity screen reads Orders with it already.
  *
@@ -42,6 +47,7 @@ export class CrmDocumentLookupService {
     query: OpportunityQuoteRequestLookupQuery,
   ): Promise<OpportunityQuoteRequestOption[]> {
     if (!this.deps.quoteRequestPresence.isPresent()) throw new ModuleDisabledError('quote_requests');
+    await assertMayReadQuoteRequests(this.deps.mayReadQuoteRequests);
     if (!isOrgInScope(query.organizationId)) return [];
 
     const needle = (query.q ?? '').trim().toLowerCase();
