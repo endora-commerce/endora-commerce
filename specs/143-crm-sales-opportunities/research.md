@@ -1287,6 +1287,7 @@ when it was measured, and what was done about it.
   no event. `assignedAdminUserId=me` with no administrator behind the request answers an
   empty page. The assignee is not required to hold a CRM permission or to reach the
   Organization (R-9), so an assignee may be somebody who cannot open the Opportunity.
+  **Superseded by N-R2 on the last sentence: an assignee must reach the Organization.**
 - **N-B9 (2026-10-05, T085) — where a tagging is written, and the shapes §8 leaves open.**
   `tag-service.ts` owns the tag list (Commands `crm.tag.create|update|delete` against
   `crm_tag`); the **taggings** are written by `opportunity-service.ts`, in the Commands that
@@ -1328,6 +1329,7 @@ when it was measured, and what was done about it.
   of `note_add` / `message_add`, both states of `note_update`, the before-state of
   `note_delete`): "stays in the audit trail" is otherwise unverifiable, and the audit log is
   read by administrators only. `references` is `[]` until User Story 12.
+  **Superseded by N-R6 on the audit entries: they carry the text's length, never the text.**
 - **N-B13 (2026-10-05, T075) — who a message tells.** The assignee at the moment of sending
   and every earlier *message* author on that Opportunity (note authors are not participants),
   each once, never the sender — computed inside the Command, before the message joins the
@@ -1337,6 +1339,7 @@ when it was measured, and what was done about it.
   deactivated is still a recipient; the bell entry is inert for somebody who cannot sign in.
   A recipient is not checked against the Opportunity's tenant scope: an earlier author could
   only have written there by reaching it, and the assignee is whoever was chosen (N-B8).
+  **Superseded by N-R2: the bell entry has no body, and each recipient's reach is checked.**
 - **N-B14 (2026-10-05, T074) — how "no customer-facing route returns a note or a message" is
   held.** The module registers nothing outside `/api/v1/admin/crm` (`contracts/admin-api.md`
   says so, and the off-state list is every route it has). The test writes a note and a
@@ -1800,6 +1803,7 @@ when it was measured, and what was done about it.
   existing attachment (N-B17 (d)); the list does not grow a second row. (e) Removing asks
   first and says the file stays in the library. (f) A size is rendered by `Intl.NumberFormat`
   with a unit, in binary steps, so no unit string is hand-written in either language.
+  **Superseded by N-F1 on (a): the upload is CRM's own endpoint, under `crm:write` alone.**
 - **N-D9 (2026-10-05, the stories' browser walk) — user stories 2–6 and the picker repair,
   walked in a browser.** N-30's arrangement: headless Chromium (Playwright 1.60) against the
   admin's Vite dev server and the backend test composition on a throw-away `_test` database on
@@ -2609,6 +2613,7 @@ when it was measured, and what was done about it.
   holds the gate, the shape, both isolation cases and that the desk's own list still refuses
   the role. **The test was written before the service but run only after it** — its red was
   not observed.
+  **Superseded by N-R13 on the gate: the lookup asks for `rfqs:handle` beside `crm:write`.**
 - **N-H3 (2026-10-06, T127) — the reference pickers are the owners' lists, offered by
   permission; no product lookup was added, because the catalog's port cannot search.**
   `CatalogProductReadPort` finds by id and by exact SKU and lists everything; a CRM-owned
@@ -2668,6 +2673,7 @@ when it was measured, and what was done about it.
   only while `useModulePresence().isPresent('quote_requests')`; and the foreign files are
   exactly the rows of `contracts/foreign-module-changes.md` §A–§C. The off-state file already
   lists every CRM route; T111 adds the two foreign create requests carrying an `origin`.
+  **Superseded by N-J1…N-J9: User Story 10 was then built, and those notes record it.**
 - **N-I1 (2026-10-06, after the merge of the second backend wave into the integration
   branch) — the merged tree.** `6b7694235` (User Stories 8, 9, 11, 12, 16) met analytics, the
   CRM-owned upload, custom fields, the published ports and the two host panels. Thirteen files
@@ -3146,3 +3152,70 @@ and the third answer was reversed in the third round the same day.
 | **Q1** | Should switching the Quote Requests module off be refused while CRM is on, or allowed with CRM degrading? | **Allowed; CRM degrades** (R-17) — the default, accepted. |
 | **Q2** | When an Order refuses the mapped status, should the Opportunity's own transition still stand? | **Yes — it stands; the refusal is shown and retryable** (R-4) — the default, accepted. |
 | **Q3** | Native drag-and-drop for the board, or `@dnd-kit`? | **`@dnd-kit`** — the native default was accepted and then reversed: "it may be useful not only in this module but in the future too". R-20 is rewritten accordingly; the "Move to…" menu stays for WCAG 2.2 SC 2.5.7. |
+
+### Reconciliation after the product-owner audit, 2026-10-06
+
+"Nothing is open" above is true of the three design questions. The audit of 2026-10-06 (T147)
+compared every artefact of this directory with the tree; what it found was corrected in the
+artefacts, and two things came out of it that only the owner can decide. They are marked
+`[NEEDS CLARIFICATION — owner]` in `spec.md` § Clarifications, each with the default now in
+force:
+
+| # | Open for the owner | Default written into the spec |
+| --- | --- | --- |
+| A-1 | Repair the platform so an Order records the Quote Request it was placed from (N-E3), before CRM ships? | No repair inside this feature; FR-027, "counted once" and the second half of FR-061 stand as implemented-but-unreachable and are marked so |
+| A-4 | Admit the demo data set to this feature's foreign changes and decide whether the demo gains an Order (N-G5)? | Not built; User Story 14 scenario 3 stays, marked deferred |
+
+The nine decisions taken while implementing (`spec.md` § Clarifications, D-1…D-9) are not
+open questions — each is in force — but each is the owner's to reverse.
+
+**Change log — what was amended, and the line of the tree each amendment was checked
+against.** Paths are under `packages/modules/crm/src/` unless they start elsewhere.
+
+| Artefact | Amendment | Checked against |
+| --- | --- | --- |
+| `spec.md` header | `Draft` → `Accepted — …`, the value the three implemented specs of this repository carry | `specs/138-separate-components/spec.md`, `specs/140-instance-upgrade/spec.md`, `specs/141-module-block-renderers/spec.md` — every task ticked, all three `Accepted` |
+| `spec.md` FR-071, SC-008 | curated palette, not every screen | `manifest.ts:267-308` (four `actions`); `.specify/memory/constitution.md` Principle XVI, "Curated, not exhaustive" |
+| `spec.md` Assumptions | analytics in UTC | `backend/services/analytics-service.ts:71,120` |
+| `spec.md` US14 AS3 | deferred | `manifest.ts:313` (`demo: false`); no `backend/demo/` directory |
+| `spec.md` FR-072 | two English-only exceptions | `backend/services/opportunity-comment-service.ts:131`, `backend/services/opportunity-assignment-service.ts:162`; `manifest.ts:30-64` |
+| `spec.md` FR-027, FR-033, FR-061, US8 AS4/AS6, US9 AS3, SC-009 | implemented, unreachable | no writer of `sourceQuoteRequestId` under `packages/modules/**` outside tests and migrations; readers at `packages/modules/orders/src/backend/services/order-read-port.ts:97`, `backend/services/opportunity-link-service.ts:268`, `backend/domain/value-calculation.ts:125` |
+| `spec.md` FR-032 | the triggers that exist | `backend/index.ts:260,502,512` (subscriptions); `packages/modules/orders/src/backend/services/order-service.ts` is the only writer of an Order's `total` found |
+| `spec.md` FR-079, FR-080 | added | `backend/services/owner-read-permissions.ts`; `backend/routes/routes.links.ts:41,58`; `backend/routes/routes.attachments.ts:45`; `backend/services/attachment-active-content.ts` |
+| `contracts/events-and-ports.md` §5 | the nineteen consumed names, owners and edges | every `lazyPort<` in `backend/index.ts`; `manifest.ts:97-165`; `Container name:` markers in `packages/contracts/src/{organizations,assets-library,admin-roles}.ts`; `check:port-dependencies` run, `violations=0` |
+| `contracts/events-and-ports.md` §1–§2 | `closed` in the emit order; one `EventBus.run`; payloads | `backend/events/opportunity-status-events.ts:101-125`; `backend/services/opportunity-transition-service.ts:299`; `packages/contracts/src/crm.ts:925-1055`; `backend/services/opportunity-auto-create-service.ts:259` |
+| `contracts/foreign-module-changes.md` | all 55 files of the stated `git diff --stat` are rows; H5 struck; §D2 added | the command at the top of that page, run at `3e4fb441d` |
+| `data-model.md` § Audit actions | 28 audited actions, 3 never audited | `backend/services/opportunity-history-labels.test.ts`; `i18n/en.json` `auditLog.*` (28 keys) |
+| `data-model.md` § Locking | new | `backend/services/opportunity-transition-service.ts:202,215`; `backend/services/opportunity-service.ts:339`; `backend/services/workflow-config-service.ts:193,250` |
+| `contracts/admin-api.md` §2, §4, §10, §13 | refusals of N-19 / N-20; `perColumn` max; how a code is minted | `backend/services/order-status-propagation-service.ts:93,97`; `backend/services/workflow-config-service.ts:32,36`; `backend/routes/routes.workflow.ts:45,70,108`; `manifest.ts:244-251`; `packages/contracts/src/crm.ts:654` |
+| `contracts/admin-surfaces.md` §3, §4, §7 | palette rationale; `requires`; key prefixes | `manifest.ts:191`; top-level key prefixes of `packages/modules/crm/i18n/en.json` |
+| `plan.md` | four palette actions; seven child tables; one composition file; second migration; no `demo/` | `backend/` directory listing; `migrations/` listing; N-6, N-7 |
+| `tasks.md` (prose only) | the migration sentence; a note on T161; a note on `compose/*.ts` | as above |
+| this file | "Superseded by" pointers inside N-B8, N-B12, N-B13, N-D8, N-H2, N-H6 | the notes they point at |
+
+**Traceability of the two added requirements** (the table in `tasks.md` is not edited here):
+FR-079 — `backend/test/integration/crm/review-extensions.test.ts`,
+`backend/test/contract/crm/links-and-transition.contract.test.ts` (the `orders:read` cases),
+`admin/test/modules/crm/owner-permissions.test.tsx`,
+`backend/test/contract/crm/attachments.contract.test.ts` (the `assets.read` gate);
+FR-080 — `backend/test/integration/crm/attachment-upload.test.ts` (the active-content cases
+and the size limit), `backend/test/contract/crm/attachment-upload.contract.test.ts`.
+
+**Where the audit's leads did not hold when checked**, so that nobody repeats them:
+
+- *"Constitution XVI asks that the module be reachable"* understates it. The principle also
+  **forbids** enumerating every route, so FR-071 as first written could not have been met
+  without violating it; the amendment is a correction of the requirement, not a concession.
+- *"T023, T050, T062, T117, T169 name five `compose/*.ts` files."* About twenty task lines
+  do, one or more in almost every story (`grep -n 'compose/' tasks.md`).
+- *"Events emitted … match §1."* One sentence of §1.2 did not: `document_linked` is not
+  always a Command's own event — for an automatic creation it is emitted by the service
+  after the creating Command commits. Corrected there.
+- *"Add `AGENTS.md` / `.specify/feature.json` to §D or drop them from the PR."* Precedent on
+  `master` is that both travel with the feature; they are rows of §D2 and stay.
+- *The spec's status "off `Draft`"* has no "Implemented" value to move to in this
+  repository; `Accepted — …` is what an implemented spec carries here.
+- *"[unverified] which module owns `permissionService` and `adminTenantScopePort`"* —
+  `admin_roles` and `organizations`. The first is worth knowing: CRM's manifest names no
+  `admin_roles` edge, and the check is green because that module is in the dependency
+  closure through `admin_users`.

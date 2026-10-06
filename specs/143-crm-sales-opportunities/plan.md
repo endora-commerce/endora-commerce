@@ -72,17 +72,17 @@ in `contracts/foreign-module-changes.md`.
 | **III. TDD (NN)** | PASS | Every story in `tasks.md` opens with its failing tests (contract + integration, and admin interaction tests for screens); `quickstart.md` maps each story to the test that proves it; every FR traces to a test task (tasks.md § Requirement traceability). |
 | **IV. YAGNI & minimal dependencies** | PASS with one justified dependency | **One new runtime dependency, `@dnd-kit/core`**, by owner ruling, with the written justification the principle requires in Complexity Tracking; `@dnd-kit/sortable` deliberately not added (nothing would use it). No graph cache, no rules engine, no rich-text editor, no materialised analytics, no currency conversion, no pipelines — each rejected in research with the reason. One queue, justified under X. |
 | **V. TypeScript everywhere** | PASS | Strict TS; every request, query, event and queue payload parsed by a Zod schema whose inferred type is the only type. |
-| **VI. Naming (NN)** | PASS with one note | Tables plural snake_case with the `crm_` prefix, columns snake_case, FKs `<singular>_id`, API camelCase, paths kebab-case. **Note**: the module id `crm` is an acronym, not a plural noun; the tree already carries `seo`, `pwa`, `mfa`, `cms`. T003 runs `check:naming` on the skeleton first and reports to the owner if it refuses. |
+| **VI. Naming (NN)** | PASS with one note | Tables plural snake_case with the `crm_` prefix, columns snake_case, FKs `<singular>_id`, API camelCase, paths kebab-case. **Note**: the module id `crm` is an acronym, not a plural noun; the tree already carries `seo`, `pwa`, `mfa`, `cms`. T003 runs `check:naming` on the skeleton first and reports to the owner if it refuses. **As built**: it refused — none of those four passes by being an acronym — and the id, which is the owner's own (`spec.md` § Clarifications), was admitted by adding `crm` to the script's `allowed_proper_noun` list (research N-1; `contracts/foreign-module-changes.md` A8). |
 | **VII. SEO & performance** | N/A | No storefront surface. Admin pages meet the targets above. |
 | **VIII. English-only (NN)** | PASS | Source comments and the `/docs` page in English; the Polish docs copy is the translation workflow's, not authored prose. |
 | **IX. UI reuse** | PASS with three justified new components | Reused from `@endora-commerce/admin-kit`: `PageHeader`, `ResponsiveTable`, `PaginationFooter`, `RouteTabs`, `Section`, `Badge`, `MultiSelect`, `Combobox`, `ColorPicker`, `StatusTransitionGraph`, `OrganizationPicker`, `CustomerPicker`, `AdminUserPicker`, `SalesChannelPicker`, `ProductPicker`, `AssetUploader`/`FileDropzone`, `EChart`. **Net-new in the design system**: `KanbanBoard` in `@endora-commerce/admin-kit/components` (no board/lane primitive exists — research R-20; promoted to the kit from the start because the owner wants it reusable), consumed by CRM's `OpportunityBoard`. **Net-new in the module**: `ReferenceTextarea` (no mention facility exists — R-21), `OpportunityHistory` (no per-record audit component exists — R-16). Each is written inside the module and named as a promotion candidate. |
 | **X. Scalable queue consumers** | PASS | One queue-backed operation: recalculating every computed value after the counting configuration changes. The endpoint only enqueues; the consumer is a BullMQ `Worker` registered with `ctx.worker`, built only where `processRunsWorkers` is true, idempotent (recalculation is a pure function of current state). Low volume, co-located by default and separable without code change. Everything else is synchronous and not queue-backed by design (R-4). |
-| **XI. Multi-tenant isolation (NN)** | PASS | **Decided explicitly**: `CrmOpportunity` is `@OrgScoped` on a non-null `organization_id` — the classification of the two comparable admin-side records about an Organization, `QuoteRequest` and `CreditLimit`. All eight child tables are `@TransitivelyScoped('CrmOpportunity', 'opportunityId')`; five configuration tables are `@GlobalEntity`. Children are never loaded by id alone. Raw SQL takes `orgConstraintFor()`. Subscribers and the worker use `enterSystemScope` and constrain by `organizationId` (D-285); `withOrgScope` is not used. Cross-tenant tests in the Foundational phase and in every story that adds a read. No no-organization path exists. |
+| **XI. Multi-tenant isolation (NN)** | PASS | **Decided explicitly**: `CrmOpportunity` is `@OrgScoped` on a non-null `organization_id` — the classification of the two comparable admin-side records about an Organization, `QuoteRequest` and `CreditLimit`. All seven child tables (this row first said eight — research N-7) are `@TransitivelyScoped('CrmOpportunity', 'opportunityId')`; five configuration tables are `@GlobalEntity`. Children are never loaded by id alone. Raw SQL takes `orgConstraintFor()`. Subscribers and the worker use `enterSystemScope` and constrain by `organizationId` (D-285); `withOrgScope` is not used. Cross-tenant tests in the Foundational phase and in every story that adds a read. No no-organization path exists. |
 | **XII. Sales-channel scoping (NN)** | PASS | `sales_channel_id` is an admin-set attribution and a filter, not channel-scoped content: nothing storefront-facing reads it and no `sales_channel_*` bridge is touched (R-13). `null` means no channel. CRM contributes to `salesChannelAttributionRegistry` so the channel-delete guard sees it. The automatic-creation settings are read with the document's channel through `settingsReadPort`. |
 | **XIII. Command Bus auditing (NN)** | PASS | Every write is a named Command through `CommandBus.run` (`data-model.md` § Audit actions); no hand-placed audit call. Actor from the ambient context. The history tab reads those entries, so it cannot disagree with the data. `computed_value` maintenance is a derived figure and uses `skipAudit` with a stated reason. `check:command-coverage` is in every story's verification. |
 | **XIV. Entity-agnostic extensibility** | PASS | Opportunities become a custom-field host (US15, R-26) exactly as the principle prescribes: the value bag is a column on the host row, so it inherits the host's tenant scope; the host validates through `customFieldValueService` inside its own Command and audits its own write; the generic layer writes nothing into CRM's tables. The one change to the generic core — an optional `ownerModuleId` on the host registry entry, so a switched-off owner's type is not offered — is read for its presence only, never for which module it names (the rule `managedBy` already follows). `origin` (US10), the webhook event registry (US16) and the two new zones (US17) are the same shape: a host seam that names no contributor. |
 | **XV. Untouched core & overlay** | PASS | A deployment customises CRM through an overlay module: `ctx.subscribe` on the templated events, a guard pushed into `opportunityTransitionGuardRegistry`, the two ports. Nothing deployment-specific is in the module. |
-| **XVI. Command palette** | PASS | Three manifest `actions` with the gating permission, labels in both bundles, each added by the story that ships its route (`contracts/admin-surfaces.md` §3). |
+| **XVI. Command palette** | PASS | Four manifest `actions` (three when this was first written; analytics joined with US13) with the gating permission, labels in both bundles, each added by the story that ships its route (`contracts/admin-surfaces.md` §3). Tags and Workflow are sidebar-only on purpose: the principle asks for the landing surface plus the few highest-value actions and forbids enumerating every route, so `spec.md` FR-071's original "every screen" was amended to it, not the other way round. |
 | **XVII. Operator-toggleable (NN)** | PASS | `activation: { settingCode: 'crm.enabled', default: true }`, not `nonDeactivatable`. Routes through `ctx.routes`, subscribers through `ctx.subscribe`, the worker through `ctx.worker`, published ports through `providePort`, the guard registry ungated with a stated absent-owner policy, boot hooks contribution-only. Admin surfaces resolve from the effective enabled-set; the "CRM" sidebar heading disappears with its last visible item. Off-state test with `expectModuleAbsent` in the Foundational phase, extended by each story that adds a subscriber. Switchable owners (`quote_requests`, `admin_notifications`) are `degrades-without` edges with operator-readable `whenAbsent` sentences, and `webhooks` is a `contributes-to` edge, so none of the three switches is deadened by CRM. The three later integrations each carry their own off-state proof: the `opportunity` host type is not offered by `custom_fields` while CRM is off (T153), CRM's events are not offered by `webhooks` (T163–T164), and the Order and Quote Request screens are identical without a contributor (T172). |
 
 **Other gates**: *Docs sync* — `packages/modules/crm/docs/crm.md` in the Foundational phase,
@@ -142,22 +142,21 @@ packages/modules/crm/                    # NEW — the module
     ├── manifest.ts
     ├── migrations/
     │   ├── <stamp>_crm_init.ts          # scaffolded by migration:new
+    │   ├── <stamp>_crm_opportunity_custom_field_values.ts   # US15 — one column (as built)
     │   └── index.ts
     ├── backend/
-    │   ├── index.ts                     # registerModule + `export const entities`
-    │   ├── compose/                     # one register<Area>(ctx) per area — see below
-    │   │   ├── workflow.ts  opportunities.ts  transitions.ts  links.ts
-    │   │   ├── reverse-mapping.ts  assignment.ts  comments.ts  attachments.ts
-    │   │   ├── tags.ts  board.ts  value.ts  auto-create.ts  history.ts
-    │   │   └── references.ts  analytics.ts  ports.ts
+    │   ├── index.ts                     # registerModule + `export const entities`; as built, ALL
+    │   │                                # composition, one delimited section per area — there is
+    │   │                                # no compose/ directory (Structure Decision 1, research N-6)
     │   ├── domain/                      # pure: opportunity-status-graph.ts, value-calculation.ts,
-    │   │                                #       reference-tokens.ts, default-assignee.ts
+    │   │                                #       reference-tokens.ts, default-assignee.ts,
+    │   │                                #       effective-value.ts (as built, research N-I2)
     │   ├── entities/                    # 13 *.entity.ts
     │   ├── events/                      # opportunity-status-events.ts
     │   ├── services/                    # one service per area
     │   ├── routes/                      # one routes.<area>.ts per area
-    │   ├── workers/value-recalculation-worker.ts
-    │   └── demo/                        # US14
+    │   └── workers/value-recalculation-worker.ts
+    │                                    # no demo/ — US14's demo data was not built (research N-G5)
     └── admin/
         ├── index.ts                     # contributions: routes, nav, zones
         ├── api.ts                       # typed calls
@@ -187,7 +186,16 @@ docs/i18n/pl/…                           # Polish copies of the docs pages tou
 **Structure Decision**: one module package following the layout every module in
 `packages/modules/` has. Two deliberate refinements serve parallel implementation:
 
-1. **`backend/compose/<area>.ts`.** `backend/index.ts` stays a list of
+1. **`backend/compose/<area>.ts` — NOT BUILT; the fallback this item names was taken.** T023
+   proved the bracketed premise below false: `check:port-dependencies` derives a module's
+   registered names and gated ports from the file exporting `registerModule` and from no
+   other, so a `ctx.di.register` in a helper file reads as "registered by no module" and a
+   `providePort` there would not read as a gated port at all — the fail-open direction
+   (research N-6). The module therefore composes in **one** file,
+   `packages/modules/crm/src/backend/index.ts`, with one commented section per area; a story
+   adds a section, not a file. Services, routes, domain code and tests stay one file per
+   area as planned. The original text is kept for the record:
+   `backend/index.ts` stays a list of
    `register<Area>(ctx)` calls; each area file registers its own services, routes,
    subscribers and boot hooks through the same `ModuleContext`. A story adds one file and one
    line. (Registration must still happen from `registerModule`'s call tree — a subscription
@@ -202,7 +210,8 @@ docs/i18n/pl/…                           # Polish copies of the docs pages tou
 line: `src/backend/index.ts`, `src/manifest.ts`, `src/admin/index.ts`,
 `src/admin/pages/opportunity-detail/tabs.ts`, `src/admin/api.ts`, `i18n/en.json`,
 `i18n/pl.json`, `docs/crm.md`, `backend/test/integration/crm/off-state.test.ts`. Parallel
-stories rebase over these; nothing generated is among them, because no story after the
+stories rebase over these (as built `src/backend/index.ts` carries a whole section per
+story rather than a line — Structure Decision 1); nothing generated is among them, because no story after the
 Foundational phase adds an entity and only **one** (US15) adds a migration — so at most one
 story regenerates the migration registry and no two collide on it. Since the second ruling,
 `packages/contracts/src/crm.ts` is a shared hot file too (US15, US16, US17 each add exports).

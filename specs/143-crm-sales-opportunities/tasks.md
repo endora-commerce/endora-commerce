@@ -422,6 +422,11 @@ owners' own tests below.
 **Added by the owner's second ruling of 2026-10-05.** Phases 16A–16C are numbered so that no
 existing phase heading or task id moves; their ids continue from T152.
 
+> **Note on T161 (2026-10-06).** The task names `packages/modules/custom_fields/docs/` — that
+> directory does not exist: `custom_fields` ships no documentation page, so the "new host
+> type" half of T161 had nothing to edit and was documented on CRM's own page instead
+> (`research.md` N-G3; `contracts/foreign-module-changes.md` H5, struck).
+
 **Goal**: Opportunities are a custom-field host — define on the existing custom-fields
 screen, fill in on create and detail, validated per field, absent from that screen while CRM
 is off (research R-26).
@@ -506,6 +511,13 @@ nothing renders.
 
 ## Dependencies & Execution Order
 
+> **Note on file names (2026-10-06).** This section and a task line in almost every story —
+> from T023 to T176; `grep -n 'compose/' tasks.md` lists them — name
+> `src/backend/compose/<area>.ts` files. **None of them exists.** The premise was measured false at T023: composition is the single
+> file `packages/modules/crm/src/backend/index.ts`, one delimited section per area
+> (`research.md` N-6). Read every `compose/<area>.ts` below as "the `<area>` section of
+> `index.ts`"; the task lines are left as they were written.
+
 ### Phase dependencies
 
 - **Phase 1 → Phase 2 → Phase 3 (US1)**: strictly sequential. One developer, one worktree.
@@ -537,8 +549,11 @@ nothing renders.
 
 ### Parallel worktrees without file collisions
 
-No story after Phase 2 adds a migration or an entity, so **no two stories regenerate the
-migration or entity registry**. Three groups can be in flight at once:
+No story after Phase 2 adds an entity, and exactly one — US15, see below — adds a migration
+(`20261005T215329_crm_opportunity_custom_field_values.ts`, one column), so **no two stories
+regenerate the migration or entity registry**. (This sentence first read "No story after
+Phase 2 adds a migration or an entity", which stopped being true when US15 came into scope;
+corrected 2026-10-06.) Three groups can be in flight at once:
 
 - **Wave A** (after US1): US2, US3, US5, US6, US8, US11, US13 — each owns its own
   `compose/<area>.ts`, service, routes file, admin page/tab and test files.
