@@ -133,6 +133,46 @@ describe('custom_fields — a host type follows its owner module', () => {
     expect(edit.statusCode, edit.body).toBe(200);
   });
 
+  it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+    'serves no definition of a type whose owner is %s — not in the list, not by type, not by id — and all of them again afterwards',
+    async (axis) => {
+      const owned = await define('opportunity', `owner_presence_read_${axis.replace(/-/g, '_')}`);
+      expect(owned.statusCode, owned.body).toBe(201);
+      const ownedId = (owned.json() as { data: { id: string } }).data.id;
+      created.push(ownedId);
+      const other = await define('organization', `owner_presence_kept_${axis.replace(/-/g, '_')}`);
+      expect(other.statusCode, other.body).toBe(201);
+      const otherId = (other.json() as { data: { id: string } }).data.id;
+      created.push(otherId);
+
+      const list = async (query = '') => {
+        const response = await h.app.inject({ method: 'GET', url: `${API}/definitions${query}`, ...ADMIN });
+        expect(response.statusCode, response.body).toBe(200);
+        return (response.json() as { data: Array<{ id: string; entityType: string }> }).data;
+      };
+      const before = await list();
+      expect(before.map((row) => row.id)).toEqual(expect.arrayContaining([ownedId, otherId]));
+
+      await withModuleOff('crm', axis, async () => {
+        // Everything of the other types, in the order it had; nothing of this one.
+        expect(await list()).toEqual(before.filter((row) => row.entityType !== 'opportunity'));
+        expect(await list('?entityType=opportunity')).toEqual([]);
+        expect((await list('?entityType=organization')).map((row) => row.id)).toContain(otherId);
+
+        const byId = await h.app.inject({ method: 'GET', url: `${API}/definitions/${ownedId}`, ...ADMIN });
+        expect(byId.statusCode, byId.body).toBe(404);
+        expect((byId.json() as { error: { code: string } }).error.code).toBe('CUSTOM_FIELD_NOT_FOUND');
+        const kept = await h.app.inject({ method: 'GET', url: `${API}/definitions/${otherId}`, ...ADMIN });
+        expect(kept.statusCode, kept.body).toBe(200);
+      });
+
+      // Off is non-destructive: the same list, and the same definition by id.
+      expect(await list()).toEqual(before);
+      const restored = await h.app.inject({ method: 'GET', url: `${API}/definitions/${ownedId}`, ...ADMIN });
+      expect(restored.statusCode, restored.body).toBe(200);
+    },
+  );
+
   it.each(UNOWNED.filter((type) => type !== 'product'))(
     'still creates, edits and deletes a definition of "%s" while that other module is off',
     async (entityType) => {
