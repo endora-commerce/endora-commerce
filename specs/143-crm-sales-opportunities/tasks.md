@@ -645,7 +645,7 @@ not a one-declaration integration.
 | Requirement | Story | Proving test (task) |
 | --- | --- | --- |
 | FR-001, FR-002, FR-003, FR-004, FR-005 | US1 | T028, T030, T037 |
-| FR-006 | US1 (+ every story adding a read) | T031, and the out-of-scope case in T074, T079, T084, T088, T119, T125, T129 |
+| FR-006 | US1 (+ every story adding a read) | T031, and the out-of-scope case in T074, T079, T084, T088, T119, T125, T129, T182; the owner-permission cases of T184 and T185 |
 | FR-010 – FR-014 | Foundational, US1 | T010, T012, T027, T036 |
 | FR-015 | US1 | T032 |
 | FR-016 | US1 | T030, T033 |
@@ -653,11 +653,11 @@ not a one-declaration integration.
 | FR-021, FR-022, FR-023 | US1 | T030, T034 |
 | FR-024, FR-025 | US2 | T058 |
 | FR-026 | US10 | T108–T112 |
-| FR-027 | US8 | T095 |
-| FR-030 – FR-033 | US8 | T094, T095 |
+| FR-027 | US8 | T095 — **against a fixture only**: the test writes the Order's `sourceQuoteRequestId` by hand, because nothing in the product records it (research N-E3); the requirement is not reachable from the storefront or the Admin UI until `orders` does |
+| FR-030 – FR-033 | US8 | T094, T095 — FR-033's "counted once" on the same fixture as FR-027 (research N-E3) |
 | FR-040, FR-041 | US3 | T065, T066 |
 | FR-042, FR-043 | US4 | T073, T074 |
-| FR-044 | US5 | T078, T079 |
+| FR-044 | US5 | T078, T079, T182, T183 |
 | FR-045 | US12 | T124, T125 |
 | FR-050 | US6 (+ US7 for the board filter) | T084, T088 |
 | FR-051 | US7 | T088, T089, T148 |
@@ -665,14 +665,14 @@ not a one-declaration integration.
 | FR-053 | US13 | T129 |
 | FR-060, FR-061 | US9 | T103 |
 | FR-070 | Foundational + every story with a subscriber | T011, T060, T097, T104, T111 |
-| FR-071 | Setup, US1, US6, US7, US13 | T005, T036, T037, and `check:action-route-permissions` |
+| FR-071 | Setup, US1, US6, US7, US13 | T005, `packages/modules/crm/src/admin/index.test.ts` (T055, research N-29 — every sidebar row and palette action points at a declared route), the palette case of `off-state.test.ts` (T057), and `check:action-route-permissions`. The palette carries four curated actions; *Tags* and *Workflow* are reached from the sidebar only (`contracts/admin-surfaces.md` §3), which FR-071's "every screen" does not yet say |
 | FR-072 | every story | `check:bundle-pairing`, `registered-bundles-shape.test.ts`, `i18n:hardcoded` |
 | FR-073 | every story | `check:command-coverage`, T120 |
 | FR-074 | US14 | T134 |
 | FR-075 | Foundational, every story, Polish | `check:module-docs`, `check:docs-translations`, T141 |
 | FR-076 | US15 | T152, T153, T155 |
 | FR-077 | US16 | T162, T163, T164 |
-| FR-078 | US17 | T171, T172, T173 |
+| FR-078 | US17 | T171, T172, T173, and `admin/test/modules/crm/quote-request-opportunity-panel.test.tsx` for the Quote Request half |
 
 ## Notes
 
