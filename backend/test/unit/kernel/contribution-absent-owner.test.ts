@@ -194,12 +194,13 @@ const COMPOSERS: Readonly<
       salesChannelAttributionRegistry: { register: () => {} },
     }),
   // `crm` offers three of its events to `webhooks`' registry
-  // (`specs/143-crm-sales-opportunities/`, User Story 16). Its two other boot
+  // (`specs/143-crm-sales-opportunities/`, User Story 16). Its three other boot
   // hooks push into registries of modules it declares in `dependencies`.
   crm: (withOwner, ownerNames) =>
     compose('crm', registerCrm, ownerNames, withOwner, {
       assetReferenceRegistry: { register: () => {} },
       salesChannelAttributionRegistry: { register: () => {} },
+      auditReferenceRegistry: { register: () => {} },
     }),
   inventory: (withOwner, ownerNames) =>
     compose('inventory', registerInventory, ownerNames, withOwner, {
