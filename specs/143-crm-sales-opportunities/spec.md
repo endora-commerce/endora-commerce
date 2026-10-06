@@ -2,7 +2,9 @@
 
 **Feature Branch**: `feat/143-crm` (spec directory `specs/143-crm-sales-opportunities/`)
 **Created**: 2026-10-05
-**Status**: Draft
+**Status**: Accepted — the owner's rulings of 2026-10-05 are in *Clarifications*; implemented on
+`feat/143-crm` and amended on 2026-10-06 to what was built (see *Clarifications* §
+*Amendments after implementation*). Tasks still open are listed in `tasks.md`.
 **Input**: Owner's requirements for a CRM module (`crm`) on Endora Commerce: Sales
 Opportunities with a configurable status workflow modelled on the Order status workflow,
 assignment to Sales Reps, attachments, notes, internal messages, analytics, a board view,
@@ -257,10 +259,12 @@ in counting statuses and changes when a document enters or leaves one.
    added; when it leaves, it is subtracted.
 4. **Given** an Order that was placed from a linked Quote Request, **When** both are linked
    and both in counting statuses, **Then** the value counts that business once, not twice.
+   *(Implemented; not reachable in the product yet — see Clarifications § Amendments, A-1.)*
 5. **Given** a linked document in a currency different from the Opportunity's, **When** the
    value is computed, **Then** the document is left out and the Opportunity says so.
 6. **Given** a Quote Request linked to an Opportunity, **When** an Order is placed from that
    Quote Request, **Then** the Order is linked to the same Opportunity automatically.
+   *(Implemented; not reachable in the product yet — A-1.)*
 
 ---
 
@@ -282,7 +286,8 @@ Request, assigned by the default rule, in the start Status.
    an Opportunity is created and linked likewise.
 3. **Given** an Order placed from a Quote Request that is already linked to an Opportunity,
    **When** the Order is placed, **Then** no second Opportunity is created; the Order joins
-   the existing one.
+   the existing one. *(Implemented; not reachable in the product yet — A-1. Until it is, such
+   an Order gets an Opportunity of its own.)*
 4. **Given** both settings are off (the default), **When** documents are placed, **Then** no
    Opportunity is created.
 5. **Given** the module is switched off, **When** documents are placed, **Then** nothing is
@@ -374,7 +379,8 @@ and confirm each figure equals the hand-computed one.
 
 An Organization's screen lists that Organization's Opportunities; the dashboard's recent
 activity names Opportunities by title; other modules can read an Opportunity and move it
-through its Workflow; the demo shop has a pipeline to look at.
+through its Workflow; the demo shop has a pipeline to look at *(the demo pipeline is deferred
+— see acceptance scenario 3)*.
 
 **Independent Test**: open an Organization with Opportunities and confirm they are listed
 there with links; switch the CRM module off and confirm the panel is gone.
@@ -389,6 +395,12 @@ there with links; switch the CRM module off and confirm the panel is gone.
    told the outcome as a value, without reaching into CRM internals.
 3. **Given** the demo data set is installed, **When** the board is opened, **Then** it shows
    Opportunities in several Statuses.
+   **Not built — deferred (Clarifications § Amendments, A-4).** The module ships no demo data.
+   A pipeline worth looking at is Opportunities of the demo Organization linked to a demo
+   Order, and a module's own demo data may write only that module's records: rows that join
+   two modules are assembled by the demo data set itself, which this feature was not admitted
+   to change, and the demo data set contains no Order at all. The scenario stays as the
+   statement of what is wanted.
 
 ---
 
@@ -575,7 +587,8 @@ before this feature.
   Opportunity using the platform's existing creation screens; the created document MUST be
   linked to that Opportunity automatically.
 - **FR-027**: An Order placed from a Quote Request that is linked to an Opportunity MUST be
-  linked to the same Opportunity automatically.
+  linked to the same Opportunity automatically. *(Implemented; not reachable in the product
+  yet — Clarifications § Amendments, A-1.)*
 
 **Value**
 
@@ -584,10 +597,16 @@ before this feature.
 - **FR-031**: Operators MUST be able to state, in the Workflow configuration, which Order
   statuses and which Quote Request statuses make a linked document's value count.
 - **FR-032**: A computed value MUST follow the linked documents: it changes when a document is
-  linked or unlinked, enters or leaves a counting status, or changes its amount, and when the
-  counting configuration changes.
+  linked or unlinked, when a linked document changes status, when a linked Quote Request's
+  prices are modified, when the Opportunity is switched to "computed", and when the counting
+  configuration changes. *(Amended 2026-10-06 — A-6. The original wording was "enters or
+  leaves a counting status, or changes its amount". As built, an Order's amount on its own is
+  not a trigger: the value is recalculated on the Order's status changes, at the amount the
+  Order has at that moment. A Quote Request that is completed is picked up at the next
+  recalculation rather than at once.)*
 - **FR-033**: A computed value MUST count an Order placed from a linked Quote Request once,
-  and MUST leave out — and name — documents in another currency.
+  and MUST leave out — and name — documents in another currency. *("Counted once" is
+  implemented; not reachable in the product yet — A-1.)*
 
 **People and collaboration**
 
@@ -624,7 +643,8 @@ before this feature.
   automatic creation of an Opportunity for every placed Order and, separately, for every
   placed Quote Request; both are off by default.
 - **FR-061**: Automatic creation MUST NOT create a second Opportunity for a document that is
-  already linked, or whose originating Quote Request is.
+  already linked, or whose originating Quote Request is. *(The second half — "or whose
+  originating Quote Request is" — is implemented; not reachable in the product yet — A-1.)*
 
 **Platform behaviour**
 
@@ -632,10 +652,18 @@ before this feature.
   screens, navigation entries, command-palette actions, API, automation or contributions to
   other screens is present; Orders, Quote Requests, Organizations and customers behave exactly
   as without the module; no data is lost and switching it back on restores everything.
-- **FR-071**: Every CRM screen MUST be reachable from the Admin UI's navigation — in a
-  navigation group of its own named "CRM" — and from the command palette, and MUST be shown
-  only to users holding the permission that guards it.
-- **FR-072**: Every user-facing text MUST be available in English and Polish.
+- **FR-071**: Every CRM screen MUST be reachable from the Admin UI's navigation, in a
+  navigation group of its own named "CRM". The module MUST be reachable from the command
+  palette through its landing screen and its few everyday actions — a curated set, not one
+  entry per screen. Every navigation entry and palette action MUST be shown only to users
+  holding the permission that guards the screen it opens. *(Amended 2026-10-06 — A-2. The
+  original wording was "Every CRM screen MUST be reachable … from the command palette". As
+  built there are four palette actions — open Opportunities, new Opportunity, open the board,
+  open analytics; Tags and Workflow configuration are reached from the navigation only.)*
+- **FR-072**: Every user-facing text MUST be available in English and Polish. *(Two exceptions
+  as built, both caused by the platform rather than by this feature — A-5: the titles of the
+  notification-bell entries for an assignment and for a message, and the names and
+  descriptions of the module's three Settings on the Settings screen, are in English only.)*
 - **FR-073**: Every change made through the feature MUST be recorded in the platform's audit
   trail with its author.
 - **FR-074**: Other modules MUST be able to read an Opportunity and request a Status change
@@ -662,6 +690,21 @@ before this feature.
   document MUST offer linking it to an existing Opportunity of the same Organization and
   starting a new Opportunity from it. With CRM off, or for a user who may not see
   Opportunities, both screens MUST be identical to the ones without the module.
+
+**Added after implementation (2026-10-06) — behaviour that was built and had no requirement**
+
+- **FR-079**: What another capability owns MUST be shown inside CRM only to a user who may
+  read it where it lives. A linked Order's number, status and total, a linked Quote Request's
+  number, status and value, the name of a document a computed value leaves out, and the label
+  of a referenced Product or Order MUST be shown as unavailable to a user who lacks that
+  capability's own read permission; linking a document, switching its status following, and
+  attaching a file already in the media library by its identifier MUST require it as well.
+  The Opportunity's own figures — its value included — are not narrowed.
+- **FR-080**: A file a browser would run as a page or a script (HTML, SVG, XML, JavaScript)
+  MUST be refused as an attachment, by name or by declared type, before anything is stored;
+  every attachment MUST be handed out as a download, never displayed inside the Admin UI's
+  own session; and a single attachment MUST NOT exceed the stated size limit (25 MB as
+  built).
 
 ### Key Entities
 
@@ -708,10 +751,12 @@ before this feature.
   1 second as perceived by the user.
 - **SC-007**: Each analytics figure for a month of 1,000 Opportunities appears in under
   2 seconds and equals the figure computed by hand from the same data.
-- **SC-008**: Every CRM screen is reachable through the navigation and the command palette in
-  both English and Polish, with no untranslated label.
+- **SC-008**: Every CRM screen is reachable through the navigation, and the module through
+  its curated command-palette actions, in both English and Polish, with no untranslated
+  label. *(Amended 2026-10-06 with FR-071 — A-2.)*
 - **SC-009**: With automatic creation on, 100% of newly placed Orders and Quote Requests end
-  up linked to exactly one Opportunity.
+  up linked to exactly one Opportunity. *(Not yet true of an Order placed from a
+  Quote Request that is already linked — Clarifications § Amendments, A-1.)*
 
 - **SC-010**: An operator can add a custom field to Opportunities and see it on the
   Opportunity form in under 1 minute, with no deployment; 100% of values that break a
@@ -764,6 +809,117 @@ FR-078). **Import/export stays deferred**: it is not a one-declaration integrati
 platform's import/export capability holds each record type's adapter itself, so adding
 Opportunities means changing that capability and making it depend on CRM (`research.md` R-22).
 
+### Owner ruling, 2026-10-05 — the module's identifier is `crm`
+
+The owner's requirements document names the module "CRM (`crm`)", and the owner confirmed it
+on 2026-10-05. The identifier is an acronym, not the plural noun the naming convention
+otherwise asks of a module, so it is admitted by name on the naming check's list of proper
+nouns — the way every earlier module with a non-plural identifier was (`research.md` N-1).
+
+### Decisions taken during implementation — coordinator decisions, owner informed, reversible
+
+None of these was put to the owner as a question before it was built. Each was decided by the
+session's coordinator while implementing, the owner was told, and **the owner may reverse any
+of them**; each is the default now in force. Permission names are the ones an operator sees
+in the role editor. The reasoning and the alternatives not taken are in the `research.md`
+note named.
+
+- **D-1 — Uploading an attachment needs the CRM write permission and nothing of the media
+  library's** (`crm:write`). The file is stored in the media library as a private file by
+  CRM, on the user's behalf. *Not taken*: asking for the media library's own upload
+  permission, which a Sales Rep does not hold and which left the Attachments tab without an
+  "Add a file" button for them (N-D8, N-F1).
+- **D-2 — Attaching a file that is already in the media library, by its identifier,
+  additionally needs the media library's read permission** (`assets.read`). Otherwise
+  anybody who knew the identifier of a private file could attach it and download it. The
+  Admin UI does not use this path; it uploads (N-I5).
+- **D-3 — Another capability's records are shown to those who may read them there.** Linking
+  an Order, switching its status following, and seeing a linked Order's number, status and
+  total need `orders:read`; the same for a Quote Request needs `rfqs:handle` (the one
+  permission the Quote Requests capability has); a Product's name inside a reference needs
+  `catalog:read`. Without the permission the record is shown as unavailable. An
+  Opportunity's computed value is its own figure and is shown to everybody who may see the
+  Opportunity, so one linked document's amount can be inferred from it (N-R3, N-R13). This is
+  FR-079.
+- **D-4 — Moving a followed Order is a consequence of the configured mapping, not an act of
+  the person who moved the Opportunity.** It is applied whether or not that person holds
+  `orders:write`: the mapping was configured by somebody with the configuration permission,
+  and the Order's own history records who triggered it. *Not taken*: requiring
+  `orders:write`, which would make "the Order follows the Opportunity" true only for people
+  who could have moved the Order by hand (N-R3).
+- **D-5 — Logic registered to run *after* a transition receives its notifications one after
+  another, in the documented order, and the transition's answer waits for them.** A failure
+  in such logic is still isolated and cannot undo or fail the transition (N-E19).
+- **D-6 — A computed value adds Orders at their gross total and Quote Requests at their net
+  line sum**, in the Opportunity's currency only, with no conversion between the two bases
+  (N-E1, N-E2).
+- **D-7 — A Quote Request an administrator creates on a customer's behalf is a "placed"
+  Quote Request for automatic creation**: with "create from Quote Requests" on it gets an
+  Opportunity, unless it was created from within one (N-J6).
+- **D-8 — The Opportunity an Order was created from is part of the Order-created
+  notification, and therefore reaches external systems subscribed to "Order created"**
+  through outbound webhooks, as an opaque reference (a type and an identifier). It is absent
+  for every other Order (N-J7).
+- **D-9 — A document created from within an Opportunity is linked without checking that its
+  creator holds the CRM write permission.** The buttons on the Opportunity ask for it; the
+  link itself is made when the Order-created notification arrives, and that notification
+  does not say who created the Order. So somebody who may create Orders, holds no CRM
+  permission and knows an Opportunity's identifier can attach a new Order of the same
+  Organization to it. The Organization match is always checked, and for a Quote Request so
+  is the creator's reach to the Organization. Closing the gap needs the creator's identity
+  on the Order-created notification, which belongs to the Orders capability (N-J2).
+
+### Amendments after implementation, 2026-10-06
+
+A product-owner audit compared this specification with what was built. Where they differed
+the specification was corrected in place, with the original wording kept in the amendment
+note, or the requirement was left standing and marked. Nothing was removed.
+
+- **A-1 — "An Order placed from a linked Quote Request joins its Opportunity and is counted
+  once" is implemented but cannot happen in the product yet.** Affects FR-027, the "counted
+  once" half of FR-033, the second half of FR-061, User Story 8 scenarios 4 and 6, User
+  Story 9 scenario 3 and SC-009 for such Orders. The platform does not record which Quote
+  Request an Order was placed from — a defect that predates this feature and lies in the
+  Orders and cart capabilities, outside it (`research.md` N-E3). CRM's behaviour is built
+  against the published contract and proven with an Order whose source is written by hand.
+  **Until the platform records the source, an Order placed from a linked Quote Request is a
+  separate, unlinked Order; with "create from Orders" on it gets an Opportunity of its own,
+  and if both end up linked by hand the value counts both.** Repairing the platform defect
+  makes all of it effective with no change to CRM. **[NEEDS CLARIFICATION — owner]**: repair
+  it before CRM ships, or ship with this stated on the module's documentation page.
+- **A-2 — Command palette (FR-071, SC-008).** Reworded from "every CRM screen" to a curated
+  set. The platform's binding rule for the palette (constitution, Principle XVI) asks that a
+  *module* be discoverable there through its landing screen and its few highest-value
+  actions, and forbids listing every screen ("curated, not exhaustive"). The original
+  wording of FR-071 asked for more than that rule allows; what was built — four actions —
+  follows the rule. If the owner wants Tags or Workflow in the palette, that is two more
+  actions and a judgement under the same rule, not a missing requirement.
+- **A-3 — Analytics time zone.** UTC as built; see *Assumptions*. A platform time-zone
+  setting is a possible follow-up.
+- **A-4 — Demo pipeline (User Story 14, scenario 3).** Not built; deferred, with the reason
+  beside the scenario (`research.md` N-G5). **[NEEDS CLARIFICATION — owner]**: admit the
+  change to the demo data set (and decide whether the demo gains an Order), or drop the
+  scenario.
+- **A-5 — English-only texts (FR-072).** Two exceptions, both platform-level: a notification
+  bell entry takes its title as finished text rather than as a translatable key, for every
+  capability that uses the bell (`research.md` N-B7); and a Setting's name and description
+  are shown as declared, with no per-language variant, for every capability's Settings
+  (`research.md` N-H5). Every other CRM text is in both languages.
+- **A-6 — What moves a computed value (FR-032).** Reworded to the triggers that exist. The
+  Orders capability sets an Order's total when the Order is placed and nowhere else was it
+  found to change it, so nothing is known to be missed; if such a path exists elsewhere or
+  is added, the value catches up at the Order's next status change rather than at once.
+- **A-7 — Two requirements added**, FR-079 and FR-080, for behaviour that was built during
+  implementation and review and had no requirement: showing another capability's records
+  only to those who may read them (D-3), and refusing files a browser would run as
+  attachments.
+- **Not amended, and worth the owner's attention**: a message cannot be addressed to
+  anybody — it notifies the assignee and everybody who already wrote in the thread, so the
+  first message on an unassigned Opportunity notifies nobody (FR-043 says "the other
+  participants", which this satisfies as written); and "the most valuable Opportunities"
+  (FR-053) ranks by value — the module holds no cost or margin, so if the owner's "most
+  profitable" meant margin it is not built.
+
 ## Assumptions
 
 Decisions taken where the requirements left room, each with the alternative that was not
@@ -792,16 +948,24 @@ taken; the reasoning is in `research.md`.
   set.
 - **A computed value sums Order totals and Quote Request values** (agreed prices where they
   exist, otherwise the requested ones), in the Opportunity's currency only; there is no
-  currency conversion.
+  currency conversion. As built, an Order counts at its **gross** total (what the customer
+  pays, delivery included) and a Quote Request at its **net** line sum — each is the figure
+  its own screen shows, and the two are not brought to one basis (Clarifications § Decisions
+  taken during implementation, D-6).
 - **"Sales Rep" means an Admin UI user**; any active Admin UI user can be an assignee. The
   default follows the platform's existing Sales-Rep-to-Organization assignment.
 - **Notes and messages are both internal.** A note is an annotation its author can edit; a
   message is an immutable entry in a thread that notifies the other participants. Customers
   see neither. Customer-facing conversation stays where it is, on Orders and Quote Requests.
 - **Automatic creation applies to documents placed after it is switched on**, by customers and
-  by staff alike, and never to documents already linked or created from an Opportunity.
+  by staff alike, and never to documents already linked or created from an Opportunity. A
+  Quote Request an administrator prepares on a customer's behalf counts as placed (D-7).
 - **Analytics are computed live** over the chosen range; "handling time" is creation to
-  closing; a month is a calendar month in the platform's time zone.
+  closing; a day is a whole day and a month a calendar month in **UTC**. *(Amended 2026-10-06
+  — A-3. The original wording was "in the platform's time zone"; the platform has no
+  time-zone setting, so there is none to follow. An Opportunity closed in Warsaw at 00:30 on
+  the 1st is counted in the month before. A platform time-zone setting, which analytics
+  would then follow, is a possible follow-up and the owner's call.)*
 - **Messages do not send e-mail**; they use the Admin UI's notification bell. If that
   capability is switched off, messages still work without notifications.
 - **Import/export of Opportunities, e-mail notifications and inclusion in the admin global
