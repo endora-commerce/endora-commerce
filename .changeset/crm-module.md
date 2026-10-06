@@ -1,137 +1,98 @@
 ---
 '@endora-commerce/mod-crm': minor
-'@endora-commerce/contracts': minor
 ---
 
-A new module package, `@endora-commerce/mod-crm` (module id `crm`), and the contract surface it
-is built against.
+A new module package, `@endora-commerce/mod-crm` (module id `crm`): sales opportunities with a
+configurable status workflow that linked orders follow. Backend and Admin UI. This is the
+module's first release.
 
-**`@endora-commerce/mod-crm`** is new: a backend and the Admin UI screens over it. An instance
-that installs it gains thirteen `crm_`-prefixed tables and a default status workflow of six
-statuses on its next migration run; an instance that does not is unaffected. What it serves,
-all under `/api/v1/admin/crm`:
+**What installing it does.** Thirteen `crm_`-prefixed tables and a default workflow of six
+statuses (`new`, `qualified`, `proposal`, `negotiation`, `won`, `lost`) arrive with the next
+migration run — two migrations. An instance that does not install it is unaffected. The module
+is optional: `crm.enabled`, on by default, switched on `/platform/modules`; while it is off
+every route answers `503 MODULE_DISABLED`, its screens, panels, permissions and settings are
+withdrawn, and nothing is deleted. It depends on `orders`, `organizations`, `sales_channels`,
+`catalog`, `assets_library`, `custom_fields`, `audit_logs` and the platform's account and
+settings modules, and degrades without `quote_requests`, `admin_notifications` and `webhooks`. One queue consumer,
+`crm-value-recalculation`. Peers: `fastify`, `@fastify/multipart`, MikroORM, `bullmq`,
+`ioredis`, `zod`, and — optional, for the admin layer only — `@endora-commerce/admin-kit`,
+`react`, `react-router-dom`, `lucide-react`. It ships no demo data.
 
-- **the workflow and its configuration** — `GET /workflow`, `POST|PATCH|DELETE /statuses`,
-  `PUT /transitions`, `PUT /order-status-mappings`. Every change re-validates the whole
-  workflow and a broken rule is refused as 422 `CRM_WORKFLOW_INVALID` naming it in
-  `details.rule`;
-- **opportunities** — list (search, filters, sorting, cursor paging), create, read, edit with
-  `If-Match`, delete. Tenant scope is ambient: an opportunity of an organization the caller
-  may not see answers 404 `CRM_OPPORTUNITY_NOT_FOUND`, the same as a missing one;
-- **linked orders** — `POST|PATCH|DELETE /opportunities/:id/links`. An order belongs to at
-  most one opportunity and to the same organization;
-- **transitions** — `POST /opportunities/:id/transition`. An opportunity's move asks every
-  linked order that follows it to enter the mapped order status, through the Orders module's
-  own `orderTransitionPort`, after the opportunity's change has committed. **A refused order
-  change is not an error**: the response is 200, the opportunity has moved, and each order's
-  outcome (`applied`, `already_there`, `not_permitted`, `vetoed`, `unknown_status`,
-  `not_found`, `failed`) is an element of `propagation`, which
-  `POST …/propagations/:id/retry` and `…/dismiss` then address;
-- **the board** — `GET /board` (`crm:read`): one column per status in workflow order, each
-  with `count`, `valueTotals` per currency, the first `perColumn` opportunities (default 50,
-  at most 200) and `hasMore`. It takes the list's filters except `statusCode` and `state`,
-  with the list's meaning — `assignedAdminUserId` (`me`, `unassigned` or an administrator's
-  id) and a repeated `tagId` (every tag named) included — and applies them to the cards, the
-  counts and the totals alike. There is no board-specific write — moving a card is the
-  transition endpoint.
+**Permissions**, none granted to any role automatically: `crm:read`, `crm:write`,
+`crm:configure`, `crm:analytics`. `crm:read` advises `orders:read` and `custom_fields:read`.
+What another module owns is shown to somebody who may read it there: a linked or mentioned
+order needs `orders:read`, a quote request `rfqs:handle`, a mentioned product `catalog:read`;
+without it the document is listed as unavailable and nothing of it is shown.
 
-- **lookups for its own pickers** — `GET /lookups/organizations`, `/lookups/sales-channels`,
-  `/lookups/assignees` (`crm:read`) and `/lookups/contacts` (`crm:write`). The screens'
-  Organization, Sales Channel, assignee and contact-person pickers read these instead of the
-  admin lists of the modules that own those rows, so a role holding only `crm:read`,
-  `crm:write` and `orders:read` can filter and fill in every form; the owners' endpoints and
-  their permissions are unchanged. Organizations and contact persons are narrowed to the
-  caller's tenant scope, and an answer carries an id and a label only. The currency of a new
-  opportunity is chosen from the currencies the active sales channels sell in.
+**The API**, all under `/api/v1/admin/crm`, tenant-scoped throughout (an opportunity of an
+organization the caller may not see answers `404 CRM_OPPORTUNITY_NOT_FOUND`):
 
-**In the Admin UI** the package exports `./admin` (and `./tailwind.css`), which contributes
-six screens and four entries to the shell's "CRM" sidebar section:
+- **Workflow** — `GET /workflow`; `POST|PATCH|DELETE /statuses`; `PUT /transitions`;
+  `PUT /order-status-mappings` (both directions); `PUT /value-counting-statuses` (answers 202
+  and recalculates in the background). A change that would break the workflow answers
+  `422 CRM_WORKFLOW_INVALID` naming the rule in `details.rule`.
+- **Opportunities** — list (search, filters by state, status, organization, assignee, tags,
+  sales channel, creation date; sorting; cursor paging), create, read, `PATCH` under
+  `If-Match` (409 for a stale version, 400 for a header that is not one), delete
+  (`crm:configure`), `POST …/transition`, `POST …/assign`, `PUT …/tags`.
+- **Linked documents** — `POST|PATCH|DELETE …/links` for orders and quote requests. A document
+  belongs to at most one opportunity, of its own organization.
+  `GET /documents/:kind/:id/opportunity` answers the opportunity a document is linked to.
+- **Orders follow, and lead.** A move asks every linked order that follows the opportunity to
+  enter the mapped order status, through the Orders module's own transition rules, after the
+  opportunity's change has committed. A refusal is not an error: the response is 200, the
+  opportunity has moved, and each order's outcome is in `propagation`, addressed afterwards by
+  `…/propagations/:id/retry` and `…/dismiss`. In the other direction a linked order reaching
+  a mapped status moves its opportunity through the opportunity's own workflow; a closed
+  opportunity is never reopened, and the two directions do not loop.
+- **Value** — entered by hand, or computed from linked orders (gross total) and quote requests
+  (net sum of lines) in a counting status; one currency, nothing converted, documents left out
+  listed in `excludedDocuments`.
+- **Tags** (`/tags`), **notes and internal messages** (`…/comments`: a note is its author's to
+  edit or delete, a message is immutable), **attachments** (`…/attachments/upload` under
+  `crm:write` alone, stored in the media library as a private file, at most 25 MB, active
+  content refused; attaching an existing library file by id also needs `assets.read`).
+- **Change history** — `GET …/history`, read from the platform's audit trail under `crm:read`;
+  the text of a note or a message is never in it.
+- **References** — `[[product:<uuid>]]` and `[[order:<uuid>]]` in a description, note or
+  message are resolved into `references` beside the text.
+- **Board** — `GET /board`: a column per status with count, value totals per currency and the
+  first cards.
+- **Analytics** (`crm:analytics`) — five live reads under `/analytics/`: handling time, time
+  in status, rep effectiveness, top opportunities, average value. Per currency, UTC.
+- **Lookups** — `/lookups/organizations`, `/sales-channels`, `/assignees`, `/contacts`,
+  `/quote-requests`, so the module's pickers need no permission of the modules that own those
+  rows.
 
-- `/crm/opportunities` (`crm:read`) — the list, with search and filters by state, status,
-  organization, assignee ("mine", "unassigned" or a chosen person), tags (every tag chosen),
-  sales channel and creation date, a column naming who holds each opportunity, and each
-  opportunity's tags under its title;
-- `/crm/opportunities/new` (`crm:write`) — create an opportunity by hand; an `organizationId`
-  query parameter preselects the organization, and the assignee is optional — left empty, the
-  default rule chooses — and tags can be set from the start;
-- `/crm/opportunities/:id` (`crm:read`) — the status control, which offers exactly the
-  transitions the workflow allows; the linked orders, with linking by search, the
-  status-following switch and unlinking; and, per linked order, the outcome of each move, with
-  *Retry* and *Dismiss* on a refused one. A holder of `crm:write` edits the opportunity in
-  place — only the changed fields are sent, under `If-Match`, and a stale version is reported
-  with a way to reload rather than retried — and may give a status change a reason; a holder
-  of `crm:configure` can delete it, after a confirmation. The *Assignee* section names who
-  holds the opportunity and lets a holder of `crm:write` reassign or unassign it in one
-  choice; an assignee who has been deactivated is marked *inactive* here, on the list and on
-  the board. The *Tags* section shows the opportunity's tags, and a holder of `crm:write`
-  ticks and unticks them, each change saved at once. Two further tabs, **Notes** and
-  **Messages**, list the opportunity's notes and its internal conversation, oldest first, over
-  one composer: a note shows *Edit* and *Delete* to its author only, a message shows neither
-  to anybody. An **Attachments** tab lists the files with name, size and who attached each,
-  uploads a new one to the media library as a **private** file and attaches it (the upload is
-  the library's and needs its `assets.write` beside `crm:write`), reads the list again right
-  before a download because the links are short-lived, and removes an attachment after a
-  confirmation;
-- `/crm/tags` (`crm:configure`) — the tag list with each tag's usage count: add, rename,
-  recolour, and delete after a confirmation naming how many opportunities lose the tag;
-- `/crm/workflow` (`crm:configure`) — statuses and their kinds, the transition graph, the
-  order status each opportunity status sets, and — the reverse direction — the opportunity
-  status each order status leads to, with "only when every linked order is there" per row
-  (on by default when the target closes the opportunity) and a marker on a mapping whose
-  order status no longer exists;
-- `/crm/board` (`crm:read`) — the opportunities as cards in a column per status, on the
-  `KanbanBoard` primitive of `@endora-commerce/admin-kit`. A holder of `crm:write` moves a
-  card by dragging it (mouse, touch, keyboard) or from the card's "Move to…" menu, which
-  lists exactly the statuses the workflow allows; a refused move puts the card back with the
-  server's reason, and a linked order that did not follow is reported on the card and above
-  the board. It shares its filters with the list — the assignee and tag filters included.
+**Automatic creation**, both off by default: `crm.auto_create_from_orders` (per sales channel)
+and `crm.auto_create_from_quote_requests`. A document created from within an opportunity — the
+*Create order* and *Create quote request* buttons, carried as an `origin` on the owner's create
+request — is linked to that opportunity and gets none of its own.
 
-Three command-palette actions — `open-opportunities`, `new-opportunity` and
-`open-opportunity-board` — open the list, the create screen and the board.
-The admin layer's peers — `@endora-commerce/admin-kit`, `react`, `react-router-dom` and
-`lucide-react` — are optional, so a backend-only installation is not asked for them.
+**Not effective yet:** linking an order to the opportunity of the quote request it was placed
+from (`linkSource: "quote_conversion"`), and counting such a pair once in a computed value.
+Both are implemented and both wait for the platform to record which quote request an order
+came from; today no order does.
 
-Its activation control is `crm.enabled` (on by default, switchable on `/platform/modules`).
-Its permissions are `crm:read`, `crm:write` and `crm:configure`; no role receives one
-automatically. It contributes a counter to `salesChannelAttributionRegistry`, so a sales
-channel an opportunity is attributed to refuses deletion by name.
+**The Admin UI** (`./admin`, `./tailwind.css`): a "CRM" sidebar section with *Opportunities*,
+*Board*, *Analytics*, *Tags* and *Workflow*; the create screen and the opportunity's own screen
+with *Overview*, *Notes*, *Messages*, *Attachments* and *Change history*; four command-palette
+actions (`open-opportunities`, `new-opportunity`, `open-opportunity-board`,
+`open-crm-analytics`); and three panels contributed to other modules' screens — *Open
+opportunities* on an organization, *Linked opportunity* on an order and on a quote request.
+The board moves a card by dragging (mouse, touch, keyboard) or from the card's "Move to…"
+menu. English and Polish.
 
-Business logic registers on a status change X → Y through two seams. The events
-`crm.opportunity.status.from_<x>_to_<y>.before`, `…from_<x>.before`,
-`crm.opportunity.status_changed.v1`, `…from_<x>_to_<y>.after`, `…to_<y>.after` and
-`crm.opportunity.closed.v1` observe; a guard pushed into the container name
-`opportunityTransitionGuardRegistry` from a contribution-only boot hook may refuse, by
-throwing `OpportunityTransitionVetoError`, and its sentence is the 409
-`CRM_TRANSITION_VETOED` message. A contributor declares
-`nonBindingDependencies: [{ moduleId: 'crm', name: 'opportunityTransitionGuardRegistry', kind: 'contributes-to' }]`.
+**For other modules.** Events: `crm.opportunity.created.v1`, `…status_changed.v1`,
+`…closed.v1` (these three are also offered as outbound webhooks), `…assigned.v1`,
+`…document_linked.v1`, and per transition `crm.opportunity.status.from_<x>_to_<y>.before`,
+`…from_<x>.before`, `…from_<x>_to_<y>.after`, `…to_<y>.after`. Container names:
+`opportunityReadPort`, `opportunityTransitionPort` (both fail closed while the module is off)
+and `opportunityTransitionGuardRegistry`, into which a module pushes a guard that may refuse a
+move by throwing `OpportunityTransitionVetoError`. The module contributes to the registries of
+`sales_channels` (attribution), `assets_library` (an attached file cannot be deleted from the
+library), `audit_logs` (recent activity names an opportunity), `custom_fields` (the
+`opportunity` host type) and `webhooks`.
 
-**`@endora-commerce/contracts`** gains the module's whole contract, exported from the package
-root:
-
-- the request and response schemas of the CRM admin API — `OpportunityListQuerySchema`,
-  `CreateOpportunityRequestSchema`, `UpdateOpportunityRequestSchema`,
-  `TransitionOpportunityRequestSchema`, `OpportunitySummarySchema`, `OpportunityDetailSchema`,
-  `OpportunityWorkflowSchema` and their siblings, with the inferred types;
-- `opportunityStatusEventName(kind, { from, to })` and `CRM_EVENTS`, the names of the events the
-  module emits, with their payload types (`OpportunityStatusEvent` and the lifecycle events);
-- the ports another module may use — `OpportunityReadPort`, `OpportunityTransitionPort` with
-  `OpportunityTransitionOutcome`, and `OpportunityTransitionGuardRegistryPort` with
-  `OpportunityTransitionGuard` and `OpportunityTransitionVetoError`;
-- `formatOpportunityReferenceToken` and `extractOpportunityReferenceTokens`, the
-  `[[product:<uuid>]]` / `[[order:<uuid>]]` reference grammar;
-- eleven new members of `ERROR_CODES`, all prefixed `CRM_`: `CRM_OPPORTUNITY_NOT_FOUND`,
-  `CRM_INVALID_TRANSITION`, `CRM_TRANSITION_VETOED`, `CRM_TRANSITION_CONFLICT`,
-  `CRM_DOCUMENT_NOT_FOUND`, `CRM_DOCUMENT_ALREADY_LINKED`, `CRM_LINK_ORGANIZATION_MISMATCH`,
-  `CRM_STATUS_CODE_TAKEN`, `CRM_STATUS_IN_USE`, `CRM_STATUS_INITIAL_REQUIRED` and
-  `CRM_WORKFLOW_INVALID`. Additive; a consumer that switches exhaustively over `ErrorCode`
-  gets a compile error until it handles them.
-
-Of the three ports, `OpportunityTransitionGuardRegistryPort` is registered in this release
-(container name `opportunityTransitionGuardRegistry`, owner `crm`). `OpportunityReadPort` and
-`OpportunityTransitionPort` are types only until a later release registers them.
-
-**`AdminNavSectionNameSchema` has a new member, `'crm'`.** The Admin UI shell declares a "CRM"
-sidebar section, placed after *Sales*, that renders only while a module contributes a visible
-entry to it. Additive for a module declaring navigation. A consumer that switches exhaustively
-over `AdminNavSectionName` gets a compile error until it handles the new member — which is why
-this is a `minor` in a `0.x` series rather than a `patch`.
+The module's documentation page, `docs/crm.md`, describes all of it for an operator and for a
+developer.

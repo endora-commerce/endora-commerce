@@ -40,3 +40,9 @@ marked `data-kanban-no-drag`. **A consumer owes one thing the component cannot s
 to move a card with a single pointer and without dragging — a "Move to…" menu in `renderCard`
 — because WCAG 2.2 SC 2.5.7 requires it and only the caller knows what the target lanes mean.
 Cards have no order inside a lane; a drop reports the lane, not a position.
+
+**Size and scrolling.** Lanes share the board's width down to 256 px each and then the board
+scrolls sideways. The board bounds no height itself: give it one through `className` (for
+example a `max-h-…` class) and every lane takes it — a lane's cards then scroll inside the
+lane, under its header, and the board's own scroll bar stays in view. The drag handle is a
+28 px picture with a 44 px hit area.

@@ -240,9 +240,9 @@ describe('crm admin copy', () => {
   });
 
   it('keeps to one Polish word for each thing', () => {
-    // The owner's vocabulary: a tag is "etykieta", an Opportunity is "szansa
-    // sprzedażowa" — not "tag", not "temat" — and a computed value is
-    // "wyliczana", never "obliczana".
+    // The owner's vocabulary has one Polish word for a tag, one for an
+    // Opportunity and one for a computed value; the pattern below is the
+    // synonyms that crept in beside them.
     const strayed = Object.entries(pl)
       .filter(([, text]) => /\btag(i|u|ów|iem|ami|ach)?\b|\btemat|obliczan/i.test(text))
       .map(([key]) => key);
