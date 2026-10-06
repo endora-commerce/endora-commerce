@@ -156,7 +156,9 @@ export class OpportunityService {
       assignedAdminUserId = await assignment.resolveDefault(input.organizationId, creator);
     } else {
       assignedAdminUserId = input.assignedAdminUserId;
-      if (assignedAdminUserId !== null) await assignment.assertAssignable(assignedAdminUserId);
+      if (assignedAdminUserId !== null) {
+        await assignment.assertAssignable(assignedAdminUserId, input.organizationId);
+      }
     }
 
     const graph = await this.deps.workflowRead.loadGraph();
@@ -167,8 +169,8 @@ export class OpportunityService {
     );
     await assignment.notifyAssigned({
       opportunityId: created.id,
+      organizationId: input.organizationId,
       number: created.number,
-      title: input.title,
       assignedAdminUserId,
     });
     return this.get(created.id);
@@ -359,7 +361,9 @@ export class OpportunityService {
       );
       if (!contact) throw invalid('The contact person does not belong to this organization.');
     }
-    if (patch.assignedAdminUserId) await this.deps.assignment.assertAssignable(patch.assignedAdminUserId);
+    if (patch.assignedAdminUserId) {
+      await this.deps.assignment.assertAssignable(patch.assignedAdminUserId, visible.organizationId);
+    }
 
     const reassigned = await this.deps.commandBus.run({
       action: 'crm.opportunity.update',

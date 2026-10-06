@@ -18,6 +18,7 @@ import {
   seedCrmOrder,
   seedCrmOrganization,
   seedCrmSalesRep,
+  unassignCrmSalesRep,
 } from '../../helpers/seed-crm.js';
 
 /**
@@ -199,6 +200,9 @@ describe('crm notes and messages', () => {
         linkPath: `/crm/opportunities/${opportunity.id}`,
       });
       expect(sample.title).toContain(opportunity.number);
+      // The entry says there is a message, never what it says (review finding 2).
+      expect(sample.title).not.toContain('Conveyor line');
+      expect(sample.body ?? null).toBeNull();
     });
 
     it('is still stored, and tells nobody, while admin_notifications is deactivated', async () => {
@@ -304,6 +308,38 @@ describe('crm notes and messages', () => {
         expect([401, 403], `${kind} ${response.body}`).toContain(response.statusCode);
         expect(response.body).not.toContain(NOTE);
         expect(response.body).not.toContain(MESSAGE);
+      }
+    });
+  });
+
+  describe('a bell entry reaches only somebody who can open the Opportunity (review finding 2)', () => {
+    it('tells nobody who can no longer reach the Organization, and still tells the others', async () => {
+      const organizationId = await seedCrmOrganization(h.em(), 'Comments, reach lost');
+      const leaving = await seedCrmSalesRep(h.em(), [organizationId], ['crm:read', 'crm:write']);
+      try {
+        const opportunity = await createCrmOpportunity(h, {
+          title: 'SECRET-TITLE takeover',
+          organizationId,
+          assignedAdminUserId: leaving.adminUserId,
+        });
+        // The colleague joins the conversation; the assignee, who reaches it, is told.
+        await add(opportunity.id, 'message', 'First.', colleague.cookies);
+        expect(await messageNotifications(opportunity.id)).toEqual([leaving.adminUserId]);
+
+        await unassignCrmSalesRep(h.em(), organizationId, leaving.adminUserId);
+        expect((await call('GET', `/opportunities/${opportunity.id}`, undefined, leaving.cookies)).statusCode).toBe(404);
+
+        await add(opportunity.id, 'message', 'SECRET-BODY margin is 42 percent');
+        // Only the colleague: the assignee is still the assignee, and is not told.
+        expect(await messageNotifications(opportunity.id)).toEqual([leaving.adminUserId, colleague.adminUserId]);
+
+        const bell = await h.em().find(AdminNotification, { subjectId: opportunity.id }, { filters: false });
+        const text = JSON.stringify(bell.map((row) => ({ title: row.title, body: row.body })));
+        expect(text).toContain(opportunity.number);
+        expect(text).not.toContain('SECRET-TITLE');
+        expect(text).not.toContain('SECRET-BODY');
+      } finally {
+        leaving.undo();
       }
     });
   });

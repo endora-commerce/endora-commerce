@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
   AdminNotificationRecordPort,
+  AdminTenantScopePort,
   AdminUserReadPort,
   AssetReadPort,
   AssetReferenceRegistryPort,
@@ -37,6 +38,7 @@ import { AnalyticsService } from './services/analytics-service.js';
 import { BoardService } from './services/board-service.js';
 import { registerCrmAssetReferences } from './services/crm-asset-references.js';
 import { CrmLookupService } from './services/crm-lookup-service.js';
+import { createAdminReach } from './services/admin-reach.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
 import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
 import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
@@ -241,6 +243,7 @@ export function registerModule(ctx: ModuleContext): void {
             salesReps: lazyPort<SalesRepAssignmentPort>(ctx, 'organizationSalesRepScopePort'),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             notifier: crmNotifier,
+            canReach: createAdminReach(lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort')),
           }),
       )
       .singleton(),
@@ -260,6 +263,7 @@ export function registerModule(ctx: ModuleContext): void {
             commandBus,
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             notifier: crmNotifier,
+            canReach: createAdminReach(lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort')),
           }),
       )
       .singleton(),

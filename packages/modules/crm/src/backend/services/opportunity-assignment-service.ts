@@ -13,6 +13,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import { pickDefaultAssignee } from '../domain/default-assignee.js';
+import type { AdminReach } from './admin-reach.js';
 import type { CrmNotifier } from './crm-notifier.js';
 import { loadOpportunity } from './opportunity-access.js';
 
@@ -23,6 +24,8 @@ export interface OpportunityAssignmentServiceDeps {
   salesReps: SalesRepAssignmentPort;
   adminUsers: AdminUserReadPort;
   notifier: CrmNotifier;
+  /** Whether another administrator may reach an Organization. */
+  canReach: AdminReach;
 }
 
 /** An administrator who may hold an Opportunity: known, not deleted, not deactivated. */
@@ -78,10 +81,14 @@ export class OpportunityAssignmentService {
     });
   }
 
-  /** 422 `CRM_ASSIGNEE_INVALID` unless `adminUserId` names an active administrator. */
-  async assertAssignable(adminUserId: string): Promise<void> {
+  /**
+   * 422 `CRM_ASSIGNEE_INVALID` unless `adminUserId` names an active
+   * administrator who may reach `organizationId` — an Opportunity is not given
+   * to somebody who cannot open it.
+   */
+  async assertAssignable(adminUserId: string, organizationId: string): Promise<void> {
     const admin = await this.deps.adminUsers.findById(adminUserId);
-    if (!isActiveAdministrator(admin)) {
+    if (!isActiveAdministrator(admin) || !(await this.deps.canReach(adminUserId, organizationId))) {
       throw new HttpError(
         422,
         ERROR_CODES.CRM_ASSIGNEE_INVALID,
@@ -98,8 +105,8 @@ export class OpportunityAssignmentService {
   async assign(opportunityId: string, adminUserId: string | null): Promise<void> {
     // The parent first: an Opportunity the caller cannot see is a 404 before
     // the assignee is looked at.
-    await loadOpportunity(this.deps.emFactory(), opportunityId);
-    if (adminUserId !== null) await this.assertAssignable(adminUserId);
+    const visible = await loadOpportunity(this.deps.emFactory(), opportunityId);
+    if (adminUserId !== null) await this.assertAssignable(adminUserId, visible.organizationId);
 
     const change = await this.deps.commandBus.run({
       action: 'crm.opportunity.assign',
@@ -134,21 +141,24 @@ export class OpportunityAssignmentService {
   /**
    * Tell the new assignee — after the commit that made them the assignee.
    * Nobody is told about taking an Opportunity themselves, or about one that
-   * was left without an assignee.
+   * was left without an assignee — and nobody who cannot reach its
+   * Organization. The entry names the Opportunity by its number alone: a bell
+   * is read outside the tenant scope.
    */
   async notifyAssigned(assignment: {
     opportunityId: string;
+    organizationId: string;
     number: string;
-    title: string;
     assignedAdminUserId: string | null;
   }): Promise<void> {
     const assignee = assignment.assignedAdminUserId;
     if (assignee === null || assignee === actingAdminUserId()) return;
+    if (!(await this.deps.canReach(assignee, assignment.organizationId))) return;
     await this.deps.notifier.notify({
       kind: 'crm.opportunity.assigned',
       targetAdminUserId: assignee,
       opportunityId: assignment.opportunityId,
-      title: `Opportunity ${assignment.number} "${assignment.title}" was assigned to you`,
+      title: `Opportunity ${assignment.number} was assigned to you`,
     });
   }
 }

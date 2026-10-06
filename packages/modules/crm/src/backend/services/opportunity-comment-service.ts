@@ -10,6 +10,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { randomUUID } from 'crypto';
 import { CrmOpportunityComment } from '../entities/crm-opportunity-comment.entity.js';
+import type { AdminReach } from './admin-reach.js';
 import type { CrmNotifier } from './crm-notifier.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
@@ -20,18 +21,12 @@ export interface OpportunityCommentServiceDeps {
   /** `admin_users`' port — lazy, resolved per call, never captured. */
   adminUsers: AdminUserReadPort;
   notifier: CrmNotifier;
+  /** Whether another administrator may reach an Organization. */
+  canReach: AdminReach;
 }
-
-/** How much of a message a bell entry quotes. */
-const EXCERPT_LENGTH = 200;
 
 function commentNotFound(): HttpError {
   return new HttpError(404, ERROR_CODES.NOT_FOUND, 'This note or message does not belong to this opportunity.');
-}
-
-function excerpt(body: string): string {
-  const flat = body.replace(/\s+/g, ' ').trim();
-  return flat.length > EXCERPT_LENGTH ? `${flat.slice(0, EXCERPT_LENGTH - 1)}…` : flat;
 }
 
 /**
@@ -96,21 +91,24 @@ export class OpportunityCommentService {
           body: input.body,
         });
         return {
-          result: { comment, recipients, number: opportunity.number, title: opportunity.title },
+          result: { comment, recipients, number: opportunity.number, organizationId: opportunity.organizationId },
           before: null,
           after: { commentId: comment.id, kind: comment.kind, body: comment.body },
         };
       },
     });
 
-    // After the commit: the message exists whatever becomes of the bell.
+    // After the commit: the message exists whatever becomes of the bell. The
+    // entry says that there is a message and on which Opportunity, by number —
+    // never what it says: a bell is read outside the tenant scope. Somebody who
+    // can no longer reach the Organization is not told at all.
     for (const recipient of written.recipients) {
+      if (!(await this.deps.canReach(recipient, written.organizationId))) continue;
       await this.deps.notifier.notify({
         kind: 'crm.opportunity.message',
         targetAdminUserId: recipient,
         opportunityId,
-        title: `New message on opportunity ${written.number} "${written.title}"`,
-        body: excerpt(written.comment.body),
+        title: `New message on opportunity ${written.number}`,
       });
     }
     const [rendered] = await this.#render([written.comment]);

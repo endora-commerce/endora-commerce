@@ -416,3 +416,12 @@ export async function removeCrmAssets(em: EntityManager, ids: readonly string[])
     .getConnection()
     .execute(`delete from "assets" where "id" in (${ids.map(() => '?').join(', ')})`, [...ids]);
 }
+
+/** Take an Organization back from a Sales Rep: they no longer reach it. */
+export async function unassignCrmSalesRep(
+  em: EntityManager,
+  organizationId: string,
+  adminUserId: string,
+): Promise<void> {
+  await em.nativeDelete(OrganizationSalesRepAssignment, { organizationId, adminUserId });
+}

@@ -2038,6 +2038,22 @@ when it was measured, and what was done about it.
   open:** the library route itself serves `inline` without `nosniff` or a sandboxing policy
   to anybody who drops the flag from a link, and the type stored is the declared one when
   the content sniff recognises nothing — reported for `assets_library`' owner.
+- **N-R2 (2026-10-06, review finding 2) — a bell entry names the Opportunity by number, and
+  nobody is assigned or told who cannot reach its Organization.** `admin_notifications`
+  rows are read by their target outside the tenant scope, and R-9's "any active
+  administrator may be the assignee" let a confined Sales Rep be handed an Opportunity of an
+  Organization they cannot open — and then be sent its title and 200 characters of each
+  message. Three changes. (a) The title of both entries is the number alone and the message
+  entry has no body. (b) The reach of an administrator *other than the caller* **is**
+  determinable through a published port: `organizations`' `adminTenantScopePort`
+  (`resolveForAdmin`), the one the request-scope hook builds a caller's own scope from —
+  wrapped once in `services/admin-reach.ts`; `organizations` is already a declared
+  dependency. (c) `assertAssignable` takes the Organization and answers the existing 422
+  `CRM_ASSIGNEE_INVALID` for somebody out of reach (assign, create, PATCH), and each
+  recipient's reach is asked again when an entry is written, because reach is lost later:
+  an assignee whose Sales Rep assignment was removed stays the assignee and is no longer
+  told. The default assignee is unaffected — it is drawn from the Organization's own Sales
+  Reps. R-9's sentence "the assignee decides nothing about visibility" stays true.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
