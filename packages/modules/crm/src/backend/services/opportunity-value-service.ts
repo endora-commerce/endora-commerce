@@ -177,26 +177,38 @@ export class OpportunityValueService {
   }
 
   /**
-   * The documents a computed Opportunity leaves out, for its detail screen.
-   * Evaluated on read, from what the reader may see: the stored figure has no
-   * room for the names.
+   * What a computed Opportunity is worth **now**, for its detail screen, with
+   * the documents that figure leaves out. `null` for a manual one.
    *
-   * **An entry says something of the document** — that its status counts and
-   * that it is in another currency — so it is named only to a reader who may
-   * read that kind of document in the module that owns it (research N-R13).
-   * The narrowing is here, on what is *shown*, and never in the evaluation: the
-   * stored figure is the Opportunity's own and must be the same whoever's
-   * request happened to cause the recalculation.
+   * Evaluated on read. The stored figure follows the events its documents
+   * announce, and not every change is announced: a customer editing a Pending
+   * Quote Request emits nothing (research N-S3). So the detail answers the
+   * figure its own links add up to, and when that is not the stored one it
+   * **asks for a recalculation and writes nothing** — a read is a read, and the
+   * queue holds at most one request per Opportunity however often it is opened.
+   *
+   * **An excluded entry says something of the document** — that its status
+   * counts and that it is in another currency — so it is named only to a
+   * reader who may read that kind of document in the module that owns it
+   * (research N-R13). The narrowing is here, on what is *shown*, and never in
+   * the evaluation: the figure is the Opportunity's own and must be the same
+   * whoever's request happened to ask for it.
    */
-  async excludedDocuments(opportunity: CrmOpportunity): Promise<OpportunityExcludedDocument[]> {
-    if (opportunity.valueMode !== 'computed') return [];
-    const { excludedDocuments } = await this.#evaluate(this.deps.emFactory(), opportunity);
-    if (excludedDocuments.length === 0) return [];
+  async liveFigure(
+    opportunity: CrmOpportunity,
+  ): Promise<{ value: string; excludedDocuments: OpportunityExcludedDocument[] } | null> {
+    if (opportunity.valueMode !== 'computed') return null;
+    const { value, excludedDocuments } = await this.#evaluate(this.deps.emFactory(), opportunity);
+    if (value !== opportunity.computedValue) await this.deps.requestRecalculation(opportunity.id);
+    if (excludedDocuments.length === 0) return { value, excludedDocuments };
     const [orders, quoteRequests] = await Promise.all([
       this.deps.mayRead.orders(),
       this.deps.mayRead.quoteRequests(),
     ]);
-    return excludedDocuments.filter((document) => (document.kind === 'order' ? orders : quoteRequests));
+    return {
+      value,
+      excludedDocuments: excludedDocuments.filter((document) => (document.kind === 'order' ? orders : quoteRequests)),
+    };
   }
 
   /**

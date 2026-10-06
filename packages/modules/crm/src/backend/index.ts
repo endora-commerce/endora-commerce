@@ -426,7 +426,7 @@ export function registerModule(ctx: ModuleContext): void {
             customFields: lazyPort<CustomFieldValuePort>(ctx, 'customFieldValueService'),
             // --- end of Custom fields ----------------------------------------
             recalculateValue: (opportunityId) => crmOpportunityValueService.recalculate(opportunityId),
-            excludedDocuments: (opportunity) => crmOpportunityValueService.excludedDocuments(opportunity),
+            liveFigure: (opportunity) => crmOpportunityValueService.liveFigure(opportunity),
             references: crmReferenceService,
           }),
       )

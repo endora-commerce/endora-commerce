@@ -78,8 +78,13 @@ export interface OpportunityServiceDeps {
   customFields: CustomFieldValuePort;
   /** Recalculates a computed Opportunity's value — asked when its mode becomes `computed`. */
   recalculateValue: (opportunityId: string) => Promise<unknown>;
-  /** The linked documents a computed value leaves out, and why. */
-  excludedDocuments: (opportunity: CrmOpportunity) => Promise<OpportunityExcludedDocument[]>;
+  /**
+   * What a computed Opportunity is worth now, and the linked documents that
+   * figure leaves out; `null` for a manual one.
+   */
+  liveFigure: (
+    opportunity: CrmOpportunity,
+  ) => Promise<{ value: string; excludedDocuments: OpportunityExcludedDocument[] } | null>;
   /** The Products and Orders a text mentions: stored on write, resolved on read. */
   references: ReferenceService;
 }
@@ -855,20 +860,23 @@ export class OpportunityService {
 
   async #detail(opportunity: CrmOpportunity, graph: OpportunityStatusGraph): Promise<OpportunityDetail> {
     const language = await this.#viewerLanguage();
-    const [summaries, contact, links, unresolvedPropagations, excludedDocuments, references] = await Promise.all([
+    const [summaries, contact, links, unresolvedPropagations, live, references] = await Promise.all([
       this.#summaries([opportunity], graph, language),
       opportunity.customerAccountId
         ? this.deps.customerAccounts.findById(opportunity.customerAccountId)
         : Promise.resolve(null),
       this.deps.links(opportunity.id),
       this.deps.unresolvedPropagations(opportunity.id),
-      this.deps.excludedDocuments(opportunity),
+      this.deps.liveFigure(opportunity),
       this.deps.references.resolve(opportunity.description),
     ]);
     const summary = summaries[0];
     if (!summary) throw new Error('crm: an opportunity produced no summary.');
     return {
       ...summary,
+      // A computed Opportunity shows what its documents add up to as they are
+      // read for this screen; the stored figure catches up off the request.
+      ...(live ? { value: live.value } : {}),
       // The text as stored, and beside it what its tokens name for this reader.
       description: opportunity.description ?? null,
       references,
@@ -880,8 +888,8 @@ export class OpportunityService {
           }
         : null,
       manualValue: opportunity.manualValue ?? null,
-      computedValue: opportunity.computedValue,
-      excludedDocuments,
+      computedValue: live ? live.value : opportunity.computedValue,
+      excludedDocuments: live ? live.excludedDocuments : [],
       source: opportunity.source,
       version: opportunity.version,
       allowedTransitions: graph

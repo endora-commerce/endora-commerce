@@ -17,14 +17,18 @@ import {
   CRM_API,
   changeOrderStatusAsOperator,
   createCrmOpportunity,
+  CRM_CUSTOMER,
   defineCrmCustomField,
   linkCrmOrder,
+  linkCrmQuoteRequest,
   removeCrmCustomFields,
   restoreDefaultCrmWorkflow,
   seedCrmOrder,
   setCrmCountingStatuses,
   setCrmMappings,
+  submitCrmQuoteRequest,
 } from '../../helpers/seed-crm.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
 /**
  * The scenarios a second independent review of the module broke it with
@@ -315,6 +319,77 @@ describe('crm second review regressions', () => {
       }
       expect(closed).toHaveLength(1);
       expect(closed[0]?.['value']).toBe('91.00');
+    });
+  });
+
+  // --- N-S3: a document that changes without saying so ------------------------------
+  describe('a customer editing a linked Pending Quote Request', () => {
+    const watchRequests = () => {
+      const producer = h.container.resolve('crmValueRecalculationProducer') as {
+        enqueueOne(opportunityId: string): Promise<boolean>;
+      };
+      return vi.spyOn(producer, 'enqueueOne');
+    };
+
+    it('the detail answers the live figure, writes nothing, and asks for that Opportunity to be recalculated', async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      expect((await setCrmCountingStatuses(h, { order: [], quoteRequest: ['Pending'] })).statusCode).toBe(202);
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+      const rfq = await submitCrmQuoteRequest(h, { quantity: 7, desiredUnitPrice: 12 });
+      expect((await linkCrmQuoteRequest(h, opportunity.id, rfq.id)).statusCode).toBe(201);
+
+      const requests = watchRequests();
+      // In agreement: the read asks for nothing.
+      expect((await detail(opportunity.id)).value).toBe('84.00');
+      expect(requests).not.toHaveBeenCalled();
+
+      // `quote_requests` announces nothing for a draft edit.
+      const current = await h.app.inject({
+        method: 'GET',
+        url: `/api/v1/quote-requests/${rfq.id}`,
+        cookies: CRM_CUSTOMER,
+      });
+      const version = (current.json() as { data: { version: number } }).data.version;
+      const patched = await h.app.inject({
+        method: 'PATCH',
+        url: `/api/v1/quote-requests/${rfq.id}`,
+        cookies: CRM_CUSTOMER,
+        headers: { 'if-match': `"${version}"` },
+        payload: { items: [{ productId: SEED_PRODUCT_101_ID, quantity: 100, desiredUnitPrice: 12 }] },
+      });
+      expect(patched.statusCode, patched.body).toBe(200);
+
+      const after = await detail(opportunity.id);
+      expect(after.links.find((link) => link.documentId === rfq.id)?.total).toBe('1200.00');
+      expect(after.value).toBe('1200.00');
+      expect(after.computedValue).toBe('1200.00');
+      // A read is a read: the stored figure is the queue's to bring up to date.
+      expect(await storedComputedValue(opportunity.id)).toBe('84.00');
+      expect(requests).toHaveBeenCalledTimes(1);
+      expect(requests).toHaveBeenCalledWith(opportunity.id);
+
+      // What the job does with the request.
+      await enterSystemScope('test: the requested recalculation', () => valueService().recalculate(opportunity.id));
+      expect(await storedComputedValue(opportunity.id)).toBe('1200.00');
+      requests.mockClear();
+      expect((await detail(opportunity.id)).value).toBe('1200.00');
+      expect(requests).not.toHaveBeenCalled();
+    });
+
+    it('a manual Opportunity is never asked about', async () => {
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'manual', manualValue: '5.00' });
+      const requests = watchRequests();
+      expect((await detail(opportunity.id)).value).toBe('5.00');
+      expect(requests).not.toHaveBeenCalled();
+    });
+
+    it('a queue that cannot be reached does not fail the read', async () => {
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+      await h.em().execute(`update "crm_opportunities" set "computed_value" = '9.00' where "id" = ?`, [
+        opportunity.id,
+      ]);
+      watchRequests().mockRejectedValue(new Error('redis is away'));
+      expect((await detail(opportunity.id)).value).toBe('0.00');
     });
   });
 });
