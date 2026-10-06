@@ -28,6 +28,7 @@ import {
   type OpportunityStatusGraph,
 } from '../domain/opportunity-status-graph.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
+import { CrmOpportunityStatus } from '../entities/crm-opportunity-status.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
 import { effectiveOpportunityValue, loadOpportunity } from './opportunity-access.js';
@@ -189,6 +190,17 @@ export class OpportunityService {
       run: async ({ em, actor }) => {
         if (input.salesChannelId && (await em.count(SalesChannel, { id: input.salesChannelId })) === 0) {
           throw invalid('The sales channel does not exist.');
+        }
+        // The start status, held until this commits, as a transition holds its
+        // target: it cannot be deleted under an Opportunity being created in it
+        // (research N-R12). Gone already means the workflow changed meanwhile.
+        const start = await em.findOne(
+          CrmOpportunityStatus,
+          { code: initialStatusCode },
+          { lockMode: LockMode.PESSIMISTIC_READ },
+        );
+        if (!start) {
+          throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The workflow changed while this was being created.');
         }
         // Refused before anything is written: a tag that does not exist is 422.
         const tags = await this.deps.tags.resolve(em, input.tagIds ?? []);

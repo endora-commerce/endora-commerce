@@ -587,6 +587,178 @@ describe('crm review regressions', () => {
     });
   });
 
+  describe('finding 12 — no Opportunity is left in a status that was deleted or re-defined under it', () => {
+    let races = 0;
+
+    /** A transaction of the test's own, holding whatever `statements` lock until `release`. */
+    const holding = async (statements: ReadonlyArray<readonly [string, unknown[]]>) => {
+      const em = h.em().fork();
+      await em.begin();
+      for (const [sql, params] of statements) {
+        await em.getConnection().execute(sql, params, 'run', em.getTransactionContext());
+      }
+      let released = false;
+      return {
+        release: async () => {
+          if (released) return;
+          released = true;
+          await em.commit();
+        },
+      };
+    };
+    /** Whether `pending` is still waiting after a moment — it is blocked, not slow. */
+    const stillWaiting = async (pending: Promise<unknown>) =>
+      Promise.race([
+        pending.then(() => false),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 400)),
+      ]);
+    const statusRow = async (opportunityId: string) =>
+      (
+        (await h
+          .em()
+          .getConnection()
+          .execute(`select "status_code", "closed_kind" from "crm_opportunities" where "id" = ?`, [
+            opportunityId,
+          ])) as Array<{ status_code: string; closed_kind: string | null }>
+      )[0];
+    /** Whether the Opportunity is in a status the workflow no longer has. */
+    const stranded = async (opportunityId: string) => {
+      const rows = (await h
+        .em()
+        .getConnection()
+        .execute(
+          `select o."id" from "crm_opportunities" o
+            where o."id" = ?
+              and not exists (select 1 from "crm_opportunity_statuses" s where s."code" = o."status_code")`,
+          [opportunityId],
+        )) as unknown[];
+      return rows.length > 0;
+    };
+
+    /** A status of this case's own — whatever an earlier case left behind is in another. */
+    const withRaceStatus = async (): Promise<string> => {
+      await restoreDefaultCrmWorkflow(h.em());
+      races += 1;
+      const RACE = `review_race_${races}`;
+      const created = await call('POST', '/statuses', CRM_ADMIN, { code: RACE, defaultName: 'Race', kind: 'open' });
+      expect(created.statusCode, created.body).toBe(201);
+      const edges = await call('PUT', '/transitions', CRM_ADMIN, {
+        add: [
+          { fromStatusCode: 'new', toStatusCode: RACE },
+          { fromStatusCode: RACE, toStatusCode: 'lost' },
+        ],
+      });
+      expect(edges.statusCode, edges.body).toBe(200);
+      return RACE;
+    };
+
+    afterAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+    });
+
+    it('a transition that read the workflow before its target was deleted does not write it', async () => {
+      const RACE = await withRaceStatus();
+      const opportunity = await createCrmOpportunity(h, { organizationId: organizationA });
+      // The transition has read the workflow and waits for the Opportunity's row…
+      const row = await holding([[`select 1 from "crm_opportunities" where "id" = ? for update`, [opportunity.id]]]);
+      try {
+        const moving = transitionCrmOpportunity(h, opportunity.id, RACE);
+        expect(await stillWaiting(moving)).toBe(true);
+        // …while the status it is heading for is deleted: nothing is in it yet.
+        const deleted = await call('DELETE', `/statuses/${RACE}`);
+        expect(deleted.statusCode, deleted.body).toBe(204);
+        await row.release();
+
+        const moved = await moving;
+        expect(moved.statusCode, moved.body).toBe(422);
+        expect(await statusRow(opportunity.id)).toMatchObject({ status_code: 'new' });
+        expect(await stranded(opportunity.id)).toBe(false);
+      } finally {
+        await row.release();
+      }
+    });
+
+    it('a transition that read what its target means before that changed closes the Opportunity as it means now', async () => {
+      const RACE = await withRaceStatus();
+      const opportunity = await createCrmOpportunity(h, { organizationId: organizationA });
+      const row = await holding([[`select 1 from "crm_opportunities" where "id" = ? for update`, [opportunity.id]]]);
+      try {
+        const moving = transitionCrmOpportunity(h, opportunity.id, RACE);
+        expect(await stillWaiting(moving)).toBe(true);
+        const redefined = await call('PATCH', `/statuses/${RACE}`, CRM_ADMIN, { kind: 'lost' });
+        expect(redefined.statusCode, redefined.body).toBe(200);
+        await row.release();
+
+        const moved = await moving;
+        expect(moved.statusCode, moved.body).toBe(200);
+        expect(await statusRow(opportunity.id)).toEqual({ status_code: RACE, closed_kind: 'lost' });
+      } finally {
+        await row.release();
+      }
+    });
+
+    it.each([
+      ['deleting the status', 'DELETE', undefined],
+      ['changing what it means', 'PATCH', { kind: 'lost' }],
+    ] as const)('%s waits for a transition into it that has not committed, then finds it in use', async (_label, method, payload) => {
+      const RACE = await withRaceStatus();
+      const opportunity = await createCrmOpportunity(h, { organizationId: organizationA });
+      // A transition in flight, as the transition Command leaves the rows before it commits.
+      const inFlight = await holding([
+        [`select 1 from "crm_opportunities" where "id" = ? for update`, [opportunity.id]],
+        [`select 1 from "crm_opportunity_statuses" where "code" = ? for share`, [RACE]],
+        [`update "crm_opportunities" set "status_code" = ? where "id" = ?`, [RACE, opportunity.id]],
+      ]);
+      try {
+        const configuring = call(method, `/statuses/${RACE}`, CRM_ADMIN, payload);
+        expect(await stillWaiting(configuring)).toBe(true);
+        await inFlight.release();
+
+        const refused = await configuring;
+        expect(refused.statusCode, refused.body).toBe(409);
+        expect(refused.json().error.code).toBe(ERROR_CODES.CRM_STATUS_IN_USE);
+        expect(await stranded(opportunity.id)).toBe(false);
+        const workflow = (await call('GET', '/workflow')).json() as {
+          data: { statuses: Array<{ code: string; kind: string }> };
+        };
+        expect(workflow.data.statuses.find((status) => status.code === RACE)?.kind).toBe('open');
+      } finally {
+        await inFlight.release();
+      }
+    });
+
+    it('a creation that read the start status before it was removed does not write it', async () => {
+      await withRaceStatus();
+      // Somebody is removing the start status and has not committed: the creation
+      // still reads it as the start.
+      const removing = await holding([[`delete from "crm_opportunity_statuses" where "code" = ?`, ['new']]]);
+      try {
+        const creating = call('POST', '/opportunities', CRM_ADMIN, {
+          title: 'Created under a vanishing start status',
+          organizationId: organizationA,
+          currency: 'PLN',
+        });
+        expect(await stillWaiting(creating)).toBe(true);
+        await removing.release();
+
+        const refused = await creating;
+        expect(refused.statusCode, refused.body).toBe(409);
+        expect(refused.json().error.code).toBe(ERROR_CODES.VERSION_CONFLICT);
+        const left = (await h
+          .em()
+          .getConnection()
+          .execute(`select count(*)::int as n from "crm_opportunities" where "title" = ?`, [
+            'Created under a vanishing start status',
+          ])) as Array<{ n: number }>;
+        expect(left[0]?.n).toBe(0);
+      } finally {
+        await removing.release();
+        // Opportunities of earlier cases are in `new`; give the status back before anything reads them.
+        await restoreDefaultCrmWorkflow(h.em());
+      }
+    });
+  });
+
   describe('reach, where no test held it', () => {
     it('answers no contact for an Organization out of the caller’s reach', async () => {
       const response = await call('GET', `/lookups/contacts?organizationId=${organizationB}`, rep.cookies);

@@ -10,6 +10,7 @@ import {
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
+import { CrmOpportunityStatus } from '../entities/crm-opportunity-status.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmStatusPropagation } from '../entities/crm-status-propagation.entity.js';
 import {
@@ -188,6 +189,17 @@ export class OpportunityTransitionService {
           // Somebody moved the Opportunity between the read above and this
           // lock. Nothing is written; the caller is evaluated again from the top.
           if (locked.statusCode !== from) return { result: null, skipAudit: true };
+          // The target, as it is now, held until this commits: a configuration
+          // write that deletes the status or changes what it means takes the
+          // row for itself first, so it either waits for this and finds the
+          // status in use, or has finished — and then the workflow read above
+          // is stale and the caller is evaluated again (research N-R12).
+          const target = await em.findOne(
+            CrmOpportunityStatus,
+            { code: to },
+            { lockMode: LockMode.PESSIMISTIC_READ },
+          );
+          if (!target || target.kind !== toKind) return { result: null, skipAudit: true };
           // Under the lock, by the row's own account of itself.
           if (cause === 'order_status' && (locked.closedKind || locked.closedAt)) {
             throw closedToOrderCausedMove(from, to);

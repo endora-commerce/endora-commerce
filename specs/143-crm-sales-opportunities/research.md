@@ -2168,6 +2168,26 @@ when it was measured, and what was done about it.
   tolerance, then a `console.warn` naming the Opportunity and the error — the module holds
   no logger, and `orders`' own after-commit e-mail helper logs the same way. The notifier
   itself still catches nothing.
+  **(b) A status is not deleted, or re-defined, under an Opportunity on its way into it.**
+  `crm_opportunities.status_code` is held by value (R-2: no foreign key), "in use" was a
+  count, and the count could not see a transition that had not committed — nor could a
+  transition see a delete that had: either order left an Opportunity in a status the
+  workflow no longer has, or closed/open against what the status now means. The two sides
+  now meet on the status's own row. Whoever puts an Opportunity into a status — the
+  transition Command, and the create Command for the start status — reads that row
+  `for share` inside the Command, after the Opportunity's own lock, and holds it to the
+  commit; `updateStatus` and `deleteStatus` read it `for update` before they count. So a
+  configuration write waits for a move in flight and then counts it (409
+  `CRM_STATUS_IN_USE`), and a move that waited for a configuration write finds the row gone
+  or its kind changed, writes nothing and is evaluated again from the top against the
+  workflow as it is now — 422 for a deleted target, the new `closedKind` for a re-defined
+  one; a creation answers 409 `VERSION_CONFLICT`. One lock order everywhere (Opportunity,
+  then status; configuration takes the status alone), so the two cannot deadlock.
+  **(c) Left: one `getAsset` call per attachment.** The list signs a link per file through
+  `assetsLibraryPort.getAsset`, and that port has no batch read (`upload`, `getAsset`,
+  `patchAsset`, `softDelete`); `assetReadPort.findByIds`, which the list already uses for
+  the rows, answers no link. Batching it is a method on `assets_library`' port — its
+  owner's change, not a loop to restructure here.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
