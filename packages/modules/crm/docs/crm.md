@@ -709,6 +709,13 @@ changed without a status change, and a quote request that becomes `Completed`,
 are picked up at the next recalculation.
 A recalculation is not an entry in the opportunity's history.
 
+**The opportunity's own screen always shows the live figure.** Opening an
+opportunity computes its value from the linked documents as they are at that
+moment, and queues a recalculation when the stored figure differs. The list,
+the board and the analytics read the stored figure, so they may lag behind the
+opportunity's screen until the background recalculation has run — normally a
+moment, longer while the queue is busy or its worker is stopped.
+
 ### Which statuses count
 
 Which statuses make a document count is part of the workflow configuration,
@@ -1092,9 +1099,10 @@ changes; leaving it out leaves every value as it is. A refused value answers
 write is part of the opportunity's own audit entry — there is no separate one.
 
 **With CRM switched off**, *Opportunity* is not offered on the Custom fields
-screen and its field definitions cannot be created, changed or deleted (`409`).
-Nothing is removed: switching CRM back on restores the definitions and every
-stored value.
+screen, the definitions already made for it are **hidden** — they are not
+listed, and reading one by its id answers `404` — and none can be created,
+changed or deleted (`409`). Nothing is removed: switching CRM back on restores
+the definitions and every stored value.
 
 ## Opportunities on the organization's screen
 

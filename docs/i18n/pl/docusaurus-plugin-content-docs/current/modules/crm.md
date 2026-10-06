@@ -734,6 +734,13 @@ oraz zapytanie ofertowe, które przechodzi w status `Completed`, zostaną
 uwzględnione przy najbliższym przeliczeniu. Przeliczenie nie jest wpisem w
 historii szansy.
 
+**Ekran samej szansy zawsze pokazuje aktualną kwotę.** Otwarcie szansy wylicza
+jej wartość z powiązanych dokumentów w ich bieżącym stanie i zleca
+przeliczenie, gdy zapisana kwota jest inna. Lista, tablica i analityka czytają
+kwotę zapisaną, więc mogą pozostawać w tyle za ekranem szansy, dopóki
+przeliczenie w tle się nie wykona — zwykle chwilę, a dłużej, gdy kolejka jest
+zajęta albo jej proces nie działa.
+
 ### Które statusy się liczą
 
 To, które statusy sprawiają, że dokument się liczy, jest częścią konfiguracji
@@ -1127,9 +1134,10 @@ go pozostawia wszystkie wartości bez zmian. Odrzucona wartość daje odpowiedź
 Zapis jest częścią wpisu audytowego samej szansy — osobnego wpisu nie ma.
 
 **Gdy CRM jest wyłączony**, *Szansa sprzedażowa* nie jest oferowana na ekranie
-pól niestandardowych, a definicji jej pól nie można tworzyć, zmieniać ani usuwać
-(`409`). Nic nie jest usuwane: ponowne włączenie CRM przywraca definicje i
-wszystkie zapisane wartości.
+pól niestandardowych, istniejące definicje jej pól są **ukryte** — nie ma ich
+na liście, a odczyt definicji po identyfikatorze odpowiada `404` — i żadnej nie
+można utworzyć, zmienić ani usunąć (`409`). Nic nie jest usuwane: ponowne
+włączenie CRM przywraca definicje i wszystkie zapisane wartości.
 
 ## Szanse sprzedażowe na ekranie organizacji
 
