@@ -1,3 +1,4 @@
+import { LockMode } from '@mikro-orm/core';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
@@ -407,7 +408,11 @@ export class OrderStatusPropagationService {
       objectType: 'crm_opportunity',
       objectId: opportunityId,
       run: async ({ em }) => {
-        const opportunity = await loadOpportunity(em, opportunityId);
+        // Locked, as every other Command on an Opportunity is: of two retries
+        // of one outcome the second waits here, then finds it settled.
+        const opportunity = await loadOpportunity(em, opportunityId, {
+          lockMode: LockMode.PESSIMISTIC_WRITE,
+        });
         const row = await this.#loadRow(em, opportunity.id, propagationId);
         if (!isUnresolved(row)) {
           throw settled('This outcome is already settled and cannot be retried.');

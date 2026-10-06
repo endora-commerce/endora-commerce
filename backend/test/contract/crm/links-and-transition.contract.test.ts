@@ -26,7 +26,7 @@ import {
   setCrmForwardMappings,
   transitionCrmOpportunity,
 } from '../../helpers/seed-crm.js';
-import { CrmOpportunityStatusHistory, Order } from '../../helpers/package-entities.js';
+import { CrmOpportunityStatusHistory, CrmStatusPropagation, Order } from '../../helpers/package-entities.js';
 
 /**
  * Linking Orders and moving an Opportunity
@@ -434,6 +434,30 @@ describe('crm links and transition (contract)', () => {
         expect(refused.statusCode, `${action} ${refused.body}`).toBe(403);
       }
       expect((await detail(opportunity.id)).unresolvedPropagations.map((row) => row.id)).toEqual([refusal.id]);
+    });
+
+    it('lets one of two simultaneous retries of one outcome through: the Order is asked once more, not twice (review finding 8)', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const order = await seedCrmOrder(h.em());
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+      const moved = await transitionCrmOpportunity(h, opportunity.id, 'lost');
+      expect(moved.statusCode, moved.body).toBe(200);
+      const refusal = OpportunityTransitionResponseSchema.parse(moved.json()).data.propagation[0]!;
+      expect(refusal.outcome).toBe('not_permitted');
+
+      const path = `/opportunities/${opportunity.id}/propagations/${refusal.id}/retry`;
+      const answers = await Promise.all([call('POST', path), call('POST', path)]);
+      expect(answers.map((answer) => answer.statusCode).sort()).toEqual([200, 409]);
+
+      // The retired refusal and the one retry that replaced it — not two.
+      const rows = await h.em().find(CrmStatusPropagation, { opportunityId: opportunity.id }, { filters: false });
+      expect(rows).toHaveLength(2);
+      expect((await detail(opportunity.id)).unresolvedPropagations).toHaveLength(1);
+      const audit = await h.auditLogService.query({
+        action: 'crm.opportunity.propagation_retry',
+        objectId: opportunity.id,
+      });
+      expect(audit).toHaveLength(1);
     });
   });
 
