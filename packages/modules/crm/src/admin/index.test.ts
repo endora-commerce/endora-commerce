@@ -182,9 +182,15 @@ describe('crm admin copy', () => {
 
   it('ships no key under its own prefixes that no screen asks for', () => {
     const text = sources.map((source) => source.text).join('\n');
-    const own = Object.keys(en).filter((key) =>
-      /^(opportunity|links|propagation|workflow|board|assignment|tags|comments|attachments|analytics)\./.test(key),
+    // Everything but the five families the host and the backend read by a
+    // name they build themselves: sidebar rows and palette actions (from the
+    // manifest), permission labels, error codes and audit actions. Stated as
+    // the exclusion rather than as a list of the screens' prefixes, so a new
+    // prefix is held to this test by existing.
+    const own = Object.keys(en).filter(
+      (key) => !/^(nav|actions|adminRoles|errors|auditLog)\./.test(key),
     );
+    expect(own.length).toBeGreaterThan(400);
     const unused = own.filter((key) => {
       if (text.includes(`'${key}'`)) return false;
       // A member of a composed family is asked for through its prefix.
@@ -193,5 +199,32 @@ describe('crm admin copy', () => {
       return !text.includes(`\`${prefix}\${`) && !text.includes(`\`${grandPrefix}\${`);
     });
     expect(unused).toEqual([]);
+  });
+
+  it('carries the same keys in both languages, each with the same placeholders', () => {
+    expect(Object.keys(pl).sort()).toEqual(Object.keys(en).sort());
+    const placeholders = (text: string): string[] =>
+      [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1] as string).sort();
+    const different = Object.keys(en).filter(
+      (key) => placeholders(en[key] as string).join() !== placeholders(pl[key] ?? '').join(),
+    );
+    expect(different).toEqual([]);
+  });
+
+  it('keeps to one Polish word for each thing', () => {
+    // The owner's vocabulary: a tag is "etykieta", an Opportunity is "szansa
+    // sprzedażowa" — not "tag", not "temat" — and a computed value is
+    // "wyliczana", never "obliczana".
+    const strayed = Object.entries(pl)
+      .filter(([, text]) => /\btag(i|u|ów|iem|ami|ach)?\b|\btemat|obliczan/i.test(text))
+      .map(([key]) => key);
+    expect(strayed).toEqual([]);
+  });
+
+  it('says of a deleted note only what is true of it', () => {
+    // The change history records that a note was deleted and how long it was,
+    // never its text (research N-R6).
+    expect(en['comments.delete.body']).not.toMatch(/stays in/i);
+    expect(pl['comments.delete.body']).not.toMatch(/pozostanie w historii/i);
   });
 });
