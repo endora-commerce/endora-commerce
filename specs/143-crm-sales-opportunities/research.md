@@ -2240,6 +2240,23 @@ when it was measured, and what was done about it.
   register. The value screens: the counting-status save says its 202 in words
   (`value.counting.accepted`), and the value section reads the figure from the detail it was
   just handed, never from a list.
+- **N-H6 (2026-10-06) — User Story 10 (T108–T118) was not started; nothing of it is in the
+  tree.** The session that finished the merge and the admin halves of User Stories 8, 11 and
+  12 ran out of its time budget before Phase 12, and a story that edits `orders` and
+  `quote_requests` is not one to leave half-made. What the next session inherits, all of it
+  already measured: `order.created.v1` is emitted inside the placing transaction, so the
+  origin branch belongs in the existing deferred re-read of
+  `opportunity-auto-create-service.ts` (N-E7) and must run **before** the "already linked" and
+  setting branches, so that an Order created from an Opportunity is linked with
+  `linkSource: 'created_from_opportunity'` and gets no second Opportunity (N-E8 (g) is the
+  case that would otherwise create one); a Quote Request an administrator creates emits no
+  event today (N-E8 (g)), which is why `rfq.created_by_admin.v1` is new; the link must be
+  refused silently when the Opportunity is not reachable by the creating administrator or
+  belongs to another Organization; the Opportunity screen's two buttons belong beside the two
+  link sections of the Overview (`LinkedDocuments.tsx`, `LinkedQuoteRequests.tsx`), the second
+  only while `useModulePresence().isPresent('quote_requests')`; and the foreign files are
+  exactly the rows of `contracts/foreign-module-changes.md` §A–§C. The off-state file already
+  lists every CRM route; T111 adds the two foreign create requests carrying an `origin`.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

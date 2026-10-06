@@ -266,8 +266,9 @@ describe('OpportunityDetail — linked orders', () => {
       'href',
       `/orders/${ORDER_ID}`,
     );
-    // The Order's status is shown by its name, not by its code.
-    expect(within(region).getByText('New')).toBeInTheDocument();
+    // The Order's status is shown by its name, not by its code — once the
+    // Orders module's statuses have been read, which is a request of its own.
+    expect(await within(region).findByText('New')).toBeInTheDocument();
     expect(within(region).getByText(/990,00/)).toBeInTheDocument();
   });
 
