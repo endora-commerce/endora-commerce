@@ -2022,6 +2022,22 @@ when it was measured, and what was done about it.
   beside `26 398,53 zł`), which is `formatMoney`'s rule everywhere; and the attachment table
   of T081 breaks a long file name letter by letter at 390 px. Not verified by eye: a real
   screen reader, a physical touch device, zoom at 200 %.
+- **N-R1 (2026-10-06, review finding 1) — an attachment is never a document a browser runs,
+  and its link is a download.** The media library serves a private file from the API's
+  origin, `inline`, under the stored type and with no content policy of its own, and the CRM
+  upload is open to `crm:write` alone — so `offer.html` was a page running with the reader's
+  session. CRM's half (`services/attachment-active-content.ts`): the upload **and** the
+  attach-by-id refuse a file whose name *or* declared/stored type is HTML, XHTML, SVG, XML/XSL
+  (any `+xml`) or JavaScript — either is enough, so `offer.html` declared `text/plain` and
+  `offer.txt` declared `text/html` are both refused, before a byte is stored. The answer is
+  415 with the library's own `ASSET_UPLOAD_TYPE_NOT_ALLOWED`, not a minted `CRM_*` code: it is
+  the refusal this endpoint already passes on when the library's policy says no (N-F1), so a
+  caller handles one code. The link handed out carries `download=1`, which the library's
+  file route answers with `Content-Disposition: attachment`; a store's own signed address
+  (S3/GCS, whose signature covers the query) is handed on untouched. **Not CRM's and still
+  open:** the library route itself serves `inline` without `nosniff` or a sandboxing policy
+  to anybody who drops the flag from a link, and the type stored is the declared one when
+  the content sniff recognises nothing — reported for `assets_library`' owner.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

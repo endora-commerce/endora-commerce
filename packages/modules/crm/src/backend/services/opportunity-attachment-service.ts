@@ -11,6 +11,7 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityAttachment } from '../entities/crm-opportunity-attachment.entity.js';
+import { asDownloadLink, refuseActiveContent } from './attachment-active-content.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
 
@@ -110,6 +111,8 @@ export class OpportunityAttachmentService {
         'An attachment must be a private file. Upload it to the media library as private.',
       );
     }
+    // The same refusal as the upload's: a file of the library is held to it too.
+    refuseActiveContent({ filename: asset.filename, mimeType: asset.mimeType });
 
     let row: CrmOpportunityAttachment;
     try {
@@ -207,7 +210,7 @@ export class OpportunityAttachmentService {
     // so the library is never asked for something it would have to refuse.
     const urls = new Map<string, string>();
     for (const asset of assets) {
-      urls.set(asset.id, (await this.deps.assetsLibrary.getAsset(asset.id)).url);
+      urls.set(asset.id, asDownloadLink((await this.deps.assetsLibrary.getAsset(asset.id)).url, asset.id));
     }
     return rows.map((row) => {
       const asset = assetById.get(row.assetId);

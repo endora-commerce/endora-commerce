@@ -5,6 +5,7 @@ import {
   type OpportunityAttachment,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
+import { refuseActiveContent } from './attachment-active-content.js';
 import { loadOpportunity } from './opportunity-access.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
 
@@ -66,6 +67,8 @@ export class OpportunityAttachmentUploadService {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Only an administrator can attach a file to an opportunity.');
     }
     await this.assertReachable(opportunityId);
+    // Before a byte is stored: a document a browser would run is not an attachment.
+    refuseActiveContent({ filename: file.filename, mimeType: file.declaredMime });
 
     const { bytes } = file;
     const asset = await this.deps.assetsLibrary.upload({
