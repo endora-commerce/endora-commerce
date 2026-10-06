@@ -543,7 +543,8 @@ export class OrderStatusPropagationService {
 
   async #render(rows: readonly CrmStatusPropagation[]): Promise<PropagationOutcome[]> {
     if (rows.length === 0) return [];
-    const orders = (await this.deps.canReadOrders())
+    const mayReadOrders = await this.deps.canReadOrders();
+    const orders = mayReadOrders
       ? await this.deps.orders.findByIds([...new Set(rows.map((row) => row.orderId))])
       : [];
     const numbers = new Map(orders.map((order) => [order.id, order.businessId]));
@@ -556,7 +557,10 @@ export class OrderStatusPropagationService {
       // A row still `pending` here is one that never finished: it is shown as
       // the failure it is, and a retry consumes it.
       outcome: row.outcome === 'pending' ? 'failed' : row.outcome,
-      detail: row.detail ?? null,
+      // Why an Order refused is `orders`' sentence and names the status the
+      // Order is in: with the number, it is for a reader who may read the
+      // Order. Anybody else is told that it refused (research N-R3, N-S5).
+      detail: mayReadOrders ? (row.detail ?? null) : null,
       createdAt: row.createdAt.toISOString(),
     }));
   }

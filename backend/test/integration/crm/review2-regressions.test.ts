@@ -23,11 +23,14 @@ import {
   linkCrmQuoteRequest,
   removeCrmCustomFields,
   restoreDefaultCrmWorkflow,
+  seedCrmAdmin,
   seedCrmOrder,
   seedCrmOrganization,
   setCrmCountingStatuses,
+  setCrmForwardMappings,
   setCrmMappings,
   submitCrmQuoteRequest,
+  transitionCrmOpportunity,
 } from '../../helpers/seed-crm.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 
@@ -429,6 +432,61 @@ describe('crm second review regressions', () => {
           organizationB,
         ])) as Array<{ n: number }>;
       expect(created[0]?.n).toBe(0);
+    });
+  });
+
+  // --- N-S5: why an Order refused is the Order's to tell ---------------------------
+  describe('a refused Order status change, for a caller without orders:read', () => {
+    type Outcome = { id: string; orderNumber: string | null; detail: string | null; outcome: string };
+
+    it('says nothing of the Order: not in the detail, the transition answer or the retry answer', async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      expect((await setCrmForwardMappings(h, { lost: 'completed' })).statusCode).toBe(200);
+      const writer = await seedCrmAdmin(h.em(), 'review2-writer', ['crm:read', 'crm:write']);
+      try {
+        const opportunity = await createCrmOpportunity(h);
+        // The Order sits in a status of its own that this caller has no business knowing.
+        const order = await seedCrmOrder(h.em(), { status: 'processing' });
+        expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+
+        const moved = await transitionCrmOpportunity(h, opportunity.id, 'lost', writer.cookies);
+        expect(moved.statusCode, moved.body).toBe(200);
+        const answered = (moved.json() as { data: { propagation: Outcome[] } }).data.propagation;
+        expect(answered).toHaveLength(1);
+        expect(answered[0]?.orderNumber).toBeNull();
+        expect(answered[0]?.detail).toBeNull();
+        expect(moved.body).not.toContain('processing');
+
+        const read = await h.app.inject({
+          method: 'GET',
+          url: `${CRM_API}/opportunities/${opportunity.id}`,
+          cookies: writer.cookies,
+        });
+        expect(read.statusCode, read.body).toBe(200);
+        const unresolved = (read.json() as { data: { unresolvedPropagations: Outcome[] } }).data
+          .unresolvedPropagations;
+        expect(unresolved).toHaveLength(1);
+        expect(unresolved[0]?.detail).toBeNull();
+        expect(JSON.stringify(unresolved)).not.toContain('processing');
+
+        const retried = await h.app.inject({
+          method: 'POST',
+          url: `${CRM_API}/opportunities/${opportunity.id}/propagations/${unresolved[0]?.id}/retry`,
+          cookies: writer.cookies,
+        });
+        expect(retried.statusCode, retried.body).toBe(200);
+        expect((retried.json() as { data: Outcome }).data.detail).toBeNull();
+        expect(retried.body).not.toContain('processing');
+
+        // Somebody who may read the Order is still told why.
+        const full = (await detail(opportunity.id)).unresolvedPropagations;
+        expect(full).toHaveLength(1);
+        expect(full[0]?.orderNumber).not.toBeNull();
+        expect(full[0]?.detail).toEqual(expect.any(String));
+      } finally {
+        writer.undo();
+        await restoreDefaultCrmWorkflow(h.em());
+      }
     });
   });
 });
