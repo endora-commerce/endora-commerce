@@ -624,4 +624,90 @@ describe('crm second review regressions', () => {
       }
     });
   });
+
+  // --- N-S8: read-only findings ------------------------------------------------------
+  describe('findings of the second review made without a failing request', () => {
+    it('a pass over every computed Opportunity goes on past one that fails, and then says so', async () => {
+      expect((await setCrmCountingStatuses(h, { order: ['paid'], quoteRequest: [] })).statusCode).toBe(202);
+      const ids: string[] = [];
+      for (let index = 0; index < 3; index += 1) {
+        const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+        const order = await seedCrmOrder(h.em(), { status: 'paid', total: '20.00' });
+        expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+        ids.push(opportunity.id);
+      }
+      await h.em().execute(`update "crm_opportunities" set "computed_value" = '1.00' where "id" in (?)`, [ids]);
+      // The pass reads by id, ascending: the one that fails is met first.
+      const [failing, ...others] = [...ids].sort();
+      const service = h.container.resolve('crmOpportunityValueService') as {
+        recalculate(id: string): Promise<boolean>;
+        recalculateAll(): Promise<number>;
+      };
+      const recalculate = service.recalculate.bind(service);
+      vi.spyOn(service, 'recalculate').mockImplementation(async (id) => {
+        if (id === failing) throw new Error('this one cannot be read');
+        return recalculate(id);
+      });
+
+      await expect(
+        enterSystemScope('test: a pass meets a failure', () => service.recalculateAll()),
+      ).rejects.toThrow(/1 .*could not be recalculated/);
+
+      for (const id of others) expect(await storedComputedValue(id)).toBe('20.00');
+      expect(await storedComputedValue(failing as string)).toBe('1.00');
+    });
+
+    it('a counting configuration is saved and answered 202 when the queue cannot be reached', async () => {
+      const producer = h.container.resolve('crmValueRecalculationProducer') as { enqueue(): Promise<boolean> };
+      const enqueue = vi.spyOn(producer, 'enqueue').mockRejectedValue(new Error('redis is away'));
+
+      const saved = await setCrmCountingStatuses(h, { order: ['completed'], quoteRequest: [] });
+
+      expect(enqueue).toHaveBeenCalledTimes(1);
+      expect(saved.statusCode, saved.body).toBe(202);
+      const stored = (await h
+        .em()
+        .execute(`select "status_code" from "crm_value_counting_statuses" where "document_kind" = 'order'`)) as Array<{
+        status_code: string;
+      }>;
+      expect(stored.map((row) => row.status_code)).toEqual(['completed']);
+    });
+
+    it('a placed Order whose commit is awaited is left alone once crm is switched off meanwhile', async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS, true);
+      const autoCreate = h.container.resolve('crmOpportunityAutoCreateService') as {
+        onOrderCreated(orderId: string): Promise<string>;
+        idle(): Promise<void>;
+      };
+      try {
+        const order = await seedCrmOrder(h.em());
+        // Not readable until the module has been switched off: the look that
+        // was deferred while it was on is still waiting between two reads.
+        const port = h.container.resolve('orderReadPort') as OrderReadPort;
+        const original = port.findById.bind(port);
+        let committed = false;
+        vi.spyOn(port, 'findById').mockImplementation(async (id) =>
+          id === order.id && !committed ? null : original(id),
+        );
+        expect(
+          await enterSystemScope('test: an order placed just before crm goes off', () =>
+            autoCreate.onOrderCreated(order.id),
+          ),
+        ).toBe('deferred');
+
+        await withModuleOff('crm', 'deactivated', async () => {
+          committed = true;
+          await autoCreate.idle();
+        });
+
+        const linked = (await h
+          .em()
+          .execute(`select 1 from "crm_opportunity_links" where "document_id" = ?`, [order.id])) as unknown[];
+        expect(linked).toEqual([]);
+      } finally {
+        await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_ORDERS, false);
+      }
+    });
+  });
 });

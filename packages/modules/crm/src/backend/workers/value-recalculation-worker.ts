@@ -27,6 +27,10 @@ export type ValueRecalculationJobData = { opportunityId?: string };
 
 const SCOPE_REASON = 'crm: recalculate computed opportunity values';
 
+/** How often a job is run before BullMQ records it as failed, and how long it waits in between. */
+const JOB_ATTEMPTS = 3;
+const JOB_BACKOFF = { type: 'exponential', delay: 5_000 } as const;
+
 export interface ValueRecalculationProducer {
   /** Ask for one pass. Answers whether a job was enqueued. */
   enqueue(): Promise<boolean>;
@@ -49,8 +53,14 @@ export function createValueRecalculationProducer(redis: Redis | undefined): Valu
     (queue ??= new Queue<ValueRecalculationJobData>(VALUE_RECALCULATION_QUEUE, {
       connection,
       // A pass is worth nothing once it has run; a failed one is kept a
-      // while for whoever looks at the queue.
-      defaultJobOptions: { removeOnComplete: { count: 20 }, removeOnFail: { count: 100 } },
+      // while for whoever looks at the queue. A failure is tried again, later:
+      // nothing else is coming to do what the job was asked for.
+      defaultJobOptions: {
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 100 },
+        attempts: JOB_ATTEMPTS,
+        backoff: JOB_BACKOFF,
+      },
     }));
   return {
     async enqueue(): Promise<boolean> {
@@ -86,8 +96,9 @@ export interface ValueRecalculationDeps {
 
 /**
  * The body of one job: one pass. A failure fails the job — unlike a periodic
- * tick there is no next one coming, so BullMQ's record of the failure is the
- * only trace.
+ * tick there is no next one coming — and BullMQ runs it again after a pause,
+ * {@link JOB_ATTEMPTS} times in all; its record of the last failure is the
+ * only trace after that.
  */
 export function valueRecalculationJob(
   deps: ValueRecalculationDeps,

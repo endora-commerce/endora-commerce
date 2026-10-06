@@ -194,4 +194,18 @@ describe('crm value recalculation queue (real BullMQ)', () => {
     expect((await finishedJobs(3))[2]?.data.opportunityId).toBe(opportunity.id);
     expect(await storedComputedValue(opportunity.id)).toBe('31.00');
   }, 60_000);
+
+  it('a pass that fails is tried again, later: every job carries attempts and a backoff', async () => {
+    // No consumer: the jobs wait, and what they were enqueued with can be read.
+    await producer.enqueue();
+    const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+    await producer.enqueueOne(opportunity.id);
+
+    const waiting = await queue.getJobs(['waiting']);
+    expect(waiting).toHaveLength(2);
+    for (const job of waiting) {
+      expect(job.opts.attempts).toBe(3);
+      expect(job.opts.backoff).toEqual({ type: 'exponential', delay: 5_000 });
+    }
+  }, 60_000);
 });

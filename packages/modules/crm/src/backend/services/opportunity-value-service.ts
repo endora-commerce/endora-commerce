@@ -6,6 +6,7 @@ import type {
   OrderReadPort,
 } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
+import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import {
   calculateOpportunityValue,
   type OpportunityValueResult,
@@ -157,10 +158,25 @@ export class OpportunityValueService {
    * Recalculate every computed Opportunity the caller's scope reaches — the
    * body of the recalculation job, which runs it in a system scope. Answers how
    * many figures changed. Idempotent: a second pass changes nothing.
+   *
+   * **One Opportunity that cannot be recalculated does not cost the others
+   * theirs**: the pass goes on to the end and only then fails, naming how many
+   * it left and the first few of them — so the job that ran it is retried, and
+   * the retry has those few left to do. A module switched off is not such a
+   * failure: it ends the pass there and then.
    */
   async recalculateAll(): Promise<number> {
     let changed = 0;
     let after = '';
+    const failed: string[] = [];
+    let firstFailure = '';
+    const finish = (): number => {
+      if (failed.length === 0) return changed;
+      throw new Error(
+        `crm: ${failed.length} computed opportunity value(s) could not be recalculated ` +
+          `(${failed.slice(0, 5).join(', ')}${failed.length > 5 ? ', …' : ''}): ${firstFailure}`,
+      );
+    };
     for (;;) {
       const page = await this.deps.emFactory().find(
         CrmOpportunity,
@@ -168,10 +184,16 @@ export class OpportunityValueService {
         { orderBy: { id: 'asc' }, limit: RECALCULATE_ALL_PAGE, fields: ['id'] },
       );
       for (const opportunity of page) {
-        if (await this.recalculate(opportunity.id)) changed += 1;
+        try {
+          if (await this.recalculate(opportunity.id)) changed += 1;
+        } catch (error) {
+          rethrowIfModuleDisabled(error);
+          if (failed.length === 0) firstFailure = error instanceof Error ? error.message : String(error);
+          failed.push(opportunity.id);
+        }
       }
       const last = page[page.length - 1];
-      if (!last || page.length < RECALCULATE_ALL_PAGE) return changed;
+      if (!last || page.length < RECALCULATE_ALL_PAGE) return finish();
       after = last.id;
     }
   }

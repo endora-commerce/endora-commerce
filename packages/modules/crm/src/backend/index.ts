@@ -161,7 +161,16 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ commandBus, crmWorkflowReadService, crmValueRecalculationProducer }: CrmCradle & ValueCradle) =>
           new WorkflowConfigService(commandBus, crmWorkflowReadService, () =>
-            crmValueRecalculationProducer.enqueue(),
+            // After the configuration's commit: a queue that cannot be reached
+            // must not answer 500 for a set that was saved. It is logged, and
+            // the figures follow whatever next asks for them.
+            crmValueRecalculationProducer.enqueue().catch((error: unknown) => {
+              ctx.log.warn(
+                { error: error instanceof Error ? error.message : String(error) },
+                'crm: the recalculation of computed values could not be scheduled',
+              );
+              return false;
+            }),
           ),
       )
       .singleton(),
@@ -600,12 +609,12 @@ export function registerModule(ctx: ModuleContext): void {
             // A document whose commit is still in flight is read again off the
             // bus's dispatch chain — the bus awaits each subscriber before the
             // next, and the webhook bridge is one of them. The work gets a
-            // system scope of its own (the handler's ends when it returns),
-            // does nothing if the module was switched off meanwhile, and never
-            // rejects: there is nobody left to hear it, so a failure is logged.
+            // system scope of its own (the handler's ends when it returns) and
+            // never rejects: there is nobody left to hear it, so a failure is
+            // logged. Whether the module is still on is asked by the work
+            // itself, after every pause — `stillPresent`, below.
             defer: (work) =>
               enterSystemScope('crm: a placed document, read again after its commit', async () => {
-                if (!effectiveState.isPresent('crm')) return;
                 await work();
               }).catch((error: unknown) => {
                 ctx.log.warn(
@@ -613,6 +622,7 @@ export function registerModule(ctx: ModuleContext): void {
                   'crm: a placed document could not be handled after its commit',
                 );
               }),
+            stillPresent: () => effectiveState.isPresent('crm'),
           }),
       )
       .singleton(),
