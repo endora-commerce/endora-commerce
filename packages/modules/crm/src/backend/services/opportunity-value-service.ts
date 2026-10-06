@@ -27,6 +27,26 @@ export interface OpportunityValueServiceDeps {
   quoteRequests: CrmQuoteRequests;
   /** Whether the reader may read an Order, or a Quote Request, in the module that owns it. */
   mayRead: Pick<OwnerReadChecks, 'orders' | 'quoteRequests'>;
+  /**
+   * Ask for one Opportunity to be recalculated later, off the caller's path.
+   * Never rejects: a queue that cannot be reached is the asker's to log.
+   */
+  requestRecalculation: (opportunityId: string) => Promise<unknown>;
+}
+
+/**
+ * How many times one recalculation evaluates an Opportunity before it hands
+ * the matter to the queue. A figure that changes takes two — the write, and
+ * the look after it.
+ */
+const MAX_PASSES = 3;
+
+/** The set of documents an evaluation was made of, whatever order they were read in. */
+function linkSetKey(links: readonly CrmOpportunityLink[]): string {
+  return links
+    .map((link) => `${link.documentKind}:${link.documentId}`)
+    .sort()
+    .join(',');
 }
 
 /** How many Opportunities one pass of {@link OpportunityValueService.recalculateAll} reads at a time. */
@@ -66,30 +86,62 @@ export class OpportunityValueService {
    * Recalculate one Opportunity as the caller may see it. Answers `false`
    * when there was nothing to do: no such Opportunity, a manual one, or a
    * figure that is already right.
+   *
+   * **The documents are read before the Command, never inside it** (research
+   * N-S1). A port obtains an EntityManager of its own, so a transaction that
+   * waits for one holds a connection while it asks for a second — and as many
+   * recalculations at once as the pool has connections wait for each other
+   * until the pool gives up. The Command locks the Opportunity, reads this
+   * module's own tables and writes; it asks nobody.
+   *
+   * What the lock used to guarantee — that the figure left behind is the one
+   * read last — is held by two checks instead:
+   *
+   * - **the link set**, re-read under the lock: one that differs from the set
+   *   that was evaluated means the figure is of another set of documents, so
+   *   nothing is written and the Opportunity is evaluated again;
+   * - **a look after every write**: a figure is left only once an evaluation
+   *   that *began after it was committed* agrees with it. Of two
+   *   recalculations that overlap, whichever writes last looks again, and that
+   *   look is later than anything either of them read.
+   *
+   * Bounded: after {@link MAX_PASSES} passes that did not settle, the figure
+   * is left as it is and another recalculation is asked for off the request.
    */
   async recalculate(opportunityId: string): Promise<boolean> {
     if (!isUuid(opportunityId)) return false;
-    const visible = await this.deps.emFactory().findOne(CrmOpportunity, { id: opportunityId });
-    if (!visible || visible.valueMode !== 'computed') return false;
+    let changed = false;
+    for (let pass = 0; pass < MAX_PASSES; pass += 1) {
+      const em = this.deps.emFactory();
+      const visible = await em.findOne(CrmOpportunity, { id: opportunityId });
+      if (!visible || visible.valueMode !== 'computed') return changed;
+      const evaluated = await this.#evaluate(em, visible);
 
-    return this.deps.commandBus.run({
-      action: 'crm.opportunity.value_recalculate',
-      objectType: 'crm_opportunity',
-      objectId: visible.id,
-      run: async ({ em }) => {
-        // Locked for the whole evaluation, so two recalculations of one
-        // Opportunity run one after the other and the later one — which read
-        // the documents later — is the one that stays.
-        const opportunity = await loadOpportunity(em, visible.id, { lockMode: LockMode.PESSIMISTIC_WRITE });
-        if (opportunity.valueMode !== 'computed') return { result: false, skipAudit: true };
-        const { value } = await this.#evaluate(em, opportunity);
-        if (opportunity.computedValue === value) return { result: false, skipAudit: true };
-        opportunity.computedValue = value;
-        // Derived data: no audit entry, and no version bump — an edit form
-        // open on the Opportunity is not invalidated by arithmetic.
-        return { result: true, skipAudit: true };
-      },
-    });
+      const outcome = await this.deps.commandBus.run<'settled' | 'stale' | 'written'>({
+        action: 'crm.opportunity.value_recalculate',
+        objectType: 'crm_opportunity',
+        objectId: visible.id,
+        run: async ({ em: tx }) => {
+          // Locked, so two recalculations of one Opportunity write one after
+          // the other, and each compares against what the other left.
+          const opportunity = await loadOpportunity(tx, visible.id, { lockMode: LockMode.PESSIMISTIC_WRITE });
+          if (opportunity.valueMode !== 'computed') return { result: 'settled', skipAudit: true };
+          const links = await tx.find(CrmOpportunityLink, { opportunityId: opportunity.id });
+          if (linkSetKey(links) !== evaluated.linkSet) return { result: 'stale', skipAudit: true };
+          if (opportunity.computedValue === evaluated.value) return { result: 'settled', skipAudit: true };
+          opportunity.computedValue = evaluated.value;
+          // Derived data: no audit entry, and no version bump — an edit form
+          // open on the Opportunity is not invalidated by arithmetic.
+          return { result: 'written', skipAudit: true };
+        },
+      });
+      if (outcome === 'settled') return changed;
+      if (outcome === 'written') changed = true;
+    }
+    // Still moving after every pass. The figure stays as the last pass left
+    // it, and the queue is asked to look again.
+    await this.deps.requestRecalculation(opportunityId);
+    return changed;
   }
 
   /** Recalculate the Opportunity a document is linked to, if it is linked to one. */
@@ -151,7 +203,10 @@ export class OpportunityValueService {
    * **`opportunity` was loaded through a tenant-scoped EntityManager by the
    * caller** — the links carry no tenant column of their own.
    */
-  async #evaluate(em: EntityManager, opportunity: CrmOpportunity): Promise<OpportunityValueResult> {
+  async #evaluate(
+    em: EntityManager,
+    opportunity: CrmOpportunity,
+  ): Promise<OpportunityValueResult & { linkSet: string }> {
     const [links, counting] = await Promise.all([
       em.find(CrmOpportunityLink, { opportunityId: opportunity.id }, { orderBy: { createdAt: 'asc', id: 'asc' } }),
       em.find(CrmValueCountingStatus, {}),
@@ -180,7 +235,7 @@ export class OpportunityValueService {
       }
     }
 
-    return calculateOpportunityValue({
+    const result = calculateOpportunityValue({
       currency: opportunity.currency,
       countingStatuses: {
         order: counting.filter((row) => row.documentKind === 'order').map((row) => row.statusCode),
@@ -205,5 +260,6 @@ export class OpportunityValueService {
       }),
       quoteRequests,
     });
+    return { ...result, linkSet: linkSetKey(links) };
   }
 }

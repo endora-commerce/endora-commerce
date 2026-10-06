@@ -478,13 +478,29 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
     crmOpportunityValueService: ctx
       .asFunction(
-        ({ emFactory, commandBus, crmQuoteRequests, crmOwnerReadChecks }: CrmCradle & ValueCradle) =>
+        ({
+          emFactory,
+          commandBus,
+          crmQuoteRequests,
+          crmOwnerReadChecks,
+          crmValueRecalculationProducer,
+        }: CrmCradle & ValueCradle) =>
           new OpportunityValueService({
             emFactory,
             commandBus,
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             quoteRequests: crmQuoteRequests,
             mayRead: crmOwnerReadChecks,
+            // A queue that cannot be reached is logged and no more: the figure
+            // is derived, and whatever changes it next asks again.
+            requestRecalculation: (opportunityId) =>
+              crmValueRecalculationProducer.enqueueOne(opportunityId).catch((error: unknown) => {
+                ctx.log.warn(
+                  { opportunityId, error: error instanceof Error ? error.message : String(error) },
+                  'crm: a value recalculation could not be scheduled',
+                );
+                return false;
+              }),
           }),
       )
       .singleton(),
@@ -536,6 +552,7 @@ export function registerModule(ctx: ModuleContext): void {
       processRunsWorkers: cradle.processRunsWorkers,
       moduleQueueRedis: cradle.moduleQueueRedis,
       recalculateAll: () => cradle.crmOpportunityValueService.recalculateAll(),
+      recalculateOne: (opportunityId) => cradle.crmOpportunityValueService.recalculate(opportunityId),
       log: ctx.log,
       attach: (worker) => ctx.worker(worker, { logger: app.log }),
     });
