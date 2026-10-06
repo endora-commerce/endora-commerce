@@ -52,7 +52,7 @@ when at least one of them is visible.
 | Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
 | Analytics | **CRM → Analytics** (`/crm/analytics`) | `crm:analytics` | Five figures over a range of days: handling time, time in each status, the most effective sales reps, the most valuable opportunities and the average value. |
 | Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
-| Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, and the opportunity status each order status leads to. |
+| Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, the opportunity status each order status leads to, and the statuses that count towards a computed value. |
 
 The everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
 **Sales opportunities**, **New sales opportunity**, **Opportunity board** and
@@ -121,8 +121,10 @@ its transitions and its mappings with it.
 | `DELETE /api/v1/admin/crm/statuses/:code` | `crm:configure` | Delete a status no opportunity is in. |
 | `PUT /api/v1/admin/crm/transitions` | `crm:configure` | Add and remove transitions. |
 | `PUT /api/v1/admin/crm/order-status-mappings` | `crm:configure` | Replace the set of order-status mappings. |
+| `PUT /api/v1/admin/crm/value-counting-statuses` | `crm:configure` | Replace the statuses that count towards a computed value (see *Which statuses count*). |
 
-Every one of these writes answers the whole workflow as it stands afterwards.
+Every one of these writes answers the whole workflow as it stands afterwards,
+except the last, which answers `202` (see *Which statuses count*).
 
 ## Working an opportunity
 
@@ -196,9 +198,15 @@ card is marked, and a notice above the board names each order with the reason
 and links to the opportunity, where the change can be retried or dismissed.
 
 The search box and the organization, assignee, tags, sales channel and
-creation-date filters are the list's, and narrow every column, its count and its totals alike. A
-column that holds more opportunities than are shown says how many, with **Show
-more**.
+creation-date filters are the list's, and narrow every column, its count and
+its totals alike. A column that holds more opportunities than are shown says
+how many, with **Show more**.
+
+The board is never taller than the window: a column with many cards scrolls on
+its own, under a header that stays in place, so the other columns stay in
+reach. A workflow with more statuses than fit side by side scrolls sideways —
+with the scroll bar under the board, by swiping, or with the arrow keys once
+the board itself has the focus.
 
 An administrator who may read but not write sees the board without the grips
 and the menus.
@@ -357,6 +365,10 @@ A sales representative who has been deactivated is passed over. A request that
 names an assignee, or says explicitly that there is none, is taken at its word
 and the rule does not apply.
 
+Sales representatives are assigned to an organization on the organization's own
+screen, on its sales representatives tab — that list belongs to the
+Organizations module, and the rule above only reads it.
+
 **The assignee does not decide who can see an opportunity.** A sales
 representative restricted to certain organizations sees every opportunity of
 those organizations, whoever holds it — and does not see an opportunity of
@@ -394,7 +406,8 @@ somebody who can no longer reach the opportunity's organization. The same
 holds for an opportunity created automatically. Nobody is told about taking an
 opportunity themselves. The bell belongs to the **Admin notifications** module:
 while that module is switched off, assigning works exactly as before and nobody
-is notified.
+is notified. **The entries on the bell are in English** whatever language the
+reader uses: the platform's notifications have no translatable titles yet.
 
 Every assignment is in the opportunity's change history, and other modules can
 react to it: `crm.opportunity.assigned.v1` carries the new and the previous
@@ -465,7 +478,10 @@ the opportunity's assignee and everybody who has already written in that
 conversation, except the person who sent it, on the notification bell of the
 Admin UI with a link to the opportunity. The entry names the opportunity by
 its number and carries nothing of the message, and is not written for somebody
-who can no longer reach the opportunity's organization. While the **Admin
+who can no longer reach the opportunity's organization. **Nobody else is
+told**: the first message on an opportunity that has no assignee notifies
+nobody, so assign the opportunity before starting a conversation on it. The
+entry is in English, like every entry on the bell. While the **Admin
 notifications** module is switched off, a message is stored all the same and
 nobody is told.
 
@@ -584,7 +600,7 @@ organizations gets figures over those organizations only.
 | --- | --- | --- |
 | Average handling time | The time from creating an opportunity to closing it, averaged. Given for every closed opportunity together, and for won and lost apart. | Those closed in the range. An opportunity that was reopened is not counted until it is closed again. |
 | Average time in status | How long an opportunity stays in a status: from the change that put it there to its next change, averaged over every time the status was entered. An opportunity that is still in the status is counted up to now. Choose the statuses to show, or see them all. | Every entry into the status that happened in the range. |
-| Most effective sales reps | How many opportunities each sales rep closed as won, and what they were worth — for the whole range, and month by month. The sales rep is the person the opportunity is assigned to. | Those closed as won in the range and assigned to somebody. |
+| Most effective sales reps | How many opportunities each sales rep closed as won, and what they were worth — for the whole range, and month by month (calendar months, in UTC). The sales rep is the person the opportunity is assigned to **now**: an opportunity reassigned after it was won counts for its current assignee. | Those closed as won in the range and assigned to somebody. |
 | Most valuable opportunities | The ten opportunities with the highest value, each a link to the opportunity. Choose whether the range goes by the creation date or by the closing date. | Those created — or closed — in the range that have a value. |
 | Average opportunity value | The mean value of an opportunity. | Those created in the range that have a value. |
 
@@ -595,7 +611,8 @@ and each sales rep's won value for each currency.
 
 The **value** of an opportunity is the one shown on it: the amount entered by
 hand, or — when the opportunity is set to be computed — the amount computed
-from its linked documents.
+from its linked documents. "Most valuable" means the highest value and nothing
+else: the module knows no cost and no margin, so no figure here is a profit.
 
 **Days and months are counted in UTC**, and a range includes both of its dates
 in full.
@@ -638,9 +655,14 @@ needs `crm:write` only.
 The "follow the opportunity's status" switch means nothing for one: a quote
 request keeps its own status.
 
-When an order is placed from a linked quote request, the order is linked to
-the same opportunity by itself (`linkSource: "quote_conversion"`). This relies
-on the order recording which quote request it came from.
+**Not effective yet: an order placed from a linked quote request.** The module
+is built to link such an order to the same opportunity by itself (`linkSource:
+"quote_conversion"`), but it can only do so when the order records which quote
+request it came from — and today nothing in the platform records that. Until
+the Orders and cart modules do, an order placed from a linked quote request is
+an order like any other: it is **not** linked by itself, and with
+`crm.auto_create_from_orders` on it gets an opportunity of its own. Link it by
+hand.
 
 ### The value of an opportunity
 
@@ -663,9 +685,14 @@ A computed value is the sum of:
 The two are not on the same basis, and neither is converted: each document
 counts at the figure its own screen shows.
 
-**Counted once.** An order placed from a linked quote request and that quote
-request are one piece of business. While the order counts, the quote request is
-left out.
+**Counted once — once orders record their quote request.** An order placed
+from a linked quote request and that quote request are one piece of business,
+and while the order counts, the quote request is left out. This applies only to
+an order that records the quote request it came from, which no order does today
+(see *Linking quote requests*): until then, an order and the quote request it
+was placed from, both linked by hand and both in a counting status, are **both
+added**. Leave one of them out of the counting statuses, or unlink the quote
+request, to avoid counting the deal twice.
 
 **One currency.** An opportunity has one currency and nothing is converted. A
 document in another currency that would otherwise count is left out, and the
@@ -677,6 +704,9 @@ as well.
 The value follows the documents: it is recalculated when a document is linked
 or unlinked, when a linked order changes status, when a linked quote request is
 modified, approved, canceled or expires, and when the mode becomes computed.
+It follows an order's **status**, not its amount: an order whose total is
+changed without a status change, and a quote request that becomes `Completed`,
+are picked up at the next recalculation.
 A recalculation is not an entry in the opportunity's history.
 
 ### Which statuses count
@@ -719,7 +749,8 @@ On an opportunity's **Overview**:
   net value, next to *Linked orders*. A holder of `crm:write` searches the
   organization's quote requests by number and links one, or unlinks one. The
   search offers the open quote requests; a closed one is found by typing its
-  full number. Linking does not need the permission to handle quotes.
+  full number. Linking needs `rfqs:handle` as well; without it the section
+  says so instead of offering the search.
 - **Value** shows the figure and whether it is *entered by hand* or a *computed
   value*, and one button switches between the two. For a computed value it
   lists every document that was **left out**, with the reason, and reminds you
@@ -739,7 +770,9 @@ unavailable and says why, and the workflow screen offers order statuses only.
 ## Opportunities created automatically
 
 Two settings make the CRM open an opportunity by itself. Both are **off** by
-default.
+default, and both are switched on the platform's **Settings** screen, in the
+*CRM* group. Their names there are in English only: the platform's settings
+have no translatable labels yet.
 
 | Setting | When it is on |
 | --- | --- |
@@ -762,9 +795,10 @@ An opportunity created this way:
 What is **not** created:
 
 - nothing for a document that is already linked to an opportunity;
-- nothing for an order placed from a quote request that is linked to an
-  opportunity — the order joins that opportunity instead, whatever the settings
-  say;
+- nothing for an order that records a quote request linked to an opportunity —
+  the order joins that opportunity instead, whatever the settings say. No order
+  records its quote request today, so this is not effective yet (see *Linking
+  quote requests*);
 - nothing for documents that existed before the setting was switched on;
 - nothing while the CRM module is switched off, and nothing afterwards for the
   documents placed in the meantime;
@@ -1153,6 +1187,8 @@ spell the pattern. A subscriber cannot stop the move, and one that fails does
 not undo it.
 
 ```ts
+import { opportunityStatusEventName } from '@endora-commerce/contracts';
+
 ctx.subscribe(opportunityStatusEventName('toAfter', { to: 'won' }), async (event) => {
   await notifyFinance(event.opportunityId);
 });
@@ -1164,6 +1200,12 @@ from a status, to a status, or both — and refuses by throwing
 representative reads; nothing is written when a guard refuses.
 
 ```ts
+import {
+  OpportunityTransitionVetoError,
+  type OpportunityTransitionGuardRegistryPort,
+} from '@endora-commerce/contracts';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+
 ctx.onBoot(() => {
   lazyPort<OpportunityTransitionGuardRegistryPort>(ctx, 'opportunityTransitionGuardRegistry').register({
     ownerModuleId: 'acme_rules',
@@ -1179,6 +1221,19 @@ The module that registers a guard declares it in its manifest:
 `nonBindingDependencies: [{ moduleId: 'crm', name: 'opportunityTransitionGuardRegistry', kind: 'contributes-to' }]`.
 A guard belonging to a module that is switched off is skipped — a module that is
 off does not refuse anything.
+
+**A guard runs whatever causes the move** — a person, another module through
+the port, or a linked order through a mapping. When an order caused it, nobody
+is there to read the refusal: the opportunity stays where it is and the skipped
+change is recorded on it with the guard's sentence (see *An order that moves
+its opportunity*).
+
+Two more events are published for other modules, neither tied to a status:
+`crm.opportunity.assigned.v1` (the new and the previous assignee) and
+`crm.opportunity.document_linked.v1`, emitted whenever an order or a quote
+request is linked — by hand, automatically, or because it was created from the
+opportunity — with `opportunityId`, `organizationId`, `documentKind`,
+`documentId` and `linkSource`. Neither is offered as a webhook.
 
 ## Reading and moving an opportunity from another module
 
@@ -1253,7 +1308,7 @@ when the module is switched on again.
 
 | Code | What it allows |
 | --- | --- |
-| `crm:read` | View sales opportunities, the board, the status workflow and the tag list; read an opportunity's change history, its notes and messages, and download its attachments. |
+| `crm:read` | View sales opportunities, the board, the status workflow and the tag list; read an opportunity's change history, its notes and messages, and download its attachments. Best granted together with `orders:read` and `custom_fields:read` (see below). |
 | `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders and quote requests, choose whether the value is typed in or computed, retry or dismiss a refused order change, write notes and messages, upload, add and remove attachments. |
 | `crm:configure` | Change the workflow — statuses, transitions and order-status mappings in both directions, and which statuses count towards a computed value — manage the tag list, and delete an opportunity. |
 | `crm:analytics` | Open the Analytics screen and read its five figures. |
@@ -1275,8 +1330,8 @@ mentioned product. A document a computed value leaves out is named under the
 same rule. The value itself is the opportunity's own figure and is shown to
 everybody who may read the opportunity.
 
-**Nothing else is needed to fill in a form.** The fields that choose an organization, a sales
-channel, an assignee or a contact person — in the filters of the list and the
+**Nothing else is needed to fill in a form.** The fields that choose an
+organization, a sales channel, an assignee or a contact person — in the filters of the list and the
 board, and on the forms — read CRM's own lookups, so a sales representative
 does not need permission to browse customers, sales channels or administrators
 to work an opportunity. What a lookup offers is narrowed to the organizations
@@ -1298,11 +1353,27 @@ No role receives a CRM permission automatically. Grant them on the
 
 ## Settings
 
+On the platform's **Settings** screen, in the *CRM* group. The names shown
+there are in English only.
+
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `crm.enabled` | on | The switch described above. |
 | `crm.auto_create_from_orders` | off | Every order placed from then on gets an opportunity of its own. The setting can differ per sales channel; the order's channel decides. |
 | `crm.auto_create_from_quote_requests` | off | Every quote request created from then on — submitted by a customer or prepared by an administrator — gets an opportunity of its own. Needs the Quote Requests module to be on. |
+
+## What the module does not do
+
+Things an operator may look for and will not find in this release:
+
+- **Import and export** of opportunities — there is neither a file import nor
+  an export.
+- **E-mail.** The module sends none: notifications go to the bell in the Admin
+  UI only, and a message is internal to the people working the opportunity.
+- **Global search.** Opportunities are found on their own list and board, not
+  through the Admin UI's search.
+- **Profit.** Every figure is a value; there is no cost or margin.
+- **Demo data** — see below.
 
 ## Demo data
 

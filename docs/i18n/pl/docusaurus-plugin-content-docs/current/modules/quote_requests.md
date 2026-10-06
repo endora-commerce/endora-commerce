@@ -184,4 +184,4 @@ Moduł dodaje panel, deklarując `zoneComponent('quote_request.detail.after', �
 wkładach do panelu administracyjnego; ten moduł nie wymienia żadnego z nich i żadnego nie
 importuje. Gdy nikt nic nie wnosi — nie ma takiego modułu, moduł jest wyłączony albo osoba nie ma
 uprawnienia wymaganego przez panel — strefa nie renderuje niczego, a ekran jest dokładnie taki jak
-bez niej. Moduł CRM wnosi szansę, z którą Zapytanie ofertowe jest powiązane.
+bez niej. Moduł CRM wnosi szansę, z którą zapytanie ofertowe jest powiązane.

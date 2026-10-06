@@ -51,7 +51,7 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
 | Analityka | **CRM → Analityka** (`/crm/analytics`) | `crm:analytics` | Pięć wskaźników dla wybranego zakresu dni: czas obsługi, czas w każdym statusie, najskuteczniejsi handlowcy, najcenniejsze szanse i średnia wartość. |
 | Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
-| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy oraz status szansy, do którego prowadzi każdy status zamówienia. |
+| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy, status szansy, do którego prowadzi każdy status zamówienia, oraz statusy liczone do wartości wyliczanej. |
 
 Codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
 **Szanse sprzedażowe**, **Nowa szansa sprzedażowa**, **Tablica szans
@@ -116,14 +116,16 @@ usunąć ten. Usunięcie statusu usuwa razem z nim jego przejścia i mapowania.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
-| `GET /api/v1/admin/crm/workflow` | `crm:read` | Skonfigurowane statusy wraz z liczbą szans w każdym z nich, przejścia między nimi, mapowania statusów zamówień oraz statusy wliczane do wartości obliczanej. |
+| `GET /api/v1/admin/crm/workflow` | `crm:read` | Skonfigurowane statusy wraz z liczbą szans w każdym z nich, przejścia między nimi, mapowania statusów zamówień oraz statusy liczone do wartości wyliczanej. |
 | `POST /api/v1/admin/crm/statuses` | `crm:configure` | Dodanie statusu. |
 | `PATCH /api/v1/admin/crm/statuses/:code` | `crm:configure` | Zmiana nazwy lub koloru statusu, zmiana jego rodzaju albo oznaczenie go jako początkowego. |
 | `DELETE /api/v1/admin/crm/statuses/:code` | `crm:configure` | Usunięcie statusu, w którym nie ma żadnej szansy. |
 | `PUT /api/v1/admin/crm/transitions` | `crm:configure` | Dodawanie i usuwanie przejść. |
 | `PUT /api/v1/admin/crm/order-status-mappings` | `crm:configure` | Zastąpienie zbioru mapowań statusów zamówień. |
+| `PUT /api/v1/admin/crm/value-counting-statuses` | `crm:configure` | Zastąpienie statusów liczonych do wartości wyliczanej (zob. *Które statusy się liczą*). |
 
-Każdy z tych zapisów zwraca cały przepływ w stanie po zmianie.
+Każdy z tych zapisów zwraca cały przepływ w stanie po zmianie — poza ostatnim,
+który odpowiada `202` (zob. *Które statusy się liczą*).
 
 ## Praca z szansą
 
@@ -202,9 +204,15 @@ tablicą wymienia każde takie zamówienie z przyczyną i prowadzi do szansy, gd
 zmianę można ponowić albo pominąć.
 
 Pole wyszukiwania oraz filtry organizacji, handlowca, etykiet, kanału sprzedaży
-i daty utworzenia są takie same jak na liście i zawężają każdą kolumnę — jej karty, liczbę i
-sumy. Kolumna, która zawiera więcej szans, niż pokazuje, podaje ich liczbę i
-ma przycisk **Pokaż więcej**.
+i daty utworzenia są takie same jak na liście i zawężają każdą kolumnę — jej
+karty, liczbę i sumy. Kolumna, która zawiera więcej szans, niż pokazuje, podaje
+ich liczbę i ma przycisk **Pokaż więcej**.
+
+Tablica nigdy nie jest wyższa niż okno: kolumna z wieloma kartami przewija się
+osobno, pod nagłówkiem, który zostaje na miejscu, więc pozostałe kolumny są
+cały czas pod ręką. Przepływ, który ma więcej statusów, niż mieści się obok
+siebie, przewija się w poziomie — paskiem przewijania pod tablicą, gestem
+przesunięcia albo strzałkami, gdy fokus jest na samej tablicy.
 
 Administrator, który może tylko przeglądać, widzi tablicę bez uchwytów i bez
 menu.
@@ -215,7 +223,7 @@ menu.
 
 Tablica nie ma własnej operacji zapisu: przeniesienie karty to
 `POST /api/v1/admin/crm/opportunities/:id/transition`. Kolejne karty kolumny
-pochodzą z endpointu listy, zawężonego do tego statusu.
+pochodzą z punktu końcowego listy, zawężonego do tego statusu.
 
 ## Wiązanie zamówień
 
@@ -358,15 +366,19 @@ nią pracuje. Przypisany może zostać każdy aktywny administrator, który ma
 dostęp do organizacji szansy.
 
 Gdy szansa jest tworzona bez wskazania, kto ją prowadzi, osoba przypisana jest
-wybierana spośród Handlowców przypisanych do organizacji tej szansy:
+wybierana spośród handlowców przypisanych do organizacji tej szansy:
 
 1. osoba tworząca szansę, jeśli jest jednym z nich;
-2. w przeciwnym razie Handlowiec przypisany do organizacji najdłużej;
+2. w przeciwnym razie handlowiec przypisany do organizacji najdłużej;
 3. w przeciwnym razie nikt — szansa powstaje jako nieprzypisana.
 
 Handlowiec, którego konto zostało dezaktywowane, jest pomijany. Żądanie, które
 wskazuje osobę przypisaną albo wprost mówi, że jej nie ma, jest wykonywane
 dosłownie i reguła nie ma zastosowania.
+
+Handlowców przypisuje się do organizacji na ekranie samej organizacji, na
+karcie handlowców — ta lista należy do modułu Organizacje, a opisana wyżej
+reguła tylko ją odczytuje.
 
 **Przypisanie nie decyduje o tym, kto widzi szansę.** Handlowiec ograniczony do
 wybranych organizacji widzi każdą szansę tych organizacji, niezależnie od tego,
@@ -404,9 +416,11 @@ Osoba dowiaduje się, że szansa została jej przypisana — z dzwonka powiadomi
 w Admin UI, z odnośnikiem do szansy. Wpis nazywa szansę jej numerem, nigdy
 tytułem, i nie powstaje dla osoby, która nie ma już dostępu do organizacji
 szansy. To samo dotyczy szansy utworzonej automatycznie. Nikt nie jest
-powiadamiany o tym, że sam wziął szansę. Dzwonek należy do modułu **Powiadomienia administratora**: gdy
-ten moduł jest wyłączony, przypisywanie działa dokładnie tak samo, a nikt nie
-dostaje powiadomienia.
+powiadamiany o tym, że sam wziął szansę. Dzwonek należy do modułu
+**Powiadomienia administratora**: gdy ten moduł jest wyłączony, przypisywanie
+działa dokładnie tak samo, a nikt nie dostaje powiadomienia. **Wpisy na dzwonku
+są po angielsku** bez względu na język czytającego: powiadomienia platformy nie
+mają jeszcze tłumaczonych tytułów.
 
 Każde przypisanie trafia do historii zmian szansy, a inne moduły mogą na nie
 reagować: `crm.opportunity.assigned.v1` niesie nową i poprzednią osobę
@@ -479,12 +493,15 @@ dowiadują się osoba przypisana do szansy i wszyscy, którzy już napisali w te
 rozmowie — poza nadawcą — z dzwonka powiadomień w Admin UI, z odnośnikiem do
 szansy. Wpis nazywa szansę jej numerem i nie zawiera niczego z treści
 wiadomości, a nie powstaje dla osoby, która nie ma już dostępu do organizacji
-szansy. Gdy moduł **Powiadomienia administratora** jest wyłączony, wiadomość
-jest zapisywana tak samo, a nikt nie dostaje powiadomienia.
+szansy. **Nikt inny nie jest powiadamiany**: pierwsza wiadomość w szansie,
+która nie ma przypisanej osoby, nie powiadamia nikogo — przed rozpoczęciem
+rozmowy warto więc szansę komuś przypisać. Wpis jest po angielsku, jak każdy
+wpis na dzwonku. Gdy moduł **Powiadomienia administratora** jest wyłączony,
+wiadomość jest zapisywana tak samo, a nikt nie dostaje powiadomienia.
 
-**Jedno i drugie jest wewnętrzne.** Ani Notatka, ani Wiadomość nie ma
+**Jedno i drugie jest wewnętrzne.** Ani notatka, ani wiadomość nie ma
 ustawienia, które pokazałoby ją klientowi, i nic, co klient może otworzyć —
-Zamówienie, zapytanie ofertowe, jego konto — ich nie zawiera.
+zamówienie, zapytanie ofertowe, jego konto — ich nie zawiera.
 
 W Admin UI szansa ma kartę **Notatki** i kartę **Wiadomości**. Każda pokazuje
 wpisy od najstarszego, z autorem i datą, a posiadaczowi uprawnienia `crm:write`
@@ -605,7 +622,7 @@ dostęp tylko do wybranych organizacji, dostaje wskaźniki wyłącznie dla nich.
 | --- | --- | --- |
 | Średni czas obsługi szansy | Średni czas od utworzenia szansy do jej zamknięcia. Podawany łącznie dla wszystkich zamkniętych szans oraz osobno dla wygranych i przegranych. | Zamknięte w wybranym zakresie. Szansa otwarta ponownie nie jest liczona, dopóki nie zostanie znów zamknięta. |
 | Średni czas w statusie | Jak długo szansa pozostaje w statusie: od zmiany, która ją do niego wprowadziła, do jej następnej zmiany — średnio dla każdego wejścia w ten status. Szansa, która nadal jest w statusie, jest liczona do chwili obecnej. Można wybrać pokazywane statusy albo zobaczyć wszystkie. | Każde wejście w status, które nastąpiło w wybranym zakresie. |
-| Najskuteczniejsi handlowcy | Ile szans każdy handlowiec zamknął jako wygrane i ile były warte — za cały zakres oraz miesiąc po miesiącu. Handlowiec to osoba, do której szansa jest przypisana. | Zamknięte jako wygrane w wybranym zakresie i przypisane do kogoś. |
+| Najskuteczniejsi handlowcy | Ile szans każdy handlowiec zamknął jako wygrane i ile były warte — za cały zakres oraz miesiąc po miesiącu (miesiące kalendarzowe, w czasie UTC). Handlowiec to osoba, do której szansa jest przypisana **teraz**: szansa przypisana komuś innemu już po wygranej liczy się obecnej osobie. | Zamknięte jako wygrane w wybranym zakresie i przypisane do kogoś. |
 | Najcenniejsze szanse | Dziesięć szans o najwyższej wartości, każda z odnośnikiem do szansy. Można wybrać, czy zakres dotyczy daty utworzenia, czy daty zamknięcia. | Utworzone — albo zamknięte — w wybranym zakresie i mające wartość. |
 | Średnia wartość szansy | Średnia wartość szansy sprzedażowej. | Utworzone w wybranym zakresie i mające wartość. |
 
@@ -615,8 +632,9 @@ każdej waluty: średnia dla każdej waluty, lista najcenniejszych szans dla
 każdej waluty oraz wartość wygranych szans handlowca dla każdej waluty.
 
 **Wartość** szansy to ta, która jest na niej pokazana: kwota wpisana ręcznie
-albo — gdy szansa ma wartość obliczaną — kwota obliczona z powiązanych z nią
-dokumentów.
+albo — gdy szansa ma wartość wyliczaną — kwota wyliczona z powiązanych z nią
+dokumentów. „Najcenniejsze” oznacza najwyższą wartość i nic więcej: moduł nie
+zna kosztów ani marży, więc żaden wskaźnik nie jest tu zyskiem.
 
 **Dni i miesiące są liczone w czasie UTC**, a zakres obejmuje obie swoje daty
 w całości.
@@ -650,19 +668,25 @@ samym punktem końcowym, z `"documentKind": "quote_request"`. Musi należeć do
 organizacji szansy i należy do co najwyżej jednej szansy. Szansa może mieć
 kilka zapytań ofertowych i kilka zamówień.
 
-Powiązane Zapytanie ofertowe jest na liście z numerem, statusem i wartością.
+Powiązane zapytanie ofertowe jest na liście z numerem, statusem i wartością.
 **Zapytanie ofertowe pokazuje moduł Zapytania ofertowe**: powiązanie zapytania
 i lista zapytań do powiązania wymagają `rfqs:handle` — uprawnienia, z którym
 ten moduł odczytuje zapytanie — oprócz `crm:write`; bez niego odpowiedzią jest
-`403`. Osoba, która czyta szansę bez `rfqs:handle`, widzi, że Zapytanie
+`403`. Osoba, która czyta szansę bez `rfqs:handle`, widzi, że zapytanie
 ofertowe jest powiązane, i nic poza tym; jest ono na liście jako niedostępne.
 Usunięcie powiązania wymaga tylko `crm:write`.
-Przełącznik „podążaj za statusem szansy” nic dla niego nie znaczy: Zapytanie
+Przełącznik „podążaj za statusem szansy” nic dla niego nie znaczy: zapytanie
 ofertowe zachowuje własny status.
 
-Gdy z powiązanego zapytania ofertowego zostaje złożone zamówienie, zamówienie
-samo wiąże się z tą samą szansą (`linkSource: "quote_conversion"`). Działa to
-wtedy, gdy zamówienie zapisuje, z którego zapytania ofertowego powstało.
+**Jeszcze nie działa: zamówienie złożone z powiązanego zapytania
+ofertowego.** Moduł jest przygotowany na to, by takie zamówienie samo wiązało
+się z tą samą szansą (`linkSource: "quote_conversion"`), ale może to zrobić
+tylko wtedy, gdy zamówienie zapisuje, z którego zapytania ofertowego powstało —
+a dziś nic w platformie tego nie zapisuje. Dopóki nie zaczną tego robić moduły
+zamówień i koszyka, zamówienie złożone z powiązanego zapytania ofertowego jest
+zamówieniem jak każde inne: **nie** wiąże się samo, a przy włączonym
+`crm.auto_create_from_orders` dostaje własną szansę. Trzeba je powiązać
+ręcznie.
 
 ### Wartość szansy
 
@@ -685,9 +709,15 @@ Wartość wyliczana to suma:
 Te dwie kwoty nie mają tej samej podstawy i żadna nie jest przeliczana: każdy
 dokument liczy się w kwocie, którą pokazuje jego własny ekran.
 
-**Liczone raz.** Zamówienie złożone z powiązanego zapytania ofertowego i to
-zapytanie to jedna transakcja. Dopóki liczy się zamówienie, Zapytanie ofertowe
-jest pomijane.
+**Liczone raz — gdy zamówienia zaczną zapisywać swoje zapytanie ofertowe.**
+Zamówienie złożone z powiązanego zapytania ofertowego i to zapytanie to jedna
+transakcja, więc dopóki liczy się zamówienie, zapytanie ofertowe jest pomijane.
+Dotyczy to tylko zamówienia, które zapisuje, z którego zapytania powstało, a
+dziś nie robi tego żadne (zob. *Wiązanie zapytań ofertowych*): do tego czasu
+zamówienie i zapytanie ofertowe, z którego je złożono — oba powiązane ręcznie i
+oba w liczonym statusie — są **sumowane oba**. Aby nie policzyć transakcji
+dwukrotnie, wyłącz jeden z ich statusów z liczonych albo odłącz zapytanie
+ofertowe.
 
 **Jedna waluta.** Szansa ma jedną walutę i nic nie jest przeliczane. Dokument w
 innej walucie, który w przeciwnym razie by się liczył, jest pomijany, a szansa
@@ -697,9 +727,12 @@ kilku walutach liczy pozycje w walucie szansy i również jest wskazywane.
 
 Wartość podąża za dokumentami: jest przeliczana, gdy dokument zostaje powiązany
 albo odwiązany, gdy powiązane zamówienie zmienia status, gdy powiązane
-Zapytanie ofertowe zostaje zmienione, zatwierdzone, anulowane albo wygasa, oraz
-gdy tryb zmienia się na wyliczany. Przeliczenie nie jest wpisem w historii
-szansy.
+zapytanie ofertowe zostaje zmienione, zatwierdzone, anulowane albo wygasa, oraz
+gdy tryb zmienia się na wyliczany. Wartość podąża za **statusem** zamówienia,
+nie za jego kwotą: zamówienie, którego suma zmieniła się bez zmiany statusu,
+oraz zapytanie ofertowe, które przechodzi w status `Completed`, zostaną
+uwzględnione przy najbliższym przeliczeniu. Przeliczenie nie jest wpisem w
+historii szansy.
 
 ### Które statusy się liczą
 
@@ -726,7 +759,7 @@ konfiguracji.
 CRM nie wymaga modułu Zapytań ofertowych. Gdy jest on wyłączony:
 
 - szanse, ich zamówienia i wszystko inne działają dalej;
-- powiązane Zapytanie ofertowe nadal jest na liście, jako **niedostępne** — bez
+- powiązane zapytanie ofertowe nadal jest na liście, jako **niedostępne** — bez
   numeru, statusu i wartości;
 - nie dodaje niczego do wartości wyliczanej;
 - próba powiązania zapytania ofertowego kończy się odpowiedzią
@@ -743,8 +776,9 @@ Na karcie **Przegląd** szansy sprzedażowej:
   netto każdego z nich, obok sekcji *Powiązane zamówienia*. Posiadacz
   uprawnienia `crm:write` wyszukuje zapytania ofertowe organizacji po numerze
   i wiąże je albo odłącza. Wyszukiwarka podpowiada zapytania otwarte; zamknięte
-  znajdziesz, wpisując jego pełny numer. Do powiązania nie jest potrzebne
-  uprawnienie do obsługi zapytań ofertowych.
+  znajdziesz, wpisując jego pełny numer. Powiązanie wymaga także
+  `rfqs:handle`; bez niego sekcja informuje o tym, zamiast pokazywać
+  wyszukiwarkę.
 - **Wartość** — kwota oraz informacja, czy jest *wpisana ręcznie*, czy jest to
   *wartość wyliczana*; jeden przycisk przełącza między nimi. Przy wartości
   wyliczanej widać każdy dokument **pominięty** w sumie, wraz z powodem, oraz
@@ -764,12 +798,14 @@ i wyjaśnia dlaczego, a ekran przepływu proponuje wyłącznie statusy zamówie�
 ## Szanse tworzone automatycznie
 
 Dwa ustawienia sprawiają, że CRM sam otwiera szansę sprzedażową. Oba są
-domyślnie **wyłączone**.
+domyślnie **wyłączone**, a włącza się je na ekranie **Ustawienia** platformy,
+w grupie *CRM*. Ich nazwy są tam wyłącznie po angielsku: ustawienia platformy
+nie mają jeszcze tłumaczonych etykiet.
 
 | Ustawienie | Gdy jest włączone |
 | --- | --- |
 | `crm.auto_create_from_orders` | Każde zamówienie złożone od tej chwili dostaje własną szansę. Ustawienie może być różne dla kanałów sprzedaży; decyduje kanał zamówienia. |
-| `crm.auto_create_from_quote_requests` | Każde Zapytanie ofertowe utworzone od tej chwili — przesłane przez klienta albo przygotowane przez administratora — dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
+| `crm.auto_create_from_quote_requests` | Każde zapytanie ofertowe utworzone od tej chwili — przesłane przez klienta albo przygotowane przez administratora — dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
 
 Szansa utworzona w ten sposób:
 
@@ -787,8 +823,10 @@ Szansa utworzona w ten sposób:
 Co **nie** jest tworzone:
 
 - nic dla dokumentu, który jest już powiązany z szansą;
-- nic dla zamówienia złożonego z zapytania ofertowego powiązanego z szansą —
-  zamówienie dołącza do tej szansy, niezależnie od ustawień;
+- nic dla zamówienia, które zapisuje zapytanie ofertowe powiązane z szansą —
+  zamówienie dołącza do tej szansy, niezależnie od ustawień. Dziś żadne
+  zamówienie nie zapisuje swojego zapytania ofertowego, więc to jeszcze nie
+  działa (zob. *Wiązanie zapytań ofertowych*);
 - nic dla dokumentów, które istniały przed włączeniem ustawienia;
 - nic, gdy moduł CRM jest wyłączony, i nic później dla dokumentów złożonych w
   tym czasie;
@@ -851,16 +889,16 @@ organizacji co dokument oraz — tam, gdzie zdarzenie wskazuje administratora,
 który utworzył dokument, jak robi to zdarzenie zapytania ofertowego — gdy ten
 administrator ma dostęp do organizacji szansy; w przeciwnym razie zapisuje
 ostrzeżenie w logu i traktuje dokument jak utworzony bez pola `origin`.
-Zdarzenie dostarczone dwukrotnie wiąże raz. Żaden endpoint modułu CRM nie
+Zdarzenie dostarczone dwukrotnie wiąże raz. Żaden punkt końcowy modułu CRM nie
 bierze w tym udziału, a samodzielne wysłanie `origin` w żądaniu do
-któregokolwiek z endpointów tworzenia ma ten sam skutek.
+któregokolwiek z punktów końcowych tworzenia ma ten sam skutek.
 
 ## Historia zmian
 
 Każda szansa sprzedażowa ma historię tego, co się z nią działo, od najnowszych
 wpisów: jej utworzenie, każda edycja, każda zmiana statusu, każde powiązanie i
 odwiązanie zamówienia lub zapytania ofertowego, każde przypisanie, zmiana
-etykiet, notatka, wiadomość i Załącznik.
+etykiet, notatka, wiadomość i załącznik.
 
 Każdy wpis mówi, **kiedy**, **co** (`action`), **kto** (`actor`) oraz jaki był
 stan **przed** i **po**:
@@ -943,7 +981,7 @@ notatce i wiadomości (dla jej `body`). Nie ma osobnego punktu końcowego.
 
 W Admin UI pole opisu oraz pola notatki i wiadomości mają dwa przyciski:
 **Wstaw produkt** i **Wstaw zamówienie**. Każdy otwiera wyszukiwarkę; wybranie
-wyniku wpisuje token w miejscu kursora. Po zapisaniu tekst pokazuje w tym
+wyniku wpisuje znacznik w miejscu kursora. Po zapisaniu tekst pokazuje w tym
 miejscu nazwę produktu albo numer zamówienia jako odnośnik, a dla celu, który
 zniknął albo którego nie możesz zobaczyć — *Produkt niedostępny* /
 *Zamówienie niedostępne*. Nazwę widzi tylko osoba, która mogłaby otworzyć sam
@@ -953,7 +991,7 @@ cel: numer zamówienia wymaga `orders:read`, a nazwa produktu —
 Obie wyszukiwarki należą do katalogu i do modułu Zamówienia, dlatego przycisk
 *Wstaw produkt* widzi rola, która ma także `catalog:read`, a *Wstaw
 zamówienie* — rola z `orders:read`; proponowane są wyłącznie zamówienia
-organizacji tej szansy. Token wpisany albo wklejony ręcznie jest zapisywany
+organizacji tej szansy. Znacznik wpisany albo wklejony ręcznie jest zapisywany
 bez żadnego z tych uprawnień, a osobie bez uprawnienia pokazuje się jako
 niedostępny.
 
@@ -1048,10 +1086,10 @@ dopóki CRM nie wróci.
 
 ## Pola niestandardowe
 
-Szansa sprzedażowa może mieć Twoje własne pola — „Źródło kontaktu",
-„Konkurent", „Data decyzji" — definiowane bez wdrożenia.
+Szansa sprzedażowa może mieć Twoje własne pola — „Źródło kontaktu”,
+„Konkurent”, „Data decyzji” — definiowane bez wdrożenia.
 
-**Definiowanie.** Otwórz **Pola niestandardowe** w panelu administracyjnym i
+**Definiowanie.** Otwórz **Pola niestandardowe** w Admin UI i
 wybierz typ rekordu **Szansa sprzedażowa**. Pole ma klucz, etykietę w każdym
 języku, typ (tekst, liczba, tak/nie, data, jedna pozycja z listy, kilka pozycji
 z listy) i może być wymagane. To istniejący ekran pól niestandardowych
@@ -1117,7 +1155,7 @@ wpis pozostaje, ale bez tytułu i bez odnośnika.
 ## Szansa na ekranie zamówienia i zapytania ofertowego
 
 Ekran zamówienia kończy się panelem **Powiązana szansa**, niezależnie od
-otwartej zakładki.
+otwartej karty.
 
 - **Zamówienie powiązane z szansą** pokazuje numer i tytuł szansy (odnośnik do
   niej), jej status, przypisanego handlowca i wartość.
@@ -1138,7 +1176,7 @@ otwartej zakładki.
 
 **Ekran zapytania ofertowego kończy się takim samym panelem**, dla zapytania
 ofertowego: pokazuje szansę, z którą jest ono powiązane, albo — osobie z
-`crm:write` — *Powiąż z szansą* i *Utwórz szansę*, które niosą Zapytanie
+`crm:write` — *Powiąż z szansą* i *Utwórz szansę*, które niosą zapytanie
 ofertowe zamiast zamówienia. Kto jest na tym ekranie, ma `rfqs:handle`, którego
 wymaga powiązanie zapytania ofertowego. Gdy moduł Zapytań ofertowych jest
 wyłączony, nie ma ani tego ekranu, ani panelu; panel zamówienia działa bez
@@ -1156,7 +1194,7 @@ ofertowych jest wyłączony, odpowiada `503 MODULE_DISABLED` — każdemu. Formu
 tworzenia przyjmuje w adresie `linkDocumentKind=order` albo `quote_request` i
 `linkDocumentId=<id dokumentu>` obok `organizationId`.
 
-Dla autorów modułów: panel jest wkładem CRM do strefy panelu administracyjnego
+Dla autorów modułów: panel jest wkładem CRM do stref Admin UI
 `order.detail.after` i `quote_request.detail.after`, które osadzają moduły
 Zamówienia i Zapytania ofertowe i do których może wnosić każdy moduł. Żaden z
 nich nie importuje CRM ani nie deklaruje od niego zależności.
@@ -1185,6 +1223,8 @@ zapisuje wzorca ręcznie. Subskrybent nie może zatrzymać przejścia, a jego b�
 go nie cofa.
 
 ```ts
+import { opportunityStatusEventName } from '@endora-commerce/contracts';
+
 ctx.subscribe(opportunityStatusEventName('toAfter', { to: 'won' }), async (event) => {
   await notifyFinance(event.opportunityId);
 });
@@ -1196,6 +1236,12 @@ odmawia, rzucając `OpportunityTransitionVetoError`. Zdanie, które rzuca, czyta
 handlowiec; gdy strażnik odmawia, nic nie jest zapisywane.
 
 ```ts
+import {
+  OpportunityTransitionVetoError,
+  type OpportunityTransitionGuardRegistryPort,
+} from '@endora-commerce/contracts';
+import { lazyPort } from '@endora-commerce/platform/kernel';
+
 ctx.onBoot(() => {
   lazyPort<OpportunityTransitionGuardRegistryPort>(ctx, 'opportunityTransitionGuardRegistry').register({
     ownerModuleId: 'acme_rules',
@@ -1211,6 +1257,20 @@ Moduł rejestrujący strażnika deklaruje to w swoim manifeście:
 `nonBindingDependencies: [{ moduleId: 'crm', name: 'opportunityTransitionGuardRegistry', kind: 'contributes-to' }]`.
 Strażnik należący do wyłączonego modułu jest pomijany — moduł, który jest
 wyłączony, niczego nie odrzuca.
+
+**Strażnik działa bez względu na to, co powoduje przejście** — osoba, inny
+moduł przez port albo powiązane zamówienie przez mapowanie. Gdy przejście
+spowodowało zamówienie, odmowy nie ma kto przeczytać: szansa zostaje tam, gdzie
+była, a pominięta zmiana jest na niej zapisywana razem ze zdaniem strażnika
+(zob. *Zamówienie, które przesuwa swoją szansę*).
+
+Dla innych modułów publikowane są jeszcze dwa zdarzenia, niezwiązane ze
+statusem: `crm.opportunity.assigned.v1` (nowa i poprzednia osoba przypisana)
+oraz `crm.opportunity.document_linked.v1`, emitowane przy każdym powiązaniu
+zamówienia albo zapytania ofertowego — ręcznym, automatycznym albo wynikającym
+z utworzenia dokumentu z poziomu szansy — z polami `opportunityId`,
+`organizationId`, `documentKind`, `documentId` i `linkSource`. Żadne z nich nie
+jest oferowane jako webhook.
 
 ## Odczyt i zmiana statusu szansy z innego modułu
 
@@ -1284,7 +1344,7 @@ dokładnie do poprzedniego stanu.
 
 | Kod | Na co pozwala |
 | --- | --- |
-| `crm:read` | Przeglądanie szans sprzedażowych, tablicy, przepływu statusów i listy etykiet; czytanie historii zmian szansy, jej notatek i wiadomości oraz pobieranie jej załączników. |
+| `crm:read` | Przeglądanie szans sprzedażowych, tablicy, przepływu statusów i listy etykiet; czytanie historii zmian szansy, jej notatek i wiadomości oraz pobieranie jej załączników. Warto nadawać je razem z `orders:read` i `custom_fields:read` (zob. niżej). |
 | `crm:write` | Tworzenie i edycja szans, przenoszenie ich w przepływie, przypisywanie handlowca, nadawanie etykiet, wiązanie i odłączanie zamówień oraz zapytań ofertowych, wybór między wartością wpisaną a wyliczaną, ponawianie lub pomijanie odmowy zmiany zamówienia, pisanie notatek i wiadomości, przesyłanie, dodawanie i usuwanie załączników. |
 | `crm:configure` | Zmiana przepływu — statusów, przejść i mapowań statusów zamówień w obu kierunkach oraz statusów liczonych do wartości wyliczanej — zarządzanie listą etykiet oraz usuwanie szansy. |
 | `crm:analytics` | Otwieranie ekranu Analityka i odczyt jego pięciu wskaźników. |
@@ -1299,15 +1359,15 @@ oraz handlowca na podstawie tego, co odczytuje `crm:read`.
 
 **To, co należy do innego modułu, widzi osoba, która może to tam odczytać.**
 Szansa otwiera się z samym `crm:read` — wtedy powiązane zamówienie albo
-Zapytanie ofertowe jest na liście jako niedostępne, a zamówienia i produkty
+zapytanie ofertowe jest na liście jako niedostępne, a zamówienia i produkty
 wspomniane w tekstach nie są nazywane. `orders:read` pokazuje powiązane albo
 wspomniane zamówienie i pozwala je powiązać; `rfqs:handle` robi to samo dla
 zapytania ofertowego; `catalog:read` nazywa wspomniany produkt. Dokument
 pominięty w wartości wyliczanej jest nazywany na tej samej zasadzie. Sama
 wartość jest własną liczbą szansy i widzi ją każdy, kto może czytać szansę.
 
-**Do wypełnienia formularza nic więcej nie jest potrzebne.** Pola wyboru organizacji, kanału sprzedaży,
-handlowca i osoby kontaktowej — w filtrach listy i tablicy oraz w formularzach
+**Do wypełnienia formularza nic więcej nie jest potrzebne.** Pola wyboru
+organizacji, kanału sprzedaży, handlowca i osoby kontaktowej — w filtrach listy i tablicy oraz w formularzach
 — korzystają z własnych list podpowiedzi modułu CRM, więc handlowiec nie
 potrzebuje uprawnień do przeglądania klientów, kanałów sprzedaży ani
 administratorów, żeby pracować z szansą. Lista podpowiedzi jest zawężona do
@@ -1330,11 +1390,28 @@ ekranie **Role**.
 
 ## Ustawienia
 
+Na ekranie **Ustawienia** platformy, w grupie *CRM*. Nazwy ustawień są tam
+wyłącznie po angielsku.
+
 | Ustawienie | Domyślnie | Znaczenie |
 | --- | --- | --- |
 | `crm.enabled` | włączone | Przełącznik opisany powyżej. |
 | `crm.auto_create_from_orders` | wyłączone | Każde zamówienie złożone od tej chwili dostaje własną szansę. Ustawienie może być różne dla kanałów sprzedaży; decyduje kanał zamówienia. |
-| `crm.auto_create_from_quote_requests` | wyłączone | Każde Zapytanie ofertowe utworzone od tej chwili — przesłane przez klienta albo przygotowane przez administratora — dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
+| `crm.auto_create_from_quote_requests` | wyłączone | Każde zapytanie ofertowe utworzone od tej chwili — przesłane przez klienta albo przygotowane przez administratora — dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
+
+## Czego moduł nie robi
+
+Rzeczy, których operator może szukać, a których w tym wydaniu nie ma:
+
+- **Import i eksport** szans sprzedażowych — nie ma ani importu z pliku, ani
+  eksportu.
+- **E-mail.** Moduł nie wysyła żadnych wiadomości e-mail: powiadomienia trafiają
+  wyłącznie na dzwonek w Admin UI, a wiadomość jest wewnętrzna — dla osób
+  pracujących nad szansą.
+- **Wyszukiwanie globalne.** Szanse znajduje się na ich liście i tablicy, a nie
+  przez wyszukiwarkę Admin UI.
+- **Zysk.** Każdy wskaźnik jest wartością; kosztów ani marży nie ma.
+- **Dane demonstracyjne** — zob. niżej.
 
 ## Dane demonstracyjne
 
