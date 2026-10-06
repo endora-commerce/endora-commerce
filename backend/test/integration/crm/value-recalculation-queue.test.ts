@@ -57,7 +57,9 @@ describe('crm value recalculation queue (real BullMQ)', () => {
     const rows = (await h.em().execute(`select "computed_value" from "crm_opportunities" where "id" = ?`, [
       id,
     ])) as Array<{ computed_value: string }>;
-    return rows[0]?.computed_value ?? '';
+    const row = rows[0];
+    if (!row) throw new Error(`no opportunity ${id}`);
+    return row.computed_value;
   };
 
   /** Every job the consumer finished, and every failure, from the moment it was built. */
