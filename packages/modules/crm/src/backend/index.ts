@@ -257,21 +257,39 @@ export function registerModule(ctx: ModuleContext): void {
   // change made meanwhile is not replayed. There is no request behind an
   // event, so the work starts a system scope of its own and the service
   // constrains by the Organization the event names.
+  //
+  // **One handler, and the value first** (research N-S2). The same event is
+  // what a computed value follows, and a status that both counts and closes
+  // the Opportunity must be counted before the close is announced:
+  // `crm.opportunity.closed.v1` carries the value, and an outbound webhook
+  // sends it whole. Two subscribers ran in registration order, which had the
+  // announcement leave before the figure it names was written. The move runs
+  // from a `finally`, so a recalculation that fails does not cost the
+  // Opportunity its move — as when the two were handlers of their own.
   ctx.subscribe('order.status_changed.v1', async (payload) => {
-    const change = readOrderStatusChange(payload);
-    if (!change) return;
-    await enterSystemScope('crm: order status follows', async () => {
-      const cradle = ctx.cradle<CrmCradle>();
-      await cradle.crmOrderStatusPropagationService.onOrderStatusChanged(
-        change,
-        (opportunityId, to, causeOrderId) =>
-          cradle.crmOpportunityTransitionService.apply(opportunityId, to, {
-            actor: { kind: 'system' },
-            cause: 'order_status',
-            causeOrderId,
-          }),
+    const orderId = readEventId(payload, 'orderId');
+    if (!orderId) return;
+    try {
+      await enterSystemScope('crm: value follows an order status', () =>
+        ctx.cradle<ValueCradle>().crmOpportunityValueService.recalculateForDocument('order', orderId),
       );
-    });
+    } finally {
+      const change = readOrderStatusChange(payload);
+      if (change) {
+        await enterSystemScope('crm: order status follows', async () => {
+          const cradle = ctx.cradle<CrmCradle>();
+          await cradle.crmOrderStatusPropagationService.onOrderStatusChanged(
+            change,
+            (opportunityId, to, causeOrderId) =>
+              cradle.crmOpportunityTransitionService.apply(opportunityId, to, {
+                actor: { kind: 'system' },
+                cause: 'order_status',
+                causeOrderId,
+              }),
+          );
+        });
+      }
+    }
   });
 
   // --- Assignment ------------------------------------------------------------
@@ -515,13 +533,9 @@ export function registerModule(ctx: ModuleContext): void {
   // change made meanwhile is not replayed. There is no request behind an
   // event: each starts a system scope, and the value service reads only what
   // hangs off the one Opportunity the document is linked to.
-  ctx.subscribe('order.status_changed.v1', async (payload) => {
-    const orderId = readEventId(payload, 'orderId');
-    if (!orderId) return;
-    await enterSystemScope('crm: value follows an order status', () =>
-      ctx.cradle<ValueCradle>().crmOpportunityValueService.recalculateForDocument('order', orderId),
-    );
-  });
+  //
+  // An Order's status is followed by the handler of the reverse-mapping
+  // section above, which recalculates before it moves the Opportunity.
   // A Quote Request approved, canceled, modified (its prices) or expired.
   // `quote_requests` emits none of these while it is off.
   for (const eventName of QUOTE_REQUEST_VALUE_EVENTS) {

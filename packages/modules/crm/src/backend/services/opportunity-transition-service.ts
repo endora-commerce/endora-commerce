@@ -10,6 +10,7 @@ import {
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
+import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityStatus } from '../entities/crm-opportunity-status.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmStatusPropagation } from '../entities/crm-status-propagation.entity.js';
@@ -296,8 +297,18 @@ export class OpportunityTransitionService {
           reason,
         });
       } finally {
+        // What the Opportunity is worth is read now, after the commit and after
+        // the Orders were asked — not taken from the row the Command held: a
+        // linked Order's status may have changed the figure on either side of
+        // the write, and `crm.opportunity.closed.v1` is a public payload
+        // (research N-S2). A read that fails leaves the figure the Command saw.
+        const committed = await this.deps
+          .emFactory()
+          .findOne(CrmOpportunity, { id: opportunity.id })
+          .catch(() => null);
+        const announced = committed ? { ...applied, value: effectiveOpportunityValue(committed) } : applied;
         await this.deps.events.run(async () => {
-          emitOpportunityStatusAfter(this.deps.events, event, applied);
+          emitOpportunityStatusAfter(this.deps.events, event, announced);
         });
       }
 

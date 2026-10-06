@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { enterSystemScope } from '@endora-commerce/platform/kernel';
 import {
+  CRM_EVENTS,
   OpportunityDetailResponseSchema,
   type CustomFieldValuePort,
   type OrderReadPort,
@@ -14,6 +15,7 @@ import {
 import {
   CRM_ADMIN,
   CRM_API,
+  changeOrderStatusAsOperator,
   createCrmOpportunity,
   defineCrmCustomField,
   linkCrmOrder,
@@ -21,6 +23,7 @@ import {
   restoreDefaultCrmWorkflow,
   seedCrmOrder,
   setCrmCountingStatuses,
+  setCrmMappings,
 } from '../../helpers/seed-crm.js';
 
 /**
@@ -230,6 +233,88 @@ describe('crm second review regressions', () => {
         review2_segment: 'enterprise',
         review2_region: 'north',
       });
+    });
+  });
+
+  // --- N-S2: the announcement of a win says what the Opportunity is worth ---------
+  describe('an Order whose status both counts and closes the Opportunity', () => {
+    it('crm.opportunity.closed.v1 carries the value the Opportunity has once the Order counted', async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      expect((await setCrmCountingStatuses(h, { order: ['paid'], quoteRequest: [] })).statusCode).toBe(202);
+      const edge = await h.app.inject({
+        method: 'PUT',
+        url: `${CRM_API}/transitions`,
+        cookies: CRM_ADMIN,
+        payload: { add: [{ fromStatusCode: 'new', toStatusCode: 'won' }] },
+      });
+      expect(edge.statusCode, edge.body).toBe(200);
+      const mapped = await setCrmMappings(h, [
+        { direction: 'order_to_opportunity', orderStatusCode: 'paid', opportunityStatusCode: 'won' },
+      ]);
+      expect(mapped.statusCode, mapped.body).toBe(200);
+
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+      const order = await seedCrmOrder(h.em(), { total: '123.00' });
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+      expect((await detail(opportunity.id)).value).toBe('0.00');
+
+      const closed: Array<Record<string, unknown>> = [];
+      const off = h.eventBus.on(CRM_EVENTS.CLOSED as never, (payload: unknown) => {
+        const event = payload as Record<string, unknown>;
+        if (event['opportunityId'] === opportunity.id) closed.push(event);
+      });
+      try {
+        await changeOrderStatusAsOperator(h, order.id, 'paid');
+      } finally {
+        off();
+      }
+
+      const after = await detail(opportunity.id);
+      expect(after.status.code).toBe('won');
+      expect(after.value).toBe('123.00');
+      // The payload an outbound webhook sends whole: what the win is worth.
+      expect(closed).toHaveLength(1);
+      expect(closed[0]?.['value']).toBe('123.00');
+      await restoreDefaultCrmWorkflow(h.em());
+    });
+
+    it('the value announced is the one read after the commit, whatever the transition itself held', async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+      expect((await setCrmCountingStatuses(h, { order: ['paid'], quoteRequest: [] })).statusCode).toBe(202);
+      const opportunity = await createCrmOpportunity(h, { valueMode: 'computed' });
+      const order = await seedCrmOrder(h.em(), { status: 'paid', total: '77.00' });
+      expect((await linkCrmOrder(h, opportunity.id, order.id)).statusCode).toBe(201);
+      // The stored figure moves after the transition's own commit and before
+      // its announcement — where the linked Orders are asked to follow, and
+      // where their answers recalculate it.
+      const propagation = h.container.resolve('crmOrderStatusPropagationService') as {
+        resolve(...args: unknown[]): Promise<unknown>;
+      };
+      const resolve = propagation.resolve.bind(propagation);
+      vi.spyOn(propagation, 'resolve').mockImplementation(async (...args) => {
+        await h.em().execute(`update "crm_opportunities" set "computed_value" = '91.00' where "id" = ?`, [
+          opportunity.id,
+        ]);
+        return resolve(...args);
+      });
+      const closed: Array<Record<string, unknown>> = [];
+      const offClosed = h.eventBus.on(CRM_EVENTS.CLOSED as never, (payload: unknown) => {
+        const event = payload as Record<string, unknown>;
+        if (event['opportunityId'] === opportunity.id) closed.push(event);
+      });
+      try {
+        const moved = await h.app.inject({
+          method: 'POST',
+          url: `${CRM_API}/opportunities/${opportunity.id}/transition`,
+          cookies: CRM_ADMIN,
+          payload: { to: 'lost' },
+        });
+        expect(moved.statusCode, moved.body).toBe(200);
+      } finally {
+        offClosed();
+      }
+      expect(closed).toHaveLength(1);
+      expect(closed[0]?.['value']).toBe('91.00');
     });
   });
 });
