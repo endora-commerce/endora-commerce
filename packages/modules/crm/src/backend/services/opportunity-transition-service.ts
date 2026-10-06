@@ -18,7 +18,8 @@ import {
   emitOpportunityStatusBefore,
   type OpportunityEventSink,
 } from '../events/opportunity-status-events.js';
-import { effectiveOpportunityValue, loadOpportunity } from './opportunity-access.js';
+import { effectiveOpportunityValue } from '../domain/effective-value.js';
+import { loadOpportunity } from './opportunity-access.js';
 import type { OpportunityTransitionGuardRegistry } from './opportunity-transition-guard-registry.js';
 import type { OrderStatusPropagationService } from './order-status-propagation-service.js';
 import type { WorkflowReadService } from './workflow-read-service.js';

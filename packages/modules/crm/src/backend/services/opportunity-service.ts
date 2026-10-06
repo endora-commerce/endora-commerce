@@ -42,7 +42,8 @@ import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
-import { effectiveOpportunityValue, loadOpportunity } from './opportunity-access.js';
+import { effectiveOpportunityValue, effectiveOpportunityValueSql } from '../domain/effective-value.js';
+import { loadOpportunity } from './opportunity-access.js';
 import {
   actingAdminUserId,
   assignedEvent,
@@ -101,8 +102,6 @@ interface CreateOptions {
 
 const FALLBACK_LANGUAGE = 'en';
 const FALLBACK_COLOR = '#64748b';
-const VALUE_EXPRESSION = (alias: string) =>
-  `case when ${alias}."value_mode" = 'manual' then ${alias}."manual_value" else ${alias}."computed_value" end`;
 
 function invalid(message: string): HttpError {
   return new HttpError(422, ERROR_CODES.VALIDATION_FAILED, message);
@@ -438,7 +437,7 @@ export class OpportunityService {
     const direction = (query.order ?? 'desc') === 'asc' ? QueryOrder.ASC_NULLS_LAST : QueryOrder.DESC_NULLS_LAST;
     const sort = query.sort ?? 'createdAt';
     const primary =
-      sort === 'value' ? { [raw((alias) => VALUE_EXPRESSION(alias))]: direction } : { [sort]: direction };
+      sort === 'value' ? { [raw((alias) => effectiveOpportunityValueSql(alias))]: direction } : { [sort]: direction };
     const offset = decodeCursor(query.cursor);
 
     const rows = await em.find(

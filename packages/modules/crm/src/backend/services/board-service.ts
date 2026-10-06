@@ -12,6 +12,7 @@ import {
   type Pagination,
 } from '@endora-commerce/contracts';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
+import { effectiveOpportunityValueSql } from '../domain/effective-value.js';
 import { resolveOpportunityStatusName } from '../domain/opportunity-status-graph.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
@@ -42,9 +43,6 @@ export interface BoardServiceDeps {
 
 const FALLBACK_LANGUAGE = 'en';
 
-/** The effective value of a row, as the list's `sort=value` computes it. */
-const VALUE_EXPRESSION = (alias: string): string =>
-  `case when ${alias}."value_mode" = 'manual' then ${alias}."manual_value" else ${alias}."computed_value" end`;
 
 interface ColumnFigure {
   count: number;
@@ -186,7 +184,7 @@ export class BoardService {
         'o.statusCode',
         'o.currency',
         raw('count(*)::int as "count"'),
-        raw(`coalesce(sum(${VALUE_EXPRESSION('o')}), 0)::numeric(16,2)::text as "total"`),
+        raw(`coalesce(sum(${effectiveOpportunityValueSql('o')}), 0)::numeric(16,2)::text as "total"`),
       ])
       .where(conditions.length > 0 ? { $and: conditions } : {})
       .groupBy(['o.statusCode', 'o.currency'])

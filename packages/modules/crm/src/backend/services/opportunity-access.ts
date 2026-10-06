@@ -43,12 +43,3 @@ export async function loadOpportunity(
   if (!opportunity) throw opportunityNotFound();
   return opportunity;
 }
-
-/** The effective value: the manual figure or the computed one, by mode. */
-export function effectiveOpportunityValue(opportunity: {
-  valueMode: 'manual' | 'computed';
-  manualValue?: string | null;
-  computedValue: string;
-}): string | null {
-  return opportunity.valueMode === 'manual' ? (opportunity.manualValue ?? null) : opportunity.computedValue;
-}

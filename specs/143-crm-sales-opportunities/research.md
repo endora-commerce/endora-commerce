@@ -2668,6 +2668,60 @@ when it was measured, and what was done about it.
   only while `useModulePresence().isPresent('quote_requests')`; and the foreign files are
   exactly the rows of `contracts/foreign-module-changes.md` §A–§C. The off-state file already
   lists every CRM route; T111 adds the two foreign create requests carrying an `origin`.
+- **N-I1 (2026-10-06, after the merge of the second backend wave into the integration
+  branch) — the merged tree.** `6b7694235` (User Stories 8, 9, 11, 12, 16) met analytics, the
+  CRM-owned upload, custom fields, the published ports and the two host panels. Thirteen files
+  conflicted and every resolution is "both": `src/backend/index.ts` keeps each delimited
+  section once (fifteen `registerCrm*Routes` calls, each name once; five `ctx.subscribe` call
+  sites; four boot hooks); `opportunity-service.ts` keeps the custom-field merge and `summarize()` beside
+  the value recalculation, the references and `createForDocument`; the two bundles are the
+  union of two disjoint key sets (649 keys each, no key twice). Measured after
+  `pnpm install --lockfile-only`, `build:packages`, `composer:generate` and
+  `manifests:generate`: **none of the four wrote anything** — git had merged the lockfile, the
+  two registries (both CRM migrations are in `migrations-registry.generated.ts`), the rendered
+  `package.json` and the OpenAPI baseline correctly, as N-D1 and N-H1 found the two times
+  before. The two Polish translation-cache entries were rewritten from the materialised
+  pages. **The module page is one page again**: the features in the order they are met on
+  the screens, then the three surfaces on other modules' screens and the two extension points,
+  then activation, permissions, settings, demo data and what is still coming — which is one
+  line, creating an Order or a Quote Request from an Opportunity. Three things on it were
+  wrong and none was a conflict: the second wave's permission row said an upload "also needs
+  the media library's `assets.write`" (false since N-F1); its *Settings* table had two rows of
+  two cells under a three-column header; and the advisory sentence named `orders:read` only
+  where the manifest names `custom_fields:read` as well (N-G4).
+- **N-I2 (2026-10-06) — the effective value is stated once (closes N-F2 (f)).**
+  `domain/effective-value.ts` holds the rule in both forms — `effectiveOpportunityValue(row)`
+  and `effectiveOpportunityValueSql(alias)` — and the list's `sort=value`, the board's column
+  totals and the five analytics statements read it from there; the three private copies are
+  gone and `effective-value.test.ts` scans the module's sources so a fourth cannot appear.
+  **Nothing disagreed before the change** — the three copies were the same text — so the
+  behaviour test (`backend/test/integration/crm/merged-stories.test.ts`: a computed
+  Opportunity with a paid Order of 321.00, a manual one, a computed one with nothing linked
+  and one nobody valued, read by a manager confined to their Organization) passed on the
+  unmodified merge and holds the agreement from here on: detail, list, board cards, board
+  total, average and ranking, before and after a mode change. It was seen to fail with the
+  fragment mutated to `manual_value` (list, board, analytics and the mode change, four cases).
+  **One thing the first version of the fragment got wrong, caught by that test and not by the
+  type-check:** the list hands it the ORM's own placeholder (`raw((alias) => …)` passes
+  `[::alias::]`), which a guard written for plain identifiers refused with a 500. The guard
+  now refuses only what could end an identifier. A computed Opportunity with nothing counting
+  is worth `0.00`, not nothing — it is in the average and at the bottom of the ranking, and
+  the page says so nowhere; left as R-14 has it.
+- **N-I3 (2026-10-06) — automatic creation is not refused by a required custom field
+  (N-G2's claim, proven).** With a required select defined for Opportunities and
+  `crm.auto_create_from_orders` on, an Order placed through the storefront still gets its
+  Opportunity, linked, with `customFieldValues: {}`; a create by hand without the field is
+  422 in the same test (the control); an edit that does not name `customFieldValues` is
+  accepted, one that names it empty is refused, one that fills it in is accepted. Seen to
+  fail with `createForDocument` passing an empty bag: the Order is placed and no Opportunity
+  appears — silently, which is what the wrong merge of these two stories would have looked
+  like in production. Same test file.
+- **N-I4 (2026-10-06) — the off-state route list is checked in both directions.**
+  `off-state.test.ts` proved that every listed route exists; nothing proved that every
+  registered route is listed, and each story added routes on a branch of its own. The file
+  now reads the composed application's route table (`printRoutes`, HEAD left out) and compares
+  it with the list as an exact set — 45 method-and-path pairs. It was complete after the
+  merge; the test was seen to fail with the history route taken off the list.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

@@ -14,6 +14,7 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { orgConstraintFor, type OrgConstraint } from '@endora-commerce/platform/tenancy';
+import { effectiveOpportunityValueSql } from '../domain/effective-value.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
@@ -36,12 +37,10 @@ export interface SqlFragment {
 }
 
 /**
- * The effective value of a row — the manual figure or the computed one, by
- * mode (`data-model.md` § `crm_opportunities`). The same expression the list
- * sorts by and the board totals.
+ * The effective value of a row of `crm_opportunities o` — the module's one
+ * statement of the rule, shared with the list's sort and the board's totals.
  */
-const EFFECTIVE_VALUE =
-  `case when o."value_mode" = 'manual' then o."manual_value" else o."computed_value" end`;
+const EFFECTIVE_VALUE = effectiveOpportunityValueSql('o');
 
 /**
  * The tenant predicate over `crm_opportunities o`, or `null` for a reader who

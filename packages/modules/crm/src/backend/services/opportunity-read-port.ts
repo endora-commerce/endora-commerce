@@ -6,7 +6,8 @@ import type {
 } from '@endora-commerce/contracts';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
-import { effectiveOpportunityValue, isUuid } from './opportunity-access.js';
+import { effectiveOpportunityValue } from '../domain/effective-value.js';
+import { isUuid } from './opportunity-access.js';
 import type { WorkflowReadService } from './workflow-read-service.js';
 
 /**

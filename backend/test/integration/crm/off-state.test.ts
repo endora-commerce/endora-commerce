@@ -471,6 +471,29 @@ describe('crm off-state (Constitution XVII)', () => {
     });
   });
 
+  it('probes every route the module registers — one left off the list is one nobody proved absent', () => {
+    // The other direction of the control below, read off the composed
+    // application rather than off this file: the stories were built on
+    // separate branches, each adding routes, and a route that joined the module
+    // without joining `REGISTERED` would simply never be asked about.
+    const owned: string[] = [];
+    const stack: string[] = [];
+    for (const line of h.app.printRoutes({ commonPrefix: false }).split('\n')) {
+      const match = /^([│ ]*)[├└]── (\S+)(?: \(([A-Z, ]+)\))?$/.exec(line);
+      if (!match) continue;
+      const depth = (match[1] ?? '').length / 4;
+      stack.length = depth;
+      stack.push(match[2] ?? '');
+      const route = stack.join('');
+      if (!route.startsWith(`${API}/`)) continue;
+      for (const method of (match[3] ?? '').split(', ')) {
+        if (method !== '' && method !== 'HEAD') owned.push(`${method} ${route}`);
+      }
+    }
+    expect(owned.length, 'the route listing was not understood').toBeGreaterThan(40);
+    expect(owned.sort()).toEqual(REGISTERED.map(({ method, route }) => `${method} ${route}`).sort());
+  });
+
   it('probes routes that exist — a refused path the module never registered would prove nothing', () => {
     // The positive control for the whole list, without running a single write:
     // every probed method and path is one the composed application routes.
