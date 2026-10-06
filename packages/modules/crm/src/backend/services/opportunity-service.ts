@@ -108,6 +108,25 @@ function invalid(message: string): HttpError {
   return new HttpError(422, ERROR_CODES.VALIDATION_FAILED, message);
 }
 
+/**
+ * The create Command's refusal when its start status has gone by the time it
+ * holds it. `details.startStatusGone` is what lets automatic creation tell it
+ * from any other conflict and read the workflow again.
+ */
+function startStatusGone(): HttpError {
+  return new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The workflow changed while this was being created.', {
+    startStatusGone: true,
+  });
+}
+
+function isStartStatusGone(error: unknown): boolean {
+  return (
+    error instanceof HttpError &&
+    error.code === ERROR_CODES.VERSION_CONFLICT &&
+    (error.details as { startStatusGone?: unknown } | undefined)?.startStatusGone === true
+  );
+}
+
 /** `12` and `12.5` as the two-place string `numeric(14,2)` reads back as. */
 function normalizeAmount(value: string | null | undefined): string | null {
   if (value === null || value === undefined) return null;
@@ -248,33 +267,40 @@ export class OpportunityService {
     input: AutomaticOpportunityInput,
   ): Promise<{ id: string; number: string } | 'already-linked'> {
     const assignedAdminUserId = await this.deps.assignment.resolveDefault(input.organizationId, null);
-    const graph = await this.deps.workflowRead.loadGraph();
-    const initial = this.#initialStatus(graph);
     const salesChannelId =
       input.salesChannelId !== null &&
       (await this.deps.emFactory().count(SalesChannel, { id: input.salesChannelId })) > 0
         ? input.salesChannelId
         : null;
 
-    let created: { id: string; organizationId: string; number: string };
-    try {
-      created = await this.deps.commandBus.run(
-        this.#createCommand(
-          {
-            title: input.title.slice(0, 200),
-            organizationId: input.organizationId,
-            currency: input.currency,
-            salesChannelId,
-            assignedAdminUserId,
-            valueMode: 'computed',
-          },
-          initial.code,
-          { source: input.source, document: input.document },
-        ),
-      );
-    } catch (error) {
-      if (error instanceof UniqueConstraintViolationException) return 'already-linked';
-      throw error;
+    let created: { id: string; organizationId: string; number: string } | null = null;
+    // The create Command refuses when the start status it was handed has gone
+    // by the time it holds it (research N-R12). A person retries; nobody is
+    // behind a subscriber to do so, and the document would be left without its
+    // Opportunity — so the workflow is read again, once, and the Opportunity is
+    // created in the start status the workflow has now.
+    for (let attempt = 0; created === null; attempt += 1) {
+      const initial = this.#initialStatus(await this.deps.workflowRead.loadGraph());
+      try {
+        created = await this.deps.commandBus.run(
+          this.#createCommand(
+            {
+              title: input.title.slice(0, 200),
+              organizationId: input.organizationId,
+              currency: input.currency,
+              salesChannelId,
+              assignedAdminUserId,
+              valueMode: 'computed',
+            },
+            initial.code,
+            { source: input.source, document: input.document },
+          ),
+        );
+      } catch (error) {
+        if (error instanceof UniqueConstraintViolationException) return 'already-linked';
+        if (attempt === 0 && isStartStatusGone(error)) continue;
+        throw error;
+      }
     }
     await this.deps.recalculateValue(created.id);
     // By number only, and only to somebody who reaches the Organization — the
@@ -312,9 +338,7 @@ export class OpportunityService {
           { code: initialStatusCode },
           { lockMode: LockMode.PESSIMISTIC_READ },
         );
-        if (!start) {
-          throw new HttpError(409, ERROR_CODES.VERSION_CONFLICT, 'The workflow changed while this was being created.');
-        }
+        if (!start) throw startStatusGone();
         // Refused before anything is written: a tag that does not exist is 422.
         const tags = await this.deps.tags.resolve(em, input.tagIds ?? []);
         // --- Custom fields (US15) — refused before anything is written.

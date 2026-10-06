@@ -3005,6 +3005,68 @@ when it was measured, and what was done about it.
   `patchAsset`, `softDelete`); `assetReadPort.findByIds`, which the list already uses for
   the rows, answers no link. Batching it is a method on `assets_library`' port — its
   owner's change, not a loop to restructure here.
+- **N-R13 (2026-10-06, after the merge of the review branch) — each fix held to the code
+  that did not exist when it was written.** The review ran on `e9157aaae`; quote-request
+  links, the computed value, automatic creation, change history, references, custom fields,
+  analytics and creation from an Opportunity are all later. `review-extensions.test.ts` and
+  `admin/test/modules/crm/owner-permissions.test.tsx` hold what follows; **six of the backend
+  cases and all five admin cases were seen red first**, the rest passed on the merged tree
+  and are kept as the statement of the rule (one of those, the audit case, was then seen to
+  fail with a note's text put back into the audited state).
+  **Finding 3 — what another module owns is shown to somebody who may read it there.**
+  N-R3 decided it for Orders; one check now answers for three owners
+  (`services/owner-read-permissions.ts`, over `admin_roles`' `permissionService`; the system
+  is not narrowed). (a) **A Quote Request is read with `rfqs:handle`.** `quote_requests`
+  declares exactly one code and gates its admin list and detail with it, so that is what
+  "may read a Quote Request" means. A linked Quote Request renders `available: false` without
+  it; `POST …/links` with `documentKind: 'quote_request'` and `GET /lookups/quote-requests`
+  ask for it beside `crm:write`. **This reverses N-H2 on one point**: the lookup was built so
+  that a Sales Rep "needs no code of the quote desk to link", and it now asks for that code —
+  it keeps its narrower answer (`id`, `number`, `status`, one Organization) and its place as
+  the picker's source. The owner may prefer N-H2; the reversal is one `preHandler` in two
+  route files and one line in the link renderer. (b) **`excludedDocuments`** names a document
+  only to a reader who may read that kind — an entry says the document's status counts and its
+  currency differs. The filter is on what is shown; `#evaluate` is untouched, because a
+  recalculation runs under whoever's request caused it and the stored figure must not depend
+  on that (a case holds it: the mode switched by a role without `orders:read` stores the
+  right sum). **The computed value itself is not narrowed** — N-R3's position stands: it is
+  the Opportunity's own figure, the list sorts by it and the board and the analytics add it,
+  and one linked Order's total remains derivable from it. (c) **References**: an Order's
+  number needs `orders:read` and a Product's name `catalog:read`, in the description and in
+  every note and message; the owner's port is not asked at all for a reader without the code.
+  This narrows R-21 / N-E14, which asked no catalog permission to read a name. (d) **`GET
+  /documents/:kind/:id/opportunity`** asks for the owner's read code as well: 404-versus-200
+  says whether a document exists and whether it has an Opportunity. Whoever is on the
+  document's screen holds the code already, so no panel changes. (e) **Nothing else needed a
+  change, and each was looked at**: the change history returns ids and never a number (a case
+  reads the whole response as a role without `orders:read`); the Organization panel lists
+  Opportunities; the origin path links by event and renders nothing; `opportunityReadPort`
+  answers Opportunities. **Left, and worth knowing:** an Opportunity created automatically is
+  titled "`<document number>` — `<organization>`" (R-8), so that number is in a title every
+  `crm:read` holder reads. (f) **On the screens** the Order picker and the following switch
+  are offered to a holder of `crm:write` and `orders:read`, the Quote Request picker to a
+  holder of `crm:write` and `rfqs:handle`; neither list is asked on behalf of anybody else,
+  a holder of `crm:write` alone is told why, and unlinking stays with `crm:write`.
+  **Finding 2.** `createForDocument` told the default assignee with the title; it now goes
+  through the same `notifyAssigned` — number only, reach asked again. Origin linking writes
+  no bell entry. **Finding 6.** An edited note still rewrites its references inside its
+  Command and audits `length`; the reference rows are ids and never part of an audited state.
+  The change-history tab labels `length` and no longer prints `authorAdminUserId` (the
+  entry's actor is named above it). **Findings 4, 5, 8, 12.** The value recalculation locks
+  the Opportunity alone and writes `computed_value` alone — status, closing and `version`
+  untouched, held on a closed Opportunity; a document linked automatically or by origin
+  writes a link and takes no lock, so it joins the one order (Opportunity, then status) at
+  no point; an automatically created Opportunity that was closed is not reopened by its
+  Order. **One change:** the create Command's "start status gone" refusal (N-R12 (b)) is a
+  409 a person retries, and nobody retries a subscriber — the placed document would have
+  been left without its Opportunity. `createForDocument` reads the workflow again, once, and
+  creates in the start status the workflow has by then. **Findings 7, 9, 10.** The five
+  analytics ranges, the board's and the list's dates share the refined schema (400 each);
+  the history's `limit` and `cursor` already answered 400; `If-Match` is read by `PATCH
+  /opportunities/:id` and by nothing else; `sort=value` composes with the tag subqueries, and
+  the board's totals with the tag and assignee filters. **Finding 1.** The upload's answer,
+  the by-id attach's answer and the list all hand out `download=1`; nothing else hands out a
+  link to a file.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

@@ -141,7 +141,7 @@ closes the opportunity and stamps the moment; leaving one reopens it.
 | `GET /api/v1/admin/crm/opportunities` | `crm:read` | List, with search (title, number, organization name), filters by status, by state (`open` / `won` / `lost`), organization, assignee, tags, sales channel and creation date, sorting and paging. |
 | `POST /api/v1/admin/crm/opportunities` | `crm:write` | Create an opportunity. |
 | `GET /api/v1/admin/crm/opportunities/:id` | `crm:read` | One opportunity, with the statuses it may move to, its linked orders and any order change that was refused. |
-| `PATCH /api/v1/admin/crm/opportunities/:id` | `crm:write` | Edit it. Send the version you read in `If-Match`; a stale one is refused with `409`. |
+| `PATCH /api/v1/admin/crm/opportunities/:id` | `crm:write` | Edit it. Send the version you read in `If-Match`; a stale one is refused with `409`, and a header that is not the version — quoted as the `ETag` gives it, or bare — with `400`. |
 | `DELETE /api/v1/admin/crm/opportunities/:id` | `crm:configure` | Delete it, with its links and history. |
 | `POST /api/v1/admin/crm/opportunities/:id/transition` | `crm:write` | Move it to another status. |
 
@@ -224,9 +224,23 @@ value — without being moved.
 
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
-| `POST /api/v1/admin/crm/opportunities/:id/links` | `crm:write` | Link an order. |
-| `PATCH /api/v1/admin/crm/opportunities/:id/links/:linkId` | `crm:write` | Switch status following on or off. |
+| `POST /api/v1/admin/crm/opportunities/:id/links` | `crm:write` and `orders:read` | Link an order. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/links/:linkId` | `crm:write` and `orders:read` | Switch status following on or off. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/links/:linkId` | `crm:write` | Unlink. |
+
+**An order is the Orders module's to show.** Linking one, and deciding whether
+it follows, needs `orders:read` as well as `crm:write` and answers `403`
+without it; unlinking needs `crm:write` only. Somebody who reads an opportunity
+without `orders:read` sees that an order is linked and nothing of it — it is
+listed as **unavailable**, with no number, status or total, and an order change
+that was refused is shown without the order's number. The Admin UI offers the
+order picker and the following switch to a holder of both permissions and says
+so to anybody else.
+
+Moving an opportunity moves the orders that follow it **whoever moves it**:
+which order status a move asks for was set up by somebody holding
+`crm:configure`, so the person moving the opportunity does not need
+`orders:write`.
 
 ## Orders that follow an opportunity
 
@@ -328,7 +342,8 @@ it is not caught up afterwards.
 ## Who holds an opportunity
 
 Every opportunity has at most one **assignee** — the person working it. Any
-active administrator may be the assignee.
+active administrator who can reach the opportunity's organization may be the
+assignee.
 
 When an opportunity is created without saying who holds it, the assignee is
 chosen from the sales representatives assigned to the opportunity's
@@ -367,12 +382,16 @@ In the Admin UI:
 | `POST /api/v1/admin/crm/opportunities/:id/assign` | `crm:write` | Assign, reassign, or — with `{ "adminUserId": null }` — unassign. Answers the opportunity. |
 | `GET /api/v1/admin/crm/opportunities?assignedAdminUserId=…` | `crm:read` | `me` for the caller's own, `unassigned`, or an administrator's id. |
 
-Somebody who is not an active administrator cannot be assigned: the request is
-refused with `CRM_ASSIGNEE_INVALID`. Editing an opportunity may change its
+Somebody who is not an active administrator, or who cannot reach the
+opportunity's organization, cannot be assigned: the request is refused with
+`CRM_ASSIGNEE_INVALID`. Editing an opportunity may change its
 assignee too, under the same rule.
 
 A person is told when an opportunity becomes theirs — on the notification bell
-of the Admin UI, with a link to the opportunity. Nobody is told about taking an
+of the Admin UI, with a link to the opportunity. The entry names the
+opportunity by its number and never by its title, and is not written for
+somebody who can no longer reach the opportunity's organization. The same
+holds for an opportunity created automatically. Nobody is told about taking an
 opportunity themselves. The bell belongs to the **Admin notifications** module:
 while that module is switched off, assigning works exactly as before and nobody
 is notified.
@@ -434,8 +453,9 @@ People working an opportunity write on it in two ways.
 A **note** is something to remember — what the customer said, what was agreed,
 what to do next. Whoever wrote a note may edit it or delete it; nobody else
 may, whatever their permissions. An edited note shows that it was edited. A
-deleted note is no longer listed, and what it said stays in the opportunity's
-change history.
+deleted note is no longer listed. The opportunity's change history records
+that a note was written, edited or deleted, by whom and how long it was —
+never what it said.
 
 A **message** is part of a conversation between the people working the
 opportunity. Messages are listed in the order they were sent, and **a message
@@ -443,8 +463,11 @@ cannot be changed or deleted once it is sent** — not by its author, not by
 anybody: the attempt is refused with `CRM_MESSAGE_IMMUTABLE`. A message tells
 the opportunity's assignee and everybody who has already written in that
 conversation, except the person who sent it, on the notification bell of the
-Admin UI with a link to the opportunity. While the **Admin notifications**
-module is switched off, a message is stored all the same and nobody is told.
+Admin UI with a link to the opportunity. The entry names the opportunity by
+its number and carries nothing of the message, and is not written for somebody
+who can no longer reach the opportunity's organization. While the **Admin
+notifications** module is switched off, a message is stored all the same and
+nobody is told.
 
 **Both are internal.** Neither a note nor a message has a setting that shows it
 to the customer, and nothing the customer can open — an order, a quote request,
@@ -500,7 +523,12 @@ are still there, and so is the protection.
 Anybody who may read an opportunity may download its attachments; no
 permission of the media library is needed. Each attachment in the list carries
 a download link that is valid for a few minutes — read the list again for a
-fresh one.
+fresh one. The link downloads the file; it is never opened as a page.
+
+**A file a browser would run is not accepted as an attachment**: HTML, SVG,
+XML and JavaScript, judged by the file's name and by its type — either is
+enough. The upload and attaching by `assetId` both answer `415
+ASSET_UPLOAD_TYPE_NOT_ALLOWED`, and nothing is stored.
 
 In the Admin UI an opportunity has an **Attachments** tab: a list of the files
 with each one's name, size, who attached it and when.
@@ -510,7 +538,7 @@ with each one's name, size, who attached it and when.
   over 25 MB is refused before it is sent; a file the media library does not
   accept is refused with the library's reason.
 - The download button prepares a fresh link at the moment it is pressed and
-  opens the file in a new tab. A file that has gone missing from the media
+  downloads the file. A file that has gone missing from the media
   library says so and opens nothing.
 - The bin removes the attachment, after a confirmation. The file stays in the
   media library.
@@ -598,6 +626,12 @@ opportunity's organization, and it belongs to at most one opportunity. An
 opportunity can hold several quote requests and several orders.
 
 A linked quote request is listed with its number, its status and its value.
+**A quote request is the Quote Requests module's to show**: linking one, and
+being offered one to link, needs `rfqs:handle` — the permission that module
+reads a request with — as well as `crm:write`, and answers `403` without it.
+Somebody who reads an opportunity without `rfqs:handle` sees that a quote
+request is linked and nothing of it; it is listed as unavailable. Unlinking
+needs `crm:write` only.
 The "follow the opportunity's status" switch means nothing for one: a quote
 request keeps its own status.
 
@@ -821,8 +855,9 @@ not needed.
 
 Three things to know:
 
-- A note that was edited or deleted stays in the history with its text, as it
-  was.
+- A note or a message is in the history as the fact that it was written,
+  edited or deleted — by whom, and how long it was. Its text is not: that is
+  read on the *Notes* and *Messages* tabs.
 - Recalculating a computed value is not an entry: the change that caused it —
   a link, an order's status — is.
 - The history reaches back 500 entries.
@@ -881,12 +916,15 @@ two buttons, **Insert product** and **Insert order**. Each opens a search;
 choosing a result writes the token where the cursor was. Once saved, the text
 shows the product's name or the order's number as a link in its place, and
 *Product unavailable* / *Order unavailable* for a target that is gone or that
-you may not see.
+you may not see. A name is shown only to somebody who could open the target
+itself: an order's number needs `orders:read`, a product's name
+`catalog:read`.
 
 The two searches are the catalogue's and the Orders module's own, so *Insert
 product* is offered to a role that also holds `catalog:read` and *Insert order*
 to one that holds `orders:read`; orders are offered for the opportunity's
-organization only. A token typed or pasted by hand works without either.
+organization only. A token typed or pasted by hand is saved without either,
+and reads as unavailable to whoever lacks the permission.
 
 ## Telling other systems: webhooks
 
@@ -1067,7 +1105,7 @@ open.
 Quote requests get the same panel once they can be linked to an opportunity.
 
 For integrators: `GET /api/v1/admin/crm/documents/order/{orderId}/opportunity`
-(`crm:read`) answers `{ "data": <the opportunity's summary> }`, or
+(`crm:read` and `orders:read`) answers `{ "data": <the opportunity's summary> }`, or
 `{ "data": null }` for an order linked to none. An order that does not exist or
 is not the caller's to see answers `404 CRM_DOCUMENT_NOT_FOUND` — the same
 answer for both, whether or not it is linked. A kind other than a document
@@ -1215,7 +1253,16 @@ from the Custom Fields module. The **Roles** screen suggests both.
 the Analytics screen names statuses and offers its sales channel and sales rep
 filters from what `crm:read` reads.
 
-**Nothing else is needed.** The fields that choose an organization, a sales
+**What another module owns is shown to somebody who may read it there.** An
+opportunity opens with `crm:read` alone, and then lists a linked order or
+quote request as unavailable and names no order or product its texts mention.
+`orders:read` shows a linked or mentioned order and allows linking one;
+`rfqs:handle` does the same for a quote request; `catalog:read` names a
+mentioned product. A document a computed value leaves out is named under the
+same rule. The value itself is the opportunity's own figure and is shown to
+everybody who may read the opportunity.
+
+**Nothing else is needed to fill in a form.** The fields that choose an organization, a sales
 channel, an assignee or a contact person — in the filters of the list and the
 board, and on the forms — read CRM's own lookups, so a sales representative
 does not need permission to browse customers, sales channels or administrators
@@ -1228,7 +1275,7 @@ the person may see, and is no more than a name to choose by.
 | `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Every sales channel: `id`, `code`, `name` per language, `active`, `systemDefault`, and the currencies it sells in. |
 | `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Active administrators, by name: `id`, `name`. |
 | `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Members of one organization the caller may see: `id`, `name`, `email`. |
-| `GET /api/v1/admin/crm/lookups/quote-requests?organizationId=…&q=…` | `crm:write` | Quote requests of one organization the caller may see that can be linked: the open ones, and the one whose number is typed in full. `id`, `number`, `status`. Answers `503` while the Quote Requests module is off. |
+| `GET /api/v1/admin/crm/lookups/quote-requests?organizationId=…&q=…` | `crm:write` and `rfqs:handle` | Quote requests of one organization the caller may see that can be linked: the open ones, and the one whose number is typed in full. `id`, `number`, `status`. Answers `503` while the Quote Requests module is off. |
 
 The currencies offered when an opportunity is created are the ones the active
 sales channels sell in.

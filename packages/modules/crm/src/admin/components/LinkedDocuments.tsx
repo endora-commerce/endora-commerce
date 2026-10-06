@@ -19,11 +19,15 @@ import {
   type ComboboxOption,
 } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { useAuth } from '@endora-commerce/admin-kit/lib';
 import { crmApi, type LinkableOrder, type OrderStatusOption } from '../api.js';
 import { CreateDocumentButton, CreatedDocumentNotice } from './CreateFromOpportunity.js';
 import { errorMessage, moneyLabel, orderStatusLabel } from '../lib/labels.js';
 
 const SEARCH_DEBOUNCE_MS = 250;
+
+/** The code `orders` reads an Order with; linking one, or making it follow, asks for it too. */
+const ORDERS_READ = 'orders:read';
 
 export interface LinkedDocumentsProps {
   opportunity: OpportunityDetail;
@@ -45,11 +49,18 @@ export interface LinkedDocumentsProps {
  * offered. The server still decides: an Order that already belongs to another
  * Opportunity is refused in its own words.
  *
- * Quote Requests become linkable with a later story; the endpoint refuses them
- * until then, so this component offers Orders only.
+ * **Choosing an Order, and deciding whether it follows, needs `orders:read`**
+ * as well as `crm:write` — the server asks for both (research N-R3), so the
+ * picker and the switch are offered to a holder of both, the Orders list is
+ * not asked on behalf of anybody else, and a holder of `crm:write` alone is
+ * told why. Unlinking shows nothing of the Order and stays with `crm:write`.
+ *
+ * Quote Requests have a section of their own (`LinkedQuoteRequests`).
  */
 export function LinkedDocuments(props: LinkedDocumentsProps): ReactNode {
   const { opportunity, orderStatuses, language, canWrite, reload } = props;
+  const { hasPermission } = useAuth();
+  const canLink = canWrite && hasPermission(ORDERS_READ);
   const t = useTranslation('crm');
   const headingId = useId();
   const pickerId = useId();
@@ -92,11 +103,11 @@ export function LinkedDocuments(props: LinkedDocumentsProps): ReactNode {
 
   // The Organization's most recent Orders are offered before anything is typed.
   useEffect(() => {
-    if (canWrite) void search('');
+    if (canLink) void search('');
     return (): void => {
       if (timer.current !== null) clearTimeout(timer.current);
     };
-  }, [canWrite, search]);
+  }, [canLink, search]);
 
   const onSearchChange = (query: string): void => {
     if (timer.current !== null) clearTimeout(timer.current);
@@ -221,7 +232,7 @@ export function LinkedDocuments(props: LinkedDocumentsProps): ReactNode {
                     {item.available ? moneyLabel(item.total, item.currency ?? opportunity.currency) : null}
                   </TableCell>
                   <TableCell>
-                    {canWrite ? (
+                    {canLink ? (
                       <label className="flex min-h-11 items-center gap-2 text-sm sm:min-h-0">
                         <Checkbox
                           checked={item.syncStatus}
@@ -260,7 +271,10 @@ export function LinkedDocuments(props: LinkedDocumentsProps): ReactNode {
         </Table>
       )}
 
-      {canWrite ? (
+      {canWrite && !canLink ? (
+        <p className="text-sm text-muted-foreground">{t('links.add.needsOrdersRead')}</p>
+      ) : null}
+      {canLink ? (
         <div className="space-y-1">
           <Label htmlFor={pickerId}>{t('links.add.label')}</Label>
           <div className="flex flex-wrap items-start gap-2">

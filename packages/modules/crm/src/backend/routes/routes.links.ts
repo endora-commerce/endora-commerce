@@ -5,7 +5,7 @@ import {
 } from '@endora-commerce/contracts';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { OpportunityLinkService } from '../services/opportunity-link-service.js';
-import { ORDERS_READ_PERMISSION } from '../services/orders-permission.js';
+import { ORDERS_READ_PERMISSION, QUOTE_REQUESTS_READ_PERMISSION } from '../services/owner-read-permissions.js';
 
 export interface LinkRoutesDeps {
   linkService: OpportunityLinkService;
@@ -20,22 +20,25 @@ export interface LinkRoutesDeps {
  * **Linking an Order, and deciding whether it follows the Opportunity, also
  * ask for `orders:read`** (research N-R3): the answer shows the Order's number,
  * status and total, and a followed Order is one this Opportunity's transitions
- * move. Removing a link asks for nothing more — it shows nothing and moves
- * nothing.
+ * move. **Linking a Quote Request asks for `rfqs:handle`** by the same rule
+ * (research N-R13): it is the code the Quote Requests module reads one with.
+ * Removing a link asks for nothing more — it shows nothing and moves nothing.
  */
 export async function registerCrmLinkRoutes(app: FastifyInstance, deps: LinkRoutesDeps): Promise<void> {
   const { requireAdmin, linkService: links } = deps;
   const requireOrdersRead = requireAdmin(ORDERS_READ_PERMISSION);
-  /** Only an Order link is `orders`' business; any other kind is answered by the service. */
-  const requireOrdersReadForAnOrder = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-    if ((request.body as { documentKind?: unknown } | null)?.documentKind !== 'order') return;
-    await requireOrdersRead(request, reply);
+  const requireQuoteRequestsRead = requireAdmin(QUOTE_REQUESTS_READ_PERMISSION);
+  /** The read permission of whichever module owns the document; any other kind is answered by the service. */
+  const requireTheOwnersRead = async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    const kind = (request.body as { documentKind?: unknown } | null)?.documentKind;
+    if (kind === 'order') await requireOrdersRead(request, reply);
+    else if (kind === 'quote_request') await requireQuoteRequestsRead(request, reply);
   };
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/crm/opportunities/:id/links',
     {
-      preHandler: [requireAdmin('crm:write'), requireOrdersReadForAnOrder],
+      preHandler: [requireAdmin('crm:write'), requireTheOwnersRead],
       schema: { body: CreateOpportunityLinkRequestSchema },
     },
     async (request, reply) => {

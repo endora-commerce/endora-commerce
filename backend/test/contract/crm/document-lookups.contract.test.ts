@@ -22,16 +22,24 @@ type Seeded = { cookies: { b2b_session: string }; adminUserId: string; undo: () 
  * (`specs/143-crm-sales-opportunities/`, User Story 8 — task T101; research
  * N-H2).
  *
- * The quote desk's own list is behind `rfqs:handle`. A Sales Rep who links a
- * Quote Request to an Opportunity holds `crm:write` and has no reason to hold
- * the right to handle quotes, so CRM answers the picker itself, through
- * `quote_requests`' published read port — and the desk's gate is not widened.
+ * CRM answers the picker itself, through `quote_requests`' published read
+ * port: the Organization's open requests and the one whose number is typed,
+ * as `id`, `number`, `status` and nothing else.
+ *
+ * It asks for `crm:write` **and** `rfqs:handle` (research N-R13, which
+ * reverses N-H2 on this point): the answer is Quote Request data, and what
+ * another module owns is shown only to somebody who may read it there. The
+ * desk's own gate is not widened either way.
  */
 describe('crm document lookups (contract)', () => {
   let h: BackendServerHandle;
   let otherOrganizationId: string;
   let reader: Seeded;
   let writer: Seeded;
+  /** `crm:write` without the quote desk's code. */
+  let crmWriter: Seeded;
+  /** The quote desk's code without `crm:write`. */
+  let desk: Seeded;
   let rep: Seeded;
   let outsider: Seeded;
   let quote: { id: string; businessId: string };
@@ -50,22 +58,27 @@ describe('crm document lookups (contract)', () => {
     h = await setupBackendServer();
     otherOrganizationId = await seedCrmOrganization(h.em(), 'Document lookup other');
     reader = await seedCrmAdmin(h.em(), 'doc-lookup-reader', ['crm:read', 'orders:read']);
-    writer = await seedCrmAdmin(h.em(), 'doc-lookup-writer', ['crm:read', 'crm:write']);
-    rep = await seedCrmSalesRep(h.em(), [TEST_ORGANIZATION_ID], ['crm:read', 'crm:write']);
-    outsider = await seedCrmSalesRep(h.em(), [otherOrganizationId], ['crm:read', 'crm:write']);
+    writer = await seedCrmAdmin(h.em(), 'doc-lookup-writer', ['crm:read', 'crm:write', 'rfqs:handle']);
+    crmWriter = await seedCrmAdmin(h.em(), 'doc-lookup-crm-writer', ['crm:read', 'crm:write']);
+    desk = await seedCrmAdmin(h.em(), 'doc-lookup-desk', ['crm:read', 'rfqs:handle']);
+    rep = await seedCrmSalesRep(h.em(), [TEST_ORGANIZATION_ID], ['crm:read', 'crm:write', 'rfqs:handle']);
+    outsider = await seedCrmSalesRep(h.em(), [otherOrganizationId], ['crm:read', 'crm:write', 'rfqs:handle']);
     quote = await submitCrmQuoteRequest(h);
   });
 
   afterAll(async () => {
-    for (const seeded of [reader, writer, rep, outsider]) seeded.undo();
+    for (const seeded of [reader, writer, crmWriter, desk, rep, outsider]) seeded.undo();
     await teardownBackendServer(h);
   });
 
-  it('is gated crm:write — a link is a write — and needs no code of the quote desk', async () => {
+  it('is gated crm:write — a link is a write — and rfqs:handle, the code a Quote Request is read with', async () => {
     expect((await get(path(TEST_ORGANIZATION_ID), reader.cookies)).statusCode).toBe(403);
+    // Either code alone is not enough.
+    expect((await get(path(TEST_ORGANIZATION_ID), crmWriter.cookies)).statusCode).toBe(403);
+    expect((await get(path(TEST_ORGANIZATION_ID), desk.cookies)).statusCode).toBe(403);
     expect((await get(path(TEST_ORGANIZATION_ID), writer.cookies)).statusCode).toBe(200);
-    // Nobody's gate is widened: the desk's own list still refuses that role.
-    expect((await get('/api/v1/admin/quote-requests', writer.cookies)).statusCode).toBe(403);
+    // Nobody's gate is widened: the desk's own list still refuses a role without its code.
+    expect((await get('/api/v1/admin/quote-requests', crmWriter.cookies)).statusCode).toBe(403);
     expect((await get('/api/v1/admin/quote-requests', CRM_ADMIN)).statusCode).toBe(200);
   });
 

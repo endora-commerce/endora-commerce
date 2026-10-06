@@ -20,7 +20,7 @@ import {
 } from '../entities/crm-status-propagation.entity.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { isClosedToOrderCausedMove } from './opportunity-transition-service.js';
-import type { OrdersReadCheck } from './orders-permission.js';
+import type { OwnerReadCheck } from './owner-read-permissions.js';
 
 export interface OrderStatusPropagationServiceDeps {
   emFactory: () => EntityManager;
@@ -29,7 +29,7 @@ export interface OrderStatusPropagationServiceDeps {
   orderTransitions: OrderTransitionPort;
   orders: OrderReadPort;
   /** Whether the caller holds `orders:read`: without it an outcome names no Order number. */
-  canReadOrders: OrdersReadCheck;
+  canReadOrders: OwnerReadCheck;
 }
 
 const FORWARD = 'opportunity_to_order' as const;

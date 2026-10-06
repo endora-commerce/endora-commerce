@@ -204,7 +204,12 @@ describe('crm computed value and Quote Request links (US8)', () => {
     it('answers the same 404 for a Quote Request outside the caller’s Organizations', async () => {
       // A Sales Representative confined to the other Organization: the request
       // of the test Organization does not exist for them.
-      const rep = await seedCrmSalesRep(h.em(), [otherOrganizationId], ['crm:read', 'crm:write', 'orders:read']);
+      // They hold the quote desk's code: the subject here is reach, not the gate.
+      const rep = await seedCrmSalesRep(
+        h.em(),
+        [otherOrganizationId],
+        ['crm:read', 'crm:write', 'orders:read', 'rfqs:handle'],
+      );
       try {
         const own = await createCrmOpportunity(h, { organizationId: otherOrganizationId });
         const rfq = await submitCrmQuoteRequest(h);

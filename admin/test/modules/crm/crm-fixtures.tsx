@@ -61,7 +61,7 @@ export function core(key: string, params?: Record<string, string | number>): str
   return sentence(CORE_BUNDLE, 'core', key, params);
 }
 
-export const EVERY_CRM_PERMISSION = ['crm:read', 'crm:write', 'crm:configure', 'orders:read'];
+export const EVERY_CRM_PERMISSION = ['crm:read', 'crm:write', 'crm:configure', 'orders:read', 'rfqs:handle'];
 
 /**
  * Mount a screen at `path` (matched against `pattern`) under the real session

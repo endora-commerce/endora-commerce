@@ -8,12 +8,15 @@ import type {
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import { referenceTokensOf } from '../domain/reference-tokens.js';
 import type { CrmReferenceSourceKind } from '../entities/crm-opportunity-reference.entity.js';
+import type { OwnerReadChecks } from './owner-read-permissions.js';
 
 export interface ReferenceServiceDeps {
   /** Ports of other modules — lazy, resolved per call, never captured. */
   products: CatalogProductReadPort;
   orders: OrderReadPort;
   adminUsers: AdminUserReadPort;
+  /** Whether the reader may read an Order, or a Product, in the module that owns it. */
+  mayRead: Pick<OwnerReadChecks, 'orders' | 'products'>;
 }
 
 /** A row of `crm_opportunity_references`, as the saving Command creates it. */
@@ -77,8 +80,11 @@ function productLabel(name: Record<string, string>, sku: string, language: strin
  * batched port calls, so a label is the target's *current* name. The ports
  * read under the reader's tenant scope: an Order of an Organization the reader
  * does not reach is not returned, and so — like a target that is gone — comes
- * back `available: false` with no label and no URL. Nothing here remembers a
- * name, which is what makes that leak-proof.
+ * back `available: false` with no label and no URL. So does a target whose
+ * owner's read permission the reader does not hold — `orders:read` for an
+ * Order, `catalog:read` for a Product (research N-R13): `crm:read` lets
+ * somebody read the text, not what another module would refuse to show them.
+ * Nothing here remembers a name, which is what makes that leak-proof.
  */
 export class ReferenceService {
   constructor(private readonly deps: ReferenceServiceDeps) {}
@@ -120,11 +126,17 @@ export class ReferenceService {
     const orderIds = idsOf('order');
     if (productIds.length === 0 && orderIds.length === 0) return texts.map(() => []);
 
+    // Asked only for a kind the texts mention; the owner's port is not asked
+    // at all for a reader who could not have opened the target.
+    const [mayReadProducts, mayReadOrders] = await Promise.all([
+      productIds.length > 0 ? this.deps.mayRead.products() : Promise.resolve(false),
+      orderIds.length > 0 ? this.deps.mayRead.orders() : Promise.resolve(false),
+    ]);
     const [products, orders, language] = await Promise.all([
       // Live products only: one that was deleted is gone for the reader.
-      productIds.length > 0 ? this.deps.products.findByIds(productIds, { liveOnly: true }) : Promise.resolve([]),
-      orderIds.length > 0 ? this.deps.orders.findByIds(orderIds) : Promise.resolve([]),
-      productIds.length > 0 ? this.#viewerLanguage() : Promise.resolve(FALLBACK_LANGUAGE),
+      mayReadProducts ? this.deps.products.findByIds(productIds, { liveOnly: true }) : Promise.resolve([]),
+      mayReadOrders ? this.deps.orders.findByIds(orderIds) : Promise.resolve([]),
+      mayReadProducts ? this.#viewerLanguage() : Promise.resolve(FALLBACK_LANGUAGE),
     ]);
     const labels = new Map<string, string>();
     for (const product of products) {

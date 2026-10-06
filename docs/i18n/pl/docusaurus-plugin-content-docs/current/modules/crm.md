@@ -143,7 +143,7 @@ ją ponownie.
 | `GET /api/v1/admin/crm/opportunities` | `crm:read` | Lista z wyszukiwaniem (tytuł, numer, nazwa organizacji), filtrami według statusu, stanu (`open` / `won` / `lost`), organizacji, handlowca, etykiet, kanału sprzedaży i daty utworzenia, z sortowaniem i stronicowaniem. |
 | `POST /api/v1/admin/crm/opportunities` | `crm:write` | Utworzenie szansy. |
 | `GET /api/v1/admin/crm/opportunities/:id` | `crm:read` | Jedna szansa wraz ze statusami, do których może przejść, powiązanymi zamówieniami i każdą odrzuconą zmianą zamówienia. |
-| `PATCH /api/v1/admin/crm/opportunities/:id` | `crm:write` | Edycja. Odczytaną wersję należy przesłać w nagłówku `If-Match`; nieaktualna jest odrzucana kodem `409`. |
+| `PATCH /api/v1/admin/crm/opportunities/:id` | `crm:write` | Edycja. Odczytaną wersję należy przesłać w nagłówku `If-Match`; nieaktualna jest odrzucana kodem `409`, a nagłówek, który nie jest wersją — w cudzysłowie, jak podaje ją `ETag`, albo bez — kodem `400`. |
 | `DELETE /api/v1/admin/crm/opportunities/:id` | `crm:configure` | Usunięcie szansy razem z jej powiązaniami i historią. |
 | `POST /api/v1/admin/crm/opportunities/:id/transition` | `crm:write` | Przeniesienie szansy do innego statusu. |
 
@@ -230,9 +230,23 @@ informacji albo ze względu na jego wartość — ale nie ma być przenoszone.
 
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
-| `POST /api/v1/admin/crm/opportunities/:id/links` | `crm:write` | Powiązanie zamówienia. |
-| `PATCH /api/v1/admin/crm/opportunities/:id/links/:linkId` | `crm:write` | Włączenie lub wyłączenie podążania za statusem. |
+| `POST /api/v1/admin/crm/opportunities/:id/links` | `crm:write` i `orders:read` | Powiązanie zamówienia. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/links/:linkId` | `crm:write` i `orders:read` | Włączenie lub wyłączenie podążania za statusem. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/links/:linkId` | `crm:write` | Usunięcie powiązania. |
+
+**Zamówienie pokazuje moduł Zamówienia.** Powiązanie zamówienia i decyzja, czy
+ma ono podążać za szansą, wymagają `orders:read` oprócz `crm:write` — bez niego
+odpowiedzią jest `403`; usunięcie powiązania wymaga tylko `crm:write`. Osoba,
+która czyta szansę bez `orders:read`, widzi, że zamówienie jest powiązane, i
+nic poza tym — jest ono na liście jako **niedostępne**, bez numeru, statusu i
+kwoty, a odrzucona zmiana statusu zamówienia jest pokazywana bez jego numeru.
+Admin UI pokazuje wybór zamówienia i przełącznik podążania osobie, która ma oba
+uprawnienia, a pozostałym mówi, czego brakuje.
+
+Przeniesienie szansy przenosi podążające za nią zamówienia **bez względu na
+to, kto ją przenosi**: o tym, jakiego statusu zamówienia wymaga dane przejście,
+zdecydowała osoba z uprawnieniem `crm:configure`, więc przenoszący szansę nie
+potrzebuje `orders:write`.
 
 ## Zamówienia podążające za szansą
 
@@ -340,7 +354,8 @@ jest później nadrabiana.
 ## Kto prowadzi szansę
 
 Każda szansa sprzedażowa ma najwyżej jedną **osobę przypisaną** — tę, która nad
-nią pracuje. Przypisany może zostać każdy aktywny administrator.
+nią pracuje. Przypisany może zostać każdy aktywny administrator, który ma
+dostęp do organizacji szansy.
 
 Gdy szansa jest tworzona bez wskazania, kto ją prowadzi, osoba przypisana jest
 wybierana spośród Handlowców przypisanych do organizacji tej szansy:
@@ -380,13 +395,16 @@ W Admin UI:
 | `POST /api/v1/admin/crm/opportunities/:id/assign` | `crm:write` | Przypisanie, zmiana przypisania albo — z `{ "adminUserId": null }` — jego zdjęcie. Odpowiedzią jest szansa. |
 | `GET /api/v1/admin/crm/opportunities?assignedAdminUserId=…` | `crm:read` | `me` — szanse wywołującego, `unassigned` — nieprzypisane, albo identyfikator administratora. |
 
-Osoby, która nie jest aktywnym administratorem, nie można przypisać: żądanie
-jest odrzucane z kodem `CRM_ASSIGNEE_INVALID`. Edycja szansy również może
+Osoby, która nie jest aktywnym administratorem albo nie ma dostępu do
+organizacji szansy, nie można przypisać: żądanie jest odrzucane z kodem
+`CRM_ASSIGNEE_INVALID`. Edycja szansy również może
 zmienić osobę przypisaną — na tej samej zasadzie.
 
 Osoba dowiaduje się, że szansa została jej przypisana — z dzwonka powiadomień
-w Admin UI, z odnośnikiem do szansy. Nikt nie jest powiadamiany o tym, że sam
-wziął szansę. Dzwonek należy do modułu **Powiadomienia administratora**: gdy
+w Admin UI, z odnośnikiem do szansy. Wpis nazywa szansę jej numerem, nigdy
+tytułem, i nie powstaje dla osoby, która nie ma już dostępu do organizacji
+szansy. To samo dotyczy szansy utworzonej automatycznie. Nikt nie jest
+powiadamiany o tym, że sam wziął szansę. Dzwonek należy do modułu **Powiadomienia administratora**: gdy
 ten moduł jest wyłączony, przypisywanie działa dokładnie tak samo, a nikt nie
 dostaje powiadomienia.
 
@@ -449,7 +467,9 @@ Osoby pracujące nad szansą sprzedażową piszą w niej na dwa sposoby.
 **Notatka** to coś do zapamiętania — co powiedział klient, co ustalono, co
 zrobić dalej. Autor notatki może ją edytować albo usunąć; nikt inny nie może,
 bez względu na uprawnienia. Przy edytowanej notatce widać, że była edytowana.
-Usunięta notatka znika z listy, a jej treść zostaje w historii zmian szansy.
+Usunięta notatka znika z listy. Historia zmian szansy odnotowuje, że notatka
+została napisana, zmieniona albo usunięta, przez kogo i jak była długa —
+nigdy jej treść.
 
 **Wiadomość** jest częścią rozmowy między osobami pracującymi nad szansą.
 Wiadomości są wyświetlane w kolejności wysłania, a **wiadomości nie można
@@ -457,6 +477,8 @@ zmienić ani usunąć po wysłaniu** — nie może tego zrobić ani autor, ani n
 inny: próba jest odrzucana z kodem `CRM_MESSAGE_IMMUTABLE`. O wiadomości
 dowiadują się osoba przypisana do szansy i wszyscy, którzy już napisali w tej
 rozmowie — poza nadawcą — z dzwonka powiadomień w Admin UI, z odnośnikiem do
+szansy. Wpis nazywa szansę jej numerem i nie zawiera niczego z treści
+wiadomości, a nie powstaje dla osoby, która nie ma już dostępu do organizacji
 szansy. Gdy moduł **Powiadomienia administratora** jest wyłączony, wiadomość
 jest zapisywana tak samo, a nikt nie dostaje powiadomienia.
 
@@ -518,7 +540,14 @@ nadal istnieją, a ochrona razem z nimi.
 Każdy, kto może czytać szansę, może pobrać jej załączniki; żadne uprawnienie
 biblioteki mediów nie jest potrzebne. Każdy załącznik na liście ma odnośnik do
 pobrania ważny przez kilka minut — aby dostać świeży, wystarczy ponownie
-odczytać listę.
+odczytać listę. Odnośnik pobiera plik; plik nigdy nie jest otwierany jako
+strona.
+
+**Plik, który przeglądarka by uruchomiła, nie jest przyjmowany jako
+załącznik**: HTML, SVG, XML i JavaScript — rozpoznawane po nazwie pliku i po
+jego typie; wystarczy jedno z nich. Przesłanie pliku i załączenie po `assetId`
+odpowiadają wtedy `415 ASSET_UPLOAD_TYPE_NOT_ALLOWED` i nic nie jest
+zapisywane.
 
 W Admin UI szansa ma kartę **Załączniki**: listę plików z nazwą, rozmiarem,
 osobą, która plik dodała, i datą dodania.
@@ -529,7 +558,7 @@ osobą, która plik dodała, i datą dodania.
   odrzucany jeszcze przed wysłaniem; plik, którego biblioteka mediów nie
   przyjmuje, jest odrzucany z podaną przez nią przyczyną.
 - Przycisk pobierania przygotowuje świeży odnośnik w chwili kliknięcia i
-  otwiera plik w nowej karcie. Jeśli pliku nie ma już w bibliotece mediów,
+  pobiera plik. Jeśli pliku nie ma już w bibliotece mediów,
   ekran o tym informuje i niczego nie otwiera.
 - Kosz usuwa załącznik po potwierdzeniu. Plik pozostaje w bibliotece mediów.
 
@@ -618,6 +647,12 @@ organizacji szansy i należy do co najwyżej jednej szansy. Szansa może mieć
 kilka zapytań ofertowych i kilka zamówień.
 
 Powiązane Zapytanie ofertowe jest na liście z numerem, statusem i wartością.
+**Zapytanie ofertowe pokazuje moduł Zapytania ofertowe**: powiązanie zapytania
+i lista zapytań do powiązania wymagają `rfqs:handle` — uprawnienia, z którym
+ten moduł odczytuje zapytanie — oprócz `crm:write`; bez niego odpowiedzią jest
+`403`. Osoba, która czyta szansę bez `rfqs:handle`, widzi, że Zapytanie
+ofertowe jest powiązane, i nic poza tym; jest ono na liście jako niedostępne.
+Usunięcie powiązania wymaga tylko `crm:write`.
 Przełącznik „podążaj za statusem szansy” nic dla niego nie znaczy: Zapytanie
 ofertowe zachowuje własny status.
 
@@ -846,8 +881,9 @@ nie jest potrzebne.
 
 Trzy rzeczy, o których warto wiedzieć:
 
-- Notatka, która została zmieniona albo usunięta, zostaje w historii ze swoją
-  treścią, taką, jaka była.
+- Notatka albo wiadomość jest w historii jako fakt, że została napisana,
+  zmieniona albo usunięta — przez kogo i jak była długa. Jej treści tam nie
+  ma: czyta się ją na kartach *Notatki* i *Wiadomości*.
 - Przeliczenie wartości wyliczanej nie jest wpisem: wpisem jest zmiana, która
   je spowodowała — powiązanie, status zamówienia.
 - Historia sięga 500 wpisów wstecz.
@@ -906,13 +942,16 @@ W Admin UI pole opisu oraz pola notatki i wiadomości mają dwa przyciski:
 wyniku wpisuje token w miejscu kursora. Po zapisaniu tekst pokazuje w tym
 miejscu nazwę produktu albo numer zamówienia jako odnośnik, a dla celu, który
 zniknął albo którego nie możesz zobaczyć — *Produkt niedostępny* /
-*Zamówienie niedostępne*.
+*Zamówienie niedostępne*. Nazwę widzi tylko osoba, która mogłaby otworzyć sam
+cel: numer zamówienia wymaga `orders:read`, a nazwa produktu —
+`catalog:read`.
 
 Obie wyszukiwarki należą do katalogu i do modułu Zamówienia, dlatego przycisk
 *Wstaw produkt* widzi rola, która ma także `catalog:read`, a *Wstaw
 zamówienie* — rola z `orders:read`; proponowane są wyłącznie zamówienia
-organizacji tej szansy. Token wpisany albo wklejony ręcznie działa bez żadnego
-z tych uprawnień.
+organizacji tej szansy. Token wpisany albo wklejony ręcznie jest zapisywany
+bez żadnego z tych uprawnień, a osobie bez uprawnienia pokazuje się jako
+niedostępny.
 
 ## Powiadamianie innych systemów: webhooki
 
@@ -1097,7 +1136,7 @@ Zapytania ofertowe otrzymają ten sam panel, gdy będzie je można powiązać z
 szansą.
 
 Dla integratorów: `GET /api/v1/admin/crm/documents/order/{orderId}/opportunity`
-(`crm:read`) zwraca `{ "data": <podsumowanie szansy> }` albo `{ "data": null }`
+(`crm:read` i `orders:read`) zwraca `{ "data": <podsumowanie szansy> }` albo `{ "data": null }`
 dla zamówienia bez powiązania. Zamówienie, które nie istnieje albo którego
 wywołujący nie może zobaczyć, daje `404 CRM_DOCUMENT_NOT_FOUND` — tę samą
 odpowiedź w obu przypadkach, niezależnie od tego, czy jest powiązane. Rodzaj
@@ -1245,7 +1284,16 @@ Uprawnienia `crm:write`, `crm:configure` i `crm:analytics` opierają się na
 `crm:read`: ekran Analityka nazywa statusy i podpowiada filtry kanału sprzedaży
 oraz handlowca na podstawie tego, co odczytuje `crm:read`.
 
-**Nic więcej nie jest potrzebne.** Pola wyboru organizacji, kanału sprzedaży,
+**To, co należy do innego modułu, widzi osoba, która może to tam odczytać.**
+Szansa otwiera się z samym `crm:read` — wtedy powiązane zamówienie albo
+Zapytanie ofertowe jest na liście jako niedostępne, a zamówienia i produkty
+wspomniane w tekstach nie są nazywane. `orders:read` pokazuje powiązane albo
+wspomniane zamówienie i pozwala je powiązać; `rfqs:handle` robi to samo dla
+zapytania ofertowego; `catalog:read` nazywa wspomniany produkt. Dokument
+pominięty w wartości wyliczanej jest nazywany na tej samej zasadzie. Sama
+wartość jest własną liczbą szansy i widzi ją każdy, kto może czytać szansę.
+
+**Do wypełnienia formularza nic więcej nie jest potrzebne.** Pola wyboru organizacji, kanału sprzedaży,
 handlowca i osoby kontaktowej — w filtrach listy i tablicy oraz w formularzach
 — korzystają z własnych list podpowiedzi modułu CRM, więc handlowiec nie
 potrzebuje uprawnień do przeglądania klientów, kanałów sprzedaży ani
@@ -1259,7 +1307,7 @@ której się wybiera.
 | `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Wszystkie kanały sprzedaży: `id`, `code`, `name` w każdym języku, `active`, `systemDefault` oraz waluty, w których kanał sprzedaje. |
 | `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Aktywni administratorzy, według imienia i nazwiska: `id`, `name`. |
 | `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Członkowie jednej organizacji widocznej dla pytającego: `id`, `name`, `email`. |
-| `GET /api/v1/admin/crm/lookups/quote-requests?organizationId=…&q=…` | `crm:write` | Zapytania ofertowe jednej organizacji widocznej dla pytającego, które można powiązać: otwarte oraz to, którego numer wpisano w całości. `id`, `number`, `status`. Gdy moduł Zapytania ofertowe jest wyłączony, odpowiedzią jest `503`. |
+| `GET /api/v1/admin/crm/lookups/quote-requests?organizationId=…&q=…` | `crm:write` i `rfqs:handle` | Zapytania ofertowe jednej organizacji widocznej dla pytającego, które można powiązać: otwarte oraz to, którego numer wpisano w całości. `id`, `number`, `status`. Gdy moduł Zapytania ofertowe jest wyłączony, odpowiedzią jest `503`. |
 
 Waluty proponowane przy tworzeniu szansy to te, w których sprzedają aktywne
 kanały sprzedaży.

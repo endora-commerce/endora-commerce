@@ -16,6 +16,7 @@ import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import { CrmValueCountingStatus } from '../entities/crm-value-counting-status.entity.js';
 import type { CrmQuoteRequests } from './crm-quote-requests.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
+import type { OwnerReadChecks } from './owner-read-permissions.js';
 
 export interface OpportunityValueServiceDeps {
   emFactory: () => EntityManager;
@@ -24,6 +25,8 @@ export interface OpportunityValueServiceDeps {
   orders: OrderReadPort;
   /** Quote Requests, behind their presence decision. */
   quoteRequests: CrmQuoteRequests;
+  /** Whether the reader may read an Order, or a Quote Request, in the module that owns it. */
+  mayRead: Pick<OwnerReadChecks, 'orders' | 'quoteRequests'>;
 }
 
 /** How many Opportunities one pass of {@link OpportunityValueService.recalculateAll} reads at a time. */
@@ -125,10 +128,23 @@ export class OpportunityValueService {
    * The documents a computed Opportunity leaves out, for its detail screen.
    * Evaluated on read, from what the reader may see: the stored figure has no
    * room for the names.
+   *
+   * **An entry says something of the document** — that its status counts and
+   * that it is in another currency — so it is named only to a reader who may
+   * read that kind of document in the module that owns it (research N-R13).
+   * The narrowing is here, on what is *shown*, and never in the evaluation: the
+   * stored figure is the Opportunity's own and must be the same whoever's
+   * request happened to cause the recalculation.
    */
   async excludedDocuments(opportunity: CrmOpportunity): Promise<OpportunityExcludedDocument[]> {
     if (opportunity.valueMode !== 'computed') return [];
-    return (await this.#evaluate(this.deps.emFactory(), opportunity)).excludedDocuments;
+    const { excludedDocuments } = await this.#evaluate(this.deps.emFactory(), opportunity);
+    if (excludedDocuments.length === 0) return [];
+    const [orders, quoteRequests] = await Promise.all([
+      this.deps.mayRead.orders(),
+      this.deps.mayRead.quoteRequests(),
+    ]);
+    return excludedDocuments.filter((document) => (document.kind === 'order' ? orders : quoteRequests));
   }
 
   /**

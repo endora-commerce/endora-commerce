@@ -24,7 +24,7 @@
 | `GET /opportunities` | `crm:read` | query `OpportunityListQuerySchema` | `{ data: OpportunitySummary[], pagination }` |
 | `POST /opportunities` | `crm:write` | `CreateOpportunityRequestSchema` | 201 `{ data: OpportunityDetail }` |
 | `GET /opportunities/:id` | `crm:read` | — | `{ data: OpportunityDetail }`, `ETag: "<version>"` |
-| `PATCH /opportunities/:id` | `crm:write` | `UpdateOpportunityRequestSchema`, `If-Match` | `{ data: OpportunityDetail }`; 409 `VERSION_CONFLICT` |
+| `PATCH /opportunities/:id` | `crm:write` | `UpdateOpportunityRequestSchema`, `If-Match` | `{ data: OpportunityDetail }`; 409 `VERSION_CONFLICT`; 400 `VALIDATION_FAILED` for an `If-Match` that is not the version — quoted as the `ETag` gives it, or bare — or `*` (research N-R9) |
 | `DELETE /opportunities/:id` | `crm:configure` | — | 204 |
 
 `OpportunityListQuerySchema`: `q?` (title, number, organization name), `statusCode?[]`,
@@ -99,6 +99,15 @@ deciding *which* Orders follow — §3.
 Order as `available: false`, with no `number`, `status`, `total` or `currency`, and a
 `PropagationOutcome` with `orderNumber: null` (research N-R3).
 
+**`rfqs:handle` as well as `crm:write`** for `POST` with `documentKind: 'quote_request'` — the
+one code `quote_requests` declares, and the one its own admin list and detail are read with —
+and a reader without it is shown a linked Quote Request as `available: false`, by the same
+rule (research N-R13). `DELETE` asks for `crm:write` alone, for either kind.
+
+**`excludedDocuments` follows the same rule**: an entry of kind `order` is returned to a
+reader holding `orders:read`, one of kind `quote_request` to a reader holding `rfqs:handle`.
+`value` and `computedValue` are the Opportunity's own figures and are not narrowed.
+
 Errors: 404 `CRM_DOCUMENT_NOT_FOUND` (missing or out of the caller's scope), 409
 `CRM_DOCUMENT_ALREADY_LINKED` (`details.opportunityId` only if the caller may see that
 Opportunity), 422 `CRM_LINK_ORGANIZATION_MISMATCH`, 503 `MODULE_DISABLED` for
@@ -150,6 +159,9 @@ create and `PATCH`.
 
 `OpportunityComment`: `id`, `kind`, `author { id, name }`, `body`, `references`, `editedAt`,
 `createdAt`.
+
+The audit entries of a note or a message carry `commentId`, `kind`, `authorAdminUserId` and
+the text's `length` — never the text (research N-R6); §11 therefore returns no `body`.
 
 ## 7. Attachments (US5)
 
@@ -204,6 +216,11 @@ Not an endpoint: every response field carrying free text (`description`, a comme
 accompanied by `references: [{ type: 'product' | 'order', id, available, label | null,
 url | null }]`. Token grammar: `[[product:<uuid>]]`, `[[order:<uuid>]]`.
 
+`available: false`, with `label` and `url` `null`, for a target that is gone, that is outside
+the reader's tenant scope, **or whose owner's read permission the reader does not hold** —
+`orders:read` for an Order, `catalog:read` for a Product (research N-R13, which narrows
+R-21's "no catalog permission is asked").
+
 ## 10. Board (US7)
 
 `GET /board` · `crm:read` · query: the list filters minus `statusCode`/`state`, plus
@@ -219,7 +236,7 @@ endpoint; there is no board-specific write.
 | `GET /lookups/sales-channels` | `crm:read` | — | `{ data: [{ id, code, name: Record<lang, string>, active, systemDefault, defaultCurrency, currencies }] }` |
 | `GET /lookups/assignees` | `crm:read` | `q?`, `limit?` | `{ data: [{ id, name }] }` — active administrators (the rule of §5) |
 | `GET /lookups/contacts` | `crm:write` | `organizationId` (required), `q?`, `limit?` | `{ data: [{ id, name, email }] }` — empty for an Organization out of scope |
-| `GET /lookups/quote-requests` | `crm:write` | `organizationId` (required), `q?`, `limit?` | `{ data: [{ id, number, status }] }` — the Organization's open Quote Requests, plus the one whose number is typed in full; empty for an Organization out of scope; 503 `MODULE_DISABLED` (`details.module: "quote_requests"`) while that module is off (research N-H2) |
+| `GET /lookups/quote-requests` | `crm:write` **and** `rfqs:handle` (research N-R13) | `organizationId` (required), `q?`, `limit?` | `{ data: [{ id, number, status }] }` — the Organization's open Quote Requests, plus the one whose number is typed in full; empty for an Organization out of scope; 503 `MODULE_DISABLED` (`details.module: "quote_requests"`) while that module is off (research N-H2) |
 
 Schemas: `OpportunityOrganizationLookupQuerySchema`, `OpportunityAssigneeLookupQuerySchema`,
 `OpportunityContactLookupQuerySchema` and the four `…LookupResponseSchema`. The CRM screens'
@@ -279,8 +296,10 @@ admin API and screen, which offers the type only while `crm` is effectively pres
 
 ## 12b. The Opportunity of a document (US17)
 
-`GET /documents/:documentKind/:documentId/opportunity` · `crm:read` ·
-`documentKind ∈ order | quote_request` → `{ data: OpportunitySummary | null }`.
+`GET /documents/:documentKind/:documentId/opportunity` · `crm:read` **and the read permission
+of the document's owner** (`orders:read` for `order`, `rfqs:handle` for `quote_request`;
+research N-R13) · `documentKind ∈ order | quote_request` →
+`{ data: OpportunitySummary | null }`.
 
 `null` — the document exists, is visible to the caller and is linked to no Opportunity.
 404 `CRM_DOCUMENT_NOT_FOUND` — the document is missing or outside the caller's scope (the two

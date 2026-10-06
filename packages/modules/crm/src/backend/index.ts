@@ -55,7 +55,7 @@ import { registerCrmAuditReferences } from './services/crm-audit-references.js';
 import { CrmDocumentLookupService } from './services/crm-document-lookup-service.js';
 import { CrmLookupService } from './services/crm-lookup-service.js';
 import { createAdminReach } from './services/admin-reach.js';
-import { createOrdersReadCheck } from './services/orders-permission.js';
+import { createOwnerReadChecks, type OwnerReadChecks } from './services/owner-read-permissions.js';
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
 import { createCrmQuoteRequests, type CrmQuoteRequests } from './services/crm-quote-requests.js';
 import { DocumentOpportunityService } from './services/document-opportunity-service.js';
@@ -135,9 +135,21 @@ interface CrmCradle {
   readonly crmOrderStatusPropagationService: OrderStatusPropagationService;
   readonly crmOpportunityTransitionService: OpportunityTransitionService;
   readonly opportunityTransitionGuardRegistry: OpportunityTransitionGuardRegistry;
+  readonly crmOwnerReadChecks: OwnerReadChecks;
 }
 
 export function registerModule(ctx: ModuleContext): void {
+  // --- What another module owns (research N-R3, N-R13) ----------------------
+  // A linked Order or Quote Request, and a mentioned Order or Product, are
+  // their owners' data: each is rendered only for a caller who holds the code
+  // its owner reads it with. One answer for every service that renders one,
+  // over `admin_roles`' permission port — lazily, per call.
+  ctx.di.register({
+    crmOwnerReadChecks: ctx
+      .asFunction(() => createOwnerReadChecks(lazyPort<PermissionReadPort>(ctx, 'permissionService')))
+      .singleton(),
+  });
+
   // --- Workflow ----------------------------------------------------------
   // Reading the configured workflow, and changing it. Every change is a
   // Command and re-validates the whole workflow before it commits.
@@ -162,14 +174,20 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     crmOpportunityLinkService: ctx
       .asFunction(
-        ({ emFactory, commandBus, crmQuoteRequests, crmOpportunityValueService }: CrmCradle & ValueCradle) =>
+        ({
+          emFactory,
+          commandBus,
+          crmQuoteRequests,
+          crmOpportunityValueService,
+          crmOwnerReadChecks,
+        }: CrmCradle & ValueCradle) =>
           new OpportunityLinkService({
             emFactory,
             commandBus,
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             quoteRequests: crmQuoteRequests,
             linksChanged: (opportunityId) => crmOpportunityValueService.recalculate(opportunityId),
-            canReadOrders: createOrdersReadCheck(lazyPort<PermissionReadPort>(ctx, 'permissionService')),
+            mayRead: crmOwnerReadChecks,
           }),
       )
       .singleton(),
@@ -197,13 +215,13 @@ export function registerModule(ctx: ModuleContext): void {
     // commit, never inside it.
     crmOrderStatusPropagationService: ctx
       .asFunction(
-        ({ emFactory, commandBus }: CrmCradle) =>
+        ({ emFactory, commandBus, crmOwnerReadChecks }: CrmCradle) =>
           new OrderStatusPropagationService({
             emFactory,
             commandBus,
             orderTransitions: lazyPort<OrderTransitionPort>(ctx, 'orderTransitionPort'),
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
-            canReadOrders: createOrdersReadCheck(lazyPort<PermissionReadPort>(ctx, 'permissionService')),
+            canReadOrders: crmOwnerReadChecks.orders,
           }),
       )
       .singleton(),
@@ -460,12 +478,13 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
     crmOpportunityValueService: ctx
       .asFunction(
-        ({ emFactory, commandBus, crmQuoteRequests }: CrmCradle & ValueCradle) =>
+        ({ emFactory, commandBus, crmQuoteRequests, crmOwnerReadChecks }: CrmCradle & ValueCradle) =>
           new OpportunityValueService({
             emFactory,
             commandBus,
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             quoteRequests: crmQuoteRequests,
+            mayRead: crmOwnerReadChecks,
           }),
       )
       .singleton(),
@@ -636,11 +655,12 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     crmReferenceService: ctx
       .asFunction(
-        () =>
+        ({ crmOwnerReadChecks }: CrmCradle) =>
           new ReferenceService({
             products: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            mayRead: crmOwnerReadChecks,
           }),
       )
       .singleton(),

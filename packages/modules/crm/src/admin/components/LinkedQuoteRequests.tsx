@@ -6,7 +6,7 @@ import type {
   OpportunityLink,
   OpportunityQuoteRequestOption,
 } from '@endora-commerce/contracts';
-import { ApiError, useModulePresence } from '@endora-commerce/admin-kit/lib';
+import { ApiError, useAuth, useModulePresence } from '@endora-commerce/admin-kit/lib';
 import {
   Alert,
   AlertDescription,
@@ -31,6 +31,9 @@ const SEARCH_DEBOUNCE_MS = 250;
 
 /** The module that owns Quote Requests; its presence is the server's to say. */
 const QUOTE_REQUESTS_MODULE = 'quote_requests';
+
+/** The code the Quote Requests module reads a request with; linking one asks for it too. */
+const QUOTE_REQUESTS_READ = 'rfqs:handle';
 
 /**
  * A Quote Request status as a bundle key: `Created from admin` →
@@ -70,12 +73,18 @@ export interface LinkedQuoteRequestsProps {
  * is treated the same way rather than shown as a failure.
  *
  * The search goes through CRM's own lookup, limited to this Organization
- * (research N-H2): a Sales Rep needs no code of the quote desk to link.
+ * (research N-H2). **Choosing a Quote Request needs `rfqs:handle`** as well as
+ * `crm:write` — the lookup and the link both ask for it (research N-R13) — so
+ * the picker is offered to a holder of both, the lookup is not asked on behalf
+ * of anybody else, and a holder of `crm:write` alone is told why. Unlinking
+ * shows nothing of the request and stays with `crm:write`.
  */
 export function LinkedQuoteRequests(props: LinkedQuoteRequestsProps): ReactNode {
   const { opportunity, canWrite, reload } = props;
   const t = useTranslation('crm');
   const { isPresent } = useModulePresence();
+  const { hasPermission } = useAuth();
+  const canLink = canWrite && hasPermission(QUOTE_REQUESTS_READ);
   const headingId = useId();
   const pickerId = useId();
   const [switchedOff, setSwitchedOff] = useState(false);
@@ -118,11 +127,11 @@ export function LinkedQuoteRequests(props: LinkedQuoteRequestsProps): ReactNode 
   );
 
   useEffect(() => {
-    if (canWrite && present) void search('');
+    if (canLink && present) void search('');
     return (): void => {
       if (timer.current !== null) clearTimeout(timer.current);
     };
-  }, [canWrite, present, search]);
+  }, [canLink, present, search]);
 
   const onSearchChange = (query: string): void => {
     if (timer.current !== null) clearTimeout(timer.current);
@@ -269,7 +278,10 @@ export function LinkedQuoteRequests(props: LinkedQuoteRequestsProps): ReactNode 
         </Table>
       )}
 
-      {canWrite && present ? (
+      {canWrite && !canLink && present ? (
+        <p className="text-sm text-muted-foreground">{t('links.quote.add.needsQuotePermission')}</p>
+      ) : null}
+      {canLink && present ? (
         <div className="space-y-1">
           <Label htmlFor={pickerId}>{t('links.quote.add.label')}</Label>
           <div className="flex flex-wrap items-start gap-2">

@@ -53,6 +53,8 @@ const SILENT_FIELDS: ReadonlySet<string> = new Set([
   'assetId',
   'propagationId',
   'linkedByAdminUserId',
+  // Who wrote a note or a message is the entry's own actor, named above it.
+  'authorAdminUserId',
   'version',
   'cause',
   'causeOrderId',
@@ -113,6 +115,7 @@ const FIELD_LABELS: ReadonlySet<string> = new Set([
   'deleted',
   'reason',
   'body',
+  'length',
   'kind',
   'fileName',
   'statusCode',

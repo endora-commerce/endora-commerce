@@ -19,7 +19,7 @@ import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityLink } from '../entities/crm-opportunity-link.entity.js';
 import type { CrmQuoteRequestDocument, CrmQuoteRequests } from './crm-quote-requests.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
-import type { OrdersReadCheck } from './orders-permission.js';
+import type { OwnerReadChecks } from './owner-read-permissions.js';
 
 export interface OpportunityLinkServiceDeps {
   emFactory: () => EntityManager;
@@ -33,8 +33,12 @@ export interface OpportunityLinkServiceDeps {
    * committed — what keeps a computed value following its documents.
    */
   linksChanged: (opportunityId: string) => Promise<unknown>;
-  /** Whether the caller holds `orders:read`: without it a linked Order shows nothing of itself. */
-  canReadOrders: OrdersReadCheck;
+  /**
+   * Whether the caller may read what a link points at, in the module that owns
+   * it: without `orders:read` a linked Order shows nothing of itself, and
+   * without `rfqs:handle` neither does a linked Quote Request.
+   */
+  mayRead: Pick<OwnerReadChecks, 'orders' | 'quoteRequests'>;
 }
 
 /** What a link is rendered from: the document as the reader may see it. */
@@ -367,23 +371,30 @@ export class OpportunityLinkService {
   }
 
   /**
-   * A document the reader cannot see — gone, out of their scope, or owned by a
-   * module that is switched off — renders as unavailable rather than failing
-   * the screen it is listed on.
+   * A document the reader cannot see — gone, out of their scope, owned by a
+   * module that is switched off, or one whose owner's read permission they do
+   * not hold — renders as unavailable rather than failing the screen it is
+   * listed on.
    */
   async #render(links: readonly CrmOpportunityLink[]): Promise<OpportunityLink[]> {
     const orderIds = links.filter((link) => link.documentKind === 'order').map((link) => link.documentId);
     // An Order's number, status and total are `orders`' to show: a caller
     // without `orders:read` sees that a document is linked, and no more.
     const orders =
-      orderIds.length > 0 && (await this.deps.canReadOrders()) ? await this.deps.orders.findByIds(orderIds) : [];
+      orderIds.length > 0 && (await this.deps.mayRead.orders()) ? await this.deps.orders.findByIds(orderIds) : [];
     const documents = new Map<string, LinkedDocument>(
       orders.map((order) => [`order:${order.id}`, { kind: 'order', order }]),
     );
     const quoteRequestIds = links
       .filter((link) => link.documentKind === 'quote_request')
       .map((link) => link.documentId);
-    if (quoteRequestIds.length > 0 && this.deps.quoteRequests.isPresent()) {
+    // The same rule for a Quote Request, by the code its own module reads it
+    // with — asked after presence, so a switched-off owner costs no lookup.
+    if (
+      quoteRequestIds.length > 0 &&
+      this.deps.quoteRequests.isPresent() &&
+      (await this.deps.mayRead.quoteRequests())
+    ) {
       for (const id of quoteRequestIds) {
         const quoteRequest = await this.deps.quoteRequests.load(id);
         if (quoteRequest) documents.set(`quote_request:${id}`, { kind: 'quote_request', quoteRequest });
