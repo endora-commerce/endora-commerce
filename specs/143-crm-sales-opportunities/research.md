@@ -3135,6 +3135,116 @@ when it was measured, and what was done about it.
   the board's totals with the tag and assignee filters. **Finding 1.** The upload's answer,
   the by-id attach's answer and the list all hand out `download=1`; nothing else hands out a
   link to a file.
+- **N-P1 (2026-10-06, T144) — no read-size band refuses the branch.**
+  `backend/test/unit/scripts/check-read-size.test.ts` is green on the merged tree: 43 of 47
+  recorded entries drift and every one is inside its band, the furthest being
+  `check-admin-surface.ts` at 49% of the way to its ceiling (sites 1788 → 2230). Nothing was
+  re-recorded and nothing re-measured — a pull request re-records only an entry its band
+  refuses (`specs/conventions/check-estate.md` § *When a read size is re-recorded*); the
+  release pull request sweeps the drift.
+- **N-P2 (2026-10-06, T141) — the page, read end to end, and what it had wrong.** (a) One
+  sentence contradicted the page and the code: "Linking does not need the permission to
+  handle quotes" — it does (N-R13). (b) **The quote-conversion path was described as working
+  and is not effective**: nothing in the platform writes `orders.source_quote_request_id`
+  (N-E3), so an Order placed from a linked Quote Request is not linked by itself, gets an
+  Opportunity of its own when automatic creation is on, and the pair is added twice to a
+  computed value when both are linked by hand. The page now says so in the three places that
+  claimed otherwise, with what an operator does meanwhile. (c) Added from the product-owner
+  audit: where the automatic-creation switches and the Sales Rep assignments are; bell
+  entries and Setting names being English only; who a message notifies (nobody, on an
+  unassigned Opportunity's first message); the ranking's *current* assignee and UTC months;
+  "most valuable" is value, not profit; `PUT /value-counting-statuses` in the workflow table;
+  a value following an Order's status and not its amount; `crm.opportunity.document_linked.v1`;
+  the guard example's imports and that a guard runs on an Order-caused move; a *What the
+  module does not do* section (import/export, e-mail, global search, profit, demo data).
+  (d) The Polish copy was read against the English one section for section and matches;
+  its vocabulary was made one (`wyliczana`, `znacznik`, `punkt końcowy`, `Admin UI`,
+  `karta`) and the capitals a search-and-replace had left mid-sentence were lowered. The
+  sections CRM added to the `orders`, `quote_requests` and `webhooks` pages were read in both
+  languages; one capital fixed. The cache script still writes the source hash
+  unconditionally, so `check:docs-translations` is no evidence of any of this.
+- **N-P3 (2026-10-06, T143) — the board, measured in a browser.** Two recorded observations
+  and what was done. *Six lanes do not fit at 1440 px*: lanes were a fixed 288 px, which did
+  not fit at 1920 px either. They now share the board's width down to 256 px
+  (`min-w-64 flex-1 basis-64`, at most 384 px), so six fit without scrolling from about
+  1900 px and the board scrolls sideways below that — at 1440 px four lanes and the edge of a
+  fifth are in view, which is the cue. *Lanes have no height of their own*: `KanbanBoard`
+  still bounds nothing itself; a lane's list is `overflow-y-auto`, and a caller that gives the
+  board a maximum height through `className` gets lanes that scroll under their headers. This
+  works because a single-line flex container clamps its line to its own `max-height` and the
+  lanes are stretched to the line. CRM passes `max-h-[max(28rem,calc(100dvh-8rem))]`, so the
+  board is never taller than the window and its sideways scroll bar is in view with its top.
+  **Measured** (headless Chromium, 55 cards in one status): at 1440, 1920 and 390 px the board
+  is no taller than the window and the long lane scrolls; keyboard — focusing a handle
+  scrolls its lane to it, Space lifts, the right arrow reaches the next lane and, five
+  presses on, a lane that was off screen (the board scrolls to it), Space drops, focus
+  returns to the handle; mouse drag out of the scrolled lane; touch — a sideways swipe
+  scrolls the board and a vertical one the lane. **One thing learned the hard way**:
+  `overscroll-behavior: contain` on the lane's list stops a sideways swipe from reaching the
+  board, because `overflow-y: auto` makes the list a scroll container on both axes. It is not
+  there. Not verified: a physical touch device, a screen reader (T093's hand-off).
+- **N-P4 (2026-10-06, T143) — the pass over every screen, by instrument.** axe-core (WCAG 2.0
+  to 2.2, A and AA) and a target-size measurement over the seven screens, the Opportunity's
+  five tabs and the three contributed panels, at 1440 and 390 px. **Fixed:** (a) status and
+  tag badges — the kit's `readableTextColor` chose white by a brightness threshold, giving
+  2.1:1 to 3.7:1 on the default workflow's own colours; it now takes the better of black and
+  white by contrast ratio, at least 4.58:1 on any colour. A kit change that also re-colours
+  the text of order and return status badges on mid-tones; it has its own changeset.
+  (b) 28 CRM buttons were 32 or 36 px high on a touch screen; all 76 now carry `min-h-11`
+  with a `sm:` step down, held by a source test. (c) The drag handle keeps its 28 px picture
+  and has a 44 px hit area (a pseudo-element; the card's gap grew to 8 px to keep it clear of
+  the title). (d) The "All opportunities" link under the Organization panel was told from its
+  sentence by colour alone. (e) The "Move to…" chevron's transition respects reduced motion.
+  **Left, because they are the kit's or another module's, and changing them changes every
+  admin screen:** `Input`, `Select`, `Combobox` and the multi-select trigger are 36 px high at
+  every width; the combobox's *Clear selection* is 18 px; the status-transition graph's
+  *Connect* / layout buttons are 32 px; the shell's back link above a page title is 16 px
+  high; the Organization screen has a `<select>` with no accessible name. After the fixes axe
+  reports nothing on any CRM screen or panel.
+- **N-P5 (2026-10-06, T142) — amounts: one formatter, and it is the kit's.** Every amount CRM
+  shows goes through `moneyLabel` → `formatMoney` of `@endora-commerce/admin-kit/lib`, which
+  formats in the **currency's home locale** and not in the language on screen — the admin's
+  convention, the one the Orders screens follow. `9.800,00 €` is `de-DE` for EUR and
+  `2300,00 zł` is `pl-PL` for PLN, where CLDR groups thousands from five digits on
+  (`12 300,00 zł`). Correct `Intl` output for each pair, and not an inconsistency of CRM's;
+  whether an EUR amount should follow the reader's language instead is a question about the
+  kit's map (`EUR → de-DE`), for every screen at once.
+- **N-P6 (2026-10-06, T145, T180) — the deletion probe.** In a throw-away worktree
+  (`git worktree add … -b probe/143-crm-deletion`, removed with its branch afterwards):
+  `git rm -r packages/modules/crm packages/contracts/src/crm.ts packages/contracts/src/crm.test.ts`,
+  the `export * from './crm.js'` line, CRM's own host-side tests (`backend/test/{contract,integration}/crm`,
+  three `backend/test/helpers/*crm*` files, `admin/test/modules/crm`) and its five generated
+  documentation artefacts; `manifests:generate`, `composer:generate`,
+  `pnpm install --lockfile-only`. **By hand, beyond deletion:** the application's own
+  dependency line in `backend/package.json` (`admin/package.json` is rendered, the backend's
+  is not), and two harness files returned to `origin/master`
+  (`backend/test/helpers/package-entities.ts`, `test/unit/kernel/contribution-absent-owner.test.ts`
+  — each a list of every module the branch had extended by CRM). **Results:**
+  `pnpm run build:packages` exit 0; `pnpm -r run typecheck` exit 0 — no production file
+  outside the module imports it or its contract; `composer:check` and `manifests:check` up to
+  date; admin build exit 0; the admin suites of `orders`, `quote_requests`, `organizations`,
+  `custom_fields`, `webhooks`, `admin_users`, `audit_logs`, the shell and `KanbanBoard`
+  32 files / 183 tests green, the after-zone tests of the Order and Quote Request screens
+  among them (empty zones, screens unchanged); `orders/admin-create-origin` and
+  `quote_requests/admin-create-origin` 10 of 10 each (an `origin` is accepted and ignored);
+  `webhooks/contributed-events` 11 of 11. `custom_fields`: `GET /entity-types` answers five
+  types without `opportunity`, and creating a definition for it answers
+  `409 CUSTOM_FIELD_HOST_MANAGED` — observed as the *failures* of
+  `custom_fields/entity-owner-presence.test.ts`, which presupposes the module it switches
+  off. **What is red without CRM, and why it is not coupling:** `test:unit:fast` 340 of 346
+  files — the six are ledgers that enumerate the tree (four over the fifteen `CRM_` members
+  of the shared `ERROR_CODES`, the tenancy chain ledger, `check:release-intent` over
+  changesets naming the deleted package); the audit-reference and sales-channel-attribution
+  owner lists and the OpenAPI baseline, for the same reason. **Residue a full removal also
+  takes out**, none of it an import: those fifteen error codes and their ledger entries, the
+  `'opportunity'` host type, the `'crm'` navigation section and its shell entry, the
+  `crm_opportunity_attachment` reference kind, and one line in `audit_logs` that attributes
+  the `crm.` action prefix — the same prefix table every other module is in.
+- **N-P7 (2026-10-06) — changesets.** Nine files written wave by wave contradicted each other
+  where a later wave reversed an earlier one. Replaced by one entry per package bumped
+  (`mod-crm`, `contracts`, `mod-orders`, `mod-quote-requests`, `mod-webhooks`,
+  `mod-custom-fields`, `mod-audit-logs`, `admin-shell` with `mod-i18n`) and three for the
+  kit's three unrelated meanings. The shell's CRM section had no changeset before.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
