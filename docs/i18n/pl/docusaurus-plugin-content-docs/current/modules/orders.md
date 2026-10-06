@@ -163,7 +163,8 @@ zatwierdzeniu, odizolowane).
 
 `order.created.v1` niesie `orderId` i `organizationId`. Dla zamówienia, które administrator utworzył
 z polem `origin` (zob. *Tworzenie w imieniu klienta* niżej), niesie także to `origin`, bez zmian;
-dla każdego innego zamówienia tego klucza nie ma.
+dla każdego innego zamówienia tego klucza nie ma. Wartość trafia wszędzie tam, dokąd zdarzenie —
+webhook wychodzący subskrybujący `order.created.v1` dostaje ją w treści.
 
 ## Operacje w panelu administracyjnym
 

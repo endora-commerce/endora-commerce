@@ -172,6 +172,8 @@ transition X→Y additionally emits four **templated** events (built by
 `order.created.v1` carries `orderId` and `organizationId`. For an order an
 administrator created with an `origin` (see *Create on behalf* below) it also
 carries that `origin`, unchanged; for every other order the key is absent.
+The value travels wherever the event does — an outbound webhook subscribed to
+`order.created.v1` receives it in the payload.
 
 ## Admin operations
 

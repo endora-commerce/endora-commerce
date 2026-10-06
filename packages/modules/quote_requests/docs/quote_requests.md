@@ -166,3 +166,34 @@ Request to `Completed`, populates `converted_order_id`, and fires the
 `completed` notification. The cart-creation step that locks RFQ
 agreed prices into a checkout cart is delivered through the existing
 cart and checkout flows.
+
+## Created by an administrator: the event and its origin
+
+A quote request an administrator creates through
+`POST /api/v1/admin/quote-requests` is announced on the in-process event bus as
+`rfq.created_by_admin.v1`, once, after its rows are written:
+
+| Field | Meaning |
+| --- | --- |
+| `rfqId` | The new quote request. |
+| `organizationId` | The organization it was created for. |
+| `adminUserId` | The administrator who created it. |
+| `origin` | What the create request carried as `origin`, or `null`. |
+
+`rfq.created.v1` remains the event of a customer's own submission and is
+**not** emitted on this path, so nothing that listens to it starts seeing
+requests an administrator prepared.
+
+The create request may carry an optional `origin: { type, id }` saying where
+the quote request is being created from — `type` a lower-case identifier of the
+sender's own (letters, digits, underscores), `id` a UUID. The module validates
+the shape and hands the value on, unread, with the event: it is not stored, not
+returned and changes nothing about the quote request. A module that recognises
+the `type` may act on it — the CRM module links such a quote request to the
+opportunity it was created from. The customer's own endpoint accepts no such
+field.
+
+The create screen (`/quote-requests/new`) reads the same from its query string
+when another screen opens it: `originType` and `originId`, `organizationId` and
+`customerAccountId` to preselect the customer, and `returnTo`, a path inside
+the Admin UI to go back to once the quote request exists.

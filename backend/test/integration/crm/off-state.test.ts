@@ -411,7 +411,7 @@ describe('crm off-state (Constitution XVII)', () => {
     });
   });
 
-  describe('documents created from an Opportunity (order.created.v1 with an origin)', () => {
+  describe('documents created from an Opportunity (order.created.v1 and rfq.created_by_admin.v1 with an origin)', () => {
     /** `POST /api/v1/admin/orders`, as the create-order screen sends it. */
     const createOrder = (origin?: { type: string; id: string }) =>
       whenCrmEventSettled(h, 'order.created.v1', () => true, async () => {
@@ -437,6 +437,34 @@ describe('crm off-state (Constitution XVII)', () => {
           });
           expect(response.statusCode, response.body).toBe(201);
           const data = (response.json() as { data: Record<string, unknown> & { id: string } }).data;
+          return { data, events };
+        } finally {
+          off();
+        }
+      });
+
+    /** `POST /api/v1/admin/quote-requests`, as the create screen sends it. */
+    const createQuoteRequest = (origin?: { type: string; id: string }) =>
+      whenCrmEventSettled(h, 'rfq.created_by_admin.v1', () => true, async () => {
+        const events: Array<Record<string, unknown>> = [];
+        const off = h.eventBus.on('rfq.created_by_admin.v1' as never, (payload: unknown) => {
+          events.push(payload as Record<string, unknown>);
+        });
+        try {
+          const response = await h.app.inject({
+            method: 'POST',
+            url: '/api/v1/admin/quote-requests',
+            cookies: admin,
+            payload: {
+              organizationId: TEST_ORGANIZATION_ID,
+              customerAccountId: TEST_CUSTOMER_ID,
+              items: [{ productId: SEED_PRODUCT_101_ID, quantity: 2, agreedUnitPrice: 10 }],
+              ...(origin ? { origin } : {}),
+            },
+          });
+          expect(response.statusCode, response.body).toBe(201);
+          const data = (response.json() as { data: Record<string, unknown> & { id: string } }).data;
+          await new Promise((resolve) => setImmediate(resolve));
           return { data, events };
         } finally {
           off();
@@ -488,6 +516,48 @@ describe('crm off-state (Constitution XVII)', () => {
         // Back on: an Order created meanwhile is not linked retroactively.
         expect(await linksOf(orderId)).toBe(0);
         expect(await opportunityCount()).toBe(before);
+      },
+    );
+
+    it('links the Quote Request while on — the positive control', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const { data } = await createQuoteRequest({ type: 'crm_opportunity', id: opportunity.id });
+      expect(
+        await h.em().count(
+          CrmOpportunityLink,
+          { opportunityId: opportunity.id, documentKind: 'quote_request', documentId: data.id },
+          { filters: false },
+        ),
+      ).toBe(1);
+    });
+
+    it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+      'while %s `quote_requests` accepts the origin, answers and announces as it does without CRM, and nothing is linked — then or afterwards',
+      async (axis) => {
+        const opportunity = await createCrmOpportunity(h);
+        const origin = { type: 'crm_opportunity', id: opportunity.id };
+        const plain = await createQuoteRequest();
+        // With both automatic-creation settings on, to show that nothing creates either.
+        await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_QUOTE_REQUESTS, true);
+        const before = await opportunityCount();
+        let quoteRequestId = '';
+        try {
+          await withModuleOff('crm', axis, async () => {
+            const created = await createQuoteRequest(origin);
+            quoteRequestId = created.data.id;
+            expect(Object.keys(created.data).sort()).toEqual(Object.keys(plain.data).sort());
+            expect(created.data).not.toHaveProperty('origin');
+            expect(created.events).toEqual([
+              expect.objectContaining({ rfqId: quoteRequestId, organizationId: TEST_ORGANIZATION_ID, origin }),
+            ]);
+            expect(await linksOf(quoteRequestId)).toBe(0);
+            expect(await opportunityCount()).toBe(before);
+          });
+          expect(await linksOf(quoteRequestId)).toBe(0);
+          expect(await opportunityCount()).toBe(before);
+        } finally {
+          await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_QUOTE_REQUESTS, false);
+        }
       },
     );
   });

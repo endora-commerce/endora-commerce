@@ -658,7 +658,7 @@ domyślnie **wyłączone**.
 | Ustawienie | Gdy jest włączone |
 | --- | --- |
 | `crm.auto_create_from_orders` | Każde zamówienie złożone od tej chwili dostaje własną szansę. Ustawienie może być różne dla kanałów sprzedaży; decyduje kanał zamówienia. |
-| `crm.auto_create_from_quote_requests` | Każde Zapytanie ofertowe przesłane przez klienta od tej chwili dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
+| `crm.auto_create_from_quote_requests` | Każde Zapytanie ofertowe utworzone od tej chwili — przesłane przez klienta albo przygotowane przez administratora — dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
 
 Szansa utworzona w ten sposób:
 
@@ -681,10 +681,13 @@ Co **nie** jest tworzone:
 - nic dla dokumentów, które istniały przed włączeniem ustawienia;
 - nic, gdy moduł CRM jest wyłączony, i nic później dla dokumentów złożonych w
   tym czasie;
-- nic dla zapytania ofertowego, które administrator tworzy w Admin UI w
-  imieniu klienta: tylko Zapytanie ofertowe przesłane przez klienta ogłasza się
-  samo. (Zamówienie złożone przez administratora w imieniu klienta jest
-  zamówieniem jak każde inne i dostaje swoją szansę.)
+- nic dla zamówienia ani zapytania ofertowego utworzonego z poziomu szansy:
+  taki dokument zostaje powiązany z tą szansą, niezależnie od ustawień (zob.
+  *Tworzenie zamówienia albo zapytania ofertowego z poziomu szansy*).
+
+Zamówienie albo zapytanie ofertowe, które administrator tworzy w imieniu
+klienta na ekranie samego dokumentu, jest dokumentem jak każdy inny i dostaje
+swoją szansę.
 
 Każdy dokument dostaje co najwyżej jedną szansę, bez względu na to, ile razy
 jego złożenie zostanie ogłoszone.
@@ -989,10 +992,57 @@ ekranie **Role**.
 | --- | --- | --- |
 | `crm.enabled` | włączone | Przełącznik opisany powyżej. |
 | `crm.auto_create_from_orders` | Każde zamówienie złożone od tej chwili dostaje własną szansę. Ustawienie może być różne dla kanałów sprzedaży; decyduje kanał zamówienia. |
-| `crm.auto_create_from_quote_requests` | Każde Zapytanie ofertowe przesłane przez klienta od tej chwili dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
+| `crm.auto_create_from_quote_requests` | Każde Zapytanie ofertowe utworzone od tej chwili — przesłane przez klienta albo przygotowane przez administratora — dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
 
 ## Wkrótce
 
-- Tworzenie zamówienia albo zapytania ofertowego z poziomu szansy.
 - Analityka: czas obsługi, czas w poszczególnych statusach, wyniki
   handlowców.
+
+## Tworzenie zamówienia albo zapytania ofertowego z poziomu szansy
+
+Na karcie **Przegląd** szansy sekcja *Powiązane zamówienia* ma przycisk
+**Utwórz zamówienie**, a sekcja *Powiązane zapytania ofertowe* — przycisk
+**Utwórz zapytanie ofertowe**. Każdy otwiera własny ekran tworzenia platformy —
+ten z **Zamówień** albo z **Zapytań ofertowych** — od razu zawężony do
+organizacji szansy: wyszukiwanie klienta podpowiada osoby z tej organizacji,
+osoba kontaktowa szansy jest już wybrana, a w zamówieniu także jej kanał
+sprzedaży.
+
+Wypełnij ekran jak zwykle i zapisz. Wracasz do szansy, która informuje, że nowy
+dokument jest właśnie wiązany, a potem — że został powiązany; od tej chwili
+jest na jej liście, a w historii zmian ma oznaczenie *Utworzono z tej szansy*.
+Tak utworzone zamówienie podąża za statusem szansy jak każde powiązane
+zamówienie, a oba rodzaje dokumentów liczą się do wartości wyliczanej.
+
+Czego się spodziewać:
+
+- **Bez drugiej szansy.** Przy włączonym tworzeniu automatycznym dokument
+  utworzony z poziomu szansy zostaje powiązany z tą szansą i nie dostaje
+  własnej.
+- **Tylko ta sama organizacja.** Ekran tworzenia pozwala wybrać dowolnego
+  klienta, którego widzisz. Jeśli zapiszesz dokument dla klienta innej
+  organizacji, dokument powstanie, ale **nie** zostanie powiązany: po powrocie
+  szansa o tym informuje i podaje odnośnik do dokumentu. W samej szansie nic
+  się nie zmienia.
+- **Kto widzi przyciski.** *Utwórz zamówienie* wymaga `crm:write` i
+  `orders:write`; *Utwórz zapytanie ofertowe* wymaga `crm:write` i
+  `rfqs:handle`. Ekrany tworzenia wyszukują też klientów, co wymaga
+  `customers:read`.
+- **Gdy moduł Zapytań ofertowych jest wyłączony**, przycisku *Utwórz zapytanie
+  ofertowe* nie ma. *Utwórz zamówienie* działa bez zmian.
+- **Gdy moduł CRM jest wyłączony**, ekrany tworzenia działają dokładnie tak
+  jak zawsze i nic nie jest wiązane — ani wtedy, ani później.
+
+Dla integratorów: powiązanie tworzą subskrybenci modułu nasłuchujący zdarzeń
+`order.created.v1` i `rfq.created_by_admin.v1`, na podstawie pola `origin`,
+które te zdarzenia niosą — `{ type: 'crm_opportunity', id: <id szansy> }`.
+Moduły Zamówień i Zapytań ofertowych przekazują tę wartość dalej, nie czytając
+jej. Moduł CRM wiąże tylko wtedy, gdy szansa istnieje i należy do tej samej
+organizacji co dokument oraz — tam, gdzie zdarzenie wskazuje administratora,
+który utworzył dokument, jak robi to zdarzenie zapytania ofertowego — gdy ten
+administrator ma dostęp do organizacji szansy; w przeciwnym razie zapisuje
+ostrzeżenie w logu i traktuje dokument jak utworzony bez pola `origin`.
+Zdarzenie dostarczone dwukrotnie wiąże raz. Żaden endpoint modułu CRM nie
+bierze w tym udziału, a samodzielne wysłanie `origin` w żądaniu do
+któregokolwiek z endpointów tworzenia ma ten sam skutek.

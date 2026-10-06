@@ -13,7 +13,8 @@ import {
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
-import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { withModuleOff } from '../../helpers/off-state.js';
+import { TEST_ADMIN_ID, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { CRM_SETTING_CODES } from '../../../../packages/modules/crm/src/manifest.js';
 import {
   CRM_ADMIN,
@@ -21,6 +22,7 @@ import {
   createCrmOpportunity,
   restoreDefaultCrmWorkflow,
   seedCrmOrganization,
+  seedCrmSalesRep,
   setCrmSetting,
   whenCrmEventSettled,
 } from '../../helpers/seed-crm.js';
@@ -255,6 +257,213 @@ describe('crm — documents created from an Opportunity (US10)', () => {
       const { events, result } = await linkedEvents(() => createdBy(() => createOrder()));
       expect(result.created).toEqual([]);
       expect(events).toEqual([]);
+    });
+  });
+
+  // --- Quote Requests ----------------------------------------------------------
+
+  /** `POST /api/v1/admin/quote-requests` — the request the create screen sends. */
+  const createQuoteRequest = (origin?: unknown, cookies: Record<string, string> = CRM_ADMIN) =>
+    whenCrmEventSettled(h, 'rfq.created_by_admin.v1', () => true, async () => {
+      const response = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/quote-requests',
+        cookies,
+        payload: {
+          organizationId: TEST_ORGANIZATION_ID,
+          customerAccountId: TEST_CUSTOMER_ID,
+          items: [{ productId: SEED_PRODUCT_101_ID, quantity: 4, agreedUnitPrice: 25 }],
+          ...(origin === undefined ? {} : { origin }),
+        },
+      });
+      expect(response.statusCode, response.body).toBe(201);
+      return (response.json() as { data: { id: string; businessId: string } }).data;
+    });
+
+  const announceQuoteRequest = (rfqId: string, origin: unknown, adminUserId: string = TEST_ADMIN_ID) =>
+    whenCrmEventSettled(h, 'rfq.created_by_admin.v1', (payload) => payload['rfqId'] === rfqId, async () => {
+      h.eventBus.emit('rfq.created_by_admin.v1' as never, {
+        eventId: randomUUID(),
+        occurredAt: new Date().toISOString(),
+        rfqId,
+        organizationId: TEST_ORGANIZATION_ID,
+        adminUserId,
+        origin,
+      } as never);
+    });
+
+  describe('a Quote Request, with automatic creation from Quote Requests switched ON', () => {
+    beforeAll(async () => {
+      await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_QUOTE_REQUESTS, true);
+    });
+
+    afterAll(async () => {
+      await setCrmSetting(h, CRM_SETTING_CODES.AUTO_CREATE_FROM_QUOTE_REQUESTS, false);
+    });
+
+    it('is linked to the Opportunity it was created from, and no second Opportunity is created', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const { result, events } = await linkedEvents(() =>
+        createdBy(() => createQuoteRequest({ type: ORIGIN_TYPE, id: opportunity.id })),
+      );
+      const rfq = result.result;
+      expect(result.created).toEqual([]);
+
+      const links = (await detail(opportunity.id)).links;
+      expect(links).toHaveLength(1);
+      expect(links[0]).toMatchObject({
+        documentKind: 'quote_request',
+        documentId: rfq.id,
+        number: rfq.businessId,
+        linkSource: 'created_from_opportunity',
+        available: true,
+      });
+      expect(events).toEqual([
+        expect.objectContaining({
+          opportunityId: opportunity.id,
+          documentKind: 'quote_request',
+          documentId: rfq.id,
+          linkSource: 'created_from_opportunity',
+        }),
+      ]);
+    });
+
+    it('links once when the event is delivered again', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const origin = { type: ORIGIN_TYPE, id: opportunity.id };
+      const first = await createdBy(() => createQuoteRequest(origin));
+      expect(first.created).toEqual([]);
+
+      const again = await linkedEvents(() =>
+        createdBy(async () => {
+          await announceQuoteRequest(first.result.id, origin);
+          await announceQuoteRequest(first.result.id, origin);
+        }),
+      );
+      expect(again.result.created).toEqual([]);
+      expect(again.events).toEqual([]);
+      expect((await detail(opportunity.id)).links).toHaveLength(1);
+    });
+
+    it('an origin naming another Organization’s Opportunity, or none, links nothing; the request is handled as any other', async () => {
+      const foreign = await createCrmOpportunity(h, { organizationId: foreignOrganizationId });
+      for (const id of [foreign.id, randomUUID()]) {
+        const { result: rfq, created } = await createdBy(() => createQuoteRequest({ type: ORIGIN_TYPE, id }));
+        expect(created).toHaveLength(1);
+        const automatic = await detail(created[0]?.id ?? '');
+        expect(automatic).toMatchObject({ organization: { id: TEST_ORGANIZATION_ID }, source: 'quote_request' });
+        expect(automatic.links).toEqual([
+          expect.objectContaining({ documentKind: 'quote_request', documentId: rfq.id, linkSource: 'auto' }),
+        ]);
+      }
+      expect((await detail(foreign.id)).links).toEqual([]);
+    });
+
+    it('a request an administrator creates without an origin gets its Opportunity, as a submitted one does', async () => {
+      const { result: rfq, created } = await createdBy(() => createQuoteRequest());
+      expect(created).toHaveLength(1);
+      expect((await detail(created[0]?.id ?? '')).links).toEqual([
+        expect.objectContaining({ documentId: rfq.id, linkSource: 'auto' }),
+      ]);
+    });
+  });
+
+  describe('a Quote Request, with automatic creation switched off — the default', () => {
+    it('is linked to the Opportunity it was created from', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const { result: rfq, created } = await createdBy(() =>
+        createQuoteRequest({ type: ORIGIN_TYPE, id: opportunity.id }),
+      );
+      expect(created).toEqual([]);
+      expect((await detail(opportunity.id)).links).toEqual([
+        expect.objectContaining({ documentId: rfq.id, linkSource: 'created_from_opportunity' }),
+      ]);
+    });
+
+    it('an origin that does not hold, or none: the request is created and linked nowhere', async () => {
+      const foreign = await createCrmOpportunity(h, { organizationId: foreignOrganizationId });
+      const { result, events } = await linkedEvents(() =>
+        createdBy(async () => {
+          await createQuoteRequest({ type: ORIGIN_TYPE, id: foreign.id });
+          await createQuoteRequest({ type: ORIGIN_TYPE, id: randomUUID() });
+          await createQuoteRequest({ type: 'somebody_elses_thing', id: foreign.id });
+          await createQuoteRequest();
+        }),
+      );
+      expect(result.created).toEqual([]);
+      expect(events).toEqual([]);
+      expect((await detail(foreign.id)).links).toEqual([]);
+    });
+  });
+
+  describe('the administrator the event names', () => {
+    it('a Sales Rep who reaches the Organization links the request they create from its Opportunity', async () => {
+      const rep = await seedCrmSalesRep(h.em(), [TEST_ORGANIZATION_ID], ['rfqs:handle', 'crm:read', 'crm:write']);
+      try {
+        const opportunity = await createCrmOpportunity(h);
+        const rfq = await createQuoteRequest({ type: ORIGIN_TYPE, id: opportunity.id }, rep.cookies);
+        expect((await detail(opportunity.id)).links).toEqual([
+          expect.objectContaining({ documentId: rfq.id, linkSource: 'created_from_opportunity' }),
+        ]);
+      } finally {
+        rep.undo();
+      }
+    });
+
+    it('an event naming an administrator who cannot reach the Opportunity’s Organization links nothing', async () => {
+      // Confined to the other Organization: the Opportunity below is out of reach.
+      const outsider = await seedCrmSalesRep(h.em(), [foreignOrganizationId], ['rfqs:handle', 'crm:read', 'crm:write']);
+      try {
+        const opportunity = await createCrmOpportunity(h);
+        const origin = { type: ORIGIN_TYPE, id: opportunity.id };
+        const rfq = await createQuoteRequest();
+        const { events } = await linkedEvents(() => announceQuoteRequest(rfq.id, origin, outsider.adminUserId));
+        expect(events).toEqual([]);
+        expect((await detail(opportunity.id)).links).toEqual([]);
+
+        // The same event naming somebody who does reach it: linked. The refusal
+        // above was about the administrator and nothing else.
+        await announceQuoteRequest(rfq.id, origin, TEST_ADMIN_ID);
+        expect((await detail(opportunity.id)).links).toEqual([
+          expect.objectContaining({ documentId: rfq.id, linkSource: 'created_from_opportunity' }),
+        ]);
+      } finally {
+        outsider.undo();
+      }
+    });
+
+    it('an event naming nobody who exists links nothing', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const rfq = await createQuoteRequest();
+      await announceQuoteRequest(rfq.id, { type: ORIGIN_TYPE, id: opportunity.id }, randomUUID());
+      expect((await detail(opportunity.id)).links).toEqual([]);
+    });
+  });
+
+  describe('with the Quote Requests module switched off', () => {
+    it('no request can be created, and an Order is still linked to the Opportunity it was created from', async () => {
+      const opportunity = await createCrmOpportunity(h);
+      const origin = { type: ORIGIN_TYPE, id: opportunity.id };
+      await withModuleOff('quote_requests', 'deactivated', async () => {
+        const refused = await h.app.inject({
+          method: 'POST',
+          url: '/api/v1/admin/quote-requests',
+          cookies: CRM_ADMIN,
+          payload: {
+            organizationId: TEST_ORGANIZATION_ID,
+            customerAccountId: TEST_CUSTOMER_ID,
+            items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1, agreedUnitPrice: 1 }],
+            origin,
+          },
+        });
+        expect(refused.statusCode, refused.body).toBe(503);
+        expect((refused.json() as { error: { code: string } }).error.code).toBe('MODULE_DISABLED');
+
+        const order = await createOrder(origin);
+        expect((await detail(opportunity.id)).links).toEqual([
+          expect.objectContaining({ documentKind: 'order', documentId: order.id, linkSource: 'created_from_opportunity' }),
+        ]);
+      });
     });
   });
 });

@@ -147,3 +147,31 @@ Gdy powstaje zamówienie z wypełnionym `source_quote_request_id`, subskrybent w
 przestawia źródłowe zapytanie ofertowe na `Completed`, wypełnia `converted_order_id` i wysyła
 powiadomienie `completed`. Krok tworzenia koszyka, który utrwala uzgodnione w zapytaniu ceny w
 koszyku zamówienia, zapewniają istniejące procesy koszyka i zamówienia.
+
+## Utworzone przez administratora: zdarzenie i jego pochodzenie
+
+Zapytanie ofertowe, które administrator tworzy przez `POST /api/v1/admin/quote-requests`, jest
+ogłaszane na wewnętrznej szynie zdarzeń jako `rfq.created_by_admin.v1` — raz, po zapisaniu jego
+wierszy:
+
+| Pole | Znaczenie |
+| --- | --- |
+| `rfqId` | Nowe zapytanie ofertowe. |
+| `organizationId` | Organizacja, dla której je utworzono. |
+| `adminUserId` | Administrator, który je utworzył. |
+| `origin` | To, co żądanie utworzenia niosło jako `origin`, albo `null`. |
+
+`rfq.created.v1` pozostaje zdarzeniem zapytania przesłanego przez samego klienta i na tej ścieżce
+**nie** jest emitowane, więc nic, co go nasłuchuje, nie zaczyna widzieć zapytań przygotowanych przez
+administratora.
+
+Żądanie utworzenia może nieść opcjonalne `origin: { type, id }`, mówiące, skąd zapytanie jest
+tworzone — `type` to identyfikator nadawcy pisany małymi literami (litery, cyfry, podkreślenia),
+`id` to UUID. Moduł sprawdza tylko kształt i przekazuje wartość dalej, nie czytając jej, razem ze
+zdarzeniem: nie jest zapisywana, nie jest zwracana i niczego w zapytaniu nie zmienia. Moduł, który
+rozpoznaje `type`, może na nią zareagować — moduł CRM wiąże takie zapytanie z szansą, z której je
+utworzono. Endpoint klienta takiego pola nie przyjmuje.
+
+Ekran tworzenia (`/quote-requests/new`) czyta to samo z adresu, gdy otwiera go inny ekran:
+`originType` i `originId`, `organizationId` i `customerAccountId` do wstępnego wyboru klienta oraz
+`returnTo`, czyli ścieżkę w Admin UI, do której wraca się po utworzeniu zapytania.

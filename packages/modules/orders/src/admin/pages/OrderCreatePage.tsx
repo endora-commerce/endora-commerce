@@ -444,6 +444,12 @@ export function OrderCreatePage(): ReactNode {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
+  // The address the page chose by itself for a customer it was opened with —
+  // a selection nobody made is not a draft to warn about.
+  const arrivedAddressId = useRef('');
+  const addressIsDraft = (c: AddressChoice): boolean =>
+    addressHasContent(c) && !(c.mode === 'existing' && c.id === arrivedAddressId.current);
+
   // Warn before leaving with a partially-filled order draft.
   const dirty =
     !submitted &&
@@ -452,8 +458,8 @@ export function OrderCreatePage(): ReactNode {
       deliveryMethodId !== '' ||
       paymentMethodId !== '' ||
       customerNote !== '' ||
-      addressHasContent(deliveryChoice) ||
-      addressHasContent(billingChoice) ||
+      addressIsDraft(deliveryChoice) ||
+      addressIsDraft(billingChoice) ||
       items.some((it) => it.productId !== '' || it.quantity !== 1));
   useUnsavedChangesPrompt(dirty);
 
@@ -540,6 +546,7 @@ export function OrderCreatePage(): ReactNode {
         const preferred =
           res.data.organization.find((a) => a.isDefault)?.id ?? opts[0]?.value ?? '';
         if (preferred) {
+          if (customerAccountId === openedWith.customerAccountId) arrivedAddressId.current = preferred;
           setDeliveryChoice({ mode: 'existing', id: preferred });
           setBillingChoice({ mode: 'existing', id: preferred });
         }
@@ -553,7 +560,7 @@ export function OrderCreatePage(): ReactNode {
     return (): void => {
       alive = false;
     };
-  }, [customerAccountId, t]);
+  }, [customerAccountId, openedWith.customerAccountId, t]);
 
   // Live pricing preview — debounced; fires whenever the priced inputs change.
   useEffect(() => {

@@ -57,6 +57,7 @@ const { OpportunityDetail } = await import(
 
 const DETAIL_PATH = `/api/v1/admin/crm/opportunities/${OPPORTUNITY_ID}`;
 const NEW_ORDER_ID = '00000000-0000-4000-8000-0000000000c9';
+const NEW_QUOTE_ID = '00000000-0000-4000-8000-0000000000a9';
 const EVERYTHING = ['crm:read', 'crm:write', 'orders:read', 'orders:write', 'rfqs:handle'];
 
 type Link = OpportunityDetailData['links'][number];
@@ -214,5 +215,92 @@ describe('coming back from the create-order screen', () => {
     await waitFor(() => expect(within(orders).getByRole('link', { name: en('origin.order.create') })).toBeInTheDocument());
     expect(within(orders).queryByText(en('origin.order.linking'))).toBeNull();
     expect(getSpy.mock.calls.filter(([path]) => path === DETAIL_PATH)).toHaveLength(1);
+  });
+});
+
+describe('“Create quote request” on an Opportunity', () => {
+  it('opens the create-quote-request screen for this Opportunity’s organization, naming the Opportunity as the origin', async () => {
+    reads = [
+      detail({
+        links: [],
+        customerAccount: { id: CONTACT_ID, name: 'Jan Kowalski', email: 'jan@acme.example' },
+      }),
+    ];
+    await openOpportunity();
+    const quotes = await section(en('links.quote.title'));
+    const link = within(quotes).getByRole('link', { name: en('origin.quote.create') });
+
+    expect(link.getAttribute('href')).toMatch(/^\/quote-requests\/new\?/);
+    expect(Object.fromEntries(paramsOf(link))).toEqual({
+      originType: 'crm_opportunity',
+      originId: OPPORTUNITY_ID,
+      organizationId: ORGANIZATION_ID,
+      customerAccountId: CONTACT_ID,
+      returnTo: `/crm/opportunities/${OPPORTUNITY_ID}?created=quote_request`,
+    });
+  });
+
+  it.each([
+    ['may not handle quote requests', ['crm:read', 'crm:write', 'orders:read', 'orders:write']],
+    ['may not change opportunities', ['crm:read', 'orders:read', 'rfqs:handle']],
+  ])('is not offered to somebody who %s', async (_label, permissions) => {
+    await openOpportunity({ permissions });
+    const quotes = await section(en('links.quote.title'));
+    expect(within(quotes).queryByRole('link', { name: en('origin.quote.create') })).toBeNull();
+  });
+
+  it('is not offered while the Quote Requests module is off — with nothing linked the section is not there at all', async () => {
+    await openOpportunity({ quotes: false });
+    await section(en('links.title'));
+    expect(screen.queryByRole('link', { name: en('origin.quote.create') })).toBeNull();
+    expect(screen.queryByRole('heading', { level: 2, name: en('links.quote.title') })).toBeNull();
+    // Orders are not that module's: their button stays.
+    expect(screen.getByRole('link', { name: en('origin.order.create') })).toBeInTheDocument();
+  });
+
+  it('is not offered while the module is off even where a request linked earlier keeps the section on screen', async () => {
+    reads = [
+      detail({
+        links: [
+          createdLink({ documentKind: 'quote_request', documentId: NEW_QUOTE_ID, available: false, number: undefined }),
+        ],
+      }),
+    ];
+    await openOpportunity({ quotes: false });
+    const quotes = await section(en('links.quote.title'));
+    expect(within(quotes).getByText(en('links.quote.moduleOff'))).toBeInTheDocument();
+    expect(within(quotes).queryByRole('link', { name: en('origin.quote.create') })).toBeNull();
+  });
+});
+
+describe('coming back from the create-quote-request screen', () => {
+  it('says the new quote request is linked, in its own section and not under Orders', async () => {
+    reads = [
+      detail({ links: [] }),
+      detail({
+        links: [
+          createdLink({
+            documentKind: 'quote_request',
+            documentId: NEW_QUOTE_ID,
+            number: 'RFQ-0042',
+            status: 'Created from admin',
+          }),
+        ],
+      }),
+    ];
+    await openOpportunity({
+      search: '?created=quote_request',
+      state: { createdDocument: { id: NEW_QUOTE_ID } },
+    });
+    const quotes = await section(en('links.quote.title'));
+    expect(
+      await within(quotes).findByText(en('origin.quote.linked', { number: 'RFQ-0042' }), undefined, {
+        timeout: 4000,
+      }),
+    ).toBeInTheDocument();
+    const orders = await section(en('links.title'));
+    expect(within(orders).queryByRole('status', { name: /./ })).toBeNull();
+    expect(within(orders).queryByText(en('origin.order.linking'))).toBeNull();
+    expect(within(orders).queryByText(en('origin.order.notLinked'))).toBeNull();
   });
 });

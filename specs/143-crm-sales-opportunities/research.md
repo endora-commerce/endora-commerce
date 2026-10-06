@@ -2257,6 +2257,123 @@ when it was measured, and what was done about it.
   only while `useModulePresence().isPresent('quote_requests')`; and the foreign files are
   exactly the rows of `contracts/foreign-module-changes.md` §A–§C. The off-state file already
   lists every CRM route; T111 adds the two foreign create requests carrying an `origin`.
+- **N-J1 (2026-10-06, T117) — where the origin branch sits, and what it is made of.** The
+  claim is checked in a file of its own, `services/opportunity-origin-link-service.ts`; the
+  placed-document service (`opportunity-auto-create-service.ts`) calls it through one optional
+  dependency, `linkByOrigin`, as **step 0** of `#placedOrder` and `#submittedQuoteRequest` —
+  ahead of quote conversion, "already linked" and the setting, and *inside* the deferred
+  re-read, because the document's Organization is needed to check the claim and
+  `order.created.v1` arrives before its commit (N-E7, N-E18). The origin is read off the
+  payload in the handler (`readEventOrigin`, the contracts schema) and carried through
+  `#lookAgain` in the closure. Outcomes: `linked` and `already-linked` end the handling;
+  `not-ours` (another `origin.type`) and `refused` fall through to the branches that were
+  there, so such a document is handled exactly as one without an origin — which with the
+  setting on means it gets its automatic Opportunity. The write is
+  `OpportunityLinkService.linkAutomatically`, unchanged: one Command, `linkSource:
+  'created_from_opportunity'`, idempotent on the unique constraint. `opportunity-link-service.ts`
+  was not edited. Composition is one delimited section of `index.ts` plus two lines in the
+  placed-documents section (the dependency and the `readEventOrigin(payload)` argument).
+- **N-J2 (2026-10-06, T117) — who the events name, and the rule the link ended up with.**
+  `order.created.v1` carries **no actor**: `orderId`, `organizationId`, and now `origin`. It
+  was not given one — §B lists the one field. `rfq.created_by_admin.v1` carries `adminUserId`
+  (§C2). The rule, for both: the Opportunity must exist and belong to the **same Organization
+  as the document as its owner's read port answers it** (never the Organization the event
+  claims); and, where the event names an administrator, that administrator's tenant scope —
+  `adminTenantScopePort.resolveForAdmin`, `organizations`' own answer, so a role-less or
+  unknown id reaches nothing — must hold the Opportunity's Organization. A refusal writes one
+  warning (`opportunityId`, document, reason; "missing" and "another Organization" are one
+  reason) and tells the caller nothing: both create routes answer what they answer without an
+  origin. **What the Order path cannot check**: that the creating administrator holds
+  `crm:write`. Tenant reach is implied there — `POST /api/v1/admin/orders` refuses a customer
+  outside the caller's scope (`assertCustomerInScope`) and the Opportunity must be of that
+  customer's Organization — but an administrator with `orders:write` and no CRM permission who
+  knows an Opportunity's id can attach an Order of the same Organization to it. The buttons
+  are gated on both codes; the event is not. Closing it needs the actor (and the question
+  "does this role hold `crm:write`") on `order.created.v1`, which is `orders`' to add. The
+  same holds for a Quote Request: reach is checked, the CRM permission is not.
+- **N-J3 (2026-10-06, T108, T109, T114, T115) — four premises of the tasks, measured.**
+  (a) *"an invalid `origin` is 422"* is false: a body the Zod schema refuses answers **400**
+  `VALIDATION_FAILED` (N-13 (c) again); both owners' tests assert 400 and the code.
+  (b) §B2, `orders`' `routes.ts`, **needed no edit**: the route hands the parsed body whole to
+  the creation service, so the field arrives once `AdminCreateOrderInput` declares it.
+  (c) §C2: `RfqAdminServiceDeps.events` is typed by the `RfqEvents` map of `rfq-service.ts`,
+  and `plugin.ts` casts the bus to it — neither file is a row of §C. The new event's type
+  (`RfqAdminEvents`) is therefore declared in `rfq-admin-service.ts`, beside its one emitter,
+  and the emit widens the bus locally with one `as`. Adding the member to `RfqEvents` would be
+  the tidier shape and is one line in a file this feature may not touch.
+  (d) The OpenAPI baseline **did not move**: it records paths and not request bodies, so
+  neither optional field is in it (regenerated; no diff).
+- **N-J4 (2026-10-06, T112, T116) — what the create screens are handed, beyond §B5/§C3.**
+  The contract names three query parameters (`originType`, `originId`, `customerAccountId`).
+  Neither create screen has an Organization field — each picks a **customer**, whose
+  Organization follows — and an Opportunity's contact person is optional, so "the
+  Organization prefilled" needed more: `organizationId` narrows the customer search to that
+  Organization (the list endpoint already filters by it) and offers its people before
+  anything is typed; `customerAccountId` arrives chosen (one read of
+  `GET /api/v1/admin/customers/:id` for the name, and on the quote screen for the
+  Organization the request needs); `salesChannelId` arrives chosen on the order screen (a
+  quote request takes no channel); and `returnTo`, a path of the Admin UI (a value with a
+  scheme, a host or a leading `//` is ignored), is where the Back control leads and where the
+  screen goes after creating, handing `{ createdDocument: { id } }` in the navigation state.
+  A malformed origin pair is dropped rather than sent — the request would be refused for it.
+  An arriving selection is not "unsaved work". Everything is generic: neither screen contains
+  the word CRM, and opened without parameters each sends the request it always sent
+  (asserted with `toHaveBeenCalledWith` on the exact body).
+- **N-J5 (2026-10-06, T117) — returning to the Opportunity, and the moment the link is not
+  there yet.** The redirect was chosen over a "Back to opportunity" affordance on the owners'
+  detail screens: it is one branch in each create screen, and `OrderDetail.tsx` /
+  `RfqDetail.tsx` are not rows of §B/§C. But the Order's link is written by the deferred
+  re-read, 10 ms or more after the commit, and the redirect can win. So CRM's return address
+  carries its own marker (`?created=order|quote_request`) and
+  `components/CreateFromOpportunity.tsx` shows, in the matching link section, "Linking the new
+  order…" while it reads the Opportunity again (after 300, 700, 1500 and 3000 ms), then
+  "Order N was created and linked" — or, if the link never comes, that the document exists
+  but is not linked here, with a link to it. The last case is real, not theoretical: the
+  create screen still lets the user pick a customer of another Organization, and that
+  document is created and refused the link (N-J2). The buttons sit in the headings of the two
+  link sections (N-H6); each needs `crm:write` **and** the owner's create code —
+  `orders:write` for `POST /api/v1/admin/orders`, `rfqs:handle` for
+  `POST /api/v1/admin/quote-requests` — and the quote button also needs `quote_requests`
+  present.
+- **N-J6 (2026-10-06, T117) — N-E8 (g) is closed: a Quote Request an administrator creates is
+  now a candidate for automatic creation.** `contracts/events-and-ports.md` §2 gives
+  `rfq.created_by_admin.v1` both branches — link by origin, else automatic creation — and it
+  is built so: without an origin that holds, the request takes the path of a submitted one
+  and, with `crm.auto_create_from_quote_requests` on, gets its Opportunity. The setting's
+  description in the manifest said "a quote request a customer submits" and was widened; the
+  module page's two tables and its "what is not created" list follow, in both languages. The
+  generated reference page prints the setting's name only and did not change.
+- **N-J7 (2026-10-06, T114) — an Order's `origin` reaches outbound webhooks.** `webhooks`
+  bridges `order.created.v1` and sends the event payload whole (`BRIDGED_EVENT_TYPES`), so a
+  subscription to that type receives `origin: { type: 'crm_opportunity', id }` for an Order
+  created from an Opportunity — to the receivers that already get the Order's id and
+  Organization. It is additive and absent for every other Order; `orders`' page and the
+  changeset say so. `rfq.created_by_admin.v1` is not bridged and not offered. Whether an
+  opaque cross-module reference belongs in a public webhook payload is a question for the
+  owner of `webhooks`' contract; stripping it would be an edit to `webhooks` or to the event.
+- **N-J8 (2026-10-06, T110, T112) — which reds were observed.** Before the code existed: the
+  owners' two integration files (the echo, the 400s; the new event), CRM's
+  `create-from-opportunity.test.ts` (with the setting on, a second Opportunity *was* created;
+  with it off, no link — and for Quote Requests the wait for an event nobody emitted), both
+  create-screen tests and the CRM button tests. **Not** observed red: the two co-located unit
+  files of the origin service and the origin branch (written after the service), and the
+  off-state cases, which pass by construction once the positive control does.
+- **N-J9 (2026-10-06, T118) — the story walked in a browser.** N-30's arrangement (headless
+  Chromium, Playwright 1.60, the admin's Vite dev server over the modules' `dist`, the backend
+  test composition on a throw-away `_test` database, created and dropped with its template),
+  with **both automatic-creation settings on**. **English, 1440 px — 22 of 22**: both buttons
+  on the Overview; *Create order* opens `/orders/new` with the origin, the contact person and
+  the sales channel chosen and Back leading to the Opportunity; after saving, the Opportunity
+  says "Order 1 was created and linked to this opportunity", lists it, and the number of
+  Opportunities has not changed; the same for *Create quote request*; an Opportunity with no
+  contact person hands over the Organization alone and its three customers are offered before
+  anything is typed; `/orders/new` opened on its own has nothing chosen, Back to the list,
+  sends no `origin` and ends on the new Order's screen. **Polish — 16 of 16**, no key on
+  screen. No console error, page error or failed request in either. Two things seen and left:
+  while the name of an arriving customer is being read, the field shows its placeholder and a
+  spinner for a moment; and the first product the search offers for "Example" is one the test
+  catalogue cannot sell (409 from `orders`, shown by the form) — the walk names the simple
+  product instead. Not verified by eye: 390 px, a screen reader, dark theme.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

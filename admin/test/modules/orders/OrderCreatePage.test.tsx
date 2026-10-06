@@ -286,7 +286,24 @@ describe('OrderCreatePage', () => {
       renderPage(
         entry({ originType: 'crm_opportunity', originId: ORIGIN_ID, customerAccountId: 'cust-1', returnTo: RETURN_TO }),
       );
-      expect(screen.getByRole('link', { name: 'common.action.back' })).toHaveAttribute('href', RETURN_TO);
+      const back = screen.getByRole('link', { name: 'common.action.back' });
+      expect(back).toHaveAttribute('href', RETURN_TO);
+
+      // The customer arrived chosen and its default address followed by itself:
+      // nothing here was typed, so leaving at once asks nothing.
+      await waitFor(() => expect(screen.getByLabelText('deliveryAddress-existing')).toHaveValue('Acme HQ ★'));
+      const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+      try {
+        await userEvent.click(back);
+        expect(confirm).not.toHaveBeenCalled();
+
+        // A choice the operator made is unsaved work, as it always was.
+        await pick('paymentMethodId', 'Payment 1');
+        await userEvent.click(back);
+        expect(confirm).toHaveBeenCalledTimes(1);
+      } finally {
+        confirm.mockRestore();
+      }
     });
 
     it.each([
