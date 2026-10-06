@@ -1083,7 +1083,7 @@ The dashboard's recent activity names an opportunity by its title and links to
 its screen. With CRM switched off, and for somebody who may not see that
 opportunity, the entry stays and carries no title and no link.
 
-## The opportunity on the order's screen
+## The opportunity on the order's and the quote request's screen
 
 An order's screen ends with a **Linked opportunity** panel, whichever tab is
 open.
@@ -1105,19 +1105,29 @@ open.
   switched off, the order's screen is exactly as it is without the module — no
   panel, no heading, no empty space, no request.
 
-Quote requests get the same panel once they can be linked to an opportunity.
+**A quote request's screen ends with the same panel**, for a quote request:
+the opportunity it is linked to, or — for a holder of `crm:write` — *Link to an
+opportunity* and *Create opportunity*, which carry the quote request instead of
+an order. Whoever is on that screen holds `rfqs:handle`, which linking a quote
+request needs. With the Quote Requests module switched off there is no such
+screen and no panel; the order's panel is unaffected.
 
 For integrators: `GET /api/v1/admin/crm/documents/order/{orderId}/opportunity`
 (`crm:read` and `orders:read`) answers `{ "data": <the opportunity's summary> }`, or
 `{ "data": null }` for an order linked to none. An order that does not exist or
 is not the caller's to see answers `404 CRM_DOCUMENT_NOT_FOUND` — the same
 answer for both, whether or not it is linked. A kind other than a document
-kind answers `422`. The create form accepts `linkDocumentKind=order` and
-`linkDocumentId=<order id>` beside `organizationId` in its address.
+kind answers `422`. `…/documents/quote_request/{quoteRequestId}/opportunity`
+answers the same for a quote request and asks for `crm:read` and `rfqs:handle`;
+while the Quote Requests module is switched off it answers `503
+MODULE_DISABLED`, whoever asks. The create form accepts `linkDocumentKind=order`
+or `quote_request` and `linkDocumentId=<the document's id>` beside
+`organizationId` in its address.
 
 For module authors: the panel is CRM's contribution to the `order.detail.after`
-admin zone, which the Orders module mounts and which any module may contribute
-to. Orders does not import CRM and declares no dependency on it.
+and `quote_request.detail.after` admin zones, which the Orders and the Quote
+Requests modules mount and which any module may contribute to. Neither imports
+CRM or declares a dependency on it.
 
 ## Adding your own logic to a status change
 

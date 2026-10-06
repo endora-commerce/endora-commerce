@@ -804,17 +804,22 @@ export function registerModule(ctx: ModuleContext): void {
   // --- end of Analytics --------------------------------------------------------
 
   // --- The Opportunity of a document (User Story 17) ---------------------------
-  // One read for the panel CRM contributes to the Order screen: which
-  // Opportunity an Order is linked to. The Order is checked through `orders`'
-  // read port, under the caller's scope, before anything is said about a link.
+  // One read for the panel CRM contributes to the Order screen and to the Quote
+  // Request screen: which Opportunity the document is linked to. The document
+  // is checked through its owner's read port, under the caller's scope, before
+  // anything is said about a link — and for a Quote Request, whose owner can be
+  // switched off, after that module's presence is decided.
   // One service, one `ctx.routes`, this one section.
   ctx.di.register({
     crmDocumentOpportunityService: ctx
       .asFunction(
-        ({ emFactory, crmOpportunityService }: CrmCradle) =>
+        ({ emFactory, crmOpportunityService, crmQuoteRequests, crmOwnerReadChecks }: CrmCradle & ValueCradle) =>
           new DocumentOpportunityService({
             emFactory,
             orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+            quoteRequestPresence: crmQuoteRequests,
+            quoteRequests: lazyPort<QuoteRequestReadPort>(ctx, 'quoteRequestReadPort'),
+            mayReadQuoteRequests: crmOwnerReadChecks.quoteRequests,
             getOpportunity: (opportunityId) => crmOpportunityService.get(opportunityId),
           }),
       )

@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
  * The quote-request screen still renders its custom fields and still saves
@@ -121,11 +122,20 @@ function renderDetail(status = 'Pending'): void {
     return Promise.resolve({ data: { resolvedPrice: { basePrice: null, salePrice: null } } });
   });
   renderWithI18n(
-    <MemoryRouter initialEntries={[`/quote-requests/${RFQ_ID}`]}>
-      <Routes>
-        <Route path="/quote-requests/:id" element={<RfqDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    // The screen ends with a zone other modules may contribute to, so it is
+    // rendered under the session providers; nobody contributes here.
+    withSession(
+      <MemoryRouter initialEntries={[`/quote-requests/${RFQ_ID}`]}>
+        <Routes>
+          <Route path="/quote-requests/:id" element={<RfqDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      {
+        session: adminSession({ permissions: ['rfqs:handle'] }),
+        presence: modulePresence({ present: ['quote_requests'] }),
+        contributions: [],
+      },
+    ),
     bundle,
   );
 }

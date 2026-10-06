@@ -108,8 +108,9 @@ whose members and mounts are host changes (`foreign-module-changes.md` §J):
 
 Both render `components/LinkedOpportunityPanel`: the linked Opportunity's number, title,
 status badge, assignee and value with a link to it; for an unlinked document, "Link to an
-opportunity" and "Create opportunity" for a holder of `crm:write`. The Quote Request
-contribution exists only once User Story 8 has made Quote Requests linkable.
+opportunity" and "Create opportunity" for a holder of `crm:write`. The panel's strings stay
+under `orderPanel.*`; the three sentences that name the document have a Quote Request
+variant each, chosen by kind in the component (research N-I6).
 
 ## 6. Off-state contract (Principle XVII)
 

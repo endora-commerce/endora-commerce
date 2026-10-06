@@ -44,11 +44,12 @@ type FieldErrors = Partial<
  * `?organizationId=<uuid>` preselects the Organization, which is how a "New
  * opportunity" link on an Organization's own screen arrives here.
  *
- * `?linkDocumentKind=order&linkDocumentId=<uuid>` is how "Create opportunity"
- * on an Order's screen arrives: once the Opportunity exists, the Order is
- * linked to it through the link endpoint, and then the Opportunity is opened.
- * Two requests, not one: if the link is refused the Opportunity still exists,
- * the form says so and links to it, and the Order can be linked from there.
+ * `?linkDocumentKind=order|quote_request&linkDocumentId=<uuid>` is how "Create
+ * opportunity" on an Order's or a Quote Request's screen arrives: once the
+ * Opportunity exists, the document is linked to it through the link endpoint,
+ * and then the Opportunity is opened. Two requests, not one: if the link is
+ * refused the Opportunity still exists, the form says so and links to it, and
+ * the document can be linked from there.
  */
 export function OpportunityCreatePage(): ReactNode {
   const t = useTranslation('crm');
@@ -61,10 +62,14 @@ export function OpportunityCreatePage(): ReactNode {
 
   // --- The document this Opportunity is being created from (US17) -----------
   const requestedLinkId = searchParams.get('linkDocumentId');
+  const requestedLinkKind = searchParams.get('linkDocumentKind');
   const linkDocument =
-    searchParams.get('linkDocumentKind') === 'order' && requestedLinkId && UUID.test(requestedLinkId)
-      ? ({ documentKind: 'order', documentId: requestedLinkId } as const)
+    (requestedLinkKind === 'order' || requestedLinkKind === 'quote_request') &&
+    requestedLinkId &&
+    UUID.test(requestedLinkId)
+      ? ({ documentKind: requestedLinkKind, documentId: requestedLinkId } as const)
       : null;
+  const linksAnOrder = linkDocument?.documentKind === 'order';
   /** Created, but the document could not be linked: the Opportunity to open, and why. */
   const [unlinked, setUnlinked] = useState<{ id: string; number: string; reason: string } | null>(null);
   // --- end ------------------------------------------------------------------
@@ -216,7 +221,12 @@ export function OpportunityCreatePage(): ReactNode {
             {unlinked ? (
               <Alert variant="destructive">
                 <AlertDescription>
-                  {t('orderPanel.createForm.linkFailed', { number: unlinked.number, reason: unlinked.reason })}{' '}
+                  {linksAnOrder
+                    ? t('orderPanel.createForm.linkFailed', { number: unlinked.number, reason: unlinked.reason })
+                    : t('orderPanel.createForm.linkFailedQuoteRequest', {
+                        number: unlinked.number,
+                        reason: unlinked.reason,
+                      })}{' '}
                   <Link to={`/crm/opportunities/${unlinked.id}`} className="font-medium underline underline-offset-4">
                     {t('orderPanel.createForm.open')}
                   </Link>
@@ -224,7 +234,9 @@ export function OpportunityCreatePage(): ReactNode {
               </Alert>
             ) : null}
             {linkDocument && !unlinked ? (
-              <p className="text-sm text-muted-foreground">{t('orderPanel.createForm.hint')}</p>
+              <p className="text-sm text-muted-foreground">
+                {linksAnOrder ? t('orderPanel.createForm.hint') : t('orderPanel.createForm.hintQuoteRequest')}
+              </p>
             ) : null}
 
             <p className="text-xs text-muted-foreground">{t('opportunity.create.requiredHint')}</p>

@@ -175,3 +175,13 @@ utworzono. Endpoint klienta takiego pola nie przyjmuje.
 Ekran tworzenia (`/quote-requests/new`) czyta to samo z adresu, gdy otwiera go inny ekran:
 `originType` i `originId`, `organizationId` i `customerAccountId` do wstępnego wyboru klienta oraz
 `returnTo`, czyli ścieżkę w Admin UI, do której wraca się po utworzeniu zapytania.
+
+## Panele na ekranie zapytania ofertowego
+
+Strefa panelu administracyjnego `quote_request.detail.after` jest osadzona raz, na końcu ekranu
+zapytania ofertowego, pod kartą z jego zakładkami, i przekazuje wkładowi `{ quoteRequestId }`.
+Moduł dodaje panel, deklarując `zoneComponent('quote_request.detail.after', …)` we własnych
+wkładach do panelu administracyjnego; ten moduł nie wymienia żadnego z nich i żadnego nie
+importuje. Gdy nikt nic nie wnosi — nie ma takiego modułu, moduł jest wyłączony albo osoba nie ma
+uprawnienia wymaganego przez panel — strefa nie renderuje niczego, a ekran jest dokładnie taki jak
+bez niej. Moduł CRM wnosi szansę, z którą Zapytanie ofertowe jest powiązane.

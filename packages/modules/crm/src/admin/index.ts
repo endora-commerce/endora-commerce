@@ -146,5 +146,6 @@ export const contributions: AdminContributions = {
   zones: [
     zoneComponent('organization.detail.after', () => import('./zones/OrganizationOpportunities.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
     zoneComponent('order.detail.after', () => import('./zones/OrderOpportunity.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
+    zoneComponent('quote_request.detail.after', () => import('./zones/QuoteRequestOpportunity.js'), { weight: 600, requiredPermission: READ_PERMISSION }),
   ],
 };

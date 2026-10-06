@@ -345,6 +345,21 @@ export const AdminZoneNameSchema = z.enum([
    */
   'order.detail.after',
   /**
+   * The stack of panels a quote request's detail screen ends with.
+   *
+   * Mounted **once** per quote request, below the card that holds its tabs, so
+   * a contribution is visible whichever tab is open — on
+   * `order.detail.after`'s terms and for its reasons: every contribution
+   * renders its own card, the host puts no chrome around the zone, and an
+   * empty zone renders nothing at all, so the screen is identical to one
+   * without the member. Props: {@link QuoteRequestDetailZoneProps}, the
+   * request's id and nothing else (Z3).
+   *
+   * The first contributor is `crm`'s linked-opportunity panel;
+   * `quote_requests` names no contributor and gains no edge.
+   */
+  'quote_request.detail.after',
+  /**
    * The per-row action cell of the order detail's Delivery tab.
    *
    * Mounted **once per shipment attempt**, each mount carrying that attempt's
@@ -552,6 +567,16 @@ export interface OrderDetailZoneProps {
 }
 
 /**
+ * A zone mounted once per quote request, at the end of its detail screen.
+ *
+ * The request's own id and nothing else: a contribution reads what it shows
+ * through routes of its own, and the host hands over none of its data.
+ */
+export interface QuoteRequestDetailZoneProps {
+  readonly quoteRequestId: string;
+}
+
+/**
  * A zone mounted once per shipment attempt on the order detail's Delivery tab.
  *
  * Five props, and the last two are here **because a contribution matches on
@@ -680,6 +705,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'customer.detail.after': CustomerDetailZoneProps;
   'order.detail.payment': OrderDetailZoneProps;
   'order.detail.after': OrderDetailZoneProps;
+  'quote_request.detail.after': QuoteRequestDetailZoneProps;
   'order.shipment.row.actions': OrderShipmentRowZoneProps;
   'order.shipments.tab.actions': OrderShipmentsActionsZoneProps;
   'order.entry.tabs': OrderEntryTabsZoneProps;

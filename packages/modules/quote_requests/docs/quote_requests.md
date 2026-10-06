@@ -197,3 +197,15 @@ The create screen (`/quote-requests/new`) reads the same from its query string
 when another screen opens it: `originType` and `originId`, `organizationId` and
 `customerAccountId` to preselect the customer, and `returnTo`, a path inside
 the Admin UI to go back to once the quote request exists.
+
+## Panels on the quote request screen
+
+The admin zone `quote_request.detail.after` is mounted once at the end of a
+quote request's screen, below the card that holds its tabs, and hands a
+contribution `{ quoteRequestId }`. A module adds a panel by declaring
+`zoneComponent('quote_request.detail.after', …)` in its own admin
+contributions; this module names no contributor and imports none. With nothing
+contributed — no such module, the module switched off, or a person without the
+panel's permission — the zone renders nothing and the screen is exactly the one
+without it. The CRM module contributes the opportunity a quote request is
+linked to.

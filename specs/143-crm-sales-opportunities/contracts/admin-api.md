@@ -306,7 +306,8 @@ research N-R13) · `documentKind ∈ order | quote_request` →
 `null` — the document exists, is visible to the caller and is linked to no Opportunity.
 404 `CRM_DOCUMENT_NOT_FOUND` — the document is missing or outside the caller's scope (the two
 are indistinguishable). 422 for an unknown kind. 503 `MODULE_DISABLED` for `quote_request`
-while `quote_requests` is off. Linking from the panel uses §3's endpoint and the list of §1
+while `quote_requests` is off — decided before the caller's `rfqs:handle` is asked, so it is
+the answer whoever asks. Linking from the panel uses §3's endpoint and the list of §1
 filtered by `organizationId` and `state=open`; nothing else is added.
 
 ## 13. Error codes owned by `crm`

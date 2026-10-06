@@ -50,6 +50,7 @@ import type {
 
 const BASE = '/api/v1/admin/crm';
 const ORDERS_BASE = '/api/v1/admin/orders';
+const QUOTE_REQUESTS_BASE = '/api/v1/admin/quote-requests';
 
 export type OpportunitySort = 'createdAt' | 'updatedAt' | 'value' | 'expectedCloseDate' | 'number';
 
@@ -245,6 +246,17 @@ export const crmApi = {
   orderOrganizationId(orderId: string): Promise<string | null> {
     return apiClient
       .get<{ data: { organizationId?: string | null } }>(`${ORDERS_BASE}/${orderId}`)
+      .then((envelope) => envelope.data.organizationId ?? null);
+  },
+
+  /**
+   * The Organization a Quote Request belongs to — read from the quote desk's
+   * own admin endpoint (`rfqs:handle`), which whoever is on that request's
+   * screen holds by construction.
+   */
+  quoteRequestOrganizationId(quoteRequestId: string): Promise<string | null> {
+    return apiClient
+      .get<{ data: { organizationId?: string | null } }>(`${QUOTE_REQUESTS_BASE}/${quoteRequestId}`)
       .then((envelope) => envelope.data.organizationId ?? null);
   },
 

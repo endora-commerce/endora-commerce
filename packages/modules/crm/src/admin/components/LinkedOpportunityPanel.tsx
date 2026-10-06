@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { OpportunitySummary } from '@endora-commerce/contracts';
+import type { OpportunityDocumentKind, OpportunitySummary } from '@endora-commerce/contracts';
 import { statusBadgeStyle, useAuth } from '@endora-commerce/admin-kit/lib';
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Label, Select } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
@@ -21,9 +21,14 @@ import { AssigneeName } from './AssigneeName.js';
  * person holds `crm:read` before this chunk is fetched. The document's screen
  * belongs to another module, which hands over an id and nothing else, so the
  * Organization is read when — and only when — one of the two actions needs it.
+ *
+ * One component for both kinds of document. What differs is said by the
+ * wrapper (which kind, and how its Organization is read) and by the three
+ * sentences that name the document — each a key of its own, chosen here by
+ * kind, so no key is composed at run time.
  */
 export interface LinkedOpportunityPanelProps {
-  documentKind: 'order';
+  documentKind: OpportunityDocumentKind;
   documentId: string;
   /** The Organization the document belongs to, read from the document's owner. */
   loadOrganizationId: (documentId: string) => Promise<string | null>;
@@ -135,7 +140,9 @@ export function LinkedOpportunityPanel(props: LinkedOpportunityPanelProps): Reac
           ) : null}
           {unlinked ? (
             <>
-              <p className="text-sm text-muted-foreground">{t('orderPanel.none')}</p>
+              <p className="text-sm text-muted-foreground">
+                {documentKind === 'order' ? t('orderPanel.none') : t('orderPanel.noneQuoteRequest')}
+              </p>
               {canWrite && organizationId ? (
                 <LinkActions
                   documentKind={documentKind}
@@ -160,7 +167,7 @@ type Picker =
 
 /** "Link to an opportunity" and "Create opportunity", for an unlinked document. */
 function LinkActions(props: {
-  documentKind: 'order';
+  documentKind: OpportunityDocumentKind;
   documentId: string;
   organizationId: string;
   onLinked: () => Promise<void>;
@@ -196,7 +203,12 @@ function LinkActions(props: {
       await crmApi.addLink(chosen, { documentKind, documentId });
       await onLinked();
     } catch (failure) {
-      setError(errorMessage(failure, t('orderPanel.pick.failed')));
+      setError(
+        errorMessage(
+          failure,
+          documentKind === 'order' ? t('orderPanel.pick.failed') : t('orderPanel.pick.failedQuoteRequest'),
+        ),
+      );
       setBusy(false);
     }
   };

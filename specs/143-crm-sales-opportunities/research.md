@@ -2748,6 +2748,42 @@ when it was measured, and what was done about it.
   was uploaded *for* remains impossible without a foreign change, as N-F1 (f) ends. Both
   new cases were seen red before the gate existed (the contract case and the upload case);
   the implementation is the parked commit `6f8a0088e`, re-applied.
+- **N-I6 (2026-10-06, T172, T175–T177, T179) — the Quote Request half of User Story 17,
+  the five steps of N-G11.** (1)–(2) `'quote_request.detail.after'` and
+  `QuoteRequestDetailZoneProps { quoteRequestId }` joined
+  `packages/contracts/src/admin-contributions.ts` with the one mount in `RfqDetail.tsx`,
+  after the card that holds the tabs. `useParams` types the id as possibly absent there, so
+  the mount is behind `id ?` — the Order screen's is not. (3) The host test
+  (`admin/test/modules/quote_requests/RfqDetail.after-zone.test.tsx`) is the Order host
+  test's twin, with a stand-in contributor: the markup is byte-identical with no registry
+  entry, with the contributor's module not present and with its permission not held, and a
+  fourth render is the control; it also holds that the screen's source and
+  `mod-quote-requests`' `package.json` name nothing of CRM. **The two existing `RfqDetail`
+  tests needed the session providers**, as the handover predicted: `<AdminZone>` reads the
+  contribution registry from context, so they now render under `withSession` with an empty
+  registry — fourteen cases were red for that reason alone before the wrapper. (4)
+  `DocumentOpportunityService` takes `quoteRequestPresence`, a lazy `quoteRequestReadPort`
+  and the `rfqs:handle` check, in that order of use: presence (503 `MODULE_DISABLED`
+  naming `quote_requests`, on both axes, whoever asks), then the permission (403), then the
+  request through the port under the caller's scope. **Tenant filtering of `findById` is
+  proven, not assumed**: a Sales Rep confined to another Organization gets 404
+  `CRM_DOCUMENT_NOT_FOUND` for a request of the test Organization, linked or not, with the
+  Organization's own Sales Rep and the platform administrator as the positive controls. Five
+  contract cases, all seen red against the 422 the branch answered before. (5)
+  `zones/QuoteRequestOpportunity.tsx` and its `zoneComponent` line (weight 600, `crm:read`);
+  `LinkedOpportunityPanelProps['documentKind']` and the create page's `linkDocument` are the
+  contract's `OpportunityDocumentKind`; the request's Organization is read from
+  `GET /api/v1/admin/quote-requests/:id` (`rfqs:handle`, held by whoever is on that screen),
+  and only for an unlinked request in front of a holder of `crm:write`. **The strings stay
+  under `orderPanel.*`** (N-G10 (a)); the three sentences that say "order" gained a variant
+  each — `orderPanel.noneQuoteRequest`, `orderPanel.pick.failedQuoteRequest`,
+  `orderPanel.createForm.hintQuoteRequest` / `linkFailedQuoteRequest` — chosen by kind with a
+  literal key on each branch, because `src/admin/index.test.ts` finds keys by scanning for
+  literals (N-29). **Not done:** the panel does not say why linking is refused to somebody on
+  the Order screen without `orders:read` or on the Quote Request screen without
+  `rfqs:handle` — neither person can be on that screen. `quote_requests` gained one import
+  (`@endora-commerce/admin-kit/zones`) and no dependency; its docs page and the Polish copy
+  have the zone, and the changeset names `mod-quote-requests` and `contracts`.
 - **N-J1 (2026-10-06, T117) — where the origin branch sits, and what it is made of.** The
   claim is checked in a file of its own, `services/opportunity-origin-link-service.ts`; the
   placed-document service (`opportunity-auto-create-service.ts`) calls it through one optional

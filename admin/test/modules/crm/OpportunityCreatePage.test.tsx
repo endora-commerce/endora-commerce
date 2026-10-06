@@ -283,6 +283,43 @@ describe('OpportunityCreatePage — created from an order (User Story 17)', () =
     expect(submitButton()).toBeDisabled();
   });
 
+  it('links a quote request the same way, and says so in its own words', async () => {
+    const QUOTE = '00000000-0000-4000-8000-0000000000a7';
+    postSpy.mockImplementation((path: string) =>
+      Promise.resolve({ data: path === LINK_URL ? { id: 'link-1' } : detail() }),
+    );
+    renderPage(
+      `/crm/opportunities/new?organizationId=${ORGANIZATION_ID}&linkDocumentKind=quote_request&linkDocumentId=${QUOTE}`,
+    );
+    expect(screen.getByText(en('orderPanel.createForm.hintQuoteRequest'))).toBeTruthy();
+    expect(screen.queryByText(en('orderPanel.createForm.hint'))).toBeNull();
+    await fillAndSubmit();
+
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith(`/crm/opportunities/${OPPORTUNITY_ID}`));
+    expect(postSpy.mock.calls[1]).toEqual([LINK_URL, { documentKind: 'quote_request', documentId: QUOTE }]);
+  });
+
+  it('names the quote request when its link is refused', async () => {
+    const QUOTE = '00000000-0000-4000-8000-0000000000a7';
+    postSpy.mockImplementation((path: string) =>
+      path === LINK_URL
+        ? Promise.reject(
+            new ApiError(409, {
+              error: { code: 'CRM_DOCUMENT_ALREADY_LINKED', message: 'Already linked.', requestId: 'r' },
+            } as never),
+          )
+        : Promise.resolve({ data: detail() }),
+    );
+    renderPage(
+      `/crm/opportunities/new?organizationId=${ORGANIZATION_ID}&linkDocumentKind=quote_request&linkDocumentId=${QUOTE}`,
+    );
+    await fillAndSubmit();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      en('orderPanel.createForm.linkFailedQuoteRequest', { number: detail().number, reason: 'Already linked.' }),
+    );
+    expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
   it('makes no link call without the two parameters, or with a kind it does not know', async () => {
     postSpy.mockResolvedValue({ data: detail() });
     renderPage(`/crm/opportunities/new?organizationId=${ORGANIZATION_ID}&linkDocumentKind=invoice&linkDocumentId=${ORDER}`);

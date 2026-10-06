@@ -1114,7 +1114,7 @@ Ostatnia aktywność na pulpicie nazywa szansę jej tytułem i prowadzi do jej
 ekranu. Gdy CRM jest wyłączony albo gdy ktoś nie może zobaczyć danej szansy,
 wpis pozostaje, ale bez tytułu i bez odnośnika.
 
-## Szansa na ekranie zamówienia
+## Szansa na ekranie zamówienia i zapytania ofertowego
 
 Ekran zamówienia kończy się panelem **Powiązana szansa**, niezależnie od
 otwartej zakładki.
@@ -1136,21 +1136,30 @@ otwartej zakładki.
   wyłączonym CRM ekran zamówienia wygląda dokładnie tak jak bez modułu — bez
   panelu, nagłówka, pustego miejsca i bez żadnego zapytania.
 
-Zapytania ofertowe otrzymają ten sam panel, gdy będzie je można powiązać z
-szansą.
+**Ekran zapytania ofertowego kończy się takim samym panelem**, dla zapytania
+ofertowego: pokazuje szansę, z którą jest ono powiązane, albo — osobie z
+`crm:write` — *Powiąż z szansą* i *Utwórz szansę*, które niosą Zapytanie
+ofertowe zamiast zamówienia. Kto jest na tym ekranie, ma `rfqs:handle`, którego
+wymaga powiązanie zapytania ofertowego. Gdy moduł Zapytań ofertowych jest
+wyłączony, nie ma ani tego ekranu, ani panelu; panel zamówienia działa bez
+zmian.
 
 Dla integratorów: `GET /api/v1/admin/crm/documents/order/{orderId}/opportunity`
 (`crm:read` i `orders:read`) zwraca `{ "data": <podsumowanie szansy> }` albo `{ "data": null }`
 dla zamówienia bez powiązania. Zamówienie, które nie istnieje albo którego
 wywołujący nie może zobaczyć, daje `404 CRM_DOCUMENT_NOT_FOUND` — tę samą
 odpowiedź w obu przypadkach, niezależnie od tego, czy jest powiązane. Rodzaj
-inny niż rodzaj dokumentu daje `422`. Formularz tworzenia przyjmuje w adresie
-`linkDocumentKind=order` i `linkDocumentId=<id zamówienia>` obok
-`organizationId`.
+inny niż rodzaj dokumentu daje `422`.
+`…/documents/quote_request/{quoteRequestId}/opportunity` odpowiada tak samo dla
+zapytania ofertowego i wymaga `crm:read` oraz `rfqs:handle`; gdy moduł Zapytań
+ofertowych jest wyłączony, odpowiada `503 MODULE_DISABLED` — każdemu. Formularz
+tworzenia przyjmuje w adresie `linkDocumentKind=order` albo `quote_request` i
+`linkDocumentId=<id dokumentu>` obok `organizationId`.
 
 Dla autorów modułów: panel jest wkładem CRM do strefy panelu administracyjnego
-`order.detail.after`, którą osadza moduł Zamówienia i do której może wnosić
-każdy moduł. Zamówienia nie importują CRM i nie deklarują od niego zależności.
+`order.detail.after` i `quote_request.detail.after`, które osadzają moduły
+Zamówienia i Zapytania ofertowe i do których może wnosić każdy moduł. Żaden z
+nich nie importuje CRM ani nie deklaruje od niego zależności.
 
 ## Własna logika przy zmianie statusu
 

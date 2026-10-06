@@ -3,6 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithI18n, passthroughBundle } from '../../helpers/render-with-i18n';
+import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 const getSpy = vi.fn();
 const patchSpy = vi.fn();
@@ -144,11 +145,20 @@ function renderDetail(overrides: RfqOverrides = {}): void {
     return Promise.resolve({ data: { resolvedPrice: { basePrice: null, salePrice: null } } });
   });
   renderWithI18n(
-    <MemoryRouter initialEntries={[`/quote-requests/${RFQ_ID}`]}>
-      <Routes>
-        <Route path="/quote-requests/:id" element={<RfqDetail />} />
-      </Routes>
-    </MemoryRouter>,
+    // The screen ends with a zone other modules may contribute to, so it is
+    // rendered under the session providers; nobody contributes here.
+    withSession(
+      <MemoryRouter initialEntries={[`/quote-requests/${RFQ_ID}`]}>
+        <Routes>
+          <Route path="/quote-requests/:id" element={<RfqDetail />} />
+        </Routes>
+      </MemoryRouter>,
+      {
+        session: adminSession({ permissions: ['rfqs:handle'] }),
+        presence: modulePresence({ present: ['quote_requests'] }),
+        contributions: [],
+      },
+    ),
     FULL_BUNDLE,
   );
 }
