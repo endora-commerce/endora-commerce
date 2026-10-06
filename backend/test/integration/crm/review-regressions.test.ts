@@ -425,6 +425,39 @@ describe('crm review regressions', () => {
     });
   });
 
+  describe('finding 9 — an If-Match that cannot be read is refused, not taken for "no precondition"', () => {
+    it.each(['"stale-garbage"', '"1abc"', 'W/"1"', '"1", "2"', '1.5', '""'])('answers 400 for %s and writes nothing', async (header) => {
+      const opportunity = await createCrmOpportunity(h, { organizationId: organizationA, title: 'As it was' });
+      const response = await call(
+        'PATCH',
+        `/opportunities/${opportunity.id}`,
+        CRM_ADMIN,
+        { title: 'Overwritten' },
+        { 'if-match': header },
+      );
+      expect(response.statusCode, response.body).toBe(400);
+      expect(response.json().error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+      const read = await call('GET', `/opportunities/${opportunity.id}`);
+      expect((read.json() as { data: { title: string; version: number } }).data).toMatchObject({
+        title: 'As it was',
+        version: opportunity.version,
+      });
+    });
+
+    it('still takes the version quoted or bare, refuses a stale one with 409, and takes none at all', async () => {
+      const opportunity = await createCrmOpportunity(h, { organizationId: organizationA });
+      const patch = (title: string, header?: string) =>
+        call('PATCH', `/opportunities/${opportunity.id}`, CRM_ADMIN, { title }, header ? { 'if-match': header } : undefined);
+      const version = opportunity.version;
+      expect((await patch('quoted', `"${version}"`)).statusCode).toBe(200);
+      expect((await patch('bare', String(version + 1))).statusCode).toBe(200);
+      const stale = await patch('stale', `"${version}"`);
+      expect(stale.statusCode, stale.body).toBe(409);
+      expect(stale.json().error.code).toBe(ERROR_CODES.VERSION_CONFLICT);
+      expect((await patch('unconditional')).statusCode).toBe(200);
+    });
+  });
+
   describe('reach, where no test held it', () => {
     it('answers no contact for an Organization out of the caller’s reach', async () => {
       const response = await call('GET', `/lookups/contacts?organizationId=${organizationB}`, rep.cookies);

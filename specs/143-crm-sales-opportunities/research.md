@@ -2122,6 +2122,15 @@ when it was measured, and what was done about it.
   refused — so every consumer answers the envelope's 400 `VALIDATION_FAILED`: the list's and
   the board's `createdFrom` / `createdTo`, `expectedCloseDate` on create and PATCH, and the
   analytics range, which shares the schema.
+- **N-R9 (2026-10-06, review finding 9) — an `If-Match` that cannot be read is 400, not
+  "no precondition".** `PATCH /opportunities/:id` read the header with `parseInt` and took
+  anything unparseable for an absent header, so a client that sent a garbled version had its
+  guarded write applied unguarded — and `"1abc"` was read as `1`. The header is now the
+  version exactly, quoted as the `ETag` gives it or bare (`"3"`, `3`), or `*`, which like an
+  absent header asks for nothing; a weak validator, a list or anything else answers 400
+  `VALIDATION_FAILED` before the service is called. `contracts/admin-api.md` §1's row is
+  left as it reads (it names the header and the 409) to keep this change out of a table
+  other branches edit; the 400 belongs in it.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
