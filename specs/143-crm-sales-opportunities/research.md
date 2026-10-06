@@ -3361,6 +3361,57 @@ when it was measured, and what was done about it.
   by hand, so it accepts the document created from it; the Opportunity stays closed, and a
   mapping never reopens it (N-R4). Pinned in `create-from-opportunity.test.ts`. The
   contracts are not edited here.
+- **N-P8 (2026-10-07, T146) — verification as CI runs it, in two parts that must not be
+  read as one.** **(a) The complete backend trees, on `32775d506`** — the branch with
+  `origin/master` merged and the polish changes, *before* the second review's fixes were
+  merged: all of `test/contract` (385 files), all of `test/integration` (617) and the 16 unit
+  files the fast configuration leaves out, in two concurrent invocations, 96 minutes.
+  **1016 of 1018 files green; 4928 tests passed, 1 failed, 5 skipped, 1 expected failure**
+  (the `it.fails` of `review-regressions.test.ts`). The two: `integration/_lifecycle/
+  uninstall-hard-needs-force` — fails alone as well, the known red of `master` (issue #136);
+  and `contract/assets_library/admin-upload.contract.test.ts` — `Hook timed out in 30000ms`
+  while a third workload ran on the machine, 5 of 5 green alone. **(b) The targeted list, on
+  `b76c4727a`** — after `po/143-crm` (documents) and `fix/143-crm-review2-findings` were
+  merged: `test/{contract,integration}/crm` and `contract/kernel` (51 files, 656 tests and the
+  expected failure), and the contract, integration and unit directories of `custom_fields`,
+  `webhooks`, `quote_requests`, `orders`, `audit_logs`, `_i18n` with
+  `integration/_admin_surfaces` (155 files, 888 tests) — **206 of 206 files green**. On the
+  same tip: `pnpm install --frozen-lockfile`, `build:packages`, the 54 commands of the
+  `quality` job and its neighbours with CI's arguments (`check:release-intent -- --since
+  origin/master`, `test:release-gate`, `check-naming.sh`, `check-language.sh` among them)
+  54 of 54; `test:unit:fast` 346 files / 7355 tests; every other workspace member's suite
+  (65 suites, `--workspace-concurrency=1`); the admin, docs and storefront builds. **Not run
+  on the final tip:** the rest of the two backend trees — the second review's changes are
+  inside `crm` and one route file of `custom_fields`, whose directories are in (b). On the
+  earlier tip `ad66325e8` two unit tests timed out at 30 s while the backend trees were
+  running beside them and passed alone; on the final tip, run with nothing beside it, the
+  suite is green. The storefront build needs `NEXT_PUBLIC_API_BASE_URL` in its environment
+  and refuses without it — that is the build's own rule, not a defect.
+- **N-P9 (2026-10-07) — the whole merged product walked in a browser, on `b76c4727a`.**
+  N-30's arrangement (headless Chromium, the admin's Vite dev server over the packages'
+  `dist`, the backend test composition on a throw-away `_test` database, created and dropped
+  with its template). **English, 1440 px — 67 of 67**: a status and two transitions added;
+  four forward mappings, two reverse ones (the "only when every linked order is there" box
+  ticked by itself for a closing status and left clear for an open one) and the counting
+  statuses saved; an Opportunity created by hand with an assignee, two tags and a required
+  custom field that first refuses the form; an Order and a Quote Request linked; the value
+  switched to computed (84.00 while the Order is new, 18 534.00 once it is paid); the
+  workflow walked with the Order following `paid` → `processing` → `shipment_ready`; the move
+  to *Won* standing while the Order refuses `completed`, then *Retry* and *Dismiss*; a second
+  Opportunity linked from the Order's own panel and moved to *Qualified* by putting that
+  Order on hold on the Order screen, with no echo back; a note carrying a product and an
+  Order reference, shown as links; a message; a file uploaded by a role holding `crm:read`
+  and `crm:write` alone, an `.html` refused with 415, the link served as an attachment; the
+  same role seeing a linked Order and Quote Request as unavailable, with the sentence that
+  says why, and answered 403 by the Orders API; the change history with the reason and
+  without the note's text; an Order created from an Opportunity, linked as
+  `created_from_opportunity`, no second Opportunity; the board's "Move to…", a mouse drag and
+  the lanes the workflow refuses; analytics; the three panels on the Order, Quote Request and
+  Organization screens. **Polish — 21 of 21** and **390 px — 18 of 18**, no key on any
+  screen, no page scrolling sideways. No console or page error and no failed request of
+  CRM's; the Organization screen itself asks for a price display override that does not
+  exist (404), which is not CRM's request. Not verified by eye: a screen reader, a physical
+  touch device, dark theme.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
