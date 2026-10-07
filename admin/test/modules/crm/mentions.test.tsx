@@ -67,6 +67,8 @@ const note = (body: string, references: OpportunityReference[] = []): Opportunit
 
 let notes: OpportunityComment[];
 let failPeople = false;
+/** A test's own answer to a GET, tried before the shared ones; `undefined` falls through. */
+let intercept: ((path: string) => Promise<unknown> | undefined) | null = null;
 
 const asked = (prefix: string): string[] =>
   getSpy.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith(prefix));
@@ -76,7 +78,10 @@ beforeEach(() => {
   postSpy.mockReset();
   notes = [];
   failPeople = false;
+  intercept = null;
   getSpy.mockImplementation((path: string) => {
+    const own = intercept?.(path);
+    if (own) return own;
     if (failPeople && path.startsWith(MENTIONABLE_PATH)) return Promise.reject(new Error('down'));
     const lookup = crmLookupResponse(path);
     if (lookup) return lookup;
@@ -213,6 +218,94 @@ describe('typing @ in a text of an Opportunity', () => {
     // Positive control: the same key, once the composition is over, chooses.
     fireEvent.keyDown(field, { key: 'Enter' });
     await waitFor(() => expect(field.value).toBe(`[[admin_user:${OTHER_ADMIN_ID}]] `));
+  });
+
+  it('drops an answer that arrives after a later search was answered — the list is never the older one', async () => {
+    // The answer to "p" is held back until "pi" has been asked and answered.
+    let releaseOlder: (() => void) | null = null;
+    intercept = (path) => {
+      const q = new URLSearchParams(path.split('?')[1] ?? '').get('q');
+      if (!path.startsWith(MENTIONABLE_PATH) || q !== 'p') return undefined;
+      return new Promise((resolve) => {
+        releaseOlder = (): void =>
+          resolve({ data: [{ id: GONE_ADMIN_ID, name: 'Pia Stale' }, { id: OTHER_ADMIN_ID, name: 'Piotr Zielony' }] });
+      });
+    };
+    const { panel, field } = await composer();
+    await userEvent.type(field, '@p');
+    await waitFor(() => expect(releaseOlder).not.toBeNull());
+    await userEvent.type(field, 'i');
+    await waitFor(() => expect(asked(MENTIONABLE_PATH).some((path) => path.endsWith('q=pi'))).toBe(true));
+    await waitFor(() =>
+      expect(within(panel).getAllByRole('option').map((option) => option.textContent)).toEqual(['Piotr Zielony']),
+    );
+
+    releaseOlder!();
+    // Long enough for the late answer to have been rendered, had it been taken.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(within(panel).getAllByRole('option').map((option) => option.textContent)).toEqual(['Piotr Zielony']);
+    await userEvent.keyboard('{Enter}');
+    await waitFor(() => expect(field.value).toBe(`[[admin_user:${OTHER_ADMIN_ID}]] `));
+  });
+
+  it('never offers the people it listed as Orders while the Orders are still being fetched', async () => {
+    let releaseOrders: (() => void) | null = null;
+    intercept = (path) => {
+      if (!path.startsWith('/api/v1/admin/orders?')) return undefined;
+      return new Promise((resolve) => {
+        releaseOrders = (): void =>
+          resolve({ data: [{ id: ORDER_ID, businessId: 'ORD-1001', status: 'new', total: 990, currency: 'PLN' }] });
+      });
+    };
+    const { panel, field } = await composer(WITH_CATALOG);
+    await userEvent.type(field, '@');
+    await people(panel);
+    await userEvent.type(field, '@');
+    await waitFor(() => expect(releaseOrders).not.toBeNull());
+
+    // Under the Orders' title nothing is listed yet, and Enter is a new line — not `[[order:<a person's id>]]`.
+    expect(within(panel).getByText(en('references.suggest.title.order'))).toBeInTheDocument();
+    expect(within(panel).queryByRole('option')).toBeNull();
+    await userEvent.keyboard('{Enter}');
+    expect(field.value).toBe('@@\n');
+    await userEvent.keyboard('{Backspace}');
+
+    releaseOrders!();
+    const orders = await within(panel).findByRole('listbox', { name: en('references.suggest.title.order') });
+    expect(within(orders).getAllByRole('option').map((option) => option.textContent)).toEqual(['ORD-1001']);
+  });
+
+  it('refuses a choice that would not fit the field, says so, and leaves the text as typed', async () => {
+    const { panel, field } = await composer();
+    // Ten characters short of the limit: the letters fit, a token of 51 does not.
+    const filler = 'x'.repeat(field.maxLength - 10);
+    fireEvent.change(field, { target: { value: `${filler} ` } });
+    field.setSelectionRange(field.value.length, field.value.length);
+    await userEvent.type(field, '@pio');
+    await within(panel).findByRole('option', { name: 'Piotr Zielony' });
+    await userEvent.keyboard('{Enter}');
+
+    expect(await within(panel).findByText(en('references.error.tooLong'))).toBeInTheDocument();
+    expect(field.value).toBe(`${filler} @pio`);
+  });
+
+  it('takes Escape for itself while the list is open, and leaves it alone when it is not', async () => {
+    const { panel, field } = await composer();
+    await userEvent.type(field, '@');
+    await people(panel);
+    // `fireEvent` answers false when the event's default was prevented.
+    expect(fireEvent.keyDown(field, { key: 'Escape' })).toBe(false);
+    await waitFor(() => expect(within(panel).queryByRole('listbox')).toBeNull());
+    expect(fireEvent.keyDown(field, { key: 'Escape' })).toBe(true);
+  });
+
+  it('closes the list when the field loses the focus, and keeps what was typed', async () => {
+    const { panel, field } = await composer();
+    await userEvent.type(field, '@');
+    await people(panel);
+    await userEvent.click(screen.getByRole('heading', { level: 1 }));
+    await waitFor(() => expect(within(panel).queryByText(en('references.suggest.title.person'))).toBeNull());
+    expect(field.value).toBe('@');
   });
 
   it('takes a click on a person as well, and keeps the focus in the field', async () => {
