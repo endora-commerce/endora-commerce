@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { manifest } from '../manifest.js';
 import { contributions } from './index.js';
+import { LABELLED_HISTORY_FIELDS, SILENT_HISTORY_FIELDS, humaniseKey } from './lib/history-fields.js';
 
 /**
  * `crm`'s admin **declaration** and this package's own source hygiene
@@ -184,13 +185,9 @@ describe('crm admin copy', () => {
       'value.excluded.reason.': ['currency_mismatch'],
       'history.document.open.': ['order', 'quote_request'],
       'history.linkSource.': ['manual', 'auto', 'created_from_opportunity', 'quote_conversion'],
-      'history.field.': [
-        'title', 'description', 'customerAccountId', 'salesChannelId', 'assignedAdminUserId',
-        'valueMode', 'manualValue', 'expectedCloseDate', 'currency', 'organizationId', 'number',
-        'source', 'tags', 'documentKind', 'documentId', 'linkedDocument', 'syncStatus',
-        'linkSource', 'orderId', 'orderStatusCode', 'skippedStatus', 'outcome', 'dismissed',
-        'deleted', 'reason', 'body', 'kind', 'fileName', 'statusCode',
-      ],
+      // One label per field the history can show — the set the tab itself reads.
+      'history.field.': [...LABELLED_HISTORY_FIELDS],
+      'history.notFollowed.': ['skipped', 'failed'],
       'references.kind.': ['product', 'order'],
       'references.inserted.': ['product', 'order'],
       'references.unavailable.': ['product', 'order'],
@@ -254,5 +251,122 @@ describe('crm admin copy', () => {
     // never its text (research N-R6).
     expect(en['comments.delete.body']).not.toMatch(/stays in/i);
     expect(pl['comments.delete.body']).not.toMatch(/pozostanie w historii/i);
+  });
+});
+
+/**
+ * The Change history tab shows the audited state of an Opportunity, and the
+ * state is written by the backend's Commands. Nothing else holds the two
+ * together: a key added to an audited state would reach the operator as
+ * "Other change", which is honest and says nothing.
+ *
+ * So the state keys are read from the services themselves and each one must be
+ * a field the tab labels or one it declares silent.
+ */
+const SERVICES_ROOT = new URL('../backend/services/', import.meta.url);
+
+/** The index of the bracket closing the one opened at `open`. */
+function closing(text: string, open: number): number {
+  let depth = 0;
+  for (let index = open; index < text.length; index += 1) {
+    const char = text[index] as string;
+    if ('{[('.includes(char)) depth += 1;
+    else if ('}])'.includes(char) && (depth -= 1) === 0) return index;
+  }
+  return text.length;
+}
+
+/** The top-level keys of the object literal opening at `open`, conditional spreads included. */
+function literalKeys(text: string, open: number): string[] {
+  const end = closing(text, open);
+  const keys: string[] = [];
+  let itemStart = open + 1;
+  const take = (from: number, to: number): void => {
+    const item = text.slice(from, to).trim();
+    if (item.startsWith('...')) {
+      // `...(condition ? { key: … } : {})` — the keys of the literals it spreads.
+      for (let index = from; index < to; index += 1) {
+        if (text[index] === '{') {
+          keys.push(...literalKeys(text, index));
+          index = closing(text, index);
+        }
+      }
+      return;
+    }
+    const key = /^([A-Za-z_]\w*)\s*(:|$)/.exec(item);
+    if (key) keys.push(key[1] as string);
+  };
+  for (let index = open + 1; index < end; index += 1) {
+    const char = text[index] as string;
+    if ('{[('.includes(char)) index = closing(text, index);
+    else if (char === ',') {
+      take(itemStart, index);
+      itemStart = index + 1;
+    }
+  }
+  take(itemStart, end);
+  return keys;
+}
+
+/**
+ * Every key a `crm.opportunity.*` Command can put in `before` or `after`: the
+ * literals assigned to either name, and the snapshot they spread.
+ */
+function auditedStateKeys(): string[] {
+  const keys = new Set<string>();
+  for (const file of readdirSync(SERVICES_ROOT)) {
+    if (!file.endsWith('.ts') || file.endsWith('.test.ts')) continue;
+    const source = readFileSync(new URL(file, SERVICES_ROOT), 'utf8');
+    if (!source.includes("'crm.opportunity.")) continue;
+    // Comments carry commas and braces of their own.
+    const text = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const starts = [
+      ...text.matchAll(/\b(?:before|after)(?::| =)[^,;{}\n]*\{/g),
+      ...text.matchAll(/function auditSnapshot\([^)]*\)[^{]*\{\s*return \{/g),
+    ];
+    for (const match of starts) {
+      for (const key of literalKeys(text, match.index + match[0].length - 1)) keys.add(key);
+    }
+  }
+  return [...keys].sort();
+}
+
+describe('crm change history fields', () => {
+  const keys = auditedStateKeys();
+
+  it('reads the audited states of the services — a scan that found none would prove nothing', () => {
+    expect(keys.length).toBeGreaterThan(30);
+    // One from each shape the scan has to follow: the snapshot, a conditional
+    // spread inside it, a literal on one line, a `const before = {`.
+    for (const key of ['title', 'customFieldValues', 'linkedDocument', 'outcome', 'fileName', 'causeOrderId']) {
+      expect(keys, key).toContain(key);
+    }
+  });
+
+  it('labels every audited state key, or declares it silent', () => {
+    const unknown = keys.filter(
+      (key) => !LABELLED_HISTORY_FIELDS.has(key) && !SILENT_HISTORY_FIELDS.has(key),
+    );
+    expect(unknown).toEqual([]);
+  });
+
+  it('carries a label for every labelled field in both languages, and none is the key itself', () => {
+    for (const language of ['en', 'pl'] as const) {
+      const labels = bundle(language);
+      const missing = [...LABELLED_HISTORY_FIELDS].filter((field) => {
+        const label = labels[`history.field.${field}`];
+        return !label || label === field;
+      });
+      expect(missing, language).toEqual([]);
+    }
+  });
+
+  it('never labels a field it also declares silent', () => {
+    expect([...LABELLED_HISTORY_FIELDS].filter((field) => SILENT_HISTORY_FIELDS.has(field))).toEqual([]);
+  });
+
+  it('reads a key it was never told about as words', () => {
+    expect(humaniseKey('riskProfile')).toBe('risk profile');
+    expect(humaniseKey('lead_source')).toBe('lead source');
   });
 });

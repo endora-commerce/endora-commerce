@@ -62,6 +62,72 @@ export function useCanSeeCustomFields(): boolean {
   return useAuth().hasPermission(CUSTOM_FIELDS_READ);
 }
 
+/**
+ * The definitions of the Opportunity's fields, for somebody who may read them
+ * — `custom_fields`' own admin API, the one the kit's panel asks. Nothing is
+ * asked while `enabled` is false, and a failed read answers no definitions.
+ */
+export function useOpportunityFieldDefinitions(enabled: boolean): {
+  definitions: CustomFieldDefinitionDto[];
+  failed: boolean;
+} {
+  const [definitions, setDefinitions] = useState<CustomFieldDefinitionDto[]>([]);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    let alive = true;
+    apiClient
+      .get<{ data: CustomFieldDefinitionDto[] }>(DEFINITIONS_URL)
+      .then((response) => {
+        if (alive) setDefinitions(response.data);
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
+    return (): void => {
+      alive = false;
+    };
+  }, [enabled]);
+
+  return { definitions, failed };
+}
+
+/** A field's name in the reader's language — its code when the definition is not known. */
+export function customFieldLabel(
+  definition: CustomFieldDefinitionDto | undefined,
+  key: string,
+  language: string,
+): string {
+  return definition ? (definition.label[language] ?? definition.labelDefault) : key;
+}
+
+/**
+ * One stored value as a reader sees it: a choice by its option's label, a
+ * yes/no in words, several choices as a list. Without the definition the
+ * stored value is shown as it is — a choice then reads as its code.
+ */
+export function customFieldValueLabel(
+  definition: CustomFieldDefinitionDto | undefined,
+  value: unknown,
+  language: string,
+  words: { yes: string; no: string },
+): string {
+  const optionLabel = (stored: string): string => {
+    const option = definition?.options.find((candidate) => candidate.value === stored);
+    return option ? (option.label[language] ?? option.labelDefault) : stored;
+  };
+  if (value === undefined || value === null || value === '') return NO_VALUE;
+  if (typeof value === 'boolean') return value ? words.yes : words.no;
+  if (Array.isArray(value)) {
+    return value.length === 0 ? NO_VALUE : value.map((entry) => optionLabel(String(entry))).join(', ');
+  }
+  if (typeof value === 'object') {
+    return Object.values(value).map((entry) => customFieldValueLabel(undefined, entry, language, words)).join(', ');
+  }
+  return !definition || definition.valueType === 'select' ? optionLabel(String(value)) : String(value);
+}
+
 /** The fields on the Opportunity's Overview: editable for a writer, a list for a reader. */
 export function OpportunityCustomFields(props: {
   opportunity: OpportunityDetail;
@@ -134,23 +200,7 @@ function CustomFieldValuesList(props: { values: Record<string, unknown>; languag
   const { values, language } = props;
   const t = useTranslation('crm');
   const headingId = useId();
-  const [definitions, setDefinitions] = useState<CustomFieldDefinitionDto[]>([]);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    apiClient
-      .get<{ data: CustomFieldDefinitionDto[] }>(DEFINITIONS_URL)
-      .then((response) => {
-        if (alive) setDefinitions(response.data);
-      })
-      .catch(() => {
-        if (alive) setFailed(true);
-      });
-    return (): void => {
-      alive = false;
-    };
-  }, []);
+  const { definitions, failed } = useOpportunityFieldDefinitions(true);
 
   if (failed) {
     return (
@@ -162,19 +212,7 @@ function CustomFieldValuesList(props: { values: Record<string, unknown>; languag
   // No field is defined for Opportunities: no heading, no empty section.
   if (definitions.length === 0) return null;
 
-  const optionLabel = (definition: CustomFieldDefinitionDto, value: string): string => {
-    const option = definition.options.find((candidate) => candidate.value === value);
-    return option ? (option.label[language] ?? option.labelDefault) : value;
-  };
-  const render = (definition: CustomFieldDefinitionDto): string => {
-    const value = values[definition.key];
-    if (value === undefined || value === null || value === '') return NO_VALUE;
-    if (typeof value === 'boolean') return t(value ? 'customFields.value.yes' : 'customFields.value.no');
-    if (Array.isArray(value)) {
-      return value.length === 0 ? NO_VALUE : value.map((entry) => optionLabel(definition, String(entry))).join(', ');
-    }
-    return definition.valueType === 'select' ? optionLabel(definition, String(value)) : String(value);
-  };
+  const words = { yes: t('customFields.value.yes'), no: t('customFields.value.no') };
 
   return (
     <section aria-labelledby={headingId} className="space-y-3">
@@ -184,8 +222,8 @@ function CustomFieldValuesList(props: { values: Record<string, unknown>; languag
       <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
         {definitions.map((definition) => (
           <div key={definition.id}>
-            <dt className="text-muted-foreground">{definition.label[language] ?? definition.labelDefault}</dt>
-            <dd>{render(definition)}</dd>
+            <dt className="text-muted-foreground">{customFieldLabel(definition, definition.key, language)}</dt>
+            <dd>{customFieldValueLabel(definition, values[definition.key], language, words)}</dd>
           </div>
         ))}
       </dl>

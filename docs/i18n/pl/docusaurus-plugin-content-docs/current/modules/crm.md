@@ -944,8 +944,11 @@ W Admin UI historia to karta **Historia zmian** szansy sprzedażowej. Każdy
 wpis jest zdaniem — *Zmieniono status szansy sprzedażowej*, *Dodano notatkę* —
 z informacją, kto i kiedy to zrobił. Zmiana statusu pokazuje oba statusy z
 nazwy; jeśli spowodowało ją zamówienie, wpis wskazuje to zamówienie i prowadzi
-do niego. Edycja wymienia zmienione pola: jak było i jak jest. Przycisk *Pokaż
-wcześniejsze zmiany* wczytuje kolejną stronę.
+do niego. Edycja wymienia zmienione pola: jak było i jak jest. Wartości pól
+niestandardowych są wymienione po jednej w wierszu, pod własnymi etykietami pól
+— albo pod ich kodami dla osoby bez `custom_fields:read` — a status zamówienia
+jest pokazywany z nazwy, wyłącznie osobie z uprawnieniem `orders:read`.
+Przycisk *Pokaż wcześniejsze zmiany* wczytuje kolejną stronę.
 
 ## Odwołania do produktów i zamówień
 

@@ -53,7 +53,9 @@ organization the caller may not see answers `404 CRM_OPPORTUNITY_NOT_FOUND`):
   `crm:write` alone, stored in the media library as a private file, at most 25 MB, active
   content refused; attaching an existing library file by id also needs `assets.read`).
 - **Change history** — `GET …/history`, read from the platform's audit trail under `crm:read`;
-  the text of a note or a message is never in it.
+  the text of a note or a message is never in it, and the tab shows every audited value in
+  words — custom field values under the fields' own labels, an order status by name to a
+  reader holding `orders:read`.
 - **References** — `[[product:<uuid>]]` and `[[order:<uuid>]]` in a description, note or
   message are resolved into `references` beside the text.
 - **Board** — `GET /board`: a column per status with count, value totals per currency and the
