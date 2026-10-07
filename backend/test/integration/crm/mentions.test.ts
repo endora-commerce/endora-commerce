@@ -277,6 +277,85 @@ describe('crm mentions of people (US18)', () => {
       ]);
     });
 
+    it('a message tells a participant it mentions, but may not address as one, about the message as before', async () => {
+      // Whoever is assigned is in the conversation, whatever their role lets
+      // them read. A mention of them tells nobody — no crm:read — and must not
+      // take their message entry away with it: the mention stands instead of it
+      // only for somebody the mention actually reached.
+      const created = await opportunity({ assignedAdminUserId: withoutCrm.adminUserId });
+      const before = (await bell(withoutCrm, created.id)).length;
+      await write(created.id, 'message', `${person(withoutCrm)} are you there?`);
+      expect((await bell(withoutCrm, created.id)).slice(before).map((entry) => entry.kind)).toEqual([
+        'crm.opportunity.message',
+      ]);
+    });
+
+    it('a bell that cannot be written costs no save its text — a note, its edit, a message, a description', async () => {
+      type RecordPort = { record: (input: unknown) => Promise<unknown> };
+      /** `admin_notifications`' port answering with a failure for as long as `work` runs. */
+      const withTheBellFailing = async <T>(work: () => Promise<T>): Promise<{ result: T; asked: number }> => {
+        const port = h.container.resolve<RecordPort>('adminNotificationRecordPort');
+        const original = port.record;
+        let asked = 0;
+        port.record = async () => {
+          asked += 1;
+          throw new Error('bell store unavailable');
+        };
+        try {
+          return { result: await work(), asked };
+        } finally {
+          port.record = original;
+        }
+      };
+      const created = await opportunity();
+
+      const added = await withTheBellFailing(() =>
+        call('POST', `/opportunities/${created.id}/comments`, { kind: 'note', body: `${person(colleague)} one` }),
+      );
+      expect(added.asked, 'the control: the bell was asked, and failed').toBe(1);
+      expect(added.result.statusCode, added.result.body).toBe(201);
+      const noteId = OpportunityCommentResponseSchema.parse(added.result.json()).data.id;
+
+      const edited = await withTheBellFailing(() =>
+        call('PATCH', `/opportunities/${created.id}/comments/${noteId}`, {
+          body: `${person(colleague)} one, and ${person(second)}`,
+        }),
+      );
+      expect(edited.asked).toBe(1);
+      expect(edited.result.statusCode, edited.result.body).toBe(200);
+      expect(OpportunityCommentResponseSchema.parse(edited.result.json()).data.body).toContain(person(second));
+
+      // A message whose mention could not be written still tries its participants.
+      await write(created.id, 'message', 'I am in.', second.cookies);
+      const sent = await withTheBellFailing(() =>
+        call('POST', `/opportunities/${created.id}/comments`, { kind: 'message', body: `${person(second)} over to you` }),
+      );
+      expect(sent.asked, 'once as the mention, once as the participant').toBe(2);
+      expect(sent.result.statusCode, sent.result.body).toBe(201);
+
+      const described = await withTheBellFailing(() =>
+        call('PATCH', `/opportunities/${created.id}`, { description: `For ${person(colleague)}.` }),
+      );
+      expect(described.asked).toBe(1);
+      expect(described.result.statusCode, described.result.body).toBe(200);
+      expect((await detail(created.id)).description).toBe(`For ${person(colleague)}.`);
+
+      const createdWith = await withTheBellFailing(() =>
+        call('POST', '/opportunities', {
+          title: 'Mentioned with the bell down',
+          organizationId: TEST_ORGANIZATION_ID,
+          currency: 'PLN',
+          assignedAdminUserId: null,
+          description: `For ${person(colleague)}.`,
+        }),
+      );
+      expect(createdWith.asked).toBe(1);
+      expect(createdWith.result.statusCode, createdWith.result.body).toBe(201);
+
+      // Nothing was written into the bell by any of it.
+      expect(await bell(colleague, created.id)).toEqual([]);
+    });
+
     it('is still stored, and tells nobody, while admin_notifications is deactivated', async () => {
       const created = await opportunity();
       await withModuleOff('admin_notifications', 'deactivated', async () => {

@@ -15,14 +15,14 @@ import {
 
 /**
  * The field a description, a note or a message is written in
- * (`specs/143-crm-sales-opportunities/`, User Story 18; research N-M10): it
+ * (`specs/143-crm-sales-opportunities/`, User Story 18; research N-M11): it
  * shows names, never tokens, and what it stores is the token text unchanged.
  *
  * What is proven here is what a DOM without layout can express: what the field
  * draws for a text, what it reads back, and what each edit does to the stored
  * text. That the caret *looks* right around a chip, that the arrow keys step
  * over one, and where the list is drawn are the browser walk's
- * (`research.md` N-M10).
+ * (`research.md` N-M11).
  */
 
 const getSpy = vi.fn();

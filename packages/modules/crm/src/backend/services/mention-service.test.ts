@@ -202,6 +202,18 @@ describe('MentionService.mentionable', () => {
     expect(await names({ q: 'nowak', organizationId: OTHER_ORGANIZATION })).toEqual(['Tomasz Nowak']);
   });
 
+  it('offers, and tells, a platform administrator — whose role holds `*` and never the code itself', async () => {
+    // The role every installation creates holds the wildcard alone, so this is
+    // the commonest person there is; `requireAdmin('crm:read')` lets them in.
+    const { service, listPermissions, told } = build();
+    listPermissions.mockImplementation(async () => ['*']);
+    expect((await service.mentionable({ limit: 20, q: 'norbert' })).map((option) => option.name)).toEqual([
+      'Norbert Nowak',
+    ]);
+    await service.tell(saved([NO_CRM]));
+    expect(told()).toEqual([NO_CRM]);
+  });
+
   it('offers nobody for an Organization out of the caller’s own reach, and asks nothing', async () => {
     scope.reachable = new Set([ORGANIZATION]);
     const { service, listPermissions, canReach } = build();

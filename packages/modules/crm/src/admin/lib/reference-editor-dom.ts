@@ -7,7 +7,7 @@ import {
 
 /**
  * The editing field's DOM, and the text it stands for (User Story 18, research
- * N-M10).
+ * N-M11).
  *
  * **The stored text is the model; the DOM is a rendering of it.** The field
  * holds exactly three kinds of node, all direct children of its root:

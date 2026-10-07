@@ -37,6 +37,13 @@ import {
 } from '../lib/reference-editor-dom.js';
 
 const SEARCH_DEBOUNCE_MS = 250;
+/**
+ * How long a bare `@` waits before it is a question: long enough for the
+ * second and third `@` of an Order or a Product to follow it, so that typing
+ * `@@@` neither shows two lists it did not ask for nor asks who may be
+ * mentioned.
+ */
+const FIRST_SEARCH_DELAY_MS = 200;
 /** Keystrokes closer together than this are one step of undo. */
 const UNDO_COALESCE_MS = 800;
 const UNDO_DEPTH = 200;
@@ -108,7 +115,7 @@ export interface ReferenceFieldProps {
  * The field a description, a note or a message is written in (User Stories 12
  * and 18; FR-045, FR-081, FR-082) — **and in which a reference is always read
  * as what it names, never as its token** (owner ruling, 2026-10-07; research
- * N-M10).
+ * N-M11).
  *
  * What is stored and sent is the text with its tokens — `[[admin_user:<id>]]`,
  * `[[order:<id>]]`, `[[product:<id>]]`, the one grammar of the contracts
@@ -133,7 +140,9 @@ export interface ReferenceFieldProps {
  * above it when there is no room below, never outside the window — narrowed by
  * whatever is typed next (`lib/mention-trigger.ts` says exactly when). Arrow
  * keys move through it, Enter or Tab puts the chip where the `@`s and the
- * letters were, Escape closes it and leaves them as typed. While the list is
+ * letters were, Escape closes it and leaves them as typed; the option the
+ * arrows reach is kept in view, and an input method composing a character
+ * keeps Enter for itself. While the list is
  * open the field is a combobox to assistive technology; closed, it is a
  * multi-line text box under its label.
  *
@@ -204,6 +213,8 @@ export function ReferenceField(props: ReferenceFieldProps): ReactNode {
     failed: boolean;
   } | null>(null);
   const [active, setActive] = useState(0);
+  /** The kind whose list is on screen: set when a run's first search starts, not when its `@` is typed. */
+  const [shownKind, setShownKind] = useState<OpportunityReferenceType | null>(null);
   const [place, setPlace] = useState<CSSProperties | null>(null);
   const suggestTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestSequence = useRef(0);
@@ -593,10 +604,12 @@ export function ReferenceField(props: ReferenceFieldProps): ReactNode {
     if (!live || triggerKind === null || triggerQuery === null) {
       suggestSequence.current += 1;
       setAnswer(null);
+      setShownKind(null);
       return undefined;
     }
     const current = ++suggestSequence.current;
     const run = async (): Promise<void> => {
+      setShownKind(triggerKind);
       try {
         const found: Suggestion[] =
           triggerKind === 'admin_user'
@@ -623,8 +636,12 @@ export function ReferenceField(props: ReferenceFieldProps): ReactNode {
         setAnswer({ kind: triggerKind, query: triggerQuery, found: [], failed: true });
       }
     };
-    // The bare `@` answers at once; a search waits for a pause in the typing.
-    suggestTimer.current = setTimeout(() => void run(), triggerQuery === '' ? 0 : SEARCH_DEBOUNCE_MS);
+    // Both wait for a pause: a search for the typing to stop, a bare `@` for
+    // the `@`s that may follow it.
+    suggestTimer.current = setTimeout(
+      () => void run(),
+      triggerQuery === '' ? FIRST_SEARCH_DELAY_MS : SEARCH_DEBOUNCE_MS,
+    );
     return (): void => {
       if (suggestTimer.current !== null) clearTimeout(suggestTimer.current);
     };
@@ -653,12 +670,20 @@ export function ReferenceField(props: ReferenceFieldProps): ReactNode {
   // Typed on past the last match — "@home tomorrow" — is a sentence, not a search.
   const exhausted =
     answered && !failed && suggestions.length === 0 && triggerQuery !== null && /\s/.test(triggerQuery);
-  const open = live && !exhausted;
+  const open = live && !exhausted && shownKind === triggerKind;
   const listed = open && suggestions.length > 0;
   const activeIndex = Math.min(active, Math.max(suggestions.length - 1, 0));
   const listId = `${baseId}-suggestions`;
   const hintId = `${baseId}-shortcuts`;
   const optionId = (index: number): string => `${listId}-${index}`;
+  const activeOptionId = listed ? optionId(activeIndex) : null;
+
+  // The focus stays in the field, so nothing scrolls by itself: the option the
+  // arrow keys reach is brought into view within a list longer than its window.
+  useEffect(() => {
+    if (activeOptionId === null) return;
+    field.current?.ownerDocument.getElementById(activeOptionId)?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeOptionId]);
 
   /**
    * Where the list goes: under the line the `@` is on, at the `@`; above that
