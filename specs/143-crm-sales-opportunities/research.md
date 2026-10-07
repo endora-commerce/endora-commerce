@@ -3567,6 +3567,48 @@ when it was measured, and what was done about it.
   then Orders, then Products, and shows each title for a moment. (d)–(f) are the owner's to
   decide.
 
+- **N-M11 (2026-10-07, owner rulings on N-M8's questions) — the field shows names, and the
+  list opens at the caret; a `contenteditable` field written here, no dependency.** The
+  owner, on the token in the textarea: "w takiej postaci to jest niezrozumiałe dla
+  użytkownika"; on the list: "powinna wyświetlać się tam gdzie wpisujemy". A `<textarea>`
+  can show neither a chip nor where its caret is, so the field is now a `contenteditable`
+  element (`components/ReferenceField.tsx`). **The stored text is the model and the DOM a
+  rendering of it** (`lib/reference-editor-dom.ts`): three kinds of node — text, `<br>`, a
+  non-editable chip carrying its token — drawn from the text and read back to it, with a
+  position in the DOM convertible to a position in the text and back. Plain typing is the
+  browser's; every other edit — a mention chosen, Enter, a paste, a chip removed, undo — is
+  made on the text and drawn again. That is what made a custom field sound enough not to
+  need a rich-text library (Constitution IV): the browser is never trusted with structure,
+  so there is no markup to sanitise and no block elements to interpret, and the contract and
+  the backend are untouched — what is sent is the same token text. *Decisions inside it*:
+  (a) a token is a chip only when the field has a name for it — from the `references` the
+  API already returns beside the text being edited, or from a choice made in the field;
+  there is no resolve-by-id endpoint and none was added, so a token typed by hand for
+  something the field never saw stays text until the save resolves it; (b) an unavailable
+  reference is a chip saying so and its token is read back unchanged — seen in the browser
+  with an Order id that names nothing; (c) Backspace and Delete on a chip are handled by the
+  field, not left to the browser, so they are the same everywhere and testable; the arrow
+  keys stepping over a chip *are* the browser's, and were seen in Chromium only; (d) undo is
+  the field's own stack, a step per pause in the typing, because drawing the content again
+  discards the browser's; (e) copy and cut put the token text on the clipboard, so a chip
+  survives a copy within the field; (f) the *Insert product* button now opens the same
+  search the other two do — the kit's `ProductPicker` answers an id without a name, and a
+  chip needs the name; (g) the label is the form's own `<label for>`: the field finds it,
+  names itself by it and takes the focus on a click, so no caller changed. *The list*:
+  `Range.getBoundingClientRect()` of the `@` gives the line; the list is positioned inside
+  the field's own box, so it moves with the field under any scroll, flips above the line
+  when the window has no room below, and is held inside the window and the field
+  horizontally (at 390 px a card around the field clipped 4 px of it before that). *The
+  reviewer's observations*: `role="combobox"` on a `div` passes axe where a `<textarea>`
+  did not; `aria-multiline` and `aria-placeholder` are dropped while it is a combobox, which
+  axe refused in the browser and jsdom could not have said; and a run's first search waits
+  200 ms, so `@@@` typed at speed shows one list and never asks who may be mentioned.
+  **Proven only in the browser** (headless Chromium, T200): where the list is drawn, the
+  flip, the scroll, the arrow keys over a chip, the real clipboard, the focus ring, axe.
+  **Proven nowhere**: Firefox, Safari, a touch keyboard, an input method's composition
+  (handled by skipping the read while composing, on reasoning alone), a screen reader's
+  reading of a chip and of the active option, and an Order chosen from real data.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,

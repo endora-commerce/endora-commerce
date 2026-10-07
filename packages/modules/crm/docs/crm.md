@@ -971,10 +971,13 @@ and message (for its `body`). There is no separate endpoint.
 In the Admin UI the description field and the note and message fields carry
 buttons under them, **Insert order** and **Insert product** among them. Each
 opens a search;
-choosing a result writes the token where the cursor was. Once saved, the text
-shows the product's name or the order's number as a link in its place, and
+choosing a result puts it into the text where the cursor was — **as its name,
+never as the token**: the field shows the order's number or the product's name
+as a small label while you write, and the token is only what is stored. Once
+saved, the text shows that name as a link in its place, and
 *Product unavailable* / *Order unavailable* for a target that is gone or that
-you may not see. A name is shown only to somebody who could open the target
+you may not see — in the saved text and in the field alike when it is opened
+for editing; what you cannot see is saved back unchanged. A name is shown only to somebody who could open the target
 itself: an order's number needs `orders:read`, a product's name
 `catalog:read`.
 
@@ -995,16 +998,28 @@ straight from the keyboard:
 | `@@` | an **order** of the opportunity's organization | a role that also holds `orders:read` |
 | `@@@` | a **product** | a role that also holds `catalog:read` |
 
-Type the `@` at the start of the text or after a space and a list opens under
-the field; keep typing to narrow it — a first name, a surname, an order number,
+Type the `@` at the start of the text or after a space and a list opens **where
+you are typing** — under that line, or above it when there is no room below;
+keep typing to narrow it — a first name, a surname, an order number,
 a product name or SKU. **Arrow keys** move through the list, **Enter** or
 **Tab** chooses, **Escape** closes it and leaves what you typed. Choosing
-replaces the `@` and the letters after it with the mention, and you carry on
-with the sentence:
+replaces the `@` and the letters after it with the mention — shown as
+**@Tomasz Nowak**, as an order's number or as a product's name — and you carry
+on with the sentence:
 
 ```text
 @Tomasz Nowak - take this over
 ```
+
+**The field shows names, never tokens**, for a mention just chosen and for
+every one already in a text you open for editing. A mention behaves as one
+character: the arrow keys step over it, and **Backspace** or **Delete** removes
+the whole of it. The field is plain text — a paste arrives as its text with its
+line breaks and none of its formatting — and **Ctrl+Z** / **Ctrl+Shift+Z** undo
+and redo, a mention being one step. A token typed or pasted by hand turns into
+its name when the field knows it, and otherwise stays as you typed it and is
+resolved when the text is saved. Typing `@@` or `@@@` quickly opens the one
+list you asked for; a single `@` opens the people after a short pause.
 
 An `@` inside a word — an e-mail address — opens nothing, and neither does an
 `@` followed by a space. A shortcut your role is not offered leaves the

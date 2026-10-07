@@ -60,8 +60,10 @@ organization the caller may not see answers `404 CRM_OPPORTUNITY_NOT_FOUND`):
 - **References** — `[[product:<uuid>]]`, `[[order:<uuid>]]` and `[[admin_user:<uuid>]]` in a
   description, note or message are resolved into `references` beside the text — and beside a
   description in the change history. A mentioned person is named and never linked.
-- **Mentions** — in the Admin UI, typing `@`, `@@` or `@@@` in those fields searches people,
-  the organization's orders or products and inserts the token. A person newly mentioned in a
+- **Mentions** — in the Admin UI, typing `@`, `@@` or `@@@` in those fields opens a search
+  of people, the organization's orders or products at the caret and inserts the choice. The
+  field shows every reference by its name while it is being written or edited, never the
+  token; what is stored and sent is the token text, unchanged. A person newly mentioned in a
   saved text gets one bell entry, `crm.opportunity.mention`, naming the opportunity by number
   and the author by name; never the author themself, nobody without `crm:read`, nobody who
   cannot see the organization.

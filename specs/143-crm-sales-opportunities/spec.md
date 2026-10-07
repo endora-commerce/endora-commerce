@@ -534,6 +534,15 @@ number and leading to it.
 7. **Given** a description that carries references, **When** its change is read in the Change
    history tab, **Then** each reference shows as the name it stands for, not as its stored
    code.
+8. **Given** a text field of an Opportunity — empty, or opened on a text that already carries
+   references — **When** the user writes in it, **Then** every reference is shown as the
+   name it stands for and never as its stored code; it is removed as a whole, and what is
+   saved is unchanged for any reference the user did not touch, one they may not see
+   included. *(Owner ruling, 2026-10-07: "w takiej postaci to jest niezrozumiałe dla
+   użytkownika".)*
+9. **Given** a list opened by `@`, **When** it appears, **Then** it is at the place being
+   typed, not elsewhere on the field, and inside the window on a phone. *(Owner ruling,
+   2026-10-07: "powinna wyświetlać się tam gdzie wpisujemy".)*
 
 ---
 
@@ -765,6 +774,11 @@ number and leading to it.
 - **FR-084**: The Change history tab MUST show references inside a changed description as
   the names they stand for, under the rule of FR-079, and MUST say when an Opportunity has
   more history than the tab can reach.
+
+- **FR-085**: While a description, a note or a message is written or edited, every reference
+  in it MUST be shown as the name it stands for, never as its stored code; the list opened
+  by `@` MUST appear at the place being typed; and saving MUST NOT alter a reference the
+  user did not change. *(Added 2026-10-07, owner rulings on User Story 18.)*
 
 ### Key Entities
 

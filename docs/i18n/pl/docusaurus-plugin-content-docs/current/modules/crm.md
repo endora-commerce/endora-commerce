@@ -1003,10 +1003,13 @@ notatce i wiadomości (dla jej `body`). Nie ma osobnego punktu końcowego.
 W Admin UI pole opisu oraz pola notatki i wiadomości mają pod sobą przyciski,
 wśród nich **Wstaw zamówienie** i **Wstaw produkt**. Każdy otwiera
 wyszukiwarkę; wybranie
-wyniku wpisuje znacznik w miejscu kursora. Po zapisaniu tekst pokazuje w tym
-miejscu nazwę produktu albo numer zamówienia jako odnośnik, a dla celu, który
-zniknął albo którego nie możesz zobaczyć — *Produkt niedostępny* /
-*Zamówienie niedostępne*. Nazwę widzi tylko osoba, która mogłaby otworzyć sam
+wyniku wstawia go do tekstu w miejscu kursora — **jako nazwę, nigdy jako
+znacznik**: podczas pisania pole pokazuje numer zamówienia albo nazwę produktu
+jako małą etykietę, a znacznik jest tylko tym, co zostaje zapisane. Po zapisaniu
+tekst pokazuje w tym miejscu tę nazwę jako odnośnik, a dla celu, który zniknął
+albo którego nie możesz zobaczyć — *Produkt niedostępny* /
+*Zamówienie niedostępne* — zarówno w zapisanym tekście, jak i w polu otwartym
+do edycji; to, czego nie widzisz, jest zapisywane z powrotem bez zmian. Nazwę widzi tylko osoba, która mogłaby otworzyć sam
 cel: numer zamówienia wymaga `orders:read`, a nazwa produktu —
 `catalog:read`.
 
@@ -1028,15 +1031,28 @@ klawiatury:
 | `@@` | **zamówienie** organizacji tej szansy | roli, która ma także `orders:read` |
 | `@@@` | **produkt** | roli, która ma także `catalog:read` |
 
-Wpisz `@` na początku tekstu albo po spacji, a pod polem otworzy się lista;
-pisz dalej, aby ją zawęzić — imię, nazwisko, numer zamówienia, nazwa albo SKU
+Wpisz `@` na początku tekstu albo po spacji, a lista otworzy się **tam, gdzie
+piszesz** — pod tym wierszem albo nad nim, gdy poniżej nie ma miejsca; pisz
+dalej, aby ją zawęzić — imię, nazwisko, numer zamówienia, nazwa albo SKU
 produktu. **Strzałki** poruszają po liście, **Enter** albo **Tab** wybiera,
 **Escape** zamyka ją i zostawia to, co wpisano. Wybór zastępuje `@` i litery
-po nim wzmianką, a zdanie pisze się dalej:
+po nim wzmianką — pokazywaną jako **@Tomasz Nowak**, jako numer zamówienia albo
+jako nazwa produktu — a zdanie pisze się dalej:
 
 ```text
 @Tomasz Nowak - przejmij temat
 ```
+
+**Pole pokazuje nazwy, nigdy znaczniki** — dla wzmianki właśnie wybranej i dla
+każdej, która już jest w tekście otwartym do edycji. Wzmianka zachowuje się jak
+jeden znak: strzałki ją przeskakują, a **Backspace** albo **Delete** usuwa ją w
+całości. Pole jest zwykłym tekstem — wklejana treść trafia do niego jako tekst,
+z podziałem na wiersze i bez formatowania — a **Ctrl+Z** / **Ctrl+Shift+Z**
+cofają i ponawiają zmiany, przy czym wzmianka to jeden krok. Znacznik wpisany
+albo wklejony ręcznie zamienia się w nazwę, gdy pole ją zna, a w przeciwnym
+razie zostaje taki, jak go wpisano, i jest rozpoznawany przy zapisie tekstu.
+Szybko wpisane `@@` albo `@@@` otwiera tylko tę listę, o którą chodzi;
+pojedynczy `@` otwiera listę osób po krótkiej chwili.
 
 Znak `@` w środku wyrazu — adres e-mail — niczego nie otwiera, podobnie jak
 `@`, po którym następuje spacja. Skrót, którego Twoja rola nie ma, zostawia
