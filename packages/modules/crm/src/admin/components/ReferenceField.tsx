@@ -373,7 +373,6 @@ export function ReferenceField(props: ReferenceFieldProps): ReactNode {
       draw(value, focused ? selectionNow().start : undefined);
     }
     // `draw` and `selectionNow` read refs; the text and its names are what this follows.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, references, draw]);
 
   // The label of the form: tied to the field by id, and a click on it focuses the field.
