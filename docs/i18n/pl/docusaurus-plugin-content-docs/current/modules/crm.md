@@ -418,9 +418,11 @@ tytułem, i nie powstaje dla osoby, która nie ma już dostępu do organizacji
 szansy. To samo dotyczy szansy utworzonej automatycznie. Nikt nie jest
 powiadamiany o tym, że sam wziął szansę. Dzwonek należy do modułu
 **Powiadomienia administratora**: gdy ten moduł jest wyłączony, przypisywanie
-działa dokładnie tak samo, a nikt nie dostaje powiadomienia. **Wpisy na dzwonku
-są po angielsku** bez względu na język czytającego: powiadomienia platformy nie
-mają jeszcze tłumaczonych tytułów.
+działa dokładnie tak samo, a nikt nie dostaje powiadomienia. **Wpis jest
+wyświetlany w języku czytającego**, po angielsku albo po polsku — ten sam wpis
+brzmi inaczej dla dwóch osób, które używają różnych języków. Moduł zapisuje
+zdanie po angielsku obok zdania tłumaczonego, więc wpis pozostaje czytelny, po
+angielsku, także wtedy, gdy moduł CRM jest wyłączony.
 
 Każde przypisanie trafia do historii zmian szansy, a inne moduły mogą na nie
 reagować: `crm.opportunity.assigned.v1` niesie nową i poprzednią osobę
@@ -496,9 +498,9 @@ wiadomości, a nie powstaje dla osoby, która nie ma już dostępu do organizacj
 szansy. **Nikt inny nie jest powiadamiany, chyba że wiadomość o nim
 wspomina** (zob. *Wspominanie osoby, zamówienia albo produktu przez @*):
 pierwsza wiadomość w szansie, która nie ma przypisanej osoby i nie wspomina
-nikogo, nie powiadamia nikogo. Wpis jest po angielsku, jak każdy wpis na
-dzwonku. Gdy moduł **Powiadomienia administratora** jest wyłączony,
-wiadomość jest zapisywana tak samo, a nikt nie dostaje powiadomienia.
+nikogo, nie powiadamia nikogo. Wpis jest wyświetlany w języku czytającego,
+tak jak wpis o przypisaniu. Gdy moduł **Powiadomienia administratora** jest
+wyłączony, wiadomość jest zapisywana tak samo, a nikt nie dostaje powiadomienia.
 
 **Jedno i drugie jest wewnętrzne.** Ani notatka, ani wiadomość nie ma
 ustawienia, które pokazałoby ją klientowi, i nic, co klient może otworzyć —
@@ -1112,9 +1114,9 @@ Anna Kowalska mentioned you in opportunity OPP-000042
   dlatego rozstrzyga się to przy zapisie tekstu, a nie na liście.
 - W wiadomości wspomniana osoba dostaje ten wpis **zamiast** wpisu, który
   dostaje uczestnik rozmowy — nie oba.
-- Wpis jest po angielsku, jak każdy wpis na dzwonku, i nie powstaje, gdy moduł
-  **Powiadomienia administratora** jest wyłączony; tekst jest zapisywany tak
-  samo.
+- Wpis jest wyświetlany w języku czytającego — wiersz powyżej to jego postać
+  angielska — i nie powstaje, gdy moduł **Powiadomienia administratora** jest
+  wyłączony; tekst jest zapisywany tak samo.
 
 Wzmianka nie zmienia niczego więcej: nie przypisuje szansy, nie daje nikomu
 dostępu do niej i nie jest częścią żadnego zdarzenia ani webhooka.

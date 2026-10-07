@@ -73,6 +73,14 @@ describe('crm assignment notification', () => {
     // By number alone: a bell is read outside the tenant scope (review finding 2).
     expect(recorded[0]?.title).not.toContain('Forklift fleet');
     expect(recorded[0]?.body ?? null).toBeNull();
+    // Translatable (FR-085), and no more said than the sentence says: the
+    // number is the only param.
+    expect(recorded[0]?.titleMessage).toEqual({
+      scope: 'crm',
+      key: 'notifications.assigned.title',
+      params: { number: opportunity.number },
+    });
+    expect(recorded[0]?.bodyMessage ?? null).toBeNull();
   });
 
   it('records none for a self-assignment, an unassignment, or an assignment that changes nothing', async () => {

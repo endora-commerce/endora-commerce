@@ -370,6 +370,9 @@ the existing population rather than inventing a private fix. `check:default-lang
 only refuses non-English literals, so the English sentence passes. **[unverified]** whether
 feature 093 has landed a key/params variant since; T069 checks before writing the call.
 
+**Superseded on 2026-10-07 by N-BT1 … N-BT4**: the port gained an optional translatable
+message beside `title`, and CRM passes one for every entry.
+
 **Alternatives rejected.** *E-mail* — needs templates, recipients' addresses and an opt-out;
 the owner asked for messages "in the Admin UI". *A hard dependency on `admin_notifications`* —
 would stop an operator switching the bell off while CRM is on, for a courtesy.
@@ -3608,6 +3611,88 @@ when it was measured, and what was done about it.
   **Proven nowhere**: Firefox, Safari, a touch keyboard, an input method's composition
   (handled by skipping the read while composing, on reasoning alone), a screen reader's
   reading of a chip and of the active option, and an Order chosen from real data.
+
+- **N-BT1 (2026-10-07, owner's request: "can't we add translations to the bell
+  notifications?") — the bell translates, and the writer still ships English.**
+  `specs/conventions/module-i18n.md` had already ruled the case: an admin notification is
+  one row with many readers of different `preferredLanguage`, so the backend *cannot*
+  resolve the reader's language when it composes the sentence, and the rule for that case
+  is "ship a key, its params **and an English fallback sentence**; the consumer translates".
+  The convention assigns the work to `specs/093-backend-delivered-prose/`, which is a
+  pre-migration directory that cannot be opened from this repository and whose design
+  never landed: until this change `RecordAdminNotificationInput` had `title`, `body` and no
+  member for a key or params. So this is that rule
+  implemented for one seam, not a private scheme. **As built**:
+  `RecordAdminNotificationInput` gains two optional members, `titleMessage` and
+  `bodyMessage`, each an `AdminNotificationMessage` — `{ scope, key, params? }`, the two
+  arguments of the admin translation lookup (`t(scope, key, params)`, and
+  `AdminI18nTranslatePort.translate(moduleId, key, …)`) plus what fills the template.
+  `title` stays required. `admin_notifications` stores each message in a nullable `jsonb`
+  column (`title_message`, `body_message`; migration
+  `20261007T194748_admin_notifications_message_keys.ts`, no backfill), answers both from
+  the port and from `GET /api/v1/admin/notifications`, and the shell's `NotificationBell`
+  resolves them through the bundles the `TranslationProvider` already holds. No new
+  endpoint, no new dependency, no change for a caller that passes neither field —
+  `organizations`, `catalog`, `product_feeds` and the paid `pim_ergonode` compile and behave
+  as before, which `backend/test/integration/admin_notifications/translatable-messages.test.ts`
+  holds for the "records exactly as before" half.
+- **N-BT2 — where the brief's suggested shape was not followed, and why.** The brief
+  suggested four flat members (`titleKey`, `titleParams`, `bodyKey`, `bodyParams`) and noted
+  that the key "must identify its namespace". Three things decided for one value per text
+  instead. (a) An admin bundle key is not self-qualifying: the lookup takes a scope **and** a
+  key, and real keys contain dots and colons (`adminRoles.permission.crm:read`), so a single
+  `crm.notifications…` string would need a parsing rule that nothing else in the tree has.
+  A named `scope` member needs none. (b) Key and params are meaningless apart; as one value
+  they cannot be half-present — there is no "params without a key" state to refuse, in the
+  type or in the row. (c) Two nullable columns instead of four. The stored form always
+  carries `params` (`{}` when the sentence takes none), so a reader has one shape.
+- **N-BT3 — what the bell does when it cannot translate, and why it does not call `t()`.**
+  `t()` answers `scope.key` for a miss, and a raw key in the bell is the failure this
+  requirement exists to prevent: the module that wrote an entry may be switched off or
+  uninstalled by the time the entry is read, and an entry outlives both. So
+  `notificationText` (`packages/admin-shell/src/components/notifications/notification-text.ts`)
+  goes through the kit's `resolve` and reads its `outcome`, and answers the recorded
+  sentence when: the entry carries no message; no loaded bundle holds the key in the
+  reader's language or in English; the template names a placeholder the entry has no param
+  for (a sentence with a hole is worse than a whole one in English); or the value on the
+  wire is not the shape the contract describes. Params are filtered to strings and finite
+  numbers on the way in *and* on the way out, and the result is a React text node — a param
+  is never markup. The port refuses a `bodyMessage` with no `body`, because there would be
+  nothing to fall back to. **[unverified]** whether the bundle endpoint still serves the
+  bundle of a module that is switched off: either answer is correct here — a served bundle
+  translates an entry written while the module was on, an absent one falls back — so it was
+  not measured.
+- **N-BT4 — CRM's side, and the privacy rule.** `crmNotificationText` in `crm-notifier.ts`
+  composes each of the four sentences beside its key (`notifications.assigned.title`,
+  `notifications.message.title`, `notifications.mention.title`,
+  `notifications.mentionByAuthor.title`), and `CrmNotification` requires a `titleMessage`,
+  so a fifth sentence cannot be added without one. A mention whose author is unknown is a
+  key of its own rather than the other with an empty param: a template cannot drop a
+  clause. A bell is read outside the tenant scope, so an entry names the Opportunity by
+  number and the author by name and nothing else (review finding 2, FR-083); the params
+  are held to that by construction — `crm-notifier.test.ts` asserts that the English
+  template filled with the params **is** the recorded sentence, so they cannot say more
+  than it does — and the integration tests' `SECRET` assertions now read the stored
+  messages as well as `title` and `body`.
+  **Alternatives rejected.** *Translate in the backend when the entry is written, in the
+  recipient's `preferredLanguage`* — works for `audience: 'admin_user'` only, is wrong for
+  `all_admins`, freezes the language at write time (a reader who switches language keeps
+  old entries in the old one), and is the reading the convention names as a
+  misclassification. *Translate in `admin_notifications`' list route, in the request's
+  language, through `adminI18nService`* — viable and keeps the wire shape unchanged, but it
+  gives `admin_notifications` a new edge to `_i18n`, makes the feed's text depend on a
+  second module's presence at read time, and contradicts the convention's assignment of
+  this case to the consumer; the Admin UI already holds every bundle. *Let the bell map
+  `kind` to a key* — the shell would have to know each module's kinds, which is the
+  coupling Principle I forbids, and `kind` carries no params. *Convert the other writers
+  here* — `organizations`, `catalog`, `product_feeds` (and `pim_ergonode`, outside this
+  repository) are other modules' sentences and other modules' bundles; they are recorded
+  as follow-up, and nothing they do today breaks.
+  **Not consumed elsewhere**: no e-mail, webhook or export reads these rows. The module
+  publishes one port with one method, `record`; its only reader is its own list route, and
+  its entity is imported by no other module (the three files outside it that a search for
+  the name finds — in `organizations`, `catalog` and `product_feeds` — hold a comment or
+  a method name, never the entity). So `title` has no second reader to keep in step.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

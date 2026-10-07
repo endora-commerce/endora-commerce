@@ -222,13 +222,15 @@ describe('crm admin copy', () => {
 
   it('ships no key under its own prefixes that no screen asks for', () => {
     const text = sources.map((source) => source.text).join('\n');
-    // Everything but the five families the host and the backend read by a
+    // Everything but the six families the host and the backend read by a
     // name they build themselves: sidebar rows and palette actions (from the
-    // manifest), permission labels, error codes and audit actions. Stated as
+    // manifest), permission labels, error codes, audit actions and the bell's
+    // sentences — the last are addressed by `crm-notifier.ts` and drawn by the
+    // host's notification bell, and `crm-notifier.test.ts` holds them. Stated as
     // the exclusion rather than as a list of the screens' prefixes, so a new
     // prefix is held to this test by existing.
     const own = Object.keys(en).filter(
-      (key) => !/^(nav|actions|adminRoles|errors|auditLog)\./.test(key),
+      (key) => !/^(nav|actions|adminRoles|errors|auditLog|notifications)\./.test(key),
     );
     expect(own.length).toBeGreaterThan(400);
     const unused = own.filter((key) => {

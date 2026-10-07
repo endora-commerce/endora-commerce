@@ -1,4 +1,4 @@
-import type { AdminNotificationRecordPort } from '@endora-commerce/contracts';
+import type { AdminNotificationMessage, AdminNotificationRecordPort } from '@endora-commerce/contracts';
 import { effectiveState, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 
 /** `not-present` is the operator's choice — the bell is switched off — never a failure. */
@@ -9,18 +9,65 @@ export type CrmNotificationKind =
   | 'crm.opportunity.message'
   | 'crm.opportunity.mention';
 
-export interface CrmNotification {
+/**
+ * What a bell entry says, twice over: the finished English sentence, and the
+ * address of its template in this module's bundle with the params that fill it.
+ *
+ * An entry is one row read by several administrators, each in a language of
+ * their own, so it cannot be translated when it is written
+ * (`specs/conventions/module-i18n.md`): the Admin UI resolves `titleMessage`
+ * in the reader's language and shows `title` whenever it cannot — this module
+ * switched off, a consumer that predates the field.
+ */
+export interface CrmNotificationText {
+  title: string;
+  titleMessage: AdminNotificationMessage;
+}
+
+const message = (key: string, params: Record<string, string>): AdminNotificationMessage => ({
+  scope: 'crm',
+  key: `notifications.${key}.title`,
+  params,
+});
+
+/**
+ * Every sentence this module records in the bell, each beside its key.
+ *
+ * A sentence names an Opportunity **by its number** and a colleague by their
+ * name, and nothing else: a bell is read outside the tenant scope, so never a
+ * title and never a text. The params are held to the same rule by
+ * construction — `crm-notifier.test.ts` proves that the English template
+ * filled with them is the sentence, so they cannot say more than it does.
+ *
+ * A mention with no known author is a sentence of its own rather than the
+ * other one with a blank: a template cannot drop a clause.
+ */
+export const crmNotificationText = {
+  assigned: (number: string): CrmNotificationText => ({
+    title: `Opportunity ${number} was assigned to you`,
+    titleMessage: message('assigned', { number }),
+  }),
+  message: (number: string): CrmNotificationText => ({
+    title: `New message on opportunity ${number}`,
+    titleMessage: message('message', { number }),
+  }),
+  mention: (number: string, authorName: string | null): CrmNotificationText =>
+    authorName === null
+      ? {
+          title: `You were mentioned in opportunity ${number}`,
+          titleMessage: message('mention', { number }),
+        }
+      : {
+          title: `${authorName} mentioned you in opportunity ${number}`,
+          titleMessage: message('mentionByAuthor', { author: authorName, number }),
+        },
+};
+
+export interface CrmNotification extends CrmNotificationText {
   kind: CrmNotificationKind;
   /** The administrator the bell entry is for. */
   targetAdminUserId: string;
   opportunityId: string;
-  /**
-   * A finished English sentence. `adminNotificationRecordPort` takes a title
-   * and no key/params pair, as it does for every caller of that port;
-   * `specs/093-backend-delivered-prose/` is where that changes for all of them.
-   */
-  title: string;
-  body?: string | null;
 }
 
 export interface CrmNotifier {
@@ -57,7 +104,7 @@ export function createCrmNotifier(adminNotifications: AdminNotificationRecordPor
         subjectType: 'crm_opportunity',
         subjectId: notification.opportunityId,
         title: notification.title,
-        body: notification.body ?? null,
+        titleMessage: notification.titleMessage,
         linkPath: opportunityLinkPath(notification.opportunityId),
       });
       return 'recorded';

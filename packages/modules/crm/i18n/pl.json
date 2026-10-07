@@ -689,5 +689,9 @@
   "origin.quote.linking": "Wiążemy nowe zapytanie ofertowe z tą szansą…",
   "origin.quote.linked": "Zapytanie ofertowe {number} zostało utworzone i powiązane z tą szansą.",
   "origin.quote.notLinked": "Zapytanie ofertowe zostało utworzone, ale nie jest powiązane z tą szansą — być może należy do innej organizacji.",
-  "origin.quote.open": "Otwórz zapytanie ofertowe"
+  "origin.quote.open": "Otwórz zapytanie ofertowe",
+  "notifications.assigned.title": "Szansa sprzedażowa {number} została przypisana do Ciebie",
+  "notifications.message.title": "Nowa wiadomość w szansie sprzedażowej {number}",
+  "notifications.mention.title": "Wspomniano o Tobie w szansie sprzedażowej {number}",
+  "notifications.mentionByAuthor.title": "{author} wspomina o Tobie w szansie sprzedażowej {number}"
 }

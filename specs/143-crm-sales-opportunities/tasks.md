@@ -530,6 +530,28 @@ else — has one bell entry naming the Opportunity by its number.
 - [x] T200 [US18] The field walked in headless Chromium by `page.keyboard.type`, English and Polish, 1440 px and 390 px: 37 checks each, plus 9 accessibility checks per width with axe-core (WCAG 2.2 AA) over the empty field, its error state, the open list and a chip. Screenshots and scripts in the handover directory `mentions/editor-walk/`. **Not exercised**: an Order chosen from real data (the preview has none — the list's answer was supplied by the walk), a person other than the walker (mentioning the only other one would have written a bell entry on a real account), Firefox, Safari, a touch keyboard, an input method, a screen reader.
 - [x] T198 [US18] **Review of 2026-10-07** (research N-M10), tests first: the active option is scrolled into view; a keystroke of a composing input method is left alone; `admin/test/modules/crm/mentions.test.tsx` gains seven cases, `mention-service.test.ts` one, `backend/test/integration/crm/mentions.test.ts` two, `backend/test/integration/crm/migration.test.ts` the migration's way down and back.
 
+
+---
+
+## Phase 19: Bell entries in the reader's language (FR-085)
+
+*Added 2026-10-07 at the owner's request (research N-BT1 … N-BT4). A platform change made
+inside this feature: the port, its owner and the shell's bell change additively, and CRM is
+the first writer to use it. Task ids start at T210 — T198 … T209 are left free for work on a
+parallel branch.*
+**Independent test**: with the Admin UI in Polish, have a colleague mention you in a note; the
+bell entry reads in Polish. Switch the language to English: the same entry reads in English.
+
+- [x] T210 Spec first: FR-085 and the narrowed FR-072 / A-5 in `spec.md`; research N-BT1 … N-BT4; `contracts/foreign-module-changes.md` §L and the amended first line of §F.
+- [x] T211 [P] Backend tests first, seen red (16 of 19 cases): `backend/test/integration/admin_notifications/translatable-messages.test.ts` (**new** — a message is stored and answered as given; a caller that gives none is recorded as before; ten refusals, none of which writes a row) and the *translatable messages* cases of `backend/test/contract/admin_notifications/list.test.ts` (the feed answers the message, and `null` for an entry without one).
+- [x] T212 `packages/contracts/src/admin-notifications.ts` (`AdminNotificationMessage`; optional `titleMessage` / `bodyMessage` on the input and on the record); `admin_notifications`: the migration `20261007T194748_admin_notifications_message_keys.ts` (scaffolded by `migration:new`, two nullable `jsonb` columns), its barrel, the entity, the service's validation, the port adapter and the list route; `composer:generate` (`backend/src/db/migrations-registry.generated.ts`).
+- [x] T213 [P] Admin test first, seen red (5 of 14 cases; 13 after one duplicate case was merged): `admin/test/components/NotificationBell.translation.test.tsx` (**new** — Polish and English readers, the English template when Polish lacks the key, seven ways of falling back to the recorded sentence and never to a raw key, the body, a param drawn as text).
+- [x] T214 `packages/admin-shell/src/components/notifications/notification-text.ts` (**new**), `NotificationBell.tsx`, `useAdminNotifications.ts`, the barrel.
+- [x] T215 [P] CRM tests first: `packages/modules/crm/src/backend/services/crm-notifier.test.ts` (**new** — every sentence has a key in both bundles, the English template filled with the params is the sentence, the params are exactly the placeholders, no orphan `notifications.*` key), the expectations of `mention-service.test.ts`, and the stored message in `backend/test/integration/crm/{assignment-notification,comments,mentions,review-regressions}.test.ts` — whose `SECRET` assertions now read the message too. **Not seen red in a run**: the unit file could not compile before `crmNotificationText` existed.
+- [x] T216 `crm-notifier.ts` (`crmNotificationText`, `titleMessage` required on `CrmNotification`) and its three callers; the four keys in `packages/modules/crm/i18n/{en,pl}.json`; `src/admin/index.test.ts` names `notifications.` as a family the host reads.
+- [x] T217 Docs: the three sentences of `packages/modules/crm/docs/crm.md` that said the entry is in English, the Polish page and its translation-cache entry; `docs/docs/contributing/translations.md` § *Notification bell entries* for module authors (English only — the page is on the translation skip list); changesets for `contracts`, `mod-admin-notifications`, `admin-shell` and the amended CRM one.
+- [ ] T218 **Not done**: the entry read in a real browser in both languages, and with the CRM module switched off. Proven in jsdom and against the test database only.
+- [ ] T219 **Follow-up, not this feature's**: `organizations`, `catalog` and `product_feeds` (and `pim_ergonode`, outside this repository) still record English only; each owes a key in its own bundle and a `titleMessage`. The bell's own `just now` / `5m` relative times are hard-coded English in `NotificationBell.tsx` and were so before this change.
 ---
 
 ## Dependencies & Execution Order
@@ -715,8 +737,9 @@ not a one-declaration integration.
 | FR-081 | US18 | T187, T189, T191, T193 |
 | FR-082 | US18 | T192, T193 |
 | FR-083 | US18 | T189, T191 |
-| FR-085 | US18 | T199, T200 |
+| FR-086 | US18 | T199, T200 |
 | FR-084 | US18 | T189, T191, T193 (the description); T196, T197 (the reach) |
+| FR-085 | Phase 19 | T211, T213, T215 |
 | FR-080 | Polish (independent review) | `backend/test/integration/crm/attachment-upload.test.ts` (the active-content cases and the size limit), `backend/test/contract/crm/attachment-upload.contract.test.ts` |
 
 ## Notes

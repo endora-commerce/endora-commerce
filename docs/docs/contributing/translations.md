@@ -252,6 +252,54 @@ Workflow for any developer adding a new string to the Admin UI:
    Polish entry or ships a hard-coded user-visible JSX string fails before
    merge.
 
+## Notification bell entries
+
+An entry on the Admin UI's notification bell is one stored row read by several
+administrators, each in a language of their own, and long after it was written.
+The module that records it therefore cannot translate it. It records **two
+things**: the finished English sentence, and the address of that sentence in its
+own bundle.
+
+```ts
+await adminNotifications.record({
+  audience: 'admin_user',
+  targetAdminUserId,
+  kind: 'crm.opportunity.assigned',
+  // Always: the sentence shown when the message below cannot be resolved.
+  title: `Opportunity ${number} was assigned to you`,
+  // Optional: resolved by the bell in the reader's language.
+  titleMessage: {
+    scope: 'crm',                             // the bundle: a module id, or `core`
+    key: 'notifications.assigned.title',      // a key in that bundle, en + pl
+    params: { number },                       // strings and numbers only
+  },
+});
+```
+
+`bodyMessage` does the same for `body`. Both fields are optional, and a caller
+that passes neither is recorded and shown exactly as before.
+
+Rules the port and the bell hold you to:
+
+- **`title` is never optional and is always English.** The bell shows it when
+  the entry carries no message, when no loaded bundle holds the key — the
+  recording module may be switched off or uninstalled by the time the entry is
+  read — and when the template names a placeholder the entry has no param for.
+  A raw key is never shown.
+- **`bodyMessage` needs a `body`** to fall back to; the port refuses it
+  otherwise.
+- **Params are strings and finite numbers.** They are drawn as text, never as
+  markup, and the port refuses anything else.
+- **A param may say no more than the sentence does.** A bell is read outside
+  the tenant scope, so whatever is kept out of `title` is kept out of `params`.
+  The simplest way to hold that is a test asserting that the English template
+  filled with the params *is* the title — `crm`'s `crm-notifier.test.ts` is the
+  model.
+- **Add the key to both `en.json` and `pl.json`**, with the same placeholders.
+- **A sentence that loses a clause is a second key**, not the same key with an
+  empty param: `{author} mentioned you…` and `You were mentioned…` are two
+  entries in the bundle.
+
 ## Polish quality bar
 
 - **Native, not literal**: Polish strings are written for a native Polish

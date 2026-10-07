@@ -99,7 +99,16 @@ describe('crm mentions of people (US18)', () => {
           { targetAdminUserId: seeded.adminUserId, subjectId: opportunityId },
           { filters: false, orderBy: { createdAt: 'asc' } },
         )
-    ).map((row) => ({ kind: row.kind, title: row.title, body: row.body ?? null, linkPath: row.linkPath }));
+    ).map((row) => ({
+      kind: row.kind,
+      title: row.title,
+      body: row.body ?? null,
+      linkPath: row.linkPath,
+      // The translatable half of the entry (FR-085). Read here so that every
+      // assertion over an entry — the SECRET ones first — covers its params.
+      titleMessage: row.titleMessage ?? null,
+      bodyMessage: row.bodyMessage ?? null,
+    }));
 
   const mentionsOf = async (seeded: Seeded, opportunityId: string) =>
     (await bell(seeded, opportunityId)).filter((entry) => entry.kind === 'crm.opportunity.mention');
@@ -179,6 +188,12 @@ describe('crm mentions of people (US18)', () => {
           title: `${await nameOf(author)} mentioned you in opportunity ${created.number}`,
           body: null,
           linkPath: `/crm/opportunities/${created.id}`,
+          titleMessage: {
+            scope: 'crm',
+            key: 'notifications.mentionByAuthor.title',
+            params: { author: await nameOf(author), number: created.number },
+          },
+          bodyMessage: null,
         },
       ]);
       expect(JSON.stringify(entries)).not.toContain('SECRET');

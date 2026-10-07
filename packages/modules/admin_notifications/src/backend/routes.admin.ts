@@ -67,6 +67,11 @@ export async function registerAdminNotificationsRoutes(
         title: it.title,
         body: it.body,
         linkPath: it.linkPath,
+        // Beside `title` and `body`, never instead of them: the Admin UI
+        // resolves a message in the reader's language and falls back to the
+        // finished sentence when it cannot.
+        titleMessage: it.titleMessage,
+        bodyMessage: it.bodyMessage,
         createdAt: it.createdAt.toISOString(),
         isRead: it.isRead,
       })),
