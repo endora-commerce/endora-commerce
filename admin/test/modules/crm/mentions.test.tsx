@@ -15,6 +15,7 @@ import {
   detail,
   en,
   renderCrm,
+  storedText,
 } from './crm-fixtures';
 
 /**
@@ -101,7 +102,7 @@ beforeEach(() => {
   });
 });
 
-async function composer(permissions?: readonly string[]): Promise<{ panel: HTMLElement; field: HTMLTextAreaElement }> {
+async function composer(permissions?: readonly string[]): Promise<{ panel: HTMLElement; field: HTMLElement }> {
   renderCrm(<OpportunityDetail />, {
     path: `/crm/opportunities/${OPPORTUNITY_ID}`,
     pattern: '/crm/opportunities/:id',
@@ -112,7 +113,7 @@ async function composer(permissions?: readonly string[]): Promise<{ panel: HTMLE
   const panel = await screen.findByRole('tabpanel', { name: en('opportunity.tabs.notes') });
   const field = (await within(panel).findByLabelText(
     en('comments.notes.composer.label'),
-  )) as HTMLTextAreaElement;
+  )) as HTMLElement;
   return { panel, field };
 }
 
@@ -137,11 +138,11 @@ describe('typing @ in a text of an Opportunity', () => {
     );
     await userEvent.keyboard('{Enter}');
 
-    await waitFor(() => expect(field.value).toBe(`[[admin_user:${OTHER_ADMIN_ID}]] `));
+    await waitFor(() => expect(storedText(field)).toBe(`[[admin_user:${OTHER_ADMIN_ID}]] `));
     expect(within(panel).queryByRole('listbox')).toBeNull();
     // The sentence is simply carried on, as the owner wrote it.
     await userEvent.type(field, '- take this over');
-    expect(field.value).toBe(`[[admin_user:${OTHER_ADMIN_ID}]] - take this over`);
+    expect(storedText(field)).toBe(`[[admin_user:${OTHER_ADMIN_ID}]] - take this over`);
     expect(within(panel).queryByRole('listbox')).toBeNull();
   });
 
@@ -171,9 +172,9 @@ describe('typing @ in a text of an Opportunity', () => {
     expect(field).toHaveFocus();
 
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => expect(field.value).toBe(`Hello [[admin_user:${OTHER_ADMIN_ID}]] `));
-    // Closed, it is the textarea it was.
-    expect(field).not.toHaveAttribute('role');
+    await waitFor(() => expect(storedText(field)).toBe(`Hello [[admin_user:${OTHER_ADMIN_ID}]] `));
+    // Closed, it is the multi-line text box it was.
+    expect(field).toHaveAttribute('role', 'textbox');
     expect(field).not.toHaveAttribute('aria-activedescendant');
   });
 
@@ -181,7 +182,7 @@ describe('typing @ in a text of an Opportunity', () => {
     const { panel, field } = await composer();
     await userEvent.type(field, '@an');
     await userEvent.click(await within(panel).findByRole('option', { name: 'Anna Nowak' }));
-    await waitFor(() => expect(field.value).toBe(`[[admin_user:${ADMIN_ID}]] `));
+    await waitFor(() => expect(storedText(field)).toBe(`[[admin_user:${ADMIN_ID}]] `));
     expect(field).toHaveFocus();
   });
 
@@ -191,12 +192,12 @@ describe('typing @ in a text of an Opportunity', () => {
     await people(panel);
     await userEvent.keyboard('{Escape}');
     expect(within(panel).queryByRole('listbox')).toBeNull();
-    expect(field.value).toBe('@pio');
+    expect(storedText(field)).toBe('@pio');
     // Typing on does not bring it back, and Enter is a new line again.
     await userEvent.type(field, 't');
     expect(within(panel).queryByRole('listbox')).toBeNull();
     await userEvent.type(field, '{Enter}@');
-    expect(field.value).toBe('@piot\n@');
+    expect(storedText(field)).toBe('@piot\n@');
     await people(panel);
   });
 
@@ -206,7 +207,7 @@ describe('typing @ in a text of an Opportunity', () => {
     await people(panel);
     await userEvent.type(field, ' noon');
     expect(within(panel).queryByRole('listbox')).toBeNull();
-    expect(field.value).toBe('@ noon');
+    expect(storedText(field)).toBe('@ noon');
   });
 
   it('does not open for an e-mail address, and asks nobody', async () => {
@@ -215,14 +216,14 @@ describe('typing @ in a text of an Opportunity', () => {
     expect(within(panel).queryByRole('listbox')).toBeNull();
     expect(within(panel).queryByText(en('references.suggest.title.person'))).toBeNull();
     expect(asked(MENTIONABLE_PATH)).toEqual([]);
-    expect(field.value).toBe('Write to jan.kowalski@example.com about it');
+    expect(storedText(field)).toBe('Write to jan.kowalski@example.com about it');
   });
 
   it('closes by itself once the typing has gone past every match, and the text stays', async () => {
     const { panel, field } = await composer();
     await userEvent.type(field, '@home tomorrow');
     await waitFor(() => expect(within(panel).queryByText(en('references.suggest.title.person'))).toBeNull());
-    expect(field.value).toBe('@home tomorrow');
+    expect(storedText(field)).toBe('@home tomorrow');
   });
 
   it('says so when nobody matches, and when the search fails — and lists nothing', async () => {
@@ -230,7 +231,7 @@ describe('typing @ in a text of an Opportunity', () => {
     await userEvent.type(field, '@xyz');
     expect(await within(panel).findByText(en('references.suggest.empty.person'))).toBeInTheDocument();
     expect(within(panel).queryByRole('listbox')).toBeNull();
-    expect(field).not.toHaveAttribute('role');
+    expect(field).toHaveAttribute('role', 'textbox');
 
     failPeople = true;
     await userEvent.type(field, 'q');
@@ -244,13 +245,13 @@ describe('typing @ in a text of an Opportunity', () => {
     expect(within(orders).getAllByRole('option').map((option) => option.textContent)).toEqual(['ORD-1001']);
     expect(asked('/api/v1/admin/orders?').some((path) => path.includes(`organizationId=${ORGANIZATION_ID}`))).toBe(true);
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => expect(field.value).toBe(`[[order:${ORDER_ID}]] `));
+    await waitFor(() => expect(storedText(field)).toBe(`[[order:${ORDER_ID}]] `));
 
     await userEvent.type(field, 'and @@@cargo');
     const products = await within(panel).findByRole('listbox', { name: en('references.suggest.title.product') });
     expect(within(products).getByRole('option', { name: /Cargo van L2/ })).toBeInTheDocument();
     await userEvent.keyboard('{Tab}');
-    await waitFor(() => expect(field.value).toBe(`[[order:${ORDER_ID}]] and [[product:${PRODUCT_ID}]] `));
+    await waitFor(() => expect(storedText(field)).toBe(`[[order:${ORDER_ID}]] and [[product:${PRODUCT_ID}]] `));
   });
 
   it('leaves @@ and @@@ as typed for a role that may read neither Orders nor Products, and asks neither owner', async () => {
@@ -260,7 +261,7 @@ describe('typing @ in a text of an Opportunity', () => {
     expect(within(panel).queryByText(en('references.suggest.title.order'))).toBeNull();
     expect(asked('/api/v1/admin/orders?')).toEqual([]);
     expect(asked('/api/v1/admin/catalog/products')).toEqual([]);
-    expect(field.value).toBe('@@ord and @@@cargo');
+    expect(storedText(field)).toBe('@@ord and @@@cargo');
     // Positive control: the same role is offered people.
     await userEvent.type(field, ' @');
     await people(panel);
@@ -290,7 +291,7 @@ describe('typing @ in a text of an Opportunity', () => {
     await userEvent.click(within(panel).getByRole('button', { name: en('references.insert.person') }));
     await userEvent.click(await within(panel).findByRole('combobox', { name: en('references.search.person') }));
     await userEvent.click(await screen.findByRole('option', { name: 'Piotr Zielony' }));
-    await waitFor(() => expect(field.value).toBe(`Over to you: [[admin_user:${OTHER_ADMIN_ID}]]`));
+    await waitFor(() => expect(storedText(field)).toBe(`Over to you: [[admin_user:${OTHER_ADMIN_ID}]]`));
     expect(within(panel).queryByRole('combobox', { name: en('references.search.person') })).toBeNull();
   });
 
@@ -306,7 +307,7 @@ describe('typing @ in a text of an Opportunity', () => {
     await userEvent.type(field, '@pio');
     await within(panel).findByRole('option', { name: 'Piotr Zielony' });
     await userEvent.keyboard('{Enter}');
-    await waitFor(() => expect(field.value).toBe(`[[admin_user:${OTHER_ADMIN_ID}]] `));
+    await waitFor(() => expect(storedText(field)).toBe(`[[admin_user:${OTHER_ADMIN_ID}]] `));
     await userEvent.type(field, '- take this over');
     await userEvent.click(within(panel).getByRole('button', { name: en('comments.notes.composer.submit') }));
 

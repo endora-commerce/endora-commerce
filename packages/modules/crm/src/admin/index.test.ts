@@ -192,7 +192,17 @@ describe('crm admin copy', () => {
       'references.inserted.': ['product', 'order', 'admin_user'],
       'references.unavailable.': ['product', 'order', 'admin_user'],
       // The search a button opens: its name, its placeholder and its empty state.
-      'references.search.': ['person', 'personPlaceholder', 'personEmpty', 'order', 'orderPlaceholder', 'orderEmpty'],
+      'references.search.': [
+        'person',
+        'personPlaceholder',
+        'personEmpty',
+        'order',
+        'orderPlaceholder',
+        'orderEmpty',
+        'product',
+        'productPlaceholder',
+        'productEmpty',
+      ],
       // The list an `@` opens (User Story 18): one title and one empty state per kind.
       'references.suggest.title.': ['person', 'order', 'product'],
       'references.suggest.empty.': ['person', 'order', 'product'],

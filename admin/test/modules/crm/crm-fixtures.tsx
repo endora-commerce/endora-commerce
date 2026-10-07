@@ -11,6 +11,7 @@ import type {
 } from '@endora-commerce/contracts';
 import { AppLanguageContext } from '@endora-commerce/admin-kit/i18n';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
+import { readReferenceText, selectOffsets } from '../../../../packages/modules/crm/src/admin/lib/reference-editor-dom';
 import { adminSession, modulePresence, withSession } from '../../helpers/render-with-session';
 
 /**
@@ -288,3 +289,19 @@ export const FOREIGN_PICKER_ENDPOINTS = [
   '/api/v1/admin/admin-users',
   '/api/v1/admin/dictionary',
 ] as const;
+
+/**
+ * The text a description, note or message field would send: what its content
+ * stands for — a token for each chip — read by the field's own reader. What a
+ * person sees in the field is its `textContent`, names and all.
+ */
+export function storedText(field: HTMLElement): string {
+  return readReferenceText(field);
+}
+
+/** Put the caret at a place in a field's stored text, as a click there would. */
+export function caretAt(field: HTMLElement, offset: number): void {
+  field.focus();
+  selectOffsets(field, offset);
+  document.dispatchEvent(new Event('selectionchange'));
+}

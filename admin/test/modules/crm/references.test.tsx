@@ -12,6 +12,8 @@ import {
   detail,
   en,
   renderCrm,
+  caretAt,
+  storedText,
 } from './crm-fixtures';
 
 /**
@@ -166,13 +168,10 @@ describe('the textarea that inserts references', () => {
       Promise.resolve({ data: note(body.body, REFERENCES.slice(1, 2)) }),
     );
     const panel = await composer();
-    const field = within(panel).getByLabelText(en('comments.notes.composer.label')) as HTMLTextAreaElement;
+    const field = within(panel).getByLabelText(en('comments.notes.composer.label')) as HTMLElement;
     await userEvent.type(field, 'As in  last year.');
     // Put the caret between the two spaces after "As in".
-    field.setSelectionRange(6, 6);
-    await userEvent.click(field);
-    field.setSelectionRange(6, 6);
-    field.dispatchEvent(new Event('select', { bubbles: true }));
+    caretAt(field, 6);
 
     await userEvent.click(within(panel).getByRole('button', { name: en('references.insert.order') }));
     await waitFor(() =>
@@ -188,7 +187,7 @@ describe('the textarea that inserts references', () => {
     await userEvent.click(await screen.findByRole('option', { name: /ORD-1001/ }));
 
     const expected = `As in [[order:${ORDER_ID}]] last year.`;
-    await waitFor(() => expect(field.value).toBe(expected));
+    await waitFor(() => expect(storedText(field)).toBe(expected));
     // The search closes once it has done its job.
     expect(within(panel).queryByRole('combobox', { name: en('references.search.order') })).toBeNull();
 
@@ -200,11 +199,11 @@ describe('the textarea that inserts references', () => {
 
   it('inserts a Product chosen in the catalogue`s picker', async () => {
     const panel = await composer([...EVERY_CRM_PERMISSION, 'catalog:read']);
-    const field = within(panel).getByLabelText(en('comments.notes.composer.label')) as HTMLTextAreaElement;
+    const field = within(panel).getByLabelText(en('comments.notes.composer.label')) as HTMLElement;
     await userEvent.click(within(panel).getByRole('button', { name: en('references.insert.product') }));
     await userEvent.click(await within(panel).findByRole('combobox', { name: en('references.search.product') }));
     await userEvent.click(await screen.findByRole('option', { name: /Cargo van L2/ }));
-    await waitFor(() => expect(field.value).toBe(`[[product:${PRODUCT_ID}]]`));
+    await waitFor(() => expect(storedText(field)).toBe(`[[product:${PRODUCT_ID}]]`));
   });
 
   it('offers only the searches the reader`s role can make', async () => {

@@ -15,7 +15,7 @@ import { errorMessage } from '../lib/labels.js';
 import { COMMENT_MAX_LENGTH, CommentComposer } from './CommentComposer.js';
 import { ModalDialog } from './ModalDialog.js';
 import { ReferenceText } from './ReferenceText.js';
-import { ReferenceTextarea } from './ReferenceTextarea.js';
+import { ReferenceField } from './ReferenceField.js';
 
 /** The sentences one tab says; the thread itself knows no wording of its own kind. */
 export interface CommentThreadCopy {
@@ -212,9 +212,10 @@ export function CommentThread(props: CommentThreadProps): ReactNode {
                 {editing ? (
                   <div className="mt-2 space-y-2">
                     <Label htmlFor={`${editFieldId}-${item.id}`}>{t('comments.edit.label')}</Label>
-                    <ReferenceTextarea
+                    <ReferenceField
                       id={`${editFieldId}-${item.id}`}
                       organizationId={organizationId}
+                      references={item.references}
                       rows={4}
                       value={draft}
                       maxLength={COMMENT_MAX_LENGTH}
