@@ -3542,6 +3542,30 @@ when it was measured, and what was done about it.
   with one of two sentences and never the wrong one. Six unit cases over a stub port and
   one tab case, all seen red first; the entries past the reach stay unreachable until the
   port grows a cursor, which is still the platform's change and not this feature's.
+- **N-M10 (2026-10-07) — an independent review of User Story 18: what it ran, changed and
+  left.** *Run*: everything N-M8 lists as never run — `backend/test/{contract,integration}/crm`
+  whole, the migration applied — and the story in headless Chromium, English and Polish, 1440 px
+  and 390 px, keyboard only, with axe-core over the open list. *Changed, test first*: (a) **the
+  active option is scrolled into view.** The focus stays in the field, so the browser scrolls
+  nothing: of twenty Products the thirteenth, reached with ArrowDown, was 190 px below the
+  list's own bottom edge, and a list opened under a field low on the page stayed below the
+  screen's. (b) **A keystroke of a composing input method is left alone** — its Enter confirmed
+  a character and was taken as a choice. *Guards nothing held*, each seen red once removed and
+  now held: a late answer to an older search; an answer of another kind listed under the new
+  title (people offered as Orders); a choice that does not fit the field; Escape consumed only
+  while the list is open; the list closing on blur; a platform administrator (`*`, never the
+  code `crm:read`) being mentionable and told; a failing bell costing a mention's save nothing;
+  the mention replacing a message's participant entry only for somebody it reached; the
+  migration's `down`. *Left, deliberately*: (c) `role="combobox"` on the `<textarea>` is what
+  axe-core reports (`aria-allowed-role`, minor) — ARIA in HTML allows a textarea no role. It is
+  kept: without the role `aria-expanded` is not allowed either and the list would be a popup
+  nothing announces; the alternative is a judgement for somebody with a screen reader in front
+  of them. (d) The lookup searches the e-mail address although it never returns one, as
+  `/lookups/assignees` does: a caller can confirm an address they guess. (e) Somebody both
+  assigned and mentioned by one save gets two entries, one of each kind; N-M5's "one per save"
+  was built for a message only. (f) A bare `@` answers at once, so typing `@@@` asks for people,
+  then Orders, then Products, and shows each title for a moment. (d)–(f) are the owner's to
+  decide.
 
 ## Questions put to the owner — all decided on 2026-10-05
 
