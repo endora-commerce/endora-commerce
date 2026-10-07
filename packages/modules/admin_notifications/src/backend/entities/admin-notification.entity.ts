@@ -26,6 +26,8 @@ export class AdminNotification {
     | 'subjectId'
     | 'body'
     | 'linkPath'
+    | 'titleMessage'
+    | 'bodyMessage'
     | 'readAt'
     | 'archivedAt';
 
@@ -57,6 +59,18 @@ export class AdminNotification {
   @Property({ type: 'string', length: 255, nullable: true })
   linkPath?: string | null;
 
+  /**
+   * `title`, translatable: the bundle namespace, the key and the params the
+   * Admin UI resolves in the reader's language. `title` stays the sentence
+   * shown when it cannot.
+   */
+  @Property({ type: 'json', nullable: true })
+  titleMessage?: StoredNotificationMessage | null;
+
+  /** `body`, translatable — never without a `body` to fall back to. */
+  @Property({ type: 'json', nullable: true })
+  bodyMessage?: StoredNotificationMessage | null;
+
   @Property({ type: 'datetime' })
   createdAt: Date = new Date();
 
@@ -68,3 +82,10 @@ export class AdminNotification {
 }
 
 export type AdminNotificationAudience = 'all_admins' | 'admin_user';
+
+/** A message as it is stored: always with `params`, empty when it takes none. */
+export interface StoredNotificationMessage {
+  scope: string;
+  key: string;
+  params: Record<string, string | number>;
+}

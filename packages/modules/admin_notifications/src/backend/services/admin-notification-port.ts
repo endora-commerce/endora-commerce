@@ -40,5 +40,7 @@ export function toAdminNotificationRecord(
     body: notification.body ?? null,
     linkPath: notification.linkPath ?? null,
     createdAt: notification.createdAt,
+    titleMessage: notification.titleMessage ?? null,
+    bodyMessage: notification.bodyMessage ?? null,
   };
 }

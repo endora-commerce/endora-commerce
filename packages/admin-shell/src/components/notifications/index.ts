@@ -5,3 +5,8 @@ export {
   type AdminNotificationFeed,
   type UseAdminNotificationsResult,
 } from './useAdminNotifications.js';
+export {
+  notificationText,
+  type NotificationMessage,
+  type NotificationTextBundles,
+} from './notification-text.js';
