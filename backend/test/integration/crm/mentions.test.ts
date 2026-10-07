@@ -99,7 +99,7 @@ describe('crm mentions of people (US18)', () => {
           { targetAdminUserId: seeded.adminUserId, subjectId: opportunityId },
           { filters: false, orderBy: { createdAt: 'asc' } },
         )
-    ).map((row) => ({ kind: row.kind, title: row.title, body: row.body, linkPath: row.linkPath }));
+    ).map((row) => ({ kind: row.kind, title: row.title, body: row.body ?? null, linkPath: row.linkPath }));
 
   const mentionsOf = async (seeded: Seeded, opportunityId: string) =>
     (await bell(seeded, opportunityId)).filter((entry) => entry.kind === 'crm.opportunity.mention');
