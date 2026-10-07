@@ -3,11 +3,11 @@ import { TransitivelyScoped } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 
 export type CrmReferenceSourceKind = 'description' | 'comment';
-export type CrmReferenceTargetType = 'product' | 'order';
+export type CrmReferenceTargetType = 'product' | 'order' | 'admin_user';
 
 /**
- * A Product or an Order mentioned in an Opportunity's description or in one of
- * its comments. Derived data: the rows of one source are replaced wholesale
+ * A Product, an Order or a person mentioned in an Opportunity's description or
+ * in one of its comments. Derived data: the rows of one source are replaced wholesale
  * whenever that source's text is saved. `targetId` is held by value; a target
  * that is gone or not visible to the reader renders as unavailable.
  */

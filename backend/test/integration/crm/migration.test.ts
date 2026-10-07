@@ -1,4 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { formatOpportunityReferenceToken } from '@endora-commerce/contracts';
+import { Migration20261007T180600CrmOpportunityReferenceAdminUser } from '@endora-commerce/mod-crm/migrations';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -19,6 +22,8 @@ import {
   CrmTag,
   CrmValueCountingStatus,
 } from '../../helpers/package-entities.js';
+import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { createCrmOpportunity } from '../../helpers/seed-crm.js';
 
 /**
  * `crm`'s init migration, read back from the database it produced
@@ -274,5 +279,107 @@ describe('crm init migration', () => {
     );
     expect(Number(mappings?.count)).toBe(0);
     expect(Number(counting?.count)).toBe(0);
+  });
+});
+
+/**
+ * `20261007T180600_crm_opportunity_reference_admin_user` — the third target
+ * type of a reference (User Story 18, research N-M2), both ways.
+ *
+ * `up` is what every other test of mentions stands on; `down` nothing else
+ * runs. It is run here from the migration class's own statements, **inside a
+ * transaction that is rolled back**, so the database every other file of the
+ * run shares never holds the narrower constraint.
+ */
+describe('crm migration — a person as a reference target, up and down', () => {
+  let h: BackendServerHandle;
+
+  beforeAll(async () => {
+    h = await setupBackendServer();
+  });
+
+  afterAll(async () => {
+    await teardownBackendServer(h);
+  });
+
+  it('down removes the mentions and refuses a new one; the other references stay; up takes one again', async () => {
+    const person = randomUUID();
+    const created = await createCrmOpportunity(h, {
+      assignedAdminUserId: null,
+      description: `${formatOpportunityReferenceToken('admin_user', person)} about ${formatOpportunityReferenceToken('product', SEED_PRODUCT_101_ID)}`,
+    });
+
+    const em = h.em().fork();
+    await em.begin();
+    const run = <T>(sql: string, params: unknown[] = []): Promise<T[]> =>
+      em.getConnection().execute(sql, params, 'all', em.getTransactionContext()) as Promise<T[]>;
+    const migrate = async (direction: 'up' | 'down'): Promise<void> => {
+      const migration = new Migration20261007T180600CrmOpportunityReferenceAdminUser(em.getDriver(), em.config);
+      await migration[direction]();
+      for (const query of migration.getQueries()) await run(query as string);
+    };
+    const targets = async (): Promise<string[]> =>
+      (
+        await run<{ target_type: string }>(
+          `select "target_type" from "crm_opportunity_references" where "opportunity_id" = ? order by "target_type"`,
+          [created.id],
+        )
+      ).map((row) => row.target_type);
+    const constraint = async (): Promise<string> =>
+      (
+        await run<{ definition: string }>(
+          `select pg_get_constraintdef(oid) as definition from pg_constraint
+            where conname = 'crm_opportunity_references_target_type_check'`,
+        )
+      )[0]?.definition ?? '';
+    /** Whether a mention row is accepted — tried under a savepoint, so a refusal does not end the transaction. */
+    const acceptsAMention = async (): Promise<boolean> => {
+      await run('savepoint "mention_probe"');
+      try {
+        await run(
+          `insert into "crm_opportunity_references" ("id", "opportunity_id", "source_kind", "target_type", "target_id")
+           values (?, ?, 'description', 'admin_user', ?)`,
+          [randomUUID(), created.id, randomUUID()],
+        );
+        return true;
+      } catch {
+        return false;
+      } finally {
+        await run('rollback to savepoint "mention_probe"');
+      }
+    };
+
+    try {
+      // As migrated: three types, and the save stored one row of each mentioned.
+      expect(await targets()).toEqual(['admin_user', 'product']);
+      expect(await constraint()).toContain(`'admin_user'`);
+      expect(await acceptsAMention()).toBe(true);
+
+      await migrate('down');
+      expect(await targets()).toEqual(['product']);
+      expect(await constraint()).not.toContain('admin_user');
+      expect(await constraint()).toContain(`'product'`);
+      expect(await constraint()).toContain(`'order'`);
+      expect(await acceptsAMention()).toBe(false);
+
+      await migrate('up');
+      expect(await constraint()).toContain(`'admin_user'`);
+      expect(await acceptsAMention()).toBe(true);
+      // The text kept its token all along: the row is derived and comes back with the next save.
+      expect(
+        (await run<{ description: string }>(`select "description" from "crm_opportunities" where "id" = ?`, [created.id]))[0]
+          ?.description,
+      ).toContain(formatOpportunityReferenceToken('admin_user', person));
+    } finally {
+      await em.rollback();
+    }
+
+    // Nothing of it outlived the transaction.
+    const after = (await h.orm.em
+      .getConnection()
+      .execute(`select "target_type" from "crm_opportunity_references" where "opportunity_id" = ? order by "target_type"`, [
+        created.id,
+      ])) as Array<{ target_type: string }>;
+    expect(after.map((row) => row.target_type)).toEqual(['admin_user', 'product']);
   });
 });

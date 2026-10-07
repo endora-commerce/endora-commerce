@@ -10,6 +10,7 @@ import {
   detail,
   en,
   renderCrm,
+  storedText,
 } from './crm-fixtures';
 
 /**
@@ -178,7 +179,7 @@ describe('the Notes tab', () => {
       expect(postSpy).toHaveBeenCalledWith(COMMENTS_PATH, { kind: 'note', body: 'Budget approved.' }),
     );
     expect(await within(panel).findByText('Budget approved.')).toBeInTheDocument();
-    expect(field).toHaveValue('');
+    expect(storedText(field)).toBe('');
     expect(within(panel).getAllByRole('listitem')).toHaveLength(3);
   });
 
@@ -198,7 +199,7 @@ describe('the Notes tab', () => {
       within(entry(panel, 'Call back on Friday.')).getByRole('button', { name: en('comments.edit') }),
     );
     const field = within(panel).getByLabelText(en('comments.edit.label'));
-    expect(field).toHaveValue('Call back on Friday.');
+    expect(storedText(field)).toBe('Call back on Friday.');
     await userEvent.clear(field);
     await userEvent.type(field, 'Call back on Monday.');
     await userEvent.click(within(panel).getByRole('button', { name: core('common.action.save') }));
@@ -222,7 +223,7 @@ describe('the Notes tab', () => {
     await userEvent.type(field, ' Really.');
     await userEvent.click(within(panel).getByRole('button', { name: core('common.action.save') }));
     expect(await within(panel).findByText('Only the author may change a note.')).toBeInTheDocument();
-    expect(field).toHaveValue('Call back on Friday. Really.');
+    expect(storedText(field)).toBe('Call back on Friday. Really.');
   });
 
   it('deletes the author\'s own note after asking', async () => {

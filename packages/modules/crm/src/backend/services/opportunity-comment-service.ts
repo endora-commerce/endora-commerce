@@ -9,10 +9,12 @@ import {
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { HttpError } from '@endora-commerce/platform/http';
 import { randomUUID } from 'crypto';
+import type { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityComment } from '../entities/crm-opportunity-comment.entity.js';
 import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.entity.js';
 import type { AdminReach } from './admin-reach.js';
 import { tellAfterCommit, type CrmNotifier } from './crm-notifier.js';
+import { newlyMentioned, type MentionService, type SavedMentions } from './mention-service.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
 import { storedReferencesOf, type ReferenceService, type ReferenceSource } from './reference-service.js';
@@ -27,6 +29,8 @@ export interface OpportunityCommentServiceDeps {
   references: ReferenceService;
   /** Whether another administrator may reach an Organization. */
   canReach: AdminReach;
+  /** Who a text mentions, and telling them (User Story 18). */
+  mentions: MentionService;
 }
 
 function commentNotFound(): HttpError {
@@ -46,6 +50,10 @@ function commentNotFound(): HttpError {
  * - **a message is nobody's to change.** Once sent it is neither edited nor
  *   deleted, by anybody; and it tells the Opportunity's assignee and everybody
  *   who has already written in the thread, except its author.
+ *
+ * **Somebody mentioned in either is told that they were** — once per save, and
+ * only if the text it replaces did not mention them already (User Story 18). In
+ * a message that entry stands instead of the participant's, not beside it.
  *
  * **Both are internal.** There is no customer-visible flag, and nothing outside
  * this module's admin routes reads this table.
@@ -121,7 +129,15 @@ export class OpportunityCommentService {
     // entry says that there is a message and on which Opportunity, by number —
     // never what it says: a bell is read outside the tenant scope. Somebody who
     // can no longer reach the Organization is not told at all.
+    const mentioned = await this.#tellMentioned({
+      opportunityId,
+      organizationId: written.organizationId,
+      number: written.number,
+      adminUserIds: newlyMentioned(null, written.comment.body),
+    });
     for (const recipient of written.recipients) {
+      // Told once: somebody mentioned in the message has their entry already.
+      if (mentioned.includes(recipient)) continue;
       await tellAfterCommit(opportunityId, async () => {
         if (!(await this.deps.canReach(recipient, written.organizationId))) return;
         await this.deps.notifier.notify({
@@ -139,14 +155,23 @@ export class OpportunityCommentService {
 
   /** Edit a note. Its author only; a message is refused whoever asks. */
   async update(opportunityId: string, commentId: string, body: string): Promise<OpportunityComment> {
+    const saved: { mentions: SavedMentions | null } = { mentions: null };
     const comment = await this.deps.commandBus.run({
       action: 'crm.opportunity.note_update',
       objectType: 'crm_opportunity',
       objectId: opportunityId,
       run: async ({ em }) => {
-        const note = await this.#loadOwnNote(em, opportunityId, commentId, 'edited');
+        const { note, opportunity } = await this.#loadOwnNote(em, opportunityId, commentId, 'edited');
         const before = { commentId: note.id, length: note.body.length };
         if (note.body === body) return { result: note, skipAudit: true };
+        // Who this edit adds, against the text it replaces — worked out here,
+        // from the row the Command holds, and told after the commit.
+        saved.mentions = {
+          opportunityId: opportunity.id,
+          organizationId: opportunity.organizationId,
+          number: opportunity.number,
+          adminUserIds: newlyMentioned(note.body, body),
+        };
         note.body = body;
         note.editedAt = new Date();
         await this.#saveReferences(
@@ -157,6 +182,7 @@ export class OpportunityCommentService {
         return { result: note, before, after: { commentId: note.id, length: note.body.length } };
       },
     });
+    if (saved.mentions) await this.#tellMentioned(saved.mentions);
     const [rendered] = await this.#render([comment]);
     if (!rendered) throw new Error('crm: an edited note produced no rendering.');
     return rendered;
@@ -172,7 +198,7 @@ export class OpportunityCommentService {
       objectType: 'crm_opportunity',
       objectId: opportunityId,
       run: async ({ em }) => {
-        const note = await this.#loadOwnNote(em, opportunityId, commentId, 'deleted');
+        const { note } = await this.#loadOwnNote(em, opportunityId, commentId, 'deleted');
         note.deletedAt = new Date();
         // A deleted note mentions nothing any more.
         await this.#saveReferences(
@@ -200,6 +226,20 @@ export class OpportunityCommentService {
     for (const row of this.deps.references.rowsFor(source, text)) em.create(CrmOpportunityReference, row);
   }
 
+  /**
+   * Tell the people a committed save newly mentions, and answer who was
+   * addressed. A bell that cannot be written costs the save nothing
+   * (`tellAfterCommit`), and then nobody counts as addressed.
+   */
+  async #tellMentioned(saved: SavedMentions): Promise<string[]> {
+    let addressed: string[] = [];
+    if (saved.adminUserIds.length === 0) return addressed;
+    await tellAfterCommit(saved.opportunityId, async () => {
+      addressed = await this.deps.mentions.tell(saved);
+    });
+    return addressed;
+  }
+
   /** The administrator writing. The routes are admin-gated, so there always is one. */
   #author(): string {
     const author = actingAdminUserId();
@@ -220,7 +260,7 @@ export class OpportunityCommentService {
     opportunityId: string,
     commentId: string,
     verb: 'edited' | 'deleted',
-  ): Promise<CrmOpportunityComment> {
+  ): Promise<{ note: CrmOpportunityComment; opportunity: CrmOpportunity }> {
     const opportunity = await loadOpportunity(em, opportunityId);
     if (!isUuid(commentId)) throw commentNotFound();
     const comment = await em.findOne(CrmOpportunityComment, {
@@ -235,7 +275,7 @@ export class OpportunityCommentService {
     if (comment.authorAdminUserId !== actingAdminUserId()) {
       throw new HttpError(403, ERROR_CODES.FORBIDDEN, `Only the author of a note can have it ${verb}.`);
     }
-    return comment;
+    return { note: comment, opportunity };
   }
 
   /** The assignee and everybody who already wrote a message here — each once, never the author. */

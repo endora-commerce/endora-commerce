@@ -4,7 +4,10 @@ import { effectiveState, rethrowIfModuleDisabled } from '@endora-commerce/platfo
 /** `not-present` is the operator's choice — the bell is switched off — never a failure. */
 export type CrmNotificationOutcome = 'recorded' | 'not-present';
 
-export type CrmNotificationKind = 'crm.opportunity.assigned' | 'crm.opportunity.message';
+export type CrmNotificationKind =
+  | 'crm.opportunity.assigned'
+  | 'crm.opportunity.message'
+  | 'crm.opportunity.mention';
 
 export interface CrmNotification {
   kind: CrmNotificationKind;

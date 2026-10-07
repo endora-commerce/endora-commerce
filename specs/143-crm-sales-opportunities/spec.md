@@ -494,6 +494,58 @@ before this feature.
 
 ---
 
+### User Story 18 — Mention a person, an Order or a Product by typing `@` (Priority: P3)
+
+*Added 2026-10-07 at the owner's request: "W CRM dodać możliwość odnoszenia się do osób przez
+"@", odnoszenia do Zamówienia przez "@@" i Produktu przez "@@@"", after an earlier message on
+an Opportunity: "Dodać wywoływanie Handlowca przez @, np. @Tomasz Nowak - przejmij temat".*
+
+While writing an Opportunity's description, a note or a message, a user types `@` and picks a
+person, `@@` and picks an Order, or `@@@` and picks a Product, without leaving the keyboard.
+A mentioned person is told, in the Admin UI, that they were mentioned and on which
+Opportunity.
+
+**Independent Test**: in a message type `@`, a few letters of a colleague's name, Enter, and
+the rest of the sentence; send it; confirm the message shows `@` and the colleague's name,
+and that the colleague — and nobody else — has a notification naming the Opportunity by its
+number and leading to it.
+
+**Acceptance Scenarios**:
+
+1. **Given** a text field of an Opportunity, **When** the user types `@` at the start of the
+   text or after a space, **Then** a list of people opens and narrows as they type; arrow keys
+   move through it, Enter chooses, Escape closes it and leaves what was typed.
+2. **Given** the same field, **When** the user types `@@`, **Then** the list is of the
+   Organization's Orders; **When** they type `@@@`, **Then** it is of Products. Each is
+   offered only to a user who may read Orders, or Products, and otherwise the characters stay
+   as typed.
+3. **Given** an e-mail address typed in the text, **When** its `@` is typed, **Then** no list
+   opens.
+4. **Given** a saved text that mentions a person, **When** it is read, **Then** the mention
+   shows as `@` and the person's current name; a person who was removed or deactivated shows
+   as unavailable.
+5. **Given** a description, a note or a message saved with a person mentioned who was not
+   mentioned in the previous version of that text, **When** it is saved, **Then** that person
+   gets exactly one notification naming the Opportunity by its number and who mentioned
+   them — never the text — and leading to the Opportunity.
+6. **Given** a mention of the author themself, of somebody who may not read Opportunities, or
+   of somebody who may not see the Opportunity's Organization, **When** the text is saved,
+   **Then** that person is not notified.
+7. **Given** a description that carries references, **When** its change is read in the Change
+   history tab, **Then** each reference shows as the name it stands for, not as its stored
+   code.
+8. **Given** a text field of an Opportunity — empty, or opened on a text that already carries
+   references — **When** the user writes in it, **Then** every reference is shown as the
+   name it stands for and never as its stored code; it is removed as a whole, and what is
+   saved is unchanged for any reference the user did not touch, one they may not see
+   included. *(Owner ruling, 2026-10-07: "w takiej postaci to jest niezrozumiałe dla
+   użytkownika".)*
+9. **Given** a list opened by `@`, **When** it appears, **Then** it is at the place being
+   typed, not elsewhere on the field, and inside the window on a phone. *(Owner ruling,
+   2026-10-07: "powinna wyświetlać się tam gdzie wpisujemy".)*
+
+---
+
 ### Edge Cases
 
 - **A Status still in use is deleted** — refused while any Opportunity is in it; the start
@@ -705,6 +757,28 @@ before this feature.
   every attachment MUST be handed out as a download, never displayed inside the Admin UI's
   own session; and a single attachment MUST NOT exceed the stated size limit (25 MB as
   built).
+
+- **FR-081**: Users MUST be able to mention a person — a user of the Admin UI who may read
+  Opportunities — in an Opportunity's description, its notes and its messages; the mention
+  MUST be shown as `@` and the person's current name, and as unavailable for a person who was
+  removed or deactivated. *(Added 2026-10-07, User Story 18.)*
+- **FR-082**: In those text fields, typing `@`, `@@` or `@@@` at the start of the text or
+  after white space MUST open a search of people, of the Organization's Orders, or of
+  Products respectively, operable by keyboard alone; an `@` inside a word (an e-mail address)
+  MUST NOT. The Order and Product searches are offered under the rule of FR-079.
+- **FR-083**: A person newly mentioned in a saved description, note or message MUST receive
+  one Admin UI notification per save, naming the Opportunity by its number and the author by
+  name, never carrying the text, and leading to the Opportunity. The author, a person who may
+  not read Opportunities and a person who may not see the Opportunity's Organization MUST NOT
+  be notified; saving the same text again MUST NOT notify again.
+- **FR-084**: The Change history tab MUST show references inside a changed description as
+  the names they stand for, under the rule of FR-079, and MUST say when an Opportunity has
+  more history than the tab can reach.
+
+- **FR-085**: While a description, a note or a message is written or edited, every reference
+  in it MUST be shown as the name it stands for, never as its stored code; the list opened
+  by `@` MUST appear at the place being typed; and saving MUST NOT alter a reference the
+  user did not change. *(Added 2026-10-07, owner rulings on User Story 18.)*
 
 ### Key Entities
 

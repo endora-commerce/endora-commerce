@@ -9,6 +9,7 @@ import {
   detail,
   en,
   renderCrm,
+  storedText,
 } from './crm-fixtures';
 
 /**
@@ -131,7 +132,7 @@ describe('OpportunityDetail — editing', () => {
     expect(within(form).getByLabelText(new RegExp(en('opportunity.field.title')))).toHaveValue(
       'Fleet renewal',
     );
-    expect(within(form).getByLabelText(en('opportunity.field.description'))).toHaveValue(
+    expect(storedText(within(form).getByLabelText(en('opportunity.field.description')))).toBe(
       'Forty vans over two years.',
     );
     expect(within(form).getByLabelText(en('opportunity.field.expectedCloseDate'))).toHaveValue(

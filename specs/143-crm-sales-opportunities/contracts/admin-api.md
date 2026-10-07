@@ -266,8 +266,19 @@ it with the Command of the row above. No permission of the media library is aske
 ## 9. References (US12)
 
 Not an endpoint: every response field carrying free text (`description`, a comment `body`) is
-accompanied by `references: [{ type: 'product' | 'order', id, available, label | null,
-url | null }]`. Token grammar: `[[product:<uuid>]]`, `[[order:<uuid>]]`.
+accompanied by `references: [{ type: 'product' | 'order' | 'admin_user', id, available,
+label | null, url | null }]`. Token grammar: `[[product:<uuid>]]`, `[[order:<uuid>]]`,
+`[[admin_user:<uuid>]]`.
+
+**A person (User Story 18; research N-M1).** `admin_user` is a user of the Admin UI, under the
+name the platform has for one. `label` is the person's current name and `url` is always
+`null`. `available: false` for an id that names nobody, a removed administrator or a
+deactivated one. A person's name is not narrowed by a permission: it is what every CRM screen
+already shows of an author or an assignee.
+
+**What a person types is not part of this contract.** `@`, `@@`, `@@@` are the composer's way
+of producing a token (`contracts/admin-surfaces.md`); nothing but the token is sent or stored,
+and a client that writes tokens itself needs none of it.
 
 `available: false`, with `label` and `url` `null`, for a target that is gone, that is outside
 the reader's tenant scope, **or whose owner's read permission the reader does not hold** —
@@ -289,18 +300,26 @@ endpoint; there is no board-specific write.
 | `GET /lookups/sales-channels` | `crm:read` | — | `{ data: [{ id, code, name: Record<lang, string>, active, systemDefault, defaultCurrency, currencies }] }` |
 | `GET /lookups/assignees` | `crm:read` | `q?`, `limit?` | `{ data: [{ id, name }] }` — active administrators (the rule of §5) |
 | `GET /lookups/contacts` | `crm:write` | `organizationId` (required), `q?`, `limit?` | `{ data: [{ id, name, email }] }` — empty for an Organization out of scope |
+| `GET /lookups/mentionable` | `crm:write` | `q?`, `organizationId?` (uuid), `limit?` | `{ data: [{ id, name }] }` — active administrators holding `crm:read`; with `organizationId`, only those who may reach it, and empty when the caller may not (User Story 18; research N-M3) |
 | `GET /lookups/quote-requests` | `crm:write` **and** `rfqs:handle` (research N-R13) | `organizationId` (required), `q?`, `limit?` | `{ data: [{ id, number, status }] }` — the Organization's open Quote Requests, plus the one whose number is typed in full; empty for an Organization out of scope; 503 `MODULE_DISABLED` (`details.module: "quote_requests"`) while that module is off (research N-H2) |
 
 Schemas: `OpportunityOrganizationLookupQuerySchema`, `OpportunityAssigneeLookupQuerySchema`,
-`OpportunityContactLookupQuerySchema` and the four `…LookupResponseSchema`. The CRM screens'
+`OpportunityContactLookupQuerySchema`, `OpportunityMentionLookupQuerySchema` and the five
+`…LookupResponseSchema`. The CRM screens'
 pickers read these and no admin list of another module; the Order statuses and the Order
 search of §3–§4 remain `orders`' own endpoints under `orders:read`. A malformed query is 400.
 
 ## 11. History (US11)
 
 `GET /opportunities/:id/history?limit&cursor` · `crm:read` →
-`{ data: [{ id, actedAt, action, actor { kind, id | null, name | null }, before, after }],
-pagination }`, newest first.
+`{ data: [{ id, actedAt, action, actor { kind, id | null, name | null }, before, after,
+references }], pagination, truncated }`, newest first. The history reaches back 499 entries;
+`truncated` is `true` on the last page it can serve when the Opportunity has earlier entries,
+and `false` on every other page — `pagination.hasMore` keeps its one meaning, that `cursor`
+asks for a next page (research N-M9). `references` is §9's list for the `description`
+of `before` and of `after` together — empty for an entry that carries none — resolved for the
+reader when the history is read; `before` and `after` are returned as audited (User Story 18;
+research N-M6).
 
 ## 12. Analytics (US13)
 

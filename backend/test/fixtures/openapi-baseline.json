@@ -1758,6 +1758,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/lookups/mentionable": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/lookups/organizations": {
       "get": {
         "responses": {

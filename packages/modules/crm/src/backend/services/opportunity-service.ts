@@ -45,6 +45,8 @@ import { CrmOpportunityStatus } from '../entities/crm-opportunity-status.entity.
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
 import { effectiveOpportunityValue, effectiveOpportunityValueSql } from '../domain/effective-value.js';
+import { tellAfterCommit } from './crm-notifier.js';
+import { newlyMentioned, type MentionService, type SavedMentions } from './mention-service.js';
 import { loadOpportunity } from './opportunity-access.js';
 import {
   actingAdminUserId,
@@ -85,8 +87,10 @@ export interface OpportunityServiceDeps {
   liveFigure: (
     opportunity: CrmOpportunity,
   ) => Promise<{ value: string; excludedDocuments: OpportunityExcludedDocument[] } | null>;
-  /** The Products and Orders a text mentions: stored on write, resolved on read. */
+  /** The Products, Orders and people a text mentions: stored on write, resolved on read. */
   references: ReferenceService;
+  /** Telling the people a saved description newly mentions (User Story 18). */
+  mentions: MentionService;
 }
 
 /** An Opportunity the system creates for a document that was just placed. */
@@ -257,6 +261,12 @@ export class OpportunityService {
       organizationId: input.organizationId,
       number: created.number,
       assignedAdminUserId,
+    });
+    await this.#tellMentioned({
+      opportunityId: created.id,
+      organizationId: input.organizationId,
+      number: created.number,
+      adminUserIds: newlyMentioned(null, input.description),
     });
     return this.get(created.id);
   }
@@ -563,6 +573,7 @@ export class OpportunityService {
     );
 
     let becameComputed = false;
+    const mentioned: { saved: SavedMentions | null } = { saved: null };
     let reassigned: ReassignedOpportunity | null = null;
     for (let attempt = 0; ; attempt += 1) {
       const stale: { current: Record<string, unknown> | null } = { current: null };
@@ -574,6 +585,9 @@ export class OpportunityService {
         },
         onBecameComputed: () => {
           becameComputed = true;
+        },
+        onMentioned: (saved) => {
+          mentioned.saved = saved;
         },
       });
       if (stale.current === null) break;
@@ -588,6 +602,7 @@ export class OpportunityService {
       );
     }
     if (reassigned) await this.deps.assignment.notifyAssigned(reassigned);
+    if (mentioned.saved) await this.#tellMentioned(mentioned.saved);
     // The stored computed figure is not maintained while the mode is manual,
     // so it is brought up to date the moment it becomes the value.
     if (becameComputed) await this.deps.recalculateValue(id);
@@ -609,6 +624,8 @@ export class OpportunityService {
       validatedAgainst: Record<string, unknown>;
       onStale: (current: Record<string, unknown>) => void;
       onBecameComputed: () => void;
+      /** Handed the people the saved description mentions and the one it replaces did not. */
+      onMentioned: (saved: SavedMentions) => void;
     },
   ): Promise<ReassignedOpportunity | null> {
     return this.deps.commandBus.run({
@@ -638,6 +655,14 @@ export class OpportunityService {
           patch.tagIds === undefined ? null : await this.#replaceTags(em, opportunity.id, patch.tagIds);
         if (patch.title !== undefined) opportunity.title = patch.title;
         if (patch.description !== undefined) {
+          // Who this edit adds, against the text it replaces — worked out from
+          // the locked row, and told after the commit.
+          custom.onMentioned({
+            opportunityId: opportunity.id,
+            organizationId: opportunity.organizationId,
+            number: opportunity.number,
+            adminUserIds: newlyMentioned(opportunity.description, patch.description),
+          });
           opportunity.description = patch.description;
           // The references are derived from the text and saved with it.
           await this.#saveReferences(
@@ -768,6 +793,17 @@ export class OpportunityService {
   async #saveReferences(em: EntityManager, source: ReferenceSource, text: string | null | undefined): Promise<void> {
     await em.nativeDelete(CrmOpportunityReference, storedReferencesOf(source));
     for (const row of this.deps.references.rowsFor(source, text)) em.create(CrmOpportunityReference, row);
+  }
+
+  /**
+   * Tell the people a committed description newly mentions. A bell that cannot
+   * be written costs the save nothing (research N-R12).
+   */
+  async #tellMentioned(saved: SavedMentions): Promise<void> {
+    if (saved.adminUserIds.length === 0) return;
+    await tellAfterCommit(saved.opportunityId, async () => {
+      await this.deps.mentions.tell(saved);
+    });
   }
 
   #initialStatus(graph: OpportunityStatusGraph) {

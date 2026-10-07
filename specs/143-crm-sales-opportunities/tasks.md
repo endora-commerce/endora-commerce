@@ -507,6 +507,31 @@ nothing renders.
 
 ---
 
+## Phase 18: User Story 18 — Mention a person, an Order or a Product by typing `@` (Priority: P3)
+
+*Added 2026-10-07 at the owner's request (`spec.md` User Story 18; research N-M1 … N-M8).*
+**Independent test**: in a message type `@`, a few letters of a colleague's name, Enter, the
+rest of the sentence; send; the message shows `@` and the name, and the colleague — nobody
+else — has one bell entry naming the Opportunity by its number.
+
+- [x] T186 [US18] Spec first: User Story 18, FR-081 … FR-084 in `spec.md`; the token and the lookup in `contracts/admin-api.md` §9, §10a, §11; `data-model.md` (the third target type, the third bell kind); research N-M1 … N-M8.
+- [x] T187 [P] [US18] Contracts, test first (`packages/contracts/src/crm.test.ts`, six cases seen red): `admin_user` in `opportunityReferenceTypeSchema` and in the one token expression; `mentionedAdminUserIds`; `OpportunityMentionLookupQuerySchema` / `…OptionSchema` / `…ResponseSchema`; `references` on `OpportunityHistoryEntrySchema`.
+- [x] T188 [US18] Migration `packages/modules/crm/src/migrations/20261007T180600_crm_opportunity_reference_admin_user.ts` (scaffolded by `migration:new`): the `target_type` check gains `admin_user`; barrel updated; `composer:generate` run and `backend/src/db/migrations-registry.generated.ts` committed.
+- [x] T189 [P] [US18] Backend unit tests beside their subjects, no database: `services/mention-service.test.ts` (13 cases; each of the six guards taken out in turn and seen red — research N-M8), `services/reference-service.test.ts` (4), `services/opportunity-history-service.test.ts` (2).
+- [x] T190 [US18] `services/mention-service.ts` (who may be mentioned, who is told, `newlyMentioned`); `ReferenceService` resolves a person; `GET /lookups/mentionable`; the comment and the Opportunity services tell the newly mentioned after their commit; the history service returns `references`; composition in `backend/index.ts`.
+- [x] T191 [P] [US18] **Written without a database (research N-M8); run green by the review of 2026-10-07 (N-M10).** `backend/test/integration/crm/mentions.test.ts` (resolution; the notification: once, by number and author, no text, not the author, not without `crm:read`, not deactivated, not out of reach, not on re-save, description on create and edit, a message's single entry, the bell switched off; the history's `references`), the `mentionable` cases of `backend/test/contract/crm/lookups.contract.test.ts` (gate, exclusions, id + name only, the Organization filter, the caller's own reach, limit, 400), and the route in `backend/test/integration/crm/off-state.test.ts`. The hand-written entry for the new route in `backend/test/fixtures/openapi-baseline.json` is held by `backend/test/contract/kernel/openapi-baseline.test.ts`, run with them.
+- [x] T192 [P] [US18] Admin, the typing grammar test first: `src/admin/lib/mention-trigger.ts` + `.test.ts` (11 cases: the three runs, the search, an e-mail address, a space after the `@`, four `@`s, the caret, the length limit; `clipReferenceText`).
+- [x] T193 [US18] Admin tests `admin/test/modules/crm/mentions.test.tsx` (16 cases) and the description cases of `history.test.tsx` (seen red without the change); `ReferenceTextarea.tsx` (the list under the field, combobox/listbox ARIA while open, the third button, the shortcut line), `ReferenceText.tsx` (the `@Name` chip), `OpportunityHistory.tsx` (a description through `ReferenceText`), `api.ts`, both bundles; `src/admin/index.test.ts` enumerates the new key families.
+- [x] T194 [US18] Docs: `packages/modules/crm/docs/crm.md` § *Mentioning a person, an order or a product with @* and the sentences it changes elsewhere; the Polish page and its translation-cache entry; the two CRM changesets amended (the module is unreleased — N-P7).
+- [x] T196 [P] **Second review, the history's reach** (research N-S8, N-M9), tests first and seen red: `packages/contracts/src/crm.test.ts` (`truncated` on the response), `packages/modules/crm/src/backend/services/opportunity-history-service.test.ts` (six cases over a stub port: a short history, exactly the reach, one past it, far past it, the flag on the last page only, the port never asked past its cap), `admin/test/modules/crm/history.test.tsx` (the tab says earlier changes exist instead of calling the history whole).
+- [x] T197 The history serves 499 entries and answers `truncated`; the tab's two endings (`history.end`, `history.truncated`, both bundles); docs EN + PL, the translation cache, `contracts/admin-api.md` §11, both changesets. The one line added to `backend/test/contract/crm/history.contract.test.ts` was run with T191.
+- [x] T195 [US18] The story walked in headless Chromium, in English and Polish, at 1440 px and 390 px, keyboard only, with axe-core over the open list (research N-M10). **Still not done**: a screen reader's reading of the active option, and choosing an Order with `@@` — the instance walked held no Order.
+- [x] T199 [US18] **The editing field shows names, never tokens; the list opens at the caret** (owner ruling 2026-10-07; research N-M11). `src/admin/lib/reference-editor-dom.ts` and `components/ReferenceField.tsx` replace `ReferenceTextarea.tsx` in the four places that used it; `admin/test/modules/crm/reference-field.test.tsx` (35 cases) and the port of `mentions.test.tsx`, `references.test.tsx`, `comments.test.tsx`, `OpportunityEdit.test.tsx` to the field. Written with the code, not before it. The review's seven front-end guards (T198) are kept and their tests ported; a run's first search is delayed so `@@@` opens one list (two cases).
+- [x] T200 [US18] The field walked in headless Chromium by `page.keyboard.type`, English and Polish, 1440 px and 390 px: 37 checks each, plus 9 accessibility checks per width with axe-core (WCAG 2.2 AA) over the empty field, its error state, the open list and a chip. Screenshots and scripts in the handover directory `mentions/editor-walk/`. **Not exercised**: an Order chosen from real data (the preview has none — the list's answer was supplied by the walk), a person other than the walker (mentioning the only other one would have written a bell entry on a real account), Firefox, Safari, a touch keyboard, an input method, a screen reader.
+- [x] T198 [US18] **Review of 2026-10-07** (research N-M10), tests first: the active option is scrolled into view; a keystroke of a composing input method is left alone; `admin/test/modules/crm/mentions.test.tsx` gains seven cases, `mention-service.test.ts` one, `backend/test/integration/crm/mentions.test.ts` two, `backend/test/integration/crm/migration.test.ts` the migration's way down and back.
+
+---
+
 ## Dependencies & Execution Order
 
 > **Note on file names (2026-10-06).** This section and a task line in almost every story —
@@ -687,6 +712,11 @@ not a one-declaration integration.
 | FR-077 | US16 | T162, T163, T164 |
 | FR-078 | US17 | T171, T172, T173, and `admin/test/modules/crm/quote-request-opportunity-panel.test.tsx` for the Quote Request half |
 | FR-079 | Polish (independent review) | `backend/test/integration/crm/review-extensions.test.ts`, `backend/test/contract/crm/links-and-transition.contract.test.ts` (the `orders:read` cases), `admin/test/modules/crm/owner-permissions.test.tsx`, `backend/test/contract/crm/attachments.contract.test.ts` (the `assets.read` gate) |
+| FR-081 | US18 | T187, T189, T191, T193 |
+| FR-082 | US18 | T192, T193 |
+| FR-083 | US18 | T189, T191 |
+| FR-085 | US18 | T199, T200 |
+| FR-084 | US18 | T189, T191, T193 (the description); T196, T197 (the reach) |
 | FR-080 | Polish (independent review) | `backend/test/integration/crm/attachment-upload.test.ts` (the active-content cases and the size limit), `backend/test/contract/crm/attachment-upload.contract.test.ts` |
 
 ## Notes

@@ -3356,6 +3356,7 @@ when it was measured, and what was done about it.
   history at its 500-entry reach answers `hasMore: false`. Saying so needs a field the
   shared collection envelope does not have — a contracts change, an OpenAPI baseline and
   a line in the history tab, on a branch where the contracts are being amended elsewhere.
+  *(Fixed on 2026-10-07 — N-M9.)*
 - **N-S9 (2026-10-06, second review, question 8) — a document created from a closed
   Opportunity is linked to it. Decided: allowed.** A closed Opportunity accepts a link made
   by hand, so it accepts the document created from it; the Opportunity stays closed, and a
@@ -3443,6 +3444,170 @@ when it was measured, and what was done about it.
   renders as "Other change (key in words)", a structure as `name: value` pairs. Nine of the
   ten new cases of `admin/test/modules/crm/history.test.tsx` were seen red first; the tenth
   (an unnamed Order status falls back to its code) held before and is kept as the rule.
+
+- **N-M1 (2026-10-07, User Story 18) — the third reference type is `admin_user`, not
+  `user`.** The brief's default was `[[user:<uuid>]]`, to be checked against what the
+  platform calls an administrator. It calls one an *admin user* everywhere CRM touches:
+  `AdminUserReadPort`, `assignedAdminUserId`, `authorAdminUserId`, the bell's
+  `audience: 'admin_user'`. `user` alone would also read as a customer account, which is the
+  other kind of person this platform has. So the token is `[[admin_user:<uuid>]]`, the
+  identity is the one the assignee and a comment's author already use, and names come from
+  the same `adminUserReadPort`. The grammar is still written once, in
+  `packages/contracts/src/crm.ts`.
+- **N-M2 (2026-10-07) — a migration was needed.** `crm_opportunity_references` holds
+  `target_type` under a check constraint (`in ('product', 'order')`,
+  `20261005T132439_crm_init`), so storing a mention without widening it would have failed
+  the save. `20261007T180600_crm_opportunity_reference_admin_user` replaces the constraint;
+  `down` deletes the mention rows first (they are derived, and come back with the next save
+  of their text). No foreign key: `target_id` stays a value, as for the other two.
+- **N-M3 (2026-10-07) — who may be mentioned; the lookup is `crm:write` and takes the
+  Organization.** Kept from the brief: active administrators holding `crm:read`, id and name
+  only. Two things the code decided. (a) **The gate is `crm:write`**, as `/lookups/contacts`
+  is and for its reason: a mention is chosen where a text is written, and every such field is
+  behind `crm:write`. (b) **`organizationId` is an optional parameter**: with it, a candidate
+  must also reach that Organization (`adminTenantScopePort`, the question assignment already
+  asks — N-R2), and an Organization out of the *caller's* reach offers nobody
+  (`isOrgInScope`). Offering somebody who cannot open the Opportunity would produce a mention
+  that tells nobody. Without it — the create form before an Organization is chosen — reach
+  is not asked, and is asked when the text is saved. `PermissionReadPort` answers per
+  administrator and has no batch; an administrator holds exactly one role
+  (`permission-service.ts` reads the role and nothing else), so the answer is asked once per
+  role within a call, and candidates are walked in name order only as far as the limit.
+- **N-M4 (2026-10-07) — who is told, and that it is decided at the save.** The token is text
+  and can be typed by hand, so the list is not the guard: `MentionService.tell` applies the
+  same three conditions again — active, `crm:read`, reach to the Organization — and drops the
+  author. "Newly mentioned" is `newlyMentioned(previous, next)`, a pure comparison of the two
+  texts made **inside the Command, from the row it holds**; nothing of another module is
+  asked there (N-S1), and the telling is after the commit under `tellAfterCommit` (N-R12).
+  Consequences worth knowing: rewording around a mention tells nobody; removing a mention and
+  restoring it in a later save tells again; a note's first save compares against nothing.
+  The stored `crm_opportunity_references` rows were not used for the comparison — they are
+  replaced in the same Command, and the text is the truth.
+- **N-M5 (2026-10-07) — the bell entry is English, names the author, and replaces a
+  message's participant entry.** (a) The brief asked for the notification in English and
+  Polish. **The code does not allow it**: `adminNotificationRecordPort` takes a finished
+  title and no key (R-11, A-5), for every caller on the platform. The entry is
+  `"<author> mentioned you in opportunity <number>"`, English, like the other two. (b) It
+  carries the author's name — an administrator's name, not tenant data — the Opportunity's
+  number and no body (N-R2). (c) "One notification per person per save": in a message a
+  mentioned participant would otherwise get two entries for one message, so the mention
+  stands **instead of** `crm.opportunity.message` for that person. This also answers the
+  limitation the product-owner audit left open ("a message cannot be addressed to anybody").
+- **N-M6 (2026-10-07) — the Change history shows a description's references by name; the
+  endpoint changed.** N-T1 made every audited value words but a description went through as
+  text, tokens included — for Products and Orders too, before this story. The history
+  endpoint now returns `references` per entry, resolved by `ReferenceService` for the reader
+  (so `orders:read` / `catalog:read` narrow it as everywhere else), and the tab renders a
+  description through `ReferenceText`, cut by `clipReferenceText` so the 280-character limit
+  never halves a token. The audit rows are not rewritten. **Not touched**: the platform-wide
+  Audit log screen, which is `audit_logs`' and shows the same entry with the token in it;
+  `crm-audit-references.ts` resolves the *Opportunity* an entry is about and has nothing to
+  say about text inside a state. A note's or a message's text is not audited (N-R6), so
+  there is nothing to render for those.
+- **N-M7 (2026-10-07) — events and webhooks: deliberately excluded.** No event of this module
+  carries a text or a reference list (`OpportunityCreatedEventV1Schema` and the other two are
+  strict and hold no free text — the contracts test "holds no free text" says so), so there
+  was no payload for the new type to flow through, and none was added. A mention is not
+  announced on the EventBus.
+- **N-M8 (2026-10-07) — what was and was not seen run.** *Typing* (FR-082): the default was a
+  list "at the caret". **Changed**: the list opens directly under the field. Placing it at
+  the caret needs the caret's pixel position, which a `<textarea>` does not give without a
+  mirrored copy of its text — code that can only be judged in a browser, which this work had
+  none of. Under the field is where the buttons' searches already open. Between a keystroke
+  and its answer the list is the previous answer narrowed locally by what is in the field —
+  found by a test that typed `@pio` and pressed Enter at once and got the first person of
+  the unfiltered list. *Seen red first*: the six contract cases; the mention list's
+  stale-answer case; the two history-tab cases (with the component change stashed). *Written
+  with their subject, then each guard removed and seen red*: the thirteen cases of
+  `mention-service.test.ts` (self, permission and reach and active state when telling; the
+  caller's scope and the permission in the lookup). **Never run**: everything under
+  `backend/test/{contract,integration}/crm` — the test stack's containers were stopped (the
+  host had restarted) and starting containers was outside this task's permissions — and so
+  the migration has not been applied to any database, and the OpenAPI baseline entry for
+  `/lookups/mentionable` was written by hand in the shape of its neighbours rather than
+  recorded. Not seen in a browser either (T195).
+- **N-M9 (2026-10-07, second review's open finding — N-S8) — a history that is cut says so,
+  and reaches 499 entries, not 500.** N-E10 recorded that the 501st entry is unreachable;
+  N-S8 that the endpoint then answered `hasMore: false` as if the history were whole, and
+  the tab said "That is the whole history". The audit port caps a read at 500 and has no
+  count, so with 500 entries served a full read cannot tell "exactly 500" from "more".
+  **The history therefore serves one entry fewer than the port answers**
+  (`HISTORY_REACH = 499`): a 500th row coming back proves an earlier entry exists, and
+  nothing is claimed that is not known. *Why not `hasMore: true`*, which the brief offered
+  first: across this codebase `hasMore` beside a `cursor` means "ask again with this cursor"
+  (`paginationSchema`); answering `true` with a `null` cursor would make a client that loops
+  on it ask for page one forever. So the fact is a field of its own, `truncated`, beside
+  `pagination` — the name `quick-order.ts` already uses for the same thing — `true` on the
+  last page a history can serve and `false` on every page that has a next one. The tab ends
+  with one of two sentences and never the wrong one. Six unit cases over a stub port and
+  one tab case, all seen red first; the entries past the reach stay unreachable until the
+  port grows a cursor, which is still the platform's change and not this feature's.
+- **N-M10 (2026-10-07) — an independent review of User Story 18: what it ran, changed and
+  left.** *Run*: everything N-M8 lists as never run — `backend/test/{contract,integration}/crm`
+  whole, the migration applied — and the story in headless Chromium, English and Polish, 1440 px
+  and 390 px, keyboard only, with axe-core over the open list. *Changed, test first*: (a) **the
+  active option is scrolled into view.** The focus stays in the field, so the browser scrolls
+  nothing: of twenty Products the thirteenth, reached with ArrowDown, was 190 px below the
+  list's own bottom edge, and a list opened under a field low on the page stayed below the
+  screen's. (b) **A keystroke of a composing input method is left alone** — its Enter confirmed
+  a character and was taken as a choice. *Guards nothing held*, each seen red once removed and
+  now held: a late answer to an older search; an answer of another kind listed under the new
+  title (people offered as Orders); a choice that does not fit the field; Escape consumed only
+  while the list is open; the list closing on blur; a platform administrator (`*`, never the
+  code `crm:read`) being mentionable and told; a failing bell costing a mention's save nothing;
+  the mention replacing a message's participant entry only for somebody it reached; the
+  migration's `down`. *Left, deliberately*: (c) `role="combobox"` on the `<textarea>` is what
+  axe-core reports (`aria-allowed-role`, minor) — ARIA in HTML allows a textarea no role. It is
+  kept: without the role `aria-expanded` is not allowed either and the list would be a popup
+  nothing announces; the alternative is a judgement for somebody with a screen reader in front
+  of them. (d) The lookup searches the e-mail address although it never returns one, as
+  `/lookups/assignees` does: a caller can confirm an address they guess. (e) Somebody both
+  assigned and mentioned by one save gets two entries, one of each kind; N-M5's "one per save"
+  was built for a message only. (f) A bare `@` answers at once, so typing `@@@` asks for people,
+  then Orders, then Products, and shows each title for a moment. (d)–(f) are the owner's to
+  decide.
+
+- **N-M11 (2026-10-07, owner rulings on N-M8's questions) — the field shows names, and the
+  list opens at the caret; a `contenteditable` field written here, no dependency.** The
+  owner, on the token in the textarea: "w takiej postaci to jest niezrozumiałe dla
+  użytkownika"; on the list: "powinna wyświetlać się tam gdzie wpisujemy". A `<textarea>`
+  can show neither a chip nor where its caret is, so the field is now a `contenteditable`
+  element (`components/ReferenceField.tsx`). **The stored text is the model and the DOM a
+  rendering of it** (`lib/reference-editor-dom.ts`): three kinds of node — text, `<br>`, a
+  non-editable chip carrying its token — drawn from the text and read back to it, with a
+  position in the DOM convertible to a position in the text and back. Plain typing is the
+  browser's; every other edit — a mention chosen, Enter, a paste, a chip removed, undo — is
+  made on the text and drawn again. That is what made a custom field sound enough not to
+  need a rich-text library (Constitution IV): the browser is never trusted with structure,
+  so there is no markup to sanitise and no block elements to interpret, and the contract and
+  the backend are untouched — what is sent is the same token text. *Decisions inside it*:
+  (a) a token is a chip only when the field has a name for it — from the `references` the
+  API already returns beside the text being edited, or from a choice made in the field;
+  there is no resolve-by-id endpoint and none was added, so a token typed by hand for
+  something the field never saw stays text until the save resolves it; (b) an unavailable
+  reference is a chip saying so and its token is read back unchanged — seen in the browser
+  with an Order id that names nothing; (c) Backspace and Delete on a chip are handled by the
+  field, not left to the browser, so they are the same everywhere and testable; the arrow
+  keys stepping over a chip *are* the browser's, and were seen in Chromium only; (d) undo is
+  the field's own stack, a step per pause in the typing, because drawing the content again
+  discards the browser's; (e) copy and cut put the token text on the clipboard, so a chip
+  survives a copy within the field; (f) the *Insert product* button now opens the same
+  search the other two do — the kit's `ProductPicker` answers an id without a name, and a
+  chip needs the name; (g) the label is the form's own `<label for>`: the field finds it,
+  names itself by it and takes the focus on a click, so no caller changed. *The list*:
+  `Range.getBoundingClientRect()` of the `@` gives the line; the list is positioned inside
+  the field's own box, so it moves with the field under any scroll, flips above the line
+  when the window has no room below, and is held inside the window and the field
+  horizontally (at 390 px a card around the field clipped 4 px of it before that). *The
+  reviewer's observations*: `role="combobox"` on a `div` passes axe where a `<textarea>`
+  did not; `aria-multiline` and `aria-placeholder` are dropped while it is a combobox, which
+  axe refused in the browser and jsdom could not have said; and a run's first search waits
+  200 ms, so `@@@` typed at speed shows one list and never asks who may be mentioned.
+  **Proven only in the browser** (headless Chromium, T200): where the list is drawn, the
+  flip, the scroll, the arrow keys over a chip, the real clipboard, the focus ring, axe.
+  **Proven nowhere**: Firefox, Safari, a touch keyboard, an input method's composition
+  (handled by skipping the read while composing, on reasoning alone), a screen reader's
+  reading of a chip and of the active option, and an Order chosen from real data.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

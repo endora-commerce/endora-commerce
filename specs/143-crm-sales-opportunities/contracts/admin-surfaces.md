@@ -198,3 +198,42 @@ A story writes only under its own prefix, which is what keeps two stories' edits
 two JSON files from conflicting beyond line adjacency.
 Proofs: `backend/test/unit/_i18n/registered-bundles-shape.test.ts`,
 `pnpm --filter backend run check:bundle-pairing`, `pnpm --filter backend run i18n:hardcoded`.
+
+## 8. The text composer's shortcuts (US18)
+
+The field of a description, a note and a message (`ReferenceField`) turns what is typed
+into the token of `admin-api.md` §9, and **shows every token as the name it stands for while
+the text is written or edited** (owner ruling, 2026-10-07; research N-M11). Normative for
+`src/admin/lib/mention-trigger.ts` and `src/admin/lib/reference-editor-dom.ts`:
+
+| Typed | Opens a search of | Offered when |
+| --- | --- | --- |
+| `@` | people — `GET /lookups/mentionable`, with the Opportunity's Organization when there is one | the session holds `crm:write` |
+| `@@` | the Organization's Orders — `orders`' own list | the session holds `orders:read` and an Organization is chosen |
+| `@@@` | Products — `catalog`'s own list | the session holds `catalog:read` |
+
+- A run opens only at the start of the text or after white space, holds one to three `@`s,
+  and is followed by a search of at most 40 characters on the same line that does not begin
+  with a space. So an e-mail address, `@ `, and `@@@@` open nothing.
+- A run that is not offered opens nothing and asks no endpoint; the characters stay as typed.
+- The list opens **at the `@`**: under its line, above it when the window has no room below,
+  never past the window's edge nor the field's. A run's first search waits 200 ms, so `@@`
+  and `@@@` typed at speed open one list and ask one endpoint. Arrow keys move the active
+  option (kept in view), Enter or Tab replaces the run — the `@`s and the search — with the
+  token and one space, Escape closes the list for that run and leaves the text; a search
+  with a space in it that matches nothing closes it too, and so does the field losing the
+  focus. A key pressed while an input method is composing is left to it.
+- The field is a `contenteditable` element with `role="textbox"`, `aria-multiline="true"`
+  and `aria-labelledby` naming the `<label for>` of its id; while options are listed it is
+  `role="combobox"` with `aria-expanded`, `aria-controls`, `aria-autocomplete="list"` and
+  `aria-activedescendant` naming the active `role="option"` (and without `aria-multiline`
+  and `aria-placeholder`, which a combobox may not carry). Focus never leaves the field.
+- **What the field holds** is text nodes, `<br>` for a line break, and one non-editable
+  element per token it can name, carrying the token. What it sends is that content read back
+  as the stored text. A token it cannot name is drawn as its characters and read back as the
+  same characters; a target the reader may not see is drawn as "unavailable" and its token is
+  read back unchanged. Nothing else can enter it: a paste is its plain text, Enter is `\n`,
+  formatting commands and drops are refused. A chip is one unit to Backspace and Delete. The
+  length limit counts the stored text. Undo and redo are the field's own.
+- The same three searches are reachable by a button each, and the line under the field names
+  the shortcuts that are offered (`references.shortcuts`, `references.shortcut.*`).

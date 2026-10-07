@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { OpportunityHistoryEntry } from '@endora-commerce/contracts';
 import {
   ADMIN_ID,
+  OTHER_ADMIN_ID,
   CONTACT_ID,
   OPPORTUNITY_ID,
   ORDER_ID,
@@ -106,6 +107,7 @@ function entry(overrides: Partial<OpportunityHistoryEntry>): OpportunityHistoryE
     actor: { kind: 'admin', id: ADMIN_ID, name: 'Anna Nowak' },
     before: null,
     after: null,
+    references: [],
     ...overrides,
   };
 }
@@ -138,14 +140,21 @@ const FIRST_PAGE: OpportunityHistoryEntry[] = [
   }),
 ];
 
-let pages: Record<string, { data: OpportunityHistoryEntry[]; pagination: { cursor: string | null; hasMore: boolean; limit: number } }>;
+let pages: Record<
+  string,
+  {
+    data: OpportunityHistoryEntry[];
+    pagination: { cursor: string | null; hasMore: boolean; limit: number };
+    truncated: boolean;
+  }
+>;
 let failHistory = false;
 
 beforeEach(() => {
   getSpy.mockReset();
   failHistory = false;
   pages = {
-    '': { data: FIRST_PAGE, pagination: { cursor: 'next-1', hasMore: true, limit: 50 } },
+    '': { data: FIRST_PAGE, pagination: { cursor: 'next-1', hasMore: true, limit: 50 }, truncated: false },
     'next-1': {
       data: [
         entry({
@@ -157,6 +166,7 @@ beforeEach(() => {
         }),
       ],
       pagination: { cursor: null, hasMore: false, limit: 50 },
+      truncated: false,
     },
   };
   getSpy.mockImplementation((path: string) => {
@@ -281,8 +291,21 @@ describe('the Change history tab', () => {
     expect(within(panel).getByText(en('history.end'))).toBeInTheDocument();
   });
 
+  // Second review: the history reaches a fixed way back, and used to end there in silence.
+  it('says that earlier changes exist when the history ends at its reach, instead of calling it whole', async () => {
+    pages['next-1'] = { ...pages['next-1']!, truncated: true };
+    const panel = await openHistory();
+    await within(panel).findByRole('list', { name: en('history.title') });
+    // Not on a page that has a next one.
+    expect(within(panel).queryByText(en('history.truncated'))).toBeNull();
+    await userEvent.click(within(panel).getByRole('button', { name: en('history.more') }));
+    expect(await within(panel).findByText(en('history.truncated'))).toBeInTheDocument();
+    expect(within(panel).queryByText(en('history.end'))).toBeNull();
+    expect(within(panel).queryByRole('button', { name: en('history.more') })).toBeNull();
+  });
+
   it('says there is no history yet', async () => {
-    pages[''] = { data: [], pagination: { cursor: null, hasMore: false, limit: 50 } };
+    pages[''] = { data: [], pagination: { cursor: null, hasMore: false, limit: 50 }, truncated: false };
     const panel = await openHistory();
     expect(await within(panel).findByText(en('history.empty'))).toBeInTheDocument();
   });
@@ -350,7 +373,7 @@ describe('the Change history tab, on what an entry carries', () => {
   });
 
   const only = (...entries: OpportunityHistoryEntry[]): void => {
-    pages[''] = { data: entries, pagination: { cursor: null, hasMore: false, limit: 50 } };
+    pages[''] = { data: entries, pagination: { cursor: null, hasMore: false, limit: 50 }, truncated: false };
   };
   const READER = ['crm:read', 'orders:read', 'custom_fields:read'];
   const row = (entryItem: HTMLElement, label: string): HTMLElement =>
@@ -463,6 +486,51 @@ describe('the Change history tab, on what an entry carries', () => {
     only({ ...NOT_FOLLOWED, after: { ...(NOT_FOLLOWED.after as object), orderStatusCode: 'on_hold' } });
     const panel = await openHistory(READER);
     expect(await within(item(panel, 0)).findByText('on_hold')).toBeInTheDocument();
+  });
+
+  // User Story 18, FR-084 — a description is read as it is on the Overview.
+  it('shows the people, Orders and Products a changed description refers to by name, never as tokens', async () => {
+    const hidden = '00000000-0000-4000-8000-00000000aa09';
+    only(
+      entry({
+        id: 'audit-d',
+        before: { description: `Ask [[admin_user:${ADMIN_ID}]] about [[order:${ORDER_ID}]].` },
+        after: { description: `Ask [[admin_user:${OTHER_ADMIN_ID}]] about [[product:${hidden}]].` },
+        references: [
+          { type: 'admin_user', id: ADMIN_ID, available: true, label: 'Anna Nowak', url: null },
+          { type: 'order', id: ORDER_ID, available: true, label: 'ORD-1001', url: `/orders/${ORDER_ID}` },
+          { type: 'admin_user', id: OTHER_ADMIN_ID, available: true, label: 'Piotr Zielony', url: null },
+          { type: 'product', id: hidden, available: false, label: null, url: null },
+        ],
+      }),
+    );
+    const panel = await openHistory(READER);
+    const changed = row(item(panel, 0), en('history.field.description'));
+    expect(changed).toHaveTextContent('@Anna Nowak about');
+    expect(within(changed).getByRole('link', { name: /ORD-1001/ })).toHaveAttribute('href', `/orders/${ORDER_ID}`);
+    expect(changed).toHaveTextContent('@Piotr Zielony about');
+    expect(within(changed).getByText(en('references.unavailable.product'))).toBeInTheDocument();
+    expect(changed).not.toHaveTextContent('[[');
+    expect(changed).not.toHaveTextContent(ADMIN_ID);
+    expect(changed).not.toHaveTextContent(hidden);
+  });
+
+  it('cuts a long description without cutting a mention in two', async () => {
+    const token = `[[admin_user:${ADMIN_ID}]]`;
+    only(
+      entry({
+        id: 'audit-l',
+        before: null,
+        after: { description: `${'x'.repeat(275)} ${token} and a good deal more that is cut away` },
+        references: [{ type: 'admin_user', id: ADMIN_ID, available: true, label: 'Anna Nowak', url: null }],
+      }),
+    );
+    const panel = await openHistory(READER);
+    const shown = row(item(panel, 0), en('history.field.description'));
+    expect(shown).toHaveTextContent('@Anna Nowak');
+    expect(shown).toHaveTextContent(/ an…$/);
+    expect(shown).not.toHaveTextContent('[[');
+    expect(shown).not.toHaveTextContent('good deal');
   });
 
   it('shows a field it was never told about as "Other change", in words and never as JSON', async () => {

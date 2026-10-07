@@ -2,13 +2,14 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   type AdminUserReadPort,
-  type OpportunityHistoryEntry,
   type OpportunityHistoryQuery,
-  type Pagination,
+  type OpportunityHistoryResponse,
+  type OpportunityReference,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { loadOpportunity } from './opportunity-access.js';
+import type { ReferenceService } from './reference-service.js';
 
 export interface OpportunityHistoryServiceDeps {
   emFactory: () => EntityManager;
@@ -16,17 +17,35 @@ export interface OpportunityHistoryServiceDeps {
   auditLog: Pick<AuditPort, 'query'>;
   /** `admin_users`' read port — lazy, resolved per call. */
   adminUsers: AdminUserReadPort;
+  /** What the tokens of an audited text name, for the reader. */
+  references: Pick<ReferenceService, 'resolveMany'>;
+}
+
+/** The audited keys that hold a text which may carry reference tokens. */
+const TEXT_FIELDS = ['description'] as const;
+
+/** The texts of one audited state — as it was, or as it is. */
+function textsOf(state: unknown): string[] {
+  if (state === null || typeof state !== 'object' || Array.isArray(state)) return [];
+  return TEXT_FIELDS.map((field) => (state as Record<string, unknown>)[field]).filter(
+    (value): value is string => typeof value === 'string' && value !== '',
+  );
 }
 
 /** The object type every Command about an Opportunity, or anything hanging on it, is recorded under. */
 export const OPPORTUNITY_AUDIT_OBJECT_TYPE = 'crm_opportunity';
 
+/** The most the audit port answers in one read (`AuditPort.query`), whatever is asked. */
+const AUDIT_QUERY_CAP = 500;
+
 /**
- * How far back a history reaches: the audit port answers the newest entries of
- * an object up to this many and takes no offset, so the pages are cut from one
- * capped read.
+ * How far back a history reaches. The audit port answers the newest entries of
+ * an object, capped, and takes no offset, so the pages are cut from one capped
+ * read — and the history serves **one entry fewer than the cap**: a read that
+ * comes back full then proves there is an earlier entry, and the last page
+ * says so (`truncated`) instead of ending as if it were the whole of it.
  */
-export const HISTORY_REACH = 500;
+export const HISTORY_REACH = AUDIT_QUERY_CAP - 1;
 
 function encodeCursor(offset: number): string {
   return Buffer.from(JSON.stringify({ o: offset }), 'utf8').toString('base64url');
@@ -63,6 +82,15 @@ function decodeCursor(cursor: string | undefined): number {
  * Served to `crm:read`, not `audit_log:read`: a Sales Rep reads what happened
  * to their Opportunity without being given the platform's whole audit log.
  *
+ * **A text is returned as it was audited, tokens and all**, with what its
+ * tokens name beside it — resolved now, for this reader, under the rule every
+ * other text of the module is read by (User Story 18; research N-M6). The
+ * audit entry itself is never rewritten.
+ *
+ * **A history that is cut says that it is.** Past `HISTORY_REACH` entries there
+ * is no next page; the last page then carries `truncated: true`. `hasMore`
+ * keeps its one meaning — a next page exists and `cursor` asks for it.
+ *
  * The `action` of an entry is the Command's (`crm.opportunity.transition`); the
  * Admin UI labels it with `auditLog.<action>` from this module's bundle.
  */
@@ -72,20 +100,23 @@ export class OpportunityHistoryService {
   async list(
     opportunityId: string,
     query: OpportunityHistoryQuery,
-  ): Promise<{ data: OpportunityHistoryEntry[]; pagination: Pagination }> {
+  ): Promise<OpportunityHistoryResponse> {
     const offset = decodeCursor(query.cursor);
     const opportunity = await loadOpportunity(this.deps.emFactory(), opportunityId);
 
     // Newest first, from the port. One row more than the page tells whether
-    // there is another page; nothing is read beyond the port's own cap.
-    const wanted = Math.min(offset + query.limit + 1, HISTORY_REACH);
-    const entries = await this.deps.auditLog.query({
+    // there is another page; nothing is asked beyond the port's own cap.
+    const wanted = Math.min(offset + query.limit + 1, AUDIT_QUERY_CAP);
+    const read = await this.deps.auditLog.query({
       objectType: OPPORTUNITY_AUDIT_OBJECT_TYPE,
       objectId: opportunity.id,
       limit: wanted,
     });
+    const entries = read.slice(0, HISTORY_REACH);
     const page = entries.slice(offset, offset + query.limit);
     const hasMore = entries.length > offset + query.limit;
+    // The row past the reach is never served; that it exists is what is said.
+    const truncated = !hasMore && read.length > HISTORY_REACH;
 
     const actorIds = [...new Set(page.map((entry) => entry.actorAdminUserId).filter((id): id is string => Boolean(id)))];
     const actors = actorIds.length > 0 ? await this.deps.adminUsers.findByIds(actorIds) : [];
@@ -93,8 +124,13 @@ export class OpportunityHistoryService {
       actors.map((admin) => [admin.id, `${admin.firstName} ${admin.lastName}`.trim() || admin.email]),
     );
 
+    // One resolution for the whole page, as a page of comments has.
+    const texts = page.map((entry) => [...textsOf(entry.stateBefore), ...textsOf(entry.stateAfter)]);
+    const resolved = await this.deps.references.resolveMany(texts.map((list) => list.join('\n')));
+    const referencesOf = (index: number): OpportunityReference[] => resolved[index] ?? [];
+
     return {
-      data: page.map((entry) => {
+      data: page.map((entry, index) => {
         const actorId = entry.actorAdminUserId ?? null;
         return {
           id: entry.id,
@@ -108,6 +144,7 @@ export class OpportunityHistoryService {
               : { kind: 'admin', id: actorId, name: actorNames.get(actorId) ?? null },
           before: entry.stateBefore ?? null,
           after: entry.stateAfter ?? null,
+          references: referencesOf(index),
         };
       }),
       pagination: {
@@ -115,6 +152,7 @@ export class OpportunityHistoryService {
         hasMore,
         limit: query.limit,
       },
+      truncated,
     };
   }
 }

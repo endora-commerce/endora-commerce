@@ -84,7 +84,12 @@ export type PropagationOutcomeKind = z.infer<typeof propagationOutcomeKindSchema
 export const opportunityCommentKindSchema = z.enum(['note', 'message']);
 export type OpportunityCommentKind = z.infer<typeof opportunityCommentKindSchema>;
 
-export const opportunityReferenceTypeSchema = z.enum(['product', 'order']);
+/**
+ * What a free text can refer to. `admin_user` is a person — a user of the Admin
+ * UI, under the name the platform has for one everywhere else (the bell's
+ * audience, `assignedAdminUserId`); `user` alone would also read as a customer.
+ */
+export const opportunityReferenceTypeSchema = z.enum(['product', 'order', 'admin_user']);
 export type OpportunityReferenceType = z.infer<typeof opportunityReferenceTypeSchema>;
 
 /** The six `QuoteRequestStatus` values — a fixed union, unlike Order statuses. */
@@ -149,14 +154,16 @@ const statusNameSchema = z.record(z.string().min(2).max(16), z.string().min(1).m
 // ---------------------------------------------------------------------------
 
 /**
- * The reference-token grammar: `[[product:<uuid>]]`, `[[order:<uuid>]]`.
+ * The reference-token grammar: `[[product:<uuid>]]`, `[[order:<uuid>]]`,
+ * `[[admin_user:<uuid>]]`.
  *
  * Free text (`description`, a comment `body`) is stored as plain text carrying
  * these tokens. This is the one place the grammar is written; the backend
- * extracts with it and the admin's composer inserts with it.
+ * extracts with it and the admin's composer inserts with it. What a person
+ * types to get one — `@`, `@@`, `@@@` — is the composer's and is never stored.
  */
 const REFERENCE_TOKEN_SOURCE =
-  '\\[\\[(product|order):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\\]\\]';
+  '\\[\\[(product|order|admin_user):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\\]\\]';
 
 export interface OpportunityReferenceToken {
   type: OpportunityReferenceType;
@@ -209,9 +216,19 @@ export function splitOpportunityReferenceText(text: string): OpportunityReferenc
   return parts;
 }
 
+/** The people a text mentions, each once, in first-appearance order. */
+export function mentionedAdminUserIds(text: string | null | undefined): string[] {
+  if (!text) return [];
+  return extractOpportunityReferenceTokens(text)
+    .filter((token) => token.type === 'admin_user')
+    .map((token) => token.id);
+}
+
 /**
  * A resolved reference, returned beside every free-text field. A target the
  * reader may not see, or that is gone, is `available: false` with no label.
+ * A person has a `label` — their name — and never a `url`: the screen of an
+ * administrator is `admin_users`', behind a permission of its own.
  */
 export const OpportunityReferenceSchema = z.object({
   type: opportunityReferenceTypeSchema,
@@ -743,6 +760,27 @@ export const OpportunityAssigneeLookupResponseSchema = dataEnvelope(
   z.array(OpportunityAssigneeOptionSchema),
 );
 
+/**
+ * Who may be mentioned in a text (User Story 18). With `organizationId` — the
+ * Opportunity's — only people who may see that Organization are offered.
+ */
+export const OpportunityMentionLookupQuerySchema = z.object({
+  q: lookupSearchSchema,
+  organizationId: z.string().uuid().optional(),
+  limit: lookupLimitSchema,
+});
+export type OpportunityMentionLookupQuery = z.infer<typeof OpportunityMentionLookupQuerySchema>;
+
+/** A person to mention: a name to choose by — no e-mail address, no role. */
+export const OpportunityMentionOptionSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+});
+export type OpportunityMentionOption = z.infer<typeof OpportunityMentionOptionSchema>;
+export const OpportunityMentionLookupResponseSchema = dataEnvelope(
+  z.array(OpportunityMentionOptionSchema),
+);
+
 export const OpportunityContactLookupQuerySchema = z.object({
   organizationId: z.string().uuid(),
   q: lookupSearchSchema,
@@ -807,10 +845,24 @@ export const OpportunityHistoryEntrySchema = z.object({
   }),
   before: z.unknown().nullable(),
   after: z.unknown().nullable(),
+  /**
+   * What the tokens in this entry's texts — a description as it was and as it
+   * is — name for this reader (§9), so the history shows names and not codes.
+   */
+  references: z.array(OpportunityReferenceSchema),
 });
 export type OpportunityHistoryEntry = z.infer<typeof OpportunityHistoryEntrySchema>;
 
-export const OpportunityHistoryResponseSchema = collectionEnvelope(OpportunityHistoryEntrySchema);
+/**
+ * `truncated` is beside `pagination` and not part of it: `hasMore` goes on
+ * meaning "there is a next page to ask for". It is `true` on the last page a
+ * history can serve when the Opportunity has earlier entries beyond it — the
+ * history reaches a fixed way back — and `false` on every other page.
+ */
+export const OpportunityHistoryResponseSchema = collectionEnvelope(OpportunityHistoryEntrySchema).extend({
+  truncated: z.boolean(),
+});
+export type OpportunityHistoryResponse = z.infer<typeof OpportunityHistoryResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // §12 Analytics

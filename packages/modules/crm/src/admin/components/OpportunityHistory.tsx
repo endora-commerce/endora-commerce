@@ -15,6 +15,7 @@ import {
   LABELLED_HISTORY_FIELDS,
   SILENT_HISTORY_FIELDS,
 } from '../lib/history-fields.js';
+import { clipReferenceText } from '../lib/mention-trigger.js';
 import {
   calendarDateLabel,
   errorMessage,
@@ -29,6 +30,7 @@ import {
   useCanSeeCustomFields,
   useOpportunityFieldDefinitions,
 } from './OpportunityCustomFields.js';
+import { ReferenceText } from './ReferenceText.js';
 
 const PAGE_SIZE = 50;
 /** A long text (a description, a note) is cut here; the whole of it is where it lives. */
@@ -119,12 +121,17 @@ export interface OpportunityHistoryProps {
  * field's own label, or its code for a reader who may not read the
  * definitions; an outcome is the sentence the Overview's propagation section
  * says; an Order status is its name, and is a row only for somebody holding
- * `orders:read`. A key this screen was never told about is "Other change" with
- * the key in words — never the key itself, never JSON.
+ * `orders:read`. A description reads as it does on the Overview — a person, an
+ * Order or a Product it refers to is the name the server resolved for this
+ * reader, never the token (User Story 18, FR-084). A key this screen was never
+ * told about is "Other change" with the key in words — never the key itself,
+ * never JSON.
  *
  * The history is cursor-paginated: *Show earlier changes* appends the next
  * page under the ones already read, so a reader scanning back keeps their
- * place.
+ * place. Under the last page it says either that this is the whole history or
+ * — when the history ended at its reach — that earlier changes exist and are
+ * not shown; the two are never confused.
  */
 export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
   const { opportunity } = props;
@@ -135,6 +142,8 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
   const canSeeCustomFields = useCanSeeCustomFields();
   const [entries, setEntries] = useState<OpportunityHistoryEntry[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  /** The history ended at its reach, with earlier changes behind it. */
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -155,6 +164,7 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
         if (current !== sequence.current) return;
         setEntries((previous) => (cursor ? [...(previous ?? []), ...page.data] : page.data));
         setNextCursor(page.pagination.hasMore ? page.pagination.cursor : null);
+        setTruncated(page.truncated);
         if (cursor) setNotice(t('history.loadedMore', { count: page.data.length }));
       } catch (failure) {
         if (current === sequence.current) setError(errorMessage(failure, t('history.error.load')));
@@ -308,6 +318,13 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
         );
       case 'kind':
         return raw === 'message' ? t('history.kind.message') : t('history.kind.note');
+      case 'description':
+        // Cut before it is cut into chips, so a token is never shown in half.
+        return typeof raw === 'string' ? (
+          <ReferenceText text={clipReferenceText(raw, TEXT_LIMIT)} references={entry.references} />
+        ) : (
+          plain(raw)
+        );
       default:
         break;
     }
@@ -538,7 +555,9 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
           </Button>
         </div>
       ) : entries.length > 0 ? (
-        <p className="text-center text-xs text-muted-foreground">{t('history.end')}</p>
+        <p className="text-center text-xs text-muted-foreground">
+          {truncated ? t('history.truncated') : t('history.end')}
+        </p>
       ) : null}
 
       {/* Mounted before it has text, so the announcement is reliable. */}

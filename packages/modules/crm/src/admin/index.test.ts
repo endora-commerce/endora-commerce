@@ -188,9 +188,24 @@ describe('crm admin copy', () => {
       // One label per field the history can show — the set the tab itself reads.
       'history.field.': [...LABELLED_HISTORY_FIELDS],
       'history.notFollowed.': ['skipped', 'failed'],
-      'references.kind.': ['product', 'order'],
-      'references.inserted.': ['product', 'order'],
-      'references.unavailable.': ['product', 'order'],
+      'references.kind.': ['product', 'order', 'admin_user'],
+      'references.inserted.': ['product', 'order', 'admin_user'],
+      'references.unavailable.': ['product', 'order', 'admin_user'],
+      // The search a button opens: its name, its placeholder and its empty state.
+      'references.search.': [
+        'person',
+        'personPlaceholder',
+        'personEmpty',
+        'order',
+        'orderPlaceholder',
+        'orderEmpty',
+        'product',
+        'productPlaceholder',
+        'productEmpty',
+      ],
+      // The list an `@` opens (User Story 18): one title and one empty state per kind.
+      'references.suggest.title.': ['person', 'order', 'product'],
+      'references.suggest.empty.': ['person', 'order', 'product'],
     };
     const composed = sources.flatMap(({ text }) =>
       [...text.matchAll(/\bt\(\s*`([^`$]+)\$\{/g)].map((match) => match[1] as string),

@@ -2,7 +2,7 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Alert, AlertDescription, Button, Label } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { errorMessage } from '../lib/labels.js';
-import { ReferenceTextarea } from './ReferenceTextarea.js';
+import { ReferenceField } from './ReferenceField.js';
 
 /** A comment body's limit — `commentBodySchema` in `@endora-commerce/contracts`. */
 export const COMMENT_MAX_LENGTH = 10_000;
@@ -58,7 +58,7 @@ export function CommentComposer(props: CommentComposerProps): ReactNode {
         </Alert>
       ) : null}
       <Label htmlFor={`${fieldId}-body`}>{props.label}</Label>
-      <ReferenceTextarea
+      <ReferenceField
         id={`${fieldId}-body`}
         organizationId={props.organizationId}
         rows={4}

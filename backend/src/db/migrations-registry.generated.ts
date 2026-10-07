@@ -131,6 +131,7 @@ import { Migration20260821T140323CreditLimitsReservationReservingOrganization } 
 // ── crm ─────────────────────────────────────────────────────────────────────
 import { Migration20261005T132439CrmInit } from '@endora-commerce/mod-crm/migrations';
 import { Migration20261005T215329CrmOpportunityCustomFieldValues } from '@endora-commerce/mod-crm/migrations';
+import { Migration20261007T180600CrmOpportunityReferenceAdminUser } from '@endora-commerce/mod-crm/migrations';
 
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
@@ -427,6 +428,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   // ── crm ─────────────────────────────────────────────────────────────────────
   migration('crm', Migration20261005T132439CrmInit),
   migration('crm', Migration20261005T215329CrmOpportunityCustomFieldValues),
+  migration('crm', Migration20261007T180600CrmOpportunityReferenceAdminUser),
 
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),

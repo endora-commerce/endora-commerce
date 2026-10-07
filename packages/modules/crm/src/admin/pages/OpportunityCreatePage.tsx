@@ -23,7 +23,7 @@ import {
   useSalesChannelOptions,
 } from '../components/LookupPickers.js';
 import { customFieldIssues, NewOpportunityCustomFields } from '../components/OpportunityCustomFields.js';
-import { ReferenceTextarea } from '../components/ReferenceTextarea.js';
+import { ReferenceField } from '../components/ReferenceField.js';
 import { TagMultiSelect } from '../components/TagPicker.js';
 import { errorMessage, normaliseAmount } from '../lib/labels.js';
 
@@ -413,7 +413,7 @@ export function OpportunityCreatePage(): ReactNode {
             <div className="space-y-1">
               <Label htmlFor="crm-create-description">{t('opportunity.field.description')}</Label>
               {/* User Story 12: the description may refer to products and orders. */}
-              <ReferenceTextarea
+              <ReferenceField
                 id="crm-create-description"
                 rows={5}
                 value={description}
