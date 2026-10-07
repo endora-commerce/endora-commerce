@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { OpportunityComment, OpportunityReference } from '@endora-commerce/contracts';
 import {
@@ -197,6 +197,22 @@ describe('typing @ in a text of an Opportunity', () => {
     } finally {
       Element.prototype.scrollIntoView = original;
     }
+  });
+
+  it('leaves Enter to an input method that is composing a character — it confirms the character, not a person', async () => {
+    const { panel, field } = await composer();
+    await userEvent.type(field, '@pio');
+    await within(panel).findByRole('option', { name: 'Piotr Zielony' });
+
+    fireEvent.keyDown(field, { key: 'Enter', isComposing: true });
+    expect(field.value).toBe('@pio');
+    expect(within(panel).getByRole('listbox')).toBeInTheDocument();
+    fireEvent.keyDown(field, { key: 'Tab', isComposing: true });
+    expect(field.value).toBe('@pio');
+
+    // Positive control: the same key, once the composition is over, chooses.
+    fireEvent.keyDown(field, { key: 'Enter' });
+    await waitFor(() => expect(field.value).toBe(`[[admin_user:${OTHER_ADMIN_ID}]] `));
   });
 
   it('takes a click on a person as well, and keeps the focus in the field', async () => {

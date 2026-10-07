@@ -355,6 +355,9 @@ export function ReferenceTextarea(props: ReferenceTextareaProps): ReactNode {
   const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     onKeyDown?.(event);
     if (event.defaultPrevented || !open) return;
+    // An input method composing a character owns Enter, Tab, Escape and the
+    // arrows until it is done: they confirm or move within what it composes.
+    if (event.nativeEvent.isComposing) return;
     if (event.key === 'Escape') {
       // Closes the list and nothing else: a dialog around the field stays open.
       event.preventDefault();
