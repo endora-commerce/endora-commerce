@@ -86,6 +86,7 @@ export interface ReferenceTextareaProps
  * (`lib/mention-trigger.ts` says exactly when). Arrow keys move through it,
  * Enter or Tab puts the token where the `@`s and the letters were, Escape
  * closes it and leaves them as typed — as does typing on past the last match.
+ * The option the arrow keys reach is kept in view.
  * The `@` of an e-mail address opens nothing. While the list is open the field
  * is a combobox to assistive technology, its active option announced as the
  * arrow keys move; closed, it is the textarea it always was.
@@ -331,6 +332,15 @@ export function ReferenceTextarea(props: ReferenceTextareaProps): ReactNode {
   const listId = `${baseId}-suggestions`;
   const hintId = `${baseId}-shortcuts`;
   const optionId = (index: number): string => `${listId}-${index}`;
+  const activeOptionId = listed ? optionId(activeIndex) : null;
+
+  // The focus stays in the field, so nothing scrolls by itself: the option the
+  // arrow keys reach is brought into view — within a list longer than its
+  // window, and on the screen when the list opened below its edge.
+  useEffect(() => {
+    if (activeOptionId === null) return;
+    document.getElementById(activeOptionId)?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeOptionId]);
 
   const choose = (suggestion: Suggestion): void => {
     if (!trigger) return;

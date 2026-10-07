@@ -177,6 +177,28 @@ describe('typing @ in a text of an Opportunity', () => {
     expect(field).not.toHaveAttribute('aria-activedescendant');
   });
 
+  it('keeps the option the arrow keys reach in view — a list longer than its window scrolls with them', async () => {
+    // jsdom lays nothing out and has no `scrollIntoView`; what is held is that
+    // the active option is asked to come into view, by the nearest edge.
+    const scrolled: string[] = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function scrollIntoView(this: Element, options?: unknown): void {
+      scrolled.push(`${this.id}:${JSON.stringify(options)}`);
+    };
+    try {
+      const { panel, field } = await composer();
+      await userEvent.type(field, '@');
+      const options = within(await people(panel)).getAllByRole('option');
+      // Opened under a field low on the screen, the list itself may be out of view.
+      await waitFor(() => expect(scrolled).toContain(`${options[0]!.id}:{"block":"nearest"}`));
+
+      await userEvent.keyboard('{ArrowDown}');
+      await waitFor(() => expect(scrolled.at(-1)).toBe(`${options[1]!.id}:{"block":"nearest"}`));
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
   it('takes a click on a person as well, and keeps the focus in the field', async () => {
     const { panel, field } = await composer();
     await userEvent.type(field, '@an');
