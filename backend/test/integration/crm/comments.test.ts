@@ -221,6 +221,13 @@ describe('crm notes and messages', () => {
       // The entry says there is a message, never what it says (review finding 2).
       expect(sample.title).not.toContain('Conveyor line');
       expect(sample.body ?? null).toBeNull();
+      // Translatable (FR-085): the number is the only param.
+      expect(sample.titleMessage).toEqual({
+        scope: 'crm',
+        key: 'notifications.message.title',
+        params: { number: opportunity.number },
+      });
+      expect(sample.bodyMessage ?? null).toBeNull();
     });
 
     it('is still stored, and tells nobody, while admin_notifications is deactivated', async () => {
@@ -352,7 +359,15 @@ describe('crm notes and messages', () => {
         expect(await messageNotifications(opportunity.id)).toEqual([leaving.adminUserId, colleague.adminUserId]);
 
         const bell = await h.em().find(AdminNotification, { subjectId: opportunity.id }, { filters: false });
-        const text = JSON.stringify(bell.map((row) => ({ title: row.title, body: row.body })));
+        const text = JSON.stringify(
+          bell.map((row) => ({
+            title: row.title,
+            body: row.body,
+            // The translatable half too (FR-085): params are as public as the title.
+            titleMessage: row.titleMessage,
+            bodyMessage: row.bodyMessage,
+          })),
+        );
         expect(text).toContain(opportunity.number);
         expect(text).not.toContain('SECRET-TITLE');
         expect(text).not.toContain('SECRET-BODY');

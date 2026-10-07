@@ -9,7 +9,7 @@ import {
 } from '@endora-commerce/contracts';
 import { isOrgInScope } from '@endora-commerce/platform/tenancy';
 import type { AdminReach } from './admin-reach.js';
-import type { CrmNotifier } from './crm-notifier.js';
+import { crmNotificationText, type CrmNotifier } from './crm-notifier.js';
 import { actingAdminUserId, isActiveAdministrator } from './opportunity-assignment-service.js';
 
 /** The permission that makes somebody a person a text may mention: they can open what it is about. */
@@ -128,10 +128,7 @@ export class MentionService {
         kind: 'crm.opportunity.mention',
         targetAdminUserId: person.id,
         opportunityId: saved.opportunityId,
-        title:
-          authorName === null
-            ? `You were mentioned in opportunity ${saved.number}`
-            : `${authorName} mentioned you in opportunity ${saved.number}`,
+        ...crmNotificationText.mention(saved.number, authorName),
       });
       addressed.push(person.id);
     }

@@ -65,6 +65,12 @@ organization the caller may not see answers `404 CRM_OPPORTUNITY_NOT_FOUND`):
   saved text gets one bell entry, `crm.opportunity.mention`, naming the opportunity by number
   and the author by name; never the author themself, nobody without `crm:read`, nobody who
   cannot see the organization.
+- **Bell entries in the reader's language** — the three kinds the module records
+  (`crm.opportunity.assigned`, `crm.opportunity.message`, `crm.opportunity.mention`) carry a
+  `titleMessage` in the `crm` bundle (`notifications.*.title`, English and Polish) beside the
+  English `title`, so the Admin UI shows each reader their own language and falls back to the
+  English sentence while the module is switched off. The params are the opportunity's number
+  and, for a mention, the author's name — nothing the sentence does not already say.
 - **Board** — `GET /board`: a column per status with count, value totals per currency and the
   first cards.
 - **Analytics** (`crm:analytics`) — five live reads under `/analytics/`: handling time, time

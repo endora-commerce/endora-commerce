@@ -688,5 +688,9 @@
   "origin.quote.linking": "Linking the new quote request to this opportunity…",
   "origin.quote.linked": "Quote request {number} was created and linked to this opportunity.",
   "origin.quote.notLinked": "The quote request was created, but it is not linked to this opportunity — it may belong to a different organization.",
-  "origin.quote.open": "Open the quote request"
+  "origin.quote.open": "Open the quote request",
+  "notifications.assigned.title": "Opportunity {number} was assigned to you",
+  "notifications.message.title": "New message on opportunity {number}",
+  "notifications.mention.title": "You were mentioned in opportunity {number}",
+  "notifications.mentionByAuthor.title": "{author} mentioned you in opportunity {number}"
 }

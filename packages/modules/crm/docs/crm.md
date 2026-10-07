@@ -406,8 +406,11 @@ somebody who can no longer reach the opportunity's organization. The same
 holds for an opportunity created automatically. Nobody is told about taking an
 opportunity themselves. The bell belongs to the **Admin notifications** module:
 while that module is switched off, assigning works exactly as before and nobody
-is notified. **The entries on the bell are in English** whatever language the
-reader uses: the platform's notifications have no translatable titles yet.
+is notified. **The entry is shown in the reader's own language**, English or
+Polish — the same entry reads differently to two people who use different
+languages. The module records the English sentence beside the translatable
+one, so an entry is still readable, in English, while the CRM module is
+switched off.
 
 Every assignment is in the opportunity's change history, and other modules can
 react to it: `crm.opportunity.assigned.v1` carries the new and the previous
@@ -481,8 +484,8 @@ its number and carries nothing of the message, and is not written for somebody
 who can no longer reach the opportunity's organization. **Nobody else is
 told, unless the message mentions them** (see *Mentioning a person, an order
 or a product with @*): the first message on an opportunity that has no
-assignee, mentioning nobody, notifies nobody. The entry is in English, like
-every entry on the bell. While the **Admin
+assignee, mentioning nobody, notifies nobody. The entry is shown in the
+reader's own language, as the assignment's is. While the **Admin
 notifications** module is switched off, a message is stored all the same and
 nobody is told.
 
@@ -1062,9 +1065,9 @@ Anna Kowalska mentioned you in opportunity OPP-000042
   this is decided when the text is saved, not by the list.
 - In a message, a mentioned person gets this entry **instead of** the one a
   participant of the conversation gets, not both.
-- The entry is in English, like every entry on the bell, and none is written
-  while the **Admin notifications** module is switched off; the text is saved
-  all the same.
+- The entry is shown in the reader's own language — the line above is its
+  English form — and none is written while the **Admin notifications** module
+  is switched off; the text is saved all the same.
 
 A mention changes nothing else: it does not assign the opportunity, does not
 give anybody access to it, and is not part of any event or webhook.

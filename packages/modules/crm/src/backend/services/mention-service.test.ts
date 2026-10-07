@@ -131,12 +131,22 @@ describe('MentionService.tell', () => {
         targetAdminUserId: TOMASZ,
         opportunityId: 'opportunity-1',
         title: 'Ada Author mentioned you in opportunity OPP-000042',
+        titleMessage: {
+          scope: 'crm',
+          key: 'notifications.mentionByAuthor.title',
+          params: { author: 'Ada Author', number: 'OPP-000042' },
+        },
       },
       {
         kind: 'crm.opportunity.mention',
         targetAdminUserId: ANNA,
         opportunityId: 'opportunity-1',
         title: 'Ada Author mentioned you in opportunity OPP-000042',
+        titleMessage: {
+          scope: 'crm',
+          key: 'notifications.mentionByAuthor.title',
+          params: { author: 'Ada Author', number: 'OPP-000042' },
+        },
       },
     ]);
   });
@@ -175,6 +185,12 @@ describe('MentionService.tell', () => {
     const { service, notify } = build();
     await service.tell(saved([TOMASZ]));
     expect(notify.mock.calls[0]?.[0].title).toBe('You were mentioned in opportunity OPP-000042');
+    // No author, so no `author` param: the message is a sentence of its own.
+    expect(notify.mock.calls[0]?.[0].titleMessage).toEqual({
+      scope: 'crm',
+      key: 'notifications.mention.title',
+      params: { number: 'OPP-000042' },
+    });
   });
 });
 

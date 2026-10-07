@@ -71,6 +71,9 @@ describe('crm review regressions', () => {
     (await h.em().find(AdminNotification, { targetAdminUserId: adminUserId }, { filters: false })).map((row) => ({
       title: row.title,
       body: row.body,
+      // The translatable half too (FR-085): params are as public as the title.
+      titleMessage: row.titleMessage,
+      bodyMessage: row.bodyMessage,
     }));
 
   const guards = () =>

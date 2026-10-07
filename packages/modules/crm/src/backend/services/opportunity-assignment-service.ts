@@ -14,7 +14,7 @@ import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import { randomUUID } from 'crypto';
 import { pickDefaultAssignee } from '../domain/default-assignee.js';
 import type { AdminReach } from './admin-reach.js';
-import { tellAfterCommit, type CrmNotifier } from './crm-notifier.js';
+import { crmNotificationText, tellAfterCommit, type CrmNotifier } from './crm-notifier.js';
 import { loadOpportunity } from './opportunity-access.js';
 
 export interface OpportunityAssignmentServiceDeps {
@@ -159,7 +159,7 @@ export class OpportunityAssignmentService {
         kind: 'crm.opportunity.assigned',
         targetAdminUserId: assignee,
         opportunityId: assignment.opportunityId,
-        title: `Opportunity ${assignment.number} was assigned to you`,
+        ...crmNotificationText.assigned(assignment.number),
       });
     });
   }

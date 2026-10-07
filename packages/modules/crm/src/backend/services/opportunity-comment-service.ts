@@ -13,7 +13,7 @@ import type { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
 import { CrmOpportunityComment } from '../entities/crm-opportunity-comment.entity.js';
 import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.entity.js';
 import type { AdminReach } from './admin-reach.js';
-import { tellAfterCommit, type CrmNotifier } from './crm-notifier.js';
+import { crmNotificationText, tellAfterCommit, type CrmNotifier } from './crm-notifier.js';
 import { newlyMentioned, type MentionService, type SavedMentions } from './mention-service.js';
 import { isUuid, loadOpportunity } from './opportunity-access.js';
 import { actingAdminUserId } from './opportunity-assignment-service.js';
@@ -144,7 +144,7 @@ export class OpportunityCommentService {
           kind: 'crm.opportunity.message',
           targetAdminUserId: recipient,
           opportunityId,
-          title: `New message on opportunity ${written.number}`,
+          ...crmNotificationText.message(written.number),
         });
       });
     }
