@@ -703,10 +703,11 @@ number and leading to it.
   original wording was "Every CRM screen MUST be reachable … from the command palette". As
   built there are four palette actions — open Opportunities, new Opportunity, open the board,
   open analytics; Tags and Workflow configuration are reached from the navigation only.)*
-- **FR-072**: Every user-facing text MUST be available in English and Polish. *(Two exceptions
-  as built, both caused by the platform rather than by this feature — A-5: the titles of the
-  notification-bell entries for an assignment and for a message, and the names and
-  descriptions of the module's three Settings on the Settings screen, are in English only.)*
+- **FR-072**: Every user-facing text MUST be available in English and Polish. *(One exception
+  as built, caused by the platform rather than by this feature — A-5: the names and
+  descriptions of the module's three Settings on the Settings screen are in English only.
+  Until 2026-10-07 the titles of the notification-bell entries were a second; FR-085 closed
+  it.)*
 - **FR-073**: Every change made through the feature MUST be recorded in the platform's audit
   trail with its author.
 - **FR-074**: Other modules MUST be able to read an Opportunity and request a Status change
@@ -765,6 +766,15 @@ number and leading to it.
 - **FR-084**: The Change history tab MUST show references inside a changed description as
   the names they stand for, under the rule of FR-079, and MUST say when an Opportunity has
   more history than the tab can reach.
+- **FR-085**: A notification-bell entry this feature writes — an assignment, a message, a
+  mention — MUST be shown to each reader in that reader's Admin UI language, English or
+  Polish, and MUST remain readable, in English, when the translation cannot be found: while
+  the CRM capability is switched off, or in an Admin UI older than this requirement. What a
+  translated entry says MUST NOT exceed what FR-083 and the assignment and message rules allow
+  its English sentence to say — the Opportunity's number and, for a mention, the author's
+  name. The platform's notification bell gains the ability additively: a capability that
+  writes entries the old way is unaffected. *(Added 2026-10-07 at the owner's request;
+  `research.md` N-BT1 … N-BT4.)*
 
 ### Key Entities
 
@@ -960,11 +970,13 @@ note, or the requirement was left standing and marked. Nothing was removed.
   beside the scenario (`research.md` N-G5). **[NEEDS CLARIFICATION — owner]**: admit the
   change to the demo data set (and decide whether the demo gains an Order), or drop the
   scenario.
-- **A-5 — English-only texts (FR-072).** Two exceptions, both platform-level: a notification
-  bell entry takes its title as finished text rather than as a translatable key, for every
-  capability that uses the bell (`research.md` N-B7); and a Setting's name and description
-  are shown as declared, with no per-language variant, for every capability's Settings
-  (`research.md` N-H5). Every other CRM text is in both languages.
+- **A-5 — English-only texts (FR-072).** One exception, platform-level: a Setting's name and
+  description are shown as declared, with no per-language variant, for every capability's
+  Settings (`research.md` N-H5). Every other CRM text is in both languages. *(Until
+  2026-10-07 there was a second: a notification bell entry took its title as finished text
+  rather than as a translatable key, for every capability that uses the bell — `research.md`
+  N-B7. FR-085 gave the bell a translatable form and CRM uses it; the other capabilities that
+  write to the bell still write English only, which is theirs to change.)*
 - **A-6 — What moves a computed value (FR-032).** Reworded to the triggers that exist. The
   Orders capability sets an Order's total when the Order is placed and nowhere else was it
   found to change it, so nothing is known to be missed; if such a path exists elsewhere or
