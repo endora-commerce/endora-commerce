@@ -3,12 +3,14 @@ import {
   ERROR_CODES,
   type AdminUserReadPort,
   type OpportunityHistoryEntry,
+  type OpportunityReference,
   type OpportunityHistoryQuery,
   type Pagination,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { loadOpportunity } from './opportunity-access.js';
+import type { ReferenceService } from './reference-service.js';
 
 export interface OpportunityHistoryServiceDeps {
   emFactory: () => EntityManager;
@@ -16,6 +18,19 @@ export interface OpportunityHistoryServiceDeps {
   auditLog: Pick<AuditPort, 'query'>;
   /** `admin_users`' read port — lazy, resolved per call. */
   adminUsers: AdminUserReadPort;
+  /** What the tokens of an audited text name, for the reader. */
+  references: Pick<ReferenceService, 'resolveMany'>;
+}
+
+/** The audited keys that hold a text which may carry reference tokens. */
+const TEXT_FIELDS = ['description'] as const;
+
+/** The texts of one audited state — as it was, or as it is. */
+function textsOf(state: unknown): string[] {
+  if (state === null || typeof state !== 'object' || Array.isArray(state)) return [];
+  return TEXT_FIELDS.map((field) => (state as Record<string, unknown>)[field]).filter(
+    (value): value is string => typeof value === 'string' && value !== '',
+  );
 }
 
 /** The object type every Command about an Opportunity, or anything hanging on it, is recorded under. */
@@ -63,6 +78,11 @@ function decodeCursor(cursor: string | undefined): number {
  * Served to `crm:read`, not `audit_log:read`: a Sales Rep reads what happened
  * to their Opportunity without being given the platform's whole audit log.
  *
+ * **A text is returned as it was audited, tokens and all**, with what its
+ * tokens name beside it — resolved now, for this reader, under the rule every
+ * other text of the module is read by (User Story 18; research N-M6). The
+ * audit entry itself is never rewritten.
+ *
  * The `action` of an entry is the Command's (`crm.opportunity.transition`); the
  * Admin UI labels it with `auditLog.<action>` from this module's bundle.
  */
@@ -93,8 +113,13 @@ export class OpportunityHistoryService {
       actors.map((admin) => [admin.id, `${admin.firstName} ${admin.lastName}`.trim() || admin.email]),
     );
 
+    // One resolution for the whole page, as a page of comments has.
+    const texts = page.map((entry) => [...textsOf(entry.stateBefore), ...textsOf(entry.stateAfter)]);
+    const resolved = await this.deps.references.resolveMany(texts.map((list) => list.join('\n')));
+    const referencesOf = (index: number): OpportunityReference[] => resolved[index] ?? [];
+
     return {
-      data: page.map((entry) => {
+      data: page.map((entry, index) => {
         const actorId = entry.actorAdminUserId ?? null;
         return {
           id: entry.id,
@@ -108,6 +133,7 @@ export class OpportunityHistoryService {
               : { kind: 'admin', id: actorId, name: actorNames.get(actorId) ?? null },
           before: entry.stateBefore ?? null,
           after: entry.stateAfter ?? null,
+          references: referencesOf(index),
         };
       }),
       pagination: {

@@ -493,10 +493,11 @@ dowiadują się osoba przypisana do szansy i wszyscy, którzy już napisali w te
 rozmowie — poza nadawcą — z dzwonka powiadomień w Admin UI, z odnośnikiem do
 szansy. Wpis nazywa szansę jej numerem i nie zawiera niczego z treści
 wiadomości, a nie powstaje dla osoby, która nie ma już dostępu do organizacji
-szansy. **Nikt inny nie jest powiadamiany**: pierwsza wiadomość w szansie,
-która nie ma przypisanej osoby, nie powiadamia nikogo — przed rozpoczęciem
-rozmowy warto więc szansę komuś przypisać. Wpis jest po angielsku, jak każdy
-wpis na dzwonku. Gdy moduł **Powiadomienia administratora** jest wyłączony,
+szansy. **Nikt inny nie jest powiadamiany, chyba że wiadomość o nim
+wspomina** (zob. *Wspominanie osoby, zamówienia albo produktu przez @*):
+pierwsza wiadomość w szansie, która nie ma przypisanej osoby i nie wspomina
+nikogo, nie powiadamia nikogo. Wpis jest po angielsku, jak każdy wpis na
+dzwonku. Gdy moduł **Powiadomienia administratora** jest wyłączony,
 wiadomość jest zapisywana tak samo, a nikt nie dostaje powiadomienia.
 
 **Jedno i drugie jest wewnętrzne.** Ani notatka, ani wiadomość nie ma
@@ -935,6 +936,10 @@ Trzy rzeczy, o których warto wiedzieć:
   ma: czyta się ją na kartach *Notatki* i *Wiadomości*.
 - Przeliczenie wartości wyliczanej nie jest wpisem: wpisem jest zmiana, która
   je spowodowała — powiązanie, status zamówienia.
+- Wpis, który zawiera opis — utworzenie szansy, edycja opisu — zawiera także
+  `references`, dokładnie tak jak sama szansa: jak nazywają się osoby,
+  zamówienia i produkty wspomniane w tym tekście, dla czytającego. Tekst jest
+  zwracany tak, jak został zapisany.
 - Historia sięga 500 wpisów wstecz.
 
 Na ekranie **Dziennik audytu** całej platformy te same wpisy są pokazywane
@@ -948,7 +953,9 @@ do niego. Edycja wymienia zmienione pola: jak było i jak jest. Wartości pól
 niestandardowych są wymienione po jednej w wierszu, pod własnymi etykietami pól
 — albo pod ich kodami dla osoby bez `custom_fields:read` — a status zamówienia
 jest pokazywany z nazwy, wyłącznie osobie z uprawnieniem `orders:read`.
-Przycisk *Pokaż wcześniejsze zmiany* wczytuje kolejną stronę.
+Zmieniony opis czyta się tak jak na karcie *Przegląd*: wspomniana w nim osoba,
+zamówienie albo produkt są pokazywane z nazwy, nigdy jako znacznik. Przycisk
+*Pokaż wcześniejsze zmiany* wczytuje kolejną stronę.
 
 ## Odwołania do produktów i zamówień
 
@@ -989,8 +996,9 @@ identyfikatorem — jest po prostu tekstem.
 `references` znajduje się na szansie (dla jej `description`) oraz na każdej
 notatce i wiadomości (dla jej `body`). Nie ma osobnego punktu końcowego.
 
-W Admin UI pole opisu oraz pola notatki i wiadomości mają dwa przyciski:
-**Wstaw produkt** i **Wstaw zamówienie**. Każdy otwiera wyszukiwarkę; wybranie
+W Admin UI pole opisu oraz pola notatki i wiadomości mają pod sobą przyciski,
+wśród nich **Wstaw zamówienie** i **Wstaw produkt**. Każdy otwiera
+wyszukiwarkę; wybranie
 wyniku wpisuje znacznik w miejscu kursora. Po zapisaniu tekst pokazuje w tym
 miejscu nazwę produktu albo numer zamówienia jako odnośnik, a dla celu, który
 zniknął albo którego nie możesz zobaczyć — *Produkt niedostępny* /
@@ -1004,6 +1012,92 @@ zamówienie* — rola z `orders:read`; proponowane są wyłącznie zamówienia
 organizacji tej szansy. Znacznik wpisany albo wklejony ręcznie jest zapisywany
 bez żadnego z tych uprawnień, a osobie bez uprawnienia pokazuje się jako
 niedostępny.
+
+## Wspominanie osoby, zamówienia albo produktu przez @
+
+Te same trzy pola — opis, notatka, wiadomość — przyjmują wzmiankę prosto z
+klawiatury:
+
+| Wpisz | Aby wspomnieć | Dostępne dla |
+| --- | --- | --- |
+| `@` | **osobę** — użytkownika Admin UI, który może czytać szanse sprzedażowe | każdego, kto pisze tekst |
+| `@@` | **zamówienie** organizacji tej szansy | roli, która ma także `orders:read` |
+| `@@@` | **produkt** | roli, która ma także `catalog:read` |
+
+Wpisz `@` na początku tekstu albo po spacji, a pod polem otworzy się lista;
+pisz dalej, aby ją zawęzić — imię, nazwisko, numer zamówienia, nazwa albo SKU
+produktu. **Strzałki** poruszają po liście, **Enter** albo **Tab** wybiera,
+**Escape** zamyka ją i zostawia to, co wpisano. Wybór zastępuje `@` i litery
+po nim wzmianką, a zdanie pisze się dalej:
+
+```text
+@Tomasz Nowak - przejmij temat
+```
+
+Znak `@` w środku wyrazu — adres e-mail — niczego nie otwiera, podobnie jak
+`@`, po którym następuje spacja. Skrót, którego Twoja rola nie ma, zostawia
+znaki dokładnie tak, jak je wpisano. Wiersz pod polem wymienia skróty, które
+masz, a przycisk **Wspomnij osobę** obok *Wstaw zamówienie* i *Wstaw produkt*
+robi to samo.
+
+Wzmianka o osobie jest zapisywana tak jak dwie pozostałe, jako znacznik, i
+wraca w `references`:
+
+```text
+[[admin_user:<identyfikator administratora>]]
+```
+
+```json
+{
+  "type": "admin_user",
+  "id": "8a1f…",
+  "available": true,
+  "label": "Tomasz Nowak",
+  "url": null
+}
+```
+
+- `label` to **aktualne** imię i nazwisko osoby. Każdy, kto czyta tekst, widzi
+  je jako **@Tomasz Nowak**, wyróżnione w zdaniu.
+- `url` ma zawsze wartość `null`: wzmianka o osobie nie jest odnośnikiem.
+- Osoba, która została w międzyczasie usunięta albo dezaktywowana, wraca z
+  `"available": false`, bez imienia i nazwiska, i jest pokazywana jako *Osoba
+  niedostępna*.
+
+**Kogo można wspomnieć.** Lista proponuje aktywnych administratorów, którzy
+mają `crm:read` i widzą organizację tej szansy — wzmianka to wezwanie, żeby
+przyjść i spojrzeć, więc dotyczy tylko kogoś, kto może to zrobić.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/lookups/mentionable?q=…&organizationId=…` | `crm:write` | Osoby, które można wspomnieć w tekście, według imienia i nazwiska: `id`, `name`. Z `organizationId` — tylko osoby, które widzą tę organizację, i nikt, gdy nie widzi jej pytający. |
+
+**Kto dostaje powiadomienie.** Gdy opis, notatka albo wiadomość zostają
+zapisane, każda wspomniana osoba, **o której nie wspominał tekst zastępowany**,
+dostaje jeden wpis na dzwonku powiadomień, z odnośnikiem do szansy:
+
+```text
+Anna Kowalska mentioned you in opportunity OPP-000042
+```
+
+- Wpis nazywa szansę jej numerem, a autora — imieniem i nazwiskiem. Nie zawiera
+  niczego z treści.
+- Jeden wpis na osobę przy jednym zapisie, niezależnie od tego, ile razy tekst
+  ją wymienia. Ponowne zapisanie tego samego tekstu albo przeredagowanie go
+  wokół tej samej wzmianki nie powiadamia nikogo; usunięcie wzmianki i
+  przywrócenie jej powiadamia tę osobę ponownie.
+- **Nikt nie dostaje powiadomienia o wspomnieniu samego siebie**, a wpis nie
+  powstaje dla osoby, która nie ma `crm:read`, została dezaktywowana albo nie
+  widzi organizacji szansy. Znacznik jest tekstem i można go wpisać ręcznie,
+  dlatego rozstrzyga się to przy zapisie tekstu, a nie na liście.
+- W wiadomości wspomniana osoba dostaje ten wpis **zamiast** wpisu, który
+  dostaje uczestnik rozmowy — nie oba.
+- Wpis jest po angielsku, jak każdy wpis na dzwonku, i nie powstaje, gdy moduł
+  **Powiadomienia administratora** jest wyłączony; tekst jest zapisywany tak
+  samo.
+
+Wzmianka nie zmienia niczego więcej: nie przypisuje szansy, nie daje nikomu
+dostępu do niej i nie jest częścią żadnego zdarzenia ani webhooka.
 
 ## Powiadamianie innych systemów: webhooki
 
@@ -1390,6 +1484,7 @@ której się wybiera.
 | `GET /api/v1/admin/crm/lookups/organizations?q=…` | `crm:read` | Organizacje widoczne dla pytającego, według nazwy: `id`, `name`. Parametr `id=…` zwraca jedną. |
 | `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Wszystkie kanały sprzedaży: `id`, `code`, `name` w każdym języku, `active`, `systemDefault` oraz waluty, w których kanał sprzedaje. |
 | `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Aktywni administratorzy, według imienia i nazwiska: `id`, `name`. |
+| `GET /api/v1/admin/crm/lookups/mentionable?q=…&organizationId=…` | `crm:write` | Aktywni administratorzy z uprawnieniem `crm:read` — osoby, które można wspomnieć w tekście: `id`, `name`. |
 | `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Członkowie jednej organizacji widocznej dla pytającego: `id`, `name`, `email`. |
 | `GET /api/v1/admin/crm/lookups/quote-requests?organizationId=…&q=…` | `crm:write` i `rfqs:handle` | Zapytania ofertowe jednej organizacji widocznej dla pytającego, które można powiązać: otwarte oraz to, którego numer wpisano w całości. `id`, `number`, `status`. Gdy moduł Zapytania ofertowe jest wyłączony, odpowiedzią jest `503`. |
 

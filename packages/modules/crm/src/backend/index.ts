@@ -63,6 +63,7 @@ import { OpportunityAssignmentService } from './services/opportunity-assignment-
 import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
 import { OpportunityAttachmentUploadService } from './services/opportunity-attachment-upload-service.js';
 import { OpportunityAutoCreateService } from './services/opportunity-auto-create-service.js';
+import { MentionService } from './services/mention-service.js';
 import { OpportunityCommentService } from './services/opportunity-comment-service.js';
 import { OpportunityHistoryService } from './services/opportunity-history-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
@@ -136,6 +137,7 @@ interface CrmCradle {
   readonly crmOpportunityTransitionService: OpportunityTransitionService;
   readonly opportunityTransitionGuardRegistry: OpportunityTransitionGuardRegistry;
   readonly crmOwnerReadChecks: OwnerReadChecks;
+  readonly crmMentionService: MentionService;
 }
 
 export function registerModule(ctx: ModuleContext): void {
@@ -316,6 +318,20 @@ export function registerModule(ctx: ModuleContext): void {
         createCrmNotifier(lazyPort<AdminNotificationRecordPort>(ctx, 'adminNotificationRecordPort')),
       )
       .singleton(),
+    // Who a text may mention, and telling them (User Story 18): active
+    // administrators holding `crm:read` who may reach the Organization, through
+    // `admin_users`', `admin_roles`' and `organizations`' ports and this bell.
+    crmMentionService: ctx
+      .asFunction(
+        ({ crmNotifier }: CrmCradle) =>
+          new MentionService({
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            permissions: lazyPort<PermissionReadPort>(ctx, 'permissionService'),
+            notifier: crmNotifier,
+            canReach: createAdminReach(lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort')),
+          }),
+      )
+      .singleton(),
     crmOpportunityAssignmentService: ctx
       .asFunction(
         ({ emFactory, commandBus, crmNotifier }: CrmCradle) =>
@@ -339,7 +355,13 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     crmOpportunityCommentService: ctx
       .asFunction(
-        ({ emFactory, commandBus, crmNotifier, crmReferenceService }: CrmCradle & ReferencesCradle) =>
+        ({
+          emFactory,
+          commandBus,
+          crmNotifier,
+          crmReferenceService,
+          crmMentionService,
+        }: CrmCradle & ReferencesCradle) =>
           new OpportunityCommentService({
             emFactory,
             commandBus,
@@ -347,6 +369,7 @@ export function registerModule(ctx: ModuleContext): void {
             notifier: crmNotifier,
             references: crmReferenceService,
             canReach: createAdminReach(lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort')),
+            mentions: crmMentionService,
           }),
       )
       .singleton(),
@@ -415,6 +438,7 @@ export function registerModule(ctx: ModuleContext): void {
           crmTagService,
           crmOpportunityValueService,
           crmReferenceService,
+          crmMentionService,
         }: CrmCradle & ValueCradle & ReferencesCradle) =>
           new OpportunityService({
             emFactory,
@@ -437,6 +461,7 @@ export function registerModule(ctx: ModuleContext): void {
             recalculateValue: (opportunityId) => crmOpportunityValueService.recalculate(opportunityId),
             liveFigure: (opportunity) => crmOpportunityValueService.liveFigure(opportunity),
             references: crmReferenceService,
+            mentions: crmMentionService,
           }),
       )
       .singleton(),
@@ -688,11 +713,11 @@ export function registerModule(ctx: ModuleContext): void {
   // --- end of Created from an Opportunity ----------------------------------------
 
   // --- References (User Story 12) -------------------------------------------
-  // Products and Orders mentioned in a description, a note or a message. The
+  // Products, Orders and people mentioned in a description, a note or a message. The
   // Opportunity and the comment services store a text's references in the
   // Command that saves the text and resolve them when they render it; the
-  // names come from `catalog`'s and `orders`' read ports, under the reader's
-  // scope, every time.
+  // names come from `catalog`'s, `orders`' and `admin_users`' read ports, under
+  // the reader's scope, every time.
   ctx.di.register({
     crmReferenceService: ctx
       .asFunction(
@@ -717,11 +742,12 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     crmOpportunityHistoryService: ctx
       .asFunction(
-        ({ emFactory, auditLogService }: CrmCradle & HistoryCradle) =>
+        ({ emFactory, auditLogService, crmReferenceService }: CrmCradle & HistoryCradle & ReferencesCradle) =>
           new OpportunityHistoryService({
             emFactory,
             auditLog: auditLogService,
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            references: crmReferenceService,
           }),
       )
       .singleton(),
@@ -781,6 +807,7 @@ export function registerModule(ctx: ModuleContext): void {
     const cradle = ctx.cradle<CrmCradle & { readonly crmLookupService: CrmLookupService }>();
     await registerCrmLookupRoutes(app, {
       lookupService: cradle.crmLookupService,
+      mentionService: cradle.crmMentionService,
       requireAdmin: cradle.requireAdmin,
     });
   });

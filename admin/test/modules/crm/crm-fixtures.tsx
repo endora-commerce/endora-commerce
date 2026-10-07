@@ -256,6 +256,14 @@ export function crmLookupResponse(path: string): Promise<unknown> | undefined {
           { id: OTHER_ADMIN_ID, name: 'Piotr Zielony' },
         ]),
       });
+    // Who a text may mention (User Story 18): the same two people, by name.
+    case '/api/v1/admin/crm/lookups/mentionable':
+      return Promise.resolve({
+        data: matching([
+          { id: ADMIN_ID, name: 'Anna Nowak' },
+          { id: OTHER_ADMIN_ID, name: 'Piotr Zielony' },
+        ]),
+      });
     case '/api/v1/admin/crm/lookups/contacts':
       return Promise.resolve({
         data:

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { OpportunityHistoryEntry } from '@endora-commerce/contracts';
 import {
   ADMIN_ID,
+  OTHER_ADMIN_ID,
   CONTACT_ID,
   OPPORTUNITY_ID,
   ORDER_ID,
@@ -106,6 +107,7 @@ function entry(overrides: Partial<OpportunityHistoryEntry>): OpportunityHistoryE
     actor: { kind: 'admin', id: ADMIN_ID, name: 'Anna Nowak' },
     before: null,
     after: null,
+    references: [],
     ...overrides,
   };
 }
@@ -463,6 +465,51 @@ describe('the Change history tab, on what an entry carries', () => {
     only({ ...NOT_FOLLOWED, after: { ...(NOT_FOLLOWED.after as object), orderStatusCode: 'on_hold' } });
     const panel = await openHistory(READER);
     expect(await within(item(panel, 0)).findByText('on_hold')).toBeInTheDocument();
+  });
+
+  // User Story 18, FR-084 — a description is read as it is on the Overview.
+  it('shows the people, Orders and Products a changed description refers to by name, never as tokens', async () => {
+    const hidden = '00000000-0000-4000-8000-00000000aa09';
+    only(
+      entry({
+        id: 'audit-d',
+        before: { description: `Ask [[admin_user:${ADMIN_ID}]] about [[order:${ORDER_ID}]].` },
+        after: { description: `Ask [[admin_user:${OTHER_ADMIN_ID}]] about [[product:${hidden}]].` },
+        references: [
+          { type: 'admin_user', id: ADMIN_ID, available: true, label: 'Anna Nowak', url: null },
+          { type: 'order', id: ORDER_ID, available: true, label: 'ORD-1001', url: `/orders/${ORDER_ID}` },
+          { type: 'admin_user', id: OTHER_ADMIN_ID, available: true, label: 'Piotr Zielony', url: null },
+          { type: 'product', id: hidden, available: false, label: null, url: null },
+        ],
+      }),
+    );
+    const panel = await openHistory(READER);
+    const changed = row(item(panel, 0), en('history.field.description'));
+    expect(changed).toHaveTextContent('@Anna Nowak about');
+    expect(within(changed).getByRole('link', { name: /ORD-1001/ })).toHaveAttribute('href', `/orders/${ORDER_ID}`);
+    expect(changed).toHaveTextContent('@Piotr Zielony about');
+    expect(within(changed).getByText(en('references.unavailable.product'))).toBeInTheDocument();
+    expect(changed).not.toHaveTextContent('[[');
+    expect(changed).not.toHaveTextContent(ADMIN_ID);
+    expect(changed).not.toHaveTextContent(hidden);
+  });
+
+  it('cuts a long description without cutting a mention in two', async () => {
+    const token = `[[admin_user:${ADMIN_ID}]]`;
+    only(
+      entry({
+        id: 'audit-l',
+        before: null,
+        after: { description: `${'x'.repeat(275)} ${token} and a good deal more that is cut away` },
+        references: [{ type: 'admin_user', id: ADMIN_ID, available: true, label: 'Anna Nowak', url: null }],
+      }),
+    );
+    const panel = await openHistory(READER);
+    const shown = row(item(panel, 0), en('history.field.description'));
+    expect(shown).toHaveTextContent('@Anna Nowak');
+    expect(shown).toHaveTextContent(/ an…$/);
+    expect(shown).not.toHaveTextContent('[[');
+    expect(shown).not.toHaveTextContent('good deal');
   });
 
   it('shows a field it was never told about as "Other change", in words and never as JSON', async () => {

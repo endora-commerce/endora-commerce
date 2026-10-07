@@ -12,10 +12,16 @@
 
 import { Migration20261005T132439CrmInit } from './20261005T132439_crm_init.js';
 import { Migration20261005T215329CrmOpportunityCustomFieldValues } from './20261005T215329_crm_opportunity_custom_field_values.js';
+import { Migration20261007T180600CrmOpportunityReferenceAdminUser } from './20261007T180600_crm_opportunity_reference_admin_user.js';
 
 export const migrations = [
   Migration20261005T132439CrmInit,
   Migration20261005T215329CrmOpportunityCustomFieldValues,
+  Migration20261007T180600CrmOpportunityReferenceAdminUser,
 ];
 
-export { Migration20261005T132439CrmInit, Migration20261005T215329CrmOpportunityCustomFieldValues };
+export {
+  Migration20261005T132439CrmInit,
+  Migration20261005T215329CrmOpportunityCustomFieldValues,
+  Migration20261007T180600CrmOpportunityReferenceAdminUser,
+};

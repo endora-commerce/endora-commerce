@@ -479,9 +479,10 @@ conversation, except the person who sent it, on the notification bell of the
 Admin UI with a link to the opportunity. The entry names the opportunity by
 its number and carries nothing of the message, and is not written for somebody
 who can no longer reach the opportunity's organization. **Nobody else is
-told**: the first message on an opportunity that has no assignee notifies
-nobody, so assign the opportunity before starting a conversation on it. The
-entry is in English, like every entry on the bell. While the **Admin
+told, unless the message mentions them** (see *Mentioning a person, an order
+or a product with @*): the first message on an opportunity that has no
+assignee, mentioning nobody, notifies nobody. The entry is in English, like
+every entry on the bell. While the **Admin
 notifications** module is switched off, a message is stored all the same and
 nobody is told.
 
@@ -904,6 +905,10 @@ Three things to know:
   read on the *Notes* and *Messages* tabs.
 - Recalculating a computed value is not an entry: the change that caused it —
   a link, an order's status — is.
+- An entry that carries a description — the creation, an edit of it — also
+  carries `references`, exactly as the opportunity itself does: what the
+  people, orders and products mentioned in that text are called, for the
+  reader. The text is returned as it was recorded.
 - The history reaches back 500 entries.
 
 On the platform-wide **Audit log** screen the same entries appear among
@@ -916,8 +921,9 @@ order caused it, the entry names that order and links to it. An edit lists the
 fields that changed, as they were and as they are. Custom field values are
 listed a line per field under the fields' own labels — or under their codes for
 somebody without `custom_fields:read` — and an order's status is shown by name,
-to somebody holding `orders:read` only. *Show earlier changes* reads the next
-page.
+to somebody holding `orders:read` only. A description that changed reads as it
+does on the *Overview*: a person, an order or a product it mentions is shown by
+name, never as the token. *Show earlier changes* reads the next page.
 
 ## References to products and orders
 
@@ -959,7 +965,8 @@ A token that is not well-formed — an unknown type, something that is not an id
 and message (for its `body`). There is no separate endpoint.
 
 In the Admin UI the description field and the note and message fields carry
-two buttons, **Insert product** and **Insert order**. Each opens a search;
+buttons under them, **Insert order** and **Insert product** among them. Each
+opens a search;
 choosing a result writes the token where the cursor was. Once saved, the text
 shows the product's name or the order's number as a link in its place, and
 *Product unavailable* / *Order unavailable* for a target that is gone or that
@@ -972,6 +979,91 @@ product* is offered to a role that also holds `catalog:read` and *Insert order*
 to one that holds `orders:read`; orders are offered for the opportunity's
 organization only. A token typed or pasted by hand is saved without either,
 and reads as unavailable to whoever lacks the permission.
+
+## Mentioning a person, an order or a product with @
+
+The same three fields — the description, a note, a message — take a mention
+straight from the keyboard:
+
+| Type | To mention | Offered to |
+| --- | --- | --- |
+| `@` | a **person** — a user of the Admin UI who may read opportunities | anybody writing the text |
+| `@@` | an **order** of the opportunity's organization | a role that also holds `orders:read` |
+| `@@@` | a **product** | a role that also holds `catalog:read` |
+
+Type the `@` at the start of the text or after a space and a list opens under
+the field; keep typing to narrow it — a first name, a surname, an order number,
+a product name or SKU. **Arrow keys** move through the list, **Enter** or
+**Tab** chooses, **Escape** closes it and leaves what you typed. Choosing
+replaces the `@` and the letters after it with the mention, and you carry on
+with the sentence:
+
+```text
+@Tomasz Nowak - take this over
+```
+
+An `@` inside a word — an e-mail address — opens nothing, and neither does an
+`@` followed by a space. A shortcut your role is not offered leaves the
+characters exactly as typed. The line under the field names the shortcuts you
+have, and **Mention a person** beside *Insert order* and *Insert product* does
+the same by a button.
+
+A mention of a person is stored like the other two, as a token, and comes back
+in `references`:
+
+```text
+[[admin_user:<administrator id>]]
+```
+
+```json
+{
+  "type": "admin_user",
+  "id": "8a1f…",
+  "available": true,
+  "label": "Tomasz Nowak",
+  "url": null
+}
+```
+
+- `label` is the person's **current** name. It is shown to everybody who reads
+  the text as **@Tomasz Nowak**, set apart from the sentence.
+- `url` is always `null`: a mention of a person is not a link.
+- Somebody who was removed or deactivated since comes back with
+  `"available": false` and no name, and reads *Person unavailable*.
+
+**Who can be mentioned.** The list offers active administrators who hold
+`crm:read` and who may see the opportunity's organization — a mention is a call
+to come and look, so it is offered only of somebody who can.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/lookups/mentionable?q=…&organizationId=…` | `crm:write` | The people a text may mention, by name: `id`, `name`. With `organizationId`, only people who may see that organization — and nobody when the caller may not. |
+
+**Who is told.** When a description, a note or a message is saved, every person
+it mentions **who was not already mentioned in the text it replaces** gets one
+entry on the notification bell, with a link to the opportunity:
+
+```text
+Anna Kowalska mentioned you in opportunity OPP-000042
+```
+
+- The entry names the opportunity by its number and the author by name. It
+  carries nothing of the text.
+- One entry per person per save, however often the text names them. Saving the
+  same text again, or rewording it around the same mention, tells nobody;
+  taking a mention out and putting it back tells that person again.
+- **Nobody is told about mentioning themself**, and no entry is written for
+  somebody who does not hold `crm:read`, who was deactivated, or who cannot see
+  the opportunity's organization. The token is text and can be typed by hand, so
+  this is decided when the text is saved, not by the list.
+- In a message, a mentioned person gets this entry **instead of** the one a
+  participant of the conversation gets, not both.
+- The entry is in English, like every entry on the bell, and none is written
+  while the **Admin notifications** module is switched off; the text is saved
+  all the same.
+
+A mention changes nothing else: it does not assign the opportunity, does not
+give anybody access to it, and is not part of any event or webhook.
 
 ## Telling other systems: webhooks
 
@@ -1354,6 +1446,7 @@ the person may see, and is no more than a name to choose by.
 | `GET /api/v1/admin/crm/lookups/sales-channels` | `crm:read` | Every sales channel: `id`, `code`, `name` per language, `active`, `systemDefault`, and the currencies it sells in. |
 | `GET /api/v1/admin/crm/lookups/assignees?q=…` | `crm:read` | Active administrators, by name: `id`, `name`. |
 | `GET /api/v1/admin/crm/lookups/contacts?organizationId=…&q=…` | `crm:write` | Members of one organization the caller may see: `id`, `name`, `email`. |
+| `GET /api/v1/admin/crm/lookups/mentionable?q=…&organizationId=…` | `crm:write` | Active administrators holding `crm:read` — the people a text may mention: `id`, `name`. |
 | `GET /api/v1/admin/crm/lookups/quote-requests?organizationId=…&q=…` | `crm:write` and `rfqs:handle` | Quote requests of one organization the caller may see that can be linked: the open ones, and the one whose number is typed in full. `id`, `number`, `status`. Answers `503` while the Quote Requests module is off. |
 
 The currencies offered when an opportunity is created are the ones the active

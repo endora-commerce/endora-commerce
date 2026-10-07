@@ -291,6 +291,56 @@ describe('§9 reference tokens', () => {
     });
     rejects(crm.OpportunityReferenceSchema, { type: 'customer', id: UUID_A, available: true, label: 'x', url: null });
   });
+
+  // User Story 18 — a person is the third thing a text can refer to.
+  it('formats, extracts and splits a mention of a person beside the other two', () => {
+    expect(crm.formatOpportunityReferenceToken('admin_user', UUID_A)).toBe(`[[admin_user:${UUID_A}]]`);
+    const text = `[[admin_user:${UUID_A}]] - take this over, see [[order:${UUID_B}]]`;
+    expect(crm.extractOpportunityReferenceTokens(text)).toEqual([
+      { type: 'admin_user', id: UUID_A },
+      { type: 'order', id: UUID_B },
+    ]);
+    expect(crm.splitOpportunityReferenceText(text)[0]).toEqual({
+      kind: 'reference',
+      type: 'admin_user',
+      id: UUID_A,
+    });
+    // The word the platform does not use for an administrator is not a token.
+    expect(crm.extractOpportunityReferenceTokens(`[[user:${UUID_A}]] [[admin:${UUID_A}]]`)).toEqual([]);
+  });
+
+  it('a resolved person has a name and no address; the shape is the one of the other two', () => {
+    accepts(crm.OpportunityReferenceSchema, {
+      type: 'admin_user',
+      id: UUID_A,
+      available: true,
+      label: 'Tomasz Nowak',
+      url: null,
+    });
+  });
+
+  it('mentionedAdminUserIds answers the people of a text, each once, and nothing for no text', () => {
+    const text = `[[admin_user:${UUID_A}]] [[product:${UUID_B}]] [[admin_user:${UUID_A.toUpperCase()}]]`;
+    expect(crm.mentionedAdminUserIds(text)).toEqual([UUID_A]);
+    expect(crm.mentionedAdminUserIds(null)).toEqual([]);
+    expect(crm.mentionedAdminUserIds('jan@example.com @Tomasz')).toEqual([]);
+  });
+});
+
+describe('§10a the people who may be mentioned', () => {
+  it('query: an optional search, an optional Organization and a limit', () => {
+    expect(crm.OpportunityMentionLookupQuerySchema.parse({}).limit).toBe(20);
+    accepts(crm.OpportunityMentionLookupQuerySchema, { q: 'tom', organizationId: UUID_A, limit: '5' });
+    rejects(crm.OpportunityMentionLookupQuerySchema, { organizationId: 'nope' });
+    rejects(crm.OpportunityMentionLookupQuerySchema, { limit: '51' });
+  });
+
+  it('answer: an id and a name, and nothing else survives the schema', () => {
+    const parsed = crm.OpportunityMentionLookupResponseSchema.parse({
+      data: [{ id: UUID_A, name: 'Tomasz Nowak', email: 'tomasz@example.com' }],
+    });
+    expect(parsed.data).toEqual([{ id: UUID_A, name: 'Tomasz Nowak' }]);
+  });
 });
 
 describe('§10 board', () => {
@@ -308,6 +358,22 @@ describe('§11 history', () => {
   it('accepts limit and cursor; rejects a limit above the page maximum', () => {
     accepts(crm.OpportunityHistoryQuerySchema, { limit: '20', cursor: 'abc' });
     rejects(crm.OpportunityHistoryQuerySchema, { limit: '500' });
+  });
+
+  it('an entry carries the references of the texts it shows, resolved for its reader', () => {
+    const entry = {
+      id: 'a1',
+      actedAt: '2026-10-07T10:00:00.000Z',
+      action: 'crm.opportunity.update',
+      actor: { kind: 'admin', id: UUID_A, name: 'Ada Min' },
+      before: { description: null },
+      after: { description: `[[admin_user:${UUID_B}]]` },
+    };
+    rejects(crm.OpportunityHistoryEntrySchema, entry);
+    accepts(crm.OpportunityHistoryEntrySchema, {
+      ...entry,
+      references: [{ type: 'admin_user', id: UUID_B, available: true, label: 'Tomasz Nowak', url: null }],
+    });
   });
 });
 

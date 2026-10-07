@@ -15,6 +15,7 @@ import type {
   OpportunityDetail,
   OpportunityHistoryEntry,
   OpportunityLink,
+  OpportunityMentionOption,
   OpportunityQuoteRequestOption,
   OpportunityStatusKind,
   OpportunitySummary,
@@ -45,11 +46,14 @@ import type {
  * CRM does not proxy them (§4), and naming the endpoint rather than importing
  * that module's client is the sanctioned way for one module's screen to read
  * another's data. Everything a **picker** chooses from — Organizations, Sales
- * Channels, assignees, contact persons — is CRM's own (§10a, research N-D4).
+ * Channels, assignees, contact persons, the people a text may mention — is
+ * CRM's own (§10a, research N-D4). The Product search behind `@@@` is the
+ * third read that is not: it is `catalog`'s list, under `catalog:read`.
  */
 
 const BASE = '/api/v1/admin/crm';
 const ORDERS_BASE = '/api/v1/admin/orders';
+const PRODUCTS_BASE = '/api/v1/admin/catalog/products';
 const QUOTE_REQUESTS_BASE = '/api/v1/admin/quote-requests';
 
 export type OpportunitySort = 'createdAt' | 'updatedAt' | 'value' | 'expectedCloseDate' | 'number';
@@ -106,6 +110,13 @@ export interface LinkableOrder {
   status: string;
   total: number;
   currency: string;
+}
+
+/** A Product as the `@@@` search offers it. */
+export interface MentionableProduct {
+  id: string;
+  sku: string;
+  name: Record<string, string>;
 }
 
 function appendSharedFilters(qs: URLSearchParams, params: OpportunityFilterParams): void {
@@ -448,6 +459,19 @@ export const crmApi = {
     );
   },
 
+  /**
+   * Gated `crm:write`: who a text may mention (User Story 18). With the
+   * Opportunity's Organization, only people who may see it.
+   */
+  lookupMentionable(organizationId: string | null, query = ''): Promise<OpportunityMentionOption[]> {
+    const qs = new URLSearchParams();
+    if (organizationId) qs.set('organizationId', organizationId);
+    if (query) qs.set('q', query);
+    return data(
+      apiClient.get<{ data: OpportunityMentionOption[] }>(`${BASE}/lookups/mentionable${queryTail(qs)}`),
+    );
+  },
+
   // --- Wave 2: value, Quote Requests, history (User Stories 8, 11) ----------
 
   /**
@@ -511,6 +535,18 @@ export const crmApi = {
     qs.set('pageSize', '20');
     return apiClient
       .get<{ data: LinkableOrder[] }>(`${ORDERS_BASE}?${qs.toString()}`)
+      .then((envelope) => envelope.data);
+  },
+
+  /** Products by name or SKU — `catalog`'s own list, what its picker searches. */
+  searchProducts(query: string): Promise<MentionableProduct[]> {
+    const qs = new URLSearchParams();
+    qs.set('page', '0');
+    qs.set('pageSize', '20');
+    const q = query.trim();
+    if (q) qs.set('q', q);
+    return apiClient
+      .get<{ data: MentionableProduct[] }>(`${PRODUCTS_BASE}?${qs.toString()}`)
       .then((envelope) => envelope.data);
   },
 };

@@ -298,7 +298,7 @@ Unique `(opportunity_id, asset_id)`.
 | `opportunity_id` | uuid, indexed | FK cascade |
 | `source_kind` | varchar(16) | `description` \| `comment` |
 | `source_id` | uuid, nullable | the comment id; `null` for the description |
-| `target_type` | varchar(16) | `product` \| `order` |
+| `target_type` | varchar(16) | `product` \| `order` \| `admin_user` (the third since `20261007T180600_crm_opportunity_reference_admin_user`, User Story 18) |
 | `target_id` | uuid | by value; index `(target_type, target_id)` |
 
 Derived data: replaced wholesale for a source whenever that source's text is saved.
@@ -409,8 +409,9 @@ Corrections to this section's first version, as built:
   entries do carry its title and description, a transition's its optional `reason`, an
   attachment's the file name.
 
-`crm.opportunity.assigned` and `crm.opportunity.message` are not audit actions: they are the
-*kinds* of the two notification-bell entries (`services/crm-notifier.ts`).
+`crm.opportunity.assigned`, `crm.opportunity.message` and `crm.opportunity.mention` are not
+audit actions: they are the *kinds* of the three notification-bell entries
+(`services/crm-notifier.ts`).
 
 System-driven writes (subscribers, the recalculation worker) run their Commands inside
 `enterSystemScope('<reason>', …)`; `computed_value` maintenance is a derived figure and uses

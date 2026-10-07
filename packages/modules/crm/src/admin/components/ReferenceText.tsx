@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, ShoppingCart } from 'lucide-react';
+import { AtSign, Package, ShoppingCart } from 'lucide-react';
 import {
   splitOpportunityReferenceText,
   type OpportunityReference,
@@ -18,8 +18,9 @@ const CHIP =
   'mx-0.5 inline-flex items-center gap-1 rounded border border-border px-1.5 py-0.5 align-baseline text-xs';
 
 /**
- * A description, a note or a message as it is read (User Story 12, FR-045):
- * the text as text, and each `[[product:…]]` / `[[order:…]]` token as a chip.
+ * A description, a note or a message as it is read (User Stories 12 and 18;
+ * FR-045, FR-081): the text as text, and each `[[product:…]]` / `[[order:…]]` /
+ * `[[admin_user:…]]` token as a chip.
  *
  * **The text is never interpreted.** Every stretch between tokens is a text
  * node, so markup somebody typed is shown as the characters they typed.
@@ -29,6 +30,11 @@ const CHIP =
  * this reader may not see it — is a chip that says so, without a link and
  * without the name: an Order of another Organization is not leaked by its
  * number here.
+ *
+ * A person is `@` and their current name, set apart from the sentence and not
+ * a link: an administrator's own screen belongs to `admin_users`, behind the
+ * right to manage administrators. Somebody removed or deactivated since is a
+ * chip that says so.
  */
 export function ReferenceText(props: ReferenceTextProps): ReactNode {
   const t = useTranslation('crm');
@@ -39,7 +45,16 @@ export function ReferenceText(props: ReferenceTextProps): ReactNode {
       {splitOpportunityReferenceText(props.text).map((part, index) => {
         if (part.kind === 'text') return <span key={index}>{part.text}</span>;
         const reference = resolved.get(`${part.type}:${part.id}`);
-        const Icon = part.type === 'product' ? Package : ShoppingCart;
+        if (part.type === 'admin_user' && reference?.available && reference.label) {
+          return (
+            <span key={index} className={`${CHIP} border-primary/30 bg-primary/10 font-medium text-foreground`}>
+              <span className="sr-only">{t('references.kind.admin_user')}</span>
+              <span aria-hidden="true">@</span>
+              {reference.label}
+            </span>
+          );
+        }
+        const Icon = part.type === 'product' ? Package : part.type === 'order' ? ShoppingCart : AtSign;
         if (reference?.available && reference.url && reference.label) {
           return (
             <Link

@@ -20,7 +20,11 @@ const NEVER_AUDITED = new Set([
 ]);
 
 /** Bell-entry kinds of `crm-notifier.ts`: the same three-part shape, and not Commands. */
-const NOTIFICATION_KINDS = new Set(['crm.opportunity.assigned', 'crm.opportunity.message']);
+const NOTIFICATION_KINDS = new Set([
+  'crm.opportunity.assigned',
+  'crm.opportunity.message',
+  'crm.opportunity.mention',
+]);
 
 const servicesDir = new URL('.', import.meta.url);
 

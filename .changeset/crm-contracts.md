@@ -18,7 +18,11 @@ webhook payload schemas `OpportunityCreatedEventV1Schema`,
 and `OpportunityTransitionGuardRegistryPort` (with `OpportunityTransitionGuard` and
 `OpportunityTransitionVetoError`); the reference grammar —
 `formatOpportunityReferenceToken`, `extractOpportunityReferenceTokens`,
-`splitOpportunityReferenceText`; and `OPPORTUNITY_ATTACHMENT_MAX_BYTES`.
+`splitOpportunityReferenceText`, `mentionedAdminUserIds` — over three reference types,
+`product`, `order` and `admin_user`; the mention lookup schemas
+(`OpportunityMentionLookupQuerySchema`, `OpportunityMentionOptionSchema`,
+`OpportunityMentionLookupResponseSchema`); and `OPPORTUNITY_ATTACHMENT_MAX_BYTES`. A history
+entry (`OpportunityHistoryEntrySchema`) carries `references` for the description it shows.
 
 **`ERROR_CODES`** gains fifteen members, all prefixed `CRM_`: `CRM_OPPORTUNITY_NOT_FOUND`,
 `CRM_INVALID_TRANSITION`, `CRM_TRANSITION_VETOED`, `CRM_TRANSITION_CONFLICT`,

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   OpportunityAssigneeLookupResponseSchema,
   OpportunityContactLookupResponseSchema,
+  OpportunityMentionLookupResponseSchema,
   OpportunityOrganizationLookupResponseSchema,
   OpportunitySalesChannelLookupResponseSchema,
 } from '@endora-commerce/contracts';
@@ -192,6 +193,64 @@ describe('crm lookups (contract)', () => {
 
     it('answers nothing for a search nobody matches', async () => {
       expect(await ids('?q=nobody-is-called-this')).toEqual([]);
+    });
+  });
+
+  // User Story 18 — who a text may mention.
+  describe('mentionable', () => {
+    const options = async (query = '', cookies: Record<string, string> = writer.cookies) =>
+      OpportunityMentionLookupResponseSchema.parse(await lookup(`mentionable${query}`, cookies)).data;
+    const ids = async (query = '', cookies?: Record<string, string>): Promise<string[]> =>
+      (await options(query, cookies)).map((option) => option.id);
+
+    it('is offered to crm:write — where a text is written — and refused without it', async () => {
+      const path = `${CRM_API}/lookups/mentionable`;
+      expect((await get(path, writer.cookies)).statusCode).toBe(200);
+      expect((await get(path, reader.cookies)).statusCode).toBe(403);
+      expect((await get(path, stranger.cookies)).statusCode).toBe(403);
+    });
+
+    it('offers active administrators who hold crm:read — never one without it, never a deactivated one', async () => {
+      const found = await ids('?q=lookup-&limit=50');
+      expect(found).toContain(reader.adminUserId);
+      expect(found).toContain(writer.adminUserId);
+      // Positive controls for the two exclusions: the search does match both names.
+      expect(found).not.toContain(stranger.adminUserId);
+      expect(found).not.toContain(inactive.adminUserId);
+    });
+
+    it('answers an id and a name — no e-mail address, no role', async () => {
+      const raw = (await lookup('mentionable?q=lookup-reader', writer.cookies)) as {
+        data: Record<string, unknown>[];
+      };
+      expect(raw.data).toHaveLength(1);
+      expect(Object.keys(raw.data[0]!).sort()).toEqual(['id', 'name']);
+      expect(JSON.stringify(raw)).not.toContain('@');
+    });
+
+    it('with an Organization, offers only people who may see it', async () => {
+      // The Sales Rep is confined to the test Organization.
+      expect(await ids(`?q=crm-rep&limit=50&organizationId=${TEST_ORGANIZATION_ID}`)).toContain(rep.adminUserId);
+      expect(await ids(`?q=crm-rep&limit=50&organizationId=${otherOrganizationId}`, CRM_ADMIN)).not.toContain(
+        rep.adminUserId,
+      );
+      // Somebody who reaches every Organization is offered for both.
+      expect(await ids(`?q=lookup-reader&organizationId=${otherOrganizationId}`, CRM_ADMIN)).toEqual([
+        reader.adminUserId,
+      ]);
+    });
+
+    it('offers nobody for an Organization the caller may not reach', async () => {
+      expect(await ids(`?organizationId=${otherOrganizationId}`, rep.cookies)).toEqual([]);
+      // Positive control: the same caller is answered for their own.
+      expect((await ids(`?organizationId=${TEST_ORGANIZATION_ID}&limit=50`, rep.cookies)).length).toBeGreaterThan(0);
+    });
+
+    it('honours limit, answers nothing for a search nobody matches, refuses a malformed query', async () => {
+      expect(await options('?q=lookup-&limit=1')).toHaveLength(1);
+      expect(await ids('?q=nobody-is-called-this')).toEqual([]);
+      const refused = await get(`${CRM_API}/lookups/mentionable?organizationId=nope`, writer.cookies);
+      expect(refused.statusCode).toBe(400);
     });
   });
 

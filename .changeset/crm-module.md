@@ -8,7 +8,7 @@ module's first release.
 
 **What installing it does.** Thirteen `crm_`-prefixed tables and a default workflow of six
 statuses (`new`, `qualified`, `proposal`, `negotiation`, `won`, `lost`) arrive with the next
-migration run — two migrations. An instance that does not install it is unaffected. The module
+migration run — three migrations. An instance that does not install it is unaffected. The module
 is optional: `crm.enabled`, on by default, switched on `/platform/modules`; while it is off
 every route answers `503 MODULE_DISABLED`, its screens, panels, permissions and settings are
 withdrawn, and nothing is deleted. It depends on `orders`, `organizations`, `sales_channels`,
@@ -56,14 +56,20 @@ organization the caller may not see answers `404 CRM_OPPORTUNITY_NOT_FOUND`):
   the text of a note or a message is never in it, and the tab shows every audited value in
   words — custom field values under the fields' own labels, an order status by name to a
   reader holding `orders:read`.
-- **References** — `[[product:<uuid>]]` and `[[order:<uuid>]]` in a description, note or
-  message are resolved into `references` beside the text.
+- **References** — `[[product:<uuid>]]`, `[[order:<uuid>]]` and `[[admin_user:<uuid>]]` in a
+  description, note or message are resolved into `references` beside the text — and beside a
+  description in the change history. A mentioned person is named and never linked.
+- **Mentions** — in the Admin UI, typing `@`, `@@` or `@@@` in those fields searches people,
+  the organization's orders or products and inserts the token. A person newly mentioned in a
+  saved text gets one bell entry, `crm.opportunity.mention`, naming the opportunity by number
+  and the author by name; never the author themself, nobody without `crm:read`, nobody who
+  cannot see the organization.
 - **Board** — `GET /board`: a column per status with count, value totals per currency and the
   first cards.
 - **Analytics** (`crm:analytics`) — five live reads under `/analytics/`: handling time, time
   in status, rep effectiveness, top opportunities, average value. Per currency, UTC.
 - **Lookups** — `/lookups/organizations`, `/sales-channels`, `/assignees`, `/contacts`,
-  `/quote-requests`, so the module's pickers need no permission of the modules that own those
+  `/mentionable`, `/quote-requests`, so the module's pickers need no permission of the modules that own those
   rows.
 
 **Automatic creation**, both off by default: `crm.auto_create_from_orders` (per sales channel)

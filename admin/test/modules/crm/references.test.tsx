@@ -215,10 +215,12 @@ describe('the textarea that inserts references', () => {
     expect(getSpy.mock.calls.some(([path]) => String(path).includes('/catalog/products'))).toBe(false);
   });
 
-  it('is a plain textarea for a role that may search neither', async () => {
+  it('offers a role that may search neither Orders nor Products the people only', async () => {
     const panel = await composer(['crm:read', 'crm:write']);
     expect(within(panel).queryByRole('button', { name: en('references.insert.order') })).toBeNull();
-    expect(within(panel).queryByText(en('references.hint'))).toBeNull();
+    expect(within(panel).queryByRole('button', { name: en('references.insert.product') })).toBeNull();
+    expect(within(panel).getByRole('button', { name: en('references.insert.person') })).toBeInTheDocument();
+    expect(within(panel).getByText(en('references.hint'))).toBeInTheDocument();
     expect(within(panel).getByLabelText(en('comments.notes.composer.label'))).toBeInTheDocument();
   });
 });

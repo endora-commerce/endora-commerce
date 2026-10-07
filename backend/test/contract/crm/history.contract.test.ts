@@ -63,7 +63,18 @@ describe('crm opportunity history (contract)', () => {
     expect(creation).toMatchObject({ before: null, after: { title: 'History contract', statusCode: 'new' } });
     expect(Date.parse(transition?.actedAt ?? '')).toBeGreaterThanOrEqual(Date.parse(creation?.actedAt ?? ''));
     // Exactly the fields of the contract: nothing of the audit row beyond them.
-    expect(Object.keys(transition ?? {}).sort()).toEqual(['actedAt', 'action', 'actor', 'after', 'before', 'id']);
+    expect(Object.keys(transition ?? {}).sort()).toEqual([
+      'actedAt',
+      'action',
+      'actor',
+      'after',
+      'before',
+      'id',
+      'references',
+    ]);
+    // Neither entry carries a text with a token in it.
+    expect(transition?.references).toEqual([]);
+    expect(creation?.references).toEqual([]);
     expect(Object.keys(transition?.actor ?? {}).sort()).toEqual(['id', 'kind', 'name']);
   });
 
