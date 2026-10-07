@@ -940,7 +940,11 @@ Trzy rzeczy, o których warto wiedzieć:
   `references`, dokładnie tak jak sama szansa: jak nazywają się osoby,
   zamówienia i produkty wspomniane w tym tekście, dla czytającego. Tekst jest
   zwracany tak, jak został zapisany.
-- Historia sięga 500 wpisów wstecz.
+- Historia sięga 499 wpisów wstecz. Gdy szansa ma ich więcej, ostatnia strona
+  zwraca `"truncated": true` obok `pagination`, a karta informuje, że istnieją
+  wcześniejsze zmiany, które nie są pokazane; w przeciwnym razie wartość to
+  `false`, a karta informuje, że to cała historia. `hasMore` oznacza wyłącznie
+  to, że jest następna strona, o którą można zapytać.
 
 Na ekranie **Dziennik audytu** całej platformy te same wpisy są pokazywane
 wśród wszystkich pozostałych, jako te same zdania.

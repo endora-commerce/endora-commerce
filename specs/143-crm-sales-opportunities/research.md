@@ -3356,6 +3356,7 @@ when it was measured, and what was done about it.
   history at its 500-entry reach answers `hasMore: false`. Saying so needs a field the
   shared collection envelope does not have — a contracts change, an OpenAPI baseline and
   a line in the history tab, on a branch where the contracts are being amended elsewhere.
+  *(Fixed on 2026-10-07 — N-M9.)*
 - **N-S9 (2026-10-06, second review, question 8) — a document created from a closed
   Opportunity is linked to it. Decided: allowed.** A closed Opportunity accepts a link made
   by hand, so it accepts the document created from it; the Opportunity stays closed, and a
@@ -3525,6 +3526,22 @@ when it was measured, and what was done about it.
   the migration has not been applied to any database, and the OpenAPI baseline entry for
   `/lookups/mentionable` was written by hand in the shape of its neighbours rather than
   recorded. Not seen in a browser either (T195).
+- **N-M9 (2026-10-07, second review's open finding — N-S8) — a history that is cut says so,
+  and reaches 499 entries, not 500.** N-E10 recorded that the 501st entry is unreachable;
+  N-S8 that the endpoint then answered `hasMore: false` as if the history were whole, and
+  the tab said "That is the whole history". The audit port caps a read at 500 and has no
+  count, so with 500 entries served a full read cannot tell "exactly 500" from "more".
+  **The history therefore serves one entry fewer than the port answers**
+  (`HISTORY_REACH = 499`): a 500th row coming back proves an earlier entry exists, and
+  nothing is claimed that is not known. *Why not `hasMore: true`*, which the brief offered
+  first: across this codebase `hasMore` beside a `cursor` means "ask again with this cursor"
+  (`paginationSchema`); answering `true` with a `null` cursor would make a client that loops
+  on it ask for page one forever. So the fact is a field of its own, `truncated`, beside
+  `pagination` — the name `quick-order.ts` already uses for the same thing — `true` on the
+  last page a history can serve and `false` on every page that has a next one. The tab ends
+  with one of two sentences and never the wrong one. Six unit cases over a stub port and
+  one tab case, all seen red first; the entries past the reach stay unreachable until the
+  port grows a cursor, which is still the platform's change and not this feature's.
 
 ## Questions put to the owner — all decided on 2026-10-05
 

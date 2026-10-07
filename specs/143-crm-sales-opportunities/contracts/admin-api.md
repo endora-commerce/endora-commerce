@@ -313,7 +313,10 @@ search of §3–§4 remain `orders`' own endpoints under `orders:read`. A malfor
 
 `GET /opportunities/:id/history?limit&cursor` · `crm:read` →
 `{ data: [{ id, actedAt, action, actor { kind, id | null, name | null }, before, after,
-references }], pagination }`, newest first. `references` is §9's list for the `description`
+references }], pagination, truncated }`, newest first. The history reaches back 499 entries;
+`truncated` is `true` on the last page it can serve when the Opportunity has earlier entries,
+and `false` on every other page — `pagination.hasMore` keeps its one meaning, that `cursor`
+asks for a next page (research N-M9). `references` is §9's list for the `description`
 of `before` and of `after` together — empty for an entry that carries none — resolved for the
 reader when the history is read; `before` and `after` are returned as audited (User Story 18;
 research N-M6).

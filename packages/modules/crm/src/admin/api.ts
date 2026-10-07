@@ -13,7 +13,7 @@ import type {
   OpportunityCommentKind,
   OpportunityBoard,
   OpportunityDetail,
-  OpportunityHistoryEntry,
+  OpportunityHistoryResponse,
   OpportunityLink,
   OpportunityMentionOption,
   OpportunityQuoteRequestOption,
@@ -504,15 +504,18 @@ export const crmApi = {
     );
   },
 
-  /** Newest first; `cursor` is the one the previous page answered. */
+  /**
+   * Newest first; `cursor` is the one the previous page answered. `truncated`
+   * on the last page says the Opportunity has earlier changes out of reach.
+   */
   getHistory(
     id: string,
     params: { cursor?: string; limit?: number } = {},
-  ): Promise<{ data: OpportunityHistoryEntry[]; pagination: Pagination }> {
+  ): Promise<OpportunityHistoryResponse> {
     const qs = new URLSearchParams();
     if (params.cursor) qs.set('cursor', params.cursor);
     if (params.limit) qs.set('limit', String(params.limit));
-    return apiClient.get<{ data: OpportunityHistoryEntry[]; pagination: Pagination }>(
+    return apiClient.get<OpportunityHistoryResponse>(
       `${BASE}/opportunities/${id}/history${queryTail(qs)}`,
     );
   },

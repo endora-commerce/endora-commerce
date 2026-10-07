@@ -360,6 +360,13 @@ describe('§11 history', () => {
     rejects(crm.OpportunityHistoryQuerySchema, { limit: '500' });
   });
 
+  it('the answer says whether earlier entries exist beyond its reach', () => {
+    const page = { data: [], pagination: { cursor: null, hasMore: false, limit: 50 } };
+    rejects(crm.OpportunityHistoryResponseSchema, page);
+    accepts(crm.OpportunityHistoryResponseSchema, { ...page, truncated: false });
+    accepts(crm.OpportunityHistoryResponseSchema, { ...page, truncated: true });
+  });
+
   it('an entry carries the references of the texts it shows, resolved for its reader', () => {
     const entry = {
       id: 'a1',

@@ -22,7 +22,9 @@ and `OpportunityTransitionGuardRegistryPort` (with `OpportunityTransitionGuard` 
 `product`, `order` and `admin_user`; the mention lookup schemas
 (`OpportunityMentionLookupQuerySchema`, `OpportunityMentionOptionSchema`,
 `OpportunityMentionLookupResponseSchema`); and `OPPORTUNITY_ATTACHMENT_MAX_BYTES`. A history
-entry (`OpportunityHistoryEntrySchema`) carries `references` for the description it shows.
+entry (`OpportunityHistoryEntrySchema`) carries `references` for the description it shows, and
+the history response (`OpportunityHistoryResponseSchema`, `OpportunityHistoryResponse`) carries
+`truncated` beside `pagination`.
 
 **`ERROR_CODES`** gains fifteen members, all prefixed `CRM_`: `CRM_OPPORTUNITY_NOT_FOUND`,
 `CRM_INVALID_TRANSITION`, `CRM_TRANSITION_VETOED`, `CRM_TRANSITION_CONFLICT`,

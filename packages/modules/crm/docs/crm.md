@@ -909,7 +909,11 @@ Three things to know:
   carries `references`, exactly as the opportunity itself does: what the
   people, orders and products mentioned in that text are called, for the
   reader. The text is returned as it was recorded.
-- The history reaches back 500 entries.
+- The history reaches back 499 entries. When an opportunity has more, the last
+  page answers `"truncated": true` beside `pagination`, and the tab says that
+  earlier changes exist and are not shown; otherwise it is `false` and the tab
+  says that this is the whole history. `hasMore` only ever means that there is
+  a next page to ask for.
 
 On the platform-wide **Audit log** screen the same entries appear among
 everybody else's, as the same sentences.

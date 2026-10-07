@@ -49,6 +49,8 @@ describe('crm opportunity history (contract)', () => {
     expect(response.statusCode, response.body).toBe(200);
     const body = OpportunityHistoryResponseSchema.parse(response.json());
     expect(body.pagination).toEqual({ cursor: null, hasMore: false, limit: 50 });
+    // Two entries are the whole of it: nothing earlier is out of reach.
+    expect(body.truncated).toBe(false);
     expect(body.data.map((entry) => entry.action)).toEqual([
       'crm.opportunity.transition',
       'crm.opportunity.create',

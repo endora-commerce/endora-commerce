@@ -523,6 +523,8 @@ else — has one bell entry naming the Opportunity by its number.
 - [x] T192 [P] [US18] Admin, the typing grammar test first: `src/admin/lib/mention-trigger.ts` + `.test.ts` (11 cases: the three runs, the search, an e-mail address, a space after the `@`, four `@`s, the caret, the length limit; `clipReferenceText`).
 - [x] T193 [US18] Admin tests `admin/test/modules/crm/mentions.test.tsx` (16 cases) and the description cases of `history.test.tsx` (seen red without the change); `ReferenceTextarea.tsx` (the list under the field, combobox/listbox ARIA while open, the third button, the shortcut line), `ReferenceText.tsx` (the `@Name` chip), `OpportunityHistory.tsx` (a description through `ReferenceText`), `api.ts`, both bundles; `src/admin/index.test.ts` enumerates the new key families.
 - [x] T194 [US18] Docs: `packages/modules/crm/docs/crm.md` § *Mentioning a person, an order or a product with @* and the sentences it changes elsewhere; the Polish page and its translation-cache entry; the two CRM changesets amended (the module is unreleased — N-P7).
+- [x] T196 [P] **Second review, the history's reach** (research N-S8, N-M9), tests first and seen red: `packages/contracts/src/crm.test.ts` (`truncated` on the response), `packages/modules/crm/src/backend/services/opportunity-history-service.test.ts` (six cases over a stub port: a short history, exactly the reach, one past it, far past it, the flag on the last page only, the port never asked past its cap), `admin/test/modules/crm/history.test.tsx` (the tab says earlier changes exist instead of calling the history whole).
+- [x] T197 The history serves 499 entries and answers `truncated`; the tab's two endings (`history.end`, `history.truncated`, both bundles); docs EN + PL, the translation cache, `contracts/admin-api.md` §11, both changesets. The one line added to `backend/test/contract/crm/history.contract.test.ts` is **unrun**, with T191.
 - [ ] T195 [US18] **Not done**: the story walked in a real browser (the list's placement under the field, focus, a screen reader's reading of the active option), and axe-core over the open list. Everything about the list is proven in jsdom only.
 
 ---
@@ -710,7 +712,7 @@ not a one-declaration integration.
 | FR-081 | US18 | T187, T189, T191, T193 |
 | FR-082 | US18 | T192, T193 |
 | FR-083 | US18 | T189, T191 |
-| FR-084 | US18 | T189, T191, T193 (the description) |
+| FR-084 | US18 | T189, T191, T193 (the description); T196, T197 (the reach) |
 | FR-080 | Polish (independent review) | `backend/test/integration/crm/attachment-upload.test.ts` (the active-content cases and the size limit), `backend/test/contract/crm/attachment-upload.contract.test.ts` |
 
 ## Notes

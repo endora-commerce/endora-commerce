@@ -140,14 +140,21 @@ const FIRST_PAGE: OpportunityHistoryEntry[] = [
   }),
 ];
 
-let pages: Record<string, { data: OpportunityHistoryEntry[]; pagination: { cursor: string | null; hasMore: boolean; limit: number } }>;
+let pages: Record<
+  string,
+  {
+    data: OpportunityHistoryEntry[];
+    pagination: { cursor: string | null; hasMore: boolean; limit: number };
+    truncated: boolean;
+  }
+>;
 let failHistory = false;
 
 beforeEach(() => {
   getSpy.mockReset();
   failHistory = false;
   pages = {
-    '': { data: FIRST_PAGE, pagination: { cursor: 'next-1', hasMore: true, limit: 50 } },
+    '': { data: FIRST_PAGE, pagination: { cursor: 'next-1', hasMore: true, limit: 50 }, truncated: false },
     'next-1': {
       data: [
         entry({
@@ -159,6 +166,7 @@ beforeEach(() => {
         }),
       ],
       pagination: { cursor: null, hasMore: false, limit: 50 },
+      truncated: false,
     },
   };
   getSpy.mockImplementation((path: string) => {
@@ -283,8 +291,21 @@ describe('the Change history tab', () => {
     expect(within(panel).getByText(en('history.end'))).toBeInTheDocument();
   });
 
+  // Second review: the history reaches a fixed way back, and used to end there in silence.
+  it('says that earlier changes exist when the history ends at its reach, instead of calling it whole', async () => {
+    pages['next-1'] = { ...pages['next-1']!, truncated: true };
+    const panel = await openHistory();
+    await within(panel).findByRole('list', { name: en('history.title') });
+    // Not on a page that has a next one.
+    expect(within(panel).queryByText(en('history.truncated'))).toBeNull();
+    await userEvent.click(within(panel).getByRole('button', { name: en('history.more') }));
+    expect(await within(panel).findByText(en('history.truncated'))).toBeInTheDocument();
+    expect(within(panel).queryByText(en('history.end'))).toBeNull();
+    expect(within(panel).queryByRole('button', { name: en('history.more') })).toBeNull();
+  });
+
   it('says there is no history yet', async () => {
-    pages[''] = { data: [], pagination: { cursor: null, hasMore: false, limit: 50 } };
+    pages[''] = { data: [], pagination: { cursor: null, hasMore: false, limit: 50 }, truncated: false };
     const panel = await openHistory();
     expect(await within(panel).findByText(en('history.empty'))).toBeInTheDocument();
   });
@@ -352,7 +373,7 @@ describe('the Change history tab, on what an entry carries', () => {
   });
 
   const only = (...entries: OpportunityHistoryEntry[]): void => {
-    pages[''] = { data: entries, pagination: { cursor: null, hasMore: false, limit: 50 } };
+    pages[''] = { data: entries, pagination: { cursor: null, hasMore: false, limit: 50 }, truncated: false };
   };
   const READER = ['crm:read', 'orders:read', 'custom_fields:read'];
   const row = (entryItem: HTMLElement, label: string): HTMLElement =>

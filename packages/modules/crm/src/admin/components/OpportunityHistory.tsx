@@ -129,7 +129,9 @@ export interface OpportunityHistoryProps {
  *
  * The history is cursor-paginated: *Show earlier changes* appends the next
  * page under the ones already read, so a reader scanning back keeps their
- * place.
+ * place. Under the last page it says either that this is the whole history or
+ * — when the history ended at its reach — that earlier changes exist and are
+ * not shown; the two are never confused.
  */
 export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
   const { opportunity } = props;
@@ -140,6 +142,8 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
   const canSeeCustomFields = useCanSeeCustomFields();
   const [entries, setEntries] = useState<OpportunityHistoryEntry[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  /** The history ended at its reach, with earlier changes behind it. */
+  const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState('');
@@ -160,6 +164,7 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
         if (current !== sequence.current) return;
         setEntries((previous) => (cursor ? [...(previous ?? []), ...page.data] : page.data));
         setNextCursor(page.pagination.hasMore ? page.pagination.cursor : null);
+        setTruncated(page.truncated);
         if (cursor) setNotice(t('history.loadedMore', { count: page.data.length }));
       } catch (failure) {
         if (current === sequence.current) setError(errorMessage(failure, t('history.error.load')));
@@ -550,7 +555,9 @@ export function OpportunityHistory(props: OpportunityHistoryProps): ReactNode {
           </Button>
         </div>
       ) : entries.length > 0 ? (
-        <p className="text-center text-xs text-muted-foreground">{t('history.end')}</p>
+        <p className="text-center text-xs text-muted-foreground">
+          {truncated ? t('history.truncated') : t('history.end')}
+        </p>
       ) : null}
 
       {/* Mounted before it has text, so the announcement is reliable. */}

@@ -853,7 +853,16 @@ export const OpportunityHistoryEntrySchema = z.object({
 });
 export type OpportunityHistoryEntry = z.infer<typeof OpportunityHistoryEntrySchema>;
 
-export const OpportunityHistoryResponseSchema = collectionEnvelope(OpportunityHistoryEntrySchema);
+/**
+ * `truncated` is beside `pagination` and not part of it: `hasMore` goes on
+ * meaning "there is a next page to ask for". It is `true` on the last page a
+ * history can serve when the Opportunity has earlier entries beyond it — the
+ * history reaches a fixed way back — and `false` on every other page.
+ */
+export const OpportunityHistoryResponseSchema = collectionEnvelope(OpportunityHistoryEntrySchema).extend({
+  truncated: z.boolean(),
+});
+export type OpportunityHistoryResponse = z.infer<typeof OpportunityHistoryResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // §12 Analytics

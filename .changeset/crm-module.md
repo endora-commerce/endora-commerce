@@ -52,7 +52,8 @@ organization the caller may not see answers `404 CRM_OPPORTUNITY_NOT_FOUND`):
   edit or delete, a message is immutable), **attachments** (`…/attachments/upload` under
   `crm:write` alone, stored in the media library as a private file, at most 25 MB, active
   content refused; attaching an existing library file by id also needs `assets.read`).
-- **Change history** — `GET …/history`, read from the platform's audit trail under `crm:read`;
+- **Change history** — `GET …/history`, read from the platform's audit trail under `crm:read`,
+  reaching back 499 entries and answering `truncated: true` on its last page when there are more;
   the text of a note or a message is never in it, and the tab shows every audited value in
   words — custom field values under the fields' own labels, an order status by name to a
   reader holding `orders:read`.
