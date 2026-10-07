@@ -202,6 +202,15 @@ describe('crm lookups (contract)', () => {
       OpportunityMentionLookupResponseSchema.parse(await lookup(`mentionable${query}`, cookies)).data;
     const ids = async (query = '', cookies?: Record<string, string>): Promise<string[]> =>
       (await options(query, cookies)).map((option) => option.id);
+    /**
+     * A search that matches one seeded administrator and nobody else: the
+     * surname carries a random suffix. Other files of a run seed people too, so
+     * a search by a shared prefix could push this one past the limit.
+     */
+    const only = async (seeded: Seeded): Promise<string> => {
+      const row = await h.em().findOneOrFail(AdminUser, { id: seeded.adminUserId }, { filters: false });
+      return `q=${encodeURIComponent(row.lastName)}`;
+    };
 
     it('is offered to crm:write — where a text is written — and refused without it', async () => {
       const path = `${CRM_API}/lookups/mentionable`;
@@ -220,7 +229,7 @@ describe('crm lookups (contract)', () => {
     });
 
     it('answers an id and a name — no e-mail address, no role', async () => {
-      const raw = (await lookup('mentionable?q=lookup-reader', writer.cookies)) as {
+      const raw = (await lookup(`mentionable?${await only(reader)}`, writer.cookies)) as {
         data: Record<string, unknown>[];
       };
       expect(raw.data).toHaveLength(1);
@@ -230,14 +239,17 @@ describe('crm lookups (contract)', () => {
 
     it('with an Organization, offers only people who may see it', async () => {
       // The Sales Rep is confined to the test Organization.
-      expect(await ids(`?q=crm-rep&limit=50&organizationId=${TEST_ORGANIZATION_ID}`)).toContain(rep.adminUserId);
-      expect(await ids(`?q=crm-rep&limit=50&organizationId=${otherOrganizationId}`, CRM_ADMIN)).not.toContain(
-        rep.adminUserId,
-      );
+      const theRep = await only(rep);
+      expect(await ids(`?${theRep}&organizationId=${TEST_ORGANIZATION_ID}`)).toEqual([rep.adminUserId]);
+      expect(await ids(`?${theRep}&organizationId=${otherOrganizationId}`, CRM_ADMIN)).toEqual([]);
+      // Positive control for the exclusion: without an Organization the same search finds them.
+      expect(await ids(`?${theRep}`)).toEqual([rep.adminUserId]);
       // Somebody who reaches every Organization is offered for both.
-      expect(await ids(`?q=lookup-reader&organizationId=${otherOrganizationId}`, CRM_ADMIN)).toEqual([
+      const theReader = await only(reader);
+      expect(await ids(`?${theReader}&organizationId=${otherOrganizationId}`, CRM_ADMIN)).toEqual([
         reader.adminUserId,
       ]);
+      expect(await ids(`?${theReader}&organizationId=${TEST_ORGANIZATION_ID}`)).toEqual([reader.adminUserId]);
     });
 
     it('offers nobody for an Organization the caller may not reach', async () => {
