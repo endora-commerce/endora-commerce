@@ -55,6 +55,7 @@ import type {
   OrganizationDetailsPort,
   PaymentAdapterRegistryPort,
   PaymentMethodReadPort,
+  QuoteRequestReadPort,
   PromotionApplyPort,
   RfqCustomerPort,
   ShippingAdapterRegistryPort,
@@ -208,6 +209,14 @@ export interface OrdersModuleOptions {
    * with invoicing off placement opens no document and changes nothing else.
    */
   invoicePlacementApply: () => InvoicePlacementApplyPort | null;
+  /**
+   * `quote_requests`' row read model, for the one question placement has of it:
+   * may this order name the request its basket was seeded from
+   * (`specs/143-crm-sales-opportunities/`, FR-100). An accessor, as the three
+   * `invoices` names are: `null` ⇒ the quote desk is off and the order names
+   * nothing.
+   */
+  quoteRequestRead: () => QuoteRequestReadPort | null;
   /**
    * The payment row placement opens (feature 080, T048; D-179). A value and not
    * an accessor, unlike the two `invoices` names above and unlike `inventory`:
@@ -496,6 +505,7 @@ export function commerceModule(options: OrdersModuleOptions) {
           cartPlacementApply: options.cartPlacementApply,
           cartRead: options.cartRead,
           invoicePlacementApply: options.invoicePlacementApply,
+          quoteRequestRead: options.quoteRequestRead,
           paymentPlacementApply: options.paymentPlacementApply,
         },
         ...(options.mailer ? { mailer: options.mailer } : {}),

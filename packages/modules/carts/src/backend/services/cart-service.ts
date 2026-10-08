@@ -115,6 +115,22 @@ export class CartService {
     }
   }
 
+  /**
+   * A basket seeded from an accepted Quote Request stops being that request's
+   * basket when its last line goes (`specs/143-crm-sales-opportunities/`,
+   * FR-101). Adding to it, removing from it and changing a quantity do not
+   * touch the mark, because they do not touch the agreed unit prices on the
+   * lines that remain either — the id follows the rule the prices already
+   * follow. An emptied basket has no agreed line left, so whatever is put in
+   * it next is priced from the list and is an ordinary order.
+   */
+  async #forgetSourceWhenEmptied(em: EntityManager, cart: Cart): Promise<void> {
+    if (!cart.sourceQuoteRequestId) return;
+    if ((await em.count(CartItem, { cartId: cart.id })) > 0) return;
+    cart.sourceQuoteRequestId = null;
+    await em.flush();
+  }
+
   async getOrCreateForCustomer(ctx: CustomerContext): Promise<Cart> {
     const em = this.emFactory();
     return this.#getOrCreateForCustomerOn(em, ctx);
@@ -404,6 +420,7 @@ export class CartService {
     }
     cart.lastActivityAt = new Date();
     await em.flush();
+    if (quantity <= 0) await this.#forgetSourceWhenEmptied(em, cart);
     if (this.approvalService && actor.customer) {
       await this.approvalService.maybeReArm(cart, {
         customerAccountId: actor.customer.customerAccountId,
@@ -444,6 +461,7 @@ export class CartService {
     em.remove(item);
     cart.lastActivityAt = new Date();
     await em.flush();
+    await this.#forgetSourceWhenEmptied(em, cart);
     if (this.approvalService && actor.customer) {
       await this.approvalService.maybeReArm(cart, {
         customerAccountId: actor.customer.customerAccountId,

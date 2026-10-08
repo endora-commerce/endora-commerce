@@ -160,12 +160,23 @@ delivery per (transition, recipient, channel).
 
 ## Conversion to order
 
+`POST /api/v1/quote-requests/:id/convert-to-order` fills the customer's
+basket with the lines of an `Approved` quote request at the agreed unit
+prices, and marks the basket with the quote request it was filled from. The
+order placed from that basket records it (`source_quote_request_id`) — while
+the quote request is still `Approved` and at least one line is still in the
+basket at the agreed price; the Orders module's page says what drops the mark.
+
 When an order is created with a populated `source_quote_request_id`,
 an event subscriber inside the module flips the originating Quote
 Request to `Completed`, populates `converted_order_id`, and fires the
-`completed` notification. The cart-creation step that locks RFQ
-agreed prices into a checkout cart is delivered through the existing
-cart and checkout flows.
+`completed` notification. A completed quote request cannot be ordered a second
+time. The subscriber waits for the order to be committed — a little over two
+seconds at most — and completes nothing for an order of another organization.
+
+With this module switched off, a basket filled earlier is still checked out, at
+the agreed prices, as an ordinary order: it records no quote request and the
+quote request is not completed.
 
 ## Created by an administrator: the event and its origin
 

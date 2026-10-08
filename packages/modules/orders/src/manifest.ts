@@ -301,6 +301,23 @@ export const manifest = defineModuleManifest({
         'module`s table, and that bind is not this module`s to withdraw.',
     },
     {
+      moduleId: 'quote_requests',
+      name: 'quoteRequestReadPort',
+      kind: 'degrades-without',
+      whenAbsent:
+        'an order placed from a basket that an accepted quote filled no longer records that ' +
+        'quote, so the quote is not completed by it; the order itself is placed exactly as before',
+      reason:
+        'Placement copies the accepted quote a basket was seeded from onto the order ' +
+        '(`orders.source_quote_request_id`) and reads that quote back first: the basket ' +
+        'carries a claim `carts` does not judge, stamped only for a request of the order`s ' +
+        'own Organization that is still approved and still has an agreed line on the basket ' +
+        '(`specs/143-crm-sales-opportunities/`, FR-100 to FR-103). A read on a ' +
+        '`di.providePort` name behind `effectiveState.isPresent`: with the owner absent ' +
+        'nothing can vouch for the claim, so the order is placed without a source rather ' +
+        'than refused. Not `dependencies`, for the reason given on `rfqService` above.',
+    },
+    {
       moduleId: 'inventory',
       name: 'inventoryStockReadPort',
       kind: 'degrades-without',

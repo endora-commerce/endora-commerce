@@ -763,15 +763,26 @@ Usunięcie powiązania wymaga tylko `crm:write`.
 Przełącznik „podążaj za statusem szansy” nic dla niego nie znaczy: zapytanie
 ofertowe zachowuje własny status.
 
-**Jeszcze nie działa: zamówienie złożone z powiązanego zapytania
-ofertowego.** Moduł jest przygotowany na to, by takie zamówienie samo wiązało
-się z tą samą szansą (`linkSource: "quote_conversion"`), ale może to zrobić
-tylko wtedy, gdy zamówienie zapisuje, z którego zapytania ofertowego powstało —
-a dziś nic w platformie tego nie zapisuje. Dopóki nie zaczną tego robić moduły
-zamówień i koszyka, zamówienie złożone z powiązanego zapytania ofertowego jest
-zamówieniem jak każde inne: **nie** wiąże się samo, a przy włączonym
-`crm.auto_create_from_orders` dostaje własną szansę. Trzeba je powiązać
-ręcznie.
+**Zamówienie złożone z powiązanego zapytania ofertowego samo dołącza do
+szansy.** Gdy klient zamawia zaakceptowane zapytanie ofertowe, zamówienie
+zapisuje, z którego zapytania powstało, a jeśli to zapytanie jest powiązane z
+szansą, zamówienie zostaje powiązane z tą samą szansą (`linkSource:
+"quote_conversion"`) — jeden raz, niezależnie od tego, czy szansa jest jeszcze
+otwarta, czy już zamknięta, i niezależnie od ustawienia
+`crm.auto_create_from_orders`: takie zamówienie nigdy nie dostaje własnej
+szansy. Od tej chwili jest powiązanym zamówieniem jak każde inne: obejmują je
+mapowania statusów zamówień, a wartość szansy je uwzględnia.
+
+Zamówienie zapisuje swoje zapytanie ofertowe, gdy zostaje złożone z koszyka,
+który klient wypełnił przyciskiem *Złóż zamówienie z tej oferty* na stronie
+zaakceptowanego zapytania w storefroncie, o ile zapytanie jest nadal
+zatwierdzone, a w koszyku wciąż jest co najmniej jedna pozycja w uzgodnionej
+cenie. Dodanie
+produktu albo zmiana ilości niczego tu nie zmienia. Z koszyka opróżnionego i
+wypełnionego na nowo ręcznie albo takiego, w którym nie została żadna
+uzgodniona pozycja, powstaje zwykłe zamówienie: nie wiąże się samo, a zapytanie
+ofertowe pozostaje otwarte. Gdy moduł zapytań ofertowych jest wyłączony,
+zamówienie jest składane jak zwykle i nie zapisuje żadnego zapytania.
 
 ### Wartość szansy
 
@@ -794,15 +805,11 @@ Wartość wyliczana to suma:
 Te dwie kwoty nie mają tej samej podstawy i żadna nie jest przeliczana: każdy
 dokument liczy się w kwocie, którą pokazuje jego własny ekran.
 
-**Liczone raz — gdy zamówienia zaczną zapisywać swoje zapytanie ofertowe.**
-Zamówienie złożone z powiązanego zapytania ofertowego i to zapytanie to jedna
-transakcja, więc dopóki liczy się zamówienie, zapytanie ofertowe jest pomijane.
-Dotyczy to tylko zamówienia, które zapisuje, z którego zapytania powstało, a
-dziś nie robi tego żadne (zob. *Wiązanie zapytań ofertowych*): do tego czasu
-zamówienie i zapytanie ofertowe, z którego je złożono — oba powiązane ręcznie i
-oba w liczonym statusie — są **sumowane oba**. Aby nie policzyć transakcji
-dwukrotnie, wyłącz jeden z ich statusów z liczonych albo odłącz zapytanie
-ofertowe.
+**Liczone raz.** Zamówienie złożone z powiązanego zapytania ofertowego i to
+zapytanie to jedna transakcja: dopóki liczy się zamówienie, zapytanie ofertowe
+jest pomijane, więc wartością jest kwota zamówienia, a nie suma obu. Zamówienie
+i zapytanie ofertowe, które są powiązane z szansą, ale nie mają ze sobą nic
+wspólnego, są liczone oba.
 
 **Jedna waluta.** Szansa ma jedną walutę i nic nie jest przeliczane. Dokument w
 innej walucie, który w przeciwnym razie by się liczył, jest pomijany, a szansa
@@ -916,7 +923,8 @@ Co **nie** jest tworzone:
 
 - nic dla dokumentu, który jest już powiązany z szansą;
 - nic dla zamówienia, które zapisuje zapytanie ofertowe powiązane z szansą —
-  zamówienie dołącza do tej szansy, niezależnie od ustawień. Dziś żadne
+  zamówienie dołącza do tej szansy, niezależnie od ustawień (zob. *Wiązanie
+  zapytań ofertowych*);
   zamówienie nie zapisuje swojego zapytania ofertowego, więc to jeszcze nie
   działa (zob. *Wiązanie zapytań ofertowych*);
 - nic dla dokumentów, które istniały przed włączeniem ustawienia;

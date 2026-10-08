@@ -63,6 +63,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `promotions` | nie | refuses-without `promotionService` — nie można złożyć ani podejrzeć żadnego zamówienia — silnik promocji przelicza sumę rabatów przy każdym checkoucie, a nie tylko dla koszyka z rabatem |
 | `promotions` | nie | refuses-without `promotionUsageFinalizer` — koszyka z rabatem nie można zamienić w zamówienie — wykorzystanie promocji jest zapisywane w transakcji składania zamówienia, więc zamówienie jest wycofywane razem z nim |
 | `prompt_actions` | nie | contributes-to `promptActionToolRegistry` |
+| `quote_requests` | nie | degrades-without `quoteRequestReadPort` — zamówienie złożone z koszyka wypełnionego zaakceptowanym zapytaniem ofertowym nie zapisuje już tego zapytania, więc nie kończy go; samo zamówienie jest składane dokładnie tak jak dotąd |
 | `quote_requests` | nie | refuses-without `rfqService` — zamówienia nie można zamienić z powrotem w zapytanie ofertowe — akcja „zamów ponownie jako zapytanie” na ekranie zamówienia jest odrzucana, a pozostałe funkcje zamówienia działają bez zmian |
 | `shipments` | nie | degrades-without `shippingEmailRendererPort` — potwierdzenie zamówienia nadal jest wysyłane, z wierszem dostawy opisanym na podstawie zapisanych danych metody zamiast sformułowania samego przewoźnika |
 

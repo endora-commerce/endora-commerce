@@ -565,6 +565,35 @@ parallel branches.*
 
 ---
 
+## Phase 22: An Order records the Quote Request it was placed from (FR-100 … FR-104)
+
+*Added 2026-10-08 at the owner's request ("Ad 2) tak, jak możesz to dorób" — the answer to
+A-1). A platform change made inside this feature: `carts`, `quote_requests` and `orders`
+change, CRM does not. Research N-QS1 … N-QS6. Task ids start at T270 — T220 … T269 are left
+free for work on parallel branches.*
+**Independent test**: link an accepted Quote Request to an Opportunity whose value is
+computed; as the customer, order that quote in the storefront and check out. The Order
+appears on the Opportunity by itself, the value is the Order's figure and not the two added,
+the Quote Request reads *Completed*, and no second Opportunity exists.
+
+- [x] T270 Trace every road from a Quote Request to an Order on this tree and write it down with file and line before designing (research N-QS1): one conversion, one re-priced copy that is not a conversion, and no request body that can name a Quote Request.
+- [x] T271 [P] Tests first, seen red (the Order named nothing; 2 of the first 15 cases, the rest being controls and refusals that must hold before and after): `backend/test/integration/orders/place-order-from-quote-request.test.ts` (**new** — the real road; the control; a basket changed, emptied, stripped of its agreed line, seeded again as a reorder seeds it, replaced by an admin-created Order; the re-priced copy; a forged source of another Organization, of no request, of a cancelled one, of a request the basket holds no line of; a source in the request body; `quote_requests` off on both axes) with `backend/test/helpers/quote-conversion.ts` (**new**).
+- [x] T272 `packages/contracts/src/carts.ts` (`CartRecord.sourceQuoteRequestId`, `CartSeedOptions`, the third argument of `replaceItemsForCustomer`); `carts`: the migration `20261008T061751_carts_cart_source_quote_request.ts` (scaffolded by `migration:new`, one nullable `uuid` column), its barrel, the entity, `cart-read-port.ts` (the seed writes the mark, on the `EntityManager` it flushes — N-QS5 (a)), `cart-service.ts` (`#forgetSourceWhenEmptied`); `composer:generate`.
+- [x] T273 `quote_requests`: `rfq-service.ts` hands the request's id to the seed; `order-completion-reactor.ts` looks again for an Order whose commit is in flight and refuses another Organization's (N-QS5 (b)), with `order-completion-reactor.test.ts` (**new**, six cases) and the four new cases of `backend/test/integration/quote_requests/conversion.test.ts`; the composition supplies `deferAfterCommit` and `isStillPresent`.
+- [x] T274 `orders`: `domain/quote-request-source.ts` and its test (**new**, fourteen cases), `#vouchedQuoteRequestSource` in `order-service.ts`, the `quoteRequestRead` accessor through `plugin.ts` and `index.ts`, the `degrades-without` entry in `manifest.ts`; `composer:generate` (the module-reference page) and its Polish mirror.
+- [x] T275 [P] CRM on the real road: `backend/test/integration/crm/quote-conversion.test.ts` (**new**, six cases — research N-QS6). No file under `packages/modules/crm/src/` changes.
+- [x] T276 Docs: the three passages of `packages/modules/crm/docs/crm.md` that said "not effective yet"; `quote_requests.md` § *Conversion to order*; `carts.md` § *Conversions*; `orders.md` § *An order placed from an accepted quote request* (**new**); the four Polish pages and their translation-cache entries. Spec: FR-100 … FR-104, the seven "not reachable" marks and A-1 in `spec.md`, `contracts/events-and-ports.md` §2, `contracts/foreign-module-changes.md` §QS, the two traceability rows below. Changesets for `contracts`, `mod-carts`, `mod-quote-requests`, `mod-orders` and the amended CRM one.
+- [ ] T277 **Not done**: the road walked in a storefront browser, and the joined Order seen on the Opportunity's screen. Proven against the test database through the HTTP routes only.
+- [ ] T278 **Follow-up, not this feature's (the owner's to schedule)**: `orders` announcing `order.created.v1` after its commit, which removes the wait in `crm` and in `quote_requests` (N-E7, N-QS5); the *Place order* button of the Admin UI's Quote Request screen, which posts to the customer route (N-QS1 (c)); whether a basket seeded from a quote should stop being orderable at the agreed prices once the quote's validity has ended (N-QS3).
+- [x] T280 Independent review of T270 … T276 (research N-QSR1 … N-QSR5): the diff read against the surrounding code, fourteen mutations of the new rules run against the suites, every survivor given a test. No file under `packages/modules/crm/src/` changes.
+- [x] T281 **One request, one Order** (FR-104, N-QSR1). Test first, seen red: `backend/test/integration/orders/quote-request-source-review.test.ts` (**new**) — *one request, two baskets*: placed after an Order that already names the request while it still reads `Approved` (red before the repair), a placement waiting its turn behind another of the same request (red without the lock), and two placed at once. Then `orders`: `alreadyOrdered` / `already-ordered` in `domain/quote-request-source.ts` and its test, and the transaction-scoped advisory lock and own-table count in `#vouchedQuoteRequestSource` (`order-service.ts`).
+- [x] T282 The completion reactor says when it gives up (FR-104, N-QSR3): `order-completion-reactor.ts` throws after the last pause, for `deferAfterCommit` to log; `order-completion-reactor.test.ts` gains the logged give-up and two cases nothing held — the same Order announced twice, and a completed request left with the Order that completed it.
+- [x] T283 [P] Tests for the mutants that survived (N-QSR2): in `quote-request-source-review.test.ts`, a placement in a system scope with a basket naming another Organization's request (and its control), the agreed line swapped for a list-priced one in a basket that was never empty, a second request converted into the same basket; `backend/test/integration/carts/seed-bookkeeping.test.ts` (**new**) — the seed moves `lastActivityAt` (N-QSR4).
+- [x] T284 Docs and release intent for T281 – T282: `orders.md` § *An order placed from an accepted quote request* (four conditions), its Polish mirror and translation-cache entry; the `mod-orders` and `mod-quote-requests` changesets; `spec.md` FR-104; `contracts/foreign-module-changes.md` §QS.
+- [ ] T285 **Reported, not changed — the owner's to schedule** (N-QSR5): the money rules a quote-seeded basket has never had (no ceiling on the quantity of an agreed line, a reorder re-seeding at an Order's snapshot prices, the validity date unread at placement, a line with no agreed price seeded at zero); the basket page showing the recomputed list price beside an Order charged at the agreed one; a recovery pass for a request whose completion never arrived; an index on `orders.source_quote_request_id`.
+
+---
+
 ## Dependencies & Execution Order
 
 > **Note on file names (2026-10-06).** This section and a task line in almost every story —
@@ -724,8 +753,8 @@ not a one-declaration integration.
 | FR-021, FR-022, FR-023 | US1 | T030, T034 |
 | FR-024, FR-025 | US2 | T058 |
 | FR-026 | US10 | T108–T112 |
-| FR-027 | US8 | T095 — **against a fixture only**: the test writes the Order's `sourceQuoteRequestId` by hand, because nothing in the product records it (research N-E3); the requirement is not reachable from the storefront or the Admin UI until `orders` does |
-| FR-030 – FR-033 | US8 | T094, T095 — FR-033's "counted once" on the same fixture as FR-027 (research N-E3) |
+| FR-027 | US8, Phase 22 | T095 (an Order whose source is written by hand) and T275 (an Order placed through the storefront routes, research N-QS6) |
+| FR-030 – FR-033 | US8, Phase 22 | T094, T095; FR-033's "counted once" also on the real road, T275 |
 | FR-040, FR-041 | US3 | T065, T066 |
 | FR-042, FR-043 | US4 | T073, T074 |
 | FR-044 | US5 | T078, T079, T182, T183 |
@@ -757,6 +786,11 @@ not a one-declaration integration.
 | FR-092 | US19 | T230, T232, T233 |
 | FR-093 | US19 | T232 |
 | FR-090 – FR-093 | US19 (independent review) | T240 – T244 |
+| FR-100 | Phase 22 | T271 (the Order names its request; both order serialisers answer it), T273 (the basket is marked), T275 |
+| FR-101 | Phase 22 | T271 — *a basket the buyer changed after the conversion* (five cases) and the re-priced copy |
+| FR-102 | Phase 22 | T274 (`quote-request-source.test.ts`), T271 — *a source the basket claims and placement does not believe* (four cases) and the request-body case; T275 (nothing crosses the tenant) |
+| FR-103 | Phase 22 | T271 — *with quote_requests off*, both axes, and the ordinary basket beside them |
+| FR-104 | Phase 22 | T273 (`order-completion-reactor.test.ts`; the lost race and the foreign Order in `conversion.test.ts`), T271 (completed, and a second conversion refused), T281 (one request, two baskets — three cases), T282 (the give-up is logged; a redelivery completes nothing twice) |
 
 ## Phase 21: User Story 19 — Choose what a board card shows, and filter the board by it (Priority: P3)
 

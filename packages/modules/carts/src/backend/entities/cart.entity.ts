@@ -50,6 +50,7 @@ export class Cart {
     | 'appliedPromotionCode'
     | 'completedOrderId'
     | 'convertedToQuoteRequestId'
+    | 'sourceQuoteRequestId'
     | 'abandonmentNotifiedAt'
     | 'lastActivityAt'
     | 'version';
@@ -134,6 +135,21 @@ export class Cart {
   /** Set on Cart → Quote Request conversion (feature 027 US3). */
   @Property({ type: 'uuid', nullable: true })
   convertedToQuoteRequestId?: string | null;
+
+  /**
+   * The accepted Quote Request this basket was seeded from — the other
+   * direction from {@link convertedToQuoteRequestId}. Written by
+   * `CartWritePort.replaceItemsForCustomer` and by nothing a buyer can reach,
+   * replaced by every later seed, and cleared when the last line is removed:
+   * a basket emptied and refilled by hand is not the quote's any more.
+   *
+   * No foreign key. It is a claim `orders` re-reads through
+   * `quoteRequestReadPort` before it stamps `orders.source_quote_request_id`,
+   * so a request that has gone leaves an id that resolves to nothing, which is
+   * the same answer as no id.
+   */
+  @Property({ type: 'uuid', nullable: true })
+  sourceQuoteRequestId?: string | null;
 
   /**
    * Idempotency stamp for the abandonment-sweep notification. Cleared on

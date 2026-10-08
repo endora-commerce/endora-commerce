@@ -191,6 +191,34 @@ webhook wychodzący subskrybujący `order.created.v1` dostaje ją w treści.
 - **Ponowne zamówienie** — `…/:id/reorder` odtwarza koszyk (zależnie od ustawienia
   `orders.reorder_enabled`); **kopia jako zapytanie ofertowe** — `…/:id/clone-to-quote`.
 
+## Zamówienie złożone z zaakceptowanego zapytania ofertowego
+
+Zamówienie złożone z koszyka wypełnionego zaakceptowanym zapytaniem ofertowym zapisuje to zapytanie
+w polu `sourceQuoteRequestId` (`orders.source_quote_request_id`). Moduł zapytań ofertowych kończy
+zapytanie, gdy zobaczy takie zamówienie, a inne moduły odczytują to pole, aby ustalić, którym
+zamówieniem stało się zapytanie.
+
+Koszyk niesie jedynie deklarację, a przy składaniu zamówienia jest ona sprawdzana z zapytaniem
+ofertowym w jego bieżącym stanie. Zamówienie zapisuje zapytanie, gdy spełnione są wszystkie cztery
+warunki:
+
+- zapytanie należy do **tej samej organizacji** co zamówienie;
+- zapytanie jest nadal w statusie `Approved` — nie zostało anulowane, nie wygasło i nie jest już
+  zakończone;
+- **żadne inne zamówienie nie zapisało już tego zapytania** — gdy dwie osoby z jednej organizacji
+  zamieniły to samo zapytanie w koszyk, zapytanie przypada pierwszemu złożonemu zamówieniu,
+  a drugie jest zwykłym zamówieniem;
+- w koszyku wciąż jest co najmniej jedna jego pozycja — ten sam produkt i wariant w uzgodnionej
+  cenie jednostkowej.
+
+W przeciwnym razie zamówienie i tak zostaje złożone, lecz niczego nie zapisuje; odmowa trafia do
+logu i nie jest pokazywana kupującemu. Żadne żądanie nie przyjmuje tego pola: ani storefront, ani
+ekran tworzenia zamówienia w panelu administracyjnym, ani zewnętrzne API zamówień nie mogą wskazać
+zapytania ofertowego.
+
+Gdy moduł zapytań ofertowych jest wyłączony, zamówienia są składane dokładnie tak jak dotąd i nie
+zapisują żadnego zapytania.
+
 ## Ustawienia
 
 `orders.min_order_value` (liczba; dotyczy checkoutu i tworzenia zamówień w panelu),

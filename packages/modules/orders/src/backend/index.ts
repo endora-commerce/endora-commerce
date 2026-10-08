@@ -29,6 +29,7 @@ import type {
   OrganizationRestrictionPort,
   PaymentEmailRendererPort,
   PaymentMethodReadPort,
+  QuoteRequestReadPort,
   PromptActionToolRegistryPort,
   ResolvedTax,
   SalesChannelAttributionRegistryPort,
@@ -614,6 +615,16 @@ export function registerModule(ctx: ModuleContext): void {
             invoicePlacementApply: () =>
               effectiveState.isPresent('invoices')
                 ? lazyPort<InvoicePlacementApplyPort>(ctx, 'invoicePlacementApplyPort')
+                : null,
+            // The request a basket was seeded from, read back at placement
+            // (`specs/143-crm-sales-opportunities/`, FR-100). Presence is asked
+            // for the reason the `invoices` reads above ask it, and the
+            // consequence is this module's `degrades-without` sentence for
+            // `quoteRequestReadPort`: with the quote desk off an order is
+            // placed exactly as before and names no request.
+            quoteRequestRead: () =>
+              effectiveState.isPresent('quote_requests')
+                ? lazyPort<QuoteRequestReadPort>(ctx, 'quoteRequestReadPort')
                 : null,
             // The payment row placement opens (feature 080, T048; D-179). **No
             // presence question**, unlike every other switchable owner on this

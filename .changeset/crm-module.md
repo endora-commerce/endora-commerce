@@ -89,10 +89,11 @@ and `crm.auto_create_from_quote_requests`. A document created from within an opp
 *Create order* and *Create quote request* buttons, carried as an `origin` on the owner's create
 request — is linked to that opportunity and gets none of its own.
 
-**Not effective yet:** linking an order to the opportunity of the quote request it was placed
-from (`linkSource: "quote_conversion"`), and counting such a pair once in a computed value.
-Both are implemented and both wait for the platform to record which quote request an order
-came from; today no order does.
+**An order placed from a linked quote request joins the opportunity by itself**
+(`linkSource: "quote_conversion"`), whether the opportunity is open or closed, and such a pair
+is counted once in a computed value — the order's figure, not the two added. It relies on the
+order recording the quote request it was placed from, which `@endora-commerce/mod-orders` does
+from the same release.
 
 **The Admin UI** (`./admin`, `./tailwind.css`): a "CRM" sidebar section with *Opportunities*,
 *Board*, *Analytics*, *Tags* and *Workflow*; the create screen and the opportunity's own screen

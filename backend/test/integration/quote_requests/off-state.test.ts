@@ -11,6 +11,7 @@ import { QUOTE_REQUESTS_SETTING_CODES } from '../../../../packages/modules/quote
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import { Order } from '../../helpers/package-entities.js';
+import { whenOrderCreatedSettled } from '../../helpers/quote-conversion.js';
 
 /**
  * `quote_requests` off-state — Constitution XVII item 6, from a **package**
@@ -38,11 +39,15 @@ import { Order } from '../../helpers/package-entities.js';
  */
 describe('quote_requests off-state, from a package (Constitution XVII)', () => {
   let h: BackendServerHandle;
+  /** The completion reactor, taken while the module is on: its handle is gated. */
+  let reactor: { idle(): Promise<void> };
   const admin = { b2b_session: 'stub-admin-session' };
   const customer = { b2b_session: 'stub-customer-session' };
 
   beforeAll(async () => {
     h = await setupBackendServer();
+    reactor = (h.container.resolve('quoteRequests') as { handle(): { orderCompletionReactor: typeof reactor } })
+      .handle().orderCompletionReactor;
   });
 
   afterAll(async () => {
@@ -107,10 +112,19 @@ describe('quote_requests off-state, from a package (Constitution XVII)', () => {
     return { quoteRequestId, orderId: order.id };
   }
 
-  /** `emit` dispatches without a scope; the handler is async, so yield to it. */
+  /**
+   * `emit` dispatches without a scope and the handlers are async, so wait for
+   * them — for the bus's chain to reach its end, and for the reactor's second
+   * look where it took one — rather than for a number of milliseconds. This
+   * slept 50 ms; measured on a busy machine the completion lands 27 to 67 ms
+   * after the event, so both cases below failed now and then for no reason of
+   * their own.
+   */
   async function announceOrder(orderId: string): Promise<void> {
-    h.eventBus.emit('order.created.v1', { orderId } as never);
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await whenOrderCreatedSettled(h, async () => {
+      h.eventBus.emit('order.created.v1', { orderId } as never);
+    });
+    await reactor.idle();
   }
 
   async function statusOf(quoteRequestId: string): Promise<string | undefined> {

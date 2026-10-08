@@ -155,6 +155,16 @@ Reactivation: any buyer activity (touch, add/remove/qty/coupon) on an
   buyer's current contractual prices are the source of truth. Unavailable /
   no-price / not-purchasable lines are skipped and returned in
   `droppedLines[]` with typed reasons.
+- **Accepted Quote Request → Cart** (`POST
+  /api/v1/quote-requests/:id/convert-to-order`, owned by the Quote Requests
+  module): the cart is cleared and seeded with the quote's lines at the
+  **agreed** unit prices through `CartWritePort.replaceItemsForCustomer`, and
+  remembers the quote it was seeded from in `source_quote_request_id`. The
+  mark travels with the agreed prices: adding a line, removing one or changing
+  a quantity keeps both; removing the last line, or seeding the cart again from
+  another source (a reorder), clears the mark, and an order an administrator
+  creates for the customer starts a new cart without it. The Orders module reads it at placement and decides whether the order
+  may record the quote. The re-priced copy above sets no mark.
 - **Shopping List → Cart**: delegated to the existing
   `ShoppingListService.convertToCart`; the carts module
   exposes a port that composition wires to it.

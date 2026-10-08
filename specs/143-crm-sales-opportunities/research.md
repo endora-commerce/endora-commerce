@@ -3969,6 +3969,218 @@ verified, with the test that now holds it.
 - The board replaces its history entry on every filter change (`replace: true`), so *Back*
   leaves the board rather than undoing a filter. A choice, stated in the page's own comment.
 
+- **N-QS1 (2026-10-08, T270) — the roads by which a Quote Request reaches an Order, traced
+  on this tree. There is one, and it had no memory.** (a) **The conversion**:
+  `POST /api/v1/quote-requests/:id/convert-to-order`
+  (`packages/modules/quote_requests/src/backend/routes.customer.ts:157`) calls
+  `RfqService.convertToOrder` (`services/rfq-service.ts:712`), which refuses anything but an
+  `Approved` request inside its validity, then seeds the buyer's basket at the agreed unit
+  prices through `CartWritePort.replaceItemsForCustomer` and answers a checkout URL; the
+  buyer checks out through `POST /api/v1/orders` → `OrderService.placeOrder`
+  (`packages/modules/orders/src/backend/services/order-service.ts`), which copies
+  `CartItem.unitPrice` onto the order line and builds the `Order` in one `tx.create`. The
+  storefront's button is `storefront/components/rfq/RfqDetailActions.tsx`
+  ("Złóż zamówienie z tej oferty"); the `fromRfq` query parameter of the checkout URL is read
+  by nothing. **Before**: the basket kept no word of the request, `placeOrder` never set
+  `sourceQuoteRequestId`, so the Order named nothing, `order-completion-reactor.ts` returned
+  at its first `if`, and the request stayed `Approved` — N-E3, confirmed. (b)
+  `POST /api/v1/cart/from-quote-request/:quoteRequestId`
+  (`packages/modules/carts/src/backend/routes.ts:542`,
+  `cart-conversion-service.ts` `createCartFromQuoteRequest`) is **not** a conversion: it
+  takes a request in any status, *appends* its products to the basket at the buyer's current
+  list prices and drops the quoted ones on purpose (FR-017 of its own feature). It marks
+  nothing, before and after; no storefront or Admin UI file calls it. (c) **Nothing else can
+  name a request.** The admin create-order route, the reorder and the external order intake
+  (`order-creation-admin-service.ts`, `order-reorder-service.ts`,
+  `order-api-intake-service.ts`) all end in the same `placeOrder` and none takes such a
+  field; `routes.external.ts` and `routes.ts` only *serialise* it; `PlaceOrderRequest` has no
+  such member. There is no admin "create an Order from this Quote Request" operation: the
+  *Place order* button of `RfqDetail.tsx` posts to the **customer** route (a) with the
+  administrator's session, which that route's `requireCustomer` guard does not admit — read,
+  not exercised, and not this feature's.
+- **N-QS2 (2026-10-08, T271) — the id travels the road the agreed prices travel: on the
+  basket.** `carts.source_quote_request_id` (new, nullable, no foreign key, no index — one
+  migration in `carts`), set by a third, optional argument of
+  `CartWritePort.replaceItemsForCustomer` and by nothing a buyer can reach;
+  `CartRecord.sourceQuoteRequestId` carries it to `CartPlacementApplyPort.readActiveForPlacement`,
+  which `placeOrder` already reads inside its transaction. **A changed basket keeps it for
+  exactly as long as it keeps the agreed prices** — the existing rule, followed rather than
+  invented: `CartService.addItem`, `updateItem` and `removeItem` leave the unit price of the
+  lines that remain untouched, so a request's basket with one product added or a quantity
+  changed is still checked out at the agreed prices, and still is that request's Order. It is
+  dropped (i) by every later seed — the option is *replaced*, absent included, so a reorder
+  clears it (an admin-created Order, a one-click purchase and the external intake do not
+  re-seed: they close the basket with `clearForCustomer` and fill a new one, which never had
+  it) — and (ii) when the last line is removed
+  (`#forgetSourceWhenEmptied`): an emptied basket has no agreed line, and what is put in it
+  next is priced from the list. There was no "quote price lock" to follow; the basket has
+  never had one. *Rejected*: dropping it on any change (a buyer who adds one screw to an
+  accepted quote would get an unlinked Order, a second Opportunity with automatic creation
+  on, and a request that stays `Approved` and convertible again at the agreed prices);
+  a per-line mark on `cart_items` (a second column and a second rule for what FR-102's check
+  at placement decides from the lines themselves); a field on the placement request (a
+  client-supplied id on a tenant path, which is what FR-102 exists to refuse).
+- **N-QS3 (2026-10-08, T272) — `orders` judges the claim at placement, and `carts` judges
+  nothing.** `domain/quote-request-source.ts` (`judgeQuoteRequestSource`, pure) accepts a
+  claimed request only when it exists, belongs to the Order's Organization, is `Approved`, and
+  the basket still holds one of its lines — same product and variant, at the agreed unit
+  price (a line with no agreed price is read as zero, as the conversion seeds it). The request
+  and its lines are read through `quoteRequestReadPort` (`findById`, `listItems`) — the port
+  `carts` already consumes; nothing was added to it. A refused claim is logged at `warn` with
+  its reason and dropped: **the Order is placed**, because the buyer is ordering a basket they
+  may order and only its provenance is in doubt; a 4xx here would turn a cancelled quote into
+  a checkout that cannot be completed. No `catch` around the port: presence is asked first
+  (`effectiveState.isPresent('quote_requests')`), which is the declared degrade, and a read
+  that fails for any other reason fails the placement. The price comparison is `Number` on
+  both sides: both are the same `decimal` copied, never computed. **The Organization rule is
+  the second of two layers, and a mutation showed which is which**: with the comparison
+  removed from `judgeQuoteRequestSource`, the storefront cases still refuse a foreign request
+  — `QuoteRequest` is tenant-scoped, so the port answers nothing for it inside the buyer's own
+  request and the claim falls as `not-found`. The explicit comparison is what holds wherever a
+  placement runs with a scope wider than one Organization, and it is the unit test that holds
+  it; no placement on this tree both runs that wide and carries a mark. **Not checked at
+  placement**: the request's validity date — it binds at the conversion, where the price
+  commitment is consumed (`rfq-service.ts`, its own comment), and a basket seeded inside the
+  window is checked out at the agreed prices after it today; refusing the *source* there while
+  honouring the *prices* would be the worse half of both. Reported, not changed.
+- **N-QS4 (2026-10-08, T272) — off state and the manifest.** `orders` gains one
+  `nonBindingDependencies` entry, `quote_requests` / `quoteRequestReadPort` /
+  `degrades-without`. Not `dependencies`: the edge is mutual
+  (`quote_requests.converted_order_id`) and `orders` is non-deactivatable, so a bind would take
+  the operator's quote-desk switch away — the reason its `rfqService` entry already gives.
+  With the module deactivated or platform-unavailable a basket converted earlier is still
+  checked out, at the agreed prices, as an Order naming nothing, and no row of
+  `quote_requests` moves (both axes measured). `carts` and `quote_requests` gain no edge:
+  `carts` already declares `quote_requests`, and `quote_requests` already consumes
+  `cartWritePort` and `orderReadPort`. No API shape changes: `sourceQuoteRequestId` was
+  already in `orderSchema` and both order serialisers, and the OpenAPI baseline is untouched.
+- **N-QS5 (2026-10-08, T273) — two defects the dead column was hiding, both repaired because
+  FR-100 does not hold without them.** (a) **`replaceItemsForCustomer` wrote its basket
+  bookkeeping on the wrong `EntityManager`.** It took the cart from
+  `CartService.getOrCreateForCustomer` — managed by the service's own — and flushed another,
+  so `lastActivityAt` set there was written by nobody (the first run of the new test showed
+  the seeded cart at `version 0` with the mark `null`). The seed now loads the cart on the
+  `EntityManager` it flushes; `lastActivityAt` is written as its doc block always said.
+  (b) **The completion reactor lost the race N-E7 measured**, exactly as that note predicted
+  once anything wrote the source. Probe, fifteen conversions checked out one after another in
+  one process: on the first, `orderReadPort.findById` inside an `order.created.v1` subscriber
+  answered nothing and the request stayed `Approved`, with no second attempt, for good; the
+  other fourteen were found and completed. `order-completion-reactor.ts` now reads once on
+  the bus and, for an Order that is not there, looks again off the dispatch chain after 10,
+  25, 75, 150, 250, 500 and 1000 ms — CRM's pauses, for CRM's reasons (N-E18) — asking whether
+  `quote_requests` is still on before every read; it also refuses to complete a request of
+  another Organization, whoever wrote the column. `idle()` lets a test wait for it. The
+  repair that removes both waits is still `orders`' — announce after the commit — and is
+  still not made: it changes the timing every subscriber of `order.created.v1` sees, and is
+  the owner's to schedule.
+- **N-QS6 (2026-10-08, T274) — CRM changed by one test file and its page.** Nothing under
+  `packages/modules/crm/src/` was edited: `linkOrderPlacedFromQuoteRequest`,
+  `value-calculation.ts` and the automatic-creation order of questions were written against
+  the published contract and hold on the real road as written.
+  `backend/test/integration/crm/quote-conversion.test.ts` walks it — a request priced,
+  accepted, converted and checked out through the storefront routes: the Order joins the
+  request's Opportunity once as `quote_conversion` (and once after two redeliveries); a
+  computed value is the Order's figure, with the Order deliberately smaller than the request
+  (five of seven ordered) so that "counted once" differs from "counted twice" and from "the
+  request counted instead"; the Order-status mapping moves the Opportunity; with automatic
+  creation on, no second Opportunity appears; a basket emptied and refilled gets its own; a
+  basket pointed at another Organization's linked request changes neither that Opportunity's
+  links, value nor version. **Decided by reading the code, and the owner's to reverse**: an
+  Order placed from a request linked to a **closed** Opportunity joins it as well and does
+  not reopen it — `linkAutomatically` has never asked the Opportunity's status, a link is a
+  fact about documents, and FR-025 already keeps a mapping from reopening. **When several
+  Opportunities could be meant**: none can — `(document_kind, document_id)` is unique, so a
+  request is linked to at most one. **Not walked**: the storefront in a browser; the Admin UI
+  showing the joined Order; the demo data (a parallel branch's).
+- **N-QSR1 (2026-10-08, T281, independent review) — one request could become two Orders
+  that both name it; `orders` now holds "one request, one Order" by itself.** Two people of
+  one Organization may each convert the same accepted request — the buyer who raised it and
+  the Organization's administrator (`RfqService.findVisibleForCustomer`) — and each has a
+  basket of their own, so two baskets can carry one request. FR-102 judged each placement
+  against the request's **status**, and the status is moved by the completion reactor *after*
+  the first Order's commit: for that interval, and for good when the reaction never arrives
+  (the process stops, or the Order is not readable inside the reactor's wait), the second
+  basket still read `Approved` and its Order was stamped too. Probe, deterministic: two
+  baskets of one request, the first checked out, the request put back to `Approved` as a lost
+  completion leaves it, the second checked out — **both Orders named the request**. `crm`
+  links every Order that names a linked request to its Opportunity and a computed value
+  counts each, so the pair was counted twice; `quote_requests.converted_order_id` pointed at
+  whichever completed last. Two placements fired at the same moment did *not* reproduce it on
+  this rig in the runs made, which is why the deterministic case is the red one.
+  **Repair, inside `orders` only**: `#vouchedQuoteRequestSource` takes a transaction-scoped
+  advisory lock on the request's id (`pg_advisory_xact_lock(hashtextextended(…))`), counts
+  the Orders that already name the request in its own table, and hands the answer to
+  `judgeQuoteRequestSource` as `alreadyOrdered` → `already-ordered`. The lock is what makes
+  two concurrent placements take turns — under `read committed` both would count zero — and
+  it is proven by a test that holds the lock by hand and watches a placement wait. Taken only
+  for a basket that carries a claim, after the stock reservation, released by the commit; no
+  new index (the count is narrowed by `orders_organization_id_index` inside a buyer's scope).
+  *Rejected*: a unique index on `orders.source_quote_request_id` (the second placement would
+  fail instead of being placed as an ordinary Order — FR-102's "placed all the same");
+  locking the `quote_requests` row from `orders` (another module's table). **Not repaired**:
+  the second basket is still checked out at the agreed prices — that is what the basket has
+  always done for every changed, re-seeded or expired quote (N-QS3), and it is the owner's
+  (N-QSR5).
+- **N-QSR2 (2026-10-08, T280, T283) — fourteen mutations of the new rules, and what held
+  each.** Each applied to the source, the package rebuilt, the three suites of T271 – T275
+  and the package's own unit tests run, the source restored. *Killed by an integration case
+  and a unit case*: the status check dropped; "an agreed line is on the basket" always true;
+  the Organization check dropped in the reactor; no second look in the reactor. *Killed by
+  an integration case only*: the claim stamped without being judged; the off-state guard
+  dropped (placement answers 503); the mark kept by a seed that names no request; the mark
+  kept by an emptied basket; the conversion not naming its request. **Survivors, each now
+  held**: (1) the Organization comparison dropped from `judgeQuoteRequestSource` — unit test
+  only, as N-QS3 said; an integration case exists after all: a placement run in a system
+  scope through `orderPlacementPort`, where the tenant filter hides nothing, with its control
+  beside it. (2) The **price** half of the agreed-line comparison dropped (product and variant
+  still compared) — unit test only; now a basket whose agreed line is removed and re-added
+  from the price list while a second line keeps it from ever being empty. (3) `lastActivityAt`
+  not written by the seed — nothing at all; N-QSR4. (4) `stillPresent` not asked before a
+  deferred read — unit test only, left so. (5) The reactor's "already completed" return
+  dropped — nothing at all; two unit cases, T282. The mutations of the repair itself
+  (`alreadyOrdered` ignored; the lock removed; the give-up not thrown) are each killed.
+- **N-QSR3 (2026-10-08, T282) — the reactor's bounded wait, judged.** Read: the second look
+  holds no connection and no transaction between reads, runs off `EventBus.dispatch`'s chain
+  (so it delays no other subscriber), asks `effectiveState` before every read, and is in a
+  system scope — where the tenant filter is off and the explicit Organization comparison is
+  the guard (held by `conversion.test.ts` against real rows; the mutation reddens it). On the
+  bus's own chain the handler runs in the placing request's tenant scope. **What it did not
+  do is say when it gave up**: an Order still unreadable after 2010 ms returned in silence,
+  and a commit slower than the wait is indistinguishable from a rollback there. It now
+  throws, and the composition's `deferAfterCommit` logs it at `warn` with the Order's id.
+  **Still true, and not repairable here**: nothing comes back for a request whose completion
+  was lost — a process that stops inside the wait leaves the Order naming the request and the
+  request `Approved`, convertible again. Since N-QSR1 a second Order can no longer *name* it,
+  so CRM is not double-counted; the buyer can still convert and check out at the agreed
+  prices again, exactly as before this phase, when no request was ever completed. Announcing
+  `order.created.v1` after the commit (T278) removes the wait but not this: an in-process
+  event is lost with its process either way, and only a durable hand-off or a recovery pass
+  closes it (T285).
+- **N-QSR4 (2026-10-08, T283) — the `EntityManager` repair in `replaceItemsForCustomer`.**
+  Its two callers (`quote_requests`' conversion and `orders`' reorder — the admin
+  create-order, the one-click purchase and the external intake use `clearForCustomer` +
+  `addItem`) now get a basket whose row is really written: the mark,
+  `lastActivityAt`, and with them `version` (the column is `version: true`, and a seed never
+  moved it before). The abandonment sweep reads `lastActivityAt < cutoff` on `active`
+  baskets, so the old behaviour could only *hasten* an abandonment — a basket idle past the
+  threshold, re-seeded and swept before anyone touched it — and the repair removes that; no
+  sweep or reminder suite changes its answer. `seed-bookkeeping.test.ts` holds the write.
+  Read, not exercised: two conversions of one buyer racing each other now meet the cart's
+  optimistic lock, where before neither wrote the row.
+- **N-QSR5 (2026-10-08, T285) — read during the review, predating this phase, reported and
+  not changed.** (a) An agreed line's quantity has no ceiling: `updateItem` and `addItem`
+  change the quantity and keep the unit price, so seven pieces agreed at a price are
+  orderable as seven thousand at it — and such an Order now also completes the request. (b)
+  `OrderReorderService` re-seeds from an Order's snapshot prices, so an Order placed from a
+  quote can be reordered at the agreed prices indefinitely (the reorder clears the mark; the
+  prices travel). (c) The validity date is read at the conversion and never again (N-QS3).
+  (d) A request line with no agreed price is seeded at `0`. (e) `GET /api/v1/cart` answers
+  the recomputed list price where the recompute is wired, while placement charges
+  `cart_items.unit_price` — a quote's basket can display one figure and be ordered at
+  another. (f) An administrator-created Order, a one-click purchase and an external intake
+  close the customer's active basket first, a quote's basket included. (g)
+  `orders.source_quote_request_id` has no index.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,
@@ -3990,7 +4202,7 @@ force:
 
 | # | Open for the owner | Default written into the spec |
 | --- | --- | --- |
-| A-1 | Repair the platform so an Order records the Quote Request it was placed from (N-E3), before CRM ships? | No repair inside this feature; FR-027, "counted once" and the second half of FR-061 stand as implemented-but-unreachable and are marked so |
+| A-1 | Repair the platform so an Order records the Quote Request it was placed from (N-E3), before CRM ships? | No repair inside this feature; FR-027, "counted once" and the second half of FR-061 stand as implemented-but-unreachable and are marked so **Decided 2026-10-08: repair it here** ("Ad 2) tak, jak możesz to dorób") — done, `spec.md` FR-100 … FR-104, N-QS1 … N-QS6 |
 | A-4 | Admit the demo data set to this feature's foreign changes and decide whether the demo gains an Order (N-G5)? | Not built; User Story 14 scenario 3 stays, marked deferred |
 
 **A-4 was answered on 2026-10-08** — the demo data set is admitted and the pipeline is built

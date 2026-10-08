@@ -63,6 +63,7 @@ Rendered from the module's own manifest, and from nothing written by hand. What 
 | `promotions` | no | refuses-without `promotionService` — no order can be placed or previewed at all — the discount total is recomputed through the promotion engine on every checkout, not only on a discounted basket |
 | `promotions` | no | refuses-without `promotionUsageFinalizer` — a basket carrying a discount cannot become an order — the redemption row is written inside the placement transaction, so the order rolls back with it |
 | `prompt_actions` | no | contributes-to `promptActionToolRegistry` |
+| `quote_requests` | no | degrades-without `quoteRequestReadPort` — an order placed from a basket that an accepted quote filled no longer records that quote, so the quote is not completed by it; the order itself is placed exactly as before |
 | `quote_requests` | no | refuses-without `rfqService` — an order cannot be turned back into a quote — the reorder-as-quote action on the order screen refuses, and every other order surface keeps serving |
 | `shipments` | no | degrades-without `shippingEmailRendererPort` — the order confirmation still goes out, with the delivery line written from the method snapshot instead of a carrier’s own wording |
 
