@@ -138,19 +138,29 @@ describe('allDayDateOf', () => {
 });
 
 describe('eventWhen', () => {
-  it('words a timed Event as its local date and time, followed by the zone', () => {
-    expect(
-      eventWhen({ allDay: false, startsAt: new Date('2026-10-12T08:00:00Z'), timeZone: 'Europe/Warsaw' }),
-    ).toBe('2026-10-12 10:00 Europe/Warsaw');
-    // Midnight is 00:00, never 24:00.
-    expect(
-      eventWhen({ allDay: false, startsAt: new Date('2026-10-11T22:00:00Z'), timeZone: 'Europe/Warsaw' }),
-    ).toBe('2026-10-12 00:00 Europe/Warsaw');
+  const evening = { allDay: false, startsAt: new Date('2026-10-08T16:42:00Z'), timeZone: 'Europe/Warsaw' };
+
+  it('words a timed Event in the language asked for: its date and time in its own zone, and the zone', () => {
+    expect(eventWhen(evening, 'pl-PL')).toBe('8 października 2026, 18:42 (Europe/Warsaw)');
+    expect(eventWhen(evening, 'en-US')).toBe('October 8, 2026, 6:42 PM (Europe/Warsaw)');
+  });
+
+  it('says midnight as the day it starts, never as the end of the day before', () => {
+    const midnight = { allDay: false, startsAt: new Date('2026-10-11T22:00:00Z'), timeZone: 'Europe/Warsaw' };
+    expect(eventWhen(midnight, 'pl-PL')).toBe('12 października 2026, 00:00 (Europe/Warsaw)');
+    expect(eventWhen(midnight, 'en-US')).toBe('October 12, 2026, 12:00 AM (Europe/Warsaw)');
   });
 
   it('words an all-day Event as its date alone — a date is the same date for every reader', () => {
-    expect(
-      eventWhen({ allDay: true, startsAt: new Date('2026-06-10T12:00:00Z'), timeZone: 'Pacific/Auckland' }),
-    ).toBe('2026-06-11');
+    const allDay = { allDay: true, startsAt: new Date('2026-06-10T12:00:00Z'), timeZone: 'Pacific/Auckland' };
+    expect(eventWhen(allDay, 'pl-PL')).toBe('11 czerwca 2026');
+    expect(eventWhen(allDay, 'en-US')).toBe('June 11, 2026');
+  });
+
+  it('is one line of plain text, whatever the language', () => {
+    for (const language of ['pl-PL', 'en-US'] as const) {
+      // `Intl` separates "6:42" from "PM" with a narrow no-break space; a bell param and a subject get a plain one.
+      expect(eventWhen(evening, language)).toMatch(/^[\x20-\x7e\u00a1-\u017f]+$/);
+    }
   });
 });

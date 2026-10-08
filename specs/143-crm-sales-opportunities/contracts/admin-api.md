@@ -580,8 +580,12 @@ follows its link. Bell entry: `kind: 'crm.opportunity.event_reminder'`,
 `linkPath: /crm/opportunities/<id>?tab=events&event=<eventId>`, `title` the English
 sentence and `titleMessage: { scope: 'crm', key: 'notifications.eventReminder.title' |
 'notifications.eventReminderAllDay.title', params: { name, when, number } }` — `when` is
-`YYYY-MM-DD HH:mm` (or the date alone) in the Event's `timeZone`, followed by the zone's
-name. E-mail: transactional e-mail `crm_event_reminder` (`contracts/events-and-ports.md`
+the Event's start **in the Event's `timeZone`, worded in the recipient's language** (owner
+ruling of 2026-10-08, research N-CALR11): `8 października 2026, 18:42 (Europe/Warsaw)` for a
+Polish preference, `October 8, 2026, 6:42 PM (Europe/Warsaw)` for English or none; the date
+alone for an all-day Event. It is worded by the server, for the one recipient: the bell's
+resolver substitutes params as strings and formats nothing, so the stored English `title`
+of a Polish recipient's entry carries a Polish `when`. E-mail: transactional e-mail `crm_event_reminder` (`contracts/events-and-ports.md`
 §5a).
 
 ## 13. Error codes owned by `crm`

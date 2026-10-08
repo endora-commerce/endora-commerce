@@ -53,13 +53,13 @@ const SENTENCES: Record<string, CrmNotificationText> = {
   'mention, the author unknown': crmNotificationText.mention('OPP-000042', null),
   'event reminder, timed': crmNotificationText.eventReminder({
     name: 'Demo at the warehouse',
-    when: '2026-10-12 10:00 Europe/Warsaw',
+    when: 'October 12, 2026, 10:00 AM (Europe/Warsaw)',
     number: 'OPP-000042',
     allDay: false,
   }),
   'event reminder, all day': crmNotificationText.eventReminder({
     name: 'Offer deadline',
-    when: '2026-10-12',
+    when: 'October 12, 2026',
     number: 'OPP-000042',
     allDay: true,
   }),
@@ -72,8 +72,8 @@ describe('crmNotificationText', () => {
       message: 'New message on opportunity OPP-000042',
       'mention, the author known': 'Ada Author mentioned you in opportunity OPP-000042',
       'mention, the author unknown': 'You were mentioned in opportunity OPP-000042',
-      'event reminder, timed': 'Reminder: Demo at the warehouse, 2026-10-12 10:00 Europe/Warsaw — opportunity OPP-000042',
-      'event reminder, all day': 'Reminder: Offer deadline, all day on 2026-10-12 — opportunity OPP-000042',
+      'event reminder, timed': 'Reminder: Demo at the warehouse, October 12, 2026, 10:00 AM (Europe/Warsaw) — opportunity OPP-000042',
+      'event reminder, all day': 'Reminder: Offer deadline, all day on October 12, 2026 — opportunity OPP-000042',
     });
   });
 
@@ -141,7 +141,7 @@ describe('crmNotificationText', () => {
     expect(bellTitle(short)).toBe(short);
     const longest = crmNotificationText.eventReminder({
       name: 'x'.repeat(200),
-      when: '2026-10-12 10:00 America/Argentina/ComodRivadavia',
+      when: 'October 12, 2026, 10:00 AM (America/Argentina/ComodRivadavia)',
       number: 'OPP-000042',
       allDay: false,
     });

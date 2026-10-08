@@ -4790,6 +4790,51 @@ that had a failing probe before it had a repair; the probes are
   when CRM is switched off finishes its claims — at most a hundred — before the next tick
   finds the module off.
 
+### N-CALR10 … 12 — The owner's rulings of 2026-10-08 on Events and the Calendar (T399)
+
+Confirmed as built, with no change: the bell always and an e-mail as well when the recipient
+is away (OQ-1, OQ-2); the Event's creator when no assignee qualifies (N-CALR9 (b)); the
+Calendar's scope by Organization reach, with no new permission (OQ-4); the e-mail without a
+link for now — T339 stays stopped.
+
+- **N-CALR10 — The checkbox is "Set a reminder" / "Ustaw przypomnienie".** "Remind me" said
+  the wrong person: the reminder goes to the assignee, who is often not whoever ticks the
+  box. The hint under it now says the other half as well — with nobody assigned, the Event's
+  author is reminded. Two bundle values; the tests reach the checkbox through the bundle, so
+  one test now holds the words themselves.
+- **N-CALR11 — `when` is worded in the recipient's language.** It was `YYYY-MM-DD HH:mm
+  <zone>`, chosen because it "reads the same in both languages" (N-CAL7). Read: the shell's
+  resolver (`admin-shell/…/notification-text.ts`) takes `params` of strings and numbers and
+  **substitutes** them — it formats nothing, so an instant passed as a param would be drawn
+  as an ISO string. A reminder has exactly one recipient, though, so "the reader's language"
+  is known when it is written: `eventWhen(event, language)` words the start with `Intl` in
+  the Event's own zone and the recipient's `preferredLanguage` (`pl` → `pl-PL`, anything else
+  → `en-US`, the mapping the e-mail already used), and the same string goes into the bell
+  param and the e-mail variable. *What this costs, stated*: a recipient who changes their
+  language later keeps the entries already written in the old one, and the stored English
+  fallback `title` of a Polish recipient's entry carries a Polish date. Formatting at render
+  would need a typed param in the shell's resolver — a change to `admin-shell` and
+  `admin_notifications`, not asked for.
+- **N-CALR12 — "sent by e-mail" on an instance with no SMTP: no honest signal exists on the
+  CRM side, so nothing was changed.** Read: `email` picks its driver from `emailSmtpUrl`
+  (`SmtpMailer` or `ConsoleMailer`); `ConsoleMailer.send` answers `{ status: 'sent' }`;
+  `transactional_emails`' sender **drops the transport's answer by design**
+  (`transactional-email.service.ts`, the comment above `this.mailer.send`) and answers
+  `sent`. What CRM could reach is `emailSmtpUrl` — a registration of `email`'s own cradle,
+  not a contract, holding the connection URL with its credentials. It was not used, for
+  three reasons: it is another module's internal name (no port, no contract type); it would
+  put SMTP credentials in CRM's hands to answer a yes/no; and it does not say what the wired
+  mailer is — a composition may replace `emailMailer` (the test harness does, and an overlay
+  may), so "no URL" would call a working transport absent. **The smallest foreign change**,
+  for whoever files it: (1) `EmailMailerSendOutcome` gains a third member for "written to the
+  log, delivered to nobody" — `{ status: 'logged' }` — answered by `ConsoleMailer` instead of
+  `sent`; (2) `TransactionalSendOutcome` gains the same member and `TransactionalEmailService
+  .send` returns the transport's answer instead of a constant. CRM's `event-reminder-email.ts`
+  already treats every status other than `sent` as "no e-mail went out", so with those two
+  changes the Events tab says *bell* on such an instance with no change in CRM. Until then
+  the tab can say "notification bell and e-mail" for an e-mail that reached nobody — which is
+  the case the bell-always rule was made for, so the reminder itself is not lost.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,

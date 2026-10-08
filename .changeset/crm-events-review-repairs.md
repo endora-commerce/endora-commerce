@@ -31,3 +31,11 @@ changes.
 - **One line.** A reminder says the Event's name with its line breaks collapsed
   (`reminderEventName`), in the bell sentence and in the subject of the e-mail.
 - `allDayDate` of an Event before the year 1000 is `YYYY-MM-DD` with its leading zeros.
+- **How a reminder says when.** `event.when` of the `crm_event_reminder` e-mail and the `when`
+  param of the bell entry are worded in the recipient's Admin UI language, in the Event's own
+  zone: `8 października 2026, 18:42 (Europe/Warsaw)`, `October 8, 2026, 6:42 PM
+  (Europe/Warsaw)`; the date alone for an all-day Event. It was `2026-10-08 18:42
+  Europe/Warsaw`. An operator's edited template keeps working — the variable is the same.
+- **Wording.** The dialog's checkbox reads *Set a reminder* / *Ustaw przypomnienie* (was
+  *Remind me* / *Przypomnij mi*), and its hint says that with nobody assigned the Event's
+  author is reminded.

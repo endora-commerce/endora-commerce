@@ -11,7 +11,7 @@ import { eventWhen } from '../domain/event-time.js';
 import type { CrmEventReminderOutcome } from '../entities/crm-opportunity-event.entity.js';
 import type { AdminReach } from './admin-reach.js';
 import { crmNotificationText, type CrmNotifier } from './crm-notifier.js';
-import type { EventReminderEmail } from './event-reminder-email.js';
+import { reminderEmailLanguage, type EventReminderEmail } from './event-reminder-email.js';
 import { isActiveAdministrator } from './opportunity-assignment-service.js';
 
 /** A reminder found due later than this is not sent: it is shown as missed. */
@@ -245,7 +245,8 @@ export class EventReminderService {
         return;
       }
 
-      const when = eventWhen(claim);
+      // Worded for the one person who is told, in the language of their Admin UI.
+      const when = eventWhen(claim, reminderEmailLanguage(recipient.preferredLanguage));
       const bell = await this.deps.notifier.notify({
         kind: 'crm.opportunity.event_reminder',
         targetAdminUserId: recipient.id,

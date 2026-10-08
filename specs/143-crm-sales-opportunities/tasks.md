@@ -1262,7 +1262,7 @@ what it found; `[P]` means parallel inside its own track.
   overlapping Events; a month day with "+N more"; a 15-minute Event; a long name; the
   dialog by keyboard alone; focus order by eye; an axe pass; one reminder end to end
   against a real mail catcher, in Polish and in English, with the Admin UI open and closed.
-- [ ] T384 [US21] [US22] **An independent review of the tenant and delivery paths**, by an
+- [x] T384 [US21] [US22] **An independent review of the tenant and delivery paths**, by an
   agent that did not write them: the Calendar's statement and its scope rule, the
   recipient's reach in the sweep, the claim. It mutates each (drop the reach predicate;
   drop the assignee test under `mine`; deliver before claiming) and confirms a test reds,
@@ -1298,6 +1298,12 @@ Research N-CALR1 … N-CALR9. Each repair had a failing test first.
 - [x] T398 [US21] [US22] This record: N-CALR1 … N-CALR9, the three sentences of
   `contracts/` and `data-model.md` the repairs made untrue, and the judgement on the
   `transactional_emails` edge (N-CALR7 — it stays).
+
+- [x] T399 [US21] The owner's rulings of 2026-10-08 (research N-CALR10 … N-CALR12): the
+  checkbox reads *Set a reminder* / *Ustaw przypomnienie* and its hint names the author
+  fallback; `when` in the bell entry and the e-mail is worded in the recipient's language,
+  in the Event's zone; and "sent by e-mail" with no SMTP — **not changed**: no signal exists
+  on the CRM side, the foreign change needed is written down in N-CALR12.
 
 ### Not in these phases, by decision (`plan.md` § *Scope cut, on purpose*)
 
