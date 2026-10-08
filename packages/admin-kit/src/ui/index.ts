@@ -30,6 +30,8 @@ export { Combobox } from './combobox.js';
 export type { ComboboxOption, ComboboxProps } from './combobox.js';
 export { Input } from './input.js';
 export { Label } from './label.js';
+export { MultiCombobox } from './multi-combobox.js';
+export type { MultiComboboxProps } from './multi-combobox.js';
 export { MultiSelect } from './multi-select.js';
 export type { MultiSelectOption, MultiSelectProps } from './multi-select.js';
 export { PageHeader } from './page-header.js';
