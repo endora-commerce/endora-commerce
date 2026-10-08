@@ -43,7 +43,7 @@
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.18.2",
     "tailwindcss": "^4.2.4",
-    "vite": "^7.3.2"
+    "vite": "^8.3.2"
   },
   "peerDependenciesMeta": {
     "@tailwindcss/vite": {
@@ -72,6 +72,6 @@
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.18.2",
     "typescript": "^5.9.3",
-    "vite": "^7.3.2"
+    "vite": "^8.3.2"
   }
 }
