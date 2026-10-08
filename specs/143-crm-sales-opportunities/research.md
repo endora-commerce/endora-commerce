@@ -3786,6 +3786,86 @@ tree said.
   sees the contact on the card and cannot filter by it. The value filter compares amounts
   across currencies, as `sort=value` does.
 
+### N-BFR — Independent review of User Story 19 (2026-10-08)
+
+A second agent read `44d35a60c..770f76756` without having written it, probed each suspicion
+with a test and repaired what a probe confirmed. What a probe did not confirm is recorded as
+verified, with the test that now holds it.
+
+- **N-BFR1 — `builtin:salesChannel` answered a name per language, so the card never showed
+  it.** `SalesChannel.name` is a `json` column of names keyed by language; `#cardValues`
+  passed it through, §12c says "the Sales Channel's name", and `BoardCardFields` renders a
+  text and drops anything else. No test had a Sales Channel on an Opportunity, and the
+  Admin UI test fed the component a string the server never sent. The server now answers one
+  name — `salesChannelName`, in the reader's language, in the order the Admin UI's own
+  `salesChannelLabel` falls back in — and asks for that language once per page, the same
+  read the status names already needed.
+- **N-BFR2 — The address was read by looser rules than the server's.** `readBoardFilters`
+  held its own patterns for a date, a number and a reference. `2026-02-31`, a `contains` of
+  spaces, an option longer than 200 characters, `custom:Upper`, a reference of 65 characters
+  and a twenty-first field all passed them, and each has the server answer 400 for the whole
+  board — against that function's own comment. Where the field was not on the default card
+  there was no *Clear* button either, because the board had never said which fields it
+  shows. The server's schemas (`OpportunityFieldFilterSchema`,
+  `opportunityBoardFieldRefSchema`) now decide what is read; the test parses what is read
+  through `OpportunityBoardQuerySchema`, so the two cannot drift again.
+- **N-BFR3 — An address in another order than the card read the board twice.** The request
+  was keyed by the filters as text: in address order until the board answered, in card order
+  afterwards. Same filters, different text, a second identical request on every open of a
+  bookmark with two filters. The key is now order-independent (`fieldFiltersKey`).
+- **N-BFR4 — `to: 9999-12-31` on `updatedAt` / `closedAt` was a 500.** The day after was
+  computed in JavaScript and written with `toISOString()`, which is `+010000-01-01T…` for
+  that year — not a timestamp PostgreSQL reads. A valid calendar date in a bookmarkable URL
+  failed the read for the list and the board alike. The day arithmetic is now the
+  database's (`(?::date + 1)::timestamp at time zone 'UTC'`). The list's own `createdTo`
+  binds a `Date` and was not affected. *There was no test of an instant range at all*; there
+  is one now, inclusive of both UTC days.
+- **N-BFR5 — Injection: nothing found, and now held.** Every path from `fieldFilters` to SQL
+  was traced. The reference is matched against the card's resolved fields and never reaches
+  the statement; a custom key comes from the definition, not from the request, and is bound;
+  operators are a closed set of a strict schema; values are bound; `LIKE` wildcards and the
+  backslash are escaped. Probed with quotes, `?`, `??`, `:name`, `$1`, a backslash, 3000
+  levels of nesting, a duplicated parameter and 8001 characters: 200 with no match, or 400 —
+  never 500. `board-card-fields.test.ts` now builds every kind's condition for a key holding
+  a quote and asserts the key is among the bound values and absent from the text. One thing
+  that is not a defect: a JSON key `__proto__` is dropped by the record schema and the
+  request is served unfiltered rather than refused.
+- **N-BFR6 — A refused filter was located as `fieldFilters.fieldFilters.<ref>.<operator>`.**
+  The transform prefixed the parameter's name to issues the query schema already places
+  under it.
+- **N-BFR7 — "A value stored under an older type cannot fail the read" was true and
+  untested.** Removing the `jsonb_typeof` guard of the number filter or of the multi-select
+  filter left every test green. A row whose bag holds another type under every key is now
+  filtered by every kind.
+- **N-BFR8 — The statement-count test counted no contact and no Sales Channel read.** Its
+  card showed both fields and none of its Opportunities had either, so the two reads N-BF6
+  names were never issued in the measurement. Every card in it now has both.
+- **N-BFR9 — Reach: nothing found.** A filter is a condition `id in (…)` joined with AND to
+  a statement the entity filter already scopes — in the list through the scoped
+  EntityManager, in the figures through `applyFilters()` — so the unscoped subquery can only
+  narrow it; a reach-limited reader's counts do not move with a value held outside reach
+  (probed with a text and a number only the other Organization's Opportunity holds). Card
+  values are read for rows the scoped read answered. Removing `applyFilters()` from the
+  figures is caught by the existing reach test.
+- **N-BFR10 — `quote_requests` off: correct, and the wiring had no test.** Only the pure
+  catalogue function was tested; `quoteRequestsPresent: () => true` in the composition left
+  everything green. `quote-requests-off.test.ts` now holds it on both axes.
+
+**Left as they are, and why** — observations, not repairs:
+
+- An instant (`updatedAt`, `closedAt`, and the older `createdFrom` / `createdTo`) is
+  filtered by **UTC** day while the card shows it in the browser's zone; around midnight the
+  two disagree by a day. It is the list's existing convention (N-BF5 follows it).
+- A number box holding what the server would refuse — `1e5`, five decimals — is emptied
+  when typing pauses, without a word. Pre-existing in the first version of this story.
+- Each field filter is an uncorrelated subquery over all of `crm_opportunities`, and a text
+  or a custom-value predicate has no index to use. Bounded — six fields, two operators each
+  — and unmeasured at volume.
+- `fieldFilters` is capped at 8000 characters while one field may name fifty options of 200
+  characters; a multi-select with very long option values, all chosen, would be refused.
+- The board replaces its history entry on every filter change (`replace: true`), so *Back*
+  leaves the board rather than undoing a filter. A choice, stated in the page's own comment.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,

@@ -415,7 +415,8 @@ an object keyed by reference, holding the value of every chosen field **the summ
 already carry**, and nothing else. `organization`, `assignee`, `value`, `tags`, `number`,
 `expectedCloseDate`, `createdAt`, `updatedAt` and `closedAt` are the summary's own members and
 are not repeated. The others: `builtin:contact` → the contact person's name or `null`;
-`builtin:salesChannel` → the Sales Channel's name or `null`; `builtin:source` → `manual` |
+`builtin:salesChannel` → the Sales Channel's name, one text in the reader's language, or
+`null`; `builtin:source` → `manual` |
 `order` | `quote_request`; `builtin:linkedOrders` / `builtin:linkedQuoteRequests` → a count;
 `custom:<key>` → the stored value as `custom_fields` validated it, or `null`. A field that is
 not chosen has no key. `GET /opportunities?cardValues=true` answers the same member, so a
@@ -430,7 +431,7 @@ URL-encoded JSON object keyed by reference, each value an object of operators �
 | `text` | `contains` | case-insensitive substring |
 | `number`, `money` | `min`, `max` (decimal strings) | inclusive bounds; `money` is the effective value, whatever the currency |
 | `boolean` | `is` | `true`: the value is true; `false`: it is false or was never set |
-| `date` | `from`, `to` (`YYYY-MM-DD`) | inclusive of both days |
+| `date` | `from`, `to` (`YYYY-MM-DD`) | inclusive of both days; an instant (`updatedAt`, `closedAt`) by UTC day |
 | `select` | `in` | the value is one of those named |
 | `multiselect` | `in` | at least one of those named is chosen |
 | `contact` | `in` | the contact person is one of the customer accounts named |

@@ -745,6 +745,7 @@ not a one-declaration integration.
 | FR-091 | US19 | T231, T232 (the statement count), T233 |
 | FR-092 | US19 | T230, T232, T233 |
 | FR-093 | US19 | T232 |
+| FR-090 – FR-093 | US19 (independent review) | T240 – T244 |
 
 ## Phase 20: User Story 19 — Choose what a board card shows, and filter the board by it (Priority: P3)
 
@@ -790,6 +791,24 @@ not a one-declaration integration.
   changeset, the OpenAPI baseline, the off-state probes for the two new routes. **Not seen in
   a browser**: the change is to the API as well as the screens, and the preview instance runs
   the base.
+
+### Independent review (2026-10-08, research N-BFR1 – N-BFR10)
+
+- [X] T240 [US19] `backend/test/integration/crm/quote-requests-off.test.ts` — the
+  linked-Quote-Requests field neither offered, shown, filtered by nor choosable while
+  `quote_requests` is off, on both axes, and a stored choice of it left as it is (N-BFR10).
+- [X] T241 [US19] `domain/board-card-fields.ts`, `opportunity-service.ts` — a card's Sales
+  Channel as one name in the reader's language (N-BFR1); an instant's `to` bound counted by
+  the database, so the last day a date can name is not a 500 (N-BFR4). Tests first, in
+  `board-card-fields.test.ts` (integration and co-located).
+- [X] T242 [US19] `packages/contracts/src/crm.ts` — a refused field filter located once
+  (N-BFR6).
+- [X] T243 [US19] `admin/lib/board-fields.ts`, `OpportunityBoardPage.tsx` — the address read
+  by the server's own schemas (N-BFR2) and the board read once whatever order the address
+  names its filters in (N-BFR3).
+- [X] T244 [US19] Tests for what was true and unheld: a field key and every value bound
+  (N-BFR5), values of another type than the definition's (N-BFR7), the statement count with
+  a contact person and a Sales Channel on every card (N-BFR8).
 
 ## Notes
 
