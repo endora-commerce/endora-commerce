@@ -328,6 +328,26 @@ describe('crm events — review regressions', () => {
       expect(JSON.stringify(entry?.titleMessage)).not.toMatch(/\\[rn]/);
     });
 
+    it('an Event with the longest name there is still gets its reminder — the bell sentence is cut, the name is kept whole', async () => {
+      const now = nextNow();
+      const assignee = await person('long-name');
+      const name = `${'Quarterly review of the framework agreement '.repeat(4)}${'x'.repeat(24)}`;
+      expect(name).toHaveLength(200);
+      const { opportunity, eventId } = await due(now, { assignee: assignee.adminUserId, name });
+
+      const summary = await sweep(now);
+
+      expect(summary.released).toBe(0);
+      const [entry] = await bellAbout(opportunity.id);
+      expect(entry, 'no bell entry was written').toBeDefined();
+      expect(entry?.title.length).toBeLessThanOrEqual(255);
+      expect(entry?.title.endsWith('…')).toBe(true);
+      // The translated sentence is built from the params, and those are whole.
+      expect(entry?.titleMessage?.params).toMatchObject({ name });
+      expect(await outcomeOf(eventId)).toBe('bell_email');
+      expect(mailAbout(eventId)[0]?.subject).toContain(name);
+    });
+
     it('a name that looks like a template directive or like markup is said as it was written', async () => {
       const now = nextNow();
       const assignee = await person('directive');

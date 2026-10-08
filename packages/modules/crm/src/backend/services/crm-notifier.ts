@@ -109,6 +109,25 @@ export function opportunityLinkPath(opportunityId: string, about: { eventId?: st
   return about.eventId ? `${path}?tab=events&event=${about.eventId}` : path;
 }
 
+/** The longest sentence `admin_notifications` stores as an entry's `title`. */
+export const BELL_TITLE_MAX_LENGTH = 255;
+
+/**
+ * The finished sentence, cut to what a bell entry holds.
+ *
+ * Only a reminder can be too long — it is the one sentence that carries a text
+ * somebody typed, an Event's name of up to 200 characters — and the bell
+ * refuses an over-long title with an error, which for a reminder meant a claim
+ * given back every minute for a day and then *missed* (research N-CALR6). The
+ * cut is to the stored English sentence alone: the `titleMessage` params, which
+ * are what the Admin UI words the entry from, keep the name whole.
+ */
+export function bellTitle(sentence: string): string {
+  return sentence.length <= BELL_TITLE_MAX_LENGTH
+    ? sentence
+    : `${sentence.slice(0, BELL_TITLE_MAX_LENGTH - 1)}…`;
+}
+
 /**
  * Bell entries about an Opportunity, through `admin_notifications`' own port.
  *
@@ -133,7 +152,7 @@ export function createCrmNotifier(adminNotifications: AdminNotificationRecordPor
         kind: notification.kind,
         subjectType: 'crm_opportunity',
         subjectId: notification.opportunityId,
-        title: notification.title,
+        title: bellTitle(notification.title),
         titleMessage: notification.titleMessage,
         linkPath: opportunityLinkPath(
           notification.opportunityId,

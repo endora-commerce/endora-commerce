@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { AdminNotificationMessage } from '@endora-commerce/contracts';
-import { crmNotificationText, opportunityLinkPath, type CrmNotificationText } from './crm-notifier.js';
+import {
+  BELL_TITLE_MAX_LENGTH,
+  bellTitle,
+  crmNotificationText,
+  opportunityLinkPath,
+  type CrmNotificationText,
+} from './crm-notifier.js';
 
 /**
  * A bell entry of this module is translatable
@@ -128,6 +134,24 @@ describe('crmNotificationText', () => {
     const eventId = '00000000-0000-4000-8000-00000000e0e0';
     expect(opportunityLinkPath(id)).toBe(`/crm/opportunities/${id}`);
     expect(opportunityLinkPath(id, { eventId })).toBe(`/crm/opportunities/${id}?tab=events&event=${eventId}`);
+  });
+
+  it('cuts a sentence the bell would refuse, and leaves every other one as it is', () => {
+    const short = crmNotificationText.assigned('OPP-000042').title;
+    expect(bellTitle(short)).toBe(short);
+    const longest = crmNotificationText.eventReminder({
+      name: 'x'.repeat(200),
+      when: '2026-10-12 10:00 America/Argentina/ComodRivadavia',
+      number: 'OPP-000042',
+      allDay: false,
+    });
+    expect(longest.title.length).toBeGreaterThan(BELL_TITLE_MAX_LENGTH);
+    const cut = bellTitle(longest.title);
+    expect(cut).toHaveLength(BELL_TITLE_MAX_LENGTH);
+    expect(cut.endsWith('…')).toBe(true);
+    expect(longest.title.startsWith(cut.slice(0, -1))).toBe(true);
+    // The params are what the Admin UI words the entry from: the name is whole there.
+    expect(longest.titleMessage.params['name']).toHaveLength(200);
   });
 
   it('translates: the Polish sentence is not the English one', () => {
