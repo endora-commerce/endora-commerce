@@ -14,6 +14,7 @@ import {
   type CustomerAccountReadPort,
   type CustomFieldValuePort,
   type OpportunityCreatedEvent,
+  type OpportunityBoardCardField,
   type OpportunityDetail,
   type OpportunityDocumentKind,
   type OpportunityExcludedDocument,
@@ -44,6 +45,7 @@ import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.e
 import { CrmOpportunityStatus } from '../entities/crm-opportunity-status.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
+import { boardFieldFilterConditions } from '../domain/board-card-fields.js';
 import { effectiveOpportunityValue, effectiveOpportunityValueSql } from '../domain/effective-value.js';
 import { tellAfterCommit } from './crm-notifier.js';
 import { newlyMentioned, type MentionService, type SavedMentions } from './mention-service.js';
@@ -91,6 +93,8 @@ export interface OpportunityServiceDeps {
   references: ReferenceService;
   /** Telling the people a saved description newly mentions (User Story 18). */
   mentions: MentionService;
+  /** The fields a board card shows (User Story 19) — what `cardValues` and `fieldFilters` refer to. */
+  cardFields: () => Promise<OpportunityBoardCardField[]>;
 }
 
 /** An Opportunity the system creates for a document that was just placed. */
@@ -445,10 +449,20 @@ export class OpportunityService {
     };
   }
 
-  async list(query: OpportunityListQuery): Promise<{ data: OpportunitySummary[]; pagination: Pagination }> {
+  /**
+   * `card` is the board's: the fields its cards show, resolved once for all of
+   * its columns. Without it they are read here, and only when the request
+   * refers to them — `cardValues=true` or a field filter (User Story 19).
+   */
+  async list(
+    query: OpportunityListQuery,
+    card?: readonly OpportunityBoardCardField[],
+  ): Promise<{ data: OpportunitySummary[]; pagination: Pagination }> {
     const em = this.deps.emFactory();
     const graph = await this.deps.workflowRead.loadGraph(em);
     const conditions: FilterQuery<CrmOpportunity>[] = [];
+    const cardFields =
+      card ?? (query.cardValues || query.fieldFilters ? await this.deps.cardFields() : undefined);
 
     if (query.q) {
       const like = `%${query.q.replace(/[\\%_]/g, (match) => `\\${match}`)}%`;
@@ -495,6 +509,7 @@ export class OpportunityService {
       end.setUTCDate(end.getUTCDate() + 1);
       conditions.push({ createdAt: { $lt: end } });
     }
+    if (cardFields) conditions.push(...boardFieldFilterConditions(cardFields, query.fieldFilters));
 
     const direction = (query.order ?? 'desc') === 'asc' ? QueryOrder.ASC_NULLS_LAST : QueryOrder.DESC_NULLS_LAST;
     const sort = query.sort ?? 'createdAt';
@@ -515,7 +530,7 @@ export class OpportunityService {
     const hasMore = rows.length > query.limit;
     const page = hasMore ? rows.slice(0, query.limit) : rows;
     return {
-      data: await this.#summaries(page, graph),
+      data: await this.#summaries(page, graph, undefined, query.cardValues ? cardFields : undefined),
       pagination: {
         cursor: hasMore ? encodeCursor(offset + query.limit) : null,
         hasMore,
@@ -847,13 +862,14 @@ export class OpportunityService {
     rows: readonly CrmOpportunity[],
     graph: OpportunityStatusGraph,
     language?: string,
+    card?: readonly OpportunityBoardCardField[],
   ): Promise<OpportunitySummary[]> {
     if (rows.length === 0) return [];
     const organizationIds = [...new Set(rows.map((row) => row.organizationId))];
     const assigneeIds = [
       ...new Set(rows.map((row) => row.assignedAdminUserId).filter((id): id is string => Boolean(id))),
     ];
-    const [organizations, assignees, resolvedLanguage, tags] = await Promise.all([
+    const [organizations, assignees, resolvedLanguage, tags, cardValues] = await Promise.all([
       this.deps.organizations.findByIds(organizationIds),
       assigneeIds.length > 0 ? this.deps.adminUsers.findByIds(assigneeIds) : Promise.resolve([]),
       language ?? this.#viewerLanguage(),
@@ -861,6 +877,7 @@ export class OpportunityService {
         this.deps.emFactory(),
         rows.map((row) => row.id),
       ),
+      card ? this.#cardValues(rows, card) : Promise.resolve(null),
     ]);
     const organizationNames = new Map(organizations.map((organization) => [organization.id, organization.name]));
     const assigneeById = new Map(assignees.map((admin) => [admin.id, admin]));
@@ -890,8 +907,91 @@ export class OpportunityService {
         closedKind: row.closedKind ?? null,
         createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
+        ...(cardValues ? { cardValues: cardValues.get(row.id) ?? {} } : {}),
       };
     });
+  }
+
+  /**
+   * Per Opportunity, the values of the card's fields a summary does not carry
+   * as a member of its own (`contracts/admin-api.md` §12c) — and of no other
+   * field. **One read per kind of field for all the rows, never one per row**:
+   * the contact persons in one port call, the Sales Channels and the link
+   * counts in one statement each, and a custom value off the row itself.
+   *
+   * Every name here is one `crm:read` already shows on the Opportunity's own
+   * screen; a linked document is counted, which that screen also says to a
+   * reader who may not open it.
+   */
+  async #cardValues(
+    rows: readonly CrmOpportunity[],
+    card: readonly OpportunityBoardCardField[],
+  ): Promise<Map<string, Record<string, unknown>>> {
+    const shows = (ref: string): boolean => card.some((field) => field.ref === ref);
+    const ids = <T>(values: readonly (T | null | undefined)[]): T[] => [
+      ...new Set(values.filter((value): value is T => value !== null && value !== undefined)),
+    ];
+    const contactIds = shows('builtin:contact') ? ids(rows.map((row) => row.customerAccountId)) : [];
+    const channelIds = shows('builtin:salesChannel') ? ids(rows.map((row) => row.salesChannelId)) : [];
+    const countsLinks = shows('builtin:linkedOrders') || shows('builtin:linkedQuoteRequests');
+    const em = this.deps.emFactory();
+    const [contacts, channels, links] = await Promise.all([
+      contactIds.length > 0 ? this.deps.customerAccounts.findByIds(contactIds) : Promise.resolve([]),
+      channelIds.length > 0 ? em.find(SalesChannel, { id: { $in: channelIds } }) : Promise.resolve([]),
+      // The links of the page's own Opportunities, as the tag refs are read:
+      // children of rows the scoped read already answered.
+      countsLinks
+        ? em.find(
+            CrmOpportunityLink,
+            { opportunityId: { $in: rows.map((row) => row.id) } },
+            { fields: ['opportunityId', 'documentKind'] },
+          )
+        : Promise.resolve([]),
+    ]);
+    const contactNames = new Map(
+      contacts.map((contact) => [
+        contact.id,
+        `${contact.firstName} ${contact.lastName}`.trim() || contact.email,
+      ]),
+    );
+    const channelNames = new Map(channels.map((channel) => [channel.id, channel.name]));
+    const linkCounts = new Map<string, number>();
+    for (const link of links) {
+      const key = `${link.opportunityId}:${link.documentKind}`;
+      linkCounts.set(key, (linkCounts.get(key) ?? 0) + 1);
+    }
+
+    const values = new Map<string, Record<string, unknown>>();
+    for (const row of rows) {
+      const entry: Record<string, unknown> = {};
+      for (const field of card) {
+        if (field.source === 'custom') {
+          entry[field.ref] = (row.customFieldValues ?? {})[field.key] ?? null;
+          continue;
+        }
+        switch (field.key) {
+          case 'contact':
+            entry[field.ref] = (row.customerAccountId && contactNames.get(row.customerAccountId)) || null;
+            break;
+          case 'salesChannel':
+            entry[field.ref] = (row.salesChannelId && channelNames.get(row.salesChannelId)) || null;
+            break;
+          case 'source':
+            entry[field.ref] = row.source;
+            break;
+          case 'linkedOrders':
+            entry[field.ref] = linkCounts.get(`${row.id}:order`) ?? 0;
+            break;
+          case 'linkedQuoteRequests':
+            entry[field.ref] = linkCounts.get(`${row.id}:quote_request`) ?? 0;
+            break;
+          default:
+          // The summary's own member: not repeated.
+        }
+      }
+      values.set(row.id, entry);
+    }
+    return values;
   }
 
   async #detail(opportunity: CrmOpportunity, graph: OpportunityStatusGraph): Promise<OpportunityDetail> {

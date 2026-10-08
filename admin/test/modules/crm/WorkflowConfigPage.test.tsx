@@ -59,6 +59,10 @@ beforeEach(() => {
   getSpy.mockImplementation((path: string) => {
     if (path === WORKFLOW_PATH) return Promise.resolve({ data: WORKFLOW });
     if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
+    // The *Board card* section (User Story 19) is proven in `board-card-fields.test.tsx`.
+    if (path === '/api/v1/admin/crm/board/card-fields') {
+      return Promise.resolve({ data: { fields: [], available: [], maxFields: 6 } });
+    }
     return Promise.reject(new Error(`unexpected GET ${path}`));
   });
   postSpy.mockResolvedValue({ data: WORKFLOW });

@@ -256,6 +256,156 @@ export const opportunitySortSchema = z.enum([
 /** `me` and `unassigned` are tokens the service resolves; anything else is a user id. */
 const assigneeFilterSchema = z.union([z.literal('me'), z.literal('unassigned'), z.string().uuid()]);
 
+// --- §12c Board card fields (US19) — declared here because the field filters
+// are among the filters the list and the board share.
+
+/** How many fields a board card shows at most, the title besides. */
+export const OPPORTUNITY_BOARD_CARD_MAX_FIELDS = 6;
+
+/** The fields every Opportunity has that a board card can show, in the order they are offered. */
+export const OPPORTUNITY_BOARD_BUILTIN_FIELD_KEYS = [
+  'number',
+  'organization',
+  'contact',
+  'assignee',
+  'value',
+  'salesChannel',
+  'tags',
+  'expectedCloseDate',
+  'source',
+  'createdAt',
+  'updatedAt',
+  'closedAt',
+  'linkedOrders',
+  'linkedQuoteRequests',
+] as const;
+export type OpportunityBoardBuiltinFieldKey = (typeof OPPORTUNITY_BOARD_BUILTIN_FIELD_KEYS)[number];
+
+/** `builtin:<key>` or `custom:<definition key>`. */
+export const opportunityBoardFieldRefSchema = z
+  .string()
+  .regex(/^(builtin:[A-Za-z]{1,40}|custom:[a-z][a-z0-9_]{0,63})$/, 'Not a board field reference');
+
+export function opportunityBoardBuiltinFieldRef(key: OpportunityBoardBuiltinFieldKey): string {
+  return `builtin:${key}`;
+}
+
+export function opportunityBoardCustomFieldRef(definitionKey: string): string {
+  return `custom:${definitionKey}`;
+}
+
+/** The card as it was before it could be configured — what an untouched instance shows. */
+export const OPPORTUNITY_BOARD_DEFAULT_CARD_FIELDS: readonly string[] = [
+  'builtin:number',
+  'builtin:organization',
+  'builtin:value',
+  'builtin:assignee',
+  'builtin:tags',
+];
+
+/** What a field is to a renderer and to a filter. */
+export const opportunityBoardFieldKindSchema = z.enum([
+  'text',
+  'number',
+  'money',
+  'boolean',
+  'date',
+  'select',
+  'multiselect',
+  'organization',
+  'assignee',
+  'salesChannel',
+  'tags',
+  'contact',
+]);
+export type OpportunityBoardFieldKind = z.infer<typeof opportunityBoardFieldKindSchema>;
+
+export const OpportunityBoardCardFieldSchema = z.object({
+  ref: opportunityBoardFieldRefSchema,
+  source: z.enum(['builtin', 'custom']),
+  key: z.string(),
+  kind: opportunityBoardFieldKindSchema,
+  /** A custom field's labels per language; empty for a built-in field, which the Admin UI names. */
+  label: z.record(z.string(), z.string()),
+  labelDefault: z.string().nullable(),
+  options: z.array(
+    z.object({ value: z.string(), label: z.record(z.string(), z.string()), labelDefault: z.string() }),
+  ),
+});
+export type OpportunityBoardCardField = z.infer<typeof OpportunityBoardCardFieldSchema>;
+
+export const SetOpportunityBoardCardFieldsRequestSchema = z
+  .object({
+    fields: z
+      .array(opportunityBoardFieldRefSchema)
+      .max(OPPORTUNITY_BOARD_CARD_MAX_FIELDS)
+      .refine((refs) => new Set(refs).size === refs.length, 'A field can be shown once'),
+  })
+  .strict();
+export type SetOpportunityBoardCardFieldsRequest = z.infer<
+  typeof SetOpportunityBoardCardFieldsRequestSchema
+>;
+
+export const OpportunityBoardCardConfigSchema = z.object({
+  /** The stored choice, resolved, in order. */
+  fields: z.array(OpportunityBoardCardFieldSchema),
+  /** Everything that can be chosen. */
+  available: z.array(OpportunityBoardCardFieldSchema),
+  maxFields: z.number().int().positive(),
+});
+export type OpportunityBoardCardConfig = z.infer<typeof OpportunityBoardCardConfigSchema>;
+
+export const OpportunityBoardCardConfigResponseSchema = dataEnvelope(OpportunityBoardCardConfigSchema);
+
+/** A bound of a number or an amount, as a decimal string. */
+const fieldFilterNumberSchema = z.string().regex(/^-?\d{1,12}(\.\d{1,4})?$/, 'Not a decimal number');
+
+/**
+ * One field's filter: the operators of every kind in one object. Which of them
+ * apply is the field's kind to say; the others are ignored by the server.
+ */
+export const OpportunityFieldFilterSchema = z
+  .object({
+    contains: z.string().trim().min(1).max(200).optional(),
+    in: z.array(z.string().min(1).max(200)).min(1).max(50).optional(),
+    is: z.boolean().optional(),
+    min: fieldFilterNumberSchema.optional(),
+    max: fieldFilterNumberSchema.optional(),
+    from: calendarDateSchema.optional(),
+    to: calendarDateSchema.optional(),
+  })
+  .strict();
+export type OpportunityFieldFilter = z.infer<typeof OpportunityFieldFilterSchema>;
+
+export const OpportunityFieldFiltersSchema = z
+  .record(opportunityBoardFieldRefSchema, OpportunityFieldFilterSchema)
+  .refine((filters) => Object.keys(filters).length <= 20, 'Too many field filters');
+export type OpportunityFieldFilters = z.infer<typeof OpportunityFieldFiltersSchema>;
+
+/** The `fieldFilters` query parameter: {@link OpportunityFieldFiltersSchema} as JSON. */
+const fieldFiltersParamSchema = z
+  .string()
+  .max(8000)
+  .optional()
+  .transform((raw, ctx): OpportunityFieldFilters | undefined => {
+    if (raw === undefined || raw === '') return undefined;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'fieldFilters is not JSON' });
+      return z.NEVER;
+    }
+    const result = OpportunityFieldFiltersSchema.safeParse(parsed);
+    if (!result.success) {
+      for (const issue of result.error.issues) {
+        ctx.addIssue({ code: 'custom', message: issue.message, path: ['fieldFilters', ...issue.path] });
+      }
+      return z.NEVER;
+    }
+    return result.data;
+  });
+
 /** The filters the list and the board share. */
 const opportunityFilterShape = {
   q: z.string().trim().min(1).max(200).optional(),
@@ -266,10 +416,17 @@ const opportunityFilterShape = {
   tagId: repeatable(z.string().uuid()),
   createdFrom: calendarDateSchema.optional(),
   createdTo: calendarDateSchema.optional(),
+  /** §12c — filters on the fields the board card shows; a field that is not shown is ignored. */
+  fieldFilters: fieldFiltersParamSchema,
 };
 
 export const OpportunityListQuerySchema = z.object({
   ...opportunityFilterShape,
+  /** §12c — `true` adds `cardValues` to every summary, as the board answers them. */
+  cardValues: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((flag): true | undefined => (flag === 'true' ? true : undefined)),
   statusCode: repeatable(opportunityStatusCodeSchema),
   state: opportunityStateSchema.optional(),
   sort: opportunitySortSchema.optional(),
@@ -343,6 +500,12 @@ export const OpportunitySummarySchema = z.object({
   closedKind: opportunityClosedKindSchema.nullable(),
   createdAt: isoTimestampSchema,
   updatedAt: isoTimestampSchema,
+  /**
+   * §12c — the values of the board card's chosen fields this summary does not
+   * carry as a member of its own, keyed by field reference. Present only where
+   * it was asked for: the board, and the list with `cardValues=true`.
+   */
+  cardValues: z.record(z.string(), z.unknown()).optional(),
 });
 export type OpportunitySummary = z.infer<typeof OpportunitySummarySchema>;
 
@@ -689,6 +852,8 @@ export type OpportunityBoardColumn = z.infer<typeof OpportunityBoardColumnSchema
 
 export const OpportunityBoardSchema = z.object({
   columns: z.array(OpportunityBoardColumnSchema),
+  /** §12c — the fields a card shows, in order; what `cardValues` and `fieldFilters` refer to. */
+  cardFields: z.array(OpportunityBoardCardFieldSchema),
 });
 export type OpportunityBoard = z.infer<typeof OpportunityBoardSchema>;
 

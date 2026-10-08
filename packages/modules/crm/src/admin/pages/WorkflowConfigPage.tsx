@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Plus, Trash2 } from 'lucide-react';
 import type {
   OpportunityWorkflow,
@@ -22,12 +23,16 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi, type OrderStatusOption } from '../api.js';
+import { BoardCardFieldsEditor } from '../components/BoardCardFieldsEditor.js';
 import { ModalDialog } from '../components/ModalDialog.js';
 import { errorMessage, workflowStatusLabel } from '../lib/labels.js';
 import { OrderStatusMappings } from './workflow/OrderStatusMappings.js';
 import { StatusDialog, type StatusDialogSubmit } from './workflow/StatusDialog.js';
 import { StatusesTable } from './workflow/StatusesTable.js';
 import { ValueCountingStatuses } from './workflow/ValueCountingStatuses.js';
+
+/** The anchor of the *Board card* section — what the board's own link points at. */
+const BOARD_CARD_ANCHOR = 'board-card';
 
 type DialogState = { kind: 'create' } | { kind: 'edit'; status: OpportunityWorkflowStatus } | null;
 
@@ -77,6 +82,15 @@ export function WorkflowConfigPage(): ReactNode {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The board links here as `#board-card`: the section is far down the page,
+  // and it exists only once the workflow has loaded.
+  const { hash } = useLocation();
+  const boardCardSection = useRef<HTMLDivElement>(null);
+  const loaded = workflow !== null;
+  useEffect(() => {
+    if (loaded && hash === `#${BOARD_CARD_ANCHOR}`) boardCardSection.current?.scrollIntoView?.();
+  }, [loaded, hash]);
 
   const graphStatuses = useMemo<StatusTransitionGraphStatus[]>(
     () =>
@@ -229,7 +243,7 @@ export function WorkflowConfigPage(): ReactNode {
       </Card>
 
       {/* --- User Story 8: which statuses count towards a computed value --- */}
-      <Card>
+      <Card className="mb-4">
         <CardHeader>
           <CardTitle>{t('value.counting.title')}</CardTitle>
           <CardDescription>{t('value.counting.description')}</CardDescription>
@@ -246,6 +260,18 @@ export function WorkflowConfigPage(): ReactNode {
         </CardContent>
       </Card>
       {/* --- end of User Story 8 ------------------------------------------- */}
+
+      {/* --- User Story 19: what a board card shows ------------------------- */}
+      <Card id={BOARD_CARD_ANCHOR} ref={boardCardSection} className="scroll-mt-4">
+        <CardHeader>
+          <CardTitle>{t('boardCard.title')}</CardTitle>
+          <CardDescription>{t('boardCard.description')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <BoardCardFieldsEditor />
+        </CardContent>
+      </Card>
+      {/* --- end of User Story 19 ------------------------------------------ */}
 
       {dialog ? (
         <StatusDialog

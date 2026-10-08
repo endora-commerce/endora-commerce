@@ -646,3 +646,61 @@ describe('splitOpportunityReferenceText', () => {
     expect(crm.splitOpportunityReferenceText(twice)).toHaveLength(2);
   });
 });
+
+describe('board card fields and field filters (§12c, US19)', () => {
+  it('a field reference is builtin:<key> or custom:<definition key>', () => {
+    accepts(crm.opportunityBoardFieldRefSchema, 'builtin:organization');
+    accepts(crm.opportunityBoardFieldRefSchema, 'custom:lead_source');
+    rejects(crm.opportunityBoardFieldRefSchema, 'organization');
+    rejects(crm.opportunityBoardFieldRefSchema, 'custom:Lead Source');
+    rejects(crm.opportunityBoardFieldRefSchema, 'other:thing');
+  });
+
+  it('the default card is built-in fields within the limit', () => {
+    expect(crm.OPPORTUNITY_BOARD_DEFAULT_CARD_FIELDS.length).toBeLessThanOrEqual(
+      crm.OPPORTUNITY_BOARD_CARD_MAX_FIELDS,
+    );
+    for (const ref of crm.OPPORTUNITY_BOARD_DEFAULT_CARD_FIELDS) {
+      const key = ref.replace(/^builtin:/, '');
+      expect(crm.OPPORTUNITY_BOARD_BUILTIN_FIELD_KEYS).toContain(key);
+    }
+  });
+
+  it('the configuration takes six fields at most and none twice', () => {
+    const schema = crm.SetOpportunityBoardCardFieldsRequestSchema;
+    accepts(schema, { fields: [] });
+    accepts(schema, { fields: ['builtin:value', 'custom:lead_source'] });
+    rejects(schema, { fields: ['builtin:value', 'builtin:value'] });
+    rejects(schema, { fields: ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((key) => `custom:${key}`) });
+    rejects(schema, { fields: ['builtin:value'], extra: true });
+  });
+
+  it('fieldFilters is a JSON object of operators per field, on the list and on the board', () => {
+    const raw = JSON.stringify({
+      'custom:lead_source': { in: ['referral'] },
+      'builtin:value': { min: '100', max: '2500.50' },
+      'builtin:expectedCloseDate': { from: '2026-01-01', to: '2026-12-31' },
+      'custom:vip': { is: false },
+      'builtin:number': { contains: ' 0042 ' },
+    });
+    for (const schema of [crm.OpportunityListQuerySchema, crm.OpportunityBoardQuerySchema]) {
+      const parsed = schema.parse({ fieldFilters: raw });
+      expect(parsed.fieldFilters?.['custom:lead_source']).toEqual({ in: ['referral'] });
+      expect(parsed.fieldFilters?.['builtin:number']).toEqual({ contains: '0042' });
+      expect(schema.parse({}).fieldFilters).toBeUndefined();
+      rejects(schema, { fieldFilters: '{not json' });
+      rejects(schema, { fieldFilters: JSON.stringify({ lead_source: { in: ['x'] } }) });
+      rejects(schema, { fieldFilters: JSON.stringify({ 'custom:a': { like: 'x' } }) });
+      rejects(schema, { fieldFilters: JSON.stringify({ 'custom:a': { min: 'ten' } }) });
+      rejects(schema, { fieldFilters: JSON.stringify({ 'custom:a': { from: '2026-02-30' } }) });
+      rejects(schema, { fieldFilters: JSON.stringify(['custom:a']) });
+    }
+  });
+
+  it('the list adds card values only when asked', () => {
+    expect(crm.OpportunityListQuerySchema.parse({}).cardValues).toBeUndefined();
+    expect(crm.OpportunityListQuerySchema.parse({ cardValues: 'true' }).cardValues).toBe(true);
+    expect(crm.OpportunityListQuerySchema.parse({ cardValues: 'false' }).cardValues).toBeUndefined();
+    rejects(crm.OpportunityListQuerySchema, { cardValues: 'yes' });
+  });
+});

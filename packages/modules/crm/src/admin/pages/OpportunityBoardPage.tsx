@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import { Plus, X } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Plus, SlidersHorizontal, X } from 'lucide-react';
 import type {
   OpportunityBoard as OpportunityBoardData,
+  OpportunityBoardCardField,
   OpportunityCurrencyTotal,
+  OpportunityFieldFilter,
   OpportunityStatusRef,
   OpportunitySummary,
   OpportunityWorkflow,
@@ -20,15 +22,23 @@ import {
 } from '@endora-commerce/admin-kit/ui';
 import { useAppLanguage, useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { crmApi } from '../api.js';
+import { BoardFieldFilters } from '../components/BoardFieldFilters.js';
 import { MAX_PAGE_LIMIT } from '../components/CursorPagination.js';
 import { OpportunityBoard, type BoardColumnView } from '../components/OpportunityBoard.js';
 import {
-  NO_SHARED_FILTERS,
   OpportunityFilterFields,
   hasSharedFilters,
   sharedFilterParams,
   type SharedOpportunityFilters,
 } from '../components/OpportunityFilterFields.js';
+import {
+  DEFAULT_BOARD_CARD_FIELDS,
+  NO_BOARD_FILTERS,
+  activeFieldFilters,
+  readBoardFilters,
+  writeBoardFilters,
+  type BoardFilters,
+} from '../lib/board-fields.js';
 import { errorMessage, isRefusedOutcome, workflowStatusLabel } from '../lib/labels.js';
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -134,7 +144,11 @@ function viewOf(board: OpportunityBoardData): BoardColumnView[] {
  * so the first continuation replaces them with a longer page of the same order.
  *
  * The filter fields are the list's (`OpportunityFilterFields`), the assignee
- * filter included.
+ * filter included, and after them one filter per field the cards show
+ * (`BoardFieldFilters`, User Story 19). **The filters live in the address**, so
+ * a filtered board can be reloaded, bookmarked and sent to a colleague; the
+ * search box is the one thing typed into, and it reaches the address once
+ * typing pauses.
  */
 export function OpportunityBoardPage(): ReactNode {
   const t = useTranslation('crm');
@@ -142,6 +156,8 @@ export function OpportunityBoardPage(): ReactNode {
   const { language } = useAppLanguage();
   const { hasPermission } = useAuth();
   const canWrite = hasPermission('crm:write');
+  const canConfigure = hasPermission('crm:configure');
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [workflow, setWorkflow] = useState<OpportunityWorkflow | null>(null);
   const [workflowError, setWorkflowError] = useState<string | null>(null);
@@ -149,8 +165,13 @@ export function OpportunityBoardPage(): ReactNode {
   const [columns, setColumns] = useState<BoardColumnView[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<SharedOpportunityFilters>(NO_SHARED_FILTERS);
-  const [search, setSearch] = useState('');
+  /** The fields a card shows — the board's own answer; `null` until it has answered once. */
+  const [cardFields, setCardFields] = useState<OpportunityBoardCardField[] | null>(null);
+  // Keyed by the address's own text, so the filters are the same object until it changes.
+  const address = searchParams.toString();
+  const boardFilters = useMemo<BoardFilters>(() => readBoardFilters(new URLSearchParams(address)), [address]);
+  const filters = boardFilters.shared;
+  const [search, setSearch] = useState(filters.q);
   const [movingIds, setMovingIds] = useState<ReadonlySet<string>>(() => new Set());
   const [refusedOrders, setRefusedOrders] = useState<ReadonlyMap<string, number>>(() => new Map());
   const [moveRefusal, setMoveRefusal] = useState<MoveRefusal | null>(null);
@@ -174,15 +195,53 @@ export function OpportunityBoardPage(): ReactNode {
     void loadWorkflow();
   }, [loadWorkflow]);
 
-  // The search box is typed into; the request follows once typing pauses.
+  /** Replace the address's filters; the history keeps one entry for the board. */
+  const applyFilters = useCallback(
+    (next: (previous: BoardFilters) => BoardFilters): void => {
+      setSearchParams((previous) => writeBoardFilters(next(readBoardFilters(previous))), { replace: true });
+    },
+    [setSearchParams],
+  );
+
+  // The search box is typed into; the address, and the request, follow once typing pauses.
+  /** The search this screen last put in the address itself. */
+  const writtenSearch = useRef(filters.q);
   useEffect(() => {
+    const typed = search.trim();
+    if (typed === filters.q) return undefined;
     const timer = setTimeout(() => {
-      setFilters((previous) => (previous.q === search ? previous : { ...previous, q: search }));
+      writtenSearch.current = typed;
+      applyFilters((previous) => ({ ...previous, shared: { ...previous.shared, q: typed } }));
     }, SEARCH_DEBOUNCE_MS);
     return (): void => clearTimeout(timer);
-  }, [search]);
+  }, [search, filters.q, applyFilters]);
 
-  const params = useMemo(() => sharedFilterParams(filters), [filters]);
+  // And the other way: an address whose search this screen did not write — a
+  // link to the bare board, the browser's Back — is what the box shows. One it
+  // did write is left alone: more may have been typed since.
+  useEffect(() => {
+    if (filters.q === writtenSearch.current) return;
+    writtenSearch.current = filters.q;
+    setSearch(filters.q);
+  }, [filters.q]);
+
+  /**
+   * The field filters the server is sent. Until the board has said which
+   * fields its cards show, every one the address carries — the server ignores
+   * a field that is not on the card — and afterwards only those of a shown
+   * field. As text, so an answer that changes nothing reads nothing again.
+   */
+  const fieldFilterKey = useMemo(
+    () => JSON.stringify(cardFields ? activeFieldFilters(boardFilters.fields, cardFields) : boardFilters.fields),
+    [boardFilters.fields, cardFields],
+  );
+  const params = useMemo(() => {
+    const fieldFilters = JSON.parse(fieldFilterKey) as Record<string, OpportunityFieldFilter>;
+    return {
+      ...sharedFilterParams(filters),
+      ...(Object.keys(fieldFilters).length > 0 ? { fieldFilters } : {}),
+    };
+  }, [filters, fieldFilterKey]);
 
   const load = useCallback(async (): Promise<void> => {
     const current = ++sequence.current;
@@ -193,6 +252,7 @@ export function OpportunityBoardPage(): ReactNode {
       // A slower, older answer must not overwrite a newer one.
       if (current !== sequence.current) return;
       cursors.current = new Map();
+      setCardFields(board.cardFields);
       setColumns(viewOf(board));
     } catch (failure) {
       if (current !== sequence.current) return;
@@ -352,6 +412,8 @@ export function OpportunityBoardPage(): ReactNode {
           statusCode: [statusCode],
           ...(cursor ? { cursor } : {}),
           limit: MAX_PAGE_LIMIT,
+          // The lane's further cards carry the same field values as its first.
+          cardValues: true,
         });
         // The board was read again meanwhile: this page belongs to the old one.
         if (generation !== sequence.current) return;
@@ -385,14 +447,36 @@ export function OpportunityBoardPage(): ReactNode {
   );
 
   const change = (patch: Partial<SharedOpportunityFilters>): void =>
-    setFilters((previous) => ({ ...previous, ...patch }));
+    applyFilters((previous) => {
+      const fields = { ...previous.fields };
+      // A contact person is chosen within an Organization: another one, or
+      // none, leaves nobody to filter by.
+      if ('organizationId' in patch) delete fields['builtin:contact'];
+      return { shared: { ...previous.shared, ...patch }, fields };
+    });
+
+  const changeField = useCallback(
+    (ref: string, filter: OpportunityFieldFilter | null): void =>
+      applyFilters((previous) => {
+        const fields = { ...previous.fields };
+        if (filter) fields[ref] = filter;
+        else delete fields[ref];
+        return { ...previous, fields };
+      }),
+    [applyFilters],
+  );
 
   const clear = (): void => {
     setSearch('');
-    setFilters(NO_SHARED_FILTERS);
+    writtenSearch.current = '';
+    applyFilters(() => NO_BOARD_FILTERS);
   };
 
-  const filtered = hasSharedFilters(filters) || search.trim() !== '';
+  const shownFields = cardFields ?? DEFAULT_BOARD_CARD_FIELDS;
+  const filtered =
+    hasSharedFilters(filters) ||
+    search.trim() !== '' ||
+    Object.keys(activeFieldFilters(boardFilters.fields, shownFields)).length > 0;
 
   const retry = (): void => {
     if (!workflow) void loadWorkflow();
@@ -405,13 +489,25 @@ export function OpportunityBoardPage(): ReactNode {
         title={t('board.title')}
         description={t('board.description')}
         actions={
-          canWrite ? (
-            <Button className="min-h-11 sm:min-h-9" asChild>
-              <Link to="/crm/opportunities/new">
-                <Plus aria-hidden="true" />
-                {t('opportunity.list.new')}
-              </Link>
-            </Button>
+          canWrite || canConfigure ? (
+            <>
+              {canConfigure ? (
+                <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
+                  <Link to="/crm/workflow#board-card">
+                    <SlidersHorizontal aria-hidden="true" />
+                    {t('board.configureCard')}
+                  </Link>
+                </Button>
+              ) : null}
+              {canWrite ? (
+                <Button className="min-h-11 sm:min-h-9" asChild>
+                  <Link to="/crm/opportunities/new">
+                    <Plus aria-hidden="true" />
+                    {t('opportunity.list.new')}
+                  </Link>
+                </Button>
+              ) : null}
+            </>
           ) : undefined
         }
       />
@@ -425,6 +521,14 @@ export function OpportunityBoardPage(): ReactNode {
               onSearchChange={setSearch}
               filters={filters}
               onChange={change}
+            />
+            <BoardFieldFilters
+              idPrefix="crm-board-field"
+              fields={shownFields}
+              filters={boardFilters.fields}
+              onChange={changeField}
+              organizationId={filters.organizationId}
+              canPickContact={canWrite}
             />
           </div>
           {filtered ? (
@@ -539,6 +643,7 @@ export function OpportunityBoardPage(): ReactNode {
         <div aria-busy={loading}>
           <OpportunityBoard
             columns={lanes}
+            cardFields={shownFields}
             targetsOf={targetsOf}
             canWrite={canWrite}
             movingIds={movingIds}
