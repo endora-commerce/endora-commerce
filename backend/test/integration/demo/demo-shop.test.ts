@@ -347,13 +347,15 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   credit_limits: 1,
   // 11 — the sales pipeline on CRM's board: twelve Opportunities for the demo
   //      organisation, one status-history row per status each has been in, the
-  //      tags they carry, their notes and messages, and the index of what those
-  //      texts mention. No link: the demo has no Order and no Quote Request.
+  //      tags they carry, their notes and messages, the index of what those
+  //      texts mention, and the Events planned on the open ones. No link: the
+  //      demo has no Order and no Quote Request.
   crm_opportunities: 12,
   crm_opportunity_status_history: 36,
   crm_opportunity_tags: 10,
   crm_opportunity_comments: 6,
   crm_opportunity_references: 3,
+  crm_opportunity_events: 8,
 };
 
 /**
@@ -910,6 +912,61 @@ describe('T226 — `endora demo seed` builds this shop', () => {
       ]);
     });
 
+    it('plans Events on the open Opportunities, dated from the day of the seed, and none with a reminder', async () => {
+      const [row] = await query<{
+        on_closed: string;
+        reminders: string;
+        handled: string;
+        all_day: string;
+        whole_days: string;
+        past: string;
+        earliest_days: string;
+        latest_days: string;
+        opportunities: string;
+        authors: string;
+      }>(
+        shop,
+        `select
+           (select count(*) from crm_opportunity_events e
+              join crm_opportunities c on c.id = e.opportunity_id
+              join crm_opportunity_statuses s on s.code = c.status_code
+             where s.kind <> 'open')::text as on_closed,
+           (select count(*) from crm_opportunity_events where remind_at is not null)::text as reminders,
+           (select count(*) from crm_opportunity_events
+             where reminder_handled_at is not null or reminder_outcome is not null)::text as handled,
+           (select count(*) from crm_opportunity_events where all_day)::text as all_day,
+           (select count(*) from crm_opportunity_events
+             where all_day and time_zone = 'UTC'
+               and starts_at = date_trunc('day', starts_at at time zone 'UTC') at time zone 'UTC'
+               and ends_at = starts_at + interval '1 day')::text as whole_days,
+           (select count(*) from crm_opportunity_events where ends_at < now())::text as past,
+           (select extract(day from date_trunc('day', now() at time zone 'UTC')
+                     - date_trunc('day', min(starts_at) at time zone 'UTC'))
+              from crm_opportunity_events)::text as earliest_days,
+           (select extract(day from date_trunc('day', max(starts_at) at time zone 'UTC')
+                     - date_trunc('day', now() at time zone 'UTC'))
+              from crm_opportunity_events)::text as latest_days,
+           (select count(distinct opportunity_id) from crm_opportunity_events)::text as opportunities,
+           (select count(*) from crm_opportunity_events e
+              join admin_users u on u.id = e.created_by_admin_user_id)::text as authors`,
+      );
+      expect(row).toEqual({
+        // The Calendar shows active Opportunities only; a closed one has none to hide.
+        on_closed: '0',
+        // A demo must not start writing bell entries and e-mails a day after it was installed.
+        reminders: '0',
+        handled: '0',
+        all_day: '2',
+        whole_days: '2',
+        // One that has already happened, for the tab's second list.
+        past: '1',
+        earliest_days: '5',
+        latest_days: '12',
+        opportunities: '6',
+        authors: '8',
+      });
+    });
+
     it('reports the pipeline step, and `crm` among the modules that seeded', () => {
       const report = seedReports[0]!;
       expect(report).toContain('  sales opportunities for the demo organisation');
@@ -1001,6 +1058,7 @@ describe('T226 — `endora demo seed` builds this shop', () => {
         'crm_opportunity_tags',
         'crm_opportunity_comments',
         'crm_opportunity_references',
+        'crm_opportunity_events',
         'crm_opportunity_links',
         'crm_opportunity_attachments',
         'crm_status_propagations',

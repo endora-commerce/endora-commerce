@@ -9,6 +9,7 @@ import {
   DEMO_PIPELINE_MODULES,
   DEMO_PIPELINE_STEP_NAME,
   DEMO_PIPELINE_TAG_NAMES,
+  demoEventTimes,
   renderDemoText,
 } from './sales-pipeline.js';
 
@@ -138,6 +139,84 @@ describe('the demo sales pipeline', () => {
     const parts = comments.flatMap((comment) => comment.body);
     expect(parts.some((part) => typeof part !== 'string' && 'product' in part)).toBe(true);
     expect(parts.some((part) => typeof part !== 'string' && 'person' in part)).toBe(true);
+  });
+});
+
+describe('the demo Events', () => {
+  const open = (status: string): boolean => (SEEDED_WORKFLOW[status] ?? []).length > 0 && status !== 'lost';
+  const planned = DEMO_OPPORTUNITIES.flatMap((opportunity) =>
+    (opportunity.events ?? []).map((event) => ({ opportunity, event })),
+  );
+  const HOUR = 60 * 60 * 1000;
+  const DAY = 24 * HOUR;
+  /** A seed in the middle of a day, and one a minute before midnight. */
+  const SEEDS = [Date.UTC(2026, 9, 8, 13, 37, 12), Date.UTC(2026, 11, 31, 23, 59, 0)];
+  const dayOf = (instant: number): number => Math.floor(instant / DAY);
+
+  it('are planned on open Opportunities only — the Calendar shows no other', () => {
+    expect(planned.length).toBeGreaterThanOrEqual(6);
+    for (const { opportunity } of planned) {
+      expect(open(opportunity.path.at(-1)!.status), opportunity.title).toBe(true);
+    }
+    // On more than one person's calendar, and on the one nobody has picked up none.
+    expect(new Set(planned.map(({ opportunity }) => opportunity.assignee))).toEqual(new Set(['anna', 'tomasz']));
+  });
+
+  it('carry no reminder: a seeded demo writes no bell entry and sends no e-mail', () => {
+    for (const { event } of planned) {
+      expect(Object.keys(event).sort().filter((key) => !['at', 'description', 'inDays', 'name'].includes(key))).toEqual([]);
+    }
+  });
+
+  it('are dated from the day of the seed: the coming two weeks, and one already past', () => {
+    const days = planned.map(({ event }) => event.inDays);
+    expect(days.filter((day) => day < 0)).toHaveLength(1);
+    expect(Math.min(...days)).toBeGreaterThanOrEqual(-7);
+    expect(Math.max(...days)).toBeLessThanOrEqual(14);
+    for (const seededAt of SEEDS) {
+      for (const { event } of planned) {
+        const times = demoEventTimes(event, seededAt);
+        // The day the seed ran, plus the Event's own offset — whatever the hour of the seed.
+        expect(dayOf(times.startsAt.getTime()) - dayOf(seededAt), event.name).toBe(event.inDays);
+      }
+    }
+  });
+
+  it('are each one calendar day: a timed one inside the working day, an all-day one a whole date', () => {
+    expect(planned.some(({ event }) => event.at === undefined)).toBe(true);
+    expect(planned.some(({ event }) => event.at !== undefined)).toBe(true);
+    for (const seededAt of SEEDS) {
+      for (const { event } of planned) {
+        const { allDay, startsAt, endsAt, timeZone } = demoEventTimes(event, seededAt);
+        expect(endsAt.getTime(), event.name).toBeGreaterThan(startsAt.getTime());
+        if (allDay) {
+          // A whole UTC day, said to be one: midnight to the next midnight.
+          expect(timeZone).toBe('UTC');
+          expect(startsAt.getTime() % DAY, event.name).toBe(0);
+          expect(endsAt.getTime() - startsAt.getTime(), event.name).toBe(DAY);
+          continue;
+        }
+        expect(timeZone).toBe('Europe/Warsaw');
+        // 07:00 – 15:00 UTC is inside one day in Warsaw in both seasons.
+        expect(startsAt.getUTCHours(), event.name).toBeGreaterThanOrEqual(7);
+        expect(endsAt.getTime() - startsAt.getTime(), event.name).toBeLessThanOrEqual(3 * HOUR);
+        expect(endsAt.getUTCHours() + endsAt.getUTCMinutes() / 60, event.name).toBeLessThanOrEqual(15);
+        const localDay = (instant: Date): string =>
+          new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(instant);
+        expect(localDay(new Date(endsAt.getTime() - 1)), event.name).toBe(localDay(startsAt));
+      }
+    }
+  });
+
+  it('are named and described within what an Event holds', () => {
+    for (const { event } of planned) {
+      expect(event.name.trim()).toBe(event.name);
+      expect(event.name.length, event.name).toBeGreaterThan(0);
+      expect(event.name.length, event.name).toBeLessThanOrEqual(200);
+      expect((event.description ?? '').length, event.name).toBeLessThanOrEqual(5000);
+      // Plain text: a reference token would not be parsed in an Event's description.
+      expect(event.description ?? '', event.name).not.toContain('[[');
+    }
   });
 });
 

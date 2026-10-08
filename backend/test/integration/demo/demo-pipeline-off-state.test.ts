@@ -55,6 +55,7 @@ const CRM_ROW_TABLES = [
   'crm_opportunity_tags',
   'crm_opportunity_comments',
   'crm_opportunity_references',
+  'crm_opportunity_events',
   'crm_opportunity_links',
   'crm_tags',
 ] as const;
@@ -234,6 +235,7 @@ describe('the demo sales pipeline while CRM is switched off', () => {
         crm_opportunity_tags: 10,
         crm_opportunity_comments: 6,
         crm_opportunity_references: 3,
+        crm_opportunity_events: 8,
         crm_opportunity_links: 0,
         crm_tags: 3,
       });

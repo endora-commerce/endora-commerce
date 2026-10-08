@@ -42,6 +42,15 @@
  * those are the operator's workflow configuration, and a reset could not tell a
  * mapping it wrote from one an operator re-saved.
  *
+ * ## Events, dated from the day of the seed — and no reminder
+ *
+ * The open Opportunities carry a few Events (User Stories 21 and 22), so the
+ * Calendar and the *Events* tab have something to draw. They are dated forward
+ * from the seed's day as everything else is dated back from it, with one in the
+ * past for the tab's second list. **None has a reminder**: a demo must not
+ * start writing bell entries and e-mails a day after it was installed. The
+ * closed Opportunities have none — the Calendar shows active ones only.
+ *
  * ## Idempotent per Opportunity, withdrawn by id
  *
  * Each Opportunity has a fixed id. One that is already there is left exactly as
@@ -115,6 +124,20 @@ interface CrmOpportunityCommentRow {
   body: string;
   createdAt: Opt<Date>;
 }
+interface CrmOpportunityEventRow {
+  id: Opt<string>;
+  opportunityId: string;
+  name: string;
+  description?: string | null;
+  allDay: Opt<boolean>;
+  startsAt: Date;
+  endsAt: Date;
+  timeZone: string;
+  remindAt?: Date | null;
+  createdByAdminUserId?: string | null;
+  createdAt: Opt<Date>;
+  updatedAt: Opt<Date>;
+}
 interface CrmOpportunityReferenceRow {
   id: Opt<string>;
   opportunityId: string;
@@ -169,6 +192,7 @@ async function crmRows() {
       'CrmOpportunityReference',
       CRM,
     ),
+    CrmOpportunityEvent: entityNamed<CrmOpportunityEventRow>(entities, 'CrmOpportunityEvent', CRM),
     nextOpportunityNumber,
   };
 }
@@ -271,6 +295,24 @@ export interface DemoOpportunityComment {
   readonly body: readonly DemoTextPart[];
 }
 
+/**
+ * An Event on a demo Opportunity — a meeting, a call, a deadline.
+ *
+ * There is no reminder member, on purpose: a seeded demo sends nothing.
+ */
+export interface DemoOpportunityEvent {
+  readonly name: string;
+  /** Plain text. */
+  readonly description?: string;
+  /** Days from the day of the seed; negative for one that has already happened. */
+  readonly inDays: number;
+  /**
+   * A timed Event: the hour it starts, in UTC, and how long it lasts. Absent
+   * for an all-day Event, which is the whole date.
+   */
+  readonly at?: { readonly hour: number; readonly minutes: number };
+}
+
 /** One demo Opportunity. */
 export interface DemoOpportunity {
   /** Fixed: what a second seed probes for and what the withdrawal deletes by. */
@@ -296,6 +338,43 @@ export interface DemoOpportunity {
   /** Expected close, in days from the seed. Open Opportunities only. */
   readonly closesInDays?: number;
   readonly comments?: readonly DemoOpportunityComment[];
+  /** What is planned on it. Open Opportunities only — the Calendar shows no other. */
+  readonly events?: readonly DemoOpportunityEvent[];
+}
+
+/**
+ * The zone a timed demo Event is planned in — the demo's distributor is
+ * Polish. Its hours are given in UTC and kept to the working day, so each is
+ * inside one calendar day there whatever the season.
+ */
+const DEMO_EVENT_TIME_ZONE = 'Europe/Warsaw';
+
+/**
+ * When a demo Event is, as CRM stores one: two instants and the zone they
+ * were planned in, counted from the day of the seed.
+ *
+ * An all-day Event is a date from its first instant to the first instant of
+ * the next. Finding the instant of a local midnight needs zone arithmetic this
+ * package has no business doing, so an all-day demo Event is a whole **UTC**
+ * day and says so in its zone — which is a date like any other to a calendar,
+ * placed by the date and not by the reader's clock.
+ */
+export function demoEventTimes(
+  event: DemoOpportunityEvent,
+  seededAt: number,
+): { allDay: boolean; startsAt: Date; endsAt: Date; timeZone: string } {
+  const seeded = new Date(seededAt);
+  const midnight = Date.UTC(seeded.getUTCFullYear(), seeded.getUTCMonth(), seeded.getUTCDate() + event.inDays);
+  if (event.at === undefined) {
+    return { allDay: true, startsAt: new Date(midnight), endsAt: new Date(midnight + DAY_MS), timeZone: 'UTC' };
+  }
+  const startsAt = midnight + event.at.hour * 60 * 60 * 1000;
+  return {
+    allDay: false,
+    startsAt: new Date(startsAt),
+    endsAt: new Date(startsAt + event.at.minutes * 60 * 1000),
+    timeZone: DEMO_EVENT_TIME_ZONE,
+  };
 }
 
 /** The currency the demo trades in — its sales channels' default. */
@@ -327,6 +406,14 @@ export const DEMO_OPPORTUNITIES: readonly DemoOpportunity[] = [
     tags: ['Key account'],
     contact: true,
     closesInDays: 40,
+    events: [
+      {
+        name: 'Site visit: walk the new assembly line',
+        description: 'Meet the production manager at the gate. Bring the fastener sample case.',
+        inDays: 3,
+        at: { hour: 8, minutes: 90 },
+      },
+    ],
   },
   {
     id: fixedId(2),
@@ -352,6 +439,13 @@ export const DEMO_OPPORTUNITIES: readonly DemoOpportunity[] = [
     value: '18500.00',
     tags: ['Upsell'],
     closesInDays: 21,
+    events: [
+      {
+        name: 'Call: fleet size and delivery windows',
+        inDays: 1,
+        at: { hour: 11, minutes: 30 },
+      },
+    ],
   },
   {
     id: fixedId(4),
@@ -364,6 +458,15 @@ export const DEMO_OPPORTUNITIES: readonly DemoOpportunity[] = [
     value: '96000.00',
     tags: ['Tender'],
     closesInDays: 45,
+    events: [
+      {
+        name: 'Technical Q&A with the plant engineer',
+        description: 'Covered the mounting points and the warranty terms.',
+        inDays: -5,
+        at: { hour: 9, minutes: 60 },
+      },
+      { name: 'Tender submission deadline', inDays: 9 },
+    ],
     comments: [
       {
         kind: 'note',
@@ -393,6 +496,19 @@ export const DEMO_OPPORTUNITIES: readonly DemoOpportunity[] = [
     contact: true,
     vipChannel: true,
     closesInDays: 14,
+    events: [
+      {
+        name: 'Offer review with the buyer',
+        description: 'Walk through the volume pricing and the call-off calendar.',
+        inDays: 2,
+        at: { hour: 7, minutes: 90 },
+      },
+      {
+        name: 'Stock check for the first call-off',
+        inDays: 6,
+        at: { hour: 12, minutes: 30 },
+      },
+    ],
     comments: [
       {
         kind: 'note',
@@ -448,6 +564,14 @@ export const DEMO_OPPORTUNITIES: readonly DemoOpportunity[] = [
     tags: ['Upsell'],
     contact: true,
     closesInDays: 10,
+    events: [
+      {
+        name: 'Negotiation meeting in Poznań',
+        description: 'Two delivery batches and the payment terms are on the table.',
+        inDays: 5,
+        at: { hour: 9, minutes: 120 },
+      },
+    ],
     comments: [
       {
         kind: 'note',
@@ -474,6 +598,7 @@ export const DEMO_OPPORTUNITIES: readonly DemoOpportunity[] = [
     tags: ['Key account'],
     vipChannel: true,
     closesInDays: 18,
+    events: [{ name: 'Contract draft due', inDays: 12 }],
   },
   {
     id: fixedId(9),
@@ -743,6 +868,23 @@ export const demoSalesPipelineStep: CompositionStep = {
           });
           indexReferences(rendered.references, 'comment', commentId);
         }
+
+        // What is planned on it — on an open Opportunity only, and with no
+        // reminder: the row has no `remindAt`, so the sweep has nothing to do.
+        if (closedKind === null) {
+          for (const event of row.events ?? []) {
+            tx.create(crm.CrmOpportunityEvent, {
+              opportunityId: row.id,
+              name: event.name,
+              description: event.description ?? null,
+              ...demoEventTimes(event, now),
+              remindAt: null,
+              createdByAdminUserId: actor,
+              createdAt: ago(lastActivity),
+              updatedAt: ago(lastActivity),
+            });
+          }
+        }
       });
     }
   },
@@ -750,8 +892,8 @@ export const demoSalesPipelineStep: CompositionStep = {
     // By the ids this step assigned, in SQL rather than through the ORM:
     // `CrmOpportunity` is `@OrgScoped`, and a withdrawal that depended on the
     // ambient tenant would remove a different set on a different scope. The
-    // history, the tag joins, the comments and the reference index follow
-    // through `crm`'s own `on delete cascade` keys.
+    // history, the tag joins, the comments, the reference index and the Events
+    // follow through `crm`'s own `on delete cascade` keys.
     await em
       .getConnection()
       .execute(
