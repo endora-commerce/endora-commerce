@@ -288,6 +288,28 @@ Without them a demo Sales Rep was offered by neither `/lookups/assignees` nor
 nobody. The list already names other capabilities' codes (`rfqs:handle`, `price_lists:read`);
 a code whose module is off grants nothing. Demo data only — no installed role changes.
 
+## N. The demo data set — a sales pipeline step, and the peers it needs (US14)
+
+Owner ruling of 2026-10-08 ("Tak, dodajmy dane demo dla CRM do naszych danych demo w seed"),
+which lifts the stop recorded in `research.md` N-G5. An Opportunity belongs to an
+Organization and to an assignee, so the pipeline cannot be a module's own demo data and is a
+step of the composition, where the demo buyer and the credit limit already are
+(`research.md` N-DD1).
+
+| # | File | Change | With CRM removed |
+| --- | --- | --- | --- |
+| N1 | `packages/demo-composition/src/sales-pipeline.ts` (**new**), `sales-pipeline.test.ts` (**new**) | The step `sales opportunities for the demo organisation` and its rows | The step names `@endora-commerce/mod-crm/backend` behind a dynamic import and is guarded on `crm`'s presence: with the module absent it is a reported skip and the package is never loaded. Delete the file and its entry to remove it |
+| N2 | `packages/demo-composition/src/composition.ts` | The step appended to `STEPS`; `CompositionStep` exported so a step may live in a file of its own; one clause in the header | One entry to delete |
+| N3 | `packages/demo-composition/package.json`, `README.md`, `tsconfig.json` (a comment), `pnpm-lock.yaml` | `@endora-commerce/mod-crm` as an **optional** peer (and a devDependency), as every module the package wires; `@endora-commerce/contracts` as a peer, for the reference-token formatter; a README bullet | The optional peer is the shape that already lets an instance without a module install this package |
+| N4 | `backend/test/integration/demo/demo-shop.test.ts` | Six `crm_` tables in the recorded delta, and seven cases about the pipeline's relations and its withdrawal | The entries go with the step |
+| N5 | `backend/test/integration/demo/demo-pipeline-off-state.test.ts` (**new**) | The off-state case: `crm.enabled = false` at the seed and at the reset | Goes with the step |
+| N6 | `backend/test/unit/harness/service-dependent-ledger.test.ts` | One entry of `SERVICE_BOUND_BEYOND_THE_SCREEN` for N5, which reaches its database through `pg` and `spawn` as `demo-shop.test.ts` does | Goes with N5 — the ledger is two-way and reds on an entry whose file is gone |
+
+`packages/modules/crm/` gains its own demo body (three tags) and exports `nextOpportunityNumber`
+from `./backend`; both are inside the module and are not rows of this page. No other module's
+demo data changes: no Organization, administrator, Product, Order or Quote Request is added,
+and nothing is linked to a document, because the demo has none (`research.md` N-DD2).
+
 ## F. Explicitly **not** changed
 
 - No column, table or migration of another module — **except §L**, the two nullable columns

@@ -1539,14 +1539,53 @@ Rzeczy, których operator może szukać, a których w tym wydaniu nie ma:
 - **Wyszukiwanie globalne.** Szanse znajduje się na ich liście i tablicy, a nie
   przez wyszukiwarkę Admin UI.
 - **Zysk.** Każdy wskaźnik jest wartością; kosztów ani marży nie ma.
-- **Dane demonstracyjne** — zob. niżej.
 
 ## Dane demonstracyjne
 
-CRM nie dostarcza danych demonstracyjnych: `endora demo seed` nie tworzy żadnej
-szansy. Szansa zawsze należy do organizacji, a szansa demonstracyjna powiązana z
-zamówieniem wymaga także demonstracyjnego zamówienia — to wiersze innych
-modułów, których dane demonstracyjne modułu nie mogą tworzyć ani odczytywać.
-Demonstracyjny lejek jest więc krokiem kompozycji demo instancji, a nie tego
-modułu, i nie wchodzi w skład tego wydania. Domyślny przepływ statusów jest
-instalowany zawsze, więc tablica ma swoje kolumny od pierwszego uruchomienia.
+Dane demonstracyjne są opcjonalne: instancja, która sprzedaje naprawdę, nie
+potrzebuje żadnych, a powstają dopiero po uruchomieniu `endora demo seed`.
+Wtedy CRM dostaje lejek, na który można popatrzeć:
+
+- **Trzy etykiety** — `Key account`, `Upsell` i `Tender`. To własne dane
+  demonstracyjne modułu.
+- **Dwanaście szans** dla demonstracyjnej organizacji, po dwie w każdym statusie
+  domyślnego przepływu (nowa, zakwalifikowana, oferta, negocjacje, wygrana,
+  przegrana). Sześć jest przypisanych do jednego demonstracyjnego handlowca,
+  pięć do drugiego, a jedna do nikogo. Jedenaście ma wartość wpisaną ręcznie;
+  jedna ma wartość wyliczaną z powiązanych dokumentów i jest warta zero, dopóki
+  nic nie zostanie z nią powiązane.
+- **Historię** każdej z nich, rozłożoną na trzy miesiące przed zasileniem,
+  dzięki czemu ekran analityki ma zamknięte szanse, czas w statusie i więcej
+  niż jeden miesiąc do pokazania.
+- **Notatki** przy czterech z nich i wymianę **wiadomości wewnętrznych** przy
+  jednej — jedna notatka wskazuje demonstracyjny produkt, jedna wiadomość
+  wspomina osobę; demonstracyjnego kupującego jako osobę kontaktową przy
+  czterech; etykiety przy dziewięciu.
+
+Szanse tworzy pakiet kompozycji demo (`@endora-commerce/demo-composition`),
+ponieważ każda należy do organizacji i do administratora — a to rekordy innych
+modułów. Instancja, która nie zainstalowała tego pakietu, dostaje tylko trzy
+etykiety.
+
+Czego demonstracyjny lejek nie ma:
+
+- **Żadnego powiązanego zamówienia ani zapytania ofertowego.** Sklep
+  demonstracyjny nie zawiera ani jednych, ani drugich, więc żadna szansa nie ma
+  powiązanego dokumentu i żadna nie pokazuje synchronizacji ze statusem
+  zamówienia. Żeby ją zobaczyć, utwórz zamówienie z demonstracyjnej szansy.
+- **Żadnej historii zmian.** Zakładka Historia zasilonej szansy jest pusta: demo
+  zapisuje rekordy bezpośrednio, z datami wstecz, a zakładka pokazuje tylko to,
+  co zrobiono przez Admin UI albo API. Wszystko, co zrobisz z demonstracyjną
+  szansą później, jest zapisywane jak zwykle.
+- **Żadnych mapowań.** Konfiguracja przepływu zostaje dokładnie taka, jak po
+  instalacji.
+
+Ponowne zasilenie nie zmienia niczego, co już istnieje: szansa, którą
+przesunięto albo edytowano, zostaje taka, jak ją zostawiono.
+`endora demo reset` usuwa dwanaście szans i trzy etykiety wraz ze wszystkim,
+co jest do tych szans dołączone, i nic, co utworzono samodzielnie.
+
+**Uruchamiaj `endora demo reset` przy włączonym module CRM.** Gdy moduł jest
+wyłączony, jego rekordy pozostają nietknięte — także demonstracyjne szanse — a
+demonstracyjnej organizacji, do której należą, nie da się usunąć, więc reset
+zatrzymuje się z błędem na `organizations`. Włącz CRM i uruchom go ponownie.
