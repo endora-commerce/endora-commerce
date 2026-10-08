@@ -1,5 +1,7 @@
 process.env['TZ'] = 'Europe/Warsaw';
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -497,7 +499,24 @@ describe('Event dialog — adding', () => {
     expect(field(dialog, 'from')).toHaveValue('09:30');
   });
 
-  it('shows the reminder time with Remind me — set to the start, following it until it is edited, and not after', async () => {
+  it('offers the reminder as “Set a reminder”, and says who is reminded — the author when nobody is assigned', async () => {
+    // The owner's wording (2026-10-08), held as words: the other tests reach the
+    // checkbox through the bundle and would follow any label at all.
+    const panel = await renderTab();
+    const dialog = await openAdd(panel);
+    const checkbox = within(dialog).getByRole('checkbox', { name: 'Set a reminder' });
+    const hint = document.getElementById(checkbox.getAttribute('aria-describedby') ?? '')?.textContent ?? '';
+    expect(hint).toMatch(/assigned to the opportunity/);
+    expect(hint).toMatch(/nobody is assigned.*created the event/i);
+
+    const polish = JSON.parse(
+      readFileSync(resolve(process.cwd(), '../packages/modules/crm/i18n/pl.json'), 'utf8'),
+    ) as Record<string, string>;
+    expect(polish['events.field.remind']).toBe('Ustaw przypomnienie');
+    expect(polish['events.field.remindHint']).toMatch(/nikt nie jest przypisany.*autor/i);
+  });
+
+  it('shows the reminder time with Set a reminder — set to the start, following it until it is edited, and not after', async () => {
     const dialog = await openAdd(await renderTab());
     await userEvent.click(field(dialog, 'remind'));
     const remindAt = field(dialog, 'remindAt');

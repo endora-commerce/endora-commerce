@@ -274,8 +274,8 @@ add and edit:
 | Date | `<input type="date">`, required | default: **today** (owner ruling, 2026-10-08) |
 | From, To | `<input type="time">`, required unless all day | default the next whole hour and one hour after; changing *From* moves *To* by the same amount; *To* not after *From* is said under the field before saving |
 | Description | `textarea`, `maxLength` 5 000 | plain; no `@` shortcuts |
-| Remind me | checkbox | off by default |
-| Remind at | `<input type="datetime-local">`, shown only when *Remind me* is on | default the Event's start (09:00 on the date when all day); **follows the start until the user edits it**; a time not in the future is said under the field |
+| Set a reminder (*Ustaw przypomnienie*; "Remind me" until the owner's ruling of 2026-10-08) | checkbox | off by default; its hint says who is reminded — the assignee, or the Event's author when nobody is assigned |
+| Remind at | `<input type="datetime-local">`, shown only when *Set a reminder* is on | default the Event's start (09:00 on the date when all day); **follows the start until the user edits it**; a time not in the future is said under the field |
 
 Labels above fields, one column, errors under the field they belong to and linked with
 `aria-describedby`; the server's 422 is mapped by `details.field` to the same place. Save

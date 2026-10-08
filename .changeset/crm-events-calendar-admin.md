@@ -23,7 +23,7 @@ describes; they ship with the backend half of this feature.
   `/crm/opportunities/:id?tab=events&event=<id>` — what a reminder and a Calendar entry link to —
   marks that Event. On a closed Opportunity the tab says its Events are off the Calendar and its
   reminders held.
-- **The Event dialog**: name, all day, date, from and to, description, and *Remind me* with a
+- **The Event dialog**: name, all day, date, from and to, description, and *Set a reminder* with a
   time that is offered as the Event's start and follows it until it is edited by hand. It
   refuses an end that is not after the start and a reminder time that is not in the future
   before sending, and puts the server's own refusal (`details.field`, `details.rule`) under the
