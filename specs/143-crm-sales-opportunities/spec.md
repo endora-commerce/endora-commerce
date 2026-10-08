@@ -259,12 +259,12 @@ in counting statuses and changes when a document enters or leaves one.
    added; when it leaves, it is subtracted.
 4. **Given** an Order that was placed from a linked Quote Request, **When** both are linked
    and both in counting statuses, **Then** the value counts that business once, not twice.
-   *(Implemented; not reachable in the product yet — see Clarifications § Amendments, A-1.)*
+   *(Reachable in the product since 2026-10-08 — FR-100; Clarifications § Amendments, A-1.)*
 5. **Given** a linked document in a currency different from the Opportunity's, **When** the
    value is computed, **Then** the document is left out and the Opportunity says so.
 6. **Given** a Quote Request linked to an Opportunity, **When** an Order is placed from that
    Quote Request, **Then** the Order is linked to the same Opportunity automatically.
-   *(Implemented; not reachable in the product yet — A-1.)*
+   *(Reachable in the product since 2026-10-08 — FR-100; A-1.)*
 
 ---
 
@@ -286,8 +286,7 @@ Request, assigned by the default rule, in the start Status.
    an Opportunity is created and linked likewise.
 3. **Given** an Order placed from a Quote Request that is already linked to an Opportunity,
    **When** the Order is placed, **Then** no second Opportunity is created; the Order joins
-   the existing one. *(Implemented; not reachable in the product yet — A-1. Until it is, such
-   an Order gets an Opportunity of its own.)*
+   the existing one. *(Reachable in the product since 2026-10-08 — FR-100; A-1.)*
 4. **Given** both settings are off (the default), **When** documents are placed, **Then** no
    Opportunity is created.
 5. **Given** the module is switched off, **When** documents are placed, **Then** nothing is
@@ -639,8 +638,8 @@ number and leading to it.
   Opportunity using the platform's existing creation screens; the created document MUST be
   linked to that Opportunity automatically.
 - **FR-027**: An Order placed from a Quote Request that is linked to an Opportunity MUST be
-  linked to the same Opportunity automatically. *(Implemented; not reachable in the product
-  yet — Clarifications § Amendments, A-1.)*
+  linked to the same Opportunity automatically. *(Reachable in the product since 2026-10-08:
+  the Order records its Quote Request — FR-100 … FR-104; Clarifications § Amendments, A-1.)*
 
 **Value**
 
@@ -658,7 +657,7 @@ number and leading to it.
   recalculation rather than at once.)*
 - **FR-033**: A computed value MUST count an Order placed from a linked Quote Request once,
   and MUST leave out — and name — documents in another currency. *("Counted once" is
-  implemented; not reachable in the product yet — A-1.)*
+  reachable in the product since 2026-10-08 — FR-100; A-1.)*
 
 **People and collaboration**
 
@@ -696,7 +695,8 @@ number and leading to it.
   placed Quote Request; both are off by default.
 - **FR-061**: Automatic creation MUST NOT create a second Opportunity for a document that is
   already linked, or whose originating Quote Request is. *(The second half — "or whose
-  originating Quote Request is" — is implemented; not reachable in the product yet — A-1.)*
+  originating Quote Request is" — is reachable in the product since 2026-10-08 — FR-100;
+  A-1.)*
 
 **Platform behaviour**
 
@@ -790,6 +790,32 @@ number and leading to it.
   by `@` MUST appear at the place being typed; and saving MUST NOT alter a reference the
   user did not change. *(Added 2026-10-07, owner rulings on User Story 18.)*
 
+**An Order records the Quote Request it was placed from** *(added 2026-10-08 — the owner's
+answer to A-1: "Ad 2) tak, jak możesz to dorób". A change to the Orders, cart and Quote
+Requests capabilities made inside this feature; numbering starts at FR-100, FR-087 … FR-099
+being left free for work on parallel branches. Research N-QS1 … N-QS6.)*
+
+- **FR-100**: An Order placed from the basket that an accepted Quote Request filled MUST
+  record that Quote Request, on every path by which a Quote Request becomes an Order. The
+  record MUST be in place when the Order first becomes readable, so that everything that
+  reacts to a placed Order sees it.
+- **FR-101**: The basket MUST keep the Quote Request it was filled from for as long as it
+  keeps the agreed prices: adding a product, removing one or changing a quantity keeps it. A
+  basket emptied of its last line, or filled again from another source (a reorder, an Order
+  an administrator creates), MUST forget it.
+- **FR-102**: The Quote Request an Order records MUST be checked when the Order is placed,
+  never taken on trust: it MUST belong to the same Organization as the Order, MUST still be
+  approved, and the basket MUST still hold at least one of its lines at the agreed price.
+  When any of the three fails the Order MUST be placed all the same and record nothing, and
+  MUST disclose nothing of the Quote Request. No request from the storefront, the Admin UI or
+  the external API may name the Quote Request.
+- **FR-103**: With the Quote Requests capability switched off, or absent, an Order MUST be
+  placed exactly as before and record no Quote Request; nothing of that capability moves.
+- **FR-104**: A Quote Request whose Order has been placed MUST be completed and point at
+  that Order, reliably — including when the Order is not yet readable at the moment its
+  placement is announced — and MUST NOT be completed by an Order of another Organization. A
+  completed Quote Request cannot be ordered a second time.
+
 ### Key Entities
 
 - **Opportunity** — number, title, description, Organization, optional contact person,
@@ -839,8 +865,9 @@ number and leading to it.
   its curated command-palette actions, in both English and Polish, with no untranslated
   label. *(Amended 2026-10-06 with FR-071 — A-2.)*
 - **SC-009**: With automatic creation on, 100% of newly placed Orders and Quote Requests end
-  up linked to exactly one Opportunity. *(Not yet true of an Order placed from a
-  Quote Request that is already linked — Clarifications § Amendments, A-1.)*
+  up linked to exactly one Opportunity. *(True of an Order placed from a Quote Request that
+  is already linked since 2026-10-08: it joins that Opportunity — FR-100; Clarifications
+  § Amendments, A-1.)*
 
 - **SC-010**: An operator can add a custom field to Opportunities and see it on the
   Opportunity form in under 1 minute, with no deployment; 100% of values that break a
@@ -960,17 +987,16 @@ the specification was corrected in place, with the original wording kept in the 
 note, or the requirement was left standing and marked. Nothing was removed.
 
 - **A-1 — "An Order placed from a linked Quote Request joins its Opportunity and is counted
-  once" is implemented but cannot happen in the product yet.** Affects FR-027, the "counted
-  once" half of FR-033, the second half of FR-061, User Story 8 scenarios 4 and 6, User
-  Story 9 scenario 3 and SC-009 for such Orders. The platform does not record which Quote
-  Request an Order was placed from — a defect that predates this feature and lies in the
-  Orders and cart capabilities, outside it (`research.md` N-E3). CRM's behaviour is built
-  against the published contract and proven with an Order whose source is written by hand.
-  **Until the platform records the source, an Order placed from a linked Quote Request is a
-  separate, unlinked Order; with "create from Orders" on it gets an Opportunity of its own,
-  and if both end up linked by hand the value counts both.** Repairing the platform defect
-  makes all of it effective with no change to CRM. **[NEEDS CLARIFICATION — owner]**: repair
-  it before CRM ships, or ship with this stated on the module's documentation page.
+  once" could not happen in the product; since 2026-10-08 it does.** Affected FR-027, the
+  "counted once" half of FR-033, the second half of FR-061, User Story 8 scenarios 4 and 6,
+  User Story 9 scenario 3 and SC-009 for such Orders. The platform did not record which Quote
+  Request an Order was placed from — a defect that predated this feature and lay in the
+  Orders and cart capabilities (`research.md` N-E3) — so CRM's behaviour was proven only with
+  an Order whose source was written by hand. **Decided by the owner on 2026-10-08** ("Ad 2)
+  tak, jak możesz to dorób"): repaired inside this feature. FR-100 … FR-104 state what the
+  Orders, cart and Quote Requests capabilities now do; CRM itself did not change, and the
+  seven places above are proven by Orders placed through the storefront's own routes
+  (`research.md` N-QS1 … N-QS6).
 - **A-2 — Command palette (FR-071, SC-008).** Reworded from "every CRM screen" to a curated
   set. The platform's binding rule for the palette (constitution, Principle XVI) asks that a
   *module* be discoverable there through its landing screen and its few highest-value

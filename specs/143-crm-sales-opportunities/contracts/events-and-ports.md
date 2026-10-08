@@ -123,9 +123,12 @@ Payloads as consumed (as built):
   created through the admin path; the customer path stays `rfq.created.v1` and never this.
 - The four value events carry `rfqId` only, so the handler finds the link by document.
 - **Quote conversion** ("link by quote conversion" above) reads
-  `OrderRecord.sourceQuoteRequestId`, which nothing in the platform writes today — the
-  branch is built and proven against a fixture, and is not reachable from the product
-  (research N-E3; `spec.md` § Clarifications, A-1).
+  `OrderRecord.sourceQuoteRequestId`. `orders` writes it at placement since 2026-10-08, in
+  the row the placing transaction commits, after reading the Quote Request back through
+  `quoteRequestReadPort` — same Organization, still `Approved`, an agreed line still on the
+  basket (`spec.md` FR-100 … FR-103; research N-QS1 … N-QS4). So the id is there on the
+  handler's first successful read of the Order, the deferred one included, and CRM's own
+  Organization check in `linkOrderPlacedFromQuoteRequest` is the second of two.
 - A Quote Request reaching `Completed` announces nothing, so there is no handler for it
   (research N-E4 (f)).
 

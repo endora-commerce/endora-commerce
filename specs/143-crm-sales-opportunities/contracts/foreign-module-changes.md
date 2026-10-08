@@ -291,11 +291,13 @@ a code whose module is off grants nothing. Demo data only — no installed role 
 ## F. Explicitly **not** changed
 
 - No column, table or migration of another module — **except §L**, the two nullable columns
-  `admin_notifications` adds to its own table through its own migration.
+  `admin_notifications` adds to its own table through its own migration, **and §QS**, the one
+  nullable column `carts` adds to its own table through its own migration.
 - No import of `@endora-commerce/mod-crm` by any other module package; `orders` and
   `quote_requests` gain no manifest edge to `crm`.
 - No change to `OrderTransitionPort`, `OrderStatusActor`, `QuoteRequestReadPort` or
-  `KnownIconNameSchema`.
+  `KnownIconNameSchema`. (§QS adds one optional argument to `CartWritePort` and one field to
+  `CartRecord`; `QuoteRequestReadPort` gains a consumer, `orders`, and no method.)
 - No `@dnd-kit` declaration in `packages/modules/crm` or any other module package, and no new
   runtime dependency anywhere other than `@dnd-kit/core` in the two manifests of §G (the
   generator may add *existing* workspace packages and already-used third-party peers to
@@ -306,3 +308,37 @@ a code whose module is off grants nothing. Demo data only — no installed role 
 
 (Until the owner's second ruling of 2026-10-05 this section also said "no new zone" and "no
 change to `supportedEntityTypeSchema`"; §H and §J are those two changes, now in scope.)
+
+## QS. An Order records the Quote Request it was placed from (FR-100 … FR-104)
+
+Owner ruling of 2026-10-08 ("Ad 2) tak, jak możesz to dorób"), the answer to `spec.md`
+§ Clarifications, A-1. Added on branch `feat/143-crm-quote-source`; research N-QS1 … N-QS6.
+**None of these rows names `crm`, and CRM's own source does not change**: the column
+`orders.source_quote_request_id`, its two serialisers and its three readers all predate this
+feature, and what is repaired is the platform's missing writer.
+
+| # | File | Change | Left behind if CRM is removed |
+| --- | --- | --- | --- |
+| QS1 | `packages/contracts/src/carts.ts` | `CartRecord.sourceQuoteRequestId`; `CartSeedOptions`; an optional third argument on `CartWritePort.replaceItemsForCustomer`, replaced on every call | all of it — the basket's memory of its quote, used by `orders` and `quote_requests` |
+| QS2 | `packages/modules/carts/src/migrations/20261008T061751_carts_cart_source_quote_request.ts` (**new**), `src/migrations/index.ts`, `backend/src/db/migrations-registry.generated.ts` (generated) | `carts.source_quote_request_id uuid null` — no foreign key, no index, no backfill | a nullable column |
+| QS3 | `packages/modules/carts/src/backend/entities/cart.entity.ts`, `services/cart-read-port.ts`, `services/cart-service.ts` | the property; the seed writes the mark and its `lastActivityAt` on the `EntityManager` it flushes (the latter was never written — N-QS5 (a)); the mark is cleared when the last line is removed | all of it |
+| QS4 | `packages/modules/quote_requests/src/backend/services/rfq-service.ts` | `convertToOrder` passes `{ sourceQuoteRequestId: rfq.id }` to the seed | all of it |
+| QS5 | `packages/modules/quote_requests/src/backend/services/order-completion-reactor.ts`, `order-completion-reactor.test.ts` (**new**), `backend/plugin.ts`, `backend/index.ts` | the completion looks again, off the bus's chain, for an Order whose commit is still in flight, and refuses an Order of another Organization; `deferAfterCommit` / `isStillPresent` supplied by the composition (N-QS5 (b)) | all of it — the completion of a converted request, which the dead column had kept from ever running |
+| QS6 | `packages/modules/orders/src/backend/domain/quote-request-source.ts`, `quote-request-source.test.ts` (both **new**) | the pure rule: same Organization, still `Approved`, an agreed line still on the basket | all of it |
+| QS7 | `packages/modules/orders/src/backend/services/order-service.ts`, `backend/plugin.ts`, `backend/index.ts` | `placeOrder` stamps the vouched source on the `Order` it creates; the `quoteRequestRead` accessor, `null` when `quote_requests` is not present | all of it |
+| QS8 | `packages/modules/orders/src/manifest.ts`, `docs/docs/module-reference/orders.md` (generated) | one `nonBindingDependencies` entry: `quote_requests` / `quoteRequestReadPort` / `degrades-without` | the edge and its sentence |
+
+Tests, outside the oracle: `backend/test/helpers/quote-conversion.ts` (**new**),
+`backend/test/helpers/orders-neighbour-ports.ts` (the rig's `quoteRequestRead: () => null`),
+`backend/test/integration/orders/place-order-from-quote-request.test.ts` (**new**),
+`backend/test/integration/quote_requests/conversion.test.ts` (four cases added),
+`backend/test/integration/crm/quote-conversion.test.ts` (**new**). Docs, also outside it: the
+module pages of `carts`, `orders` and `quote_requests`, their Polish mirrors and
+translation-cache entries, and the Polish mirror of the generated `orders` reference page.
+Changesets: `contracts`, `mod-carts`, `mod-quote-requests`, `mod-orders`.
+
+**No manifest edge is added to `carts` or `quote_requests`**, no API shape changes (the
+OpenAPI baseline is untouched), nothing in `storefront/` or `admin/` changes, and the external
+order API takes no new field. Against the oracle at the top of this page, §QS is **eighteen**
+files, the generated migrations registry included (the generated reference page is under
+`docs/`, which the oracle leaves out).
