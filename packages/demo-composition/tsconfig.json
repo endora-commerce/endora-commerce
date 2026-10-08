@@ -1,7 +1,7 @@
 {
   // Type-check configuration; `tsconfig.build.json` is the one that emits
   // (feature 080, T042 / R11). Every specifier this package names is a package
-  // that carries an `endora` block — the platform and ten module packages — and
+  // that carries an `endora` block — the platform and the module packages — and
   // none of those has a `tsconfig.base.json` `paths` entry, so this package
   // type-checks against their **built** declarations exactly as it executes
   // against them. `pnpm run build:packages` is a precondition, as it is for

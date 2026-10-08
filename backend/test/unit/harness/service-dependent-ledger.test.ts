@@ -439,6 +439,12 @@ const SERVICE_BOUND_BEYOND_THE_SCREEN: Readonly<Record<string, string>> = {
     'processes, so it reaches the database through a client it constructs and through ' +
     '`spawn`. Measured under `BACKEND_TEST_SERVICES=none`: `connect ECONNREFUSED ' +
     '127.0.0.1:1`, the `beforeAll` fails and all 9 cases are skipped. Correctly III(c).',
+  'test/integration/demo/demo-pipeline-off-state.test.ts':
+    'The same shape as `demo-shop.test.ts`, with CRM switched off between the runs: it ' +
+    'provisions a PostgreSQL database of its own with `pg`, writes the activation setting ' +
+    'through that client and spawns the migration runner and the demo command as child ' +
+    'processes. Measured under `BACKEND_TEST_SERVICES=none`: `connect ECONNREFUSED ' +
+    '127.0.0.1:1`, the `beforeAll` fails and all 8 cases are skipped. Correctly III(c).',
 };
 
 function outerTestFiles(): string[] {
