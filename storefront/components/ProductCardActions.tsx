@@ -10,6 +10,7 @@ import {
   removeFromDefaultListAction,
 } from '../lib/actions/shoppingList';
 import { addRfqDraftItem } from '../lib/rfqDraft';
+import { addProductToCartAction } from '../lib/actions/cart';
 
 /**
  * Product-card action buttons (add to cart / add to shopping list / add to
@@ -93,18 +94,14 @@ export function ProductCardActions(props: {
 
   if (!cfg) return null;
 
-  const post = async (path: string): Promise<Response> =>
-    fetch(`${props.apiBase}${path}`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'content-type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ productId: props.productId, quantity: 1 }),
-    });
-
   const addToCart = async (): Promise<void> => {
     setCartState('busy');
     try {
-      const res = await post('/api/v1/cart/items');
+      // A server action, not a browser fetch to the backend origin: the cart
+      // cookies are httpOnly and scoped to the storefront origin, so a direct
+      // call filled a cart neither the header badge's server render nor the
+      // `/cart` page reads.
+      const res = await addProductToCartAction({ productId: props.productId, quantity: 1 });
       if (!res.ok) throw new Error('cart');
       window.dispatchEvent(new CustomEvent('b2b:cart:changed'));
       setCartState('done');

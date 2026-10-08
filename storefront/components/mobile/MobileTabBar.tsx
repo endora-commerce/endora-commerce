@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
+import { loadCartItemCount } from '../../lib/cartCount';
 
 /**
  * Feature 044 / US1 — fixed bottom tab bar (Industria Mobile design §01).
@@ -13,14 +14,12 @@ import { useEffect, useState, type ReactNode } from 'react';
  *
  * The Cart tab carries a live count badge. Like {@link CartCounterBadge} the
  * count is hydrated from the server-provided `cartItemCount` and then kept in
- * sync: re-fetched on mount, on every client-side navigation, and whenever the
+ * sync: re-read through the storefront's own server on mount, on every client-side navigation, and whenever the
  * page dispatches `b2b:cart:changed` (so add/remove anywhere updates it).
  */
 export function MobileTabBar(props: {
   /** Server-provided cart line count for the first paint (see app/layout.tsx). */
   cartItemCount?: number;
-  /** Backend base URL for the live cart re-fetch. */
-  apiBase: string;
   /** Localized tab captions. */
   labels: {
     home: string;
@@ -41,16 +40,9 @@ export function MobileTabBar(props: {
     let cancelled = false;
     const refresh = async (): Promise<void> => {
       try {
-        const res = await fetch(`${props.apiBase}/api/v1/cart?view=mini`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const payload = (await res.json()) as { data?: { itemCount?: number } };
-        const next = payload.data?.itemCount;
-        if (!cancelled && typeof next === 'number') setCount(next);
+        // Same-origin read, like the header badge: see `lib/cartCount.ts`.
+        const next = await loadCartItemCount();
+        if (!cancelled && next !== null) setCount(next);
       } catch {
         // Swallow — keep the last good value rather than flashing 0.
       }
@@ -62,7 +54,7 @@ export function MobileTabBar(props: {
       cancelled = true;
       window.removeEventListener('b2b:cart:changed', onChanged);
     };
-  }, [props.apiBase, pathname]);
+  }, [pathname]);
 
   const tabs: { href: string; label: string; icon: ReactNode; match: (p: string) => boolean }[] = [
     { href: '/', label: props.labels.home, icon: <HomeIcon />, match: (p) => p === '/' },
