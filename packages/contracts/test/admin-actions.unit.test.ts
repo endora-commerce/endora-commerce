@@ -135,6 +135,12 @@ describe('KnownIconNameSchema', () => {
   it('accepts the feed icon', () => {
     expect(() => KnownIconNameSchema.parse('Rss')).not.toThrow();
   });
+
+  // `specs/143-crm-sales-opportunities/` (US22) — the CRM Calendar's sidebar
+  // entry and palette action. The list held no calendar glyph.
+  it('accepts the calendar icon', () => {
+    expect(() => KnownIconNameSchema.parse('CalendarDays')).not.toThrow();
+  });
 });
 
 describe('GetAdminActionsQuerySchema', () => {

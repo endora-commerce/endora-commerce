@@ -712,3 +712,246 @@ describe('board card fields and field filters (§12c, US19)', () => {
     rejects(crm.OpportunityListQuerySchema, { cardValues: 'yes' });
   });
 });
+
+describe('events and the calendar (§12d, US21, US22)', () => {
+  const event = {
+    name: 'Site visit',
+    allDay: false,
+    startsAt: '2026-11-03T10:00:00+01:00',
+    endsAt: '2026-11-03T11:30:00+01:00',
+    timeZone: 'Europe/Warsaw',
+  };
+
+  it('create: accepts a timed Event, trims its name and takes the optional members', () => {
+    accepts(crm.CreateOpportunityEventRequestSchema, event);
+    expect(crm.CreateOpportunityEventRequestSchema.parse({ ...event, name: '  Site visit  ' }).name).toBe(
+      'Site visit',
+    );
+    accepts(crm.CreateOpportunityEventRequestSchema, {
+      ...event,
+      description: 'Bring the samples.',
+      remindAt: '2026-11-03T08:00:00.000Z',
+    });
+    accepts(crm.CreateOpportunityEventRequestSchema, { ...event, description: null, remindAt: null });
+    expect(crm.CreateOpportunityEventRequestSchema.parse(event).remindAt).toBeUndefined();
+  });
+
+  it('create: the name is 1 to 200 characters after trimming, the description 5 000 at most', () => {
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, name: '' });
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, name: '   ' });
+    accepts(crm.CreateOpportunityEventRequestSchema, { ...event, name: 'x'.repeat(200) });
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, name: 'x'.repeat(201) });
+    accepts(crm.CreateOpportunityEventRequestSchema, { ...event, description: 'x'.repeat(5000) });
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, description: 'x'.repeat(5001) });
+  });
+
+  it('create: refuses an end that is not after the start, located on endsAt', () => {
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, endsAt: event.startsAt });
+    const result = crm.CreateOpportunityEventRequestSchema.safeParse({
+      ...event,
+      endsAt: '2026-11-03T09:59:00+01:00',
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([['endsAt']]);
+    // The same instant written with two offsets is still not after itself.
+    rejects(crm.CreateOpportunityEventRequestSchema, {
+      ...event,
+      startsAt: '2026-11-03T10:00:00+01:00',
+      endsAt: '2026-11-03T09:00:00Z',
+    });
+  });
+
+  it('create: refuses a span over 25 hours and takes exactly 25 (the long day of a DST change)', () => {
+    accepts(crm.CreateOpportunityEventRequestSchema, {
+      ...event,
+      allDay: true,
+      startsAt: '2026-10-24T22:00:00.000Z',
+      endsAt: '2026-10-25T23:00:00.000Z',
+    });
+    rejects(crm.CreateOpportunityEventRequestSchema, {
+      ...event,
+      allDay: true,
+      startsAt: '2026-10-24T22:00:00.000Z',
+      endsAt: '2026-10-25T23:00:00.001Z',
+    });
+    expect(crm.OPPORTUNITY_EVENT_MAX_SPAN_HOURS).toBe(25);
+  });
+
+  it('create: the zone is required and at most 64 characters; instants carry an offset', () => {
+    const { timeZone: _timeZone, ...withoutZone } = event;
+    rejects(crm.CreateOpportunityEventRequestSchema, withoutZone);
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, timeZone: '' });
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, timeZone: 'x'.repeat(65) });
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, startsAt: '2026-11-03T10:00:00' });
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, startsAt: '2026-11-03' });
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, remindAt: 'tomorrow' });
+    rejects(crm.CreateOpportunityEventRequestSchema, { ...event, allDay: 'yes' });
+  });
+
+  it('update: every member optional, strict, and the two rules held when both instants are given', () => {
+    const schema = crm.UpdateOpportunityEventRequestSchema;
+    accepts(schema, {});
+    accepts(schema, { name: 'Renamed' });
+    accepts(schema, { remindAt: null });
+    accepts(schema, { description: null });
+    // One instant alone cannot be judged without the stored one: the service does that.
+    accepts(schema, { endsAt: '2026-11-03T09:00:00+01:00' });
+    expect(schema.parse({ name: 'Renamed' })).toEqual({ name: 'Renamed' });
+    rejects(schema, { name: ' ' });
+    rejects(schema, { startsAt: event.startsAt, endsAt: event.startsAt });
+    rejects(schema, { startsAt: '2026-11-03T10:00:00Z', endsAt: '2026-11-04T11:00:00.001Z' });
+    rejects(schema, { opportunityId: UUID_A });
+  });
+
+  it('the refusals of a well-formed Event are five rules', () => {
+    expect(crm.opportunityEventRuleSchema.options).toEqual([
+      'ends_before_start',
+      'spans_days',
+      'not_whole_day',
+      'unknown_time_zone',
+      'reminder_in_past',
+    ]);
+  });
+
+  const stored = {
+    id: UUID_A,
+    opportunityId: UUID_B,
+    name: 'Site visit',
+    description: null,
+    allDay: false,
+    startsAt: '2026-11-03T09:00:00.000Z',
+    endsAt: '2026-11-03T10:30:00.000Z',
+    timeZone: 'Europe/Warsaw',
+    allDayDate: null,
+    reminder: null,
+    createdBy: { id: UUID_A, name: 'Ada Lovelace' },
+    createdAt: '2026-10-08T10:00:00.000Z',
+    updatedAt: '2026-10-08T10:00:00.000Z',
+  };
+
+  it('OpportunityEvent: a timed Event with no reminder, an all-day one with its date, a removed author', () => {
+    accepts(crm.OpportunityEventSchema, stored);
+    accepts(crm.OpportunityEventSchema, {
+      ...stored,
+      allDay: true,
+      startsAt: '2026-11-02T23:00:00.000Z',
+      endsAt: '2026-11-03T23:00:00.000Z',
+      allDayDate: '2026-11-03',
+      description: 'Trade fair',
+      createdBy: null,
+    });
+    rejects(crm.OpportunityEventSchema, { ...stored, allDayDate: '2026-02-31' });
+    rejects(crm.OpportunityEventSchema, { ...stored, allDayDate: '03.11.2026' });
+    const { timeZone: _timeZone, ...withoutZone } = stored;
+    rejects(crm.OpportunityEventSchema, withoutZone);
+    accepts(crm.OpportunityEventResponseSchema, { data: stored });
+    accepts(crm.OpportunityEventListResponseSchema, { data: [stored] });
+  });
+
+  it('OpportunityEvent: each reminder state, with channels exactly when it was sent', () => {
+    const reminder = (state: string, channels: string[], handledAt: string | null = null) => ({
+      ...stored,
+      reminder: { at: '2026-11-03T08:00:00.000Z', state, handledAt, channels },
+    });
+    expect(crm.opportunityEventReminderStateSchema.options).toEqual([
+      'scheduled',
+      'paused',
+      'sent',
+      'missed',
+      'no_recipient',
+      'undeliverable',
+      'interrupted',
+    ]);
+    for (const state of crm.opportunityEventReminderStateSchema.options) {
+      if (state === 'sent') continue;
+      accepts(crm.OpportunityEventSchema, reminder(state, []));
+      rejects(crm.OpportunityEventSchema, reminder(state, ['bell']));
+    }
+    const handledAt = '2026-11-03T08:00:20.000Z';
+    accepts(crm.OpportunityEventSchema, reminder('sent', ['bell'], handledAt));
+    accepts(crm.OpportunityEventSchema, reminder('sent', ['email'], handledAt));
+    accepts(crm.OpportunityEventSchema, reminder('sent', ['bell', 'email'], handledAt));
+    rejects(crm.OpportunityEventSchema, reminder('sent', [], handledAt));
+    rejects(crm.OpportunityEventSchema, reminder('sent', ['sms'], handledAt));
+    rejects(crm.OpportunityEventSchema, reminder('sending', []));
+  });
+
+  it('calendar query: a range of instants, with an optional scope', () => {
+    const schema = crm.CalendarEventsQuerySchema;
+    const parsed = schema.parse({ from: '2026-11-01T00:00:00.000Z', to: '2026-11-08T00:00:00.000Z' });
+    expect(parsed.scope).toBeUndefined();
+    accepts(schema, { from: '2026-11-01T00:00:00.000Z', to: '2026-11-08T00:00:00.000Z', scope: 'mine' });
+    accepts(schema, { from: '2026-11-01T00:00:00.000Z', to: '2026-11-08T00:00:00.000Z', scope: 'all' });
+    rejects(schema, { from: '2026-11-01T00:00:00.000Z', to: '2026-11-08T00:00:00.000Z', scope: 'team' });
+    rejects(schema, { from: '2026-11-01', to: '2026-11-08' });
+    rejects(schema, { from: '2026-11-01T00:00:00.000Z' });
+    rejects(schema, {});
+  });
+
+  it('calendar query: refuses an end not after the start and a range over 45 days', () => {
+    const schema = crm.CalendarEventsQuerySchema;
+    const from = '2026-11-01T00:00:00.000Z';
+    rejects(schema, { from, to: from });
+    rejects(schema, { from, to: '2026-10-31T23:59:59.000Z' });
+    accepts(schema, { from, to: '2026-12-16T00:00:00.000Z' });
+    rejects(schema, { from, to: '2026-12-16T00:00:00.001Z' });
+    rejects(schema, { from, to: '2026-12-17T00:00:00.000Z' });
+    expect(crm.CALENDAR_EVENTS_MAX_RANGE_DAYS).toBe(45);
+    const result = schema.safeParse({ from, to: '2026-12-17T00:00:00.000Z' });
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([['to']]);
+  });
+
+  const drawn = {
+    id: UUID_A,
+    name: 'Site visit',
+    allDay: false,
+    startsAt: '2026-11-03T09:00:00.000Z',
+    endsAt: '2026-11-03T10:30:00.000Z',
+    allDayDate: null,
+    hasReminder: true,
+    opportunity: {
+      id: UUID_B,
+      number: 'OPP-000042',
+      title: 'Fleet renewal',
+      assignee: { id: UUID_A, name: 'Ada Lovelace' },
+    },
+  };
+
+  it('CalendarEvent: what a calendar draws — and no description', () => {
+    accepts(crm.CalendarEventSchema, drawn);
+    accepts(crm.CalendarEventSchema, { ...drawn, opportunity: { ...drawn.opportunity, assignee: null } });
+    expect(Object.keys(crm.CalendarEventSchema.shape)).not.toContain('description');
+    expect(crm.CalendarEventSchema.parse({ ...drawn, description: 'Private.' })).not.toHaveProperty(
+      'description',
+    );
+    const { hasReminder: _hasReminder, ...withoutFlag } = drawn;
+    rejects(crm.CalendarEventSchema, withoutFlag);
+    const { opportunity: _opportunity, ...withoutOpportunity } = drawn;
+    rejects(crm.CalendarEventSchema, withoutOpportunity);
+  });
+
+  it('CalendarEventsMeta: the scope applied, the scopes offered, and whether the answer was cut', () => {
+    accepts(crm.CalendarEventsMetaSchema, { scope: 'all', scopes: ['all', 'mine'], truncated: false });
+    accepts(crm.CalendarEventsMetaSchema, { scope: 'mine', scopes: ['mine'], truncated: true });
+    rejects(crm.CalendarEventsMetaSchema, { scope: 'mine', scopes: [], truncated: false });
+    rejects(crm.CalendarEventsMetaSchema, { scope: 'team', scopes: ['mine'], truncated: false });
+    rejects(crm.CalendarEventsMetaSchema, { scope: 'mine', scopes: ['mine'] });
+    accepts(crm.CalendarEventsResponseSchema, {
+      data: [drawn],
+      meta: { scope: 'mine', scopes: ['mine'], truncated: false },
+    });
+    rejects(crm.CalendarEventsResponseSchema, { data: [drawn] });
+    expect(crm.CALENDAR_EVENTS_MAX_RESULTS).toBe(500);
+  });
+
+  it('OpportunityDetail carries upcomingEventCount, and the summary does not', () => {
+    expect(Object.keys(crm.OpportunityDetailSchema.shape)).toContain('upcomingEventCount');
+    expect(Object.keys(crm.OpportunitySummarySchema.shape)).not.toContain('upcomingEventCount');
+    const count = crm.OpportunityDetailSchema.shape.upcomingEventCount;
+    accepts(count, 0);
+    accepts(count, 3);
+    rejects(count, -1);
+    rejects(count, 1.5);
+    rejects(count, undefined);
+  });
+});

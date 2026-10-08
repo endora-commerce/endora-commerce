@@ -979,7 +979,7 @@ what it found; `[P]` means parallel inside its own track.
 
 ### Tests first
 
-- [ ] T320 [US21] [US22] `packages/contracts/src/crm.test.ts` — the schemas of
+- [x] T320 [US21] [US22] `packages/contracts/src/crm.test.ts` — the schemas of
   `contracts/admin-api.md` §12d, red for not existing: an Event write (name bounds; `endsAt`
   not after `startsAt` refused; a span over 25 hours refused; `timeZone` required;
   `remindAt` nullable and optional), the update as its partial, `OpportunityEvent` with
@@ -989,17 +989,17 @@ what it found; `[P]` means parallel inside its own track.
 
 ### Implementation
 
-- [ ] T321 [US21] `packages/contracts/src/auth.ts` — `AuthAdminLastSeen` and
+- [x] T321 [US21] `packages/contracts/src/auth.ts` — `AuthAdminLastSeen` and
   `AuthSessionReadPort.lastSeenByAdminUser` (`foreign-module-changes.md` §CAL-B1).
   **Premise 8 of N-CAL14 first**: `grep -rn 'AuthSessionReadPort' packages backend admin`
   for every implementer and test double; each must gain the method in this commit or
   type-checking reds in a file nobody touched.
-- [ ] T322 [US22] `packages/contracts/src/admin-actions.ts` — `'CalendarDays'` on
+- [x] T322 [US22] `packages/contracts/src/admin-actions.ts` — `'CalendarDays'` on
   `KnownIconNameSchema`; `packages/admin-kit/src/lib/admin-actions/icon-map.ts` — its
   component (§CAL-A). **Premise 5 first**: `git log -S"'LineChart'" --oneline` to see every
   file the last icon touched, and touch the same set. If a test enumerates the allowlist,
   it moves here.
-- [ ] T323 [US21] [US22] `packages/contracts/src/crm.ts` — the schemas and their inferred
+- [x] T323 [US21] [US22] `packages/contracts/src/crm.ts` — the schemas and their inferred
   types, turning T320 green. Then `pnpm run build:packages`, `pnpm -r run typecheck`,
   `.changeset/` entries for `@endora-commerce/contracts` and `@endora-commerce/admin-kit`.
   **This commit is the base of both tracks.**

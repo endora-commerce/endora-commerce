@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  AuthAdminLastSeen,
   AuthCustomerLastSeen,
   AuthSessionKind,
   AuthSessionPort,
@@ -103,5 +104,21 @@ export class AuthSessionReadService implements AuthSessionReadPort {
       customerAccountId,
       lastSeenAt,
     }));
+  }
+
+  /**
+   * Declared by the port, not answered yet
+   * (`specs/143-crm-sales-opportunities/tasks.md` T343, §CAL-B2).
+   *
+   * It throws rather than answering `[]` on purpose: an empty answer means
+   * "none of these administrators is online", which a caller would act on, and
+   * until an admin request stamps `sessions.last_seen_at` (§CAL-B3) that column
+   * holds the sign-in time and nothing after — so any answer read from it would
+   * be a wrong one that looks right. Nothing calls this before T343 lands.
+   */
+  lastSeenByAdminUser(_adminUserIds: readonly string[], _since: Date): Promise<AuthAdminLastSeen[]> {
+    return Promise.reject(
+      new Error('auth: AuthSessionReadPort.lastSeenByAdminUser is not implemented yet.'),
+    );
   }
 }

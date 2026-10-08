@@ -106,6 +106,12 @@ export interface AuthCustomerLastSeen {
   lastSeenAt: Date;
 }
 
+/** One administrator's most recent session activity. */
+export interface AuthAdminLastSeen {
+  adminUserId: string;
+  lastSeenAt: Date;
+}
+
 /**
  * Container name: `authSessionReadPort`. Owner: `auth`.
  *
@@ -114,7 +120,10 @@ export interface AuthCustomerLastSeen {
  * `Session` directly today to work out when each account was last active.
  *
  * The surface is that single question and nothing more — publishing the table
- * would be publishing nothing (contracts/port-publication.md §1.1).
+ * would be publishing nothing (contracts/port-publication.md §1.1). It is asked
+ * a second time, of administrators, by `crm`: whether the recipient of an
+ * Event reminder is online decides which channel the reminder takes
+ * (`specs/143-crm-sales-opportunities/contracts/foreign-module-changes.md` §CAL-B).
  *
  * When `auth` is off the call fails closed, which is right: an "online now"
  * view assembled from no session data would be a list of everybody, at an
@@ -133,6 +142,17 @@ export interface AuthSessionReadPort {
     customerAccountIds: readonly string[],
     since: Date,
   ): Promise<AuthCustomerLastSeen[]>;
+  /**
+   * The same question for administrators: the newest `lastSeenAt` per admin
+   * user, restricted to the given users and to activity at or after `since`.
+   * Users with no session seen since `since` are absent from the result. A
+   * session in which the administrator is impersonating a customer is not the
+   * administrator's own presence and does not count.
+   */
+  lastSeenByAdminUser(
+    adminUserIds: readonly string[],
+    since: Date,
+  ): Promise<AuthAdminLastSeen[]>;
 }
 
 // --- the MFA seam ------------------------------------------------------------

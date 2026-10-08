@@ -23,6 +23,12 @@ describe('CustomerPresenceService (feature 075)', () => {
       lastName: 'Lovelace',
     }) as Awaited<ReturnType<CustomerAccountReadPort['findByIds']>>[number];
 
+  // The port's other question. The online-customers view has no reason to ask
+  // it, so a double that is asked fails the test instead of answering.
+  const neverAskedAboutAdministrators: AuthSessionReadPort['lastSeenByAdminUser'] = async () => {
+    throw new Error('the online-customers view asked about administrators');
+  };
+
   const accountsPort = (ids: readonly string[]): CustomerAccountReadPort =>
     ({
       findByIds: async () => ids.map(account),
@@ -32,6 +38,7 @@ describe('CustomerPresenceService (feature 075)', () => {
     const lastSeenAt = new Date('2026-08-01T10:00:00.000Z');
     const sessionReads: AuthSessionReadPort = {
       lastSeenByCustomerAccount: async () => [{ customerAccountId: 'c1', lastSeenAt }],
+      lastSeenByAdminUser: neverAskedAboutAdministrators,
     };
 
     const service = new CustomerPresenceService(
@@ -54,6 +61,7 @@ describe('CustomerPresenceService (feature 075)', () => {
         asked.push({ ids, since });
         return [];
       },
+      lastSeenByAdminUser: neverAskedAboutAdministrators,
     };
 
     const before = Date.now();
@@ -80,6 +88,7 @@ describe('CustomerPresenceService (feature 075)', () => {
         calls += 1;
         return [];
       },
+      lastSeenByAdminUser: neverAskedAboutAdministrators,
     };
 
     const service = new CustomerPresenceService(

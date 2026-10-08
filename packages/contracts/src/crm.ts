@@ -592,6 +592,9 @@ export const OpportunityDetailSchema = OpportunitySummarySchema.extend({
   // §12a (US15) — the values of the fields defined today; a value whose
   // definition was removed is not returned.
   customFieldValues: customFieldValuesSchema,
+  // §12d (US21) — the Opportunity's Events that have not ended yet. It is what
+  // the *Events* tab's label carries, so the tab strip needs no second request.
+  upcomingEventCount: z.number().int().nonnegative(),
 });
 export type OpportunityDetail = z.infer<typeof OpportunityDetailSchema>;
 
@@ -1101,6 +1104,232 @@ export const TopOpportunitiesResponseSchema = dataEnvelope(z.array(OpportunitySu
 export const OpportunityAverageValueResponseSchema = dataEnvelope(
   z.array(OpportunityAverageValueRowSchema),
 );
+
+// ---------------------------------------------------------------------------
+// §12d Events on an Opportunity and the Calendar (US21, US22)
+// ---------------------------------------------------------------------------
+//
+// "Event" here is an entry in a calendar — a meeting, a call, a deadline. The
+// in-process events the module publishes are the next section's.
+
+/**
+ * The longest an Event may be. An Event is one calendar day in its own zone,
+ * and the day a clock goes back is 25 hours long — so this is the bound that
+ * needs no zone data, and "one local day" is the service's to refuse.
+ */
+export const OPPORTUNITY_EVENT_MAX_SPAN_HOURS = 25;
+
+/**
+ * The widest range a Calendar read may ask for: the six-week month grid (42
+ * days), a day each side for an all-day Event of a far zone, and one.
+ */
+export const CALENDAR_EVENTS_MAX_RANGE_DAYS = 45;
+
+/** A Calendar read answers this many Events at most, and says when it cut. */
+export const CALENDAR_EVENTS_MAX_RESULTS = 500;
+
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+
+/**
+ * Why a well-formed Event is refused — `details.rule` of a 422
+ * `VALIDATION_FAILED`, beside `details.field`. The first is also refused by
+ * the schema when both instants arrive in one body (400); the service repeats
+ * it for an edit that names one of them.
+ */
+export const opportunityEventRuleSchema = z.enum([
+  'ends_before_start',
+  'spans_days',
+  'not_whole_day',
+  'unknown_time_zone',
+  'reminder_in_past',
+]);
+export type OpportunityEventRule = z.infer<typeof opportunityEventRuleSchema>;
+
+/**
+ * What became of an Event's reminder, folded for a reader: `paused` is
+ * `scheduled` on a closed Opportunity and is derived on read, and a reminder
+ * being sent right now is reported as `scheduled`.
+ */
+export const opportunityEventReminderStateSchema = z.enum([
+  'scheduled',
+  'paused',
+  'sent',
+  'missed',
+  'no_recipient',
+  'undeliverable',
+  'interrupted',
+]);
+export type OpportunityEventReminderState = z.infer<typeof opportunityEventReminderStateSchema>;
+
+export const opportunityEventReminderChannelSchema = z.enum(['bell', 'email']);
+export type OpportunityEventReminderChannel = z.infer<typeof opportunityEventReminderChannelSchema>;
+
+export const calendarScopeSchema = z.enum(['mine', 'all']);
+export type CalendarScope = z.infer<typeof calendarScopeSchema>;
+
+const opportunityEventWriteShape = {
+  name: z.string().trim().min(1).max(200),
+  /** Plain text; reference tokens are not parsed. */
+  description: z.string().max(5000).nullable().optional(),
+  allDay: z.boolean(),
+  /** For an all-day Event, the local midnight that starts its date. */
+  startsAt: isoDateTimeSchema,
+  /** Exclusive. For an all-day Event, the next local midnight. */
+  endsAt: isoDateTimeSchema,
+  /**
+   * The IANA zone the times were chosen in —
+   * `Intl.DateTimeFormat().resolvedOptions().timeZone` in the browser. Whether
+   * the runtime knows the zone is the service's to say (`unknown_time_zone`).
+   */
+  timeZone: z.string().min(1).max(64),
+  /** `null` or absent = no reminder. Must be later than now — the service's rule. */
+  remindAt: isoDateTimeSchema.nullable().optional(),
+};
+
+/**
+ * The two rules that need neither a clock nor zone data. They are judged only
+ * when both instants are present, which on a create is always and on an edit
+ * is when the body names both.
+ */
+function refineEventSpan(
+  value: { startsAt?: string | undefined; endsAt?: string | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.startsAt === undefined || value.endsAt === undefined) return;
+  const span = Date.parse(value.endsAt) - Date.parse(value.startsAt);
+  if (span <= 0) {
+    ctx.addIssue({ code: 'custom', path: ['endsAt'], message: 'An Event ends after it starts' });
+  } else if (span > OPPORTUNITY_EVENT_MAX_SPAN_HOURS * HOUR_MS) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['endsAt'],
+      message: `An Event is at most ${OPPORTUNITY_EVENT_MAX_SPAN_HOURS} hours long`,
+    });
+  }
+}
+
+export const CreateOpportunityEventRequestSchema = z
+  .object(opportunityEventWriteShape)
+  .superRefine(refineEventSpan);
+export type CreateOpportunityEventRequest = z.infer<typeof CreateOpportunityEventRequestSchema>;
+
+/**
+ * Every member of the create, all optional; strict, so a body naming anything
+ * else is refused instead of ignored. The rules are applied by the service to
+ * the Event **as it would be after the change**; `remindAt: null` removes the
+ * reminder and a different `remindAt` arms it again.
+ */
+export const UpdateOpportunityEventRequestSchema = z
+  .object(opportunityEventWriteShape)
+  .partial()
+  .strict()
+  .superRefine(refineEventSpan);
+export type UpdateOpportunityEventRequest = z.infer<typeof UpdateOpportunityEventRequestSchema>;
+
+export const OpportunityEventReminderSchema = z
+  .object({
+    at: isoDateTimeSchema,
+    state: opportunityEventReminderStateSchema,
+    handledAt: isoDateTimeSchema.nullable(),
+    channels: z.array(opportunityEventReminderChannelSchema),
+  })
+  .refine((reminder) => (reminder.state === 'sent') === reminder.channels.length > 0, {
+    path: ['channels'],
+    message: 'channels is non-empty exactly when the reminder was sent',
+  });
+export type OpportunityEventReminder = z.infer<typeof OpportunityEventReminderSchema>;
+
+export const OpportunityEventSchema = z.object({
+  id: z.string().uuid(),
+  opportunityId: z.string().uuid(),
+  name: z.string(),
+  description: z.string().nullable(),
+  allDay: z.boolean(),
+  /** UTC instants ("Z"); `endsAt` is exclusive. */
+  startsAt: isoDateTimeSchema,
+  endsAt: isoDateTimeSchema,
+  timeZone: z.string(),
+  /**
+   * The date of an all-day Event, computed by the server in `timeZone`; `null`
+   * for a timed one. A calendar places an all-day Event by this, whatever the
+   * reader's own zone.
+   */
+  allDayDate: calendarDateSchema.nullable(),
+  reminder: OpportunityEventReminderSchema.nullable(),
+  createdBy: z.object({ id: z.string().uuid(), name: z.string() }).nullable(),
+  createdAt: isoTimestampSchema,
+  updatedAt: isoTimestampSchema,
+});
+export type OpportunityEvent = z.infer<typeof OpportunityEventSchema>;
+
+export const OpportunityEventResponseSchema = dataEnvelope(OpportunityEventSchema);
+export const OpportunityEventListResponseSchema = dataEnvelope(z.array(OpportunityEventSchema));
+
+/**
+ * `GET /calendar/events`. `from` is inclusive and `to` exclusive; an Event is
+ * in the answer when it overlaps the range. `scope` absent = the caller's
+ * default, and the server decides what is honoured: `all` asked by a caller
+ * confined to some Organizations is answered as `mine`, not refused.
+ *
+ * Write the instants in UTC (`Date#toISOString`): a `+` of an offset in a
+ * query string that is not percent-encoded arrives as a space.
+ */
+export const CalendarEventsQuerySchema = z
+  .object({
+    from: isoDateTimeSchema,
+    to: isoDateTimeSchema,
+    scope: calendarScopeSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    const span = Date.parse(value.to) - Date.parse(value.from);
+    if (span <= 0) {
+      ctx.addIssue({ code: 'custom', path: ['to'], message: 'The range ends after it starts' });
+    } else if (span > CALENDAR_EVENTS_MAX_RANGE_DAYS * DAY_MS) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['to'],
+        message: `The range is at most ${CALENDAR_EVENTS_MAX_RANGE_DAYS} days`,
+      });
+    }
+  });
+export type CalendarEventsQuery = z.infer<typeof CalendarEventsQuerySchema>;
+
+/** What a calendar draws and nothing more — deliberately no description. */
+export const CalendarEventSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  allDay: z.boolean(),
+  startsAt: isoDateTimeSchema,
+  endsAt: isoDateTimeSchema,
+  allDayDate: calendarDateSchema.nullable(),
+  hasReminder: z.boolean(),
+  opportunity: z.object({
+    id: z.string().uuid(),
+    number: z.string(),
+    title: z.string(),
+    assignee: z.object({ id: z.string().uuid(), name: z.string() }).nullable(),
+  }),
+});
+export type CalendarEvent = z.infer<typeof CalendarEventSchema>;
+
+/**
+ * `scope` is the one applied and `scopes` the ones this caller may ask for;
+ * `truncated` says more than `CALENDAR_EVENTS_MAX_RESULTS` Events matched and
+ * the first by `startsAt`, then `id`, were returned.
+ */
+export const CalendarEventsMetaSchema = z.object({
+  scope: calendarScopeSchema,
+  scopes: z.array(calendarScopeSchema).min(1),
+  truncated: z.boolean(),
+});
+export type CalendarEventsMeta = z.infer<typeof CalendarEventsMetaSchema>;
+
+export const CalendarEventsResponseSchema = z.object({
+  data: z.array(CalendarEventSchema),
+  meta: CalendarEventsMetaSchema,
+});
+export type CalendarEventsResponse = z.infer<typeof CalendarEventsResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // Events (`contracts/events-and-ports.md` §1)

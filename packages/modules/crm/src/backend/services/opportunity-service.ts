@@ -1039,6 +1039,10 @@ export class OpportunityService {
       links,
       unresolvedPropagations,
       customFieldValues: await this.deps.customFields.project('opportunity', opportunity.customFieldValues ?? {}),
+      // §12d — the contract's member, ahead of the thing it counts: there is no
+      // Event to count until `crm_opportunity_events` exists, so zero is the
+      // true answer today and T341 replaces it with the count.
+      upcomingEventCount: 0,
     };
   }
 }
