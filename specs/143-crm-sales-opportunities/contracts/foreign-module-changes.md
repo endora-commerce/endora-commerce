@@ -310,7 +310,7 @@ from `./backend`; both are inside the module and are not rows of this page. No o
 demo data changes: no Organization, administrator, Product, Order or Quote Request is added,
 and nothing is linked to a document, because the demo has none (`research.md` N-DD2).
 
-## CAL. Events, reminders and the Calendar (US21, US22) — *planned, not built*
+## CAL. Events, reminders and the Calendar (US21, US22) — *built 2026-10-08; CAL-C not made*
 
 Everything User Stories 21 and 22 need outside `packages/modules/crm/`. Three changes to
 other packages, each generic; the rest is this page's existing rows growing.
@@ -362,7 +362,17 @@ different foreign change instead (a read-state method on `AdminNotificationRecor
 `admin_notifications`) and a second delivery stage; it is the owner's question OQ-1 and is
 not built.
 
-### CAL-C. An environment input CRM reads
+### CAL-C. An environment input CRM reads — **not made**
+
+**As built (2026-10-08): nothing in this subsection exists.** T339 re-derived the
+[unverified] premise below and stopped, as it was told to: `mfa`'s own ledger entry says
+that a second reader moves `ADMIN_BASE_URL` to the platform rather than declaring it again,
+and that move touches `mfa`'s manifest, its ledger shard and the platform's declaration —
+none of them rows of this page (`research.md` N-CAL15 (4)). So CRM's manifest declares no
+`env`, there is no `module-environment-inputs/crm.ts`, the e-mail's `opportunity.url`
+variable is not declared, and **the reminder e-mail carries no link**. The decision is the
+owner's (`spec.md` § Clarifications, OP-2). The original text is kept below as the design
+that was not carried out.
 
 | # | File | Change |
 | --- | --- | --- |

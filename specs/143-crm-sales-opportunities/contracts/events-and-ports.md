@@ -275,9 +275,13 @@ edge: the kernel's `AuditPort` (cradle name `auditLogService`), `commandBus`, `e
 `emFactory`, `moduleQueueRedis` and `processRunsWorkers`. `effectiveState` and
 `enterSystemScope` are imported from the platform's barrels.
 
-## 5a. Ports the Event reminder consumes (US21) — *planned, not built*
+## 5a. Ports the Event reminder consumes (US21) — *built 2026-10-08*
 
-Three names join the table of §5, each resolved with `lazyPort` like the rest. All three
+Three names join the table of §5, each resolved with `lazyPort` like the rest — **except
+`transactionalEmailSenderAccessor`, which as built is read off the cradle per send**: it is
+a function, and `lazyPort` forwards method calls only (`research.md` N-CAL15 (a)). The hard
+edge on `transactional_emails` is recorded as an open point in `spec.md` § Clarifications,
+OP-1. All three
 owners declare themselves non-deactivatable, so each edge is a `dependencies` entry and
 none can deaden an operator's switch (`auth` is one already).
 
@@ -300,7 +304,7 @@ whether the recipient may still see the Opportunity's Organization.
 | --- | --- |
 | `code` | `crm_event_reminder` |
 | `name`, `group` | "Event reminder", `crm` |
-| `variables` | `event.name`, `event.when` (as the bell's `when`), `opportunity.number`, `opportunity.url` (absolute, or empty when the instance does not say where its Admin UI is) |
+| `variables` | `event.name`, `event.when` (as the bell's `when`), `opportunity.number`. **`opportunity.url` is not declared and the e-mail has no link** — T339 stopped (`spec.md` § Clarifications, EC-2; `foreign-module-changes.md` §CAL-C) |
 | Sent with | `salesChannelId: null` (the platform-wide content — an administrator is not a channel's customer), `language` from the recipient's `preferredLanguage` (`pl` → `pl-PL`, anything else and `null` → `en-US`), `to` their address, `messageId: crm_event_reminder:<eventId>:<remindAt as epoch ms>`, `document: { type: 'crm_opportunity', id }` |
 | Operator's control | the e-mail templates screen: editable per language, and deactivatable — a deactivated reminder e-mail is the `deactivated` outcome, and the bell entry is unaffected |
 

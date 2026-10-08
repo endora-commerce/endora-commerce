@@ -231,7 +231,7 @@ still works; `truncated` — a `role="status"` line, `calendar.truncated`, above
 
 ### The Calendar page — `/crm/calendar`
 
-`PageHeader` titled `calendar.title`; under it `EventCalendar` with all three views.
+`PageHeader` titled `calendar.title`; under it `EventCalendar` with all four views.
 
 - **Address**: `?view=month|week|day|agenda&date=YYYY-MM-DD&scope=mine|all`, written with
   `replace`. Absent or malformed: `month`, today, and no `scope` (the server's default). The

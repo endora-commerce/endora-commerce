@@ -1114,10 +1114,14 @@ what it found; `[P]` means parallel inside its own track.
   driver reports and what `salesChannelId: null` renders; whether `simpleEmailBodyTree`
   carries a link; the values of `preferredLanguage`. Then `manifests:generate` and
   `pnpm install --lockfile-only`.
-- [x] T339 [P] [US21] `ADMIN_BASE_URL` in the manifest's `env` and
+- [ ] T339 [P] [US21] `ADMIN_BASE_URL` in the manifest's `env` and
   `backend/scripts/ledgers/module-environment-inputs/crm.ts` (§CAL-C). **Premise 4 first —
   and stop and report if one input admits one owner**; the fallback that needs no ruling is
   an e-mail with the Opportunity's number and no link.
+  **Stopped, not done** *(unticked by the product-owner audit of 2026-10-08: the box said
+  done for a task whose subject does not exist)*: the premise was re-derived, the input was
+  **not** declared, no ledger shard was written, and the fallback is what shipped — the
+  e-mail has no link. Open for the owner as `spec.md` § Clarifications, OP-2.
 - [x] T340 [US21] `src/backend/domain/event-time.ts` — T330 green.
 - [x] T341 [US21] `src/backend/services/opportunity-event-service.ts` (the list; the three
   Commands on the Opportunity's audit object; the re-arming rule),
@@ -1240,18 +1244,28 @@ what it found; `[P]` means parallel inside its own track.
 
 ## Phase 27: Join
 
-- [ ] T380 [US21] [US22] The two tracks on one branch: rebase over the three shared files,
+- [ ] T380 [US21] [US22] *(Half done at `4e3d7ad14`, left unticked: the tracks are on one
+  branch, the six audited keys are in `src/admin/lib/history-fields.ts` and the module's own
+  402 unit tests and the 503 Admin UI tests of `admin/test/modules/crm` are green there. The
+  second half — the Admin UI run against the real API — has no evidence in the tree.)*
+  The two tracks on one branch: rebase over the three shared files,
   `bash scripts/setup-worktree.sh`, rebuild the packages, `composer:generate`,
   `manifests:generate`, `pnpm install --lockfile-only`; the Admin UI run against the real
   API — every fixture of Phase 26 that the real answers contradict is a contract defect and
   is fixed in the contract, the route and the screen together.
-- [ ] T381 [US21] [US22] `packages/modules/crm/docs/crm.md` — two sections, *Events and
+- [x] T381 [US21] [US22] `packages/modules/crm/docs/crm.md` — two sections, *Events and
   reminders* and *The calendar* (what a reminder is and when it is and is not sent, what
   "online" means, how to edit or switch off the e-mail, what a Sales Rep's calendar shows,
   `ADMIN_BASE_URL`), and the lines of *Permissions*, *Switching it on and off*, *What the
   module does not do* and *Demo data* that change; the Polish page and the translation
   cache by `docs/docs/contributing/documentation-i18n.md`;
   `pnpm --filter backend run check:docs-translations`. `.changeset/crm-events-calendar.md`.
+  *As done (2026-10-08)*: the page says the e-mail has **no** link instead of documenting
+  `ADMIN_BASE_URL` (T339 stopped); *Change history* and *Settings* changed too; the `auth`
+  module's page gained *Last seen*, with its Polish page and cache;
+  `.changeset/crm-events-calendar-admin.md` was renamed to `crm-events-calendar.md` and is
+  the one `mod-crm` entry for the feature, and `crm-events-calendar-contract.md` now speaks
+  for `contracts` and `admin-kit` only.
 - [ ] T382 [US21] [US22] The `quality` job's set, run the way the job runs it — not the
   five checks a brief names: `typecheck`, `lint`, `check:naming`, `check:language`,
   `check:release-intent --since origin/master`, the OpenAPI check, the read-size bands
@@ -1277,7 +1291,8 @@ what it found; `[P]` means parallel inside its own track.
 ### Not in these phases, by decision (`plan.md` § *Scope cut, on purpose*)
 
 Events over several days and repeating Events; drag on the Calendar; creating an Event
-from the Calendar; a day view and a mini month; references in an Event's description; a
+from the Calendar; a mini month *(a day view was on this list and was built — `spec.md` §
+Clarifications, EC-1)*; references in an Event's description; a
 "next event" fact or board-card field; Events in webhooks, import/export and analytics.
 
 ## Notes

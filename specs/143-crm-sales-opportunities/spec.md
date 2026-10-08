@@ -6,8 +6,9 @@
 `feat/143-crm` and amended on 2026-10-06 to what was built (see *Clarifications* §
 *Amendments after implementation*). Tasks still open are listed in `tasks.md`.
 **User Stories 21 and 22 (Events, reminders, the Calendar) were added on 2026-10-08 and are
-designed, not built**: branch `feat/143-crm-calendar`, `tasks.md` Phases 24 – 27. Their open
-questions, each with the default applied, are in *Clarifications*.
+built** (`tasks.md` Phases 24 – 26; Phase 27, the join, is open). Their open questions, each
+with the default applied, and what the build did differently from this text, are in
+*Clarifications* § *Events and the Calendar against the build*.
 **Input**: Owner's requirements for a CRM module (`crm`) on Endora Commerce: Sales
 Opportunities with a configurable status workflow modelled on the Order status workflow,
 assignment to Sales Reps, attachments, notes, internal messages, analytics, a board view,
@@ -745,7 +746,9 @@ old one. Close the Opportunity and confirm no reminder is sent while it is close
    on *Events* with that Event marked.
 5. **Given** the same, and an assignee who has not used the Admin UI in the last five
    minutes, **Then** they also receive one e-mail, in the language of their Admin UI, with
-   the same facts and a link to the Opportunity.
+   the same facts. *(Amended 2026-10-08 to the build: the e-mail names the Opportunity by
+   its number and carries **no link** — Clarifications, EC-2. The original wording ended
+   "and a link to the Opportunity".)*
 6. **Given** an Opportunity reassigned after the Event was created, **When** the reminder is
    due, **Then** the person assigned at that moment is reminded and the earlier one is not.
 7. **Given** an Opportunity with no assignee, **When** a reminder is due, **Then** the
@@ -813,7 +816,8 @@ with a keyboard alone.
 1. **Given** a user who may view Opportunities, **When** they open the Calendar from the
    CRM group of the sidebar or from the command palette, **Then** it opens on the current
    month, today marked, with *Today*, *Previous*, *Next*, a *Go to date* field and a switch
-   between *Month*, *Week* and *Agenda*.
+   between *Month*, *Week*, *Day* and *Agenda*. *(Amended 2026-10-08: a *Day* view was added
+   at the owner's request — "in the style of Google Calendar"; EC-1.)*
 2. **Given** a user who may see every Organization, **When** the Calendar opens, **Then**
    it shows the Events of every open Opportunity, and a *Mine / All* switch narrows it to
    the Opportunities assigned to them.
@@ -829,7 +833,9 @@ with a keyboard alone.
    an all-day row, the hours of the day, each Event at its time and length, Events that
    overlap side by side, and a line at the current time on today.
 7. **Given** the *Month* view and a day with more Events than fit, **When** it is read,
-   **Then** the day shows the first three and "+N more", which opens that day's week.
+   **Then** the day shows the first three and "+N more", which opens that day in the *Day*
+   view. *(Amended 2026-10-08, EC-1; on the Opportunity's own tab, which has no *Day* view,
+   it opens that day's week.)*
 8. **Given** any view, **When** an Event is pressed, **Then** the user is on the Opportunity
    it belongs to, on *Events*, with that Event marked.
 9. **Given** any view and a keyboard alone, **When** the user tabs through the calendar,
@@ -1261,7 +1267,8 @@ and is otherwise unchanged.)*
   Event, when it starts and the Opportunity's number, and opening the Opportunity on
   *Events*. When the recipient has made no request to the Admin UI in the five minutes
   before, an e-mail MUST be sent to them as well — in the language of their Admin UI, with
-  the same facts and a link to the Opportunity. An e-mail that cannot be sent — no working
+  the same facts. *(Amended 2026-10-08 to the build: "and a link to the Opportunity" is not
+  built — EC-2.)* An e-mail that cannot be sent — no working
   e-mail on the instance, or the reminder e-mail switched off by the operator — MUST NOT
   cost the bell entry. With the bell capability switched off the e-mail MUST be sent
   whether or not the recipient is online.
@@ -1273,7 +1280,9 @@ and is otherwise unchanged.)*
   handled MUST arm it again.
 - **FR-141**: The *Events* tab MUST say, for every Event with a reminder, what became of
   it: scheduled for a time; paused because the Opportunity is closed; sent, when and by
-  which of the two ways; missed; nobody to remind; could not be delivered.
+  which of the two ways; missed; nobody to remind; could not be delivered; interrupted —
+  the platform stopped during the delivery, which is not repeated. *(The last state added
+  2026-10-08 to the build; it is the "could not be confirmed" of *Assumptions*.)*
 
 **The Calendar** *(added 2026-10-08, User Story 22. Research N-CAL3, N-CAL4,
 N-CAL9 … N-CAL12.)*
@@ -1292,14 +1301,16 @@ N-CAL9 … N-CAL12.)*
 - **FR-145**: Whose Calendar an Event is on MUST follow from who the Opportunity is assigned
   to when the Calendar is read. Reassigning an Opportunity MUST therefore move all its
   Events at once, with nothing copied and nothing left behind.
-- **FR-146**: The Calendar MUST offer a *Month*, a *Week* and an *Agenda* view; *Today*,
+- **FR-146**: The Calendar MUST offer a *Month*, a *Week*, a *Day* and an *Agenda* view
+  *(Day added 2026-10-08, EC-1)*; *Today*,
   *Previous* and *Next*; going to a chosen date; and a title naming the range shown. The
   view, the date and the *Mine / All* choice MUST be part of the screen's address.
 - **FR-147**: The *Week* view MUST show seven days starting on Monday, a row for all-day
   Events, the hours of the day, each timed Event at its time and for its length, Events
   that overlap side by side, and the current time on today. The *Month* view MUST show
   whole weeks, up to three Events per day and, beyond three, how many more — which opens
-  that day's week. The *Agenda* MUST list the days that have Events, each with its Events
+  that day in the *Day* view. The *Day* view MUST be the *Week* view for one day. The
+  *Agenda* MUST list the days that have Events, each with its Events
   in order of time.
 - **FR-148**: Every Event on the Calendar MUST be a link to its Opportunity, opening on
   *Events* with that Event marked, and MUST be named — to sight and to assistive
@@ -1600,6 +1611,61 @@ each are in `research.md`, the note named.
 - **OQ-9 — the week starts on Monday** in both languages (N-CAL10); **a reminder more than
   24 hours late is dropped** (N-CAL5). Stated here so they are decisions and not surprises.
 
+### Events and the Calendar against the build, 2026-10-08
+
+A product-owner audit compared FR-130 – FR-152 and the nine questions above with the code at
+`4e3d7ad14` (the two tracks joined). **Every one of OQ-1 – OQ-9 is built with the default
+stated above; none was answered differently by the build.** Where the build differs from the
+text, the text was corrected in place and the difference is listed here. Three points are
+the owner's and are **open** — recorded, not resolved.
+
+Built differently, text amended:
+
+- **EC-1 — a fourth view, *Day*.** Added at the owner's request ("in the style of Google
+  Calendar"): the *Week* view for one day; "+N more" opens it. FR-146, FR-147, User Story 22
+  scenarios 1 and 7. `plan.md` § *Scope cut, on purpose* and `tasks.md` still list "a day
+  view" as cut; this entry supersedes them.
+- **EC-2 — the reminder e-mail has no link.** FR-139 and User Story 21 scenario 5 asked for
+  one. An absolute link needs the address of the instance's Admin UI, the environment input
+  `ADMIN_BASE_URL`, which the `mfa` capability owns and whose own record says a second reader
+  moves it to the platform rather than declaring it again (`research.md` N-CAL15 (4)). That
+  move is outside this feature, so task T339 stopped as it was told to: nothing was declared,
+  and the e-mail names the Opportunity by its number. The bell entry links. **Open — OP-2.**
+- **EC-3 — a seventh reminder state, *interrupted*** (FR-141).
+- **EC-4 — a reminder held on a closed Opportunity for more than 24 hours reads *missed*, not
+  *paused*, from then on** — even while the Opportunity is still closed (`research.md`
+  N-CAL15 (h)). FR-140 and User Story 21 scenario 8 already say it is not sent; this is what
+  the tab shows.
+- **EC-5 — the one-day rule is judged in the time zone the Event is saved from**, which on an
+  edit is the editor's browser: an Event that is one day where it was planned can be refused
+  when its time is changed from a browser far away (`research.md` N-CAL15 (e)). FR-131 does
+  not say whose day; this is the reading built.
+- **EC-6 — whoever added the Event is also reminded when the assignee does not qualify**
+  (deactivated, or no longer reaching the Organization), not only when nobody is assigned.
+  FR-138's first sentence names only the unassigned case; the *Edge Cases* entry "A reminder
+  falls due while the assignee cannot open the Opportunity" already says this, and the build
+  follows it.
+
+Open for the owner:
+
+- **OP-1 `[NEEDS CLARIFICATION — owner]` — CRM now cannot be installed without the
+  transactional e-mail capability.** The manifest lists `transactional_emails` among the
+  module's hard dependencies, as `contracts/events-and-ports.md` §5a planned. The
+  requirement, however, treats the e-mail as optional at run time (FR-139: an e-mail that
+  cannot be sent never costs the bell entry), and the code tolerates an absent sender. That
+  capability cannot be switched off by an operator, so no switch is held — but an instance
+  composed without it cannot have CRM. Whether the edge should be a hard one, or one the
+  module degrades without like the notification bell, is not decided here.
+- **OP-2 `[NEEDS CLARIFICATION — owner]` — a link in the reminder e-mail** (EC-2): schedule
+  the move of `ADMIN_BASE_URL` to the platform, or accept the e-mail without a link.
+- **OP-3 `[NEEDS CLARIFICATION — owner]` — an instance with no mail server reports the
+  e-mail as sent.** With no SMTP connection the platform's mailer writes the message to the
+  server's log and answers "sent" (`research.md` N-CAL15 (1)), so the *Events* tab shows
+  "sent — notification bell and e-mail" for a reminder whose e-mail reached nobody. The bell
+  entry is written, so FR-139's "MUST NOT cost the bell entry" holds; FR-141's "by which of
+  the two ways" is untrue in that one case. The cause is in the platform's e-mail
+  capability, not in CRM.
+
 ## Assumptions
 
 Decisions taken where the requirements left room, each with the alternative that was not
@@ -1694,4 +1760,5 @@ taken; the reasoning is in `research.md`.
 Orders; Quote Requests; Organizations (including Sales-Rep assignment); customer accounts;
 Products (catalog); Admin UI users and roles; Sales Channels; the media library; Settings; the
 audit trail; Admin notifications; custom fields; webhooks; transactional e-mail and admin
-sessions (User Story 21's reminder).
+sessions (User Story 21's reminder). *(Transactional e-mail is a hard dependency as built —
+Clarifications, OP-1.)*

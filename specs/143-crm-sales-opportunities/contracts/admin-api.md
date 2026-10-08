@@ -448,7 +448,7 @@ What is refused, 400 `VALIDATION_FAILED`, is a parameter that is not JSON or not
 shape. The filters only ever narrow the tenant-scoped read: they are conditions on the
 Opportunity's own row.
 
-## 12d. Events and the Calendar (US21, US22) — *planned, not built*
+## 12d. Events and the Calendar (US21, US22) — *built 2026-10-08*
 
 Normative for the schemas Phase 24 adds to `packages/contracts/src/crm.ts` and for
 `packages/modules/crm/src/backend/routes/routes.events.ts`. **This section is the contract
@@ -574,9 +574,9 @@ follows its link. Bell entry: `kind: 'crm.opportunity.event_reminder'`,
 `linkPath: /crm/opportunities/<id>?tab=events&event=<eventId>`, `title` the English
 sentence and `titleMessage: { scope: 'crm', key: 'notifications.eventReminder.title' |
 'notifications.eventReminderAllDay.title', params: { name, when, number } }` — `when` is
-`YYYY-MM-DD HH:mm` (or the date alone) in the Event's `timeZone`, followed by the zone's
-name. E-mail: transactional e-mail `crm_event_reminder` (`contracts/events-and-ports.md`
-§5a).
+`YYYY-MM-DD HH:mm` in the Event's `timeZone`, followed by the zone's name; for an all-day
+Event the date alone, with no zone. E-mail: transactional e-mail `crm_event_reminder`
+(`contracts/events-and-ports.md` §5a) — **as built it carries no link**.
 
 ## 13. Error codes owned by `crm`
 
