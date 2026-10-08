@@ -15,7 +15,6 @@ import {
   isDayKey,
   localDate,
   timeValueOf,
-  type DayKey,
 } from './date-math.js';
 
 /**
@@ -55,7 +54,7 @@ const MINUTES_PER_DAY = 24 * 60;
 
 /** The hour a reminder of an all-day Event is offered at (FR-137). */
 export const ALL_DAY_REMINDER_TIME = '09:00';
-/** The hour a new Event on a later day is offered at. */
+/** The times an all-day Event is offered once *All day* is switched off. */
 const DEFAULT_START_TIME = '09:00';
 
 function minutesOf(time: string): number | null {
@@ -84,24 +83,18 @@ export function shiftedTo(from: string, to: string, nextFrom: string): string {
 }
 
 /**
- * What a new Event opens with: today — or the day after the Opportunity's
- * latest Event, whichever is later — from the next whole hour, for an hour.
- * On a later day there is no "next hour", so it opens at 09:00.
+ * What a new Event opens with: **today**, from the next whole hour, for an
+ * hour (owner ruling, 2026-10-08 — plain today, whatever the Opportunity
+ * already has planned: a date that silently skips ahead is a date nobody
+ * checks). In the last hour of the day it is that hour, ending at midnight.
  */
-export function defaultEventForm(now: Date, events: readonly OpportunityEvent[]): EventFormValues {
-  const today = dayKeyOf(now);
-  const latest = events.reduce<DayKey | null>((found, event) => {
-    const day = entryDayKey(event);
-    return found === null || day > found ? day : found;
-  }, null);
-  const afterLatest = latest === null ? today : addDays(latest, 1);
-  const date = afterLatest > today ? afterLatest : today;
-  const from = date === today ? timeOf(Math.min(now.getHours() + 1, 23) * 60) : DEFAULT_START_TIME;
+export function defaultEventForm(now: Date): EventFormValues {
+  const from = timeOf(Math.min(now.getHours() + 1, 23) * 60);
   return {
     name: '',
     description: '',
     allDay: false,
-    date,
+    date: dayKeyOf(now),
     from,
     to: shiftedTo('00:00', '01:00', from),
     remind: false,

@@ -36,8 +36,6 @@ export interface EventDialogProps {
   opportunityId: string;
   /** The Event being edited, or `null` to add one. */
   event: OpportunityEvent | null;
-  /** The Opportunity's Events, for the date a new one is offered on. */
-  events: readonly OpportunityEvent[];
   /** The write was accepted. The dialog closes itself after calling this. */
   onSaved: (saved: OpportunityEvent, mode: 'created' | 'updated') => void;
   onClose: () => void;
@@ -62,7 +60,7 @@ export interface EventDialogProps {
  * rule — lands under the same field in the same words.
  */
 export function EventDialog(props: EventDialogProps): ReactNode {
-  const { opportunityId, event, events, onSaved, onClose } = props;
+  const { opportunityId, event, onSaved, onClose } = props;
   const t = useTranslation('crm');
   const tCore = useTranslation('core');
   const fieldId = useId();
@@ -70,7 +68,7 @@ export function EventDialog(props: EventDialogProps): ReactNode {
 
   const [initial] = useState<EventFormValues | null>(() => (event ? eventFormOf(event) : null));
   const [values, setValues] = useState<EventFormValues>(
-    () => initial ?? defaultEventForm(new Date(), events),
+    () => initial ?? defaultEventForm(new Date()),
   );
   // The reminder follows the start until its field is edited by hand. An Event
   // whose stored reminder is not at its start was already set by hand.

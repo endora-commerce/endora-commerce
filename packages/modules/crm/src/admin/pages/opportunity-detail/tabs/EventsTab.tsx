@@ -380,7 +380,6 @@ export function EventsTab(props: OpportunityTabProps): ReactNode {
         <EventDialog
           opportunityId={opportunityId}
           event={dialog.event}
-          events={events ?? []}
           onSaved={(saved, mode): void => {
             setAnnouncement(t(`events.saved.${mode}`, { name: saved.name }));
             void reread();

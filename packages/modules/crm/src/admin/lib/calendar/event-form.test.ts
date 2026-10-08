@@ -75,7 +75,7 @@ function form(overrides: Partial<EventFormValues> = {}): EventFormValues {
 
 describe('what a new Event opens with', () => {
   it('is today, from the next whole hour, for an hour, with no reminder', () => {
-    expect(defaultEventForm(NOW, [])).toEqual({
+    expect(defaultEventForm(NOW)).toEqual({
       name: '',
       description: '',
       allDay: false,
@@ -87,26 +87,17 @@ describe('what a new Event opens with', () => {
     });
   });
 
-  it('is the day after the Opportunity’s latest Event when that is later than today, at 09:00', () => {
-    const values = defaultEventForm(NOW, [stored(), stored({ startsAt: '2026-10-20T08:00:00.000Z', endsAt: '2026-10-20T09:00:00.000Z' })]);
-    expect(values.date).toBe('2026-10-21');
-    expect([values.from, values.to]).toEqual(['09:00', '10:00']);
-  });
-
-  it('is today when every Event is behind', () => {
-    expect(defaultEventForm(NOW, [stored({ startsAt: '2026-09-01T08:00:00.000Z', endsAt: '2026-09-01T09:00:00.000Z' })]).date).toBe('2026-10-08');
-  });
-
-  it('counts an all-day Event by its date, not by its instants', () => {
-    const allDay = stored({ allDay: true, allDayDate: '2026-10-12', startsAt: '2026-10-11T22:00:00.000Z', endsAt: '2026-10-12T22:00:00.000Z' });
-    expect(defaultEventForm(NOW, [allDay]).date).toBe('2026-10-13');
+  it('is the local today, not the UTC one', () => {
+    // 00:30 on 9 October in Warsaw is still 8 October in UTC.
+    const values = defaultEventForm(new Date('2026-10-08T22:30:00.000Z'));
+    expect([values.date, values.from, values.to]).toEqual(['2026-10-09', '01:00', '02:00']);
   });
 
   it('ends at midnight, not on the next day, when the last hour of the day is the next one', () => {
-    const late = defaultEventForm(new Date('2026-10-08T20:40:00.000Z'), []); // 22:40
+    const late = defaultEventForm(new Date('2026-10-08T20:40:00.000Z')); // 22:40
     expect([late.date, late.from, late.to]).toEqual(['2026-10-08', '23:00', '00:00']);
     expect(validateEventForm({ ...late, name: 'x' }, NOW)).toEqual({});
-    const last = defaultEventForm(new Date('2026-10-08T21:40:00.000Z'), []); // 23:40
+    const last = defaultEventForm(new Date('2026-10-08T21:40:00.000Z')); // 23:40
     expect([last.date, last.from]).toEqual(['2026-10-08', '23:00']);
   });
 });

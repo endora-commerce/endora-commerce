@@ -427,11 +427,15 @@ describe('Event dialog — adding', () => {
     expect(within(dialog).queryByLabelText(en('events.field.remindAt'))).toBeNull();
   });
 
-  it('offers the day after the Opportunity’s latest Event when that is later than today', async () => {
+  // Owner ruling, 2026-10-08: plain today. The first build offered the day
+  // after the Opportunity's latest Event, and a date that skips ahead on its
+  // own is a date nobody checks.
+  it('offers today whatever the Opportunity already has planned', async () => {
     events = planned();
     const dialog = await openAdd(await renderTab());
-    expect(field(dialog, 'date')).toHaveValue('2026-10-13');
-    expect(field(dialog, 'from')).toHaveValue('09:00');
+    expect(field(dialog, 'date')).toHaveValue('2026-10-08');
+    expect(field(dialog, 'from')).toHaveValue('13:00');
+    expect(field(dialog, 'to')).toHaveValue('14:00');
   });
 
   it('sends instants and the browser’s zone, then reads the list and the Opportunity again and says what was saved', async () => {
