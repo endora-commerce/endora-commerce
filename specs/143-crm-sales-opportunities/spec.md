@@ -546,6 +546,59 @@ number and leading to it.
 
 ---
 
+### User Story 19 — Choose what a board card shows, and filter the board by it (Priority: P3)
+
+*Added 2026-10-08 at the owner's request: "Chciałbym dodać jeszcze jedną funkcję do CRM: w
+konfiguracji można ustawić, jakie pola niestandardowe i pola Szansy Sprzedażowej ogólnie
+mogą się wyświetlać na karcie w boardzie dla Szans Sprzedażowych. Czyli mogę zdecydować, że
+np. nazwa organizacji, do której jest przypisana szansa ma się wyświetlać na Boardzie. Albo
+robię sobie pole "źródło pozyskania" i zaznaczam, że to pole może się wyświetlać na Boardzie.
+Powinna być też możliwość filtrowania boarda po polach, które wyświetlają się na kartach w
+boardzie".*
+
+An operator decides which fields of an Opportunity a board card shows, and in what order —
+fields every Opportunity has (its Organization, contact person, Sales Rep, value, Sales
+Channel, Tags, number, dates, where it came from, how many documents are linked) and the
+fields the operator defined themself. A Sales Rep then narrows the board by any field its
+cards show.
+
+**Why this priority**: a board is read at a glance, and what a team needs to see at a glance
+differs from team to team. The board already works without it.
+
+**Independent Test**: define a select field "Lead source" for Opportunities, put it on the
+card in the CRM configuration, open the board and see the value on the cards that carry one;
+filter the board by one of its options and confirm the cards, the counts and the totals of
+every column narrow to the Opportunities carrying it; take the field off the card and confirm
+it is gone from the cards and from the filters.
+
+**Acceptance Scenarios**:
+
+1. **Given** nobody has configured the card, **When** the board is opened, **Then** a card
+   shows what it showed before this story: title, number and Organization, value, assignee
+   and Tags.
+2. **Given** the CRM configuration, **When** an operator who may configure CRM opens the
+   *Board card* section, **Then** they are offered every built-in field and every field
+   defined for Opportunities, choose up to six of them and put them in order; the title is
+   always shown and is not among the choices.
+3. **Given** a saved choice, **When** the board is opened by anyone who may read
+   Opportunities, **Then** each card shows the chosen fields in the chosen order — a field
+   the Opportunity has no value for is left out of that card — and a long text is cut short.
+4. **Given** a field shown on the cards, **When** the board's filters are opened, **Then**
+   there is a filter for it that suits its type — one or more options of a choice field,
+   yes / no, a text it contains, a lowest and a highest number or amount, a range of dates,
+   or the picker the board already had — and filters combine: only Opportunities matching
+   all of them are shown, counted and totalled.
+5. **Given** a filtered board, **When** its address is copied and opened again, **Then** the
+   same filters are applied; one action clears them all.
+6. **Given** a custom field on the card, **When** its definition is deleted, **Then** the
+   board keeps working: the field is gone from the cards, from the filters and from the
+   configuration, and a filter on it left in an address is ignored.
+7. **Given** a user who may read Opportunities but not configure CRM, **When** they try to
+   change the card, **Then** they are refused; **Given** a user restricted to a set of
+   Organizations, **Then** no filter reaches an Opportunity outside it.
+
+---
+
 ### Edge Cases
 
 - **A Status still in use is deleted** — refused while any Opportunity is in it; the start
@@ -789,6 +842,23 @@ number and leading to it.
   in it MUST be shown as the name it stands for, never as its stored code; the list opened
   by `@` MUST appear at the place being typed; and saving MUST NOT alter a reference the
   user did not change. *(Added 2026-10-07, owner rulings on User Story 18.)*
+
+- **FR-090**: An operator holding `crm:configure` MUST be able to choose which fields a
+  board card shows and in what order, from the built-in fields of an Opportunity and every
+  custom field defined for Opportunities; at most six, the title always shown besides. The
+  choice is one for the whole instance. Until it is made, a card shows what it showed before.
+  *(Added 2026-10-08, User Story 19.)*
+- **FR-091**: The board MUST show, on every card, the chosen fields in the chosen order,
+  leaving out a field the Opportunity has no value for, and MUST answer no field value that
+  was not chosen. Reading the values MUST cost a number of statements that does not grow with
+  the number of cards.
+- **FR-092**: The board MUST offer a filter for every field its cards show, of a kind that
+  suits the field, applied by the server to the cards, the counts and the totals alike;
+  filters combine with AND, are carried in the board's address, and are cleared by one
+  action. A filter naming a field that is not on the card MUST be ignored, not refused.
+- **FR-093**: A custom field that no longer exists MUST drop out of the cards, the filters
+  and the configuration without an error. Field filters MUST NOT reach an Opportunity the
+  user cannot otherwise read (FR-040).
 
 ### Key Entities
 
