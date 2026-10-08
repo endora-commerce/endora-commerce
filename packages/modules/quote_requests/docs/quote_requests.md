@@ -40,14 +40,15 @@ revision additionally pin `expectedRevisionNumber`.
 | `GET /api/v1/quote-requests/:id` | customer | Detail with optional `comparisonAgainstLastSeen` block while awaiting acceptance. |
 | `POST /api/v1/quote-requests` | customer | Create + submit in one call. |
 | `PATCH /api/v1/quote-requests/:id` | customer | Edit a Pending RFQ that the internal side has not yet touched. |
-| `POST /api/v1/quote-requests/:id/accept-revision` | customer | Accept the latest revision (also covers `Created from admin`). |
+| `POST /api/v1/quote-requests/:id/accept-revision` | customer | Accept the seller's latest revision (also covers `Created from admin`). Needs an offer from the seller with every line priced — see *Agreed prices*. |
 | `POST /api/v1/quote-requests/:id/reject-revision` | customer | Reject the latest revision with optional reason. |
 | `POST /api/v1/quote-requests/:id/resubmit` | customer | Clone an old Quote Request into a new Pending one at the customer's current price list. |
+| `POST /api/v1/quote-requests/:id/convert-to-order` | customer | Seed the customer's cart from an Approved RFQ at the agreed unit prices and return the checkout URL. |
 | `GET /api/v1/admin/quote-requests` | admin | List, scoped by sales-rep assignment + filterable by status / organization. |
 | `GET /api/v1/admin/quote-requests/:id` | admin | Detail with full actor identity in the event log. |
 | `POST /api/v1/admin/quote-requests` | admin | Create on customer's behalf → status `Created from admin`. |
 | `PATCH /api/v1/admin/quote-requests/:id` | admin | Modify a Pending or Created from admin RFQ → triggers customer re-acceptance. |
-| `POST /api/v1/admin/quote-requests/:id/approve` | admin | Approve a Pending RFQ. |
+| `POST /api/v1/admin/quote-requests/:id/approve` | admin | Approve a Pending RFQ whose every line has an agreed unit price. |
 | `POST /api/v1/admin/quote-requests/:id/cancel` | admin | Cancel with optional reason. |
 | `POST /api/v1/admin/quote-requests/:id/assign` | admin | Set `assignedAdminUserId` (informational). |
 | `GET /api/v1/admin/sales-reps/:adminUserId/organizations` | admin | Reverse view — organizations a rep is responsible for, with the count of open quote requests in each. |
@@ -63,6 +64,40 @@ requests is switched off, and it cannot be gated by a permission code declared
 by a module that can disappear. The one endpoint left above is the one that
 reads a quote request, and it is gated `rfqs:handle` precisely so that it
 disappears with this module.
+
+## Agreed prices
+
+A Quote Request becomes an order only at unit prices the seller agreed. A
+line's agreed unit price is set by an operator — when revising a request
+(`PATCH /api/v1/admin/quote-requests/:id`) or when creating one on a
+customer's behalf — and is empty until then. An empty agreed price is never
+read as a number: nothing falls back to zero, to the customer's desired price
+or to the list price.
+
+Three operations depend on it, and each answers `409` when the rule is not
+met:
+
+| Operation | Refused when | Code |
+| --- | --- | --- |
+| `accept-revision` | The seller has made no offer to accept: the request is not `Created from admin` and is not awaiting the customer's acceptance of a seller revision. | `RFQ_NOT_QUOTED` |
+| `accept-revision` | The seller's offer leaves a line without an agreed unit price. | `QUOTE_INCOMPLETE` |
+| admin `approve` | Any line has no agreed unit price. | `QUOTE_INCOMPLETE` |
+| `convert-to-order` | Any line has no agreed unit price. | `QUOTE_INCOMPLETE` |
+
+What this means in practice:
+
+- An operator who wants to approve a request as the customer raised it prices
+  every line first, then approves. There is no "approve at the list price"
+  shortcut.
+- The rules are about a **missing** price. An agreed unit price of exactly
+  `0` that an operator entered — a free sample line — is an agreed price like
+  any other, and such a request can be accepted, approved and ordered.
+- `reject-revision` is not affected: a customer can still withdraw a request
+  the seller has not answered yet.
+- A request that reached `Approved` with an unpriced line before these rules
+  existed cannot be converted into an order. Its lines can no longer be
+  edited, so the way forward is `resubmit`, which raises a new request for the
+  seller to price.
 
 ## Visibility model
 
@@ -171,7 +206,8 @@ When an order is created with a populated `source_quote_request_id`,
 an event subscriber inside the module flips the originating Quote
 Request to `Completed`, populates `converted_order_id`, and fires the
 `completed` notification. A completed quote request cannot be ordered a second
-time. The subscriber waits for the order to be committed — a little over two
+time, and the conversion is refused while any line has no agreed unit price
+(see *Agreed prices*). The subscriber waits for the order to be committed — a little over two
 seconds at most — and completes nothing for an order of another organization.
 
 With this module switched off, a basket filled earlier is still checked out, at

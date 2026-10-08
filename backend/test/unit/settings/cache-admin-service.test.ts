@@ -5,6 +5,10 @@ import {
   CACHE_NAMESPACES,
 } from '../../../../packages/modules/settings/src/backend/services/cache-admin.service.js';
 import { InProcessCacheRegistry } from '@endora-commerce/platform/kernel';
+import {
+  CMS_STOREFRONT_CACHE_TAGS,
+  MEGAMENU_STOREFRONT_CACHE_TAG,
+} from '@endora-commerce/contracts';
 
 /**
  * In-memory Redis fake implementing just the surface CacheAdminService uses:
@@ -56,6 +60,72 @@ function fakeLayer(deletedKeys: number): {
 }
 
 describe('CacheAdminService', () => {
+  /**
+   * The cache screen used to clear Redis and stop there. The storefront keeps
+   * its own copy of CMS and megamenu reads in the Data Cache, so an operator
+   * who pressed the button still read the old page until that copy's window
+   * ran out — the button did nothing they could see. Clearing a namespace the
+   * storefront also caches now names the storefront's tags as well.
+   */
+  describe('storefront Data Cache', () => {
+    function recordingRevalidator(): { tags: string[][]; fn: (tags: string[]) => Promise<void> } {
+      const tags: string[][] = [];
+      return {
+        tags,
+        fn: async (posted) => {
+          tags.push(posted);
+        },
+      };
+    }
+
+    it('revalidates every CMS tag when the cms namespace is cleared', async () => {
+      const revalidator = recordingRevalidator();
+      const svc = new CacheAdminService(fakeRedis([]), new InProcessCacheRegistry(), revalidator.fn);
+
+      await svc.clear(['cms']);
+
+      expect(revalidator.tags).toEqual([
+        [
+          CMS_STOREFRONT_CACHE_TAGS.pages,
+          CMS_STOREFRONT_CACHE_TAGS.pageIndex,
+          CMS_STOREFRONT_CACHE_TAGS.blocks,
+          CMS_STOREFRONT_CACHE_TAGS.hooks,
+        ],
+      ]);
+    });
+
+    it('revalidates the menu tag when the megamenu namespace is cleared', async () => {
+      const revalidator = recordingRevalidator();
+      const svc = new CacheAdminService(fakeRedis([]), new InProcessCacheRegistry(), revalidator.fn);
+
+      await svc.clear(['megamenu']);
+
+      expect(revalidator.tags).toEqual([[MEGAMENU_STOREFRONT_CACHE_TAG]]);
+    });
+
+    it('posts once, after Redis is clear, for a clear of everything', async () => {
+      const redis = fakeRedis(['cms:v1:page:about:default:en-US']);
+      const seen: boolean[] = [];
+      const svc = new CacheAdminService(redis, new InProcessCacheRegistry(), async () => {
+        // A storefront refetch answering this must not find the old entry.
+        seen.push((redis as unknown as { has(k: string): boolean }).has('cms:v1:page:about:default:en-US'));
+      });
+
+      await svc.clear('all');
+
+      expect(seen).toEqual([false]);
+    });
+
+    it('posts nothing for a namespace the storefront keeps no copy of', async () => {
+      const revalidator = recordingRevalidator();
+      const svc = new CacheAdminService(fakeRedis([]), new InProcessCacheRegistry(), revalidator.fn);
+
+      await svc.clear(['carts']);
+
+      expect(revalidator.tags).toEqual([]);
+    });
+  });
+
   it('lists every registered namespace', () => {
     const svc = new CacheAdminService(fakeRedis([]));
     const list = svc.listNamespaces();

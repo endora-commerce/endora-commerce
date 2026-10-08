@@ -6,6 +6,7 @@ import { FilterPanel } from '../../../../components/FilterPanel';
 import { ProductGrid } from '../../../../components/ProductGrid';
 import { Pagination } from '../../../../components/Pagination';
 import { CatalogToolbar } from '../../../../components/CatalogToolbar';
+import { CategoryContent } from '../../../../components/CategoryContent';
 import { MobileFilterSheet } from '../../../../components/mobile/MobileFilterSheet';
 import { Hook } from '../../../../components/Hook';
 import { JsonLd } from '../../../../lib/seo/JsonLd';
@@ -13,6 +14,7 @@ import { absoluteUrl } from '../../../../lib/seo/site-url';
 import { canonicalPath } from '../../../../lib/seo/route-seo';
 import { seo } from './seo';
 import {
+  getCategoryPageContent,
   getCategoryTree,
   getFilters,
   listProducts,
@@ -72,18 +74,25 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
   const priceQuery = parseCatalogPriceQuery(sp);
   const attributeFilters = collectAttributeFilters(sp);
 
-  const products = await listProducts(
-    {
-      categorySlug: slug,
-      ...(Object.keys(attributeFilters).length > 0 ? { attributeFilters } : {}),
-      ...(parsed.sort ? { sort: parsed.sort } : {}),
-      ...(parsed.limit ? { limit: parsed.limit } : {}),
-      ...(parsed.cursor ? { cursor: parsed.cursor } : {}),
-      ...(priceQuery.minPrice !== undefined ? { minPrice: priceQuery.minPrice } : {}),
-      ...(priceQuery.maxPrice !== undefined ? { maxPrice: priceQuery.maxPrice } : {}),
-    },
-    ctx,
-  );
+  // The operator's content belongs to the category's landing view — the first
+  // page of the listing. Past it, the visitor is paging through products and
+  // the same introduction above every page is what pushes the grid out of
+  // sight, so a request carrying a cursor does not read it at all.
+  const [products, pageContent] = await Promise.all([
+    listProducts(
+      {
+        categorySlug: slug,
+        ...(Object.keys(attributeFilters).length > 0 ? { attributeFilters } : {}),
+        ...(parsed.sort ? { sort: parsed.sort } : {}),
+        ...(parsed.limit ? { limit: parsed.limit } : {}),
+        ...(parsed.cursor ? { cursor: parsed.cursor } : {}),
+        ...(priceQuery.minPrice !== undefined ? { minPrice: priceQuery.minPrice } : {}),
+        ...(priceQuery.maxPrice !== undefined ? { maxPrice: priceQuery.maxPrice } : {}),
+      },
+      ctx,
+    ),
+    parsed.cursor ? null : getCategoryPageContent(node.id, ctx),
+  ]);
   // FR-023 — the server's answer, never the storefront's guess.
   const priceOrdering = products.capabilities?.priceOrdering === true;
 
@@ -148,6 +157,13 @@ export default async function CategoryPage({ params, searchParams }: PageProps):
               <p>{node.productCount.toLocaleString('pl-PL')} produktów</p>
             </div>
           </div>
+          {/*
+            Below the heading and above the toolbar and the grid: the page's
+            `h1` stays the category's name, and the authored content reads as
+            the introduction to the listing it sits on. Nothing is rendered
+            when the operator authored nothing.
+          */}
+          <CategoryContent content={pageContent?.content} language={pageContent?.language} />
           <CatalogToolbar
             shown={products.data.length}
             sort={parsed.sort ?? 'relevance'}

@@ -46,6 +46,13 @@ logika biznesowa podstawia w chwili wysyłki.
 
 Edytor e-maili transakcyjnych (i newslettera) korzysta ze wspólnego `EmailEditorPane`:
 
+- **Układ ekranu.** Edytor e-maila transakcyjnego korzysta z układu wspólnego dla wszystkich
+  edytorów z Page Builderem (`PageBuilderEditorLayout` z `@endora-commerce/page-builder-admin`):
+  obszar roboczy zajmuje pełną szerokość edytora, a w jednym wierszu nad nim znajdują się **Zakres**
+  (wszystkie kanały albo nadpisanie dla jednego kanału sprzedaży), **Język** i **Temat**. Inaczej niż
+  w edytorach CMS i bloga nie ma tu zwijanego panelu ustawień — te trzy pola mówią, która wiadomość
+  jest w obszarze roboczym, albo są jej częścią, więc nigdy nie są ukrywane. Edytory bloku e-maila
+  i szablonu e-maila korzystają z tego samego układu z samym polem **Język**.
 - Paleta Puck bezpieczna dla e-maili z `@endora-commerce/email-components` (bez punktów przełamania
   CMS i bez responsywnego układania elementów jeden pod drugim). **Row** otwiera wybór układu kolumn
   (1–6 kolumn), tak jak w CMS; kolumny w chwili wysyłki tworzą stałą tabelę, a w obszarze roboczym —

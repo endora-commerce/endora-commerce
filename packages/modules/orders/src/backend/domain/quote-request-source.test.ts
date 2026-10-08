@@ -80,12 +80,23 @@ describe('judgeQuoteRequestSource', () => {
     ).toEqual({ accepted: false, reason: 'no-agreed-line' });
   });
 
-  it('reads a line with no agreed price as zero, as the conversion seeds it', () => {
+  it('never reads a line with no agreed price as zero', () => {
     expect(
       judgeQuoteRequestSource(
         claim({
           quoteRequestLines: [{ productId: PRODUCT, variantId: null, agreedUnitPrice: null }],
           basketLines: [{ productId: PRODUCT, variantId: null, unitPrice: '0.0000' }],
+        }),
+      ),
+    ).toEqual({ accepted: false, reason: 'no-agreed-line' });
+  });
+
+  it('recognises an agreed price of exactly zero', () => {
+    expect(
+      judgeQuoteRequestSource(
+        claim({
+          quoteRequestLines: [{ productId: PRODUCT, variantId: null, agreedUnitPrice: '0.0000' }],
+          basketLines: [{ productId: PRODUCT, variantId: null, unitPrice: '0.00' }],
         }),
       ),
     ).toEqual({ accepted: true });

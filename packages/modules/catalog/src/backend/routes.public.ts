@@ -380,6 +380,17 @@ export async function registerCatalogPublicRoutes(
     return { data: tree };
   });
 
+  // GET /api/v1/catalog/categories/:id/content — the Page Builder document of
+  // one category's storefront page, resolved to the caller's language.
+  app.get<{ Params: { id: string } }>(
+    '/api/v1/catalog/categories/:id/content',
+    async (request) => {
+      const ctx = readContext(request);
+      const content = await queryService.getCategoryPageContent(request.params.id, ctx);
+      return { data: content };
+    },
+  );
+
   // GET /api/v1/catalog/filters
   app.get('/api/v1/catalog/filters', async (request) => {
     const ctx = readContext(request);

@@ -10,7 +10,7 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import { walkUnknownComponents } from './content-tree-walker.js';
 import type { CmsReferenceRegistry } from './cms-reference-registry.js';
-import type { CmsCache } from './cms-cache.js';
+import type { CmsContentInvalidator } from './cms-content-invalidator.js';
 
 type BlockRow = {
   id: string;
@@ -32,19 +32,12 @@ export class CmsBlockService {
     private readonly emFactory: () => EntityManager,
     private readonly knownComponentNames: () => Iterable<string>,
     private readonly references: CmsReferenceRegistry,
-    private readonly cache?: CmsCache,
+    private readonly invalidator?: CmsContentInvalidator,
   ) {}
 
-  /**
-   * Invalidates the block's own cache entries plus the page-level
-   * namespace, since we don't track which pages embed which block. The
-   * page invalidation is coarse but safe: at platform scale (low
-   * hundreds of pages) the next request rebuilds the cache trivially.
-   */
-  private async invalidateForBlockCode(code: string): Promise<void> {
-    if (!this.cache) return;
-    await this.cache.invalidateBlocksByCode([code]);
-    await this.cache.invalidateAllPages();
+  /** What a block change reaches is `CmsContentInvalidator.blocksChanged`'s to say. */
+  private async invalidateForBlockCodes(codes: Iterable<string>): Promise<void> {
+    await this.invalidator?.blocksChanged(codes);
   }
 
   async list(filters: { salesChannelId?: string } = {}): Promise<{
@@ -98,7 +91,7 @@ export class CmsBlockService {
       );
       await this.replaceChannelScope(tx, id, input.salesChannelIds, input.code);
     });
-    await this.invalidateForBlockCode(input.code);
+    await this.invalidateForBlockCodes([input.code]);
     return this.get(id);
   }
 
@@ -149,7 +142,7 @@ export class CmsBlockService {
       }
       codesToInvalidate.add(nextCode);
     });
-    for (const code of codesToInvalidate) await this.invalidateForBlockCode(code);
+    await this.invalidateForBlockCodes(codesToInvalidate);
     return this.get(id);
   }
 
@@ -179,7 +172,7 @@ export class CmsBlockService {
         [JSON.stringify(content), JSON.stringify(languages), id],
       );
     });
-    if (invalidatedCode) await this.invalidateForBlockCode(invalidatedCode);
+    if (invalidatedCode) await this.invalidateForBlockCodes([invalidatedCode]);
     return this.get(id);
   }
 
@@ -191,7 +184,7 @@ export class CmsBlockService {
       throw new HttpError(409, ERROR_CODES.CMS_REFERENCED, 'CMS Block is referenced.');
     }
     await this.emFactory().execute('delete from cms_blocks where id = ?', [id]);
-    await this.invalidateForBlockCode(row.code);
+    await this.invalidateForBlockCodes([row.code]);
   }
 
   private async findRow(id: string, em = this.emFactory()): Promise<BlockRow | null> {

@@ -131,4 +131,64 @@ describe('blog storefront cache (T089)', () => {
       cookies: adminCookie,
     });
   });
+
+  it('invalidates the cache when a category is created — the index lists it', async () => {
+    if (h.blog.cache) await h.blog.cache.invalidateAll();
+    await fetchIndex();
+    const indexKey = BlogCacheService.composeIndexKey(defaultChannelCode, 'en-US');
+    expect(await h.blog.cache!.get(indexKey)).not.toBeNull();
+
+    // A first-level category is part of the index payload from the moment it
+    // exists. Creating one used to leave the cached index standing, so the
+    // storefront went on listing the old set for the key's five minutes.
+    const stamp = Date.now();
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/blog/categories',
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({
+        parentId: null,
+        name: { 'en-US': `Cache category ${stamp}` },
+        slug: `cache-category-${stamp}`,
+        enabled: true,
+        salesChannelIds: [defaultChannelId],
+        languages: ['en-US'],
+      }),
+    });
+    expect(created.statusCode).toBe(201);
+
+    expect(await h.blog.cache!.get(indexKey)).toBeNull();
+  });
+
+  it('invalidates the cache when a tag is renamed without changing its code', async () => {
+    const stamp = Date.now();
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/blog/tags',
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({ name: { 'en-US': 'Before' }, code: `cache-tag-${stamp}` }),
+    });
+    expect(created.statusCode).toBe(201);
+    const tag = (created.json() as { data: { id: string; version: number } }).data;
+
+    if (h.blog.cache) await h.blog.cache.invalidateAll();
+    await fetchIndex();
+    const indexKey = BlogCacheService.composeIndexKey(defaultChannelCode, 'en-US');
+    expect(await h.blog.cache!.get(indexKey)).not.toBeNull();
+
+    // Every cached post, tag page and listing carries the tag's *name*. Only a
+    // code change used to drop the cache, so a renamed tag kept its old label.
+    const patched = await h.app.inject({
+      method: 'PATCH',
+      url: `/api/v1/admin/blog/tags/${tag.id}`,
+      headers: { 'content-type': 'application/json' },
+      cookies: adminCookie,
+      payload: JSON.stringify({ name: { 'en-US': 'After' }, version: tag.version }),
+    });
+    expect(patched.statusCode).toBe(200);
+
+    expect(await h.blog.cache!.get(indexKey)).toBeNull();
+  });
 });

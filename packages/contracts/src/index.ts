@@ -153,6 +153,7 @@ export * from './search.js';
 export * from './comparisons.js';
 export * from './assets-library.js';
 export * from './megamenu.js';
+export * from './storefront-cache-tags.js';
 export * from './blog.js';
 export * from './dictionary.js';
 export * from './modules.js';

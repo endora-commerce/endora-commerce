@@ -33,13 +33,13 @@
     "check:pdfmake-footprint": "bash scripts/check-pdfmake-footprint.sh"
   },
   "devDependencies": {
-    "@changesets/cli": "^3.0.1",
-    "@typescript-eslint/eslint-plugin": "^8.59.0",
-    "@typescript-eslint/parser": "^8.59.0",
-    "eslint": "^10.2.1",
+    "@changesets/cli": "^3.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.71.0",
+    "@typescript-eslint/parser": "^8.71.0",
+    "eslint": "^10.12.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "prettier": "^3.8.3",
+    "prettier": "^3.9.9",
     "typescript": "^5.9.3"
   },
   "pnpm": {

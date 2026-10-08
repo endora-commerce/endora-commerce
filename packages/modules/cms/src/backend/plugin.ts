@@ -10,7 +10,11 @@
 import type { FastifyInstance } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
-import type { CmsColorPaletteEntry, ModuleManifest } from '@endora-commerce/contracts';
+import type {
+  CmsColorPaletteEntry,
+  CmsContentChange,
+  ModuleManifest,
+} from '@endora-commerce/contracts';
 
 import { PageBuilderRegistry, type PageBuilderBreakpointsResolver, type ColorPaletteResolver } from './services/page-builder-registry.js';
 import { reconcileSeededHooks } from './services/seed-hooks.js';
@@ -22,6 +26,7 @@ import { CmsReferenceRegistry } from './services/cms-reference-registry.js';
 import { StorefrontResolver, type CmsAssetResolver } from './services/storefront-resolver.js';
 import { CmsHookService } from './services/cms-hook-service.js';
 import { CmsCache } from './services/cms-cache.js';
+import { CmsContentInvalidator } from './services/cms-content-invalidator.js';
 import { registerCmsAdminRoutes } from './routes.admin.js';
 import { registerCmsStorefrontRoutes } from './routes.storefront.js';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -68,6 +73,12 @@ export interface CmsModuleOptions {
   manifests?: ReadonlyArray<{ manifest: ModuleManifest }>;
   /** Effective presence, read by the registry at enumeration (FR-010). */
   isModulePresent?: (moduleId: string) => boolean;
+  /**
+   * Told what a content write changed, after it committed and after this
+   * module's own Redis entries were dropped. `backend/index.ts` binds it to the
+   * EventBus; a composition that passes nothing publishes nothing.
+   */
+  publishContentChange?: (change: CmsContentChange) => void;
 }
 
 export interface CmsModuleHandle {
@@ -115,28 +126,35 @@ export function cmsModule(options: CmsModuleOptions): {
   });
 
   const cache = options.redis ? new CmsCache(options.redis, {}) : undefined;
+  // The write services hold this and not the cache: a write states what
+  // changed once, and the Redis drop and the published change follow from it
+  // in the one order that is safe (see `CmsContentInvalidator`).
+  const invalidator = new CmsContentInvalidator(
+    cache,
+    options.publishContentChange ?? (() => {}),
+  );
 
   const referenceRegistry = new CmsReferenceRegistry(options.emFactory);
   const pageService = new CmsPageService(
     options.emFactory,
     options.commandBus,
     () => pageBuilderRegistry.knownNames(),
-    cache,
+    invalidator,
     referenceRegistry,
   );
   const blockService = new CmsBlockService(
     options.emFactory,
     () => pageBuilderRegistry.knownNames(),
     referenceRegistry,
-    cache,
+    invalidator,
   );
   const templateService = new CmsTemplateService(
     options.emFactory,
     () => pageBuilderRegistry.knownNames(),
     referenceRegistry,
-    cache,
+    invalidator,
   );
-  const hookService = new CmsHookService(options.emFactory, cache);
+  const hookService = new CmsHookService(options.emFactory, invalidator);
   const storefrontResolver = new StorefrontResolver(options.emFactory, cache);
 
   let colorPaletteWriter: ColorPaletteWriter | null = null;

@@ -189,9 +189,36 @@ cms:v1:hook:<code>:<channel>:<language>
 Invalidation runs on every Page / Block / Template / Hook write:
 
 - Page write → drops `cms:v1:page:<slug>:*` for every slug the page is bound to.
-- Block write → drops the block's own keys + every page-keyed entry (we don't yet track which pages embed which block; coarse drop is acceptable at platform scale).
+- Block write → drops the block's own keys + every page-keyed and every hook-keyed entry (we don't yet track which pages or hooks inline which block; coarse drop is acceptable at platform scale).
 - Template write → drops every CMS-namespace key.
 - Hook / attachment write → drops the hook's keys.
+
+### The storefront's own cache
+
+The storefront keeps a second copy of every CMS read in Next's Data Cache for
+60 seconds, tagged from `CMS_STOREFRONT_CACHE_TAGS` in
+`@endora-commerce/contracts`. Dropping the Redis keys alone would leave that
+copy standing, so after a write has committed and the Redis keys are gone the
+module publishes `cms.content_changed.v1` on the EventBus and answers it
+itself by posting the matching tags to the storefront's `/api/revalidate`:
+
+| Write | Tags revalidated |
+| --- | --- |
+| Page | `cms:page:<slug>` for every slug of the page, `cms:page-index` |
+| Block | `cms:block:<code>`, `cms:page`, `cms:hook` |
+| Template | `cms:page` |
+| Hook / attachment | `cms:hook:<code>` |
+
+A saved page is therefore the next request's page. Revalidation needs
+`STOREFRONT_BASE_URL` and `REVALIDATE_SECRET` on the backend and the same
+secret on the storefront; without them it is skipped and the 60-second window
+is the fallback. It is best-effort — a storefront that cannot be reached is
+logged and never fails the save.
+
+Another module that caches CMS content inside an answer of its own subscribes
+to the same event through `ctx.subscribe`; `megamenu` does, for the blocks a
+menu inlines. The payload is `CmsContentChange`: the kind (`page`, `block`,
+`template`, `hook`) and the slugs or codes that changed.
 
 Performance target: page resolution with 5 embedded Blocks + 3 embedded
 Templates returns in &lt; 200 ms p95 cold; warm path returns in &lt; 5 ms.

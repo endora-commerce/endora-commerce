@@ -10,7 +10,7 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import { walkUnknownComponents } from './content-tree-walker.js';
 import type { CmsReferenceRegistry } from './cms-reference-registry.js';
-import type { CmsCache } from './cms-cache.js';
+import type { CmsContentInvalidator } from './cms-content-invalidator.js';
 
 type TemplateRow = {
   id: string;
@@ -31,7 +31,7 @@ export class CmsTemplateService {
     private readonly emFactory: () => EntityManager,
     private readonly knownComponentNames: () => Iterable<string>,
     private readonly references: CmsReferenceRegistry,
-    private readonly cache?: CmsCache,
+    private readonly invalidator?: CmsContentInvalidator,
   ) {}
 
   /**
@@ -40,8 +40,7 @@ export class CmsTemplateService {
    * and all blocks is the safe choice; the next request rebuilds them.
    */
   private async invalidateAll(): Promise<void> {
-    if (!this.cache) return;
-    await this.cache.invalidateAll();
+    await this.invalidator?.templateChanged();
   }
 
   async list(filters: { salesChannelId?: string } = {}): Promise<{

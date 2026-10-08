@@ -39,14 +39,15 @@ dodatkowo wymagają podania `expectedRevisionNumber`.
 | `GET /api/v1/quote-requests/:id` | klient | Szczegóły, z opcjonalnym blokiem `comparisonAgainstLastSeen`, gdy zapytanie czeka na akceptację. |
 | `POST /api/v1/quote-requests` | klient | Utworzenie i wysłanie w jednym wywołaniu. |
 | `PATCH /api/v1/quote-requests/:id` | klient | Edycja zapytania w statusie Pending, którego strona wewnętrzna jeszcze nie ruszyła. |
-| `POST /api/v1/quote-requests/:id/accept-revision` | klient | Akceptacja najnowszej wersji (dotyczy też `Created from admin`). |
+| `POST /api/v1/quote-requests/:id/accept-revision` | klient | Akceptacja najnowszej wersji przygotowanej przez sprzedawcę (dotyczy też `Created from admin`). Wymaga oferty sprzedawcy z wyceną każdej pozycji — zob. *Uzgodnione ceny*. |
 | `POST /api/v1/quote-requests/:id/reject-revision` | klient | Odrzucenie najnowszej wersji z opcjonalnym powodem. |
 | `POST /api/v1/quote-requests/:id/resubmit` | klient | Skopiowanie starego zapytania do nowego, w statusie Pending, według bieżącego cennika klienta. |
+| `POST /api/v1/quote-requests/:id/convert-to-order` | klient | Wypełnienie koszyka klienta pozycjami zapytania w statusie Approved po uzgodnionych cenach jednostkowych i zwrócenie adresu procesu zamówienia. |
 | `GET /api/v1/admin/quote-requests` | administrator | Lista zawężona do przypisań opiekuna handlowego, z filtrami według statusu i organizacji. |
 | `GET /api/v1/admin/quote-requests/:id` | administrator | Szczegóły z pełną tożsamością wykonawców w dzienniku zdarzeń. |
 | `POST /api/v1/admin/quote-requests` | administrator | Utworzenie w imieniu klienta → status `Created from admin`. |
 | `PATCH /api/v1/admin/quote-requests/:id` | administrator | Zmiana zapytania w statusie Pending lub Created from admin → wymaga ponownej akceptacji klienta. |
-| `POST /api/v1/admin/quote-requests/:id/approve` | administrator | Zatwierdzenie zapytania w statusie Pending. |
+| `POST /api/v1/admin/quote-requests/:id/approve` | administrator | Zatwierdzenie zapytania w statusie Pending, którego każda pozycja ma uzgodnioną cenę jednostkową. |
 | `POST /api/v1/admin/quote-requests/:id/cancel` | administrator | Anulowanie z opcjonalnym powodem. |
 | `POST /api/v1/admin/quote-requests/:id/assign` | administrator | Ustawienie `assignedAdminUserId` (wyłącznie informacyjne). |
 | `GET /api/v1/admin/sales-reps/:adminUserId/organizations` | administrator | Widok odwrotny — organizacje, za które odpowiada opiekun, z liczbą otwartych zapytań w każdej z nich. |
@@ -59,6 +60,36 @@ a ten podział nie jest kosmetyczny: przypisanie opiekuna opisuje organizację, 
 także wtedy, gdy moduł zapytań ofertowych jest wyłączony, i nie może być chronione kodem uprawnienia
 modułu, który może zniknąć. Jedyny pozostały wyżej endpoint odczytuje zapytania ofertowe i jest
 chroniony przez `rfqs:handle` właśnie po to, by znikał razem z tym modułem.
+
+## Uzgodnione ceny
+
+Zapytanie ofertowe staje się zamówieniem wyłącznie po cenach jednostkowych uzgodnionych przez
+sprzedawcę. Uzgodnioną cenę jednostkową pozycji ustawia operator — zmieniając zapytanie
+(`PATCH /api/v1/admin/quote-requests/:id`) albo tworząc je w imieniu klienta — a do tego czasu
+pozostaje ona pusta. Pusta uzgodniona cena nigdy nie jest odczytywana jako liczba: nic nie zastępuje
+jej zerem, ceną oczekiwaną przez klienta ani ceną z cennika.
+
+Zależą od niej trzy operacje, a każda odpowiada `409`, gdy reguła nie jest spełniona:
+
+| Operacja | Odmowa, gdy | Kod |
+| --- | --- | --- |
+| `accept-revision` | Sprzedawca nie złożył oferty, którą można zaakceptować: zapytanie nie ma statusu `Created from admin` i nie czeka na akceptację przez klienta wersji przygotowanej przez sprzedawcę. | `RFQ_NOT_QUOTED` |
+| `accept-revision` | Oferta sprzedawcy pozostawia pozycję bez uzgodnionej ceny jednostkowej. | `QUOTE_INCOMPLETE` |
+| `approve` (administrator) | Którakolwiek pozycja nie ma uzgodnionej ceny jednostkowej. | `QUOTE_INCOMPLETE` |
+| `convert-to-order` | Którakolwiek pozycja nie ma uzgodnionej ceny jednostkowej. | `QUOTE_INCOMPLETE` |
+
+W praktyce oznacza to, że:
+
+- Operator, który chce zatwierdzić zapytanie w postaci złożonej przez klienta, najpierw wycenia
+  każdą pozycję, a dopiero potem zatwierdza. Nie ma skrótu „zatwierdź po cenie z cennika”.
+- Reguły dotyczą **braku** ceny. Uzgodniona cena jednostkowa równa dokładnie `0`, wpisana przez
+  operatora — pozycja z bezpłatną próbką — jest uzgodnioną ceną jak każda inna, a takie zapytanie
+  można zaakceptować, zatwierdzić i zamówić.
+- `reject-revision` pozostaje bez zmian: klient nadal może wycofać zapytanie, na które sprzedawca
+  jeszcze nie odpowiedział.
+- Zapytania, które otrzymało status `Approved` z niewycenioną pozycją, zanim te reguły zaczęły
+  obowiązywać, nie da się zamienić na zamówienie. Jego pozycji nie można już edytować, więc
+  rozwiązaniem jest `resubmit`, które tworzy nowe zapytanie do wyceny przez sprzedawcę.
 
 ## Model widoczności
 
@@ -152,7 +183,9 @@ oznaczenie przepada.
 
 Gdy powstaje zamówienie z wypełnionym `source_quote_request_id`, subskrybent wewnątrz modułu
 przestawia źródłowe zapytanie ofertowe na `Completed`, wypełnia `converted_order_id` i wysyła
-powiadomienie `completed`. Zakończonego zapytania ofertowego nie można zamówić po raz drugi.
+powiadomienie `completed`. Zakończonego zapytania ofertowego nie można zamówić po raz drugi,
+a konwersja jest odrzucana, dopóki którakolwiek pozycja nie ma uzgodnionej ceny jednostkowej
+(zob. *Uzgodnione ceny*).
 Subskrybent czeka, aż zamówienie zostanie zatwierdzone w bazie — najwyżej nieco ponad dwie
 sekundy — i niczego nie kończy dla zamówienia innej organizacji.
 

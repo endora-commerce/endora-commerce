@@ -5,9 +5,12 @@ import { slugify, type CmsBlockDetail } from '@endora-commerce/contracts';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
-import { CmsContentEditorLayout } from '../components/CmsContentEditorLayout.js';
 import { PageBuilderEditor } from '../components/PageBuilderEditor.js';
-import { emptyPageBuilderData } from '@endora-commerce/page-builder-admin';
+import {
+  emptyPageBuilderData,
+  PageBuilderEditorLayout,
+  usePageBuilderEditorSettingsPanel,
+} from '@endora-commerce/page-builder-admin';
 import {
   listCmsTemplatesForApply,
   loadCmsTemplateCanvas,
@@ -53,6 +56,7 @@ export function BlockEditor(): ReactNode {
   const { id } = useParams();
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
+  const settingsPanel = usePageBuilderEditorSettingsPanel(isNew);
   const [block, setBlock] = useState<CmsBlockDetail | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
   // For a new block the code auto-derives from the name until the editor types
@@ -122,16 +126,19 @@ export function BlockEditor(): ReactNode {
   const save = async (): Promise<boolean> => {
     if (scope.salesChannelIds.length === 0) {
       setError(t('blockEditor.errors.selectChannel'));
+      settingsPanel.reveal();
       return false;
     }
     if (scope.languages.length === 0) {
       setError(t('blockEditor.errors.selectLanguage'));
+      settingsPanel.reveal();
       return false;
     }
 
     const contentLanguage = resolveScopedContentLanguage(scope, activeLanguage);
     if (!contentLanguage) {
       setError(t('blockEditor.errors.selectLanguage'));
+      settingsPanel.reveal();
       return false;
     }
 
@@ -176,6 +183,9 @@ export function BlockEditor(): ReactNode {
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      // Name, slug, code and scope all live in the settings panel, and they
+      // are what a refused save is nearly always about.
+      settingsPanel.reveal();
       return false;
     } finally {
       setSaving(false);
@@ -187,7 +197,8 @@ export function BlockEditor(): ReactNode {
   };
 
   return (
-    <CmsContentEditorLayout
+    <PageBuilderEditorLayout
+      settingsPanel={settingsPanel}
       header={
         <>
           <PageHeader
@@ -268,7 +279,7 @@ export function BlockEditor(): ReactNode {
           <ScopePicker value={scope} onChange={setScope} />
         </>
       }
-      languageTabs={
+      canvasBar={
         <ContentLanguageTabs
           languages={scope.languages}
           activeLanguage={activeLanguage}

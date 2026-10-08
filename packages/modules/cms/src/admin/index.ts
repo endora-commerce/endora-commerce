@@ -33,7 +33,10 @@
  * **This entry exports data and nothing else** (R2); every component is a
  * dynamic-import factory (R6).
  */
-import type { AdminContributions } from '@endora-commerce/admin-kit/contributions';
+import {
+  zoneComponent,
+  type AdminContributions,
+} from '@endora-commerce/admin-kit/contributions';
 
 /**
  * The code that opens every screen below.
@@ -179,5 +182,24 @@ export const contributions: AdminContributions = {
       weight: 400,
       requiredPermission: READ_PERMISSION,
     },
+  ],
+  zones: [
+    // The Page Builder canvas on `catalog`'s category content screen. `catalog`
+    // owns the document and mounts the place; this module owns a Page Builder
+    // and fills it. A contribution rather than `./admin-ui`'s published
+    // component — `blog`'s exit — because `catalog` is `nonDeactivatable` and
+    // this module is not: it may neither declare this module nor import it,
+    // and a contribution is what disappears with `cms.enabled` on its own.
+    //
+    // The read code, which is the code that opens this module's own three
+    // editors: seeing a document in the canvas is a read, and the save is the
+    // host's, behind the host's own write code.
+    zoneComponent('category.content.editor', () => import('./zones/CategoryContentEditor.js'), {
+      // The only contribution to this place, so the weight orders nothing
+      // today. Declared rather than defaulted so a second editor arrives
+      // beside it rather than ahead of it by accident.
+      weight: 100,
+      requiredPermission: READ_PERMISSION,
+    }),
   ],
 };

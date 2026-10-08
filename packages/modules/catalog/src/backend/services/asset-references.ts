@@ -1,10 +1,11 @@
 // Catalog → Assets Library reference descriptors — feature 013 / US2 / T064.
 //
-// Registers four FK descriptors that the AssetReferenceRegistry consults
-// when an admin tries to delete an asset (FR-030). Each descriptor runs a
-// single batched query (`asset_id = ANY($1)`) and joins back to the parent
-// row's display info for the human-readable label rendered in the admin
-// "in use by" dialog.
+// Registers the descriptors that the AssetReferenceRegistry consults when an
+// admin tries to delete an asset (FR-030). The four column references each
+// run a single batched query (`asset_id = ANY($1)`) and join back to the
+// parent row's display info for the human-readable label rendered in the
+// admin "in use by" dialog; the fifth looks inside a category's page content,
+// where the reference is a string in a Page Builder document.
 
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
@@ -22,6 +23,7 @@ export function registerCatalogAssetReferences(
     productAttachmentDescriptor(emFactory),
     productVirtualDownloadDescriptor(emFactory),
     categoryMainImageDescriptor(emFactory),
+    categoryContentDescriptor(emFactory),
   ];
   for (const d of descriptors) registry.register(d);
 }
@@ -134,6 +136,51 @@ function categoryMainImageDescriptor(
         entityId: r.category_id,
         label: `Category "${pickName(r.category_name)}" — main image`,
       }));
+    },
+  };
+}
+
+/**
+ * A library asset embedded in a category's page content — an image block, a
+ * hero background, a slide.
+ *
+ * The Page Builder stores the asset's id as a string somewhere in the block's
+ * props, at a depth that depends on the block, so the lookup is a recursive
+ * jsonpath over the whole envelope rather than a column comparison: the idiom
+ * the CMS and the blog use for their own Page Builder columns. Soft-deleted
+ * categories are skipped, as they are there — a deleted category's page is not
+ * served, so its content holds nothing in use.
+ */
+function categoryContentDescriptor(
+  emFactory: () => EntityManager,
+): AssetReferenceDescriptor {
+  return {
+    ownerModuleId: 'catalog',
+    async findReferences(assetIds: string[]): Promise<AssetReference[]> {
+      if (assetIds.length === 0) return [];
+      const em = emFactory();
+      const out: AssetReference[] = [];
+      for (const raw of assetIds) {
+        // An asset id is a UUID; stripping everything else is what keeps the
+        // literal-injected jsonpath safe (a jsonpath cannot take a bind).
+        const assetId = raw.replace(/[^0-9a-fA-F-]/g, '');
+        if (assetId === '') continue;
+        const rows = (await em.execute(
+          `select c.id::text as category_id, c.name as category_name
+             from categories c
+            where c.deleted_at is null
+              and c.content is not null
+              and jsonb_path_exists(c.content, '$.** ? (@ == "${assetId}")'::jsonpath)`,
+        )) as Array<{ category_id: string; category_name: Record<string, string> | string }>;
+        for (const r of rows) {
+          out.push({
+            kind: 'category_content',
+            entityId: r.category_id,
+            label: `Category "${pickName(r.category_name)}" — page content`,
+          });
+        }
+      }
+      return out;
     },
   };
 }

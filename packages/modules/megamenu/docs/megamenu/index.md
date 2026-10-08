@@ -100,6 +100,9 @@ Resolved payloads are cached in Redis under `megamenu:v1:<channel>:<language>` w
 - `POST /menus`, `PATCH /menus/:id`, `PUT /menus/:id/items`, `DELETE /menus/:id` → coarse drop of `megamenu:v1:*` (one menu may serve N bindings).
 - `POST /menus/:id/bindings` / `DELETE /menus/:id/bindings/:channel/:language` → drop the affected scope.
 - `POST /menus/:id/activate` / `POST /menus/:id/deactivate` → drop the activated/deactivated scope.
+- A CMS block or page save (`cms.content_changed.v1`) → coarse drop of `megamenu:v1:*`, because a menu payload inlines the tree of every block it embeds and the slug of every page it links to.
+
+The storefront keeps a second copy of the resolved menu in Next's Data Cache for 60 seconds, tagged `megamenu` (`MEGAMENU_STOREFRONT_CACHE_TAG` in `@endora-commerce/contracts`). Every invalidation above also posts that tag to the storefront's `/api/revalidate`, after the Redis keys are gone, so an edited menu is the next request's menu. It needs `STOREFRONT_BASE_URL` and `REVALIDATE_SECRET`, is skipped without them, and never fails a write when the storefront cannot be reached.
 
 The cache implementation mirrors the CMS module's `CmsCache` exactly (same prefix scheme, same TTL, same SCAN-based invalidation).
 

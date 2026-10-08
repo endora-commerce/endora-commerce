@@ -32,6 +32,7 @@ export const assetReferenceKindSchema = z.enum([
   'product_attachment',
   'product_virtual_download',
   'category_main_image',
+  'category_content',
   'cms_body_embed',
   'megamenu_item_target',
   'blog_category_main_image',

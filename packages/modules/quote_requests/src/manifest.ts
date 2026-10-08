@@ -188,8 +188,8 @@ export const manifest = defineModuleManifest({
    * shadow reaches me" is a conclusion of reading the whole chain and not a
    * premise a migrating author is entitled to.
    *
-   * **Four of the nine are raised by nothing** — `QUOTE_INCOMPLETE`,
-   * `RFQ_ALREADY_CLAIMED`, `RFQ_NOT_ACCEPTED` and `RFQ_NOT_NEW`. Each is a
+   * **Three of the nine are raised by nothing** — `RFQ_ALREADY_CLAIMED`,
+   * `RFQ_NOT_ACCEPTED` and `RFQ_NOT_NEW`. Each is a
    * member of `ERROR_CODES` with a sentence in both languages that no `throw`
    * in `backend/src` or `packages` can produce. They are declared anyway,
    * because ownership follows the capture and not the raise sites (trap T10):
@@ -213,9 +213,14 @@ export const manifest = defineModuleManifest({
    * `specs/001-b2b-platform-foundation/contracts/quote_requests.contract.md`
    * assigned them. That is T11's distinction reaching its conclusion: for these
    * two the sentences were the last surviving evidence of the rule, and the
-   * repair was to restore the rule rather than to retire the codes. The other
-   * four have no such history, and the count here is a fact about the tree that
-   * moves with it — re-derive it, never carry it forward.
+   * repair was to restore the rule rather than to retire the codes.
+   *
+   * **And four until 2026-10-08**, when `QUOTE_INCOMPLETE` gained the rule its
+   * name describes: a line with no agreed unit price is refused on
+   * `accept-revision`, on the admin `approve` and on `convert-to-order`
+   * (`services/agreed-price.ts`). The remaining three have no such history,
+   * and the count here is a fact about the tree that moves with it — re-derive
+   * it, never carry it forward.
    *
    * The inverse is also true and is T2's shape: this module raises five codes it
    * does not own — `CUSTOM_FIELD_VALUE_INVALID`, `FORBIDDEN`, `NOT_FOUND` and
@@ -226,10 +231,10 @@ export const manifest = defineModuleManifest({
    * **No `tokens`, and it is derived rather than assumed.** The envelope's
    * `refusalToken` (`packages/platform/src/http/error-envelope.ts`) reads
    * exactly one member of `details` — `code`, and only when `details` is an
-   * object — as the tail of `errors.<CODE>.<token>`. All ten raises of these
-   * codes were enumerated over `packages` and `backend/src` rather than over
+   * object — as the tail of `errors.<CODE>.<token>`. Every raise of these
+   * codes was enumerated over `packages` and `backend/src` rather than over
    * this package alone (runbook §5), and not one passes a fourth argument at
-   * all; the six codes nothing raises reach no token by construction. The
+   * all; the codes nothing raises reach no token by construction. The
    * bundle agrees from the other direction: nine `errors.<CODE>` keys in each
    * language and not one `errors.<CODE>.<token>`.
    */

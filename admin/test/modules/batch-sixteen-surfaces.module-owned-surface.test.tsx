@@ -199,7 +199,12 @@ const SUBJECTS: readonly Subject[] = [
       'appShell.nav.cmsTemplates',
       'appShell.nav.cmsHooks',
     ],
-    zones: [],
+    // One, added after this batch: the Page Builder canvas on `catalog`'s
+    // category content screen. `catalog` is `nonDeactivatable` and `cms` is
+    // not, so it cannot take `./admin-ui`'s published component the way `blog`
+    // does; the direction is inverted and `cms` contributes
+    // (`admin/test/modules/cms/category-content-zone.test.tsx`).
+    zones: ['category.content.editor'],
     surfaceDirectories: ['cms'],
     locked: false,
   },
@@ -737,11 +742,12 @@ describe('the surfaces each module does not contribute, derived from the contrib
   it.each(SUBJECTS)('$module contributes exactly the zones its declaration names', (subject) => {
     // Ruling 1: the off-state test asserts every surface the module
     // contributes, and names the ones it does not **derived from the
-    // contribution set** rather than asserted. Both of this batch's two
-    // contribute to no zone and host none — `cms` publishes a component
-    // instead, which is the other exit Z1 offers and the subject of the last
-    // `describe` below. Asserted as an equality, so a zone silently added or
-    // dropped in the move fails here.
+    // contribution set** rather than asserted. When this batch landed both of
+    // its two contributed to no zone and hosted none — `cms` publishes a
+    // component instead, which is the other exit Z1 offers and the subject of
+    // the last `describe` below. `cms` has since gained one contribution, to
+    // `catalog`'s category content screen; it still hosts none. Asserted as an
+    // equality, so a zone silently added or dropped fails here.
     const contributions = CONTRIBUTIONS.get(subject.module);
     expect((contributions?.zones ?? []).map((zone) => zone.zone)).toEqual(subject.zones);
   });
@@ -786,7 +792,6 @@ const MOVED = [
   'cms/src/admin/components/BackgroundFields.tsx',
   'cms/src/admin/components/ButtonLinkFields.tsx',
   'cms/src/admin/components/CarouselPreviewNav.tsx',
-  'cms/src/admin/components/CmsContentEditorLayout.tsx',
   'cms/src/admin/components/ComponentDragHandle.tsx',
   'cms/src/admin/components/ContentSliderActionBarExtras.tsx',
   'cms/src/admin/components/HookBlockAttachmentsPanel.tsx',

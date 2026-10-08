@@ -82,9 +82,12 @@ export function judgeQuoteRequestSource(
       (agreed) =>
         agreed.productId === basketLine.productId &&
         (agreed.variantId ?? null) === (basketLine.variantId ?? null) &&
-        // `quote_requests` seeds a line with no agreed price at zero; the same
-        // reading here, or such a line could never be recognised.
-        Number(agreed.agreedUnitPrice ?? '0') === Number(basketLine.unitPrice),
+        // A line the seller never priced has no agreed price, and
+        // `quote_requests` no longer seeds one at zero — so it is never read
+        // as a number here either. A price of exactly zero an operator
+        // entered is an agreed price like any other.
+        agreed.agreedUnitPrice != null &&
+        Number(agreed.agreedUnitPrice) === Number(basketLine.unitPrice),
     ),
   );
   return holdsAgreedLine ? { accepted: true } : { accepted: false, reason: 'no-agreed-line' };

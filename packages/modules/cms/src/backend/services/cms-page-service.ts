@@ -12,7 +12,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditState, CommandBus } from '@endora-commerce/platform/commands';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import { walkBlockEmbeds, walkUnknownComponents } from './content-tree-walker.js';
-import type { CmsCache } from './cms-cache.js';
+import type { CmsContentInvalidator } from './cms-content-invalidator.js';
 import type { CmsReferenceRegistry } from './cms-reference-registry.js';
 
 type PageRow = {
@@ -115,7 +115,7 @@ export class CmsPageService {
      */
     private readonly commandBus: CommandBus,
     private readonly knownComponentNames: () => Iterable<string>,
-    private readonly cache?: CmsCache,
+    private readonly invalidator?: CmsContentInvalidator,
     private readonly references?: CmsReferenceRegistry,
   ) {}
 
@@ -162,7 +162,7 @@ export class CmsPageService {
   }
 
   private async invalidateForPageId(pageId: string): Promise<void> {
-    if (!this.cache) return;
+    if (!this.invalidator) return;
     await this.invalidateForSlugs(await this.slugsOf(pageId));
   }
 
@@ -199,9 +199,7 @@ export class CmsPageService {
   }
 
   private async invalidateForSlugs(slugs: Iterable<string>): Promise<void> {
-    if (!this.cache) return;
-    const filtered = Array.from(slugs).filter((s) => s && s.length > 0);
-    if (filtered.length > 0) await this.cache.invalidatePagesBySlug(filtered);
+    await this.invalidator?.pagesChanged(slugs);
   }
 
   async list(filters: { salesChannelId?: string; status?: string; q?: string } = {}): Promise<{
