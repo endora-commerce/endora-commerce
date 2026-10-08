@@ -11,7 +11,7 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
   CRM_ADMIN,
   CRM_API,
@@ -306,6 +306,98 @@ describe('crm board card fields — filters, values and cost (User Story 19)', (
     });
   });
 
+  describe('what the independent review found (N-BFR1, N-BFR4)', () => {
+    const ALL = ['alpha', 'beta', 'delta', 'gamma'];
+    const day = (offset: number): string => {
+      const date = new Date();
+      date.setUTCDate(date.getUTCDate() + offset);
+      return date.toISOString().slice(0, 10);
+    };
+
+    beforeAll(async () => {
+      await setCard(['builtin:updatedAt', 'builtin:closedAt', 'builtin:salesChannel']);
+    });
+
+    it('an instant is filtered by UTC day, inclusive of both, up to the last day a date can name', async () => {
+      await expectMatches({ 'builtin:updatedAt': { from: day(0), to: day(0) } }, ALL);
+      await expectMatches({ 'builtin:updatedAt': { to: day(-1) } }, []);
+      await expectMatches({ 'builtin:updatedAt': { from: day(1) } }, []);
+      // Nothing is closed: a bound on the closing instant matches nothing, whichever it is.
+      await expectMatches({ 'builtin:closedAt': { from: '2000-01-01' } }, []);
+      // The day after the last one is past what an ISO instant can say in four digits.
+      await expectMatches({ 'builtin:updatedAt': { to: '9999-12-31' } }, ALL);
+      await expectMatches({ 'builtin:closedAt': { to: '9999-12-31' } }, []);
+      await expectMatches({ 'builtin:updatedAt': { from: '9999-12-31' } }, []);
+    });
+
+    it('the Sales Channel on a card is its name, a text — not the name in every language', async () => {
+      const connection = h.em().getConnection();
+      const [channel] = (await connection.execute(
+        `select "id", "name" from "sales_channels" where "system_default" = true limit 1`,
+      )) as Array<{ id: string; name: Record<string, string> }>;
+      expect(channel).toBeDefined();
+      await connection.execute(`update "crm_opportunities" set "sales_channel_id" = ? where "id" = ?`, [
+        channel!.id,
+        alpha.id,
+      ]);
+      try {
+        const cards = (await board(null)).columns.flatMap((column) => column.items);
+        const shown = cards.find((card) => card.id === alpha.id)?.cardValues?.['builtin:salesChannel'];
+        expect(typeof shown).toBe('string');
+        expect(Object.values(channel!.name)).toContain(shown);
+        expect(
+          cards.filter((card) => card.id !== alpha.id).map((card) => card.cardValues?.['builtin:salesChannel']),
+        ).toEqual([null, null, null]);
+      } finally {
+        await connection.execute(`update "crm_opportunities" set "sales_channel_id" = null where "id" = ?`, [
+          alpha.id,
+        ]);
+      }
+    });
+  });
+
+  describe('a value that is not of its definition\'s type (N-BFR7)', () => {
+    let strayId: string;
+
+    beforeAll(async () => {
+      await setCard(ALL_CUSTOM);
+      // What a definition retyped while no value was held, an import or an
+      // older release can leave behind: every key holding another type.
+      strayId = (await make('stray')).id;
+      await h
+        .em()
+        .getConnection()
+        .execute(`update "crm_opportunities" set "custom_field_values" = ?::jsonb where "id" = ?`, [
+          JSON.stringify({
+            [KEY.seats]: 'forty',
+            [KEY.decision]: true,
+            [KEY.source]: ['referral', 'web'],
+            [KEY.interests]: 'oil',
+            [KEY.competitor]: { name: 'Acme' },
+            [KEY.vip]: 'true',
+          }),
+          strayId,
+        ]);
+    });
+
+    afterAll(async () => {
+      await h.em().getConnection().execute(`delete from "crm_opportunities" where "id" = ?`, [strayId]);
+    });
+
+    it('matches no bound, no option and no yes — and never fails the read', async () => {
+      await expectMatches({ [ref('seats')]: { min: '0' } }, ['alpha', 'beta', 'delta']);
+      await expectMatches({ [ref('seats')]: { max: '1000' } }, ['alpha', 'beta', 'delta']);
+      await expectMatches({ [ref('interests')]: { in: ['oil'] } }, ['alpha', 'delta']);
+      await expectMatches({ [ref('source')]: { in: ['referral'] } }, ['alpha']);
+      await expectMatches({ [ref('vip')]: { is: true } }, ['alpha']);
+      await expectMatches({ [ref('vip')]: { is: false } }, ['beta', 'delta', 'gamma', 'stray']);
+      await expectMatches({ [ref('decision')]: { from: '2026-01-01', to: '2026-12-31' } }, ['alpha', 'beta']);
+      // The card is still answered, the stray values as they are stored.
+      const cards = (await board(null)).columns.flatMap((column) => column.items);
+      expect(cards.find((card) => card.id === strayId)?.cardValues).toMatchObject({ [ref('seats')]: 'forty' });
+    });
+  });
+
   describe('a field that is gone', () => {
     it('a deleted custom field drops out of the card, the choices and the filters', async () => {
       const doomed = await defineCrmCustomField(h, { key: 'bfi_doomed', valueType: 'text' });
@@ -366,6 +458,19 @@ describe('crm board card fields — filters, values and cost (User Story 19)', (
         const { statements } = await countStatements(h.em(), () => board({ [ref('seats')]: { min: '0' } }));
         return statements;
       };
+      // Every card has a contact person and a Sales Channel, so the reads of
+      // both are among the statements counted — before and after (N-BFR8).
+      const connection = h.em().getConnection();
+      const [channel] = (await connection.execute(
+        `select "id" from "sales_channels" where "system_default" = true limit 1`,
+      )) as Array<{ id: string }>;
+      const attribute = (): Promise<unknown> =>
+        connection.execute(
+          `update "crm_opportunities" set "customer_account_id" = ?, "sales_channel_id" = ?
+            where "organization_id" = ? and "title" like ?`,
+          [TEST_CUSTOMER_ID, channel!.id, TEST_ORGANIZATION_ID, `${MARK} %`],
+        );
+      await attribute();
       // Twice before measuring: the definition cache and the settings cache are warm.
       await measure();
       const before = await measure();
@@ -373,7 +478,13 @@ describe('crm board card fields — filters, values and cost (User Story 19)', (
       for (let index = 0; index < 25; index += 1) {
         await make(`extra ${index}`, { customFieldValues: { [KEY.seats]: index, [KEY.source]: 'web' } });
       }
+      await attribute();
       expect(await measure()).toBe(before);
+      const extra = (await board({ [ref('seats')]: { min: '0' } })).columns
+        .flatMap((column) => column.items)
+        .find((card) => card.title.startsWith(`${MARK} extra`));
+      expect(typeof extra?.cardValues?.['builtin:contact']).toBe('string');
+      expect(typeof extra?.cardValues?.['builtin:salesChannel']).toBe('string');
     });
   });
 });

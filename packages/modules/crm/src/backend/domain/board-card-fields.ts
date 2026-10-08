@@ -102,6 +102,27 @@ export function resolveBoardCardFields(
     .slice(0, OPPORTUNITY_BOARD_CARD_MAX_FIELDS);
 }
 
+/**
+ * A Sales Channel's name as one text, in `language`: that language's name, one
+ * of the same base language, the channel's own default language's, any — and
+ * its code when it has no name at all. The order the Admin UI's own
+ * `salesChannelLabel` resolves it in.
+ */
+export function salesChannelName(
+  channel: { name: Record<string, string> | null; code: string; defaultLanguage?: string },
+  language: string,
+): string {
+  const names = channel.name ?? {};
+  const base = language.split('-')[0];
+  return (
+    names[language] ||
+    Object.entries(names).find(([code, name]) => code.split('-')[0] === base && name)?.[1] ||
+    (channel.defaultLanguage ? names[channel.defaultLanguage] : undefined) ||
+    Object.values(names).find((name) => typeof name === 'string' && name !== '') ||
+    channel.code
+  );
+}
+
 // --- Field filters -----------------------------------------------------------
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -111,14 +132,15 @@ type Predicate = readonly [sql: string, params: readonly unknown[]];
 
 const placeholders = (values: readonly unknown[]): string => values.map(() => '?').join(', ');
 const likePattern = (text: string): string => `%${text.replace(/[\\%_]/g, (match) => `\\${match}`)}%`;
-const dayStart = (date: string): string => `${date}T00:00:00.000Z`;
 
-/** The first instant after the day named — a range is inclusive of its last day. */
-function dayEnd(date: string): string {
-  const end = new Date(dayStart(date));
-  end.setUTCDate(end.getUTCDate() + 1);
-  return end.toISOString();
-}
+/**
+ * The first instant of the UTC day named by a bound `YYYY-MM-DD`, and of the
+ * day after it. Counted by the database: the day after `9999-12-31` is one an
+ * ISO instant writes with a sign and six digits, which is not a timestamp
+ * PostgreSQL reads — the read then failed instead of matching everything.
+ */
+const DAY_START = `(?::date::timestamp at time zone 'UTC')`;
+const NEXT_DAY_START = `((?::date + 1)::timestamp at time zone 'UTC')`;
 
 /** `min` / `max` over a numeric SQL expression; `prefix` is that expression's own bound values. */
 function bounds(expression: string, prefix: readonly unknown[], filter: OpportunityFieldFilter): Predicate[] {
@@ -131,8 +153,9 @@ function bounds(expression: string, prefix: readonly unknown[], filter: Opportun
 /** `from` / `to` over a timestamp column, by UTC day — as the list's `createdFrom` / `createdTo`. */
 function instantRange(column: string, filter: OpportunityFieldFilter): Predicate[] {
   const predicates: Predicate[] = [];
-  if (filter.from !== undefined) predicates.push([`f."${column}" >= ?::timestamptz`, [dayStart(filter.from)]]);
-  if (filter.to !== undefined) predicates.push([`f."${column}" < ?::timestamptz`, [dayEnd(filter.to)]]);
+  if (filter.from !== undefined) predicates.push([`f."${column}" >= ${DAY_START}`, [filter.from]]);
+  // Inclusive of the whole day named.
+  if (filter.to !== undefined) predicates.push([`f."${column}" < ${NEXT_DAY_START}`, [filter.to]]);
   return predicates;
 }
 

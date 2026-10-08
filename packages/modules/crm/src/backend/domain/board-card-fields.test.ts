@@ -6,6 +6,7 @@ import {
   customBoardCardField,
   namesCustomBoardField,
   resolveBoardCardFields,
+  salesChannelName,
   storedBoardCardFieldRefs,
 } from './board-card-fields.js';
 
@@ -96,5 +97,35 @@ describe('board card fields (User Story 19)', () => {
     expect(boardFieldFilterConditions(card, { 'custom:competitor': { contains: 'x' } })).toHaveLength(1);
     // A lowest and a highest amount are two conditions.
     expect(boardFieldFilterConditions(card, { 'builtin:value': { min: '1', max: '2' } })).toHaveLength(2);
+  });
+
+  it('binds a field key and every value of a filter, splicing neither into the statement (N-BFR5)', () => {
+    const hostile = `x' or '1'='1`;
+    const kinds = ['text', 'number', 'boolean', 'date', 'select', 'multiselect'] as const;
+    const card = kinds.map((kind) => ({ ...definition('k', 'text'), ref: `custom:${kind}`, key: hostile, kind }));
+    const filter = { contains: hostile, in: [hostile], is: true, min: '1', max: '2', from: '2026-01-01', to: '2026-01-02' };
+    const conditions = boardFieldFilterConditions(card, Object.fromEntries(card.map((field) => [field.ref, filter])));
+    // text 1, number 2, boolean 1, date 2, select 1, multiselect 1.
+    expect(conditions).toHaveLength(8);
+    for (const condition of conditions) {
+      const fragment = (condition as { id: { $in: { sql: string; params: unknown[] } } }).id.$in;
+      expect(fragment.sql).not.toContain(hostile);
+      expect(fragment.params).toContain(hostile);
+      // As many placeholders as bound values: nothing rides in the text.
+      expect(fragment.sql.split('?').length - 1).toBe(fragment.params.length);
+    }
+  });
+
+  it('names a Sales Channel in one language, the reader\'s first (N-BFR1)', () => {
+    const channel = { code: 'b2b', defaultLanguage: 'de-DE', name: { 'en-US': 'Wholesale', 'pl-PL': 'Hurt', 'de-DE': 'Großhandel' } };
+    expect(salesChannelName(channel, 'pl-PL')).toBe('Hurt');
+    // The same base language, when the exact one is not named.
+    expect(salesChannelName(channel, 'en')).toBe('Wholesale');
+    expect(salesChannelName(channel, 'pl')).toBe('Hurt');
+    // Neither: the channel's own default language, then any name, then its code.
+    expect(salesChannelName(channel, 'fr')).toBe('Großhandel');
+    expect(salesChannelName({ code: 'b2b', name: { 'pl-PL': '', 'cs-CZ': 'Velkoobchod' } }, 'fr')).toBe('Velkoobchod');
+    expect(salesChannelName({ code: 'b2b', name: {} }, 'en')).toBe('b2b');
+    expect(salesChannelName({ code: 'b2b', name: null }, 'en')).toBe('b2b');
   });
 });

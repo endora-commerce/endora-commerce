@@ -45,7 +45,7 @@ import { CrmOpportunityReference } from '../entities/crm-opportunity-reference.e
 import { CrmOpportunityStatus } from '../entities/crm-opportunity-status.entity.js';
 import { CrmOpportunityStatusHistory } from '../entities/crm-opportunity-status-history.entity.js';
 import { CrmOpportunityTag } from '../entities/crm-opportunity-tag.entity.js';
-import { boardFieldFilterConditions } from '../domain/board-card-fields.js';
+import { boardFieldFilterConditions, salesChannelName } from '../domain/board-card-fields.js';
 import { effectiveOpportunityValue, effectiveOpportunityValueSql } from '../domain/effective-value.js';
 import { tellAfterCommit } from './crm-notifier.js';
 import { newlyMentioned, type MentionService, type SavedMentions } from './mention-service.js';
@@ -869,15 +869,17 @@ export class OpportunityService {
     const assigneeIds = [
       ...new Set(rows.map((row) => row.assignedAdminUserId).filter((id): id is string => Boolean(id))),
     ];
+    // Asked once: the status names and a card's Sales Channel are both said in it.
+    const viewerLanguage = Promise.resolve(language ?? this.#viewerLanguage());
     const [organizations, assignees, resolvedLanguage, tags, cardValues] = await Promise.all([
       this.deps.organizations.findByIds(organizationIds),
       assigneeIds.length > 0 ? this.deps.adminUsers.findByIds(assigneeIds) : Promise.resolve([]),
-      language ?? this.#viewerLanguage(),
+      viewerLanguage,
       this.deps.tags.refsFor(
         this.deps.emFactory(),
         rows.map((row) => row.id),
       ),
-      card ? this.#cardValues(rows, card) : Promise.resolve(null),
+      card ? this.#cardValues(rows, card, viewerLanguage) : Promise.resolve(null),
     ]);
     const organizationNames = new Map(organizations.map((organization) => [organization.id, organization.name]));
     const assigneeById = new Map(assignees.map((admin) => [admin.id, admin]));
@@ -926,6 +928,7 @@ export class OpportunityService {
   async #cardValues(
     rows: readonly CrmOpportunity[],
     card: readonly OpportunityBoardCardField[],
+    viewerLanguage: Promise<string>,
   ): Promise<Map<string, Record<string, unknown>>> {
     const shows = (ref: string): boolean => card.some((field) => field.ref === ref);
     const ids = <T>(values: readonly (T | null | undefined)[]): T[] => [
@@ -935,7 +938,8 @@ export class OpportunityService {
     const channelIds = shows('builtin:salesChannel') ? ids(rows.map((row) => row.salesChannelId)) : [];
     const countsLinks = shows('builtin:linkedOrders') || shows('builtin:linkedQuoteRequests');
     const em = this.deps.emFactory();
-    const [contacts, channels, links] = await Promise.all([
+    const [language, contacts, channels, links] = await Promise.all([
+      viewerLanguage,
       contactIds.length > 0 ? this.deps.customerAccounts.findByIds(contactIds) : Promise.resolve([]),
       channelIds.length > 0 ? em.find(SalesChannel, { id: { $in: channelIds } }) : Promise.resolve([]),
       // The links of the page's own Opportunities, as the tag refs are read:
@@ -954,7 +958,8 @@ export class OpportunityService {
         `${contact.firstName} ${contact.lastName}`.trim() || contact.email,
       ]),
     );
-    const channelNames = new Map(channels.map((channel) => [channel.id, channel.name]));
+    // A Sales Channel is named per language; a card says one name, the reader's.
+    const channelNames = new Map(channels.map((channel) => [channel.id, salesChannelName(channel, language)]));
     const linkCounts = new Map<string, number>();
     for (const link of links) {
       const key = `${link.opportunityId}:${link.documentKind}`;
