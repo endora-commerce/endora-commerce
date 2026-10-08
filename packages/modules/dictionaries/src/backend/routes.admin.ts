@@ -474,15 +474,20 @@ async function withLanguageCountries(
   languageService: LanguageReadPort,
   languageCountryService: LanguageCountryService,
 ): Promise<Array<ReturnType<typeof serializeLanguage>>> {
-  const languages = await languageService.list();
-  const out = [];
-  for (const language of languages) {
-    const countries = (await languageCountryService.listForLanguage(language.code)).map(
-      (lc) => lc.countryCode,
-    );
-    out.push(serializeLanguage(language, countries));
+  // Two statements however many languages there are: the rows, and every link.
+  const [languages, links] = await Promise.all([
+    languageService.list(),
+    languageCountryService.listAll(),
+  ]);
+  const countriesByLanguage = new Map<string, string[]>();
+  for (const link of links) {
+    const countries = countriesByLanguage.get(link.languageCode);
+    if (countries) countries.push(link.countryCode);
+    else countriesByLanguage.set(link.languageCode, [link.countryCode]);
   }
-  return out;
+  return languages.map((language) =>
+    serializeLanguage(language, countriesByLanguage.get(language.code) ?? []),
+  );
 }
 
 function serializeCountry(row: Country): Record<string, unknown> {

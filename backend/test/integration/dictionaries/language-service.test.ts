@@ -92,18 +92,21 @@ describe('LanguageService — extended invariants', () => {
       // Insert a third language via direct entity create (no service surface
       // for create yet — feature 017 keeps create() in the dictionary admin
       // surface that lands later in this phase).
+      // `de-DE`, not `de`: the bare code is a row of the ISO 639-1 catalogue
+      // the dictionary seeds, and creating it again is a primary-key collision
+      // in any database a server has booted against.
       const de = em.create(Language, {
-        code: 'de',
-        label: 'German',
-        nativeLabel: 'Deutsch',
+        code: 'de-DE',
+        label: 'German (Germany)',
+        nativeLabel: 'Deutsch (Deutschland)',
       });
       await em.persistAndFlush(de);
 
-      // Set en-US.fallback_code = de (no cycle yet).
-      await service.update('en-US', { fallbackCode: 'de' });
-      // Now setting de.fallback_code = en-US would create the cycle
-      // en-US → de → en-US. Must be refused.
-      await expect(service.update('de', { fallbackCode: 'en-US' })).rejects.toMatchObject({
+      // Set en-US.fallback_code = de-DE (no cycle yet).
+      await service.update('en-US', { fallbackCode: 'de-DE' });
+      // Now setting de-DE.fallback_code = en-US would create the cycle
+      // en-US → de-DE → en-US. Must be refused.
+      await expect(service.update('de-DE', { fallbackCode: 'en-US' })).rejects.toMatchObject({
         statusCode: 409,
         code: 'DICTIONARY_FALLBACK_CYCLE',
       });
@@ -111,9 +114,9 @@ describe('LanguageService — extended invariants', () => {
 
     it('allows a non-cycling fallback chain', async () => {
       const de = em.create(Language, {
-        code: 'de',
-        label: 'German',
-        nativeLabel: 'Deutsch',
+        code: 'de-DE',
+        label: 'German (Germany)',
+        nativeLabel: 'Deutsch (Deutschland)',
       });
       const deAt = em.create(Language, {
         code: 'de-AT',
@@ -122,9 +125,9 @@ describe('LanguageService — extended invariants', () => {
       });
       await em.persistAndFlush([de, deAt]);
 
-      // de-AT → de — valid chain.
-      const updated = await service.update('de-AT', { fallbackCode: 'de' });
-      expect(updated.fallbackCode).toBe('de');
+      // de-AT → de-DE — valid chain.
+      const updated = await service.update('de-AT', { fallbackCode: 'de-DE' });
+      expect(updated.fallbackCode).toBe('de-DE');
     });
   });
 

@@ -7,15 +7,15 @@ import {
   type ReactNode,
 } from 'react';
 import { ArrowDown, ArrowUp, Plus, Star, Trash2 } from 'lucide-react';
-import { TouchReorderButtons } from '@endora-commerce/admin-kit/components';
+import { PaginationFooter, TouchReorderButtons } from '@endora-commerce/admin-kit/components';
 import type {
   Country,
   CreateDictionaryLanguageRequest,
   DictionaryLanguage,
   UpdateDictionaryLanguageRequest,
 } from '@endora-commerce/contracts';
-import { ApiError, normalize } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
+import { ApiError, normalize, type PageSizeOption } from '@endora-commerce/admin-kit/lib';
+import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { dictionaryClient } from '../api/client.js';
 import { EntryStatusBadges } from '../components/EntryStatusBadges.js';
@@ -29,6 +29,18 @@ interface LanguageFormState {
   isActive: boolean;
   sortOrder: number;
 }
+
+type StatusFilter = 'all' | 'active' | 'inactive';
+
+/**
+ * How many country chips a row shows before folding the rest into a count.
+ * English is used in some ninety countries and territories; the column has to
+ * stay one line tall for the list to stay scannable.
+ */
+const VISIBLE_COUNTRY_CHIPS = 4;
+
+/** The dictionary holds every ISO 639-1 language, so the list is paged. */
+const DEFAULT_PAGE_SIZE: PageSizeOption = 50;
 
 const emptyLanguage: LanguageFormState = {
   code: '',
@@ -49,6 +61,9 @@ export function LanguagesTab(): ReactNode {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<LanguageFormState>(emptyLanguage);
   const [search, setSearch] = useState('');
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<PageSizeOption>(DEFAULT_PAGE_SIZE);
   const [draggingCode, setDraggingCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,10 +81,14 @@ export function LanguagesTab(): ReactNode {
       ]);
       setRows(languagePage.data);
       setCountries(countryPage.data);
+      // The rows are on screen before the badges are: completeness is one
+      // request per language, and only an active language has any — a
+      // translation cannot be saved in an inactive one, and nothing serves it.
+      setLoading(false);
       setTranslationCompleteness(
         await loadTranslationCompleteness(
           'language',
-          languagePage.data.map((row) => row.code),
+          languagePage.data.filter((row) => row.isActive).map((row) => row.code),
           languagePage.data,
         ),
       );
@@ -86,16 +105,48 @@ export function LanguagesTab(): ReactNode {
     void load();
   }, [load]);
 
+  const countryLabels = useMemo(
+    () => new Map(countries.map((country) => [country.code, country.label])),
+    [countries],
+  );
+
   const filtered = useMemo(() => {
     const needle = normalize(search);
-    if (!needle) return rows;
-    return rows.filter((row) =>
-      [row.code, row.label, row.nativeLabel, row.fallbackCode ?? '']
+    return rows.filter((row) => {
+      if (status === 'active' && !row.isActive) return false;
+      if (status === 'inactive' && row.isActive) return false;
+      if (!needle) return true;
+      // A language is found by the countries that use it too — by code or by
+      // name — which is the question "what do they speak in Switzerland".
+      return [
+        row.code,
+        row.label,
+        row.nativeLabel,
+        row.fallbackCode ?? '',
+        ...row.countries,
+        ...row.countries.map((code) => countryLabels.get(code) ?? ''),
+      ]
         .map(normalize)
         .join(' ')
-        .includes(needle),
-    );
-  }, [rows, search]);
+        .includes(needle);
+    });
+  }, [rows, search, status, countryLabels]);
+
+  // A filter change starts from the first page of its own results.
+  useEffect(() => {
+    setPage(0);
+  }, [search, status, pageSize]);
+
+  const lastPage = Math.max(0, Math.ceil(filtered.length / pageSize) - 1);
+  const currentPage = Math.min(page, lastPage);
+  const visible = useMemo(
+    () => filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize),
+    [filtered, currentPage, pageSize],
+  );
+  // Reordering swaps with the neighbour in the whole list, so "first" and
+  // "last" are positions in it and not on the page being shown.
+  const firstCode = rows[0]?.code;
+  const lastCode = rows[rows.length - 1]?.code;
 
   const openCreate = (): void => {
     setCreating(true);
@@ -261,6 +312,16 @@ export function LanguagesTab(): ReactNode {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+            <Select
+              className="w-auto"
+              aria-label={t('languages.filter.status')}
+              value={status}
+              onChange={(e) => setStatus(e.target.value as StatusFilter)}
+            >
+              <option value="all">{t('languages.filter.all')}</option>
+              <option value="active">{t('languages.filter.active')}</option>
+              <option value="inactive">{t('languages.filter.inactive')}</option>
+            </Select>
             <Button type="button" onClick={openCreate}>
               <Plus />
               {t('languages.addLanguage')}
@@ -268,6 +329,7 @@ export function LanguagesTab(): ReactNode {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">{t('languages.catalogueHint')}</p>
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -284,17 +346,26 @@ export function LanguagesTab(): ReactNode {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Code</TableHead>
-                  <TableHead>Label</TableHead>
-                  <TableHead>Fallback</TableHead>
-                  <TableHead>Countries</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Sort</TableHead>
-                  <TableHead className="w-[1%] whitespace-nowrap">Actions</TableHead>
+                  <TableHead>{t('languages.column.code')}</TableHead>
+                  <TableHead>{t('languages.column.label')}</TableHead>
+                  <TableHead>{t('languages.column.fallback')}</TableHead>
+                  <TableHead>{t('languages.column.countries')}</TableHead>
+                  <TableHead>{t('languages.column.status')}</TableHead>
+                  <TableHead>{t('languages.column.sort')}</TableHead>
+                  <TableHead className="w-[1%] whitespace-nowrap">
+                    {t('languages.column.actions')}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((row, index) => (
+                {visible.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-sm text-muted-foreground">
+                      {t('languages.empty')}
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+                {visible.map((row) => (
                   <TableRow
                     key={row.code}
                     draggable
@@ -309,12 +380,15 @@ export function LanguagesTab(): ReactNode {
                       <div className="text-xs text-muted-foreground">{row.nativeLabel}</div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{row.fallbackCode ?? '—'}</TableCell>
-                    <TableCell>{row.countries.length}</TableCell>
+                    <TableCell>
+                      <CountryChips codes={row.countries} labels={countryLabels} />
+                    </TableCell>
                     <TableCell>
                       <EntryStatusBadges
                         isDefault={row.isDefault}
                         isActive={row.isActive}
                         translationsComplete={translationCompleteness[row.code] ?? null}
+                        showTranslations={row.isActive}
                       />
                     </TableCell>
                     <TableCell>{row.sortOrder}</TableCell>
@@ -323,15 +397,15 @@ export function LanguagesTab(): ReactNode {
                         <TouchReorderButtons
                           onMoveUp={() => void move(row, -1)}
                           onMoveDown={() => void move(row, 1)}
-                          disableUp={index === 0}
-                          disableDown={index === filtered.length - 1}
+                          disableUp={row.code === firstCode}
+                          disableDown={row.code === lastCode}
                         />
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
                           className="b2b-reorder-desktop-only"
-                          disabled={index === 0}
+                          disabled={row.code === firstCode}
                           title={t('action.moveUp')}
                           onClick={() => void move(row, -1)}
                         >
@@ -342,7 +416,7 @@ export function LanguagesTab(): ReactNode {
                           variant="ghost"
                           size="icon"
                           className="b2b-reorder-desktop-only"
-                          disabled={index === filtered.length - 1}
+                          disabled={row.code === lastCode}
                           title={t('action.moveDown')}
                           onClick={() => void move(row, 1)}
                         >
@@ -377,6 +451,16 @@ export function LanguagesTab(): ReactNode {
                 ))}
               </TableBody>
             </Table>
+          )}
+          {loading ? null : (
+            <PaginationFooter
+              page={currentPage}
+              pageSize={pageSize}
+              total={filtered.length}
+              onPageSizeChange={setPageSize}
+              onPrev={() => setPage(Math.max(0, currentPage - 1))}
+              onNext={() => setPage(Math.min(lastPage, currentPage + 1))}
+            />
           )}
         </CardContent>
       </Card>
@@ -571,6 +655,42 @@ function LanguageEditor({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The countries a language is used in: the first few as chips, the rest as a
+ * count that names them on hover and to a screen reader.
+ */
+function CountryChips({
+  codes,
+  labels,
+}: {
+  codes: readonly string[];
+  labels: ReadonlyMap<string, string>;
+}): ReactNode {
+  const t = useTranslation('dictionaries');
+  if (codes.length === 0) {
+    return <span className="text-xs text-muted-foreground">{t('languages.countries.none')}</span>;
+  }
+  const shown = codes.slice(0, VISIBLE_COUNTRY_CHIPS);
+  const folded = codes.slice(VISIBLE_COUNTRY_CHIPS);
+  const foldedNames = folded
+    .map((code) => (labels.has(code) ? `${code} — ${labels.get(code)}` : code))
+    .join(', ');
+  return (
+    <span className="flex flex-wrap items-center gap-1">
+      {shown.map((code) => (
+        <Badge key={code} variant="outline" className="font-mono" title={labels.get(code) ?? code}>
+          {code}
+        </Badge>
+      ))}
+      {folded.length > 0 ? (
+        <Badge variant="secondary" title={foldedNames} aria-label={foldedNames}>
+          {t('languages.countries.more', { count: folded.length })}
+        </Badge>
+      ) : null}
+    </span>
   );
 }
 

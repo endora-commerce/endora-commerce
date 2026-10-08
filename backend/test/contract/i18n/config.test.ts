@@ -42,4 +42,14 @@ describe('GET /api/v1/i18n/config', () => {
     // Bootstrap migration uses Postgres Unicode literal so the symbol round-trips.
     expect(pln?.symbol.length).toBeGreaterThan(0);
   });
+
+  it('serves only the active languages, however many the dictionary offers', async () => {
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/i18n/config' });
+    const body = res.json() as { data: { languages: Array<{ code: string; isActive: boolean }> } };
+    // The dictionary holds the whole ISO 639-1 catalogue as *available* rows;
+    // this payload is what a storefront offers its visitors, so none of them
+    // may appear here until an operator activates it.
+    expect(body.data.languages.every((language) => language.isActive)).toBe(true);
+    expect(body.data.languages.filter((language) => /^[a-z]{2}$/.test(language.code))).toEqual([]);
+  });
 });

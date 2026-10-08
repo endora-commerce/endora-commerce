@@ -48,6 +48,11 @@ Migration `20260425T161557_languages_currencies_init.ts` inserts two rows so qui
 - `en-US` — default, active
 - `pl-PL` — active
 
+Every ISO 639-1 language is added beside them, **inactive**, by the Dictionary
+module's boot reconciler through this module's `languageSeedPort`. An inactive
+language can be chosen and activated in the admin; it is not part of
+`i18n/config` until an operator activates it.
+
 The customer-facing `label` and `symbol` (currencies) values are written
 with Postgres `U&'…'` Unicode literals so the migration source file stays
 ASCII-only (engineering artifacts stay English-only and ASCII-only;

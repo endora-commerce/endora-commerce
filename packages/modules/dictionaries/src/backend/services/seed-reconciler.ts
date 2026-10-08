@@ -12,16 +12,31 @@
 //      the migration's defaults stand and operators may edit any field
 //      via Admin UI without fear of being overwritten on the next boot.
 //   2. Insert any country from COUNTRY_SEED whose `code` is missing.
-//   3. Backfill `languages.native_label` ONLY when it is still the empty
-//      string left by migration 038 — through `languageSeedPort`, for the same
-//      reason step 1 goes through `currencySeedPort`. Once an operator (or this
-//      reconciler) sets it to a non-empty value, future boots leave it alone.
+//   3. Languages — both through `languageSeedPort`, for the same reason step 1
+//      goes through `currencySeedPort`:
+//      a. insert any language of LANGUAGE_CATALOGUE (every ISO 639-1 code)
+//         whose `code` is missing, **inactive**. This is how an installation
+//         that predates the catalogue receives it: on its next boot. A row
+//         that exists is never updated, so an operator's label, sort order and
+//         above all activation survive every later boot.
+//      b. backfill `languages.native_label` ONLY when it is still the empty
+//         string left by migration 038. Once an operator (or this reconciler)
+//         sets it to a non-empty value, future boots leave it alone.
 //   4. Insert seeded translations for every (entry_type, entry_code,
 //      language_code) row that doesn't already exist. Existing rows are
 //      preserved verbatim (operators may edit; the reconciler will not
 //      revert their changes).
 //   5. Insert seeded language↔country associations for every
-//      (language_code, country_code) row that doesn't already exist.
+//      (language_code, country_code) row that doesn't already exist: the
+//      shipped primaries of `language-countries.ts`, then one non-primary link
+//      per catalogue language and country. A link is made only between rows
+//      that both exist, so a catalogue country the dictionary does not hold is
+//      skipped — and picked up on the first boot after an operator adds it.
+//
+// "Insert what is missing" has one consequence worth stating, and it is the
+// same for all five steps: a seeded row an operator **deletes** comes back on
+// the next boot. The durable way to retire a seeded entry is to leave it
+// inactive, which is where every catalogue language starts.
 //
 // All inserts are gated by an existence check that runs in the same
 // EntityManager — there is no race condition because the reconciler is
@@ -37,11 +52,13 @@ import type {
 import { COUNTRY_SEED } from '../seed/countries.js';
 import { CURRENCY_SEED } from '../seed/currencies.js';
 import { POLISH_TRANSLATION_SEED } from '../seed/translations.pl-PL.js';
-import { LANGUAGE_COUNTRY_SEED } from '../seed/language-countries.js';
+import { LANGUAGE_COUNTRY_SEED, type LanguageCountrySeedRow } from '../seed/language-countries.js';
+import { languageCatalogueCountryLinks, languageCatalogueSeedRows } from '../seed/languages.js';
 
 export interface SeedReconcilerSummary {
   countriesInserted: number;
   currenciesInserted: number;
+  languagesInserted: number;
   languagesBackfilled: number;
   translationsInserted: number;
   languageCountriesInserted: number;
@@ -81,15 +98,18 @@ export async function runDictionarySeedReconciler(
   const summary: SeedReconcilerSummary = {
     countriesInserted: 0,
     currenciesInserted: 0,
+    languagesInserted: 0,
     languagesBackfilled: 0,
     translationsInserted: 0,
     languageCountriesInserted: 0,
   };
 
-  // 1) Currencies — insert missing rows, then read the table back. The order
-  // matters and is why the two are not one call: step 2 only sets a country's
-  // `default_currency_code` when the currency is really there.
+  // 1) Currencies and 3a) the language catalogue — insert missing rows, then
+  // read the tables back. The order matters and is why seeding and reading are
+  // not one call: step 2 only sets a country's `default_currency_code` when the
+  // currency is really there, and step 5 only links a language that is.
   summary.currenciesInserted = await ports.currencySeed.ensureSeeded(CURRENCY_SEED);
+  summary.languagesInserted = await ports.languageSeed.ensureSeeded(languageCatalogueSeedRows());
   const present = await loadPresentCodes(conn, ports);
 
   // 2) Countries — insert missing rows.
@@ -125,9 +145,9 @@ export async function runDictionarySeedReconciler(
     summary.countriesInserted += 1;
   }
 
-  // 3) Languages — backfill `native_label` ONLY when still the empty
-  // string left by the migration. The seed only knows the two languages
-  // already created by migration 012.
+  // 3b) Languages — backfill `native_label` ONLY when still the empty
+  // string left by the migration, on the two languages migration 012 created.
+  // The catalogue rows of step 3a arrive with theirs.
   summary.languagesBackfilled = await ports.languageSeed.backfillNativeLabels([
     { code: 'en-US', nativeLabel: 'English (US)' },
     { code: 'pl-PL', nativeLabel: 'Polski' },
@@ -158,19 +178,39 @@ export async function runDictionarySeedReconciler(
     summary.translationsInserted += 1;
   }
 
-  for (const lc of LANGUAGE_COUNTRY_SEED) {
+  // The shipped primaries first: a pair is inserted once, so where the two
+  // lists ever named the same pair the primary flag would be the one kept.
+  const missingLinks: LanguageCountrySeedRow[] = [];
+  for (const lc of [...LANGUAGE_COUNTRY_SEED, ...languageCatalogueCountryLinks()]) {
     if (!present.languages.has(lc.languageCode)) continue;
     if (!present.countries.has(lc.countryCode)) continue;
     const key = `${lc.languageCode}|${lc.countryCode}`;
     if (presentRels.languageCountries.has(key)) continue;
-    await conn.execute(
+    presentRels.languageCountries.add(key);
+    missingLinks.push(lc);
+  }
+  if (missingLinks.length > 0) {
+    // One statement, because the catalogue makes this a few hundred rows on
+    // the boot that first sees it. `on conflict do nothing` names no target on
+    // purpose, so it answers for both unique indexes: the primary key, when
+    // another backend booting beside this one got there first, and
+    // `uniq_language_countries_primary_per_country`, when an operator has made
+    // a different language a country's primary and removed the shipped link —
+    // re-inserting that link as primary used to be a unique violation at boot.
+    // The operator's choice stands and the row is skipped.
+    // The rows travel as one JSON parameter, so the statement is a literal a
+    // text-reading check can still see as a write to `language_countries`.
+    const inserted = (await conn.execute(
       `insert into "language_countries"
          ("language_code","country_code","is_primary","created_at")
-       values (?,?,?,now())`,
-      [lc.languageCode, lc.countryCode, lc.isPrimary],
-    );
-    presentRels.languageCountries.add(key);
-    summary.languageCountriesInserted += 1;
+       select t."languageCode", t."countryCode", t."isPrimary", now()
+         from jsonb_to_recordset(?::jsonb)
+           as t("languageCode" text, "countryCode" text, "isPrimary" boolean)
+       on conflict do nothing
+       returning "language_code"`,
+      [JSON.stringify(missingLinks)],
+    )) as Array<{ language_code: string }>;
+    summary.languageCountriesInserted = inserted.length;
   }
 
   return summary;
