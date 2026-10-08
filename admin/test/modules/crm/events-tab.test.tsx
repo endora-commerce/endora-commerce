@@ -1,5 +1,7 @@
 process.env['TZ'] = 'Europe/Warsaw';
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -497,7 +499,24 @@ describe('Event dialog — adding', () => {
     expect(field(dialog, 'from')).toHaveValue('09:30');
   });
 
-  it('shows the reminder time with Remind me — set to the start, following it until it is edited, and not after', async () => {
+  it('offers the reminder as “Set a reminder”, and says who is reminded — the author when nobody is assigned', async () => {
+    // The owner's wording (2026-10-08), held as words: the other tests reach the
+    // checkbox through the bundle and would follow any label at all.
+    const panel = await renderTab();
+    const dialog = await openAdd(panel);
+    const checkbox = within(dialog).getByRole('checkbox', { name: 'Set a reminder' });
+    const hint = document.getElementById(checkbox.getAttribute('aria-describedby') ?? '')?.textContent ?? '';
+    expect(hint).toMatch(/assigned to the opportunity/);
+    expect(hint).toMatch(/nobody is assigned.*created the event/i);
+
+    const polish = JSON.parse(
+      readFileSync(resolve(process.cwd(), '../packages/modules/crm/i18n/pl.json'), 'utf8'),
+    ) as Record<string, string>;
+    expect(polish['events.field.remind']).toBe('Ustaw przypomnienie');
+    expect(polish['events.field.remindHint']).toMatch(/nikt nie jest przypisany.*autor/i);
+  });
+
+  it('shows the reminder time with Set a reminder — set to the start, following it until it is edited, and not after', async () => {
     const dialog = await openAdd(await renderTab());
     await userEvent.click(field(dialog, 'remind'));
     const remindAt = field(dialog, 'remindAt');
@@ -731,6 +750,40 @@ describe('Event dialog — editing and deleting', () => {
     expect(getCalls(DETAIL_PATH)).toBe(2);
     expect(within(panel).getByText(en('events.saved.deleted', { name: 'Site visit' }))).toHaveAttribute('role', 'status');
     expect(await screen.findByRole('tab', { name: `${en('opportunity.tabs.events')} 2` })).toBeInTheDocument();
+  });
+
+  it('does not put an older list back when a slow read answers after a later one', async () => {
+    const panel = await renderTab();
+    // The read after the delete is slow, and answers what the list was when it was asked.
+    let release: (() => void) | undefined;
+    const base = getSpy.getMockImplementation() as (path: string) => Promise<unknown>;
+    let slow = true;
+    getSpy.mockImplementation((path: string) => {
+      if (path !== EVENTS_PATH || !slow) return base(path);
+      slow = false;
+      const stale = OpportunityEventListResponseSchema.parse({ data: events });
+      return new Promise((resolve) => {
+        release = (): void => resolve(stale);
+      });
+    });
+    await userEvent.click(within(panel).getByRole('button', { name: en('events.removeNamed', { name: 'Site visit' }) }));
+    const confirm = await screen.findByRole('dialog');
+    await userEvent.click(within(confirm).getByRole('button', { name: en('events.remove.confirm') }));
+    await waitFor(() => expect(deleteSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    // A second write while that read is still out: its own read answers first.
+    const dialog = await openAdd(panel);
+    await userEvent.type(field(dialog, 'name'), 'Follow-up call');
+    set(field(dialog, 'date'), '2026-10-13');
+    await save(dialog);
+    await waitFor(() => expect(listed(panel, 'upcoming')).toContain('Follow-up call'));
+
+    expect(release).toBeDefined();
+    release?.();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(listed(panel, 'upcoming')).toContain('Follow-up call');
+    expect(listed(panel, 'upcoming')).not.toContain('Site visit');
   });
 
   it('deletes nothing on Cancel, and says so when the delete fails', async () => {

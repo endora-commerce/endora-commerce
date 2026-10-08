@@ -23,7 +23,7 @@ const INPUT: EventReminderEmailInput = {
   to: 'ada@example.test',
   preferredLanguage: 'pl',
   name: 'Demo at the warehouse',
-  when: '2026-10-12 10:00 Europe/Warsaw',
+  when: 'October 12, 2026, 10:00 AM (Europe/Warsaw)',
   number: 'OPP-000042',
 };
 
@@ -70,7 +70,7 @@ describe('the event reminder e-mail', () => {
         messageId: `crm_event_reminder:${INPUT.eventId}:${INPUT.remindAt.getTime()}`,
         document: { type: 'crm_opportunity', id: INPUT.opportunityId },
         variables: {
-          event: { name: 'Demo at the warehouse', when: '2026-10-12 10:00 Europe/Warsaw' },
+          event: { name: 'Demo at the warehouse', when: 'October 12, 2026, 10:00 AM (Europe/Warsaw)' },
           opportunity: { number: 'OPP-000042' },
         },
         meta: { kind: EVENT_REMINDER_EMAIL_CODE, opportunityId: INPUT.opportunityId, eventId: INPUT.eventId },

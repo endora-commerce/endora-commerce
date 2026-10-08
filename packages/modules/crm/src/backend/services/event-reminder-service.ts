@@ -1,12 +1,17 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { AdminUserReadPort, AdminUserRecord, AuthSessionReadPort } from '@endora-commerce/contracts';
+import type {
+  AdminUserReadPort,
+  AdminUserRecord,
+  AuthSessionReadPort,
+  PermissionReadPort,
+} from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import { eventWhen } from '../domain/event-time.js';
 import type { CrmEventReminderOutcome } from '../entities/crm-opportunity-event.entity.js';
 import type { AdminReach } from './admin-reach.js';
 import { crmNotificationText, type CrmNotifier } from './crm-notifier.js';
-import type { EventReminderEmail } from './event-reminder-email.js';
+import { reminderEmailLanguage, type EventReminderEmail } from './event-reminder-email.js';
 import { isActiveAdministrator } from './opportunity-assignment-service.js';
 
 /** A reminder found due later than this is not sent: it is shown as missed. */
@@ -20,6 +25,18 @@ export const REMINDER_ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
 /** The most reminders one pass claims. The next tick takes the rest. */
 export const REMINDER_BATCH_SIZE = 100;
+
+/** What somebody must hold to be reminded: a reminder names an Event, and is a call to come and look at it. */
+export const REMINDER_RECIPIENT_PERMISSION = 'crm:read';
+
+/**
+ * An Event's name as a reminder says it: on one line. A name may be saved with
+ * a line break in it, and a reminder puts it in the subject of an e-mail — a
+ * header — and in a one-line bell sentence (research N-CALR5).
+ */
+export function reminderEventName(name: string): string {
+  return name.replace(/\s+/g, ' ').trim();
+}
 
 /** What a delivery came to — the stored outcome of a reminder that was claimed and settled. */
 export type ReminderDeliveryOutcome = Extract<
@@ -36,6 +53,12 @@ export interface EventReminderSweepSummary {
   claimed: number;
   /** Claims given back for the next tick: it is known that nothing was written for them. */
   released: number;
+  /**
+   * Claims that were no longer this pass's when their turn came — the Event
+   * was deleted, or its reminder was removed or set to another time. Nothing
+   * is delivered for them and nothing is recorded: the row is its editor's.
+   */
+  withdrawn: number;
   /** What the delivered claims came to. */
   outcomes: Record<ReminderDeliveryOutcome, number>;
 }
@@ -47,6 +70,8 @@ export interface EventReminderServiceDeps {
   adminUsers: AdminUserReadPort;
   /** Whether an administrator may reach an Organization — asked of the **recipient**. */
   canReach: AdminReach;
+  /** `admin_roles`' port — whether the **recipient** still holds `crm:read`. Lazy, never captured. */
+  permissions: PermissionReadPort;
   /** `auth`'s port — whether the recipient was seen in the Admin UI lately. Lazy, never captured. */
   sessions: Pick<AuthSessionReadPort, 'lastSeenByAdminUser'>;
   notifier: CrmNotifier;
@@ -117,9 +142,20 @@ interface ClaimedRow {
  *
  * **The recipient is read when the reminder fires** (FR-138): whoever the
  * Opportunity is assigned to at that moment; failing that the Event's creator;
- * each only if they are an active administrator who may still reach the
- * Opportunity's Organization. Nobody qualifying is an outcome of its own, and
- * nothing is written anywhere.
+ * each only if they are an active administrator who still holds `crm:read` and
+ * may still reach the Opportunity's Organization — the three conditions a
+ * mention is held to (`mention-service.ts`). Nobody qualifying is an outcome
+ * of its own, and nothing is written anywhere.
+ *
+ * **A claim is this pass's only for as long as the row says so.** The claim is
+ * identified by its stamp — the `reminder_handled_at` this pass wrote — and is
+ * looked at again when its turn comes: an Event deleted since, or a reminder
+ * removed or moved, is not delivered (FR-137). What a delivery came to is
+ * recorded over `interrupted` as well as over `sending`: a pass that outlives
+ * the ten minutes — a mail server that answers nobody is enough — is presumed
+ * dead by the next tick, and when it turns out not to be, what it did replaces
+ * the presumption. `interrupted` therefore stays only on a claim whose pass
+ * never came back (research N-CALR3).
  *
  * **The bell always; an e-mail as well when the recipient is not there to see
  * it** (FR-139) — not seen in the Admin UI for five minutes, or the bell
@@ -143,6 +179,7 @@ export class EventReminderService {
       interrupted: 0,
       claimed: 0,
       released: 0,
+      withdrawn: 0,
       outcomes: { bell: 0, bell_email: 0, email: 0, no_recipient: 0, undeliverable: 0 },
     };
     Object.assign(summary, await this.#expire(now));
@@ -177,7 +214,7 @@ export class EventReminderService {
       // nothing was written for those, so the next tick may deliver them.
       const unreached = claims.slice(reached + 1);
       if (unreached.length > 0) {
-        await this.#settle(unreached.map((claim) => claim.id), null);
+        await this.#settle(unreached.map((claim) => claim.id), null, now);
         summary.released += unreached.length;
       }
     }
@@ -193,20 +230,29 @@ export class EventReminderService {
   async #handle(claim: ClaimedReminder, now: Date, summary: EventReminderSweepSummary): Promise<void> {
     // Until the bell has answered, nothing has been written: `null` gives the claim back.
     let outcome: ReminderDeliveryOutcome | null = null;
+    // A claim that is no longer this pass's is neither delivered nor settled.
+    let withdrawn = false;
+    const name = reminderEventName(claim.name);
     try {
+      if (!(await this.#stillHeld(claim, now))) {
+        withdrawn = true;
+        summary.withdrawn += 1;
+        return;
+      }
       const recipient = await this.#recipientOf(claim);
       if (recipient === null) {
         outcome = 'no_recipient';
         return;
       }
 
-      const when = eventWhen(claim);
+      // Worded for the one person who is told, in the language of their Admin UI.
+      const when = eventWhen(claim, reminderEmailLanguage(recipient.preferredLanguage));
       const bell = await this.deps.notifier.notify({
         kind: 'crm.opportunity.event_reminder',
         targetAdminUserId: recipient.id,
         opportunityId: claim.opportunityId,
         eventId: claim.id,
-        ...crmNotificationText.eventReminder({ name: claim.name, when, number: claim.number, allDay: claim.allDay }),
+        ...crmNotificationText.eventReminder({ name, when, number: claim.number, allDay: claim.allDay }),
       });
       const inBell = bell === 'recorded';
       // From here on the reminder is delivered as far as the bell goes, and
@@ -222,24 +268,29 @@ export class EventReminderService {
           remindAt: claim.remindAt,
           to: recipient.email,
           preferredLanguage: recipient.preferredLanguage,
-          name: claim.name,
+          name,
           when,
           number: claim.number,
         });
         if (mail.sent) outcome = inBell ? 'bell_email' : 'email';
       }
     } finally {
-      await this.#settle([claim.id], outcome);
-      if (outcome === null) summary.released += 1;
-      else summary.outcomes[outcome] += 1;
+      if (!withdrawn) {
+        await this.#settle([claim.id], outcome, now);
+        if (outcome === null) summary.released += 1;
+        else summary.outcomes[outcome] += 1;
+      }
     }
   }
 
   /**
    * Who is reminded: the Opportunity's assignee, else the Event's creator —
-   * each only if they are an active administrator who may reach the
-   * Opportunity's Organization **now**. The same two tests an assignee must
-   * pass to be assigned at all (`opportunity-assignment-service.ts`).
+   * each only if they are an active administrator who holds `crm:read` and
+   * may reach the Opportunity's Organization **now**. "May no longer see the
+   * Opportunity" (FR-138) is either of the last two: a role that lost the
+   * permission closes the screen as surely as a lost Organization does, and a
+   * reminder says more than any other bell entry of this module — the Event's
+   * name.
    */
   async #recipientOf(claim: ClaimedReminder): Promise<AdminUserRecord | null> {
     const candidates = [claim.assignedAdminUserId, claim.createdByAdminUserId].filter(
@@ -249,9 +300,34 @@ export class EventReminderService {
     const known = new Map((await this.deps.adminUsers.findByIds(candidates)).map((admin) => [admin.id, admin]));
     for (const id of candidates) {
       const admin = known.get(id);
-      if (isActiveAdministrator(admin) && (await this.deps.canReach(admin.id, claim.organizationId))) return admin;
+      if (!isActiveAdministrator(admin)) continue;
+      const held = await this.deps.permissions.listPermissions(admin.id);
+      if (!held.includes('*') && !held.includes(REMINDER_RECIPIENT_PERMISSION)) continue;
+      if (await this.deps.canReach(admin.id, claim.organizationId)) return admin;
     }
     return null;
+  }
+
+  /**
+   * Whether the claim is still the one this pass made: the row exists and the
+   * latch carries this pass's stamp. Every edit of a reminder clears the latch
+   * (`opportunity-event-service.ts`), so the stamp alone says the reminder is
+   * the one that was claimed — and it is a value this pass wrote, which
+   * `remind_at` is not. `interrupted` counts as held: it is another tick's
+   * presumption about this pass, not somebody else's claim.
+   */
+  async #stillHeld(claim: ClaimedReminder, claimedAt: Date): Promise<boolean> {
+    const rows = (await this.deps
+      .emFactory()
+      .getConnection()
+      .execute(
+        `select 1 as "held"
+           from "crm_opportunity_events"
+          where "id" = ? and "reminder_handled_at" = ?
+            and "reminder_outcome" in ('sending', 'interrupted')`,
+        [claim.id, claimedAt],
+      )) as unknown[];
+    return rows.length > 0;
   }
 
   /**
@@ -350,11 +426,16 @@ export class EventReminderService {
 
   /**
    * Step 4: what the claims came to — or, for `null`, the claims given back.
-   * Only a claim this pass still holds is touched (`sending`): an Event whose
-   * reminder was changed, removed or deleted meanwhile is left as its editor
-   * left it.
+   * Only a claim this pass still holds is touched — its own stamp on the
+   * latch, and `sending` or the `interrupted` a later tick presumed: an Event
+   * whose reminder was changed, removed or deleted meanwhile is left as its
+   * editor left it.
    */
-  async #settle(eventIds: readonly string[], outcome: ReminderDeliveryOutcome | null): Promise<void> {
+  async #settle(
+    eventIds: readonly string[],
+    outcome: ReminderDeliveryOutcome | null,
+    claimedAt: Date,
+  ): Promise<void> {
     if (eventIds.length === 0) return;
     await this.deps.commandBus.run({
       action: 'crm.event_reminder.record',
@@ -366,15 +447,17 @@ export class EventReminderService {
           await em.execute(
             `update "crm_opportunity_events"
                 set "reminder_handled_at" = null, "reminder_outcome" = null
-              where "id" in (${ids}) and "reminder_outcome" = 'sending'`,
-            [...eventIds],
+              where "id" in (${ids}) and "reminder_handled_at" = ?
+                and "reminder_outcome" in ('sending', 'interrupted')`,
+            [...eventIds, claimedAt],
           );
         } else {
           await em.execute(
             `update "crm_opportunity_events"
                 set "reminder_outcome" = ?
-              where "id" in (${ids}) and "reminder_outcome" = 'sending'`,
-            [outcome, ...eventIds],
+              where "id" in (${ids}) and "reminder_handled_at" = ?
+                and "reminder_outcome" in ('sending', 'interrupted')`,
+            [outcome, ...eventIds, claimedAt],
           );
         }
         return { result: undefined, skipAudit: true };

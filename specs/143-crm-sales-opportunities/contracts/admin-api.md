@@ -488,7 +488,13 @@ There is no optimistic concurrency on an Event (no `If-Match`): the later save w
 | `remindAt` | ISO 8601 instant \| `null`, optional (absent = `null`) | must be later than now |
 
 The schema refuses what needs no clock and no zone data: `endsAt <= startsAt`, a span over
-25 hours, an empty name. The service refuses the rest (`data-model.md` §
+25 hours, an empty name — and **an instant outside `0001-01-03T00:00:00Z` …
+`9999-12-30T00:00:00Z`** (the end excluded), which holds for `startsAt`, `endsAt`, `remindAt`
+and the Calendar's `from` and `to` alike. A four-digit year as written is not enough: an
+offset carries `9999-12-31T22:00:00-14:00` into the year 10000, which the database refuses,
+and before the review of 2026-10-08 that was a 500 (research N-CALR4). The two days kept
+free at each end are for the local date of an instant in any zone and for the 25 hours the
+Calendar read looks back before its `from`. The service refuses the rest (`data-model.md` §
 *`crm_opportunity_events`* → Rules).
 
 **`UpdateOpportunityEventRequestSchema`** — every member above, all optional. The rules are
@@ -574,9 +580,13 @@ follows its link. Bell entry: `kind: 'crm.opportunity.event_reminder'`,
 `linkPath: /crm/opportunities/<id>?tab=events&event=<eventId>`, `title` the English
 sentence and `titleMessage: { scope: 'crm', key: 'notifications.eventReminder.title' |
 'notifications.eventReminderAllDay.title', params: { name, when, number } }` — `when` is
-`YYYY-MM-DD HH:mm` in the Event's `timeZone`, followed by the zone's name; for an all-day
-Event the date alone, with no zone. E-mail: transactional e-mail `crm_event_reminder`
-(`contracts/events-and-ports.md` §5a) — **as built it carries no link**.
+the Event's start **in the Event's `timeZone`, worded in the recipient's language** (owner
+ruling of 2026-10-08, research N-CALR11): `8 października 2026, 18:42 (Europe/Warsaw)` for a
+Polish preference, `October 8, 2026, 6:42 PM (Europe/Warsaw)` for English or none; the date
+alone for an all-day Event. It is worded by the server, for the one recipient: the bell's
+resolver substitutes params as strings and formats nothing, so the stored English `title`
+of a Polish recipient's entry carries a Polish `when`. E-mail: transactional e-mail `crm_event_reminder` (`contracts/events-and-ports.md`
+§5a) — **as built it carries no link**.
 
 ## 13. Error codes owned by `crm`
 

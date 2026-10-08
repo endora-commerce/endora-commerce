@@ -1276,7 +1276,7 @@ what it found; `[P]` means parallel inside its own track.
   overlapping Events; a month day with "+N more"; a 15-minute Event; a long name; the
   dialog by keyboard alone; focus order by eye; an axe pass; one reminder end to end
   against a real mail catcher, in Polish and in English, with the Admin UI open and closed.
-- [ ] T384 [US21] [US22] **An independent review of the tenant and delivery paths**, by an
+- [x] T384 [US21] [US22] **An independent review of the tenant and delivery paths**, by an
   agent that did not write them: the Calendar's statement and its scope rule, the
   recipient's reach in the sweep, the claim. It mutates each (drop the reach predicate;
   drop the assignee test under `mine`; deliver before claiming) and confirms a test reds,
@@ -1287,6 +1287,37 @@ what it found; `[P]` means parallel inside its own track.
   offered to confined callers; OQ-2 one condition; OQ-1 a change in `admin_notifications`
   and a second sweep stage; OQ-6 and OQ-7 the library decision of `plan.md`; OQ-8 a
   platform capability.
+
+## Phase 28: What the independent review found (T384, 2026-10-08)
+
+Research N-CALR1 … N-CALR9. Each repair had a failing test first.
+
+- [x] T390 [US21] [US22] An instant of §12d stays inside the years the database holds:
+  `0001-01-03` … `9999-12-30` (UTC), 400 outside — `packages/contracts/src/crm.ts`, the one
+  contract change of the review (N-CALR4).
+- [x] T391 [US21] The recipient of a reminder holds `crm:read` as well as reaching the
+  Organization — `event-reminder-service.ts` (N-CALR1).
+- [x] T392 [US21] A claim is read again before its turn and settled by its stamp: an Event
+  deleted or a reminder removed or moved meanwhile is not delivered, and a delivered
+  reminder never reads `interrupted` (N-CALR2, N-CALR3).
+- [x] T393 [US21] A reminder says the Event's name on one line (N-CALR5).
+- [x] T394 [US21] Test: the Events tab does not put an older list back when a slow read
+  answers late — a surviving mutant (N-CALR8).
+- [x] T395 [US21] A bell sentence longer than the bell stores is cut, so an Event with a
+  long name gets its reminder — `crm-notifier.ts` (N-CALR6).
+- [x] T396 [US21] Test: starting the reminder consumer installs its schedule and reaches the
+  worker seam — a surviving mutant (N-CALR8).
+- [x] T397 [US21] [US22] An all-day date before the year 1000 is `YYYY-MM-DD` —
+  `domain/event-time.ts` (N-CALR4).
+- [x] T398 [US21] [US22] This record: N-CALR1 … N-CALR9, the three sentences of
+  `contracts/` and `data-model.md` the repairs made untrue, and the judgement on the
+  `transactional_emails` edge (N-CALR7 — it stays).
+
+- [x] T399 [US21] The owner's rulings of 2026-10-08 (research N-CALR10 … N-CALR12): the
+  checkbox reads *Set a reminder* / *Ustaw przypomnienie* and its hint names the author
+  fallback; `when` in the bell entry and the e-mail is worded in the recipient's language,
+  in the Event's zone; and "sent by e-mail" with no SMTP — **not changed**: no signal exists
+  on the CRM side, the foreign change needed is written down in N-CALR12.
 
 ### Not in these phases, by decision (`plan.md` § *Scope cut, on purpose*)
 

@@ -379,9 +379,21 @@ sweep claims: handled = now, outcome = sending
    ├─ nobody qualifies ──► no_recipient
    ├─ neither channel available ──► undeliverable
    ├─ the bell's write threw ──► released: handled = null, outcome = null (next tick retries)
-   └─ process died before recording ──► after 10 min: interrupted   (never retried)
+   ├─ the Event was deleted, or its reminder removed or moved, before its turn ──► withdrawn:
+   │     nothing delivered, nothing recorded — the row is its editor's
+   └─ unrecorded after 10 min ──► interrupted — a presumption: a pass that is still alive
+         records what it did over it; one that died leaves it   (never retried)
 found > 24 h after remind_at, handled null ────►  missed
 ```
+
+**A claim is identified by its stamp** (review of 2026-10-08, research N-CALR2, N-CALR3):
+the `reminder_handled_at` the claiming pass wrote. Before a claim is delivered the pass
+reads the row again — same stamp, `sending` or `interrupted` — and what
+the delivery came to is written only where that still holds. So an edit made between the
+claim and its turn wins, and `interrupted` stays only on a claim whose pass never came back.
+
+**The recipient** is an active administrator who holds `crm:read` **and** may reach the
+Opportunity's Organization, both asked when the reminder fires (FR-138, research N-CALR1).
 
 **Locking**: the claim is one statement per tick — `select … for update skip locked` over
 the partial index, joined to an open Opportunity, then the update — inside one Command.

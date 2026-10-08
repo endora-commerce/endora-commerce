@@ -9,6 +9,34 @@ import {
   startEventReminders,
 } from './event-reminder-worker.js';
 
+/**
+ * BullMQ, stood in for: what is held here is what this module hands it — the
+ * queue's name, the schedule, the one-at-a-time consumer — not what it does
+ * with them, and a unit test opens no connection.
+ */
+const bull = vi.hoisted(() => ({
+  queues: [] as Array<{ name: string; upsertJobScheduler: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn> }>,
+  workers: [] as Array<{ name: string; processor: () => Promise<unknown>; options: Record<string, unknown> }>,
+}));
+vi.mock('bullmq', () => ({
+  Queue: class {
+    readonly upsertJobScheduler = vi.fn(async () => undefined);
+    readonly close = vi.fn(async () => undefined);
+    constructor(readonly name: string) {
+      bull.queues.push(this);
+    }
+  },
+  Worker: class {
+    constructor(
+      readonly name: string,
+      readonly processor: () => Promise<unknown>,
+      readonly options: Record<string, unknown>,
+    ) {
+      bull.workers.push(this);
+    }
+  },
+}));
+
 const logger = () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() });
 
 describe('crm event reminder worker', () => {
@@ -27,6 +55,45 @@ describe('crm event reminder worker', () => {
     expect(started).toBe(false);
     expect(attach).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('where the process consumes queues: one consumer through the seam, one tick at a time, and the schedule installed', async () => {
+    bull.queues.length = 0;
+    bull.workers.length = 0;
+    const attach = vi.fn();
+    const closers: Array<() => Promise<void>> = [];
+    const tick = vi.fn(async () => undefined);
+    const redis = {} as never;
+
+    const started = await startEventReminders({
+      tick,
+      processRunsWorkers: true,
+      moduleQueueRedis: redis,
+      attach,
+      onClose: (close) => closers.push(close),
+    });
+
+    expect(started).toBe(true);
+    expect(bull.queues.map((queue) => queue.name)).toEqual([EVENT_REMINDER_QUEUE]);
+    expect(bull.workers.map((worker) => worker.name)).toEqual([EVENT_REMINDER_QUEUE]);
+    // The consumer reaches the platform's worker seam, which is what stops it with the module.
+    expect(attach).toHaveBeenCalledTimes(1);
+    expect(attach).toHaveBeenCalledWith(bull.workers[0]);
+    expect(bull.workers[0]?.options).toMatchObject({ connection: redis, concurrency: 1 });
+    // Without the schedule nothing ever ticks: no reminder would be delivered at all.
+    expect(bull.queues[0]?.upsertJobScheduler).toHaveBeenCalledTimes(1);
+    expect(bull.queues[0]?.upsertJobScheduler).toHaveBeenCalledWith(
+      EVENT_REMINDER_SCHEDULER_ID,
+      { every: EVENT_REMINDER_EVERY_MS },
+      { name: 'sweep', data: {} },
+    );
+    // What BullMQ invokes is the tick, and nothing but it.
+    await bull.workers[0]?.processor();
+    expect(tick).toHaveBeenCalledTimes(1);
+    // The queue's own connection is closed with the application.
+    expect(closers).toHaveLength(1);
+    await closers[0]?.();
+    expect(bull.queues[0]?.close).toHaveBeenCalledTimes(1);
   });
 
   it('installs one schedule, every sixty seconds, whose job carries nothing', async () => {

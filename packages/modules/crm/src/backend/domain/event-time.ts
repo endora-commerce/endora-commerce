@@ -46,34 +46,18 @@ export function isKnownTimeZone(timeZone: string): boolean {
   }
 }
 
-interface LocalParts {
-  /** `YYYY-MM-DD`. */
-  date: string;
-  /** `HH:mm`, 00 – 23. */
-  time: string;
-}
-
-function localParts(instant: Date, timeZone: string): LocalParts {
+/** The calendar date `instant` falls on in `timeZone`, as `YYYY-MM-DD`. */
+function localDateOf(instant: Date, timeZone: string): string {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
-    hourCycle: 'h23',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
   }).formatToParts(instant);
   const part = (type: Intl.DateTimeFormatPartTypes): string =>
     parts.find((candidate) => candidate.type === type)?.value ?? '';
-  return {
-    date: `${part('year')}-${part('month')}-${part('day')}`,
-    time: `${part('hour')}:${part('minute')}`,
-  };
-}
-
-/** The calendar date `instant` falls on in `timeZone`, as `YYYY-MM-DD`. */
-function localDateOf(instant: Date, timeZone: string): string {
-  return localParts(instant, timeZone).date;
+  // `Intl` does not pad a year: 500 is "500", and a date is `YYYY-MM-DD`.
+  return `${part('year').padStart(4, '0')}-${part('month')}-${part('day')}`;
 }
 
 /** Whether `instant` is the first instant of a calendar date in `timeZone`. */
@@ -113,14 +97,41 @@ export function allDayDateOf(startsAt: Date, timeZone: string): string {
   return localDateOf(startsAt, timeZone);
 }
 
+/** The languages a reminder is worded in — the two an Admin UI is drawn in. */
+export type EventWhenLanguage = 'en-US' | 'pl-PL';
+
 /**
- * When an Event starts, in words that need no browser: `YYYY-MM-DD HH:mm`
- * followed by the zone's name for a timed Event, and the date alone for an
- * all-day one — a date is the same date for every reader (FR-131), so a zone
- * beside it would say something untrue. A neutral form on purpose: it reads the
- * same in both languages, and a bell param is a string.
+ * When an Event starts, in words that need no browser and in the language of
+ * whoever is told (owner ruling of 2026-10-08): the date and the time **in the
+ * Event's own zone**, with the zone named beside them — "October 8, 2026,
+ * 6:42 PM (Europe/Warsaw)", and the Polish of it for a Polish reader — and the
+ * date alone for an all-day one: a date is the same date for every reader
+ * (FR-131), so a zone beside it would say something untrue.
+ *
+ * Worded here and not where it is read: a bell param is a string the shell
+ * substitutes and never formats, and an e-mail has no reader's browser at all.
+ * A reminder has one recipient, so "the reader's language" is theirs.
+ *
+ * One line of plain text: `Intl` puts a narrow no-break space before "PM",
+ * which a subject line and a bell sentence are better without.
  */
-export function eventWhen(event: Pick<EventTime, 'allDay' | 'startsAt' | 'timeZone'>): string {
-  const local = localParts(event.startsAt, event.timeZone);
-  return event.allDay ? local.date : `${local.date} ${local.time} ${event.timeZone}`;
+export function eventWhen(
+  event: Pick<EventTime, 'allDay' | 'startsAt' | 'timeZone'>,
+  language: EventWhenLanguage,
+): string {
+  const { startsAt, timeZone } = event;
+  const plain = (text: string): string => text.replace(/\s+/gu, ' ').trim();
+  const date = plain(
+    new Intl.DateTimeFormat(language, { timeZone, day: 'numeric', month: 'long', year: 'numeric' }).format(startsAt),
+  );
+  if (event.allDay) return date;
+  const time = plain(
+    new Intl.DateTimeFormat(language, {
+      timeZone,
+      // Midnight is 00:00 in Polish and 12:00 AM in English, never 0:00 or 24:00.
+      hour: language === 'pl-PL' ? '2-digit' : 'numeric',
+      minute: '2-digit',
+    }).format(startsAt),
+  );
+  return `${date}, ${time} (${timeZone})`;
 }

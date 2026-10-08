@@ -1057,8 +1057,9 @@ export function registerModule(ctx: ModuleContext): void {
   // Reminders are a sweep, not timers: the row is the schedule, and one pass
   // claims what is due before it delivers anything. Who is reminded is read
   // when the reminder fires — the assignee, else the Event's creator, each only
-  // if `admin_users` says they are active and `organizations` says they still
-  // reach the Opportunity's Organization. The bell is this module's notifier,
+  // if `admin_users` says they are active, `admin_roles` says they still hold
+  // `crm:read` and `organizations` says they still reach the Opportunity's
+  // Organization. The bell is this module's notifier,
   // which decides `admin_notifications`' presence itself; whether the recipient
   // is in the Admin UI to see it is `auth`'s to say; and the e-mail goes out
   // through `transactional_emails`' sender, read off the cradle per send — it
@@ -1073,6 +1074,7 @@ export function registerModule(ctx: ModuleContext): void {
             commandBus,
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
             canReach: createAdminReach(lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort')),
+            permissions: lazyPort<PermissionReadPort>(ctx, 'permissionService'),
             sessions: lazyPort<AuthSessionReadPort>(ctx, 'authSessionReadPort'),
             notifier: crmNotifier,
             email: createEventReminderEmail({

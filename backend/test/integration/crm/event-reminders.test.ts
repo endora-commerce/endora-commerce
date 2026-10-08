@@ -138,6 +138,14 @@ describe('crm event reminders', () => {
     return { opportunity, eventId, startsAt };
   };
 
+  /** A date and a time as a reminder words them: `Intl`, in the zone the cases plan in, on one plain line. */
+  const worded = (language: string, options: Intl.DateTimeFormatOptions) => (instant: Date) =>
+    new Intl.DateTimeFormat(language, { timeZone: 'UTC', ...options }).format(instant).replace(/\s+/gu, ' ');
+  const enDate = worded('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+  const enTime = worded('en-US', { hour: 'numeric', minute: '2-digit' });
+  const plDate = worded('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+  const plTime = worded('pl-PL', { hour: '2-digit', minute: '2-digit' });
+
   const outcomeOf = async (eventId: string) => (await crmEventReminderRow(h.em(), eventId))?.outcome ?? null;
 
   beforeAll(async () => {
@@ -252,7 +260,8 @@ describe('crm event reminders', () => {
 
       const [entry, ...others] = await bellAbout(opportunity.id);
       expect(others).toEqual([]);
-      const when = `${startsAt.toISOString().slice(0, 10)} ${startsAt.toISOString().slice(11, 16)} UTC`;
+      // In the recipient's language — English, with no preference saved — and the Event's own zone.
+      const when = `${enDate(startsAt)}, ${enTime(startsAt)} (UTC)`;
       expect(entry).toMatchObject({
         audience: 'admin_user',
         targetAdminUserId: assignee.adminUserId,
@@ -294,7 +303,7 @@ describe('crm event reminders', () => {
       });
       await sweep(now);
       const [entry] = await bellAbout(opportunity.id);
-      const date = midnight.toISOString().slice(0, 10);
+      const date = enDate(midnight);
       expect(entry?.title).toBe(`Reminder: Offer deadline, all day on ${date} — opportunity ${opportunity.number}`);
       expect(entry?.titleMessage).toMatchObject({ key: 'notifications.eventReminderAllDay.title', params: { when: date } });
     });
@@ -344,13 +353,18 @@ describe('crm event reminders', () => {
         document: { type: 'crm_opportunity', id: forPolish.opportunity.id },
         messageId: expect.stringMatching(new RegExp(`^crm_event_reminder:${forPolish.eventId}:\\d+$`)),
       });
-      expect(toPolish?.subject).toMatch(/^Przypomnienie: Rozmowa o cenie — /);
-      expect(toPolish?.text).toContain('Kiedy:');
+      // When it starts is said in the recipient's language too, in the Event's own zone.
+      const plWhen = `${plDate(forPolish.startsAt)}, ${plTime(forPolish.startsAt)} (UTC)`;
+      expect(toPolish?.subject).toBe(`Przypomnienie: Rozmowa o cenie — ${plWhen}`);
+      expect(toPolish?.text).toContain(`Kiedy: ${plWhen}`);
+      const [polishEntry] = await bellAbout(forPolish.opportunity.id);
+      expect(polishEntry?.titleMessage?.params).toMatchObject({ when: plWhen });
       expect(toPolish?.text).toContain(forPolish.opportunity.number);
       for (const event of [forEnglish, forUnset]) {
         const [message] = mailAbout(event.eventId);
-        expect(message?.subject).toMatch(/^Reminder: Demo at the warehouse — /);
-        expect(message?.text).toContain('When:');
+        const enWhen = `${enDate(event.startsAt)}, ${enTime(event.startsAt)} (UTC)`;
+        expect(message?.subject).toBe(`Reminder: Demo at the warehouse — ${enWhen}`);
+        expect(message?.text).toContain(`When: ${enWhen}`);
         expect(message?.text).toContain(event.opportunity.number);
         // The same facts as the bell entry and no more.
         expect(`${message?.subject} ${message?.text} ${message?.html ?? ''}`).not.toContain('price list');

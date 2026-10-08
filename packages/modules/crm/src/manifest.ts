@@ -395,7 +395,7 @@ export const manifest = defineModuleManifest({
         'Sent to the person a sales opportunity is assigned to when the reminder of one of its events is due and they are not in the admin panel to see the notification.',
       variables: [
         { key: 'event.name', label: 'Event name', sampleValue: 'Demo at the warehouse' },
-        { key: 'event.when', label: 'When the event starts', sampleValue: '2026-10-12 10:00 Europe/Warsaw' },
+        { key: 'event.when', label: 'When the event starts', sampleValue: 'October 12, 2026, 10:00 AM (Europe/Warsaw)' },
         { key: 'opportunity.number', label: 'Opportunity number', sampleValue: 'OPP-000042' },
       ],
     },

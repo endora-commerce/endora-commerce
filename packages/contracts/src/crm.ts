@@ -1168,15 +1168,37 @@ export type OpportunityEventReminderChannel = z.infer<typeof opportunityEventRem
 export const calendarScopeSchema = z.enum(['mine', 'all']);
 export type CalendarScope = z.infer<typeof calendarScopeSchema>;
 
+/**
+ * An instant of an Event, of a reminder or of a Calendar range: one the
+ * database holds and every zone can date.
+ *
+ * `isoDateTimeSchema` accepts any four-digit year **as written**, and an offset
+ * carries `9999-12-31T22:00:00-14:00` into the year 10000 — which JavaScript
+ * serialises with a signed six-digit year and PostgreSQL refuses, so the
+ * request used to end in a 500 (research N-CALR4). The range is the years
+ * 0001 – 9999 in UTC **less two days at each end**: the local date of an
+ * instant in any zone, and the 25 hours the Calendar read looks back before
+ * its `from`, then stay inside four-digit years as well.
+ */
+const EVENT_INSTANT_MIN_MS = Date.parse('0001-01-03T00:00:00.000Z');
+const EVENT_INSTANT_MAX_MS = Date.parse('9999-12-30T00:00:00.000Z');
+
+const eventInstantSchema = isoDateTimeSchema
+  .refine((value) => {
+    const instant = Date.parse(value);
+    return instant >= EVENT_INSTANT_MIN_MS && instant < EVENT_INSTANT_MAX_MS;
+  }, 'The instant must lie between 0001-01-03 and 9999-12-30 (UTC)')
+  .describe('ISO-8601 datetime with offset, e.g. 2026-04-23T10:15:30.000Z');
+
 const opportunityEventWriteShape = {
   name: z.string().trim().min(1).max(200),
   /** Plain text; reference tokens are not parsed. */
   description: z.string().max(5000).nullable().optional(),
   allDay: z.boolean(),
   /** For an all-day Event, the local midnight that starts its date. */
-  startsAt: isoDateTimeSchema,
+  startsAt: eventInstantSchema,
   /** Exclusive. For an all-day Event, the next local midnight. */
-  endsAt: isoDateTimeSchema,
+  endsAt: eventInstantSchema,
   /**
    * The IANA zone the times were chosen in —
    * `Intl.DateTimeFormat().resolvedOptions().timeZone` in the browser. Whether
@@ -1184,7 +1206,7 @@ const opportunityEventWriteShape = {
    */
   timeZone: z.string().min(1).max(64),
   /** `null` or absent = no reminder. Must be later than now — the service's rule. */
-  remindAt: isoDateTimeSchema.nullable().optional(),
+  remindAt: eventInstantSchema.nullable().optional(),
 };
 
 /**
@@ -1277,8 +1299,8 @@ export const OpportunityEventListResponseSchema = dataEnvelope(z.array(Opportuni
  */
 export const CalendarEventsQuerySchema = z
   .object({
-    from: isoDateTimeSchema,
-    to: isoDateTimeSchema,
+    from: eventInstantSchema,
+    to: eventInstantSchema,
     scope: calendarScopeSchema.optional(),
   })
   .superRefine((value, ctx) => {

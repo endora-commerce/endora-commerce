@@ -736,7 +736,7 @@ old one. Close the Opportunity and confirm no reminder is sent while it is close
 2. **Given** the dialog, **When** *All day* is switched on, **Then** the two times are not
    asked for, and the Event is shown on its date to every reader, whatever time zone their
    browser is in.
-3. **Given** the dialog, **When** *Remind me* is ticked, **Then** a date and time appear,
+3. **Given** the dialog, **When** *Set a reminder* is ticked, **Then** a date and time appear,
    already set to the Event's start (09:00 on its date for an all-day Event), and follow the
    start while the user has not changed them; a reminder time that is not in the future is
    refused with a sentence that says so.

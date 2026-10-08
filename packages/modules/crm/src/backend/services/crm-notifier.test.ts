@@ -1,7 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { AdminNotificationMessage } from '@endora-commerce/contracts';
-import { crmNotificationText, opportunityLinkPath, type CrmNotificationText } from './crm-notifier.js';
+import {
+  BELL_TITLE_MAX_LENGTH,
+  bellTitle,
+  crmNotificationText,
+  opportunityLinkPath,
+  type CrmNotificationText,
+} from './crm-notifier.js';
 
 /**
  * A bell entry of this module is translatable
@@ -47,13 +53,13 @@ const SENTENCES: Record<string, CrmNotificationText> = {
   'mention, the author unknown': crmNotificationText.mention('OPP-000042', null),
   'event reminder, timed': crmNotificationText.eventReminder({
     name: 'Demo at the warehouse',
-    when: '2026-10-12 10:00 Europe/Warsaw',
+    when: 'October 12, 2026, 10:00 AM (Europe/Warsaw)',
     number: 'OPP-000042',
     allDay: false,
   }),
   'event reminder, all day': crmNotificationText.eventReminder({
     name: 'Offer deadline',
-    when: '2026-10-12',
+    when: 'October 12, 2026',
     number: 'OPP-000042',
     allDay: true,
   }),
@@ -66,8 +72,8 @@ describe('crmNotificationText', () => {
       message: 'New message on opportunity OPP-000042',
       'mention, the author known': 'Ada Author mentioned you in opportunity OPP-000042',
       'mention, the author unknown': 'You were mentioned in opportunity OPP-000042',
-      'event reminder, timed': 'Reminder: Demo at the warehouse, 2026-10-12 10:00 Europe/Warsaw — opportunity OPP-000042',
-      'event reminder, all day': 'Reminder: Offer deadline, all day on 2026-10-12 — opportunity OPP-000042',
+      'event reminder, timed': 'Reminder: Demo at the warehouse, October 12, 2026, 10:00 AM (Europe/Warsaw) — opportunity OPP-000042',
+      'event reminder, all day': 'Reminder: Offer deadline, all day on October 12, 2026 — opportunity OPP-000042',
     });
   });
 
@@ -128,6 +134,24 @@ describe('crmNotificationText', () => {
     const eventId = '00000000-0000-4000-8000-00000000e0e0';
     expect(opportunityLinkPath(id)).toBe(`/crm/opportunities/${id}`);
     expect(opportunityLinkPath(id, { eventId })).toBe(`/crm/opportunities/${id}?tab=events&event=${eventId}`);
+  });
+
+  it('cuts a sentence the bell would refuse, and leaves every other one as it is', () => {
+    const short = crmNotificationText.assigned('OPP-000042').title;
+    expect(bellTitle(short)).toBe(short);
+    const longest = crmNotificationText.eventReminder({
+      name: 'x'.repeat(200),
+      when: 'October 12, 2026, 10:00 AM (America/Argentina/ComodRivadavia)',
+      number: 'OPP-000042',
+      allDay: false,
+    });
+    expect(longest.title.length).toBeGreaterThan(BELL_TITLE_MAX_LENGTH);
+    const cut = bellTitle(longest.title);
+    expect(cut).toHaveLength(BELL_TITLE_MAX_LENGTH);
+    expect(cut.endsWith('…')).toBe(true);
+    expect(longest.title.startsWith(cut.slice(0, -1))).toBe(true);
+    // The params are what the Admin UI words the entry from: the name is whole there.
+    expect(longest.titleMessage.params['name']).toHaveLength(200);
   });
 
   it('translates: the Polish sentence is not the English one', () => {
