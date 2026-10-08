@@ -3694,6 +3694,96 @@ when it was measured, and what was done about it.
   the name finds — in `organizations`, `catalog` and `product_feeds` — hold a comment or
   a method name, never the entity). So `title` has no second reader to keep in step.
 
+### N-BF — What a board card shows, and filtering by it (User Story 19, 2026-10-08)
+
+The owner's request is recorded with the story. The coordinator's brief carried design
+defaults marked *unverified*; each was re-derived against the tree, and this is what the
+tree said.
+
+- **N-BF1 — The choice is a Setting, and it could be, because a write port exists.** The
+  kernel's `SettingsReadPort` is read-only by its own doc comment, which reads as "a module
+  cannot write a setting". It can: `settings` publishes `SettingsAdminPort`
+  (`settingsAdminService`, `packages/contracts/src/settings.ts`), the audited write `pwa`
+  and `newsletter` already resolve. So `crm.board_card_fields` is a manifest-declared `json`
+  setting, written through that port with `crm:configure` on CRM's own route and read
+  through `settingsReadPort.get(code, null, …)` — no table, no migration. *Rejected*: a
+  `crm_board_card_fields` table, which is how the rest of the workflow configuration is
+  stored; it would have bought ordering by a column and cost a migration, an entity and a
+  Command for a list of at most six strings. **The price of a Setting** is that the generic
+  Settings screen can store anything under the code, so the read is forgiving
+  (`storedBoardCardFieldRefs`): not an array is the default, a non-string or a repeated
+  entry is skipped, an unknown reference resolves to nothing, entries past the sixth are not
+  shown. `board-card-fields.test.ts` writes both shapes through that screen's own route.
+- **N-BF2 — "Show on board" is not a flag on the custom-field definition.** A definition has
+  `config`, an opaque bag "a host module reads its own flags from" (feature 055 FR-006), and
+  the owner's sentence — "robię sobie pole … i zaznaczam, że to pole może się wyświetlać na
+  Boardzie" — reads like a checkbox there. It was not used: the generic definition form
+  renders no host-contributed flag (it sends `config: {}`; `catalog` writes its flags through
+  its own attribute screens), so surfacing one is a change to `custom_fields`' admin form; a flag cannot say
+  *where* among the built-in fields a custom one sits; and the choice would then live in two
+  places. One ordered list in CRM answers both halves of the request. If the owner wants the
+  checkbox on the definition as a second way in, it is an addition to that form, not a
+  change to this design.
+- **N-BF3 — A custom value is on the Opportunity's own row, so no port method was needed.**
+  The brief expected "custom-field values for a whole board page in one query through the
+  custom_fields port" and, for filtering, "the smallest port method there". Neither applies:
+  `custom_fields` stores no values — `crm_opportunities.custom_field_values` is a `jsonb`
+  column of this module (US15, R-26). A card's custom values are read off the rows the list
+  already loaded, at zero statements, and a filter is a condition on CRM's own column. The
+  one thing asked of `custom_fields` is the definitions — `customFieldDefinitionReadPort
+  .listForEntity('opportunity')`, published, cached per entity type — and it is asked once
+  per board, and not at all when the card names no custom field. **No foreign module was
+  changed**; `contracts/foreign-module-changes.md` has no row for this story.
+- **N-BF4 — `custom_fields` cannot be off while CRM is on.** The brief asked for "with
+  custom_fields off the config offers and shows only built-in fields". Its manifest declares
+  `activation: { nonDeactivatable: true }` and CRM names it in `dependencies`, so that state
+  does not exist and no branch was written for it — a catch around a closed gate there would
+  be dead code and is the shape `check:port-catches` refuses. What *can* be absent is
+  `quote_requests`, and `builtin:linkedQuoteRequests` is offered only while
+  `effectiveState.isPresent('quote_requests')`.
+- **N-BF5 — The filters are stated once.** The board's doc comment says its filters are
+  "stated twice", in the list for the cards and in the board for the figures, with a contract
+  test holding the two together. The field filters are one function,
+  `boardFieldFilterConditions`, called by both. Each condition is `id in (select f.id from
+  crm_opportunities f where <predicate>)` — the shape of the tag filter (N-R10) — rather than
+  a raw fragment as a `where` key, because that shape is already proven in both an `em.find`
+  and a QueryBuilder with `applyFilters()`, and because it can only narrow the tenant-scoped
+  statement it joins. The key of a custom field is bound, never spliced. Numbers are cast
+  only where `jsonb_typeof` says number, so a value stored under an older definition cannot
+  fail the read.
+- **N-BF6 — A card is the list's summary, so the values ride on it.** A lane is continued
+  from the list endpoint (US7), which is why the values are an optional member of
+  `OpportunitySummary` — `cardValues` — and why the list takes `cardValues=true` and
+  `fieldFilters`. The member holds only what the summary does not already carry (contact and
+  Sales Channel names, the source, the link counts, custom values): repeating the
+  Organization or the value under a second name would be two answers to one question. Cost
+  per column: at most one `customerAccountReadPort.findByIds`, one `SalesChannel` read and
+  one read of the page's links, each only when its field is chosen; `board-card-fields
+  .test.ts` holds the statement count equal before and after twenty-five more cards.
+- **N-BF7 — Nothing a card can show needs an owner's permission.** The brief asked that a
+  field "whose value comes from another module the reader may not read" follow the detail's
+  narrowing (N-R3, N-R13). Checked field by field: the contact person's name and the Sales
+  Channel are shown on the Opportunity's own screen to `crm:read`; a linked document is
+  *counted*, which the detail also says to a reader who may not open it — its number, status
+  and total are what `orders:read` / `rfqs:handle` guard, and none of those is a field. So no
+  narrowing was added, and none is missing.
+- **N-BF8 — The board's filters were not in its address; now they are.** The brief said
+  "reflected in the URL like existing board filters". They were `useState` on both the board
+  and the list. The board's now live in its query string — the shared ones and the field
+  ones — because a filter that survives neither a reload nor a link is half a filter, and
+  because mixing the two would have been worse than either. **The list is unchanged**; it
+  could follow the same way and was left alone as out of scope. One consequence: a person
+  chosen in the assignee or contact picker and then restored from an address is named only
+  if the picker's first page holds them — the filter applies either way.
+- **N-BF9 — What is not a filter, and what is partial.** The Organization, the assignee,
+  the Sales Channel, the tags and the creation date are filtered by the parameters the board
+  already had and stay available whatever the card shows; taking them away when their field
+  leaves the card would have removed something users have. The contact person is filtered by
+  id, chosen within an Organization, and only by a session holding `crm:write`, because
+  `GET /lookups/contacts` is gated on that code (N-D4) and needs an Organization — a reader
+  sees the contact on the card and cannot filter by it. The value filter compares amounts
+  across currencies, as `sort=value` does.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,

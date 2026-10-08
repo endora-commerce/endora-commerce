@@ -51,7 +51,7 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
 | Analityka | **CRM → Analityka** (`/crm/analytics`) | `crm:analytics` | Pięć wskaźników dla wybranego zakresu dni: czas obsługi, czas w każdym statusie, najskuteczniejsi handlowcy, najcenniejsze szanse i średnia wartość. |
 | Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
-| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy, status szansy, do którego prowadzi każdy status zamówienia, oraz statusy liczone do wartości wyliczanej. |
+| Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy, status szansy, do którego prowadzi każdy status zamówienia, statusy liczone do wartości wyliczanej oraz pola widoczne na karcie na tablicy. |
 
 Codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
 **Szanse sprzedażowe**, **Nowa szansa sprzedażowa**, **Tablica szans
@@ -177,8 +177,10 @@ statusów i powiązaniami; same powiązane zamówienia pozostają bez zmian.
 **CRM → Tablica** pokazuje szanse, które możesz zobaczyć, jako karty — po
 jednej kolumnie dla każdego statusu, w kolejności przepływu. Nagłówek kolumny
 podaje liczbę szans w tym statusie i ich wartość, osobną sumę dla każdej
-waluty; karta pokazuje tytuł szansy, numer, organizację, wartość, osobę, do
-której jest przypisana, oraz etykiety. Tytuł na karcie otwiera szansę.
+waluty; karta pokazuje tytuł szansy oraz pola wybrane dla karty — dopóki nikt
+ich nie zmieni: numer, organizację, wartość, osobę, do której jest przypisana,
+oraz etykiety (zob. *Co pokazuje karta* poniżej). Tytuł na karcie otwiera
+szansę.
 
 Kartę można przenieść do innego statusu na dwa sposoby i oba robią dokładnie
 to samo, co przyciski statusów na ekranie szansy — łącznie z powiązanymi
@@ -217,13 +219,92 @@ przesunięcia albo strzałkami, gdy fokus jest na samej tablicy.
 Administrator, który może tylko przeglądać, widzi tablicę bez uchwytów i bez
 menu.
 
+### Co pokazuje karta
+
+Karta zawsze pokazuje tytuł szansy. To, co widać pod tytułem, wybierasz
+samodzielnie: na ekranie **CRM → Statusy i przepływ** sekcja **Karta na
+tablicy** zawiera listę pól widocznych na karcie, w kolejności, oraz pola,
+które można dodać. Osoba, która może konfigurować CRM, trafia tam również z
+tablicy, przyciskiem **Pola na karcie**.
+
+- **Pola szansy sprzedażowej**: numer, organizacja, osoba kontaktowa,
+  handlowiec, wartość, kanał sprzedaży, etykiety, planowana data zamknięcia,
+  źródło (utworzona ręcznie, z zamówienia albo z zapytania ofertowego), daty
+  utworzenia, ostatniej zmiany i zamknięcia oraz liczba powiązanych zamówień i
+  powiązanych zapytań ofertowych — ta ostatnia tylko wtedy, gdy moduł Zapytań
+  ofertowych jest włączony.
+- **Pola niestandardowe**: każde pole zdefiniowane dla szans sprzedażowych na
+  ekranie **Pola niestandardowe**. Zdefiniuj tam „Źródło pozyskania”, dodaj je
+  tutaj — i jest na karcie.
+
+Karta pokazuje **najwyżej sześć** pól poza tytułem, żeby dało się ją odczytać
+jednym spojrzeniem; sekcja podaje, ile pól wybrano, i przestaje proponować
+kolejne, gdy karta jest pełna. Przyciski **Przesuń wyżej** i **Przesuń niżej**
+ustalają kolejność, a nic się nie zmienia, dopóki nie klikniesz **Zapisz**.
+Wybór jest jeden dla całej platformy — każdy użytkownik widzi taką samą kartę.
+
+Dopóki nikt tego nie zmieni, karta pokazuje to, co zawsze: numer i
+organizację, wartość, handlowca i etykiety. Pole, dla którego szansa nie ma
+wartości, nie pojawia się na karcie tej szansy, a długi tekst jest ucinany po
+dwóch wierszach. Pole niestandardowe, które zostanie później usunięte, po
+prostu znika z kart, z filtrów i z tej sekcji; niczego nie trzeba porządkować.
+
+### Filtrowanie po tym, co pokazują karty
+
+Tablica ma filtr dla każdego pola widocznego na kartach, odpowiedni do rodzaju
+pola:
+
+| Pole | Filtr |
+| --- | --- |
+| Tekst — numer, niestandardowe pole tekstowe | tekst, który zawiera |
+| Liczba albo kwota — wartość, niestandardowa liczba, liczby powiązanych dokumentów | wartość najmniejsza i największa |
+| Data — planowana data zamknięcia, ostatnia zmiana, zamknięcie, niestandardowa data | od dnia, do dnia |
+| Tak / nie | tak albo nie; „nie” obejmuje też szanse, w których pola nigdy nie ustawiono |
+| Jedna z listy, kilka z listy, źródło | jedna lub więcej opcji; szansa pasuje, gdy ma dowolną z nich |
+| Osoba kontaktowa | jedna osoba, po wybraniu organizacji — dla użytkowników, którzy mogą edytować szanse |
+
+Filtry organizacji, handlowca, etykiet, kanału sprzedaży i daty utworzenia są
+dostępne zawsze, niezależnie od tego, co pokazuje karta. Filtry się łączą:
+pokazywane, liczone i sumowane są tylko szanse spełniające wszystkie naraz.
+Filtr wartości porównuje kwotę niezależnie od waluty.
+
+**Filtry są zapisane w adresie tablicy.** Odśwież stronę, dodaj ją do zakładek
+albo wyślij link współpracownikowi — zostaną zastosowane te same filtry.
+Przycisk **Wyczyść filtry** usuwa wszystkie. Link zapisany przed zmianą karty
+nadal się otwiera: filtr po polu, którego nie ma już na karcie, jest pomijany.
+
+### Dla integratorów
+
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
-| `GET /api/v1/admin/crm/board` | `crm:read` | Po jednej kolumnie dla każdego statusu, w kolejności przepływu: status, `count`, `valueTotals` dla każdej waluty, pierwsze `perColumn` szans (domyślnie 50, najwyżej 200) oraz `hasMore`. Przyjmuje filtry listy z wyjątkiem `statusCode` i `state` — także filtr handlowca i filtr etykiet, w tym samym znaczeniu. |
+| `GET /api/v1/admin/crm/board` | `crm:read` | Po jednej kolumnie dla każdego statusu, w kolejności przepływu: status, `count`, `valueTotals` dla każdej waluty, pierwsze `perColumn` szans (domyślnie 50, najwyżej 200) oraz `hasMore`; a także `cardFields` — pola widoczne na karcie, w kolejności. Przyjmuje filtry listy z wyjątkiem `statusCode` i `state` — także filtr handlowca i filtr etykiet, w tym samym znaczeniu — oraz `fieldFilters`. |
+| `GET /api/v1/admin/crm/board/card-fields` | `crm:read` | `fields`: pola widoczne na karcie, w kolejności. `available`: wszystkie pola, które można wybrać. `maxFields`: 6. |
+| `PUT /api/v1/admin/crm/board/card-fields` | `crm:configure` | Treść `{ "fields": ["builtin:organization", "custom:lead_source"] }` — odwołania do pól, w kolejności. W odpowiedzi konfiguracja po zmianie. `422` dla odwołania, które nie wskazuje żadnego pola. |
 
-Tablica nie ma własnej operacji zapisu: przeniesienie karty to
-`POST /api/v1/admin/crm/opportunities/:id/transition`. Kolejne karty kolumny
-pochodzą z punktu końcowego listy, zawężonego do tego statusu.
+Przeniesienie karty to `POST /api/v1/admin/crm/opportunities/:id/transition`;
+tablica nie ma do tego własnej operacji zapisu. Kolejne karty kolumny pochodzą
+z punktu końcowego listy, zawężonego do tego statusu.
+
+Pole wskazuje się odwołaniem: `builtin:<klucz>` dla pola szansy (`number`,
+`organization`, `contact`, `assignee`, `value`, `salesChannel`, `tags`,
+`expectedCloseDate`, `source`, `createdAt`, `updatedAt`, `closedAt`,
+`linkedOrders`, `linkedQuoteRequests`) oraz `custom:<klucz pola>` dla pola
+niestandardowego.
+
+Każda karta tablicy zawiera `cardValues`: obiekt o kluczach będących
+odwołaniami, z wartością każdego wybranego pola, które nie jest już składową
+karty — imię i nazwisko osoby kontaktowej, nazwa kanału sprzedaży, źródło,
+liczby powiązanych dokumentów i wartości niestandardowe — i żadnego pola,
+którego nie wybrano. Punkt końcowy listy zwraca tę samą składową, gdy zostanie
+wywołany z `cardValues=true`.
+
+`fieldFilters`, na tablicy i na liście, to zakodowany w adresie obiekt JSON o
+kluczach będących odwołaniami: `{"custom:lead_source":{"in":["referral"]},"builtin:value":{"min":"1000"}}`.
+Operatory to `contains` (tekst), `min` / `max` (liczby i kwoty, jako napisy
+dziesiętne), `from` / `to` (daty, `YYYY-MM-DD`, oba dni włącznie), `is` (tak /
+nie) oraz `in` (opcje oraz identyfikator konta klienta osoby kontaktowej).
+Odwołanie do pola, którego nie ma na karcie, jest pomijane; parametr, który
+nie jest poprawnym obiektem JSON tej postaci, kończy się odpowiedzią `400`.
 
 ## Wiązanie zamówień
 
@@ -1526,6 +1607,7 @@ wyłącznie po angielsku.
 | `crm.enabled` | włączone | Przełącznik opisany powyżej. |
 | `crm.auto_create_from_orders` | wyłączone | Każde zamówienie złożone od tej chwili dostaje własną szansę. Ustawienie może być różne dla kanałów sprzedaży; decyduje kanał zamówienia. |
 | `crm.auto_create_from_quote_requests` | wyłączone | Każde zapytanie ofertowe utworzone od tej chwili — przesłane przez klienta albo przygotowane przez administratora — dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
+| `crm.board_card_fields` | numer, organizacja, wartość, handlowiec, etykiety | Pola widoczne na karcie na tablicy, w kolejności, jako lista odwołań do pól. Zmieniaj je w sekcji **Karta na tablicy** na ekranie **CRM → Statusy i przepływ**, która proponuje istniejące pola, a nie tutaj. |
 
 ## Czego moduł nie robi
 

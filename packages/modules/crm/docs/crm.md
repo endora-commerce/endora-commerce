@@ -52,7 +52,7 @@ when at least one of them is visible.
 | Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
 | Analytics | **CRM → Analytics** (`/crm/analytics`) | `crm:analytics` | Five figures over a range of days: handling time, time in each status, the most effective sales reps, the most valuable opportunities and the average value. |
 | Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
-| Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, the opportunity status each order status leads to, and the statuses that count towards a computed value. |
+| Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, the opportunity status each order status leads to, the statuses that count towards a computed value, and the fields a board card shows. |
 
 The everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
 **Sales opportunities**, **New sales opportunity**, **Opportunity board** and
@@ -174,8 +174,10 @@ its links; the linked orders themselves are not touched.
 **CRM → Board** shows the opportunities you may see as cards, in one column per
 status, in the workflow's order. Each column's header carries the number of
 opportunities in that status and their value, one total per currency; each card
-shows the opportunity's title, number, organization, value, who it is assigned
-to and its tags. The card's title opens the opportunity.
+shows the opportunity's title and the fields chosen for the card — unless
+somebody changed them, its number, organization, value, who it is assigned to
+and its tags (see *What a card shows* below). The card's title opens the
+opportunity.
 
 A card is moved to another status in either of two ways, and both do exactly
 what the status buttons on the opportunity's own screen do — linked orders
@@ -211,13 +213,89 @@ the board itself has the focus.
 An administrator who may read but not write sees the board without the grips
 and the menus.
 
+### What a card shows
+
+A card always shows the opportunity's title. What it shows under the title is
+yours to choose: on **CRM → Workflow**, the **Board card** section lists the
+fields on the card, in order, and the fields that can be added. Somebody who
+may configure CRM reaches it from the board too, with **Card fields**.
+
+- **Opportunity fields**: number, organization, contact person, sales rep,
+  value, sales channel, tags, expected close date, source (created by hand,
+  from an order or from a quote request), the dates it was created, last
+  changed and closed, and the number of linked orders and of linked quote
+  requests — the last only while the Quote Requests module is on.
+- **Custom fields**: every field defined for opportunities on the **Custom
+  fields** screen. Define "Lead source" there, add it here, and it is on the
+  card.
+
+A card shows **at most six** fields besides the title, so that it can still be
+read at a glance; the section says how many are chosen and stops offering more
+once the card is full. **Move up** and **Move down** set the order, and nothing
+changes until **Save**. The choice is one for the whole platform — every user
+sees the same card.
+
+Until somebody changes it, a card shows what it always did: number and
+organization, value, sales rep and tags. A field an opportunity has no value
+for is left out of that opportunity's card, and a long text is cut after two
+lines. A custom field that is later deleted simply disappears from the cards,
+from the filters and from this section; nothing has to be cleaned up.
+
+### Filtering by what the cards show
+
+The board has a filter for every field its cards show, of the kind the field
+is:
+
+| Field | Filter |
+| --- | --- |
+| A text — the number, a custom text field | the text it contains |
+| A number or an amount — the value, a custom number, the linked-document counts | a lowest and a highest value |
+| A date — expected close date, last changed, closed, a custom date | from a day, to a day |
+| Yes / no | yes or no; "no" includes opportunities where it was never set |
+| One of a list, several of a list, the source | one or more options; an opportunity matches when it has any of them |
+| Contact person | one person, once an organization is chosen — offered to users who may edit opportunities |
+
+The organization, sales rep, tags, sales channel and creation-date filters are
+always there, whatever the card shows. Filters combine: only opportunities
+that match all of them are shown, counted and totalled. The value filter
+compares the amount whatever its currency.
+
+**The filters are in the board's address.** Reload the page, bookmark it or
+send the link to a colleague and the same filters are applied. **Clear
+filters** removes them all. A link saved before the card was changed still
+opens: a filter on a field that is no longer on the card is ignored.
+
+### For integrators
+
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
-| `GET /api/v1/admin/crm/board` | `crm:read` | One column per status, in workflow order: the status, `count`, `valueTotals` per currency, the first `perColumn` opportunities (default 50, at most 200) and `hasMore`. Takes the list's filters except `statusCode` and `state` — the assignee and tag filters included, with the same meaning. |
+| `GET /api/v1/admin/crm/board` | `crm:read` | One column per status, in workflow order: the status, `count`, `valueTotals` per currency, the first `perColumn` opportunities (default 50, at most 200) and `hasMore`; and `cardFields`, the fields a card shows, in order. Takes the list's filters except `statusCode` and `state` — the assignee and tag filters included, with the same meaning — and `fieldFilters`. |
+| `GET /api/v1/admin/crm/board/card-fields` | `crm:read` | `fields`: the fields a card shows, in order. `available`: every field that can be chosen. `maxFields`: 6. |
+| `PUT /api/v1/admin/crm/board/card-fields` | `crm:configure` | Body `{ "fields": ["builtin:organization", "custom:lead_source"] }` — field references, in order. Answers the configuration as it stands afterwards. `422` for a reference that names no field. |
 
-There is no board-specific write: moving a card is
-`POST /api/v1/admin/crm/opportunities/:id/transition`. A column is continued
-from the list endpoint, filtered to that status.
+Moving a card is `POST /api/v1/admin/crm/opportunities/:id/transition`; the
+board has no write of its own for it. A column is continued from the list
+endpoint, filtered to that status.
+
+A field is named by a reference: `builtin:<key>` for an opportunity field
+(`number`, `organization`, `contact`, `assignee`, `value`, `salesChannel`,
+`tags`, `expectedCloseDate`, `source`, `createdAt`, `updatedAt`, `closedAt`,
+`linkedOrders`, `linkedQuoteRequests`) and `custom:<field key>` for a custom
+field.
+
+Each card of the board carries `cardValues`: an object keyed by reference with
+the value of every chosen field that is not already a member of the card —
+the contact person's and the sales channel's names, the source, the linked
+counts and the custom values — and of no field that was not chosen. The list
+endpoint answers the same member when asked with `cardValues=true`.
+
+`fieldFilters`, on the board and on the list, is a URL-encoded JSON object
+keyed by reference: `{"custom:lead_source":{"in":["referral"]},"builtin:value":{"min":"1000"}}`.
+The operators are `contains` (text), `min` / `max` (numbers and amounts, as
+decimal strings), `from` / `to` (dates, `YYYY-MM-DD`, both days included),
+`is` (yes / no) and `in` (options, and the contact person's customer-account
+id). A reference that is not on the card is ignored; a parameter that is not
+valid JSON of this shape answers `400`.
 
 ## Linking orders
 
@@ -1487,6 +1565,7 @@ there are in English only.
 | `crm.enabled` | on | The switch described above. |
 | `crm.auto_create_from_orders` | off | Every order placed from then on gets an opportunity of its own. The setting can differ per sales channel; the order's channel decides. |
 | `crm.auto_create_from_quote_requests` | off | Every quote request created from then on — submitted by a customer or prepared by an administrator — gets an opportunity of its own. Needs the Quote Requests module to be on. |
+| `crm.board_card_fields` | number, organization, value, sales rep, tags | The fields a board card shows, in order, as a list of field references. Change it in the **Board card** section of **CRM → Workflow**, which offers the fields that exist, rather than here. |
 
 ## What the module does not do
 

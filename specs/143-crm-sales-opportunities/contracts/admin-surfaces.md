@@ -237,3 +237,47 @@ the text is written or edited** (owner ruling, 2026-10-07; research N-M11). Norm
   length limit counts the stored text. Undo and redo are the field's own.
 - The same three searches are reachable by a button each, and the line under the field names
   the shortcuts that are offered (`references.shortcuts`, `references.shortcut.*`).
+
+## 9. The board card's configuration (US19)
+
+**No new route, no new sidebar row, no new palette action.** What a board card shows is
+configured in a section of `/crm/workflow` — *Board card*, anchored `#board-card`, after
+*Statuses that count towards a computed value* — because that screen is where CRM is
+configured and the sidebar's `crm:configure` rows already lead to it. The board links there
+(**Card fields**, `/crm/workflow#board-card`) for a session holding `crm:configure`, so the
+choice is one click from where its effect is seen; a session without the code is shown no
+link. The palette is unchanged: `targetRoute` takes no fragment, and the contract of §3 —
+"the workflow configuration is reached from the sidebar by the few who configure it" —
+covers this section with the rest of that screen.
+
+Normative for `src/admin/components/BoardCardFieldsEditor.tsx`,
+`src/admin/components/BoardCardFields.tsx`, `src/admin/components/BoardFieldFilters.tsx` and
+`src/admin/lib/board-fields.ts`:
+
+- **The section**: two lists — *Shown on the card*, ordered, each row with *Move up*, *Move
+  down* and *Remove* buttons (no drag: SC 2.5.7 is met by the only path there is), and *Add a
+  field*, grouped into *Opportunity fields* and *Custom fields*. The count "n of 6" is always
+  visible; at six every *Add* is disabled and a sentence says why. Nothing is stored until
+  *Save*; the confirmation is a `role="status"` line, a refusal the server's own sentence.
+- **The card**: the title, then the chosen fields in order. The number, the Organization, the
+  value, the assignee and the tags keep the form they had (the number and the Organization on
+  one line when they are neighbours), so the default card is unchanged. Every other field is
+  "Label: value" on one line, cut after two lines with the whole text in `title`, and **left
+  out when the Opportunity has no value for it** — a count of zero included.
+- **The filters**: after the list's shared fields, one grid cell per shown field that has a
+  filter of its own (`contracts/admin-api.md` §12c), in the card's order: a search box
+  (text), a pair of number boxes (number, amount), a pair of date boxes, a three-way select
+  (yes / no), the kit's `MultiSelect` (options). A pair is a `fieldset` whose `legend` is the
+  field's name, each box named "<field>: lowest / highest / from / to". Text and number boxes
+  commit 300 ms after typing pauses. The contact-person filter is `ContactLookup`, disabled
+  until an Organization is chosen, and shown only to a session holding `crm:write` — the code
+  `GET /lookups/contacts` enforces.
+- **The address**: the board's filters are query parameters of `/crm/board` — `q`,
+  `organizationId`, `assignee` (`me` | `unassigned` | an id), `tagId` (repeated),
+  `salesChannelId`, `createdFrom`, `createdTo`, and `f.<reference>.<operator>` per field
+  filter (`in` repeated). They are written with `replace`, so the board is one history entry.
+  A parameter that is not of its shape is left out rather than sent. *Clear filters* removes
+  them all, and is shown only while something is filtered.
+
+i18n namespaces added: `board.field.*`, `board.filter.*`, `board.card.field`,
+`board.configureCard`, `boardCard.*`.

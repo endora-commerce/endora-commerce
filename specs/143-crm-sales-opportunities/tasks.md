@@ -754,38 +754,42 @@ not a one-declaration integration.
 
 ### Tests first
 
-- [ ] T230 [US19] `packages/contracts/src/crm.test.ts` — the field reference, the card-field
+- [X] T230 [US19] `packages/contracts/src/crm.test.ts` — the field reference, the card-field
   configuration request (six at most, no duplicate), the field-filter parameter (a JSON
   object per field, refused when malformed) and `cardValues` on a summary.
-- [ ] T231 [US19] `backend/test/contract/crm/board-card-fields.contract.test.ts` — the
+- [X] T231 [US19] `backend/test/contract/crm/board-card-fields.contract.test.ts` — the
   configuration read (`crm:read`) and write (`crm:configure`), the default, the refusals
   (unknown field, a seventh field, a duplicate), and the board answering `cardFields` and,
   per card, exactly the values of the chosen fields.
-- [ ] T232 [US19] `backend/test/integration/crm/board-card-fields.test.ts` — every filter
+- [X] T232 [US19] `backend/test/integration/crm/board-card-fields.test.ts` — every filter
   kind against the cards, the counts and the totals; the list answering the same for a
   lane's continuation; a filter on a field that is not on the card ignored; a deleted custom
   field dropping out; tenant isolation of the filters; the statement count independent of the
   number of cards.
-- [ ] T233 [US19] `admin/test/modules/crm/board-card-fields.test.tsx` — the configuration
+- [X] T233 [US19] `admin/test/modules/crm/board-card-fields.test.tsx` — the configuration
   section (choose, order, the limit of six said and enforced, save, refusal), the card
   rendering the chosen fields, the filter for each kind, the address carrying the filters and
   *Clear* emptying it.
 
 ### Implementation
 
-- [ ] T234 [US19] `packages/contracts/src/crm.ts` — §12c's schemas.
-- [ ] T235 [US19] `packages/modules/crm/src/manifest.ts` — the `crm.board_card_fields`
-  setting; `src/backend/domain/board-card-fields.ts` — the catalogue of built-in fields and
-  the filter conditions; `src/backend/services/board-card-field-service.ts` — the stored
-  choice resolved against the catalogue and the definitions, and its write.
-- [ ] T236 [US19] `opportunity-service.ts` and `board-service.ts` — card values on a summary
+- [X] T234 [US19] `packages/contracts/src/crm.ts` — §12c's schemas.
+- [X] T235 [US19] `packages/modules/crm/src/manifest.ts` — the `crm.board_card_fields`
+  setting; `src/backend/domain/board-card-fields.ts` (with its co-located test) — the
+  catalogue of built-in fields and the filter conditions;
+  `src/backend/services/board-card-field-service.ts` — the stored choice resolved against the
+  catalogue and the definitions, and its write.
+- [X] T236 [US19] `opportunity-service.ts` and `board-service.ts` — card values on a summary
   when asked for, field filters in the list and in the board's figures from one function;
   `routes/routes.board.ts` — the two configuration routes; composition in `backend/index.ts`.
-- [ ] T237 [US19] Admin: `components/BoardCardFieldsEditor.tsx` on the Workflow screen,
-  `components/BoardCardFields.tsx` and `components/BoardFieldFilters.tsx` on the board, the
-  board's filters in its address, a link from the board to the configuration.
-- [ ] T238 [US19] i18n EN + PL, `docs/crm.md` EN + PL with the translation cache, the
-  changesets, the OpenAPI baseline, the off-state case for the two new routes.
+- [X] T237 [US19] Admin: `components/BoardCardFieldsEditor.tsx` on the Workflow screen,
+  `components/BoardCardFields.tsx` and `components/BoardFieldFilters.tsx` on the board,
+  `lib/board-fields.ts` — the board's filters in its address — and a link from the board to
+  the configuration (`contracts/admin-surfaces.md` §9).
+- [X] T238 [US19] i18n EN + PL, `docs/crm.md` EN + PL with the translation cache, the
+  changeset, the OpenAPI baseline, the off-state probes for the two new routes. **Not seen in
+  a browser**: the change is to the API as well as the screens, and the preview instance runs
+  the base.
 
 ## Notes
 
