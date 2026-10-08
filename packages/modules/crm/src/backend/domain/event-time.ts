@@ -66,7 +66,8 @@ function localParts(instant: Date, timeZone: string): LocalParts {
   const part = (type: Intl.DateTimeFormatPartTypes): string =>
     parts.find((candidate) => candidate.type === type)?.value ?? '';
   return {
-    date: `${part('year')}-${part('month')}-${part('day')}`,
+    // `Intl` does not pad a year: 500 is "500", and a date is `YYYY-MM-DD`.
+    date: `${part('year').padStart(4, '0')}-${part('month')}-${part('day')}`,
     time: `${part('hour')}:${part('minute')}`,
   };
 }

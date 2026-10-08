@@ -128,6 +128,13 @@ describe('allDayDateOf', () => {
     // One second earlier it is still the 9th there.
     expect(allDayDateOf(new Date('2026-06-10T06:59:59Z'), 'America/Los_Angeles')).toBe('2026-06-09');
   });
+
+  it('writes four digits of year, as the date of the contract does — also before the year 1000', () => {
+    // `Intl` writes the year 500 as "500"; `YYYY-MM-DD` is what a reader parses.
+    expect(allDayDateOf(new Date('0500-06-01T00:00:00.000Z'), 'UTC')).toBe('0500-06-01');
+    expect(allDayDateOf(new Date('0001-01-03T00:00:00.000Z'), 'UTC')).toBe('0001-01-03');
+    expect(allDayDateOf(new Date('9999-12-29T12:00:00.000Z'), 'Pacific/Kiritimati')).toBe('9999-12-30');
+  });
 });
 
 describe('eventWhen', () => {
