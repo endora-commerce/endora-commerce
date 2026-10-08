@@ -43,6 +43,7 @@ import { registerCrmBoardRoutes } from './routes/routes.board.js';
 import { registerCrmCommentRoutes } from './routes/routes.comments.js';
 import { registerCrmDocumentRoutes } from './routes/routes.documents.js';
 import { registerCrmDocumentLookupRoutes } from './routes/routes.document-lookups.js';
+import { registerCrmEventRoutes } from './routes/routes.events.js';
 import { registerCrmHistoryRoutes } from './routes/routes.history.js';
 import { registerCrmLinkRoutes } from './routes/routes.links.js';
 import { registerCrmLookupRoutes } from './routes/routes.lookups.js';
@@ -53,6 +54,7 @@ import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
 import { AnalyticsService } from './services/analytics-service.js';
 import { BoardCardFieldService } from './services/board-card-field-service.js';
 import { BoardService } from './services/board-service.js';
+import { CalendarService } from './services/calendar-service.js';
 import { registerCrmAssetReferences } from './services/crm-asset-references.js';
 import { registerCrmAuditReferences } from './services/crm-audit-references.js';
 import { CrmDocumentLookupService } from './services/crm-document-lookup-service.js';
@@ -68,6 +70,7 @@ import { OpportunityAttachmentUploadService } from './services/opportunity-attac
 import { OpportunityAutoCreateService } from './services/opportunity-auto-create-service.js';
 import { MentionService } from './services/mention-service.js';
 import { OpportunityCommentService } from './services/opportunity-comment-service.js';
+import { OpportunityEventService } from './services/opportunity-event-service.js';
 import { OpportunityHistoryService } from './services/opportunity-history-service.js';
 import { OpportunityLinkService } from './services/opportunity-link-service.js';
 import { OpportunityOriginLinkService, readEventOrigin } from './services/opportunity-origin-link-service.js';
@@ -467,6 +470,10 @@ export function registerModule(ctx: ModuleContext): void {
             references: crmReferenceService,
             mentions: crmMentionService,
             cardFields: () => ctx.cradle<BoardCardCradle>().crmBoardCardFieldService.selected(),
+            // The count the Events tab's label carries (User Story 21) — on the
+            // detail alone, so the list and the board ask nothing more.
+            upcomingEventCount: (opportunityId) =>
+              ctx.cradle<EventsCradle>().crmOpportunityEventService.upcomingCount(opportunityId),
           }),
       )
       .singleton(),
@@ -1000,6 +1007,47 @@ export function registerModule(ctx: ModuleContext): void {
   });
   // --- end of Document lookups -----------------------------------------------
 
+  // --- Events, the Calendar and reminders (User Stories 21 and 22) ---------------
+  // An Event hangs on an Opportunity like a note does: three Commands recorded
+  // against the Opportunity, so they are in its change history. Whose calendar
+  // an Event is on, and who is reminded, are read from the Opportunity's
+  // assignee at the moment of asking — nothing about a person is stored.
+  //
+  // The Calendar is the one read of the module that does not start from a
+  // parent: one statement that joins the Opportunity and carries the caller's
+  // reach as a predicate. Five routes, one `ctx.routes`, this one section.
+  ctx.di.register({
+    crmOpportunityEventService: ctx
+      .asFunction(
+        ({ emFactory, commandBus, crmWorkflowReadService }: CrmCradle) =>
+          new OpportunityEventService({
+            emFactory,
+            commandBus,
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            workflowRead: crmWorkflowReadService,
+          }),
+      )
+      .singleton(),
+    crmCalendarService: ctx
+      .asFunction(
+        ({ emFactory }: CrmCradle) =>
+          new CalendarService({
+            emFactory,
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+          }),
+      )
+      .singleton(),
+  });
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<CrmCradle & EventsCradle>();
+    await registerCrmEventRoutes(app, {
+      eventService: cradle.crmOpportunityEventService,
+      calendarService: cradle.crmCalendarService,
+      requireAdmin: cradle.requireAdmin,
+    });
+  });
+  // --- end of Events, the Calendar and reminders ---------------------------------
+
   // --- Routes ----------------------------------------------------------------
   // All through `ctx.routes`, so every one of them stops with the module.
   ctx.routes(async (app) => {
@@ -1054,6 +1102,12 @@ interface ValueCradle {
   readonly processRunsWorkers: boolean;
   /** The connection a module may build a queue on; undefined where a composition wants none. */
   readonly moduleQueueRedis: Redis | undefined;
+}
+
+/** What the events section registers (User Stories 21 and 22). */
+interface EventsCradle {
+  readonly crmOpportunityEventService: OpportunityEventService;
+  readonly crmCalendarService: CalendarService;
 }
 
 /** What the board section registers for the card's fields (User Story 19). */
