@@ -47,7 +47,7 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | --- | --- | --- | --- |
 | Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży i data utworzenia. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
-| Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Nagłówek, pasek etapów z miejscem szansy w przepływie i dozwolonymi z niego zmianami, informacje w kolumnie po prawej oraz karty: *Przegląd*, **Powiązania** (zamówienia i zapytania ofertowe szansy), *Notatki*, *Wiadomości*, *Załączniki* i **Historia zmian**. Zobacz *Ekran szansy sprzedażowej*. |
+| Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Nagłówek, pasek etapów z obecnym statusem i dozwolonymi z niego zmianami — wstecz i dalej — panel informacji po prawej oraz karty: *Przegląd*, **Powiązania** (zamówienia i zapytania ofertowe szansy), *Notatki*, *Wiadomości*, *Załączniki* i **Historia zmian**. Zobacz *Ekran szansy sprzedażowej*. |
 | Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
 | Analityka | **CRM → Analityka** (`/crm/analytics`) | `crm:analytics` | Pięć wskaźników dla wybranego zakresu dni: czas obsługi, czas w każdym statusie, najskuteczniejsi handlowcy, najcenniejsze szanse i średnia wartość. |
 | Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
@@ -68,8 +68,9 @@ Pierwsze przejście przez moduł, od początku do końca:
 3. Na karcie **Powiązania**, w sekcji *Powiązane zamówienia*, wyszukaj
    zamówienie tej organizacji po numerze i je powiąż. Będzie podążać za
    statusem szansy, chyba że to dla niego odznaczysz.
-4. Na pasku etapów u góry kliknij status, na który chcesz zmienić. Przyciskami
-   są tylko zmiany dozwolone przez przepływ.
+4. Na pasku etapów u góry kliknij status, na który chcesz zmienić. Widać tylko
+   zmiany dozwolone przez przepływ z obecnego statusu, w grupach *Wstecz*
+   i *Dalej*.
 5. W sekcji *Zmiany statusów zamówień*, pod paskiem, przeczytaj, co stało się
    z każdym powiązanym zamówieniem. Zamówienie, którego nie udało się przenieść, jest
    tam wymienione z przyczyną i dwoma przyciskami: **Ponów** i **Pomiń**;
@@ -81,41 +82,45 @@ elementów, które cokolwiek zmieniają.
 
 ## Ekran szansy sprzedażowej
 
-Jedna szansa jest ułożona od góry do dołu w kolejności, w jakiej zadaje się o
-nią pytania.
+Pod nagłówkiem ekran jednej szansy ma dwie kolumny: po lewej to, nad czym
+pracujesz — jej status, a pod nim karty — a po prawej, obok tego wszystkiego,
+panel z informacjami o niej.
 
 **Nagłówek** zawiera tytuł ze statusem obok, a pod nim jeden dyskretny wiersz:
 numer, organizację, osobę prowadzącą szansę — albo *Nieprzypisana* — oraz kanał
 sprzedaży, jeśli jest ustawiony. Po prawej są przyciski **Edytuj**
 (`crm:write`) i **Usuń** (`crm:configure`).
 
-**Pasek etapów** pokazuje wszystkie statusy Twojego przepływu, w kolejności
-ustawionej na ekranie **CRM → Statusy i przepływ**: najpierw statusy otwarte,
-potem te, które zamykają szansę — każdy z nich oznaczony jako *wygrana* albo
-*przegrana*. Status, w którym szansa się znajduje, jest wyróżniony, a nad
-paskiem widać napis *Etap 2 z 5* — liczony tylko po statusach otwartych;
-zamknięta szansa nie ma numeru etapu, zamiast niego widać, jak i kiedy została
-zamknięta.
+**Pasek etapów**, na górze lewej kolumny, podaje **obecny status** i pokazuje,
+dokąd szansa może z niego przejść — i nic więcej. Przepływ nie jest prostą
+linią, więc pasek jej nie rysuje: statusu, na który Twój przepływ nie pozwala
+z obecnego miejsca, nie ma na ekranie.
 
-- **Status, na który możesz zmienić, jest przyciskiem**; każdy inny to zwykły
-  tekst. O tym, które statusy są przyciskami, decydują przejścia Twojego
-  przepływu z obecnego statusu — więc zmiana wstecz jest dostępna wszędzie
-  tam, gdzie ją narysowano — a naciśnięcie przycisku to ta sama zmiana statusu,
-  z tymi samymi regułami, co w pozostałych miejscach modułu. Opcjonalny
-  **powód** wpisuje się w polu pod paskiem.
-- **Pasek nie udaje historii.** Przepływ nie jest prostą linią, dlatego żaden
-  status nie jest pokazany jako „zaliczony”: pasek mówi, gdzie szansa jest i
-  dokąd może przejść, a karta *Historia zmian* — gdzie była.
-- Osoba mająca tylko `crm:read` widzi ten sam pasek bez przycisków.
-- Przy wielu statusach pasek zawija się do kolejnych wierszy, zamiast przewijać
-  się w bok, więc dozwolona zmiana nigdy nie znika poza ekranem telefonu.
+- **Wstecz** to zmiany na status wcześniejszy w kolejności ustawionej na
+  ekranie **CRM → Statusy i przepływ** oraz zmiany, które ponownie otwierają
+  zamkniętą szansę.
+- **Dalej** to zmiany na status późniejszy oraz każda zmiana zamykająca szansę,
+  oznaczona jako *wygrana* albo *przegrana* — niezależnie od tego, które
+  miejsce status zamykający zajmuje na Twojej liście.
+- Strona, po której nie ma żadnej zmiany, nie jest pokazywana. Gdy przepływ nie
+  pozwala na żadną zmianę, pasek o tym informuje; przy zamkniętej szansie widać
+  też, jak i kiedy została zamknięta.
+- Dla posiadacza uprawnienia `crm:write` **każda zmiana jest przyciskiem**,
+  a jego naciśnięcie to ta sama zmiana statusu, z tymi samymi regułami, co
+  w pozostałych miejscach modułu. Opcjonalny **powód** wpisuje się w polu pod
+  paskiem. Osoba mająca tylko `crm:read` widzi te same zmiany jako zwykły tekst.
+- **Pasek nie udaje historii i nie liczy etapów.** Mówi, gdzie szansa jest
+  i dokąd może przejść; gdzie była, mówi karta *Historia zmian*.
+- Jeśli nie uda się wczytać kolejności statusów, wszystkie zmiany nadal są
+  dostępne: zamykające szansę w grupie *Dalej*, pozostałe w grupie *Możliwe
+  zmiany*, z informacją, że nie udało się ich uporządkować.
 
 To, co stało się z powiązanymi zamówieniami po zmianie statusu — oraz każda
 zmiana, której zamówienie odmówiło, dopóki nie zostanie ponowiona albo
 pominięta — jest wypisane bezpośrednio pod paskiem, niezależnie od otwartej
 karty.
 
-**Karty**, w głównej kolumnie:
+**Karty**, pod nim w lewej kolumnie:
 
 | Karta | Co na niej jest |
 | --- | --- |
@@ -132,8 +137,10 @@ karty albo z nazwą karty, która nie istnieje, otwiera *Przegląd*. Powrót z
 ekranu **Utwórz zamówienie** albo **Utwórz zapytanie ofertowe** otwiera kartę
 **Powiązania**, na której pojawia się nowy dokument.
 
-**Informacje**, w kolumnie po prawej stronie każdej karty (na wąskim ekranie —
-pod kartami), każda jako mała etykieta nad wartością:
+**Informacje**, w jednym panelu po prawej — od nagłówka w dół, obok paska
+etapów i dowolnej otwartej karty — każda jako mała etykieta nad wartością. Na
+wąskim ekranie panel jest po pasku etapów, a przed kartami, więc wartość
+i termin nigdy nie trafiają pod długą kartę:
 
 | Grupa | Informacje | Co można tu zmienić |
 | --- | --- | --- |
@@ -143,7 +150,7 @@ pod kartami), każda jako mała etykieta nad wartością:
 | **Rekord** | Numer, data utworzenia i ostatniej zmiany oraz — po zamknięciu — data zamknięcia. | — |
 
 Informacja bez wartości jest pokazana jako pusta, a nie pominięta. Wszystko,
-czego nie zmienia się w samej kolumnie — tytuł, opis, osobę kontaktową, kanał
+czego nie zmienia się w samym panelu — tytuł, opis, osobę kontaktową, kanał
 sprzedaży, planowaną datę zamknięcia i kwotę — zmienia się przyciskiem
 **Edytuj**.
 
@@ -541,7 +548,7 @@ W Admin UI:
 - **W formularzu nowej szansy** pole *Handlowiec* jest opcjonalne. Jeśli
   zostanie puste, wybiera opisana wyżej reguła; jeśli wskażesz osobę, szansa
   jest jej.
-- **Na ekranie szansy** pole *Handlowiec* — w kolumnie informacji po prawej —
+- **Na ekranie szansy** pole *Handlowiec* — w panelu informacji po prawej —
   pokazuje, kto ją prowadzi.
   Posiadacz uprawnienia `crm:write` zmienia to w tym samym miejscu: wybranie
   osoby od razu przypisuje jej szansę, a wyczyszczenie pola zostawia szansę
@@ -608,7 +615,7 @@ W Admin UI:
   szans ma każdą z nich. Przycisk **Dodaj etykietę** otwiera krótki formularz
   z nazwą i kolorem; ołówek zmienia nazwę lub kolor; kosz usuwa etykietę — po
   potwierdzeniu, które podaje, ile szans ją straci.
-- **Na ekranie szansy** pole *Etykiety* — w kolumnie informacji po prawej —
+- **Na ekranie szansy** pole *Etykiety* — w panelu informacji po prawej —
   pokazuje jej etykiety. Posiadacz
   uprawnienia `crm:write` zaznacza je i odznacza na liście poniżej; każda
   zmiana jest zapisywana od razu.
@@ -950,7 +957,7 @@ Na ekranie szansy sprzedażowej:
   znajdziesz, wpisując jego pełny numer. Powiązanie wymaga także
   `rfqs:handle`; bez niego sekcja informuje o tym, zamiast pokazywać
   wyszukiwarkę.
-- **Wartość**, w kolumnie informacji po prawej — kwota oraz informacja, czy
+- **Wartość**, w panelu informacji po prawej — kwota oraz informacja, czy
   jest *wpisana ręcznie*, czy jest to *wartość wyliczana*; jeden przycisk przełącza między nimi. Przy wartości
   wyliczanej widać każdy dokument **pominięty** w sumie, wraz z powodem, oraz
   przypomnienie, że Twój własny szacunek jest zachowany.
