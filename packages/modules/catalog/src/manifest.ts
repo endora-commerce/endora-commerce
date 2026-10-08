@@ -70,14 +70,14 @@ export const manifest = defineModuleManifest({
     {
       name: 'CATALOG_SEARCH_BACKEND',
       describes: {
-        en: 'Which engine answers product search; `meilisearch` routes queries to the search module instead of the database.',
-        pl: 'Który silnik obsługuje wyszukiwanie produktów; wartość `meilisearch` kieruje zapytania do modułu wyszukiwania zamiast do bazy danych.',
+        en: 'Which engine answers the product listing; `meilisearch` sends every listing to the search module, `postgres` sends every listing to the database.',
+        pl: 'Który silnik obsługuje listę produktów; wartość `meilisearch` kieruje każdą listę do modułu wyszukiwania, a `postgres` — każdą do bazy danych.',
       },
       requirement: {
         kind: 'optional',
         without: {
-          en: 'Product search is answered from the database, which matches text but cannot rank results by relevance.',
-          pl: 'Wyszukiwanie produktów odpowiada z bazy danych, która dopasuje tekst, ale nie uszereguje wyników według trafności.',
+          en: 'A search phrase is answered by the search module while it is switched on, which forgives misspellings; a listing without a phrase is answered from the database.',
+          pl: 'Szukaną frazę obsługuje moduł wyszukiwania, o ile jest włączony, dzięki czemu literówki są wybaczane; lista bez frazy odpowiada z bazy danych.',
         },
       },
       secret: false,

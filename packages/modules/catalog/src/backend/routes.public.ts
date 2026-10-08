@@ -25,17 +25,47 @@ import { markPersonalisedPricing, productAudienceOf } from '@endora-commerce/pla
  * Storefront SSR + crawlers + anonymous API consumers. No auth.
  *
  * Read-backend selection (T067/T068):
- *   - When `CATALOG_SEARCH_BACKEND=meilisearch` AND a read backend was wired
- *     AND `search` is effectively present, list-products is served from
- *     Meilisearch.
+ *   - A listing that carries a text query (`q`) is served from Meilisearch
+ *     whenever a read backend was wired AND `search` is effectively present.
+ *     Nobody opts in to that: a substring match in Postgres tolerates no
+ *     misspelling, so a buyer's typo is only forgiven by the engine.
+ *   - `CATALOG_SEARCH_BACKEND=meilisearch` widens that to every listing,
+ *     browsing included; `CATALOG_SEARCH_BACKEND=postgres` narrows it to none.
+ *     See {@link indexAnswersListing}.
  *   - When the index is unreachable, `searchQueryPort` answers
  *     `{ status: 'index-unavailable' }` and the route degrades to the Postgres
  *     path (R-08 reserved-fallback, so search is never fully broken).
  *   - The `changedSince` query param stays on Postgres because it has no
- *     equivalent in the Meilisearch index today.
- *   - Default backend remains Postgres so existing tests + deployments
- *     keep their behaviour without an opt-in.
+ *     equivalent in the Meilisearch index today, and so does any price
+ *     ordering or price range (feature 086).
  */
+
+/**
+ * Whether the search index, rather than Postgres, is asked for this listing —
+ * the half of the decision `CATALOG_SEARCH_BACKEND` and the request settle
+ * between them. Whether `search` is present, and whether the request needs
+ * something the index cannot express, are decided beside the call.
+ *
+ * The variable used to be the whole answer, and unset meant Postgres for
+ * everything. That left the storefront's search box split in two on every
+ * instance that never set it — which was every instance, since nothing this
+ * repository ships sets it: the typeahead popup reads the index
+ * unconditionally and forgave `helmest`, and the results page it leads to ran
+ * `sku ILIKE '%helmest%'` and reported nothing found.
+ *
+ * So the default follows what was asked. A text query is a search and goes to
+ * the search module; a listing without one is browsing and stays where it
+ * was, because moving it would change the backend of every category page on
+ * every instance for no behaviour a buyer can see.
+ */
+function indexAnswersListing(
+  configured: string | undefined,
+  q: string | undefined,
+): boolean {
+  if (configured === 'meilisearch') return true;
+  if (configured === 'postgres') return false;
+  return q !== undefined && q.trim().length > 0;
+}
 
 const acceptLanguageHeaderSchema = z.string().optional();
 
@@ -238,7 +268,7 @@ export async function registerCatalogPublicRoutes(
     // the legacy `defaultPrice` attribute, is read by nothing on the query
     // path, and is not any price list's figure.
     const useMeili =
-      process.env['CATALOG_SEARCH_BACKEND'] === 'meilisearch' &&
+      indexAnswersListing(process.env['CATALOG_SEARCH_BACKEND'], q) &&
       searchQueryService !== undefined &&
       effectiveState.isPresent('search') &&
       changedSince === undefined &&

@@ -194,9 +194,9 @@ export type SearchReindexResponse = z.infer<typeof SearchReindexResponseSchema>;
 // --- ports -----------------------------------------------------------------
 //
 // The in-process surface `search` publishes to the one module that reads it
-// (feature 075, Phase P): `catalog`'s public product listing hands the query
-// over when `CATALOG_SEARCH_BACKEND=meilisearch`, and serves it from Postgres
-// otherwise.
+// (feature 075, Phase P): `catalog`'s public product listing hands over every
+// query that carries a search phrase — and every listing at all when
+// `CATALOG_SEARCH_BACKEND=meilisearch` — and serves the rest from Postgres.
 // ---------------------------------------------------------------------------
 
 /** The channel a search runs in, resolved before the query is built. */

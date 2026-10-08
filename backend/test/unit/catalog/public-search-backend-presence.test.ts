@@ -67,6 +67,43 @@ const EMPTY_PAGE = {
 
 const EMPTY_OUTCOME: SearchListOutcome = { status: 'ok', result: EMPTY_PAGE };
 
+/**
+ * The listing under test, mounted on a bare Fastify with both read backends
+ * replaced by recording stubs. Shared by the two suites below, which differ
+ * only in what `CATALOG_SEARCH_BACKEND` says.
+ */
+async function mountListing(backends: {
+  postgres: ReturnType<typeof vi.fn>;
+  meilisearch: ReturnType<typeof vi.fn>;
+}): Promise<FastifyInstance> {
+  const container = createRootContainer();
+  const app = Fastify();
+  // The stand-in for the sales-channel resolver middleware: the channel lives
+  // on the request scope now, so the hook opens one exactly as the production
+  // tenant hook does.
+  app.addHook('onRequest', (_request, reply, done) => {
+    void enterPlatformScope(
+      systemTenantContext('catalog public listing presence test'),
+      () =>
+        new Promise<void>((resolve) => {
+          reply.raw.once('close', resolve);
+          done();
+        }),
+      { channel: FAKE_CHANNEL, container },
+    );
+  });
+  await registerCatalogPublicRoutes(app, {
+    queryService: {
+      listProducts: backends.postgres,
+    } as unknown as CatalogQueryService,
+    searchQueryService: {
+      listProducts: backends.meilisearch,
+    } as unknown as SearchQueryPort,
+  });
+  await app.ready();
+  return app;
+}
+
 describe('catalog public listing — the Meilisearch read decides `search` presence', () => {
   let app: FastifyInstance;
   let postgresListProducts: ReturnType<typeof vi.fn>;
@@ -80,32 +117,10 @@ describe('catalog public listing — the Meilisearch read decides `search` prese
 
     postgresListProducts = vi.fn(async () => structuredClone(EMPTY_PAGE));
     meilisearchListProducts = vi.fn(async () => structuredClone(EMPTY_OUTCOME));
-
-    const container = createRootContainer();
-    app = Fastify();
-    // The stand-in for the sales-channel resolver middleware: the channel lives
-    // on the request scope now, so the hook opens one exactly as the production
-    // tenant hook does.
-    app.addHook('onRequest', (_request, reply, done) => {
-      void enterPlatformScope(
-        systemTenantContext('catalog public listing presence test'),
-        () =>
-          new Promise<void>((resolve) => {
-            reply.raw.once('close', resolve);
-            done();
-          }),
-        { channel: FAKE_CHANNEL, container },
-      );
+    app = await mountListing({
+      postgres: postgresListProducts,
+      meilisearch: meilisearchListProducts,
     });
-    await registerCatalogPublicRoutes(app, {
-      queryService: {
-        listProducts: postgresListProducts,
-      } as unknown as CatalogQueryService,
-      searchQueryService: {
-        listProducts: meilisearchListProducts,
-      } as unknown as SearchQueryPort,
-    });
-    await app.ready();
   });
 
   afterEach(async () => {
@@ -281,5 +296,153 @@ describe('catalog public listing — the Meilisearch read decides `search` prese
     expect(res.headers['x-search-backend']).toBe('meilisearch');
     expect(meilisearchListProducts).toHaveBeenCalledTimes(1);
     expect(postgresListProducts, 'the fallback ran a second time').toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * A buyer's text query is answered by the search module without anybody having
+ * to opt in.
+ *
+ * The owner's report was "the search does not take typos into account", and
+ * the cause was not in the index: Meilisearch tolerated the misspelling, and
+ * the typeahead popup — which always reads the index — said so on the same
+ * instance. The results page did not, because this route sent every query to
+ * Postgres unless `CATALOG_SEARCH_BACKEND=meilisearch` was set, and no
+ * deployment artefact this repository ships sets it. A substring match cannot
+ * find `Helmets` under `helmest`, so one search box offered a product in its
+ * popup and reported no results for it on Enter.
+ *
+ * What is asserted is the routing decision, with the variable **unset** — the
+ * state every default instance is in. That the engine then tolerates the typo
+ * is Meilisearch's own behaviour and is exercised against a real instance in
+ * `test/integration/search/typo-tolerant-search.test.ts`.
+ */
+describe('catalog public listing — a text query reads the search module by default', () => {
+  let app: FastifyInstance;
+  let postgresListProducts: ReturnType<typeof vi.fn>;
+  let meilisearchListProducts: ReturnType<typeof vi.fn>;
+  let originalBackend: string | undefined;
+
+  beforeEach(async () => {
+    originalBackend = process.env['CATALOG_SEARCH_BACKEND'];
+    delete process.env['CATALOG_SEARCH_BACKEND'];
+    registryCache.__setEnabledForTesting(ALL_IDS);
+
+    postgresListProducts = vi.fn(async () => structuredClone(EMPTY_PAGE));
+    meilisearchListProducts = vi.fn(async () => structuredClone(EMPTY_OUTCOME));
+    app = await mountListing({
+      postgres: postgresListProducts,
+      meilisearch: meilisearchListProducts,
+    });
+  });
+
+  afterEach(async () => {
+    await app.close();
+    if (originalBackend === undefined) delete process.env['CATALOG_SEARCH_BACKEND'];
+    else process.env['CATALOG_SEARCH_BACKEND'] = originalBackend;
+    registryCache.__setEnabledForTesting(ALL_IDS);
+  });
+
+  afterAll(() => {
+    registryCache.__setEnabledForTesting(ALL_IDS);
+  });
+
+  it('hands a text query to the search module, misspelling and all', async () => {
+    expect(effectiveState.isPresent('search'), 'the fixture never switched it on').toBe(true);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/products?limit=50&q=helmest',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(
+      res.headers['x-search-backend'],
+      'a text query was answered by the substring match, which tolerates no typo',
+    ).toBe('meilisearch');
+    expect(meilisearchListProducts).toHaveBeenCalledTimes(1);
+    expect(meilisearchListProducts.mock.calls[0]?.[0]).toMatchObject({ q: 'helmest', limit: 50 });
+    expect(postgresListProducts).not.toHaveBeenCalled();
+  });
+
+  it('keeps a listing with no text query on Postgres', async () => {
+    // Browsing is not searching: a category page has nothing for the engine to
+    // rank, and moving it would change which backend serves every listing on
+    // every instance. That stays the explicit `meilisearch` opt-in.
+    for (const query of ['', '&categorySlug=helmets', '&sort=name', '&q=', '&q=%20%20']) {
+      meilisearchListProducts.mockClear();
+      postgresListProducts.mockClear();
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/catalog/products?limit=50${query}`,
+      });
+      expect(res.statusCode, query).toBe(200);
+      expect(res.headers['x-search-backend'], query).toBe('postgres');
+      expect(meilisearchListProducts, query).not.toHaveBeenCalled();
+      expect(postgresListProducts, query).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('answers a text query from Postgres while `search` is off, and never queries the index', async () => {
+    registryCache.__setEnabledForTesting(ALL_IDS, { deactivated: ['search'] });
+    expect(effectiveState.isPresent('search'), 'the fixture did not switch it off').toBe(false);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/products?limit=50&q=helmets',
+    });
+
+    expect(res.statusCode, 'the public listing must degrade, not refuse').toBe(200);
+    expect(res.headers['x-search-backend']).toBe('postgres');
+    expect(meilisearchListProducts).not.toHaveBeenCalled();
+    expect(postgresListProducts).toHaveBeenCalledTimes(1);
+    expect(postgresListProducts.mock.calls[0]?.[0]).toMatchObject({ q: 'helmets' });
+  });
+
+  it('falls back to Postgres for a text query when the index is unreachable', async () => {
+    meilisearchListProducts.mockResolvedValueOnce({
+      status: 'index-unavailable',
+      reason: 'connect ECONNREFUSED 127.0.0.1:7700',
+    } satisfies SearchListOutcome);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/products?limit=50&q=helmets',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['x-search-backend']).toBe('postgres');
+    expect(meilisearchListProducts).toHaveBeenCalledTimes(1);
+    expect(postgresListProducts).toHaveBeenCalledTimes(1);
+  });
+
+  it('still answers a priced text query from Postgres', async () => {
+    // Feature 086 is unchanged by this: the index carries no price, so a text
+    // query that also orders or filters by price cannot be served from it.
+    for (const query of ['sort=price', 'sort=-price', 'minPrice=10', 'maxPrice=10']) {
+      meilisearchListProducts.mockClear();
+      postgresListProducts.mockClear();
+      const res = await app.inject({
+        method: 'GET',
+        url: `/api/v1/catalog/products?limit=50&q=helmets&${query}`,
+      });
+      expect(res.statusCode, query).toBe(200);
+      expect(res.headers['x-search-backend'], query).toBe('postgres');
+      expect(meilisearchListProducts, query).not.toHaveBeenCalled();
+    }
+  });
+
+  it('lets a deployment pin the database with `CATALOG_SEARCH_BACKEND=postgres`', async () => {
+    process.env['CATALOG_SEARCH_BACKEND'] = 'postgres';
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/catalog/products?limit=50&q=helmets',
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['x-search-backend']).toBe('postgres');
+    expect(meilisearchListProducts).not.toHaveBeenCalled();
+    expect(postgresListProducts).toHaveBeenCalledTimes(1);
   });
 });

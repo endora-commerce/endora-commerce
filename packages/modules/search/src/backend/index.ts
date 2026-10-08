@@ -143,9 +143,9 @@ export function registerModule(ctx: ModuleContext): void {
   /**
    * Feature 075, Phase P — the storefront product query.
    *
-   * `catalog`'s public listing hands the query over when
-   * `CATALOG_SEARCH_BACKEND=meilisearch` and serves it from Postgres
-   * otherwise — and today it does so by constructing its **own**
+   * `catalog`'s public listing hands over every query that carries a search
+   * phrase, and every listing when `CATALOG_SEARCH_BACKEND=meilisearch`, and
+   * serves the rest from Postgres — and today it does so by constructing its **own**
    * `SearchQueryService` in its plugin body, so a composition holds two
    * clients and two attribute-read wirings. This port is the instance
    * `searchModule` already built.
