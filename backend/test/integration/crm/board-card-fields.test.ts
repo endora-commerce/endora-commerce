@@ -330,6 +330,26 @@ describe('crm board card fields — filters, values and cost (User Story 19)', (
       await expectMatches({ 'builtin:updatedAt': { from: '9999-12-31' } }, []);
     });
 
+    it('a card carries the custom values that were chosen and no other the Opportunity holds (FR-091)', async () => {
+      // `alpha` holds six custom values; the card shows one of them.
+      await setCard([ref('source'), 'builtin:value']);
+      try {
+        const viaBoard = (await board(null)).columns.flatMap((column) => column.items);
+        expect(viaBoard.find((card) => card.id === alpha.id)?.cardValues).toEqual({ [ref('source')]: 'referral' });
+        const viaList = await h.app.inject({
+          method: 'GET',
+          url: `${CRM_API}/opportunities?q=${MARK}&cardValues=true`,
+          cookies: rep.cookies,
+        });
+        expect(viaList.statusCode, viaList.body).toBe(200);
+        const listed = OpportunityListResponseSchema.parse(viaList.json()).data;
+        expect(listed.find((card) => card.id === alpha.id)?.cardValues).toEqual({ [ref('source')]: 'referral' });
+        expect(viaList.body).not.toContain('Acme Tyres');
+      } finally {
+        await setCard(['builtin:updatedAt', 'builtin:closedAt', 'builtin:salesChannel']);
+      }
+    });
+
     it('the Sales Channel on a card is its name, a text — not the name in every language', async () => {
       const connection = h.em().getConnection();
       const [channel] = (await connection.execute(

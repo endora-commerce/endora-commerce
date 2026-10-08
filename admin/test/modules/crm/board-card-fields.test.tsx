@@ -543,6 +543,12 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
     expect(screen.queryByRole('link', { name: en('board.configureCard') })).not.toBeInTheDocument();
   });
 
+  it('offers no configuration link to somebody who may edit opportunities and not configure CRM', async () => {
+    await renderBoard('/crm/board', ['crm:read', 'crm:write', 'orders:read']);
+    expect(screen.getByRole('link', { name: en('opportunity.list.new') })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: en('board.configureCard') })).not.toBeInTheDocument();
+  });
+
   it('offers the contact-person filter only within an Organization', async () => {
     cardFields = [FIELD.contact];
     await renderBoard();
