@@ -25,6 +25,12 @@ export interface QuoteRequestSourceClaim {
   orderOrganizationId: string;
   /** The request the basket names, read just now — `null` when it does not exist. */
   quoteRequest: { organizationId: string; status: QuoteRequestStatus } | null;
+  /**
+   * Whether an Order already names this request — asked of `orders`' own
+   * table, by the caller, under a lock that makes two placements of one
+   * request take turns.
+   */
+  alreadyOrdered: boolean;
   quoteRequestLines: ReadonlyArray<{
     productId: string;
     variantId: string | null;
@@ -37,6 +43,7 @@ export type QuoteRequestSourceRefusal =
   | 'not-found'
   | 'other-organization'
   | 'not-convertible'
+  | 'already-ordered'
   | 'no-agreed-line';
 
 export function judgeQuoteRequestSource(
@@ -54,6 +61,17 @@ export function judgeQuoteRequestSource(
   // checkout: the seller's commitment is no longer there to consume.
   if (quoteRequest.status !== CONVERTIBLE_STATUS) {
     return { accepted: false, reason: 'not-convertible' };
+  }
+  // One request, one Order. The status above is `quote_requests`' word and it
+  // moves a moment *after* the Order that consumes the request commits — its
+  // completion reacts to an event — so for that moment, and for good if the
+  // reaction never arrives, a second basket of the same request would still
+  // read `Approved`. What `orders` knows by itself is whether it has already
+  // written the request onto an Order, and that closes the gap: two colleagues
+  // who each converted the same request get one Order that is the request's
+  // and one that is an ordinary Order.
+  if (claim.alreadyOrdered) {
+    return { accepted: false, reason: 'already-ordered' };
   }
   // The Order is the request's Order while it still holds something the
   // request agreed: the same product and variant at the agreed unit price. A

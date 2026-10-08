@@ -1227,8 +1227,21 @@ export class OrderService {
    * No `catch` around the port. Presence is asked first, which is the degrade
    * the manifest declares; a read that fails for any other reason is a failed
    * placement, not an order silently detached from its quote.
+   *
+   * **One request, one Order — held here and not by the request's status.**
+   * `quote_requests` completes a request in reaction to `order.created.v1`,
+   * after this transaction has committed, so its status says `Approved` for a
+   * moment longer than it is true (and for good, if the process stops in that
+   * moment). Two baskets can carry one request — the buyer who raised it and
+   * the Organization's administrator may both convert it — so placement asks
+   * its own table whether an Order already names the request, behind a
+   * transaction-scoped advisory lock on the request's id. The lock is what
+   * makes two concurrent placements take turns: without it both count zero
+   * under `read committed` and both stamp. It is taken only for a basket that
+   * carries a claim, late in the transaction, and released by the commit.
    */
   async #vouchedQuoteRequestSource(
+    tx: EntityManager,
     organizationId: string,
     claimedQuoteRequestId: string | null,
     basketLines: ReadonlyArray<{ productId: string; variantId: string | null; unitPrice: string }>,
@@ -1236,10 +1249,15 @@ export class OrderService {
     if (!claimedQuoteRequestId) return null;
     const quoteRequests = this.neighbours.quoteRequestRead();
     if (!quoteRequests) return null;
+    await tx.execute('select pg_advisory_xact_lock(hashtextextended(?, 0))', [
+      `orders.source_quote_request_id:${claimedQuoteRequestId}`,
+    ]);
+    const alreadyOrdered = (await tx.count(Order, { sourceQuoteRequestId: claimedQuoteRequestId })) > 0;
     const quoteRequest = await quoteRequests.findById(claimedQuoteRequestId);
     const judged = judgeQuoteRequestSource({
       orderOrganizationId: organizationId,
       quoteRequest,
+      alreadyOrdered,
       quoteRequestLines: quoteRequest ? await quoteRequests.listItems(quoteRequest.id) : [],
       basketLines,
     });
@@ -1625,6 +1643,7 @@ export class OrderService {
         : undefined;
 
       const sourceQuoteRequestId = await this.#vouchedQuoteRequestSource(
+        tx,
         ctx.organizationId,
         cart.sourceQuoteRequestId,
         items,

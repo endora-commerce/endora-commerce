@@ -11,10 +11,14 @@ basket a quote conversion seeded — and only after the quote request has been r
 
 - it belongs to the **same organization** as the order;
 - it is still `Approved`;
+- **no other order records it already** — two people of one organization can each turn the same
+  quote request into a basket, and the request's status only moves after the first order has
+  committed, so placement asks its own table (behind a transaction-scoped advisory lock on the
+  quote request's id, which makes two such placements take turns);
 - the basket still holds at least one of its lines, the same product and variant at the agreed
   unit price.
 
-When any of the three fails, the order is placed as usual and records nothing; the reason is
+When any of the four fails, the order is placed as usual and records nothing; the reason is
 logged at `warn`. No request body carries the field — the storefront, `POST
 /api/v1/admin/orders` and the external order API cannot name a quote request. No route and no
 response shape changes; **a consumer that assumed the field is always `null` now sees a UUID**

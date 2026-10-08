@@ -199,12 +199,15 @@ zapytanie, gdy zobaczy takie zamówienie, a inne moduły odczytują to pole, aby
 zamówieniem stało się zapytanie.
 
 Koszyk niesie jedynie deklarację, a przy składaniu zamówienia jest ona sprawdzana z zapytaniem
-ofertowym w jego bieżącym stanie. Zamówienie zapisuje zapytanie, gdy spełnione są wszystkie trzy
+ofertowym w jego bieżącym stanie. Zamówienie zapisuje zapytanie, gdy spełnione są wszystkie cztery
 warunki:
 
 - zapytanie należy do **tej samej organizacji** co zamówienie;
 - zapytanie jest nadal w statusie `Approved` — nie zostało anulowane, nie wygasło i nie jest już
   zakończone;
+- **żadne inne zamówienie nie zapisało już tego zapytania** — gdy dwie osoby z jednej organizacji
+  zamieniły to samo zapytanie w koszyk, zapytanie przypada pierwszemu złożonemu zamówieniu,
+  a drugie jest zwykłym zamówieniem;
 - w koszyku wciąż jest co najmniej jedna jego pozycja — ten sam produkt i wariant w uzgodnionej
   cenie jednostkowej.
 

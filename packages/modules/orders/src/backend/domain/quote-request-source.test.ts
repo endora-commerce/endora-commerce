@@ -10,6 +10,7 @@ const VARIANT = '00000000-0000-4000-8000-000000000201';
 const claim = (overrides: Partial<QuoteRequestSourceClaim> = {}): QuoteRequestSourceClaim => ({
   orderOrganizationId: ORG,
   quoteRequest: { organizationId: ORG, status: 'Approved' },
+  alreadyOrdered: false,
   quoteRequestLines: [{ productId: PRODUCT, variantId: null, agreedUnitPrice: '11.2500' }],
   basketLines: [{ productId: PRODUCT, variantId: null, unitPrice: '11.25' }],
   ...overrides,
@@ -51,6 +52,13 @@ describe('judgeQuoteRequestSource', () => {
       });
     },
   );
+
+  it('refuses a request an Order already names, though it still reads Approved', () => {
+    expect(judgeQuoteRequestSource(claim({ alreadyOrdered: true }))).toEqual({
+      accepted: false,
+      reason: 'already-ordered',
+    });
+  });
 
   it('refuses when the product is there at another price — re-added from the price list', () => {
     expect(

@@ -210,10 +210,13 @@ and other modules read the field to tell which order a quote request became.
 
 The basket only carries a claim, and placement checks it against the quote
 request as it is at that moment. The order records the quote request when all
-three hold:
+four hold:
 
 - the quote request belongs to the **same organization** as the order;
 - it is still `Approved` — not canceled, expired or already completed;
+- **no other order records it already** — when two people of one organization
+  each turned the same quote request into a basket, the first order placed is
+  the quote request's and the second is an ordinary order;
 - the basket still holds at least one of its lines — the same product and
   variant at the agreed unit price.
 
