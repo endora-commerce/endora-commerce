@@ -1029,6 +1029,19 @@ export function registerModule(ctx: ModuleContext): void {
     void cradle().catalogCategoryRevalidator.revalidate(['catalog:categories']);
   });
 
+  /**
+   * The same flush for a saved category page content.
+   *
+   * The storefront reads that document under the `catalog:categories` tag the
+   * tree is under, so one tag keeps an operator's save visible immediately.
+   * It is a second subscription rather than a second emitter of the event
+   * above because `search` re-indexes a whole subtree of products on that one,
+   * and a paragraph on a category page is on no product document.
+   */
+  ctx.subscribe('category.content.updated.v1', () => {
+    void cradle().catalogCategoryRevalidator.revalidate(['catalog:categories']);
+  });
+
   ctx.routes(async (app) => {
     await cradle().catalog(app);
   });

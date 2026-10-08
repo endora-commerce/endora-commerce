@@ -1160,6 +1160,99 @@ export const updateCategoryRequestSchema = z
   .strict();
 export type UpdateCategoryRequest = z.infer<typeof updateCategoryRequestSchema>;
 
+// --- Category page content ---------------------------------------------------
+
+/**
+ * The ceiling on one category's stored content envelope, in UTF-8 bytes of its
+ * JSON serialisation — every language together.
+ *
+ * One mebibyte, because that is what a CMS page is held to today: the CMS
+ * declares no limit of its own and is bounded by the HTTP layer's default body
+ * limit, which is this number. Stated here so the bound also holds for a
+ * caller that does not arrive over HTTP.
+ */
+export const CATEGORY_CONTENT_MAX_BYTES = 1_048_576;
+
+/**
+ * The UTF-8 length of a string, counted rather than encoded: this package
+ * compiles for the admin, the storefront and the backend alike and declares
+ * neither `TextEncoder` nor `Buffer`. A lone surrogate counts three bytes,
+ * which is what an encoder writes for it.
+ */
+function utf8ByteLength(text: string): number {
+  let bytes = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    const unit = text.charCodeAt(index);
+    if (unit < 0x80) bytes += 1;
+    else if (unit < 0x800) bytes += 2;
+    else if (unit >= 0xd800 && unit <= 0xdbff && index + 1 < text.length) {
+      const next = text.charCodeAt(index + 1);
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        bytes += 4;
+        index += 1;
+      } else bytes += 3;
+    } else bytes += 3;
+  }
+  return bytes;
+}
+
+/** One language's Page Builder document. Opaque beyond being a JSON object. */
+const pageBuilderTreeSchema = z.record(z.string(), z.unknown());
+
+/**
+ * The content an operator authors for a category's storefront page: one Page
+ * Builder document per language, keyed like the category's `name`.
+ *
+ * The same envelope a CMS page and a blog category description use
+ * (`cmsContentEnvelopeSchema`), minus the deprecated `schema_version` key —
+ * that key exists for rows the CMS wrote before it was dropped, and this
+ * column has none. `null` means no content: the storefront renders nothing.
+ */
+export const categoryContentEnvelopeSchema = z
+  .object({
+    languages: z.record(z.string().min(2).max(35), pageBuilderTreeSchema),
+  })
+  .strict()
+  .refine(
+    (envelope) =>
+      utf8ByteLength(JSON.stringify(envelope)) <= CATEGORY_CONTENT_MAX_BYTES,
+    { message: `Category content must not exceed ${CATEGORY_CONTENT_MAX_BYTES} bytes.` },
+  )
+  .nullable();
+export type CategoryContentEnvelope = z.infer<typeof categoryContentEnvelopeSchema>;
+
+/** `PUT /api/v1/admin/catalog/categories/:id/content` — replaces the envelope. */
+export const putCategoryContentRequestSchema = z
+  .object({ content: categoryContentEnvelopeSchema })
+  .strict();
+export type PutCategoryContentRequest = z.infer<typeof putCategoryContentRequestSchema>;
+
+/** What the admin reads and gets back from a write: the whole envelope. */
+export const adminCategoryContentSchema = z.object({
+  categoryId: uuidSchema,
+  content: categoryContentEnvelopeSchema,
+});
+export type AdminCategoryContent = z.infer<typeof adminCategoryContentSchema>;
+
+/**
+ * `GET /api/v1/catalog/categories/:id/content` — what the storefront's
+ * category page renders.
+ *
+ * Addressed by id and not by slug: a slug is unique among siblings only, and
+ * the storefront already holds the node it resolved out of the tree.
+ *
+ * One document, already resolved to a language the way the category's name
+ * is (the caller's language, then the channel's default, then any). `content`
+ * is `null` when nothing is authored *or* when no language's document holds a
+ * block, so a renderer has one emptiness test and not two.
+ */
+export const categoryPageContentSchema = z.object({
+  categoryId: uuidSchema,
+  language: z.string().nullable(),
+  content: pageBuilderTreeSchema.nullable(),
+});
+export type CategoryPageContent = z.infer<typeof categoryPageContentSchema>;
+
 // --- Storefront list/query ---------------------------------------------------
 
 /**

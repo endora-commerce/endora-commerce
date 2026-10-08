@@ -27,6 +27,7 @@ import {
   type AssetReadPort,
   type AssetRecord,
   type CategoryNode,
+  type CategoryPageContent,
   type CustomFieldDefinitionReadPort,
   type FilterDefinition,
   type ListingPrice,
@@ -44,6 +45,26 @@ import {
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { HttpError } from '@endora-commerce/platform/http';
 import { encodeCursor, decodeCursor } from '@endora-commerce/platform/http';
+
+/** A category id as the database spells one — anything else is a 404, not a query. */
+const CATEGORY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The deepest ancestor chain {@link CatalogQueryService.getCategoryPageContent} walks. */
+const MAX_CATEGORY_DEPTH = 64;
+
+/**
+ * Whether a Page Builder document would render anything: a block at the top
+ * level, or in a legacy `zones` bucket. An editor that was opened and saved
+ * untouched stores a document with neither.
+ */
+export function hasPageBuilderBlocks(tree: Record<string, unknown>): boolean {
+  if (Array.isArray(tree['content']) && tree['content'].length > 0) return true;
+  const zones = tree['zones'];
+  if (zones && typeof zones === 'object') {
+    return Object.values(zones).some((zone) => Array.isArray(zone) && zone.length > 0);
+  }
+  return false;
+}
 
 function encodeObjectCursor(value: object): string {
   return encodeCursor(JSON.stringify(value));
@@ -1489,6 +1510,71 @@ export class CatalogQueryService {
       }));
     };
     return build(null);
+  }
+
+  /**
+   * The Page Builder document the storefront renders on one category's page,
+   * resolved to a language.
+   *
+   * **Visibility is the tree's, and it is checked here rather than trusted to
+   * the caller.** {@link getCategoryTree} lists a category only when it is
+   * live, active, and hangs off a chain of live, active ancestors — an
+   * inactive category hides its whole branch. A category that fails any of
+   * those answers 404, so its content is not reachable by id while its page
+   * is not reachable by link.
+   *
+   * **The language is resolved like the name** ({@link pickLang}): the
+   * caller's, then the channel's default, then English, then whatever exists.
+   * A language whose document holds no block is skipped, because an operator
+   * who opened the Polish tab and saved it empty did not ask for the English
+   * text to disappear from the Polish storefront.
+   */
+  async getCategoryPageContent(
+    categoryId: string,
+    ctx: CatalogQueryContext,
+  ): Promise<CategoryPageContent> {
+    const notFound = (): HttpError =>
+      new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
+    if (!CATEGORY_ID_RE.test(categoryId)) throw notFound();
+    const em = this.emFactory();
+    const category = await em.findOne(
+      Category,
+      { id: categoryId, deletedAt: null, isActive: true },
+      { populate: ['content'] },
+    );
+    if (!category) throw notFound();
+
+    // The ancestor chain, bounded: the write path forbids a cycle, but a
+    // corrupt `parent_category_id` must end in a 404 and not in a hung request.
+    const seen = new Set<string>([category.id]);
+    let parentId = category.parentCategoryId ?? null;
+    while (parentId !== null) {
+      if (seen.has(parentId) || seen.size > MAX_CATEGORY_DEPTH) throw notFound();
+      seen.add(parentId);
+      const parent: Category | null = await em.findOne(Category, {
+        id: parentId,
+        deletedAt: null,
+        isActive: true,
+      });
+      if (!parent) throw notFound();
+      parentId = parent.parentCategoryId ?? null;
+    }
+
+    const languages = category.content?.languages ?? {};
+    const candidates = [
+      ctx.preferredLanguage,
+      ctx.resolvedChannel.defaultLanguage,
+      'en-US',
+      'en',
+      ...Object.keys(languages),
+    ].filter((v): v is string => typeof v === 'string');
+    for (const language of candidates) {
+      const tree = languages[language];
+      if (tree !== undefined && hasPageBuilderBlocks(tree)) {
+        return { categoryId: category.id, language, content: tree };
+      }
+    }
+    return { categoryId: category.id, language: null, content: null };
   }
 
   // ------------------------------------------------------------------

@@ -119,6 +119,17 @@ export const contributions: AdminContributions = {
       requiredPermission: READ_PERMISSION,
     },
     {
+      // The category's storefront page content. A detail screen reached from
+      // the tree's own **Content** row action, so it takes no sidebar row and
+      // no palette action of its own — the tree is the entry both already
+      // point at. Read-gated like the tree: an operator who may see the
+      // catalog may see what a category page says, and the screen withholds
+      // Save from anyone without `catalog:write`, which the route enforces.
+      path: '/catalog/categories/:id/content',
+      component: () => import('./pages/CategoryContentPage.js'),
+      requiredPermission: READ_PERMISSION,
+    },
+    {
       path: '/catalog/attributes',
       component: () => import('./pages/AttributesManager.js'),
       requiredPermission: READ_PERMISSION,

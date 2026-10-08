@@ -20,6 +20,7 @@ Admin routes are gated by `catalog:read` (list / get) /
 | `GET /api/v1/catalog/products` | storefront / API key | List/search/filter products in the active Sales Channel |
 | `GET /api/v1/catalog/products/:idOrSlug` | storefront | Product detail (price omitted on non-public Sales Channels) |
 | `GET /api/v1/catalog/categories` | storefront | Nested category tree |
+| `GET /api/v1/catalog/categories/:id/content` | storefront | One category's page content, resolved to the caller's language |
 | `GET /api/v1/catalog/filters` | storefront | Filterable attributes for the active Sales Channel |
 | `GET /api/v1/catalog/sitemap.xml` | crawlers | SEO sitemap |
 | `GET /api/v1/admin/catalog/products?includeArchived` | admin | Admin product list (includes drafts; archived rows opt-in) |
@@ -42,6 +43,8 @@ Admin routes are gated by `catalog:read` (list / get) /
 | `POST /api/v1/admin/catalog/categories` | admin | Create (parent must exist) |
 | `PATCH /api/v1/admin/catalog/categories/:id` | admin | Update; reparenting walks the new parent's chain to refuse cycles (409) |
 | `DELETE /api/v1/admin/catalog/categories/:id` | admin | Soft-delete; rejects with 409 if any active child still references the row |
+| `GET /api/v1/admin/catalog/categories/:id/content` | admin | The category's page content — one Page Builder document per language ([Category page content](./catalog/category-content.md)) |
+| `PUT /api/v1/admin/catalog/categories/:id/content` | admin | Replace the category's page content; `null` clears it |
 | `PUT /api/v1/catalog/products/by-sku/:sku` | API key | Idempotent upsert (PIM sync) |
 
 ## Entities
@@ -55,6 +58,10 @@ Admin routes are gated by `catalog:read` (list / get) /
 `product.created.v1`, `product.updated.v1`, `product.archived.v1`,
 `attribute.updated.v1`. Picked up by the search indexer and bridged to
 webhook subscribers.
+
+`category.updated.v1` and `category.content.updated.v1` both flush the
+storefront's category cache; the first also re-indexes the products of the
+changed category's subtree.
 
 ## Extension points
 

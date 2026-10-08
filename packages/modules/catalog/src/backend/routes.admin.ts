@@ -28,6 +28,7 @@ import {
   updateAttachmentTypeRequestSchema,
   updateAttributeRequestSchema,
   updateAttributeSetRequestSchema,
+  putCategoryContentRequestSchema,
   updateCategoryRequestSchema,
   updateGalleryItemRequestSchema,
   updateProductRequestSchema,
@@ -977,6 +978,32 @@ export async function registerCatalogAdminRoutes(
             : {}),
         });
         return { data: serializeAdminCategory(cat) };
+      },
+    );
+
+    // Category page content — the Page Builder document rendered on the
+    // storefront category page. A pair of its own rather than a key on the
+    // PATCH above and a field on the list: the list is every category at once,
+    // and the document may weigh `CATEGORY_CONTENT_MAX_BYTES`.
+    app.get<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/categories/:id/content',
+      { preHandler: requireAdmin('catalog:read') },
+      async (request) => {
+        const content = await categoryService.getContent(request.params.id);
+        return { data: { categoryId: request.params.id, content } };
+      },
+    );
+
+    app.put<{ Params: { id: string } }>(
+      '/api/v1/admin/catalog/categories/:id/content',
+      {
+        preHandler: requireAdmin('catalog:write'),
+        schema: { body: putCategoryContentRequestSchema },
+      },
+      async (request) => {
+        const body = putCategoryContentRequestSchema.parse(request.body);
+        const content = await categoryService.setContent(request.params.id, body.content);
+        return { data: { categoryId: request.params.id, content } };
       },
     );
 

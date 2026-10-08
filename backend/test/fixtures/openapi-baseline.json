@@ -951,6 +951,22 @@
         }
       }
     },
+    "/api/v1/admin/catalog/categories/{id}/content": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/catalog/products": {
       "get": {
         "responses": {
@@ -6031,6 +6047,15 @@
       }
     },
     "/api/v1/catalog/categories": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/catalog/categories/{id}/content": {
       "get": {
         "responses": {
           "200": {

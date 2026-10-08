@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { Plus, Pencil, Trash2, Eye, EyeOff } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Plus, Pencil, Trash2, Eye, EyeOff, FileText } from 'lucide-react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { AssetPicker, adminLanguageToLocale, buildCategoryTree, flattenCategoryTree, pickCategoryDisplayName } from '@endora-commerce/admin-kit/components';
@@ -18,8 +19,26 @@ interface AdminCategory {
   isActive: boolean;
 }
 
+/**
+ * The props the tree counts `category.content.editor` contributors with.
+ *
+ * The tree mounts no editor — the content screen does — so it has no document
+ * to hand over; it asks only whether anybody would contribute one (Z15). A
+ * module-level constant, so the zone's memo holds across renders.
+ */
+const CONTENT_EDITOR_PROBE = {
+  categoryId: '',
+  language: '',
+  data: null,
+  onChange: (): void => {},
+} as const;
+
 export function CategoriesTree(): ReactNode {
   const t = useTranslation('catalog');
+  // Whether a row offers **Content**: only while something contributes an
+  // editor to the content screen. Without one the screen can show nothing but
+  // the sentence saying so, and a link to that is a dead end.
+  const hasContentEditor = useAdminZone('category.content.editor', CONTENT_EDITOR_PROBE).length > 0;
   const { language } = useTranslationContext();
   const locale = adminLanguageToLocale(language);
   const label = (name: Record<string, string>, slug: string): string =>
@@ -266,6 +285,14 @@ export function CategoriesTree(): ReactNode {
                               <Pencil />
                               {t('categories.action.edit')}
                             </Button>
+                            {hasContentEditor ? (
+                              <Button asChild variant="outline" size="sm">
+                                <Link to={`/catalog/categories/${c.id}/content`}>
+                                  <FileText />
+                                  {t('categories.action.content')}
+                                </Link>
+                              </Button>
+                            ) : null}
                             <Button
                               variant="outline"
                               size="sm"
