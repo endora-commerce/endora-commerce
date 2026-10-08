@@ -214,7 +214,7 @@ describe('crm off-state (Constitution XVII)', () => {
       // manifests, against the effective enabled-set — no admin-side test can
       // see it. Positive control first: a registry answering nothing to anybody
       // would otherwise pass.
-      const declared = ['new-opportunity', 'open-crm-analytics', 'open-opportunities', 'open-opportunity-board'];
+      const declared = ['new-opportunity', 'open-crm-analytics', 'open-crm-calendar', 'open-opportunities', 'open-opportunity-board'];
       expect(await paletteActionIds()).toEqual(declared);
       await withModuleOff('crm', axis, async () => {
         expect(await paletteActionIds()).toEqual([]);

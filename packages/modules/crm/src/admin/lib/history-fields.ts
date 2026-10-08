@@ -18,6 +18,8 @@ export const SILENT_HISTORY_FIELDS: ReadonlySet<string> = new Set([
   'commentId',
   'attachmentId',
   'assetId',
+  // Which Event an entry is about is said by its name, beside it.
+  'eventId',
   'propagationId',
   'linkedByAdminUserId',
   // Who wrote a note or a message is the entry's own actor, named above it.
@@ -65,6 +67,12 @@ export const LABELLED_HISTORY_FIELDS: ReadonlySet<string> = new Set([
   'kind',
   'fileName',
   'statusCode',
+  // An Event on the Opportunity (User Story 21): its name and its times.
+  'eventName',
+  'allDay',
+  'startsAt',
+  'endsAt',
+  'remindAt',
 ]);
 
 /** A key as words — `riskProfile` and `risk_profile` both read `risk profile`. */
