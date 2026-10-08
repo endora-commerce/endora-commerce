@@ -30,13 +30,16 @@ const OPERATORS: Partial<Record<OpportunityBoardFieldKind, readonly (keyof Oppor
   contact: ['in'],
 };
 
+/** Fields of a filterable kind that the board's shared filters already cover (§12c). */
+const COVERED_BY_SHARED_FILTERS: ReadonlySet<string> = new Set(['builtin:createdAt', 'builtin:number']);
+
 /**
  * The operators of `field`'s own filter; none for a field the shared filters
- * already cover — the Organization, the assignee, the Sales Channel, the tags
- * and the creation date.
+ * already cover — the Organization, the assignee, the Sales Channel, the tags,
+ * the creation date, and the number, which the search box finds.
  */
 export function fieldFilterOperators(field: OpportunityBoardCardField): readonly (keyof OpportunityFieldFilter)[] {
-  if (field.ref === 'builtin:createdAt') return [];
+  if (COVERED_BY_SHARED_FILTERS.has(field.ref)) return [];
   return OPERATORS[field.kind] ?? [];
 }
 
@@ -82,6 +85,7 @@ export function boardFieldOptionLabel(
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const NUMBER = /^-?\d{1,12}(\.\d{1,4})?$/;
+const ASSIGNEE_TOKENS: ReadonlySet<string> = new Set(['me', 'unassigned', 'person']);
 const FIELD_PARAM = /^f\.((?:builtin|custom):[A-Za-z0-9_]+)\.(contains|in|is|min|max|from|to)$/;
 
 export interface BoardFilters {
@@ -104,7 +108,8 @@ export function readBoardFilters(params: URLSearchParams): BoardFilters {
   const shared: SharedOpportunityFilters = {
     q: (params.get('q') ?? '').slice(0, 200),
     organizationId: uuid('organizationId'),
-    assignee: person ? 'person' : assignee === 'me' || assignee === 'unassigned' ? (assignee as AssigneeFilter) : '',
+    // `person` alone: "a person" was chosen and nobody yet — the picker is open, nothing is filtered.
+    assignee: person ? 'person' : ASSIGNEE_TOKENS.has(assignee) ? (assignee as AssigneeFilter) : '',
     assigneeId: person ? assignee : null,
     tagIds: params.getAll('tagId').filter((id) => UUID.test(id)),
     salesChannelId: uuid('salesChannelId'),
@@ -137,12 +142,7 @@ export function writeBoardFilters(filters: BoardFilters): URLSearchParams {
   const { shared } = filters;
   if (shared.q.trim()) params.set('q', shared.q.trim());
   if (shared.organizationId) params.set('organizationId', shared.organizationId);
-  if (shared.assignee === 'person') {
-    // "A person" with nobody chosen yet is not a filter and is not in the address.
-    if (shared.assigneeId) params.set('assignee', shared.assigneeId);
-  } else if (shared.assignee !== '') {
-    params.set('assignee', shared.assignee);
-  }
+  if (shared.assignee !== '') params.set('assignee', shared.assigneeId ?? shared.assignee);
   for (const tagId of shared.tagIds) params.append('tagId', tagId);
   if (shared.salesChannelId) params.set('salesChannelId', shared.salesChannelId);
   if (shared.createdFrom) params.set('createdFrom', shared.createdFrom);

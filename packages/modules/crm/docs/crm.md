@@ -248,7 +248,7 @@ is:
 
 | Field | Filter |
 | --- | --- |
-| A text — the number, a custom text field | the text it contains |
+| A custom text field | the text it contains |
 | A number or an amount — the value, a custom number, the linked-document counts | a lowest and a highest value |
 | A date — expected close date, last changed, closed, a custom date | from a day, to a day |
 | Yes / no | yes or no; "no" includes opportunities where it was never set |
@@ -256,7 +256,8 @@ is:
 | Contact person | one person, once an organization is chosen — offered to users who may edit opportunities |
 
 The organization, sales rep, tags, sales channel and creation-date filters are
-always there, whatever the card shows. Filters combine: only opportunities
+always there, whatever the card shows, and the search box finds an opportunity
+by its number. Filters combine: only opportunities
 that match all of them are shown, counted and totalled. The value filter
 compares the amount whatever its currency.
 

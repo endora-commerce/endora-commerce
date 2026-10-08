@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   OpportunityBoardCardField,
   OpportunityFieldFilter,
@@ -11,28 +11,51 @@ import { ContactLookup } from './LookupPickers.js';
 
 const TYPING_PAUSE_MS = 300;
 
+const trimmed = (typed: string): string => typed.trim();
+const decimal = (typed: string): string => typed.trim().replace(',', '.');
+
 /**
  * A text or number box that tells its owner once typing pauses — the board is
  * read again for every change of a filter, not for every keystroke.
  */
 function PausedInput(props: {
   id: string;
+  /** What the owner holds — already in the form `normalise` gives. */
   value: string;
   onCommit: (value: string) => void;
+  /** What is typed, as the owner holds it: trimmed, a decimal comma as a point. */
+  normalise: (typed: string) => string;
   type?: 'text' | 'number' | 'search';
   inputMode?: 'decimal';
   ariaLabel?: string;
   placeholder?: string;
 }): ReactNode {
-  const { value, onCommit } = props;
+  const { value, onCommit, normalise } = props;
   const [typed, setTyped] = useState(value);
+  /** What this box last handed its owner. */
+  const committed = useRef(value);
   // What the owner holds changed from outside — *Clear*, or another address.
-  useEffect(() => setTyped(value), [value]);
+  // A value this box committed itself is left alone: more may have been typed since.
   useEffect(() => {
-    if (typed === value) return undefined;
-    const timer = setTimeout(() => onCommit(typed), TYPING_PAUSE_MS);
+    if (value === committed.current) return;
+    committed.current = value;
+    setTyped(value);
+  }, [value]);
+  // The owner's closure of the latest render, for a timer started by an earlier one.
+  const commit = useRef(onCommit);
+  useEffect(() => {
+    commit.current = onCommit;
+  }, [onCommit]);
+  const next = normalise(typed);
+  useEffect(() => {
+    // Nothing new to say: typing a space after a word is not a change.
+    if (next === value) return undefined;
+    const timer = setTimeout(() => {
+      committed.current = next;
+      commit.current(next);
+    }, TYPING_PAUSE_MS);
     return (): void => clearTimeout(timer);
-  }, [typed, value, onCommit]);
+  }, [next, value]);
   return (
     <Input
       id={props.id}
@@ -101,7 +124,8 @@ export function BoardFieldFilters(props: BoardFieldFiltersProps): ReactNode {
             type="search"
             value={filter.contains ?? ''}
             placeholder={t('board.filter.contains')}
-            onCommit={(contains): void => patch({ contains: contains.trim() })}
+            normalise={trimmed}
+            onCommit={(contains): void => patch({ contains })}
           />
         </div>,
       );
@@ -133,7 +157,8 @@ export function BoardFieldFilters(props: BoardFieldFiltersProps): ReactNode {
                   ariaLabel={name}
                   placeholder={t(`board.filter.${operator}Short`)}
                   value={filter[operator] ?? ''}
-                  onCommit={(value): void => patch({ [operator]: value.trim().replace(',', '.') })}
+                  normalise={decimal}
+                  onCommit={(value): void => patch({ [operator]: value })}
                 />
               );
             })}

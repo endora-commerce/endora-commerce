@@ -144,6 +144,13 @@ describe('the board\'s filters in its address', () => {
     expect(readBoardFilters(new URLSearchParams('assignee=unassigned')).shared.assignee).toBe('unassigned');
   });
 
+  it('keeps "a person" while nobody is chosen yet, so the picker can open', () => {
+    const pending = { ...readBoardFilters(new URLSearchParams()).shared, assignee: 'person' as const };
+    const address = writeBoardFilters({ shared: pending, fields: {} });
+    expect(address.toString()).toBe('assignee=person');
+    expect(readBoardFilters(address).shared).toMatchObject({ assignee: 'person', assigneeId: null });
+  });
+
   it('sends only the filters of a field the card shows, with the operators of its kind', () => {
     const filters = {
       'custom:lead_source': { in: ['referral'] },
@@ -156,6 +163,8 @@ describe('the board\'s filters in its address', () => {
       'custom:seats': { min: '2' },
     });
     expect(activeFieldFilters(filters, DEFAULT)).toEqual({});
+    // The number is found by the search box and has no filter of its own.
+    expect(activeFieldFilters({ 'builtin:number': { contains: '42' } }, [FIELD.number])).toEqual({});
   });
 });
 
@@ -459,6 +468,16 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
     // Nothing is filtered, so there is nothing to clear.
     expect(screen.queryByRole('button', { name: en('opportunity.list.filter.clear') })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Lead source' })).not.toBeInTheDocument();
+  });
+
+  it('opens the person picker when "a person" is chosen, before anybody is', async () => {
+    await renderBoard();
+    await userEvent.selectOptions(screen.getByLabelText(en('assignment.filter.label')), 'person');
+    expect(await screen.findByLabelText(en('assignment.filter.person'))).toBeInTheDocument();
+    expect(address()).toBe('?assignee=person');
+    // Nobody is chosen: the server is asked for nothing new.
+    const last = getSpy.mock.calls.map(([url]) => url as string).filter((url) => url.startsWith(BOARD_PATH)).at(-1);
+    expect(last).not.toContain('assignedAdminUserId');
   });
 
   it('links to the card\'s configuration for whoever may change it, and for nobody else', async () => {

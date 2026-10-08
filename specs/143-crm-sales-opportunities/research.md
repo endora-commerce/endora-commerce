@@ -3778,7 +3778,9 @@ tree said.
 - **N-BF9 — What is not a filter, and what is partial.** The Organization, the assignee,
   the Sales Channel, the tags and the creation date are filtered by the parameters the board
   already had and stay available whatever the card shows; taking them away when their field
-  leaves the card would have removed something users have. The contact person is filtered by
+  leaves the card would have removed something users have. The number has no filter of its
+  own either: the search box already matches it, and the default card — which shows the
+  number — would otherwise have grown a second box that does what the first one does. The contact person is filtered by
   id, chosen within an Organization, and only by a session holding `crm:write`, because
   `GET /lookups/contacts` is gated on that code (N-D4) and needs an Organization — a reader
   sees the contact on the card and cannot filter by it. The value filter compares amounts

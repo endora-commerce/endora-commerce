@@ -273,7 +273,8 @@ Normative for `src/admin/components/BoardCardFieldsEditor.tsx`,
   until an Organization is chosen, and shown only to a session holding `crm:write` — the code
   `GET /lookups/contacts` enforces.
 - **The address**: the board's filters are query parameters of `/crm/board` — `q`,
-  `organizationId`, `assignee` (`me` | `unassigned` | an id), `tagId` (repeated),
+  `organizationId`, `assignee` (`me` | `unassigned` | an id | `person` while nobody is chosen
+  yet, which filters nothing), `tagId` (repeated),
   `salesChannelId`, `createdFrom`, `createdTo`, and `f.<reference>.<operator>` per field
   filter (`in` repeated). They are written with `replace`, so the board is one history entry.
   A parameter that is not of its shape is left out rather than sent. *Clear filters* removes

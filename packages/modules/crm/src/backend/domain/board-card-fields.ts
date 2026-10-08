@@ -141,8 +141,6 @@ const linkCount = (kind: 'order' | 'quote_request'): string =>
 
 function builtinPredicates(key: string, filter: OpportunityFieldFilter): Predicate[] {
   switch (key as OpportunityBoardBuiltinFieldKey) {
-    case 'number':
-      return filter.contains === undefined ? [] : [['f."number" ilike ?', [likePattern(filter.contains)]]];
     case 'value':
       return bounds(effectiveOpportunityValueSql('f'), [], filter);
     case 'expectedCloseDate': {
@@ -170,7 +168,8 @@ function builtinPredicates(key: string, filter: OpportunityFieldFilter): Predica
     case 'linkedQuoteRequests':
       return bounds(linkCount('quote_request'), [], filter);
     // `organization`, `assignee`, `salesChannel`, `tags` and `createdAt` are
-    // the list's own parameters (§1) and have no entry among the field filters.
+    // the list's own parameters (§1) and have no entry among the field filters;
+    // neither has `number`, which `q` finds.
     default:
       return [];
   }

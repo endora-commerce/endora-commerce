@@ -169,7 +169,7 @@ export function BoardCardFieldsEditor(): ReactNode {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-11 sm:size-8"
+                    className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8"
                     disabled={index === 0 || saving}
                     aria-label={t('boardCard.moveUp', { field: name(field) })}
                     onClick={(): void => move(index, -1)}
@@ -179,7 +179,7 @@ export function BoardCardFieldsEditor(): ReactNode {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-11 sm:size-8"
+                    className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8"
                     disabled={index === shown.length - 1 || saving}
                     aria-label={t('boardCard.moveDown', { field: name(field) })}
                     onClick={(): void => move(index, 1)}
@@ -189,7 +189,7 @@ export function BoardCardFieldsEditor(): ReactNode {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-11 sm:size-8"
+                    className="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8"
                     disabled={saving}
                     aria-label={t('boardCard.remove', { field: name(field) })}
                     onClick={(): void => edit(chosen.filter((ref) => ref !== field.ref))}

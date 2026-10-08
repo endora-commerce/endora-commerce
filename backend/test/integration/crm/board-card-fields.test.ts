@@ -267,8 +267,14 @@ describe('crm board card fields — filters, values and cost (User Story 19)', (
       await expectMatches({ 'builtin:value': { max: '250.50' } }, ['alpha', 'beta']);
     });
 
-    it('number: contains', async () => {
-      await expectMatches({ 'builtin:number': { contains: alpha.number.toLowerCase() } }, ['alpha']);
+    it('number: no filter of its own — the search finds it', async () => {
+      await expectMatches({ 'builtin:number': { contains: 'no-such-number' } }, ['alpha', 'beta', 'delta', 'gamma']);
+      const found = await h.app.inject({
+        method: 'GET',
+        url: `${CRM_API}/board?q=${alpha.number}`,
+        cookies: CRM_ADMIN,
+      });
+      expect(onBoard(OpportunityBoardResponseSchema.parse(found.json()).data)).toEqual(['alpha']);
     });
 
     it('expected close date: a range', async () => {

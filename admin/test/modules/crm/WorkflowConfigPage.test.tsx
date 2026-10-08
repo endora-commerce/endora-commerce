@@ -76,6 +76,15 @@ async function renderPage(): Promise<void> {
   await screen.findByRole('button', { name: en('workflow.status.add') });
 }
 
+describe('WorkflowConfigPage — the Board card section (User Story 19)', () => {
+  it('is on the screen, under the anchor the board links to', async () => {
+    await renderPage();
+    const heading = screen.getByText(en('boardCard.title'));
+    expect(heading.closest('#board-card')).not.toBeNull();
+    expect(await screen.findByRole('region', { name: en('boardCard.shown.title') })).toBeInTheDocument();
+  });
+});
+
 /** The row of the statuses table that carries `code`. */
 function statusRow(code: string): HTMLElement {
   const table = screen.getByRole('table', { name: en('workflow.statuses.title') });

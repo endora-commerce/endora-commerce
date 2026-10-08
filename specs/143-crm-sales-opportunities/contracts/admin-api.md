@@ -435,9 +435,10 @@ URL-encoded JSON object keyed by reference, each value an object of operators �
 | `multiselect` | `in` | at least one of those named is chosen |
 | `contact` | `in` | the contact person is one of the customer accounts named |
 
-`organization`, `assignee`, `salesChannel`, `tags` and `builtin:createdAt` have no entry
-here: they are §1's `organizationId`, `assignedAdminUserId`, `salesChannelId`, `tagId` and
-`createdFrom` / `createdTo`, which the board had before and keeps whatever the card shows.
+`organization`, `assignee`, `salesChannel`, `tags`, `builtin:createdAt` and `builtin:number`
+have no entry here: they are §1's `organizationId`, `assignedAdminUserId`, `salesChannelId`,
+`tagId`, `createdFrom` / `createdTo` and `q` (which matches the number), which the board had
+before and keeps whatever the card shows. The `text` row is a custom text field's.
 
 Filters combine with AND, with each other and with §1's. **A reference that is not among the
 card's fields when the request is served is ignored**, and so is an operator that does not

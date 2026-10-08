@@ -256,7 +256,7 @@ pola:
 
 | Pole | Filtr |
 | --- | --- |
-| Tekst — numer, niestandardowe pole tekstowe | tekst, który zawiera |
+| Niestandardowe pole tekstowe | tekst, który zawiera |
 | Liczba albo kwota — wartość, niestandardowa liczba, liczby powiązanych dokumentów | wartość najmniejsza i największa |
 | Data — planowana data zamknięcia, ostatnia zmiana, zamknięcie, niestandardowa data | od dnia, do dnia |
 | Tak / nie | tak albo nie; „nie” obejmuje też szanse, w których pola nigdy nie ustawiono |
@@ -264,7 +264,8 @@ pola:
 | Osoba kontaktowa | jedna osoba, po wybraniu organizacji — dla użytkowników, którzy mogą edytować szanse |
 
 Filtry organizacji, handlowca, etykiet, kanału sprzedaży i daty utworzenia są
-dostępne zawsze, niezależnie od tego, co pokazuje karta. Filtry się łączą:
+dostępne zawsze, niezależnie od tego, co pokazuje karta, a pole wyszukiwania
+znajduje szansę po numerze. Filtry się łączą:
 pokazywane, liczone i sumowane są tylko szanse spełniające wszystkie naraz.
 Filtr wartości porównuje kwotę niezależnie od waluty.
 
