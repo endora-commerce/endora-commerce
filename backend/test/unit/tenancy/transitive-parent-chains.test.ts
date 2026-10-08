@@ -29,10 +29,11 @@ import {
  * `transitive-parent-resolution.test.ts`, which makes no claim about the real
  * platform.
  */
-/** The seven child tables of a Sales Opportunity, each scoped through it. */
+/** The eight child tables of a Sales Opportunity, each scoped through it. */
 const CRM_OPPORTUNITY_CHILDREN = [
   'CrmOpportunityAttachment',
   'CrmOpportunityComment',
+  'CrmOpportunityEvent',
   'CrmOpportunityLink',
   'CrmOpportunityReference',
   'CrmOpportunityStatusHistory',
