@@ -814,7 +814,11 @@ being left free for work on parallel branches. Research N-QS1 … N-QS6.)*
 - **FR-104**: A Quote Request whose Order has been placed MUST be completed and point at
   that Order, reliably — including when the Order is not yet readable at the moment its
   placement is announced — and MUST NOT be completed by an Order of another Organization. A
-  completed Quote Request cannot be ordered a second time.
+  completed Quote Request cannot be ordered a second time. **At most one Order records a
+  given Quote Request**: when two baskets carry the same one, the first Order placed is the
+  request's and the second is placed as an ordinary Order — whether or not the request has
+  been completed yet. *(Last sentence added 2026-10-08 by the independent review — research
+  N-QSR1.)*
 
 ### Key Entities
 

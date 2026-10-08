@@ -337,6 +337,14 @@ module pages of `carts`, `orders` and `quote_requests`, their Polish mirrors and
 translation-cache entries, and the Polish mirror of the generated `orders` reference page.
 Changesets: `contracts`, `mod-carts`, `mod-quote-requests`, `mod-orders`.
 
+**Amended by the independent review (2026-10-08, research N-QSR1 … N-QSR5; tasks
+T280 – T285)**, in files already on this list: QS6 gains a fourth refusal, `already-ordered`
+(an Order already names the request); QS7 takes a transaction-scoped advisory lock on the
+request's id and counts `orders`' own rows before it stamps; QS5 throws after its last look
+so that the give-up is logged. No new source file, no new edge, no schema change. Tests,
+outside the oracle: `backend/test/integration/orders/quote-request-source-review.test.ts`
+and `backend/test/integration/carts/seed-bookkeeping.test.ts` (both **new**).
+
 **No manifest edge is added to `carts` or `quote_requests`**, no API shape changes (the
 OpenAPI baseline is untouched), nothing in `storefront/` or `admin/` changes, and the external
 order API takes no new field. Against the oracle at the top of this page, §QS is **eighteen**
