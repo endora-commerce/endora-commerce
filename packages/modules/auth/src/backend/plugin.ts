@@ -164,6 +164,14 @@ async function authPluginImpl(app: FastifyInstance, opts: AuthPluginOptions): Pr
           kind: 'admin',
           adminUserId: resolvedAdmin.session.adminUserId,
         };
+        // An administrator's presence, kept as a customer's is below: until
+        // this line `lastSeenAt` held an administrator's sign-in time and
+        // nothing after, so nothing could say whether one is in the Admin UI
+        // (`AuthSessionReadPort.lastSeenByAdminUser`). The same call, with the
+        // same throttle inside the service — one Redis `SET NX` per request,
+        // one row update per session per minute — and fire-and-forget for the
+        // same reason: a presence write never blocks or fails a request.
+        void opts.sessionService.touchLastSeen(resolvedAdmin.session.id).catch(() => undefined);
       }
     }
 

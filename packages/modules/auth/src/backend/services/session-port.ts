@@ -77,8 +77,10 @@ export function createAuthSessionPort(sessionService: SessionService): AuthSessi
 }
 
 /**
- * The reporting half. `customers`' online-customers view is the only consumer,
- * and it asks exactly one question: when was each of these accounts last seen?
+ * The reporting half. It answers one question, of two populations: when was
+ * each of these people last seen? `customers`' online-customers view asks it of
+ * customer accounts; `crm` asks it of administrators, to decide whether the
+ * recipient of an Event reminder is in the Admin UI to see a bell entry.
  */
 export class AuthSessionReadService implements AuthSessionReadPort {
   constructor(private readonly emFactory: () => EntityManager) {}
@@ -107,18 +109,38 @@ export class AuthSessionReadService implements AuthSessionReadPort {
   }
 
   /**
-   * Declared by the port, not answered yet
-   * (`specs/143-crm-sales-opportunities/tasks.md` T343, §CAL-B2).
+   * The same question for administrators
+   * (`specs/143-crm-sales-opportunities/contracts/foreign-module-changes.md` §CAL-B2).
    *
-   * It throws rather than answering `[]` on purpose: an empty answer means
-   * "none of these administrators is online", which a caller would act on, and
-   * until an admin request stamps `sessions.last_seen_at` (§CAL-B3) that column
-   * holds the sign-in time and nothing after — so any answer read from it would
-   * be a wrong one that looks right. Nothing calls this before T343 lands.
+   * Restricted to rows with no `customerAccountId`: a session in which an
+   * administrator is browsing the storefront as a customer is the customer's
+   * presence there, not the administrator's in the Admin UI. Such a session
+   * carries the administrator in `impersonatorAdminUserId` and not here, so the
+   * restriction is the rule stated twice — once by which column is asked, once
+   * by the condition — and a row that ever carried both ids would still not
+   * count.
+   *
+   * The answer is true since the plugin stamps the admin cookie's session
+   * (§CAL-B3); before that the column held an administrator's sign-in time and
+   * nothing after.
    */
-  lastSeenByAdminUser(_adminUserIds: readonly string[], _since: Date): Promise<AuthAdminLastSeen[]> {
-    return Promise.reject(
-      new Error('auth: AuthSessionReadPort.lastSeenByAdminUser is not implemented yet.'),
+  async lastSeenByAdminUser(
+    adminUserIds: readonly string[],
+    since: Date,
+  ): Promise<AuthAdminLastSeen[]> {
+    if (adminUserIds.length === 0) return [];
+    const em = this.emFactory();
+    const rows = await em.find(
+      Session,
+      { adminUserId: { $in: [...adminUserIds] }, customerAccountId: null, lastSeenAt: { $gte: since } },
+      { fields: ['adminUserId', 'lastSeenAt'] },
     );
+    const newest = new Map<string, Date>();
+    for (const row of rows) {
+      if (!row.adminUserId || !row.lastSeenAt) continue;
+      const previous = newest.get(row.adminUserId);
+      if (!previous || row.lastSeenAt > previous) newest.set(row.adminUserId, row.lastSeenAt);
+    }
+    return [...newest].map(([adminUserId, lastSeenAt]) => ({ adminUserId, lastSeenAt }));
   }
 }
