@@ -777,6 +777,7 @@ export async function registerCatalogAdminRoutes(
         'isComparable',
         'isVariantAxis',
         'isPromoRule',
+        'isPriceRule',
         'isVisibleOnProductPage',
         'isRequired',
         'isMassEditable',
@@ -1794,6 +1795,7 @@ function serializeAdminAttribute(
     isComparable: a.isComparable,
     isRequired: a.isRequired,
     isPromoRule: a.isPromoRule,
+    isPriceRule: a.isPriceRule,
     filterPosition: a.filterPosition,
     isVisibleOnProductPage: a.isVisibleOnProductPage,
     // Feature 022 — gates appearance in the Products Bulk Edit dialog.

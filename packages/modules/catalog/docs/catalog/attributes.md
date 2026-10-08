@@ -38,6 +38,7 @@ Plus the behavioural flags and a numeric position:
 | `isVariantAxis` | `false` | Configurable-product variant picker |
 | `isRequired` | `false` | Product-save validator (only when the attribute is in the assigned Attribute Set) |
 | `isPromoRule` | `false` | Promotion Rule criterion picker |
+| `isPriceRule` | `false` | Price Lists — whether the attribute may be used as a price-building rule. Price Lists have no attribute-based rule yet, so today the flag is recorded and published, and nothing prices from it. |
 | `isVisibleOnProductPage` | `false` | PDP "Parametry produktu" tab |
 | `displayAsSlider` | `false` | Storefront sidebar — renders a range slider; only valid for `valueType ∈ ('number','price')` |
 | `filterPosition` | `0` | Storefront sidebar sort key (ascending; ties broken alphabetically by the resolved label) |
@@ -87,7 +88,7 @@ Admin routes are gated by `catalog:read` (list / get) /
 | `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Picker payload — every attribute carrying the requested flag |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Single attribute read |
 | `POST /api/v1/admin/catalog/attributes` | admin | Create attribute (accepts the flags + inline `options[]` for select-style types) |
-| `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Update labels and hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition`. Re-emits `attribute.updated.v1`. |
+| `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Update labels and hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isPriceRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition`. Re-emits `attribute.updated.v1`. |
 | `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Delete; refused with `409 attribute_in_use_by_set` while any Attribute Set still references it |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option rows for select / enum / multiselect attributes |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Append an option |
@@ -188,7 +189,7 @@ admin surface composes the two back into the legacy form.
   `custom_field_definitions.id` ON DELETE RESTRICT.
 - Boolean flags: `is_searchable`, `is_filterable`, `is_variant_axis`,
   `is_comparable`, `quick_searchable`, `is_promo_rule`,
-  `is_visible_on_product_page`, `display_as_slider`,
+  `is_price_rule`, `is_visible_on_product_page`, `display_as_slider`,
   `channel_scoped`, `language_scoped`, `mass_editable`.
 - `filter_position int NOT NULL DEFAULT 0`.
 - Presentation refinements: `select_display varchar(16) NULL`
@@ -232,6 +233,12 @@ internals:
   — the Promotion Rule criterion picker and resolver.
 - `buildVisibleAttributesProjection()` — internal, used by the PDP
   detail response to assemble the `visibleAttributes[]` payload.
+
+`isPriceRule` has no method of its own. A pricing consumer reads it
+through the `catalogAttributeReadPort` — `listByFlag('isPriceRule')`
+for the attributes a price rule may name, and `isPriceRule` on every
+attribute view to refuse one that may not — and the admin picker
+payload is `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPriceRule`.
 
 ## See also
 

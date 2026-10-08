@@ -82,6 +82,7 @@ export interface ProductAttributeRow {
   isComparable: Opt<boolean>;
   quickSearchable: Opt<boolean>;
   isPromoRule: Opt<boolean>;
+  isPriceRule: Opt<boolean>;
   filterPosition: Opt<number>;
   isVisibleOnProductPage: Opt<boolean>;
   channelScoped: Opt<boolean>;
@@ -108,6 +109,7 @@ export interface AttributeFixtureInput {
   isComparable?: boolean;
   quickSearchable?: boolean;
   isPromoRule?: boolean;
+  isPriceRule?: boolean;
   filterPosition?: number;
   isVisibleOnProductPage?: boolean;
   channelScoped?: boolean;
@@ -208,6 +210,7 @@ export async function createAttributeFixture(
     isComparable: input.isComparable ?? false,
     quickSearchable: input.quickSearchable ?? false,
     isPromoRule: input.isPromoRule ?? false,
+    isPriceRule: input.isPriceRule ?? false,
     filterPosition: input.filterPosition ?? 0,
     isVisibleOnProductPage: input.isVisibleOnProductPage ?? false,
     channelScoped: input.channelScoped ?? false,

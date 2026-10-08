@@ -31,7 +31,7 @@ Admin routes are gated by `catalog:read` (list / get) /
 | `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | admin | Picker payload — every attribute carrying the requested flag |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | admin | Single attribute read |
 | `POST /api/v1/admin/catalog/attributes` | admin | Create attribute (accepts the new flags + inline `options[]` for select-style types) |
-| `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition` (re-emits `attribute.updated.v1`) |
+| `PATCH /api/v1/admin/catalog/attributes/:key` | admin | Hot-toggle `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isPriceRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition` (re-emits `attribute.updated.v1`) |
 | `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | admin | Delete; refused with `409 attribute_in_use_by_set` while any Attribute Set still references it |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | List option-list rows for select/enum/multiselect attributes |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | admin | Append an option |
@@ -170,7 +170,7 @@ and ownership model is different:
   row (`custom_field_definition_id` UNIQUE FK) carrying only the
   catalog behaviour flags (`isSearchable`, `isFilterable`,
   `isVariantAxis`, `displayAsSlider`, `isComparable`,
-  `quickSearchable`, `isPromoRule`, `filterPosition`,
+  `quickSearchable`, `isPromoRule`, `isPriceRule`, `filterPosition`,
   `isVisibleOnProductPage`, `channelScoped`, `languageScoped`,
   `massEditable`) plus two presentation refinements (`selectDisplay`,
   `numericKind`) that keep the legacy `enum`/`select` and

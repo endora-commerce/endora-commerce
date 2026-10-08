@@ -29,6 +29,8 @@ interface AdminAttribute {
   isRequired: boolean;
   /** Feature 012 — surfaces the attribute in the Promotion Rule criterion picker. */
   isPromoRule: boolean;
+  /** Whether the attribute may be used as a price-building rule in a Price List. */
+  isPriceRule: boolean;
   /** Feature 012 — ascending sort order on the storefront filter sidebar. */
   filterPosition: number;
   /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
@@ -50,6 +52,7 @@ const FLAG_KEYS = [
   'massEditable',
   'quickSearchable',
   'isPromoRule',
+  'isPriceRule',
 ] as const;
 type FlagKey = (typeof FLAG_KEYS)[number];
 type FlagSet = Record<FlagKey, boolean>;
@@ -63,6 +66,7 @@ function flagsOf(a: AdminAttribute): FlagSet {
     massEditable: a.massEditable,
     quickSearchable: a.quickSearchable,
     isPromoRule: a.isPromoRule,
+    isPriceRule: a.isPriceRule,
   };
 }
 function flagsEqual(a: FlagSet, b: FlagSet): boolean {
@@ -128,6 +132,7 @@ export function AttributesManager(): ReactNode {
       massEditable: input.massEditable,
       quickSearchable: input.quickSearchable,
       isPromoRule: input.isPromoRule,
+      isPriceRule: input.isPriceRule,
       ...(input.valueType === 'number' || input.valueType === 'price'
         ? { displayAsSlider: input.displayAsSlider }
         : {}),
@@ -288,6 +293,7 @@ export function AttributesManager(): ReactNode {
                   <TableHead>{t('attributes.column.massEditable')}</TableHead>
                   <TableHead>{t('attributes.column.quickSearchable')}</TableHead>
                   <TableHead>{t('attributes.column.promoRule')}</TableHead>
+                  <TableHead>{t('attributes.column.priceRule')}</TableHead>
                   <TableHead className="text-right">{t('attributes.column.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -352,6 +358,7 @@ interface AttributeFormValues {
   massEditable: boolean;
   quickSearchable: boolean;
   isPromoRule: boolean;
+  isPriceRule: boolean;
 }
 
 interface AttributeFormProps {
@@ -386,6 +393,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
   const [massEditable, setMassEditable] = useState(attribute?.massEditable ?? false);
   const [quickSearchable, setQuickSearchable] = useState(attribute?.quickSearchable ?? false);
   const [isPromoRule, setIsPromoRule] = useState(attribute?.isPromoRule ?? false);
+  const [isPriceRule, setIsPriceRule] = useState(attribute?.isPriceRule ?? false);
   const [busy, setBusy] = useState(false);
   const isNumeric = valueType === 'number' || valueType === 'price';
 
@@ -403,6 +411,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
     massEditable,
     quickSearchable,
     isPromoRule,
+    isPriceRule,
   });
 
   const reset = (): void => {
@@ -418,6 +427,7 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
     setMassEditable(false);
     setQuickSearchable(false);
     setIsPromoRule(false);
+    setIsPriceRule(false);
   };
 
   return (
@@ -540,6 +550,10 @@ function AttributeForm({ mode, attribute, onSubmit, onCancel }: AttributeFormPro
         <label className="flex items-center gap-2 text-sm">
           <Checkbox checked={isPromoRule} onChange={(e): void => setIsPromoRule(e.target.checked)} />
           {t('attributes.flag.promoRule')}
+        </label>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={isPriceRule} onChange={(e): void => setIsPriceRule(e.target.checked)} />
+          {t('attributes.flag.priceRule')}
         </label>
       </div>
       <div className="flex gap-2">

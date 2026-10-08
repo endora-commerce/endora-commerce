@@ -264,6 +264,7 @@ export class CatalogAttributeReadService {
       isComparable: ext.isComparable,
       quickSearchable: ext.quickSearchable,
       isPromoRule: ext.isPromoRule,
+      isPriceRule: ext.isPriceRule,
       filterPosition: ext.filterPosition,
       isVisibleOnProductPage: ext.isVisibleOnProductPage,
       channelScoped: ext.channelScoped,

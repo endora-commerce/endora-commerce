@@ -955,6 +955,12 @@ const baseCreateAttributeObject = z.object({
   isRequired: z.boolean().optional(),
   /** Feature 012 — surfaces the attribute in the Promotion Rule criterion picker. */
   isPromoRule: z.boolean().optional(),
+  /**
+   * Whether the attribute may be used as a price-building rule in a Price
+   * List — the pricing sibling of `isPromoRule`. Defaults to false on create
+   * when omitted.
+   */
+  isPriceRule: z.boolean().optional(),
   /** Feature 012 — ascending sort order on the storefront filter sidebar. Defaults 0. */
   filterPosition: z.number().int().min(0).max(10000).optional(),
   /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
@@ -1046,6 +1052,8 @@ export const updateAttributeRequestSchema = z
     isRequired: z.boolean().optional(),
     /** Feature 012 — surfaces the attribute in the Promotion Rule criterion picker. */
     isPromoRule: z.boolean().optional(),
+    /** See `baseCreateAttributeObject.isPriceRule`. */
+    isPriceRule: z.boolean().optional(),
     /** Feature 012 — ascending sort order on the storefront filter sidebar. */
     filterPosition: z.number().int().min(0).max(10000).optional(),
     /** Feature 012 — gates inclusion in the storefront PDP "Parametry produktu" tab. */
@@ -1096,6 +1104,7 @@ export const adminAttributeResponseSchema = z.object({
   isComparable: z.boolean(),
   isRequired: z.boolean(),
   isPromoRule: z.boolean(),
+  isPriceRule: z.boolean(),
   filterPosition: z.number().int(),
   isVisibleOnProductPage: z.boolean(),
   massEditable: z.boolean(),
@@ -2279,6 +2288,8 @@ export interface CatalogAttributeView {
   isComparable: boolean;
   quickSearchable: boolean;
   isPromoRule: boolean;
+  /** Whether the attribute may be used as a price-building rule in a Price List. */
+  isPriceRule: boolean;
   filterPosition: number;
   isVisibleOnProductPage: boolean;
   channelScoped: boolean;
@@ -2296,6 +2307,7 @@ export type CatalogAttributeFlag =
   | 'isComparable'
   | 'quickSearchable'
   | 'isPromoRule'
+  | 'isPriceRule'
   | 'massEditable'
   | 'isVisibleOnProductPage';
 
@@ -2507,13 +2519,14 @@ export interface CatalogAttributeOptionResult {
   updatedAt: Date;
 }
 
-/** The eight flags `listAttributesByFlag` accepts — a superset of the read model's. */
+/** The flags `listAttributesByFlag` accepts — a superset of the read model's. */
 export type CatalogAdminAttributeFlag =
   | 'isSearchable'
   | 'isFilterable'
   | 'isComparable'
   | 'isVariantAxis'
   | 'isPromoRule'
+  | 'isPriceRule'
   | 'isVisibleOnProductPage'
   | 'isRequired'
   | 'isMassEditable';

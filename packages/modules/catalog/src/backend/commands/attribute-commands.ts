@@ -242,6 +242,7 @@ export function createAttributeCommand(
         displayAsSlider: resolved.displayAsSlider,
         isComparable: req.isComparable ?? false,
         isPromoRule: req.isPromoRule ?? false,
+        isPriceRule: req.isPriceRule ?? false,
         filterPosition: req.filterPosition ?? 0,
         isVisibleOnProductPage: req.isVisibleOnProductPage ?? false,
         channelScoped: req.channelScoped ?? false,
@@ -309,6 +310,7 @@ export function updateAttributeCommand(
       if (req.isVariantAxis !== undefined) ext.isVariantAxis = req.isVariantAxis;
       if (req.isComparable !== undefined) ext.isComparable = req.isComparable;
       if (req.isPromoRule !== undefined) ext.isPromoRule = req.isPromoRule;
+      if (req.isPriceRule !== undefined) ext.isPriceRule = req.isPriceRule;
       if (req.filterPosition !== undefined) ext.filterPosition = req.filterPosition;
       if (req.isVisibleOnProductPage !== undefined) {
         ext.isVisibleOnProductPage = req.isVisibleOnProductPage;
