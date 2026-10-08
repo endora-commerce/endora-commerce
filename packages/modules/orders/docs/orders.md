@@ -201,6 +201,30 @@ The value travels wherever the event does — an outbound webhook subscribed to
 - **Reorder** — `…/:id/reorder` rebuilds the cart (gated by
   `orders.reorder_enabled`); **clone-to-quote** — `…/:id/clone-to-quote`.
 
+## An order placed from an accepted quote request
+
+An order placed from the basket an accepted quote request filled records that
+quote request in `sourceQuoteRequestId` (`orders.source_quote_request_id`). The
+Quote Requests module completes the quote request when it sees such an order,
+and other modules read the field to tell which order a quote request became.
+
+The basket only carries a claim, and placement checks it against the quote
+request as it is at that moment. The order records the quote request when all
+three hold:
+
+- the quote request belongs to the **same organization** as the order;
+- it is still `Approved` — not canceled, expired or already completed;
+- the basket still holds at least one of its lines — the same product and
+  variant at the agreed unit price.
+
+Otherwise the order is placed all the same and records nothing; the refusal is
+logged, never shown to the buyer. No request body carries the field: the
+storefront, the admin create-order screen and the external order API cannot
+name a quote request.
+
+With the Quote Requests module switched off, orders are placed exactly as
+before and record no quote request.
+
 ## Settings
 
 `orders.min_order_value` (number, gates Checkout + admin create),

@@ -143,10 +143,22 @@ jednokrotne dostarczenie dla każdej trójki (przejście, odbiorca, kanał).
 
 ## Zamiana na zamówienie
 
+`POST /api/v1/quote-requests/:id/convert-to-order` wypełnia koszyk klienta pozycjami zapytania
+ofertowego w statusie `Approved`, w uzgodnionych cenach jednostkowych, i oznacza koszyk zapytaniem,
+z którego został wypełniony. Zamówienie złożone z tego koszyka zapisuje je
+(`source_quote_request_id`) — o ile zapytanie jest nadal w statusie `Approved`, a w koszyku wciąż
+jest co najmniej jedna pozycja w uzgodnionej cenie; strona modułu zamówień opisuje, kiedy
+oznaczenie przepada.
+
 Gdy powstaje zamówienie z wypełnionym `source_quote_request_id`, subskrybent wewnątrz modułu
 przestawia źródłowe zapytanie ofertowe na `Completed`, wypełnia `converted_order_id` i wysyła
-powiadomienie `completed`. Krok tworzenia koszyka, który utrwala uzgodnione w zapytaniu ceny w
-koszyku zamówienia, zapewniają istniejące procesy koszyka i zamówienia.
+powiadomienie `completed`. Zakończonego zapytania ofertowego nie można zamówić po raz drugi.
+Subskrybent czeka, aż zamówienie zostanie zatwierdzone w bazie — najwyżej nieco ponad dwie
+sekundy — i niczego nie kończy dla zamówienia innej organizacji.
+
+Gdy ten moduł jest wyłączony, wypełniony wcześniej koszyk nadal można zamówić, w uzgodnionych
+cenach, jako zwykłe zamówienie: nie zapisuje ono zapytania ofertowego, a zapytanie nie zostaje
+zakończone.
 
 ## Utworzone przez administratora: zdarzenie i jego pochodzenie
 

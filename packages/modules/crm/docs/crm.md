@@ -659,14 +659,24 @@ needs `crm:write` only.
 The "follow the opportunity's status" switch means nothing for one: a quote
 request keeps its own status.
 
-**Not effective yet: an order placed from a linked quote request.** The module
-is built to link such an order to the same opportunity by itself (`linkSource:
-"quote_conversion"`), but it can only do so when the order records which quote
-request it came from — and today nothing in the platform records that. Until
-the Orders and cart modules do, an order placed from a linked quote request is
-an order like any other: it is **not** linked by itself, and with
-`crm.auto_create_from_orders` on it gets an opportunity of its own. Link it by
-hand.
+**An order placed from a linked quote request joins the opportunity by
+itself.** When the customer orders an accepted quote request, the order records
+the quote request it came from, and if that quote request is linked to an
+opportunity the order is linked to the same one (`linkSource:
+"quote_conversion"`) — once, whether the opportunity is still open or already
+closed, and whatever `crm.auto_create_from_orders` says: such an order never
+gets an opportunity of its own. From then on it is a linked order like any
+other: it follows the order-status mappings, and the opportunity's value counts
+it.
+
+The order records its quote request when it is placed from the basket the
+customer filled by ordering the accepted quote request on its page in the
+storefront, while the quote request is still approved and at least one line is
+still in the basket at the agreed price. Adding a product
+or changing a quantity keeps it. A basket that was emptied and filled again by
+hand, or that keeps none of the agreed lines, makes an ordinary order: it is
+not linked by itself, and the quote request stays open. With the Quote Requests
+module switched off, an order is placed as usual and records no quote request.
 
 ### The value of an opportunity
 
@@ -689,14 +699,11 @@ A computed value is the sum of:
 The two are not on the same basis, and neither is converted: each document
 counts at the figure its own screen shows.
 
-**Counted once — once orders record their quote request.** An order placed
-from a linked quote request and that quote request are one piece of business,
-and while the order counts, the quote request is left out. This applies only to
-an order that records the quote request it came from, which no order does today
-(see *Linking quote requests*): until then, an order and the quote request it
-was placed from, both linked by hand and both in a counting status, are **both
-added**. Leave one of them out of the counting statuses, or unlink the quote
-request, to avoid counting the deal twice.
+**Counted once.** An order placed from a linked quote request and that quote
+request are one piece of business: while the order counts, the quote request is
+left out, so the value is the order's figure and not the two added. An order
+and a quote request that are both linked but have nothing to do with each other
+are both counted.
 
 **One currency.** An opportunity has one currency and nothing is converted. A
 document in another currency that would otherwise count is left out, and the
@@ -807,7 +814,8 @@ What is **not** created:
 
 - nothing for a document that is already linked to an opportunity;
 - nothing for an order that records a quote request linked to an opportunity —
-  the order joins that opportunity instead, whatever the settings say. No order
+  the order joins that opportunity instead, whatever the settings say (see
+  *Linking quote requests*);
   records its quote request today, so this is not effective yet (see *Linking
   quote requests*);
 - nothing for documents that existed before the setting was switched on;

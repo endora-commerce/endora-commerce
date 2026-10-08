@@ -146,6 +146,16 @@ porzucenia mógł ponownie wysłać powiadomienie.
   zapytania jest celowo pomijane — źródłem prawdy są bieżące ceny kontraktowe kupującego. Pozycje
   niedostępne, bez ceny albo niemożliwe do kupienia są pomijane i zwracane w `droppedLines[]` z
   typowanym powodem.
+- **Zaakceptowane zapytanie ofertowe → koszyk** (`POST
+  /api/v1/quote-requests/:id/convert-to-order`, należy do modułu zapytań ofertowych): koszyk jest
+  czyszczony i wypełniany pozycjami zapytania w **uzgodnionych** cenach jednostkowych przez
+  `CartWritePort.replaceItemsForCustomer`, a w `source_quote_request_id` zapamiętuje zapytanie, z
+  którego został wypełniony. Oznaczenie towarzyszy uzgodnionym cenom: dodanie pozycji, usunięcie
+  jednej z nich albo zmiana ilości zachowuje jedno i drugie; usunięcie ostatniej pozycji albo
+  ponowne wypełnienie koszyka z innego źródła (ponowne zamówienie, zamówienie tworzone przez
+  administratora) usuwa oznaczenie. Moduł zamówień odczytuje je przy składaniu zamówienia i
+  rozstrzyga, czy zamówienie może zapisać to zapytanie. Opisana wyżej kopia z ponowną wyceną nie
+  ustawia oznaczenia.
 - **Lista zakupów → koszyk**: przekazywane do istniejącego `ShoppingListService.convertToCart`; moduł
   koszyków udostępnia port, który kompozycja do niego podłącza.
 
