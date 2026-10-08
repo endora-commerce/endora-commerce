@@ -7,6 +7,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { withLocalStorage } from '../../helpers/with-local-storage';
+import { withViewportWidth } from '../../helpers/with-viewport-width';
 import { CMS_EDITOR_SETTINGS_STORAGE_KEY } from '../../../../packages/modules/cms/src/admin/components/CmsContentEditorLayout';
 import { PageEditor } from '../../../../packages/modules/cms/src/admin/editors/PageEditor';
 import { BlockEditor } from '../../../../packages/modules/cms/src/admin/editors/BlockEditor';
@@ -114,6 +115,8 @@ function renderEditor(screenUnderTest: Screen, id: string): void {
 
 beforeEach(() => {
   withLocalStorage();
+  // Wide enough for the panel to start open; the width default has its own tests.
+  withViewportWidth(1920);
   vi.spyOn(apiClient, 'get').mockImplementation((path: string) => {
     if (path.startsWith('/api/v1/admin/sales-channels?')) {
       return Promise.resolve({ items: [channel], page: 1, pageSize: 100, total: 1 } as never);

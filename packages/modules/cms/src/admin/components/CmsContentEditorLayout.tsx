@@ -11,13 +11,38 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  */
 export const CMS_EDITOR_SETTINGS_STORAGE_KEY = 'b2b-admin.cms-editor.settings-panel';
 
+/**
+ * The width from which the settings panel is a column beside the Page Builder.
+ * The classes below spell the same number as `min-[1800px]:` — Tailwind reads
+ * class names as literals, so the two are kept in step by hand.
+ *
+ * Not the `2xl` breakpoint (1536px): with the admin navigation, the 20rem
+ * panel and the builder's own two side panels, a 1536px viewport leaves the
+ * canvas under 300px, and up to about 1780px the builder's toolbar does not
+ * fit on one row — its title is clipped by the buttons either side of it.
+ */
+export const CMS_EDITOR_TWO_COLUMN_MIN_WIDTH = 1800;
+
+function hasRoomBesideBuilder(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+  return window.matchMedia(`(min-width: ${CMS_EDITOR_TWO_COLUMN_MIN_WIDTH}px)`).matches;
+}
+
+/**
+ * The operator's remembered choice, or — when they have never made one — open
+ * only where the panel is a column beside the builder. Below that width an
+ * open panel is a block above the canvas and pushes it off the first screen.
+ */
 function readPreference(): boolean {
   if (typeof window === 'undefined') return true;
   try {
-    return window.localStorage.getItem(CMS_EDITOR_SETTINGS_STORAGE_KEY) !== '0';
+    const stored = window.localStorage.getItem(CMS_EDITOR_SETTINGS_STORAGE_KEY);
+    if (stored === '0') return false;
+    if (stored === '1') return true;
   } catch {
-    return true;
+    /* storage disabled or absent — fall through to the width default */
   }
+  return hasRoomBesideBuilder();
 }
 
 function writePreference(open: boolean): void {
@@ -47,8 +72,9 @@ export interface CmsEditorSettingsPanel {
 /**
  * State of the settings panel beside the Page Builder.
  *
- * Open by default, and the operator's choice is remembered. A new entity opens
- * it regardless: nothing can be saved without a name and a scope, and the
+ * The operator's choice is remembered. Until they make one it is open where the
+ * viewport has room for it beside the builder and closed where it would sit
+ * above the canvas. A new entity opens it regardless: nothing can be saved without a name and a scope, and the
  * canvas has no language to edit until the scope names one, so hiding those
  * fields first would only make the operator go and find them.
  */
@@ -131,7 +157,7 @@ export function CmsContentEditorLayout({
         className={cn(
           'grid items-start gap-4',
           open
-            ? 'grid-cols-1 2xl:grid-cols-[minmax(0,1fr)_auto_20rem] 2xl:grid-rows-[auto_1fr]'
+            ? 'grid-cols-1 min-[1800px]:grid-cols-[minmax(0,1fr)_auto_20rem] min-[1800px]:grid-rows-[auto_1fr]'
             : 'grid-cols-[minmax(0,1fr)_auto]',
         )}
       >
@@ -144,7 +170,7 @@ export function CmsContentEditorLayout({
           onClick={toggle}
           className={cn(
             'justify-self-end',
-            open ? '2xl:col-start-2 2xl:row-start-1' : 'col-start-2 row-start-1',
+            open ? 'min-[1800px]:col-start-2 min-[1800px]:row-start-1' : 'col-start-2 row-start-1',
           )}
         >
           <ToggleIcon aria-hidden="true" />
@@ -155,17 +181,17 @@ export function CmsContentEditorLayout({
           id={panelId}
           aria-labelledby={panelHeadingId}
           hidden={!open}
-          className="min-w-0 2xl:col-start-3 2xl:row-span-2 2xl:row-start-1"
+          className="min-w-0 min-[1800px]:col-start-3 min-[1800px]:row-span-2 min-[1800px]:row-start-1"
         >
           <h2 id={panelHeadingId} className="sr-only">
             {t('editorLayout.settings')}
           </h2>
-          <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-1">{settings}</div>
+          <div className="grid items-start gap-4 lg:max-[1799px]:grid-cols-2">{settings}</div>
         </aside>
         <div
           className={cn(
             'min-w-0 self-center',
-            open ? '2xl:col-start-1 2xl:row-start-1' : 'col-start-1 row-start-1',
+            open ? 'min-[1800px]:col-start-1 min-[1800px]:row-start-1' : 'col-start-1 row-start-1',
           )}
         >
           {languageTabs}
@@ -174,7 +200,7 @@ export function CmsContentEditorLayout({
           aria-labelledby={builderHeadingId}
           className={cn(
             'cms-content-editor__builder',
-            open ? '2xl:col-span-2 2xl:col-start-1 2xl:row-start-2' : 'col-span-2',
+            open ? 'min-[1800px]:col-span-2 min-[1800px]:col-start-1 min-[1800px]:row-start-2' : 'col-span-2',
           )}
         >
           <h2 id={builderHeadingId} className="sr-only">
