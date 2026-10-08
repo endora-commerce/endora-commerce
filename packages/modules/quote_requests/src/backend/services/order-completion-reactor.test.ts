@@ -9,6 +9,7 @@ const ORG = '00000000-0000-4000-8000-0000000000aa';
 const OTHER_ORG = '00000000-0000-4000-8000-0000000000ab';
 const ORDER_ID = '00000000-0000-4000-8000-000000000001';
 const QUOTE_ID = '00000000-0000-4000-8000-000000000002';
+const OTHER_ORDER_ID = '00000000-0000-4000-8000-000000000003';
 
 const order = (overrides: Partial<OrderRecord> = {}): OrderRecord =>
   ({ id: ORDER_ID, organizationId: ORG, sourceQuoteRequestId: QUOTE_ID, ...overrides }) as OrderRecord;
@@ -18,12 +19,17 @@ const order = (overrides: Partial<OrderRecord> = {}): OrderRecord =>
  * that is not there yet, and one that never arrives
  * (`specs/143-crm-sales-opportunities/`, FR-104).
  */
-function rig(options: { reads: Array<OrderRecord | null>; quoteOrganizationId?: string; present?: () => boolean }) {
+function rig(options: {
+  reads: Array<OrderRecord | null>;
+  quoteOrganizationId?: string;
+  quoteStatus?: string;
+  present?: () => boolean;
+}) {
   const quote = {
     id: QUOTE_ID,
     organizationId: options.quoteOrganizationId ?? ORG,
     customerAccountId: 'customer',
-    status: 'Approved',
+    status: options.quoteStatus ?? 'Approved',
     completedAt: null as Date | null,
     convertedOrderId: null as string | null,
     version: 3,
@@ -31,6 +37,8 @@ function rig(options: { reads: Array<OrderRecord | null>; quoteOrganizationId?: 
   const reads = [...options.reads];
   const findById = vi.fn(async () => (reads.length > 0 ? (reads.shift() ?? null) : null));
   const slept: number[] = [];
+  /** What the composition's `defer` would have logged. */
+  const logged: string[] = [];
   const append = vi.fn(async () => ({ id: 'event' }));
   const enqueue = vi.fn(async () => undefined);
   const reactor = createOrderCompletionReactor({
@@ -38,15 +46,17 @@ function rig(options: { reads: Array<OrderRecord | null>; quoteOrganizationId?: 
     orders: { findById } as unknown as OrderReadPort,
     eventService: { append } as unknown as RfqEventService,
     notificationService: { enqueue } as unknown as RfqNotificationService,
-    defer: async (work) => {
-      await work();
-    },
+    // As the composition's: off the chain, never rejecting, a failure logged.
+    defer: (work) =>
+      work().catch((error: unknown) => {
+        logged.push(error instanceof Error ? error.message : String(error));
+      }),
     stillPresent: options.present ?? (() => true),
     sleep: async (milliseconds) => {
       slept.push(milliseconds);
     },
   });
-  return { reactor, quote, findById, slept, append, enqueue };
+  return { reactor, quote, findById, slept, logged, append, enqueue };
 }
 
 describe('order completion reactor', () => {
@@ -66,9 +76,10 @@ describe('order completion reactor', () => {
     expect(r.quote).toMatchObject({ status: 'Completed', convertedOrderId: ORDER_ID });
     expect(r.slept).toEqual([10, 25]);
     expect(r.findById).toHaveBeenCalledTimes(3);
+    expect(r.logged).toEqual([]);
   });
 
-  it('gives up on an order that never commits — a bounded wait, and nothing written', async () => {
+  it('gives up on an order that never commits — a bounded wait, nothing written, and it says so', async () => {
     const r = rig({ reads: [] });
     await r.reactor.onOrderCreated({ orderId: ORDER_ID });
     await r.reactor.idle();
@@ -76,6 +87,11 @@ describe('order completion reactor', () => {
     expect(r.slept).toEqual([10, 25, 75, 150, 250, 500, 1000]);
     expect(r.findById).toHaveBeenCalledTimes(8);
     expect(r.append).not.toHaveBeenCalled();
+    // Not silently: a commit slower than the wait looks exactly like this, and
+    // would leave an Order naming a request that stays `Approved`.
+    expect(r.logged).toHaveLength(1);
+    expect(r.logged[0]).toContain(ORDER_ID);
+    expect(r.logged[0]).toContain('2010 ms');
   });
 
   it('stops looking once the module is switched off', async () => {
@@ -87,6 +103,25 @@ describe('order completion reactor', () => {
     expect(r.quote.status).toBe('Approved');
     // The read the handler made itself, and none after.
     expect(r.findById).toHaveBeenCalledTimes(1);
+    // Switched off is not a failure, so there is nothing to report.
+    expect(r.logged).toEqual([]);
+  });
+
+  it('announced a second time, the same order completes nothing twice', async () => {
+    const r = rig({ reads: [order(), order()] });
+    await r.reactor.onOrderCreated({ orderId: ORDER_ID });
+    await r.reactor.onOrderCreated({ orderId: ORDER_ID });
+    expect(r.quote).toMatchObject({ status: 'Completed', convertedOrderId: ORDER_ID, version: 4 });
+    expect(r.append).toHaveBeenCalledTimes(1);
+    expect(r.enqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a completed request with the order that completed it, whatever a later order names', async () => {
+    const r = rig({ reads: [order({ id: OTHER_ORDER_ID })], quoteStatus: 'Completed' });
+    r.quote.convertedOrderId = ORDER_ID;
+    await r.reactor.onOrderCreated({ orderId: OTHER_ORDER_ID });
+    expect(r.quote).toMatchObject({ status: 'Completed', convertedOrderId: ORDER_ID, version: 3 });
+    expect(r.append).not.toHaveBeenCalled();
   });
 
   it('does nothing for an order that names no request', async () => {

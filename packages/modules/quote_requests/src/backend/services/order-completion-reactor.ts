@@ -18,7 +18,8 @@ export interface OrderCompletionReactorDeps {
   notificationService: RfqNotificationService;
   /**
    * Runs `work` off the bus's dispatch chain, in a scope of its own, and never
-   * rejects. Supplied by the composition; see {@link COMMIT_WAIT_PAUSES}.
+   * rejects: a `work` that throws is **logged** by it. Supplied by the
+   * composition; see {@link COMMIT_WAIT_PAUSES}.
    */
   defer: (work: () => Promise<void>) => Promise<void>;
   /** Whether this module is still present — asked before every deferred read. */
@@ -44,7 +45,15 @@ export interface OrderCompletionReactorDeps {
  * The same pauses `crm` uses for the same event, and for the same reason not
  * awaited on the bus: `EventBus.dispatch` runs subscribers one after another,
  * so a handler that slept here would hold every later subscriber for as long.
- * An order still missing after the last pause was rolled back.
+ *
+ * An order still missing after the last pause was, almost always, rolled back
+ * — and "almost" is why the give-up is said out loud rather than returned
+ * from: a commit that took longer than the wait leaves an Order that names its
+ * request and a request that still reads `Approved`, and nothing comes back
+ * for it. The deferred work throws, `defer` logs, and an operator can find the
+ * order. (`orders` refuses to write a second Order onto such a request by
+ * itself, so what is lost is the request's status and its notification, not
+ * the one-request-one-Order rule.)
  */
 const COMMIT_WAIT_PAUSES = [10, 25, 75, 150, 250, 500, 1000] as const;
 
@@ -131,6 +140,11 @@ export function createOrderCompletionReactor(deps: OrderCompletionReactorDeps): 
             return;
           }
         }
+        const waited = COMMIT_WAIT_PAUSES.reduce((total, pause) => total + pause, 0);
+        throw new Error(
+          `order ${orderId} was announced and is still not readable after ${waited} ms; ` +
+            'if it names a quote request, that request was not completed',
+        );
       });
       deferred.add(looking);
       void looking.then(() => deferred.delete(looking));

@@ -18,6 +18,9 @@ Two changes to that subscriber:
 - It waits for the order's commit. The event is announced from inside the placing
   transaction, so the order is sometimes not readable yet; the subscriber now looks again —
   off the event bus, for a little over two seconds — instead of giving up at the first read.
+  An order that is still not readable after the last look is **logged at `warn`**, naming the
+  order: almost always a placement that rolled back, and otherwise an order whose quote request
+  was left `Approved`.
 - It never completes a quote request for an order of another organization.
 
 **Breaking for anyone composing `quoteRequestsModule(...)` by hand**: `QuoteRequestsModuleOptions`
