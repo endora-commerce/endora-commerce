@@ -4707,6 +4707,89 @@ depends on it re-derives it before writing.
   Opportunity is closed, so a reminder paused for longer than that reads *missed*, not
   *paused*, from then on.
 
+### N-CALR — The independent review of Events, reminders and the Calendar (T384, 2026-10-08)
+
+Done by an agent that wrote none of it, over `a6eb90091..4e3d7ad14`. Each note is a defect
+that had a failing probe before it had a repair; the probes are
+`backend/test/integration/crm/events-review-regressions.test.ts` unless a note says otherwise.
+
+- **N-CALR1 — The recipient of a reminder was never asked for `crm:read`.** The sweep held a
+  candidate to two tests — active, and reaching the Organization — "the same two an assignee
+  must pass to be assigned". FR-138 says somebody who "may no longer see the Opportunity"
+  is not reminded, and a role that lost `crm:read` closes the screen as surely as a lost
+  Organization. A mention, which says less (a number and an author), is held to all three
+  (`mention-service.ts`); a reminder says the Event's name. **Repair**: the third test, put
+  to `permissionService` as the mention service puts it. *Left as it is, and worth the
+  owner's eye*: `assertAssignable` still accepts an assignee without `crm:read` — that is
+  US3's rule, older than this feature, and changing it changes who can be assigned.
+- **N-CALR2 — A claim was delivered whatever had become of its row.** The pass claims up to
+  a hundred rows, commits, and delivers them one after another from memory. An Event deleted
+  — or a reminder removed, or moved — after the claim and before its turn was delivered all
+  the same: a bell entry whose link opens an Event that is not there, against FR-137. The
+  window is the length of the pass, which is seconds when mail is healthy and minutes when a
+  mail server answers nobody. **Repair**: the claim is read again before its turn (same
+  stamp — every edit of a reminder clears it); one that is no longer the pass's is *withdrawn* — not delivered,
+  not settled, counted in the summary.
+- **N-CALR3 — `interrupted` was written over reminders that were delivered.** "Unrecorded
+  for ten minutes" is measured from the claim, which is the start of the pass; a pass longer
+  than that — a hundred e-mails against a transport that times out — had its later claims
+  marked `interrupted` by another process's tick, delivered them anyway, and then could not
+  record the truth, because settling matched `sending` only. The Events tab then said
+  "interrupted, may not have been delivered" beside a bell entry that was. **Repair**:
+  settling matches the pass's own stamp and writes over `interrupted` as well. `interrupted`
+  is thereby what the data model always called it — a claim whose process died.
+- **N-CALR4 — An instant past the year 9999 was a 500.** `isoDateTimeSchema` takes any
+  four-digit year as written; `9999-12-31T22:00:00-14:00` is noon on 1 January 10000, which
+  JavaScript serialises as `+010000-…` and PostgreSQL refuses (`time zone displacement out
+  of range`). Reached through `startsAt`, `endsAt`, `remindAt` and the Calendar's `from` /
+  `to`. **Repair, in `packages/contracts`** — the one change to §12d this review made: the
+  five instants are held to `0001-01-03` … `9999-12-30` (UTC) and answer 400. Beside it,
+  `domain/event-time.ts` wrote an all-day date before the year 1000 without its leading
+  zeros (`500-06-01`), which the contract's own date schema refuses; it pads now.
+- **N-CALR5 — A line break in an Event's name reached the subject of the e-mail.** The name
+  is trimmed, not held to one line, and the subject template is rendered raw. The SMTP
+  driver's library folds a header itself, so this was not an injection on the shipped
+  transport — but the mailer is a port, and a bell sentence is one line. **Repair**: the
+  reminder says the name with its white space collapsed; the stored name is untouched.
+- **N-CALR6 — An Event with a long name never got its reminder.** `admin_notifications`
+  stores a title of 255 characters and raises on a longer one; a reminder's sentence is the
+  name plus about 65 characters. From roughly 190 characters of name the bell write threw on
+  every pass, the claim was given back every minute for a day, and the reminder ended
+  `missed` — no bell entry, and no e-mail either, since the e-mail comes after the bell.
+  **Repair**: the stored English sentence is cut to fit (`bellTitle`); the `titleMessage`
+  params, which the Admin UI words the entry from, keep the name whole.
+- **N-CALR7 — The hard edge to `transactional_emails` stays.** The question was whether CRM
+  should *degrade* without the mail module instead of binding it. It should not, and the
+  reason is in the owner module's manifest: `transactional_emails` is `nonDeactivatable`, so
+  there is no operator's switch for a `dependencies` entry to deaden, and an instance always
+  has it (`module-composition.md` item 4b closes the non-deactivatable set over
+  `dependencies`). A `degrades-without` edge would promise a degrade for a state no instance
+  can be in, and would need presence probes that can never answer "absent". What the design
+  meant by "optional" is delivered where it can happen — per message: no sender, no
+  transport, the e-mail deactivated on the templates screen and a transport that throws are
+  each an outcome that costs nothing but the e-mail, and each is tested. Seven other modules
+  declare the same edge the same way.
+- **N-CALR8 — Mutation.** Thirty-odd mutants over the routes, the two services, the sweep,
+  the migration, the worker, `auth`'s presence and the Admin UI. Three survived and each now
+  has its test: the Events tab's guard against a superseded read (`events-tab.test.tsx`),
+  starting the consumer without installing its schedule
+  (`event-reminder-worker.test.ts`), and — an equivalent mutant, no test owed — the lower
+  bound of the claim, which the `missed` statement that runs first already enforces.
+- **N-CALR9 — Seen and left, for whoever reads next.** (a) The reminder e-mail has no link
+  (FR-139 asks for one; N-CAL15 (4), the owner's to schedule). (b) The creator is also the
+  fallback when the assignee is disqualified, not only when nobody is assigned — wider than
+  FR-138's sentence, deliberate and tested. (c) `GET …/events` returns at most 500 Events of
+  one Opportunity and says nothing when it cut, while `upcomingEventCount` counts them all.
+  (d) A pass delivers its claims one after another with one `now`: with a transport that
+  times out, the hundredth is late by the sum of the timeouts and the next tick's claims wait
+  behind it. (e) `sent · bell` against `sent · bell and e-mail` on the Events tab tells every
+  reader of the Opportunity whether the recipient was in the Admin UI at that minute.
+  (f) A `remindAt` later than the Event itself is accepted. (g) The Calendar's address takes
+  any real date (`?date=9999-12-31` is an error state with *Retry*); only the date field
+  holds itself to 1970 – 2199. (h) Presence is decided once per tick: a pass already in hand
+  when CRM is switched off finishes its claims — at most a hundred — before the next tick
+  finds the module off.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,

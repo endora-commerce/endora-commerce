@@ -308,10 +308,12 @@ export class EventReminderService {
   }
 
   /**
-   * Whether the claim is still the one this pass made: the row exists, its
-   * reminder is the one that was claimed, and the latch carries this pass's
-   * stamp. `interrupted` counts as held — it is another tick's presumption
-   * about this pass, not somebody else's claim.
+   * Whether the claim is still the one this pass made: the row exists and the
+   * latch carries this pass's stamp. Every edit of a reminder clears the latch
+   * (`opportunity-event-service.ts`), so the stamp alone says the reminder is
+   * the one that was claimed — and it is a value this pass wrote, which
+   * `remind_at` is not. `interrupted` counts as held: it is another tick's
+   * presumption about this pass, not somebody else's claim.
    */
   async #stillHeld(claim: ClaimedReminder, claimedAt: Date): Promise<boolean> {
     const rows = (await this.deps
@@ -320,9 +322,9 @@ export class EventReminderService {
       .execute(
         `select 1 as "held"
            from "crm_opportunity_events"
-          where "id" = ? and "remind_at" = ? and "reminder_handled_at" = ?
+          where "id" = ? and "reminder_handled_at" = ?
             and "reminder_outcome" in ('sending', 'interrupted')`,
-        [claim.id, claim.remindAt, claimedAt],
+        [claim.id, claimedAt],
       )) as unknown[];
     return rows.length > 0;
   }

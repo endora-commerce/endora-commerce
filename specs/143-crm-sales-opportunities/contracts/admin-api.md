@@ -488,7 +488,13 @@ There is no optimistic concurrency on an Event (no `If-Match`): the later save w
 | `remindAt` | ISO 8601 instant \| `null`, optional (absent = `null`) | must be later than now |
 
 The schema refuses what needs no clock and no zone data: `endsAt <= startsAt`, a span over
-25 hours, an empty name. The service refuses the rest (`data-model.md` §
+25 hours, an empty name — and **an instant outside `0001-01-03T00:00:00Z` …
+`9999-12-30T00:00:00Z`** (the end excluded), which holds for `startsAt`, `endsAt`, `remindAt`
+and the Calendar's `from` and `to` alike. A four-digit year as written is not enough: an
+offset carries `9999-12-31T22:00:00-14:00` into the year 10000, which the database refuses,
+and before the review of 2026-10-08 that was a 500 (research N-CALR4). The two days kept
+free at each end are for the local date of an instant in any zone and for the 25 hours the
+Calendar read looks back before its `from`. The service refuses the rest (`data-model.md` §
 *`crm_opportunity_events`* → Rules).
 
 **`UpdateOpportunityEventRequestSchema`** — every member above, all optional. The rules are

@@ -291,7 +291,10 @@ none can deaden an operator's switch (`auth` is one already).
 through the existing `crm-notifier.ts`, which gains one kind and two sentences;
 `adminUserReadPort` (already consumed) gives the recipient's e-mail address, status and
 `preferredLanguage`; `adminTenantScopePort` (already consumed, through `AdminReach`) says
-whether the recipient may still see the Opportunity's Organization.
+whether the recipient may still see the Opportunity's Organization; and `permissionService`
+(already consumed, by the mention service) says whether they still hold `crm:read` — the
+three conditions a mention is held to, applied to a sentence that says more than a mention
+does (review of 2026-10-08, research N-CALR1).
 
 **The transactional e-mail** — declared in the manifest's `transactionalEmails`, like
 `shipments`' `shipment_created`:
