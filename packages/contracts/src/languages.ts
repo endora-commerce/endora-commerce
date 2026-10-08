@@ -105,18 +105,54 @@ export interface LanguageAdminPort {
 }
 
 /**
+ * One row of the language catalogue as it crosses into `languages`.
+ *
+ * `dictionaries` ships the catalogue — every ISO 639-1 language, with the
+ * countries that use it — and this module owns the table the rows land in, so
+ * the shape is declared here, beside the port that takes it, exactly as
+ * `CurrencySeedRow` is declared beside `CurrencySeedPort`.
+ *
+ * There is deliberately **no `isActive`**. A seeded language is one an operator
+ * *may* switch on, never one the platform serves: `listActive` feeds the
+ * storefront's language list, the catalogue's translation chains and the product
+ * feeds, and a caller able to seed an active row could add a storefront language
+ * by shipping a data file.
+ */
+export interface LanguageSeedRow {
+  /** ISO 639-1 code, or any tag the table's `code` column accepts. */
+  code: string;
+  /** English name. */
+  label: string;
+  /** The language's name in itself. */
+  nativeLabel: string;
+  isRtl?: boolean;
+  sortOrder?: number;
+}
+
+/**
  * Container name: `languageSeedPort`. Owner: `languages`.
  *
  * The seam `dictionaries`' boot reconciler used to be a raw
  * `update "languages" set "native_label" = …` — this module's table, written by
  * another module (D-87).
  *
- * Narrow on purpose: the only seeding `dictionaries` does against this table is
- * filling the empty `native_label` that migration 038 left behind, and the fill
- * happens **once**. A row whose label an operator has since set is never
- * overwritten, so a re-run is a no-op rather than a revert.
+ * Two writes, both insert-or-fill and neither an update of anything an operator
+ * can have set: `ensureSeeded` inserts the catalogue rows whose code is missing,
+ * and `backfillNativeLabels` fills the empty `native_label` that migration 038
+ * left behind, **once**. A row that already exists is never touched by either,
+ * so a re-run is a no-op rather than a revert.
+ *
+ * Deliberately **not** `LanguageAdminPort.create`, for `CurrencySeedPort`'s
+ * reason: 183 rows land on the first boot after an upgrade, and routing them
+ * through the admin write path would record 183 audit entries for something no
+ * operator did.
  */
 export interface LanguageSeedPort {
+  /**
+   * Inserts every row whose `code` is missing, **inactive and not default**.
+   * Returns how many it inserted.
+   */
+  ensureSeeded(rows: readonly LanguageSeedRow[]): Promise<number>;
   /**
    * Sets `nativeLabel` on every listed code that still holds the empty string.
    * Returns how many rows it filled.

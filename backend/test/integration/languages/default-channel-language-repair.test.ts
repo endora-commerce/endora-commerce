@@ -72,6 +72,13 @@ describe('languages — repairing a sales channel created with the bare `en` cod
 
   beforeEach(async () => {
     em = await db.beginTx();
+    // The repair's premise is a database in which `en` is not a dictionary
+    // row — which is every database at the moment it runs, because migrations
+    // precede the first boot. The ISO 639-1 catalogue is seeded *at* boot and
+    // holds `en`, so a test database an earlier file booted a server against
+    // has it. Stated here rather than inherited from file order; the
+    // transaction puts the row back.
+    await em.execute(`delete from "languages" where "code" = 'en'`);
   });
 
   afterEach(async () => {

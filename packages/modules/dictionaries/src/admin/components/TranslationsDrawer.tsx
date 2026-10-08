@@ -50,6 +50,16 @@ export function TranslationsDrawer({
     [rows],
   );
 
+  // An entry is translated into the languages that are switched on. The
+  // dictionary lists every ISO 639-1 language as *available*, and the backend
+  // refuses a label in an inactive one, so offering a field per row would be a
+  // hundred and eighty inputs that cannot be saved. An inactive language that
+  // already holds a label stays, so the label can still be read and removed.
+  const offered = useMemo(
+    () => languages.filter((language) => language.isActive || byLanguage.has(language.code)),
+    [languages, byLanguage],
+  );
+
   if (!entryCode) return null;
 
   const save = async (languageCode: string): Promise<void> => {
@@ -96,7 +106,7 @@ export function TranslationsDrawer({
         </Alert>
       ) : null}
       <div className="space-y-2 rounded-md border p-2">
-        {languages.map((language) => {
+        {offered.map((language) => {
           const existing = byLanguage.get(language.code);
           const value = drafts[language.code] ?? '';
           return (
@@ -135,7 +145,7 @@ export function TranslationsDrawer({
             </div>
           );
         })}
-        {languages.length === 0 ? (
+        {offered.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('translations.noLanguages')}</p>
         ) : null}
       </div>

@@ -44,9 +44,12 @@ describe('LabelResolver — locale fallback chain', () => {
   });
 
   it('walks fallbackCode chain before canonical English fallback', async () => {
+    // Regional tags on purpose: the bare `de` is a row of the ISO 639-1
+    // catalogue the dictionary seeds, so a test that creates it collides with
+    // whichever earlier file booted a server.
     em.persist([
       em.create(Language, {
-        code: 'de',
+        code: 'de-DE',
         label: 'German',
         nativeLabel: 'Deutsch',
         fallbackCode: 'en-US',
@@ -55,7 +58,7 @@ describe('LabelResolver — locale fallback chain', () => {
         code: 'de-AT',
         label: 'German (Austria)',
         nativeLabel: 'Österreichisches Deutsch',
-        fallbackCode: 'de',
+        fallbackCode: 'de-DE',
       }),
     ]);
     await em.flush();
@@ -63,7 +66,7 @@ describe('LabelResolver — locale fallback chain', () => {
       em.create(DictionaryTranslation, {
         entryType: 'country',
         entryCode: 'PL',
-        languageCode: 'de',
+        languageCode: 'de-DE',
         label: 'Polen',
       }),
     );

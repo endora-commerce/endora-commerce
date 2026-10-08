@@ -23,8 +23,9 @@ Open `Admin -> Operations -> Dictionary`. The page has three tabs:
   label, localized labels, and allowed languages for each country.
 - **Currencies** — ISO currency code, symbol, decimal precision, active flag,
   storefront visibility, default label, and localized labels.
-- **Languages** — BCP-47 language code, native name, active flag, storefront
-  visibility, default label, and localized labels.
+- **Languages** — every ISO 639-1 language plus the regional BCP-47 tags the
+  shop adds: code, English and native name, the countries that use it, active
+  flag, default label, and localized labels.
 
 Deactivating an entry prevents new writes from selecting that code, but
 historical records can keep reading the existing value. This is intentional:
@@ -34,6 +35,28 @@ auditable after a code is retired from active use.
 Localized labels are edited from each row. Storefront registry reads choose the
 requested locale when present and fall back to the default label when a
 translation is missing.
+
+## The Language Catalogue
+
+The Languages tab lists every ISO 639-1 language — 183 two-letter codes —
+beside the two regional languages the platform ships with, `en-US` and `pl-PL`.
+Each language carries the countries that use it, shown as country-code chips.
+The list can be searched by code, name or country, filtered by status, and is
+paged.
+
+**A listed language is available, not active.** The catalogue arrives inactive.
+Only an active language is offered to sales channels, appears in the storefront
+registry and in `GET /api/v1/i18n/config`, and can receive a translated label.
+Activate a language on its row to start using it. A regional tag the catalogue
+does not hold, such as `de-AT` or `pt-BR`, is still created with **Add
+language**.
+
+The catalogue is reference data seeded when the backend boots, so an
+installation that predates it receives it on its first boot after the upgrade.
+Seeding only inserts what is missing: a row you have edited or activated is
+never overwritten, and a seeded row you delete returns on the next boot — leave
+it inactive instead. A language is linked only to countries the Countries tab
+holds; add a country and its languages are linked on the next boot.
 
 ## Storefront Registry
 

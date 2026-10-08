@@ -46,6 +46,17 @@ export class LanguageCountryService {
     }
   }
 
+  /**
+   * Every link, in one statement — for a caller that is about to list every
+   * language. The admin list used to ask {@link listForLanguage} once per row,
+   * which was two statements while the dictionary held two languages and is
+   * one per ISO 639-1 code now that it holds the catalogue.
+   */
+  async listAll(): Promise<LanguageCountry[]> {
+    const em = this.emFactory();
+    return em.find(LanguageCountry, {}, { orderBy: { languageCode: 'asc', countryCode: 'asc' } });
+  }
+
   async listForLanguage(languageCode: string): Promise<LanguageCountry[]> {
     const em = this.emFactory();
     return em.find(LanguageCountry, { languageCode });

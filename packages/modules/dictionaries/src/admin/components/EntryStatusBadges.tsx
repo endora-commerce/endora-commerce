@@ -5,12 +5,20 @@ interface EntryStatusBadgesProps {
   isDefault: boolean;
   isActive: boolean;
   translationsComplete?: boolean | null;
+  /**
+   * Whether the entry has translations to report on at all. An inactive
+   * language has none — nothing serves it and a label cannot be saved in it —
+   * so its row says "inactive" and stops, rather than "translations pending"
+   * for a hundred and eighty languages nobody is waiting on.
+   */
+  showTranslations?: boolean;
 }
 
 export function EntryStatusBadges({
   isDefault,
   isActive,
   translationsComplete = null,
+  showTranslations = true,
 }: EntryStatusBadgesProps): ReactNode {
   const t = useTranslation('dictionaries');
   return (
@@ -19,7 +27,7 @@ export function EntryStatusBadges({
       <Badge variant={isActive ? 'secondary' : 'warning'}>
         {isActive ? t('badge.active') : t('badge.inactive')}
       </Badge>
-      {translationsComplete === null ? (
+      {!showTranslations ? null : translationsComplete === null ? (
         <Badge variant="outline">{t('badge.translationsPending')}</Badge>
       ) : (
         <Badge variant={translationsComplete ? 'success' : 'warning'}>
