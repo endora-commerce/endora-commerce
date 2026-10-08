@@ -14,7 +14,7 @@ import {
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
-import type { MegamenuCache } from './megamenu-cache.js';
+import type { MegamenuCacheInvalidation } from './megamenu-invalidator.js';
 
 type MegamenuRow = {
   id: string;
@@ -55,7 +55,7 @@ type BindingRow = {
 export class MegamenuService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly cache?: MegamenuCache,
+    private readonly cache?: MegamenuCacheInvalidation,
     private readonly dictionaryValidator?: DictionaryValidator,
   ) {}
 

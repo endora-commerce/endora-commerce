@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { EventBus } from '@endora-commerce/platform/events';
+import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type {
   SettingsAdminPort,
@@ -107,7 +108,18 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
 
     settingsCacheAdminService: ctx
-      .asFunction(({ redis }: SettingsCradle) => new CacheAdminService(redis))
+      .asFunction(
+        ({ redis }: SettingsCradle) =>
+          // The third argument is what makes the cache screen reach the
+          // storefront's own copy of CMS and megamenu content. A no-op unless
+          // STOREFRONT_BASE_URL and REVALIDATE_SECRET are configured.
+          new CacheAdminService(redis, undefined, (tags) =>
+            new StorefrontRevalidator({
+              baseUrl: process.env['STOREFRONT_BASE_URL'],
+              secret: process.env['REVALIDATE_SECRET'],
+            }).revalidate(tags),
+          ),
+      )
       .singleton(),
 
     settingsShopInfoResolver: ctx

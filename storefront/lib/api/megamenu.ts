@@ -1,4 +1,4 @@
-import type { ResolvedMegamenu } from '@endora-commerce/contracts';
+import { MEGAMENU_STOREFRONT_CACHE_TAG, type ResolvedMegamenu } from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 
 /**
@@ -15,7 +15,9 @@ export async function getActiveMegamenu(ctx: RequestContext): Promise<ResolvedMe
     const out = await apiGet<{ data: ResolvedMegamenu }>(
       `/api/v1/megamenu/by-channel${qs ? `?${qs}` : ''}`,
       ctx,
-      { revalidate: 60, tags: ['megamenu'] },
+      // Dropped by the backend's `megamenu` module on every menu write, and
+      // on a save of any CMS block or page a menu inlines or links to.
+      { revalidate: 60, tags: [MEGAMENU_STOREFRONT_CACHE_TAG] },
     );
     return out.data;
   } catch (err) {

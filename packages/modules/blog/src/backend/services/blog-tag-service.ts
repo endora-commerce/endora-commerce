@@ -120,7 +120,7 @@ export class BlogTagService {
 
   async patch(id: string, input: PatchBlogTagRequest): Promise<BlogTagDetail> {
     const em = this.emFactory();
-    return em.transactional(async (tx) => {
+    const patched = await em.transactional(async (tx) => {
       const existing = await this.findRow(tx, id);
       if (!existing) {
         throw new HttpError(404, ERROR_CODES.BLOG_TAG_NOT_FOUND, 'Blog tag not found.');
@@ -153,11 +153,15 @@ export class BlogTagService {
         params,
       );
       const row = await this.findRow(tx, id);
-      const detail = this.toDetail(row!);
-      // Tag rename ⇒ blow the storefront cache (URLs change).
-      if (codeChange && this.cache) await this.cache.invalidateAll();
-      return detail;
+      return this.toDetail(row!);
     });
+    // Every cached post, tag page and listing carries the tag's name as well
+    // as its code, so any change to a tag makes them stale — this used to fire
+    // for a code change only, and a renamed tag kept its old label for the
+    // cache's TTL. Dropped after the commit, so a read racing the write cannot
+    // re-cache the old row.
+    if (this.cache) await this.cache.invalidateAll();
+    return patched;
   }
 
   async softDelete(id: string, version: number | undefined): Promise<void> {

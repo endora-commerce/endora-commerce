@@ -3,11 +3,13 @@ import type { Redis } from 'ioredis';
 import { z } from 'zod';
 import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
 import {
+  CMS_CONTENT_CHANGED_EVENT,
   cmsColorPaletteSchema,
   type AssetReferenceRegistryPort,
   type AssetsLibraryPort,
   type CmsBlockSeedPort,
   type CmsColorPalette,
+  type CmsContentChange,
   type DictionaryReferenceRegistryPort,
   type ModuleManifest,
 } from '@endora-commerce/contracts';
@@ -15,12 +17,16 @@ import { CMS_PAGE_BUILDER_SETTING_CODES, CMS_SETTING_CODES } from '../manifest.j
 import type { CmsBlockReadPort, CmsPageReadPort } from '@endora-commerce/contracts';
 import { CmsBlockReadService } from './services/cms-block-read-port.js';
 import { CmsBlockSeedService } from './services/cms-block-seed-port.js';
+import { storefrontTagsFor } from './services/cms-content-invalidator.js';
 import { CmsPageReadService } from './services/cms-page-read-port.js';
 import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
 import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
+import type { EventBase, EventBus } from '@endora-commerce/platform/events';
+import { StorefrontRevalidator } from '@endora-commerce/platform/http';
+import { randomUUID } from 'crypto';
 import { cmsModule } from './plugin.js';
 import type { CmsAssetResolver } from './services/storefront-resolver.js';
 import { createAssetEmbedResolver } from './services/asset-embed-resolver.js';
@@ -107,6 +113,10 @@ export interface CmsCradle {
   readonly emFactory: () => EntityManager;
   /** The host's Command Bus — the audited path every Page write runs on (Constitution XIII). */
   readonly commandBus: CommandBus;
+  /** The host's in-process bus — where a committed content change is published. */
+  readonly eventBus: EventBus;
+  /** Posts cache tags at the storefront's revalidate endpoint; see its registration. */
+  readonly cmsStorefrontRevalidator: StorefrontRevalidator;
   readonly redis: Redis;
   readonly requireAdmin: RequireAdminFactory;
   readonly settingsReadPort: {
@@ -223,12 +233,44 @@ export function registerModule(ctx: ModuleContext): void {
       )
       .singleton(),
 
+    /**
+     * The storefront keeps every CMS read in its Data Cache for 60 s, tagged
+     * with the names in `CMS_STOREFRONT_CACHE_TAGS`. This is what tells it a
+     * write made some of them stale, so a saved page is the next request's
+     * page rather than the next minute's. A no-op unless STOREFRONT_BASE_URL
+     * and REVALIDATE_SECRET are configured, and best-effort when they are: an
+     * unreachable storefront is logged and never fails the save.
+     *
+     * Registered here, like `catalog`'s, because the subscription that drives
+     * it belongs in this file (issue #107).
+     */
+    cmsStorefrontRevalidator: ctx
+      .asFunction(
+        () =>
+          new StorefrontRevalidator({
+            baseUrl: process.env['STOREFRONT_BASE_URL'],
+            secret: process.env['REVALIDATE_SECRET'],
+          }),
+      )
+      .singleton(),
+
     cms: ctx
       .asFunction(({ emFactory, commandBus, redis, resolvedModuleRegistry }: CmsCradle) => {
         const result = cmsModule({
           emFactory,
           commandBus,
           redis,
+          // Published on the bus rather than answered here, because this module
+          // is not the only one caching CMS content: `megamenu` inlines a
+          // block's tree into a menu payload and can learn that the block moved
+          // from nowhere else. The bus is read per change, never captured.
+          publishContentChange: (change) => {
+            ctx.cradle<CmsCradle>().eventBus.emit(CMS_CONTENT_CHANGED_EVENT, {
+              eventId: randomUUID(),
+              occurredAt: new Date().toISOString(),
+              ...change,
+            });
+          },
           // Feature 096, T209/T210. The declarations are fixed at composition;
           // presence is read per `describe()` call, so an operator switching a
           // block owner off changes the next response with no restart and no
@@ -453,8 +495,29 @@ export function registerModule(ctx: ModuleContext): void {
     registerCmsAssetReferences(assetReferenceRegistry, emFactory);
   });
 
+  /**
+   * A committed content change reaches the storefront's Data Cache.
+   *
+   * By the time the event is dispatched the write has committed and this
+   * module's Redis entries are gone (`CmsContentInvalidator` orders it), so the
+   * refetch this provokes reads the new content. `ctx.subscribe` stops it with
+   * the module — a switched-off `cms` has no write route to publish from, and
+   * no storefront surface left to refresh.
+   *
+   * Not awaited: the save has already answered, and the storefront being slow
+   * or absent is not the operator's problem to wait on.
+   */
+  ctx.subscribe(CMS_CONTENT_CHANGED_EVENT, (payload) => {
+    const change = payload as EventBase & CmsContentChange;
+    void ctx.cradle<CmsCradle>().cmsStorefrontRevalidator.revalidate(storefrontTagsFor(change));
+  });
+
   ctx.routes(async (app) => {
-    await ctx.cradle<CmsCradle>().cms.plugin(app);
+    const cradle = ctx.cradle<CmsCradle>();
+    // The route registrar is where `app.log` exists, so the revalidator picks
+    // it up here; until then a failed revalidation has nowhere to be logged.
+    cradle.cmsStorefrontRevalidator.setLogger(app.log);
+    await cradle.cms.plugin(app);
   });
 
   /**

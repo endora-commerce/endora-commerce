@@ -1,5 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
+import {
+  CMS_CONTENT_CHANGED_EVENT,
+  MEGAMENU_STOREFRONT_CACHE_TAG,
+  type CmsContentChange,
+} from '@endora-commerce/contracts';
 import type {
   AssetReadPort,
   AssetReferenceRegistryPort,
@@ -14,7 +19,10 @@ import type {
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { EventBase } from '@endora-commerce/platform/events';
+import { StorefrontRevalidator } from '@endora-commerce/platform/http';
 import { MegamenuCache, type MegamenuCacheOptions } from './services/megamenu-cache.js';
+import { MegamenuInvalidator } from './services/megamenu-invalidator.js';
 import { MegamenuReferenceRegistry } from './services/megamenu-reference-registry.js';
 import { MegamenuService } from './services/megamenu-service.js';
 import { MegamenuItemService } from './services/megamenu-item-service.js';
@@ -79,6 +87,8 @@ interface MegamenuServices {
   readonly itemService: MegamenuItemService;
   readonly storefrontResolver: StorefrontResolver;
   readonly cache: MegamenuCache | undefined;
+  /** What the write services hold: the Redis drop, then the storefront notice. */
+  readonly invalidator: MegamenuInvalidator;
 }
 
 export interface MegamenuCradle {
@@ -88,6 +98,8 @@ export interface MegamenuCradle {
   readonly dictionaryValidator: DictionaryValidator;
   /** Composition-specific cache tuning; `{}` in production. */
   readonly megamenuCacheOptions: MegamenuCacheOptions;
+  /** Posts the menu's cache tag at the storefront's revalidate endpoint. */
+  readonly megamenuStorefrontRevalidator: StorefrontRevalidator;
   /**
    * Owned by `assets_library`: the registry that refuses to delete an asset a
    * menu item points at, whether as the item's target or as its icon. Named by
@@ -107,13 +119,37 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     megamenuCacheOptions: ctx.asFunction((): MegamenuCacheOptions => ({})).singleton(),
 
+    /**
+     * The storefront keeps the resolved menu in its Data Cache for 60 s under
+     * `MEGAMENU_STOREFRONT_CACHE_TAG`; this is what tells it the menu moved. A
+     * no-op unless STOREFRONT_BASE_URL and REVALIDATE_SECRET are configured,
+     * and best-effort when they are — an unreachable storefront is logged and
+     * never fails the write.
+     */
+    megamenuStorefrontRevalidator: ctx
+      .asFunction(
+        () =>
+          new StorefrontRevalidator({
+            baseUrl: process.env['STOREFRONT_BASE_URL'],
+            secret: process.env['REVALIDATE_SECRET'],
+          }),
+      )
+      .singleton(),
+
     megamenuServices: ctx
       .asFunction(
         ({ emFactory, redis, megamenuCacheOptions }: MegamenuCradle): MegamenuServices => {
           const cache = redis ? new MegamenuCache(redis, megamenuCacheOptions) : undefined;
+          // The revalidator is read per notice rather than captured, and the
+          // request is not awaited: the write has its answer already.
+          const invalidator = new MegamenuInvalidator(cache, () => {
+            void ctx
+              .cradle<MegamenuCradle>()
+              .megamenuStorefrontRevalidator.revalidate([MEGAMENU_STOREFRONT_CACHE_TAG]);
+          });
           const menuService = new MegamenuService(
             emFactory,
-            cache,
+            invalidator,
             lazyPort<DictionaryValidator>(ctx, 'dictionaryValidator'),
           );
           /**
@@ -138,7 +174,8 @@ export function registerModule(ctx: ModuleContext): void {
           return {
             menuService,
             cache,
-            itemService: new MegamenuItemService(emFactory, menuService, ports, cache),
+            invalidator,
+            itemService: new MegamenuItemService(emFactory, menuService, ports, invalidator),
             storefrontResolver: new StorefrontResolver(emFactory, ports, cache),
           };
         },
@@ -189,8 +226,32 @@ export function registerModule(ctx: ModuleContext): void {
     registerMegamenuCmsReferences(cmsReferenceRegistry, megamenuReferenceRegistry);
   });
 
+  /**
+   * A menu payload inlines content this module does not own: the tree of every
+   * CMS block a panel embeds, and the slug of every CMS page an item links to.
+   * Both are cached with the menu — in Redis here and in the storefront's Data
+   * Cache — and neither cache can learn that the content moved except from its
+   * owner. `cms` publishes that after its write has committed.
+   *
+   * Nothing records which menu holds which block, so any block or page change
+   * drops every menu; there is one small entry per channel and language. A
+   * template or a hook is in no menu payload and is ignored.
+   *
+   * `ctx.subscribe` stops this with the module, so a switched-off `megamenu`
+   * posts nothing at the storefront.
+   */
+  ctx.subscribe(CMS_CONTENT_CHANGED_EVENT, async (payload) => {
+    const change = payload as EventBase & CmsContentChange;
+    if (change.kind !== 'block' && change.kind !== 'page') return;
+    await ctx.cradle<MegamenuCradle>().megamenuServices.invalidator.invalidateAll();
+  });
+
   ctx.routes(async (app) => {
-    const { megamenuServices, requireAdmin } = ctx.cradle<MegamenuCradle>();
+    const { megamenuServices, megamenuStorefrontRevalidator, requireAdmin } =
+      ctx.cradle<MegamenuCradle>();
+    // The route registrar is where `app.log` exists, so the revalidator picks
+    // it up here; until then a failed revalidation has nowhere to be logged.
+    megamenuStorefrontRevalidator.setLogger(app.log);
     await registerMegamenuAdminRoutes(app, {
       menuService: megamenuServices.menuService,
       itemService: megamenuServices.itemService,

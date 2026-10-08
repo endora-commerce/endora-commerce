@@ -8,7 +8,7 @@ import {
   type PatchCmsHookRequest,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import type { CmsCache } from './cms-cache.js';
+import type { CmsContentInvalidator } from './cms-content-invalidator.js';
 
 type HookRow = {
   id: string;
@@ -32,17 +32,17 @@ type HookAttachmentRow = {
 export class CmsHookService {
   constructor(
     private readonly emFactory: () => EntityManager,
-    private readonly cache?: CmsCache,
+    private readonly invalidator?: CmsContentInvalidator,
   ) {}
 
   private async invalidateForHookId(hookId: string): Promise<void> {
-    if (!this.cache) return;
+    if (!this.invalidator) return;
     const rows = (await this.emFactory().execute(
       'select code from cms_hooks where id = ?',
       [hookId],
     )) as Array<{ code: string }>;
     const codes = rows.map((r) => r.code).filter((c) => c && c.length > 0);
-    if (codes.length > 0) await this.cache.invalidateHooksByCode(codes);
+    await this.invalidator.hooksChanged(codes);
   }
 
   async list(filters: { salesChannelId?: string } = {}): Promise<{
@@ -87,7 +87,7 @@ export class CmsHookService {
       );
       await this.replaceChannelScope(tx, id, input.salesChannelIds);
     });
-    if (this.cache) await this.cache.invalidateHooksByCode([input.code]);
+    await this.invalidator?.hooksChanged([input.code]);
     return this.get(id);
   }
 
@@ -146,7 +146,7 @@ export class CmsHookService {
       );
     }
     await this.emFactory().execute('delete from cms_hooks where id = ?', [id]);
-    if (this.cache) await this.cache.invalidateHooksByCode([row.code]);
+    await this.invalidator?.hooksChanged([row.code]);
   }
 
   async listAttachments(hookId: string): Promise<CmsHookDetail['attachments']> {

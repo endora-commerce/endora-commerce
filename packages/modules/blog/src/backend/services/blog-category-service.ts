@@ -114,7 +114,7 @@ export class BlogCategoryService {
     const id = randomUUID();
     const now = new Date();
 
-    return em.transactional(async (tx) => {
+    const created = await em.transactional(async (tx) => {
       // Slug-collision guard runs first so we don't pollute the row.
       await assertSlugAvailable(tx, {
         slug: input.slug,
@@ -177,6 +177,12 @@ export class BlogCategoryService {
 
       return this.getByIdInTx(tx, id);
     });
+    // A first-level category is in the storefront index from the moment it
+    // exists, so the cached index is stale as of this commit. Dropped after
+    // the transaction, not inside it: a read between an early drop and the
+    // commit would re-cache the list without the new category for a full TTL.
+    if (this.cache) await this.cache.invalidateAll();
+    return created;
   }
 
   async patch(

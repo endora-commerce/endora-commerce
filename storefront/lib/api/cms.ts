@@ -1,3 +1,4 @@
+import { CMS_STOREFRONT_CACHE_TAGS } from '@endora-commerce/contracts';
 import type {
   CmsPageIndexResponse,
   CmsResolvedBlock,
@@ -6,6 +7,15 @@ import type {
 } from '@endora-commerce/contracts';
 import { apiGet, StorefrontApiError, type RequestContext } from './client';
 import { isModuleDisabled } from './module-absence';
+
+/**
+ * Every reader below keeps its answer in the Data Cache for 60 s and tags it
+ * from `CMS_STOREFRONT_CACHE_TAGS`. The window is only the fallback: the
+ * backend's `cms` module posts the matching tags at `/api/revalidate` when a
+ * page, block, template or hook is saved, so an edit is the next request's
+ * content. The names are imported, never spelled here — a tag the backend does
+ * not also use is one no write will ever drop.
+ */
 
 /**
  * Fetch a published CMS block by its code (per the request's sales channel +
@@ -21,7 +31,10 @@ export async function getCmsBlockByCode(
     const res = await apiGet<{ data: CmsResolvedBlock }>(
       `/api/v1/cms/blocks/by-code?${qs.toString()}`,
       ctx,
-      { revalidate: 60, tags: ['cms:block', `cms:block:${code}`] },
+      {
+        revalidate: 60,
+        tags: [CMS_STOREFRONT_CACHE_TAGS.blocks, CMS_STOREFRONT_CACHE_TAGS.block(code)],
+      },
     );
     return res.data;
   } catch (err) {
@@ -67,7 +80,7 @@ export async function getCmsPageBySlug(
       ctx,
       {
         revalidate: 60,
-        tags: ['cms:page', `cms:page:${canonical}`],
+        tags: [CMS_STOREFRONT_CACHE_TAGS.pages, CMS_STOREFRONT_CACHE_TAGS.page(canonical)],
       },
     );
     return res.data;
@@ -91,7 +104,7 @@ export async function getCmsHookByCode(
       ctx,
       {
         revalidate: 60,
-        tags: ['cms:hook', `cms:hook:${code}`],
+        tags: [CMS_STOREFRONT_CACHE_TAGS.hooks, CMS_STOREFRONT_CACHE_TAGS.hook(code)],
       },
     );
     return res.data;
@@ -128,7 +141,9 @@ export async function getCmsPageIndex(
     const res = await apiGet<{ data: CmsPageIndexResponse }>(
       '/api/v1/cms/pages/by-channel',
       ctx,
-      { revalidate: 60, tags: ['cms:page'] },
+      // Its own tag, not the every-page one: a block or template save drops
+      // every page read, and none of them changes which pages exist.
+      { revalidate: 60, tags: [CMS_STOREFRONT_CACHE_TAGS.pageIndex] },
     );
     return res.data;
   } catch (err) {

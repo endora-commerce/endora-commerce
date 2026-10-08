@@ -16,8 +16,9 @@ import type {
  *   - `cms:v1:hook:<code>:<channel>:<language>`    → CmsResolvedHook
  *
  * TTL is fixed at 5 minutes; invalidation runs on every Page / Block /
- * Template / Hook write and on hook-attachment changes. Tests can pass a
- * custom `ttlSeconds` (or `0` to disable).
+ * Template / Hook write and on hook-attachment changes, through
+ * `CmsContentInvalidator` — the write services do not hold this class. Tests
+ * can pass a custom `ttlSeconds` (or `0` to disable).
  */
 
 export const CMS_CACHE_KEY_PREFIX = 'cms:v1:';
@@ -130,6 +131,15 @@ export class CmsCache {
    */
   async invalidateAllPages(): Promise<void> {
     await this.scanDelete([`${CMS_CACHE_KEY_PREFIX}page:*`]);
+  }
+
+  /**
+   * Drop every cached hook. A hook answer inlines the content of each block
+   * attached to it, so a block change has to reach the hooks as well — and,
+   * like the pages, nothing here tracks which hook holds which block.
+   */
+  async invalidateAllHooks(): Promise<void> {
+    await this.scanDelete([`${CMS_CACHE_KEY_PREFIX}hook:*`]);
   }
 
   /** Used in tests + as a sweep on full cache reset. */

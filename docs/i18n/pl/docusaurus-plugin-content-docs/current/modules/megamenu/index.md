@@ -129,6 +129,16 @@ Unieważnianie:
   dla zmienionego zakresu.
 - `POST /menus/:id/activate` / `POST /menus/:id/deactivate` → usunięcie klucza dla aktywowanego lub
   dezaktywowanego zakresu.
+- Zapis bloku lub strony CMS (`cms.content_changed.v1`) → usunięcie wszystkich kluczy
+  `megamenu:v1:*`, ponieważ odpowiedź menu zawiera drzewo każdego osadzonego bloku i slug każdej
+  strony, do której prowadzi pozycja.
+
+Storefront przechowuje drugą kopię menu w Data Cache Next.js przez 60 sekund, oznaczoną tagiem
+`megamenu` (`MEGAMENU_STOREFRONT_CACHE_TAG` w `@endora-commerce/contracts`). Każde z powyższych
+unieważnień wysyła też ten tag do `/api/revalidate` storefrontu, po usunięciu kluczy z Redis, więc
+zmienione menu jest widoczne przy następnym żądaniu. Wymaga to zmiennych `STOREFRONT_BASE_URL` i
+`REVALIDATE_SECRET`, bez nich jest pomijane i nigdy nie powoduje błędu zapisu, gdy storefront jest
+niedostępny.
 
 Pamięć podręczna działa dokładnie tak jak `CmsCache` modułu CMS (ten sam schemat przedrostka, ten
 sam TTL, to samo unieważnianie oparte na SCAN).
