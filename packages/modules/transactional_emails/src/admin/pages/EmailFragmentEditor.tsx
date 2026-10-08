@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import type { Data } from '@puckeditor/core';
 import type { EmailBlockDetail, EmailTemplateDetail } from '@endora-commerce/contracts';
 import { useAuth } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Card, CardContent, CardHeader, CardTitle, Label, PageHeader, SaveButtonGroup, Select } from '@endora-commerce/admin-kit/ui';
+import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { Alert, AlertDescription, Label, PageHeader, SaveButtonGroup, Select } from '@endora-commerce/admin-kit/ui';
 import { transactionalEmailsClient } from '../api/transactional-emails-client.js';
 import {
   EmailVariablesProvider,
@@ -12,6 +13,7 @@ import {
   listEmailTemplatesForApply,
   loadEmailTemplateCanvas,
 } from '@endora-commerce/page-builder-admin/email';
+import { PageBuilderEditorLayout } from '@endora-commerce/page-builder-admin';
 import { EmailEditorPane } from '../components/EmailEditorPane.js';
 
 const emptyData: Data = { root: { props: {} }, content: [] };
@@ -25,8 +27,13 @@ export interface EmailFragmentEditorProps {
 /**
  * In-admin content editor for a reusable email block or template (feature 047,
  * US3). Editing a fragment's content updates every email that embeds it.
+ *
+ * Laid out in the shell every Page Builder editor shares, in its panel-less
+ * shape: the one field beside the canvas is the language, and that says which
+ * content is on the canvas, so it stays on the row above it.
  */
 export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.ReactElement {
+  const t = useTranslation('transactional_emails');
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
@@ -75,7 +82,7 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
         ? await transactionalEmailsClient.putBlockContent(id, language, body)
         : await transactionalEmailsClient.putTemplateContent(id, language, body);
       setDetail(updated);
-      setNotice('Saved.');
+      setNotice(t('editor.saved'));
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -94,86 +101,88 @@ export function EmailFragmentEditor({ kind }: EmailFragmentEditorProps): React.R
   if (!hasPermission('transactional_emails:read')) {
     return (
       <Alert>
-        <AlertDescription>You do not have permission to view this content.</AlertDescription>
+        <AlertDescription>{t('editor.noPermissionContent')}</AlertDescription>
       </Alert>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <PageHeader
-        title={detail?.name ?? id}
-        description={kind === 'block' ? 'Email block content' : 'Email template content'}
-        actions={
-          <SaveButtonGroup
-            onSave={() => void save()}
-            onSaveAndExit={() => void saveAndExit()}
-            saving={busy}
-            disabled={!canWrite}
-            saveLabel="Save"
-            savingLabel="Save"
-            saveAndExitLabel="Save and exit"
+    <EmailVariablesProvider variables={mergeEmailVariables([])}>
+      <PageBuilderEditorLayout
+        header={
+          <>
+            <PageHeader
+              title={detail?.name ?? id}
+              description={kind === 'block' ? t('editor.blockContent') : t('editor.templateContent')}
+              actions={
+                <SaveButtonGroup
+                  onSave={() => void save()}
+                  onSaveAndExit={() => void saveAndExit()}
+                  saving={busy}
+                  disabled={!canWrite}
+                  saveLabel={t('editor.save')}
+                  savingLabel={t('editor.save')}
+                  saveAndExitLabel={t('editor.saveAndExit')}
+                />
+              }
+            />
+            {error ? (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            {/* A live region that is there before it has anything to say, so
+                the result of a save is announced and not only shown. */}
+            <div role="status">
+              {notice ? (
+                <Alert role="none">
+                  <AlertDescription>{notice}</AlertDescription>
+                </Alert>
+              ) : null}
+            </div>
+          </>
+        }
+        canvasBar={
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="frag-lang">{t('editor.language')}</Label>
+              <Select id="frag-lang" value={language} onChange={(e) => switchLanguage(e.target.value)}>
+                {(detail?.languages ?? []).map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        }
+        builderLabel={t('editor.content')}
+        builder={
+          <EmailEditorPane
+            editorKey={`${kind}:${id}:${language}`}
+            data={content}
+            onChange={setContent}
+            {...(canWrite
+              ? {
+                  onSaveAsTemplate: async (
+                    meta: { name: string; code: string },
+                    canvasData: Data,
+                  ) => {
+                    await saveCanvasAsEmailTemplate({
+                      ...meta,
+                      data: canvasData,
+                      salesChannelIds: [],
+                      languages: detail?.languages?.length ? detail.languages : [language || 'en-US'],
+                      activeLanguage: language || null,
+                    });
+                  },
+                }
+              : {})}
+            onListTemplatesForApply={() => listEmailTemplatesForApply(null)}
+            onResolveTemplateLayout={(templateId) => loadEmailTemplateCanvas(templateId, language || null)}
           />
         }
       />
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {notice ? (
-        <Alert>
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardContent className="flex items-end gap-4 pt-6">
-          <div className="space-y-1">
-            <Label htmlFor="frag-lang">Language</Label>
-            <Select id="frag-lang" value={language} onChange={(e) => switchLanguage(e.target.value)}>
-              {(detail?.languages ?? []).map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <EmailVariablesProvider variables={mergeEmailVariables([])}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Content</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <EmailEditorPane
-              editorKey={`${kind}:${id}:${language}`}
-              data={content}
-              onChange={setContent}
-              {...(canWrite
-                ? {
-                    onSaveAsTemplate: async (
-                      meta: { name: string; code: string },
-                      canvasData: Data,
-                    ) => {
-                      await saveCanvasAsEmailTemplate({
-                        ...meta,
-                        data: canvasData,
-                        salesChannelIds: [],
-                        languages: detail?.languages?.length ? detail.languages : [language || 'en-US'],
-                        activeLanguage: language || null,
-                      });
-                    },
-                  }
-                : {})}
-              onListTemplatesForApply={() => listEmailTemplatesForApply(null)}
-              onResolveTemplateLayout={(templateId) => loadEmailTemplateCanvas(templateId, language || null)}
-            />
-          </CardContent>
-        </Card>
-      </EmailVariablesProvider>
-    </div>
+    </EmailVariablesProvider>
   );
 }

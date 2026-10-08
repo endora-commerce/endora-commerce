@@ -1406,6 +1406,9 @@ importers:
       '@endora-commerce/mod-cms':
         specifier: workspace:*
         version: link:../cms
+      '@endora-commerce/page-builder-admin':
+        specifier: workspace:*
+        version: link:../../page-builder-admin
       '@endora-commerce/page-builder-core':
         specifier: workspace:*
         version: link:../../page-builder-core

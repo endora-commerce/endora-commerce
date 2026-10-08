@@ -539,8 +539,6 @@ export const HARDCODED_STRINGS_BASELINE: Readonly<Record<string, number>> = {
   'packages/modules/newsletter/src/admin/pages/TagsPage.tsx': 9,
   'packages/modules/transactional_emails/src/admin/components/BrandingPanel.tsx': 5,
   'packages/modules/transactional_emails/src/admin/pages/EmailBlocksPage.tsx': 3,
-  'packages/modules/transactional_emails/src/admin/pages/EmailEditor.tsx': 3,
-  'packages/modules/transactional_emails/src/admin/pages/EmailFragmentEditor.tsx': 1,
   'packages/modules/transactional_emails/src/admin/pages/EmailTemplatesPage.tsx': 3,
   'packages/modules/transactional_emails/src/admin/pages/EmailsList.tsx': 4,
   'packages/modules/pwa/src/admin/components/PushAudienceRuleBuilder.tsx': 17,

@@ -104,11 +104,11 @@ export function RelatedProductsPicker({
               return (
                 <div
                   key={id}
-                  className={`flex items-center gap-2 rounded border px-2 py-1 text-sm ${
+                  className={`flex flex-wrap items-center gap-2 rounded border px-2 py-1 text-sm ${
                     !product || inactive ? 'opacity-60' : ''
                   }`}
                 >
-                  <span className="flex-1 font-medium">
+                  <span className="min-w-[8rem] flex-1 truncate font-medium">
                     {product ? pickName(product.name, product.slug) : t('relatedProducts.unknown')}
                   </span>
                   <Badge variant="outline" className="font-mono text-[10px]">
@@ -185,11 +185,11 @@ export function RelatedProductsPicker({
                 variant="outline"
                 size="sm"
                 onClick={() => attach(product.id)}
-                className="justify-start"
+                className="w-full min-w-0 justify-start"
               >
-                <span className="mr-2 font-mono text-[10px]">{product.sku}</span>
-                <span className="text-left">{pickName(product.name, product.slug)}</span>
-                <Badge variant="outline" className="ml-auto text-[10px]">
+                <span className="mr-2 shrink-0 font-mono text-[10px]">{product.sku}</span>
+                <span className="min-w-0 truncate text-left">{pickName(product.name, product.slug)}</span>
+                <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
                   {t(`productStatus.${product.status}`)}
                 </Badge>
               </Button>

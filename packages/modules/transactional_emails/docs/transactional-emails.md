@@ -47,6 +47,14 @@ substitutes at send time.
 
 The transactional (and newsletter) editors share `EmailEditorPane`:
 
+- **Screen layout.** The transactional editor is laid out in the shell every Page
+  Builder editor shares (`PageBuilderEditorLayout` from
+  `@endora-commerce/page-builder-admin`): the canvas takes the full editor width, and
+  one row above it carries the **Scope** (all channels, or one sales channel's
+  override), the **Language** and the **Subject**. Unlike the CMS and blog editors
+  it has no collapsible settings panel — those three say which message is on the
+  canvas or are part of it, so they are never hidden. The e-mail block and e-mail
+  template editors use the same shell with the **Language** alone.
 - Email-safe Puck palette from `@endora-commerce/email-components` (no CMS breakpoints /
   responsive stacking). **Row** opens a column-layout picker (1–6 columns) like
   CMS; columns use a fixed table at send time and the CMS 12-col grid on the

@@ -77,3 +77,13 @@ export {
   getPageBuilderDescriptor,
   putPageBuilderColorPalette,
 } from './chrome/cms-page-builder-api.js';
+export {
+  PAGE_BUILDER_EDITOR_SETTINGS_STORAGE_KEY,
+  PAGE_BUILDER_EDITOR_TWO_COLUMN_MIN_WIDTH,
+  PageBuilderEditorLayout,
+  usePageBuilderEditorSettingsPanel,
+} from './chrome/PageBuilderEditorLayout.js';
+export type {
+  PageBuilderEditorLayoutProps,
+  PageBuilderEditorSettingsPanel,
+} from './chrome/PageBuilderEditorLayout.js';

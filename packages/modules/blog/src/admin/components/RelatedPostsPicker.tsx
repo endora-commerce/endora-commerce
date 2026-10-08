@@ -107,9 +107,9 @@ export function RelatedPostsPicker({
               return (
                 <div
                   key={id}
-                  className="flex items-center gap-2 rounded border px-2 py-1 text-sm"
+                  className="flex flex-wrap items-center gap-2 rounded border px-2 py-1 text-sm"
                 >
-                  <span className="flex-1 font-medium">
+                  <span className="min-w-[8rem] flex-1 truncate font-medium">
                     {post ? pickName(post.name, post.slug) : t('common.loadingInline')}
                   </span>
                   <Badge variant="outline" className="font-mono text-[10px]">
@@ -184,11 +184,11 @@ export function RelatedPostsPicker({
                 variant="outline"
                 size="sm"
                 onClick={() => attach(post.id)}
-                className="justify-start"
+                className="w-full min-w-0 justify-start"
               >
-                <span className="mr-2 font-mono text-[10px]">{post.slug}</span>
-                <span className="text-left">{pickName(post.name, post.slug)}</span>
-                <Badge variant="outline" className="ml-auto text-[10px]">
+                <span className="mr-2 shrink-0 font-mono text-[10px]">{post.slug}</span>
+                <span className="min-w-0 truncate text-left">{pickName(post.name, post.slug)}</span>
+                <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
                   {t(`status.${post.status}`)}
                 </Badge>
               </Button>

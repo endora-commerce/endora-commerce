@@ -56,6 +56,7 @@
     "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/mod-cms": "workspace:*",
+    "@endora-commerce/page-builder-admin": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
     "@mikro-orm/core": "^6",
@@ -75,6 +76,9 @@
     "@endora-commerce/mod-cms": {
       "optional": true
     },
+    "@endora-commerce/page-builder-admin": {
+      "optional": true
+    },
     "@puckeditor/core": {
       "optional": true
     },
@@ -89,6 +93,7 @@
     "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/mod-cms": "workspace:*",
+    "@endora-commerce/page-builder-admin": "workspace:*",
     "@endora-commerce/page-builder-core": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
     "@mikro-orm/core": "^6.6.13",
