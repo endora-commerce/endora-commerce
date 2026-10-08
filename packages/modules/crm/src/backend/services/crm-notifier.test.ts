@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { AdminNotificationMessage } from '@endora-commerce/contracts';
-import { crmNotificationText, type CrmNotificationText } from './crm-notifier.js';
+import { crmNotificationText, opportunityLinkPath, type CrmNotificationText } from './crm-notifier.js';
 
 /**
  * A bell entry of this module is translatable
@@ -45,6 +45,18 @@ const SENTENCES: Record<string, CrmNotificationText> = {
   message: crmNotificationText.message('OPP-000042'),
   'mention, the author known': crmNotificationText.mention('OPP-000042', 'Ada Author'),
   'mention, the author unknown': crmNotificationText.mention('OPP-000042', null),
+  'event reminder, timed': crmNotificationText.eventReminder({
+    name: 'Demo at the warehouse',
+    when: '2026-10-12 10:00 Europe/Warsaw',
+    number: 'OPP-000042',
+    allDay: false,
+  }),
+  'event reminder, all day': crmNotificationText.eventReminder({
+    name: 'Offer deadline',
+    when: '2026-10-12',
+    number: 'OPP-000042',
+    allDay: true,
+  }),
 };
 
 describe('crmNotificationText', () => {
@@ -54,6 +66,8 @@ describe('crmNotificationText', () => {
       message: 'New message on opportunity OPP-000042',
       'mention, the author known': 'Ada Author mentioned you in opportunity OPP-000042',
       'mention, the author unknown': 'You were mentioned in opportunity OPP-000042',
+      'event reminder, timed': 'Reminder: Demo at the warehouse, 2026-10-12 10:00 Europe/Warsaw — opportunity OPP-000042',
+      'event reminder, all day': 'Reminder: Offer deadline, all day on 2026-10-12 — opportunity OPP-000042',
     });
   });
 
@@ -97,6 +111,23 @@ describe('crmNotificationText', () => {
         language,
       ).toEqual(recorded);
     }
+  });
+
+  it('a reminder names the Event and its time beside the number — and nothing else (research N-CAL7)', () => {
+    // The stated departure from "a number and a name": a reminder has to say
+    // of what. It is the Event's name and when it starts; never its
+    // description and never the Opportunity's title — the function takes
+    // neither, so there is nothing to leak.
+    for (const name of ['event reminder, timed', 'event reminder, all day']) {
+      expect(Object.keys(SENTENCES[name]?.titleMessage.params ?? {}).sort(), name).toEqual(['name', 'number', 'when']);
+    }
+  });
+
+  it('leads to the Opportunity, and to the Event on its Events tab when it is about one', () => {
+    const id = '00000000-0000-4000-8000-00000000c0de';
+    const eventId = '00000000-0000-4000-8000-00000000e0e0';
+    expect(opportunityLinkPath(id)).toBe(`/crm/opportunities/${id}`);
+    expect(opportunityLinkPath(id, { eventId })).toBe(`/crm/opportunities/${id}?tab=events&event=${eventId}`);
   });
 
   it('translates: the Polish sentence is not the English one', () => {

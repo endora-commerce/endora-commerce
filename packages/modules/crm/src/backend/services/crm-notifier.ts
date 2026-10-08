@@ -7,7 +7,8 @@ export type CrmNotificationOutcome = 'recorded' | 'not-present';
 export type CrmNotificationKind =
   | 'crm.opportunity.assigned'
   | 'crm.opportunity.message'
-  | 'crm.opportunity.mention';
+  | 'crm.opportunity.mention'
+  | 'crm.opportunity.event_reminder';
 
 /**
  * What a bell entry says, twice over: the finished English sentence, and the
@@ -41,6 +42,16 @@ const message = (key: string, params: Record<string, string>): AdminNotification
  *
  * A mention with no known author is a sentence of its own rather than the
  * other one with a blank: a template cannot drop a clause.
+ *
+ * **One sentence departs from that rule, and says so** (research N-CAL7, the
+ * owner's open question OQ-5): the reminder of an Event names the Event and
+ * when it starts, because a reminder has to say of what. Never the Event's
+ * description and never the Opportunity's title — the function takes neither.
+ * The recipient's reach to the Opportunity is established at the moment of
+ * sending, and the name is a short line a colleague wrote in order to be shown
+ * at that moment. `when` arrives already worded (`domain/event-time.ts`): a
+ * bell param is a string and the bell knows nothing of the Event's zone. Two
+ * keys, timed and all-day, for the reason a mention has two.
  */
 export const crmNotificationText = {
   assigned: (number: string): CrmNotificationText => ({
@@ -61,6 +72,18 @@ export const crmNotificationText = {
           title: `${authorName} mentioned you in opportunity ${number}`,
           titleMessage: message('mentionByAuthor', { author: authorName, number }),
         },
+  eventReminder: (event: { name: string; when: string; number: string; allDay: boolean }): CrmNotificationText => {
+    const { name, when, number } = event;
+    return event.allDay
+      ? {
+          title: `Reminder: ${name}, all day on ${when} — opportunity ${number}`,
+          titleMessage: message('eventReminderAllDay', { name, when, number }),
+        }
+      : {
+          title: `Reminder: ${name}, ${when} — opportunity ${number}`,
+          titleMessage: message('eventReminder', { name, when, number }),
+        };
+  },
 };
 
 export interface CrmNotification extends CrmNotificationText {
@@ -68,15 +91,22 @@ export interface CrmNotification extends CrmNotificationText {
   /** The administrator the bell entry is for. */
   targetAdminUserId: string;
   opportunityId: string;
+  /** The Event the entry is about: the link then opens the Opportunity on its Events tab, with that Event marked. */
+  eventId?: string;
 }
 
 export interface CrmNotifier {
   notify(notification: CrmNotification): Promise<CrmNotificationOutcome>;
 }
 
-/** Where a bell entry about an Opportunity leads: its detail screen in the Admin UI. */
-export function opportunityLinkPath(opportunityId: string): string {
-  return `/crm/opportunities/${opportunityId}`;
+/**
+ * Where a bell entry about an Opportunity leads: its detail screen in the
+ * Admin UI — on the Events tab with one Event marked, when the entry is about
+ * an Event. A tab id is part of an address (`src/admin/pages/opportunity-detail/tabs.ts`).
+ */
+export function opportunityLinkPath(opportunityId: string, about: { eventId?: string } = {}): string {
+  const path = `/crm/opportunities/${opportunityId}`;
+  return about.eventId ? `${path}?tab=events&event=${about.eventId}` : path;
 }
 
 /**
@@ -105,7 +135,10 @@ export function createCrmNotifier(adminNotifications: AdminNotificationRecordPor
         subjectId: notification.opportunityId,
         title: notification.title,
         titleMessage: notification.titleMessage,
-        linkPath: opportunityLinkPath(notification.opportunityId),
+        linkPath: opportunityLinkPath(
+          notification.opportunityId,
+          notification.eventId ? { eventId: notification.eventId } : {},
+        ),
       });
       return 'recorded';
     },

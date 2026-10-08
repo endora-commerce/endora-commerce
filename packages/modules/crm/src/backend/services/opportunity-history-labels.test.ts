@@ -24,6 +24,7 @@ const NOTIFICATION_KINDS = new Set([
   'crm.opportunity.assigned',
   'crm.opportunity.message',
   'crm.opportunity.mention',
+  'crm.opportunity.event_reminder',
 ]);
 
 const servicesDir = new URL('.', import.meta.url);

@@ -714,6 +714,8 @@
   "notifications.message.title": "New message on opportunity {number}",
   "notifications.mention.title": "You were mentioned in opportunity {number}",
   "notifications.mentionByAuthor.title": "{author} mentioned you in opportunity {number}",
+  "notifications.eventReminder.title": "Reminder: {name}, {when} — opportunity {number}",
+  "notifications.eventReminderAllDay.title": "Reminder: {name}, all day on {when} — opportunity {number}",
   "auditLog.crm.opportunity.event_add": "Event added",
   "auditLog.crm.opportunity.event_update": "Event changed",
   "auditLog.crm.opportunity.event_remove": "Event deleted",

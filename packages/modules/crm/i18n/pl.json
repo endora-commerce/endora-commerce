@@ -714,6 +714,8 @@
   "notifications.message.title": "Nowa wiadomość w szansie sprzedażowej {number}",
   "notifications.mention.title": "Wspomniano o Tobie w szansie sprzedażowej {number}",
   "notifications.mentionByAuthor.title": "{author} wspomina o Tobie w szansie sprzedażowej {number}",
+  "notifications.eventReminder.title": "Przypomnienie: {name}, {when} — szansa sprzedażowa {number}",
+  "notifications.eventReminderAllDay.title": "Przypomnienie: {name}, cały dzień {when} — szansa sprzedażowa {number}",
   "auditLog.crm.opportunity.event_add": "Dodano wydarzenie",
   "auditLog.crm.opportunity.event_update": "Zmieniono wydarzenie",
   "auditLog.crm.opportunity.event_remove": "Usunięto wydarzenie",
