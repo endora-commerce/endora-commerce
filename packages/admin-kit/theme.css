@@ -732,7 +732,8 @@ body,
 }
 .b2b-page--wide { max-width: 1600px; }
 
-/* CMS content editors — settings above, page builder in its own row below */
+/* CMS content editors — the page builder is the main column; the settings
+   panel sits beside it (or above it on a narrow viewport) and can be put away */
 .cms-content-editor__builder {
   width: 100%;
   min-width: 0;
