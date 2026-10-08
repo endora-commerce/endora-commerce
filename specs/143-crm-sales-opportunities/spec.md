@@ -597,6 +597,70 @@ it is gone from the cards and from the filters.
 
 ---
 
+### User Story 20 — An Opportunity screen that reads in order (Priority: P3)
+
+*Added 2026-10-08 at the owner's request, made with a screenshot of the Sales Opportunity
+view of another CRM (translated from Polish): "I have this view of a Sales Opportunity in one
+of the CRMs. Can you adapt our Opportunity view, based on this screenshot, so that the
+information in our view is more readable and ordered? You can move the links out into a
+separate tab 'Powiązania'." The screenshot is a model for the screen's structure, not for
+its branding, and not for the features behind it — research N-DL1 says what was taken from
+it and what was not.*
+
+A Sales Rep opening an Opportunity reads, from the top: what it is called and who it is for;
+where it stands in the workflow and where it may go; and then, side by side, the working
+area — description, linked documents, notes, messages, files, history, each on a tab — and a
+column of the Opportunity's facts that stays in place whichever tab is open.
+
+**Why this priority**: every capability of the screen existed before this story; it changes
+where each one is found. The screen had grown one section at a time, as stories landed, into
+a single long tab.
+
+**Independent Test**: open an Opportunity in a workflow that has a backward transition and
+two closing statuses. Read its stage, press a status the workflow allows — with a reason —
+and see it move; confirm a status the workflow does not allow from here cannot be pressed.
+Open the *Links* tab, link an Order, reload the page and find the same tab open. Sign in
+with a read-only role and confirm nothing on the screen can be pressed to change anything.
+Repeat at a 390 px wide window.
+
+**Acceptance Scenarios**:
+
+1. **Given** an Opportunity, **When** its screen is opened, **Then** the header shows its
+   title and status and, in one line under them, its number, its Organization, who holds it
+   (or that nobody does) and its Sales Channel when it has one.
+2. **Given** a workflow of several open statuses and two closing ones, **When** the screen
+   is opened, **Then** a stage bar lists every status in the operator's order — the open
+   ones first, the closing ones after, each closing one marked as won or lost — marks the
+   current one, and says "Stage n of N" counted over the open statuses.
+3. **Given** a workflow in which the current status leads back to an earlier one, **When**
+   the bar is read, **Then** the earlier status is offered as a move, and no status is shown
+   as passed or completed.
+4. **Given** a user who may change Opportunities, **When** they press a status the workflow
+   allows from the current one, having written a reason, **Then** the Opportunity moves
+   exactly as it did before this story — the reason recorded, a veto shown in its own words,
+   the linked Orders following — and what became of those Orders is listed under the bar.
+5. **Given** a user who may only read, **When** they open the screen, **Then** the bar shows
+   the same statuses and none of them can be pressed.
+6. **Given** a closed Opportunity, **When** the bar is read, **Then** it carries no stage
+   number and says how and when the Opportunity was closed.
+7. **Given** an Opportunity with linked documents, **When** the screen is opened, **Then**
+   it opens on *Overview*, the *Links* tab's label carries the number of linked documents,
+   and the linked Orders and Quote Requests — with linking, unlinking, status following and
+   creating a document — are on that tab and on no other.
+8. **Given** any tab is open, **When** the page is reloaded or its address is opened by
+   somebody else, **Then** the same tab is open; an address naming no tab opens *Overview*.
+9. **Given** a user returning from creating an Order or a Quote Request from the
+   Opportunity, **When** the screen opens, **Then** it is on *Links*, where the new document
+   is reported.
+10. **Given** any tab is open, **When** the facts column is read, **Then** it shows four
+    groups — value and deadline, customer and assignee, classification, record — each fact
+    as a label above its value, and a fact with no value shown as empty.
+11. **Given** a 390 px wide window, **When** the screen is opened, **Then** nothing scrolls
+    sideways except the tab strip, every status of the bar is visible without scrolling
+    sideways, and the facts follow the tabs.
+
+---
+
 ### Edge Cases
 
 - **A Status still in use is deleted** — refused while any Opportunity is in it; the start
@@ -888,6 +952,62 @@ being left free for work on parallel branches. Research N-QS1 … N-QS6.)*
   request's and the second is placed as an ordinary Order — whether or not the request has
   been completed yet. *(Last sentence added 2026-10-08 by the independent review — research
   N-QSR1.)*
+
+**The Opportunity screen's layout** *(added 2026-10-08, User Story 20. Admin UI only: no
+endpoint, schema, permission or rule of an earlier requirement changes. FR-105 … FR-109 are
+left free. Research N-DL1 … N-DL8.)*
+
+- **FR-110**: The Opportunity screen MUST present, in this order: a header (title, status,
+  and one line naming the number, the Organization, the assignee or that there is none, and
+  the Sales Channel when there is one), the stage bar, and then the tabs beside a column of
+  the Opportunity's facts. On a screen too narrow for two columns the facts MUST follow the
+  tabs, and the page MUST NOT scroll sideways at a width of 390 px.
+- **FR-111**: Every action the screen offered before MUST remain reachable by the same
+  users: editing and deleting the Opportunity; changing its status, with a reason; retrying
+  and dismissing a refused Order change; assigning; tagging; switching the value's mode;
+  linking, unlinking and status following of documents; creating a document from the
+  Opportunity; notes, messages, attachments, change history and custom fields. The layout
+  MUST add no way of changing an Opportunity and MUST NOT change the rule of an existing one.
+- **FR-112**: The stage bar MUST list every status of the workflow in the operator's order,
+  the open statuses first and the closing ones after them, each closing status identified as
+  won or lost, and MUST mark the status the Opportunity is in. It MUST NOT present any status
+  as passed, completed or skipped: the workflow is a graph, and the bar states the present.
+- **FR-113**: The bar MUST state the Opportunity's position as "n of N" counted over the
+  open statuses only. For a closed Opportunity it MUST state no position and MUST say how
+  (won or lost) and when it was closed.
+- **FR-114**: A status MUST be actionable in the bar if and only if the workflow allows it
+  from the current status (FR-013) and the user may change Opportunities; acting on it MUST
+  be the existing status change in every respect (FR-015, FR-016, FR-022), the optional
+  reason included. A user who may only read MUST get the same list with nothing actionable
+  in it. When the workflow cannot be read, the bar MUST still offer every allowed move and
+  MUST say that the list is incomplete.
+- **FR-115**: The bar MUST be operable with a keyboard alone; each action MUST be named by
+  what it does; no status MUST be distinguished by colour alone; and every status MUST be
+  visible without sideways scrolling at 390 px, however many the workflow has.
+- **FR-116**: The tabs MUST be, in this order: Overview, Links, Notes, Messages,
+  Attachments, Change history; the screen MUST open on Overview.
+- **FR-117**: The linked Orders and Quote Requests MUST be on the Links tab, with everything
+  FR-020, FR-023 and FR-026 give them, and on no other tab. The tab's label MUST carry the
+  number of linked documents when there is at least one. The Quote Requests section MUST be
+  present, degraded or absent under exactly the conditions it was before.
+- **FR-118**: The open tab MUST be part of the screen's address, so that a reload and a
+  shared link open the same tab. An address naming no tab, or an unknown one, MUST open
+  Overview; the address a user returns to after creating a document from the Opportunity
+  MUST open Links. Every address of an Opportunity that worked before MUST keep working.
+- **FR-119**: The facts column MUST show, on every tab, four groups in this order — value
+  and deadline; customer and assignee; classification; record — each fact as a label above
+  its value. A fact with no value MUST be shown as empty, and said to be so to assistive
+  technology, never left out — the closing date excepted, which an open Opportunity
+  does not have; nothing MUST be revealed only on hover. A fact MUST be
+  changeable in the column only where it already was in one gesture: the value's mode, the
+  assignee, the tags.
+- **FR-120**: What became of the linked Orders after a status change, and every refused
+  change still open (FR-022, FR-023), MUST be shown directly under the stage bar on every tab.
+- **FR-121**: The screen MUST have exactly one first-level heading and MUST NOT skip a
+  heading level on any tab, Change history included; the tab strip MUST be a single keyboard
+  stop walked with the arrow keys; every control MUST offer a 44 px target on a touch
+  screen; and every colour MUST come from the theme, so that the dark theme needs nothing of
+  its own.
 
 ### Key Entities
 

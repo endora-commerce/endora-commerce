@@ -21,12 +21,87 @@ Every component is a dynamic-import factory; the entry file exports data only.
 
 `OpportunityDetail` is a tabbed page. Tabs are data in
 `src/admin/pages/opportunity-detail/tabs.ts` — one line per tab, each a lazy component — so a
-story adds a tab by adding one file and one line: **Overview** (US1), **Notes** and
-**Messages** (US4), **Attachments** (US5), **Change history** (US11). Links, the status
-control and unresolved propagation outcomes are on *Overview*.
+story adds a tab by adding one file and one line: **Overview** (US1), **Links** (US20),
+**Notes** and **Messages** (US4), **Attachments** (US5), **Change history** (US11). §1a says
+what is on the screen besides the tabs, and where.
 
 A route and its sidebar entry are added by the story that ships the page, never earlier: a
 palette or nav entry pointing at a route that does not exist is a defect (Principle XVI).
+
+## 1a. The Opportunity screen (US20)
+
+Normative for `src/admin/pages/OpportunityDetail.tsx` and `pages/opportunity-detail/*`.
+The story is `spec.md` User Story 20 (FR-110 – FR-121); the reasons are `research.md` N-DL.
+
+**Regions, top to bottom.**
+
+| Region | Component | Holds |
+| --- | --- | --- |
+| Header | the kit's `PageHeader` | back link; `h1` = title + status badge; one meta line — number · Organization · assignee or *Unassigned* · Sales Channel when set; actions **Edit** (`crm:write`, opens the form on *Overview*) and **Delete** (`crm:configure`) |
+| Stage bar | `components/StageBar.tsx` over `lib/stage-model.ts` | the workflow's statuses, the current one, the allowed moves, the optional reason |
+| Order status changes | `components/PropagationOutcomes.tsx` | this visit's outcomes and every unresolved refusal — rendered by the page, so on every tab; absent when there is nothing to show |
+| Tabs (main column) | `opportunity-detail/tabs.ts` | see below |
+| Facts (right column, `aside`; below the tabs under `lg`) | `opportunity-detail/OpportunitySidebar.tsx` | see below |
+
+**The stage bar** is an ordered list (`ol`) named `opportunity.stage.list`.
+
+- Statuses come from `GET /api/v1/admin/crm/workflow` (`crm:read`), sorted by `weight`, then
+  `code`; statuses of kind `open` first, then the others. The current status and the targets
+  are named as the Opportunity's own answer names them.
+- One item carries `aria-current="step"`. There is no fourth state: an item is the current
+  status, a target, or neither — never "done".
+- An item is a `button` if and only if its status is in the Opportunity's
+  `allowedTransitions` **and** the user holds `crm:write`. Its accessible name is
+  `opportunity.stage.moveTo` (`opportunity.stage.moveToClosing` for a closing status) and
+  contains its visible label. Pressing it is `POST …/opportunities/:id/transition` with the
+  reason field's trimmed text, exactly as the control it replaces: the server's sentence on a
+  refusal, a re-read on 409, the move announced in a live region.
+- "Stage n of N" (`opportunity.stage.position`) is the current status's index among the
+  `open` statuses; it is not rendered for a closed Opportunity, which shows
+  `opportunity.status.closed.<kind>` with the closing time instead.
+- Without the workflow (the read failed, or the current status is not in it) the list is the
+  current status followed by `allowedTransitions`, with `opportunity.stage.partial` under it
+  and no position.
+- The list wraps (`flex-wrap`); it does not scroll. A closing status carries an icon and a
+  spoken `opportunity.stage.kind.<kind>`; the current one a tick, bold text and a spoken
+  `opportunity.stage.current`.
+
+**The tabs.** `role="tablist"` named `opportunity.tabs.label`; one tab stop, arrow keys,
+`Home` and `End`.
+
+| Order | `id` | Label key | Holds |
+| --- | --- | --- | --- |
+| 1 — default | `overview` | `opportunity.tabs.overview` | description (with references), custom fields (US15), the edit form while it is open |
+| 2 | `links` | `opportunity.tabs.links` | `LinkedDocuments`, `LinkedQuoteRequests` — with the create buttons and return notices of US10; the label carries `links.length` when it is not zero |
+| 3 | `notes` | `opportunity.tabs.notes` | US4 |
+| 4 | `messages` | `opportunity.tabs.messages` | US4 |
+| 5 | `attachments` | `opportunity.tabs.attachments` | US5 |
+| 6 | `history` | `opportunity.tabs.history` | US11, under an `h2` that is not drawn |
+
+**The address.** `?tab=<id>` selects a tab; the screen writes it with `replace`, keeping every
+other parameter and the navigation state. The default tab is written as *no* parameter. An
+unknown id selects the default. `?created=<kind>` without `tab` selects `links` — it is the
+return address `components/CreateFromOpportunity.tsx` hands the Order and Quote Request
+create screens. **An `id` is therefore part of a public address and is not renamed.**
+Addresses that exist elsewhere and keep working unchanged: the bare
+`/crm/opportunities/:id` written by `crm-notifier.ts` (the bell), `crm-audit-references.ts`,
+the list, the board, the analytics table, the Organization zone and the linked-Opportunity
+panel of the Order and Quote Request screens.
+
+**The facts.** An `aside` named `opportunity.section.details`; four `section`s, each under an
+`h2`, each fact a `dt` above its `dd`:
+
+| Group (key) | Facts | Changed in place (existing endpoint) |
+| --- | --- | --- |
+| `opportunity.facts.valueAndDeadline` | value and its mode, the kept estimate and the excluded documents (`OpportunityValue`); expected close date | the mode — `PATCH …/:id` `{ valueMode }` |
+| `opportunity.facts.customer` | Organization (link), contact person and e-mail; assignee (`AssigneeSection`) | the assignee — `POST …/:id/assign` |
+| `opportunity.facts.classification` | Sales Channel, source; tags (`TagsSection`) | the tags — `PUT …/:id/tags` |
+| `opportunity.facts.record` | number, created, last changed; closed, once it is | — |
+
+`OpportunityValue`, `AssigneeSection` and `TagsSection` are `role="group"` under an `h3`
+inside their group, not landmarks. A fact without a value renders the dash and a spoken
+`opportunity.facts.notSet`; the *closed* row alone is omitted while there is nothing to say.
+The column adds no write: what is not in the third column above is changed by the edit form.
 
 ## 2. Sidebar (`contributions.nav`) — the "CRM" group
 
@@ -188,6 +263,7 @@ The story that adds a subscriber adds its off-state case in the same change.
 | `errors.CRM_*` | error sentences |
 | `auditLog.crm.*` | audit action labels for the history tab and the audit viewer |
 | `opportunity.*`, `workflow.*`, `links.*`, `propagation.*` | US1 screens |
+| `opportunity.stage.*`, `opportunity.facts.*`, `opportunity.tabs.links`, `opportunity.tabs.label`, `opportunity.description.*` | the Opportunity screen's layout (US20, §1a) |
 | `assignment.*`, `comments.*`, `attachments.*`, `tags.*`, `board.*`, `value.*`, `history.*`, `references.*`, `analytics.*` | one prefix per later story |
 | `customFields.*` | the custom-fields section of the create form and the Overview (US15) |
 | `organizationPanel.*` | the panel on the Organization screen (US14, §5) |

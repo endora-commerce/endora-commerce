@@ -166,7 +166,7 @@ packages/modules/crm/                    # NEW — the module
         │   ├── opportunity-detail/tabs.ts + tabs/*.tsx
         │   ├── WorkflowConfigPage.tsx  workflow/*.tsx
         │   ├── OpportunityBoardPage.tsx  TagsPage.tsx  AnalyticsPage.tsx
-        ├── components/                  # StatusControl, LinkedDocuments, PropagationOutcomes,
+        ├── components/                  # StageBar (StatusControl until US20), LinkedDocuments, PropagationOutcomes,
         │                                # OpportunityBoard, ReferenceTextarea, OpportunityHistory, …
         └── zones/OrganizationOpportunities.tsx
 

@@ -786,6 +786,15 @@ not a one-declaration integration.
 | FR-092 | US19 | T230, T232, T233 |
 | FR-093 | US19 | T232 |
 | FR-090 – FR-093 | US19 (independent review) | T240 – T244 |
+| FR-110 | US20 | T302 — the meta line, the heading outline; T310 for the width (not done) |
+| FR-111 | US20 | T308 — every earlier case of the nine files still runs against the new structure; T302 — *a reader changing nothing* |
+| FR-112, FR-113 | US20 | T300; T302 — the order and current mark, a non-linear workflow, a closed Opportunity |
+| FR-114 | US20 | T300 (targets, fallbacks); T302 — buttons for allowed moves only, a read-only user, the workflow unreadable; the vetoed and moved cases of T036 |
+| FR-115 | US20 | T302 — a move by keyboard, the button names, the spoken marks; the wrap at 390 px is T310 (not done) |
+| FR-116 – FR-118 | US20 | T301; T302 — the tabs group |
+| FR-119 | US20 | T302 — the four groups, empty facts, a reader changing nothing; the earlier cases of `assignment`, `tags` and `value` |
+| FR-120 | US20 | the refused-Order cases of T036, now rendered from the page (T308) |
+| FR-121 | US20 | T302 — the heading outline, the history tab's heading, arrow keys; `index.test.ts` (44 px on every button); the colours are T310 (not done) |
 | FR-100 | Phase 22 | T271 (the Order names its request; both order serialisers answer it), T273 (the basket is marked), T275 |
 | FR-101 | Phase 22 | T271 — *a basket the buyer changed after the conversion* (five cases) and the re-priced copy |
 | FR-102 | Phase 22 | T274 (`quote-request-source.test.ts`), T271 — *a source the basket claims and placement does not believe* (four cases) and the request-body case; T275 (nothing crosses the tenant) |
@@ -854,6 +863,71 @@ not a one-declaration integration.
 - [X] T244 [US19] Tests for what was true and unheld: a field key and every value bound
   (N-BFR5), values of another type than the definition's (N-BFR7), the statement count with
   a contact person and a Sales Channel on every card (N-BFR8).
+
+## Phase 23: User Story 20 — An Opportunity screen that reads in order (Priority: P3)
+
+**Source**: the owner's request of 2026-10-08, recorded with the story in `spec.md`.
+**Goal**: FR-110 – FR-121. **Independent test**: the story's own. Research: N-DL1 – N-DL8.
+**Contract**: `contracts/admin-surfaces.md` §1a. Admin UI, bundles, tests and documents
+only — nothing under `src/backend/`, `packages/contracts/` or the OpenAPI baseline.
+
+### Tests first
+
+- [X] T300 [US20] `packages/modules/crm/src/admin/lib/stage-model.test.ts` — what the stage
+  bar claims, with no DOM: the operator's order, open statuses before closing ones, the
+  position counted over the open ones, none for a closed Opportunity, the server's allowed
+  transitions as the only targets (a backward one included), no "passed" state, and the two
+  fallbacks.
+- [X] T301 [US20] `packages/modules/crm/src/admin/pages/opportunity-detail/tabs.test.ts` —
+  the tab order, unique ids, the count on *Links* alone, and the address: `?tab=`, an unknown
+  id, `?created=` landing on *Links*, the default tab as the bare address, the round trip.
+- [X] T302 [US20] `admin/test/modules/crm/OpportunityDetail.test.tsx` — three new groups:
+  the stage bar on the screen (order and current mark, buttons for allowed moves only, a
+  non-linear workflow, a closed Opportunity, a read-only user, a move by keyboard carrying
+  the reason, the workflow unreadable); the tabs (order and default, links on *Links* only,
+  the Quote Requests section, the count and its absence, the address read and written, the
+  return from a create screen, arrow keys, the history tab's heading); the header and the
+  sidebar (the meta line, the four groups and what is in each, empty facts, the closing
+  date, a reader changing nothing, *Edit* from another tab, the heading outline).
+
+### Implementation
+
+- [X] T303 [US20] `src/admin/lib/stage-model.ts` and `src/admin/components/StageBar.tsx` —
+  the bar, on `GET /workflow` and the Opportunity's own `allowedTransitions`;
+  `components/StatusControl.tsx` is removed, its transition call, reason field, refusal and
+  announcement carried over unchanged.
+- [X] T304 [US20] `src/admin/pages/opportunity-detail/tabs.ts` — the order, the `links` tab,
+  `count`, `tabFromSearch` / `searchForTab`; `tabs/LinksTab.tsx` (new), `tabs/OverviewTab.tsx`
+  (description, custom fields and the edit form only), `tabs/HistoryTab.tsx` (the `h2` its
+  entries hang from).
+- [X] T305 [US20] `src/admin/pages/opportunity-detail/OpportunitySidebar.tsx` (new) —
+  the four groups; `components/OpportunityValue.tsx`, `AssigneeSection.tsx` and
+  `TagsSection.tsx` become labelled groups under an `h3` instead of landmarks under an `h2`.
+- [X] T306 [US20] `src/admin/pages/OpportunityDetail.tsx` — the header's meta line and
+  actions, the bar, the propagation outcomes under it, the two columns, the tab in the
+  address, the tab strip's keyboard handling, the loading skeleton.
+- [X] T307 [US20] `i18n/en.json`, `i18n/pl.json` — `opportunity.stage.*`,
+  `opportunity.facts.*`, `opportunity.tabs.links`, `opportunity.tabs.label`,
+  `opportunity.field.number`, `opportunity.field.closed`, `opportunity.description.empty*`;
+  `opportunity.detail.subtitle`, `opportunity.status.current` and
+  `opportunity.status.moveTo` removed with their last reader.
+- [X] T308 [US20] Existing tests follow the structure (research N-DL6 lists each change and
+  why; no assertion was dropped): `OpportunityDetail.test.tsx`, `OpportunityEdit.test.tsx`,
+  `assignment.test.tsx`, `tags.test.tsx`, `value.test.tsx`, `create-from-opportunity.test.tsx`,
+  `owner-permissions.test.tsx`, `references.test.tsx`, `custom-fields.test.tsx`.
+- [X] T309 [US20] Documents: `spec.md` (User Story 20, FR-110 – FR-121),
+  `contracts/admin-surfaces.md` §1 and §1a, `research.md` N-DL, `packages/modules/crm/docs/crm.md`
+  § *The opportunity's screen* with its Polish page and translation cache,
+  `.changeset/crm-opportunity-detail-layout.md`.
+
+### Not done
+
+- [ ] T310 [US20] **Looked at in a browser.** The story was built without one (research
+  N-DL7): the layout at desktop width and at 390 px, both themes, the stage bar with ten
+  statuses, a long title, a long tag list, the focus order and an axe pass are still owed.
+- [ ] T311 [US20] **Reported, not changed — the owner's to schedule** (research N-DL8): the
+  bell opening the tab a notification is about; a stage bar that knows which statuses an
+  Opportunity has been through; the facts a reference CRM shows that this one does not hold.
 
 ## Notes
 

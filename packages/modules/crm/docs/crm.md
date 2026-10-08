@@ -48,7 +48,7 @@ when at least one of them is visible.
 | --- | --- | --- | --- |
 | Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, assignee, tags, sales channel and creation date. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
-| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | Its status and the moves the workflow allows from it, its value, the orders and quote requests linked to it, and what became of those orders after each move; on further tabs its notes, messages, attachments and **change history**. |
+| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | A header, a stage bar with its place in the workflow and the moves allowed from it, the facts in a column on the right, and tabs: *Overview*, **Links** (its orders and quote requests), *Notes*, *Messages*, *Attachments* and **Change history**. See *The opportunity's screen*. |
 | Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
 | Analytics | **CRM → Analytics** (`/crm/analytics`) | `crm:analytics` | Five figures over a range of days: handling time, time in each status, the most effective sales reps, the most valuable opportunities and the average value. |
 | Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
@@ -66,17 +66,82 @@ A first walk through the module, start to finish:
    do to a linked order, and save.
 2. On **Opportunities**, press **New opportunity**, fill in the title, the
    organization and the currency, and create it. You land on the opportunity.
-3. Under *Linked orders*, search the organization's orders by number and link
-   one. It follows the opportunity's status unless you untick that for it.
-4. Under *Status*, press the status to move to. Only the moves the workflow
-   allows are offered.
-5. Under *Order status changes*, read what happened to each linked order. An
+3. On the **Links** tab, under *Linked orders*, search the organization's
+   orders by number and link one. It follows the opportunity's status unless
+   you untick that for it.
+4. In the stage bar at the top, press the status to move to. Only the moves the
+   workflow allows are buttons.
+5. Under *Order status changes*, below the bar, read what happened to each
+   linked order. An
    order that could not be moved is listed with the reason and two buttons,
    **Retry** and **Dismiss**; it stays there, on every later visit, until one of
    them is pressed.
 
 An administrator who may read but not write sees the same screens without the
 controls that change anything.
+
+## The opportunity's screen
+
+One opportunity is laid out top to bottom in the order its questions are asked.
+
+**The header** carries the title with its status beside it and, under it, one
+quiet line: the number, the organization, who holds it — or *Unassigned* — and
+the sales channel when there is one. **Edit** (`crm:write`) and **Delete**
+(`crm:configure`) are on the right.
+
+**The stage bar** shows every status of your workflow, in the order you gave
+them on **CRM → Workflow**: the open statuses first, then the ones that close
+an opportunity, each of those marked as *won* or *lost*. The status the
+opportunity is in is marked, and above the bar it says *Stage 2 of 5* — counted
+over the open statuses only; a closed opportunity has no stage number and says
+instead how and when it closed.
+
+- **A status you may move to is a button**; every other status is plain text.
+  Which ones are buttons is decided by the transitions of your workflow from
+  the current status — so a move backwards is offered wherever you drew one —
+  and pressing one is the same status change, with the same rules, as anywhere
+  else in the module. The optional **reason** is the field under the bar.
+- **The bar does not claim a history.** A workflow is not a straight line, so
+  no status is shown as "done": the bar says where the opportunity is and where
+  it can go, and the *Change history* tab says where it has been.
+- Somebody with `crm:read` alone sees the same bar with no buttons in it.
+- With many statuses the bar wraps onto further rows instead of scrolling
+  sideways, so an allowed move is never off screen on a phone.
+
+What became of the linked orders after a move — and any change an order
+refused, until it is retried or dismissed — is listed directly under the bar,
+whichever tab is open.
+
+**The tabs**, in the main column:
+
+| Tab | What is on it |
+| --- | --- |
+| **Overview** | The description, the custom fields, and — after **Edit** — the edit form. |
+| **Links** | *Linked orders* and *Linked quote requests*: link, unlink, the *follow the opportunity's status* switch, **Create order** and **Create quote request**. The tab shows how many documents are linked. |
+| **Notes**, **Messages** | The two conversations. |
+| **Attachments** | The files. |
+| **Change history** | Everything that was done to the opportunity, newest first. |
+
+The open tab is part of the address — `/crm/opportunities/:id?tab=links`, and
+likewise `notes`, `messages`, `attachments` and `history` — so it survives a
+reload and can be sent to a colleague. An address that names no tab, or one
+that does not exist, opens *Overview*. Coming back from **Create order** or
+**Create quote request** opens **Links**, where the new document appears.
+
+**The facts**, in a column on the right of every tab (under the tabs on a
+narrow screen), each as a small label above its value:
+
+| Group | Facts | Changed here |
+| --- | --- | --- |
+| **Value and deadline** | The value and whether it is entered by hand or computed; the expected close date. | The value's mode, with one button. |
+| **Customer and assignee** | The organization (a link to its screen), the contact person, the assignee. | The assignee. |
+| **Classification** | The sales channel, where the opportunity came from, its tags. | The tags. |
+| **Record** | The number, when it was created and last changed, and — once closed — when it closed. | — |
+
+A fact with no value is shown as empty rather than left out. Everything that is
+not changed in the column itself — the title, the description, the contact
+person, the sales channel, the expected close date and the amount — is changed
+with **Edit**.
 
 ## Configuring the workflow
 
@@ -149,8 +214,9 @@ closes the opportunity and stamps the moment; leaving one reopens it.
 
 ## Editing and deleting an opportunity
 
-On an opportunity's screen, **Edit** — beside the *Details* heading, for a
-holder of `crm:write` — turns the details into a form: the title, the
+On an opportunity's screen, **Edit** — in the header, for a holder of
+`crm:write` — opens a form on the *Overview* tab, whichever tab you were on:
+the title, the
 description, the contact person, the sales channel, the expected close date and
 the value. The organization and the currency are shown and cannot be changed.
 The value is either **entered by hand** or **calculated from linked
@@ -162,8 +228,8 @@ form was open — nothing is saved and the form says so: press **Reload the
 opportunity** to see the latest version, then make your changes again. Nothing
 is ever overwritten silently.
 
-A status change can carry a **reason**: write it in the field under the status
-buttons before pressing one. It is optional and is recorded with the change.
+A status change can carry a **reason**: write it in the field under the stage
+bar before pressing a status. It is optional and is recorded with the change.
 
 **Delete**, in the header of the screen, is for a holder of `crm:configure`. It
 asks first, and removes the opportunity together with its status history and
@@ -180,7 +246,7 @@ and its tags (see *What a card shows* below). The card's title opens the
 opportunity.
 
 A card is moved to another status in either of two ways, and both do exactly
-what the status buttons on the opportunity's own screen do — linked orders
+what the stage bar on the opportunity's own screen does — linked orders
 included:
 
 - **Drag it** to another column: with a mouse; on a touch screen by pressing
@@ -457,7 +523,8 @@ In the Admin UI:
 
 - **On the new-opportunity form** the *Assignee* field is optional. Leave it
   empty and the rule above chooses; pick a person and it is theirs.
-- **On an opportunity**, the *Assignee* section names who holds it. A holder of
+- **On an opportunity**, *Assignee* — in the column of facts on the right —
+  names who holds it. A holder of
   `crm:write` changes it there: choosing a person assigns the opportunity to
   them at once, and clearing the field leaves it unassigned. There is nothing
   to save.
@@ -521,7 +588,8 @@ In the Admin UI:
   see carry each tag. **Add tag** opens a small form with a name and a colour;
   the pencil renames or recolours; the bin deletes, after a confirmation that
   says how many opportunities will lose the tag.
-- **On an opportunity**, the *Tags* section shows its tags. A holder of
+- **On an opportunity**, *Tags* — in the column of facts on the right — shows
+  its tags. A holder of
   `crm:write` ticks and unticks them in the list under it; each change is saved
   at once.
 - **On the new-opportunity form** the *Tags* field sets them from the start.
@@ -840,16 +908,17 @@ computed value picks the quote requests up again at its next recalculation.
 
 ### In the Admin UI
 
-On an opportunity's **Overview**:
+On an opportunity's screen:
 
-- **Linked quote requests** lists each one with its number, its status and its
-  net value, next to *Linked orders*. A holder of `crm:write` searches the
+- **Linked quote requests**, on the **Links** tab, lists each one with its
+  number, its status and its net value, under *Linked orders*. A holder of `crm:write` searches the
   organization's quote requests by number and links one, or unlinks one. The
   search offers the open quote requests; a closed one is found by typing its
   full number. Linking needs `rfqs:handle` as well; without it the section
   says so instead of offering the search.
-- **Value** shows the figure and whether it is *entered by hand* or a *computed
-  value*, and one button switches between the two. For a computed value it
+- **Value**, in the column of facts on the right, shows the figure and whether
+  it is *entered by hand* or a *computed value*, and one button switches
+  between the two. For a computed value it
   lists every document that was **left out**, with the reason, and reminds you
   that your own estimate is kept.
 
@@ -917,7 +986,7 @@ does not publish the channel a request was submitted on.
 
 ## Creating an order or a quote request from an opportunity
 
-On the **Overview** of an opportunity, the *Linked orders* section has a
+On the **Links** tab of an opportunity, the *Linked orders* section has a
 **Create order** button and the *Linked quote requests* section a **Create
 quote request** button. Each opens the platform's own create screen — the one
 under **Orders** or **Quote requests** — already narrowed to the opportunity's
@@ -926,7 +995,7 @@ opportunity's contact person arrives chosen, and so does its sales channel on
 an order.
 
 Fill the screen in as usual and save. You are brought back to the opportunity,
-which says that the new document is being linked and then that it is; the
+on its **Links** tab, which says that the new document is being linked and then that it is; the
 document is in its list from then on, marked in the change history as *created
 from the opportunity*. An order created this way follows the opportunity's
 status like any linked order, and both kinds count towards a computed value.

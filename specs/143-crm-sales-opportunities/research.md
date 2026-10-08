@@ -4181,6 +4181,106 @@ verified, with the test that now holds it.
   close the customer's active basket first, a quote's basket included. (g)
   `orders.source_quote_request_id` has no index.
 
+### N-DL — The Opportunity screen's layout (User Story 20, 2026-10-08)
+
+The owner's request and its screenshot are recorded with the story. The coordinator's brief
+carried constraints and a few premises; each premise was re-derived against the tree. The
+screen was built **without a browser** — N-DL7 says what that leaves open.
+
+- **N-DL1 — What the reference gave, and what it did not.** Taken, as structure: a title
+  with one quiet meta line under it; a horizontal stage bar with "Stage n of N"; a main
+  column of tabs beside a narrow column of facts with no card around it, grouped under small
+  upper-case headings, each fact a small label above its value. **Not taken**: (a) the
+  weekly calendar strip — this platform has no events or calendar, and a strip of seven
+  empty days would be a picture of a feature; (b) the "all required data complete"
+  indicator — an Opportunity has no notion of required-for-a-stage data; (c) the *Quick
+  actions* menu — the screen has two page-level actions, Edit and Delete, and a menu around
+  two items costs a press and hides both (Hick's law is about choices offered, and two is
+  not many); (d) the per-fact "set" / "plan" links — they would be write paths the screen
+  does not have (FR-111), so an empty fact is shown as empty and the one *Edit* fills it;
+  (e) the inline pencil beside the title — the title is edited by the existing form with
+  the rest, so the pencil is the header's *Edit* button, labelled.
+- **N-DL2 — The workflow is a graph, so the bar states the present and nothing else.**
+  `allowedTransitions` on an Opportunity is computed from operator-drawn edges
+  (`OpportunityTransitionEdgeSchema`): backward moves, skips and reopening a closed
+  Opportunity are all drawable. A bar that fills every segment left of the current one says
+  "these are done", which the screen does not know. So `stageModel` has three states —
+  current, target, other — and **no fourth**. *Rejected*: deriving "visited" from
+  `GET …/history`; it is paged and can answer `truncated`, so the answer would be "visited,
+  as far as we can tell", on a control whose job is to be believed at a glance. That is a
+  backend question (N-DL8). The **order** is the operator's own: `weight`, then `code`, the
+  sort `workflow-read-service.ts` and `StatusesTable.tsx` both use.
+- **N-DL3 — Won and lost are two ends, not steps N−1 and N.** With statuses listed by
+  weight alone, the seeded workflow reads "… Negotiation, Won, Lost" and a lost Opportunity
+  is "Stage 5 of 5" — the far end of a bar that looks like progress. So closing statuses are
+  listed after the open ones regardless of weight, each with an icon and a spoken "closes the
+  opportunity as won / lost", and the position counts the **open** statuses only; a closed
+  Opportunity has none and shows the existing "Closed as won on …" sentence. "Stage n of N"
+  is honest in that form: it is a place in the operator's list, and the list is on screen.
+- **N-DL4 — The segments are the buttons; there is one set of them.** The brief allowed
+  either a read-only bar above the existing "Move to" buttons or actionable segments. Two
+  rows offering the same moves is the thing Von Restorff and Hick both argue against, so the
+  buttons *are* the segments: a status is a `button` exactly when it is in
+  `allowedTransitions` and the user holds `crm:write`. `StageBar` is `StatusControl`'s code
+  with a different picture — the same `crmApi.transition(id, to, reason)`, the same refusal
+  sentence, the same re-read on 409, the same live region — so no rule of the transition
+  moved. **The brief's premise that a transition may *require* a reason does not hold in
+  this tree**: `TransitionOpportunityRequestSchema.reason` is optional and nothing asks for
+  one on a lost status; the field therefore stays as it was, optional, under the bar, and
+  the test asserts it is still offered and still sent. **It wraps, it does not scroll**: a
+  strip that scrolls sideways can put the one allowed move off screen on a phone, which
+  hides a required action; wrapped, ten statuses at 390 px are three or four rows of 44 px
+  targets. `GET /workflow` is gated `crm:read` (`routes.workflow.ts`), so a reader can be
+  shown the whole list; when it fails the bar is the current status and its targets, and
+  says so.
+- **N-DL5 — Tab order and the default tab.** Overview, Links, Notes, Messages, Attachments,
+  Change history. *Overview* first and default: the description is what an Opportunity *is*,
+  and the bare address — the one the bell, the list, the board and every panel link to —
+  must keep opening something sensible. *Links* second: the documents are the substance of a
+  deal (a computed value is their sum), and its count gives the answer to "is anything
+  linked?" without opening it. The conversation next, in the order it is used; the audit
+  trail last, where the end of a list is easy to find (serial position) and nobody passes it
+  on the way to work. **The tab is in the address** as `?tab=<id>`. No convention existed to
+  follow: `OrderDetail.tsx` keeps its tab in `useState`, and so did this screen. A query
+  parameter was chosen over a hash because the screen already owns one (`?created=`), and
+  because `useSearchParams` keeps the navigation state the create screens hand back, which
+  `CreatedDocumentNotice` reads. The tab is written with `replace`: Back leaves the
+  Opportunity instead of walking through its tabs.
+- **N-DL6 — Deep links, and the existing tests that moved.** `grep` for
+  `crm/opportunities/` finds one address with a query — `CreateFromOpportunity.tsx`'s
+  `returnTo`, `?created=<kind>` — and it now selects *Links*, where the notice it exists for
+  is; without that the returning user would land on *Overview* and be told nothing. Every
+  other address is bare and unchanged. **No existing assertion was deleted.** What changed,
+  and why: `OpportunityDetail.test.tsx` — the helper waits for the tab panel and the bar
+  instead of the *Linked orders* region; the six linked-order cases open `?tab=links`; the
+  status cases name a button by what it does (`opportunity.stage.moveTo`) and read the
+  buttons from the bar's list instead of a "Move to" group; the GET stub answers
+  `/workflow`. `OpportunityEdit.test.tsx` — the helper waits for the *Description* heading;
+  the two reason cases name the *Lost* button by its new name. `assignment.test.tsx`,
+  `tags.test.tsx` — `region` → `group` (a labelled fact of the sidebar is no longer a
+  landmark). `value.test.tsx` — the same for *Value*, and the page opens on `?tab=links`
+  because its Quote Request cases read that tab. `create-from-opportunity.test.tsx`,
+  `owner-permissions.test.tsx` — open on `?tab=links`. `references.test.tsx` — the
+  description is found in its `section`, no longer in a `dd`. `custom-fields.test.tsx` — the
+  tab's three new props, and the wait is for the *Description* heading.
+- **N-DL7 — Built blind.** The preview runs another checkout, so nothing here was seen. What
+  jsdom can hold is held: structure, names, roles, order, the address, the outline. What it
+  cannot: the two-column grid and where it collapses; the bar's wrap; whether the kit's
+  `PageHeader` wraps a long title once `[&>div:first-child]:min-w-0 [&_h1]:flex-wrap` is
+  passed through its `className`; whether `.b2b-badge` inside `.b2b-tab` reads as a count;
+  contrast of the muted segments in the dark theme; focus order by eye; an axe pass. Task
+  T310 is open for exactly this.
+- **N-DL8 — What would need the backend, and was therefore not done.** (a) A bell entry
+  opening the tab it is about (a mention in a note → `?tab=notes`): the address is built in
+  `crm-notifier.ts`. The tab ids are now stable addresses, so it is a one-line change there
+  with its test. (b) "Has been through" marks on the bar: needs the set of statuses an
+  Opportunity has held, as a field of the detail answer. (c) A reason that is *required* for
+  some transitions (a loss reason): needs a flag on the transition or the status and a rule
+  in the service. (d) The reference's facts this model does not hold — a planned contact
+  date, a customer decision date, a type. Custom fields (US15) already cover (d) without a
+  change; they are shown on *Overview*, not in the facts column, because the kit's
+  `CustomFieldValuesPanel` is a form with its own save and does not fit a narrow column.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,
