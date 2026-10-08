@@ -768,6 +768,26 @@ export class RfqService {
       throw new HttpError(409, ERROR_CODES.RFQ_EMPTY, 'Quote Request has no items.');
     }
 
+    // The basket is seeded at the agreed unit price and at nothing else. A
+    // line the seller never priced has no price to seed, so the conversion is
+    // refused rather than given one: `orders` copies the basket's unit price
+    // onto the order line without recomputing it, which makes this the last
+    // place the question can be asked.
+    //
+    // Both routes into `Approved` already refuse an unpriced line. This is
+    // the same rule held where the price is consumed, so it also covers a row
+    // approved before they did and any route added after them.
+    const lines = items.map((it) => {
+      if (it.agreedUnitPrice == null) throw quoteIncompleteError();
+      return {
+        productId: it.productId,
+        ...(it.variantId ? { variantId: it.variantId } : {}),
+        quantity: it.quantity,
+        unitPrice: it.agreedUnitPrice.toString(),
+        currency: it.lineCurrency,
+      };
+    });
+
     // Validate every line's product is still resolvable. The spec edge
     // case "product archived between approve and convert" maps to a 409
     // here so the customer is forced to contact the rep.
@@ -818,13 +838,7 @@ export class RfqService {
         customerAccountId: ctx.customerAccountId,
         organizationId: ctx.organizationId,
       },
-      items.map((it) => ({
-        productId: it.productId,
-        ...(it.variantId ? { variantId: it.variantId } : {}),
-        quantity: it.quantity,
-        unitPrice: (it.agreedUnitPrice ?? '0').toString(),
-        currency: it.lineCurrency,
-      })),
+      lines,
     );
     const cartId = seeded.cart.id;
     this.#audit(em, 'quote_request.convert_to_order', rfq.id, null, {
