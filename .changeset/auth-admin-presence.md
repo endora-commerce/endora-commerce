@@ -4,8 +4,9 @@
 
 `auth` now records when an administrator was last seen, and answers the question.
 
-- **`AuthSessionReadPort.lastSeenByAdminUser(adminUserIds, since)` answers** — it rejected
-  until now. The newest `lastSeenAt` per administrator among those asked about, restricted to
+- **`AuthSessionReadPort.lastSeenByAdminUser(adminUserIds, since)`** — a method the port gains
+  in this release (`@endora-commerce/contracts`), implemented by `AuthSessionReadService`. It
+  answers the newest `lastSeenAt` per administrator among those asked about, restricted to
   sessions seen at or after `since`; an administrator with no such session is absent from the
   answer. A session in which an administrator is impersonating a customer is the customer's
   presence and does not count.

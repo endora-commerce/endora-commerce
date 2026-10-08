@@ -1,16 +1,15 @@
 ---
 '@endora-commerce/contracts': minor
 '@endora-commerce/admin-kit': minor
-'@endora-commerce/mod-crm': patch
-'@endora-commerce/mod-auth': patch
 ---
 
-The contract for Events on a Sales Opportunity and for the CRM Calendar, ahead of the routes
-that will serve it and the screens that will draw it. Additive throughout; no route is added
-by this change.
+The contract for Events on a Sales Opportunity and for the CRM Calendar. Additive throughout.
+The routes that serve it and the screens that draw it are `@endora-commerce/mod-crm`'s, and
+the port method is answered by `@endora-commerce/mod-auth`; each has a changeset of its own in
+this release.
 
-**`@endora-commerce/contracts` — `crm`.** The request and response shapes of five routes to
-come (`GET`/`POST /opportunities/:id/events`, `PATCH`/`DELETE …/events/:eventId`,
+**`@endora-commerce/contracts` — `crm`.** The request and response shapes of five routes
+(`GET`/`POST /opportunities/:id/events`, `PATCH`/`DELETE …/events/:eventId`,
 `GET /calendar/events`):
 
 - `CreateOpportunityEventRequestSchema` and `UpdateOpportunityEventRequestSchema` — a name of
@@ -40,11 +39,3 @@ repository must add the method to keep compiling.**
 **`@endora-commerce/contracts` and `@endora-commerce/admin-kit`.** `CalendarDays` joins the
 admin icon allowlist: `KnownIconNameSchema` gains the name and `resolveIcon` maps it to the
 lucide component, the pair a declared icon needs in one change.
-
-**`@endora-commerce/mod-crm`.** `GET /api/v1/admin/crm/opportunities/:id`, and every answer
-shaped like it, carries `upcomingEventCount: 0`. An Opportunity has no Events yet, so zero is
-the count.
-
-**`@endora-commerce/mod-auth`.** `AuthSessionReadService` declares `lastSeenByAdminUser` and
-rejects when it is called: the answer needs administrator sessions to record when they were
-last seen, which they do not do yet. Nothing in the repository calls it.
