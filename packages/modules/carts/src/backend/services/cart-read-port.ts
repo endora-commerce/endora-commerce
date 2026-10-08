@@ -82,7 +82,7 @@ export function createCartWritePort(
 
     clearForCustomer: (ctx) => getService().clearForCustomer(ctx),
 
-    async replaceItemsForCustomer(ctx, lines): Promise<CartWithItems> {
+    async replaceItemsForCustomer(ctx, lines, options): Promise<CartWithItems> {
       // command-coverage-ignore: seeds the customer's own active cart from an
       // already-audited source (a reorder, an accepted quote). The cart is not
       // an auditable domain object — the order or quote that produced these
@@ -101,7 +101,15 @@ export function createCartWritePort(
           currency: line.currency,
         });
       }
-      cart.lastActivityAt = new Date();
+      // The basket as **this** `EntityManager` holds it. `getOrCreateForCustomer`
+      // answers a row managed by the service's own, so a column set on that
+      // object is flushed by nobody — which is how `lastActivityAt` below went
+      // unwritten here, and why the source mark is set on this one.
+      const seededCart = await em.findOneOrFail(Cart, { id: cart.id });
+      // Replaced, never merged: the lines above are now the whole basket, so
+      // what an earlier seed said about their origin is no longer true of it.
+      seededCart.sourceQuoteRequestId = options?.sourceQuoteRequestId ?? null;
+      seededCart.lastActivityAt = new Date();
       await em.flush();
 
       const seeded = await read.findById(cart.id);
@@ -134,6 +142,7 @@ export function toCartRecord(cart: Cart): CartRecord {
     rejectedReason: cart.rejectedReason ?? null,
     appliedPromotionCode: cart.appliedPromotionCode ?? null,
     convertedToQuoteRequestId: cart.convertedToQuoteRequestId ?? null,
+    sourceQuoteRequestId: cart.sourceQuoteRequestId ?? null,
     abandonmentNotifiedAt: cart.abandonmentNotifiedAt ?? null,
     lastActivityAt: cart.lastActivityAt,
     version: cart.version,
