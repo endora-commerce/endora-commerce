@@ -55,6 +55,7 @@
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/email-components": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
     "@fastify/multipart": "^10",
     "@mikro-orm/core": "^6",
@@ -85,6 +86,7 @@
   "devDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
     "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/email-components": "workspace:*",
     "@endora-commerce/platform": "workspace:*",
     "@fastify/multipart": "^10.0.0",
     "@mikro-orm/core": "^6.6.13",

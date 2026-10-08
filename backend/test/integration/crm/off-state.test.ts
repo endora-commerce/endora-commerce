@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { enterSystemScope } from '@endora-commerce/platform/kernel';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -11,7 +12,12 @@ import {
   type OffStateAxis,
   type OffStateProbe,
 } from '../../helpers/off-state.js';
-import { CrmOpportunity, CrmOpportunityLink, CrmStatusPropagation } from '../../helpers/package-entities.js';
+import {
+  AdminNotification,
+  CrmOpportunity,
+  CrmOpportunityLink,
+  CrmStatusPropagation,
+} from '../../helpers/package-entities.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import {
   SEED_ADDRESS_BILLING_ID,
@@ -19,7 +25,8 @@ import {
   SEED_DELIVERY_METHOD_ID,
   SEED_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
-import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { TEST_ADMIN_ID, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { crmEventReminderRow, seedCrmEventRow } from '../../helpers/seed-crm-events.js';
 import { CRM_SETTING_CODES } from '../../../../packages/modules/crm/src/manifest.js';
 import {
   changeOrderStatusAsOperator,
@@ -124,6 +131,22 @@ describe('crm off-state (Constitution XVII)', () => {
     { method: 'POST', route: `${API}/opportunities/:id/propagations/:propagationId/retry` },
     { method: 'POST', route: `${API}/opportunities/:id/propagations/:propagationId/dismiss` },
     { method: 'GET', route: `${API}/documents/:documentKind/:documentId/opportunity` },
+    // Events on an Opportunity and the Calendar (User Stories 21 and 22).
+    { method: 'GET', route: `${API}/opportunities/:id/events` },
+    {
+      method: 'POST',
+      route: `${API}/opportunities/:id/events`,
+      payload: {
+        name: 'Off',
+        allDay: false,
+        startsAt: '2031-06-10T08:00:00.000Z',
+        endsAt: '2031-06-10T09:00:00.000Z',
+        timeZone: 'UTC',
+      },
+    },
+    { method: 'PATCH', route: `${API}/opportunities/:id/events/:eventId`, payload: { name: 'Off' } },
+    { method: 'DELETE', route: `${API}/opportunities/:id/events/:eventId` },
+    { method: 'GET', route: `${API}/calendar/events` },
   ];
 
   const ROUTES: OffStateProbe[] = REGISTERED.map(({ method, route, payload }) => ({
@@ -133,6 +156,7 @@ describe('crm off-state (Constitution XVII)', () => {
       .replace(':linkId', CHILD)
       .replace(':commentId', CHILD)
       .replace(':attachmentId', CHILD)
+      .replace(':eventId', CHILD)
       .replace(':propagationId', CHILD)
       .replace(':code', 'new')
       .replace(':documentKind', 'order')
@@ -259,6 +283,71 @@ describe('crm off-state (Constitution XVII)', () => {
         expect(await statusOf(pair.opportunityId)).toBe('new');
       });
     });
+  });
+
+  describe('the reminder sweep’s tick (User Story 21)', () => {
+    // The consumer of `crm-event-reminders` is attached through `ctx.worker`,
+    // which is what stops it with the module — and which this harness cannot
+    // show: it composes with no queue connection, so no consumer is built
+    // (`check:subscribe-seam` holds the `Worker` to that seam statically, and
+    // `event-reminder-worker.test.ts` holds the function that builds it).
+    //
+    // What is driven here is the other half of the gate — the work's own: the
+    // function the consumer runs on every tick, exactly as the module composed
+    // it, which decides the module's presence before it reads a single row. A
+    // tick already in hand when the module is switched off reminds nobody.
+    const tick = () =>
+      enterSystemScope('test: crm event reminder tick', () =>
+        (h.container.resolve('crmEventReminderTick') as () => Promise<void>)(),
+      );
+    const remindersAbout = (opportunityId: string) =>
+      h.em().count(
+        AdminNotification,
+        { subjectId: opportunityId, kind: 'crm.opportunity.event_reminder' },
+        { filters: false },
+      );
+    /** An Opportunity assigned to the administrator, with an Event whose reminder was due a minute ago. */
+    const dueReminder = async () => {
+      const opportunity = await createCrmOpportunity(h, { assignedAdminUserId: TEST_ADMIN_ID });
+      const now = Date.now();
+      const eventId = await seedCrmEventRow(h.em(), opportunity.id, {
+        startsAt: new Date(now + 3_600_000),
+        endsAt: new Date(now + 7_200_000),
+        remindAt: new Date(now - 60_000),
+        createdByAdminUserId: TEST_ADMIN_ID,
+      });
+      return { opportunityId: opportunity.id, eventId };
+    };
+
+    beforeAll(async () => {
+      await restoreDefaultCrmWorkflow(h.em());
+    });
+
+    it('delivers a due reminder while on — the positive control', async () => {
+      const { opportunityId, eventId } = await dueReminder();
+      await tick();
+      expect(await remindersAbout(opportunityId)).toBe(1);
+      expect((await crmEventReminderRow(h.em(), eventId))?.handledAt).not.toBeNull();
+    });
+
+    it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+      'delivers nothing and consumes nothing while %s, and delivers once after the module is back',
+      async (axis) => {
+        const { opportunityId, eventId } = await dueReminder();
+        await withModuleOff('crm', axis, async () => {
+          await tick();
+          await tick();
+          expect(await remindersAbout(opportunityId)).toBe(0);
+          // Held, not consumed: the row still says there is a reminder to do.
+          expect(await crmEventReminderRow(h.em(), eventId)).toMatchObject({ handledAt: null, outcome: null });
+        });
+
+        await tick();
+        await tick();
+        expect(await remindersAbout(opportunityId)).toBe(1);
+        expect((await crmEventReminderRow(h.em(), eventId))?.outcome).toMatch(/^bell/);
+      },
+    );
   });
 
   describe('operator-defined fields (User Story 15)', () => {

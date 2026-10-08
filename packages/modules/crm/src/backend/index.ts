@@ -7,10 +7,12 @@ import type {
   AssetReferenceRegistryPort,
   AssetsLibraryPort,
   AuditReferenceRegistryPort,
+  AuthSessionReadPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
   CustomFieldDefinitionReadPort,
   CustomFieldValuePort,
+  EmailDefaultsRegistryPort,
   OpportunityReadPort,
   OpportunityTransitionPort,
   OrderReadPort,
@@ -21,6 +23,7 @@ import type {
   SalesChannelAttributionRegistryPort,
   SalesRepAssignmentPort,
   SettingsAdminPort,
+  TransactionalEmailSender,
 } from '@endora-commerce/contracts';
 import { CRM_WEBHOOK_EVENT_TYPES, type WebhookEventRegistryPort } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -35,6 +38,7 @@ import {
   type RequireAdminFactory,
   type SettingsReadPort,
 } from '@endora-commerce/platform/kernel';
+import { EVENT_REMINDER_DEFAULT, EVENT_REMINDER_EMAIL_CODE } from './email-templates/event-reminder-defaults.js';
 import { registerCrmAnalyticsRoutes } from './routes/routes.analytics.js';
 import { registerCrmAssignmentRoutes } from './routes/routes.assignment.js';
 import { registerCrmAttachmentUploadRoutes } from './routes/routes.attachment-upload.js';
@@ -64,6 +68,8 @@ import { createOwnerReadChecks, type OwnerReadChecks } from './services/owner-re
 import { createCrmNotifier, type CrmNotifier } from './services/crm-notifier.js';
 import { createCrmQuoteRequests, type CrmQuoteRequests } from './services/crm-quote-requests.js';
 import { DocumentOpportunityService } from './services/document-opportunity-service.js';
+import { createEventReminderEmail } from './services/event-reminder-email.js';
+import { EventReminderService } from './services/event-reminder-service.js';
 import { OpportunityAssignmentService } from './services/opportunity-assignment-service.js';
 import { OpportunityAttachmentService } from './services/opportunity-attachment-service.js';
 import { OpportunityAttachmentUploadService } from './services/opportunity-attachment-upload-service.js';
@@ -89,6 +95,7 @@ import { registerOpportunitySalesChannelAttributions } from './services/sales-ch
 import { TagService } from './services/tag-service.js';
 import { WorkflowConfigService } from './services/workflow-config-service.js';
 import { WorkflowReadService } from './services/workflow-read-service.js';
+import { eventReminderTick, startEventReminders } from './workers/event-reminder-worker.js';
 import {
   createValueRecalculationProducer,
   startValueRecalculation,
@@ -1046,6 +1053,80 @@ export function registerModule(ctx: ModuleContext): void {
       requireAdmin: cradle.requireAdmin,
     });
   });
+
+  // Reminders are a sweep, not timers: the row is the schedule, and one pass
+  // claims what is due before it delivers anything. Who is reminded is read
+  // when the reminder fires — the assignee, else the Event's creator, each only
+  // if `admin_users` says they are active and `organizations` says they still
+  // reach the Opportunity's Organization. The bell is this module's notifier,
+  // which decides `admin_notifications`' presence itself; whether the recipient
+  // is in the Admin UI to see it is `auth`'s to say; and the e-mail goes out
+  // through `transactional_emails`' sender, read off the cradle per send — it
+  // is a function, announced late, and `lazyPort` forwards method calls only,
+  // which is why `returns` reads it the same way.
+  ctx.di.register({
+    crmEventReminderService: ctx
+      .asFunction(
+        ({ emFactory, commandBus, crmNotifier }: CrmCradle) =>
+          new EventReminderService({
+            emFactory,
+            commandBus,
+            adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
+            canReach: createAdminReach(lazyPort<AdminTenantScopePort>(ctx, 'adminTenantScopePort')),
+            sessions: lazyPort<AuthSessionReadPort>(ctx, 'authSessionReadPort'),
+            notifier: crmNotifier,
+            email: createEventReminderEmail({
+              sender: () => ctx.cradle<RemindersCradle>().transactionalEmailSenderAccessor(),
+              log: (message, context) => ctx.log.warn(context, message),
+            }),
+            log: (message, context) => ctx.log.warn(context, message),
+          }),
+      )
+      .singleton(),
+    // What one tick of the clock runs. Registered, so that what a test drives
+    // is what the consumer runs: presence first, then one pass.
+    crmEventReminderTick: ctx
+      .asFunction(({ crmEventReminderService }: RemindersCradle) =>
+        eventReminderTick({
+          reminders: crmEventReminderService,
+          isPresent: () => effectiveState.isPresent('crm'),
+          log: ctx.log,
+        }),
+      )
+      .singleton(),
+  });
+
+  /**
+   * The reminder e-mail's default subject and body — a **contribution** hook.
+   *
+   * It pushes an inert descriptor into `emailDefaultsPort`, the ungated
+   * registry `transactional_emails` owns and reads once at boot, and carries
+   * no presence probe: the definition is seeded from this module's manifest
+   * whether the module is on or off, and a push skipped here would leave it
+   * with an empty body until the next restart after a reactivation.
+   */
+  ctx.onBoot(() => {
+    lazyPort<EmailDefaultsRegistryPort>(ctx, 'emailDefaultsPort').register(
+      EVENT_REMINDER_EMAIL_CODE,
+      EVENT_REMINDER_DEFAULT,
+      'crm',
+    );
+  });
+
+  // The clock: a Job Scheduler and its consumer, attached where `app.log`
+  // exists and through `ctx.worker`, which is what stops it with the module.
+  // Built only where the host says this process consumes queues and offers a
+  // connection; the shared test server says neither and drives the tick itself.
+  ctx.routes(async (app) => {
+    const cradle = ctx.cradle<RemindersCradle & ValueCradle>();
+    await startEventReminders({
+      tick: cradle.crmEventReminderTick,
+      processRunsWorkers: cradle.processRunsWorkers,
+      moduleQueueRedis: cradle.moduleQueueRedis,
+      attach: (worker) => ctx.worker(worker, { logger: app.log }),
+      onClose: (close) => app.addHook('onClose', close),
+    });
+  });
   // --- end of Events, the Calendar and reminders ---------------------------------
 
   // --- Routes ----------------------------------------------------------------
@@ -1108,6 +1189,17 @@ interface ValueCradle {
 interface EventsCradle {
   readonly crmOpportunityEventService: OpportunityEventService;
   readonly crmCalendarService: CalendarService;
+}
+
+/** What the reminders half of the events section registers and reads. */
+interface RemindersCradle {
+  readonly crmEventReminderService: EventReminderService;
+  readonly crmEventReminderTick: () => Promise<void>;
+  /**
+   * `transactional_emails`' late-bound sender, read per send. It answers
+   * `undefined` until that module has announced it.
+   */
+  readonly transactionalEmailSenderAccessor: () => TransactionalEmailSender | undefined;
 }
 
 /** What the board section registers for the card's fields (User Story 19). */

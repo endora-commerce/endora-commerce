@@ -147,6 +147,11 @@ export const manifest = defineModuleManifest({
   // registry is ungated and its owner is non-deactivatable, so the declaration
   // buys install order rather than a flip-time refusal — as the registry's four
   // other contributors declare it.
+  //
+  // `transactional_emails` owns the sender the reminder of an Event goes out
+  // through, and `emailDefaultsPort`, the registry this module pushes that
+  // e-mail's default subject and body into (User Story 21). `auth`, already
+  // here, also answers whether the reminder's recipient is in the Admin UI.
   dependencies: [
     'admin_users',
     'assets_library',
@@ -159,6 +164,7 @@ export const manifest = defineModuleManifest({
     'organizations',
     'sales_channels',
     'settings',
+    'transactional_emails',
   ],
   /**
    * Edges that are real to the container and bind no operator.
@@ -357,6 +363,30 @@ export const manifest = defineModuleManifest({
       requiredPermission: 'crm:analytics',
       keywords: ['crm', 'analytics', 'report', 'statistics', 'sales rep', 'analityka', 'raport', 'handlowiec'],
       weight: 323,
+    },
+  ],
+  /**
+   * The one e-mail this module sends: the reminder of an Event, to the
+   * administrator the Opportunity is assigned to, when they are not in the
+   * Admin UI to see the bell entry (User Story 21). Its default subject and
+   * body, in English and Polish, are pushed from this module's boot hook
+   * (`src/backend/email-templates/event-reminder-defaults.ts`); an operator
+   * edits them, or switches the e-mail off, on the e-mail templates screen.
+   *
+   * The variables are what the bell entry says and no more.
+   */
+  transactionalEmails: [
+    {
+      code: 'crm_event_reminder',
+      name: 'Event reminder',
+      group: 'crm',
+      description:
+        'Sent to the person a sales opportunity is assigned to when the reminder of one of its events is due and they are not in the admin panel to see the notification.',
+      variables: [
+        { key: 'event.name', label: 'Event name', sampleValue: 'Demo at the warehouse' },
+        { key: 'event.when', label: 'When the event starts', sampleValue: '2026-10-12 10:00 Europe/Warsaw' },
+        { key: 'opportunity.number', label: 'Opportunity number', sampleValue: 'OPP-000042' },
+      ],
     },
   ],
   i18n: { bundlesDir: 'i18n' },

@@ -120,10 +120,12 @@ export async function crmEventReminderRow(
   )) as Array<{ remind_at: Date | null; reminder_handled_at: Date | null; reminder_outcome: string | null; updated_at: Date }>;
   const row = rows[0];
   if (!row) return null;
+  // The driver may hand a `timestamptz` back as text; a caller compares instants.
+  const instant = (value: Date | string | null): Date | null => (value === null ? null : new Date(value));
   return {
-    remindAt: row.remind_at,
-    handledAt: row.reminder_handled_at,
+    remindAt: instant(row.remind_at),
+    handledAt: instant(row.reminder_handled_at),
     outcome: row.reminder_outcome,
-    updatedAt: row.updated_at,
+    updatedAt: instant(row.updated_at) as Date,
   };
 }

@@ -17,6 +17,10 @@ const NEVER_AUDITED = new Set([
   'crm.opportunity.propagation_record',
   'crm.opportunity.propagation_echo',
   'crm.opportunity.value_recalculate',
+  // The reminder sweep's bookkeeping: a delivery is not a change to an Opportunity.
+  'crm.event_reminder.expire',
+  'crm.event_reminder.claim',
+  'crm.event_reminder.record',
 ]);
 
 /** Bell-entry kinds of `crm-notifier.ts`: the same three-part shape, and not Commands. */
