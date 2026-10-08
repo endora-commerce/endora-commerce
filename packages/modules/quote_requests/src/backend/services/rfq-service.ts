@@ -37,6 +37,7 @@ import type { QuoteRequestBusinessIdGenerator } from './quote-request-business-i
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import { productIdsInRequestChannel } from '@endora-commerce/platform/kernel';
 import { raisedOnChannelId } from './raised-on-channel.js';
+import { hasUnpricedLine, quoteIncompleteError } from './agreed-price.js';
 
 /**
  * Customer-facing Quote Requests service — feature 008 workflow.
@@ -612,6 +613,17 @@ export class RfqService {
     if (rfq.status !== 'Pending' && rfq.status !== 'Created from admin') {
       throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request is not awaiting your decision.');
     }
+    // Accepting is the buyer's answer to an offer, so there has to be one.
+    // A request the buyer raised sits in `Pending` from the moment it is
+    // submitted, and the status alone does not say whether the seller has
+    // answered it — see `sellerHasOffered`.
+    //
+    // **Only the accept half**, for the reason the deadline below gives:
+    // declining commits nobody to a price, and it is how a buyer withdraws a
+    // request nobody has answered yet.
+    if (decision === 'accept' && !sellerHasOffered(rfq)) {
+      throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request is not awaiting your decision.');
+    }
     // The offer the operator dated stops being acceptable on the date both
     // parties were shown — restored 2026-08-29, see `validityHasLapsed`.
     //
@@ -637,6 +649,15 @@ export class RfqService {
         ERROR_CODES.VERSION_CONFLICT,
         'Quote Request was revised again — refresh and try again.',
       );
+    }
+    // An offer is acceptable once it is a price for every line. An operator's
+    // revision does not have to carry one — `modify` accepts a note alone, and
+    // a line with `agreedUnitPrice: null` — and accepting it would approve a
+    // request nobody can order from. After the revision pin, so the buyer is
+    // judged on the revision they are looking at.
+    if (decision === 'accept') {
+      const lines = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
+      if (hasUnpricedLine(lines)) throw quoteIncompleteError();
     }
 
     const now = new Date();
@@ -747,6 +768,26 @@ export class RfqService {
       throw new HttpError(409, ERROR_CODES.RFQ_EMPTY, 'Quote Request has no items.');
     }
 
+    // The basket is seeded at the agreed unit price and at nothing else. A
+    // line the seller never priced has no price to seed, so the conversion is
+    // refused rather than given one: `orders` copies the basket's unit price
+    // onto the order line without recomputing it, which makes this the last
+    // place the question can be asked.
+    //
+    // Both routes into `Approved` already refuse an unpriced line. This is
+    // the same rule held where the price is consumed, so it also covers a row
+    // approved before they did and any route added after them.
+    const lines = items.map((it) => {
+      if (it.agreedUnitPrice == null) throw quoteIncompleteError();
+      return {
+        productId: it.productId,
+        ...(it.variantId ? { variantId: it.variantId } : {}),
+        quantity: it.quantity,
+        unitPrice: it.agreedUnitPrice.toString(),
+        currency: it.lineCurrency,
+      };
+    });
+
     // Validate every line's product is still resolvable. The spec edge
     // case "product archived between approve and convert" maps to a 409
     // here so the customer is forced to contact the rep.
@@ -797,13 +838,7 @@ export class RfqService {
         customerAccountId: ctx.customerAccountId,
         organizationId: ctx.organizationId,
       },
-      items.map((it) => ({
-        productId: it.productId,
-        ...(it.variantId ? { variantId: it.variantId } : {}),
-        quantity: it.quantity,
-        unitPrice: (it.agreedUnitPrice ?? '0').toString(),
-        currency: it.lineCurrency,
-      })),
+      lines,
     );
     const cartId = seeded.cart.id;
     this.#audit(em, 'quote_request.convert_to_order', rfq.id, null, {
@@ -1009,6 +1044,29 @@ function anyLocaleValue(blob: Record<string, string>): string {
  */
 function validityHasLapsed(rfq: QuoteRequest, nowMs: number): boolean {
   return rfq.expiresAt != null && rfq.expiresAt.getTime() <= nowMs;
+}
+
+/**
+ * Is there an operator's offer on this request for the buyer to answer?
+ *
+ * `awaitingCustomerRevisionAcceptance` is the marker, and it has exactly two
+ * writers that set it: `RfqAdminService.modify` (the seller revises a request)
+ * and `RfqAdminService.createOnBehalf` (the seller drafts one). Everything
+ * that clears it — approve, cancel, the buyer's own answer — also moves the
+ * request out of the two statuses this is asked in. A request the buyer raised
+ * or edited themselves never has it set.
+ *
+ * `Created from admin` is named as well although `createOnBehalf` always sets
+ * the flag: that status *is* the seller's offer by construction, and a row
+ * written before the flag was set at creation
+ * (`20260617T095510_quote_requests_backfill_admin_created_awaiting`) is still
+ * one.
+ *
+ * It says an offer exists, not that it is complete — whether every line of it
+ * is priced is `hasUnpricedLine`'s question.
+ */
+function sellerHasOffered(rfq: QuoteRequest): boolean {
+  return rfq.awaitingCustomerRevisionAcceptance || rfq.status === 'Created from admin';
 }
 
 function customerDisplayName(c: CustomerAccountRecord): string {

@@ -3,12 +3,12 @@
   "actions.openInbox.description": "Review pending quote requests",
   "errors.RFQ_NOT_DRAFT": "Rfq Not Draft.",
   "errors.RFQ_EMPTY": "Rfq Empty.",
-  "errors.RFQ_NOT_QUOTED": "Rfq Not Quoted.",
+  "errors.RFQ_NOT_QUOTED": "This action is not available for the quote request in its current state.",
   "errors.RFQ_NOT_ACCEPTED": "Rfq Not Accepted.",
   "errors.RFQ_NOT_NEW": "Rfq Not New.",
   "errors.RFQ_ALREADY_CLAIMED": "Rfq Already Claimed.",
   "errors.RFQ_EXPIRED": "This quote is no longer valid — its validity period has ended. Ask your sales representative for a new quote, or submit the request again.",
-  "errors.QUOTE_INCOMPLETE": "Quote Incomplete.",
+  "errors.QUOTE_INCOMPLETE": "This quote request has a line with no agreed price. The seller must price every line before the request can be accepted, approved or ordered.",
   "errors.QUOTE_VALIDITY_ENDED": "The accepted quote is no longer valid — its validity period has ended. Ask your sales representative for a new quote before ordering.",
   "nav.quoteRequests.label": "Quote requests"
 }
