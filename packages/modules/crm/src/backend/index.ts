@@ -94,6 +94,7 @@ import {
 import { CrmOpportunity } from './entities/crm-opportunity.entity.js';
 import { CrmOpportunityAttachment } from './entities/crm-opportunity-attachment.entity.js';
 import { CrmOpportunityComment } from './entities/crm-opportunity-comment.entity.js';
+import { CrmOpportunityEvent } from './entities/crm-opportunity-event.entity.js';
 import { CrmOpportunityLink } from './entities/crm-opportunity-link.entity.js';
 import { CrmOpportunityReference } from './entities/crm-opportunity-reference.entity.js';
 import { CrmOpportunityStatus } from './entities/crm-opportunity-status.entity.js';
@@ -1118,15 +1119,17 @@ function readOrderStatusChange(payload: unknown): OrderStatusChange | null {
  * the package is installed; a missing array is answered with zero entities
  * registered and no error anywhere.
  *
- * Thirteen classes, the whole schema of the module: the Opportunity
- * (`@OrgScoped`), its seven children (`@TransitivelyScoped` through it) and
- * five configuration tables (`@GlobalEntity`). Every class is here before the
- * first user story, so that no later story changes a generated registry.
+ * Fourteen classes, the whole schema of the module: the Opportunity
+ * (`@OrgScoped`), its eight children (`@TransitivelyScoped` through it) and
+ * five configuration tables (`@GlobalEntity`). Thirteen were here before the
+ * first user story, so that no story changed a generated registry; the
+ * fourteenth, `CrmOpportunityEvent`, came with User Stories 21 and 22.
  */
 export const entities = [
   CrmOpportunity,
   CrmOpportunityAttachment,
   CrmOpportunityComment,
+  CrmOpportunityEvent,
   CrmOpportunityLink,
   CrmOpportunityReference,
   CrmOpportunityStatus,

@@ -132,6 +132,7 @@ import type { Payment as PaymentRow } from '../../../packages/modules/payments/s
 import type { CrmOpportunity as CrmOpportunityRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity.entity.js';
 import type { CrmOpportunityAttachment as CrmOpportunityAttachmentRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-attachment.entity.js';
 import type { CrmOpportunityComment as CrmOpportunityCommentRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-comment.entity.js';
+import type { CrmOpportunityEvent as CrmOpportunityEventRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-event.entity.js';
 import type { CrmOpportunityLink as CrmOpportunityLinkRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-link.entity.js';
 import type { CrmOpportunityReference as CrmOpportunityReferenceRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-reference.entity.js';
 import type { CrmOpportunityStatus as CrmOpportunityStatusRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-status.entity.js';
@@ -1038,6 +1039,7 @@ export type AdminNotification = AdminNotificationRow;
 export const CrmOpportunity = classNamed<CrmOpportunityRow>(installedModuleEntities, 'crm', 'CrmOpportunity');
 export const CrmOpportunityAttachment = classNamed<CrmOpportunityAttachmentRow>(installedModuleEntities, 'crm', 'CrmOpportunityAttachment');
 export const CrmOpportunityComment = classNamed<CrmOpportunityCommentRow>(installedModuleEntities, 'crm', 'CrmOpportunityComment');
+export const CrmOpportunityEvent = classNamed<CrmOpportunityEventRow>(installedModuleEntities, 'crm', 'CrmOpportunityEvent');
 export const CrmOpportunityLink = classNamed<CrmOpportunityLinkRow>(installedModuleEntities, 'crm', 'CrmOpportunityLink');
 export const CrmOpportunityReference = classNamed<CrmOpportunityReferenceRow>(installedModuleEntities, 'crm', 'CrmOpportunityReference');
 export const CrmOpportunityStatus = classNamed<CrmOpportunityStatusRow>(installedModuleEntities, 'crm', 'CrmOpportunityStatus');
@@ -1051,6 +1053,7 @@ export const CrmValueCountingStatus = classNamed<CrmValueCountingStatusRow>(inst
 export type CrmOpportunity = CrmOpportunityRow;
 export type CrmOpportunityAttachment = CrmOpportunityAttachmentRow;
 export type CrmOpportunityComment = CrmOpportunityCommentRow;
+export type CrmOpportunityEvent = CrmOpportunityEventRow;
 export type CrmOpportunityLink = CrmOpportunityLinkRow;
 export type CrmOpportunityReference = CrmOpportunityReferenceRow;
 export type CrmOpportunityStatus = CrmOpportunityStatusRow;

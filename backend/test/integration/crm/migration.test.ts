@@ -11,6 +11,7 @@ import {
   CrmOpportunity,
   CrmOpportunityAttachment,
   CrmOpportunityComment,
+  CrmOpportunityEvent,
   CrmOpportunityLink,
   CrmOpportunityReference,
   CrmOpportunityStatus,
@@ -41,6 +42,7 @@ const TABLES = [
   'crm_opportunities',
   'crm_opportunity_attachments',
   'crm_opportunity_comments',
+  'crm_opportunity_events',
   'crm_opportunity_links',
   'crm_opportunity_references',
   'crm_opportunity_status_history',
@@ -77,7 +79,7 @@ describe('crm init migration', () => {
     return found.map((row) => row.indexdef.replace(/\s+/g, ' '));
   }
 
-  it('creates the thirteen tables of the data model and no fourteenth', async () => {
+  it('creates the fourteen tables of the data model and no fifteenth', async () => {
     const found = await rows<{ table_name: string }>(
       `select table_name from information_schema.tables
         where table_schema = current_schema() and table_name like 'crm\\_%' order by table_name`,
@@ -183,6 +185,7 @@ describe('crm init migration', () => {
       [
         'crm_opportunity_attachments',
         'crm_opportunity_comments',
+        'crm_opportunity_events',
         'crm_opportunity_links',
         'crm_opportunity_references',
         'crm_opportunity_status_history',
@@ -190,6 +193,111 @@ describe('crm init migration', () => {
         'crm_status_propagations',
       ].map((child) => ({ child, on_delete: 'c' })),
     );
+  });
+
+  describe('crm_opportunity_events (User Stories 21 and 22)', () => {
+    const insertEvent = (overrides: Record<string, string> = {}) => {
+      const values: Record<string, string> = {
+        starts_at: `'2026-06-10T08:00:00Z'`,
+        ends_at: `'2026-06-10T09:00:00Z'`,
+        reminder_outcome: 'null',
+        ...overrides,
+      };
+      return rows(
+        `insert into "crm_opportunity_events"
+           ("id", "opportunity_id", "name", "starts_at", "ends_at", "time_zone", "reminder_outcome", "created_at", "updated_at")
+         values (gen_random_uuid(), ?, 'Call', ${values['starts_at']}, ${values['ends_at']}, 'Europe/Warsaw',
+                 ${values['reminder_outcome']}, now(), now())`,
+        [opportunityId],
+      );
+    };
+    let opportunityId: string;
+
+    beforeAll(async () => {
+      opportunityId = (await createCrmOpportunity(h, { assignedAdminUserId: null })).id;
+    });
+
+    it('has the columns of the data model, with their nullability and defaults', async () => {
+      const found = await rows<{ column_name: string; data_type: string; is_nullable: string; column_default: string | null }>(
+        `select column_name, data_type, is_nullable, column_default from information_schema.columns
+          where table_schema = current_schema() and table_name = 'crm_opportunity_events'
+          order by ordinal_position`,
+      );
+      expect(found).toEqual([
+        { column_name: 'id', data_type: 'uuid', is_nullable: 'NO', column_default: null },
+        { column_name: 'opportunity_id', data_type: 'uuid', is_nullable: 'NO', column_default: null },
+        { column_name: 'name', data_type: 'character varying', is_nullable: 'NO', column_default: null },
+        { column_name: 'description', data_type: 'text', is_nullable: 'YES', column_default: null },
+        { column_name: 'all_day', data_type: 'boolean', is_nullable: 'NO', column_default: 'false' },
+        { column_name: 'starts_at', data_type: 'timestamp with time zone', is_nullable: 'NO', column_default: null },
+        { column_name: 'ends_at', data_type: 'timestamp with time zone', is_nullable: 'NO', column_default: null },
+        { column_name: 'time_zone', data_type: 'character varying', is_nullable: 'NO', column_default: null },
+        { column_name: 'remind_at', data_type: 'timestamp with time zone', is_nullable: 'YES', column_default: null },
+        { column_name: 'reminder_handled_at', data_type: 'timestamp with time zone', is_nullable: 'YES', column_default: null },
+        { column_name: 'reminder_outcome', data_type: 'character varying', is_nullable: 'YES', column_default: null },
+        { column_name: 'created_by_admin_user_id', data_type: 'uuid', is_nullable: 'YES', column_default: null },
+        { column_name: 'created_at', data_type: 'timestamp with time zone', is_nullable: 'NO', column_default: null },
+        { column_name: 'updated_at', data_type: 'timestamp with time zone', is_nullable: 'NO', column_default: null },
+      ]);
+    });
+
+    it('refuses an end that is not after the start — a check constraint', async () => {
+      await expect(insertEvent({ ends_at: `'2026-06-10T08:00:00Z'` })).rejects.toThrow(/check constraint/i);
+      await expect(insertEvent()).resolves.toBeDefined();
+    });
+
+    it('holds the reminder outcome to its set — a check constraint', async () => {
+      for (const outcome of [
+        'sending',
+        'bell',
+        'bell_email',
+        'email',
+        'no_recipient',
+        'undeliverable',
+        'missed',
+        'interrupted',
+      ]) {
+        await expect(insertEvent({ reminder_outcome: `'${outcome}'` }), outcome).resolves.toBeDefined();
+      }
+      await expect(insertEvent({ reminder_outcome: `'sent'` })).rejects.toThrow(/check constraint/i);
+    });
+
+    it('carries the three indexes: the tab’s, the range read’s, and the partial one the sweep reads', async () => {
+      const definitions = await indexDefinitions('crm_opportunity_events');
+      expect(
+        definitions.some((d) => /CREATE INDEX .*\(opportunity_id, starts_at\)$/.test(d)),
+        definitions.join('\n'),
+      ).toBe(true);
+      expect(
+        definitions.some((d) => /CREATE INDEX .*\(starts_at\)$/.test(d)),
+        definitions.join('\n'),
+      ).toBe(true);
+      expect(
+        definitions.some(
+          (d) =>
+            /CREATE INDEX .*\(remind_at\) WHERE/.test(d) &&
+            /remind_at IS NOT NULL/.test(d) &&
+            /reminder_handled_at IS NULL/.test(d),
+        ),
+        definitions.join('\n'),
+      ).toBe(true);
+    });
+
+    it('goes with its opportunity', async () => {
+      const doomed = await createCrmOpportunity(h, { assignedAdminUserId: null });
+      await rows(
+        `insert into "crm_opportunity_events"
+           ("id", "opportunity_id", "name", "starts_at", "ends_at", "time_zone", "created_at", "updated_at")
+         values (gen_random_uuid(), ?, 'Call', now(), now() + interval '1 hour', 'UTC', now(), now())`,
+        [doomed.id],
+      );
+      await rows(`delete from "crm_opportunities" where "id" = ?`, [doomed.id]);
+      const [left] = await rows<{ count: string }>(
+        `select count(*) as count from "crm_opportunity_events" where "opportunity_id" = ?`,
+        [doomed.id],
+      );
+      expect(Number(left?.count)).toBe(0);
+    });
   });
 
   it('every entity class reads its own table — no column the migration did not create', async () => {
@@ -201,6 +309,7 @@ describe('crm init migration', () => {
       CrmOpportunity,
       CrmOpportunityAttachment,
       CrmOpportunityComment,
+      CrmOpportunityEvent,
       CrmOpportunityLink,
       CrmOpportunityReference,
       CrmOpportunityStatus,
