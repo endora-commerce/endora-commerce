@@ -752,6 +752,74 @@ not a one-declaration integration.
 | FR-084 | US18 | T189, T191, T193 (the description); T196, T197 (the reach) |
 | FR-085 | Phase 19 | T211, T213, T215 |
 | FR-080 | Polish (independent review) | `backend/test/integration/crm/attachment-upload.test.ts` (the active-content cases and the size limit), `backend/test/contract/crm/attachment-upload.contract.test.ts` |
+| FR-090 | US19 | T230, T231, T233 |
+| FR-091 | US19 | T231, T232 (the statement count), T233 |
+| FR-092 | US19 | T230, T232, T233 |
+| FR-093 | US19 | T232 |
+| FR-090 – FR-093 | US19 (independent review) | T240 – T244 |
+
+## Phase 21: User Story 19 — Choose what a board card shows, and filter the board by it (Priority: P3)
+
+**Source**: the owner's request of 2026-10-08, recorded with the story in `spec.md`.
+**Goal**: FR-090 – FR-093. **Independent test**: the story's own. Research: N-BF1 – N-BF9.
+**Contract**: `contracts/admin-api.md` §12c.
+
+### Tests first
+
+- [X] T230 [US19] `packages/contracts/src/crm.test.ts` — the field reference, the card-field
+  configuration request (six at most, no duplicate), the field-filter parameter (a JSON
+  object per field, refused when malformed) and `cardValues` on a summary.
+- [X] T231 [US19] `backend/test/contract/crm/board-card-fields.contract.test.ts` — the
+  configuration read (`crm:read`) and write (`crm:configure`), the default, the refusals
+  (unknown field, a seventh field, a duplicate), and the board answering `cardFields` and,
+  per card, exactly the values of the chosen fields.
+- [X] T232 [US19] `backend/test/integration/crm/board-card-fields.test.ts` — every filter
+  kind against the cards, the counts and the totals; the list answering the same for a
+  lane's continuation; a filter on a field that is not on the card ignored; a deleted custom
+  field dropping out; tenant isolation of the filters; the statement count independent of the
+  number of cards.
+- [X] T233 [US19] `admin/test/modules/crm/board-card-fields.test.tsx` — the configuration
+  section (choose, order, the limit of six said and enforced, save, refusal), the card
+  rendering the chosen fields, the filter for each kind, the address carrying the filters and
+  *Clear* emptying it.
+
+### Implementation
+
+- [X] T234 [US19] `packages/contracts/src/crm.ts` — §12c's schemas.
+- [X] T235 [US19] `packages/modules/crm/src/manifest.ts` — the `crm.board_card_fields`
+  setting; `src/backend/domain/board-card-fields.ts` (with its co-located test) — the
+  catalogue of built-in fields and the filter conditions;
+  `src/backend/services/board-card-field-service.ts` — the stored choice resolved against the
+  catalogue and the definitions, and its write.
+- [X] T236 [US19] `opportunity-service.ts` and `board-service.ts` — card values on a summary
+  when asked for, field filters in the list and in the board's figures from one function;
+  `routes/routes.board.ts` — the two configuration routes; composition in `backend/index.ts`.
+- [X] T237 [US19] Admin: `components/BoardCardFieldsEditor.tsx` on the Workflow screen,
+  `components/BoardCardFields.tsx` and `components/BoardFieldFilters.tsx` on the board,
+  `lib/board-fields.ts` — the board's filters in its address — and a link from the board to
+  the configuration (`contracts/admin-surfaces.md` §9).
+- [X] T238 [US19] i18n EN + PL, `docs/crm.md` EN + PL with the translation cache, the
+  changeset, the OpenAPI baseline, the off-state probes for the two new routes. **Not seen in
+  a browser**: the change is to the API as well as the screens, and the preview instance runs
+  the base.
+
+### Independent review (2026-10-08, research N-BFR1 – N-BFR10)
+
+- [X] T240 [US19] `backend/test/integration/crm/quote-requests-off.test.ts` — the
+  linked-Quote-Requests field neither offered, shown, filtered by nor choosable while
+  `quote_requests` is off, on both axes, and a stored choice of it left as it is (N-BFR10).
+- [X] T241 [US19] `domain/board-card-fields.ts`, `opportunity-service.ts` — a card's Sales
+  Channel as one name in the reader's language (N-BFR1); an instant's `to` bound counted by
+  the database, so the last day a date can name is not a 500 (N-BFR4). Tests first, in
+  `board-card-fields.test.ts` (integration and co-located).
+- [X] T242 [US19] `packages/contracts/src/crm.ts` — a refused field filter located once
+  (N-BFR6).
+- [X] T243 [US19] `admin/lib/board-fields.ts`, `OpportunityBoardPage.tsx` — the address read
+  by the server's own schemas (N-BFR2) and the board read once whatever order the address
+  names its filters in (N-BFR3).
+- [X] T244 [US19] Tests for what was true and unheld: a field key and every value bound
+  (N-BFR5), values of another type than the definition's (N-BFR7), the statement count with
+  a contact person and a Sales Channel on every card (N-BFR8).
 
 ## Notes
 

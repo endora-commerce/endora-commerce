@@ -1,5 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { OpportunityDetailResponseSchema, OpportunityListResponseSchema } from '@endora-commerce/contracts';
+import {
+  OPPORTUNITY_BOARD_DEFAULT_CARD_FIELDS,
+  OpportunityBoardCardConfigResponseSchema,
+  OpportunityBoardResponseSchema,
+  OpportunityDetailResponseSchema,
+  OpportunityListResponseSchema,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -169,4 +175,67 @@ describe('crm with quote_requests off (degrades-without)', () => {
       expect(saved.statusCode, saved.body).toBe(202);
     });
   });
+
+  // User Story 19, review task T240: the count of linked Quote Requests is a
+  // board-card field only while the quote desk is present.
+  it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+    'the linked-Quote-Requests field is neither offered, shown nor filtered by while quote_requests is %s, and a stored choice of it breaks nothing',
+    async (axis) => {
+      const REF = 'builtin:linkedQuoteRequests';
+      const MARK = `bfqroff${axis.replace(/[^a-z]/g, '')}`;
+      const config = async () => {
+        const response = await h.app.inject({ method: 'GET', url: `${CRM_API}/board/card-fields`, cookies: CRM_ADMIN });
+        expect(response.statusCode, response.body).toBe(200);
+        return OpportunityBoardCardConfigResponseSchema.parse(response.json()).data;
+      };
+      const write = (fields: readonly string[]) =>
+        h.app.inject({ method: 'PUT', url: `${CRM_API}/board/card-fields`, cookies: CRM_ADMIN, payload: { fields } });
+      const board = async (min?: string) => {
+        const filter = min === undefined ? '' : `&fieldFilters=${encodeURIComponent(JSON.stringify({ [REF]: { min } }))}`;
+        const response = await h.app.inject({ method: 'GET', url: `${CRM_API}/board?q=${MARK}${filter}`, cookies: CRM_ADMIN });
+        expect(response.statusCode, response.body).toBe(200);
+        return OpportunityBoardResponseSchema.parse(response.json()).data;
+      };
+      const cards = (data: Awaited<ReturnType<typeof board>>) => data.columns.flatMap((column) => column.items);
+
+      const linked = await createCrmOpportunity(h, { title: `${MARK} linked` });
+      await createCrmOpportunity(h, { title: `${MARK} bare` });
+      const rfq = await submitCrmQuoteRequest(h, { quantity: 1, desiredUnitPrice: 1 });
+      expect((await linkCrmQuoteRequest(h, linked.id, rfq.id)).statusCode).toBe(201);
+      try {
+        // The control: present, the field is offered, stored, shown and filtered by.
+        expect((await write([REF, 'builtin:value'])).statusCode).toBe(200);
+        expect((await config()).available.map((field) => field.ref)).toContain(REF);
+        const on = await board('1');
+        expect(on.cardFields.map((field) => field.ref)).toEqual([REF, 'builtin:value']);
+        expect(cards(on).map((card) => [card.title, card.cardValues?.[REF]])).toEqual([[`${MARK} linked`, 1]]);
+
+        await withModuleOff('quote_requests', axis, async () => {
+          const off = await config();
+          expect(off.available.map((field) => field.ref)).not.toContain(REF);
+          expect(off.fields.map((field) => field.ref)).toEqual(['builtin:value']);
+          // The address a user saved while it was on: the filter is ignored, not refused.
+          const data = await board('1');
+          expect(data.cardFields.map((field) => field.ref)).toEqual(['builtin:value']);
+          expect(cards(data)).toHaveLength(2);
+          expect(data.columns.reduce((sum, column) => sum + column.count, 0)).toBe(2);
+          for (const card of cards(data)) expect(card.cardValues).toEqual({});
+          const list = await h.app.inject({
+            method: 'GET',
+            url: `${CRM_API}/opportunities?q=${MARK}&cardValues=true&fieldFilters=${encodeURIComponent(JSON.stringify({ [REF]: { min: '1' } }))}`,
+            cookies: CRM_ADMIN,
+          });
+          expect(list.statusCode, list.body).toBe(200);
+          expect(OpportunityListResponseSchema.parse(list.json()).data).toHaveLength(2);
+          // And it cannot be chosen.
+          expect((await write([REF])).statusCode).toBe(422);
+        });
+
+        // Off is not uninstall: the stored choice was never rewritten.
+        expect((await config()).fields.map((field) => field.ref)).toEqual([REF, 'builtin:value']);
+      } finally {
+        expect((await write(OPPORTUNITY_BOARD_DEFAULT_CARD_FIELDS)).statusCode).toBe(200);
+      }
+    },
+  );
 });

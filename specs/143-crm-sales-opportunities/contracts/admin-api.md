@@ -380,6 +380,74 @@ while `quote_requests` is off — decided before the caller's `rfqs:handle` is a
 the answer whoever asks. Linking from the panel uses §3's endpoint and the list of §1
 filtered by `organizationId` and `state=open`; nothing else is added.
 
+## 12c. Board card fields and field filters (US19)
+
+**What a card can show.** A field is named by a reference: `builtin:<key>` or
+`custom:<definition key>`. The built-in keys are `number`, `organization`, `contact`,
+`assignee`, `value`, `salesChannel`, `tags`, `expectedCloseDate`, `source`, `createdAt`,
+`updatedAt`, `closedAt`, `linkedOrders` and `linkedQuoteRequests` (the last only while
+`quote_requests` is present). A custom field is offered while its definition exists for the
+`opportunity` host type. The title is always shown and is not a field.
+
+| Method | Path | Permission | Notes |
+|---|---|---|---|
+| GET | `/api/v1/admin/crm/board/card-fields` | `crm:read` | `{ data: { fields, available, maxFields } }` — `fields` is the stored choice resolved, in order; `available` is everything that can be chosen; `maxFields` is 6 |
+| PUT | `/api/v1/admin/crm/board/card-fields` | `crm:configure` | Body `{ fields: string[] }` — references, in order. 422 `VALIDATION_FAILED` for a reference that is not offered; 400 `VALIDATION_FAILED` for a body that is not of this shape, a duplicate and more than `maxFields` included. Answers the configuration as it stands afterwards |
+
+Each entry of `fields` / `available` is `{ ref, source: 'builtin' | 'custom', key, kind,
+label, labelDefault, options }`. `kind` is what the field is to a renderer and to a filter:
+`text`, `number`, `money`, `boolean`, `date`, `select`, `multiselect`, `organization`,
+`assignee`, `salesChannel`, `tags`, `contact`. For a custom field `label` is its per-language
+labels and `labelDefault` the fallback; for a built-in field both are empty and the Admin UI
+names it from its own bundle (`board.field.<key>`). `options` is the choices of a `select` /
+`multiselect` field, each `{ value, label, labelDefault }`.
+
+**Storage.** One Setting, `crm.board_card_fields` — a JSON array of references, platform-wide.
+The default is `["builtin:number", "builtin:organization", "builtin:value",
+"builtin:assignee", "builtin:tags"]`, which is the card as it was before this story. The read
+is forgiving, because the generic Settings screen can store anything there: a value that is
+not an array is the default; an entry that is not an offered reference, or repeats one, is
+skipped; entries past the sixth are not shown.
+
+**The board answers the choice with the cards.** `GET /board` gains `cardFields` — the same
+resolved list as `fields` above — and each card (an Opportunity summary) gains `cardValues`:
+an object keyed by reference, holding the value of every chosen field **the summary does not
+already carry**, and nothing else. `organization`, `assignee`, `value`, `tags`, `number`,
+`expectedCloseDate`, `createdAt`, `updatedAt` and `closedAt` are the summary's own members and
+are not repeated. The others: `builtin:contact` → the contact person's name or `null`;
+`builtin:salesChannel` → the Sales Channel's name, one text in the reader's language, or
+`null`; `builtin:source` → `manual` |
+`order` | `quote_request`; `builtin:linkedOrders` / `builtin:linkedQuoteRequests` → a count;
+`custom:<key>` → the stored value as `custom_fields` validated it, or `null`. A field that is
+not chosen has no key. `GET /opportunities?cardValues=true` answers the same member, so a
+lane continued from the list keeps its cards whole; without the parameter the list is
+unchanged.
+
+**Field filters.** Both `GET /board` and `GET /opportunities` accept `fieldFilters`: a
+URL-encoded JSON object keyed by reference, each value an object of operators —
+
+| Kind | Operators | Meaning |
+|---|---|---|
+| `text` | `contains` | case-insensitive substring |
+| `number`, `money` | `min`, `max` (decimal strings) | inclusive bounds; `money` is the effective value, whatever the currency |
+| `boolean` | `is` | `true`: the value is true; `false`: it is false or was never set |
+| `date` | `from`, `to` (`YYYY-MM-DD`) | inclusive of both days; an instant (`updatedAt`, `closedAt`) by UTC day |
+| `select` | `in` | the value is one of those named |
+| `multiselect` | `in` | at least one of those named is chosen |
+| `contact` | `in` | the contact person is one of the customer accounts named |
+
+`organization`, `assignee`, `salesChannel`, `tags`, `builtin:createdAt` and `builtin:number`
+have no entry here: they are §1's `organizationId`, `assignedAdminUserId`, `salesChannelId`,
+`tagId`, `createdFrom` / `createdTo` and `q` (which matches the number), which the board had
+before and keeps whatever the card shows. The `text` row is a custom text field's.
+
+Filters combine with AND, with each other and with §1's. **A reference that is not among the
+card's fields when the request is served is ignored**, and so is an operator that does not
+belong to the field's kind — an address saved before the configuration changed still opens.
+What is refused, 400 `VALIDATION_FAILED`, is a parameter that is not JSON or not of this
+shape. The filters only ever narrow the tenant-scoped read: they are conditions on the
+Opportunity's own row.
+
 ## 13. Error codes owned by `crm`
 
 Declared in the manifest's `errorCodes`, sentences under `errors.<CODE>` in

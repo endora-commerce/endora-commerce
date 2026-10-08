@@ -12,7 +12,9 @@ import type {
   OpportunityComment,
   OpportunityCommentKind,
   OpportunityBoard,
+  OpportunityBoardCardConfig,
   OpportunityDetail,
+  OpportunityFieldFilters,
   OpportunityHistoryResponse,
   OpportunityLink,
   OpportunityMentionOption,
@@ -73,6 +75,8 @@ export interface OpportunityFilterParams {
   salesChannelId?: string;
   createdFrom?: string;
   createdTo?: string;
+  /** §12c — filters on the fields the board card shows, by field reference. */
+  fieldFilters?: OpportunityFieldFilters;
 }
 
 /** The list's own parameters on top of the shared filters. */
@@ -83,6 +87,8 @@ export interface OpportunityListParams extends OpportunityFilterParams {
   order?: 'asc' | 'desc';
   cursor?: string;
   limit?: number;
+  /** §12c — ask for `cardValues` on every summary: a board lane continued from the list. */
+  cardValues?: boolean;
 }
 
 /** The board takes the shared filters and nothing about status — its columns are the statuses. */
@@ -126,6 +132,9 @@ function appendSharedFilters(qs: URLSearchParams, params: OpportunityFilterParam
   if (params.salesChannelId) qs.set('salesChannelId', params.salesChannelId);
   if (params.createdFrom) qs.set('createdFrom', params.createdFrom);
   if (params.createdTo) qs.set('createdTo', params.createdTo);
+  if (params.fieldFilters && Object.keys(params.fieldFilters).length > 0) {
+    qs.set('fieldFilters', JSON.stringify(params.fieldFilters));
+  }
 }
 
 function queryTail(qs: URLSearchParams): string {
@@ -143,6 +152,7 @@ function listQuery(params: OpportunityListParams): string {
   if (params.order) qs.set('order', params.order);
   if (params.cursor) qs.set('cursor', params.cursor);
   if (params.limit) qs.set('limit', String(params.limit));
+  if (params.cardValues) qs.set('cardValues', 'true');
   return queryTail(qs);
 }
 
@@ -409,6 +419,20 @@ export const crmApi = {
   /** One column per status, with its figures and its first cards. A read; a move is `transition`. */
   getBoard(params: OpportunityBoardParams = {}): Promise<OpportunityBoard> {
     return data(apiClient.get<{ data: OpportunityBoard }>(`${BASE}/board${boardQuery(params)}`));
+  },
+
+  // --- §12c What a board card shows ------------------------------------------
+
+  /** The fields a card shows, in order, and everything that can be chosen. */
+  getBoardCardFields(): Promise<OpportunityBoardCardConfig> {
+    return data(apiClient.get<{ data: OpportunityBoardCardConfig }>(`${BASE}/board/card-fields`));
+  },
+
+  /** Stores the choice (`crm:configure`). Answers the configuration as it stands afterwards. */
+  setBoardCardFields(fields: readonly string[]): Promise<OpportunityBoardCardConfig> {
+    return data(
+      apiClient.put<{ data: OpportunityBoardCardConfig }>(`${BASE}/board/card-fields`, { fields }),
+    );
   },
 
   // --- §10a Lookups — what the pickers choose from ----------------------------

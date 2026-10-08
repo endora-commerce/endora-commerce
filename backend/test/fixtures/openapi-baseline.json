@@ -1731,6 +1731,22 @@
         }
       }
     },
+    "/api/v1/admin/crm/board/card-fields": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/documents/{documentKind}/{documentId}/opportunity": {
       "get": {
         "responses": {

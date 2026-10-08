@@ -22,6 +22,7 @@ export const CRM_SETTING_CODES = {
   ENABLED: 'crm.enabled',
   AUTO_CREATE_FROM_ORDERS: 'crm.auto_create_from_orders',
   AUTO_CREATE_FROM_QUOTE_REQUESTS: 'crm.auto_create_from_quote_requests',
+  BOARD_CARD_FIELDS: 'crm.board_card_fields',
 } as const;
 
 const settings = defineModuleSettingsManifest({
@@ -64,6 +65,27 @@ const settings = defineModuleSettingsManifest({
       groupCode: 'crm',
       valueType: 'boolean',
       defaultValue: false,
+    },
+    {
+      // User Story 19. Written by the *Board card* section of the CRM
+      // configuration (`PUT /board/card-fields`, `crm:configure`); the default
+      // is the card as it was before it could be configured, and is
+      // `OPPORTUNITY_BOARD_DEFAULT_CARD_FIELDS` of the contracts package —
+      // `manifest.test.ts` holds the two to each other. Read forgivingly: this
+      // screen can store anything here.
+      code: CRM_SETTING_CODES.BOARD_CARD_FIELDS,
+      name: 'Fields shown on a board card',
+      description:
+        'Which fields a card on the opportunity board shows, in order, as a JSON array of field references — for example ["builtin:organization","builtin:value","custom:lead_source"]. Change it on the CRM workflow screen, in the Board card section, which offers the fields that exist; a reference that names no field is skipped, and at most six are shown. One choice for the whole platform.',
+      groupCode: 'crm',
+      valueType: 'json',
+      defaultValue: [
+        'builtin:number',
+        'builtin:organization',
+        'builtin:value',
+        'builtin:assignee',
+        'builtin:tags',
+      ],
     },
   ],
 });

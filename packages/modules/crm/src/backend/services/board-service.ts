@@ -3,6 +3,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   type AdminUserReadPort,
   type OpportunityBoard,
+  type OpportunityBoardCardField,
   type OpportunityBoardColumn,
   type OpportunityBoardQuery,
   type OpportunityCurrencyTotal,
@@ -12,6 +13,7 @@ import {
   type Pagination,
 } from '@endora-commerce/contracts';
 import { getTenantContext } from '@endora-commerce/platform/tenancy';
+import { boardFieldFilterConditions } from '../domain/board-card-fields.js';
 import { effectiveOpportunityValueSql } from '../domain/effective-value.js';
 import { resolveOpportunityStatusName } from '../domain/opportunity-status-graph.js';
 import { CrmOpportunity } from '../entities/crm-opportunity.entity.js';
@@ -29,7 +31,13 @@ export interface BoardServiceDeps {
    */
   listOpportunities: (
     query: OpportunityListQuery,
+    card: readonly OpportunityBoardCardField[],
   ) => Promise<{ data: OpportunitySummary[]; pagination: Pagination }>;
+  /**
+   * The fields a card shows (User Story 19), read once per board: every column
+   * is handed the same list, and the figures are filtered by it.
+   */
+  cardFields: () => Promise<OpportunityBoardCardField[]>;
   /**
    * "Carries every one of the tags named", as conditions — the tag service's
    * own answer, the one the list narrows by. They only ever narrow the scoped
@@ -76,7 +84,8 @@ interface ColumnAggregateRow {
  * **The filters are stated twice** — in the list for the cards and here for the
  * figures — and the contract test holds the two to the same answers, the
  * assignee filter (`me` | `unassigned` | an administrator's id) and the tag
- * filter (repeated = every tag named) included.
+ * filter (repeated = every tag named) included. The field filters (§12c) are
+ * the exception: one function states them for both.
  */
 export class BoardService {
   constructor(private readonly deps: BoardServiceDeps) {}
@@ -84,11 +93,14 @@ export class BoardService {
   async get(query: OpportunityBoardQuery): Promise<OpportunityBoard> {
     const em = this.deps.emFactory();
     const { perColumn, ...filters } = query;
-    const [graph, conditions, language] = await Promise.all([
+    const [graph, shared, language, cardFields] = await Promise.all([
       this.deps.workflowRead.loadGraph(em),
       this.conditions(query),
       this.viewerLanguage(),
+      this.deps.cardFields(),
     ]);
+    const conditions =
+      shared === null ? null : [...shared, ...boardFieldFilterConditions(cardFields, query.fieldFilters)];
     // `null`: a filter no Opportunity can satisfy. The columns are still
     // answered — the list says "none" for each on its own.
     const figures = conditions === null ? new Map<string, ColumnFigure>() : await this.figures(em, conditions);
@@ -100,11 +112,10 @@ export class BoardService {
     for (const status of [...graph.statuses].sort(
       (a, b) => a.weight - b.weight || a.code.localeCompare(b.code),
     )) {
-      const page = await this.deps.listOpportunities({
-        ...filters,
-        statusCode: [status.code],
-        limit: perColumn,
-      });
+      const page = await this.deps.listOpportunities(
+        { ...filters, statusCode: [status.code], limit: perColumn, cardValues: true },
+        cardFields,
+      );
       const figure = figures.get(status.code);
       columns.push({
         status: {
@@ -121,7 +132,7 @@ export class BoardService {
         hasMore: page.pagination.hasMore,
       });
     }
-    return { columns };
+    return { columns, cardFields };
   }
 
   /**

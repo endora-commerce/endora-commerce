@@ -9,6 +9,7 @@ import type {
   AuditReferenceRegistryPort,
   CatalogProductReadPort,
   CustomerAccountReadPort,
+  CustomFieldDefinitionReadPort,
   CustomFieldValuePort,
   OpportunityReadPort,
   OpportunityTransitionPort,
@@ -19,6 +20,7 @@ import type {
   PermissionReadPort,
   SalesChannelAttributionRegistryPort,
   SalesRepAssignmentPort,
+  SettingsAdminPort,
 } from '@endora-commerce/contracts';
 import { CRM_WEBHOOK_EVENT_TYPES, type WebhookEventRegistryPort } from '@endora-commerce/contracts';
 import type { CommandBus } from '@endora-commerce/platform/commands';
@@ -49,6 +51,7 @@ import { registerCrmTagRoutes } from './routes/routes.tags.js';
 import { registerCrmTransitionRoutes } from './routes/routes.transitions.js';
 import { registerCrmWorkflowRoutes } from './routes/routes.workflow.js';
 import { AnalyticsService } from './services/analytics-service.js';
+import { BoardCardFieldService } from './services/board-card-field-service.js';
 import { BoardService } from './services/board-service.js';
 import { registerCrmAssetReferences } from './services/crm-asset-references.js';
 import { registerCrmAuditReferences } from './services/crm-audit-references.js';
@@ -462,6 +465,7 @@ export function registerModule(ctx: ModuleContext): void {
             liveFigure: (opportunity) => crmOpportunityValueService.liveFigure(opportunity),
             references: crmReferenceService,
             mentions: crmMentionService,
+            cardFields: () => ctx.cradle<BoardCardCradle>().crmBoardCardFieldService.selected(),
           }),
       )
       .singleton(),
@@ -490,14 +494,38 @@ export function registerModule(ctx: ModuleContext): void {
   // cards are the list's — asked per status — so the service takes the list as
   // a function and renders no Opportunity itself. Its route is registered here,
   // in a `ctx.routes` of its own, so the whole story is this one section.
+  //
+  // What a card shows (User Story 19) is one Setting of this module, written
+  // through `settings`' audited write and resolved against `custom_fields`'
+  // definitions every time it is read. Both owners are non-deactivatable.
+  ctx.di.register({
+    crmBoardCardFieldService: ctx
+      .asFunction(
+        ({ crmQuoteRequests }: CrmCradle & ValueCradle) =>
+          new BoardCardFieldService({
+            settings: lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
+            settingsAdmin: lazyPort<SettingsAdminPort>(ctx, 'settingsAdminService'),
+            definitions: lazyPort<CustomFieldDefinitionReadPort>(ctx, 'customFieldDefinitionReadPort'),
+            quoteRequestsPresent: () => crmQuoteRequests.isPresent(),
+          }),
+      )
+      .singleton(),
+  });
   ctx.di.register({
     crmBoardService: ctx
       .asFunction(
-        ({ emFactory, crmWorkflowReadService, crmOpportunityService, crmTagService }: CrmCradle) =>
+        ({
+          emFactory,
+          crmWorkflowReadService,
+          crmOpportunityService,
+          crmTagService,
+          crmBoardCardFieldService,
+        }: CrmCradle & BoardCardCradle) =>
           new BoardService({
             emFactory,
             workflowRead: crmWorkflowReadService,
-            listOpportunities: (query) => crmOpportunityService.list(query),
+            listOpportunities: (query, card) => crmOpportunityService.list(query, card),
+            cardFields: () => crmBoardCardFieldService.selected(),
             carryingEveryTag: (tagIds) => crmTagService.carryingEvery(tagIds),
             organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
             adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
@@ -506,9 +534,10 @@ export function registerModule(ctx: ModuleContext): void {
       .singleton(),
   });
   ctx.routes(async (app) => {
-    const cradle = ctx.cradle<CrmCradle & { readonly crmBoardService: BoardService }>();
+    const cradle = ctx.cradle<CrmCradle & BoardCardCradle & { readonly crmBoardService: BoardService }>();
     await registerCrmBoardRoutes(app, {
       boardService: cradle.crmBoardService,
+      boardCardFieldService: cradle.crmBoardCardFieldService,
       requireAdmin: cradle.requireAdmin,
     });
   });
@@ -1024,6 +1053,11 @@ interface ValueCradle {
   readonly processRunsWorkers: boolean;
   /** The connection a module may build a queue on; undefined where a composition wants none. */
   readonly moduleQueueRedis: Redis | undefined;
+}
+
+/** What the board section registers for the card's fields (User Story 19). */
+interface BoardCardCradle {
+  readonly crmBoardCardFieldService: BoardCardFieldService;
 }
 
 /** What the references section registers. */

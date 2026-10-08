@@ -68,6 +68,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | --- | --- | --- |
 | `crm.auto_create_from_orders` | Create an opportunity for every new order | `boolean` |
 | `crm.auto_create_from_quote_requests` | Create an opportunity for every new quote request | `boolean` |
+| `crm.board_card_fields` | Fields shown on a board card | `json` |
 | `crm.enabled` | CRM enabled | `boolean` |
 
 ## Tłumaczenia

@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { OPPORTUNITY_BOARD_BUILTIN_FIELD_KEYS } from '@endora-commerce/contracts';
 import { manifest } from '../manifest.js';
 import { contributions } from './index.js';
 import { LABELLED_HISTORY_FIELDS, SILENT_HISTORY_FIELDS, humaniseKey } from './lib/history-fields.js';
@@ -206,6 +207,11 @@ describe('crm admin copy', () => {
       // The list an `@` opens (User Story 18): one title and one empty state per kind.
       'references.suggest.title.': ['person', 'order', 'product'],
       'references.suggest.empty.': ['person', 'order', 'product'],
+      // What a board card shows (User Story 19): one name per built-in field,
+      // the names of a range's two boxes, and the two groups of the section.
+      'board.field.': [...OPPORTUNITY_BOARD_BUILTIN_FIELD_KEYS],
+      'board.filter.': ['min', 'max', 'from', 'to', 'minShort', 'maxShort'],
+      'boardCard.available.': ['builtin', 'custom'],
     };
     const composed = sources.flatMap(({ text }) =>
       [...text.matchAll(/\bt\(\s*`([^`$]+)\$\{/g)].map((match) => match[1] as string),

@@ -1,7 +1,8 @@
 import { useMemo, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, User } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import type {
+  OpportunityBoardCardField,
   OpportunityCurrencyTotal,
   OpportunityStatusRef,
   OpportunitySummary,
@@ -13,8 +14,7 @@ import {
 } from '@endora-commerce/admin-kit/components';
 import { Button } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
-import { AssigneeName } from './AssigneeName.js';
-import { TagChips } from './TagPicker.js';
+import { BoardCardFields } from './BoardCardFields.js';
 import { errorMessage, moneyLabel } from '../lib/labels.js';
 import { MoveToMenu } from './MoveToMenu.js';
 
@@ -34,6 +34,8 @@ export interface BoardColumnView {
 
 export interface OpportunityBoardProps {
   columns: readonly BoardColumnView[];
+  /** The fields a card shows under its title, in order (User Story 19). */
+  cardFields: readonly OpportunityBoardCardField[];
   /** The statuses the workflow allows from `statusCode`, in board order. */
   targetsOf: (statusCode: string) => readonly OpportunityStatusRef[];
   /** `crm:write` — without it the board is read-only: no handle, no menu. */
@@ -75,7 +77,7 @@ const itemId = (item: OpportunitySummary): string => item.id;
  *    same lanes `canDrop` accepts (WCAG 2.2 SC 2.5.7).
  */
 export function OpportunityBoard(props: OpportunityBoardProps): ReactNode {
-  const { columns, targetsOf, canWrite, movingIds, refusedOrders, filtered, onMove, onShowMore } =
+  const { columns, cardFields, targetsOf, canWrite, movingIds, refusedOrders, filtered, onMove, onShowMore } =
     props;
   const t = useTranslation('crm');
 
@@ -134,15 +136,7 @@ export function OpportunityBoard(props: OpportunityBoardProps): ReactNode {
             {item.title}
           </Link>
         </p>
-        <p className="break-words text-xs text-muted-foreground">
-          {t('board.card.subtitle', { number: item.number, organization: item.organization.name })}
-        </p>
-        <p className="text-sm tabular-nums">{moneyLabel(item.value, item.currency)}</p>
-        <p className="flex items-center gap-1 text-xs text-muted-foreground">
-          <User aria-hidden="true" className="size-3.5 shrink-0" />
-          <AssigneeName assignee={item.assignee} />
-        </p>
-        <TagChips tags={item.tags} />
+        <BoardCardFields item={item} fields={cardFields} />
         {refused > 0 ? (
           <p className="flex items-start gap-1 text-xs font-medium text-destructive">
             <AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />

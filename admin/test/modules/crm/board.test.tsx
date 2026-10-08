@@ -72,6 +72,9 @@ vi.mock('@endora-commerce/admin-kit/components', async () => {
 });
 
 const { ApiError } = await import('@endora-commerce/admin-kit/lib');
+const { DEFAULT_BOARD_CARD_FIELDS } = await import(
+  '../../../../packages/modules/crm/src/admin/lib/board-fields'
+);
 const { OpportunityBoardPage } = await import(
   '../../../../packages/modules/crm/src/admin/pages/OpportunityBoardPage'
 );
@@ -129,6 +132,8 @@ function boardData(): OpportunityBoard {
       { status: STATUS.won, count: 0, valueTotals: [], items: [], hasMore: false },
       { status: STATUS.lost, count: 0, valueTotals: [], items: [], hasMore: false },
     ],
+    // The card nobody has configured (User Story 19) — the card these tests always read.
+    cardFields: DEFAULT_BOARD_CARD_FIELDS,
   };
 }
 
@@ -564,11 +569,12 @@ describe('OpportunityBoardPage — loading, failure and more cards', () => {
     expect(within(fresh).getByText(en('board.column.shown', { shown: 2, count: 3 }))).toBeInTheDocument();
     await userEvent.click(within(fresh).getByRole('button', { name: en('board.column.more', { status: 'New' }) }));
     await waitFor(() => expect(cardTitles('New')).toEqual(['Fleet renewal', 'Winter tyres', 'Depot lighting']));
-    expect(getSpy).toHaveBeenCalledWith(`${LIST_PATH}?statusCode=new&limit=200`);
+    // `cardValues`: the lane's further cards carry the same field values as its first (User Story 19).
+    expect(getSpy).toHaveBeenCalledWith(`${LIST_PATH}?statusCode=new&limit=200&cardValues=true`);
 
     await userEvent.click(within(fresh).getByRole('button', { name: en('board.column.more', { status: 'New' }) }));
     await waitFor(() => expect(cardTitles('New')).toHaveLength(4));
-    expect(getSpy).toHaveBeenCalledWith(`${LIST_PATH}?statusCode=new&cursor=next&limit=200`);
+    expect(getSpy).toHaveBeenCalledWith(`${LIST_PATH}?statusCode=new&cursor=next&limit=200&cardValues=true`);
     // Nothing more to fetch: the control is gone.
     expect(
       within(fresh).queryByRole('button', { name: en('board.column.more', { status: 'New' }) }),

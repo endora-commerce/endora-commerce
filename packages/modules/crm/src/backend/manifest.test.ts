@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { OPPORTUNITY_BOARD_DEFAULT_CARD_FIELDS } from '@endora-commerce/contracts';
 import { manifest } from '../manifest.js';
 
 describe('crm manifest', () => {
@@ -18,6 +19,13 @@ describe('crm manifest', () => {
       const setting = manifest.settings?.settings.find((s) => s.code === code);
       expect(setting, code).toMatchObject({ groupCode: 'crm', valueType: 'boolean', defaultValue: false });
     }
+  });
+
+  it('declares what a board card shows, defaulting to the card as it was (User Story 19)', () => {
+    const setting = manifest.settings?.settings.find((s) => s.code === 'crm.board_card_fields');
+    expect(setting).toMatchObject({ groupCode: 'crm', valueType: 'json' });
+    // The manifest writes the list out; the contracts package names it.
+    expect(setting?.defaultValue).toEqual([...OPPORTUNITY_BOARD_DEFAULT_CARD_FIELDS]);
   });
 
   it('declares the four permissions a route enforces today, grouped under the module', () => {

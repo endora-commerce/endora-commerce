@@ -59,6 +59,10 @@ beforeEach(() => {
   getSpy.mockImplementation((path: string) => {
     if (path === WORKFLOW_PATH) return Promise.resolve({ data: WORKFLOW });
     if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
+    // The *Board card* section (User Story 19) is proven in `board-card-fields.test.tsx`.
+    if (path === '/api/v1/admin/crm/board/card-fields') {
+      return Promise.resolve({ data: { fields: [], available: [], maxFields: 6 } });
+    }
     return Promise.reject(new Error(`unexpected GET ${path}`));
   });
   postSpy.mockResolvedValue({ data: WORKFLOW });
@@ -71,6 +75,15 @@ async function renderPage(): Promise<void> {
   renderCrm(<WorkflowConfigPage />);
   await screen.findByRole('button', { name: en('workflow.status.add') });
 }
+
+describe('WorkflowConfigPage — the Board card section (User Story 19)', () => {
+  it('is on the screen, under the anchor the board links to', async () => {
+    await renderPage();
+    const heading = screen.getByText(en('boardCard.title'));
+    expect(heading.closest('#board-card')).not.toBeNull();
+    expect(await screen.findByRole('region', { name: en('boardCard.shown.title') })).toBeInTheDocument();
+  });
+});
 
 /** The row of the statuses table that carries `code`. */
 function statusRow(code: string): HTMLElement {
