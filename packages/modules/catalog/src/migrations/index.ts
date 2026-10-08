@@ -51,6 +51,7 @@ import { Migration20260804T160244CatalogCategoryActivation } from './20260804T16
 import { Migration20260912T094557CatalogSalesChannelProducts } from './20260912T094557_catalog_sales_channel_products.js';
 import { Migration20260912T094623CatalogSalesChannelCategories } from './20260912T094623_catalog_sales_channel_categories.js';
 import { Migration20260925T125527CatalogInventoryColumns } from './20260925T125527_catalog_inventory_columns.js';
+import { Migration20261008T080839CatalogProductAttributeIsPriceRule } from './20261008T080839_catalog_product_attribute_is_price_rule.js';
 
 export const migrations = [
   Migration20260429T064146CatalogAttributeSetsInit,
@@ -77,6 +78,7 @@ export const migrations = [
   Migration20260912T094557CatalogSalesChannelProducts,
   Migration20260912T094623CatalogSalesChannelCategories,
   Migration20260925T125527CatalogInventoryColumns,
+  Migration20261008T080839CatalogProductAttributeIsPriceRule,
 ];
 
 export {
@@ -104,4 +106,5 @@ export {
   Migration20260912T094557CatalogSalesChannelProducts,
   Migration20260912T094623CatalogSalesChannelCategories,
   Migration20260925T125527CatalogInventoryColumns,
+  Migration20261008T080839CatalogProductAttributeIsPriceRule,
 };

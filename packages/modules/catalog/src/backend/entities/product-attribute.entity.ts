@@ -11,8 +11,8 @@ import { randomUUID } from 'crypto';
  * owned by the custom_fields module). This row carries ONLY the
  * catalog-interpreted behavior surface:
  *
- *   - the 12 catalog capability flags (search / filter / variant axis /
- *     compare / quick order / promo rule / PDP visibility / scoping / bulk
+ *   - the catalog capability flags (search / filter / variant axis /
+ *     compare / quick order / promo rule / price rule / PDP visibility / scoping / bulk
  *     edit) — typed, indexed, SQL-filterable;
  *   - two presentation refinements that specialize the generic value type
  *     bijectively (research §R7): `selectDisplay` ('pill' = legacy `enum`,
@@ -42,6 +42,7 @@ export class ProductAttribute {
     | 'displayAsSlider'
     | 'isComparable'
     | 'isPromoRule'
+    | 'isPriceRule'
     | 'filterPosition'
     | 'isVisibleOnProductPage'
     | 'channelScoped'
@@ -95,6 +96,10 @@ export class ProductAttribute {
   /** FR-038 — surfaces the attribute in the Promotion Rule criterion picker. */
   @Property({ type: 'boolean' })
   isPromoRule: boolean = false;
+
+  /** Whether the attribute may be used as a price-building rule in a Price List. */
+  @Property({ type: 'boolean' })
+  isPriceRule: boolean = false;
 
   /** FR-027 — ascending sort order on the storefront filter sidebar. */
   @Property({ type: 'integer' })

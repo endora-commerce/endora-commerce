@@ -36,6 +36,7 @@ Do tego flagi zachowania i pozycja liczbowa:
 | `isVariantAxis` | `false` | Wybór wariantu produktu konfigurowalnego |
 | `isRequired` | `false` | Walidacja zapisu produktu (tylko gdy atrybut należy do przypisanego zestawu atrybutów) |
 | `isPromoRule` | `false` | Wybór kryteriów w regułach promocji |
+| `isPriceRule` | `false` | Cenniki — czy atrybut może służyć jako reguła budowania ceny. Cenniki nie mają jeszcze reguł opartych na atrybutach, więc dziś flaga jest zapisywana i udostępniana, ale nic nie wylicza z niej cen. |
 | `isVisibleOnProductPage` | `false` | Zakładka „Parametry produktu” na stronie produktu |
 | `displayAsSlider` | `false` | Panel filtrów — wyświetla suwak zakresu; tylko dla `valueType ∈ ('number','price')` |
 | `filterPosition` | `0` | Klucz sortowania w panelu filtrów (rosnąco; remisy alfabetycznie według etykiety w danym języku) |
@@ -83,7 +84,7 @@ Trasy administracyjne są chronione przez `catalog:read` (lista i odczyt) i `cat
 | `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | administrator | Dane do listy wyboru — wszystkie atrybuty z żądaną flagą |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Odczyt jednego atrybutu |
 | `POST /api/v1/admin/catalog/attributes` | administrator | Utworzenie atrybutu (flagi i `options[]` bezpośrednio w treści dla typów wyboru) |
-| `PATCH /api/v1/admin/catalog/attributes/:key` | administrator | Zmiana etykiet i natychmiastowa zmiana `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition`. Ponownie emituje `attribute.updated.v1`. |
+| `PATCH /api/v1/admin/catalog/attributes/:key` | administrator | Zmiana etykiet i natychmiastowa zmiana `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isPriceRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition`. Ponownie emituje `attribute.updated.v1`. |
 | `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Usunięcie; odrzucane z `409 attribute_in_use_by_set`, dopóki odwołuje się do niego jakikolwiek zestaw atrybutów |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Lista opcji atrybutów select / enum / multiselect |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Dodanie opcji |
@@ -173,7 +174,8 @@ zmieniła — panel składa obie części z powrotem w dawną postać.
   `custom_field_definition_id uuid NOT NULL UNIQUE` z kluczem obcym do
   `custom_field_definitions.id` ON DELETE RESTRICT.
 - Flagi logiczne: `is_searchable`, `is_filterable`, `is_variant_axis`, `is_comparable`,
-  `quick_searchable`, `is_promo_rule`, `is_visible_on_product_page`, `display_as_slider`,
+  `quick_searchable`, `is_promo_rule`, `is_price_rule`, `is_visible_on_product_page`,
+  `display_as_slider`,
   `channel_scoped`, `language_scoped`, `mass_editable`.
 - `filter_position int NOT NULL DEFAULT 0`.
 - Ustawienia prezentacji: `select_display varchar(16) NULL` (`pill` = dawne `enum`, `dropdown` =
@@ -210,6 +212,12 @@ inne moduły — żaden moduł nie sięga do wnętrza katalogu:
   w regułach promocji.
 - `buildVisibleAttributesProjection()` — wewnętrzna, używana przez odpowiedź ze szczegółami produktu
   do zbudowania `visibleAttributes[]`.
+
+`isPriceRule` nie ma własnej metody. Moduł wyceniający odczytuje tę flagę przez
+`catalogAttributeReadPort` — `listByFlag('isPriceRule')` zwraca atrybuty, które reguła cenowa może
+wskazać, a pole `isPriceRule` w widoku każdego atrybutu pozwala odrzucić atrybut bez tej flagi.
+Dane do listy wyboru w panelu administracyjnym zwraca
+`GET /api/v1/admin/catalog/attributes/by-flag?flag=isPriceRule`.
 
 ## Zobacz też
 

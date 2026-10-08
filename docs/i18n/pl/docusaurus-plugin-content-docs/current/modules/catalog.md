@@ -30,7 +30,7 @@ Trasy administracyjne są chronione przez `catalog:read` (lista i odczyt) i `cat
 | `GET /api/v1/admin/catalog/attributes/by-flag?flag=isPromoRule\|isComparable\|...` | administrator | Dane do listy wyboru — wszystkie atrybuty z żądaną flagą |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Odczyt jednego atrybutu |
 | `POST /api/v1/admin/catalog/attributes` | administrator | Utworzenie atrybutu (przyjmuje nowe flagi i `options[]` bezpośrednio w treści dla typów wyboru) |
-| `PATCH /api/v1/admin/catalog/attributes/:key` | administrator | Natychmiastowa zmiana `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition` (ponownie emituje `attribute.updated.v1`) |
+| `PATCH /api/v1/admin/catalog/attributes/:key` | administrator | Natychmiastowa zmiana `isFilterable` / `isSearchable` / `isVariantAxis` / `isPromoRule` / `isPriceRule` / `isComparable` / `isVisibleOnProductPage` / `isRequired` / `filterPosition` (ponownie emituje `attribute.updated.v1`) |
 | `DELETE /api/v1/admin/catalog/attributes/:idOrKey` | administrator | Usunięcie; odrzucane z `409 attribute_in_use_by_set`, dopóki odwołuje się do niego jakikolwiek zestaw atrybutów |
 | `GET /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Lista opcji atrybutów typu select/enum/multiselect |
 | `POST /api/v1/admin/catalog/attributes/:idOrKey/options` | administrator | Dodanie opcji |
@@ -149,7 +149,8 @@ powyższy endpoint zachowuje swoją postać — ale model przechowywania i włas
   `product_attributes` pozostaje, przebudowana jako cienki wiersz rozszerzenia 1:1 (klucz obcy
   `custom_field_definition_id` z UNIQUE), zawierający tylko flagi zachowania katalogu
   (`isSearchable`, `isFilterable`, `isVariantAxis`, `displayAsSlider`, `isComparable`,
-  `quickSearchable`, `isPromoRule`, `filterPosition`, `isVisibleOnProductPage`, `channelScoped`,
+  `quickSearchable`, `isPromoRule`, `isPriceRule`, `filterPosition`, `isVisibleOnProductPage`,
+  `channelScoped`,
   `languageScoped`, `massEditable`) oraz dwa ustawienia prezentacji (`selectDisplay`, `numericKind`),
   które bez strat zachowują dawne rozróżnienia `enum`/`select` i `number`/`price`. **Flagi pozostają
   własnością katalogu** — ogólny rdzeń nigdy ich nie interpretuje.
