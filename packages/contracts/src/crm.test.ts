@@ -697,6 +697,14 @@ describe('board card fields and field filters (§12c, US19)', () => {
     }
   });
 
+  it('a refused field filter is located once: fieldFilters, the field, the operator (N-BFR6)', () => {
+    const result = crm.OpportunityBoardQuerySchema.safeParse({
+      fieldFilters: JSON.stringify({ 'custom:a': { from: '2026-02-30' } }),
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([['fieldFilters', 'custom:a', 'from']]);
+  });
+
   it('the list adds card values only when asked', () => {
     expect(crm.OpportunityListQuerySchema.parse({}).cardValues).toBeUndefined();
     expect(crm.OpportunityListQuerySchema.parse({ cardValues: 'true' }).cardValues).toBe(true);

@@ -399,7 +399,8 @@ const fieldFiltersParamSchema = z
     const result = OpportunityFieldFiltersSchema.safeParse(parsed);
     if (!result.success) {
       for (const issue of result.error.issues) {
-        ctx.addIssue({ code: 'custom', message: issue.message, path: ['fieldFilters', ...issue.path] });
+        // Relative to this parameter: the query schema names it already.
+        ctx.addIssue({ code: 'custom', message: issue.message, path: [...issue.path] });
       }
       return z.NEVER;
     }
