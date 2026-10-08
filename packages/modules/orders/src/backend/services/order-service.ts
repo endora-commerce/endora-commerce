@@ -110,6 +110,7 @@ import type { InventoryReservationApplyPort } from '@endora-commerce/mod-invento
 import { releaseOrderAllocations } from './order-allocation-release.js';
 import type { OrderTransitionEffectService } from './order-transition-effect-service.js';
 import { effectsOwedByPaymentStatusChange } from '../domain/transition-effects.js';
+import { judgeQuoteRequestSource } from '../domain/quote-request-source.js';
 import type { InvoicePlacementApplyPort } from '@endora-commerce/mod-invoices/ports';
 import type { PaymentPlacementApplyPort } from '../../ports/index.js';
 import type { CreditLimitPort } from '@endora-commerce/mod-credit-limits/ports';
@@ -143,6 +144,7 @@ import type {
   PaymentAdapterRegistryPort,
   PaymentMethodReadPort,
   PaymentMethodRecord,
+  QuoteRequestReadPort,
   ShippingAdapterRegistryPort,
   TransactionalEmailSender,
 } from '@endora-commerce/contracts';
@@ -287,6 +289,18 @@ export interface OrderServiceNeighbourPorts {
    * operator, and what this module did not do while it wrote the row itself.
    */
   readonly invoicePlacementApply: () => InvoicePlacementApplyPort | null;
+  /**
+   * The Quote Request a basket says it was seeded from, read back before the
+   * order is stamped with it — `null` when `quote_requests` is not effectively
+   * present (`specs/143-crm-sales-opportunities/`, FR-100, FR-103).
+   *
+   * An accessor for the reason `invoicePlacementApply` above is one: the quote
+   * desk is the operator's to switch off and this module is not, so the edge is
+   * `degrades-without` and placement asks before it calls. With the module off
+   * the order is placed exactly as before and names no request — nothing can
+   * vouch for the claim, and an unvouched id is not written.
+   */
+  readonly quoteRequestRead: () => QuoteRequestReadPort | null;
   /**
    * The payment row placement opens — this transaction's own `EntityManager`,
    * and no accessor (feature 080, T048; D-179).
@@ -1198,6 +1212,45 @@ export class OrderService {
     };
   }
 
+  /**
+   * The Quote Request an order may name as its source, or `null`
+   * (`specs/143-crm-sales-opportunities/`, FR-100 … FR-103).
+   *
+   * The basket carries a claim, never a fact: `carts` records what the
+   * converting module said and judges nothing. So the request is read again
+   * here, over the port its owner publishes, and
+   * {@link judgeQuoteRequestSource} decides — same Organization, still
+   * convertible, an agreed line still on the basket. A refused claim is logged
+   * and dropped; it never refuses the placement, because the buyer is ordering
+   * a basket they are entitled to order and only its provenance is in doubt.
+   *
+   * No `catch` around the port. Presence is asked first, which is the degrade
+   * the manifest declares; a read that fails for any other reason is a failed
+   * placement, not an order silently detached from its quote.
+   */
+  async #vouchedQuoteRequestSource(
+    organizationId: string,
+    claimedQuoteRequestId: string | null,
+    basketLines: ReadonlyArray<{ productId: string; variantId: string | null; unitPrice: string }>,
+  ): Promise<string | null> {
+    if (!claimedQuoteRequestId) return null;
+    const quoteRequests = this.neighbours.quoteRequestRead();
+    if (!quoteRequests) return null;
+    const quoteRequest = await quoteRequests.findById(claimedQuoteRequestId);
+    const judged = judgeQuoteRequestSource({
+      orderOrganizationId: organizationId,
+      quoteRequest,
+      quoteRequestLines: quoteRequest ? await quoteRequests.listItems(quoteRequest.id) : [],
+      basketLines,
+    });
+    if (judged.accepted) return claimedQuoteRequestId;
+    this.log?.warn(
+      { claimedQuoteRequestId, organizationId, reason: judged.reason },
+      '[orders] the basket names a quote request this order may not carry; placing it without a source',
+    );
+    return null;
+  }
+
   async placeOrder(
     ctx: CustomerContext,
     req: PlaceOrderRequest,
@@ -1571,10 +1624,21 @@ export class OrderService {
         ? await this.businessId.generate(tx, channel.id)
         : undefined;
 
+      const sourceQuoteRequestId = await this.#vouchedQuoteRequestSource(
+        ctx.organizationId,
+        cart.sourceQuoteRequestId,
+        items,
+      );
+
       const order = tx.create(Order, {
         organizationId: ctx.organizationId,
         placedByCustomerAccountId: ctx.customerAccountId,
         salesChannelId: channel.id,
+        // In the row the transaction commits, so every subscriber of
+        // `order.created.v1` that re-reads the Order after the commit — the
+        // quote desk's completion and CRM's linking both do — sees it at the
+        // moment it first sees the Order at all.
+        ...(sourceQuoteRequestId ? { sourceQuoteRequestId } : {}),
         ...(businessId ? { businessId } : {}),
         deliveryAddress: {
           recipientName: delivery.recipientName,

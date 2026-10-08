@@ -110,6 +110,10 @@ export function orderServiceNeighbours(
     // degrade returns `null` from it — the same shape `inventory` has below,
     // and the same reason.
     invoicePlacementApply: () => new InvoicePlacementApplyService(),
+    // An accessor, because `quote_requests` is switchable. `null` is the
+    // degrade and the default here: these rigs place orders from baskets no
+    // quote filled, so there is no claim to vouch for.
+    quoteRequestRead: () => null,
     // A value and not an accessor, because `payments` has no degrade even though
     // it is switchable (D-179): there is no order without a record of what is
     // owed. A rig that wants the absent owner hands in a double that throws
