@@ -1747,6 +1747,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/calendar/events": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/documents/{documentKind}/{documentId}/opportunity": {
       "get": {
         "responses": {
@@ -1909,6 +1918,38 @@
       }
     },
     "/api/v1/admin/crm/opportunities/{id}/comments/{commentId}": {
+      "delete": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "patch": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/opportunities/{id}/events": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/crm/opportunities/{id}/events/{eventId}": {
       "delete": {
         "responses": {
           "200": {
