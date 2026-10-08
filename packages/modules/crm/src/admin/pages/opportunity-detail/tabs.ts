@@ -13,8 +13,9 @@ import type { OrderStatusOption } from '../../api.js';
  * downloaded.
  *
  * **The order is deliberate** (User Story 20, research N-DL3): what the deal is
- * about first, then the documents that make it up, then the conversation in
- * the order it is used — notes, messages, files — and the audit trail last,
+ * about first, then the documents that make it up, then what is planned for it
+ * (User Story 21), then the conversation in the order it is used — notes,
+ * messages, files — and the audit trail last,
  * where a list's end is easy to find and nobody passes it on the way to work.
  *
  * **A tab's `id` is part of an address**: the screen selects a tab from
@@ -53,6 +54,13 @@ export const DEFAULT_TAB_ID = 'overview';
 /** The tab holding the linked Orders and Quote Requests. */
 export const LINKS_TAB_ID = 'links';
 
+/**
+ * The tab holding the Opportunity's Events. A reminder's bell entry and every
+ * calendar entry link to `?tab=events&event=<id>`, so this id is in addresses
+ * the backend writes and is not renamed.
+ */
+export const EVENTS_TAB_ID = 'events';
+
 /** The query parameter that names the selected tab. */
 export const TAB_PARAM = 'tab';
 
@@ -68,6 +76,15 @@ export const OPPORTUNITY_TABS: readonly OpportunityTab[] = [
     labelKey: 'opportunity.tabs.links',
     component: lazy(() => import('./tabs/LinksTab.js')),
     count: (opportunity) => opportunity.links.length,
+  },
+  // User Story 21 — third, after what the deal is and what it consists of:
+  // what happens next. The label counts the Events that have not ended yet —
+  // "is anything planned?" — not a total that only grows (research N-CAL12).
+  {
+    id: EVENTS_TAB_ID,
+    labelKey: 'opportunity.tabs.events',
+    component: lazy(() => import('./tabs/EventsTab.js')),
+    count: (opportunity) => opportunity.upcomingEventCount,
   },
   {
     id: 'notes',

@@ -307,9 +307,10 @@ export const manifest = defineModuleManifest({
   ],
   /**
    * The command palette (Principle XVI): the landing surface, the one thing a
-   * Sales Rep starts from it daily, the board, and analytics — the one screen
+   * Sales Rep starts from it daily, the board, analytics — the one screen
    * that opens on a code of its own, so for a manager holding it the palette
-   * would otherwise offer nothing of what that code is for. Curated, not a
+   * would otherwise offer nothing of what that code is for — and the calendar,
+   * opened daily by everybody who holds `crm:read` (User Story 22). Curated, not a
    * route dump — the workflow configuration is reached from the sidebar by the
    * few who configure it.
    *
@@ -357,6 +358,16 @@ export const manifest = defineModuleManifest({
       requiredPermission: 'crm:analytics',
       keywords: ['crm', 'analytics', 'report', 'statistics', 'sales rep', 'analityka', 'raport', 'handlowiec'],
       weight: 323,
+    },
+    {
+      id: 'open-crm-calendar',
+      labelKey: 'actions.openCrmCalendar.label',
+      descriptionKey: 'actions.openCrmCalendar.description',
+      icon: 'CalendarDays',
+      targetRoute: '/crm/calendar',
+      requiredPermission: 'crm:read',
+      keywords: ['crm', 'calendar', 'events', 'reminder', 'schedule', 'kalendarz', 'wydarzenia', 'przypomnienie', 'terminy'],
+      weight: 324,
     },
   ],
   i18n: { bundlesDir: 'i18n' },

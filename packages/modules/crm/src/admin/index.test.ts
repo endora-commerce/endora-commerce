@@ -1,8 +1,15 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { OPPORTUNITY_BOARD_BUILTIN_FIELD_KEYS } from '@endora-commerce/contracts';
+import {
+  OPPORTUNITY_BOARD_BUILTIN_FIELD_KEYS,
+  calendarScopeSchema,
+  opportunityEventReminderChannelSchema,
+  opportunityEventReminderStateSchema,
+  opportunityEventRuleSchema,
+} from '@endora-commerce/contracts';
 import { manifest } from '../manifest.js';
 import { contributions } from './index.js';
+import { CALENDAR_VIEWS } from './lib/calendar/date-math.js';
 import { LABELLED_HISTORY_FIELDS, SILENT_HISTORY_FIELDS, humaniseKey } from './lib/history-fields.js';
 
 /**
@@ -39,7 +46,7 @@ function adminSources(directory: URL = ADMIN_ROOT): { path: string; text: string
 }
 
 describe('crm admin contributions', () => {
-  it('declares the four screens of User Story 1, the board, the tag list and analytics, each on the code its route enforces', () => {
+  it('declares the four screens of User Story 1, the board, the tag list, analytics and the calendar, each on the code its route enforces', () => {
     expect(
       (contributions.routes ?? []).map((route) => [route.path, route.requiredPermission]),
     ).toEqual([
@@ -50,6 +57,8 @@ describe('crm admin contributions', () => {
       ['/crm/board', 'crm:read'],
       ['/crm/tags', 'crm:configure'],
       ['/crm/analytics', 'crm:analytics'],
+      // User Story 22: the read behind it is `crm:read`, and the screen holds no write.
+      ['/crm/calendar', 'crm:read'],
     ]);
     expect((contributions.routes ?? []).filter((route) => route.index)).toHaveLength(1);
   });
@@ -64,12 +73,14 @@ describe('crm admin contributions', () => {
     expect(entry).not.toMatch(/^import .* from '\.\/(pages|components)\//m);
   });
 
-  it('puts every sidebar row in the CRM section — opportunities, the board, analytics, tags, workflow last', () => {
+  it('puts every sidebar row in the CRM section — opportunities, the board, the calendar, analytics, tags, workflow last', () => {
     expect(
       (contributions.nav ?? []).map((row) => [row.to, row.section, row.requiredPermission]),
     ).toEqual([
       ['/crm/opportunities', 'crm', 'crm:read'],
       ['/crm/board', 'crm', 'crm:read'],
+      // The three screens of every day first, then the manager's, then the two that configure.
+      ['/crm/calendar', 'crm', 'crm:read'],
       ['/crm/analytics', 'crm', 'crm:analytics'],
       ['/crm/tags', 'crm', 'crm:configure'],
       ['/crm/workflow', 'crm', 'crm:configure'],
@@ -94,6 +105,8 @@ describe('crm admin contributions', () => {
       'new-opportunity',
       'open-opportunity-board',
       'open-crm-analytics',
+      // Added with its route, never before (Principle XVI).
+      'open-crm-calendar',
     ]);
     for (const action of actions) {
       expect(paths.has(action.targetRoute), action.id).toBe(true);
@@ -212,6 +225,17 @@ describe('crm admin copy', () => {
       'board.field.': [...OPPORTUNITY_BOARD_BUILTIN_FIELD_KEYS],
       'board.filter.': ['min', 'max', 'from', 'to', 'minShort', 'maxShort'],
       'boardCard.available.': ['builtin', 'custom'],
+      // The calendar and an Opportunity's Events (User Stories 21 and 22): one
+      // name per view for each of the two arrows and for the switch, the two
+      // scopes, and — from the contract's own vocabularies, so a state the
+      // backend adds is a missing sentence here — what became of a reminder.
+      'calendar.previous.': [...CALENDAR_VIEWS],
+      'calendar.next.': [...CALENDAR_VIEWS],
+      'calendar.view.': [...CALENDAR_VIEWS],
+      'calendar.scope.': [...calendarScopeSchema.options],
+      'events.reminder.': [...opportunityEventReminderStateSchema.options],
+      'events.channel.': [...opportunityEventReminderChannelSchema.options],
+      'events.saved.': ['created', 'updated', 'deleted'],
     };
     const composed = sources.flatMap(({ text }) =>
       [...text.matchAll(/\bt\(\s*`([^`$]+)\$\{/g)].map((match) => match[1] as string),
@@ -223,6 +247,15 @@ describe('crm admin copy', () => {
         expect(en[`${prefix}${member}`], `en ${prefix}${member}`).toBeDefined();
         expect(pl[`${prefix}${member}`], `pl ${prefix}${member}`).toBeDefined();
       }
+    }
+  });
+
+  it('words every rule the server can refuse an Event by', () => {
+    // `details.rule` of a 422 is rendered from `events.error.<rule>`; the key is
+    // composed outside a `t(…)` call, so the family scan above does not see it.
+    for (const rule of opportunityEventRuleSchema.options) {
+      expect(en[`events.error.${rule}`], `en ${rule}`).toBeDefined();
+      expect(pl[`events.error.${rule}`], `pl ${rule}`).toBeDefined();
     }
   });
 

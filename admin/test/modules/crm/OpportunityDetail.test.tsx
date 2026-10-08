@@ -597,6 +597,9 @@ describe('OpportunityDetail — tabs and their address (User Story 20)', () => {
     expect(tabs().map((tab) => tab.textContent)).toEqual([
       en('opportunity.tabs.overview'),
       `${en('opportunity.tabs.links')} 1`,
+      // User Story 21 (FR-133): Events stands third. Nothing is planned on this
+      // Opportunity, so its label carries no number.
+      en('opportunity.tabs.events'),
       en('opportunity.tabs.notes'),
       en('opportunity.tabs.messages'),
       en('opportunity.tabs.attachments'),
