@@ -125,8 +125,8 @@ async function renderPage(
   // A tab is a lazy component: its panel arrives one tick after the header.
   const panel = await screen.findByRole('tabpanel');
   await waitFor(() => expect(within(panel).queryByText(core('common.state.loading'))).toBeNull());
-  // …and so does the workflow the stage bar draws.
-  await screen.findByRole('list', { name: en('opportunity.stage.list') });
+  // …and so does the workflow's order, which sorts the bar's moves into back and forward.
+  await waitFor(() => expect(stageBar()).not.toHaveAttribute('aria-busy', 'true'));
 }
 
 /** The linked documents have a tab of their own (User Story 20): open the screen on it. */
@@ -135,19 +135,19 @@ async function renderLinks(permissions?: readonly string[]): Promise<void> {
   await screen.findByRole('region', { name: en('links.title') });
 }
 
-function stageList(): HTMLElement {
-  return screen.getByRole('list', { name: en('opportunity.stage.list') });
+function stageBar(): HTMLElement {
+  return screen.getByRole('region', { name: en('opportunity.section.status') });
 }
 
 /** The statuses the bar lets the operator move to — its only buttons — by what they show. */
 function transitionButtons(): string[] {
-  return within(stageList())
+  return within(stageBar())
     .queryAllByRole('button')
     .map((button) => button.textContent?.trim() ?? '');
 }
 
-/** The name of the bar's button for a status: what pressing it does. */
-const moveTo = (status: string): string => en('opportunity.stage.moveTo', { status });
+/** The name of the bar's button for a later open status: what pressing it does. */
+const moveTo = (status: string): string => en('opportunity.stage.moveForward', { status });
 
 describe('OpportunityDetail — the status control', () => {
   it('offers exactly the transitions the server allows', async () => {
@@ -403,61 +403,85 @@ describe('OpportunityDetail — linked orders', () => {
 });
 
 describe('OpportunityDetail — the stage bar (User Story 20)', () => {
-  const NEGOTIATION = { code: 'negotiation', name: 'Negotiation', color: '#f59e0b', kind: 'open' } as const;
   const NEW = { code: 'new', name: 'New', color: '#64748b', kind: 'open' } as const;
+  const QUALIFIED = { code: 'qualified', name: 'Qualified', color: '#3b82f6', kind: 'open' } as const;
+  const NEGOTIATION = { code: 'negotiation', name: 'Negotiation', color: '#f59e0b', kind: 'open' } as const;
   const WON = { code: 'won', name: 'Won', color: '#10b981', kind: 'won' } as const;
+  const LOST = { code: 'lost', name: 'Lost', color: '#ef4444', kind: 'lost' } as const;
 
-  function segments(): HTMLElement[] {
-    return within(stageList()).getAllByRole('listitem');
-  }
-
-  it('lists every status of the workflow in the operator`s order, open ones first, and marks the current one', async () => {
-    await renderPage();
-    expect(segments().map((item) => item.textContent)).toEqual([
-      `New (${en('opportunity.stage.current')})`,
-      'Qualified',
-      'Negotiation',
-      `Won (${en('opportunity.stage.kind.won')})`,
-      'Lost',
-    ]);
-    const marked = segments().filter((item) => item.getAttribute('aria-current') === 'step');
-    expect(marked).toHaveLength(1);
-    expect(marked[0]).toHaveTextContent(/^New/);
-    // The position counts the open statuses only: three, not five.
-    expect(screen.getByText(en('opportunity.stage.position', { position: 1, total: 3 }))).toBeInTheDocument();
+  const WON_SPOKEN = `Won (${en('opportunity.stage.kind.won')})`;
+  const LOST_SPOKEN = `Lost (${en('opportunity.stage.kind.lost')})`;
+  const toLost = en('opportunity.stage.moveToClosing', {
+    status: 'Lost',
+    outcome: en('opportunity.stage.kind.lost'),
   });
 
-  it('makes a button of a status the workflow allows from here and of no other', async () => {
+  /** The statuses listed on one side of the bar, as they read; `null` when the side is not drawn. */
+  function side(key: 'back' | 'forward' | 'other'): string[] | null {
+    const group = within(stageBar()).queryByRole('group', { name: en(`opportunity.stage.${key}`) });
+    return group
+      ? within(group)
+          .getAllByRole('listitem')
+          .map((item) => item.textContent ?? '')
+      : null;
+  }
+
+  /** What the bar says the current status is. */
+  function currentStatus(): string {
+    const label = within(stageBar()).getByText(en('opportunity.stage.current'));
+    return label.nextElementSibling?.textContent ?? '';
+  }
+
+  /** Every status named anywhere in the bar. */
+  function everyStatusShown(): string {
+    return stageBar().textContent ?? '';
+  }
+
+  it('names the current status and offers both ways out of it, each on its side', async () => {
+    current = detail({ status: QUALIFIED, allowedTransitions: [NEW, NEGOTIATION, LOST] });
     await renderPage();
-    const buttons = within(stageList()).getAllByRole('button');
+    const bar = stageBar();
+    expect(within(bar).getByText(en('opportunity.stage.current'))).toBeInTheDocument();
+    expect(currentStatus()).toBe('Qualified');
+    expect(side('back')).toEqual(['New']);
+    expect(side('forward')).toEqual(['Negotiation', 'Lost']);
+    expect(side('other')).toBeNull();
+    // A status the workflow has and does not allow from here is not on screen at all.
+    expect(everyStatusShown()).not.toContain('Won');
+    // The bar draws no line, so it counts no stage.
+    expect(everyStatusShown()).not.toMatch(/\d+ of \d+/);
+  });
+
+  it('names each button by what pressing it does, its visible label included', async () => {
+    current = detail({ status: QUALIFIED, allowedTransitions: [NEW, NEGOTIATION, LOST] });
+    await renderPage();
+    const buttons = within(stageBar()).getAllByRole('button');
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
-      moveTo('Qualified'),
-      en('opportunity.stage.moveToClosing', {
-        status: 'Lost',
-        outcome: en('opportunity.stage.kind.lost'),
-      }),
+      en('opportunity.stage.moveBack', { status: 'New' }),
+      en('opportunity.stage.moveForward', { status: 'Negotiation' }),
+      toLost,
     ]);
-    // Negotiation and Won are in the workflow and not reachable from New: text, not controls.
-    for (const name of ['Negotiation', 'Won']) {
-      expect(within(stageList()).queryByRole('button', { name: new RegExp(name) })).toBeNull();
-    }
-    // The visible name of a button is part of its accessible one (WCAG 2.5.3).
+    // WCAG 2.5.3: what is read on the button is part of what it is called.
     for (const button of buttons) {
       expect(button.getAttribute('aria-label')).toContain(button.textContent?.trim());
     }
   });
 
-  it('is truthful for a workflow that is not a line: a move backwards is offered, and nothing is marked as passed', async () => {
-    current = detail({ status: NEGOTIATION, allowedTransitions: [NEW, WON] });
+  it('draws only the forward side where the workflow leads nowhere back', async () => {
     await renderPage();
-    expect(transitionButtons()).toEqual(['New', 'Won']);
-    expect(screen.getByText(en('opportunity.stage.position', { position: 3, total: 3 }))).toBeInTheDocument();
-    // One status is the current one; the two before it carry no mark of any kind.
-    expect(segments().filter((item) => item.hasAttribute('aria-current'))).toHaveLength(1);
-    expect(segments()[1]).toHaveTextContent(/^Qualified$/);
+    expect(side('back')).toBeNull();
+    expect(side('forward')).toEqual(['Qualified', 'Lost']);
+    expect(transitionButtons()).toEqual(['Qualified', 'Lost']);
   });
 
-  it('gives a closed opportunity no position, and says how and when it closed', async () => {
+  it('draws only the back side where the workflow only returns', async () => {
+    current = detail({ status: NEGOTIATION, allowedTransitions: [NEW, QUALIFIED] });
+    await renderPage();
+    expect(side('back')).toEqual(['New', 'Qualified']);
+    expect(side('forward')).toBeNull();
+  });
+
+  it('draws no side for a closed opportunity the workflow lets nowhere, and says how and when it closed', async () => {
     current = detail({
       status: WON,
       allowedTransitions: [],
@@ -465,27 +489,44 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
       closedAt: '2026-10-05T12:00:00.000Z',
     });
     await renderPage();
-    const bar = screen.getByRole('region', { name: en('opportunity.section.status') });
-    expect(within(bar).queryByText(/Stage \d+ of \d+/)).toBeNull();
+    const bar = stageBar();
+    expect(currentStatus()).toBe(WON_SPOKEN);
     expect(within(bar).getByText(/^Closed as won on /)).toBeInTheDocument();
-    const marked = segments().filter((item) => item.getAttribute('aria-current') === 'step');
-    expect(marked.map((item) => item.textContent)).toEqual([
-      `Won (${en('opportunity.stage.kind.won')}) (${en('opportunity.stage.current')})`,
-    ]);
+    expect(within(bar).queryAllByRole('group')).toEqual([]);
+    expect(within(bar).getByText(en('opportunity.status.none'))).toBeInTheDocument();
+    // Nothing to sort, so the workflow's order is not asked for.
+    expect(getSpy.mock.calls.map(([path]) => path)).not.toContain(WORKFLOW_PATH);
   });
 
-  it('is a picture and nothing else for an operator who may only read', async () => {
+  it('offers reopening a closed opportunity as a move back', async () => {
+    current = detail({
+      status: LOST,
+      allowedTransitions: [NEGOTIATION, WON],
+      closedKind: 'lost',
+      closedAt: '2026-10-05T12:00:00.000Z',
+    });
+    await renderPage();
+    expect(currentStatus()).toBe(LOST_SPOKEN);
+    expect(side('back')).toEqual(['Negotiation']);
+    expect(side('forward')).toEqual(['Won']);
+  });
+
+  it('shows a reader the same moves as text, with no button among them', async () => {
+    current = detail({ status: QUALIFIED, allowedTransitions: [NEW, NEGOTIATION, LOST] });
     await renderPage(['crm:read', 'orders:read']);
-    expect(segments()).toHaveLength(5);
-    expect(within(stageList()).queryAllByRole('button')).toEqual([]);
+    expect(side('back')).toEqual(['New']);
+    // A closing status is still told apart in words, with no button to carry the name.
+    expect(side('forward')).toEqual(['Negotiation', LOST_SPOKEN]);
+    expect(within(stageBar()).queryAllByRole('button')).toEqual([]);
     expect(screen.queryByLabelText(en('opportunity.status.reason'))).toBeNull();
     expect(screen.queryByText(en('opportunity.stage.hint'))).toBeNull();
+    expect(screen.getByText(en('opportunity.status.noPermission'))).toBeInTheDocument();
   });
 
   it('moves by keyboard alone, through the one transition endpoint, with the reason typed under it', async () => {
     postSpy.mockResolvedValue({
       data: {
-        opportunity: detail({ status: { code: 'lost', name: 'Lost', color: '#ef4444', kind: 'lost' }, allowedTransitions: [] }),
+        opportunity: detail({ status: LOST, allowedTransitions: [] }),
         from: 'new',
         to: 'lost',
         propagation: [],
@@ -494,7 +535,7 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
     await renderPage();
     // The reason is still asked for where a move is possible, and still goes with it.
     await userEvent.type(screen.getByLabelText(en('opportunity.status.reason')), 'Budget cut.');
-    const lost = within(stageList()).getByRole('button', { name: /Lost/ });
+    const lost = within(stageBar()).getByRole('button', { name: toLost });
     lost.focus();
     await userEvent.keyboard('{Enter}');
     await waitFor(() =>
@@ -507,23 +548,38 @@ describe('OpportunityDetail — the stage bar (User Story 20)', () => {
     // Announced, and the bar now shows where the opportunity is.
     expect(await screen.findByText(en('opportunity.status.moved', { status: 'Lost' }))).toBeInTheDocument();
     await waitFor(() => expect(transitionButtons()).toEqual([]));
+    expect(currentStatus()).toBe(LOST_SPOKEN);
   });
 
-  it('still offers every allowed move when the workflow cannot be read, and says the picture is partial', async () => {
+  it('still offers every allowed move when the workflow`s order cannot be read, without guessing a direction', async () => {
+    current = detail({ status: QUALIFIED, allowedTransitions: [NEW, NEGOTIATION, LOST] });
     getSpy.mockImplementation(
       answerWith((path) =>
         path === WORKFLOW_PATH ? Promise.reject(new Error('offline')) : undefined,
       ),
     );
     await renderPage();
-    expect(segments().map((item) => item.textContent)).toEqual([
-      `New (${en('opportunity.stage.current')})`,
-      'Qualified',
-      'Lost',
-    ]);
-    expect(transitionButtons()).toEqual(['Qualified', 'Lost']);
+    // Closing is forward by what it is; the two open statuses could be either.
+    expect(side('forward')).toEqual(['Lost']);
+    expect(side('other')).toEqual(['New', 'Negotiation']);
+    expect(side('back')).toBeNull();
+    expect(transitionButtons().sort()).toEqual(['Lost', 'Negotiation', 'New']);
+    expect(
+      within(stageBar()).getByRole('button', { name: en('opportunity.stage.moveTo', { status: 'New' }) }),
+    ).toBeInTheDocument();
     expect(screen.getByText(en('opportunity.stage.partial'))).toBeInTheDocument();
-    expect(screen.queryByText(/Stage \d+ of \d+/)).toBeNull();
+  });
+
+  it('says nothing about an unread order when every move has a direction of its own', async () => {
+    current = detail({ status: NEW, allowedTransitions: [LOST] });
+    getSpy.mockImplementation(
+      answerWith((path) =>
+        path === WORKFLOW_PATH ? Promise.reject(new Error('offline')) : undefined,
+      ),
+    );
+    await renderPage();
+    expect(side('forward')).toEqual(['Lost']);
+    expect(screen.queryByText(en('opportunity.stage.partial'))).toBeNull();
   });
 });
 
@@ -790,6 +846,25 @@ describe('OpportunityDetail — the header and the sidebar (User Story 20)', () 
     expect(
       within(group('opportunity.facts.record')).getByText(en('opportunity.field.closed')),
     ).toBeInTheDocument();
+  });
+
+  it('is one card, placed after the stage bar and before the tabs — where a narrow screen stacks it', async () => {
+    current = detail({ unresolvedPropagations: [propagation()] });
+    await renderPage();
+    const order = (earlier: HTMLElement, later: HTMLElement): boolean =>
+      Boolean(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const outcomes = screen.getByRole('region', { name: en('propagation.title') });
+    const tablist = screen.getByRole('tablist', { name: en('opportunity.tabs.label') });
+    expect(order(stageBar(), outcomes)).toBe(true);
+    expect(order(outcomes, sidebar())).toBe(true);
+    expect(order(sidebar(), tablist)).toBe(true);
+    // One bordered card holds all four groups; the stage bar and the tabs are not inside it.
+    const card = sidebar().firstElementChild as HTMLElement;
+    expect(sidebar().children).toHaveLength(1);
+    expect(card.className).toContain('bg-card');
+    expect(within(card).getAllByRole('heading', { level: 2 })).toHaveLength(4);
+    expect(sidebar().contains(stageBar())).toBe(false);
+    expect(sidebar().contains(tablist)).toBe(false);
   });
 
   it('stays beside whichever tab is open', async () => {

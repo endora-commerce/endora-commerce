@@ -2,6 +2,7 @@ import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { OpportunityDetail } from '@endora-commerce/contracts';
 import { formatDateTime } from '@endora-commerce/admin-kit/lib';
+import { Card, CardContent } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { AssigneeSection } from '../../components/AssigneeSection.js';
 import { OpportunityValue } from '../../components/OpportunityValue.js';
@@ -59,11 +60,13 @@ export interface OpportunitySidebarProps {
   salesChannelName: string | null;
   onChange: (next: OpportunityDetail) => void;
   reload: () => Promise<void>;
+  /** Where the page's grid puts the column. */
+  className?: string;
 }
 
 /**
- * The facts of an Opportunity, beside whichever tab is open (User Story 20):
- * four groups, most-asked first — what it is worth and by when, who it is for
+ * The facts of an Opportunity, in one card beside the stage bar and whichever
+ * tab is open (User Story 20): four groups, most-asked first — what it is worth and by when, who it is for
  * and who holds it, how it is classified, and the record itself.
  *
  * **A fact is changed here only where it could already be changed in one
@@ -75,12 +78,14 @@ export interface OpportunitySidebarProps {
  * being left out, so the column has the same shape for every Opportunity.
  */
 export function OpportunitySidebar(props: OpportunitySidebarProps): ReactNode {
-  const { opportunity, canWrite, salesChannelName, onChange, reload } = props;
+  const { opportunity, canWrite, salesChannelName, onChange, reload, className } = props;
   const t = useTranslation('crm');
   const contact = opportunity.customerAccount;
 
   return (
-    <aside aria-label={t('opportunity.section.details')} className="divide-y divide-border">
+    <aside aria-label={t('opportunity.section.details')} className={className}>
+      <Card>
+        <CardContent className="divide-y divide-border pt-6">
       <FactGroup title={t('opportunity.facts.valueAndDeadline')}>
         <OpportunityValue
           opportunity={opportunity}
@@ -145,6 +150,8 @@ export function OpportunitySidebar(props: OpportunitySidebarProps): ReactNode {
           ) : null}
         </dl>
       </FactGroup>
+        </CardContent>
+      </Card>
     </aside>
   );
 }

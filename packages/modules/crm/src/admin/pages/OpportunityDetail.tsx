@@ -59,11 +59,12 @@ function MetaSeparator(): ReactNode {
  *
  * 1. **the header** — what it is called, its status, and one quiet line of who
  *    it is for and who holds it; *Edit* and *Delete* on the right;
- * 2. **the stage bar** — where it is in the workflow and where it may go, with
- *    what became of the linked Orders after a move directly underneath;
- * 3. **two columns** — the tabs on the left (declared as data in
- *    `opportunity-detail/tabs.ts`), the facts on the right. Below `lg` the
- *    facts follow the tabs, in the order a keyboard meets them.
+ * 2. **two columns**, from the header down. On the left: the stage bar — where
+ *    it is in the workflow and where it may go — then what became of the linked
+ *    Orders after a move, then the tabs (declared as data in
+ *    `opportunity-detail/tabs.ts`). On the right, beside all three: the facts,
+ *    in a card. Below `lg` the facts come after the stage bar and before the
+ *    tabs.
  *
  * **The selected tab is in the address** (`?tab=<id>`), so it survives a
  * reload and can be linked to; the default tab is the bare address.
@@ -223,13 +224,13 @@ export function OpportunityDetail(): ReactNode {
             <p role="status" className="text-sm text-muted-foreground">
               {t('opportunity.detail.loading')}
             </p>
-            {/* The shape of what is coming: the bar, the tabs, the facts. */}
-            <div aria-hidden="true" className="mt-4 space-y-6">
-              <div className="h-24 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
-              <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-                <div className="h-72 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
+            {/* The shape of what is coming: the bar and the tabs, the facts beside them. */}
+            <div aria-hidden="true" className="mt-4 grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+              <div className="space-y-6">
+                <div className="h-24 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
                 <div className="h-72 animate-pulse rounded-lg bg-muted motion-reduce:animate-none" />
               </div>
+              <div className="h-72 animate-pulse rounded-lg bg-muted motion-reduce:animate-none lg:h-full" />
             </div>
           </>
         ) : (
@@ -411,8 +412,16 @@ export function OpportunityDetail(): ReactNode {
         </Alert>
       ) : null}
 
-      <div className="space-y-6">
-        <Card>
+      {/*
+        One grid from the header down. In the markup: the stage bar, what became
+        of the Orders, the facts, the tabs — the order a narrow screen stacks
+        them in, so value and deadline are never under a long tab. From `lg` the
+        facts are the right column, beside all three; the last row is the
+        flexible one, so a facts column taller than the left one stretches the
+        space under the tabs and never the gaps between the cards.
+      */}
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:grid-rows-[auto_auto_1fr]">
+        <Card className="min-w-0 lg:col-start-1">
           <CardContent className="pt-6">
             <StageBar
               // The reason typed for one Opportunity is not the next one's.
@@ -426,7 +435,7 @@ export function OpportunityDetail(): ReactNode {
         </Card>
 
         {outcomesShown || outcomes.length > 0 ? (
-          <Card>
+          <Card className="min-w-0 lg:col-start-1">
             <CardContent className="pt-6">
               <PropagationOutcomes
                 opportunityId={opportunity.id}
@@ -442,84 +451,84 @@ export function OpportunityDetail(): ReactNode {
           </Card>
         ) : null}
 
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-          <Card className="min-w-0 overflow-hidden">
-            <div className="b2b-tabs-scroll px-1 pt-1">
-              <div
-                ref={tablistRef}
-                className="b2b-tabs"
-                role="tablist"
-                aria-label={t('opportunity.tabs.label')}
-                onKeyDown={onTabKeyDown}
-              >
-                {OPPORTUNITY_TABS.map((candidate) => {
-                  const selected = candidate.id === tab?.id;
-                  const count = candidate.count?.(opportunity) ?? 0;
-                  return (
-                    <button
-                      key={candidate.id}
-                      type="button"
-                      role="tab"
-                      id={`crm-opportunity-tab-${candidate.id}`}
-                      aria-selected={selected}
-                      aria-controls="crm-opportunity-tabpanel"
-                      // One stop for the strip; the arrows move inside it.
-                      tabIndex={selected ? 0 : -1}
-                      className={cn('b2b-tab', selected && 'is-active')}
-                      onClick={(): void => selectTab(candidate.id)}
-                    >
-                      {t(candidate.labelKey)}
-                      {/* Part of the tab's name on purpose: "Links 2" is what it holds. */}
-                      {count > 0 ? (
-                        <>
-                          {/* A real space, so the name is "Links 2" and not "Links2". */}
-                          {' '}
-                          <span className="b2b-badge tabular-nums">{count}</span>
-                        </>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <CardContent
-              className="pt-6"
-              id="crm-opportunity-tabpanel"
-              role="tabpanel"
-              aria-labelledby={`crm-opportunity-tab-${tab?.id ?? ''}`}
-            >
-              <Suspense
-                fallback={
-                  <p role="status" className="text-sm text-muted-foreground">
-                    {tCore('common.state.loading')}
-                  </p>
-                }
-              >
-                {TabComponent ? (
-                  <TabComponent
-                    // A tab holds state about one Opportunity; another one starts clean.
-                    key={opportunity.id}
-                    opportunity={opportunity}
-                    onChange={setOpportunity}
-                    reload={reload}
-                    orderStatuses={orderStatuses}
-                    editing={editing}
-                    onEditingChange={setEditing}
-                  />
-                ) : null}
-              </Suspense>
-            </CardContent>
-          </Card>
+        <OpportunitySidebar
+          key={opportunity.id}
+          className="min-w-0 lg:col-start-2 lg:row-span-3 lg:row-start-1"
+          opportunity={opportunity}
+          canWrite={canWrite}
+          salesChannelName={salesChannelName}
+          onChange={setOpportunity}
+          reload={reload}
+        />
 
-          <OpportunitySidebar
-            key={opportunity.id}
-            opportunity={opportunity}
-            canWrite={canWrite}
-            salesChannelName={salesChannelName}
-            onChange={setOpportunity}
-            reload={reload}
-          />
-        </div>
+        <Card className="min-w-0 overflow-hidden lg:col-start-1">
+          <div className="b2b-tabs-scroll px-1 pt-1">
+            <div
+              ref={tablistRef}
+              className="b2b-tabs"
+              role="tablist"
+              aria-label={t('opportunity.tabs.label')}
+              onKeyDown={onTabKeyDown}
+            >
+              {OPPORTUNITY_TABS.map((candidate) => {
+                const selected = candidate.id === tab?.id;
+                const count = candidate.count?.(opportunity) ?? 0;
+                return (
+                  <button
+                    key={candidate.id}
+                    type="button"
+                    role="tab"
+                    id={`crm-opportunity-tab-${candidate.id}`}
+                    aria-selected={selected}
+                    aria-controls="crm-opportunity-tabpanel"
+                    // One stop for the strip; the arrows move inside it.
+                    tabIndex={selected ? 0 : -1}
+                    className={cn('b2b-tab', selected && 'is-active')}
+                    onClick={(): void => selectTab(candidate.id)}
+                  >
+                    {t(candidate.labelKey)}
+                    {/* Part of the tab's name on purpose: "Links 2" is what it holds. */}
+                    {count > 0 ? (
+                      <>
+                        {/* A real space, so the name is "Links 2" and not "Links2". */}
+                        {' '}
+                        <span className="b2b-badge tabular-nums">{count}</span>
+                      </>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <CardContent
+            className="pt-6"
+            id="crm-opportunity-tabpanel"
+            role="tabpanel"
+            aria-labelledby={`crm-opportunity-tab-${tab?.id ?? ''}`}
+          >
+            <Suspense
+              fallback={
+                <p role="status" className="text-sm text-muted-foreground">
+                  {tCore('common.state.loading')}
+                </p>
+              }
+            >
+              {TabComponent ? (
+                <TabComponent
+                  // A tab holds state about one Opportunity; another one starts clean.
+                  key={opportunity.id}
+                  opportunity={opportunity}
+                  onChange={setOpportunity}
+                  reload={reload}
+                  orderStatuses={orderStatuses}
+                  editing={editing}
+                  onEditingChange={setEditing}
+                />
+              ) : null}
+            </Suspense>
+          </CardContent>
+        </Card>
+
       </div>
     </>
   );
