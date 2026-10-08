@@ -143,9 +143,10 @@ describe('crm — an order placed from a linked quote request (the real road)', 
     const line = (basket.json() as { data: { items: Array<{ id: string; productId: string }> } }).data.items.find(
       (item) => item.productId === SEED_PRODUCT_101_ID,
     );
+    if (!line) throw new Error('the converted basket holds no line of the quoted product');
     const changed = await h.app.inject({
       method: 'PATCH',
-      url: `/api/v1/cart/items/${line?.id ?? ''}`,
+      url: `/api/v1/cart/items/${line.id}`,
       cookies: CRM_CUSTOMER,
       payload: { quantity: 5 },
     });
@@ -230,7 +231,9 @@ describe('crm — an order placed from a linked quote request (the real road)', 
 
       const { result: placed, created } = await createdBy(place);
       expect(created).toHaveLength(1);
-      expect((await detail(created[0]?.id ?? '')).links.map((link) => link.documentId)).toEqual([placed.id]);
+      const own = created[0];
+      if (!own) throw new Error('no Opportunity was created for the ordinary Order');
+      expect((await detail(own.id)).links.map((link) => link.documentId)).toEqual([placed.id]);
       expect(await orderLinks(opportunity.id)).toEqual([]);
       expect((await detail(opportunity.id)).value).toBe('78.75');
     });

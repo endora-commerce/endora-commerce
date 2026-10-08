@@ -15,6 +15,7 @@ import {
   SEED_PAYMENT_METHOD_ID,
 } from '../../helpers/seed-commerce.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { cartWritePortOf } from '../../helpers/orders-neighbour-ports.js';
 import {
   acceptedQuoteRequest,
   checkOutBasket,
@@ -60,6 +61,12 @@ describe('orders — an order placed from an accepted quote request', () => {
       .items;
   };
 
+  const basketLineOf = async (productId: string) => {
+    const line = (await basketItems()).find((item) => item.productId === productId);
+    if (!line) throw new Error(`the basket holds no line of ${productId}`);
+    return line;
+  };
+
   const addToBasket = async (productId: string, quantity = 1) => {
     const response = await h.app.inject({
       method: 'POST',
@@ -71,6 +78,12 @@ describe('orders — an order placed from an accepted quote request', () => {
   };
 
   const place = () => whenOrderCreatedSettled(h, () => checkOutBasket(h));
+
+  const activeBasket = async () => {
+    const em = h.em();
+    em.clear();
+    return em.findOneOrFail(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' }, { filters: false });
+  };
 
   /** Point the buyer's active basket at `quoteRequestId` — what no route lets a client do. */
   const forgeBasketSource = async (quoteRequestId: string) => {
@@ -157,10 +170,11 @@ describe('orders — an order placed from an accepted quote request', () => {
       const rfq = await acceptedQuoteRequest(h, { quantity: 7, agreedUnitPrice: 11.25 });
       await convertQuoteRequestToCart(h, rfq.id);
       await addToBasket(SEED_PRODUCT_102_ID);
-      const agreed = (await basketItems()).find((item) => item.productId === SEED_PRODUCT_101_ID);
+      expect((await activeBasket()).sourceQuoteRequestId).toBe(rfq.id);
+      const agreed = await basketLineOf(SEED_PRODUCT_101_ID);
       const changed = await h.app.inject({
         method: 'PATCH',
-        url: `/api/v1/cart/items/${agreed?.id ?? ''}`,
+        url: `/api/v1/cart/items/${agreed.id}`,
         cookies: CUSTOMER,
         payload: { quantity: 5 },
       });
@@ -186,6 +200,8 @@ describe('orders — an order placed from an accepted quote request', () => {
         });
         expect(removed.statusCode, removed.body).toBeLessThan(300);
       }
+      // The basket itself forgets, before placement is asked anything.
+      expect((await activeBasket()).sourceQuoteRequestId ?? null).toBeNull();
       await addToBasket(SEED_PRODUCT_101_ID, 7);
 
       const placed = await place();
@@ -199,10 +215,10 @@ describe('orders — an order placed from an accepted quote request', () => {
       const rfq = await acceptedQuoteRequest(h, { quantity: 7, agreedUnitPrice: 11.25 });
       await convertQuoteRequestToCart(h, rfq.id);
       await addToBasket(SEED_PRODUCT_102_ID);
-      const agreed = (await basketItems()).find((item) => item.productId === SEED_PRODUCT_101_ID);
+      const agreed = await basketLineOf(SEED_PRODUCT_101_ID);
       const removed = await h.app.inject({
         method: 'DELETE',
-        url: `/api/v1/cart/items/${agreed?.id ?? ''}`,
+        url: `/api/v1/cart/items/${agreed.id}`,
         cookies: CUSTOMER,
       });
       expect(removed.statusCode, removed.body).toBeLessThan(300);
@@ -212,7 +228,26 @@ describe('orders — an order placed from an accepted quote request', () => {
       expect((await quoteRow(rfq.id)).status).toBe('Approved');
     });
 
-    it('loses it when another path re-seeds the basket — an order the operator creates', async () => {
+    it('loses it when the basket is seeded again without one — what a reorder does', async () => {
+      const rfq = await acceptedQuoteRequest(h, { quantity: 7, agreedUnitPrice: 11.25 });
+      await convertQuoteRequestToCart(h, rfq.id);
+      // The same line at the same price, through the port a reorder uses: only
+      // the missing option tells this seed from the conversion's.
+      await cartWritePortOf(h).replaceItemsForCustomer(
+        { customerAccountId: TEST_CUSTOMER_ID, organizationId: TEST_ORGANIZATION_ID },
+        [{ productId: SEED_PRODUCT_101_ID, quantity: 7, unitPrice: '11.25', currency: 'PLN' }],
+      );
+      const cart = await h
+        .em()
+        .findOneOrFail(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' }, { filters: false });
+      expect(cart.sourceQuoteRequestId ?? null).toBeNull();
+
+      const placed = await place();
+      expect((await orderRow(placed.id)).sourceQuoteRequestId ?? null).toBeNull();
+      expect((await quoteRow(rfq.id)).status).toBe('Approved');
+    });
+
+    it('loses it when another path closes the basket and fills a new one — an order the operator creates', async () => {
       const rfq = await acceptedQuoteRequest(h);
       await convertQuoteRequestToCart(h, rfq.id);
       const created = await whenOrderCreatedSettled(h, () =>

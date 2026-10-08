@@ -162,8 +162,8 @@ Reactivation: any buyer activity (touch, add/remove/qty/coupon) on an
   remembers the quote it was seeded from in `source_quote_request_id`. The
   mark travels with the agreed prices: adding a line, removing one or changing
   a quantity keeps both; removing the last line, or seeding the cart again from
-  another source (a reorder, an order an administrator creates), clears the
-  mark. The Orders module reads it at placement and decides whether the order
+  another source (a reorder), clears the mark, and an order an administrator
+  creates for the customer starts a new cart without it. The Orders module reads it at placement and decides whether the order
   may record the quote. The re-priced copy above sets no mark.
 - **Shopping List → Cart**: delegated to the existing
   `ShoppingListService.convertToCart`; the carts module

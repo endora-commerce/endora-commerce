@@ -3733,8 +3733,10 @@ when it was measured, and what was done about it.
   invented: `CartService.addItem`, `updateItem` and `removeItem` leave the unit price of the
   lines that remain untouched, so a request's basket with one product added or a quantity
   changed is still checked out at the agreed prices, and still is that request's Order. It is
-  dropped (i) by every later seed — the option is *replaced*, absent included, so a reorder or
-  an admin-created Order clears it — and (ii) when the last line is removed
+  dropped (i) by every later seed — the option is *replaced*, absent included, so a reorder
+  clears it (an admin-created Order, a one-click purchase and the external intake do not
+  re-seed: they close the basket with `clearForCustomer` and fill a new one, which never had
+  it) — and (ii) when the last line is removed
   (`#forgetSourceWhenEmptied`): an emptied basket has no agreed line, and what is put in it
   next is priced from the list. There was no "quote price lock" to follow; the basket has
   never had one. *Rejected*: dropping it on any change (a buyer who adds one screw to an
@@ -3755,7 +3757,13 @@ when it was measured, and what was done about it.
   a checkout that cannot be completed. No `catch` around the port: presence is asked first
   (`effectiveState.isPresent('quote_requests')`), which is the declared degrade, and a read
   that fails for any other reason fails the placement. The price comparison is `Number` on
-  both sides: both are the same `decimal` copied, never computed. **Not checked at
+  both sides: both are the same `decimal` copied, never computed. **The Organization rule is
+  the second of two layers, and a mutation showed which is which**: with the comparison
+  removed from `judgeQuoteRequestSource`, the storefront cases still refuse a foreign request
+  — `QuoteRequest` is tenant-scoped, so the port answers nothing for it inside the buyer's own
+  request and the claim falls as `not-found`. The explicit comparison is what holds wherever a
+  placement runs with a scope wider than one Organization, and it is the unit test that holds
+  it; no placement on this tree both runs that wide and carries a mark. **Not checked at
   placement**: the request's validity date — it binds at the conversion, where the price
   commitment is consumed (`rfq-service.ts`, its own comment), and a basket seeded inside the
   window is checked out at the agreed prices after it today; refusing the *source* there while
