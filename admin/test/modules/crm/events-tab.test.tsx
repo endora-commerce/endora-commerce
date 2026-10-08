@@ -733,6 +733,40 @@ describe('Event dialog — editing and deleting', () => {
     expect(await screen.findByRole('tab', { name: `${en('opportunity.tabs.events')} 2` })).toBeInTheDocument();
   });
 
+  it('does not put an older list back when a slow read answers after a later one', async () => {
+    const panel = await renderTab();
+    // The read after the delete is slow, and answers what the list was when it was asked.
+    let release: (() => void) | undefined;
+    const base = getSpy.getMockImplementation() as (path: string) => Promise<unknown>;
+    let slow = true;
+    getSpy.mockImplementation((path: string) => {
+      if (path !== EVENTS_PATH || !slow) return base(path);
+      slow = false;
+      const stale = OpportunityEventListResponseSchema.parse({ data: events });
+      return new Promise((resolve) => {
+        release = (): void => resolve(stale);
+      });
+    });
+    await userEvent.click(within(panel).getByRole('button', { name: en('events.removeNamed', { name: 'Site visit' }) }));
+    const confirm = await screen.findByRole('dialog');
+    await userEvent.click(within(confirm).getByRole('button', { name: en('events.remove.confirm') }));
+    await waitFor(() => expect(deleteSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+    // A second write while that read is still out: its own read answers first.
+    const dialog = await openAdd(panel);
+    await userEvent.type(field(dialog, 'name'), 'Follow-up call');
+    set(field(dialog, 'date'), '2026-10-13');
+    await save(dialog);
+    await waitFor(() => expect(listed(panel, 'upcoming')).toContain('Follow-up call'));
+
+    expect(release).toBeDefined();
+    release?.();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(listed(panel, 'upcoming')).toContain('Follow-up call');
+    expect(listed(panel, 'upcoming')).not.toContain('Site visit');
+  });
+
   it('deletes nothing on Cancel, and says so when the delete fails', async () => {
     const panel = await renderTab();
     await userEvent.click(within(panel).getByRole('button', { name: en('events.removeNamed', { name: 'Site visit' }) }));
