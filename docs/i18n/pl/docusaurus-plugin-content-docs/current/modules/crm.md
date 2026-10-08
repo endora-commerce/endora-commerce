@@ -47,15 +47,16 @@ grupę — tylko wtedy, gdy widoczna jest przynajmniej jedna z nich.
 | --- | --- | --- | --- |
 | Szanse sprzedażowe | **CRM → Szanse sprzedażowe** (`/crm/opportunities`) | `crm:read` | Wszystkie szanse, które możesz zobaczyć, z wyszukiwaniem i filtrami: stan, status, organizacja, handlowiec, etykiety, kanał sprzedaży i data utworzenia. |
 | Nowa szansa | przycisk **Nowa szansa** (`/crm/opportunities/new`) | `crm:write` | Ręczne utworzenie szansy: tytuł, organizacja i waluta są wymagane; osoba kontaktowa, kanał sprzedaży, szacowana wartość, planowana data zamknięcia i opis — opcjonalne. |
-| Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Nagłówek, pasek etapów z obecnym statusem i dozwolonymi z niego zmianami — wstecz i dalej — panel informacji po prawej oraz karty: *Przegląd*, **Powiązania** (zamówienia i zapytania ofertowe szansy), *Notatki*, *Wiadomości*, *Załączniki* i **Historia zmian**. Zobacz *Ekran szansy sprzedażowej*. |
+| Szansa sprzedażowa | wiersz listy (`/crm/opportunities/:id`) | `crm:read` | Nagłówek, pasek etapów z obecnym statusem i dozwolonymi z niego zmianami — wstecz i dalej — panel informacji po prawej oraz karty: *Przegląd*, **Powiązania** (zamówienia i zapytania ofertowe szansy), **Wydarzenia** (to, co dla niej zaplanowano, z przypomnieniami), *Notatki*, *Wiadomości*, *Załączniki* i **Historia zmian**. Zobacz *Ekran szansy sprzedażowej*. |
 | Tablica | **CRM → Tablica** (`/crm/board`) | `crm:read` | Te same szanse jako karty, w kolumnie dla każdego statusu. Posiadacz uprawnienia `crm:write` przenosi kartę do innego statusu. |
+| Kalendarz | **CRM → Kalendarz** (`/crm/calendar`) | `crm:read` | Wydarzenia zaplanowane w otwartych szansach, które możesz zobaczyć — w miesiącu, tygodniu, dniu albo jako lista. Każde wydarzenie otwiera swoją szansę. Zobacz *Kalendarz*. |
 | Analityka | **CRM → Analityka** (`/crm/analytics`) | `crm:analytics` | Pięć wskaźników dla wybranego zakresu dni: czas obsługi, czas w każdym statusie, najskuteczniejsi handlowcy, najcenniejsze szanse i średnia wartość. |
 | Etykiety | **CRM → Etykiety** (`/crm/tags`) | `crm:configure` | Lista etykiet: dodawanie, zmiana nazwy i koloru oraz usuwanie oznaczeń, które można nadawać szansom. |
 | Statusy i przepływ | **CRM → Statusy i przepływ** (`/crm/workflow`) | `crm:configure` | Statusy, przejścia między nimi, status zamówienia ustawiany przez każdy status szansy, status szansy, do którego prowadzi każdy status zamówienia, statusy liczone do wartości wyliczanej oraz pola widoczne na karcie na tablicy. |
 
 Codzienne ekrany są też w palecie poleceń (`⌘K` / `Ctrl+K`):
 **Szanse sprzedażowe**, **Nowa szansa sprzedażowa**, **Tablica szans
-sprzedażowych** i **Analityka CRM**.
+sprzedażowych**, **Analityka CRM** i **Kalendarz CRM**.
 
 Pierwsze przejście przez moduł, od początku do końca:
 
@@ -126,12 +127,13 @@ karty.
 | --- | --- |
 | **Przegląd** | Opis, pola niestandardowe oraz — po naciśnięciu **Edytuj** — formularz edycji. |
 | **Powiązania** | *Powiązane zamówienia* i *Powiązane zapytania ofertowe*: wiązanie, odłączanie, przełącznik *Podąża za szansą*, przyciski **Utwórz zamówienie** i **Utwórz zapytanie ofertowe**. Na karcie widać liczbę powiązanych dokumentów. |
+| **Wydarzenia** | To, co zaplanowano dla szansy — rozmowa, spotkanie, termin — jako lista i we własnym kalendarzu, każde z opcjonalnym przypomnieniem. Na karcie widać liczbę wydarzeń, które jeszcze się nie zakończyły. Zobacz *Wydarzenia i przypomnienia*. |
 | **Notatki**, **Wiadomości** | Dwie rozmowy. |
 | **Załączniki** | Pliki. |
 | **Historia zmian** | Wszystko, co zrobiono z szansą, od najnowszych zmian. |
 
 Otwarta karta jest częścią adresu — `/crm/opportunities/:id?tab=links`,
-i odpowiednio `notes`, `messages`, `attachments` oraz `history` — dzięki czemu
+i odpowiednio `events`, `notes`, `messages`, `attachments` oraz `history` — dzięki czemu
 zostaje po odświeżeniu strony i można ją wysłać innej osobie. Adres bez nazwy
 karty albo z nazwą karty, która nie istnieje, otwiera *Przegląd*. Powrót z
 ekranu **Utwórz zamówienie** albo **Utwórz zapytanie ofertowe** otwiera kartę
@@ -771,6 +773,363 @@ do szansy niedostępnej dla pytającej osoby — jest odrzucany jak plik, który
 istnieje. Jeśli plik zniknął z biblioteki mediów, jego załącznik nadal jest na
 liście, pod dawną nazwą, bez odnośnika.
 
+## Wydarzenia i przypomnienia
+
+**Wydarzenie** to coś zaplanowanego dla szansy sprzedażowej — rozmowa,
+spotkanie, termin. Należy do tej jednej szansy i nie da się go przenieść do
+innej; nie ma wydarzenia bez szansy.
+
+Wydarzenie ma:
+
+- **nazwę** (wymaganą, do 200 znaków) i opcjonalny **opis** do 5000 znaków.
+  Opis jest zwykłym tekstem: skróty z `@` nie są w nim dostępne;
+- **jeden dzień**. Albo godzinę początku i końca tego samego dnia, przy czym
+  koniec jest późniejszy niż początek, albo **Cały dzień** — samą datę, bez
+  godzin. Wydarzenie nie może trwać przez północ: takie spotkanie to dwa
+  wydarzenia;
+- opcjonalnie **jedno przypomnienie** — datę i godzinę.
+
+Wydarzenia są planem szansy, a nie własnością autora. Inaczej niż notatkę,
+**każde** wydarzenie szansy może edytować i usunąć każdy posiadacz uprawnienia
+`crm:write`, który tę szansę widzi — bez względu na to, kto je dodał. Gdy dwie
+osoby zapisują to samo wydarzenie, obowiązuje późniejszy zapis. Dodanie albo
+zmiana wydarzenia nie liczy się jako edycja szansy, więc nigdy nie powoduje
+odrzucenia formularza edycji, który ma otwarty ktoś inny.
+
+Usunięcie szansy usuwa jej wydarzenia i żadne z ich przypomnień nie zostaje
+wysłane. Zamknięcie szansy niczego nie usuwa — zobacz niżej *Zamknięte
+szanse*.
+
+### Karta Wydarzenia
+
+**Wydarzenia** to trzecia karta szansy, po karcie *Powiązania*. Jej etykieta
+podaje liczbę wydarzeń, które jeszcze się nie zakończyły.
+
+- **Dodaj wydarzenie** (`crm:write`) otwiera okno. **Otwórz kalendarz**
+  prowadzi do ekranu **CRM → Kalendarz**.
+- Wydarzenia są wypisane w dwóch grupach: **Nadchodzące** — jeszcze
+  niezakończone, od najbliższego — i **Minione**, od najnowszego; widać
+  pierwsze dziesięć, a potem przycisk *Pokaż wszystkie minione wydarzenia*.
+  Wiersz pokazuje termin wydarzenia, jego nazwę, pierwsze dwie linie opisu i
+  to, co stało się z przypomnieniem. Posiadacz uprawnienia `crm:write` ma przy
+  każdym wierszu **Edytuj** i **Usuń**; usunięcie wymaga potwierdzenia.
+- Pod listą te same wydarzenia są narysowane w kalendarzu tej jednej szansy,
+  w widoku **Miesiąc** albo **Tydzień**. Kalendarza nie ma, dopóki szansa nie
+  ma wydarzeń, ani na ekranie węższym niż 640 px, gdzie kalendarzem jest
+  lista.
+- Osoba, która ma tylko `crm:read`, widzi listę i kalendarz, ale nic, co
+  dodaje, zmienia albo usuwa.
+
+Okno dodawania i edycji:
+
+| Pole | Co zawiera |
+| --- | --- |
+| **Nazwa** | Wymagana. |
+| **Cały dzień** | Po zaznaczeniu obie godziny znikają z formularza, a wydarzenie obejmuje całą datę. |
+| **Data** | Nowe wydarzenie otwiera się z dzisiejszą datą. |
+| **Od**, **Do** | Nowe wydarzenie dostaje propozycję: od najbliższej pełnej godziny, na jedną godzinę. Zmiana pola *Od* przesuwa *Do* o tyle samo. Koniec, który nie jest późniejszy niż początek, jest odrzucany, zanim cokolwiek zostanie wysłane. |
+| **Opis** | Opcjonalny. |
+| **Przypomnij mi** | Domyślnie odznaczone. |
+| **Data i godzina przypomnienia** | Pojawia się po zaznaczeniu *Przypomnij mi*, od razu ustawiona na początek wydarzenia — albo na 9:00 w jego dniu, gdy wydarzenie trwa cały dzień. Podąża za początkiem, dopóki nie zmienisz jej ręcznie. Czas, który nie jest w przyszłości, jest odrzucany. |
+
+Przy edycji wydarzenia czas przypomnienia, którego nie ruszono, nie jest
+ponownie porównywany z zegarem, więc wydarzeniu, którego przypomnienie już
+wysłano, nadal można zmienić nazwę. Zapisanie **innego** czasu przypomnienia,
+w przyszłości, uzbraja przypomnienie od nowa: zostanie wysłane jeszcze raz, o
+nowej porze. Odznaczenie *Przypomnij mi* albo usunięcie wydarzenia oznacza, że
+nic nie zostanie wysłane.
+
+### Kto dostaje przypomnienie i jak
+
+Przypomnienie w chwili zapisania nie ma adresata. **O tym, kto je dostanie,
+rozstrzyga się w chwili, gdy przypada jego termin:**
+
+1. osoba, do której szansa jest przypisana **w tej chwili** — a nie ta, do
+   której była przypisana, gdy dodawano wydarzenie;
+2. w przeciwnym razie osoba, która dodała wydarzenie. Tak jest, gdy szansa nie
+   ma handlowca, a także wtedy, gdy handlowiec został dezaktywowany albo nie
+   widzi już organizacji szansy;
+3. w przeciwnym razie nikt. Te same dwa warunki dotyczą osoby, która dodała
+   wydarzenie; gdy żadna z dwóch osób ich nie spełnia, nic nie jest wysyłane,
+   a przy wydarzeniu widać, że nie było kogo powiadomić.
+
+*Przypomnij mi* przypomina więc temu, kto prowadzi szansę, gdy nadejdzie
+termin — niekoniecznie osobie, która zaznaczyła to pole.
+
+Przypomnienie trafia do odbiorcy najwyżej dwiema drogami:
+
+- **Dzwonek powiadomień — zawsze.** Wpis podaje nazwę wydarzenia, jego
+  początek i numer szansy — *Przypomnienie: Oddzwonić w sprawie oferty,
+  2026-10-12 10:00 Europe/Warsaw — szansa sprzedażowa OPP-000042* — w języku
+  czytającej osoby i otwiera szansę na karcie **Wydarzenia** z zaznaczonym
+  tym wydarzeniem. Godzina jest podana w strefie czasowej, w której zapisano
+  wydarzenie, razem z nazwą strefy; przy wydarzeniu całodniowym jest sama
+  data.
+- **Dodatkowo e-mail, gdy osoba nie jest online.** Kto jest online, dostaje
+  tylko wpis w dzwonku.
+
+**Co znaczy „online”.** Osoba jest online, gdy w ciągu ostatnich pięciu minut
+Admin UI wykonał w jej imieniu jakieś żądanie. Otwarty Admin UI pyta o nowe
+powiadomienia co 30 sekund, więc w praktyce online znaczy *ma Admin UI otwarty
+w przeglądarce* — na dowolnym urządzeniu. Nie wiadomo, czy ktokolwiek patrzy
+na ekran: osoba, która odeszła od biurka i zostawiła otwartą kartę
+przeglądarki, dostanie wpis w dzwonku, a e-maila nie. Po zamknięciu
+przeglądarki albo wylogowaniu osoba przestaje być online najpóźniej po pięciu
+minutach.
+
+**E-mail** to mail transakcyjny **Event reminder** (`crm_event_reminder`).
+Zawiera te same trzy informacje co wpis w dzwonku — nazwę wydarzenia, jego
+początek i numer szansy — i jest napisany w języku Admin UI odbiorcy: po
+polsku, gdy odbiorca wybrał polski, a w pozostałych przypadkach po angielsku.
+Wysyłany jest z oprawą wspólną dla całej platformy, a nie z oprawą kanału
+sprzedaży.
+
+**E-mail nie zawiera odnośnika.** Wskazuje szansę jej numerem i prosi o
+otwarcie jej w Admin UI; odnośnik prowadzący do szansy ma wpis w dzwonku. Ani
+wpis w dzwonku, ani e-mail nigdy nie zawierają opisu wydarzenia ani tytułu
+szansy.
+
+Temat i treść e-maila operator zmienia, osobno dla każdego języka, na ekranie
+**Maile transakcyjne** (`/transactional-emails`) i tam też może go wyłączyć.
+Dostępne zmienne to `event.name`, `event.when` i `opportunity.number`.
+**E-mail, który nie wyszedł, nigdy nie kosztuje wpisu w dzwonku** — wyłączony
+przez operatora, brak adresu na koncie odbiorcy, serwer poczty, który
+odmawia: wpis w dzwonku i tak powstaje, przy wydarzeniu widać przypomnienie
+wysłane przez dzwonek, a w logu serwera jest powód, dla którego e-mail nie
+został wysłany.
+
+Gdy moduł **Powiadomienia administratora** jest wyłączony, dzwonka nie ma, więc e-mail
+jest wysyłany bez względu na to, czy osoba jest online. Gdy nie ma ani
+dzwonka, ani wysłanego e-maila, przy wydarzeniu widać, że przypomnienia nie
+udało się dostarczyć.
+
+**Instancja bez skonfigurowanego serwera poczty.** Bez połączenia SMTP
+(`SMTP_URL` albo `SMTP_HOST` z pozostałymi polami) platforma zapisuje każdy
+e-mail w logu serwera, zamiast go wysłać, i uznaje go za wysłany.
+Przypomnienie dla osoby, która nie jest online, jest wtedy pokazywane jako
+wysłane przez dzwonek *oraz* e-mailem, choć żadna wiadomość nie dotarła do
+skrzynki. Wpis w dzwonku czeka na powrót tej osoby; zanim zaczniesz polegać na
+e-mailu, skonfiguruj SMTP.
+
+### Kiedy przypomnienie jest wysyłane, a kiedy nie
+
+Przypomnienia są sprawdzane raz na minutę, więc przypomnienie przychodzi
+najpóźniej minutę po swoim terminie. Każde jest dostarczane **najwyżej raz**.
+
+- **Z opóźnieniem — do 24 godzin.** Przypomnienie, którego nie dało się wysłać
+  w terminie — platforma nie działała, CRM był wyłączony, szansa była
+  zamknięta — jest wysyłane, gdy tylko stanie się to możliwe, o ile mieści się
+  to w 24 godzinach od jego terminu.
+- **Spóźnione o więcej niż 24 godziny jest pomijane**: nie zostaje wysłane i
+  jest pokazywane jako takie, które *przepadło*.
+- **Wstrzymane, dopóki szansa jest zamknięta.** Dla zamkniętej szansy nic nie
+  jest wysyłane, a przypomnienie się nie zużywa: otwórz szansę ponownie w
+  ciągu 24 godzin od terminu przypomnienia, a zostanie wysłane wtedy. Później
+  *przepada* — i tak jest pokazywane, nawet gdy szansa nadal jest zamknięta.
+- **Nie jest wysyłane, gdy CRM jest wyłączony** — z tym samym limitem 24
+  godzin.
+- **Przerwane.** Jeśli serwer zatrzyma się w trakcie dostarczania, nie da się
+  ustalić, czy wpis w dzwonku powstał. Przypomnienie nie jest ponawiane —
+  groziłoby to drugim wpisem — a po dziesięciu minutach przy wydarzeniu widać,
+  że wysyłka została przerwana i przypomnienie mogło nie dotrzeć.
+
+Co karta Wydarzenia mówi o każdym przypomnieniu:
+
+| Karta mówi | Znaczenie |
+| --- | --- |
+| *Przypomnienie zaplanowane na …* | Jeszcze przed terminem. |
+| *Przypomnienie na … jest wstrzymane, dopóki szansa jest zamknięta* | Nic nie zostanie wysłane, dopóki szansa nie zostanie ponownie otwarta. |
+| *Przypomnienie wysłane … — dzwoneczek powiadomień* (oraz, albo zamiast niego, *e-mail*) | Dostarczone: kiedy i którą z dwóch dróg. |
+| *Przypomnienie na … przepadło — nie zostało wysłane* | Znaleziono je spóźnione o więcej niż 24 godziny. |
+| *Przypomnienie na …: nie było kogo powiadomić* | Nie dało się powiadomić ani handlowca, ani osoby, która dodała wydarzenie. |
+| *Przypomnienia na … nie udało się dostarczyć* | Dzwonek jest wyłączony i żaden e-mail nie wyszedł. |
+| *Wysyłka przypomnienia na … została przerwana — mogło nie dotrzeć* | Dostarczanie zostało przerwane i nie jest powtarzane. |
+
+### Zamknięte szanse
+
+Zamknięta szansa — wygrana albo przegrana — **zachowuje kartę Wydarzenia**,
+swoje wydarzenia i możliwość ich edycji. Dopóki jest zamknięta, zmieniają się
+dwie rzeczy, o czym karta informuje w notce: jej wydarzeń **nie widać w
+Kalendarzu**, a jej przypomnienia są **wstrzymane**. Ponowne otwarcie szansy
+przywraca jedno i drugie; zamknięcie ani ponowne otwarcie nie zmienia żadnego
+wydarzenia.
+
+### Strefy czasowe
+
+Platforma nie ma ustawienia strefy czasowej, więc wydarzenie ma własną:
+strefę czasową przeglądarki, z której je zapisano.
+
+- Wydarzenie **z godzinami** to jedna chwila, ta sama dla wszystkich. Każdy
+  widzi ją według własnego czasu lokalnego.
+- Wydarzenie **całodniowe** to data, ta sama dla wszystkich, gdziekolwiek je
+  czytają.
+- **Regułę jednego dnia ocenia się w strefie czasowej, z której wydarzenie
+  jest zapisywane.** Wydarzenie od 23:00 do 23:30 w Warszawie mieści się w
+  jednym dniu i jest przyjmowane, choć dla osoby w Tokio wypada następnego
+  dnia rano. W drugą stronę: wydarzenie zaplanowane w Warszawie na
+  16:30 – 17:30, którego godzinę ktoś później **zmienia z przeglądarki w
+  Tokio**, jest oceniane tam — gdzie trwa od 23:30 do 00:30 — i odrzucane.
+  Zmiana samej nazwy albo opisu nie powoduje ponownej oceny godzin.
+- Wpis w dzwonku i e-mail nie mają przeglądarki, za którą mogłyby podążać,
+  więc podają czas w strefie czasowej samego wydarzenia i ją nazywają.
+
+### W historii zmian
+
+Dodanie, zmiana i usunięcie wydarzenia są wpisami w historii zmian szansy —
+*Dodano wydarzenie*, *Zmieniono wydarzenie*, *Usunięto wydarzenie* — z
+informacją, kto i kiedy, z nazwą wydarzenia, tym, czy trwa cały dzień, jego
+początkiem i końcem oraz czasem przypomnienia. Treści opisu w historii nie
+ma: jest tylko jego długość. To, co stało się z przypomnieniem, również nie
+jest wpisem; widać to na karcie Wydarzenia.
+
+### Dla integratorów i operatorów
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/events` | `crm:read` | Wydarzenia szansy, według początku; najwyżej 500. |
+| `POST /api/v1/admin/crm/opportunities/:id/events` | `crm:write` | Dodanie wydarzenia: `{ "name", "description", "allDay", "startsAt", "endsAt", "timeZone", "remindAt" }`. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/events/:eventId` | `crm:write` | Zmiana przesłanych pól. Reguły są stosowane do wydarzenia w kształcie, jaki miałoby po zmianie. `"remindAt": null` usuwa przypomnienie. |
+| `DELETE /api/v1/admin/crm/opportunities/:id/events/:eventId` | `crm:write` | Usunięcie wydarzenia. |
+
+- `startsAt` i `endsAt` to chwile w formacie ISO 8601 z przesunięciem;
+  `endsAt` jest wyłączne. `timeZone` to nazwa IANA strefy, w której wybrano
+  godziny — `Europe/Warsaw`. Dla `"allDay": true` obie chwile to lokalna
+  północ rozpoczynająca datę i następna lokalna północ, w tej strefie.
+- Wydarzenie w odpowiedzi ma `allDayDate` — datę wydarzenia całodniowego,
+  `null` dla wydarzenia z godzinami — oraz `reminder`: `null` albo
+  `{ at, state, handledAt, channels }`, gdzie `state` to jedno z:
+  `scheduled`, `paused`, `sent`, `missed`, `no_recipient`, `undeliverable`,
+  `interrupted`, a `channels` wymienia `bell`, `email` albo oba, gdy stan to
+  `sent`.
+- `GET /api/v1/admin/crm/opportunities/:id` zwraca `upcomingEventCount` —
+  liczbę, którą pokazuje etykieta karty.
+- Szansa, której pytająca osoba nie może zobaczyć, odpowiada na wszystkich
+  czterech trasach 404 `CRM_OPPORTUNITY_NOT_FOUND`, dokładnie tak jak szansa,
+  która nie istnieje; `:eventId`, który nie jest wydarzeniem tej szansy,
+  odpowiada 404 `NOT_FOUND`. Niepoprawnie zbudowana treść żądania odpowiada
+  400 `VALIDATION_FAILED`. Poprawnie zbudowane wydarzenie, które odrzucają
+  reguły, odpowiada **422** `VALIDATION_FAILED` z polami `details.field` i
+  `details.rule`: `ends_before_start`, `spans_days`, `not_whole_day`,
+  `unknown_time_zone` albo `reminder_in_past`.
+
+Wydarzenia są przechowywane w tabeli `crm_opportunity_events`, którą tworzy
+migracja modułu. Wydarzenie nie ma własnej organizacji: dociera się do niego
+przez jego szansę i widzą je dokładnie te osoby, które mogą zobaczyć tę
+szansę.
+
+Przypomnienia dostarcza worker działający w tle na kolejce
+`crm-event-reminders`, który budzi się co 60 sekund i odczytuje z tabeli to,
+czego termin już przypadł. **Instancja, w której nie działa proces workerów,
+nie dostarcza żadnego przypomnienia**; to, czego termin minął, zostanie
+wysłane — z opóźnieniem do 24 godzin — gdy worker zacznie działać. W Redis
+jest tylko zegar, więc wyczyszczenie Redis nie gubi żadnego przypomnienia, a
+kilka procesów workerów może działać jednocześnie i żadne przypomnienie nie
+zostanie wysłane dwa razy.
+
+Dodanie, zmiana ani usunięcie wydarzenia nie publikuje żadnego zdarzenia
+platformy i nie jest oferowane webhookom wychodzącym.
+
+## Kalendarz
+
+**CRM → Kalendarz** (`/crm/calendar`) pokazuje wydarzenia z wielu szans
+naraz. Otwiera się dla roli z uprawnieniem `crm:read` i jest w palecie
+poleceń jako **Kalendarz CRM**.
+
+### Które wydarzenia są widoczne
+
+- **Tylko wydarzenia otwartych szans.** Szansa w statusie, który ją zamyka —
+  jako wygraną albo przegraną — nie ma w Kalendarzu żadnego ze swoich
+  wydarzeń. Po ponownym otwarciu wracają. Na jej karcie Wydarzenia widać je
+  przez cały czas.
+- **Tylko wydarzenia szans, które możesz zobaczyć** — jak wszędzie w module.
+- **Czyje wydarzenia** — to zależy od zasięgu twojego dostępu:
+
+| Kto | Co pokazuje Kalendarz |
+| --- | --- |
+| Administrator, który może zobaczyć **każdą** organizację | Wydarzenia każdej otwartej szansy. Przełącznik **Moje / Wszystkie** zawęża Kalendarz do szans przypisanych do tej osoby. Kalendarz otwiera się na *Wszystkie*, gdzie przy każdym wydarzeniu jest też podany handlowiec szansy. |
+| Administrator ograniczony do zbioru organizacji — handlowiec | Tylko wydarzenia szans **przypisanych do tej osoby**, w obrębie tych organizacji. Przełącznika nie ma. |
+
+Kalendarz handlowca nigdy nie pokazuje więc szansy innej osoby, nawet z
+organizacji, którą mają wspólną — choć handlowiec może taką szansę otworzyć i
+przeczytać jej kartę Wydarzenia. Szansy nadal przypisanej do kogoś, kto
+stracił dostęp do jej organizacji, również nie ma w jego Kalendarzu.
+
+**Zmiana handlowca przenosi wszystkie wydarzenia szansy naraz.** Wydarzenie
+nie ma własnego handlowca: to, w czyim Kalendarzu jest, wynika z tego, do
+kogo szansa jest przypisana w chwili odczytu Kalendarza. Po zmianie handlowca
+wydarzenia są w Kalendarzu nowej osoby, a u poprzedniej już ich nie ma — nie
+trzeba niczego przenosić — a każde przypomnienie, którego termin jeszcze nie
+przypadł, trafi do nowego handlowca.
+
+### Widoki i nawigacja
+
+| Widok | Co pokazuje |
+| --- | --- |
+| **Miesiąc** | Sześć tygodni, od poniedziałku. Do trzech wydarzeń dziennie — całodniowe jako pierwsze — oraz *+N więcej*, które otwiera ten dzień w widoku *Dzień*. |
+| **Tydzień** | Siedem dni od poniedziałku: wiersz wydarzeń całodniowych, a pod nim godziny dnia, każde wydarzenie o swojej porze i o swojej długości. Wydarzenia, które się nakładają, stoją obok siebie. Linia wskazuje bieżącą godzinę w dzisiejszym dniu. Widok otwiera się przewinięty do 7:00. |
+| **Dzień** | To samo dla jednego dnia. |
+| **Lista** | Lista dni, w których są wydarzenia, na 30 dni od wybranej daty. |
+
+- **Dziś**, **Poprzedni** i **Następny** przesuwają o miesiąc, tydzień, dzień
+  albo 30 dni, zależnie od widoku; **Przejdź do daty** przenosi do wskazanej
+  daty; tytuł nazywa pokazywany zakres.
+- Widok, data i wybór *Moje / Wszystkie* są w adresie —
+  `/crm/calendar?view=week&date=2026-10-12&scope=mine` — więc odświeżenie
+  strony i przesłany odnośnik pokazują to samo. `view` to `month`, `week`,
+  `day` albo `agenda`; `scope` to `mine` albo `all`. Wartości domyślnych w
+  adresie nie ma, więc sam `/crm/calendar` zawsze otwiera bieżący miesiąc na
+  dzisiejszym dniu. Adres z `scope=all` otwarty przez osobę, która nie ma
+  takiego wyboru, pokazuje jej własne wydarzenia, a nie błąd.
+- **Na telefonie Kalendarz jest Listą.** Przy szerokości poniżej 640 px
+  pokazuje listę bez względu na widok podany w adresie i nie ma przełącznika
+  widoków.
+- **Każde wydarzenie jest odnośnikiem do swojej szansy.** Otwiera szansę na
+  karcie **Wydarzenia** z zaznaczonym tym wydarzeniem
+  (`/crm/opportunities/:id?tab=events&event=…`). Przy wydarzeniu widać godzinę
+  początku, nazwę oraz numer i tytuł szansy; dzwonek oznacza wydarzenie z
+  przypomnieniem.
+- **Kalendarz niczego nie zmienia.** Nie ma przycisku dodającego wydarzenie i
+  niczego nie da się przeciągnąć: wydarzenie dodaje się, edytuje i usuwa w
+  jego szansie.
+
+Godziny są podane w strefie czasowej twojej przeglądarki, którą ekran nazywa
+pod paskiem narzędzi. Są zapisane tak, jak zapisuje je język twojego Admin UI
+— 13:05 po polsku, 01:05 PM po angielsku. Tydzień zaczyna się w poniedziałek
+w obu językach.
+
+Gdy w zakresie nic nie zaplanowano, Kalendarz to mówi i proponuje powrót do
+dzisiejszego dnia; mówi też, że wczytuje dane i że wczytywanie się nie udało
+— wtedy z przyciskiem **Ponów**.
+
+### Limity
+
+- Jeden odczyt obejmuje **najwyżej 45 dni** — tyle, ile potrzeba na sześć
+  tygodni miesiąca z zapasem dnia z każdej strony. Szerszy zakres odpowiada
+  400.
+- Jeden odczyt zwraca **najwyżej 500 wydarzeń**, pierwsze 500 według
+  początku. Gdy było ich więcej, Kalendarz informuje, że zakres jest
+  niepełny, i proponuje krótszy zakres albo *Moje*.
+
+| Metoda + ścieżka | Uprawnienie | Cel |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/calendar/events?from=…&to=…&scope=…` | `crm:read` | Wydarzenia, które nachodzą na zakres od `from` (włącznie) do `to` (wyłącznie) — obie wartości to chwile w formacie ISO 8601 — według początku. `scope` to `mine` albo `all` i jest opcjonalne. |
+
+Odpowiedź to `{ data, meta }`. Pozycja `data` zawiera `id`, `name`, `allDay`,
+`startsAt`, `endsAt`, `allDayDate`, `hasReminder` oraz `opportunity` — `id`,
+`number`, `title` i `assignee` — i nigdy opisu. `meta` to
+`{ scope, scopes, truncated }`: `scope` to zakres faktycznie zastosowany,
+`scopes` — te, o które pytająca osoba może prosić, a `truncated` ma wartość
+`true`, gdy pasowało więcej niż 500 wydarzeń. **O zakresie decyduje serwer**:
+osoba ograniczona do zbioru organizacji dostaje odpowiedź dla `mine`, o
+cokolwiek zapytano. Ta trasa nie odpowiada 404 — zwraca tylko to, co pytająca
+osoba może zobaczyć.
+
+Wydarzenie całodniowe to data w jego **własnej** strefie czasowej, więc dla
+osoby daleko na wschód albo zachód ta data może się zaczynać poza dniami,
+które pokazuje jej ekran. Dlatego Admin UI prosi o jeden dzień więcej z
+każdej strony tego, co rysuje, a wydarzenie całodniowe umieszcza według
+`allDayDate`.
+
 ## Analityka
 
 Ekran **CRM → Analityka** pokazuje, jak przebiegały szanse sprzedażowe w
@@ -1078,7 +1437,7 @@ któregokolwiek z punktów końcowych tworzenia ma ten sam skutek.
 Każda szansa sprzedażowa ma historię tego, co się z nią działo, od najnowszych
 wpisów: jej utworzenie, każda edycja, każda zmiana statusu, każde powiązanie i
 odwiązanie zamówienia lub zapytania ofertowego, każde przypisanie, zmiana
-etykiet, notatka, wiadomość i załącznik.
+etykiet, notatka, wiadomość, załącznik i wydarzenie.
 
 Każdy wpis mówi, **kiedy**, **co** (`action`), **kto** (`actor`) oraz jaki był
 stan **przed** i **po**:
@@ -1101,11 +1460,13 @@ rozminąć się z tym, co się wydarzyło — a **każdy, kto może czytać szan
 czytać jej historię**. Uprawnienie otwierające dziennik audytu całej platformy
 nie jest potrzebne.
 
-Trzy rzeczy, o których warto wiedzieć:
+Pięć rzeczy, o których warto wiedzieć:
 
 - Notatka albo wiadomość jest w historii jako fakt, że została napisana,
   zmieniona albo usunięta — przez kogo i jak była długa. Jej treści tam nie
   ma: czyta się ją na kartach *Notatki* i *Wiadomości*.
+- Wydarzenie jest w historii z nazwą i godzinami, ale nigdy z treścią opisu.
+  Wysłanie przypomnienia nie jest wpisem.
 - Przeliczenie wartości wyliczanej nie jest wpisem: wpisem jest zmiana, która
   je spowodowała — powiązanie, status zamówienia.
 - Wpis, który zawiera opis — utworzenie szansy, edycja opisu — zawiera także
@@ -1631,9 +1992,13 @@ Gdy jest wyłączony:
 - jego ekrany, grupa w menu bocznym, pozycje palety poleceń i ustawienia
   znikają z Admin UI;
 - jego uprawnień nie można już nadać roli;
-- nic, co moduł robiłby w tle, się nie dzieje.
+- nic, co moduł robiłby w tle, się nie dzieje — w szczególności **nie jest
+  wysyłane żadne przypomnienie o wydarzeniu**. Przypomnienie, którego termin
+  przypadł, gdy moduł był wyłączony, zostanie wysłane po jego ponownym
+  włączeniu, o ile mieści się to w 24 godzinach od terminu; później jest
+  pokazywane jako takie, które przepadło.
 
-Nic nie jest usuwane. Każda szansa, jej historia i konfiguracja przepływu
+Nic nie jest usuwane. Każda szansa, jej historia, jej wydarzenia i konfiguracja przepływu
 pozostają w bazie danych, a po ponownym włączeniu modułu wszystko wraca
 dokładnie do poprzedniego stanu.
 
@@ -1641,8 +2006,8 @@ dokładnie do poprzedniego stanu.
 
 | Kod | Na co pozwala |
 | --- | --- |
-| `crm:read` | Przeglądanie szans sprzedażowych, tablicy, przepływu statusów i listy etykiet; czytanie historii zmian szansy, jej notatek i wiadomości oraz pobieranie jej załączników. Warto nadawać je razem z `orders:read` i `custom_fields:read` (zob. niżej). |
-| `crm:write` | Tworzenie i edycja szans, przenoszenie ich w przepływie, przypisywanie handlowca, nadawanie etykiet, wiązanie i odłączanie zamówień oraz zapytań ofertowych, wybór między wartością wpisaną a wyliczaną, ponawianie lub pomijanie odmowy zmiany zamówienia, pisanie notatek i wiadomości, przesyłanie, dodawanie i usuwanie załączników. |
+| `crm:read` | Przeglądanie szans sprzedażowych, tablicy, kalendarza, przepływu statusów i listy etykiet; czytanie historii zmian szansy, jej wydarzeń, notatek i wiadomości oraz pobieranie jej załączników. Warto nadawać je razem z `orders:read` i `custom_fields:read` (zob. niżej). |
+| `crm:write` | Tworzenie i edycja szans, przenoszenie ich w przepływie, przypisywanie handlowca, nadawanie etykiet, wiązanie i odłączanie zamówień oraz zapytań ofertowych, wybór między wartością wpisaną a wyliczaną, ponawianie lub pomijanie odmowy zmiany zamówienia, pisanie notatek i wiadomości, przesyłanie, dodawanie i usuwanie załączników oraz dodawanie, edycja i usuwanie wydarzeń — czyichkolwiek, nie tylko własnych. |
 | `crm:configure` | Zmiana przepływu — statusów, przejść i mapowań statusów zamówień w obu kierunkach oraz statusów liczonych do wartości wyliczanej — zarządzanie listą etykiet oraz usuwanie szansy. |
 | `crm:analytics` | Otwieranie ekranu Analityka i odczyt jego pięciu wskaźników. |
 
@@ -1683,6 +2048,11 @@ której się wybiera.
 Waluty proponowane przy tworzeniu szansy to te, w których sprzedają aktywne
 kanały sprzedaży.
 
+**Wydarzenia i kalendarz nie mają własnego uprawnienia.** To, co pokazuje
+czyjś kalendarz — wydarzenia wszystkich czy tylko własne — wynika z tego, czy
+ta osoba może zobaczyć każdą organizację, czy tylko ich zbiór, a nie z kodu
+uprawnienia (zobacz *Kalendarz*).
+
 Żadna rola nie otrzymuje uprawnień CRM automatycznie. Nadaje się je na
 ekranie **Role**.
 
@@ -1698,15 +2068,41 @@ wyłącznie po angielsku.
 | `crm.auto_create_from_quote_requests` | wyłączone | Każde zapytanie ofertowe utworzone od tej chwili — przesłane przez klienta albo przygotowane przez administratora — dostaje własną szansę. Wymaga włączonego modułu Zapytań ofertowych. |
 | `crm.board_card_fields` | numer, organizacja, wartość, handlowiec, etykiety | Pola widoczne na karcie na tablicy, w kolejności, jako lista odwołań do pól. Zmieniaj je w sekcji **Karta na tablicy** na ekranie **CRM → Statusy i przepływ**, która proponuje istniejące pola, a nie tutaj. |
 
+Wydarzenia, przypomnienia i kalendarz nie dodają żadnego ustawienia. E-mail z
+przypomnieniem zmienia się i wyłącza na ekranie **Maile transakcyjne**, pod
+nazwą *Event reminder*; to, jak często przypomnienia są sprawdzane, pięć
+minut, które decydują o tym, że osoba jest online, i 24 godziny, po których
+spóźnione przypomnienie jest pomijane, są stałe.
+
 ## Czego moduł nie robi
 
 Rzeczy, których operator może szukać, a których w tym wydaniu nie ma:
 
 - **Import i eksport** szans sprzedażowych — nie ma ani importu z pliku, ani
   eksportu.
-- **E-mail.** Moduł nie wysyła żadnych wiadomości e-mail: powiadomienia trafiają
-  wyłącznie na dzwonek w Admin UI, a wiadomość jest wewnętrzna — dla osób
-  pracujących nad szansą.
+- **E-mail, z jednym wyjątkiem.** Przypomnienie o wydarzeniu może być także
+  e-mailem (zobacz *Wydarzenia i przypomnienia*). Każde inne powiadomienie
+  trafia wyłącznie na dzwonek w Admin UI, a wiadomość jest wewnętrzna — dla
+  osób pracujących nad szansą.
+- **Wydarzenia wielodniowe i cykliczne.** Wydarzenie trwa jeden dzień; targi,
+  które trwają trzy dni, to trzy wydarzenia, a cotygodniową rozmowę dodaje się
+  tydzień po tygodniu.
+- **Ręczne zmiany w kalendarzu.** Niczego się w nim nie przeciąga ani nie
+  rozciąga i nie tworzy się w nim wydarzeń: Kalendarz jest widokiem, a
+  wydarzenia dodaje się w ich szansie.
+- **Rodzaje i kolory wydarzeń.** Jest jeden rodzaj wydarzenia, rysowany jednym
+  kolorem; nie ma kategorii, pola na miejsce ani uczestników i nikogo się na
+  nie nie zaprasza.
+- **Wydarzenia bez szansy** — kalendarz osobisty.
+- **Synchronizacja z innym kalendarzem.** Nie ma synchronizacji z Google
+  Calendar ani z Outlookiem i nie ma eksportu iCalendar.
+- **Odnośnik w e-mailu z przypomnieniem.** E-mail wskazuje szansę jej
+  numerem; odnośnik do niej ma wpis w dzwonku.
+- **Ustawienie strefy czasowej.** Kalendarz podąża za przeglądarką każdej
+  osoby.
+- **Wydarzenia w innych miejscach modułu.** Wydarzenia nie są oferowane
+  webhookom wychodzącym, nie pojawiają się w analityce i nie są polem karty na
+  tablicy.
 - **Wyszukiwanie globalne.** Szanse znajduje się na ich liście i tablicy, a nie
   przez wyszukiwarkę Admin UI.
 - **Zysk.** Każdy wskaźnik jest wartością; kosztów ani marży nie ma.
@@ -1732,6 +2128,12 @@ Wtedy CRM dostaje lejek, na który można popatrzeć:
   jednej — jedna notatka wskazuje demonstracyjny produkt, jedna wiadomość
   wspomina osobę; demonstracyjnego kupującego jako osobę kontaktową przy
   czterech; etykiety przy dziewięciu.
+- **Osiem wydarzeń** w sześciu z ośmiu otwartych szans — wizyty u klienta,
+  rozmowy i dwa całodniowe terminy — dzięki czemu kalendarz i karta Wydarzenia
+  nie są puste. Ich daty liczone są od dnia zasilenia: siedem przypada w
+  ciągu dwóch tygodni po nim, a jedno pięć dni przed nim. **Żadne nie ma
+  przypomnienia**, więc zasilone demo nie tworzy wpisu w dzwonku i nie wysyła
+  e-maila. Cztery zamknięte szanse nie mają wydarzeń.
 
 Szanse tworzy pakiet kompozycji demo (`@endora-commerce/demo-composition`),
 ponieważ każda należy do organizacji i do administratora — a to rekordy innych
@@ -1752,7 +2154,9 @@ Czego demonstracyjny lejek nie ma:
   instalacji.
 
 Ponowne zasilenie nie zmienia niczego, co już istnieje: szansa, którą
-przesunięto albo edytowano, zostaje taka, jak ją zostawiono.
+przesunięto albo edytowano, zostaje taka, jak ją zostawiono — a szansa
+zasilona, zanim pojawiły się wydarzenia, nie dostaje żadnego; żeby je mieć,
+wykonaj reset i zasil dane ponownie.
 `endora demo reset` usuwa dwanaście szans i trzy etykiety wraz ze wszystkim,
 co jest do tych szans dołączone, i nic, co utworzono samodzielnie.
 

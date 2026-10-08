@@ -48,15 +48,16 @@ when at least one of them is visible.
 | --- | --- | --- | --- |
 | Opportunities | **CRM → Opportunities** (`/crm/opportunities`) | `crm:read` | Every opportunity you may see, with search and filters by state, status, organization, assignee, tags, sales channel and creation date. |
 | New opportunity | the **New opportunity** button (`/crm/opportunities/new`) | `crm:write` | Create an opportunity by hand: a title, the organization and the currency are required; a contact person, a sales channel, an expected value, an expected close date and a description are optional. |
-| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | A header, a stage bar with its current status and the moves allowed from it, back and forward, a card of its facts on the right, and tabs: *Overview*, **Links** (its orders and quote requests), *Notes*, *Messages*, *Attachments* and **Change history**. See *The opportunity's screen*. |
+| An opportunity | a row of the list (`/crm/opportunities/:id`) | `crm:read` | A header, a stage bar with its current status and the moves allowed from it, back and forward, a card of its facts on the right, and tabs: *Overview*, **Links** (its orders and quote requests), **Events** (what is planned for it, with reminders), *Notes*, *Messages*, *Attachments* and **Change history**. See *The opportunity's screen*. |
 | Board | **CRM → Board** (`/crm/board`) | `crm:read` | The same opportunities as cards, in a column per status. A holder of `crm:write` moves a card to another status. |
+| Calendar | **CRM → Calendar** (`/crm/calendar`) | `crm:read` | The events planned on the open opportunities you may see, by month, week or day, or as a list. Every event opens its opportunity. See *The calendar*. |
 | Analytics | **CRM → Analytics** (`/crm/analytics`) | `crm:analytics` | Five figures over a range of days: handling time, time in each status, the most effective sales reps, the most valuable opportunities and the average value. |
 | Tags | **CRM → Tags** (`/crm/tags`) | `crm:configure` | The tag list: add, rename, recolour and delete the labels opportunities may carry. |
 | Workflow | **CRM → Workflow** (`/crm/workflow`) | `crm:configure` | The statuses, the transitions between them, the order status each opportunity status sets, the opportunity status each order status leads to, the statuses that count towards a computed value, and the fields a board card shows. |
 
 The everyday screens are also in the command palette (`⌘K` / `Ctrl+K`):
-**Sales opportunities**, **New sales opportunity**, **Opportunity board** and
-**CRM analytics**.
+**Sales opportunities**, **New sales opportunity**, **Opportunity board**,
+**CRM analytics** and **CRM calendar**.
 
 A first walk through the module, start to finish:
 
@@ -125,12 +126,13 @@ whichever tab is open.
 | --- | --- |
 | **Overview** | The description, the custom fields, and — after **Edit** — the edit form. |
 | **Links** | *Linked orders* and *Linked quote requests*: link, unlink, the *follow the opportunity's status* switch, **Create order** and **Create quote request**. The tab shows how many documents are linked. |
+| **Events** | What is planned for the opportunity — a call, a meeting, a deadline — as a list and on a calendar of its own, each with an optional reminder. The tab shows how many events have not ended yet. See *Events and reminders*. |
 | **Notes**, **Messages** | The two conversations. |
 | **Attachments** | The files. |
 | **Change history** | Everything that was done to the opportunity, newest first. |
 
 The open tab is part of the address — `/crm/opportunities/:id?tab=links`, and
-likewise `notes`, `messages`, `attachments` and `history` — so it survives a
+likewise `events`, `notes`, `messages`, `attachments` and `history` — so it survives a
 reload and can be sent to a colleague. An address that names no tab, or one
 that does not exist, opens *Overview*. Coming back from **Create order** or
 **Create quote request** opens **Links**, where the new document appears.
@@ -746,6 +748,344 @@ asking may not see — is refused as one that does not exist. If a file has gone
 missing from the media library, its attachment is still listed, under the name
 it had, with no link.
 
+## Events and reminders
+
+An **event** is something planned for an opportunity — a call, a meeting, a
+deadline. It belongs to that one opportunity and cannot be moved to another;
+there is no event without an opportunity.
+
+An event has:
+
+- a **name** (required, up to 200 characters) and an optional **description**
+  of up to 5,000 characters. The description is plain text: the `@` shortcuts
+  are not offered in it;
+- **one day**. Either a start and an end time on that day, the end later than
+  the start, or **All day** — the date, with no times. An event cannot run over
+  midnight: a meeting that does is two events;
+- optionally **one reminder** — a date and a time.
+
+Events are the opportunity's plan, not their author's property. Unlike a note,
+**any** holder of `crm:write` who can see the opportunity edits and deletes
+any of its events, whoever added them. When two people save the same event,
+the later save wins. Adding or changing an event does not count as an edit of
+the opportunity, so it never makes a colleague's open edit form fail.
+
+Deleting an opportunity deletes its events, and none of their reminders is
+sent. Closing an opportunity deletes nothing — see *Closed opportunities*
+below.
+
+### The Events tab
+
+**Events** is the third tab of an opportunity, after *Links*. Its label counts
+the events that have not ended yet.
+
+- **Add event** (`crm:write`) opens the dialog. **Open the calendar** leads to
+  **CRM → Calendar**.
+- The events are listed in two groups: **Upcoming** — not ended yet, the
+  soonest first — and **Past**, the latest first; the first ten are shown, then
+  *Show all past events*. A row shows when the event is, its name, the first
+  two lines of its description and what became of its reminder. A holder of
+  `crm:write` gets **Edit** and **Delete** on every row; deleting asks first.
+- Under the list the same events are drawn on a calendar of this opportunity
+  alone, by **Month** or **Week**. It is not drawn while the opportunity has no
+  events, nor on a screen narrower than 640 px, where the list is the
+  calendar.
+- Somebody with `crm:read` alone sees the list and the calendar and nothing
+  that adds, changes or deletes.
+
+The dialog, for adding and editing:
+
+| Field | What it holds |
+| --- | --- |
+| **Name** | Required. |
+| **All day** | Ticked: the two times leave the form and the event is the whole date. |
+| **Date** | A new event opens on today. |
+| **From**, **To** | A new event is offered from the next whole hour, for one hour. Moving *From* moves *To* by the same amount. An end that is not after the start is refused before anything is sent. |
+| **Description** | Optional. |
+| **Remind me** | Off by default. |
+| **Remind at** | Shown when *Remind me* is ticked, already set to the event's start — or 09:00 on its date for an all-day event. It follows the start until you change it by hand. A time that is not in the future is refused. |
+
+When an event is edited, a reminder time you did not touch is not judged
+against the clock again, so an event whose reminder has already gone out can
+still be renamed. Saving a **different** reminder time, in the future, arms the
+reminder again: it is sent once more, at the new time. Unticking *Remind me*,
+or deleting the event, means nothing is sent.
+
+### Who is reminded, and how
+
+A reminder is not addressed to anybody when it is written. **Who receives it
+is decided at the moment it is due:**
+
+1. the person the opportunity is assigned to **at that moment** — not the
+   person it was assigned to when the event was added;
+2. otherwise the person who added the event. That is the case when the
+   opportunity has no assignee, and also when the assignee has been
+   deactivated or can no longer see the opportunity's organization;
+3. otherwise nobody. The same two tests apply to the person who added the
+   event; when neither person passes them, nothing is sent and the event says
+   that there was nobody to remind.
+
+So *Remind me* reminds whoever holds the opportunity when the time comes,
+which is not necessarily the person who ticked it.
+
+The reminder then goes out in up to two ways:
+
+- **The notification bell — always.** The entry names the event, when it
+  starts and the opportunity's number — *Reminder: Call back about the offer,
+  2026-10-12 10:00 Europe/Warsaw — opportunity OPP-000042* — in the reader's
+  own language, and opens the opportunity on **Events** with that event
+  marked. The time is written in the time zone the event was saved from, with
+  the zone's name; an all-day event shows its date alone.
+- **An e-mail in addition, when the person is not online.** Somebody who is
+  online gets the bell entry only.
+
+**What "online" means.** A person is online when the Admin UI has made a
+request on their behalf in the last five minutes. An open Admin UI asks for
+new notifications every 30 seconds, so in practice online means *has the
+Admin UI open in a browser* — on any device. It does not know whether anybody
+is looking at the screen: a person who left their desk with the tab open gets
+the bell entry and no e-mail. Closing the browser, or signing out, makes a
+person offline five minutes later at most.
+
+**The e-mail** is the transactional e-mail **Event reminder**
+(`crm_event_reminder`). It carries the same three facts as the bell entry —
+the event's name, when it starts and the opportunity's number — and is written
+in the language of the recipient's Admin UI: Polish for a Polish preference,
+English otherwise. It is sent with the platform-wide branding, not a sales
+channel's.
+
+**The e-mail carries no link.** It names the opportunity by its number and
+asks the reader to open it in the Admin UI; the bell entry is the one that
+links to it. Neither the bell entry nor the e-mail ever carries the event's
+description or the opportunity's title.
+
+An operator edits the e-mail's subject and body, per language, on the
+**Transactional Emails** screen (`/transactional-emails`), and can switch it
+off there. The variables it offers are `event.name`, `event.when` and
+`opportunity.number`. **An e-mail that does not go out never costs the bell
+entry** — switched off by the operator, no address on the recipient's account,
+a mail server that refuses: the bell entry is written all the same, the event
+shows the reminder as sent by the bell, and the server's log says why the
+e-mail was not sent.
+
+While the **Admin notifications** module is switched off there is no bell, so
+the e-mail is sent whether or not the person is online. When there is neither
+a bell nor an e-mail that went out, the event says that the reminder could not
+be delivered.
+
+**An instance with no mail server configured.** Without an SMTP connection
+(`SMTP_URL`, or `SMTP_HOST` and its companions) the platform writes every
+e-mail to the server's log instead of sending it, and counts it as sent. A
+reminder for somebody who is offline is then shown as sent by the bell *and*
+by e-mail although no message reached a mailbox. The bell entry is there when
+they come back; configure SMTP before relying on the e-mail.
+
+### When a reminder is sent, and when it is not
+
+Reminders are looked for once a minute, so one arrives up to a minute after
+its time. Each is delivered **at most once**.
+
+- **Late, up to 24 hours.** A reminder that could not be sent at its time —
+  the platform was down, CRM was switched off, the opportunity was closed — is
+  sent as soon as it can be, if that is within 24 hours of its time.
+- **More than 24 hours late, it is skipped**: not sent, and shown as *missed*.
+- **Held while the opportunity is closed.** Nothing is sent for a closed
+  opportunity, and the reminder is not used up: reopen the opportunity within
+  24 hours of the reminder's time and it is sent then. Later than that it is
+  *missed* — and reads so even while the opportunity is still closed.
+- **Not sent while CRM is switched off**, under the same 24 hours.
+- **Interrupted.** If the server stops in the middle of a delivery, it cannot
+  know whether the bell entry was written. The reminder is not tried again —
+  it would risk a second one — and after ten minutes the event says that the
+  reminder was interrupted and may not have been delivered.
+
+What the Events tab says about each reminder:
+
+| The tab says | Meaning |
+| --- | --- |
+| *Reminder scheduled for …* | It is still to come. |
+| *Reminder for … is held while the opportunity is closed* | Nothing is sent until the opportunity is reopened. |
+| *Reminder sent … — notification bell* (and, or instead, *e-mail*) | Delivered, when, and by which of the two ways. |
+| *Reminder for … was missed — it was not sent* | It was found more than 24 hours late. |
+| *Reminder for …: there was nobody to remind* | Neither the assignee nor the person who added the event could be reminded. |
+| *Reminder for … could not be delivered* | The bell is switched off and no e-mail went out. |
+| *Reminder for … was interrupted and may not have been delivered* | The delivery was cut short and is not repeated. |
+
+### Closed opportunities
+
+A closed opportunity — won or lost — **keeps its Events tab**, its events and
+their editing. Two things change while it is closed, and the tab says so in a
+note: its events are **not shown on the Calendar**, and its reminders are
+**held**. Reopening the opportunity brings both back; no event is changed by
+closing or reopening.
+
+### Time zones
+
+The platform has no time-zone setting, so an event carries its own: the time
+zone of the browser it was saved from.
+
+- A **timed** event is one moment, the same for everybody. Each reader sees it
+  at their own local time.
+- An **all-day** event is a date, the same date for everybody, wherever they
+  read it.
+- **The one-day rule is judged in the time zone the event is saved from.** An
+  event from 23:00 to 23:30 in Warsaw is one day and is accepted, although for
+  a reader in Tokyo it falls on the next morning. The other way round, an
+  event planned in Warsaw for 16:30 – 17:30 whose time is later **changed from
+  a browser in Tokyo** is judged there — where it runs from 23:30 to 00:30 —
+  and refused. Changing only its name or description does not judge its time
+  again.
+- The bell entry and the e-mail have no browser to follow, so they state the
+  time in the event's own time zone and name it.
+
+### In the change history
+
+Adding, changing and deleting an event are entries of the opportunity's
+change history — *Event added*, *Event changed*, *Event deleted* — with who and
+when, the event's name, whether it is all day, its start and end, and its
+reminder time. The description's text is not in the history: only how long it
+was. What became of a reminder is not an entry either; it is shown on the
+Events tab.
+
+### For integrators and operators
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/opportunities/:id/events` | `crm:read` | The opportunity's events, by start; at most 500. |
+| `POST /api/v1/admin/crm/opportunities/:id/events` | `crm:write` | Add one: `{ "name", "description", "allDay", "startsAt", "endsAt", "timeZone", "remindAt" }`. |
+| `PATCH /api/v1/admin/crm/opportunities/:id/events/:eventId` | `crm:write` | Change the members sent. The rules are applied to the event as it would be after the change. `"remindAt": null` removes the reminder. |
+| `DELETE /api/v1/admin/crm/opportunities/:id/events/:eventId` | `crm:write` | Delete it. |
+
+- `startsAt` and `endsAt` are ISO 8601 instants with an offset; `endsAt` is
+  exclusive. `timeZone` is the IANA name of the zone the times were chosen in
+  — `Europe/Warsaw`. For `"allDay": true` the two instants are the local
+  midnight that starts the date and the next local midnight, in that zone.
+- An event in the answer carries `allDayDate` — the date of an all-day event,
+  `null` for a timed one — and `reminder`: `null`, or `{ at, state, handledAt,
+  channels }`, where `state` is one of `scheduled`, `paused`, `sent`, `missed`,
+  `no_recipient`, `undeliverable`, `interrupted` and `channels` lists `bell`,
+  `email` or both when the state is `sent`.
+- `GET /api/v1/admin/crm/opportunities/:id` carries `upcomingEventCount`, the
+  number the tab's label shows.
+- An opportunity the caller may not see answers 404
+  `CRM_OPPORTUNITY_NOT_FOUND` on all four routes, exactly as one that does not
+  exist; an `:eventId` that is not an event of that opportunity answers 404
+  `NOT_FOUND`. A malformed body answers 400 `VALIDATION_FAILED`. A well-formed
+  event the rules refuse answers **422** `VALIDATION_FAILED` with
+  `details.field` and `details.rule`: `ends_before_start`, `spans_days`,
+  `not_whole_day`, `unknown_time_zone` or `reminder_in_past`.
+
+Events are stored in the table `crm_opportunity_events`, which the module's
+migration creates. An event has no organization of its own: it is reached
+through its opportunity, and seen by exactly the people who may see that
+opportunity.
+
+Reminders are delivered by a background worker on the queue
+`crm-event-reminders`, which wakes every 60 seconds and reads what is due from
+the table. **An instance that runs no worker process delivers no reminder**;
+what was due is sent, up to 24 hours late, once a worker runs. Nothing is kept
+in Redis but the clock, so a flushed Redis loses no reminder, and several
+worker processes may run at once without sending any reminder twice.
+
+No event is published on the event bus for an event being added, changed or
+deleted, and none of it is offered to outbound webhooks.
+
+## The calendar
+
+**CRM → Calendar** (`/crm/calendar`) shows events across opportunities. It
+opens for a role that holds `crm:read`, and is in the command palette as
+**CRM calendar**.
+
+### Which events appear
+
+- **Only events of open opportunities.** An opportunity in a status that
+  closes it — as won or as lost — has none of its events on the Calendar.
+  Reopen it and they are back. Its Events tab shows them throughout.
+- **Only events of opportunities you may see**, as everywhere in the module.
+- **Whose events** depends on how far your access reaches:
+
+| Who | What the Calendar shows |
+| --- | --- |
+| An administrator who may see **every** organization | The events of every open opportunity. A **Mine / All** switch narrows the Calendar to the opportunities assigned to them. It opens on *All*, where each event also names the opportunity's assignee. |
+| An administrator restricted to a set of organizations — a sales representative | Only the events of opportunities **assigned to them**, within those organizations. There is no switch. |
+
+A sales representative's Calendar therefore never shows a colleague's
+opportunity, even one in an organization they share — although they can open
+that opportunity and read its Events tab. An opportunity still assigned to
+somebody who has since lost its organization is not on their Calendar either.
+
+**Reassigning an opportunity moves all its events at once.** An event has no
+assignee of its own: whose Calendar it is on follows from who the opportunity
+is assigned to when the Calendar is read. After a reassignment the events are
+on the new assignee's Calendar and no longer on the former one's, with nothing
+to carry over — and every reminder still to come goes to the new assignee.
+
+### Views and navigation
+
+| View | What it shows |
+| --- | --- |
+| **Month** | Six weeks, Monday first. Up to three events a day — all-day ones first — and *+N more*, which opens that day in the *Day* view. |
+| **Week** | Seven days from Monday: a row of all-day events, then the hours of the day, each event at its time and for its length. Events that overlap stand side by side. A line marks the current time on today. It opens scrolled to 07:00. |
+| **Day** | The same for one day. |
+| **Agenda** | A list of the days that have events, over 30 days from the chosen date. |
+
+- **Today**, **Previous** and **Next** move by a month, a week, a day or 30
+  days, according to the view; **Go to date** jumps to a date; the title names
+  the range shown.
+- The view, the date and *Mine / All* are in the address —
+  `/crm/calendar?view=week&date=2026-10-12&scope=mine` — so a reload and a
+  shared link show the same thing. `view` is `month`, `week`, `day` or
+  `agenda`; `scope` is `mine` or `all`. The defaults are left out of the
+  address, so a bare `/crm/calendar` always opens the current month on today.
+  An address that asks for `scope=all` on behalf of somebody who has no such
+  choice opens their own events, not an error.
+- **On a phone the Calendar is the Agenda.** Under 640 px of width it shows the
+  list whatever view the address names, and offers no view switch.
+- **Every event is a link to its opportunity.** It opens the opportunity on
+  the **Events** tab with that event marked
+  (`/crm/opportunities/:id?tab=events&event=…`). An event shows its start time,
+  its name, and the opportunity's number and title; a bell marks one that has a
+  reminder.
+- **The Calendar changes nothing.** There is no button that adds an event and
+  nothing can be dragged: an event is added, edited and deleted on its
+  opportunity.
+
+Times are shown in the time zone of your browser, which the screen names under
+the toolbar. They are written the way the language of your Admin UI writes
+them — 13:05 in Polish, 01:05 PM in English. The week starts on Monday in both
+languages.
+
+When nothing is planned in the range the Calendar says so and offers the way
+back to today; while it loads, and when loading fails, it says that too, with
+**Retry**.
+
+### Limits
+
+- One read covers **at most 45 days** — enough for the six weeks of a month
+  with a day to spare on each side. A wider range answers 400.
+- One read returns **at most 500 events**, the first 500 by start time. When
+  there were more, the Calendar says that the range is incomplete and suggests
+  a shorter range or *Mine*.
+
+| Verb + Path | Permission | Purpose |
+| --- | --- | --- |
+| `GET /api/v1/admin/crm/calendar/events?from=…&to=…&scope=…` | `crm:read` | The events that overlap the range `from` (inclusive) to `to` (exclusive), both ISO 8601 instants, by start. `scope` is `mine` or `all` and optional. |
+
+The answer is `{ data, meta }`. An entry of `data` carries `id`, `name`,
+`allDay`, `startsAt`, `endsAt`, `allDayDate`, `hasReminder` and its
+`opportunity` — `id`, `number`, `title` and `assignee` — and never the
+description. `meta` is `{ scope, scopes, truncated }`: `scope` is the one that
+was applied, `scopes` the ones this caller may ask for, and `truncated` is
+`true` when more than 500 events matched. **The scope is the server's
+decision**: a caller restricted to a set of organizations is answered with
+`mine` whatever was asked. This route has no 404 — it only ever answers what
+the caller may see.
+
+An all-day event is a date in its **own** time zone, so for a reader far to the
+east or west that date can begin outside the days their own screen shows. The
+Admin UI therefore asks for one day more on each side of what it draws, and
+places an all-day event by `allDayDate`.
+
 ## Analytics
 
 **CRM → Analytics** shows how the opportunities of a chosen range of days
@@ -1044,7 +1384,7 @@ the same effect.
 
 Every opportunity keeps a history of what was done to it, newest first: its
 creation, each edit, each status change, every order or quote request linked or
-unlinked, each assignment, tag change, note, message and attachment.
+unlinked, each assignment, tag change, note, message, attachment and event.
 
 Each entry says **when**, **what** (`action`), **who** (`actor`) and the state
 **before** and **after**:
@@ -1066,11 +1406,13 @@ disagree with what happened — and **anybody who may read the opportunity may
 read its history**. The permission that opens the platform-wide audit log is
 not needed.
 
-Three things to know:
+Five things to know:
 
 - A note or a message is in the history as the fact that it was written,
   edited or deleted — by whom, and how long it was. Its text is not: that is
   read on the *Notes* and *Messages* tabs.
+- An event is in the history with its name and its times, never with the text
+  of its description. A reminder being sent is not an entry.
 - Recalculating a computed value is not an entry: the change that caused it —
   a link, an order's status — is.
 - An entry that carries a description — the creation, an edit of it — also
@@ -1588,9 +1930,12 @@ While it is off:
 - its screens, sidebar group, command-palette entries and settings disappear
   from the Admin UI;
 - its permissions can no longer be granted to a role;
-- nothing it would do in the background happens.
+- nothing it would do in the background happens — in particular **no event
+  reminder is sent**. A reminder that fell due while the module was off is sent
+  once it is switched on again, if that is within 24 hours of its time; later
+  than that it is shown as missed.
 
-Nothing is deleted. Every opportunity, its history and the workflow
+Nothing is deleted. Every opportunity, its history, its events and the workflow
 configuration stay in the database, and everything is back exactly as it was
 when the module is switched on again.
 
@@ -1598,8 +1943,8 @@ when the module is switched on again.
 
 | Code | What it allows |
 | --- | --- |
-| `crm:read` | View sales opportunities, the board, the status workflow and the tag list; read an opportunity's change history, its notes and messages, and download its attachments. Best granted together with `orders:read` and `custom_fields:read` (see below). |
-| `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders and quote requests, choose whether the value is typed in or computed, retry or dismiss a refused order change, write notes and messages, upload, add and remove attachments. |
+| `crm:read` | View sales opportunities, the board, the calendar, the status workflow and the tag list; read an opportunity's change history, its events, its notes and messages, and download its attachments. Best granted together with `orders:read` and `custom_fields:read` (see below). |
+| `crm:write` | Create and edit opportunities, move them through the workflow, assign them, tag them, link and unlink orders and quote requests, choose whether the value is typed in or computed, retry or dismiss a refused order change, write notes and messages, upload, add and remove attachments, and add, edit and delete events — anybody's, not only their own. |
 | `crm:configure` | Change the workflow — statuses, transitions and order-status mappings in both directions, and which statuses count towards a computed value — manage the tag list, and delete an opportunity. |
 | `crm:analytics` | Open the Analytics screen and read its five figures. |
 
@@ -1639,6 +1984,11 @@ the person may see, and is no more than a name to choose by.
 The currencies offered when an opportunity is created are the ones the active
 sales channels sell in.
 
+**Events and the calendar have no permission of their own.** What a person's
+calendar shows — everybody's events or only their own — follows from whether
+they may see every organization or a set of them, not from a code (see *The
+calendar*).
+
 No role receives a CRM permission automatically. Grant them on the
 **Roles** screen.
 
@@ -1654,14 +2004,39 @@ there are in English only.
 | `crm.auto_create_from_quote_requests` | off | Every quote request created from then on — submitted by a customer or prepared by an administrator — gets an opportunity of its own. Needs the Quote Requests module to be on. |
 | `crm.board_card_fields` | number, organization, value, sales rep, tags | The fields a board card shows, in order, as a list of field references. Change it in the **Board card** section of **CRM → Workflow**, which offers the fields that exist, rather than here. |
 
+Events, reminders and the calendar add no setting. The reminder e-mail is
+edited and switched off on the **Transactional Emails** screen, as *Event
+reminder*; how often reminders are looked for, the five minutes that make a
+person online and the 24 hours after which a late reminder is skipped are
+fixed.
+
 ## What the module does not do
 
 Things an operator may look for and will not find in this release:
 
 - **Import and export** of opportunities — there is neither a file import nor
   an export.
-- **E-mail.** The module sends none: notifications go to the bell in the Admin
-  UI only, and a message is internal to the people working the opportunity.
+- **E-mail, with one exception.** An event's reminder can also be an e-mail
+  (see *Events and reminders*). Every other notification goes to the bell in
+  the Admin UI only, and a message is internal to the people working the
+  opportunity.
+- **Events over several days, and repeating events.** An event is one day; a
+  fair that lasts three days is three events, and a weekly call is added week
+  by week.
+- **Changing the calendar by hand.** Nothing is dragged or resized on it, and
+  an event is not created from it: the Calendar is a view, and events are
+  added on their opportunity.
+- **Kinds and colours of events.** There is one kind of event, drawn in one
+  colour; it has no category, no location field and no participants, and
+  nobody is invited to it.
+- **Events without an opportunity** — a personal calendar.
+- **Synchronisation with another calendar.** There is no Google Calendar or
+  Outlook synchronisation and no iCalendar export.
+- **A link in the reminder e-mail.** The e-mail names the opportunity by its
+  number; the bell entry links to it.
+- **A time-zone setting.** The calendar follows each reader's browser.
+- **Events elsewhere in the module.** Events are not offered to outbound
+  webhooks, do not appear in analytics, and are not a field of a board card.
 - **Global search.** Opportunities are found on their own list and board, not
   through the Admin UI's search.
 - **Profit.** Every figure is a value; there is no cost or margin.
@@ -1685,6 +2060,11 @@ pipeline to look at:
 - **Notes** on four of them and an exchange of **internal messages** on one —
   one note naming a demo product, one message mentioning a person; the demo
   buyer as contact person on four; tags on nine.
+- **Eight events** on six of the eight open opportunities — site visits, calls
+  and two all-day deadlines — so the calendar and the Events tab are not empty.
+  They are dated from the day of the seed: seven in the two weeks after it and
+  one five days before. **None has a reminder**, so a seeded demo writes no
+  bell entry and sends no e-mail. The four closed opportunities have no event.
 
 The opportunities are created by the demo composition package
 (`@endora-commerce/demo-composition`), because each belongs to an organization
@@ -1703,7 +2083,8 @@ What the demo pipeline does not have:
 - **No mappings.** The workflow configuration is left exactly as installed.
 
 Seeding again changes nothing that is already there: an opportunity you moved
-or edited stays as you left it. `endora demo reset` removes the twelve
+or edited stays as you left it — and an opportunity seeded before events
+existed gains none; reset and seed again to get them. `endora demo reset` removes the twelve
 opportunities and the three tags, with everything attached to those
 opportunities, and nothing you created yourself.
 
