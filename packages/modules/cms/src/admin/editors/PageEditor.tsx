@@ -5,12 +5,12 @@ import { firstSlugSegment, slugify as slugifyText, type CmsPageDetail } from '@e
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, SaveButtonGroup, Select, Textarea } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { ContentLanguageTabs, ScopePicker, type ScopePickerValue } from '@endora-commerce/admin-kit/components';
-import {
-  CmsContentEditorLayout,
-  useCmsEditorSettingsPanel,
-} from '../components/CmsContentEditorLayout.js';
 import { PageBuilderEditor } from '../components/PageBuilderEditor.js';
-import { emptyPageBuilderData } from '@endora-commerce/page-builder-admin';
+import {
+  emptyPageBuilderData,
+  PageBuilderEditorLayout,
+  usePageBuilderEditorSettingsPanel,
+} from '@endora-commerce/page-builder-admin';
 import {
   listCmsTemplatesForApply,
   loadCmsTemplateCanvas,
@@ -66,7 +66,7 @@ export function PageEditor(): ReactNode {
   const { id } = useParams();
   const isNew = !id || id === 'new';
   const navigate = useNavigate();
-  const settingsPanel = useCmsEditorSettingsPanel(isNew);
+  const settingsPanel = usePageBuilderEditorSettingsPanel(isNew);
   const [page, setPage] = useState<CmsPageDetail | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
   const [scope, setScope] = useState<ScopePickerValue>({ salesChannelIds: [], languages: [] });
@@ -300,7 +300,7 @@ export function PageEditor(): ReactNode {
   };
 
   return (
-    <CmsContentEditorLayout
+    <PageBuilderEditorLayout
       settingsPanel={settingsPanel}
       header={
         <>
@@ -447,7 +447,7 @@ export function PageEditor(): ReactNode {
           <ScopePicker value={scope} onChange={setScope} />
         </>
       }
-      languageTabs={
+      canvasBar={
         <ContentLanguageTabs
           languages={scope.languages}
           activeLanguage={activeLanguage}

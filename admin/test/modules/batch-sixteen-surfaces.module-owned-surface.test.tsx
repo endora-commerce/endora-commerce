@@ -792,7 +792,6 @@ const MOVED = [
   'cms/src/admin/components/BackgroundFields.tsx',
   'cms/src/admin/components/ButtonLinkFields.tsx',
   'cms/src/admin/components/CarouselPreviewNav.tsx',
-  'cms/src/admin/components/CmsContentEditorLayout.tsx',
   'cms/src/admin/components/ComponentDragHandle.tsx',
   'cms/src/admin/components/ContentSliderActionBarExtras.tsx',
   'cms/src/admin/components/HookBlockAttachmentsPanel.tsx',

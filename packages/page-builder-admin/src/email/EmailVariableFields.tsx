@@ -82,12 +82,18 @@ export function EmailSubjectWithVariables({
   disabled,
   id,
   placeholder,
+  invalid,
+  describedBy,
 }: {
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
   id?: string;
   placeholder?: string;
+  /** The subject was refused: marks the input `aria-invalid`. */
+  invalid?: boolean | undefined;
+  /** The id of the element that says why, for `aria-describedby`. */
+  describedBy?: string | undefined;
 }): React.ReactElement {
   const ref = useRef<HTMLInputElement | null>(null);
   const { openPicker } = useEmailVariables();
@@ -113,6 +119,8 @@ export function EmailSubjectWithVariables({
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         placeholder={placeholder}
+        aria-invalid={invalid ? true : undefined}
+        aria-describedby={invalid ? describedBy : undefined}
         className="flex-1"
       />
       <Button type="button" variant="outline" disabled={disabled} onClick={() => openPicker(insert)}>

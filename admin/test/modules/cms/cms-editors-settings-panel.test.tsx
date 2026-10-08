@@ -8,7 +8,7 @@ import { apiClient } from '@endora-commerce/admin-kit/lib';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { withLocalStorage } from '../../helpers/with-local-storage';
 import { withViewportWidth } from '../../helpers/with-viewport-width';
-import { CMS_EDITOR_SETTINGS_STORAGE_KEY } from '../../../../packages/modules/cms/src/admin/components/CmsContentEditorLayout';
+import { PAGE_BUILDER_EDITOR_SETTINGS_STORAGE_KEY } from '../../../../packages/page-builder-admin/src/chrome/PageBuilderEditorLayout';
 import { PageEditor } from '../../../../packages/modules/cms/src/admin/editors/PageEditor';
 import { BlockEditor } from '../../../../packages/modules/cms/src/admin/editors/BlockEditor';
 import { TemplateEditor } from '../../../../packages/modules/cms/src/admin/editors/TemplateEditor';
@@ -16,7 +16,9 @@ import { TemplateEditor } from '../../../../packages/modules/cms/src/admin/edito
 /**
  * The three CMS editors, each in the shared shell.
  *
- * `cms-content-editor-layout.test.tsx` holds the shell on its own. This file is
+ * `page-builder-admin/page-builder-editor-layout.test.tsx` holds the shell on
+ * its own — it is `@endora-commerce/page-builder-admin`'s now, shared with the
+ * blog and e-mail editors, and its copy is `core`'s. This file is
  * about the three screens that fill it: that each one really hands its metadata
  * card and the scope picker to the settings panel and its canvas to the builder
  * region, and that a save the operator cannot complete without the panel opens
@@ -29,14 +31,24 @@ vi.mock('../../../../packages/modules/cms/src/admin/components/PageBuilderEditor
   PageBuilderEditor: (): ReactElement => <div data-testid="canvas-stub">canvas</div>,
 }));
 
-function bundleOf(language: 'en' | 'pl'): Record<string, string> {
+function bundleOf(pkg: string, language: 'en' | 'pl'): Record<string, string> {
   return JSON.parse(
-    readFileSync(resolve(process.cwd(), `../packages/modules/cms/i18n/${language}.json`), 'utf8'),
+    readFileSync(resolve(process.cwd(), `../packages/modules/${pkg}/i18n/${language}.json`), 'utf8'),
   ) as Record<string, string>;
 }
 
-const en = bundleOf('en');
-const pl = bundleOf('pl');
+const en = bundleOf('cms', 'en');
+const pl = bundleOf('cms', 'pl');
+/** The shell reads the synthetic `core` scope, which `_i18n`'s bundle is served under. */
+const coreEn = bundleOf('_i18n', 'en');
+const corePl = bundleOf('_i18n', 'pl');
+
+/** The shipped English copy of the shared shell. */
+function shell(key: string): string {
+  const value = coreEn[`pageBuilder.editorLayout.${key}`];
+  if (!value) throw new Error(`_i18n/i18n/en.json carries no "pageBuilder.editorLayout.${key}"`);
+  return value;
+}
 
 /** The shipped English copy for `key` — a missing key fails here, by name. */
 function copy(key: string): string {
@@ -109,7 +121,7 @@ function renderEditor(screenUnderTest: Screen, id: string): void {
         <Route path={`${screenUnderTest.path}/:id`} element={screenUnderTest.element} />
       </Routes>
     </MemoryRouter>,
-    { cms: en },
+    { cms: en, core: coreEn },
   );
 }
 
@@ -142,7 +154,7 @@ describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => 
   it('hands the metadata card and the scope picker to the settings panel, metadata first', async () => {
     renderEditor(screenUnderTest, 'new');
 
-    const settings = screen.getByRole('complementary', { name: copy('editorLayout.settings') });
+    const settings = screen.getByRole('complementary', { name: shell('settings') });
     const metadata = within(settings).getByText(screenUnderTest.metadataTitle);
     // The scope picker is the kit's; its channel row is what proves it mounted here.
     const scope = await within(settings).findByText(/Web store/);
@@ -155,7 +167,7 @@ describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => 
   it('hands the canvas to the builder region and nothing else to it', () => {
     renderEditor(screenUnderTest, 'new');
 
-    const builder = screen.getByRole('region', { name: copy('editorLayout.builder') });
+    const builder = screen.getByRole('region', { name: shell('builder') });
     expect(within(builder).getByTestId('canvas-stub')).toBeTruthy();
     expect(within(builder).queryByText(screenUnderTest.metadataTitle)).toBeNull();
   });
@@ -167,61 +179,64 @@ describe.each(screens)('$name in the shared editor shell', (screenUnderTest) => 
     expect(save.closest('aside')).toBeNull();
     expect(save.closest('section')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: copy('editorLayout.hideSettings') }));
+    fireEvent.click(screen.getByRole('button', { name: shell('hideSettings') }));
     expect(screen.getByRole('button', { name: copy('common.save') })).toBeTruthy();
   });
 
   it('reopens a collapsed panel when a save is refused over a field that lives in it', async () => {
     renderEditor(screenUnderTest, 'new');
 
-    fireEvent.click(screen.getByRole('button', { name: copy('editorLayout.hideSettings') }));
-    expect(screen.queryByRole('complementary', { name: copy('editorLayout.settings') })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: shell('hideSettings') }));
+    expect(screen.queryByRole('complementary', { name: shell('settings') })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: copy('common.save') }));
 
     expect((await screen.findByRole('alert')).textContent).toContain(screenUnderTest.missingChannel);
-    expect(screen.getByRole('complementary', { name: copy('editorLayout.settings') })).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: shell('settings') })).toBeTruthy();
     expect(
       screen
-        .getByRole('button', { name: copy('editorLayout.hideSettings') })
+        .getByRole('button', { name: shell('hideSettings') })
         .getAttribute('aria-expanded'),
     ).toBe('true');
   });
 
   it('reopens a collapsed panel when the server refuses the save', async () => {
-    window.localStorage.setItem(CMS_EDITOR_SETTINGS_STORAGE_KEY, '0');
+    window.localStorage.setItem(PAGE_BUILDER_EDITOR_SETTINGS_STORAGE_KEY, '0');
     vi.spyOn(apiClient, 'patch').mockRejectedValue(new Error('Code is already taken'));
     renderEditor(screenUnderTest, 'entity-1');
 
     // An existing entity honours the remembered choice.
     await screen.findByRole('heading', { level: 1, name: 'Stored entity' });
-    expect(screen.queryByRole('complementary', { name: copy('editorLayout.settings') })).toBeNull();
+    expect(screen.queryByRole('complementary', { name: shell('settings') })).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: copy('common.save') }));
 
     await waitFor(() => {
       expect(screen.getByRole('alert').textContent).toContain('Code is already taken');
     });
-    expect(screen.getByRole('complementary', { name: copy('editorLayout.settings') })).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: shell('settings') })).toBeTruthy();
     // Opened by the screen, not chosen by the operator: the preference stands.
-    expect(window.localStorage.getItem(CMS_EDITOR_SETTINGS_STORAGE_KEY)).toBe('0');
+    expect(window.localStorage.getItem(PAGE_BUILDER_EDITOR_SETTINGS_STORAGE_KEY)).toBe('0');
   });
 });
 
-describe('the shell copy ships in both languages', () => {
-  it.each([
-    'editorLayout.settings',
-    'editorLayout.builder',
-    'editorLayout.hideSettings',
-    'editorLayout.showSettings',
-  ])('%s', (key) => {
-    expect(en[key]).toBeTruthy();
-    expect(pl[key]).toBeTruthy();
+describe('the shell copy ships in both languages, in the bundle every consumer loads', () => {
+  const keys = ['settings', 'builder', 'hideSettings', 'showSettings'];
+
+  it.each(keys)('pageBuilder.editorLayout.%s', (key) => {
+    expect(coreEn[`pageBuilder.editorLayout.${key}`]).toBeTruthy();
+    expect(corePl[`pageBuilder.editorLayout.${key}`]).toBeTruthy();
   });
 
   it('is translated, not copied, where Polish has its own words', () => {
-    expect(pl['editorLayout.settings']).not.toBe(copy('editorLayout.settings'));
-    expect(pl['editorLayout.hideSettings']).not.toBe(copy('editorLayout.hideSettings'));
-    expect(pl['editorLayout.showSettings']).not.toBe(copy('editorLayout.showSettings'));
+    for (const key of ['settings', 'hideSettings', 'showSettings']) {
+      expect(corePl[`pageBuilder.editorLayout.${key}`]).not.toBe(shell(key));
+    }
+  });
+
+  it.each(keys)('left `cms` when the shell did: editorLayout.%s has one home', (key) => {
+    // Two statements of one string drift; blog and the e-mail editors never loaded this one.
+    expect(en[`editorLayout.${key}`]).toBeUndefined();
+    expect(pl[`editorLayout.${key}`]).toBeUndefined();
   });
 });

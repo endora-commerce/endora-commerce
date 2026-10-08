@@ -25,10 +25,9 @@
  *     `b2b-code`, `b2b-grid`, `b2b-grid--cols-3`, `b2b-input`. A screen invented
  *     a name in the design system's namespace. The repair is the kit primitive
  *     (`ui/alert`, `ui/input`, `ui/badge`) or a definition;
- *   - **a CMS block name** — `cms-content-editor`, `cms-page-builder__canvas`.
- *     The design system defines `cms-content-editor__builder` and
- *     `cms-page-builder` but not these two, so the element they name is the
- *     unstyled one.
+ *   - **a CMS block name** — `cms-page-builder__canvas`. The design system
+ *     defines `cms-page-builder` but not this one, so the element it names is
+ *     the unstyled one.
  *
  * **Two-way**, keyed `<file>::<token>`: an entry describing a render that is
  * gone, or one whose class has since been defined, is `stale-ledger-entry`.
@@ -91,8 +90,6 @@ export const UNDEFINED_CLASS_RENDERS: UndefinedClassRenderLedger = {
     'the same missing block',
 
   // -- a CMS block name --------------------------------------------------
-  'packages/modules/cms/src/admin/components/CmsContentEditorLayout.tsx::cms-content-editor':
-    'the design system defines `cms-content-editor__builder` and not the block itself',
   'packages/modules/cms/src/admin/components/PageBuilderEditor.tsx::cms-page-builder__canvas':
     'the design system defines `cms-page-builder` and not this element',
 };
