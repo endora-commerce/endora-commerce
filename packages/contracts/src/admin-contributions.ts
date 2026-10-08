@@ -426,6 +426,29 @@ export const AdminZoneNameSchema = z.enum([
    * `admin/test/modules/invoice_ledger/ledger-section-tabs-zone.test.tsx`.
    */
   'ledger.section.tabs',
+  /**
+   * The editor of a category's storefront page content, one language at a time.
+   *
+   * Mounted **once** on `catalog`'s category content screen
+   * (`CategoryContentPage.tsx`), and named from the host's own words for the
+   * place (Z14): the screen is the category's *content*, and the place is its
+   * *editor*. Props: {@link CategoryContentEditorZoneProps}.
+   *
+   * **A zone that carries a value in and a value back, and that is the
+   * decision this member records rather than an accident of it.** Z1 reads a
+   * `data` / `onChange` signature as a published component the consumer
+   * imports, which is how `blog` reaches `cms`' `PageBuilderEditor` — and
+   * `blog` can, because it declares `cms` in its manifest `dependencies`.
+   * `catalog` cannot: it is `nonDeactivatable` and `cms` is switchable, so a
+   * declared edge would make `cms.enabled` a dead switch, and an undeclared
+   * import would make every instance that installs the catalog install the
+   * CMS to compile its admin. So the direction is inverted: the host owns the
+   * document, its storage and its save, and whoever owns a Page Builder
+   * contributes the canvas. `catalog` names no module, and a platform with no
+   * contributor shows the host's own empty state (Z15) — the content already
+   * stored stays stored and keeps rendering.
+   */
+  'category.content.editor',
 ])
 
 export type AdminZoneName = z.infer<typeof AdminZoneNameSchema>;
@@ -481,6 +504,27 @@ export interface InvoiceDetailZoneProps {
  */
 export interface CategoryEditorZoneProps {
   readonly categoryId: string;
+}
+
+/**
+ * A zone mounted once on the category content screen, around one language's
+ * Page Builder document.
+ *
+ * The document is `unknown` on both sides of the seam, as it is in
+ * `cmsContentEnvelopeSchema`: the tree is the editor's own wire format, and a
+ * host that typed it would be pinning a contributor's library version. The
+ * host re-mounts the zone per language (`language` changes with the tab), so a
+ * contributor may treat `data` as the document's initial value for that
+ * language and report every edit through `onChange`.
+ */
+export interface CategoryContentEditorZoneProps {
+  readonly categoryId: string;
+  /** The content language being edited — a key of the stored envelope. */
+  readonly language: string;
+  /** That language's Page Builder document, or `null` when none is stored. */
+  readonly data: unknown;
+  /** Reports the edited document. The host saves; the contributor never does. */
+  readonly onChange: (data: unknown) => void;
 }
 
 /**
@@ -663,6 +707,7 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'order.shipments.tab.actions': OrderShipmentsActionsZoneProps;
   'order.entry.tabs': OrderEntryTabsZoneProps;
   'ledger.section.tabs': LedgerSectionTabsZoneProps;
+  'category.content.editor': CategoryContentEditorZoneProps;
 }
 
 /** The props of one zone, by name. */

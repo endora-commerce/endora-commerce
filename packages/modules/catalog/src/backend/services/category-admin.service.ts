@@ -4,6 +4,7 @@ import { UniqueConstraintViolationException } from '@mikro-orm/core';
 import {
   ERROR_CODES,
   isCustomFieldValidationFailure,
+  type CategoryContentEnvelope,
   type CreateCategoryRequest,
   type CustomFieldValuePort,
   type UpdateCategoryInput,
@@ -37,6 +38,16 @@ interface CategoryWrite {
  */
 export interface CategoryEvents extends Record<string, EventBase> {
   'category.updated.v1': EventBase & { categoryId: string };
+  /**
+   * The category's page content changed and nothing else did.
+   *
+   * A separate event rather than a second cause of `category.updated.v1`,
+   * because that one is what `search` re-projects a whole subtree of products
+   * on — the slug and the activation state are on the product documents, and
+   * the page content is on none of them. Saving a paragraph should flush the
+   * storefront's category cache and should not re-index a branch.
+   */
+  'category.content.updated.v1': EventBase & { categoryId: string };
 }
 
 export type CategoryEventBus = EventBus<CategoryEvents>;
@@ -52,6 +63,24 @@ function categoryUpdatedEvent(
       categoryId,
     },
   };
+}
+
+function categoryContentUpdatedEvent(
+  categoryId: string,
+): CommandEvent<CategoryEvents['category.content.updated.v1']> {
+  return {
+    eventName: 'category.content.updated.v1',
+    payload: {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      categoryId,
+    },
+  };
+}
+
+/** The languages an envelope carries — what the audit row records of it. */
+function contentLanguagesOf(content: CategoryContentEnvelope): string[] {
+  return Object.keys(content?.languages ?? {}).sort();
 }
 
 /**
@@ -294,6 +323,57 @@ export class CategoryAdminService {
       cat.deletedAt = new Date();
       return { result: cat, before: { name: cat.name, slug: cat.slug }, after: { deletedAt: cat.deletedAt } };
     });
+  }
+
+  /**
+   * The category's page content — the whole per-language envelope, or `null`
+   * when none was authored. 404 for an unknown or soft-deleted category.
+   *
+   * `populate: ['content']` is what loads it: the property is lazy, so every
+   * other read of this entity leaves the document in the database.
+   */
+  async getContent(id: string): Promise<CategoryContentEnvelope> {
+    const cat = await this.emFactory().findOne(
+      Category,
+      { id, deletedAt: null },
+      { populate: ['content'] },
+    );
+    if (!cat) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
+    return cat.content ?? null;
+  }
+
+  /**
+   * Replace the category's page content. `null` clears it.
+   *
+   * Its own Command (`category.content.update`) and its own event, rather
+   * than one more key on {@link update}: the document is authored on its own
+   * screen, saved on its own button, and may weigh a megabyte — so the audit
+   * row records **which languages** the envelope carried before and after,
+   * never the documents, and the event is the one that does not re-index the
+   * category's products (see {@link CategoryEvents}).
+   */
+  async setContent(
+    id: string,
+    content: CategoryContentEnvelope,
+  ): Promise<CategoryContentEnvelope> {
+    const cat = await this.#audited('category.content.update', id, async (em) => {
+      const found = await em.findOne(
+        Category,
+        { id, deletedAt: null },
+        { populate: ['content'] },
+      );
+      if (!found) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Category not found.');
+      const before = { contentLanguages: contentLanguagesOf(found.content ?? null) };
+      found.content = content;
+      await em.flush();
+      return {
+        result: found,
+        before,
+        after: { contentLanguages: contentLanguagesOf(content) },
+        event: categoryContentUpdatedEvent(found.id),
+      };
+    });
+    return cat.content ?? null;
   }
 
   /**

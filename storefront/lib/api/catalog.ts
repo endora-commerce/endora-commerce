@@ -1,5 +1,6 @@
 import type {
   CategoryNode,
+  CategoryPageContent,
   FilterDefinition,
   Pagination,
   ProductDetail,
@@ -155,6 +156,36 @@ export async function getCategoryTree(ctx: RequestContext): Promise<CategoryNode
     { revalidate: 300, tags: ['catalog:categories'] },
   );
   return res.data;
+}
+
+/**
+ * The Page Builder document an operator authored for one category's page,
+ * resolved by the backend to the caller's language.
+ *
+ * Under the tag the tree is under, on purpose: the backend flushes
+ * `catalog:categories` on every category write, the content save included, so
+ * an operator's edit is visible on the next request rather than five minutes
+ * later, and there is no second tag for anybody to forget.
+ *
+ * **A failed read is "no content", not a failed page.** The document is an
+ * addition to a product listing; a category whose content could not be read
+ * must still sell its products. Anonymous and shared like the tree: the
+ * document carries no price and nothing about the viewer.
+ */
+export async function getCategoryPageContent(
+  categoryId: string,
+  ctx: RequestContext,
+): Promise<CategoryPageContent> {
+  try {
+    const res = await apiGet<{ data: CategoryPageContent }>(
+      `/api/v1/catalog/categories/${encodeURIComponent(categoryId)}/content`,
+      ctx,
+      { revalidate: 300, tags: ['catalog:categories'] },
+    );
+    return res.data;
+  } catch {
+    return { categoryId, language: null, content: null };
+  }
 }
 
 export async function getFilters(ctx: RequestContext): Promise<FilterDefinition[]> {

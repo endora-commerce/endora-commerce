@@ -425,7 +425,7 @@ describe('EmailDefaultsRegistry — owner recorded, entries honoured', () => {
 });
 
 describe('AssetReferenceRegistry — owner recorded, entries honoured', () => {
-  it('records the contributing module of all eight descriptors', () => {
+  it('records the contributing module of all nine descriptors', () => {
     const registry = new AssetReferenceRegistry();
     registerCatalogAssetReferences(registry, noEm);
     registerCmsAssetReferences(registry, noEm);
@@ -436,6 +436,8 @@ describe('AssetReferenceRegistry — owner recorded, entries honoured', () => {
       'catalog',
       'catalog',
       'catalog',
+      'catalog',
+      // Category page content embeds library assets through the Page Builder.
       'catalog',
       'cms',
       'blog',

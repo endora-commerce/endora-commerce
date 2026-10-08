@@ -219,6 +219,10 @@ const SUBJECTS: readonly Subject[] = [
       ['/catalog/products/new', 'catalog:write'],
       ['/catalog/products/:id', 'catalog:read'],
       ['/catalog/categories', 'catalog:read'],
+      // The category page content screen, added after this batch: a detail
+      // route reached from the tree's **Content** row action, so it has no
+      // sidebar row below and no palette action.
+      ['/catalog/categories/:id/content', 'catalog:read'],
       ['/catalog/attributes', 'catalog:read'],
       ['/catalog/attribute-sets', 'catalog:read'],
       ['/catalog/attachment-types', 'catalog:read'],

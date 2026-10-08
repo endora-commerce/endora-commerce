@@ -128,6 +128,7 @@ const modules = [
     items: [
       'modules/catalog/attribute-sets',
       'modules/catalog/attributes',
+      'modules/catalog/category-content',
       'modules/catalog/composite-products',
       'modules/catalog/packaging-units',
       'modules/catalog/per-channel-per-language-overrides',

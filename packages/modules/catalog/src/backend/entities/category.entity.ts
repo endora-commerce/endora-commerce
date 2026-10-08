@@ -1,5 +1,6 @@
 import { Entity, Index, OptionalProps, PrimaryKey, Property } from '@mikro-orm/core';
 import { GlobalEntity } from '@endora-commerce/platform/tenancy';
+import type { CategoryContentEnvelope } from '@endora-commerce/contracts';
 import { randomUUID } from 'crypto';
 
 /**
@@ -24,7 +25,8 @@ export class Category {
     | 'inventoryThresholdHigh'
     | 'inventoryThresholdMedium'
     | 'inventoryThresholdLow'
-    | 'mainImageAssetId';
+    | 'mainImageAssetId'
+    | 'content';
 
   @PrimaryKey({ type: 'uuid' })
   id: string = randomUUID();
@@ -86,4 +88,16 @@ export class Category {
   @Property({ type: 'uuid', nullable: true })
   @Index()
   mainImageAssetId?: string | null;
+
+  // Category page content — one Page Builder document per language, rendered
+  // above the product grid of the storefront category page. `null` when the
+  // operator authored none.
+  //
+  // `lazy`, and that is load-bearing: this entity is read in bulk by the
+  // category tree, the admin list and every port that walks the hierarchy,
+  // and a document may weigh up to `CATEGORY_CONTENT_MAX_BYTES`. A lazy scalar
+  // is left out of every `select` that does not `populate: ['content']`, so
+  // only the two reads that want the document pay for it.
+  @Property({ type: 'json', nullable: true, lazy: true })
+  content?: CategoryContentEnvelope | null;
 }
