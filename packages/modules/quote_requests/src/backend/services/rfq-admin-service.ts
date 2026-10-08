@@ -26,6 +26,7 @@ import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
 import { raisedOnChannelId } from './raised-on-channel.js';
+import { hasUnpricedLine, quoteIncompleteError } from './agreed-price.js';
 
 /**
  * Admin-facing Quote Requests service — feature 008 workflow.
@@ -250,6 +251,13 @@ export class RfqAdminService {
       throw new HttpError(409, ERROR_CODES.RFQ_NOT_QUOTED, 'Quote Request is not pending approval.');
     }
     this.assertVersion(rfq, expectedVersion);
+
+    // Approving is what lets the buyer order, at the agreed prices — so every
+    // line needs one. There is deliberately no "approve at the list price"
+    // here: which price an unpriced line would be sold at is a commercial
+    // decision, and the operator makes it by pricing the line (`modify`).
+    const lines = await em.find(QuoteRequestItem, { quoteRequestId: rfq.id });
+    if (hasUnpricedLine(lines)) throw quoteIncompleteError();
 
     const now = new Date();
     rfq.status = 'Approved';
