@@ -3,12 +3,12 @@
   "actions.openInbox.description": "Przejrzyj oczekujące zapytania ofertowe",
   "errors.RFQ_NOT_DRAFT": "Błąd: rfq not draft.",
   "errors.RFQ_EMPTY": "Błąd: rfq empty.",
-  "errors.RFQ_NOT_QUOTED": "Błąd: rfq not quoted.",
+  "errors.RFQ_NOT_QUOTED": "Ta czynność nie jest dostępna dla zapytania ofertowego w jego obecnym stanie.",
   "errors.RFQ_NOT_ACCEPTED": "Błąd: rfq not accepted.",
   "errors.RFQ_NOT_NEW": "Błąd: rfq not new.",
   "errors.RFQ_ALREADY_CLAIMED": "Błąd: rfq already claimed.",
   "errors.RFQ_EXPIRED": "Ta oferta straciła ważność — termin jej ważności upłynął. Poproś opiekuna handlowego o nową ofertę lub złóż zapytanie ponownie.",
-  "errors.QUOTE_INCOMPLETE": "Błąd: quote incomplete.",
+  "errors.QUOTE_INCOMPLETE": "To zapytanie ofertowe zawiera pozycję bez uzgodnionej ceny. Sprzedawca musi wycenić każdą pozycję, zanim zapytanie będzie można zaakceptować, zatwierdzić lub zamówić.",
   "errors.QUOTE_VALIDITY_ENDED": "Zaakceptowana oferta straciła ważność — termin jej ważności upłynął. Przed złożeniem zamówienia poproś opiekuna handlowego o nową ofertę.",
   "nav.quoteRequests.label": "Zapytania ofertowe"
 }
