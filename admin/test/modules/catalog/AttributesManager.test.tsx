@@ -55,6 +55,8 @@ const BUNDLE = passthroughBundle('catalog', [
   'attributes.column.variantAxis',
   'attributes.column.comparable',
   'attributes.column.massEditable',
+  'attributes.column.priceRule',
+  'attributes.flag.priceRule',
   'attributes.loading',
   'attributes.empty',
   'attributes.success.create',
@@ -68,7 +70,7 @@ const BUNDLE = passthroughBundle('catalog', [
   'attributes.batch.unsaved',
 ]);
 
-const seedAttribute = (massEditable: boolean): unknown => ({
+const seedAttribute = (massEditable: boolean, isPriceRule = false): unknown => ({
   id: 'a1',
   key: 'brand',
   label: { 'en-US': 'Brand' },
@@ -82,6 +84,7 @@ const seedAttribute = (massEditable: boolean): unknown => ({
   isComparable: false,
   isRequired: false,
   isPromoRule: false,
+  isPriceRule,
   filterPosition: 0,
   isVisibleOnProductPage: true,
   massEditable,
@@ -140,5 +143,74 @@ describe('AttributesManager — Mass-editable toggle (T027)', () => {
     const row = keyCell.closest('tr')!;
     const massEditableCheckbox = within(row).getByLabelText('brand-massEditable') as HTMLInputElement;
     expect(massEditableCheckbox.checked).toBe(true);
+  });
+});
+
+/**
+ * `isPriceRule` — whether the attribute may be used as a price-building rule
+ * in a Price List. A sibling of the other list flags: a togglable column in
+ * the table and a checkbox in the create/edit form.
+ */
+describe('AttributesManager — Price-rule flag', () => {
+  beforeEach(() => {
+    postSpy.mockReset();
+    getSpy.mockReset();
+    patchSpy.mockReset();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders the column and reflects the persisted flag', async () => {
+    getSpy.mockResolvedValue({ data: [seedAttribute(false, true)] });
+
+    renderWithI18n(<AttributesManager />, BUNDLE);
+
+    await screen.findByText('attributes.column.priceRule');
+    const row = (await screen.findByText('brand')).closest('tr')!;
+    const checkbox = within(row).getByLabelText('brand-isPriceRule') as HTMLInputElement;
+    expect(checkbox.checked).toBe(true);
+  });
+
+  it('patches isPriceRule when the list toggle is flipped and saved', async () => {
+    getSpy.mockResolvedValue({ data: [seedAttribute(false)] });
+    patchSpy.mockResolvedValue({ data: seedAttribute(false, true) });
+
+    renderWithI18n(<AttributesManager />, BUNDLE);
+
+    const row = (await screen.findByText('brand')).closest('tr')!;
+    const checkbox = within(row).getByLabelText('brand-isPriceRule') as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+
+    const user = userEvent.setup();
+    await user.click(checkbox);
+    await user.click(await screen.findByText('attributes.action.save'));
+
+    await waitFor(() => expect(patchSpy).toHaveBeenCalledTimes(1));
+    expect(patchSpy.mock.calls[0]![0]).toBe('/api/v1/admin/catalog/attributes/brand');
+    expect(patchSpy.mock.calls[0]![1]).toEqual(expect.objectContaining({ isPriceRule: true }));
+  });
+
+  it('sends isPriceRule from the create form', async () => {
+    getSpy.mockResolvedValue({ data: [] });
+    postSpy.mockResolvedValue({ data: seedAttribute(false, true) });
+
+    renderWithI18n(<AttributesManager />, BUNDLE);
+
+    const user = userEvent.setup();
+    const flag = await screen.findByLabelText('attributes.flag.priceRule');
+    expect((flag as HTMLInputElement).checked).toBe(false);
+    await user.click(flag);
+    // The key is the form's one required field; without it the browser's own
+    // validation stops the submit before the handler runs.
+    await user.type(document.getElementById('akey') as HTMLInputElement, 'margin_class');
+    await user.click(screen.getByText('attributes.action.create'));
+
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    expect(postSpy.mock.calls[0]![0]).toBe('/api/v1/admin/catalog/attributes');
+    expect(postSpy.mock.calls[0]![1]).toEqual(
+      expect.objectContaining({ key: 'margin_class', isPriceRule: true }),
+    );
   });
 });

@@ -39,6 +39,16 @@ import { Migration } from '@mikro-orm/migrations';
  * `nonDeactivatable`, so every instance runs it. On a fresh database it is a
  * no-op: the channel is install-time state the boot reconciler creates after
  * the migrations, already with `en-US`.
+ *
+ * ## `en` since the language catalogue
+ *
+ * The dictionary now seeds every ISO 639-1 language as an *available*, inactive
+ * row — `en` among them — from a boot hook, so after the first boot with the
+ * catalogue the `not exists` guard above is false everywhere and this
+ * statement matches nothing. That is the order it needs: migrations run before
+ * the boot that seeds, so an upgrading instance is repaired first. A channel
+ * this did not reach is no longer unwritable either, since its `en` is then a
+ * code the dictionary holds.
  */
 export class Migration20261003T115043LanguagesRepairDefaultChannelLanguage extends Migration {
   override async up(): Promise<void> {

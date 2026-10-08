@@ -43,7 +43,6 @@ import { DEFAULT_STOREFRONT_THEME_CODE } from '../lib/theme/instance-themes';
 import { UNAVAILABLE_HEADER } from '../lib/service-unavailable';
 import { outageLocale } from './service-unavailable/page';
 import './globals.css';
-import { publicApiBaseUrl } from '../lib/env.mjs';
 
 /**
  * Did the reachability gate rewrite this request to the unavailable notice?
@@ -128,12 +127,6 @@ export default async function RootLayout({
 
   const { config, locale, currency, ctx, theme, modules } = await getServerContext();
   const t = tForLocale(locale);
-  // Handed to the <MobileTabBar> client component, which fetches the mini-cart
-  // from the browser, so it must be the public, build-time-baked
-  // `NEXT_PUBLIC_API_BASE_URL` — never the server-only `BACKEND_BASE_URL`
-  // (internal `http://backend:3001`) that triggers a Mixed Content block over
-  // HTTPS.
-  const apiBaseUrl = publicApiBaseUrl();
   // Feature 036 US5 — checkout uses a minimal, logo-only header. The full vs
   // minimal switch is decided per-route by the <HeaderSwitch> client component
   // (`usePathname`), because this Server-Component layout is NOT re-run on
@@ -268,7 +261,6 @@ export default async function RootLayout({
               it never covers content (globals.css). */}
           <MobileTabBar
             cartItemCount={cartItemCount}
-            apiBase={apiBaseUrl}
             labels={{
               home: t('nav.home'),
               quoteRequest: t('nav.quoteRequest'),

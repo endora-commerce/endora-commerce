@@ -1,24 +1,25 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { publicApiBaseUrl } from '../lib/env.mjs';
+import { addProductToCartAction } from '../lib/actions/cart';
 
 /**
  * `<CompareAddToCartButton>` — feature 007 / US3 / T046.
  *
- * Thin client-side wrapper that POSTs to the existing
- * `/api/v1/cart/items` endpoint owned by the carts module. The
- * comparisons module deliberately has no cart proxy (research.md R-9):
- * the storefront calls the cart endpoint directly, the cart enforces
- * its own business rules (channel availability, stock, etc.), and the
- * comparison stays untouched on either success or refusal.
+ * Thin client-side wrapper around the carts module's add-item endpoint.
+ * The comparisons module deliberately has no cart proxy (research.md R-9):
+ * the cart enforces its own business rules (channel availability, stock,
+ * etc.), and the comparison stays untouched on either success or refusal.
+ *
+ * The call goes through the `addProductToCartAction` server action, not a
+ * browser fetch to the backend origin: the buyer's cart cookies are httpOnly
+ * and scoped to the storefront origin, so a direct call filled a cart the
+ * `/cart` page never reads (`lib/actions/cart.ts`).
  *
  * Mounted inside `<ComparisonTable>` only when `viewerIsOwner === true`
  * (US1 / spec FR-013, FR-015). The shared-link recipient never sees
  * this button.
  */
-
-const apiBase = publicApiBaseUrl();
 
 export function CompareAddToCartButton(props: {
   productId: string;
@@ -34,23 +35,8 @@ export function CompareAddToCartButton(props: {
     setError(null);
     setSuccess(false);
     try {
-      const res = await fetch(`${apiBase}/api/v1/cart/items`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ productId: props.productId, quantity: 1 }),
-      });
-      if (!res.ok) {
-        let envelope: { error?: { message?: string } } | undefined;
-        try {
-          envelope = (await res.json()) as { error?: { message?: string } };
-        } catch {
-          // non-JSON
-        }
-        throw new Error(
-          envelope?.error?.message ?? `Could not add to cart (HTTP ${res.status}).`,
-        );
-      }
+      const res = await addProductToCartAction({ productId: props.productId, quantity: 1 });
+      if (!res.ok) throw new Error(res.message ?? 'Could not add to cart.');
       setSuccess(true);
       // Notify the header cart counter so it refreshes if it's listening.
       if (typeof window !== 'undefined') {

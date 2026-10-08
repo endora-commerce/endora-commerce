@@ -39,8 +39,8 @@ export function Header(props: {
   user?: MeResult | null;
 }): ReactNode {
   const t = tForLocale(props.locale);
-  // Handed to client components (shopping-list heart badge, cart counter,
-  // search autocomplete) that fetch from the browser, so it must be the
+  // Handed to client components (shopping-list heart badge, search
+  // autocomplete) that fetch from the browser, so it must be the
   // public, build-time-baked `NEXT_PUBLIC_API_BASE_URL` — never the
   // server-only `BACKEND_BASE_URL` (internal `http://backend:3001`) that
   // triggers a Mixed Content block over HTTPS.
@@ -145,7 +145,6 @@ export function Header(props: {
             />
             <CartCounterBadge
               initialCount={props.cartItemCount ?? 0}
-              apiBase={apiBaseUrl}
               emptyAriaLabel="Koszyk"
               itemsAriaLabelTemplate="Koszyk · {count} pozycji"
             />
@@ -184,7 +183,6 @@ export function Header(props: {
             />
             <CartCounterBadge
               initialCount={props.cartItemCount ?? 0}
-              apiBase={apiBaseUrl}
               emptyAriaLabel="Koszyk"
               itemsAriaLabelTemplate="Koszyk · {count} pozycji"
             />

@@ -91,6 +91,26 @@ async function configuredMigrationNames(): Promise<readonly string[]> {
 }
 
 /**
+ * Every test file starts with the public product listing answered by Postgres.
+ *
+ * Unset, `CATALOG_SEARCH_BACKEND` sends a listing that carries a search phrase
+ * to the search module — which is what a deployment wants and not what a suite
+ * sharing one Meilisearch instance can stand on. Fixtures written through the
+ * `EntityManager` reach no index, and an index another file left behind still
+ * answers `ok`, with documents whose rows that file's teardown removed: a
+ * `?q=` assertion would then pass or fail on which file ran before it. So the
+ * files asserting on the index say so (`= 'meilisearch'`, or a `delete` for
+ * the default, and each restores what it found), and every other file gets the
+ * one backend its fixtures are actually in.
+ *
+ * Pinned unconditionally, like the secrets below, so a developer's shell
+ * cannot supply a different answer than a job's.
+ */
+function pinListingBackend(): void {
+  process.env['CATALOG_SEARCH_BACKEND'] = 'postgres';
+}
+
+/**
  * The env every backend test run gets, database or not.
  *
  * The **whole declared population** of generable secrets, not the two this
@@ -109,6 +129,7 @@ async function configuredMigrationNames(): Promise<readonly string[]> {
  * complete run does, and neither may see the machine's.
  */
 async function applyDeterministicTestEnv(): Promise<void> {
+  pinListingBackend();
   const applied = await applyGenerableSecretEnv();
   process.stdout.write(
     `[test-setup] generable secrets: pinned=${applied.pinned.length} ` +

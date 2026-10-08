@@ -1479,7 +1479,8 @@ export class CatalogAdminService {
    * Feature 012 — read every attribute carrying a given boolean flag.
    * Used by the Promotion Rule editor's criterion picker
    * (`flag = isPromoRule`) and the Compare-page column picker
-   * (`flag = isComparable`). Other flags are surfaced for symmetry.
+   * (`flag = isComparable`); `flag = isPriceRule` is the picker payload for
+   * price-building rules in a Price List. Other flags are surfaced for symmetry.
    */
   async listAttributesByFlag(
     flag:
@@ -1488,6 +1489,7 @@ export class CatalogAdminService {
       | 'isComparable'
       | 'isVariantAxis'
       | 'isPromoRule'
+      | 'isPriceRule'
       | 'isVisibleOnProductPage'
       | 'isRequired'
       | 'isMassEditable',

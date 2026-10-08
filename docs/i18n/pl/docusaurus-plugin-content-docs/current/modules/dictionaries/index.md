@@ -22,8 +22,9 @@ Otwórz `Admin -> Operations -> Dictionary`. Strona ma trzy zakładki:
   etykiety w poszczególnych językach i dozwolone języki dla każdego kraju.
 - **Currencies** — kod ISO waluty, symbol, liczba miejsc po przecinku, flaga aktywności, widoczność
   w storefroncie, etykieta domyślna i etykiety w poszczególnych językach.
-- **Languages** — kod języka BCP-47, nazwa w danym języku, flaga aktywności, widoczność w
-  storefroncie, etykieta domyślna i etykiety w poszczególnych językach.
+- **Languages** — wszystkie języki ISO 639-1 oraz regionalne znaczniki BCP-47 dodane przez sklep:
+  kod, nazwa angielska i nazwa w danym języku, kraje, w których język jest używany, flaga
+  aktywności, etykieta domyślna i etykiety w poszczególnych językach.
 
 Dezaktywacja wpisu blokuje nowe zapisy z tym kodem, ale istniejące rekordy nadal mogą go odczytywać.
 To zamierzone: zamówienia, adresy, zakresy treści i rekordy konfiguracji muszą pozostać możliwe do
@@ -31,6 +32,26 @@ skontrolowania także po wycofaniu kodu z bieżącego użycia.
 
 Etykiety w poszczególnych językach edytuje się w każdym wierszu. Odczyt dla storefrontu wybiera
 żądany język, jeśli jest dostępny, a gdy tłumaczenia brakuje — etykietę domyślną.
+
+## Katalog języków
+
+Zakładka Languages zawiera wszystkie języki ISO 639-1 — 183 kody dwuliterowe — obok dwóch języków
+regionalnych dostarczanych z platformą: `en-US` i `pl-PL`. Przy każdym języku widać kraje, w których
+jest używany, w postaci kodów krajów. Listę można przeszukiwać po kodzie, nazwie lub kraju,
+filtrować według statusu i przeglądać stronami.
+
+**Język na liście jest dostępny, a nie aktywny.** Katalog trafia do słownika jako nieaktywny. Tylko
+aktywny język jest proponowany w kanałach sprzedaży, pojawia się w rejestrze dla storefrontu i w
+`GET /api/v1/i18n/config` oraz może otrzymać przetłumaczoną etykietę. Aby zacząć używać języka,
+aktywuj go w jego wierszu. Znacznik regionalny, którego katalog nie zawiera, na przykład `de-AT` lub
+`pt-BR`, nadal tworzy się przyciskiem **Add language**.
+
+Katalog to dane słownikowe uzupełniane przy starcie backendu, więc instalacja starsza niż katalog
+otrzyma go przy pierwszym uruchomieniu po aktualizacji. Uzupełnianie tylko wstawia brakujące wiersze:
+wiersz, który został zmieniony lub aktywowany, nigdy nie jest nadpisywany, a usunięty wiersz katalogu
+wraca przy następnym starcie — zamiast usuwać, pozostaw go nieaktywnym. Język jest wiązany tylko z
+krajami obecnymi w zakładce Countries; po dodaniu kraju jego języki zostaną powiązane przy następnym
+starcie.
 
 ## Rejestr dla storefrontu
 

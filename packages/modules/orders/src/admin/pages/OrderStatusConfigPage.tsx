@@ -84,7 +84,10 @@ export function OrderStatusConfigPage(): ReactNode {
     try {
       const [graphRes, langRes] = await Promise.all([
         apiClient.get<{ data: StatusGraph }>('/api/v1/admin/orders/statuses'),
-        listDictionaryLanguages(100).catch(() => ({ data: [] })),
+        // The endpoint's own maximum, not a round number: the dictionary lists
+        // every ISO 639-1 language and only the active ones are kept below, so
+        // a page smaller than the dictionary could cut an active language off.
+        listDictionaryLanguages(250).catch(() => ({ data: [] })),
       ]);
       setGraph(graphRes.data);
       setLanguages(

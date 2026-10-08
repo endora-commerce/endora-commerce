@@ -48,6 +48,7 @@ interface StubExt {
   isComparable?: boolean;
   quickSearchable?: boolean;
   isPromoRule?: boolean;
+  isPriceRule?: boolean;
   filterPosition?: number;
   isVisibleOnProductPage?: boolean;
   channelScoped?: boolean;
@@ -99,6 +100,7 @@ function makeExtension(ext: StubExt): ProductAttributeRow {
     isComparable: ext.isComparable ?? false,
     quickSearchable: ext.quickSearchable ?? false,
     isPromoRule: ext.isPromoRule ?? false,
+    isPriceRule: ext.isPriceRule ?? false,
     filterPosition: ext.filterPosition ?? 0,
     isVisibleOnProductPage: ext.isVisibleOnProductPage ?? false,
     channelScoped: ext.channelScoped ?? false,
@@ -206,7 +208,7 @@ describe('CatalogAttributeReadService (feature 061, T014)', () => {
     { id: 'ext-finish', customFieldDefinitionId: 'def-finish', selectDisplay: 'dropdown' },
     { id: 'ext-notes', customFieldDefinitionId: 'def-notes', quickSearchable: true },
     { id: 'ext-weight', customFieldDefinitionId: 'def-weight', numericKind: 'number', displayAsSlider: true },
-    { id: 'ext-msrp', customFieldDefinitionId: 'def-msrp', numericKind: 'price' },
+    { id: 'ext-msrp', customFieldDefinitionId: 'def-msrp', numericKind: 'price', isPriceRule: true },
     { id: 'ext-tags', customFieldDefinitionId: 'def-tags', isFilterable: true },
     { id: 'ext-active', customFieldDefinitionId: 'def-active' },
     { id: 'ext-release', customFieldDefinitionId: 'def-release' },
@@ -296,6 +298,15 @@ describe('CatalogAttributeReadService (feature 061, T014)', () => {
     expect(filterable.map((v) => v.key)).toEqual(['color', 'tags']);
     const quick = await service.listByFlag('quickSearchable');
     expect(quick.map((v) => v.key)).toEqual(['notes']);
+  });
+
+  it('exposes isPriceRule on the view and lists by it', async () => {
+    const service = makeService(defs, exts);
+    const all = await service.listAll();
+    expect(all.find((v) => v.key === 'msrp')!.isPriceRule).toBe(true);
+    expect(all.find((v) => v.key === 'color')!.isPriceRule).toBe(false);
+    const priceRule = await service.listByFlag('isPriceRule');
+    expect(priceRule.map((v) => v.key)).toEqual(['msrp']);
   });
 
   it('optionLabelIndex maps key → value → labels', async () => {

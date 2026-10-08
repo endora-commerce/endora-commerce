@@ -311,9 +311,9 @@ describe('nonBindingDependencies — the declared degradation, with the owner of
    * was a behaviour no operator could be told about.
    *
    * The env toggle is what makes the flip load-bearing: with
-   * `CATALOG_SEARCH_BACKEND` unset the listing reads Postgres whatever
-   * `search`'s state is, so the assertion would hold for a route that never
-   * asked. The second case is the other half — the gate really does refuse,
+   * `CATALOG_SEARCH_BACKEND` unset a listing that carries no search phrase —
+   * which this one does not — reads Postgres whatever `search`'s state is, so
+   * the assertion would hold for a route that never asked. The second case is the other half — the gate really does refuse,
    * so what keeps the listing serving is the presence probe in front of it and
    * not the absence of one.
    */

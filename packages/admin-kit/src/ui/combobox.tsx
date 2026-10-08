@@ -50,6 +50,18 @@ export interface ComboboxProps<T = string> {
   name?: string;
   className?: string;
   ariaLabel?: string;
+  /**
+   * Ids of the elements describing the field — its help text and, while
+   * `invalid`, its error message. Forwarded to `aria-describedby`.
+   */
+  ariaDescribedBy?: string | undefined;
+  /**
+   * Marks the field as failing validation: `aria-invalid` for assistive
+   * technology and a destructive border. The message itself is the caller's to
+   * render and to link through `ariaDescribedBy` — a border alone says nothing
+   * to somebody who cannot see its colour.
+   */
+  invalid?: boolean;
   filter?: (option: ComboboxOption<T>, normalizedQuery: string) => boolean;
   renderOption?: (option: ComboboxOption<T>, state: { selected: boolean; active: boolean }) => ReactNode;
   /**
@@ -73,7 +85,7 @@ export interface ComboboxProps<T = string> {
   selectedLabel?: string;
 }
 
-function defaultFilter<T>(option: ComboboxOption<T>, normalizedQuery: string): boolean {
+export function defaultComboboxFilter<T>(option: ComboboxOption<T>, normalizedQuery: string): boolean {
   if (normalizedQuery === '') return true;
   const haystack = `${normalize(option.label)} ${normalize(option.description ?? '')}`;
   return haystack.includes(normalizedQuery);
@@ -98,6 +110,8 @@ function ComboboxInner<T>(
     name,
     className,
     ariaLabel,
+    ariaDescribedBy,
+    invalid = false,
     filter,
     renderOption,
     onSearchChange,
@@ -142,7 +156,7 @@ function ComboboxInner<T>(
   const filtered = useMemo(() => {
     if (manualFilter) return options;
     const normalizedQuery = normalize(query);
-    const filterFn = filter ?? defaultFilter;
+    const filterFn = filter ?? defaultComboboxFilter;
     return options.filter((opt) => filterFn(opt, normalizedQuery));
   }, [options, query, filter, manualFilter]);
 
@@ -265,6 +279,8 @@ function ComboboxInner<T>(
             open && filtered[activeIndex] ? `${listboxId}-option-${activeIndex}` : undefined
           }
           aria-label={ariaLabel}
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={invalid || undefined}
           autoComplete="off"
           spellCheck={false}
           disabled={disabled}
@@ -278,12 +294,22 @@ function ComboboxInner<T>(
           }}
           onFocus={openMenu}
           onClick={openMenu}
+          onBlur={(e): void => {
+            // Focus moving on — Tab, or a click that lands on another field —
+            // closes the listbox. Options and the clear button keep focus in
+            // the input (`preventDefault` on mousedown), so they never get
+            // here; without this a form tabbed through left every listbox it
+            // had passed standing open over the fields below.
+            if (containerRef.current?.contains(e.relatedTarget)) return;
+            closeMenu();
+          }}
           onKeyDown={onKeyDown}
           className={cn(
             'flex h-9 w-full rounded-md border border-input bg-transparent pl-3 pr-16 py-1 text-sm shadow-sm transition-colors',
             'placeholder:text-muted-foreground',
             'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
             'disabled:cursor-not-allowed disabled:opacity-50',
+            invalid ? 'border-destructive' : '',
           )}
         />
         <div className="absolute inset-y-0 right-0 flex items-center gap-1 pr-2">
@@ -340,6 +366,7 @@ function ComboboxInner<T>(
                   id={optionId}
                   role="option"
                   data-index={idx}
+                  data-value={String(opt.value)}
                   aria-selected={selected}
                   aria-disabled={opt.disabled || undefined}
                   onMouseDown={(e): void => e.preventDefault()}

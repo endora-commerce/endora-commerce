@@ -24,10 +24,17 @@ automatycznie dostaje kanał `default`).
    - **Display name** — obecnie jeden tekst w `en-US`; obsługa wielu języków zostanie dodana
      później.
    - **Theme code** *(opcjonalne)* — identyfikator, na podstawie którego storefront wybiera motyw.
-   - **Languages** — rozdzielone przecinkami albo w osobnych wierszach. Kody muszą już istnieć w
-     rejestrze języków modułu i18n.
-   - **Default language** — musi być jednym z powyższych języków.
-   - **Currencies** / **Default currency** — tak samo; kody muszą istnieć w rejestrze walut.
+   - **Languages** — lista wielokrotnego wyboru z wyszukiwaniem, obejmująca aktywne wpisy
+     Słownika języków. Wpisz fragment kodu (`pl-`) albo nazwy (`Polish`, `Polski`), aby zawęzić
+     listę; pozycję dodasz klawiszem **Enter** albo kliknięciem, a usuniesz znakiem **×** na jej
+     etykiecie albo klawiszem **Backspace** w pustym polu wyszukiwania. Wymagany jest co najmniej
+     jeden język.
+   - **Default language** — lista wyboru z wyszukiwaniem, w której są tylko języki wybrane powyżej.
+     Usunięcie języka, który jest obecnie domyślny, czyści to pole: formularz o tym informuje i nie
+     da się go zapisać, dopóki ponownie nie wskażesz języka domyślnego — nigdy nie wybiera go za
+     Ciebie.
+   - **Currencies** / **Default currency** — te same dwie kontrolki dla Słownika walut, z tą samą
+     regułą dla wartości domyślnej.
    - **Active** *(domyślnie `true`)*.
 3. Kliknij **Create channel**. System odrzuci operację, gdy kod jest już używany albo którykolwiek kod
    języka lub waluty jest nieznany.

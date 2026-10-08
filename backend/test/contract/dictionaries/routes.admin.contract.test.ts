@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { dictionaryCountriesPageResponseSchema } from '@endora-commerce/contracts';
+import {
+  dictionaryCountriesPageResponseSchema,
+  dictionaryLanguagesPageResponseSchema,
+} from '@endora-commerce/contracts';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -81,6 +84,50 @@ describe('Dictionary admin routes (feature 017 / US1)', () => {
       cookies: adminCookie,
     });
     expect(del.statusCode).toBe(204);
+  });
+
+  it('lists the whole language catalogue in one page, each language with its countries', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/dictionary/languages?pageSize=250',
+      cookies: adminCookie,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = dictionaryLanguagesPageResponseSchema.parse(res.json());
+    // 183 ISO 639-1 languages beside the two regional ones the platform ships.
+    expect(body.pagination.total).toBeGreaterThanOrEqual(185);
+    expect(body.data).toHaveLength(body.pagination.total);
+
+    const byCode = new Map(body.data.map((row) => [row.code, row]));
+    expect(byCode.get('de')).toMatchObject({
+      label: 'German',
+      nativeLabel: 'Deutsch',
+      isActive: false,
+      isDefault: false,
+    });
+    expect(byCode.get('de')?.countries).toEqual(
+      expect.arrayContaining(['AT', 'CH', 'DE']),
+    );
+    expect(byCode.get('ar')?.isRtl).toBe(true);
+    // Available, not active: nothing the catalogue adds is switched on.
+    const catalogue = body.data.filter((row) => /^[a-z]{2}$/.test(row.code));
+    expect(catalogue.filter((row) => row.isActive)).toEqual([]);
+    // The shipped languages sort first, so the catalogue never buries them.
+    expect(body.data.slice(0, 2).map((row) => row.code)).toEqual(['en-US', 'pl-PL']);
+    expect(byCode.get('en-US')?.countries).toEqual(
+      expect.arrayContaining(['AU', 'CA', 'GB', 'IE', 'NZ', 'US']),
+    );
+  });
+
+  it('finds a catalogue language by its native label', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/dictionary/languages?search=${encodeURIComponent('Deutsch')}`,
+      cookies: adminCookie,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().data.map((row: { code: string }) => row.code)).toEqual(['de']);
   });
 
   it('manages currencies and languages through the extended dictionary surface', async () => {

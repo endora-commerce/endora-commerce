@@ -49,7 +49,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@endora-commerce/admin-kit": "workspace:*",
@@ -94,6 +95,7 @@
     "react": "^19.2.5",
     "react-router-dom": "^7.18.2",
     "typescript": "^5.9.3",
+    "vitest": "^4.1.11",
     "zod": "^4.2.0"
   }
 }

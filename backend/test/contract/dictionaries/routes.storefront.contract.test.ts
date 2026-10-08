@@ -58,5 +58,13 @@ describe('Dictionary storefront routes (feature 017 / US2)', () => {
     expect(missing.statusCode).toBe(404);
     expect(missing.json().error.code).toBe('DICTIONARY_ENTRY_NOT_FOUND');
   });
-});
 
+  it('keeps the language catalogue out of the registry until a language is activated', async () => {
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/dictionary?locale=en-US' });
+    const body = dictionaryRegistryResponseSchema.parse(res.json());
+    expect(body.data.languages.filter((language) => /^[a-z]{2}$/.test(language.code))).toEqual([]);
+    expect(body.data.languages.map((language) => language.code)).toEqual(
+      expect.arrayContaining(['en-US']),
+    );
+  });
+});

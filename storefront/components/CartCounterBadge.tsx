@@ -3,12 +3,15 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
+import { loadCartItemCount } from '../lib/cartCount';
 
 /**
  * Header cart icon + count badge — client component that hydrates with
- * the count fetched server-side in `app/layout.tsx` and then re-fetches the
+ * the count fetched server-side in `app/layout.tsx` and then re-reads the
  * live count on mount, on every client-side navigation, and whenever the
- * page dispatches the `b2b:cart:changed` custom event.
+ * page dispatches the `b2b:cart:changed` custom event. The re-read goes
+ * through `loadCartItemCount` — a server action — never to the backend origin
+ * from the browser, which does not hold the buyer's cart cookies.
  *
  * Why re-fetch on navigation: the badge lives in the root layout, whose
  * Server Component is NOT re-run on soft (client-side) navigations, so the
@@ -19,7 +22,6 @@ import { useEffect, useState, type ReactNode } from 'react';
  */
 export function CartCounterBadge(props: {
   initialCount: number;
-  apiBase: string;
   /** aria-label shown when the cart is empty (e.g. "Koszyk"). */
   emptyAriaLabel: string;
   /**
@@ -43,16 +45,11 @@ export function CartCounterBadge(props: {
     let cancelled = false;
     const refresh = async (): Promise<void> => {
       try {
-        const res = await fetch(`${props.apiBase}/api/v1/cart?view=mini`, {
-          method: 'GET',
-          credentials: 'include',
-          headers: { Accept: 'application/json' },
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const payload = (await res.json()) as { data?: { itemCount?: number } };
-        const next = payload.data?.itemCount;
-        if (!cancelled && typeof next === 'number') setCount(next);
+        // Through the storefront's own server: the cart identity cookies are
+        // httpOnly and scoped to this origin, so a browser fetch to the
+        // backend origin is answered for a caller with no cart.
+        const next = await loadCartItemCount();
+        if (!cancelled && next !== null) setCount(next);
       } catch {
         // Swallow — the badge stays at its current value rather than flashing 0.
       }
@@ -67,7 +64,7 @@ export function CartCounterBadge(props: {
       cancelled = true;
       window.removeEventListener('b2b:cart:changed', onChanged);
     };
-  }, [props.apiBase, pathname]);
+  }, [pathname]);
 
   const ariaLabel =
     count > 0

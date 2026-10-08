@@ -14,7 +14,21 @@ import {
   type SalesChannelDetail,
 } from '@endora-commerce/contracts';
 import { apiClient } from '@endora-commerce/admin-kit/lib';
-import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Input, Label, Select } from '@endora-commerce/admin-kit/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  Combobox,
+  Input,
+  Label,
+  MultiCombobox,
+  type ComboboxOption,
+} from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 
 /**
@@ -23,6 +37,21 @@ import { useTranslation } from '@endora-commerce/admin-kit/i18n';
  * Captures the identity surface of a Sales Channel for both the create
  * page and the edit page. Language and currency scopes are selected from
  * Dictionary entries and submitted as the existing contract arrays.
+ *
+ * **Languages** and **Currencies** are searchable multi-selects, and the two
+ * defaults are searchable single selects over what is currently selected
+ * beside them. The Dictionary holds a couple of hundred languages, which is
+ * past the point where a list of checkboxes can be scanned (Hick's Law): the
+ * operator types a code or a name instead, and reads the selection back as
+ * chips rather than hunting for ticks in a scroll box.
+ *
+ * **A default that leaves the selected set is cleared, never re-pointed.** The
+ * form used to promote whichever entry happened to be first, which changes the
+ * language a storefront serves at `/` — or the currency it prices in — without
+ * the operator having chosen it. Now the default goes empty, the field says
+ * why, and the form does not submit until one is picked. Selecting the removed
+ * entry again does not restore it either: the form does not remember a choice
+ * it has just reported as gone.
  *
  * The i18n display name is captured as a single `en-US` string for
  * v1 (matches the test-server seed). A multi-locale editor lands as
@@ -97,6 +126,8 @@ export function ChannelIdentityForm({
   const [active, setActive] = useState(initial?.active ?? true);
   const [dictionaryLanguages, setDictionaryLanguages] = useState<DictionaryLanguage[]>([]);
   const [dictionaryCurrencies, setDictionaryCurrencies] = useState<DictionaryCurrency[]>([]);
+  const [dictionaryStatus, setDictionaryStatus] = useState<DictionaryStatus>('loading');
+  const [dictionaryAttempt, setDictionaryAttempt] = useState(0);
 
   // Re-seed when the underlying entity changes (typical on first GET response after mount).
   useEffect(() => {
@@ -113,6 +144,7 @@ export function ChannelIdentityForm({
 
   useEffect(() => {
     let cancelled = false;
+    setDictionaryStatus('loading');
     void Promise.all([
       listDictionary<DictionaryLanguagesPageResponse>('languages', 250),
       listDictionary<DictionaryCurrenciesPageResponse>('currencies', 250),
@@ -121,53 +153,61 @@ export function ChannelIdentityForm({
         if (cancelled) return;
         setDictionaryLanguages(languagePage.data);
         setDictionaryCurrencies(currencyPage.data);
+        setDictionaryStatus('ready');
       })
       .catch(() => {
         if (cancelled) return;
         setDictionaryLanguages([]);
         setDictionaryCurrencies([]);
+        setDictionaryStatus('error');
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [dictionaryAttempt]);
 
-  useEffect(() => {
-    if (languages.length > 0 && !languages.includes(defaultLanguage)) {
-      setDefaultLanguage(languages[0] ?? '');
-    }
-  }, [defaultLanguage, languages]);
+  // Only a loaded Dictionary can say a stored code is inactive; while it is
+  // loading, or after it failed, a code it has not described is just a code.
+  const inactiveSuffix = dictionaryStatus === 'ready' ? t('identity.dictionary.inactive') : null;
 
-  useEffect(() => {
-    if (currencies.length > 0 && !currencies.includes(defaultCurrency)) {
-      setDefaultCurrency(currencies[0] ?? '');
-    }
-  }, [currencies, defaultCurrency]);
-
-  const languageRows = useMemo(
-    () => mergeSelectedDictionaryRows(dictionaryLanguages, languages),
-    [dictionaryLanguages, languages],
+  const languageOptions = useMemo(
+    () => buildOptions(dictionaryLanguages, languages, inactiveSuffix),
+    [dictionaryLanguages, languages, inactiveSuffix],
   );
-  const currencyRows = useMemo(
-    () => mergeSelectedDictionaryRows(dictionaryCurrencies, currencies),
-    [dictionaryCurrencies, currencies],
+  const currencyOptions = useMemo(
+    () => buildOptions(dictionaryCurrencies, currencies, inactiveSuffix),
+    [dictionaryCurrencies, currencies, inactiveSuffix],
   );
 
-  const toggleLanguage = (language: string): void => {
-    setLanguages((prev) =>
-      prev.includes(language) ? prev.filter((code) => code !== language) : [...prev, language],
-    );
+  // The defaults are a pure function of the handlers below, not an effect
+  // chasing the lists: an effect would also fire on the re-seed above and on
+  // every unrelated render, and "the default was cleared" has to be traceable
+  // to the one thing the operator did.
+  const changeLanguages = (next: string[]): void => {
+    setLanguages(next);
+    if (!next.includes(defaultLanguage)) setDefaultLanguage('');
   };
 
-  const toggleCurrency = (currency: string): void => {
-    setCurrencies((prev) =>
-      prev.includes(currency) ? prev.filter((code) => code !== currency) : [...prev, currency],
-    );
+  const changeCurrencies = (next: string[]): void => {
+    setCurrencies(next);
+    if (!next.includes(defaultCurrency)) setDefaultCurrency('');
   };
+
+  const languagesMissing = languages.length === 0;
+  const currenciesMissing = currencies.length === 0;
+  // With nothing selected there is nothing to choose a default from, so the
+  // one message shown is the one that can be acted on (the list's own).
+  const defaultLanguageMissing = !languagesMissing && !languages.includes(defaultLanguage);
+  const defaultCurrencyMissing = !currenciesMissing && !currencies.includes(defaultCurrency);
+  const invalid =
+    languagesMissing || currenciesMissing || defaultLanguageMissing || defaultCurrencyMissing;
 
   const handleSubmit = useCallback(
     (e: FormEvent): void => {
       e.preventDefault();
+      // The submit button is disabled while `invalid`, but a form is also
+      // submitted by Enter in a text field and by anything calling `submit()`.
+      if (invalid) return;
       onSubmit({
         code: code.trim(),
         name: name.trim(),
@@ -180,6 +220,7 @@ export function ChannelIdentityForm({
       });
     },
     [
+      invalid,
       onSubmit,
       code,
       name,
@@ -192,7 +233,7 @@ export function ChannelIdentityForm({
     ],
   );
 
-  const cannotSubmit = saving || languages.length === 0 || currencies.length === 0;
+  const cannotSubmit = saving || invalid;
 
   return (
     <Card>
@@ -263,61 +304,127 @@ export function ChannelIdentityForm({
             <p className="text-xs text-muted-foreground">{t('identity.theme.help')}</p>
           </div>
 
-          <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
+          {dictionaryStatus === 'error' && (
+            <Alert variant="destructive">
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+                <span>{t('identity.dictionary.loadError')}</span>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDictionaryAttempt((n) => n + 1)}
+                >
+                  {t('identity.dictionary.retry')}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid items-start gap-2 md:grid-cols-[2fr_1fr]">
             <div className="grid gap-2">
-              <Label>{t('identity.languages.label')}</Label>
-              <DictionaryCheckboxList
-                rows={languageRows}
-                selected={languages}
-                onToggle={toggleLanguage}
+              <Label id="sc-languages-label" htmlFor="sc-languages">
+                {t('identity.languages.label')}
+              </Label>
+              <MultiCombobox
+                id="sc-languages"
+                ariaLabelledBy="sc-languages-label"
+                ariaDescribedBy={describedBy(
+                  'sc-languages-help',
+                  languagesMissing && 'sc-languages-error',
+                )}
+                invalid={languagesMissing}
+                options={languageOptions.available}
+                value={languages}
+                onChange={changeLanguages}
+                loading={dictionaryStatus === 'loading'}
+                loadingMessage={t('identity.dictionary.loading')}
+                placeholder={t('identity.languages.placeholder')}
+                emptyMessage={
+                  languageOptions.available.length === 0
+                    ? t('identity.dictionary.empty')
+                    : t('identity.languages.noMatches')
+                }
               />
-              <p className="text-xs text-muted-foreground">{t('identity.languages.help')}</p>
+              {languagesMissing && (
+                <FieldError id="sc-languages-error">{t('identity.languages.required')}</FieldError>
+              )}
+              <p id="sc-languages-help" className="text-xs text-muted-foreground">
+                {t('identity.languages.help')}
+              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="sc-default-lang">{t('identity.defaultLanguage.label')}</Label>
-              <Select
+              <Combobox
                 id="sc-default-lang"
-                value={defaultLanguage}
-                onChange={(e) => setDefaultLanguage(e.target.value)}
-              >
-                <option value="" disabled>
-                  {t('identity.pickOption')}
-                </option>
-                {languages.map((lang) => (
-                  <option key={lang} value={lang}>
-                    {lang}
-                  </option>
-                ))}
-              </Select>
+                ariaDescribedBy={describedBy(defaultLanguageMissing && 'sc-default-lang-error')}
+                invalid={defaultLanguageMissing}
+                options={languageOptions.selected}
+                value={defaultLanguage === '' ? null : defaultLanguage}
+                onChange={(next) => setDefaultLanguage(next ?? '')}
+                clearable={false}
+                disabled={languagesMissing}
+                placeholder={t('identity.pickOption')}
+                emptyMessage={t('identity.languages.noMatches')}
+              />
+              {defaultLanguageMissing && (
+                <FieldError id="sc-default-lang-error">
+                  {t('identity.defaultLanguage.required')}
+                </FieldError>
+              )}
             </div>
           </div>
 
-          <div className="grid gap-2 md:grid-cols-[2fr_1fr]">
+          <div className="grid items-start gap-2 md:grid-cols-[2fr_1fr]">
             <div className="grid gap-2">
-              <Label>{t('identity.currencies.label')}</Label>
-              <DictionaryCheckboxList
-                rows={currencyRows}
-                selected={currencies}
-                onToggle={toggleCurrency}
+              <Label id="sc-currencies-label" htmlFor="sc-currencies">
+                {t('identity.currencies.label')}
+              </Label>
+              <MultiCombobox
+                id="sc-currencies"
+                ariaLabelledBy="sc-currencies-label"
+                ariaDescribedBy={describedBy(
+                  'sc-currencies-help',
+                  currenciesMissing && 'sc-currencies-error',
+                )}
+                invalid={currenciesMissing}
+                options={currencyOptions.available}
+                value={currencies}
+                onChange={changeCurrencies}
+                loading={dictionaryStatus === 'loading'}
+                loadingMessage={t('identity.dictionary.loading')}
+                placeholder={t('identity.currencies.placeholder')}
+                emptyMessage={
+                  currencyOptions.available.length === 0
+                    ? t('identity.dictionary.empty')
+                    : t('identity.currencies.noMatches')
+                }
               />
-              <p className="text-xs text-muted-foreground">{t('identity.currencies.help')}</p>
+              {currenciesMissing && (
+                <FieldError id="sc-currencies-error">{t('identity.currencies.required')}</FieldError>
+              )}
+              <p id="sc-currencies-help" className="text-xs text-muted-foreground">
+                {t('identity.currencies.help')}
+              </p>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="sc-default-curr">{t('identity.defaultCurrency.label')}</Label>
-              <Select
+              <Combobox
                 id="sc-default-curr"
-                value={defaultCurrency}
-                onChange={(e) => setDefaultCurrency(e.target.value)}
-              >
-                <option value="" disabled>
-                  {t('identity.pickOption')}
-                </option>
-                {currencies.map((curr) => (
-                  <option key={curr} value={curr}>
-                    {curr}
-                  </option>
-                ))}
-              </Select>
+                ariaDescribedBy={describedBy(defaultCurrencyMissing && 'sc-default-curr-error')}
+                invalid={defaultCurrencyMissing}
+                options={currencyOptions.selected}
+                value={defaultCurrency === '' ? null : defaultCurrency}
+                onChange={(next) => setDefaultCurrency(next ?? '')}
+                clearable={false}
+                disabled={currenciesMissing}
+                placeholder={t('identity.pickOption')}
+                emptyMessage={t('identity.currencies.noMatches')}
+              />
+              {defaultCurrencyMissing && (
+                <FieldError id="sc-default-curr-error">
+                  {t('identity.defaultCurrency.required')}
+                </FieldError>
+              )}
             </div>
           </div>
 
@@ -354,55 +461,76 @@ export function ChannelIdentityForm({
   );
 }
 
+type DictionaryStatus = 'loading' | 'ready' | 'error';
+
 interface DictionaryRow {
   code: string;
   label: string;
+  /** Languages carry the language's own name for itself; currencies do not. */
+  nativeLabel?: string;
   isActive: boolean;
 }
 
-function mergeSelectedDictionaryRows<T extends DictionaryRow>(rows: T[], selected: string[]): T[] {
-  const byCode = new Map(rows.map((row) => [row.code, row]));
-  const merged: T[] = [...rows];
-  for (const code of selected) {
-    if (!byCode.has(code)) {
-      merged.push({ code, label: code, isActive: false } as T);
-    }
-  }
-  return merged;
+interface DictionaryOptions {
+  /** What the multi-select offers: every active entry, plus whatever is selected. */
+  available: ComboboxOption[];
+  /** What the default's select offers: the selection, in the order it was made. */
+  selected: ComboboxOption[];
 }
 
-function DictionaryCheckboxList({
-  rows,
-  selected,
-  onToggle,
-}: {
-  rows: DictionaryRow[];
-  selected: string[];
-  onToggle: (code: string) => void;
-}): ReactNode {
-  const t = useTranslation('sales_channels');
-  const activeRows = rows.filter((row) => row.isActive);
-  const inactiveSelected = rows.filter((row) => !row.isActive && selected.includes(row.code));
-  const visibleRows = [...activeRows, ...inactiveSelected];
+/**
+ * One option per Dictionary entry, labelled `code — name` so that both halves
+ * are searchable and both are legible on a chip. A language's own name for
+ * itself goes in the description, which the pickers search as well: `Polski`
+ * finds `pl-PL — Polish`.
+ *
+ * A stored code the Dictionary has since deactivated — or no longer carries —
+ * stays offered while it is selected, marked with `inactiveSuffix`, so opening
+ * the form never drops it and the operator can see why it cannot be re-added.
+ */
+function buildOptions(
+  rows: DictionaryRow[],
+  selectedCodes: string[],
+  inactiveSuffix: string | null,
+): DictionaryOptions {
+  const byCode = new Map(rows.map((row) => [row.code, row]));
+  const toOption = (code: string): ComboboxOption => {
+    const row = byCode.get(code);
+    const name = row ? `${code} — ${row.label}` : code;
+    const inactive = row ? !row.isActive : true;
+    return {
+      value: code,
+      label: inactive && inactiveSuffix ? `${name} ${inactiveSuffix}` : name,
+      ...(row?.nativeLabel && row.nativeLabel !== row.label ? { description: row.nativeLabel } : {}),
+    };
+  };
+  const selected = [...new Set(selectedCodes)];
+  return {
+    available: [
+      ...rows.filter((row) => row.isActive).map((row) => toOption(row.code)),
+      ...selected.filter((code) => byCode.get(code)?.isActive !== true).map(toOption),
+    ],
+    selected: selected.map(toOption),
+  };
+}
 
+/** `aria-describedby` from whichever of its parts currently exist. */
+function describedBy(...ids: Array<string | false>): string | undefined {
+  const present = ids.filter((id): id is string => typeof id === 'string');
+  return present.length > 0 ? present.join(' ') : undefined;
+}
+
+/**
+ * A field's validation message. `role="alert"` because it appears as the
+ * consequence of something the operator just did in a *different* control —
+ * removing a language is what empties the default — so it has to be announced
+ * rather than waited for. The sentence is the carrier; its colour only agrees
+ * with it, and the field is marked `aria-invalid` and points here.
+ */
+function FieldError({ id, children }: { id: string; children: ReactNode }): ReactNode {
   return (
-    <div className="max-h-48 overflow-auto rounded-md border p-3">
-      {visibleRows.map((row) => (
-        <label key={row.code} className="flex items-center gap-2 py-1 text-sm">
-          <Checkbox
-            checked={selected.includes(row.code)}
-            onChange={() => onToggle(row.code)}
-          />
-          <span className="font-mono text-xs">{row.code}</span>
-          <span>{row.label}</span>
-          {!row.isActive ? (
-            <span className="text-xs text-muted-foreground">{t('identity.dictionary.inactive')}</span>
-          ) : null}
-        </label>
-      ))}
-      {visibleRows.length === 0 ? (
-        <p className="text-xs text-muted-foreground">{t('identity.dictionary.empty')}</p>
-      ) : null}
-    </div>
+    <p id={id} role="alert" className="text-xs font-medium text-destructive">
+      {children}
+    </p>
   );
 }

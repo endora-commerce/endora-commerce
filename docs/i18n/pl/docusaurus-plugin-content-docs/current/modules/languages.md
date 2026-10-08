@@ -45,6 +45,10 @@ Migracja `20260425T161557_languages_currencies_init.ts` wstawia dwa wiersze, aby
 - `en-US` — domyślny, aktywny
 - `pl-PL` — aktywny
 
+Obok nich mechanizm uzupełniania danych modułu słowników dodaje przy starcie wszystkie języki
+ISO 639-1 jako **nieaktywne**, przez port `languageSeedPort` tego modułu. Nieaktywny język można
+wybrać i aktywować w panelu; nie jest częścią `i18n/config`, dopóki operator go nie aktywuje.
+
 Wartości `label` i `symbol` (dla walut) widoczne dla klientów są zapisane literałami Unicode
 Postgresa `U&'…'`, aby plik migracji pozostał wyłącznie w ASCII (artefakty inżynierskie pozostają po
 angielsku i w ASCII; wiersz w bazie odpowiada temu, co ma wyświetlić storefront).

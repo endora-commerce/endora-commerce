@@ -94,6 +94,7 @@ import { Migration20260804T160244CatalogCategoryActivation } from '@endora-comme
 import { Migration20260912T094557CatalogSalesChannelProducts } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20260912T094623CatalogSalesChannelCategories } from '@endora-commerce/mod-catalog/migrations';
 import { Migration20260925T125527CatalogInventoryColumns } from '@endora-commerce/mod-catalog/migrations';
+import { Migration20261008T080839CatalogProductAttributeIsPriceRule } from '@endora-commerce/mod-catalog/migrations';
 
 // ── cms ─────────────────────────────────────────────────────────────────────
 import { Migration20260425T162418CmsPagesInit } from '@endora-commerce/mod-cms/migrations';
@@ -393,6 +394,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('catalog', Migration20260912T094557CatalogSalesChannelProducts),
   migration('catalog', Migration20260912T094623CatalogSalesChannelCategories),
   migration('catalog', Migration20260925T125527CatalogInventoryColumns),
+  migration('catalog', Migration20261008T080839CatalogProductAttributeIsPriceRule),
 
   // ── cms ─────────────────────────────────────────────────────────────────────
   migration('cms', Migration20260425T162418CmsPagesInit),
