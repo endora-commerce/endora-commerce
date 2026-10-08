@@ -1,13 +1,14 @@
 /**
- * `crm`'s admin surface — seven routes and five sidebar rows
+ * `crm`'s admin surface — eight routes and six sidebar rows
  * (`specs/143-crm-sales-opportunities/contracts/admin-surfaces.md` §1–§2).
  *
- * **A sidebar group of its own.** All five rows sit in the host's `crm` section
+ * **A sidebar group of its own.** All six rows sit in the host's `crm` section
  * (owner ruling of 2026-10-05), not under *Sales*: the section, its heading and
  * its position are the shell's, and a module joins it by naming it.
  *
  * **Only what has shipped** — User Story 1's four screens, User Story 7's
- * board, User Story 6's tag list and User Story 13's analytics. A sidebar or
+ * board, User Story 6's tag list, User Story 13's analytics and User Story 22's
+ * calendar. A sidebar or
  * palette entry pointing at a route that does not exist is a defect
  * (Principle XVI), so each arrived with the story that shipped its page.
  *
@@ -49,6 +50,7 @@ const WORKFLOW_PATH = '/crm/workflow';
 const BOARD_PATH = '/crm/board';
 const TAGS_PATH = '/crm/tags';
 const ANALYTICS_PATH = '/crm/analytics';
+const CALENDAR_PATH = '/crm/calendar';
 
 export const contributions: AdminContributions = {
   routes: [
@@ -97,6 +99,14 @@ export const contributions: AdminContributions = {
       component: () => import('./pages/AnalyticsPage.js'),
       requiredPermission: ANALYTICS_PERMISSION,
     },
+    {
+      // `GET /calendar/events` is `crm:read`, and the screen holds no write:
+      // an Event is added on its Opportunity. Whose Events a reader sees is
+      // decided by the server from their reach, not by a code of its own.
+      path: CALENDAR_PATH,
+      component: () => import('./pages/CalendarPage.js'),
+      requiredPermission: READ_PERMISSION,
+    },
   ],
   nav: [
     {
@@ -113,6 +123,16 @@ export const contributions: AdminContributions = {
       icon: 'PanelLeft',
       section: 'crm',
       weight: 200,
+      requiredPermission: READ_PERMISSION,
+    },
+    {
+      // Between Board and Analytics: the three screens of every day first,
+      // then the manager's, then the two that configure.
+      to: CALENDAR_PATH,
+      labelKey: 'nav.calendar.label',
+      icon: 'CalendarDays',
+      section: 'crm',
+      weight: 250,
       requiredPermission: READ_PERMISSION,
     },
     {

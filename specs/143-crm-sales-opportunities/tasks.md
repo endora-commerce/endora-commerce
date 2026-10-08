@@ -1171,24 +1171,24 @@ what it found; `[P]` means parallel inside its own track.
 
 ### Tests first (each seen red for the stated reason)
 
-- [ ] T360 [P] [US22] `packages/modules/crm/src/admin/lib/calendar/date-math.test.ts` — the
+- [x] T360 [P] [US22] `packages/modules/crm/src/admin/lib/calendar/date-math.test.ts` — the
   month grid (six rows of seven from Monday, for a month starting on a Monday, on a Sunday,
   and February of a leap year), the week of a date, the agenda's 30 days, the request range
   one day wider each side and never over 45 days, previous / next per view, the range
   title, the day key of an instant in local time across the two DST days, an all-day Event
   placed by `allDayDate` whatever the local zone.
-- [ ] T361 [P] [US22] `packages/modules/crm/src/admin/lib/calendar/layout.test.ts` — a
+- [x] T361 [P] [US22] `packages/modules/crm/src/admin/lib/calendar/layout.test.ts` — a
   day's timed entries: none overlapping (one lane each, full width); two overlapping (two
   lanes); a chain A–B–C where A and C do not meet (two lanes, C back in the first); six at
   once; a 15-minute entry at the minimum height; an entry past local midnight cut and
   flagged; top and height from start and length. The month cell: three shown and the rest
   counted, all-day first.
-- [ ] T362 [P] [US21] [US22] `src/admin/lib/calendar/calendar-address.test.ts` — `view`,
+- [x] T362 [P] [US21] [US22] `src/admin/lib/calendar/calendar-address.test.ts` — `view`,
   `date`, `scope` read and written, malformed values falling back, the round trip; and
   `src/admin/pages/opportunity-detail/tabs.test.ts` — *Events* third with the id `events`,
   its count from `upcomingEventCount`, zero not shown (the existing order and "count on
   *Links* alone" assertions move, and say why — as N-DL6 did).
-- [ ] T363 [US22] `admin/test/modules/crm/EventCalendar.test.tsx` — month: a table with
+- [x] T363 [US22] `admin/test/modules/crm/EventCalendar.test.tsx` — month: a table with
   seven column headers, today marked in words, three entries and "+N more" that navigates
   to that day's week; week: seven sections each under a heading that counts its Events, an
   ordered list in time order, the all-day row first, the current-time line on today only
@@ -1197,12 +1197,12 @@ what it found; `[P]` means parallel inside its own track.
   Previous / Next named per view, *Go to date*, the view switch as a radio group); the four
   states in words; under 640 px (a `matchMedia` stub) the agenda whatever `view` says and
   no switch.
-- [ ] T364 [US22] `admin/test/modules/crm/CalendarPage.test.tsx` — the address read and
+- [x] T364 [US22] `admin/test/modules/crm/CalendarPage.test.tsx` — the address read and
   written with `replace`; the request's `from` / `to` for each view; moving inside a loaded
   range asking nothing; *Mine / All* rendered from `meta.scopes` — a radio group for two,
   **absent** for one — and showing `meta.scope` as chosen; each entry's `href` to
   `?tab=events&event=`; no write control for a holder of `crm:write`.
-- [ ] T365 [US21] `admin/test/modules/crm/events-tab.test.tsx` — *Upcoming* and *Past*
+- [x] T365 [US21] `admin/test/modules/crm/events-tab.test.tsx` — *Upcoming* and *Past*
   with their order; each reminder state in words; a reader with no *Add*, *Edit* or
   *Delete*; add, edit and delete, each re-reading the list and the Opportunity; the dialog:
   focus on the name, *All day* removing the times, *To* following *From*, *Remind at*
@@ -1214,26 +1214,26 @@ what it found; `[P]` means parallel inside its own track.
 
 ### Implementation
 
-- [ ] T366 [P] [US21] [US22] `src/admin/calendar-api.ts` — the five typed calls, parsing
+- [x] T366 [P] [US21] [US22] `src/admin/calendar-api.ts` — the five typed calls, parsing
   answers with the contract's schemas.
-- [ ] T367 [P] [US22] `src/admin/lib/calendar/date-math.ts`, `layout.ts`,
+- [x] T367 [P] [US22] `src/admin/lib/calendar/date-math.ts`, `layout.ts`,
   `calendar-address.ts` — T360 – T362 green.
-- [ ] T368 [US22] `src/admin/components/calendar/EventChip.tsx`, `MonthView.tsx`,
+- [x] T368 [US22] `src/admin/components/calendar/EventChip.tsx`, `MonthView.tsx`,
   `WeekView.tsx`, `AgendaView.tsx`, `EventCalendar.tsx`; the `calendar.*` keys in both
   bundles. T363 green.
-- [ ] T369 [US22] `src/admin/pages/CalendarPage.tsx`; the route and the sidebar row in
+- [x] T369 [US22] `src/admin/pages/CalendarPage.tsx`; the route and the sidebar row in
   `src/admin/index.ts`; the `open-crm-calendar` action in `src/manifest.ts` — in **this**
   change, with the route, never before; `nav.calendar.label` and
   `actions.openCrmCalendar.*`. T364 green; `check:action-route-permissions`; the module's
   `src/admin/index.test.ts` and `src/backend/manifest.test.ts` follow if they count routes,
   rows or actions.
-- [ ] T370 [US21] `src/admin/components/EventDialog.tsx`,
+- [x] T370 [US21] `src/admin/components/EventDialog.tsx`,
   `src/admin/pages/opportunity-detail/tabs/EventsTab.tsx`, the line in `tabs.ts`; the
   `events.*` keys and `opportunity.tabs.events`. T365 green.
-- [ ] T371 [US21] Existing screen tests that hold the tab order follow the structure
+- [x] T371 [US21] Existing screen tests that hold the tab order follow the structure
   (`admin/test/modules/crm/OpportunityDetail.test.tsx`); no assertion is dropped, and each
   change is listed with its reason in the pull request.
-- [ ] T372 [US21] [US22] The track's close: `pnpm --filter admin exec vitest run
+- [x] T372 [US21] [US22] The track's close: `pnpm --filter admin exec vitest run
   test/modules/crm`, the module's unit tests, `typecheck`, `lint`, `i18n:hardcoded`,
   `check:bundle-pairing`; the UX checklist of `.claude/skills/ux-laws/SKILL.md` §7 walked
   and reported item by item.

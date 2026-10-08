@@ -115,7 +115,7 @@ inside their group, not landmarks. A fact without a value renders the dash and a
 `opportunity.facts.notSet`; the *closed* row alone is omitted while there is nothing to say.
 The column adds no write: what is not in the third column above is changed by the edit form.
 
-## 1b. Events on the Opportunity screen, and the Calendar (US21, US22) — *planned, not built*
+## 1b. Events on the Opportunity screen, and the Calendar (US21, US22)
 
 Normative for `src/admin/pages/CalendarPage.tsx`,
 `src/admin/pages/opportunity-detail/tabs/EventsTab.tsx`, `src/admin/components/calendar/*`,
@@ -123,6 +123,25 @@ Normative for `src/admin/pages/CalendarPage.tsx`,
 `spec.md` User Stories 21 and 22 (FR-130 – FR-152); the API is `admin-api.md` §12d; the
 reasons are `research.md` N-CAL9 – N-CAL12. **No calendar library**: `plan.md` §
 *Complexity Tracking* sets the choice beside its alternative.
+
+**As built (2026-10-08), and where the build left the first draft of this section.** The
+Admin UI was built against `admin-api.md` §12d with the routes stubbed (`tasks.md` Phase 26).
+Each line below is reflected in the text that follows; they are gathered here so a reader of
+the diff sees them in one place.
+
+| What | Decision | By |
+| --- | --- | --- |
+| A **Day** view | added as a fourth view — the week grid with one column; "+N more" opens *Day* where it is offered and the day's week otherwise | owner ("in the style of Google Calendar") |
+| Default date of a new Event | **plain today** — not "the day after the Opportunity's latest Event" | owner ruling, 2026-10-08 |
+| Time format | follows **the language of the Admin UI the person is logged in with**: 24-hour in Polish, 12-hour in English; not the browser's own preference | owner ruling, 2026-10-08 |
+| The closed note | shown on **every** closed Opportunity, with or without a scheduled reminder | owner ("leave it for now") |
+| The address's defaults | written as **nothing** — a bare `/crm/calendar` keeps meaning *today* | build |
+| An entry's name under *All* | also names the Opportunity's assignee; under *Mine* it does not | build |
+| A truncated answer | is asked again on any change of range — a narrower one may be complete | build |
+| *All day* | a checkbox; the kit has no switch | build |
+| The tab's calendar | not drawn while the Opportunity has no Events | build |
+| The toolbar | `role="toolbar"` without arrow-key roving: it holds a native date field and radio groups, whose own keys those are | build |
+| *Go to date* | navigates 300 ms after the field stops changing, and only to a year between 1970 and 2199 — a native field reports every keystroke as a date | build |
 
 ### The one calendar component
 
@@ -133,12 +152,13 @@ Events and draws them; it fetches nothing and knows no route.
 ```text
 EventCalendar props
   events: CalendarEntry[]            — { id, name, allDay, startsAt, endsAt, allDayDate, href, context }
-  view: 'month' | 'week' | 'agenda'  — controlled
+  view: 'month' | 'week' | 'day' | 'agenda'  — controlled
   date: 'YYYY-MM-DD'                 — the anchor day, controlled
   views: readonly View[]             — which views the switch offers
   onNavigate(view, date)             — the parent owns the address (page) or the state (tab)
   state: 'loading' | 'ready' | 'error', onRetry, truncated
   toolbarExtra?: ReactNode           — the page's Mine / All switch
+  titleHeading?: 'h2' | 'h3'         — the range title's level; a day is one under it (the tab passes 'h3')
 ```
 
 `context` is the second line of an entry's name: on the page, the Opportunity's number and
@@ -150,7 +170,10 @@ browser's local time through `Date` and `Intl.DateTimeFormat` only.
 (icon buttons named `calendar.previous.<view>` / `calendar.next.<view>` — "Previous week");
 the range title as the region's `h2`, in a polite live region so moving announces the new
 range; **Go to date**, a native `<input type="date">` with a visible label; the view switch,
-a `radiogroup` of *Month*, *Week*, *Agenda*; then `toolbarExtra`. The browser's time zone is
+a `radiogroup` of *Month*, *Week*, *Day*, *Agenda* (native radios drawn as segments); then
+`toolbarExtra`. *Go to date* waits 300 ms after its last change before it navigates. The
+toolbar's controls are each a tab stop — there is no arrow-key roving, because the date field
+and the radio groups use the arrow keys themselves. The browser's time zone is
 named under the toolbar (`calendar.timeZone`, FR-149).
 
 **Month** — a `<table>`: a header row of weekday names (`<th scope="col">`, `abbr` for the
@@ -159,7 +182,7 @@ datetime>` — today marked by a filled disc **and** the words `calendar.today` 
 technology, days of the neighbouring months muted **and** still readable at 4.5:1 — then a
 `<ul>` of up to three entries (all-day first, then by start), then, when more, a button
 `calendar.more` ("+{count} more", named "{count} more events on {date}") that calls
-`onNavigate('week', thatDay)`. A cell is not focusable and not clickable; only its entries
+`onNavigate('day', thatDay)` — or `'week'` where the *Day* view is not among `views`. A cell is not focusable and not clickable; only its entries
 and its "+N more" are.
 
 **Week** — seven day columns under an all-day row, beside an hour scale of 24 rows of 48 px.
@@ -175,6 +198,12 @@ overlapping entries as wide as its number of lanes. An entry that, in the reader
 runs past midnight is cut at the bottom of its start day and says `calendar.continues`. The
 current time is a 2 px line with a dot on today's column, updated every minute, hidden from
 assistive technology.
+
+**Day** — the *Week* view with one column: the same grid, the same list, the same line.
+
+**Times** are written in the language of the Admin UI (`useAppLanguage`), through
+`Intl.DateTimeFormat`: `13:05` in Polish, `01:05 PM` in English (owner ruling, 2026-10-08;
+`lib/calendar/format.test.ts`).
 
 **Agenda** — a list of the days that have entries, from the anchor date for 30 days: each
 day an `<h3>` and a `<ul>`. It is the only view under 640 px (`sm`): there the switch is
@@ -204,16 +233,19 @@ still works; `truncated` — a `role="status"` line, `calendar.truncated`, above
 
 `PageHeader` titled `calendar.title`; under it `EventCalendar` with all three views.
 
-- **Address**: `?view=month|week|agenda&date=YYYY-MM-DD&scope=mine|all`, written with
-  `replace`. Absent or malformed: `month`, today, and no `scope` (the server's default).
+- **Address**: `?view=month|week|day|agenda&date=YYYY-MM-DD&scope=mine|all`, written with
+  `replace`. Absent or malformed: `month`, today, and no `scope` (the server's default). The
+  defaults are written as *no* parameter, so the bare address keeps meaning today.
   `lib/calendar/calendar-address.ts` reads and writes it.
 - **Data**: `GET /calendar/events` for the view's range, one day wider each side
-  (`admin-api.md` §12d). Month: the 42 days drawn. Week: its seven. Agenda: 30. Moving
-  inside an already loaded range asks nothing.
+  (`admin-api.md` §12d). Month: the 42 days drawn. Week: its seven. Day: its one. Agenda: 30.
+  Moving inside an already loaded range asks nothing — unless the answer held was
+  `truncated`, which is asked again for the new range.
 - **Mine / All**: rendered from `meta.scopes` — a two-option `radiogroup` when it has two
   members, **nothing at all** when it has one. The applied `meta.scope` is what is shown as
   chosen, whatever the address asked.
-- An entry's `href` is `/crm/opportunities/<id>?tab=events&event=<eventId>`.
+- An entry's `href` is `/crm/opportunities/<id>?tab=events&event=<eventId>`. Its `context` is
+  the Opportunity's number and title and, when the applied scope is `all`, its assignee's name.
 - No write: the page holds no `crm:write` control (spec OQ-7).
 
 ### The *Events* tab — `id: 'events'`
@@ -225,9 +257,9 @@ renamed.
 | Region | Holds |
 | --- | --- |
 | Header row | `h2` *Events*; **Add event** (`crm:write`), which opens the dialog; a link **Open the calendar** to `/crm/calendar` |
-| Paused notice | on a closed Opportunity with at least one scheduled reminder: `events.remindersPaused`, `role="note"` |
+| Closed note | on **every** closed Opportunity (status kind not `open`): `events.closedNote`, `role="note"` — its Events are off the Calendar and its reminders held |
 | List | `GET /opportunities/:id/events`. Two `h3` groups: **Upcoming** (`endsAt` later than now, soonest first) and **Past** (latest first, the first ten with *Show all*). Each row: the date and time in the browser's zone, the name, the description's first two lines, the reminder's state in words (`events.reminder.<state>`, with its time and, for `sent`, its channels), and for `crm:write` **Edit** and **Delete** — Delete asks for confirmation in a dialog naming the Event |
-| Calendar | `EventCalendar` with `views = ['month', 'week']`, its view and date in component state (not in the address — the address already carries `tab` and `event`), `context` empty; entries link to `?tab=events&event=<id>` on this same screen. Not rendered under 640 px: the list above is the agenda |
+| Calendar | `EventCalendar` with `views = ['month', 'week']`, its view and date in component state (not in the address — the address already carries `tab` and `event`), `context` empty; entries link to `?tab=events&event=<id>` on this same screen. Not rendered under 640 px — the list above is the agenda — nor while the Opportunity has no Events |
 
 `?event=<id>` marks that Event's row (`aria-current="true"`, a ring) and scrolls it into
 view once; an id that is not among the Events is ignored.
@@ -239,7 +271,7 @@ add and edit:
 | --- | --- | --- |
 | Name | text, required, `maxLength` 200 | focus lands here |
 | All day | checkbox | on: the two time fields leave the form |
-| Date | `<input type="date">`, required | default: today, or the day after the Opportunity's latest Event — whichever is later |
+| Date | `<input type="date">`, required | default: **today** (owner ruling, 2026-10-08) |
 | From, To | `<input type="time">`, required unless all day | default the next whole hour and one hour after; changing *From* moves *To* by the same amount; *To* not after *From* is said under the field before saving |
 | Description | `textarea`, `maxLength` 5 000 | plain; no `@` shortcuts |
 | Remind me | checkbox | off by default |

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_TAB_ID,
+  EVENTS_TAB_ID,
   LINKS_TAB_ID,
   OPPORTUNITY_TABS,
   searchForTab,
@@ -15,10 +16,14 @@ import {
 const search = (query: string): URLSearchParams => new URLSearchParams(query);
 
 describe('the tabs of the Opportunity screen', () => {
-  it('are in the order the story decided: the deal, its documents, the conversation, the audit trail', () => {
+  // User Story 21 put Events third (FR-133; research N-CAL12): the assertion
+  // below gained one id and its name one clause — the order of the six that
+  // were there is unchanged.
+  it('are in the order the stories decided: the deal, its documents, what is planned, the conversation, the audit trail', () => {
     expect(OPPORTUNITY_TABS.map((tab) => tab.id)).toEqual([
       'overview',
       'links',
+      'events',
       'notes',
       'messages',
       'attachments',
@@ -32,11 +37,27 @@ describe('the tabs of the Opportunity screen', () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('counts the linked documents on the Links tab, and nothing on any other', () => {
+  // This read "on the Links tab, and nothing on any other" until User Story 21:
+  // Events carries a count too. What it held — that a count is deliberate, and
+  // that no other tab has one — it still holds, for two tabs instead of one.
+  it('counts the linked documents on the Links tab and the Events ahead on the Events tab, and nothing on any other', () => {
     const counted = OPPORTUNITY_TABS.filter((tab) => tab.count !== undefined);
-    expect(counted.map((tab) => tab.id)).toEqual([LINKS_TAB_ID]);
+    expect(counted.map((tab) => tab.id)).toEqual([LINKS_TAB_ID, EVENTS_TAB_ID]);
     const links = [{ documentKind: 'order' }, { documentKind: 'quote_request' }];
     expect(counted[0]?.count?.({ links } as never)).toBe(2);
+  });
+
+  it('puts Events third, under an id that is in the addresses a reminder writes', () => {
+    expect(OPPORTUNITY_TABS[2]?.id).toBe('events');
+    expect(EVENTS_TAB_ID).toBe('events');
+    expect(OPPORTUNITY_TABS[2]?.labelKey).toBe('opportunity.tabs.events');
+  });
+
+  it('counts the Events that have not ended yet — `upcomingEventCount` — and zero is zero', () => {
+    const events = OPPORTUNITY_TABS.find((tab) => tab.id === EVENTS_TAB_ID);
+    expect(events?.count?.({ upcomingEventCount: 3, links: [] } as never)).toBe(3);
+    // The strip draws no number for zero; the tab says zero and not `undefined`.
+    expect(events?.count?.({ upcomingEventCount: 0, links: [] } as never)).toBe(0);
   });
 });
 
@@ -51,6 +72,12 @@ describe('tabFromSearch', () => {
 
   it('opens the default tab for an id nobody declares', () => {
     expect(tabFromSearch(search('tab=calendar'))).toBe(DEFAULT_TAB_ID);
+  });
+
+  it('opens Events for the address a reminder and a calendar entry lead to, keeping the Event it names', () => {
+    const address = search('tab=events&event=00000000-0000-4000-8000-0000000000e9');
+    expect(tabFromSearch(address)).toBe(EVENTS_TAB_ID);
+    expect(searchForTab(address, EVENTS_TAB_ID).get('event')).toBe('00000000-0000-4000-8000-0000000000e9');
   });
 
   it('lands a return from creating a document on the Links tab — the address every create screen was handed', () => {
