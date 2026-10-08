@@ -114,6 +114,29 @@ describe('crm events and the calendar (contract)', () => {
       });
     });
 
+    it('accepts a timed Event that ends exactly at the next local midnight — the end is exclusive', async () => {
+      // What the form sends when "To" is 00:00: 22:00 – 24:00 in Warsaw (UTC+2 in June).
+      const response = await call(
+        'POST',
+        `/opportunities/${opportunityId}/events`,
+        timedEventBody(DAY, { startsAt: `${DAY}T20:00:00.000Z`, endsAt: `${DAY}T22:00:00.000Z` }),
+      );
+      expect(response.statusCode, response.body).toBe(201);
+      expect(OpportunityEventResponseSchema.parse(response.json()).data).toMatchObject({
+        allDay: false,
+        allDayDate: null,
+        endsAt: `${DAY}T22:00:00.000Z`,
+      });
+      // One millisecond more is the next day.
+      const over = await call(
+        'POST',
+        `/opportunities/${opportunityId}/events`,
+        timedEventBody(DAY, { startsAt: `${DAY}T20:00:00.000Z`, endsAt: `${DAY}T22:00:00.001Z` }),
+      );
+      expect(over.statusCode, over.body).toBe(422);
+      expect(errorOf(over).details).toMatchObject({ rule: 'spans_days', field: 'endsAt' });
+    });
+
     it('refuses a reader — 403', async () => {
       const response = await call('POST', `/opportunities/${opportunityId}/events`, timedEventBody(DAY), viewer.cookies);
       expect(response.statusCode, response.body).toBe(403);
@@ -238,6 +261,71 @@ describe('crm events and the calendar (contract)', () => {
       const cleared = await call('PATCH', `/opportunities/${opportunityId}/events/${event.id}`, { remindAt: null });
       expect(cleared.statusCode, cleared.body).toBe(200);
       expect(OpportunityEventResponseSchema.parse(cleared.json()).data.reminder).toBeNull();
+    });
+
+    it('stores the four time members as they are sent together — the editor’s zone replaces the one the Event was planned in', async () => {
+      // 10:00 – 11:00 in Warsaw, with a reminder that is not part of the edit.
+      const event = await createCrmEvent(h, opportunityId, timedEventBody(DAY, { remindAt: '2031-06-10T07:00:00.000Z' }));
+      // Edited from a browser in Tokyo: 15:00 – 16:00 there, an hour earlier than it was.
+      const response = await call('PATCH', `/opportunities/${opportunityId}/events/${event.id}`, {
+        allDay: false,
+        startsAt: '2031-06-10T06:00:00.000Z',
+        endsAt: '2031-06-10T07:00:00.000Z',
+        timeZone: 'Asia/Tokyo',
+      });
+      expect(response.statusCode, response.body).toBe(200);
+      expect(OpportunityEventResponseSchema.parse(response.json()).data).toMatchObject({
+        allDay: false,
+        startsAt: '2031-06-10T06:00:00.000Z',
+        endsAt: '2031-06-10T07:00:00.000Z',
+        timeZone: 'Asia/Tokyo',
+        // A reminder the body does not name is left as it was.
+        reminder: { at: '2031-06-10T07:00:00.000Z', state: 'scheduled' },
+      });
+
+      // The zone alone is a change too, and is stored.
+      const zoneOnly = await call('PATCH', `/opportunities/${opportunityId}/events/${event.id}`, {
+        allDay: false,
+        startsAt: '2031-06-10T06:00:00.000Z',
+        endsAt: '2031-06-10T07:00:00.000Z',
+        timeZone: 'Europe/Warsaw',
+      });
+      expect(zoneOnly.statusCode, zoneOnly.body).toBe(200);
+      expect(OpportunityEventResponseSchema.parse(zoneOnly.json()).data.timeZone).toBe('Europe/Warsaw');
+
+      // Made all-day from Tokyo: its date is Tokyo's, whatever zone it was planned in before.
+      const allDay = await call('PATCH', `/opportunities/${opportunityId}/events/${event.id}`, {
+        allDay: true,
+        startsAt: '2031-06-10T15:00:00.000Z',
+        endsAt: '2031-06-11T15:00:00.000Z',
+        timeZone: 'Asia/Tokyo',
+      });
+      expect(allDay.statusCode, allDay.body).toBe(200);
+      expect(OpportunityEventResponseSchema.parse(allDay.json()).data).toMatchObject({
+        allDay: true,
+        allDayDate: '2031-06-11',
+        timeZone: 'Asia/Tokyo',
+      });
+    });
+
+    it('judges the one-day rule in the zone that is sent — an Event that is one day where it was planned may be two where it is edited', async () => {
+      // 16:30 – 17:30 in Warsaw is 23:30 – 00:30 in Tokyo.
+      const event = await createCrmEvent(
+        h,
+        opportunityId,
+        timedEventBody(DAY, { startsAt: `${DAY}T14:30:00.000Z`, endsAt: `${DAY}T15:30:00.000Z` }),
+      );
+      const response = await call('PATCH', `/opportunities/${opportunityId}/events/${event.id}`, {
+        allDay: false,
+        startsAt: `${DAY}T14:30:00.000Z`,
+        endsAt: `${DAY}T15:30:00.000Z`,
+        timeZone: 'Asia/Tokyo',
+      });
+      expect(response.statusCode, response.body).toBe(422);
+      expect(errorOf(response).details).toMatchObject({ rule: 'spans_days', field: 'endsAt' });
+      // A rename of the same Event, naming no time member, is not judged again.
+      const renamed = await call('PATCH', `/opportunities/${opportunityId}/events/${event.id}`, { name: 'Renamed' });
+      expect(renamed.statusCode, renamed.body).toBe(200);
     });
 
     it('judges the Event as it would be after the change — 422 ends_before_start for an end before the stored start', async () => {
