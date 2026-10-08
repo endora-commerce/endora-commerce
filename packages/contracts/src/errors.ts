@@ -479,6 +479,39 @@ export const ERROR_CODES = {
    * neither claimant.
    */
   PAYMENT_ADAPTER_UNAVAILABLE: 'PAYMENT_ADAPTER_UNAVAILABLE',
+
+  // CRM — Sales Opportunities (`specs/143-crm-sales-opportunities/`,
+  // `contracts/admin-api.md` §13). Each is declared by the `crm` module's
+  // manifest and joins this block in the change that adds its first raise site.
+  /** The Opportunity does not exist, or belongs to an Organization the caller may not see. */
+  CRM_OPPORTUNITY_NOT_FOUND: 'CRM_OPPORTUNITY_NOT_FOUND',
+  /** The workflow has no transition between the two statuses. */
+  CRM_INVALID_TRANSITION: 'CRM_INVALID_TRANSITION',
+  /** A registered guard refused the transition; the message is the guard's own sentence. */
+  CRM_TRANSITION_VETOED: 'CRM_TRANSITION_VETOED',
+  /** The Opportunity changed status while the transition was being applied. */
+  CRM_TRANSITION_CONFLICT: 'CRM_TRANSITION_CONFLICT',
+  /** The document to link does not exist, or is outside the caller's scope. */
+  CRM_DOCUMENT_NOT_FOUND: 'CRM_DOCUMENT_NOT_FOUND',
+  /** The document already belongs to an Opportunity. */
+  CRM_DOCUMENT_ALREADY_LINKED: 'CRM_DOCUMENT_ALREADY_LINKED',
+  /** The document belongs to another Organization than the Opportunity. */
+  CRM_LINK_ORGANIZATION_MISMATCH: 'CRM_LINK_ORGANIZATION_MISMATCH',
+  CRM_STATUS_CODE_TAKEN: 'CRM_STATUS_CODE_TAKEN',
+  /** Opportunities are in the status, so it cannot be deleted or change what it means. */
+  CRM_STATUS_IN_USE: 'CRM_STATUS_IN_USE',
+  /** The workflow needs an initial status; move the flag before removing it. */
+  CRM_STATUS_INITIAL_REQUIRED: 'CRM_STATUS_INITIAL_REQUIRED',
+  /** The change would break a structural rule of the workflow; `details.rule` names it. */
+  CRM_WORKFLOW_INVALID: 'CRM_WORKFLOW_INVALID',
+  /** The assignee named is not an active administrator of this platform. */
+  CRM_ASSIGNEE_INVALID: 'CRM_ASSIGNEE_INVALID',
+  /** The uploaded file is larger than an Opportunity attachment may be. */
+  CRM_ATTACHMENT_TOO_LARGE: 'CRM_ATTACHMENT_TOO_LARGE',
+  /** Another CRM tag already has this name, whatever its case. */
+  CRM_TAG_NAME_TAKEN: 'CRM_TAG_NAME_TAKEN',
+  /** A message on an Opportunity cannot be edited or deleted once sent. */
+  CRM_MESSAGE_IMMUTABLE: 'CRM_MESSAGE_IMMUTABLE',
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

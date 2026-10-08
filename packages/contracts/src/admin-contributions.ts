@@ -93,6 +93,10 @@ export type PermissionRequirement = z.infer<typeof PermissionRequirementSchema>;
 export const AdminNavSectionNameSchema = z.enum([
   'main',
   'sales',
+  // Owner ruling of 2026-10-05 (`specs/143-crm-sales-opportunities/`, research
+  // R-19): the CRM screens get a group of their own. The section is the
+  // shell's, declared here and in `AppShell.tsx`; the `crm` module joins it.
+  'crm',
   'catalog',
   'inventory',
   'pricing',
@@ -324,6 +328,37 @@ export const AdminZoneNameSchema = z.enum([
    * whose recorded retiring condition is this member.
    */
   'order.detail.payment',
+  /**
+   * The stack of panels an order's detail screen ends with.
+   *
+   * Mounted **once** per order, below the tab panels, so a contribution is
+   * visible whichever tab is open — on `organization.detail.after`'s terms and
+   * for its reasons: every contribution renders its own card, the host puts no
+   * chrome around the zone, and an empty zone renders nothing at all, so the
+   * screen is identical to one without the member. Props:
+   * {@link OrderDetailZoneProps}, the order's id and nothing else (Z3).
+   *
+   * It is not `order.detail.payment`: that member is the body of one tab and
+   * is named for what fills it. This one is for a module that has something to
+   * say about the order as a whole. The first contributor is `crm`'s
+   * linked-opportunity panel; `orders` names no contributor and gains no edge.
+   */
+  'order.detail.after',
+  /**
+   * The stack of panels a quote request's detail screen ends with.
+   *
+   * Mounted **once** per quote request, below the card that holds its tabs, so
+   * a contribution is visible whichever tab is open — on
+   * `order.detail.after`'s terms and for its reasons: every contribution
+   * renders its own card, the host puts no chrome around the zone, and an
+   * empty zone renders nothing at all, so the screen is identical to one
+   * without the member. Props: {@link QuoteRequestDetailZoneProps}, the
+   * request's id and nothing else (Z3).
+   *
+   * The first contributor is `crm`'s linked-opportunity panel;
+   * `quote_requests` names no contributor and gains no edge.
+   */
+  'quote_request.detail.after',
   /**
    * The per-row action cell of the order detail's Delivery tab.
    *
@@ -576,6 +611,16 @@ export interface OrderDetailZoneProps {
 }
 
 /**
+ * A zone mounted once per quote request, at the end of its detail screen.
+ *
+ * The request's own id and nothing else: a contribution reads what it shows
+ * through routes of its own, and the host hands over none of its data.
+ */
+export interface QuoteRequestDetailZoneProps {
+  readonly quoteRequestId: string;
+}
+
+/**
  * A zone mounted once per shipment attempt on the order detail's Delivery tab.
  *
  * Five props, and the last two are here **because a contribution matches on
@@ -703,6 +748,8 @@ export interface AdminZonePropsMap extends Record<AdminZoneName, object> {
   'organization.detail.after': OrganizationDetailZoneProps;
   'customer.detail.after': CustomerDetailZoneProps;
   'order.detail.payment': OrderDetailZoneProps;
+  'order.detail.after': OrderDetailZoneProps;
+  'quote_request.detail.after': QuoteRequestDetailZoneProps;
   'order.shipment.row.actions': OrderShipmentRowZoneProps;
   'order.shipments.tab.actions': OrderShipmentsActionsZoneProps;
   'order.entry.tabs': OrderEntryTabsZoneProps;

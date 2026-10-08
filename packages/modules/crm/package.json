@@ -1,0 +1,107 @@
+{
+  "name": "@endora-commerce/mod-crm",
+  "version": "0.103.1",
+  "type": "module",
+  "sideEffects": false,
+  "description": "Sales opportunities with a configurable status workflow that linked orders follow.",
+  "license": "MIT",
+  "endora": {
+    "type": "module",
+    "id": "crm"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/endora-commerce/endora-commerce.git",
+    "directory": "packages/modules/crm"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/manifest.d.ts",
+      "default": "./dist/manifest.js"
+    },
+    "./backend": {
+      "types": "./dist/backend/index.d.ts",
+      "default": "./dist/backend/index.js"
+    },
+    "./migrations": {
+      "types": "./dist/migrations/index.d.ts",
+      "default": "./dist/migrations/index.js"
+    },
+    "./admin": {
+      "types": "./dist/admin/index.d.ts",
+      "default": "./dist/admin/index.js"
+    },
+    "./tailwind.css": "./tailwind.css",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "i18n",
+    "docs",
+    "tailwind.css"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.ui.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.ui.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@endora-commerce/admin-kit": "workspace:*",
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/email-components": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@fastify/multipart": "^10",
+    "@mikro-orm/core": "^6",
+    "@mikro-orm/migrations": "^6",
+    "@mikro-orm/postgresql": "^6",
+    "bullmq": "^5",
+    "fastify": "^5.11.0",
+    "ioredis": "^5",
+    "lucide-react": "^1",
+    "react": "^19",
+    "react-router-dom": "^7",
+    "zod": "^4"
+  },
+  "peerDependenciesMeta": {
+    "@endora-commerce/admin-kit": {
+      "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-router-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@endora-commerce/admin-kit": "workspace:*",
+    "@endora-commerce/contracts": "workspace:*",
+    "@endora-commerce/email-components": "workspace:*",
+    "@endora-commerce/platform": "workspace:*",
+    "@fastify/multipart": "^10.0.0",
+    "@mikro-orm/core": "^6.6.13",
+    "@mikro-orm/migrations": "^6.6.13",
+    "@mikro-orm/postgresql": "^6.6.13",
+    "@types/node": "^22.9.0",
+    "@types/react": "^19.2.14",
+    "bullmq": "^5.76.1",
+    "fastify": "^5.12.5",
+    "ioredis": "^5.10.1",
+    "lucide-react": "^1.11.0",
+    "react": "^19.2.5",
+    "react-router-dom": "^7.18.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11",
+    "zod": "^4.2.0"
+  }
+}

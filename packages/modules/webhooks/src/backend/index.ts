@@ -1,11 +1,13 @@
 import type { FastifyRequest } from 'fastify';
 import type { Queue, Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import type { WebhookEventRegistryPort } from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
-import { lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
+import { effectiveState, lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { registerWebhooksAdminRoutes } from './routes.js';
 import { bridgeEventHandler } from './services/event-bridge.js';
+import { WebhookEventRegistry } from './services/webhook-event-registry.js';
 import { WebhookService } from './services/webhook-service.js';
 import {
   createWebhookQueue,
@@ -70,6 +72,8 @@ export interface WebhooksCradle {
   readonly webhookService: WebhookService;
   readonly webhookQueue: Queue<WebhookJobData>;
   readonly webhookDeliveryWorker: Worker<WebhookJobData>;
+  /** The event types other modules offer — a contribution seam, registered ungated. */
+  readonly webhookEventRegistry: WebhookEventRegistryPort;
   /**
    * Who the acting admin is, from the production actor (feature 080, T051).
    * Root-supplied, like the other request resolvers; both roots answer it from
@@ -125,10 +129,12 @@ export function registerModule(ctx: ModuleContext): void {
       .disposer((worker: Worker<WebhookJobData>) => worker.close().catch(() => undefined)),
   });
 
-  for (const eventType of BRIDGED_EVENT_TYPES) {
-    // One `ctx.subscribe` per bridged type. The kernel's wrapper is what makes
-    // the module's effective state decide whether the handler runs at all, so
-    // the lookup below is never reached while the module is off.
+  /**
+   * One `ctx.subscribe` per bridged type. The kernel's wrapper is what makes
+   * the module's effective state decide whether the handler runs at all, so
+   * the lookup inside is never reached while the module is off.
+   */
+  const bridge = (eventType: string): void => {
     ctx.subscribe(eventType, (payload) => {
       const { webhookQueue, webhookService } = ctx.cradle<WebhooksCradle>();
       return bridgeEventHandler(eventType, {
@@ -136,7 +142,40 @@ export function registerModule(ctx: ModuleContext): void {
         subscriptionLookup: webhookService,
       })(payload);
     });
-  }
+  };
+
+  for (const eventType of BRIDGED_EVENT_TYPES) bridge(eventType);
+
+  /**
+   * The event types other modules offer (`specs/143-crm-sales-opportunities/`,
+   * research R-27) — a **contribution seam**, so a plain `ctx.di.register` and
+   * not a `providePort`: a contributor pushes from a boot hook, and a boot hook
+   * that resolved a gated port would stop the backend from starting whenever
+   * this module was switched off.
+   *
+   * A pushed type is bridged with the same `ctx.subscribe` as the two above,
+   * issued when the push arrives — during the boot phase, after registration
+   * has ended. That is accepted: `ctx.subscribe` attaches the handler to the
+   * bus at once, wrapped in this module's effective state, and has no
+   * registration window. So the gate is still one seam, and it is this
+   * module's.
+   *
+   * `list()` leaves out a type whose owner is not effectively present; the
+   * answer is asked per read, so an operator's flip takes effect without a
+   * restart.
+   */
+  ctx.di.register({
+    webhookEventRegistry: ctx
+      .asFunction(
+        (): WebhookEventRegistryPort =>
+          new WebhookEventRegistry({
+            isPresent: (moduleId) => effectiveState.isPresent(moduleId),
+            bridge,
+            alreadyBridged: BRIDGED_EVENT_TYPES,
+          }),
+      )
+      .singleton(),
+  });
 
   ctx.routes(async (app) => {
     const { requireAdmin, webhooksRunWorkers } = ctx.cradle<WebhooksCradle>();
@@ -151,6 +190,7 @@ export function registerModule(ctx: ModuleContext): void {
     }
 
     await registerWebhooksAdminRoutes(app, {
+      eventTypes: () => ctx.cradle<WebhooksCradle>().webhookEventRegistry.list(),
       // Lazily, even though the module owns this port: route *registration* runs
       // inside `buildServer` whatever the module's effective state is, so
       // destructuring the gate here would stop the next start instead of

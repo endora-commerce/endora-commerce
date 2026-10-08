@@ -23,11 +23,14 @@
  */
 
 import { Migration20260611T140350AdminNotificationsInit } from './20260611T140350_admin_notifications_init.js';
+import { Migration20261007T194748AdminNotificationsMessageKeys } from './20261007T194748_admin_notifications_message_keys.js';
 
 export const migrations = [
   Migration20260611T140350AdminNotificationsInit,
+  Migration20261007T194748AdminNotificationsMessageKeys,
 ];
 
 export {
   Migration20260611T140350AdminNotificationsInit,
+  Migration20261007T194748AdminNotificationsMessageKeys,
 };

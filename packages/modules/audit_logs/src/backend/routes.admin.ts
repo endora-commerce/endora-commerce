@@ -113,5 +113,6 @@ export function moduleIdForAuditAction(action: string): string {
   if (action.startsWith('impersonation.')) return 'core';
   if (action.startsWith('order.')) return 'core';
   if (action.startsWith('organization.')) return 'core';
+  if (action.startsWith('crm.')) return 'crm';
   return 'core';
 }

@@ -1,5 +1,9 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { AdminNotification, type AdminNotificationAudience } from '../entities/admin-notification.entity.js';
+import {
+  AdminNotification,
+  type AdminNotificationAudience,
+  type StoredNotificationMessage,
+} from '../entities/admin-notification.entity.js';
 import { AdminNotificationRead } from '../entities/admin-notification-read.entity.js';
 
 export interface RecordNotificationInput {
@@ -11,6 +15,16 @@ export interface RecordNotificationInput {
   title: string;
   body?: string | null;
   linkPath?: string | null;
+  /** `title`, translatable — see `AdminNotificationMessage` in the contracts. */
+  titleMessage?: NotificationMessageInput | null;
+  /** `body`, translatable. Refused without a `body`. */
+  bodyMessage?: NotificationMessageInput | null;
+}
+
+export interface NotificationMessageInput {
+  scope: string;
+  key: string;
+  params?: Record<string, string | number>;
 }
 
 export interface ListNotificationsInput {
@@ -30,6 +44,8 @@ export interface ListedNotification {
   title: string;
   body: string | null;
   linkPath: string | null;
+  titleMessage: StoredNotificationMessage | null;
+  bodyMessage: StoredNotificationMessage | null;
   createdAt: Date;
   isRead: boolean;
 }
@@ -80,6 +96,15 @@ export class AdminNotificationService {
         'AdminNotificationService.record: targetAdminUserId must be null when audience="all_admins".',
       );
     }
+    // Before anything is written: a message that could not be drawn is the
+    // writer's defect, and it is refused here rather than found by a reader.
+    const titleMessage = normalizeMessage('titleMessage', input.titleMessage);
+    const bodyMessage = normalizeMessage('bodyMessage', input.bodyMessage);
+    if (bodyMessage && !input.body) {
+      throw new Error(
+        'AdminNotificationService.record: bodyMessage requires a body — the finished sentence shown when the message cannot be resolved.',
+      );
+    }
     const em = this.emFactory();
     const entry = em.create(AdminNotification, {
       audience: input.audience,
@@ -90,6 +115,8 @@ export class AdminNotificationService {
       title: input.title,
       body: input.body ?? null,
       linkPath: input.linkPath ?? null,
+      titleMessage,
+      bodyMessage,
     });
     await em.persistAndFlush(entry);
     await this.pruneStale(input.audience, input.targetAdminUserId ?? null);
@@ -146,6 +173,8 @@ export class AdminNotificationService {
         n."title",
         n."body",
         n."link_path" as "linkPath",
+        n."title_message" as "titleMessage",
+        n."body_message" as "bodyMessage",
         n."created_at" as "createdAt",
         n."read_at" as "readAt",
         case
@@ -179,6 +208,8 @@ export class AdminNotificationService {
       title: row.title,
       body: row.body ?? null,
       linkPath: row.linkPath ?? null,
+      titleMessage: row.titleMessage ?? null,
+      bodyMessage: row.bodyMessage ?? null,
       createdAt: new Date(row.createdAt),
       isRead: row.isRead,
     }));
@@ -359,6 +390,59 @@ export class AdminNotificationService {
   }
 }
 
+/** A bundle namespace: a module id (`crm`, `_i18n`, `product_feeds`) or `core`. */
+const MESSAGE_SCOPE_RE = /^[a-z_][a-z0-9_]*$/;
+const MESSAGE_SCOPE_MAX_LENGTH = 64;
+/** The length a translation key is held to wherever a manifest declares one. */
+const MESSAGE_KEY_MAX_LENGTH = 255;
+
+/**
+ * The stored form of a message, or a refusal.
+ *
+ * The port is an in-process call and its TypeScript signature already says all
+ * of this; it is checked again because the value is persisted and then drawn
+ * in every administrator's browser, and a caller reaching the port through a
+ * cast, or from a package compiled against another version, is not stopped by
+ * a type. Params are strings and finite numbers only — they are interpolated
+ * as text, and an object or an array has no text.
+ */
+function normalizeMessage(
+  field: 'titleMessage' | 'bodyMessage',
+  message: NotificationMessageInput | null | undefined,
+): StoredNotificationMessage | null {
+  if (message === null || message === undefined) return null;
+  const refuse = (reason: string): never => {
+    throw new Error(`AdminNotificationService.record: ${field} ${reason}.`);
+  };
+  if (typeof message !== 'object' || Array.isArray(message)) {
+    return refuse('must be an object of scope, key and params');
+  }
+  const { scope, key, params } = message;
+  if (
+    typeof scope !== 'string' ||
+    scope.length > MESSAGE_SCOPE_MAX_LENGTH ||
+    !MESSAGE_SCOPE_RE.test(scope)
+  ) {
+    return refuse('scope must be a bundle namespace — a module id, or "core"');
+  }
+  if (typeof key !== 'string' || key.length === 0 || key.length > MESSAGE_KEY_MAX_LENGTH) {
+    return refuse(`key must be a non-empty string of at most ${MESSAGE_KEY_MAX_LENGTH} characters`);
+  }
+  const stored: Record<string, string | number> = {};
+  if (params !== undefined && params !== null) {
+    if (typeof params !== 'object' || Array.isArray(params)) {
+      return refuse('params must be an object of strings and numbers');
+    }
+    for (const [name, value] of Object.entries(params)) {
+      const plain =
+        typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value));
+      if (!plain) return refuse(`param "${name}" must be a string or a finite number`);
+      stored[name] = value;
+    }
+  }
+  return { scope, key, params: stored };
+}
+
 interface RawNotificationRow {
   id: string;
   audience: string;
@@ -369,6 +453,8 @@ interface RawNotificationRow {
   title: string;
   body: string | null;
   linkPath: string | null;
+  titleMessage: StoredNotificationMessage | null;
+  bodyMessage: StoredNotificationMessage | null;
   createdAt: string | Date;
   readAt: string | Date | null;
   isRead: boolean;

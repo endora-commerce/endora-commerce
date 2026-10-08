@@ -15,6 +15,7 @@ import { apiClient, ApiError, cn, formatDateTime } from '@endora-commerce/admin-
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, Input, Label, PageHeader, Section, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Textarea } from '@endora-commerce/admin-kit/ui';
 import { CustomFieldValuesPanel, ProductPicker } from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
+import { AdminZone } from '@endora-commerce/admin-kit/zones';
 import { deadlineForDays, isValidityDaysInvalid, rfqValidity } from '../validity.js';
 
 /**
@@ -657,6 +658,10 @@ export function RfqDetail(): ReactNode {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* Panels other modules add to this screen. The host knows none of them;
+          with nobody contributing this renders nothing at all. */}
+      {id ? <AdminZone name="quote_request.detail.after" props={{ quoteRequestId: id }} /> : null}
 
       {cancelOpen ? (
         <CancelDialog

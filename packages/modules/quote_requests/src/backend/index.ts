@@ -24,6 +24,8 @@ import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
 import { registerQuoteRequestSalesChannelAttributions } from './services/sales-channel-attributions.js';
 import {
+  effectiveState,
+  enterSystemScope,
   lazyPort,
   SettingNotRegistered,
   SettingOutOfScopeForChannel,
@@ -398,6 +400,22 @@ export function registerModule(ctx: ModuleContext): void {
           organizations: lazyPort<OrganizationDetailsPort>(ctx, 'organizationDetailsPort'),
           adminUsers: lazyPort<AdminUserReadPort>(ctx, 'adminUserReadPort'),
           orders: lazyPort<OrderReadPort>(ctx, 'orderReadPort'),
+          // The completion reactor's second look at an order whose commit was
+          // still in flight (`specs/143-crm-sales-opportunities/`, FR-104). Off
+          // the bus's chain, so in a system scope of its own — the handler's
+          // ends when it returns — and never rejecting: there is nobody left to
+          // hear it, so a failure is logged. Whether this module is still on is
+          // asked by the work itself, before every read.
+          deferAfterCommit: (work) =>
+            enterSystemScope('quote_requests: an order read again after its commit', async () => {
+              await work();
+            }).catch((error: unknown) => {
+              ctx.log.warn(
+                { error: error instanceof Error ? error.message : String(error) },
+                'quote_requests: an order could not be read again after its commit',
+              );
+            }),
+          isStillPresent: () => effectiveState.isPresent('quote_requests'),
           carts: lazyPort<CartWritePort>(ctx, 'cartWritePort'),
           resolveExpiryDays: () =>
             setting(QUOTE_REQUESTS_SETTING_CODES.EXPIRY_DAYS, z.number().int().nonnegative(), 0),

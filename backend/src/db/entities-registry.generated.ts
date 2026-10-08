@@ -60,6 +60,7 @@ import { entities as dictionariesEntities } from '@endora-commerce/mod-dictionar
 import { entities as promotionsEntities } from '@endora-commerce/mod-promotions/backend';
 import { entities as credentialsEntities } from '@endora-commerce/mod-credentials/backend';
 import { entities as creditLimitsEntities } from '@endora-commerce/mod-credit-limits/backend';
+import { entities as crmEntities } from '@endora-commerce/mod-crm/backend';
 import { entities as currenciesEntities } from '@endora-commerce/mod-currencies/backend';
 import { entities as customFieldsEntities } from '@endora-commerce/mod-custom-fields/backend';
 import { entities as customerAccountsEntities } from '@endora-commerce/mod-customer-accounts/backend';
@@ -123,6 +124,7 @@ export const ALL_ENTITIES = [
   ...(promotionsEntities as readonly EntityClassLike[]),
   ...(credentialsEntities as readonly EntityClassLike[]),
   ...(creditLimitsEntities as readonly EntityClassLike[]),
+  ...(crmEntities as readonly EntityClassLike[]),
   ...(currenciesEntities as readonly EntityClassLike[]),
   ...(customFieldsEntities as readonly EntityClassLike[]),
   ...(customerAccountsEntities as readonly EntityClassLike[]),

@@ -37,6 +37,7 @@ platformy, a nie tego, co akurat zostało opisane.
 | [Porównywarka produktów](./comparisons.md) | Porównywarka produktów: zestaw wybrany przez klienta, z trybami wyświetlania, linkiem do udostępnienia i eksportem do PDF | @endora-commerce/mod-comparisons |
 | [Dane uwierzytelniające (Credentials)](./credentials.md) | Typowane konfiguracje danych uwierzytelniających wielokrotnego użytku (modele językowe, adapter e-mail), do których odwołują się ustawienia | @endora-commerce/mod-credentials |
 | [credit_limits](./credit_limits.md) | Przyznawanie limitów kredytowych i atomowa rezerwacja | @endora-commerce/mod-credit-limits |
+| [crm](./crm.md) | Szanse sprzedażowe z konfigurowalnym przepływem statusów, za którym podążają powiązane zamówienia | @endora-commerce/mod-crm |
 | [currencies](./currencies.md) | Lista akceptowanych kodów walut ISO 4217 i waluta domyślna | @endora-commerce/mod-currencies |
 | `custom_fields` | _brak strony_ | @endora-commerce/mod-custom-fields |
 | [customer_accounts](./customer_accounts.md) | Logowanie klientów, reset hasła, 2FA, przypisanie roli | @endora-commerce/mod-customer-accounts |

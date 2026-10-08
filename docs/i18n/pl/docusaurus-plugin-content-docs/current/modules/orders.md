@@ -161,11 +161,25 @@ dodatkowo cztery zdarzenia **według szablonu** (budowane przez `events/order-st
 zablokowania) oraz `order.status.from_<x>_to_<y>.after`, `order.status.to_<y>.after` (po
 zatwierdzeniu, odizolowane).
 
+`order.created.v1` niesie `orderId` i `organizationId`. Dla zamówienia, które administrator utworzył
+z polem `origin` (zob. *Tworzenie w imieniu klienta* niżej), niesie także to `origin`, bez zmian;
+dla każdego innego zamówienia tego klucza nie ma. Wartość trafia wszędzie tam, dokąd zdarzenie —
+webhook wychodzący subskrybujący `order.created.v1` dostaje ją w treści.
+
 ## Operacje w panelu administracyjnym
 
 - **Tworzenie w imieniu klienta** — `POST /api/v1/admin/orders` buduje koszyk klienta z pozycji
   wprowadzonych przez administratora i uruchamia `placeOrder` w imieniu klienta; klient dostaje
-  e-mail z prośbą o opłacenie.
+  e-mail z prośbą o opłacenie. Żądanie może nieść opcjonalne `origin: { type, id }`, mówiące, skąd
+  zamówienie jest tworzone — `type` to identyfikator nadawcy pisany małymi literami (litery, cyfry,
+  podkreślenia), `id` to UUID. Moduł sprawdza tylko kształt i przekazuje wartość dalej, nie czytając
+  jej, w zdarzeniu `order.created.v1`: nie jest zapisywana, nie jest zwracana i niczego w zamówieniu
+  nie zmienia. Moduł, który rozpoznaje `type`, może na nią zareagować — moduł CRM wiąże takie
+  zamówienie z szansą, z której je utworzono. Przyjmuje je tylko to żądanie; zamówienie składane w
+  sklepie nie może go ustawić. Ekran tworzenia (`/orders/new`) czyta to samo z adresu, gdy otwiera
+  go inny ekran — `originType`, `originId`, do tego `organizationId`, `customerAccountId` i
+  `salesChannelId` do wstępnego wyboru oraz `returnTo`, czyli ścieżkę w Admin UI, do której wraca
+  się po utworzeniu zamówienia.
 - **Lista** — `GET /api/v1/admin/orders` filtruje, sortuje i wyszukuje po stronie serwera, z
   licznikami dla każdego statusu; `GET …/export` zwraca CSV strumieniowo; zapisane widoki przez
   `…/list-views` (prywatne lub współdzielone).
@@ -176,6 +190,34 @@ zatwierdzeniu, odizolowane).
   powiadomieniem; zablokowane w zamówieniach o statusie końcowym.
 - **Ponowne zamówienie** — `…/:id/reorder` odtwarza koszyk (zależnie od ustawienia
   `orders.reorder_enabled`); **kopia jako zapytanie ofertowe** — `…/:id/clone-to-quote`.
+
+## Zamówienie złożone z zaakceptowanego zapytania ofertowego
+
+Zamówienie złożone z koszyka wypełnionego zaakceptowanym zapytaniem ofertowym zapisuje to zapytanie
+w polu `sourceQuoteRequestId` (`orders.source_quote_request_id`). Moduł zapytań ofertowych kończy
+zapytanie, gdy zobaczy takie zamówienie, a inne moduły odczytują to pole, aby ustalić, którym
+zamówieniem stało się zapytanie.
+
+Koszyk niesie jedynie deklarację, a przy składaniu zamówienia jest ona sprawdzana z zapytaniem
+ofertowym w jego bieżącym stanie. Zamówienie zapisuje zapytanie, gdy spełnione są wszystkie cztery
+warunki:
+
+- zapytanie należy do **tej samej organizacji** co zamówienie;
+- zapytanie jest nadal w statusie `Approved` — nie zostało anulowane, nie wygasło i nie jest już
+  zakończone;
+- **żadne inne zamówienie nie zapisało już tego zapytania** — gdy dwie osoby z jednej organizacji
+  zamieniły to samo zapytanie w koszyk, zapytanie przypada pierwszemu złożonemu zamówieniu,
+  a drugie jest zwykłym zamówieniem;
+- w koszyku wciąż jest co najmniej jedna jego pozycja — ten sam produkt i wariant w uzgodnionej
+  cenie jednostkowej.
+
+W przeciwnym razie zamówienie i tak zostaje złożone, lecz niczego nie zapisuje; odmowa trafia do
+logu i nie jest pokazywana kupującemu. Żadne żądanie nie przyjmuje tego pola: ani storefront, ani
+ekran tworzenia zamówienia w panelu administracyjnym, ani zewnętrzne API zamówień nie mogą wskazać
+zapytania ofertowego.
+
+Gdy moduł zapytań ofertowych jest wyłączony, zamówienia są składane dokładnie tak jak dotąd i nie
+zapisują żadnego zapytania.
 
 ## Ustawienia
 
@@ -203,3 +245,9 @@ szablon platformy.
 - **Zakres dostępu** — `order-access-service.ts` to jedyne miejsce egzekwujące regułę dostępu dla
   zwykłego użytkownika, administratora organizacji i administratora platformy; nowe rodzaje
   użytkowników dodaje się właśnie tam.
+- **Panele na ekranie zamówienia** — strefa panelu administracyjnego `order.detail.after` jest
+  osadzona raz, na końcu ekranu zamówienia, pod jego zakładkami, i przekazuje wkładowi
+  `{ orderId }`. Moduł dodaje panel, deklarując `zoneComponent('order.detail.after', …)` we
+  własnych wkładach do panelu administracyjnego; ten moduł nie wymienia żadnego z nich. Gdy nikt
+  nic nie wnosi — nie ma takiego modułu, moduł jest wyłączony albo osoba nie ma uprawnienia
+  wymaganego przez panel — strefa nie renderuje niczego, a ekran jest dokładnie taki jak bez niej.

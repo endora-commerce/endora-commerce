@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiClient } from '../../lib/api-client.js';
+import type { NotificationMessage } from './notification-text.js';
 
 export interface AdminNotificationItem {
   id: string;
@@ -10,6 +11,12 @@ export interface AdminNotificationItem {
   title: string;
   body: string | null;
   linkPath: string | null;
+  /**
+   * `title` and `body`, translatable — resolved by `notificationText` when the
+   * entry is drawn. Optional: a backend that predates the fields sends neither.
+   */
+  titleMessage?: NotificationMessage | null;
+  bodyMessage?: NotificationMessage | null;
   createdAt: string;
   isRead: boolean;
 }

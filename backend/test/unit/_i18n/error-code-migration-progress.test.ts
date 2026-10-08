@@ -115,6 +115,10 @@ const MIGRATED_MODULES: readonly string[] = [
   'comparisons',
   'credentials',
   'credit_limits',
+  // Minted with the module (`specs/143-crm-sales-opportunities/`): `crm` did not
+  // exist when the prefix chain was deleted, so the frozen capture holds none of
+  // its codes and `MINTED_ERROR_CODES` is what accounts for them.
+  'crm',
   // The remaining six receiving modules of Tier A (MR 3), on exactly the terms
   // the MR 2 note below states: the capture says `core` for all seventeen of
   // their codes, so `capture ⊕ rehomed` is what makes these entries answerable,

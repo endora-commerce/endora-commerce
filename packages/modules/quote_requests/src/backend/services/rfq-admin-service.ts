@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  RFQ_CREATED_BY_ADMIN_EVENT,
   type AdminCreateQuoteRequest,
   type AdminPatchQuoteRequest,
   type QuoteRequest as RfqDto,
@@ -13,15 +14,17 @@ import {
   type CustomerAccountRecord,
   type CustomFieldValuePort,
   type OrganizationDetailsPort,
+  type RfqCreatedByAdminEventPayload,
   type SalesRepAssignmentPort,
 } from '@endora-commerce/contracts';
+import type { EventBase, EventBus } from '@endora-commerce/platform/events';
 import { HttpError } from '@endora-commerce/platform/http';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { QuoteRequest, type QuoteRequestStatus } from '../entities/quote-request.entity.js';
 import { QuoteRequestItem } from '../entities/quote-request-item.entity.js';
 import type { RfqService} from './rfq-service.js';
-import { type RfqEventBus } from './rfq-service.js';
+import { type RfqEventBus, type RfqEvents } from './rfq-service.js';
 import type { RfqEventService } from './rfq-event-service.js';
 import type { RfqRevisionService } from './rfq-revision-service.js';
 import type { RfqNotificationService } from './rfq-notification-service.js';
@@ -57,6 +60,15 @@ export interface AdminListFilter {
   scope?: AdminAssignmentScope;
   status?: QuoteRequestStatus | QuoteRequestStatus[];
   organizationId?: string;
+}
+
+/**
+ * The events of the admin paths: the customer path's, and the one only an
+ * administrator's create emits. Declared here, beside its one emitter, rather
+ * than in the map `rfq-service.ts` shares with the customer path.
+ */
+export interface RfqAdminEvents extends RfqEvents {
+  'rfq.created_by_admin.v1': EventBase & RfqCreatedByAdminEventPayload;
 }
 
 export interface RfqAdminServiceDeps {
@@ -633,6 +645,21 @@ export class RfqAdminService {
       sourceEventId: evt.id,
       recipients: [{ customerAccountId: rfq.customerAccountId }],
       channels: ['email', 'in_app'],
+    });
+
+    // Announced last, once every row of the request is written: a subscriber
+    // may read it at once. This path does **not** emit `rfq.created.v1` — that
+    // is the customer's submission, and whatever listens to it must not start
+    // seeing requests an administrator prepared. `origin` is handed on as it
+    // came: this module validates its shape and reads nothing in it.
+    // The one bus, seen with the event only this path emits.
+    (this.deps.events as EventBus<RfqAdminEvents>).emit(RFQ_CREATED_BY_ADMIN_EVENT, {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      rfqId: rfq.id,
+      organizationId: rfq.organizationId,
+      adminUserId: ctx.adminUserId,
+      origin: body.origin ?? null,
     });
 
     return this.deps.rfqService.serializeFull(em, rfq, true);

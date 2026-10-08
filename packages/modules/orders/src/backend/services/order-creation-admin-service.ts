@@ -4,6 +4,7 @@ import {
   type AddressServicePort,
   type CartWritePort,
   type CustomerAccountReadPort,
+  type OriginReference,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { Order } from '../entities/order.entity.js';
@@ -41,6 +42,8 @@ export interface AdminCreateOrderInput {
   billingAddress?: AdminCreateOrderInlineAddress | undefined;
   customerNote?: string | undefined;
   comment?: { body: string; isCustomerVisible: boolean; notifyCustomer: boolean } | undefined;
+  /** Where the order is created from — opaque here; handed on to `order.created.v1`. */
+  origin?: OriginReference | undefined;
 }
 
 /**
@@ -156,6 +159,7 @@ export class OrderCreationAdminService {
           salesChannelId: input.salesChannelId,
           ...(input.customerNote ? { customerNote: input.customerNote } : {}),
         },
+        input.origin ? { origin: input.origin } : undefined,
       );
     } catch (err) {
       await cleanupTransient();

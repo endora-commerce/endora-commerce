@@ -169,11 +169,28 @@ transition X→Y additionally emits four **templated** events (built by
 (synchronous, veto-capable) and `order.status.from_<x>_to_<y>.after`,
 `order.status.to_<y>.after` (post-commit, isolated).
 
+`order.created.v1` carries `orderId` and `organizationId`. For an order an
+administrator created with an `origin` (see *Create on behalf* below) it also
+carries that `origin`, unchanged; for every other order the key is absent.
+The value travels wherever the event does — an outbound webhook subscribed to
+`order.created.v1` receives it in the payload.
+
 ## Admin operations
 
 - **Create on behalf** — `POST /api/v1/admin/orders` builds the customer's cart
   from admin-entered items and runs on-behalf `placeOrder`; the customer is
-  emailed to pay it.
+  emailed to pay it. The request may carry an optional
+  `origin: { type, id }` saying where the order is being created from — `type`
+  a lower-case identifier of the sender's own (letters, digits, underscores),
+  `id` a UUID. The module validates the shape and hands the value on, unread,
+  on `order.created.v1`: it is not stored, not returned and changes nothing
+  about the order. A module that recognises the `type` may act on it — the CRM
+  module links such an order to the opportunity it was created from. Only this
+  request accepts it; a storefront placement cannot set one. The create screen
+  (`/orders/new`) reads the same from its query string when another screen
+  opens it — `originType`, `originId`, plus `organizationId`,
+  `customerAccountId` and `salesChannelId` to preselect, and `returnTo`, a path
+  inside the Admin UI to go back to once the order exists.
 - **List** — `GET /api/v1/admin/orders` server-side filter/sort/search +
   per-status counts; `GET …/export` streams CSV; saved views via
   `…/list-views` (private or shared).
@@ -183,6 +200,33 @@ transition X→Y additionally emits four **templated** events (built by
   notify flags; closed on terminal orders.
 - **Reorder** — `…/:id/reorder` rebuilds the cart (gated by
   `orders.reorder_enabled`); **clone-to-quote** — `…/:id/clone-to-quote`.
+
+## An order placed from an accepted quote request
+
+An order placed from the basket an accepted quote request filled records that
+quote request in `sourceQuoteRequestId` (`orders.source_quote_request_id`). The
+Quote Requests module completes the quote request when it sees such an order,
+and other modules read the field to tell which order a quote request became.
+
+The basket only carries a claim, and placement checks it against the quote
+request as it is at that moment. The order records the quote request when all
+four hold:
+
+- the quote request belongs to the **same organization** as the order;
+- it is still `Approved` — not canceled, expired or already completed;
+- **no other order records it already** — when two people of one organization
+  each turned the same quote request into a basket, the first order placed is
+  the quote request's and the second is an ordinary order;
+- the basket still holds at least one of its lines — the same product and
+  variant at the agreed unit price.
+
+Otherwise the order is placed all the same and records nothing; the refusal is
+logged, never shown to the buyer. No request body carries the field: the
+storefront, the admin create-order screen and the external order API cannot
+name a quote request.
+
+With the Quote Requests module switched off, orders are placed exactly as
+before and record no quote request.
 
 ## Settings
 
@@ -212,3 +256,10 @@ payment e-mail renderer registry (`payments/services/payment-email-renderer.ts`)
 - **Access scoping** — `order-access-service.ts` is the single place that
   enforces the Regular User / Organization Admin / Admin User scoping rule;
   add new actor kinds here.
+- **Panels on the order screen** — the admin zone `order.detail.after` is
+  mounted once at the end of an order's screen, below its tabs, and hands a
+  contribution `{ orderId }`. A module adds a panel by declaring
+  `zoneComponent('order.detail.after', …)` in its own admin contributions; this
+  module names no contributor. With nothing contributed — no such module, the
+  module switched off, or a person without the panel's permission — the zone
+  renders nothing and the screen is exactly the one without it.

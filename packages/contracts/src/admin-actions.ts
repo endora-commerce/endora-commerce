@@ -186,6 +186,11 @@ export const KnownIconNameSchema = z.enum([
   // `Tag` and `FileText` cover `catalog`'s five, and `ListChecks` — the
   // bulk-operations glyph — has been above since feature 020.
   'ClipboardCheck',
+  // `specs/143-crm-sales-opportunities/` (US22, §CAL-A) — `crm`'s Calendar
+  // sidebar entry and palette action. The list held no calendar glyph — the
+  // nearest were `ClipboardList` and `ListChecks` — so the name joins it here
+  // instead of the entry borrowing one that happens to be on it already.
+  'CalendarDays',
 ]);
 export type KnownIconName = z.infer<typeof KnownIconNameSchema>;
 

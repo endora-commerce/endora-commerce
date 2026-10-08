@@ -310,6 +310,9 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   grouped_items: 2,
   bundle_slots: 1,
   bundle_slot_options: 2,
+  // `crm`'s own demo data: the tags the pipeline below is labelled with — the
+  // one row of that module that names nobody else's.
+  crm_tags: 3,
 
   // ── the composition's wiring, step by step ─────────────────────────────
   // 1 — the megamenu over the category tree
@@ -342,6 +345,17 @@ const SEED_DELTA: Readonly<Record<string, number>> = {
   //     assigns `admin_users.admin_role_id`, asserted relationally below.
   // 10 — the credit limit granted to the demo organisation
   credit_limits: 1,
+  // 11 — the sales pipeline on CRM's board: twelve Opportunities for the demo
+  //      organisation, one status-history row per status each has been in, the
+  //      tags they carry, their notes and messages, the index of what those
+  //      texts mention, and the Events planned on the open ones. No link: the
+  //      demo has no Order and no Quote Request.
+  crm_opportunities: 12,
+  crm_opportunity_status_history: 36,
+  crm_opportunity_tags: 10,
+  crm_opportunity_comments: 6,
+  crm_opportunity_references: 3,
+  crm_opportunity_events: 8,
 };
 
 /**
@@ -706,6 +720,259 @@ describe('T226 — `endora demo seed` builds this shop', () => {
       }
     });
 
+    it('gives the whole sales pipeline to the demo organisation, two to a status', async () => {
+      // Tenant ownership read through the join rather than off the column: an
+      // Opportunity is `@OrgScoped`, so one written against any other
+      // organisation would be somebody else's pipeline (Principle XI).
+      const owners = await query<{ tax_id: string; n: string }>(
+        shop,
+        `select o.tax_id, count(*)::text as n
+           from crm_opportunities c join organizations o on o.id = c.organization_id
+          group by o.tax_id`,
+      );
+      expect(owners).toEqual([{ tax_id: 'PL5210000099', n: '12' }]);
+
+      const statuses = await query<{ status_code: string; n: string }>(
+        shop,
+        `select status_code, count(*)::text as n from crm_opportunities
+          group by status_code order by status_code`,
+      );
+      expect(Object.fromEntries(statuses.map((row) => [row.status_code, row.n]))).toEqual({
+        new: '2',
+        qualified: '2',
+        proposal: '2',
+        negotiation: '2',
+        won: '2',
+        lost: '2',
+      });
+    });
+
+    it('assigns the pipeline across the two demo Sales Reps and leaves one with nobody', async () => {
+      const rows = await query<{ email: string | null; n: string }>(
+        shop,
+        `select u.email, count(*)::text as n
+           from crm_opportunities c left join admin_users u on u.id = c.assigned_admin_user_id
+          group by u.email order by u.email nulls last`,
+      );
+      expect(rows).toEqual([
+        { email: 'sales-rep-other@demo.local', n: '5' },
+        { email: 'sales-rep@demo.local', n: '6' },
+        { email: null, n: '1' },
+      ]);
+      // An assignee the join did not find would read as "nobody" above.
+      const assigned = await query<{ n: string }>(
+        shop,
+        `select count(*)::text as n from crm_opportunities where assigned_admin_user_id is not null`,
+      );
+      expect(assigned[0]!.n).toBe('11');
+    });
+
+    it('gives every Opportunity a history that ends where it stands', async () => {
+      // The analytics read `crm_opportunity_status_history` and the three dates
+      // on the row itself, and nothing checks that the two agree — a Command
+      // writes both in one transaction, and this step writes them by hand.
+      const rows = await query<{
+        number: string;
+        status_code: string;
+        kind: string;
+        closed_kind: string | null;
+        closed_at: Date | null;
+        created_at: Date;
+        first_cause: string;
+        first_at: Date;
+        last_status: string;
+        last_at: Date;
+        ordered: boolean;
+        in_future: boolean;
+      }>(
+        shop,
+        `select c.number, c.status_code, s.kind, c.closed_kind, c.closed_at, c.created_at,
+                (select h.cause from crm_opportunity_status_history h
+                  where h.opportunity_id = c.id order by h.changed_at limit 1) as first_cause,
+                (select min(h.changed_at) from crm_opportunity_status_history h
+                  where h.opportunity_id = c.id) as first_at,
+                (select h.to_status_code from crm_opportunity_status_history h
+                  where h.opportunity_id = c.id order by h.changed_at desc limit 1) as last_status,
+                (select max(h.changed_at) from crm_opportunity_status_history h
+                  where h.opportunity_id = c.id) as last_at,
+                not exists (
+                  select 1 from crm_opportunity_status_history h
+                    join crm_opportunity_status_history n
+                      on n.opportunity_id = h.opportunity_id
+                     and n.from_status_code = h.to_status_code
+                   where h.opportunity_id = c.id and n.changed_at <= h.changed_at
+                ) as ordered,
+                (c.updated_at > now() or c.created_at > now()) as in_future
+           from crm_opportunities c
+           join crm_opportunity_statuses s on s.code = c.status_code
+          order by c.number`,
+      );
+      expect(rows).toHaveLength(12);
+      for (const row of rows) {
+        expect(row.number).toMatch(/^OPP-\d{6}$/);
+        expect(row.first_cause, row.number).toBe('created');
+        expect(row.first_at.getTime(), row.number).toBe(row.created_at.getTime());
+        expect(row.last_status, row.number).toBe(row.status_code);
+        expect(row.ordered, row.number).toBe(true);
+        expect(row.in_future, row.number).toBe(false);
+        expect(row.closed_kind, row.number).toBe(row.kind === 'open' ? null : row.kind);
+        expect(row.closed_at?.getTime() ?? null, row.number).toBe(
+          row.kind === 'open' ? null : row.last_at.getTime(),
+        );
+      }
+      expect(new Set(rows.map((row) => row.number)).size).toBe(12);
+
+      const spread = await query<{ days: string }>(
+        shop,
+        `select extract(day from now() - min(created_at))::text as days from crm_opportunities`,
+      );
+      // About three months of pipeline, so no analytics period is empty.
+      expect(Number(spread[0]!.days)).toBeGreaterThan(60);
+    });
+
+    it('values the pipeline by hand, bar the one that waits for its documents', async () => {
+      const rows = await query<{ value_mode: string; n: string; valued: string; computed: string }>(
+        shop,
+        `select value_mode, count(*)::text as n, count(manual_value)::text as valued,
+                sum(computed_value)::text as computed
+           from crm_opportunities group by value_mode order by value_mode`,
+      );
+      // Calculated from linked Orders and Quote Requests, and the demo links
+      // none — so the calculated figure is zero, and saying anything else here
+      // would be a number the next recalculation takes away.
+      expect(rows).toEqual([
+        { value_mode: 'computed', n: '1', valued: '0', computed: '0.00' },
+        { value_mode: 'manual', n: '11', valued: '11', computed: '0.00' },
+      ]);
+      const links = await query<{ n: string }>(
+        shop,
+        `select count(*)::text as n from crm_opportunity_links`,
+      );
+      expect(links[0]!.n).toBe('0');
+    });
+
+    it('joins the pipeline to rows that exist: tags, the contact, the channel and what a text names', async () => {
+      const [row] = await query<{
+        tags: string;
+        contacts: string;
+        foreign_contacts: string;
+        channels: string;
+        authors: string;
+      }>(
+        shop,
+        `select
+           (select string_agg(distinct t.name, ', ' order by t.name)
+              from crm_opportunity_tags j join crm_tags t on t.id = j.tag_id) as tags,
+           (select count(*) from crm_opportunities c
+              join customer_accounts a on a.id = c.customer_account_id
+             where a.email = 'buyer@demo-org.example')::text as contacts,
+           (select count(*) from crm_opportunities c
+              join customer_accounts a on a.id = c.customer_account_id
+             where a.organization_id <> c.organization_id)::text as foreign_contacts,
+           (select string_agg(distinct ch.code, ', ' order by ch.code)
+              from crm_opportunities c join sales_channels ch on ch.id = c.sales_channel_id) as channels,
+           (select count(*) from crm_opportunity_comments m
+              join admin_users u on u.id = m.author_admin_user_id)::text as authors`,
+      );
+      expect(row).toEqual({
+        tags: 'Key account, Tender, Upsell',
+        contacts: '4',
+        foreign_contacts: '0',
+        channels: 'pl_b2b_vip, pl_retail',
+        authors: '6',
+      });
+
+      // Each reference is an index entry derived from a text: the text carries
+      // the token, and the token names a row that is there.
+      const references = await query<{
+        source_kind: string;
+        target_type: string;
+        carried: boolean;
+        resolves: boolean;
+      }>(
+        shop,
+        `select r.source_kind, r.target_type,
+                position('[[' || r.target_type || ':' || r.target_id || ']]' in
+                  case when r.source_kind = 'comment'
+                       then (select m.body from crm_opportunity_comments m where m.id = r.source_id)
+                       else (select c.description from crm_opportunities c where c.id = r.opportunity_id)
+                  end) > 0 as carried,
+                case r.target_type
+                  when 'product' then exists (select 1 from products p where p.id = r.target_id)
+                  when 'admin_user' then exists (select 1 from admin_users u where u.id = r.target_id)
+                  else false
+                end as resolves
+           from crm_opportunity_references r
+          order by r.source_kind, r.target_type`,
+      );
+      expect(references).toEqual([
+        { source_kind: 'comment', target_type: 'admin_user', carried: true, resolves: true },
+        { source_kind: 'comment', target_type: 'product', carried: true, resolves: true },
+        { source_kind: 'description', target_type: 'product', carried: true, resolves: true },
+      ]);
+    });
+
+    it('plans Events on the open Opportunities, dated from the day of the seed, and none with a reminder', async () => {
+      const [row] = await query<{
+        on_closed: string;
+        reminders: string;
+        handled: string;
+        all_day: string;
+        whole_days: string;
+        past: string;
+        earliest_days: string;
+        latest_days: string;
+        opportunities: string;
+        authors: string;
+      }>(
+        shop,
+        `select
+           (select count(*) from crm_opportunity_events e
+              join crm_opportunities c on c.id = e.opportunity_id
+              join crm_opportunity_statuses s on s.code = c.status_code
+             where s.kind <> 'open')::text as on_closed,
+           (select count(*) from crm_opportunity_events where remind_at is not null)::text as reminders,
+           (select count(*) from crm_opportunity_events
+             where reminder_handled_at is not null or reminder_outcome is not null)::text as handled,
+           (select count(*) from crm_opportunity_events where all_day)::text as all_day,
+           (select count(*) from crm_opportunity_events
+             where all_day and time_zone = 'UTC'
+               and starts_at = date_trunc('day', starts_at at time zone 'UTC') at time zone 'UTC'
+               and ends_at = starts_at + interval '1 day')::text as whole_days,
+           (select count(*) from crm_opportunity_events where ends_at < now())::text as past,
+           (select extract(day from date_trunc('day', now() at time zone 'UTC')
+                     - date_trunc('day', min(starts_at) at time zone 'UTC'))
+              from crm_opportunity_events)::text as earliest_days,
+           (select extract(day from date_trunc('day', max(starts_at) at time zone 'UTC')
+                     - date_trunc('day', now() at time zone 'UTC'))
+              from crm_opportunity_events)::text as latest_days,
+           (select count(distinct opportunity_id) from crm_opportunity_events)::text as opportunities,
+           (select count(*) from crm_opportunity_events e
+              join admin_users u on u.id = e.created_by_admin_user_id)::text as authors`,
+      );
+      expect(row).toEqual({
+        // The Calendar shows active Opportunities only; a closed one has none to hide.
+        on_closed: '0',
+        // A demo must not start writing bell entries and e-mails a day after it was installed.
+        reminders: '0',
+        handled: '0',
+        all_day: '2',
+        whole_days: '2',
+        // One that has already happened, for the tab's second list.
+        past: '1',
+        earliest_days: '5',
+        latest_days: '12',
+        opportunities: '6',
+        authors: '8',
+      });
+    });
+
+    it('reports the pipeline step, and `crm` among the modules that seeded', () => {
+      const report = seedReports[0]!;
+      expect(report).toContain('  sales opportunities for the demo organisation');
+      expect(report).toMatch(/^ {2}crm — .*\(.*CrmTag.*3.*\)$/m);
+    });
+
     it('reports every sign-in it created, the composition’s included', () => {
       // The composition's credentials reach the report through
       // `DemoCompositionResult.credentials`, which T226 added: before it the
@@ -779,6 +1046,35 @@ describe('T226 — `endora demo seed` builds this shop', () => {
       // twice on purpose: an entry added without a reason would weaken it
       // silently, and this is what would then be visibly false.
       expect(Object.keys(KEPT_BY_RESET)).toEqual([]);
+    });
+
+    it('leaves no row of the pipeline behind, and CRM’s workflow where it was', () => {
+      // Said outright rather than left to the ledger above, because it is the
+      // property an operator asks about: after a reset there is no demo
+      // Opportunity, no trace of one, and no demo tag.
+      for (const table of [
+        'crm_opportunities',
+        'crm_opportunity_status_history',
+        'crm_opportunity_tags',
+        'crm_opportunity_comments',
+        'crm_opportunity_references',
+        'crm_opportunity_events',
+        'crm_opportunity_links',
+        'crm_opportunity_attachments',
+        'crm_status_propagations',
+        'crm_tags',
+      ]) {
+        expect(afterReset[table], table).toBe(0);
+      }
+      // The six statuses and their transitions are the module's own migration's
+      // and the operator's, not the demo's.
+      expect(afterReset['crm_opportunity_statuses']).toBe(6);
+      expect(afterReset['crm_opportunity_statuses']).toBe(afterThird['crm_opportunity_statuses']);
+      expect(afterReset['crm_opportunity_status_transitions']).toBe(
+        baseline['crm_opportunity_status_transitions'],
+      );
+      expect(afterReset['crm_order_status_mappings']).toBe(0);
+      expect(afterThird['crm_order_status_mappings']).toBe(0);
     });
 
     it('leaves the platform’s own rows alone', () => {

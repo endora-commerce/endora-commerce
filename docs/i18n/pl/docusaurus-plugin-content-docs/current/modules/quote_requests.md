@@ -174,8 +174,59 @@ jednokrotne dostarczenie dla każdej trójki (przejście, odbiorca, kanał).
 
 ## Zamiana na zamówienie
 
+`POST /api/v1/quote-requests/:id/convert-to-order` wypełnia koszyk klienta pozycjami zapytania
+ofertowego w statusie `Approved`, w uzgodnionych cenach jednostkowych, i oznacza koszyk zapytaniem,
+z którego został wypełniony. Zamówienie złożone z tego koszyka zapisuje je
+(`source_quote_request_id`) — o ile zapytanie jest nadal w statusie `Approved`, a w koszyku wciąż
+jest co najmniej jedna pozycja w uzgodnionej cenie; strona modułu zamówień opisuje, kiedy
+oznaczenie przepada.
+
 Gdy powstaje zamówienie z wypełnionym `source_quote_request_id`, subskrybent wewnątrz modułu
 przestawia źródłowe zapytanie ofertowe na `Completed`, wypełnia `converted_order_id` i wysyła
-powiadomienie `completed`. Krok tworzenia koszyka, który utrwala uzgodnione w zapytaniu ceny w
-koszyku zamówienia, zapewniają istniejące procesy koszyka i zamówienia; jest on odrzucany, dopóki
-którakolwiek pozycja nie ma uzgodnionej ceny jednostkowej (zob. *Uzgodnione ceny*).
+powiadomienie `completed`. Zakończonego zapytania ofertowego nie można zamówić po raz drugi,
+a konwersja jest odrzucana, dopóki którakolwiek pozycja nie ma uzgodnionej ceny jednostkowej
+(zob. *Uzgodnione ceny*).
+Subskrybent czeka, aż zamówienie zostanie zatwierdzone w bazie — najwyżej nieco ponad dwie
+sekundy — i niczego nie kończy dla zamówienia innej organizacji.
+
+Gdy ten moduł jest wyłączony, wypełniony wcześniej koszyk nadal można zamówić, w uzgodnionych
+cenach, jako zwykłe zamówienie: nie zapisuje ono zapytania ofertowego, a zapytanie nie zostaje
+zakończone.
+
+## Utworzone przez administratora: zdarzenie i jego pochodzenie
+
+Zapytanie ofertowe, które administrator tworzy przez `POST /api/v1/admin/quote-requests`, jest
+ogłaszane na wewnętrznej szynie zdarzeń jako `rfq.created_by_admin.v1` — raz, po zapisaniu jego
+wierszy:
+
+| Pole | Znaczenie |
+| --- | --- |
+| `rfqId` | Nowe zapytanie ofertowe. |
+| `organizationId` | Organizacja, dla której je utworzono. |
+| `adminUserId` | Administrator, który je utworzył. |
+| `origin` | To, co żądanie utworzenia niosło jako `origin`, albo `null`. |
+
+`rfq.created.v1` pozostaje zdarzeniem zapytania przesłanego przez samego klienta i na tej ścieżce
+**nie** jest emitowane, więc nic, co go nasłuchuje, nie zaczyna widzieć zapytań przygotowanych przez
+administratora.
+
+Żądanie utworzenia może nieść opcjonalne `origin: { type, id }`, mówiące, skąd zapytanie jest
+tworzone — `type` to identyfikator nadawcy pisany małymi literami (litery, cyfry, podkreślenia),
+`id` to UUID. Moduł sprawdza tylko kształt i przekazuje wartość dalej, nie czytając jej, razem ze
+zdarzeniem: nie jest zapisywana, nie jest zwracana i niczego w zapytaniu nie zmienia. Moduł, który
+rozpoznaje `type`, może na nią zareagować — moduł CRM wiąże takie zapytanie z szansą, z której je
+utworzono. Endpoint klienta takiego pola nie przyjmuje.
+
+Ekran tworzenia (`/quote-requests/new`) czyta to samo z adresu, gdy otwiera go inny ekran:
+`originType` i `originId`, `organizationId` i `customerAccountId` do wstępnego wyboru klienta oraz
+`returnTo`, czyli ścieżkę w Admin UI, do której wraca się po utworzeniu zapytania.
+
+## Panele na ekranie zapytania ofertowego
+
+Strefa panelu administracyjnego `quote_request.detail.after` jest osadzona raz, na końcu ekranu
+zapytania ofertowego, pod kartą z jego zakładkami, i przekazuje wkładowi `{ quoteRequestId }`.
+Moduł dodaje panel, deklarując `zoneComponent('quote_request.detail.after', …)` we własnych
+wkładach do panelu administracyjnego; ten moduł nie wymienia żadnego z nich i żadnego nie
+importuje. Gdy nikt nic nie wnosi — nie ma takiego modułu, moduł jest wyłączony albo osoba nie ma
+uprawnienia wymaganego przez panel — strefa nie renderuje niczego, a ekran jest dokładnie taki jak
+bez niej. Moduł CRM wnosi szansę, z którą zapytanie ofertowe jest powiązane.

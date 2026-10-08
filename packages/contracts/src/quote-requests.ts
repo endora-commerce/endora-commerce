@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoDateTimeSchema, uuidSchema } from './common.js';
+import { isoDateTimeSchema, OriginReferenceSchema, uuidSchema, type OriginReference } from './common.js';
 
 /**
  * Quote Requests (RFQ) module contracts — feature 008 workflow rewrite.
@@ -300,8 +300,31 @@ export const adminCreateQuoteRequestSchema = z.object({
   headerNote: z.string().max(2000).optional(),
   items: z.array(adminCreateQuoteRequestLineSchema).min(1),
   expiresInDays: z.number().int().nonnegative().optional(),
+  /**
+   * Where the request is being created from — opaque to `quote_requests`,
+   * which validates its shape and hands it on with `rfq.created_by_admin.v1`.
+   * Not stored and not returned.
+   */
+  origin: OriginReferenceSchema.optional(),
 });
 export type AdminCreateQuoteRequest = z.infer<typeof adminCreateQuoteRequestSchema>;
+
+/** The name of the event that announces a Quote Request an administrator created. */
+export const RFQ_CREATED_BY_ADMIN_EVENT = 'rfq.created_by_admin.v1';
+
+/**
+ * Payload of `rfq.created_by_admin.v1`, beyond the event envelope (`eventId`,
+ * `occurredAt`). Emitted once per Quote Request created through the admin
+ * create path, after its rows are written; a customer's own submission is
+ * `rfq.created.v1` and never this. `origin` is what the create request
+ * carried, or `null`.
+ */
+export interface RfqCreatedByAdminEventPayload {
+  rfqId: string;
+  organizationId: string;
+  adminUserId: string;
+  origin: OriginReference | null;
+}
 
 export const adminPatchQuoteRequestLineSchema = z.object({
   id: uuidSchema.optional(),

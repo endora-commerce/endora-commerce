@@ -1,0 +1,22 @@
+{
+  // Emit configuration — the only configuration in this package allowed to write
+  // files, and the declaration the composer reads to learn where this package's
+  // sources end up (`backend/scripts/lib/module-packages.ts`).
+  //
+  // `paths` is cleared, so `@endora-commerce/contracts` resolves through its own
+  // `exports` map to its built `.d.ts`; `pnpm run build:packages` builds
+  // `contracts` and `platform` before this package. `rootDir` with an active
+  // `paths` block is the TS6059 trap.
+  //
+  // This package emits, rather than shipping source, because of its entity
+  // files (D-164): `tsx` lowers a file outside its one tsconfig with standard
+  // decorator semantics while MikroORM's are legacy.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {},
+    "rootDir": "./src",
+    "noEmit": false,
+    // A compile that failed must ship nothing (feature 080, R11).
+    "noEmitOnError": true
+  }
+}

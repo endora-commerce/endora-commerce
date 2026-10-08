@@ -41,6 +41,7 @@ import { Migration20260507T142354AdminActionsInit } from '@endora-commerce/mod-a
 
 // ── admin_notifications ─────────────────────────────────────────────────────
 import { Migration20260611T140350AdminNotificationsInit } from '@endora-commerce/mod-admin-notifications/migrations';
+import { Migration20261007T194748AdminNotificationsMessageKeys } from '@endora-commerce/mod-admin-notifications/migrations';
 
 // ── admin_users ─────────────────────────────────────────────────────────────
 import { Migration20260425T053028AdminUsersInit } from '@endora-commerce/mod-admin-users/migrations';
@@ -66,6 +67,7 @@ import { Migration20260611T140352CartsConsolidation } from '@endora-commerce/mod
 import { Migration20260611T140413CartsCartItemPackaging } from '@endora-commerce/mod-carts/migrations';
 import { Migration20260818T081253CartsCartCompletedOrderFk } from '@endora-commerce/mod-carts/migrations';
 import { Migration20260830T112911CartsOrganizationAttributionCheck } from '@endora-commerce/mod-carts/migrations';
+import { Migration20261008T061751CartsCartSourceQuoteRequest } from '@endora-commerce/mod-carts/migrations';
 
 // ── catalog ─────────────────────────────────────────────────────────────────
 import { Migration20260429T064146CatalogAttributeSetsInit } from '@endora-commerce/mod-catalog/migrations';
@@ -129,6 +131,12 @@ import { Migration20260425T063333CreditLimitsInit } from '@endora-commerce/mod-c
 import { Migration20260817T201111CreditLimitsReturnTopups } from '@endora-commerce/mod-credit-limits/migrations';
 import { Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk } from '@endora-commerce/mod-credit-limits/migrations';
 import { Migration20260821T140323CreditLimitsReservationReservingOrganization } from '@endora-commerce/mod-credit-limits/migrations';
+
+// ── crm ─────────────────────────────────────────────────────────────────────
+import { Migration20261005T132439CrmInit } from '@endora-commerce/mod-crm/migrations';
+import { Migration20261005T215329CrmOpportunityCustomFieldValues } from '@endora-commerce/mod-crm/migrations';
+import { Migration20261007T180600CrmOpportunityReferenceAdminUser } from '@endora-commerce/mod-crm/migrations';
+import { Migration20261008T135701CrmOpportunityEvents } from '@endora-commerce/mod-crm/migrations';
 
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
@@ -335,6 +343,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── admin_notifications ─────────────────────────────────────────────────────
   migration('admin_notifications', Migration20260611T140350AdminNotificationsInit),
+  migration('admin_notifications', Migration20261007T194748AdminNotificationsMessageKeys),
 
   // ── admin_users ─────────────────────────────────────────────────────────────
   migration('admin_users', Migration20260425T053028AdminUsersInit),
@@ -360,6 +369,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('carts', Migration20260611T140413CartsCartItemPackaging),
   migration('carts', Migration20260818T081253CartsCartCompletedOrderFk),
   migration('carts', Migration20260830T112911CartsOrganizationAttributionCheck),
+  migration('carts', Migration20261008T061751CartsCartSourceQuoteRequest),
 
   // ── catalog ─────────────────────────────────────────────────────────────────
   migration('catalog', Migration20260429T064146CatalogAttributeSetsInit),
@@ -423,6 +433,12 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('credit_limits', Migration20260817T201111CreditLimitsReturnTopups),
   migration('credit_limits', Migration20260818T081252CreditLimitsCreditLimitReservationOrderFk),
   migration('credit_limits', Migration20260821T140323CreditLimitsReservationReservingOrganization),
+
+  // ── crm ─────────────────────────────────────────────────────────────────────
+  migration('crm', Migration20261005T132439CrmInit),
+  migration('crm', Migration20261005T215329CrmOpportunityCustomFieldValues),
+  migration('crm', Migration20261007T180600CrmOpportunityReferenceAdminUser),
+  migration('crm', Migration20261008T135701CrmOpportunityEvents),
 
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),

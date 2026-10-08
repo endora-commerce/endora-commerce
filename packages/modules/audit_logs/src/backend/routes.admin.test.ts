@@ -32,3 +32,23 @@ describe('the cross-organization access row on the audit log screen', () => {
     expect(label).not.toBe(ESCAPE_HATCH_ACTION);
   });
 });
+
+/**
+ * A module's audited actions read as sentences when their prefix names the
+ * module whose bundle holds `auditLog.<action>`.
+ */
+describe('the module an audited action is labelled from', () => {
+  it.each([
+    ['setting.update', 'settings'],
+    ['product.update', 'catalog'],
+    ['sales_channel.create', 'sales_channels'],
+    ['crm.opportunity.transition', 'crm'],
+    ['crm.tag.create', 'crm'],
+  ])('%s → %s', (action, moduleId) => {
+    expect(moduleIdForAuditAction(action)).toBe(moduleId);
+  });
+
+  it('leaves an action nobody names to the host', () => {
+    expect(moduleIdForAuditAction('crmx.something')).toBe('core');
+  });
+});

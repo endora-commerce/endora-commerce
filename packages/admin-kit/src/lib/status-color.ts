@@ -30,18 +30,37 @@ function normalizeHex(color: string | null | undefined): string {
   return color && HEX.test(color.trim()) ? color.trim() : ORDER_STATUS_DEFAULT_COLOR;
 }
 
+function linearChannel(value: number): number {
+  const scaled = value / 255;
+  return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4;
+}
+
+/** WCAG relative luminance of a `#rrggbb` colour. */
+function relativeLuminance(hex: string): number {
+  const int = Number.parseInt(hex.slice(1), 16);
+  return (
+    0.2126 * linearChannel((int >> 16) & 0xff) +
+    0.7152 * linearChannel((int >> 8) & 0xff) +
+    0.0722 * linearChannel(int & 0xff)
+  );
+}
+
 /**
- * Black or white text for a given background hex, chosen by perceived
- * luminance so the status label stays legible on any picked colour.
+ * Black or white text for a given background hex — whichever of the two has
+ * the higher WCAG contrast against it.
+ *
+ * Chosen by contrast ratio and not by a brightness threshold, because the
+ * threshold put white text on the mid-tones an operator actually picks for a
+ * status — amber, green, blue — at 2:1 to 3.7:1. The dark side is pure black
+ * for the same reason: against the better of black and white every colour
+ * reaches 4.58:1 (SC 1.4.3 asks for 4.5:1), and against any softer dark the
+ * mid-tones do not.
  */
 export function readableTextColor(hex: string): string {
-  const value = normalizeHex(hex).slice(1);
-  const int = Number.parseInt(value, 16);
-  const r = (int >> 16) & 0xff;
-  const g = (int >> 8) & 0xff;
-  const b = int & 0xff;
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? '#1f2937' : '#ffffff';
+  const luminance = relativeLuminance(normalizeHex(hex));
+  const onWhite = 1.05 / (luminance + 0.05);
+  const onBlack = (luminance + 0.05) / 0.05;
+  return onBlack > onWhite ? '#000000' : '#ffffff';
 }
 
 /** Inline style for a status badge: solid background + auto-contrast text. */

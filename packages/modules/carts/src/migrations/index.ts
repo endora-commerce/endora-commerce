@@ -26,12 +26,14 @@ import { Migration20260611T140352CartsConsolidation } from './20260611T140352_ca
 import { Migration20260611T140413CartsCartItemPackaging } from './20260611T140413_carts_cart_item_packaging.js';
 import { Migration20260818T081253CartsCartCompletedOrderFk } from './20260818T081253_carts_cart_completed_order_fk.js';
 import { Migration20260830T112911CartsOrganizationAttributionCheck } from './20260830T112911_carts_organization_attribution_check.js';
+import { Migration20261008T061751CartsCartSourceQuoteRequest } from './20261008T061751_carts_cart_source_quote_request.js';
 
 export const migrations = [
   Migration20260611T140352CartsConsolidation,
   Migration20260611T140413CartsCartItemPackaging,
   Migration20260818T081253CartsCartCompletedOrderFk,
   Migration20260830T112911CartsOrganizationAttributionCheck,
+  Migration20261008T061751CartsCartSourceQuoteRequest,
 ];
 
 export {
@@ -39,4 +41,5 @@ export {
   Migration20260611T140413CartsCartItemPackaging,
   Migration20260818T081253CartsCartCompletedOrderFk,
   Migration20260830T112911CartsOrganizationAttributionCheck,
+  Migration20261008T061751CartsCartSourceQuoteRequest,
 };

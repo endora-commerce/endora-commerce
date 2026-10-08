@@ -550,6 +550,19 @@ export interface CartRecord {
   rejectedReason: string | null;
   appliedPromotionCode: string | null;
   convertedToQuoteRequestId: string | null;
+  /**
+   * The accepted Quote Request whose agreed lines this basket was seeded with
+   * (`CartWritePort.replaceItemsForCustomer`'s `sourceQuoteRequestId`), or
+   * `null`. The opposite direction from {@link convertedToQuoteRequestId}: that
+   * one names the request a basket *became*, this one the request a basket
+   * *came from*.
+   *
+   * **A claim, not a fact, for whoever reads it.** `carts` records what its
+   * caller said and judges nothing about the request; `orders` — the one
+   * reader — re-reads the request through `quoteRequestReadPort` at placement
+   * before it stamps the order.
+   */
+  sourceQuoteRequestId: string | null;
   abandonmentNotifiedAt: Date | null;
   lastActivityAt: Date;
   version: number;
@@ -592,6 +605,12 @@ export interface CartSeedLine {
   quantity: number;
   unitPrice: string;
   currency: string;
+}
+
+/** What a seeded basket remembers about where its lines came from. */
+export interface CartSeedOptions {
+  /** The accepted Quote Request these lines are the agreed lines of. */
+  sourceQuoteRequestId?: string | null;
 }
 
 /**
@@ -674,10 +693,18 @@ export interface CartWritePort {
    * Clear the customer's active cart and seed it with these lines, creating
    * the cart when there is none. The single-active-cart model admin
    * order-create, reorder and RFQ conversion all assume.
+   *
+   * `options.sourceQuoteRequestId` names the accepted Quote Request the lines
+   * are the agreed lines of. It is **replaced on every call, absent included**:
+   * a basket re-seeded from a reorder or an admin-created order is no longer
+   * the quote's, so an omitted option clears what an earlier conversion left.
+   * The id travels the road the agreed unit prices travel — on the basket, to
+   * placement — and is dropped again when the buyer removes the last line.
    */
   replaceItemsForCustomer(
     ctx: CartCustomerContext,
     lines: readonly CartSeedLine[],
+    options?: CartSeedOptions,
   ): Promise<CartWithItems>;
 }
 

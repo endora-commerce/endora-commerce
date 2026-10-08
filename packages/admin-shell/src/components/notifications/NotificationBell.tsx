@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactElement } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck } from 'lucide-react';
+import { useTranslationContext } from '../../i18n/TranslationProvider.js';
 import { useTranslation } from '../../i18n/useTranslation.js';
+import { notificationText } from './notification-text.js';
 import { useAdminNotifications, type AdminNotificationItem } from './useAdminNotifications.js';
 
 /**
@@ -13,9 +15,14 @@ import { useAdminNotifications, type AdminNotificationItem } from './useAdminNot
  * marks it read and navigates to `linkPath` if present. "Mark all read"
  * acts on the visible-to-this-admin set (broadcasts insert a per-admin
  * read cursor; per-admin entries flip `read_at` directly).
+ *
+ * An entry's title and body are drawn in the reader's language when the entry
+ * carries a message for them, and as recorded when it does not — see
+ * `notificationText`.
  */
 export function NotificationBell(): ReactElement {
   const t = useTranslation('core');
+  const bundles = useTranslationContext();
   const navigate = useNavigate();
   const { items, unreadCount, refresh, markRead, markAllRead } = useAdminNotifications();
   const [open, setOpen] = useState(false);
@@ -97,30 +104,35 @@ export function NotificationBell(): ReactElement {
             {items.length === 0 ? (
               <div style={EMPTY_STYLE}>{t('appShell.notifications.empty')}</div>
             ) : (
-              items.map((it) => (
-                <button
-                  key={it.id}
-                  type="button"
-                  role="menuitem"
-                  style={{ ...ROW_STYLE, ...(it.isRead ? ROW_READ_STYLE : ROW_UNREAD_STYLE) }}
-                  onClick={(): void => handleClick(it)}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <span style={{ fontWeight: it.isRead ? 400 : 600, flex: 1 }}>{it.title}</span>
-                    <time
-                      style={{ fontSize: 11, color: 'var(--text-muted, #888)' }}
-                      dateTime={it.createdAt}
-                    >
-                      {formatRelative(it.createdAt)}
-                    </time>
-                  </div>
-                  {it.body ? (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginTop: 2 }}>
-                      {it.body}
+              items.map((it) => {
+                const body = notificationText(bundles, it.bodyMessage, it.body);
+                return (
+                  <button
+                    key={it.id}
+                    type="button"
+                    role="menuitem"
+                    style={{ ...ROW_STYLE, ...(it.isRead ? ROW_READ_STYLE : ROW_UNREAD_STYLE) }}
+                    onClick={(): void => handleClick(it)}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontWeight: it.isRead ? 400 : 600, flex: 1 }}>
+                        {notificationText(bundles, it.titleMessage, it.title)}
+                      </span>
+                      <time
+                        style={{ fontSize: 11, color: 'var(--text-muted, #888)' }}
+                        dateTime={it.createdAt}
+                      >
+                        {formatRelative(it.createdAt)}
+                      </time>
                     </div>
-                  ) : null}
-                </button>
-              ))
+                    {body ? (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginTop: 2 }}>
+                        {body}
+                      </div>
+                    ) : null}
+                  </button>
+                );
+              })
             )}
           </div>
         </div>

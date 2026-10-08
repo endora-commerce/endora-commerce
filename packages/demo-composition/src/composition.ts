@@ -6,7 +6,7 @@
  * composition step and MUST NOT live in any module."* These are those steps:
  * which channel sells the demo products, which role each demo administrator
  * holds, the menu over the category tree, the prices, the stock, the demo
- * buyer, the attributes, the images and the attachments.
+ * buyer, the attributes, the images, the attachments and the sales pipeline.
  *
  * ## Why it is a package, and not a file in the instance
  *
@@ -77,6 +77,7 @@ import type {
 import { SalesChannel, hashPassword } from '@endora-commerce/platform/kernel';
 import { entityNamed } from '@endora-commerce/platform/packages';
 import { createAttributeFixture, findAttributeDefinitionByKey } from './attribute-fixtures.js';
+import { demoSalesPipelineStep } from './sales-pipeline.js';
 
 /** A sign-in detail the runner prints — the platform's own shape. */
 type DemoCredential = NonNullable<DemoCompositionResult['credentials']>[number];
@@ -498,7 +499,7 @@ export type DemoCompositionDeps = DemoCompositionInput;
  * step writes or joins, and deliberately not the kernel: sales channels are the
  * kernel's table and the kernel has no activation control to ask about.
  */
-interface CompositionStep {
+export interface CompositionStep {
   readonly name: string;
   readonly modules: readonly string[];
   /**
@@ -1416,6 +1417,17 @@ const STEPS: readonly CompositionStep[] = [
       );
     },
   },
+  // ── the sales pipeline on CRM's board ───────────────────────────────────
+  // A dozen Sales Opportunities for the demo organisation, assigned across the
+  // demo Sales Reps, with the history, tags and notes a three-month-old
+  // pipeline carries. `crm` owns the rows and four other modules own what they
+  // name, so it is a step (§5.1); it is long, so it is a file of its own.
+  //
+  // After the buyer, whom some Opportunities name as their contact person. On
+  // the way out it is therefore withdrawn before the buyer is — which is also
+  // before `organizations`' own `reset`, the order the foreign key on
+  // `crm_opportunities.organization_id` (`on delete restrict`) needs.
+  demoSalesPipelineStep,
 ];
 
 /**

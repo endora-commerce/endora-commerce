@@ -1042,6 +1042,15 @@ export const CONTRIBUTION_POLICY_STATED: Readonly<Record<string, 'skip' | 'honou
   // render. An owner no manifest declares — an overlay module's — is honoured.
   // `listAll` stays presence-blind (feature 141, contract §7).
   'email:emailBlockRendererRegistry': 'skip',
+  // Skipped: a surface. `list()` — what the subscription form is served — leaves
+  // out an event type whose owner is not effectively present, asked on every
+  // read, so nothing offers an event nothing can emit. Whether an event is
+  // *delivered* is not the registry's question at all: a pushed type is bridged
+  // through `webhooks`' own gated subscription, and a switched-off contributor
+  // emits nothing. Subscriptions naming the type stay stored and receive again
+  // when the owner is back. `owners()` stays presence-blind
+  // (`specs/143-crm-sales-opportunities/`, research R-27).
+  'webhooks:webhookEventRegistry': 'skip',
 };
 
 /**

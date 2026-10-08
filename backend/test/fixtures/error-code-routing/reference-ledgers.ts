@@ -107,6 +107,117 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'noun is the admin account, `admin_users`\' own row, and both raise sites are in its ' +
       'service.',
   },
+  CRM_OPPORTUNITY_NOT_FOUND: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the one answer for an Opportunity the ' +
+      'caller cannot have — missing, or belonging to an Organization outside their scope — ' +
+      'raised by every route about an Opportunity or anything hanging on it.',
+  },
+  CRM_INVALID_TRANSITION: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the refusal of a status change the ' +
+      'configured Opportunity workflow has no transition for.',
+  },
+  CRM_TRANSITION_VETOED: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the refusal a registered transition ' +
+      'guard makes; the message is the guard\'s own sentence, carried in `details.reason`.',
+  },
+  CRM_TRANSITION_CONFLICT: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the refusal of a status change whose ' +
+      'Opportunity kept moving while it was being applied, after the one re-evaluation the ' +
+      'transition service allows.',
+  },
+  CRM_DOCUMENT_NOT_FOUND: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to link a document that ' +
+      'does not exist or is outside the caller\'s scope.',
+  },
+  CRM_DOCUMENT_ALREADY_LINKED: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to link a document that ' +
+      'already belongs to an Opportunity — one document, one Opportunity.',
+  },
+  CRM_LINK_ORGANIZATION_MISMATCH: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to link a document of ' +
+      'another Organization than the Opportunity\'s, which is what keeps a link from becoming a ' +
+      'cross-tenant window.',
+  },
+  CRM_STATUS_CODE_TAKEN: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to create an Opportunity ' +
+      'status under a code another status holds.',
+  },
+  CRM_STATUS_IN_USE: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to delete, or change the ' +
+      'meaning of, an Opportunity status that Opportunities are in.',
+  },
+  CRM_STATUS_INITIAL_REQUIRED: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to delete the workflow\'s ' +
+      'start status, or to clear its flag without moving it.',
+  },
+  CRM_WORKFLOW_INVALID: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 1), which ' +
+      'did not exist when the prefix chain was deleted: the refusal of a configuration change ' +
+      'that would break a structural rule of the Opportunity workflow; `details.rule` names the ' +
+      'rule and each rule has its own sentence.',
+  },
+  CRM_ASSIGNEE_INVALID: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 3), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to assign an Opportunity to ' +
+      'somebody who is not an active administrator — unknown, deactivated or deleted.',
+  },
+  CRM_ATTACHMENT_TOO_LARGE: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, the attachment ' +
+      'upload), which did not exist when the prefix chain was deleted: the refusal of a file ' +
+      'larger than the route that uploads an Opportunity attachment will read into memory. ' +
+      'The noun is the attachment and the one raise site is that route; the media library\'s ' +
+      'own size limit keeps its own code.',
+  },
+  CRM_TAG_NAME_TAKEN: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 6), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to create or rename a CRM ' +
+      'tag onto a name another tag already has, compared without regard to case.',
+  },
+  CRM_MESSAGE_IMMUTABLE: {
+    to: 'crm',
+    reason:
+      'Minted with the `crm` module (`specs/143-crm-sales-opportunities/`, User Story 4), which ' +
+      'did not exist when the prefix chain was deleted: the refusal to edit or delete an ' +
+      'internal message on an Opportunity, which is immutable once sent, whoever asks.',
+  },
   CMS_SLUG_RESERVED: {
     to: 'cms',
     reason:

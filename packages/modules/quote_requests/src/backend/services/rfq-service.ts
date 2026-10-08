@@ -839,6 +839,13 @@ export class RfqService {
         organizationId: ctx.organizationId,
       },
       lines,
+      // The basket remembers which request these prices were agreed on, and
+      // `orders` copies that onto the order it places from it — after reading
+      // this request again through `quoteRequestReadPort`. Without it the order
+      // named no source, `order-completion-reactor.ts` never fired, and an
+      // accepted quote stayed `Approved` and convertible for ever
+      // (`specs/143-crm-sales-opportunities/`, FR-100).
+      { sourceQuoteRequestId: rfq.id },
     );
     const cartId = seeded.cart.id;
     this.#audit(em, 'quote_request.convert_to_order', rfq.id, null, {

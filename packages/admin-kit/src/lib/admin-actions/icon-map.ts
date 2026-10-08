@@ -6,6 +6,7 @@ import {
   Box,
   Boxes,
   Building2,
+  CalendarDays,
   CircleDollarSign,
   ClipboardCheck,
   ClipboardList,
@@ -163,6 +164,9 @@ const ICON_MAP: Record<KnownIconName, LucideIcon> = {
   // entries. The batch's other seven rows needed no entry: `Package`, `Boxes`,
   // `Tag`, `FileText` and `ListChecks` are already above.
   ClipboardCheck,
+  // `specs/143-crm-sales-opportunities/` (US22) — the same, for `crm`'s
+  // Calendar sidebar entry and palette action.
+  CalendarDays,
 };
 
 export function resolveIcon(name: string): LucideIcon {

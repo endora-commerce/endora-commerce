@@ -21,6 +21,10 @@ export const supportedEntityTypeSchema = z.enum([
   // Feature 061 — product attributes are catalog extensions of product-host
   // definitions; the type is host-managed (writes only via /catalog/attributes).
   'product',
+  // Feature 143 — a Sales Opportunity of the `crm` module. The registry entry
+  // names that module as the type's owner, and the type is offered only while
+  // the owner is present.
+  'opportunity',
 ]);
 export type SupportedEntityType = z.infer<typeof supportedEntityTypeSchema>;
 

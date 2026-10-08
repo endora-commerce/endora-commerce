@@ -19,6 +19,7 @@ szyny zdarzeń są przekazywane do kolejki BullMQ; worker podpisuje każdą wysy
 | `DELETE /api/v1/admin/webhooks/:id` | Usunięcie |
 | `GET /api/v1/admin/webhooks/deliveries` | Ostatnie wysyłki (z filtrowaniem według statusu) |
 | `POST /api/v1/admin/webhooks/deliveries/:id/replay` | Ponowienie wysyłki `failed` / `dead_lettered` |
+| `GET /api/v1/admin/webhooks/event-types` | Typy zdarzeń wnoszone przez inne moduły, których właściciel jest włączony |
 
 ## Kontrakt wysyłki
 
@@ -32,6 +33,42 @@ sekcja *Subscribing to webhooks* w przewodniku po integracjach Endory.
 Do 8 prób na wysyłkę, z wykładniczo rosnącym odstępem od 1 s i limitem czasu 10 s na próbę. Po
 ostatniej próbie wysyłka przechodzi w stan `dead_lettered`. Endpoint ponowienia kopiuje wiersz
 `failed` / `dead_lettered` jako nową wysyłkę `pending`.
+
+## Typy zdarzeń wnoszone przez inne moduły
+
+Ten moduł sam z siebie przekazuje dwa typy zdarzeń: `order.created.v1` i
+`order.status_changed.v1`. Każdy inny moduł może zaoferować własne typy zdarzeń
+przez **`webhookEventRegistry`** — ten moduł nie wymienia zdarzeń żadnego innego
+modułu.
+
+Moduł wnoszący zdarzenia zgłasza ich nazwy w haku startowym, który nie robi nic
+innego:
+
+```ts
+ctx.onBoot(() => {
+  const registry = lazyPort<WebhookEventRegistryPort>(ctx, 'webhookEventRegistry');
+  registry.register({ ownerModuleId: 'acme_loyalty', eventType: 'acme_loyalty.points_granted.v1' });
+});
+```
+
+i deklaruje tę zależność w swoim manifeście:
+`nonBindingDependencies: [{ moduleId: 'webhooks', name: 'webhookEventRegistry', kind: 'contributes-to' }]`.
+
+Co wynika ze zgłoszenia:
+
+- **Typ zdarzenia jest przekazywany** do kolejki wysyłek dokładnie tak jak typy
+  wbudowane — przez własną subskrypcję tego modułu, więc zatrzymuje się, gdy ten
+  moduł zostaje wyłączony. **Treść zdarzenia jest wysyłana w całości**, więc
+  zdarzenie oferowane przez moduł jest jego publicznym kontraktem.
+- **Typ jest oferowany w formularzu subskrypcji** — za własną listą formularza —
+  dopóki jego właściciel jest włączony. `GET /api/v1/admin/webhooks/event-types`
+  odpowiada `{ "data": [{ "ownerModuleId", "eventType" }] }`.
+- **Gdy właściciel jest wyłączony**, typ nie jest oferowany. Subskrypcje, które
+  go wskazują, zostają zachowane i nic nie dostają, dopóki właściciel nie wróci.
+- Subskrypcja przypisana do jednej organizacji dostaje wniesione zdarzenie tylko
+  wtedy, gdy jego treść zawiera to `organizationId`.
+- Zgłoszenie tego samego typu dwa razy albo typu, który ten moduł już
+  przekazuje, daje jedną wysyłkę.
 
 ## Encje
 

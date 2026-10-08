@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2 } from 'lucide-react';
 import { ApiError, apiClient } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Button, Card, CardContent, CardHeader, CardTitle, Combobox, Input, Label, PageHeader, Textarea, type ComboboxOption } from '@endora-commerce/admin-kit/ui';
@@ -34,6 +34,43 @@ interface LineRow {
 
 const SEARCH_DEBOUNCE_MS = 250;
 
+/**
+ * What another screen may hand this one in the query string when it opens it
+ * (feature 143, US10) — all of it optional, and none of it interpreted:
+ *
+ * - `originType` + `originId`: where the request is being created from. Sent
+ *   on the create request as `origin` and otherwise unread. A pair that is not
+ *   well-formed is dropped rather than sent, because the request would be
+ *   refused for it.
+ * - `organizationId`, `customerAccountId`: what to preselect. The organization
+ *   narrows the customer search; the customer arrives chosen.
+ * - `returnTo`: a path inside this application to go back to — from the Back
+ *   link, and after the request is created, when the id of the new request is
+ *   handed over in the navigation state as `createdDocument`.
+ */
+interface OpenedWith {
+  origin: { type: string; id: string } | null;
+  organizationId: string;
+  customerAccountId: string;
+  returnTo: string | null;
+}
+
+const ORIGIN_TYPE = /^[a-z][a-z0-9_]{0,63}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function readOpenedWith(params: URLSearchParams): OpenedWith {
+  const type = params.get('originType') ?? '';
+  const id = params.get('originId') ?? '';
+  const returnTo = params.get('returnTo') ?? '';
+  return {
+    origin: ORIGIN_TYPE.test(type) && UUID.test(id) ? { type, id } : null,
+    organizationId: params.get('organizationId') ?? '',
+    customerAccountId: params.get('customerAccountId') ?? '',
+    // A path of this application only: never a scheme, a host or `//`.
+    returnTo: /^\/(?![/\\])/.test(returnTo) ? returnTo : null,
+  };
+}
+
 function customerLabel(c: AdminCustomerListItem): string {
   const name = `${c.firstName} ${c.lastName}`.trim();
   return name.length > 0 ? name : c.email;
@@ -46,6 +83,8 @@ function customerLabel(c: AdminCustomerListItem): string {
 function CustomerPicker(props: {
   value: AdminCustomerListItem | null;
   onChange: (next: AdminCustomerListItem | null) => void;
+  /** Narrows the search to one organization's customers, and offers them at once. */
+  organizationId?: string;
 }): ReactNode {
   const t = useTranslation('core');
   const [options, setOptions] = useState<ComboboxOption<string>[]>([]);
@@ -53,6 +92,7 @@ function CustomerPicker(props: {
   const [searching, setSearching] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seqRef = useRef(0);
+  const organizationId = props.organizationId ?? '';
 
   useEffect(
     () => (): void => {
@@ -67,6 +107,7 @@ function CustomerPicker(props: {
       const params = new URLSearchParams({ page: '1', pageSize: '20', status: 'active' });
       const trimmed = query.trim();
       if (trimmed.length > 0) params.set('q', trimmed);
+      if (organizationId) params.set('organizationId', organizationId);
       const res = await apiClient.get<{ data: AdminCustomerListItem[] }>(
         `/api/v1/admin/customers?${params.toString()}`,
       );
@@ -89,7 +130,12 @@ function CustomerPicker(props: {
     } finally {
       if (seq === seqRef.current) setSearching(false);
     }
-  }, []);
+  }, [organizationId]);
+
+  // Opened with an organization: its customers are offered before anything is typed.
+  useEffect(() => {
+    if (organizationId) void runSearch('', ++seqRef.current);
+  }, [organizationId, runSearch]);
 
   const handleSearchChange = useCallback(
     (query: string): void => {
@@ -124,8 +170,29 @@ function emptyLine(): LineRow {
 export function RfqCreatePage(): ReactNode {
   const t = useTranslation('core');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Read once: what the page was opened with does not change under the form.
+  const [openedWith] = useState(() => readOpenedWith(searchParams));
 
   const [customer, setCustomer] = useState<AdminCustomerListItem | null>(null);
+
+  // Opened with a customer already chosen: read the row once — the request
+  // needs its organization, and the picker its name.
+  useEffect(() => {
+    if (!openedWith.customerAccountId) return undefined;
+    let alive = true;
+    void apiClient
+      .get<{ data: AdminCustomerListItem }>(`/api/v1/admin/customers/${openedWith.customerAccountId}`)
+      .then((res) => {
+        if (alive) setCustomer((current) => current ?? res.data);
+      })
+      .catch(() => {
+        // Left unchosen; the search still finds the customer.
+      });
+    return (): void => {
+      alive = false;
+    };
+  }, [openedWith.customerAccountId]);
   const [lines, setLines] = useState<LineRow[]>([emptyLine()]);
   const [headerNote, setHeaderNote] = useState('');
   const [expiresInDays, setExpiresInDays] = useState('');
@@ -206,8 +273,13 @@ export function RfqCreatePage(): ReactNode {
           agreedUnitPrice: Number(l.agreedUnitPrice),
           ...(l.lineNote.trim() ? { lineNote: l.lineNote.trim() } : {}),
         })),
+        ...(openedWith.origin ? { origin: openedWith.origin } : {}),
       });
-      navigate(`/quote-requests/${res.data.id}`);
+      if (openedWith.returnTo) {
+        navigate(openedWith.returnTo, { state: { createdDocument: { id: res.data.id } } });
+      } else {
+        navigate(`/quote-requests/${res.data.id}`);
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.envelope.error.message : t('rfqCreate.error'));
     } finally {
@@ -220,7 +292,12 @@ export function RfqCreatePage(): ReactNode {
       <PageHeader
         title={t('rfqCreate.title')}
         description={t('rfqCreate.description')}
-        back={{ label: t('rfqCreate.back'), to: '/quote-requests' }}
+        back={
+          // Opened from elsewhere: the way back leads there, and says only "Back".
+          openedWith.returnTo
+            ? { label: t('common.action.back'), to: openedWith.returnTo }
+            : { label: t('rfqCreate.back'), to: '/quote-requests' }
+        }
       />
 
       {error ? (
@@ -235,7 +312,11 @@ export function RfqCreatePage(): ReactNode {
         </CardHeader>
         <CardContent className="space-y-2">
           <Label htmlFor="customerAccountId">{t('rfqCreate.field.customer')}</Label>
-          <CustomerPicker value={customer} onChange={handleCustomerChange} />
+          <CustomerPicker
+            value={customer}
+            onChange={handleCustomerChange}
+            organizationId={openedWith.organizationId}
+          />
           {customer && !hasOrg ? (
             <Alert variant="destructive">
               <AlertDescription>{t('rfqCreate.noOrgWarning')}</AlertDescription>

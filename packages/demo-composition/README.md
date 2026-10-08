@@ -14,7 +14,11 @@ demo administrator holds. This package is what says it:
   sales representatives → `sales_representative`);
 - the menu over the category tree, the default price list backfill and the stock spread;
 - the demo buyer in the demo organisation, with a credit limit;
-- the product attributes, the placeholder images and the sample attachments.
+- the product attributes, the placeholder images and the sample attachments;
+- a sales pipeline on the CRM board: twelve opportunities for the demo organisation, two in each
+  status of the default workflow, assigned across the two sales representatives (one is left
+  unassigned), with status history spread over the last three months, tags, notes and an internal
+  message. None is linked to an order or a quote request — the demo shop has neither.
 
 `pnpm run cli demo reset` withdraws exactly what it created, before the modules withdraw their
 own rows.

@@ -195,10 +195,64 @@ delivery per (transition, recipient, channel).
 
 ## Conversion to order
 
+`POST /api/v1/quote-requests/:id/convert-to-order` fills the customer's
+basket with the lines of an `Approved` quote request at the agreed unit
+prices, and marks the basket with the quote request it was filled from. The
+order placed from that basket records it (`source_quote_request_id`) — while
+the quote request is still `Approved` and at least one line is still in the
+basket at the agreed price; the Orders module's page says what drops the mark.
+
 When an order is created with a populated `source_quote_request_id`,
 an event subscriber inside the module flips the originating Quote
 Request to `Completed`, populates `converted_order_id`, and fires the
-`completed` notification. The cart-creation step that locks RFQ
-agreed prices into a checkout cart is delivered through the existing
-cart and checkout flows, and is refused while any line has no agreed
-unit price (see *Agreed prices*).
+`completed` notification. A completed quote request cannot be ordered a second
+time, and the conversion is refused while any line has no agreed unit price
+(see *Agreed prices*). The subscriber waits for the order to be committed — a little over two
+seconds at most — and completes nothing for an order of another organization.
+
+With this module switched off, a basket filled earlier is still checked out, at
+the agreed prices, as an ordinary order: it records no quote request and the
+quote request is not completed.
+
+## Created by an administrator: the event and its origin
+
+A quote request an administrator creates through
+`POST /api/v1/admin/quote-requests` is announced on the in-process event bus as
+`rfq.created_by_admin.v1`, once, after its rows are written:
+
+| Field | Meaning |
+| --- | --- |
+| `rfqId` | The new quote request. |
+| `organizationId` | The organization it was created for. |
+| `adminUserId` | The administrator who created it. |
+| `origin` | What the create request carried as `origin`, or `null`. |
+
+`rfq.created.v1` remains the event of a customer's own submission and is
+**not** emitted on this path, so nothing that listens to it starts seeing
+requests an administrator prepared.
+
+The create request may carry an optional `origin: { type, id }` saying where
+the quote request is being created from — `type` a lower-case identifier of the
+sender's own (letters, digits, underscores), `id` a UUID. The module validates
+the shape and hands the value on, unread, with the event: it is not stored, not
+returned and changes nothing about the quote request. A module that recognises
+the `type` may act on it — the CRM module links such a quote request to the
+opportunity it was created from. The customer's own endpoint accepts no such
+field.
+
+The create screen (`/quote-requests/new`) reads the same from its query string
+when another screen opens it: `originType` and `originId`, `organizationId` and
+`customerAccountId` to preselect the customer, and `returnTo`, a path inside
+the Admin UI to go back to once the quote request exists.
+
+## Panels on the quote request screen
+
+The admin zone `quote_request.detail.after` is mounted once at the end of a
+quote request's screen, below the card that holds its tabs, and hands a
+contribution `{ quoteRequestId }`. A module adds a panel by declaring
+`zoneComponent('quote_request.detail.after', …)` in its own admin
+contributions; this module names no contributor and imports none. With nothing
+contributed — no such module, the module switched off, or a person without the
+panel's permission — the zone renders nothing and the screen is exactly the one
+without it. The CRM module contributes the opportunity a quote request is
+linked to.

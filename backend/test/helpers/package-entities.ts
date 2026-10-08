@@ -129,6 +129,20 @@ import type { OrderAppliedPromotion as OrderAppliedPromotionRow } from '../../..
 import type { OrderPlacementIntent as OrderPlacementIntentRow } from '../../../packages/modules/orders/src/backend/entities/order-placement-intent.entity.js';
 import type { OrderTransitionEffect as OrderTransitionEffectRow } from '../../../packages/modules/orders/src/backend/entities/order-transition-effect.entity.js';
 import type { Payment as PaymentRow } from '../../../packages/modules/payments/src/backend/entities/payment.entity.js';
+import type { CrmOpportunity as CrmOpportunityRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity.entity.js';
+import type { CrmOpportunityAttachment as CrmOpportunityAttachmentRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-attachment.entity.js';
+import type { CrmOpportunityComment as CrmOpportunityCommentRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-comment.entity.js';
+import type { CrmOpportunityEvent as CrmOpportunityEventRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-event.entity.js';
+import type { CrmOpportunityLink as CrmOpportunityLinkRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-link.entity.js';
+import type { CrmOpportunityReference as CrmOpportunityReferenceRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-reference.entity.js';
+import type { CrmOpportunityStatus as CrmOpportunityStatusRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-status.entity.js';
+import type { CrmOpportunityStatusHistory as CrmOpportunityStatusHistoryRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-status-history.entity.js';
+import type { CrmOpportunityStatusTransition as CrmOpportunityStatusTransitionRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-status-transition.entity.js';
+import type { CrmOpportunityTag as CrmOpportunityTagRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-tag.entity.js';
+import type { CrmOrderStatusMapping as CrmOrderStatusMappingRow } from '../../../packages/modules/crm/src/backend/entities/crm-order-status-mapping.entity.js';
+import type { CrmStatusPropagation as CrmStatusPropagationRow } from '../../../packages/modules/crm/src/backend/entities/crm-status-propagation.entity.js';
+import type { CrmTag as CrmTagRow } from '../../../packages/modules/crm/src/backend/entities/crm-tag.entity.js';
+import type { CrmValueCountingStatus as CrmValueCountingStatusRow } from '../../../packages/modules/crm/src/backend/entities/crm-value-counting-status.entity.js';
 
 /**
  * How a test names a **module package's** entity class (D-168).
@@ -1020,3 +1034,33 @@ export type NewsletterSubscriber = NewsletterSubscriberRow;
 
 export type AdminNotification = AdminNotificationRow;
 
+// `crm` — every class of the module, exposed at once so that no later story of
+// `specs/143-crm-sales-opportunities/` has to edit this shared file.
+export const CrmOpportunity = classNamed<CrmOpportunityRow>(installedModuleEntities, 'crm', 'CrmOpportunity');
+export const CrmOpportunityAttachment = classNamed<CrmOpportunityAttachmentRow>(installedModuleEntities, 'crm', 'CrmOpportunityAttachment');
+export const CrmOpportunityComment = classNamed<CrmOpportunityCommentRow>(installedModuleEntities, 'crm', 'CrmOpportunityComment');
+export const CrmOpportunityEvent = classNamed<CrmOpportunityEventRow>(installedModuleEntities, 'crm', 'CrmOpportunityEvent');
+export const CrmOpportunityLink = classNamed<CrmOpportunityLinkRow>(installedModuleEntities, 'crm', 'CrmOpportunityLink');
+export const CrmOpportunityReference = classNamed<CrmOpportunityReferenceRow>(installedModuleEntities, 'crm', 'CrmOpportunityReference');
+export const CrmOpportunityStatus = classNamed<CrmOpportunityStatusRow>(installedModuleEntities, 'crm', 'CrmOpportunityStatus');
+export const CrmOpportunityStatusHistory = classNamed<CrmOpportunityStatusHistoryRow>(installedModuleEntities, 'crm', 'CrmOpportunityStatusHistory');
+export const CrmOpportunityStatusTransition = classNamed<CrmOpportunityStatusTransitionRow>(installedModuleEntities, 'crm', 'CrmOpportunityStatusTransition');
+export const CrmOpportunityTag = classNamed<CrmOpportunityTagRow>(installedModuleEntities, 'crm', 'CrmOpportunityTag');
+export const CrmOrderStatusMapping = classNamed<CrmOrderStatusMappingRow>(installedModuleEntities, 'crm', 'CrmOrderStatusMapping');
+export const CrmStatusPropagation = classNamed<CrmStatusPropagationRow>(installedModuleEntities, 'crm', 'CrmStatusPropagation');
+export const CrmTag = classNamed<CrmTagRow>(installedModuleEntities, 'crm', 'CrmTag');
+export const CrmValueCountingStatus = classNamed<CrmValueCountingStatusRow>(installedModuleEntities, 'crm', 'CrmValueCountingStatus');
+export type CrmOpportunity = CrmOpportunityRow;
+export type CrmOpportunityAttachment = CrmOpportunityAttachmentRow;
+export type CrmOpportunityComment = CrmOpportunityCommentRow;
+export type CrmOpportunityEvent = CrmOpportunityEventRow;
+export type CrmOpportunityLink = CrmOpportunityLinkRow;
+export type CrmOpportunityReference = CrmOpportunityReferenceRow;
+export type CrmOpportunityStatus = CrmOpportunityStatusRow;
+export type CrmOpportunityStatusHistory = CrmOpportunityStatusHistoryRow;
+export type CrmOpportunityStatusTransition = CrmOpportunityStatusTransitionRow;
+export type CrmOpportunityTag = CrmOpportunityTagRow;
+export type CrmOrderStatusMapping = CrmOrderStatusMappingRow;
+export type CrmStatusPropagation = CrmStatusPropagationRow;
+export type CrmTag = CrmTagRow;
+export type CrmValueCountingStatus = CrmValueCountingStatusRow;

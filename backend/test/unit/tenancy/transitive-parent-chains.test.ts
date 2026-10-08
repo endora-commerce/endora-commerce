@@ -29,6 +29,18 @@ import {
  * `transitive-parent-resolution.test.ts`, which makes no claim about the real
  * platform.
  */
+/** The eight child tables of a Sales Opportunity, each scoped through it. */
+const CRM_OPPORTUNITY_CHILDREN = [
+  'CrmOpportunityAttachment',
+  'CrmOpportunityComment',
+  'CrmOpportunityEvent',
+  'CrmOpportunityLink',
+  'CrmOpportunityReference',
+  'CrmOpportunityStatusHistory',
+  'CrmOpportunityTag',
+  'CrmStatusPropagation',
+] as const;
+
 describe('the committed platform’s transitive tenancy chains', () => {
   it('registers a classification for every committed entity', () => {
     // The vacuous-pass guard: everything below is a filter over the registry,
@@ -73,10 +85,30 @@ describe('the committed platform’s transitive tenancy chains', () => {
     // `packages/platform/src/tenancy/transitive-parent-resolution.test.ts`, and
     // the paid package keeps its own classification test
     // (`src/backend/entities/tenant-classification.test.ts`).
+    // **Seven more since `specs/143-crm-sales-opportunities/`**, and they bring
+    // back the shape the fourth carried: a chain entirely inside one package.
+    // Every child table of a Sales Opportunity — links, status history,
+    // propagation outcomes, comments, attachments, tag joins, references — is
+    // scoped through `CrmOpportunity`, which carries the organization column.
+    // One hop each, parent and children owned by the same module, so none of
+    // them repeats the dependant-owned-parent defect recorded above.
     expect(transitive.map((meta) => meta.className).sort()).toEqual([
+      ...CRM_OPPORTUNITY_CHILDREN,
       'Invoice',
       'InvoiceExternalAttachment',
     ]);
+    for (const className of CRM_OPPORTUNITY_CHILDREN) {
+      const child = transitive.find((meta) => meta.className === className);
+      expect(child, className).toMatchObject({
+        parentClassName: 'CrmOpportunity',
+        fk: 'opportunityId',
+      });
+      expect(resolveTransitiveParent(child!), className).toMatchObject({
+        className: 'CrmOpportunity',
+        scope: 'org',
+        key: 'organizationId',
+      });
+    }
     // `KsefSubmission` (`Invoice`'s chain, owned by a dependant) was a member
     // too, until `ksef` left this repository (feature 134, T069). Its two-hop
     // walk below is carried by `InvoiceExternalAttachment`, the one other class

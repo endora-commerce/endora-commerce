@@ -82,6 +82,7 @@ describe('audit reference registry — contributions on a composed platform', ()
   it('has every owner registered by its own boot hook', () => {
     expect([...registry().owners()].sort()).toEqual([
       'catalog',
+      'crm',
       'customer_accounts',
       'inventory',
       'price_lists',

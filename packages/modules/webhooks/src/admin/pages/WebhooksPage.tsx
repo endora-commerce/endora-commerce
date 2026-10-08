@@ -42,6 +42,11 @@ const KNOWN_EVENT_TYPES = [
   'credit_limit.reservation_released.v1',
 ];
 
+/** `GET /api/v1/admin/webhooks/event-types` — the types other modules contribute. */
+interface ContributedEventTypesResponse {
+  data: Array<{ ownerModuleId: string; eventType: string }>;
+}
+
 interface WebhooksListResponse {
   data: Webhook[];
 }
@@ -63,6 +68,7 @@ export default function WebhooksPage(): ReactNode {
   const [copied, setCopied] = useState(false);
   // Feature 062 — best-effort id → name lookup for the org-scope column.
   const [orgNames, setOrgNames] = useState<Map<string, string>>(new Map());
+  const [contributedEventTypes, setContributedEventTypes] = useState<string[]>([]);
 
   const copySecret = useCallback(async (secret: string): Promise<void> => {
     try {
@@ -105,6 +111,25 @@ export default function WebhooksPage(): ReactNode {
   useEffect(() => {
     void refreshWebhooks();
   }, [refreshWebhooks]);
+
+  // The event types other modules contribute, offered after this screen's own
+  // list. Best effort: the form keeps its own list when this cannot be read.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await apiClient.get<ContributedEventTypesResponse>(
+          '/api/v1/admin/webhooks/event-types',
+        );
+        if (!cancelled) setContributedEventTypes(res.data.map((descriptor) => descriptor.eventType));
+      } catch {
+        /* the form offers its own list regardless */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     void refreshDeliveries();
@@ -280,7 +305,7 @@ export default function WebhooksPage(): ReactNode {
           <CardTitle>{t('webhooks.create.title')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <CreateWebhookForm onSubmit={handleCreate} />
+          <CreateWebhookForm onSubmit={handleCreate} contributedEventTypes={contributedEventTypes} />
         </CardContent>
       </Card>
 
@@ -471,8 +496,14 @@ function CreateWebhookForm(props: {
     eventTypes: string[];
     organizationId: string | null;
   }) => Promise<void>;
+  /** Event types other modules contribute; offered after this screen's own, each once. */
+  contributedEventTypes: readonly string[];
 }): ReactNode {
   const t = useTranslation('core');
+  const offeredEventTypes = [
+    ...KNOWN_EVENT_TYPES,
+    ...props.contributedEventTypes.filter((eventType) => !KNOWN_EVENT_TYPES.includes(eventType)),
+  ];
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [events, setEvents] = useState<Set<string>>(new Set());
@@ -551,7 +582,7 @@ function CreateWebhookForm(props: {
       <div className="space-y-2">
         <Label>{t('webhooks.create.eventsLabel')}</Label>
         <div className="flex flex-wrap gap-3">
-          {KNOWN_EVENT_TYPES.map((event) => (
+          {offeredEventTypes.map((event) => (
             <label
               key={event}
               className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-1.5 text-xs"

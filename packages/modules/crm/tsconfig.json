@@ -1,0 +1,23 @@
+{
+  // Type-check configuration, and the two-config split every package under
+  // `packages/` uses (feature 080, T042 / R11). `tsconfig.base.json`'s `paths`
+  // block is active here, so `@endora-commerce/contracts` resolves at its
+  // *source* and this package type-checks against the branch it is on (issue
+  // #255). `noEmit` is set for that reason: with `paths` active an emit would
+  // land beside another package's source. The emitting configuration is
+  // `tsconfig.build.json`.
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*"],
+  // A co-located test compiled into `dist` would import `vitest`, a
+  // devDependency no consumer installs. `src/admin/` is compiled by
+  // `tsconfig.ui.json` and by nothing else (feature 091, R12): this
+  // configuration must not carry `jsx` or the `DOM` lib, or a service file
+  // that referenced `document` would compile clean in the layer that runs in
+  // Node.
+  "exclude": ["src/admin/**/*", "src/**/*.test.ts", "src/**/*.spec.ts"]
+}
