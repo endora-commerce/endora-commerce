@@ -144,6 +144,46 @@ describe('the board\'s filters in its address', () => {
     expect(readBoardFilters(new URLSearchParams('assignee=unassigned')).shared.assignee).toBe('unassigned');
   });
 
+  it('reads nothing the server would refuse the whole board for (N-BFR2)', async () => {
+    const { OpportunityBoardQuerySchema } = await import('@endora-commerce/contracts');
+    const { sharedFilterParams } = await import(
+      '../../../../packages/modules/crm/src/admin/components/OpportunityFilterFields'
+    );
+    const addresses = [
+      // A date no calendar has.
+      'f.builtin:expectedCloseDate.from=2026-02-31',
+      'createdFrom=2026-02-31&createdTo=2026-13-01',
+      // A text of spaces alone, and one option longer than an option can be.
+      'f.custom:competitor.contains=%20%20',
+      `f.custom:lead_source.in=${'x'.repeat(201)}&f.custom:lead_source.in=referral`,
+      // References no field can have.
+      'f.custom:Lead_Source.in=referral',
+      'f.builtin:value2.min=1',
+      `f.custom:${'a'.repeat(65)}.is=true`,
+      `f.builtin:${'a'.repeat(41)}.is=true`,
+      // More fields than a request may name.
+      Array.from({ length: 25 }, (_, index) => `f.custom:field_${index}.is=true`).join('&'),
+    ];
+    for (const address of addresses) {
+      const read = readBoardFilters(new URLSearchParams(address));
+      const query = {
+        ...sharedFilterParams(read.shared),
+        ...(Object.keys(read.fields).length > 0 ? { fieldFilters: JSON.stringify(read.fields) } : {}),
+      };
+      const parsed = OpportunityBoardQuerySchema.safeParse(query);
+      expect(parsed.success, `${address.slice(0, 80)} -> ${JSON.stringify(parsed.error?.issues)}`).toBe(true);
+    }
+    // What is of its shape beside what is not is kept.
+    expect(
+      readBoardFilters(
+        new URLSearchParams(`f.custom:lead_source.in=${'x'.repeat(201)}&f.custom:lead_source.in=referral`),
+      ).fields,
+    ).toEqual({ 'custom:lead_source': { in: ['referral'] } });
+    expect(readBoardFilters(new URLSearchParams('f.custom:competitor.contains=%20acme%20')).fields).toEqual({
+      'custom:competitor': { contains: 'acme' },
+    });
+  });
+
   it('keeps "a person" while nobody is chosen yet, so the picker can open', () => {
     const pending = { ...readBoardFilters(new URLSearchParams()).shared, assignee: 'person' as const };
     const address = writeBoardFilters({ shared: pending, fields: {} });
@@ -459,6 +499,16 @@ describe('OpportunityBoardPage — the fields a card shows', () => {
     expect(screen.getByLabelText(en('opportunity.list.filter.search'))).toHaveValue('');
     expect(screen.getByLabelText(en('board.filter.max', { label: 'Seats' }))).toHaveValue(null);
     expect(screen.queryByRole('button', { name: en('opportunity.list.filter.clear') })).not.toBeInTheDocument();
+  });
+
+  it('reads the board once for an address whose filters are not in the card\'s order (N-BFR3)', async () => {
+    // `seats` is the card's fourth field and `lead_source` its first; `max` is written before `min`.
+    await renderBoard('/crm/board?f.custom:seats.max=9&f.custom:seats.min=2&f.custom:lead_source.in=referral');
+    await waitFor(() => expect(screen.getByLabelText(en('board.filter.max', { label: 'Seats' }))).toHaveValue(9));
+    // Long enough for a second read to have been asked for.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const reads = getSpy.mock.calls.map(([url]) => url as string).filter((url) => url.startsWith(`${BOARD_PATH}?`));
+    expect(reads).toHaveLength(1);
   });
 
   it('does not send a filter left in the address for a field the card no longer shows', async () => {

@@ -1,5 +1,7 @@
 import {
   OPPORTUNITY_BOARD_DEFAULT_CARD_FIELDS,
+  OpportunityFieldFilterSchema,
+  opportunityBoardFieldRefSchema,
   type OpportunityBoardCardField,
   type OpportunityBoardFieldKind,
   type OpportunityFieldFilter,
@@ -83,8 +85,8 @@ export function boardFieldOptionLabel(
 // --- The board's filters in its address --------------------------------------
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const NUMBER = /^-?\d{1,12}(\.\d{1,4})?$/;
+/** As many fields as one request may name (§12c). */
+const MAX_FILTERED_FIELDS = 20;
 const ASSIGNEE_TOKENS: ReadonlySet<string> = new Set(['me', 'unassigned', 'person']);
 const FIELD_PARAM = /^f\.((?:builtin|custom):[A-Za-z0-9_]+)\.(contains|in|is|min|max|from|to)$/;
 
@@ -96,6 +98,24 @@ export interface BoardFilters {
 export const NO_BOARD_FILTERS: BoardFilters = { shared: NO_SHARED_FILTERS, fields: {} };
 
 /**
+ * One operator of a field filter as the server would take it, or `null` when
+ * it would refuse it. **The server's own schema decides** — a second statement
+ * of "a date", "a number" or "a text" here is one that drifts, and it had: a
+ * date no calendar has, a text of spaces and an over-long option each passed
+ * this file's patterns and had the whole board refused.
+ */
+function accepted<K extends keyof OpportunityFieldFilter>(
+  operator: K,
+  value: unknown,
+): OpportunityFieldFilter[K] | null {
+  const parsed = OpportunityFieldFilterSchema.safeParse({ [operator]: value });
+  return parsed.success ? (parsed.data[operator] ?? null) : null;
+}
+
+/** A day of the calendar as `YYYY-MM-DD`, or nothing — the shape `from` has. */
+const calendarDate = (value: string | null): string => (value ? (accepted('from', value) ?? '') : '');
+
+/**
  * The filters an address carries. Forgiving: a parameter that is not of its
  * shape is left out, so an address somebody edited by hand still opens — the
  * server would refuse the whole board for one malformed bound.
@@ -103,7 +123,7 @@ export const NO_BOARD_FILTERS: BoardFilters = { shared: NO_SHARED_FILTERS, field
 export function readBoardFilters(params: URLSearchParams): BoardFilters {
   const assignee = params.get('assignee') ?? '';
   const person = UUID.test(assignee);
-  const date = (name: string): string => (DATE.test(params.get(name) ?? '') ? (params.get(name) as string) : '');
+  const date = (name: string): string => calendarDate(params.get(name));
   const uuid = (name: string): string | null => (UUID.test(params.get(name) ?? '') ? params.get(name) : null);
   const shared: SharedOpportunityFilters = {
     q: (params.get('q') ?? '').slice(0, 200),
@@ -122,16 +142,22 @@ export function readBoardFilters(params: URLSearchParams): BoardFilters {
     const match = FIELD_PARAM.exec(name);
     if (!match) continue;
     const [, ref, operator] = match as unknown as [string, string, keyof OpportunityFieldFilter];
+    if (!opportunityBoardFieldRefSchema.safeParse(ref).success) continue;
+    if (!(ref in fields) && Object.keys(fields).length >= MAX_FILTERED_FIELDS) continue;
     const values = params.getAll(name).filter((value) => value !== '');
     const first = values[0];
     if (first === undefined) continue;
-    const filter = (fields[ref] ??= {});
-    if (operator === 'in') filter.in = values.slice(0, 50);
-    else if (operator === 'contains') filter.contains = first.slice(0, 200);
-    else if (operator === 'is' && (first === 'true' || first === 'false')) filter.is = first === 'true';
-    else if ((operator === 'min' || operator === 'max') && NUMBER.test(first)) filter[operator] = first;
-    else if ((operator === 'from' || operator === 'to') && DATE.test(first)) filter[operator] = first;
-    if (Object.keys(filter).length === 0) delete fields[ref];
+    const filter: OpportunityFieldFilter = { ...fields[ref] };
+    if (operator === 'in') {
+      const options = values.filter((value) => accepted('in', [value]) !== null).slice(0, 50);
+      if (options.length > 0) filter.in = options;
+    } else if (operator === 'is') {
+      if (first === 'true' || first === 'false') filter.is = first === 'true';
+    } else {
+      const value = accepted(operator, operator === 'contains' ? first.slice(0, 200) : first);
+      if (value !== null) filter[operator] = value;
+    }
+    if (Object.keys(filter).length > 0) fields[ref] = filter;
   }
   return { shared, fields };
 }
@@ -156,6 +182,18 @@ export function writeBoardFilters(filters: BoardFilters): URLSearchParams {
     }
   }
   return params;
+}
+
+/**
+ * Field filters as one text whatever order they were put together in — two
+ * addresses that say the same thing are one request, not two.
+ */
+export function fieldFiltersKey(filters: OpportunityFieldFilters): string {
+  const sorted = <T>(record: Record<string, T>): Array<[string, T]> =>
+    Object.entries(record).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return JSON.stringify(
+    Object.fromEntries(sorted(filters).map(([ref, filter]) => [ref, Object.fromEntries(sorted(filter))])),
+  );
 }
 
 /**

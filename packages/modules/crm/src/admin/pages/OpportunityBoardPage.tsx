@@ -35,6 +35,7 @@ import {
   DEFAULT_BOARD_CARD_FIELDS,
   NO_BOARD_FILTERS,
   activeFieldFilters,
+  fieldFiltersKey,
   readBoardFilters,
   writeBoardFilters,
   type BoardFilters,
@@ -229,10 +230,11 @@ export function OpportunityBoardPage(): ReactNode {
    * The field filters the server is sent. Until the board has said which
    * fields its cards show, every one the address carries — the server ignores
    * a field that is not on the card — and afterwards only those of a shown
-   * field. As text, so an answer that changes nothing reads nothing again.
+   * field. As text in one order, so an answer that changes nothing reads
+   * nothing again — whatever order the address names the filters in.
    */
   const fieldFilterKey = useMemo(
-    () => JSON.stringify(cardFields ? activeFieldFilters(boardFilters.fields, cardFields) : boardFilters.fields),
+    () => fieldFiltersKey(cardFields ? activeFieldFilters(boardFilters.fields, cardFields) : boardFilters.fields),
     [boardFilters.fields, cardFields],
   );
   const params = useMemo(() => {
