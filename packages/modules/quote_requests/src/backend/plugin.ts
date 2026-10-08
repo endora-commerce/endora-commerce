@@ -97,6 +97,15 @@ export interface QuoteRequestsModuleOptions {
   organizations: OrganizationDetailsPort;
   adminUsers: AdminUserReadPort;
   orders: OrderReadPort;
+  /**
+   * How the completion reactor looks again for an order whose commit was still
+   * in flight when `order.created.v1` reached it
+   * (`specs/143-crm-sales-opportunities/`, FR-104): `deferAfterCommit` runs the
+   * later reads off the bus's chain in a scope of their own, and
+   * `isStillPresent` is asked before each of them.
+   */
+  deferAfterCommit: (work: () => Promise<void>) => Promise<void>;
+  isStillPresent: () => boolean;
   carts: CartWritePort;
   /**
    * `organizations`' sales-rep assignment port (issue #108).
@@ -191,6 +200,8 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     orders: options.orders,
     eventService,
     notificationService,
+    defer: options.deferAfterCommit,
+    stillPresent: options.isStillPresent,
   });
 
   return {
