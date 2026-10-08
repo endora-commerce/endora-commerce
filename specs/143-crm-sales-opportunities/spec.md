@@ -610,18 +610,27 @@ separate tab 'Powiązania'." The screenshot is a model for the screen's structur
 its branding, and not for the features behind it — research N-DL1 says what was taken from
 it and what was not.*
 
+*Amended the same day, after the owner saw the first build (translated from Polish): "I
+forgot our workflow need not be linear… so let's change the display so it shows only the
+possible transitions forward and backward in the process. Also, I would wrap the right-hand
+bar in a Card component so it is more readable, and it should rather be entirely on the
+right, i.e. we narrow the Card with the stages." The scenarios and FR-110, FR-112 – FR-115
+and FR-119 below are as amended; research N-DL9 and N-DL10.*
+
 A Sales Rep opening an Opportunity reads, from the top: what it is called and who it is for;
-where it stands in the workflow and where it may go; and then, side by side, the working
-area — description, linked documents, notes, messages, files, history, each on a tab — and a
-column of the Opportunity's facts that stays in place whichever tab is open.
+then, on the left, which status it is in and where the workflow lets it go — back or
+forward — and under that the working area: description, linked documents, notes, messages,
+files, history, each on a tab. On the right, beside all of it, one card of the Opportunity's
+facts stays in place whichever tab is open.
 
 **Why this priority**: every capability of the screen existed before this story; it changes
 where each one is found. The screen had grown one section at a time, as stories landed, into
 a single long tab.
 
 **Independent Test**: open an Opportunity in a workflow that has a backward transition and
-two closing statuses. Read its stage, press a status the workflow allows — with a reason —
-and see it move; confirm a status the workflow does not allow from here cannot be pressed.
+two closing statuses. Read its status and the moves offered back and forward, press one —
+with a reason — and see it move; confirm a status the workflow does not allow from here is
+not on the screen.
 Open the *Links* tab, link an Order, reload the page and find the same tab open. Sign in
 with a read-only role and confirm nothing on the screen can be pressed to change anything.
 Repeat at a 390 px wide window.
@@ -631,21 +640,23 @@ Repeat at a 390 px wide window.
 1. **Given** an Opportunity, **When** its screen is opened, **Then** the header shows its
    title and status and, in one line under them, its number, its Organization, who holds it
    (or that nobody does) and its Sales Channel when it has one.
-2. **Given** a workflow of several open statuses and two closing ones, **When** the screen
-   is opened, **Then** a stage bar lists every status in the operator's order — the open
-   ones first, the closing ones after, each closing one marked as won or lost — marks the
-   current one, and says "Stage n of N" counted over the open statuses.
-3. **Given** a workflow in which the current status leads back to an earlier one, **When**
-   the bar is read, **Then** the earlier status is offered as a move, and no status is shown
-   as passed or completed.
+2. **Given** an Opportunity whose status the workflow lets move both to an earlier status
+   and to later ones, **When** the screen is opened, **Then** the stage bar names the
+   current status and offers the earlier one under *Back* and the later ones under
+   *Forward* — a status that closes the Opportunity among them, marked as won or lost — and
+   shows no other status of the workflow.
+3. **Given** a status the workflow lets move in one direction only, **When** the bar is
+   read, **Then** only that side is shown; **Given** a closed Opportunity the workflow lets
+   reopen, **Then** reopening is offered under *Back*.
 4. **Given** a user who may change Opportunities, **When** they press a status the workflow
    allows from the current one, having written a reason, **Then** the Opportunity moves
    exactly as it did before this story — the reason recorded, a veto shown in its own words,
    the linked Orders following — and what became of those Orders is listed under the bar.
 5. **Given** a user who may only read, **When** they open the screen, **Then** the bar shows
-   the same statuses and none of them can be pressed.
-6. **Given** a closed Opportunity, **When** the bar is read, **Then** it carries no stage
-   number and says how and when the Opportunity was closed.
+   the same moves as text and none of them can be pressed.
+6. **Given** a closed Opportunity the workflow lets go nowhere, **When** the bar is read,
+   **Then** it shows the status, how and when the Opportunity was closed, that no further
+   change is possible, and no move.
 7. **Given** an Opportunity with linked documents, **When** the screen is opened, **Then**
    it opens on *Overview*, the *Links* tab's label carries the number of linked documents,
    and the linked Orders and Quote Requests — with linking, unlinking, status following and
@@ -655,12 +666,13 @@ Repeat at a 390 px wide window.
 9. **Given** a user returning from creating an Order or a Quote Request from the
    Opportunity, **When** the screen opens, **Then** it is on *Links*, where the new document
    is reported.
-10. **Given** any tab is open, **When** the facts column is read, **Then** it shows four
+10. **Given** any tab is open, **When** the facts card is read, **Then** it shows four
     groups — value and deadline, customer and assignee, classification, record — each fact
-    as a label above its value, and a fact with no value shown as empty.
+    as a label above its value, and a fact with no value shown as empty. It is on the right,
+    from the header down, beside the stage bar and the tabs.
 11. **Given** a 390 px wide window, **When** the screen is opened, **Then** nothing scrolls
-    sideways except the tab strip, every status of the bar is visible without scrolling
-    sideways, and the facts follow the tabs.
+    sideways except the tab strip, every move of the bar is visible without scrolling
+    sideways, and the facts card comes after the stage bar and before the tabs.
 
 ---
 
@@ -1146,33 +1158,43 @@ being left free for work on parallel branches. Research N-QS1 … N-QS6.)*
 endpoint, schema, permission or rule of an earlier requirement changes. FR-105 … FR-109 are
 left free. Research N-DL1 … N-DL8.)*
 
-- **FR-110**: The Opportunity screen MUST present, in this order: a header (title, status,
-  and one line naming the number, the Organization, the assignee or that there is none, and
-  the Sales Channel when there is one), the stage bar, and then the tabs beside a column of
-  the Opportunity's facts. On a screen too narrow for two columns the facts MUST follow the
-  tabs, and the page MUST NOT scroll sideways at a width of 390 px.
+- **FR-110**: The Opportunity screen MUST present a header (title, status, and one line
+  naming the number, the Organization, the assignee or that there is none, and the Sales
+  Channel when there is one) and, under it, two columns: on the left the stage bar, then the
+  outcome of the last status change for the linked Orders, then the tabs; on the right, from
+  the header down and beside all three, the Opportunity's facts in one bounded card. On a
+  screen too narrow for two columns the order MUST be stage bar, Order outcomes, facts, tabs
+  — the facts never under the content of a tab — and the page MUST NOT scroll sideways at a
+  width of 390 px. *(Amended 2026-10-08: the facts beside the stage bar and in a card, and
+  before the tabs on a narrow screen — research N-DL10.)*
 - **FR-111**: Every action the screen offered before MUST remain reachable by the same
   users: editing and deleting the Opportunity; changing its status, with a reason; retrying
   and dismissing a refused Order change; assigning; tagging; switching the value's mode;
   linking, unlinking and status following of documents; creating a document from the
   Opportunity; notes, messages, attachments, change history and custom fields. The layout
   MUST add no way of changing an Opportunity and MUST NOT change the rule of an existing one.
-- **FR-112**: The stage bar MUST list every status of the workflow in the operator's order,
-  the open statuses first and the closing ones after them, each closing status identified as
-  won or lost, and MUST mark the status the Opportunity is in. It MUST NOT present any status
-  as passed, completed or skipped: the workflow is a graph, and the bar states the present.
-- **FR-113**: The bar MUST state the Opportunity's position as "n of N" counted over the
-  open statuses only. For a closed Opportunity it MUST state no position and MUST say how
-  (won or lost) and when it was closed.
-- **FR-114**: A status MUST be actionable in the bar if and only if the workflow allows it
-  from the current status (FR-013) and the user may change Opportunities; acting on it MUST
-  be the existing status change in every respect (FR-015, FR-016, FR-022), the optional
-  reason included. A user who may only read MUST get the same list with nothing actionable
-  in it. When the workflow cannot be read, the bar MUST still offer every allowed move and
-  MUST say that the list is incomplete.
+- **FR-112**: The stage bar MUST name the status the Opportunity is in and MUST show, of all
+  the other statuses of the workflow, exactly those the workflow allows a move to from it
+  (FR-013) — no status that cannot be reached in one move, and no line of the whole
+  workflow: the workflow is a graph. It MUST NOT present any status as passed, completed or
+  skipped, and MUST NOT state a position such as "n of N". *(Amended 2026-10-08: the first
+  build listed every status and counted a stage — research N-DL9.)*
+- **FR-113**: The moves MUST be presented on two sides of the current status: **back** — to
+  a status earlier in the operator's order, and reopening a closed Opportunity — and
+  **forward** — to a later status, and every move that closes the Opportunity, each of those
+  identified as won or lost. A side with no move MUST NOT be shown; with no move at all the
+  bar MUST say that the workflow allows none. A closed Opportunity MUST also show how (won or
+  lost) and when it was closed. *(Amended 2026-10-08.)*
+- **FR-114**: A move MUST be actionable for a user who may change Opportunities, and acting
+  on it MUST be the existing status change in every respect (FR-015, FR-016, FR-022), the
+  optional reason included. A user who may only read MUST be shown the same moves with
+  nothing actionable among them. When the order of the workflow cannot be read, the bar MUST
+  still offer every allowed move, MUST NOT guess a side for a move whose side depends on that
+  order, and MUST say so.
 - **FR-115**: The bar MUST be operable with a keyboard alone; each action MUST be named by
-  what it does; no status MUST be distinguished by colour alone; and every status MUST be
-  visible without sideways scrolling at 390 px, however many the workflow has.
+  what it does, direction included; no status and no side MUST be distinguished by colour
+  alone; and every move MUST be visible without sideways scrolling at 390 px, however many
+  the workflow allows.
 - **FR-116**: The tabs MUST be, in this order: Overview, Links, Notes, Messages,
   Attachments, Change history; the screen MUST open on Overview. *(Since User Story 21
   an Events tab stands third, between Links and Notes — FR-133.)*
@@ -1184,7 +1206,7 @@ left free. Research N-DL1 … N-DL8.)*
   shared link open the same tab. An address naming no tab, or an unknown one, MUST open
   Overview; the address a user returns to after creating a document from the Opportunity
   MUST open Links. Every address of an Opportunity that worked before MUST keep working.
-- **FR-119**: The facts column MUST show, on every tab, four groups in this order — value
+- **FR-119**: The facts card MUST show, on every tab, four groups in this order — value
   and deadline; customer and assignee; classification; record — each fact as a label above
   its value. A fact with no value MUST be shown as empty, and said to be so to assistive
   technology, never left out — the closing date excepted, which an open Opportunity

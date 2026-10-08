@@ -788,9 +788,10 @@ not a one-declaration integration.
 | FR-090 – FR-093 | US19 (independent review) | T240 – T244 |
 | FR-110 | US20 | T302 — the meta line, the heading outline; T310 for the width (not done) |
 | FR-111 | US20 | T308 — every earlier case of the nine files still runs against the new structure; T302 — *a reader changing nothing* |
-| FR-112, FR-113 | US20 | T300; T302 — the order and current mark, a non-linear workflow, a closed Opportunity |
-| FR-114 | US20 | T300 (targets, fallbacks); T302 — buttons for allowed moves only, a read-only user, the workflow unreadable; the vetoed and moved cases of T036 |
-| FR-115 | US20 | T302 — a move by keyboard, the button names, the spoken marks; the wrap at 390 px is T310 (not done) |
+| FR-110 (as amended) | US20 | T315 — the facts card and the markup order |
+| FR-112, FR-113 | US20 | T312; T315 — both sides, one side only, none and closed, reopening, no status that is not a move, no position |
+| FR-114 | US20 | T312 (no move added or dropped, nothing guessed); T315 — a reader, the order unreadable; the vetoed and moved cases of T036 |
+| FR-115 | US20 | T315 — a move by keyboard, the button names with their direction, the spoken kinds; the wrap at 390 px is T310 (not done) |
 | FR-116 – FR-118 | US20 | T301; T302 — the tabs group |
 | FR-119 | US20 | T302 — the four groups, empty facts, a reader changing nothing; the earlier cases of `assignment`, `tags` and `value` |
 | FR-120 | US20 | the refused-Order cases of T036, now rendered from the page (T308) |
@@ -933,11 +934,38 @@ only — nothing under `src/backend/`, `packages/contracts/` or the OpenAPI base
   § *The opportunity's screen* with its Polish page and translation cache,
   `.changeset/crm-opportunity-detail-layout.md`.
 
+### Amendment after the owner saw the first build (2026-10-08, research N-DL9, N-DL10)
+
+- [X] T312 [US20] `src/admin/lib/stage-model.ts` and its test, rewritten test-first — the
+  model is the allowed moves sorted into `back`, `forward` and `unsorted`: closing is
+  forward whatever its weight, reopening is back, two open statuses go by the operator's
+  order, nothing is guessed without it, and no move is added or dropped.
+- [X] T313 [US20] `src/admin/components/StageBar.tsx` — the current status and the moves on
+  their sides; no list of the workflow and no "Stage n of N"; `GET /workflow` read only when
+  there is a move to sort. Bundles: `opportunity.stage.back`, `.forward`, `.other`,
+  `.moveBack`, `.moveForward` added; `opportunity.stage.position` and `.list` removed with
+  their last reader; `.current`, `.hint` and `.partial` reworded.
+- [X] T314 [US20] `src/admin/pages/OpportunityDetail.tsx` and
+  `opportunity-detail/OpportunitySidebar.tsx` — one grid under the header, the facts in the
+  kit's `Card` in the right column beside the stage bar, the Order outcomes and the tabs;
+  markup order stage, outcomes, facts, tabs. `tabs.ts` and the tab strip are untouched.
+- [X] T315 [US20] `admin/test/modules/crm/OpportunityDetail.test.tsx` — the stage-bar group
+  rewritten for the new subject (both sides, forward only, back only, none and closed,
+  reopening, a reader, the keyboard move with its reason, the order unreadable, and the case
+  where its absence changes nothing); one new case for the facts card and the markup order.
+  The helper waits for the bar to stop being busy instead of for a list it no longer has.
+- [X] T316 [US20] Documents amended: `spec.md` (the story, FR-110, FR-112 – FR-115, FR-119),
+  `contracts/admin-surfaces.md` §1a, `research.md` N-DL9 and N-DL10, the module page with
+  its Polish mirror and cache, and the same changeset.
+
 ### Not done
 
 - [ ] T310 [US20] **Looked at in a browser.** The story was built without one (research
-  N-DL7): the layout at desktop width and at 390 px, both themes, the stage bar with ten
-  statuses, a long title, a long tag list, the focus order and an axe pass are still owed.
+  N-DL7). The coordinator saw the *first* build at desktop width and moved an Opportunity
+  through its bar; the amended one (T312 – T314) has not been seen. Still owed: the grid at
+  desktop width — no gap opening between the left cards under a tall facts card — and at
+  390 px, both themes, a status with many allowed moves, a long title, a long tag list, the
+  focus order and an axe pass.
 - [ ] T311 [US20] **Reported, not changed — the owner's to schedule** (research N-DL8): the
   bell opening the tab a notification is about; a stage bar that knows which statuses an
   Opportunity has been through; the facts a reference CRM shows that this one does not hold.

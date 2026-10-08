@@ -4280,6 +4280,50 @@ screen was built **without a browser** — N-DL7 says what that leaves open.
   date, a customer decision date, a type. Custom fields (US15) already cover (d) without a
   change; they are shown on *Overview*, not in the facts column, because the kit's
   `CustomFieldValuesPanel` is a form with its own save and does not fit a narrow column.
+- **N-DL9 — The bar shows the moves, not the workflow (owner, same day).** *Supersedes the
+  picture in N-DL2 – N-DL4; their reasoning about what the screen may claim stands.* The
+  first build listed every status in the operator's order with the allowed ones as buttons.
+  The owner, on seeing it: the workflow need not be linear, so show only the possible
+  transitions, forward and backward. A list of every status is still a line, however
+  honestly annotated, and most of it is statuses that cannot be pressed. What was decided:
+  (a) **The moves are `allowedTransitions` and nothing else** — `stageModel` now only sorts
+  them into `back`, `forward` and `unsorted`; it can no longer add or drop one. (b) **"Stage
+  n of N" is gone.** It was a place in a list that was on screen; with the list gone it
+  would be a number pointing at something the reader cannot see, and on a graph it reads as
+  progress. Nothing replaces it. (c) **Is `GET /workflow` still needed? Verified, not
+  assumed: yes, for one thing.** `OpportunityStatusRefSchema` is `{ code, name, color,
+  kind }` — names, colours and kinds arrive with the Opportunity, weights do not, and
+  `allowedTransitions` cannot place the *current* status among its targets whatever order
+  it arrives in. So the workflow is read only to compare weights, only when there is a move
+  to sort, and two of the three rules need no read at all: closing is forward, reopening is
+  back. (d) **The fallback shrank to honesty about one fact.** Without the order, a move
+  between two open statuses goes under a plain *Possible moves* heading with one sentence
+  saying why; a closing move keeps its side. The earlier "partial picture" list is gone with
+  the picture. (e) **Which side is a closing status with a low weight on?** Forward, by
+  kind: an operator who weights *Lost* first for the board's column order has not said that
+  losing a deal is a step back. (f) **An empty side is not drawn**, not drawn as "none": the
+  absence is the statement, and with no move at all the existing sentence says so once.
+  (g) **A reader sees the moves as text.** The brief left it open; the first build already
+  showed readers the whole workflow, and "what can happen to this next" is the part of it
+  worth keeping. (h) **Markup order is current, back, forward; drawn back · current ·
+  forward from `sm`.** A screen reader hears the status before the moves, and because the
+  current status takes no focus the keyboard order (back, then forward) is the drawn order
+  at every width.
+- **N-DL10 — The facts in a card, beside everything (owner, same day).** The first build
+  put the stage bar across the full width and the facts beside the tabs only, without a
+  card, as the reference has them; the owner asked for a card and for the column to run
+  from the top. One grid now holds four children in the order *stage, Order outcomes, facts,
+  tabs*, the facts placed in the second column across three rows from `lg`. **That markup
+  order is also the answer to the question the first report left open** — where the facts go
+  on a narrow screen: after the stage bar and before the tabs, so value and deadline are
+  never under a long history or a thread of notes. *Rejected*: two real columns with the
+  left one dissolved by `display: contents` and `order` below `lg` — it draws the same thing
+  and makes the focus order on a phone disagree with what is seen there. The price of the
+  grid is the other one: from `lg` the keyboard goes stage bar → facts → tabs, a step to the
+  right column and back; both regions start level with each other, and nothing is reached
+  out of its meaning. **A spanning item can stretch the rows it spans**, which would open
+  gaps between the left cards under a tall facts card; the rows are `auto auto 1fr`, so the
+  surplus goes to the last one. That is CSS behaviour jsdom cannot show — T310.
 
 ### N-CAL — Events on an Opportunity, their reminders, and the Calendar (User Stories 21 and 22, 2026-10-08)
 

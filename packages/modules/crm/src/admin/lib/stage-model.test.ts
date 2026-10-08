@@ -3,27 +3,30 @@ import type { OpportunityStatusRef, OpportunityWorkflow } from '@endora-commerce
 import { stageModel } from './stage-model.js';
 
 /**
- * What the stage bar of an Opportunity claims
+ * What the stage bar of an Opportunity offers
  * (`specs/143-crm-sales-opportunities/`, User Story 20, FR-112 – FR-114).
  *
- * The workflow is a graph the operator draws, so the cases that matter are the
- * ones a straight line would get wrong: a move backwards, two closing statuses,
- * an order that is not the order of the codes, and a workflow that is not known.
+ * The workflow is a graph the operator draws. The bar shows the moves allowed
+ * from the current status, sorted into back and forward; these cases are the
+ * ones where a guess would be wrong — a closing status with a low weight, a
+ * reopening, an order that is not the order of the codes, and a workflow that
+ * is not known.
  */
 
-const ref = (
-  code: string,
-  kind: OpportunityStatusRef['kind'] = 'open',
-  name = code,
-): OpportunityStatusRef => ({ code, name, color: '#64748b', kind });
+const ref = (code: string, kind: OpportunityStatusRef['kind'] = 'open'): OpportunityStatusRef => ({
+  code,
+  name: code,
+  color: '#64748b',
+  kind,
+});
 
 function workflow(
   statuses: readonly [code: string, kind: OpportunityStatusRef['kind'], weight: number][],
-): OpportunityWorkflow {
+): Pick<OpportunityWorkflow, 'statuses'> {
   return {
     statuses: statuses.map(([code, kind, weight]) => ({
       code,
-      name: { en: `${code} (en)` },
+      name: { en: code },
       defaultName: code,
       kind,
       isInitial: false,
@@ -31,12 +34,10 @@ function workflow(
       color: '#64748b',
       inUseCount: 0,
     })),
-    transitions: [],
-    orderStatusMappings: [],
-    valueCountingStatuses: { order: [], quoteRequest: [] },
   };
 }
 
+/** Deliberately not in weight order, and not in the order of the codes either. */
 const SEEDED = workflow([
   ['lost', 'lost', 100],
   ['won', 'won', 90],
@@ -45,124 +46,111 @@ const SEEDED = workflow([
   ['qualified', 'open', 20],
 ]);
 
-const label = (status: { name: Record<string, string> }): string => status.name.en ?? '';
+const codes = (targets: readonly OpportunityStatusRef[]): string[] => targets.map((target) => target.code);
+
+function sides(
+  status: OpportunityStatusRef,
+  allowedTransitions: OpportunityStatusRef[],
+  known: Pick<OpportunityWorkflow, 'statuses'> | null = SEEDED,
+): { back: string[]; forward: string[]; unsorted: string[] } {
+  const model = stageModel({ status, allowedTransitions }, known);
+  return { back: codes(model.back), forward: codes(model.forward), unsorted: codes(model.unsorted) };
+}
 
 describe('stageModel', () => {
-  it('lists the statuses in the operator`s order — by weight, open ones first, closing ones after', () => {
-    const model = stageModel({ status: ref('new'), allowedTransitions: [] }, SEEDED, label);
-    expect(model.segments.map((segment) => segment.code)).toEqual([
-      'new',
-      'qualified',
-      'negotiation',
-      'won',
-      'lost',
-    ]);
-    expect(model.complete).toBe(true);
+  it('sorts the allowed moves into back and forward by the operator`s order', () => {
+    expect(
+      sides(ref('qualified'), [ref('negotiation'), ref('new'), ref('lost', 'lost')]),
+    ).toEqual({ back: ['new'], forward: ['negotiation', 'lost'], unsorted: [] });
   });
 
-  it('keeps a closing status after the open ones even where its weight puts it among them', () => {
-    const model = stageModel(
-      { status: ref('new'), allowedTransitions: [] },
-      workflow([
-        ['new', 'open', 10],
-        ['lost', 'lost', 15],
-        ['qualified', 'open', 20],
-      ]),
-      label,
-    );
-    expect(model.segments.map((segment) => segment.code)).toEqual(['new', 'qualified', 'lost']);
-    expect(model.total).toBe(2);
+  it('offers exactly the server`s allowed transitions — none added, none dropped', () => {
+    const allowed = [ref('new'), ref('won', 'won')];
+    const model = stageModel({ status: ref('negotiation'), allowedTransitions: allowed }, SEEDED);
+    expect([...model.back, ...model.forward, ...model.unsorted]).toEqual(allowed);
+    // Qualified is in the workflow and not reachable from here: it is nowhere.
+    expect(JSON.stringify(model)).not.toContain('qualified');
   });
 
-  it('counts the position over the open statuses only', () => {
-    const model = stageModel({ status: ref('qualified'), allowedTransitions: [] }, SEEDED, label);
-    expect([model.position, model.total]).toEqual([2, 3]);
-  });
-
-  it('gives a closed Opportunity no position — won and lost are two ends, not steps four and five', () => {
-    const model = stageModel({ status: ref('lost', 'lost'), allowedTransitions: [] }, SEEDED, label);
-    expect(model.position).toBeNull();
-    expect(model.total).toBe(3);
-    expect(model.segments.find((segment) => segment.state === 'current')?.code).toBe('lost');
-  });
-
-  it('marks exactly the server`s allowed transitions as targets, a move backwards included', () => {
-    const model = stageModel(
-      {
-        status: ref('negotiation'),
-        allowedTransitions: [ref('new'), ref('won', 'won')],
-      },
-      SEEDED,
-      label,
-    );
-    expect(model.segments.map((segment) => [segment.code, segment.state])).toEqual([
-      ['new', 'target'],
-      ['qualified', 'other'],
-      ['negotiation', 'current'],
-      ['won', 'target'],
-      ['lost', 'other'],
-    ]);
-  });
-
-  it('never marks a status as passed: there are three states and "done" is not one of them', () => {
-    const model = stageModel({ status: ref('negotiation'), allowedTransitions: [] }, SEEDED, label);
-    expect(new Set(model.segments.map((segment) => segment.state))).toEqual(
-      new Set(['current', 'other']),
-    );
-  });
-
-  it('names the current status and a target as the server resolved them, and any other from the workflow', () => {
-    const model = stageModel(
-      {
-        status: ref('new', 'open', 'Nowa'),
-        allowedTransitions: [ref('qualified', 'open', 'Zakwalifikowana')],
-      },
-      SEEDED,
-      label,
-    );
-    expect(model.segments.map((segment) => segment.name)).toEqual([
-      'Nowa',
-      'Zakwalifikowana',
-      'negotiation (en)',
-      'won (en)',
-      'lost (en)',
-    ]);
-  });
-
-  it('falls back to the current status and its targets when the workflow is not known', () => {
-    const model = stageModel(
-      { status: ref('new'), allowedTransitions: [ref('qualified'), ref('lost', 'lost')] },
-      null,
-      label,
-    );
-    expect(model).toEqual({
-      segments: [
-        { ...ref('new'), state: 'current' },
-        { ...ref('qualified'), state: 'target' },
-        { ...ref('lost', 'lost'), state: 'target' },
-      ],
-      position: null,
-      total: null,
-      complete: false,
+  it('has only a forward side at the start, and only a back side where the workflow only returns', () => {
+    expect(sides(ref('new'), [ref('qualified')])).toEqual({
+      back: [],
+      forward: ['qualified'],
+      unsorted: [],
+    });
+    expect(sides(ref('negotiation'), [ref('new'), ref('qualified')])).toEqual({
+      back: ['new', 'qualified'],
+      forward: [],
+      unsorted: [],
     });
   });
 
-  it('falls back the same way when the current status is not in the workflow that was read', () => {
-    const model = stageModel(
-      { status: ref('archived'), allowedTransitions: [ref('new')] },
-      SEEDED,
-      label,
-    );
-    expect(model.complete).toBe(false);
-    expect(model.segments.map((segment) => segment.code)).toEqual(['archived', 'new']);
+  it('is empty on every side where the workflow allows nothing', () => {
+    expect(sides(ref('won', 'won'), [])).toEqual({ back: [], forward: [], unsorted: [] });
   });
 
-  it('keeps a target the workflow read does not carry yet — an allowed move is never dropped', () => {
-    const model = stageModel(
-      { status: ref('new'), allowedTransitions: [ref('on_hold')] },
-      SEEDED,
-      label,
-    );
-    expect(model.segments.at(-1)).toEqual({ ...ref('on_hold'), state: 'target' });
+  it('puts a closing status forward whatever its weight says', () => {
+    const early = workflow([
+      ['lost', 'lost', 1],
+      ['new', 'open', 10],
+      ['qualified', 'open', 20],
+    ]);
+    expect(sides(ref('qualified'), [ref('lost', 'lost'), ref('new')], early)).toEqual({
+      back: ['new'],
+      forward: ['lost'],
+      unsorted: [],
+    });
+  });
+
+  it('puts reopening back: out of a closing status into an open one', () => {
+    expect(sides(ref('lost', 'lost'), [ref('new'), ref('negotiation')])).toEqual({
+      back: ['new', 'negotiation'],
+      forward: [],
+      unsorted: [],
+    });
+  });
+
+  it('keeps a move from one closing status to the other forward', () => {
+    expect(sides(ref('lost', 'lost'), [ref('won', 'won')])).toEqual({
+      back: [],
+      forward: ['won'],
+      unsorted: [],
+    });
+  });
+
+  it('lists each side in the operator`s order, not the server`s', () => {
+    expect(
+      sides(ref('new'), [ref('lost', 'lost'), ref('negotiation'), ref('won', 'won'), ref('qualified')]),
+    ).toEqual({ back: [], forward: ['qualified', 'negotiation', 'won', 'lost'], unsorted: [] });
+  });
+
+  it('does not guess a direction between open statuses when the workflow is not known', () => {
+    expect(sides(ref('qualified'), [ref('new'), ref('negotiation')], null)).toEqual({
+      back: [],
+      forward: [],
+      unsorted: ['new', 'negotiation'],
+    });
+  });
+
+  it('still knows without the workflow that closing is forward and reopening is back', () => {
+    expect(sides(ref('qualified'), [ref('new'), ref('lost', 'lost')], null)).toEqual({
+      back: [],
+      forward: ['lost'],
+      unsorted: ['new'],
+    });
+    expect(sides(ref('won', 'won'), [ref('negotiation')], null)).toEqual({
+      back: ['negotiation'],
+      forward: [],
+      unsorted: [],
+    });
+  });
+
+  it('leaves unsorted a move whose status, or the current one, the workflow read does not carry', () => {
+    expect(sides(ref('new'), [ref('on_hold'), ref('qualified')])).toEqual({
+      back: [],
+      forward: ['qualified'],
+      unsorted: ['on_hold'],
+    });
+    expect(sides(ref('archived'), [ref('new')])).toEqual({ back: [], forward: [], unsorted: ['new'] });
   });
 });

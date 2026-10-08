@@ -35,38 +35,48 @@ palette or nav entry pointing at a route that does not exist is a defect (Princi
 Normative for `src/admin/pages/OpportunityDetail.tsx` and `pages/opportunity-detail/*`.
 The story is `spec.md` User Story 20 (FR-110 – FR-121); the reasons are `research.md` N-DL.
 
-**Regions, top to bottom.**
+**Regions.** One grid under the header. The rows below are in **markup order**, which is
+also the order a screen narrower than `lg` stacks them in.
 
-| Region | Component | Holds |
-| --- | --- | --- |
-| Header | the kit's `PageHeader` | back link; `h1` = title + status badge; one meta line — number · Organization · assignee or *Unassigned* · Sales Channel when set; actions **Edit** (`crm:write`, opens the form on *Overview*) and **Delete** (`crm:configure`) |
-| Stage bar | `components/StageBar.tsx` over `lib/stage-model.ts` | the workflow's statuses, the current one, the allowed moves, the optional reason |
-| Order status changes | `components/PropagationOutcomes.tsx` | this visit's outcomes and every unresolved refusal — rendered by the page, so on every tab; absent when there is nothing to show |
-| Tabs (main column) | `opportunity-detail/tabs.ts` | see below |
-| Facts (right column, `aside`; below the tabs under `lg`) | `opportunity-detail/OpportunitySidebar.tsx` | see below |
+| Region | Component | Placement from `lg` | Holds |
+| --- | --- | --- | --- |
+| Header | the kit's `PageHeader` | above the grid | back link; `h1` = title + status badge; one meta line — number · Organization · assignee or *Unassigned* · Sales Channel when set; actions **Edit** (`crm:write`, opens the form on *Overview*) and **Delete** (`crm:configure`) |
+| Stage bar | `components/StageBar.tsx` over `lib/stage-model.ts`, in a `Card` | left column | the current status, the allowed moves, the optional reason |
+| Order status changes | `components/PropagationOutcomes.tsx`, in a `Card` | left column | this visit's outcomes and every unresolved refusal — rendered by the page, so on every tab; absent when there is nothing to show |
+| Facts | `opportunity-detail/OpportunitySidebar.tsx` — an `aside` holding one `Card` | right column (`20rem`), from the first row down, spanning the three rows | see below |
+| Tabs | `opportunity-detail/tabs.ts`, in a `Card` | left column | see below |
 
-**The stage bar** is an ordered list (`ol`) named `opportunity.stage.list`.
+The grid's last row is the flexible one (`auto auto 1fr`), so a facts card taller than the
+left column lengthens the space under the tabs and never the gaps between the cards.
 
-- Statuses come from `GET /api/v1/admin/crm/workflow` (`crm:read`), sorted by `weight`, then
-  `code`; statuses of kind `open` first, then the others. The current status and the targets
-  are named as the Opportunity's own answer names them.
-- One item carries `aria-current="step"`. There is no fourth state: an item is the current
-  status, a target, or neither — never "done".
-- An item is a `button` if and only if its status is in the Opportunity's
-  `allowedTransitions` **and** the user holds `crm:write`. Its accessible name is
-  `opportunity.stage.moveTo` (`opportunity.stage.moveToClosing` for a closing status) and
-  contains its visible label. Pressing it is `POST …/opportunities/:id/transition` with the
-  reason field's trimmed text, exactly as the control it replaces: the server's sentence on a
-  refusal, a re-read on 409, the move announced in a live region.
-- "Stage n of N" (`opportunity.stage.position`) is the current status's index among the
-  `open` statuses; it is not rendered for a closed Opportunity, which shows
-  `opportunity.status.closed.<kind>` with the closing time instead.
-- Without the workflow (the read failed, or the current status is not in it) the list is the
-  current status followed by `allowedTransitions`, with `opportunity.stage.partial` under it
-  and no position.
-- The list wraps (`flex-wrap`); it does not scroll. A closing status carries an icon and a
-  spoken `opportunity.stage.kind.<kind>`; the current one a tick, bold text and a spoken
-  `opportunity.stage.current`.
+**The stage bar** shows the current status and the moves allowed from it — never the whole
+workflow.
+
+- **The moves are the Opportunity's `allowedTransitions`**, all of them and nothing else.
+  `lib/stage-model.ts` only decides each one's side:
+  a target of kind `won` or `lost` is **forward**; an `open` target of a `won` / `lost`
+  current status is **back** (reopening); between two `open` statuses the side is their
+  order by `weight`, then `code`.
+- That last rule is the only thing `GET /api/v1/admin/crm/workflow` (`crm:read`) is read for
+  — `allowedTransitions` carries no weight — and it is not read at all when there is no
+  move. When it fails, or does not hold one of the two statuses, the move is listed under
+  `opportunity.stage.other` with `opportunity.stage.partial` beneath; nothing is guessed and
+  no move is withheld.
+- Three labelled `role="group"`s at most — `opportunity.stage.back`, `.forward`, `.other` —
+  each a `ul`; a group with no move is not rendered. Markup order is current status, back,
+  forward; from `sm` they are drawn back · current · forward. The current status is not
+  focusable, so the keyboard meets back before forward either way.
+- For a holder of `crm:write` a move is a `button` named `opportunity.stage.moveBack` /
+  `.moveForward` / `.moveTo` (unsorted) / `.moveToClosing` (a closing status), each containing
+  its visible label. Pressing it is `POST …/opportunities/:id/transition` with the reason
+  field's trimmed text, exactly as the control it replaces: the server's sentence on a
+  refusal, a re-read on 409, the move announced in a live region. Without `crm:write` the
+  same moves are text and the section says why.
+- With no move: `opportunity.status.none` (or the no-permission sentence). A closed
+  Opportunity also shows `opportunity.status.closed.<kind>` with the closing time.
+- There is no position ("n of N") and no "done" state. A side has a word and an arrow; a
+  closing status an icon and a spoken `opportunity.stage.kind.<kind>`. The groups stack on a
+  narrow screen and their moves wrap; nothing scrolls.
 
 **The tabs.** `role="tablist"` named `opportunity.tabs.label`; one tab stop, arrow keys,
 `Home` and `End`.
@@ -90,8 +100,8 @@ Addresses that exist elsewhere and keep working unchanged: the bare
 the list, the board, the analytics table, the Organization zone and the linked-Opportunity
 panel of the Order and Quote Request screens.
 
-**The facts.** An `aside` named `opportunity.section.details`; four `section`s, each under an
-`h2`, each fact a `dt` above its `dd`:
+**The facts.** An `aside` named `opportunity.section.details` holding one `Card`; inside it
+four `section`s separated by hairlines, each under an `h2`, each fact a `dt` above its `dd`:
 
 | Group (key) | Facts | Changed in place (existing endpoint) |
 | --- | --- | --- |
