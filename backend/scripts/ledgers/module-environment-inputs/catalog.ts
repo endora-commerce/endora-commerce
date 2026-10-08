@@ -10,8 +10,9 @@ export const entries = {
   CATALOG_SEARCH_BACKEND: {
     classification: 'configuration' as const,
     reason:
-      'A per-deployment choice of engine, read once per public product query at ' +
-      '`routes.public.ts:241` — well after the settings store is readable, so nothing about ' +
+      'A per-deployment override of which engine answers a listing (unset, a text query goes ' +
+      'to the search module and browsing to the database), read once per public product query at ' +
+      '`routes.public.ts:271` — well after the settings store is readable, so nothing about ' +
       'boot order puts it here. It also sits one line above `effectiveState.isPresent(' +
       "'search')`, which is the *other* axis of the same decision already asked the " +
       'platform’s own way: whether the search module is on. The repair is a Setting beside ' +
