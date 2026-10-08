@@ -448,6 +448,136 @@ What is refused, 400 `VALIDATION_FAILED`, is a parameter that is not JSON or not
 shape. The filters only ever narrow the tenant-scoped read: they are conditions on the
 Opportunity's own row.
 
+## 12d. Events and the Calendar (US21, US22) — *planned, not built*
+
+Normative for the schemas Phase 24 adds to `packages/contracts/src/crm.ts` and for
+`packages/modules/crm/src/backend/routes/routes.events.ts`. **This section is the contract
+the two implementation tracks meet on** (`tasks.md` Phases 25 and 26): the backend track
+serves exactly this, the Admin UI track is built and tested against exactly this.
+
+| Method · Path | Gate | Request | Response |
+| --- | --- | --- | --- |
+| `GET /opportunities/:id/events` | `crm:read` | — | `{ data: OpportunityEvent[] }` — every Event of the Opportunity, by `startsAt`, then `id`; at most 500 |
+| `POST /opportunities/:id/events` | `crm:write` | `CreateOpportunityEventRequestSchema` | 201 `{ data: OpportunityEvent }` |
+| `PATCH /opportunities/:id/events/:eventId` | `crm:write` | `UpdateOpportunityEventRequestSchema` | `{ data: OpportunityEvent }` |
+| `DELETE /opportunities/:id/events/:eventId` | `crm:write` | — | 204 |
+| `GET /calendar/events` | `crm:read` | query `CalendarEventsQuerySchema` | `{ data: CalendarEvent[], meta: CalendarEventsMeta }` |
+
+Refusals, all with codes that exist: an Opportunity the caller may not see — 404
+`CRM_OPPORTUNITY_NOT_FOUND`, on all five (for the Calendar there is none: it only ever
+answers what the caller may see); an `:eventId` that is not an Event of that Opportunity —
+404 `NOT_FOUND`; a body or query not of the schema — 400 `VALIDATION_FAILED`; a well-formed
+Event the rules refuse — **422 `VALIDATION_FAILED`** with `details.field` naming the member
+and `details.rule` one of `ends_before_start`, `spans_days`, `not_whole_day`,
+`unknown_time_zone`, `reminder_in_past`. **No new error code is minted**: the envelope keeps
+`VALIDATION_FAILED`'s own sentence, and the dialog words each rule from its own bundle
+(`events.error.<rule>`).
+
+There is no optimistic concurrency on an Event (no `If-Match`): the later save wins.
+
+**`CreateOpportunityEventRequestSchema`**
+
+| Member | Type | Notes |
+| --- | --- | --- |
+| `name` | string, 1 … 200 after trim | |
+| `description` | string ≤ 5 000 \| `null`, optional | plain text; reference tokens are not parsed |
+| `allDay` | boolean | |
+| `startsAt` | ISO 8601 instant with offset | for `allDay: true`, the local midnight that starts the date |
+| `endsAt` | ISO 8601 instant with offset | exclusive; for `allDay: true`, the next local midnight |
+| `timeZone` | IANA zone name, ≤ 64 chars | the zone the times were chosen in — `Intl.DateTimeFormat().resolvedOptions().timeZone` in the browser |
+| `remindAt` | ISO 8601 instant \| `null`, optional (absent = `null`) | must be later than now |
+
+The schema refuses what needs no clock and no zone data: `endsAt <= startsAt`, a span over
+25 hours, an empty name. The service refuses the rest (`data-model.md` §
+*`crm_opportunity_events`* → Rules).
+
+**`UpdateOpportunityEventRequestSchema`** — every member above, all optional. The rules are
+applied to the Event **as it would be after the change**. `remindAt: null` removes the
+reminder; a `remindAt` different from the stored one arms it again (FR-140); a `remindAt`
+equal to the stored one is not re-validated against the clock, so an Event whose reminder
+was already sent can still have its name corrected.
+
+**`OpportunityEvent`**
+
+```text
+id, opportunityId, name, description: string | null,
+allDay: boolean,
+startsAt, endsAt: ISO instant (UTC, "Z"),
+timeZone: string,
+allDayDate: 'YYYY-MM-DD' | null      — the date of an all-day Event, computed by the server
+                                        in `timeZone`; null for a timed Event
+reminder: null | {
+  at: ISO instant,
+  state: 'scheduled' | 'paused' | 'sent' | 'missed' | 'no_recipient' | 'undeliverable' | 'interrupted',
+  handledAt: ISO instant | null,
+  channels: ('bell' | 'email')[]     — non-empty exactly when state is 'sent'
+},
+createdBy: { id, name } | null,
+createdAt, updatedAt
+```
+
+`state` is the stored outcome folded for a reader (`data-model.md` → *Reminder states*):
+`paused` is `scheduled` on a closed Opportunity and is derived on read; `sending` is
+reported as `scheduled`.
+
+**`OpportunityDetail` gains one member**: `upcomingEventCount: number` — the Opportunity's
+Events with `endsAt` later than now. It is what the *Events* tab's label carries
+(`contracts/admin-surfaces.md` §1a), so the tab strip needs no second request. Additive;
+`OpportunitySummary` is unchanged, and so are the list and the board.
+
+**`CalendarEventsQuerySchema`**
+
+| Member | Type | Notes |
+| --- | --- | --- |
+| `from` | ISO 8601 instant | inclusive |
+| `to` | ISO 8601 instant | exclusive; `to > from`; **`to − from ≤ 45 days`**, else 400 |
+| `scope` | `mine` \| `all`, optional | absent = the caller's default, below |
+
+An Event is in the answer when it **overlaps** the range (`startsAt < to` and
+`endsAt > from`) and its Opportunity is one the caller may see, is **active** — its status
+is of kind `open` — and, under `mine`, is assigned to the caller.
+
+**Scope is decided by the server from the caller's reach, never by the client alone**
+(FR-144; research N-CAL2):
+
+| Caller's reach (`orgConstraintFor()`) | Scopes offered | Default | `scope=all` asked |
+| --- | --- | --- | --- |
+| every Organization (`kind: 'all'`) | `['all', 'mine']` | `all` | honoured |
+| confined — a set, one, or none | `['mine']` | `mine` | **answered as `mine`** — not an error, so a saved address keeps opening |
+
+**`CalendarEvent`** — what a calendar draws and nothing more; no description:
+
+```text
+id, name, allDay, startsAt, endsAt, allDayDate, hasReminder: boolean,
+opportunity: { id, number, title, assignee: { id, name } | null }
+```
+
+**`CalendarEventsMeta`**: `{ scope: 'mine' | 'all', scopes: ('mine' | 'all')[],
+truncated: boolean }` — `scope` is the one applied; `truncated` is `true` when more than 500
+Events matched and the first 500 by `startsAt`, then `id`, are returned.
+
+**Cost** (FR-151): one statement for the Events with their Opportunity (a join; the index
+on `starts_at`), and one call of `adminUserReadPort.findByIds` for the assignees' names —
+two reads whatever the number of Events or Opportunities. The integration test counts
+statements at 5 and at 500 Events and holds them equal.
+
+**All-day Events and the reader's zone.** An all-day Event's instants are its date in its
+*own* zone, so a reader far to the east or west can have that date begin outside the range
+their own month or week maps to. The Admin UI therefore asks for its visible range **one
+day wider on each side** and places an all-day Event by `allDayDate`, a timed one by its
+instants in the browser's zone. The 45-day limit is the six-week month grid (42 days) plus
+that widening, plus one.
+
+**What a reminder writes** — not an HTTP surface, recorded here because the Admin UI
+follows its link. Bell entry: `kind: 'crm.opportunity.event_reminder'`,
+`subjectType: 'crm_opportunity'`, `subjectId` the Opportunity's id,
+`linkPath: /crm/opportunities/<id>?tab=events&event=<eventId>`, `title` the English
+sentence and `titleMessage: { scope: 'crm', key: 'notifications.eventReminder.title' |
+'notifications.eventReminderAllDay.title', params: { name, when, number } }` — `when` is
+`YYYY-MM-DD HH:mm` (or the date alone) in the Event's `timeZone`, followed by the zone's
+name. E-mail: transactional e-mail `crm_event_reminder` (`contracts/events-and-ports.md`
+§5a).
+
 ## 13. Error codes owned by `crm`
 
 Declared in the manifest's `errorCodes`, sentences under `errors.<CODE>` in
@@ -459,7 +589,8 @@ Declared in the manifest's `errorCodes`, sentences under `errors.<CODE>` in
 `CRM_STATUS_INITIAL_REQUIRED`, `CRM_WORKFLOW_INVALID`, `CRM_ASSIGNEE_INVALID`,
 `CRM_MESSAGE_IMMUTABLE`, `CRM_TAG_NAME_TAKEN`, `CRM_ATTACHMENT_TOO_LARGE` (§7a).
 
-Fifteen codes; the same fifteen are the manifest's `errorCodes` and members of `ERROR_CODES`.
+Fifteen codes; the same fifteen are the manifest's `errorCodes` and members of `ERROR_CODES`. §12d adds
+none.
 
 **How a code is minted** (established while implementing — research N-13; this paragraph
 first said the design did not establish it): a code raised by a module of this repository

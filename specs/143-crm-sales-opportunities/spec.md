@@ -5,6 +5,9 @@
 **Status**: Accepted — the owner's rulings of 2026-10-05 are in *Clarifications*; implemented on
 `feat/143-crm` and amended on 2026-10-06 to what was built (see *Clarifications* §
 *Amendments after implementation*). Tasks still open are listed in `tasks.md`.
+**User Stories 21 and 22 (Events, reminders, the Calendar) were added on 2026-10-08 and are
+designed, not built**: branch `feat/143-crm-calendar`, `tasks.md` Phases 24 – 27. Their open
+questions, each with the default applied, are in *Clarifications*.
 **Input**: Owner's requirements for a CRM module (`crm`) on Endora Commerce: Sales
 Opportunities with a configurable status workflow modelled on the Order status workflow,
 assignment to Sales Reps, attachments, notes, internal messages, analytics, a board view,
@@ -661,6 +664,175 @@ Repeat at a 390 px wide window.
 
 ---
 
+### User Story 21 — Events on an Opportunity, with a reminder (Priority: P3)
+
+*Added 2026-10-08 at the owner's request. The owner's words, verbatim, with an English
+rendering — the five of the ten sentences that this story answers (the others are User
+Story 22's):*
+
+> - „W ramach Szansy Sprzedażowej można definiować różne Wydarzenia, które mają swoją nazwę,
+>   opis i datę." — *Within a Sales Opportunity one can define Events, each with a name, a
+>   description and a date.*
+> - „W widoku Szansy Sprzedażowej powinna pojawić się zakładka "Wydarzenia", która zawiera
+>   listę Wydarzeń powiązanych z Szansą, ma widok Kalendarza z Wydarzeniami wybranej Szansy
+>   oraz daje możliwość dodania nowego Wydarzenia dla Szansy Sprzedażowej." — *The Sales
+>   Opportunity screen should gain an "Events" tab holding the list of the Opportunity's
+>   Events, a Calendar view of that Opportunity's Events, and a way to add a new Event to the
+>   Opportunity.*
+> - „Przy tworzeniu Wydarzenia można zaznaczyć, czy mamy być powiadamiani o Wydarzeniu. Jeśli
+>   tak, ustawiamy datę i godzinę powiadomienia, która domyślnie ustawia się na datę
+>   Wydarzenia." — *When creating an Event one can tick whether we are to be notified about
+>   it. If so, we set the date and time of the notification, which defaults to the Event's
+>   date.*
+> - „Przypomnienie wysyła się jako Powiadomienie w dzwoneczku lub jeśli jestem offline, jako
+>   wiadomość e-mail do osoby przypisanej do Szansy Sprzedażowej" — *The reminder is sent as
+>   a notification in the bell or, if I am offline, as an e-mail message to the person
+>   assigned to the Sales Opportunity.*
+> - „Zmiana Handlowca przypisanego do Szansy przenosi jej wpisy do kalendarza nowej osoby." —
+>   *Changing the Sales Rep assigned to an Opportunity moves its entries to the new person's
+>   calendar.* (Its reminder half is here; its calendar half is User Story 22.)
+
+*The owner also sent three screenshots of another CRM — its calendar, its "new event" dialog
+and an Opportunity screen with a week strip. They are a model for structure, not for
+branding and not for that product's domain; research N-CAL1 says what was taken and what
+was not.*
+
+A Sales Rep plans the next step of a deal where the deal is: on the Opportunity's *Events*
+tab they add "Call back about the offer", tomorrow from 10:00 to 10:30, and tick *Remind
+me*. Tomorrow at 10:00 whoever holds the Opportunity then is told — in the bell, and by
+e-mail as well when they do not have the Admin UI open.
+
+**Why this priority**: an Opportunity is workable without it; the story adds the "what
+happens next, and when" that notes cannot answer. It is the last capability before the
+module's first release (owner, 2026-10-08: "After this feature the CRM module is ready to
+merge and release").
+
+**Independent Test**: on an Opportunity assigned to a colleague, open *Events*, add a timed
+Event with a reminder two minutes ahead and an all-day Event without one. See both in the
+list and in the tab's calendar, and the tab's label counting them. Wait: the colleague's
+bell shows one entry naming the Event, and it opens this Opportunity on *Events*. Reassign
+the Opportunity before a second reminder is due and see the new assignee reminded, not the
+old one. Close the Opportunity and confirm no reminder is sent while it is closed.
+
+**Acceptance Scenarios**:
+
+1. **Given** an Opportunity and a user who may change Opportunities, **When** they add an
+   Event with a name, a start and an end on one day, **Then** it is listed on the
+   Opportunity's *Events* tab under *Upcoming*, drawn in the tab's calendar, the tab's label
+   counts it, and the Opportunity's change history records that an Event was added.
+2. **Given** the dialog, **When** *All day* is switched on, **Then** the two times are not
+   asked for, and the Event is shown on its date to every reader, whatever time zone their
+   browser is in.
+3. **Given** the dialog, **When** *Remind me* is ticked, **Then** a date and time appear,
+   already set to the Event's start (09:00 on its date for an all-day Event), and follow the
+   start while the user has not changed them; a reminder time that is not in the future is
+   refused with a sentence that says so.
+4. **Given** an Event whose reminder is due on an open Opportunity with an assignee,
+   **When** the reminder is processed, **Then** the assignee gets exactly one bell entry that
+   names the Event, when it starts and the Opportunity's number, and opens the Opportunity
+   on *Events* with that Event marked.
+5. **Given** the same, and an assignee who has not used the Admin UI in the last five
+   minutes, **Then** they also receive one e-mail, in the language of their Admin UI, with
+   the same facts and a link to the Opportunity.
+6. **Given** an Opportunity reassigned after the Event was created, **When** the reminder is
+   due, **Then** the person assigned at that moment is reminded and the earlier one is not.
+7. **Given** an Opportunity with no assignee, **When** a reminder is due, **Then** the
+   person who created the Event is reminded if they may still open the Opportunity;
+   otherwise nobody is, and the Event says that nobody could be reminded.
+8. **Given** a closed Opportunity, **When** a reminder falls due, **Then** nothing is sent,
+   the tab says reminders are paused, and the Events stay listed and editable; reopened
+   within a day of the reminder's time, it is sent late; later than that, it is shown as
+   missed.
+9. **Given** the platform was not running when a reminder fell due, **When** it runs again
+   within 24 hours, **Then** the reminder is sent once, late; after 24 hours it is not sent
+   and is shown as missed.
+10. **Given** an Event, **When** somebody who may change the Opportunity edits or deletes
+    it, **Then** the change is recorded in the history; a deleted Event sends no reminder,
+    and a reminder moved to a new future time is sent at the new time, once.
+11. **Given** a user who may only read, **When** they open *Events*, **Then** they see the
+    list and the calendar and nothing that adds, changes or deletes.
+12. **Given** an Opportunity the user may not see, **When** they ask for its Events or name
+    one of them, **Then** the answer is the one given for an Opportunity that does not
+    exist.
+13. **Given** the instance has no working e-mail, or the operator has switched the reminder
+    e-mail off, **When** a reminder is due for somebody who is away, **Then** the bell entry
+    is still written and is there when they return.
+
+---
+
+### User Story 22 — A calendar of Events across Opportunities (Priority: P3)
+
+*Added 2026-10-08 with User Story 21. The owner's words, verbatim, with an English
+rendering:*
+
+> - „Moduł CRM powinien zawierać widok Kalendarza, w stylu kalendarza Google." — *The CRM
+>   module should contain a Calendar view, in the style of Google Calendar.*
+> - „Pokazuje on wszystkie Wydarzenia z CRM, które mają określoną datę." — *It shows all CRM
+>   Events that have a date.*
+> - „Administrator Platformy widzi wszystkie Wydarzenia wszystkich Szans Sprzedażowych na
+>   Kalendarzu. Handlowiec widzi Wydarzenia tylko ze swoich Szans Sprzedażowych." — *A
+>   Platform Administrator sees all Events of all Sales Opportunities on the Calendar. A
+>   Sales Rep sees Events only of their own Sales Opportunities.*
+> - „Kliknięcie na Wydarzenie przenosi do powiązanej z nią Szansy Sprzedażowej." — *Clicking
+>   an Event leads to the Sales Opportunity it belongs to.*
+> - „Wydarzenia na Kalendarzu pojawiają się tylko dla aktywnych Szans Sprzedażowych" —
+>   *Events appear on the Calendar only for active Sales Opportunities.*
+> - „Zmiana Handlowca przypisanego do Szansy przenosi jej wpisy do kalendarza nowej osoby." —
+>   *Changing the Sales Rep assigned to an Opportunity moves its entries to the new person's
+>   calendar.*
+
+A Sales Rep opens *CRM → Calendar* on Monday morning and sees the week: every Event of the
+Opportunities they hold, on its day and at its hour. A manager opens the same screen and
+sees everybody's, and can narrow it to their own.
+
+**Why this priority**: the Events of User Story 21 are already usable from each
+Opportunity; this story is the view across them.
+
+**Independent Test**: with Events on three open Opportunities — one held by the Sales Rep,
+one by a colleague in an Organization both may see, one in an Organization the Sales Rep
+may not see — and one on a closed Opportunity: as the Sales Rep, open the Calendar and find
+only the first; press it and land on that Opportunity's *Events* tab. As a manager, find the
+first three and not the fourth; switch to *Mine*. Reassign the first Opportunity to the
+colleague and see it leave the Sales Rep's calendar. Repeat at a 390 px wide window and
+with a keyboard alone.
+
+**Acceptance Scenarios**:
+
+1. **Given** a user who may view Opportunities, **When** they open the Calendar from the
+   CRM group of the sidebar or from the command palette, **Then** it opens on the current
+   month, today marked, with *Today*, *Previous*, *Next*, a *Go to date* field and a switch
+   between *Month*, *Week* and *Agenda*.
+2. **Given** a user who may see every Organization, **When** the Calendar opens, **Then**
+   it shows the Events of every open Opportunity, and a *Mine / All* switch narrows it to
+   the Opportunities assigned to them.
+3. **Given** a Sales Rep — a user confined to their Organizations — **When** the Calendar
+   opens, **Then** it shows only the Events of Opportunities assigned to them, and offers no
+   switch.
+4. **Given** an Opportunity that is closed as won or lost, **When** the Calendar is read,
+   **Then** none of its Events is on it; reopened, they are back.
+5. **Given** an Opportunity reassigned from one Sales Rep to another, **When** each opens
+   the Calendar, **Then** its Events are on the new assignee's and no longer on the former
+   one's, with nothing to carry over.
+6. **Given** the *Week* view, **When** it is read, **Then** it shows seven days from Monday,
+   an all-day row, the hours of the day, each Event at its time and length, Events that
+   overlap side by side, and a line at the current time on today.
+7. **Given** the *Month* view and a day with more Events than fit, **When** it is read,
+   **Then** the day shows the first three and "+N more", which opens that day's week.
+8. **Given** any view, **When** an Event is pressed, **Then** the user is on the Opportunity
+   it belongs to, on *Events*, with that Event marked.
+9. **Given** any view and a keyboard alone, **When** the user tabs through the calendar,
+   **Then** every Event is reached in the order of its time, each announced with its name,
+   its time and its Opportunity, and each day is a heading.
+10. **Given** a 390 px wide window, **When** the Calendar is opened, **Then** it is the
+    *Agenda* — a list of days with their Events — and nothing scrolls sideways.
+11. **Given** the view, the date and the *Mine / All* choice, **When** the page is reloaded
+    or its address opened again, **Then** the same view of the same date is shown.
+12. **Given** no Event in the shown range, a slow answer, or a failed one, **Then** the
+    calendar says so — an empty range with a way to today, a skeleton, an error with *Try
+    again* — and never an empty grid with no words.
+
+---
+
 ### Edge Cases
 
 - **A Status still in use is deleted** — refused while any Opportunity is in it; the start
@@ -687,7 +859,24 @@ Repeat at a 390 px wide window.
 - **Automatic creation is switched on while Orders already exist** — nothing is created for
   existing documents.
 - **An Opportunity is deleted** — allowed only to users who may configure CRM; its links are
-  removed and the linked Orders and Quote Requests are untouched.
+  removed and the linked Orders and Quote Requests are untouched. Its Events go with it, and
+  no reminder of theirs is sent.
+- **An Event that would span two days** — refused: an Event starts and ends on one day, or
+  is all-day for one date (User Story 21). A meeting over midnight is two Events.
+- **An Event read in another time zone** — a timed Event is one instant and is drawn at the
+  reader's local time, on the day it starts for them, clipped at midnight; an all-day Event
+  is a date and is drawn on that date for everybody.
+- **A reminder falls due while the assignee cannot open the Opportunity** (deactivated, or
+  no longer reaching its Organization) — they are not reminded; the Event's creator is
+  tried under the same test; failing both, nobody is, and the Event says so.
+- **A reminder falls due while the bell capability is switched off** — the e-mail is sent
+  whether or not the person is online; with neither available the Event says the reminder
+  could not be delivered.
+- **The reminder's time is changed after it was sent** — a new future time arms it again;
+  it is sent once at the new time.
+- **Two people edit one Event at once** — the later save wins; an Event carries no version.
+- **A month holding more Events than the calendar draws** — the first 500 by start time are
+  shown and the screen says the range is incomplete and to narrow it (*Mine*, or *Week*).
 
 ## Requirements *(mandatory)*
 
@@ -985,7 +1174,8 @@ left free. Research N-DL1 … N-DL8.)*
   what it does; no status MUST be distinguished by colour alone; and every status MUST be
   visible without sideways scrolling at 390 px, however many the workflow has.
 - **FR-116**: The tabs MUST be, in this order: Overview, Links, Notes, Messages,
-  Attachments, Change history; the screen MUST open on Overview.
+  Attachments, Change history; the screen MUST open on Overview. *(Since User Story 21
+  an Events tab stands third, between Links and Notes — FR-133.)*
 - **FR-117**: The linked Orders and Quote Requests MUST be on the Links tab, with everything
   FR-020, FR-023 and FR-026 give them, and on no other tab. The tab's label MUST carry the
   number of linked documents when there is at least one. The Quote Requests section MUST be
@@ -1009,6 +1199,104 @@ left free. Research N-DL1 … N-DL8.)*
   screen; and every colour MUST come from the theme, so that the dark theme needs nothing of
   its own.
 
+**Events and their reminders** *(added 2026-10-08, User Story 21. FR-122 … FR-129 are left
+free. Research N-CAL1 … N-CAL14. FR-116's tab order gains *Events* in third place — FR-133 —
+and is otherwise unchanged.)*
+
+- **FR-130**: A user who may change Opportunities MUST be able to add an Event to an
+  Opportunity they may see: a name (1 … 200 characters), an optional description (plain
+  text, up to 5 000 characters), and either a start and an end, or *all day* for one date.
+  An Event belongs to exactly one Opportunity and cannot be moved to another.
+- **FR-131**: An Event MUST start and end on one calendar day, its end after its start. A
+  timed Event is a moment in time, the same moment for every reader; an all-day Event is a
+  date, the same date for every reader.
+- **FR-132**: Every user who may change the Opportunity MUST be able to edit and delete any
+  of its Events — the Events are the Opportunity's plan, not their author's property.
+- **FR-133**: The Opportunity screen MUST have an *Events* tab, third after *Overview* and
+  *Links*, whose label carries the number of Events that have not ended yet when there is at
+  least one. The tab MUST hold: the Opportunity's Events as a list, those not yet ended
+  first and soonest first, the ended ones after them; a calendar of this Opportunity's
+  Events alone; and, for a user who may change the Opportunity, adding, editing and deleting
+  an Event. A user who may only read MUST get the list and the calendar and no control that
+  changes anything. A closed Opportunity MUST keep the tab, its Events and their editing.
+- **FR-134**: An Event MUST be visible exactly to the users who may see its Opportunity; an
+  Event of an Opportunity outside a user's reach MUST be indistinguishable from one that
+  does not exist, on every path that reads or names it.
+- **FR-135**: Adding, changing and deleting an Event MUST be recorded in the Opportunity's
+  change history with who and when, and with the Event's name and times; the description's
+  text MUST NOT be part of the record.
+- **FR-136**: Deleting an Opportunity MUST delete its Events. Closing an Opportunity MUST
+  NOT.
+- **FR-137**: An Event MAY carry one reminder: a date and time, offered as the Event's start
+  (09:00 on its date for an all-day Event) and changeable. A reminder time that is not in
+  the future when it is saved MUST be refused. Removing the reminder, or deleting the Event,
+  MUST mean nothing is sent.
+- **FR-138**: When a reminder is due it MUST go to the person assigned to the Opportunity
+  **at that moment**; when nobody is assigned, to the person who created the Event. A
+  person who is deactivated or may no longer see the Opportunity MUST NOT be reminded. When
+  nobody qualifies, nothing is sent and the Event MUST say that nobody could be reminded.
+- **FR-139**: A reminder MUST be written to the recipient's notification bell, naming the
+  Event, when it starts and the Opportunity's number, and opening the Opportunity on
+  *Events*. When the recipient has made no request to the Admin UI in the five minutes
+  before, an e-mail MUST be sent to them as well — in the language of their Admin UI, with
+  the same facts and a link to the Opportunity. An e-mail that cannot be sent — no working
+  e-mail on the instance, or the reminder e-mail switched off by the operator — MUST NOT
+  cost the bell entry. With the bell capability switched off the e-mail MUST be sent
+  whether or not the recipient is online.
+- **FR-140**: A reminder MUST be delivered at most once. It MUST NOT be sent while its
+  Opportunity is closed or while CRM is switched off. A reminder found due up to 24 hours
+  late — after downtime, after CRM was switched back on, after the Opportunity was
+  reopened — MUST be sent then; one found later than that MUST NOT be sent and MUST be shown
+  as missed. Saving a new future reminder time on an Event whose reminder was already
+  handled MUST arm it again.
+- **FR-141**: The *Events* tab MUST say, for every Event with a reminder, what became of
+  it: scheduled for a time; paused because the Opportunity is closed; sent, when and by
+  which of the two ways; missed; nobody to remind; could not be delivered.
+
+**The Calendar** *(added 2026-10-08, User Story 22. Research N-CAL3, N-CAL4,
+N-CAL9 … N-CAL12.)*
+
+- **FR-142**: CRM MUST have a Calendar screen, in the CRM group of the sidebar and among
+  the command-palette actions, open to every user who may view Opportunities.
+- **FR-143**: The Calendar MUST show Events of **active** Opportunities only — those in a
+  status that does not close the Opportunity as won or lost. Closing an Opportunity MUST
+  take its Events off the Calendar and reopening MUST bring them back; neither changes the
+  Events.
+- **FR-144**: A user who may see every Organization MUST be shown the Events of every active
+  Opportunity, and MUST be able to narrow the Calendar to the Opportunities assigned to
+  them. A user confined to a set of Organizations — a Sales Rep — MUST be shown only the
+  Events of Opportunities assigned to them, among those Organizations. On no path may the
+  Calendar show an Event of an Opportunity its reader may not see.
+- **FR-145**: Whose Calendar an Event is on MUST follow from who the Opportunity is assigned
+  to when the Calendar is read. Reassigning an Opportunity MUST therefore move all its
+  Events at once, with nothing copied and nothing left behind.
+- **FR-146**: The Calendar MUST offer a *Month*, a *Week* and an *Agenda* view; *Today*,
+  *Previous* and *Next*; going to a chosen date; and a title naming the range shown. The
+  view, the date and the *Mine / All* choice MUST be part of the screen's address.
+- **FR-147**: The *Week* view MUST show seven days starting on Monday, a row for all-day
+  Events, the hours of the day, each timed Event at its time and for its length, Events
+  that overlap side by side, and the current time on today. The *Month* view MUST show
+  whole weeks, up to three Events per day and, beyond three, how many more — which opens
+  that day's week. The *Agenda* MUST list the days that have Events, each with its Events
+  in order of time.
+- **FR-148**: Every Event on the Calendar MUST be a link to its Opportunity, opening on
+  *Events* with that Event marked, and MUST be named — to sight and to assistive
+  technology — by its name, its time, and its Opportunity's number and title.
+- **FR-149**: Times MUST be shown in the time zone of the reader's browser, and the screen
+  MUST name that zone.
+- **FR-150**: The Calendar MUST be fully usable with a keyboard alone and with a screen
+  reader: every Event reachable in the order of its time, every day a heading, nothing
+  distinguished by colour alone, focus always visible, every control a 44 px target on a
+  touch screen. At a width under 640 px the Calendar MUST be the *Agenda*, and nothing MUST
+  scroll sideways at 390 px. It MUST have a loading, an empty and an error state, each in
+  words.
+- **FR-151**: One read of the Calendar MUST cover at most 45 days and return at most 500
+  Events, saying so when there were more; its cost MUST NOT grow with the number of
+  Opportunities or of Events returned.
+- **FR-152**: The demonstration data MUST include Events on demonstration Opportunities,
+  dated relative to the day the data is installed, so that the Calendar of a fresh demo is
+  not empty.
+
 ### Key Entities
 
 - **Opportunity** — number, title, description, Organization, optional contact person,
@@ -1031,6 +1319,9 @@ left free. Research N-DL1 … N-DL8.)*
 - **Reference** — a pointer from a text of an Opportunity to a Product or an Order.
 - **Custom field values** — the operator-defined fields of one Opportunity and their values;
   the definitions belong to the platform's custom-fields capability.
+- **Event** — something planned on one Opportunity: name, description, one day's start and
+  end or an all-day date, the time zone it was planned in, who created it; optionally one
+  reminder — its time and what became of it.
 
 ## Success Criteria *(mandatory)*
 
@@ -1070,6 +1361,14 @@ left free. Research N-DL1 … N-DL8.)*
   Organization.
 - **SC-012**: From an Order's screen a user reaches its Opportunity in one click; with the
   CRM module off, the Order and Quote Request screens show no trace of it.
+- **SC-013**: A Sales Rep can add an Event with a reminder to an Opportunity in under 30
+  seconds; 100% of due reminders on open Opportunities reach the bell of the person assigned
+  at that moment within 2 minutes of their time, and 0 are delivered twice.
+- **SC-014**: A month holding 500 Events appears on the Calendar in under 1 second as
+  perceived by the user, and switching between Month, Week and Agenda within the loaded
+  range is immediate.
+- **SC-015**: A Sales Rep's Calendar shows 0 Events of Opportunities that are not assigned
+  to them, and no user's Calendar shows an Event of an Opportunity they may not open.
 
 ## Clarifications
 
@@ -1227,10 +1526,87 @@ note, or the requirement was left standing and marked. Nothing was removed.
   (FR-053) ranks by value — the module holds no cost or margin, so if the owner's "most
   profitable" meant margin it is not built.
 
+### Open questions on Events and the Calendar, 2026-10-08 — each with the default applied
+
+User Stories 21 and 22 were designed from ten sentences. Where a sentence left room, a
+default was applied so the stories can be built; **every one of these is the owner's to
+confirm or reverse**, and none blocks implementation. The reasoning and the code read for
+each are in `research.md`, the note named.
+
+- **OQ-1 `[NEEDS CLARIFICATION — owner]` — What "offline" means.** *Default applied*: a
+  person is online when the Admin UI made a request for them in the last five minutes —
+  which, because the bell itself asks every 30 seconds, means "has the Admin UI open in a
+  browser". The bell entry is always written; the e-mail is added when they are not online
+  (FR-139). So a person away from a desk whose browser stayed open gets the bell only.
+  *Alternative*: send the e-mail when the bell entry is still unread N minutes after it was
+  written — closer to "did they actually see it", later by N minutes, and a larger change
+  to the notification capability (N-CAL6).
+- **OQ-2 `[NEEDS CLARIFICATION — owner]` — "Bell *or* e-mail" was built as "bell, *and*
+  e-mail when offline".** *Default applied*: an offline person gets both, so that an
+  instance with no working e-mail never loses a reminder silently. *Alternative*: strictly
+  one or the other (N-CAL6).
+- **OQ-3 `[NEEDS CLARIFICATION — owner]` — Who is reminded when the Opportunity has no
+  assignee.** *Default applied*: the person who created the Event; if they cannot be, nobody
+  (FR-138). *Alternative*: nobody at all — "to the person assigned" read strictly (N-CAL4).
+- **OQ-4 `[NEEDS CLARIFICATION — owner]` — "A Sales Rep sees only their own
+  Opportunities' Events."** *Default applied*: "their own" is *assigned to them*; a Sales
+  Rep's Calendar has no way to show a colleague's Opportunities, although the Sales Rep can
+  open those Opportunities — and read their Events tab — when they share an Organization.
+  Everybody else gets *Mine / All* (FR-144). *Alternative*: a *Team* choice for Sales Reps
+  showing every Opportunity they may open (N-CAL2).
+- **OQ-5 `[NEEDS CLARIFICATION — owner]` — A reminder names the Event.** Every other CRM
+  bell entry names an Opportunity by its number alone, never by a title or a text, because
+  a bell entry outlives a person's access to the Organization. *Default applied*: the
+  reminder — bell and e-mail — carries the Event's **name** (not its description, and not
+  the Opportunity's title), because a reminder that does not say of what is not one; the
+  recipient's access is checked when it is sent. *Alternative*: "An event on opportunity
+  OPP-000123 is due", and the name only after the click (N-CAL7).
+- **OQ-6 `[NEEDS CLARIFICATION — owner]` — An Event is one day, with a start and an end.**
+  The owner's sentence says "date"; the reference CRM has from/to, an end date and
+  recurrence-free multi-day entries. *Default applied*: one day, start and end (60 minutes
+  offered), or all day for one date. *Not built*: Events over several days, repeating
+  Events (N-CAL1).
+- **OQ-7 `[NEEDS CLARIFICATION — owner]` — Events are created on the Opportunity, not on
+  the Calendar.** *Default applied*: the Calendar is a view; "New event" is on the
+  Opportunity's *Events* tab, where the owner's sentence puts it. *Alternative*: a "New
+  event" button on the Calendar that first asks which Opportunity (N-CAL9).
+- **OQ-8 `[NEEDS CLARIFICATION — owner]` — Time zones.** The platform has no time-zone
+  setting (A-3). *Default applied*: the Calendar is drawn in the reader's browser's zone;
+  an Event remembers the zone it was planned in, and the e-mail and the bell state its
+  time in that zone, named. *Alternative*: a per-user or platform zone — a platform
+  capability, not CRM's (N-CAL1).
+- **OQ-9 — the week starts on Monday** in both languages (N-CAL10); **a reminder more than
+  24 hours late is dropped** (N-CAL5). Stated here so they are decisions and not surprises.
+
 ## Assumptions
 
 Decisions taken where the requirements left room, each with the alternative that was not
 taken; the reasoning is in `research.md`.
+
+- **An Event belongs to an Opportunity and to nothing else** (User Stories 21, 22). There
+  is one kind of Event; it has no participants, no location field, no colour of its own and
+  no category. The reference CRM's "entry kinds" belong to that product's domain.
+  *Rejected*: Events not tied to an Opportunity (a personal calendar) — the owner's
+  sentences define an Event "within a Sales Opportunity", and an Event with no Opportunity
+  would have no Organization, which the platform does not allow.
+- **The Calendar is read-only**: nothing is dragged, resized or created on it. *Rejected*
+  for this release: drag to move — it needs a non-drag alternative of equal power (WCAG 2.2
+  SC 2.5.7) and a time-zone-correct drop, for a view whose every Event is one click from
+  its edit form.
+- **No new permission.** The Calendar and reading Events need "View sales opportunities";
+  adding, changing and deleting an Event need "Create and work sales opportunities". What a
+  Sales Rep's Calendar shows follows from the platform's existing notion of a Sales Rep —
+  a user confined to their Organizations — not from a code.
+- **An Event's description is plain text**; the `@` shortcuts of User Story 18 are not
+  offered in it. *Rejected*: references in Event descriptions — they would make an Event a
+  third kind of source for the reference index and for mention notifications, for a text
+  that is a line or two.
+- **A reminder is not retried for ever and not sent twice.** If the platform stops in the
+  instant between deciding to send and recording that it sent, that one reminder is shown
+  as "could not be confirmed" and is not repeated.
+- **Events are not offered to outbound webhooks, to import/export or as a board-card
+  field**, and the Opportunity's facts column does not gain a "next event" fact. Each is
+  additive later; none was asked for.
 
 - **Statuses carry a kind (open / won / lost) and one start flag**, rather than separate
   "terminal" and "outcome" notions. Unlike Order statuses, a closing Status may have outgoing
@@ -1274,9 +1650,11 @@ taken; the reasoning is in `research.md`.
   the 1st is counted in the month before. A platform time-zone setting, which analytics
   would then follow, is a possible follow-up and the owner's call.)*
 - **Messages do not send e-mail**; they use the Admin UI's notification bell. If that
-  capability is switched off, messages still work without notifications.
-- **Import/export of Opportunities, e-mail notifications and inclusion in the admin global
-  search are not part of this feature**; each is assessed in `research.md` R-22 with the
+  capability is switched off, messages still work without notifications. *(Unchanged by User
+  Story 21: an Event's reminder is the one CRM notification that can also be an e-mail.)*
+- **Import/export of Opportunities, e-mail notifications (the reminder of User Story 21
+  excepted, since 2026-10-08) and inclusion in the admin global search are not part of this
+  feature**; each is assessed in `research.md` R-22 with the
   reason and what it would take. (Custom fields, outbound webhooks and the Order-screen panel
   were on this list until the owner's second ruling of 2026-10-05 brought them into scope.)
 - **Webhook notifications carry what the event carries** — identifiers, statuses, the cause
@@ -1293,4 +1671,5 @@ taken; the reasoning is in `research.md`.
 
 Orders; Quote Requests; Organizations (including Sales-Rep assignment); customer accounts;
 Products (catalog); Admin UI users and roles; Sales Channels; the media library; Settings; the
-audit trail; Admin notifications; custom fields; webhooks.
+audit trail; Admin notifications; custom fields; webhooks; transactional e-mail and admin
+sessions (User Story 21's reminder).

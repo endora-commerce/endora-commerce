@@ -275,6 +275,38 @@ edge: the kernel's `AuditPort` (cradle name `auditLogService`), `commandBus`, `e
 `emFactory`, `moduleQueueRedis` and `processRunsWorkers`. `effectiveState` and
 `enterSystemScope` are imported from the platform's barrels.
 
+## 5a. Ports the Event reminder consumes (US21) — *planned, not built*
+
+Three names join the table of §5, each resolved with `lazyPort` like the rest. All three
+owners declare themselves non-deactivatable, so each edge is a `dependencies` entry and
+none can deaden an operator's switch (`auth` is one already).
+
+| Port — container name (owner) | Type | Used for | Edge |
+| --- | --- | --- | --- |
+| `authSessionReadPort` (`auth`) | `AuthSessionReadPort` — **one method added**, `lastSeenByAdminUser(adminUserIds, since)` (`foreign-module-changes.md` §CAL-B) | is the recipient online: an admin session of theirs seen in the last five minutes | `dependencies` (present) |
+| `transactionalEmailSenderAccessor` (`transactional_emails`) | `() => TransactionalEmailSender \| undefined` | sending `crm_event_reminder`; `undefined`, and every outcome other than `sent`, means "no e-mail went out" and costs nothing else | `dependencies` (**new**: `transactional_emails`) |
+| `emailDefaultsPort` (`transactional_emails`) | `EmailDefaultsRegistryPort` | registering the default subject and body of `crm_event_reminder`, English and Polish, from a contribution-only `ctx.onBoot` — the ungated seam seven modules already push into | same edge |
+
+`adminNotificationRecordPort` (already consumed, `degrades-without`) carries the bell entry
+through the existing `crm-notifier.ts`, which gains one kind and two sentences;
+`adminUserReadPort` (already consumed) gives the recipient's e-mail address, status and
+`preferredLanguage`; `adminTenantScopePort` (already consumed, through `AdminReach`) says
+whether the recipient may still see the Opportunity's Organization.
+
+**The transactional e-mail** — declared in the manifest's `transactionalEmails`, like
+`shipments`' `shipment_created`:
+
+| | |
+| --- | --- |
+| `code` | `crm_event_reminder` |
+| `name`, `group` | "Event reminder", `crm` |
+| `variables` | `event.name`, `event.when` (as the bell's `when`), `opportunity.number`, `opportunity.url` (absolute, or empty when the instance does not say where its Admin UI is) |
+| Sent with | `salesChannelId: null` (the platform-wide content — an administrator is not a channel's customer), `language` from the recipient's `preferredLanguage` (`pl` → `pl-PL`, anything else and `null` → `en-US`), `to` their address, `messageId: crm_event_reminder:<eventId>:<remindAt as epoch ms>`, `document: { type: 'crm_opportunity', id }` |
+| Operator's control | the e-mail templates screen: editable per language, and deactivatable — a deactivated reminder e-mail is the `deactivated` outcome, and the bell entry is unaffected |
+
+CRM emits **no new event** for Events: nothing subscribes to "an Event was added", and the
+webhook contribution of §6 is unchanged.
+
 ## 6. Outbound webhooks (US16)
 
 Three events are offered to the platform's webhooks capability. **The webhook payload is the

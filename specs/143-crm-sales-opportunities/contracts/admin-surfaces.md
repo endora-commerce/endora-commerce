@@ -18,12 +18,14 @@ Every component is a dynamic-import factory; the entry file exports data only.
 | `/crm/board` | `OpportunityBoardPage` (on `KanbanBoard` from `@endora-commerce/admin-kit/components`) | `crm:read` | US7 |
 | `/crm/tags` | `TagsPage` | `crm:configure` | US6 |
 | `/crm/analytics` | `AnalyticsPage` | `crm:analytics` | US13 |
+| `/crm/calendar` | `CalendarPage` | `crm:read` | US22 — *planned*, §1b |
 
 `OpportunityDetail` is a tabbed page. Tabs are data in
 `src/admin/pages/opportunity-detail/tabs.ts` — one line per tab, each a lazy component — so a
 story adds a tab by adding one file and one line: **Overview** (US1), **Links** (US20),
 **Notes** and **Messages** (US4), **Attachments** (US5), **Change history** (US11). §1a says
-what is on the screen besides the tabs, and where.
+what is on the screen besides the tabs, and where. **Events** (US21, planned) is one more
+file and one more line, third in the order — §1b.
 
 A route and its sidebar entry are added by the story that ships the page, never earlier: a
 palette or nav entry pointing at a route that does not exist is a defect (Principle XVI).
@@ -103,6 +105,143 @@ inside their group, not landmarks. A fact without a value renders the dash and a
 `opportunity.facts.notSet`; the *closed* row alone is omitted while there is nothing to say.
 The column adds no write: what is not in the third column above is changed by the edit form.
 
+## 1b. Events on the Opportunity screen, and the Calendar (US21, US22) — *planned, not built*
+
+Normative for `src/admin/pages/CalendarPage.tsx`,
+`src/admin/pages/opportunity-detail/tabs/EventsTab.tsx`, `src/admin/components/calendar/*`,
+`src/admin/components/EventDialog.tsx` and `src/admin/lib/calendar/*`. The stories are
+`spec.md` User Stories 21 and 22 (FR-130 – FR-152); the API is `admin-api.md` §12d; the
+reasons are `research.md` N-CAL9 – N-CAL12. **No calendar library**: `plan.md` §
+*Complexity Tracking* sets the choice beside its alternative.
+
+### The one calendar component
+
+`components/calendar/EventCalendar.tsx` is used twice — by the Calendar page with every
+Event the caller may see, and by the *Events* tab with one Opportunity's. It is given its
+Events and draws them; it fetches nothing and knows no route.
+
+```text
+EventCalendar props
+  events: CalendarEntry[]            — { id, name, allDay, startsAt, endsAt, allDayDate, href, context }
+  view: 'month' | 'week' | 'agenda'  — controlled
+  date: 'YYYY-MM-DD'                 — the anchor day, controlled
+  views: readonly View[]             — which views the switch offers
+  onNavigate(view, date)             — the parent owns the address (page) or the state (tab)
+  state: 'loading' | 'ready' | 'error', onRetry, truncated
+  toolbarExtra?: ReactNode           — the page's Mine / All switch
+```
+
+`context` is the second line of an entry's name: on the page, the Opportunity's number and
+title; on the tab, nothing. All date arithmetic is in `lib/calendar/date-math.ts` and all
+geometry in `lib/calendar/layout.ts` — pure functions, tested without a DOM, on the
+browser's local time through `Date` and `Intl.DateTimeFormat` only.
+
+**Toolbar** (one `role="toolbar"` row that wraps): **Today**; **Previous** and **Next**
+(icon buttons named `calendar.previous.<view>` / `calendar.next.<view>` — "Previous week");
+the range title as the region's `h2`, in a polite live region so moving announces the new
+range; **Go to date**, a native `<input type="date">` with a visible label; the view switch,
+a `radiogroup` of *Month*, *Week*, *Agenda*; then `toolbarExtra`. The browser's time zone is
+named under the toolbar (`calendar.timeZone`, FR-149).
+
+**Month** — a `<table>`: a header row of weekday names (`<th scope="col">`, `abbr` for the
+full name), six rows of seven days starting Monday. Each cell: the day number as a `<time
+datetime>` — today marked by a filled disc **and** the words `calendar.today` for assistive
+technology, days of the neighbouring months muted **and** still readable at 4.5:1 — then a
+`<ul>` of up to three entries (all-day first, then by start), then, when more, a button
+`calendar.more` ("+{count} more", named "{count} more events on {date}") that calls
+`onNavigate('week', thatDay)`. A cell is not focusable and not clickable; only its entries
+and its "+N more" are.
+
+**Week** — seven day columns under an all-day row, beside an hour scale of 24 rows of 48 px.
+On opening it scrolls its own box so that 07:00 is at the top. Structure for assistive
+technology is **seven sections, not a grid**: each day an `<section>` under an `<h3>`
+("Thursday 8 October — 3 events"), holding one `<ol>` of that day's entries in order of
+time, all-day ones first. The hour lines and the scale are decoration and are hidden from
+assistive technology; each entry states its own time. A timed entry is positioned from
+`layout.ts`: top and height from its start and length (minimum height 24 px, so a 15-minute
+Event still shows its name), and overlapping entries share the column's width in equal
+lanes — greedy column packing over entries sorted by start, each cluster of mutually
+overlapping entries as wide as its number of lanes. An entry that, in the reader's zone,
+runs past midnight is cut at the bottom of its start day and says `calendar.continues`. The
+current time is a 2 px line with a dot on today's column, updated every minute, hidden from
+assistive technology.
+
+**Agenda** — a list of the days that have entries, from the anchor date for 30 days: each
+day an `<h3>` and a `<ul>`. It is the only view under 640 px (`sm`): there the switch is
+not rendered, `view` is treated as `agenda` whatever the address says, and *Previous* /
+*Next* move 30 days.
+
+**An entry** (`EventChip`) is a link — `<a href>` through the router's `Link`, so Enter,
+middle-click and "open in new tab" are the browser's. Visible: the start time (not for
+all-day), the name, and `context` when given, cut with an ellipsis. Accessible name:
+`calendar.entry.label` — "{name}, {time}, {context}" — complete, never cut. A reminder is a
+bell glyph with the spoken `calendar.entry.hasReminder`. Minimum target 24 × 24 px in the
+grids (WCAG 2.2 SC 2.5.8) and 44 px in the Agenda, which is what a touch screen gets.
+Entries are one colour, the theme's accent tint with its on-colour; nothing is said by
+colour.
+
+**Keyboard**: Tab walks toolbar, then entries in DOM order, which is chronological in every
+view. There are no arrow-key grid cells, because a cell does nothing: the APG grid pattern
+is for cells that are themselves widgets, and making 42 inert cells focus stops would be
+slower, not more accessible. A "Skip the calendar" link precedes the first entry.
+
+**States**: `loading` — the view's frame with skeleton entries and `aria-busy`; `ready` with
+no entry in range — the frame, plus `calendar.empty` with a *Today* button when the anchor
+is not today; `error` — `calendar.error` with **Try again**, the frame kept so the toolbar
+still works; `truncated` — a `role="status"` line, `calendar.truncated`, above the view.
+
+### The Calendar page — `/crm/calendar`
+
+`PageHeader` titled `calendar.title`; under it `EventCalendar` with all three views.
+
+- **Address**: `?view=month|week|agenda&date=YYYY-MM-DD&scope=mine|all`, written with
+  `replace`. Absent or malformed: `month`, today, and no `scope` (the server's default).
+  `lib/calendar/calendar-address.ts` reads and writes it.
+- **Data**: `GET /calendar/events` for the view's range, one day wider each side
+  (`admin-api.md` §12d). Month: the 42 days drawn. Week: its seven. Agenda: 30. Moving
+  inside an already loaded range asks nothing.
+- **Mine / All**: rendered from `meta.scopes` — a two-option `radiogroup` when it has two
+  members, **nothing at all** when it has one. The applied `meta.scope` is what is shown as
+  chosen, whatever the address asked.
+- An entry's `href` is `/crm/opportunities/<id>?tab=events&event=<eventId>`.
+- No write: the page holds no `crm:write` control (spec OQ-7).
+
+### The *Events* tab — `id: 'events'`
+
+Third in `OPPORTUNITY_TABS`, after `links`: `labelKey: 'opportunity.tabs.events'`,
+`count: (opportunity) => opportunity.upcomingEventCount`. The id is an address and is not
+renamed.
+
+| Region | Holds |
+| --- | --- |
+| Header row | `h2` *Events*; **Add event** (`crm:write`), which opens the dialog; a link **Open the calendar** to `/crm/calendar` |
+| Paused notice | on a closed Opportunity with at least one scheduled reminder: `events.remindersPaused`, `role="note"` |
+| List | `GET /opportunities/:id/events`. Two `h3` groups: **Upcoming** (`endsAt` later than now, soonest first) and **Past** (latest first, the first ten with *Show all*). Each row: the date and time in the browser's zone, the name, the description's first two lines, the reminder's state in words (`events.reminder.<state>`, with its time and, for `sent`, its channels), and for `crm:write` **Edit** and **Delete** — Delete asks for confirmation in a dialog naming the Event |
+| Calendar | `EventCalendar` with `views = ['month', 'week']`, its view and date in component state (not in the address — the address already carries `tab` and `event`), `context` empty; entries link to `?tab=events&event=<id>` on this same screen. Not rendered under 640 px: the list above is the agenda |
+
+`?event=<id>` marks that Event's row (`aria-current="true"`, a ring) and scrolls it into
+view once; an id that is not among the Events is ignored.
+
+**The dialog** (`components/EventDialog.tsx`, on the module's `ModalDialog`) — one form for
+add and edit:
+
+| Field | Control | Rule |
+| --- | --- | --- |
+| Name | text, required, `maxLength` 200 | focus lands here |
+| All day | checkbox | on: the two time fields leave the form |
+| Date | `<input type="date">`, required | default: today, or the day after the Opportunity's latest Event — whichever is later |
+| From, To | `<input type="time">`, required unless all day | default the next whole hour and one hour after; changing *From* moves *To* by the same amount; *To* not after *From* is said under the field before saving |
+| Description | `textarea`, `maxLength` 5 000 | plain; no `@` shortcuts |
+| Remind me | checkbox | off by default |
+| Remind at | `<input type="datetime-local">`, shown only when *Remind me* is on | default the Event's start (09:00 on the date when all day); **follows the start until the user edits it**; a time not in the future is said under the field |
+
+Labels above fields, one column, errors under the field they belong to and linked with
+`aria-describedby`; the server's 422 is mapped by `details.field` to the same place. Save
+sends instants built from the local date and times and `timeZone` from
+`Intl.DateTimeFormat().resolvedOptions().timeZone`; for *All day*, local midnight and the
+next local midnight. On success the dialog closes, the list and the tab's count are read
+again, and a `role="status"` line says what was saved.
+
 ## 2. Sidebar (`contributions.nav`) — the "CRM" group
 
 Owner ruling, 2026-10-05: a top-level group of its own, **not** under *Sales*.
@@ -111,13 +250,19 @@ Owner ruling, 2026-10-05: a top-level group of its own, **not** under *Sales*.
 | --- | --- | --- | --- | --- | --- | --- |
 | `/crm/opportunities` | `nav.opportunities.label` | `CircleDollarSign` | `crm` | 100 | `crm:read` | US1 |
 | `/crm/board` | `nav.board.label` | `PanelLeft` | `crm` | 200 | `crm:read` | US7 |
+| `/crm/calendar` | `nav.calendar.label` | `CalendarDays` | `crm` | 250 | `crm:read` | US22 — *planned* |
 | `/crm/analytics` | `nav.analytics.label` | `LineChart` | `crm` | 300 | `crm:analytics` | US13 |
 | `/crm/tags` | `nav.tags.label` | `Tag` | `crm` | 400 | `crm:configure` | US6 |
 | `/crm/workflow` | `nav.workflow.label` | `ListChecks` | `crm` | 500 | `crm:configure` | US1 |
 
 The section `crm` and its heading `appShell.section.crm` are the **host's**
 (`foreign-module-changes.md` A3–A5). Every icon is already a member of `KnownIconNameSchema`,
-so `admin/src/lib/admin-actions/icon-map.ts` is not edited.
+so `admin/src/lib/admin-actions/icon-map.ts` is not edited. **One exception, planned with
+US22**: the allowlist holds no calendar glyph, so `CalendarDays` joins it and the icon map
+(`foreign-module-changes.md` §CAL-A) — the way `LineChart` and `ShieldCheck` joined, rather
+than the Calendar borrowing a glyph that means something else. Calendar / Kalendarz sits
+between Board and Analytics: the three daily screens first, then the manager's, then the
+two that configure.
 
 Label keys are relative to the module namespace and live in
 `packages/modules/crm/i18n/{en,pl}.json`: Opportunities / Szanse sprzedażowe, Board / Tablica,
@@ -131,6 +276,7 @@ Analytics / Analityka, Tags / Etykiety, Workflow / Statusy i przepływ.
 | `new-opportunity` | `/crm/opportunities/new` | `crm:write` | `PlusCircle` | 321 | US1 |
 | `open-opportunity-board` | `/crm/board` | `crm:read` | `PanelLeft` | 322 | US7 |
 | `open-crm-analytics` | `/crm/analytics` | `crm:analytics` | `LineChart` | 323 | US13 |
+| `open-crm-calendar` | `/crm/calendar` | `crm:read` | `CalendarDays` | 324 | US22 — *planned* |
 
 Keys `actions.<camelId>.label` / `.description` in both bundles; keywords in both languages
 (`crm`, `opportunity`, `pipeline`, `szansa`, `sprzedaż`, `lejek`). Four entries, deliberately:
@@ -138,6 +284,11 @@ the landing surface, the two things a Sales Rep does daily, and — added with U
 analytics, the one screen that opens on a code of its own: for a manager holding
 `crm:analytics` the palette would otherwise offer nothing that code is for (research N-F2).
 `check:action-route-permissions` holds each code to the one enforced on its route.
+
+**A fifth, planned with US22**: `open-crm-calendar`, keywords `crm`, `calendar`, `events`,
+`reminder`, `schedule`, `kalendarz`, `wydarzenia`, `przypomnienie`, `terminy`. It is inside
+the principle's "few highest-value actions": the Calendar is opened daily and by everybody
+who holds `crm:read`. It is added in the change that ships the route, never before.
 
 **Four of the seven routes, and that is the rule, not a shortfall.** `/crm/tags` and
 `/crm/workflow` are reached from the sidebar only, and `/crm/opportunities/:id` is not a
@@ -177,6 +328,10 @@ contract change.
   `orders:write` / `rfqs:handle` on the two "create from an Opportunity" buttons. A role
   without one of them sees the corresponding record as unavailable, or no button, and is
   told why.
+- **Events and the Calendar add no code** (US21, US22; research N-CAL2). Reading Events and
+  the Calendar is `crm:read`; adding, changing and deleting an Event is `crm:write` — an
+  Event is part of working an Opportunity, as a note is. What a Sales Rep's Calendar shows
+  is decided from the caller's **reach**, not from a code (`admin-api.md` §12d).
 - Proof: `backend/test/contract/admin_users/permission-inventory.test.ts` — both directions
   plus labels. A code is declared in the same change as its first `requireAdmin('…')`, never
   before (`grantable ⇒ enforced` fails otherwise) — so `crm:analytics` is declared by US13 and
@@ -228,6 +383,9 @@ Module state → what an operator and an API client observe.
 | `/platform/modules` row | switch on | switch off, actionable | blocked with the reason |
 | subscribers (`order.*`, `rfq.*`) | run | do not run | do not run |
 | `crm-value-recalculation` worker | consumes | paused; jobs left waiting | paused |
+| `/crm/calendar`, its sidebar row and palette action; the *Events* tab (US21, US22 — *planned*) | rendered | absent with every other CRM surface | absent |
+| `crm-event-reminders` worker (US21 — *planned*) | sweeps every 60 s | **paused: no reminder is delivered**; on reactivation one up to 24 h late is delivered once, an older one is marked missed | paused |
+| transactional e-mail `crm_event_reminder` on the e-mail templates screen | offered | not offered — the registry leaves out a contributor that is not present | not offered |
 | `opportunityReadPort`, `opportunityTransitionPort` | answer | throw `ModuleDisabledError` | same |
 | guards contributed *by other modules* | run | n/a — no transition can happen | n/a |
 | data | — | **untouched**; restored on reactivation | untouched |
@@ -254,6 +412,12 @@ tests: `backend/test/integration/custom_fields/entity-owner-presence.test.ts`,
 
 The story that adds a subscriber adds its off-state case in the same change.
 
+Planned with US21 and US22, in the same test: the five routes of `admin-api.md` §12d join
+the `routes` probe; and — positive control first — a due reminder is delivered while CRM is
+on, **not** delivered while it is deactivated (the sweep is driven the way the consumer
+drives it, through the worker's own presence gate, not by calling the service around it),
+and delivered once after reactivation.
+
 ## 7. i18n key namespaces (flat JSON, both bundles)
 
 | Prefix | Content |
@@ -269,6 +433,9 @@ The story that adds a subscriber adds its off-state case in the same change.
 | `organizationPanel.*` | the panel on the Organization screen (US14, §5) |
 | `orderPanel.*` | the linked-Opportunity panel on the Order and Quote Request screens (US17, §5) |
 | `origin.*` | the "create from an Opportunity" buttons and their return messages (US10) |
+| `events.*`, `opportunity.tabs.events` | the *Events* tab, its list and its dialog (US21 — Admin UI track) |
+| `calendar.*`, `nav.calendar.label`, `actions.openCrmCalendar.*` | the calendar component, the Calendar page, its sidebar row and palette action (US22 — Admin UI track) |
+| `notifications.eventReminder.title`, `notifications.eventReminderAllDay.title`, `auditLog.crm.opportunity.event_add` / `.event_update` / `.event_remove` | the reminder's bell sentences and the three history labels (US21 — backend track) |
 
 A story writes only under its own prefix, which is what keeps two stories' edits to the same
 two JSON files from conflicting beyond line adjacency.

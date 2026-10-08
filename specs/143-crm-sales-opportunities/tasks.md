@@ -800,6 +800,19 @@ not a one-declaration integration.
 | FR-102 | Phase 22 | T274 (`quote-request-source.test.ts`), T271 — *a source the basket claims and placement does not believe* (four cases) and the request-body case; T275 (nothing crosses the tenant) |
 | FR-103 | Phase 22 | T271 — *with quote_requests off*, both axes, and the ordinary basket beside them |
 | FR-104 | Phase 22 | T273 (`order-completion-reactor.test.ts`; the lost race and the foreign Order in `conversion.test.ts`), T271 (completed, and a second conversion refused), T281 (one request, two baskets — three cases), T282 (the give-up is logged; a redelivery completes nothing twice) |
+| FR-130, FR-131 | US21 | T320, T330, T331 (each refusal by its rule), T365 (the dialog builds what the rules accept) |
+| FR-132, FR-135, FR-136 | US21 | T332 |
+| FR-133 | US21 | T362 (the tab's place and count), T365; `upcomingEventCount` in T331, T332 |
+| FR-134 | US21, US22 | T331 (the 404s), T332 — *Tenant isolation* |
+| FR-137 | US21 | T331 (`reminder_in_past`), T365 (the default and its following the start) |
+| FR-138, FR-139, FR-140 | US21 | T333; the sentence and its params T334; presence T335; the off-state half of FR-140 in `off-state.test.ts` (T333) |
+| FR-141 | US21 | T320 (the states), T365 (each in words) |
+| FR-142 | US22 | T364, T369 (`check:action-route-permissions`) |
+| FR-143, FR-144, FR-145 | US22 | T332 — *The Calendar*; the switch's presence and absence T364 |
+| FR-146, FR-147 | US22 | T360, T361, T362, T363, T364 |
+| FR-148, FR-149, FR-150 | US22 | T363; by eye and with axe T383 |
+| FR-151 | US22 | T320 (45 days), T332 (`truncated`, the statement count) |
+| FR-152 | US22 | T336 |
 
 ## Phase 21: User Story 19 — Choose what a board card shows, and filter the board by it (Priority: P3)
 
@@ -928,6 +941,298 @@ only — nothing under `src/backend/`, `packages/contracts/` or the OpenAPI base
 - [ ] T311 [US20] **Reported, not changed — the owner's to schedule** (research N-DL8): the
   bell opening the tab a notification is about; a stage bar that knows which statuses an
   Opportunity has been through; the facts a reference CRM shows that this one does not hold.
+
+## Phases 24 – 27: User Stories 21 and 22 — Events, reminders and the Calendar (Priority: P3)
+
+**Source**: the owner's request of 2026-10-08, quoted with the stories in `spec.md`.
+**Goal**: FR-130 – FR-152. **Independent tests**: the two stories' own. **Research**:
+N-CAL1 – N-CAL14. **Design**: `plan.md` § *Events, reminders and the Calendar*.
+**Status: designed, nothing built.** T312 – T319 are left free.
+
+**Two developers, in parallel.** The work is split by layer, not by story, because that is
+where the files divide:
+
+| Track | Phase | Owns | Never touches |
+| --- | --- | --- | --- |
+| — | **24 · Contract** | `packages/contracts/src/crm.ts`, `auth.ts`, `admin-actions.ts`; the icon map | — |
+| **B — backend** | **25** | `packages/modules/crm/src/backend/**`, `src/migrations/**`, `packages/modules/auth/**`, `packages/demo-composition/**`, `backend/test/**`, `backend/scripts/ledgers/**`, generated registries, the OpenAPI baseline | `src/admin/**`, `admin/test/**` |
+| **F — Admin UI** | **26** | `packages/modules/crm/src/admin/**`, `admin/test/modules/crm/**` | `src/backend/**`, `backend/**`, `packages/contracts/**` |
+| — | **27 · Join** | `docs/crm.md` and its Polish page, changesets, the sweep of checks | — |
+
+**The shared contract task is Phase 24 and it lands first**, as one commit on
+`feat/143-crm-calendar`; both tracks branch from that commit and neither edits
+`packages/contracts/` afterwards — a needed change to the contract is raised with the other
+developer and made once, there. The contract is `contracts/admin-api.md` §12d: track B
+serves it, track F is built against it with fixtures typed by its schemas, so a drift is a
+type error and not a surprise in Phase 27.
+
+**Three files both tracks add lines to**, each in a region of its own (`plan.md` § *Source
+layout*): `src/manifest.ts` (B: `transactionalEmails`, `dependencies`, `env` — F: one
+`actions` entry), `i18n/en.json`, `i18n/pl.json` (B: `notifications.*`, `auditLog.*` — F:
+everything else). Whoever merges second rebases over line adjacency. Nothing else overlaps.
+
+**Standing for all four phases**: the *Standing rules for every task* at the top of this
+file; a task that names a premise of N-CAL14 re-derives it **before** writing and reports
+what it found; `[P]` means parallel inside its own track.
+
+## Phase 24: The contract (shared — one developer, before either track)
+
+### Tests first
+
+- [ ] T320 [US21] [US22] `packages/contracts/src/crm.test.ts` — the schemas of
+  `contracts/admin-api.md` §12d, red for not existing: an Event write (name bounds; `endsAt`
+  not after `startsAt` refused; a span over 25 hours refused; `timeZone` required;
+  `remindAt` nullable and optional), the update as its partial, `OpportunityEvent` with
+  each reminder state and `channels`, the calendar query (`to` not after `from` refused; a
+  range over 45 days refused; `scope` optional), `CalendarEvent` (no description member),
+  `CalendarEventsMeta`, and `upcomingEventCount` on `OpportunityDetail`.
+
+### Implementation
+
+- [ ] T321 [US21] `packages/contracts/src/auth.ts` — `AuthAdminLastSeen` and
+  `AuthSessionReadPort.lastSeenByAdminUser` (`foreign-module-changes.md` §CAL-B1).
+  **Premise 8 of N-CAL14 first**: `grep -rn 'AuthSessionReadPort' packages backend admin`
+  for every implementer and test double; each must gain the method in this commit or
+  type-checking reds in a file nobody touched.
+- [ ] T322 [US22] `packages/contracts/src/admin-actions.ts` — `'CalendarDays'` on
+  `KnownIconNameSchema`; `packages/admin-kit/src/lib/admin-actions/icon-map.ts` — its
+  component (§CAL-A). **Premise 5 first**: `git log -S"'LineChart'" --oneline` to see every
+  file the last icon touched, and touch the same set. If a test enumerates the allowlist,
+  it moves here.
+- [ ] T323 [US21] [US22] `packages/contracts/src/crm.ts` — the schemas and their inferred
+  types, turning T320 green. Then `pnpm run build:packages`, `pnpm -r run typecheck`,
+  `.changeset/` entries for `@endora-commerce/contracts` and `@endora-commerce/admin-kit`.
+  **This commit is the base of both tracks.**
+
+## Phase 25: Track B — backend
+
+**Contract**: `contracts/admin-api.md` §12d, `data-model.md` § *`crm_opportunity_events`*,
+`contracts/events-and-ports.md` §5a, `foreign-module-changes.md` §CAL.
+
+### Tests first (each seen red for the stated reason)
+
+- [ ] T330 [P] [US21] `packages/modules/crm/src/backend/domain/event-time.test.ts` — no
+  database: an Event inside one local day accepted; one crossing local midnight in its zone
+  refused (`spans_days`) though it is inside one UTC day, and the reverse accepted; all-day
+  accepted only as local midnight to the next (`not_whole_day`), at 23, 24 and 25 hours on
+  the two DST days of `Europe/Warsaw`; an unknown zone refused; `allDayDate` for a zone east
+  and a zone west of UTC; `when` for a timed and an all-day Event.
+- [ ] T331 [P] [US21] [US22] `backend/test/contract/crm/events.contract.test.ts` — the five
+  routes against their schemas; `crm:read` reads and cannot write (403); the 404s
+  (`CRM_OPPORTUNITY_NOT_FOUND` for the parent, `NOT_FOUND` for an Event under the wrong
+  Opportunity); 400 for a malformed body and a 46-day range; 422 with each `details.rule`;
+  `GET /opportunities/:id` carrying `upcomingEventCount`.
+- [ ] T332 [US21] [US22] `backend/test/integration/crm/events.test.ts` — real database:
+  add, edit and delete, each leaving one history entry on the Opportunity that carries the
+  name and times and **not** the description's text; any holder of `crm:write` edits
+  another's Event; deleting the Opportunity deletes its Events; `upcomingEventCount` counts
+  the not-yet-ended. **Tenant isolation** (FR-134): an Opportunity outside the caller's
+  Organizations answers 404 on all four per-Opportunity routes, and its Events are on no
+  Calendar the caller can ask for, under either scope. **The Calendar**: only Opportunities
+  in an open status — close one, its Events leave; reopen, they return (FR-143); a
+  full-reach caller gets `all` by default and both scopes offered, and `mine` narrows; a
+  Sales Rep gets `mine` whatever is asked, sees a colleague's Opportunity of a shared
+  Organization on **no** scope, and loses an Opportunity still assigned to them once its
+  Organization is taken away (FR-144); reassigning moves every Event between two callers'
+  answers with no Event row written (FR-145 — assert `updated_at` unchanged); overlap at
+  both edges of the range; an all-day Event of a far zone found by the widened range;
+  `truncated` at 501; **the statement count equal at 5 and at 500 Events** (FR-151).
+- [ ] T333 [US21] `backend/test/integration/crm/event-reminders.test.ts` — the sweep driven
+  directly with a given `now`, as the orders sweep's tests drive theirs: the assignee at
+  that moment is reminded, a former one is not (FR-138); unassigned → the creator; an
+  inactive assignee, and one who cannot reach the Organization → the creator under the same
+  tests → otherwise `no_recipient` and nothing written; the bell entry's kind, subject,
+  `linkPath` with `?tab=events&event=`, and `titleMessage` whose English template filled
+  with its params is the `title` (FR-139); seen within five minutes → no e-mail; not seen →
+  one e-mail, to their address, in `pl-PL` for a Polish preference and `en-US` otherwise,
+  with `salesChannelId: null`; an e-mail outcome other than `sent`, and a transport that
+  throws → the bell entry stands and the outcome is `bell`; `admin_notifications` off →
+  e-mail regardless of presence, outcome `email`; both unavailable → `undeliverable`.
+  **Once** (FR-140): two sweeps in a row, and two at once, write one entry; a closed
+  Opportunity's reminder is neither sent nor consumed, and is sent late after a reopening
+  inside 24 hours; one found later is `missed`; a claim left `sending` for ten minutes
+  becomes `interrupted` and is not retried; a thrown bell write releases the claim and the
+  next sweep delivers; a changed `remindAt` arms a handled reminder again; a deleted Event
+  sends nothing. And in `backend/test/integration/crm/off-state.test.ts`: the five routes
+  in the `routes` probe; a due reminder delivered while on, **not** while deactivated,
+  once after reactivation — **premise 7 first**: read how that file exercises the
+  recalculation worker's gate and use the same road.
+- [ ] T334 [P] [US21] `packages/modules/crm/src/backend/services/crm-notifier.test.ts` — the
+  new kind's two sentences under the file's existing property. (`opportunity-history-labels.test.ts`
+  needs no edit: it reds by itself when the three Commands appear without labels, and when
+  the reminder Command is given one.)
+- [ ] T335 [P] [US21] `auth` — co-located test of `lastSeenByAdminUser` (newest per user;
+  `since` respected; a row with a `customerAccountId` is not the administrator's presence;
+  empty input) and, in `backend/test/integration/auth/`, an authenticated admin request
+  stamping `sessions.last_seen_at`, a second inside the minute writing nothing, and a
+  customer request behaving as before (§CAL-B4).
+- [ ] T336 [P] [US22] `packages/demo-composition/src/sales-pipeline.test.ts` and
+  `backend/test/integration/demo/demo-shop.test.ts` — Events on the open demonstration
+  Opportunities, dated from the seed's day, none with a reminder; `crm_opportunity_events`
+  in the recorded delta; the reset removing them (FR-152).
+
+### Implementation
+
+- [ ] T337 [US21] `src/backend/entities/crm-opportunity-event.entity.ts`; the migration,
+  scaffolded with `pnpm --filter backend run migration:new -- --module crm --name
+  opportunity_events` (table, check constraints, the three indexes, the cascade);
+  `src/migrations/index.ts`; the class in `export const entities`; `composer:generate`,
+  committed. `backend/test/integration/crm/migration.test.ts` gains the table.
+- [ ] T338 [P] [US21] The reminder e-mail: `src/backend/email-templates/event-reminder-defaults.ts`
+  (subject and body, `en-US` and `pl-PL`), `src/backend/services/event-reminder-email.ts`
+  (the one send and its named outcomes — model: `shipments/…/shipment-email-notifier.ts`),
+  the manifest's `transactionalEmails` entry and `transactional_emails` in `dependencies`,
+  the defaults pushed from `ctx.onBoot`. **Premises 1 – 3 first**: what `email`'s console
+  driver reports and what `salesChannelId: null` renders; whether `simpleEmailBodyTree`
+  carries a link; the values of `preferredLanguage`. Then `manifests:generate` and
+  `pnpm install --lockfile-only`.
+- [ ] T339 [P] [US21] `ADMIN_BASE_URL` in the manifest's `env` and
+  `backend/scripts/ledgers/module-environment-inputs/crm.ts` (§CAL-C). **Premise 4 first —
+  and stop and report if one input admits one owner**; the fallback that needs no ruling is
+  an e-mail with the Opportunity's number and no link.
+- [ ] T340 [US21] `src/backend/domain/event-time.ts` — T330 green.
+- [ ] T341 [US21] `src/backend/services/opportunity-event-service.ts` (the list; the three
+  Commands on the Opportunity's audit object; the re-arming rule),
+  `src/backend/routes/routes.events.ts` (four routes), `upcomingEventCount` in
+  `opportunity-service.ts`, the composition section in `src/backend/index.ts`; the three
+  `auditLog.crm.opportunity.event_*` labels in both bundles. Model:
+  `opportunity-comment-service.ts`, `routes.comments.ts`.
+- [ ] T342 [US22] `src/backend/services/calendar-service.ts` — the one statement under
+  `orgConstraintFor()`, the scope rule, the assignees' names in one port call — and
+  `GET /calendar/events` in `routes.events.ts`. Model: `analytics-service.ts`'s scope
+  predicate. T331 and T332 green.
+- [ ] T343 [P] [US21] `packages/modules/auth/src/backend/services/session-port.ts`,
+  `plugin.ts` (§CAL-B2, B3) — T335 green; a changeset for `@endora-commerce/mod-auth`.
+- [ ] T344 [US21] `src/backend/services/crm-notifier.ts` — the kind
+  `crm.opportunity.event_reminder`, its two sentences with their keys, and a link that can
+  carry `?tab=events&event=`; the two `notifications.eventReminder*` keys in both bundles.
+- [ ] T345 [US21] `src/backend/services/event-reminder-service.ts` — the tick of N-CAL5:
+  expire, claim, resolve the recipient, deliver, record — and
+  `src/backend/workers/event-reminder-worker.ts` (queue `crm-event-reminders`, the scheduler,
+  the consumer through `ctx.worker`), composed where the recalculation worker is. Needs
+  T338, T343, T344. Model: `orders/…/workers/transition-effect-sweep-worker.ts`. T333 green.
+- [ ] T346 [US22] `packages/demo-composition/src/sales-pipeline.ts` — T336 green.
+- [ ] T347 [US21] [US22] The track's close: the OpenAPI baseline regenerated; `composer:check`,
+  `manifests:check`; `check:command-coverage`, `check:port-dependencies`,
+  `check:off-state-coverage`, `check:bundle-pairing`; `pnpm --filter backend exec vitest run
+  test/contract/crm test/integration/crm test/integration/auth`; the module's own unit
+  tests; the eight premises reported.
+
+## Phase 26: Track F — Admin UI
+
+**Contract**: `contracts/admin-api.md` §12d (the shapes), `contracts/admin-surfaces.md` §1b
+(the screens), §2, §3, §7. Fixtures in every test are typed by the contract's types.
+
+### Tests first (each seen red for the stated reason)
+
+- [ ] T360 [P] [US22] `packages/modules/crm/src/admin/lib/calendar/date-math.test.ts` — the
+  month grid (six rows of seven from Monday, for a month starting on a Monday, on a Sunday,
+  and February of a leap year), the week of a date, the agenda's 30 days, the request range
+  one day wider each side and never over 45 days, previous / next per view, the range
+  title, the day key of an instant in local time across the two DST days, an all-day Event
+  placed by `allDayDate` whatever the local zone.
+- [ ] T361 [P] [US22] `packages/modules/crm/src/admin/lib/calendar/layout.test.ts` — a
+  day's timed entries: none overlapping (one lane each, full width); two overlapping (two
+  lanes); a chain A–B–C where A and C do not meet (two lanes, C back in the first); six at
+  once; a 15-minute entry at the minimum height; an entry past local midnight cut and
+  flagged; top and height from start and length. The month cell: three shown and the rest
+  counted, all-day first.
+- [ ] T362 [P] [US21] [US22] `src/admin/lib/calendar/calendar-address.test.ts` — `view`,
+  `date`, `scope` read and written, malformed values falling back, the round trip; and
+  `src/admin/pages/opportunity-detail/tabs.test.ts` — *Events* third with the id `events`,
+  its count from `upcomingEventCount`, zero not shown (the existing order and "count on
+  *Links* alone" assertions move, and say why — as N-DL6 did).
+- [ ] T363 [US22] `admin/test/modules/crm/EventCalendar.test.tsx` — month: a table with
+  seven column headers, today marked in words, three entries and "+N more" that navigates
+  to that day's week; week: seven sections each under a heading that counts its Events, an
+  ordered list in time order, the all-day row first, the current-time line on today only
+  and hidden from assistive technology; agenda: only days with Events; every entry a link
+  with the complete accessible name; Tab order equal to time order; the toolbar (Today,
+  Previous / Next named per view, *Go to date*, the view switch as a radio group); the four
+  states in words; under 640 px (a `matchMedia` stub) the agenda whatever `view` says and
+  no switch.
+- [ ] T364 [US22] `admin/test/modules/crm/CalendarPage.test.tsx` — the address read and
+  written with `replace`; the request's `from` / `to` for each view; moving inside a loaded
+  range asking nothing; *Mine / All* rendered from `meta.scopes` — a radio group for two,
+  **absent** for one — and showing `meta.scope` as chosen; each entry's `href` to
+  `?tab=events&event=`; no write control for a holder of `crm:write`.
+- [ ] T365 [US21] `admin/test/modules/crm/events-tab.test.tsx` — *Upcoming* and *Past*
+  with their order; each reminder state in words; a reader with no *Add*, *Edit* or
+  *Delete*; add, edit and delete, each re-reading the list and the Opportunity; the dialog:
+  focus on the name, *All day* removing the times, *To* following *From*, *Remind at*
+  appearing with the start, following it until edited and not after, 09:00 for all-day,
+  the two client-side refusals under their fields, a 422 placed by `details.field`, the
+  body sent (instants, `timeZone`, local midnights for all-day); `?event=` marking one row
+  and ignoring an unknown id; the paused notice on a closed Opportunity; the tab's label
+  with and without a count; the embedded calendar absent under 640 px.
+
+### Implementation
+
+- [ ] T366 [P] [US21] [US22] `src/admin/calendar-api.ts` — the five typed calls, parsing
+  answers with the contract's schemas.
+- [ ] T367 [P] [US22] `src/admin/lib/calendar/date-math.ts`, `layout.ts`,
+  `calendar-address.ts` — T360 – T362 green.
+- [ ] T368 [US22] `src/admin/components/calendar/EventChip.tsx`, `MonthView.tsx`,
+  `WeekView.tsx`, `AgendaView.tsx`, `EventCalendar.tsx`; the `calendar.*` keys in both
+  bundles. T363 green.
+- [ ] T369 [US22] `src/admin/pages/CalendarPage.tsx`; the route and the sidebar row in
+  `src/admin/index.ts`; the `open-crm-calendar` action in `src/manifest.ts` — in **this**
+  change, with the route, never before; `nav.calendar.label` and
+  `actions.openCrmCalendar.*`. T364 green; `check:action-route-permissions`; the module's
+  `src/admin/index.test.ts` and `src/backend/manifest.test.ts` follow if they count routes,
+  rows or actions.
+- [ ] T370 [US21] `src/admin/components/EventDialog.tsx`,
+  `src/admin/pages/opportunity-detail/tabs/EventsTab.tsx`, the line in `tabs.ts`; the
+  `events.*` keys and `opportunity.tabs.events`. T365 green.
+- [ ] T371 [US21] Existing screen tests that hold the tab order follow the structure
+  (`admin/test/modules/crm/OpportunityDetail.test.tsx`); no assertion is dropped, and each
+  change is listed with its reason in the pull request.
+- [ ] T372 [US21] [US22] The track's close: `pnpm --filter admin exec vitest run
+  test/modules/crm`, the module's unit tests, `typecheck`, `lint`, `i18n:hardcoded`,
+  `check:bundle-pairing`; the UX checklist of `.claude/skills/ux-laws/SKILL.md` §7 walked
+  and reported item by item.
+
+## Phase 27: Join
+
+- [ ] T380 [US21] [US22] The two tracks on one branch: rebase over the three shared files,
+  `bash scripts/setup-worktree.sh`, rebuild the packages, `composer:generate`,
+  `manifests:generate`, `pnpm install --lockfile-only`; the Admin UI run against the real
+  API — every fixture of Phase 26 that the real answers contradict is a contract defect and
+  is fixed in the contract, the route and the screen together.
+- [ ] T381 [US21] [US22] `packages/modules/crm/docs/crm.md` — two sections, *Events and
+  reminders* and *The calendar* (what a reminder is and when it is and is not sent, what
+  "online" means, how to edit or switch off the e-mail, what a Sales Rep's calendar shows,
+  `ADMIN_BASE_URL`), and the lines of *Permissions*, *Switching it on and off*, *What the
+  module does not do* and *Demo data* that change; the Polish page and the translation
+  cache by `docs/docs/contributing/documentation-i18n.md`;
+  `pnpm --filter backend run check:docs-translations`. `.changeset/crm-events-calendar.md`.
+- [ ] T382 [US21] [US22] The `quality` job's set, run the way the job runs it — not the
+  five checks a brief names: `typecheck`, `lint`, `check:naming`, `check:language`,
+  `check:release-intent --since origin/master`, the OpenAPI check, the read-size bands
+  (re-measured on a clean tree only if one refuses, after `check-estate.md` § *Measuring a
+  read size*), and `pnpm --filter '!backend' run test`.
+- [ ] T383 [US21] [US22] **Looked at in a browser** — and T310, still owed, with it: the
+  Calendar in each view at desktop width and at 390 px, both themes; a week with six
+  overlapping Events; a month day with "+N more"; a 15-minute Event; a long name; the
+  dialog by keyboard alone; focus order by eye; an axe pass; one reminder end to end
+  against a real mail catcher, in Polish and in English, with the Admin UI open and closed.
+- [ ] T384 [US21] [US22] **An independent review of the tenant and delivery paths**, by an
+  agent that did not write them: the Calendar's statement and its scope rule, the
+  recipient's reach in the sweep, the claim. It mutates each (drop the reach predicate;
+  drop the assignee test under `mine`; deliver before claiming) and confirms a test reds,
+  then runs the whole `test/contract/crm` and `test/integration/crm` trees — a green pull
+  request does not run them (`AGENTS.md`, D-198).
+- [ ] T385 [US21] [US22] **The owner's nine questions** (OQ-1 – OQ-9) put to the owner with
+  what reversing each default costs: OQ-5 one param; OQ-3 one branch; OQ-4 one scope value
+  offered to confined callers; OQ-2 one condition; OQ-1 a change in `admin_notifications`
+  and a second sweep stage; OQ-6 and OQ-7 the library decision of `plan.md`; OQ-8 a
+  platform capability.
+
+### Not in these phases, by decision (`plan.md` § *Scope cut, on purpose*)
+
+Events over several days and repeating Events; drag on the Calendar; creating an Event
+from the Calendar; a day view and a mini month; references in an Event's description; a
+"next event" fact or board-card field; Events in webhooks, import/export and analytics.
 
 ## Notes
 

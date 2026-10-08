@@ -4281,6 +4281,343 @@ screen was built **without a browser** — N-DL7 says what that leaves open.
   change; they are shown on *Overview*, not in the facts column, because the kit's
   `CustomFieldValuesPanel` is a form with its own save and does not fit a narrow column.
 
+### N-CAL — Events on an Opportunity, their reminders, and the Calendar (User Stories 21 and 22, 2026-10-08)
+
+A design, not an implementation: nothing under `packages/` changed with these notes. The
+owner's ten sentences are quoted with the two stories in `spec.md`. The coordinator's brief
+carried ten decisions to make, each "a premise to verify in the code"; each note below says
+what the tree answered, the decision, and what was rejected. **A premise this design could
+not settle by reading is tagged [unverified] and collected in N-CAL14** — the task that
+depends on it re-derives it before writing.
+
+- **N-CAL1 — What the three screenshots gave, what was cut, and the smallest model of an
+  Event's time.** *Taken, as structure*: Today / previous / next and a range title; a view
+  switch; a Mine / everybody switch; a week grid with an all-day row and a current-time
+  line; a dialog with a title, an all-day switch, a date with from and to, and a
+  description; on the Opportunity, the Opportunity's own dates beside "add an event" and
+  "open the calendar". *Not taken*: the list of entry kinds with a colour each (that
+  product's domain — policies, renewals; here there is one kind of Event, and a filter over
+  one kind is a control with nothing to do); the mini month navigator (a second month grid
+  with its own keyboard model, for what *Go to date* and the Month view already do); the
+  right-hand "Overdue / Today" rail (the Agenda is that list, and "overdue" has no meaning
+  for an Event, which is not a task that can be done or not); the Day view (the week grid
+  with one column — one parameter away, cut because every view is a set of tests and three
+  views already cover one day); the "link to a record" chooser (an Event here always
+  belongs to the Opportunity it was added on); an end *date* (multi-day Events); the week
+  strip on the Opportunity (see N-CAL12).
+  **The model.** The owner said "name, description and date". A Google-style week grid
+  needs a length to draw a block, so: `starts_at` and `ends_at`, both instants
+  (`timestamptz`, as every instant of this module is — `data-model.md`), plus `all_day`.
+  *Cut, deliberately*: an Event over several days — it is what makes a month grid hard
+  (bars spanning cells and wrapping across weeks) and it was not asked for; an Event is one
+  calendar day, and the dialog has one date. *Cut*: recurrence. *Rejected*: a start alone,
+  drawn as a fixed 30-minute block — every block the same height is a list pretending to
+  be a grid. *Rejected*: a `date` column plus two `time` columns — reads naturally and
+  makes every range query, the sweep and the ordering zone-dependent.
+  **Time zones.** The platform has no time-zone setting (`spec.md` A-3 found that for
+  analytics), an administrator has a `preferredLanguage` and no zone
+  (`admin_users/…/admin-user.entity.ts`), and analytics settled on UTC because it had to
+  pick one for everybody. A calendar cannot: 10:00 must be the reader's 10:00. So the
+  Admin UI draws in the browser's zone and says which; and each Event stores the IANA zone
+  it was planned in (`time_zone`), for the two places with no browser — the all-day date,
+  and the wording of the time in a bell entry and an e-mail. **An all-day Event is a date,
+  not 24 hours**: stored as the instants of that date in its own zone (so the range read
+  and the sweep stay one comparison), answered with `allDayDate` computed by the server
+  from those instants and that zone, and placed by the client on that date whatever its own
+  zone — Google's "floating" all-day. The server only ever *formats* an instant into a zone
+  (`Intl.DateTimeFormat` with `timeZone`), which Node does exactly; it never has to find
+  the instant of a local midnight, which without a library is an offset search — the
+  browser does that with `new Date(y, m, d)`. *Rejected*: a per-user zone setting — right,
+  and a platform capability that outlives this module (OQ-8).
+- **N-CAL2 — Who sees what: there is no "assigned-only reach" in this tree, and no new
+  permission is needed.** The brief named two reach rules, "Organization reach" and
+  "assigned-only reach". **Only the first exists.** `organizations/…/admin-tenant-scope.ts`
+  resolves an administrator's reach in three lines: a role other than
+  `SALES_REPRESENTATIVE_ROLE_CODE` reaches everything (`allowAll`); the Sales Representative
+  role reaches the Organizations `salesRepScope.listAssignedOrganizationIds` returns; an
+  unresolved role reaches nothing. And `opportunity-assignment-service.ts` says in its
+  class comment that "the assignee decides nothing about visibility — that is the tenant
+  scope's". So today a Sales Rep reads every Opportunity of their Organizations, a
+  colleague's included.
+  The owner's sentence has two halves and the tree has exactly the two populations:
+  "Platform Administrator sees all" is `orgConstraintFor().kind === 'all'`; "a Sales Rep"
+  is a confined reach. **Decision**: the Calendar takes a `scope` — `mine` (assigned to the
+  caller) or `all` (everything the caller may read). A caller with full reach is offered
+  both and defaults to `all`; a confined caller is offered `mine` only, and a request for
+  `all` is answered as `mine`. Both conditions always apply together — the reach predicate
+  on the Opportunity's Organization **and**, under `mine`, the assignee — so an Event of an
+  Opportunity the caller cannot read is unreachable by construction, and a Sales Rep who is
+  still named as assignee of an Opportunity whose Organization they lost sees nothing of
+  it. *Why not a permission* (`crm:calendar_all`): the requirement is met without one; a
+  code would have to be granted to every non-Sales-Rep role on every existing instance to
+  give administrators what the sentence says they have; and it would let an operator grant
+  a Sales Rep "all" — which is OQ-4's alternative, better asked as a product question than
+  smuggled in as a role option. *Not hidden from the record*: a Sales Rep can open a
+  colleague's Opportunity in a shared Organization and read its *Events* tab; the Calendar
+  is narrower than the screens. Narrower is safe; it is OQ-4 whether it is wanted.
+  Writes: `crm:write` plus reach to the Opportunity, and **any** such user may edit or
+  delete any Event (FR-132) — unlike a note, which only its author edits
+  (`routes.comments.ts`): a note is somebody's statement, an Event is the Opportunity's
+  plan, and a reassigned Opportunity whose Events only the former holder could move would
+  be the wrong rule on the first day it mattered.
+- **N-CAL3 — "Active" is the status kind, read the way the list reads it.**
+  `opportunity-service.ts` filters `state=open` by resolving the statuses of kind `open`
+  from the workflow graph and matching `status_code`; `closed_at` / `closed_kind` are side
+  columns the transition sets. The Calendar uses the same definition as one join
+  (`crm_opportunity_statuses.kind = 'open'` on `status_code`), so "active" on the Calendar
+  and "open" in the list cannot disagree. *Rejected*: `closed_at is null` — one column
+  fewer and **[unverified]** equivalent when an operator re-defines a status's kind under
+  Opportunities already in it (`data-model.md` § *Locking* describes that write; whether it
+  rewrites `closed_at` on the rows was not traced). On a closed Opportunity the *Events*
+  tab keeps everything, editing included — closing a deal does not unhappen its meetings,
+  and a won deal's follow-up is a real Event; the Calendar drops them (the sentence); the
+  reminders are held, not consumed (N-CAL5).
+- **N-CAL4 — The assignee is read, never copied.** An Event row holds no assignee. The
+  Calendar's `mine` is `crm_opportunities.assigned_admin_user_id = <caller>` at read time
+  (the column is indexed with `status_code`), and the sweep resolves the recipient when the
+  reminder fires. So "changing the Sales Rep moves the entries" needs no code at all: there
+  is nothing to move, and nothing to get out of step. A pending reminder goes to whoever
+  holds the Opportunity when it is due. **Unassigned** — the owner's sentence says "to the
+  person assigned" and is silent here; the dialog's own wording is "whether *we* are to be
+  notified", which reads as the author. Decision: the Event's creator, under the same two
+  tests as an assignee (an active administrator — `isActiveAdministrator` — who can reach
+  the Organization — `AdminReach`); failing that, nobody, recorded as `no_recipient` and
+  said on the tab. OQ-3.
+- **N-CAL5 — Reminders: a sweep, because that is what the tree does and what survives.**
+  The brief named `quote_requests/…/rfq-expiry-worker.ts`; it is a class with a `sweep()`
+  over a table, built in that module's `plugin.ts`. The complete pattern — clock, consumer,
+  gate, claim — is `orders/…/workers/transition-effect-sweep-worker.ts`: "BullMQ is the
+  clock and nothing more"; one Job Scheduler (`upsertJobScheduler`, idempotent by id, safe
+  on every boot of every worker process) fires every 60 s with a job that carries no data;
+  what is owed is read from the table on every tick, each row claimed `for update skip
+  locked`; the `Worker` reaches `ctx.worker`, built only where `processRunsWorkers` and
+  `moduleQueueRedis` say so. CRM's own `value-recalculation-worker.ts` has the same
+  start-function shape. **Decision: that pattern**, queue `crm-event-reminders`.
+  *Rejected: one delayed job per reminder.* It is the textbook answer and loses on every
+  count the brief listed: an edit or a delete must find and remove a job (two stores to
+  keep in step, and a failure between them is a reminder for a deleted Event); a flushed or
+  restored Redis silently loses every pending reminder; a clock step moves nothing in the
+  table and everything in the delayed set; and closing, reopening or reassigning would
+  each have to visit the queue. With a sweep the row *is* the schedule: an edit is an
+  update, a delete is a delete, and the precision lost is at most one tick — a reminder is
+  up to 60 s late (SC-013 says two minutes).
+  **At most once, by claiming first.** A tick: (1) one statement marks `missed` every
+  reminder more than 24 h overdue and `interrupted` every claim older than ten minutes
+  still `sending`; (2) inside one Command, select up to 100 due rows — `remind_at <= now`,
+  not handled, Opportunity of an open status — `for update skip locked`, set
+  `reminder_handled_at` and `sending`, commit; (3) deliver each, outside any transaction;
+  (4) record each outcome. A crash between (2) and (4) leaves a row that is never tried
+  again: the owner asked that a reminder not be sent twice, and with a bell entry already
+  possibly written there is no way to know. The one case that is released for the next
+  tick is the bell's own write throwing, because then it is known that nothing was written.
+  *Rejected*: deliver inside the claiming transaction — a commit that fails after the bell
+  entry was written (through another module's port, on its own unit of work) sends it
+  again a minute later.
+  **Gating.** CRM off: `ctx.worker` is the platform's worker seam, so the consumer stops
+  with the module and the ticks do nothing (`specs/conventions/module-activation.md`, item
+  2: the gate is a pull — a fetch gate and a work gate). Opportunity closed: the claim's
+  join does not match, so the reminder is neither sent nor consumed; the tab calls it
+  paused. **Late**: after downtime, a reactivation or a reopening, a reminder up to 24 h
+  overdue is delivered once, with the sentence it always had (the bell entry's own
+  timestamp says when it arrived); older than that it is `missed` and shown so. 24 h is a
+  constant: "the meeting was this morning" is still worth saying in the afternoon, and "it
+  was last week" is noise in a bell. A failed pass is logged and not re-thrown — the next
+  tick is the retry (the orders worker's reasoning, kept) — a `ModuleDisabledError`
+  excepted.
+- **N-CAL6 — "Online": the platform does not know, and the smallest honest answer is one
+  line in `auth`.** Read: `sessions.last_seen_at` exists (`auth/…/session.entity.ts`) and
+  `SessionService.touchLastSeen` stamps it at most once a minute per session through a
+  Redis marker — but `auth/…/plugin.ts` calls it only for `customer` and `impersonation`
+  sessions (the comment: "Feature 040 — keep presence fresh … on every active customer
+  request"). For an administrator the column is the sign-in time. `AuthSessionReadPort` has
+  one method, `lastSeenByCustomerAccount`, whose one consumer is `customers`' online view.
+  `admin_users.last_login_at` is the sign-in again. There is no websocket and no presence
+  service. The bell (`admin-shell/…/useAdminNotifications.ts`) asks
+  `GET /api/v1/admin/notifications` every 30 s for as long as the Admin UI is open, and
+  that request records nothing.
+  **Decision**: online = an admin session of that person was seen in the last five
+  minutes. Because the bell polls, that is in practice "has the Admin UI open in a
+  browser" — which is precisely the condition under which a bell entry can be seen, so the
+  definition is honest about what it measures, and says so (it does not know whether
+  anybody is looking). Five minutes, not one: a background tab's timers are throttled by
+  browsers to about one a minute, and the stamp itself is once a minute. It needs
+  `foreign-module-changes.md` §CAL-B: the stamp for admin sessions (one line, the code
+  feature 040 wrote) and a second read method. It is `auth`'s to record — CRM sees only
+  CRM's requests, and a per-module presence table would be the platform's fact kept in a
+  detachable module.
+  **"Bell or e-mail" is built as "bell, and e-mail when offline".** A strict either-or
+  makes the e-mail the *only* trace for an offline person, and `email`'s driver is "SMTP
+  when the environment configures one, console otherwise" (`contracts/src/email.ts`): on an
+  instance with no SMTP the send can report success and reach nobody — **[unverified]**
+  which outcome the console driver reports. With the bell always written, a reminder is
+  never lost to the mail configuration, and what an offline person finds on their return
+  matches what the e-mail said. OQ-2.
+  *The alternative, not built* (OQ-1): always the bell; e-mail when that entry is still
+  unread N minutes later. It measures attention rather than an open tab. It costs: a
+  read-state method on `AdminNotificationRecordPort` (the port has `record` and nothing
+  else, and read state is per reader in `admin-notification-read.entity.ts`), the entry's
+  id stored on the Event, a second stage in the sweep, and an e-mail that is N minutes
+  late by design. *Rejected outright*: CRM recording presence from its own routes.
+  **The e-mail.** `transactional_emails` and `email` are both `nonDeactivatable`. The road
+  every module takes: declare the e-mail in the manifest's `transactionalEmails`
+  (`shipments/src/manifest.ts`), register its default subject and body per language from
+  `ctx.onBoot` through the ungated `emailDefaultsPort`, and send through
+  `transactionalEmailSenderAccessor` (a `providePort`; `returns` resolves it per send) with
+  a `language`. **No module sends a templated e-mail to an administrator in the
+  administrator's language today** — `templateEmailPort` takes no language and resolves the
+  system-default channel's — but `TransactionalEmailSendInput` takes both `language` and
+  `salesChannelId: null` ("the platform-wide ones", issue #103), and `AdminUserRecord`
+  carries `email` and `preferredLanguage`. So the reminder is sent with the recipient's
+  language (`pl` → `pl-PL`, else `en-US` — the two the shipped defaults are written in) and
+  no channel. The operator edits or deactivates it on the existing templates screen; every
+  outcome but `sent` — `deactivated`, `no_transport`, `no_definition`, a thrown transport
+  error — is logged with its reason, as `shipment-email-notifier.ts` does, and changes
+  nothing else. The link is absolute and needs to know where the Admin UI is:
+  `ADMIN_BASE_URL`, which `mfa` already reads "so that a link this instance mails an
+  administrator opens their own installation" — §CAL-C.
+- **N-CAL7 — What a reminder says.** `crm-notifier.ts` holds every bell sentence beside its
+  key and states a rule: an entry "names an Opportunity by its number and a colleague by
+  their name, and nothing else: a bell is read outside the tenant scope, so never a title
+  and never a text". A reminder under that rule reads "an event on opportunity OPP-000123
+  is due" and has to be opened to learn what it is about. **Decision, and a stated
+  departure**: the reminder carries the Event's **name** and its time — never the
+  description, never the Opportunity's title. The recipient's reach is established at the
+  moment of sending (N-CAL4); the name is a short line a colleague wrote in order to be
+  shown at that moment; and the e-mail leaves the platform with the same words in any
+  case. What the rule protects against still applies in one corner — somebody who later
+  loses the Organization keeps the entry — and that is why this is OQ-5 and not a silent
+  change: reversing it is deleting one param. `crm-notifier.test.ts`'s property — the
+  English template filled with the params *is* the sentence — holds for the new kind
+  unchanged. Two keys, because a template cannot drop a clause: timed and all-day. `when`
+  is a param already formatted (`YYYY-MM-DD HH:mm` and the zone's name) because a bell
+  param is a string and the bell has no notion of the Event's zone; the neutral form reads
+  the same in both languages. The link is `?tab=events&event=<id>` — N-DL8 (a) noted that
+  a bell entry could open the tab it is about and that tab ids are stable addresses now.
+- **N-CAL8 — Entity, tenancy, Commands, history.** One table, `crm_opportunity_events`,
+  `@TransitivelyScoped('CrmOpportunity', 'opportunityId')` like the seven other children,
+  for their reason: the tenant is the Opportunity's Organization, which is immutable, and
+  a second copy of it on the child could only ever be wrong. The price is this page's
+  standing rule that a child is never read by its own id — met on the Opportunity's routes
+  by `loadOpportunity`, and on the Calendar by a join that carries `orgConstraintFor()` as
+  a predicate on the parent, the form `analytics-service.ts` already has for reads across
+  Opportunities. *Rejected*: `@OrgScoped` with its own `organization_id` — it would let
+  the global filter guard the Calendar read without a join, and the join is needed anyway
+  for the status kind, the assignee and the number.
+  Writes are three Commands on the bus — `crm.opportunity.event_add`, `.event_update`,
+  `.event_remove` — with `objectType: 'crm_opportunity'` and the Opportunity's id, which is
+  exactly what makes a note or an attachment appear in the history tab
+  (`opportunity-history-service.ts` reads the audit entries of that object). Labels under
+  `auditLog.crm.opportunity.event_*` in both bundles; `opportunity-history-labels.test.ts`
+  holds the set in both directions, so the labels and the Commands land together. An Event
+  takes no lock on its Opportunity and does not bump its `version`: adding an Event must
+  not make a colleague's open edit form fail with 409. The sweep's bookkeeping is a Command
+  with `skipAudit` (a delivery is not a change to the Opportunity). No EventBus event is
+  emitted: nobody subscribes, and YAGNI says the first subscriber adds it.
+  **Reference tokens in the description: no.** `reference-service.ts` indexes two source
+  kinds, `description` and `comment`, and `mention-service.ts` notifies from them; a third
+  source means a migration on `crm_opportunity_references`' check, the composer field in
+  the dialog, and mention notifications for a text that is typically one line. Not cheap,
+  and not asked.
+- **N-CAL9 — The calendar is built here, with no library — and the alternative is on the
+  table for the owner.** `plan.md` § *Complexity Tracking* sets the two side by side. What
+  makes a hand-built calendar tractable is what was cut: no drag, no resize, no multi-day
+  bars, no recurrence, read-only cells. What is left is date arithmetic (a 6 × 7 grid,
+  a week, ranges — `Date` and `Intl.DateTimeFormat`, which the admin already uses for every
+  date it prints), one packing function for overlaps, and three plain renderings: a table,
+  seven lists positioned by CSS, a list. Each is a pure function with a test and no DOM.
+  **Events are created on the Opportunity, not on the Calendar** (OQ-7): the owner's
+  sentence puts "add an Event" on the Opportunity's tab; on the Calendar it would need an
+  Opportunity chooser first — a search, its permission and its empty state — and the
+  dialog already takes the Opportunity as a prop, so adding that later changes one caller.
+  **A press goes straight to the Opportunity** ("clicking an Event leads to the
+  Opportunity"), on *Events*, with the Event marked. *Rejected*: a popover first — a second
+  press for every use, a focus trap and a dismissal model, to show what the destination
+  shows; the entry's `title` and accessible name already carry the whole name, time and
+  Opportunity.
+- **N-CAL10 — The calendar's keyboard and screen-reader model.** Read
+  `.claude/skills/ux-laws/SKILL.md` §4 (the WCAG 2.2 AA floor), §5 and §6 (required
+  states). The tempting model is the APG *grid*: arrow keys between 42 cells. It is the
+  right model for a date *picker*, where a cell is the thing chosen. Here a cell does
+  nothing — only Events do — so the grid model would add 42 focusable no-ops and a roving
+  tabindex to get wrong. **Decision**: semantics that match what the thing is. Month: a
+  real `<table>` with column headers, so a screen reader's table navigation gives "Thursday,
+  8" for free, and each cell holds a list of links. Week: seven sections under headings,
+  each an ordered list of links in time order; the hour grid is decoration, and every entry
+  says its own time. Agenda: headings and lists. Every Event is a link, so Enter, a new
+  tab and the address bar all work with no handler; Tab order is DOM order is time order.
+  Day headings make heading navigation the fast path. Nothing is said by colour alone
+  (today: a disc and a word; a reminder: a glyph and a word). Targets: 24 px in the dense
+  grids (SC 2.5.8's minimum, with the Agenda as the 44 px alternative), 44 px in the
+  Agenda. **390 px**: a seven-column grid at 390 px is 50 px columns of clipped text and a
+  sideways scroll; under 640 px the Calendar *is* the Agenda (Jakob: what every phone
+  calendar does), and on the Opportunity's tab the embedded calendar is not drawn because
+  the tab's own list already is one. **Monday first** in both languages: ISO 8601, Poland,
+  and a business week; `Intl.Locale#getWeekInfo` would say Sunday for `en-US` and is not
+  uniformly available. Stated as OQ-9.
+- **N-CAL11 — The range read, and its bound.** One statement: Events joined to their
+  Opportunity (and through its `status_code` to the status's kind), overlap on the range,
+  the reach predicate, the assignee under `mine`, ordered by `starts_at, id`, `limit 501`
+  to learn `truncated`. One port call for the assignees' names (`findByIds`, as
+  `opportunity-service.ts` resolves them). Two reads however many rows — the statement
+  count is asserted, as `board-card-fields.test.ts` does for cards. Range at most 45 days:
+  a month grid is 42, plus a day each side for all-day Events in a far zone (N-CAL1).
+  500 Events is the constitution's scale ("hundreds of Opportunities per month") with room:
+  a team of ten with fifty Events each. At 500 the payload is about 150 kB uncompressed and
+  the month view draws at most 3 × 42 entries; the week view draws what the week holds.
+  Indexes: `(starts_at)` for the range (with an explicit lower bound of `from − 25 h`,
+  since an Event is at most 25 h long and `ends_at > from` alone cannot use the index),
+  `(opportunity_id, starts_at)` for the tab, and the partial index for the sweep. No
+  cache: the read is two indexed statements, and a cache keyed by caller, scope and range
+  would need invalidating on every Event write, every assignment and every transition.
+- **N-CAL12 — On the Opportunity: a tab, third, with the same calendar.** `tabs.ts` is data
+  — "a story adds a tab by adding one file and one line" — with an optional `count` and an
+  id that is "part of an address". *Events* goes third, after *Links*: what the deal is,
+  what it consists of, what happens next — then the conversation and the audit trail, in
+  the order N-DL5 argued. `tabs.test.ts` asserts the order and that *Links* alone carries
+  a count; both assertions move with the change, as N-DL6 records for the last one. The
+  count is the Events **not yet ended**, not all of them: the label answers "is anything
+  planned?", and a total that only grows answers nothing. It rides on the detail answer
+  (`upcomingEventCount`) because `count` is a function of `OpportunityDetail` and the tab
+  strip is drawn before any tab is opened. The calendar inside the tab is the page's
+  component with two views; *Month* by default. *Rejected*: the reference's week strip
+  above the tabs — it would put a seven-day row of mostly empty boxes on every tab of
+  every Opportunity (N-DL1 (a) declined it once for having no data; with data it is still
+  the wrong place, between the stage bar and the work).
+- **N-CAL13 — Module surfaces, and the three places they reach outside the module.** Route
+  `/crm/calendar` on `crm:read`; a sidebar row between *Board* and *Analytics*; a fifth
+  palette action, added with the route (`contracts/admin-surfaces.md` §2, §3).
+  `KnownIconNameSchema` (`contracts/src/admin-actions.ts`) has no calendar glyph — read in
+  full: the nearest are `ClipboardList` and `ListChecks` — and its comments record three
+  times that an icon joins the list rather than an entry borrowing one; so `CalendarDays`
+  joins it and `admin-kit/…/icon-map.ts` (§CAL-A). No new Setting, no new permission, no
+  new error code (422 `VALIDATION_FAILED` with a `rule`, worded by the dialog), no webhook
+  event, no zone. OpenAPI baseline: `backend/test/fixtures/openapi-baseline.json` holds
+  CRM's routes. Demo: `packages/demo-composition/src/sales-pipeline.ts` dates everything
+  as `daysAgo` from the seed, so Events are `daysFromNow`, on the open Opportunities, with
+  no reminders — a demo must not start writing bell entries and e-mails a day after it was
+  installed. Docs: `packages/modules/crm/docs/crm.md` has one `##` per capability; two are
+  added (*Events and reminders*, *The calendar*), with the Polish page under
+  `docs/i18n/pl/…/modules/crm.md` and its cache entry, by the documented workflow.
+- **N-CAL14 — Decided out, and what is still a premise.** *Out*: a "next event" fact in
+  the Opportunity's facts column (FR-119 fixes four groups and US20's tests hold them; the
+  tab's count already says something is planned) and a "next event" board-card field (it
+  would join US19's catalogue, its filters and its statement-count test) — both additive,
+  neither asked for. *Out*: Events in webhooks, import/export, analytics; ICS export or a
+  Google Calendar sync; participants; creating from the Calendar; drag and drop.
+  **[unverified] premises, each owned by a task in `tasks.md`**: (1) which outcome
+  `email`'s console driver reports, and that `salesChannelId: null` renders the
+  platform-wide content for a code with no channel override — T338; (2) that
+  `simpleEmailBodyTree` (`@endora-commerce/email-components`) can carry a link, or the
+  address goes in the text — T338; (3) the values of `preferredLanguage`
+  (`SupportedLanguage` in `contracts/src/platform-language.ts`) and their mapping to
+  `en-US` / `pl-PL` — T338; (4) how two modules declaring `ADMIN_BASE_URL` are reconciled —
+  T339, which stops if one input admits one owner; (5) that `icon-map.ts` is the only
+  registration an icon needs — T322; (6) whether re-defining a status's kind rewrites
+  `closed_at` — moot for the Calendar, which joins on the kind, and noted for whoever
+  reads `closed_at` next; (7) how the existing off-state test drives a worker's presence
+  gate, to prove the sweep's the same way — T333; (8) that nothing else enumerates
+  `AuthSessionReadPort`'s members (a test double that must grow a method) — T321.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,
@@ -4291,6 +4628,15 @@ and the third answer was reversed in the third round the same day.
 | **Q1** | Should switching the Quote Requests module off be refused while CRM is on, or allowed with CRM degrading? | **Allowed; CRM degrades** (R-17) — the default, accepted. |
 | **Q2** | When an Order refuses the mapped status, should the Opportunity's own transition still stand? | **Yes — it stands; the refusal is shown and retryable** (R-4) — the default, accepted. |
 | **Q3** | Native drag-and-drop for the board, or `@dnd-kit`? | **`@dnd-kit`** — the native default was accepted and then reversed: "it may be useful not only in this module but in the future too". R-20 is rewritten accordingly; the "Move to…" menu stays for WCAG 2.2 SC 2.5.7. |
+
+### Open since 2026-10-08 — Events and the Calendar
+
+"All decided" above is true of the questions of 2026-10-05. User Stories 21 and 22 raised
+nine more, **OQ-1 – OQ-9**, each built with a default and listed with its alternative in
+`spec.md` § *Clarifications* → *Open questions on Events and the Calendar*; the reasoning
+is N-CAL1, N-CAL2, N-CAL4 – N-CAL7, N-CAL9 and N-CAL10 above. One of them is also a
+dependency decision the owner may take differently: `plan.md` § *Complexity Tracking — the
+calendar, with and without a library*.
 
 ### Reconciliation after the product-owner audit, 2026-10-06
 

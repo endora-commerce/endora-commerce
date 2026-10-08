@@ -310,6 +310,89 @@ from `./backend`; both are inside the module and are not rows of this page. No o
 demo data changes: no Organization, administrator, Product, Order or Quote Request is added,
 and nothing is linked to a document, because the demo has none (`research.md` N-DD2).
 
+## CAL. Events, reminders and the Calendar (US21, US22) — *planned, not built*
+
+Everything User Stories 21 and 22 need outside `packages/modules/crm/`. Three changes to
+other packages, each generic; the rest is this page's existing rows growing.
+
+### CAL-A. One icon on the allowlist
+
+| # | File | Change |
+| --- | --- | --- |
+| CAL-A1 | `packages/contracts/src/admin-actions.ts` | `'CalendarDays'` added to `KnownIconNameSchema`, with the comment that says which entry needed it |
+| CAL-A2 | `packages/admin-kit/src/lib/admin-actions/icon-map.ts` | the `lucide-react` component under that name |
+
+Why it cannot be avoided: a sidebar row's and a palette action's `icon` is validated against
+that closed list, and it holds no calendar glyph. The list's own comments record the
+precedent three times (`ShieldCheck`, `LineChart`, the `pwa` entry): the glyph joins the
+list "instead of the entry silently changing to a name that happened to be on the list".
+Why it is generic: an icon name. Left behind if CRM is removed: one enum member and one map
+entry that any module may use. **[unverified]** that the map file is the only place an icon
+name must be registered — CAL-A's task greps for the last icon added before writing.
+
+### CAL-B. `auth` — when was an administrator last seen
+
+| # | File | Change |
+| --- | --- | --- |
+| CAL-B1 | `packages/contracts/src/auth.ts` | `AuthSessionReadPort` gains `lastSeenByAdminUser(adminUserIds: readonly string[], since: Date): Promise<AuthAdminLastSeen[]>` and the type `AuthAdminLastSeen { adminUserId, lastSeenAt }` — the twin of `lastSeenByCustomerAccount` / `AuthCustomerLastSeen`, same semantics: users with no session seen since `since` are absent from the answer |
+| CAL-B2 | `packages/modules/auth/src/backend/services/session-port.ts` | `AuthSessionReadService.lastSeenByAdminUser` — the existing method's body over `adminUserId`, restricted to rows with no `customerAccountId` so an impersonation is not the administrator's own presence |
+| CAL-B3 | `packages/modules/auth/src/backend/plugin.ts` | where the admin cookie's session is resolved (beside `request.adminActor = …`): `void opts.sessionService.touchLastSeen(session.id).catch(() => undefined)` — the line feature 040 wrote for customer sessions, for admin sessions |
+| CAL-B4 | `packages/modules/auth/` co-located tests; `backend/test/integration/auth/` | the port method (newest wins, `since` respected, impersonations excluded, empty input); an admin request stamps `sessions.last_seen_at` and a second one inside the minute does not write again |
+
+Why it cannot be avoided: FR-139 turns on whether the recipient is online, and **nothing in
+the tree records that for an administrator**. `sessions.last_seen_at` exists and is indexed
+by `admin_user_id`, but `plugin.ts` stamps it only when the session is a customer's or an
+impersonation ("Feature 040 — keep presence fresh … on every active customer request"), so
+for an administrator it holds the sign-in time and nothing after; `admin_users.last_login_at`
+is the same fact; there is no websocket and no presence service; the bell polls
+`GET /api/v1/admin/notifications` every 30 s (`useAdminNotifications.ts`) and records
+nothing. Recording it is not CRM's to do: CRM sees only CRM's requests. The session table
+is `auth`'s, the throttle (one Redis `SET NX EX 60` per request, one row update per session
+per minute) is `auth`'s and already written, and the read is a second method on a port that
+exists for exactly this question.
+
+Why it is generic: nothing names CRM; "online administrators" is a fact the platform can
+now answer for any module. No schema change — the column and its index exist. `auth` gains
+no edge. Cost: one Redis command per authenticated admin request, the price customer
+requests already pay. Left behind if CRM is removed: an unused port method and admin
+sessions whose `last_seen_at` is true.
+
+The alternative — e-mail when the bell entry is still unread after N minutes — needs a
+different foreign change instead (a read-state method on `AdminNotificationRecordPort`, in
+`admin_notifications`) and a second delivery stage; it is the owner's question OQ-1 and is
+not built.
+
+### CAL-C. An environment input CRM reads
+
+| # | File | Change |
+| --- | --- | --- |
+| CAL-C1 | `backend/scripts/ledgers/module-environment-inputs/crm.ts` (**new**) | the entry that says why `ADMIN_BASE_URL` is an environment input and not a Setting, as `mfa.ts` beside it says for the same name |
+
+CRM's manifest declares `ADMIN_BASE_URL` in `env` (optional; without it the reminder e-mail
+carries the Opportunity's number and no link). `mfa` declares the same name for the same
+reason — "so that a link this instance mails an administrator opens their own installation".
+**[unverified]** how two modules declaring one input are reconciled (`owner: { kind:
+'module', moduleId }` names one): the task reads
+`backend/scripts/ledgers/module-environment-inputs/README.md` and
+`packages/contracts/src/environment-inputs.ts` first, and if one input admits one owner,
+stops and reports rather than moving `mfa`'s declaration.
+
+### CAL-D. Existing rows that grow
+
+| Row | Grows by |
+| --- | --- |
+| A1 — `packages/contracts/src/crm.ts`, `crm.test.ts` | the schemas of `admin-api.md` §12d and `upcomingEventCount` on the detail |
+| D — generated artefacts | `backend/src/db/migrations-registry.generated.ts` and `entities-registry.generated.ts` (one migration, one entity); `backend/test/fixtures/openapi-baseline.json` (five routes); `packages/modules/crm/package.json` through `manifests:generate` if the e-mail defaults import `@endora-commerce/email-components` as `shipments`' do — an existing workspace package, so derivation, not a new dependency; `pnpm-lock.yaml` beside it |
+| N1 — `packages/demo-composition/src/sales-pipeline.ts`, its test | Events on the open demonstration Opportunities, dated relative to the seed like every `daysAgo` there; none with a reminder, so a fresh demo sends nothing |
+| N4 — `backend/test/integration/demo/demo-shop.test.ts` | `crm_opportunity_events` in the recorded delta |
+| §E — test ledgers | whatever a check asks for the new test files, and no more |
+| docs | `packages/modules/crm/docs/crm.md` and its Polish page with the translation cache; `.changeset/` — one each for `@endora-commerce/mod-crm`, `@endora-commerce/contracts`, `@endora-commerce/mod-auth`, `@endora-commerce/admin-kit` |
+
+Not changed, and considered: `admin_notifications` (the bell entry goes through the port as
+it is, with a `titleMessage`); `transactional_emails` and `email` (CRM contributes defaults
+and sends through published ports); `admin_users` (read through its port); `organizations`
+(reach through its port); `webhooks`, `custom_fields`, `orders`, `quote_requests`.
+
 ## F. Explicitly **not** changed
 
 - No column, table or migration of another module — **except §L**, the two nullable columns
@@ -318,7 +401,8 @@ and nothing is linked to a document, because the demo has none (`research.md` N-
 - No import of `@endora-commerce/mod-crm` by any other module package; `orders` and
   `quote_requests` gain no manifest edge to `crm`.
 - No change to `OrderTransitionPort`, `OrderStatusActor`, `QuoteRequestReadPort` or
-  `KnownIconNameSchema`. (§QS adds one optional argument to `CartWritePort` and one field to
+  `KnownIconNameSchema` — **until §CAL-A**, planned with User Story 22, which adds one icon
+  name to the last; and §CAL-B adds one method to `AuthSessionReadPort`. (§QS adds one optional argument to `CartWritePort` and one field to
   `CartRecord`; `QuoteRequestReadPort` gains a consumer, `orders`, and no method.)
 - No `@dnd-kit` declaration in `packages/modules/crm` or any other module package, and no new
   runtime dependency anywhere other than `@dnd-kit/core` in the two manifests of §G (the

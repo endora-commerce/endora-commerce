@@ -25,6 +25,13 @@ Request panel reads `crm_opportunity_links`.
 are in `backend/src/db/migrations-registry.generated.ts`; the names carry the timestamps
 `migration:new` wrote and were not chosen.
 
+**A third migration is planned, not built (2026-10-08, User Stories 21 and 22)**: one new
+table, `crm_opportunity_events`, with its entity class — § *`crm_opportunity_events`*
+below. It is scaffolded with `pnpm --filter backend run migration:new -- --module crm --name
+opportunity_events`; no number or timestamp is chosen here. It is the only migration and the
+only entity of Phases 24 – 27, both in the backend track, so one branch regenerates the two
+registries and nothing collides.
+
 Conventions: `id uuid` primary key (`randomUUID()`), `created_at` / `updated_at timestamptz`,
 camelCase properties mapped to snake_case columns (Principle VI). Money is `numeric(14,2)`
 held as a string in TypeScript, as `orders.total` is. Entity classes live in
@@ -66,6 +73,7 @@ organizations.id ◄── crm_opportunities ──► sales_channels.id (nullab
 | `crm_opportunity_attachments` | `CrmOpportunityAttachment` | transitive, same parent |
 | `crm_opportunity_tags` | `CrmOpportunityTag` | transitive, same parent |
 | `crm_opportunity_references` | `CrmOpportunityReference` | transitive, same parent |
+| `crm_opportunity_events` | `CrmOpportunityEvent` | transitive, same parent *(planned — US21)* |
 | `crm_opportunity_statuses` | `CrmOpportunityStatus` | `@GlobalEntity()` |
 | `crm_opportunity_status_transitions` | `CrmOpportunityStatusTransition` | `@GlobalEntity()` |
 | `crm_order_status_mappings` | `CrmOrderStatusMapping` | `@GlobalEntity()` |
@@ -303,6 +311,87 @@ Unique `(opportunity_id, asset_id)`.
 
 Derived data: replaced wholesale for a source whenever that source's text is saved.
 
+### `crm_opportunity_events` *(planned — User Stories 21 and 22; research N-CAL1, N-CAL5, N-CAL8)*
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | uuid PK | |
+| `opportunity_id` | uuid, not null | FK → `crm_opportunities(id)` **on delete cascade**; never changes after insert |
+| `name` | varchar(200), not null | 1 … 200 chars, trimmed |
+| `description` | text, nullable | plain text, ≤ 5 000 chars; **no reference tokens** — it is not a source of `crm_opportunity_references` |
+| `all_day` | boolean, not null, default false | |
+| `starts_at` | timestamptz, not null | the instant the Event starts; for an all-day Event, local midnight of its date in `time_zone` |
+| `ends_at` | timestamptz, not null | exclusive end; check `ends_at > starts_at`; for an all-day Event, the next local midnight |
+| `time_zone` | varchar(64), not null | the IANA zone the Event was planned in (the author's browser's). Decides the all-day date and how the bell and the e-mail word the time; **never** used to draw the calendar |
+| `remind_at` | timestamptz, nullable | `null` = no reminder. There is no separate flag: a reminder exists exactly when this is set |
+| `reminder_handled_at` | timestamptz, nullable | when the sweep claimed the reminder; `null` = still to do. This is the "sent marker" and the at-most-once latch |
+| `reminder_outcome` | varchar(16), nullable | `null` while not handled; then `sending` (claimed, delivery not yet recorded) → `bell` \| `bell_email` \| `email` \| `no_recipient` \| `undeliverable`; or `missed`; or `interrupted`. Check constraint on the set |
+| `created_by_admin_user_id` | uuid, nullable | no FK (as every admin-user reference of this module); the fallback recipient of FR-138 |
+| `created_at`, `updated_at` | timestamptz | |
+
+Indexes:
+
+- `(opportunity_id, starts_at)` — the Events tab's list and the detail's count.
+- `(starts_at)` — the Calendar's range read (`starts_at < :to and ends_at > :from`; an
+  Event is at most 25 hours long, so the planner's scan of `starts_at ∈ [:from − 25 h, :to)`
+  is the whole candidate set — the service writes the lower bound explicitly).
+- **partial** `(remind_at) where remind_at is not null and reminder_handled_at is null` —
+  what the sweep reads every minute; it holds only reminders still to do.
+
+**Tenant classification**: `@TransitivelyScoped('CrmOpportunity', 'opportunityId')`, like
+the seven other children. The row carries no tenant column, so:
+
+- on the Opportunity's own paths the rule of this page holds unchanged — load the
+  `CrmOpportunity` through the scoped EntityManager (`loadOpportunity`), then the Event by
+  `(opportunityId, id)`;
+- the Calendar reads Events **across** Opportunities and therefore cannot start from one
+  parent. It is one SQL statement that joins `crm_opportunities` and carries the caller's
+  reach as a predicate on `crm_opportunities.organization_id`, built from
+  `orgConstraintFor()` — the shape `services/analytics-service.ts` already uses for its
+  cross-Opportunity reads. There is no path that selects from `crm_opportunity_events`
+  without that join, the sweep excepted;
+- the reminder sweep runs inside `enterSystemScope('crm: deliver due event reminders', …)`:
+  it is platform-wide by design, and it establishes the **recipient's** reach to the
+  Opportunity's Organization through `AdminReach` (`services/admin-reach.ts`) before telling
+  anybody anything.
+
+**Rules (service, on every write)**:
+
+| Rule | Requirement |
+| --- | --- |
+| the Opportunity is loaded through the scoped EntityManager first; absent ⇒ 404 `CRM_OPPORTUNITY_NOT_FOUND` | FR-134 |
+| `name` 1 … 200 chars after trimming; `description` ≤ 5 000 | FR-130 |
+| `time_zone` is a zone the runtime knows (`Intl.DateTimeFormat` accepts it) | FR-131 |
+| `ends_at > starts_at`; the local date of `starts_at` and of `ends_at − 1 ms` in `time_zone` are the same day | FR-131 |
+| all-day: `starts_at` is a local midnight in `time_zone` and `ends_at` the next one (23, 24 or 25 hours later) | FR-131 |
+| `remind_at`, when written or changed, is later than now | FR-137 |
+| writing a `remind_at` that differs from the stored one clears `reminder_handled_at` and `reminder_outcome`; writing `null` clears all three | FR-140 |
+| `opportunity_id`, `created_by_admin_user_id` are never written after insert | FR-130 |
+
+**Reminder states** (what the API calls `reminder.state` — `contracts/admin-api.md` §12d):
+
+```text
+remind_at null ───────────────────────────────►  (no reminder)
+remind_at set, handled null, opp open ────────►  scheduled
+remind_at set, handled null, opp closed ──────►  paused        (derived on read, not stored)
+sweep claims: handled = now, outcome = sending
+   ├─ delivered ──► bell | bell_email | email   ►  sent
+   ├─ nobody qualifies ──► no_recipient
+   ├─ neither channel available ──► undeliverable
+   ├─ the bell's write threw ──► released: handled = null, outcome = null (next tick retries)
+   └─ process died before recording ──► after 10 min: interrupted   (never retried)
+found > 24 h after remind_at, handled null ────►  missed
+```
+
+**Locking**: the claim is one statement per tick — `select … for update skip locked` over
+the partial index, joined to an open Opportunity, then the update — inside one Command.
+It locks Event rows only and never an Opportunity or a status row, so it takes no part in
+the lock order of § *Locking*. Two worker processes sweeping at once split the rows.
+
+**Deleting and closing**: deleting an Opportunity cascades to its Events (FR-136). Closing
+one changes no Event row: the Calendar's and the sweep's joins simply stop matching it, and
+match again when it is reopened.
+
 ## State transitions
 
 **Opportunity status** — any edge present in `crm_opportunity_status_transitions`. Side
@@ -365,6 +454,10 @@ row and takes no lock.
 | `crm.auto_create_from_orders` | boolean | `false` | FR-060 — declared in the Foundational phase (the off-state proof needs a non-activation setting), behaviour in US9 |
 | `crm.auto_create_from_quote_requests` | boolean | `false` | FR-060 |
 
+**User Stories 21 and 22 add no Setting.** The reminder e-mail is switched off where every
+transactional e-mail is, on the e-mail templates screen; the five-minute online window, the
+60-second sweep and the 24-hour lateness limit are constants (research N-CAL5, N-CAL6).
+
 No secret is involved, so no `secret` value type. The workflow, the mappings and the counting
 statuses are **not** Settings: they are relational configuration with their own screen,
 exactly as Order statuses are.
@@ -380,6 +473,7 @@ declares.
 | Object type | Actions that write an audit entry |
 | --- | --- |
 | `crm_opportunity` (the Opportunity's id) | `crm.opportunity.create`, `.update`, `.delete`, `.transition`, `.assign`, `.link_add`, `.link_remove`, `.link_sync_set`, `.propagation_retry`, `.propagation_dismiss`, `.propagation_skip`, `.tag_set`, `.note_add`, `.note_update`, `.note_delete`, `.message_add`, `.attachment_add`, `.attachment_remove` |
+| `crm_opportunity` — *planned, US21* | `crm.opportunity.event_add`, `.event_update`, `.event_remove` — object id the **Opportunity's**, so they are in its history tab; state carries the Event's id, name, `allDay`, `startsAt`, `endsAt`, `timeZone`, `remindAt` and the description's **length**, never its text (the rule notes already follow — research N-R6) |
 | `crm_opportunity_status` | `crm.status.create`, `.update`, `.delete`, `.set_initial`, `.set_transitions` |
 | `crm_status_mapping` | `crm.mapping.set` |
 | `crm_value_counting` | `crm.value_counting.set` |
@@ -412,6 +506,14 @@ Corrections to this section's first version, as built:
 `crm.opportunity.assigned`, `crm.opportunity.message` and `crm.opportunity.mention` are not
 audit actions: they are the *kinds* of the three notification-bell entries
 (`services/crm-notifier.ts`).
+
+*Planned with US21*: one more Command that never writes an audit entry,
+`crm.opportunity.event_reminder` — the sweep's claim and its recording of the outcome are
+bookkeeping about a delivery, not a change somebody made to the Opportunity, and a line per
+reminder would bury the history (`skipAudit` with that reason at the call site). And one
+more bell kind that is not an audit action: `crm.opportunity.event_reminder`. The same
+string names both on purpose, as nothing reads one where the other is expected; the
+history-labels test holds that the Command has no label.
 
 System-driven writes (subscribers, the recalculation worker) run their Commands inside
 `enterSystemScope('<reason>', …)`; `computed_value` maintenance is a derived figure and uses
