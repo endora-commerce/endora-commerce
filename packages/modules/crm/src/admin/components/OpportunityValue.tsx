@@ -36,6 +36,10 @@ export interface OpportunityValueProps {
  * the Opportunity meanwhile it is read again and the operator is told, instead
  * of a mode being set on a state they have not seen.
  *
+ * It is one labelled fact of the screen's sidebar — a group under an `h3`, not
+ * a landmark of its own — so the figure, its mode and the switch stack in a
+ * narrow column.
+ *
  * A document is named by its number when the link carries one, and links to its
  * own screen; one this reader cannot see is named by its kind alone.
  */
@@ -105,14 +109,14 @@ export function OpportunityValue(props: OpportunityValueProps): ReactNode {
   };
 
   return (
-    <section aria-labelledby={headingId} className="space-y-3" aria-busy={busy}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
-          <h2 id={headingId} className="text-sm font-semibold tracking-tight">
+    <div role="group" aria-labelledby={headingId} className="space-y-2" aria-busy={busy}>
+      <div className="flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
+        <div className="space-y-0.5">
+          <h3 id={headingId} className="text-xs font-normal text-muted-foreground">
             {t('value.title')}
-          </h2>
+          </h3>
           <p className="flex flex-wrap items-center gap-2">
-            <span className="text-2xl font-semibold tabular-nums">
+            <span className="text-xl font-semibold tabular-nums">
               {moneyLabel(
                 computed ? opportunity.computedValue : opportunity.manualValue,
                 opportunity.currency,
@@ -148,7 +152,7 @@ export function OpportunityValue(props: OpportunityValueProps): ReactNode {
         </Alert>
       ) : null}
 
-      <p className="max-w-prose text-sm text-muted-foreground">
+      <p className="max-w-prose text-xs text-muted-foreground">
         {computed ? t('value.hint.computed') : t('value.hint.manual')}
       </p>
 
@@ -162,7 +166,7 @@ export function OpportunityValue(props: OpportunityValueProps): ReactNode {
 
       {computed && opportunity.excludedDocuments.length > 0 ? (
         <div className="space-y-1">
-          <h3 className="text-sm font-medium">{t('value.excluded.title')}</h3>
+          <h4 className="text-sm font-medium">{t('value.excluded.title')}</h4>
           <ul className="list-disc space-y-1 pl-5 text-sm">
             {opportunity.excludedDocuments.map((excluded) => (
               <li key={`${excluded.kind}:${excluded.id}`}>{describe(excluded)}</li>
@@ -175,6 +179,6 @@ export function OpportunityValue(props: OpportunityValueProps): ReactNode {
       <p role="status" className="sr-only">
         {notice}
       </p>
-    </section>
+    </div>
   );
 }

@@ -95,7 +95,8 @@ beforeEach(() => {
 
 async function openOpportunity(permissions: readonly string[]): Promise<void> {
   renderCrm(<OpportunityDetail />, {
-    path: `/crm/opportunities/${OPPORTUNITY_ID}`,
+    // The linked documents have a tab of their own (User Story 20).
+    path: `/crm/opportunities/${OPPORTUNITY_ID}?tab=links`,
     pattern: '/crm/opportunities/:id',
     permissions,
     alsoPresent: ['quote_requests'],

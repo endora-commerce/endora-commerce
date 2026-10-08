@@ -123,9 +123,17 @@ describe('custom fields on the Opportunity (Overview)', () => {
   const opportunity = detail({ version: 4, customFieldValues: { lead_source: 'referral', competitor: 'Globex' } });
 
   function renderOverview(permissions: readonly string[] = WITH_FIELDS, onChange = vi.fn()): typeof onChange {
-    renderCrm(<OverviewTab opportunity={opportunity} onChange={onChange} reload={async (): Promise<void> => {}} />, {
-      permissions,
-    });
+    renderCrm(
+      <OverviewTab
+        opportunity={opportunity}
+        onChange={onChange}
+        reload={async (): Promise<void> => {}}
+        orderStatuses={[]}
+        editing={false}
+        onEditingChange={(): void => {}}
+      />,
+      { permissions },
+    );
     return onChange;
   }
 
@@ -187,7 +195,7 @@ describe('custom fields on the Opportunity (Overview)', () => {
 
   it('asks for no definitions without the permission to read them', async () => {
     renderOverview(EVERY_CRM_PERMISSION);
-    await screen.findByText(en('opportunity.section.details'));
+    await screen.findByRole('heading', { level: 2, name: en('opportunity.field.description') });
     expect(getSpy.mock.calls.map(([path]) => path)).not.toContain(DEFINITIONS_URL);
     expect(screen.queryByLabelText(/Lead source/)).toBeNull();
   });

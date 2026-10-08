@@ -255,7 +255,8 @@ describe('tags on an opportunity', () => {
       ...(permissions ? { permissions } : {}),
     });
     await screen.findByRole('heading', { level: 1, name: /Fleet renewal/ });
-    return screen.findByRole('region', { name: en('tags.section') });
+    // One labelled fact of the sidebar — a group, not a landmark (User Story 20).
+    return screen.findByRole('group', { name: en('tags.section') });
   }
 
   it('shows the tags a reader may see, with nothing to change', async () => {

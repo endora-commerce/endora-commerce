@@ -103,7 +103,8 @@ async function renderPage(permissions?: readonly string[]): Promise<void> {
     ...(permissions ? { permissions } : {}),
   });
   await screen.findByRole('heading', { level: 1, name: /Fleet renewal/ });
-  await screen.findByRole('region', { name: en('links.title') });
+  // The tab is a lazy component: its sections arrive one tick after the header.
+  await screen.findByRole('heading', { level: 2, name: en('opportunity.field.description') });
 }
 
 async function openForm(): Promise<HTMLElement> {
@@ -114,6 +115,12 @@ async function openForm(): Promise<HTMLElement> {
 function save(form: HTMLElement): Promise<void> {
   return userEvent.click(within(form).getByRole('button', { name: en('opportunity.edit.submit') }));
 }
+
+/** A status the workflow allows from here is a button of the stage bar, named by what it does. */
+const MOVE_TO_LOST = en('opportunity.stage.moveToClosing', {
+  status: 'Lost',
+  outcome: en('opportunity.stage.kind.lost'),
+});
 
 const IF_MATCH_1 = { headers: { 'If-Match': '"1"' } };
 
@@ -387,7 +394,7 @@ describe('OpportunityDetail — the reason of a status change', () => {
       screen.getByLabelText(en('opportunity.status.reason')),
       '  Chose a competitor.  ',
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Lost' }));
+    await userEvent.click(screen.getByRole('button', { name: MOVE_TO_LOST }));
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/transition`, {
         to: 'lost',
@@ -399,7 +406,7 @@ describe('OpportunityDetail — the reason of a status change', () => {
   it('sends no reason when none was written', async () => {
     postSpy.mockResolvedValue(moved);
     await renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Lost' }));
+    await userEvent.click(screen.getByRole('button', { name: MOVE_TO_LOST }));
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/transition`, { to: 'lost' }),
     );

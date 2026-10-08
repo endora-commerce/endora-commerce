@@ -119,7 +119,9 @@ async function openOpportunity(
   options: { permissions?: readonly string[]; quotes?: boolean } = {},
 ): Promise<void> {
   renderCrm(<OpportunityDetail />, {
-    path: `/crm/opportunities/${OPPORTUNITY_ID}`,
+    // The value is in the sidebar of every tab; the linked documents these
+    // cases also read have a tab of their own (User Story 20).
+    path: `/crm/opportunities/${OPPORTUNITY_ID}?tab=links`,
     pattern: '/crm/opportunities/:id',
     ...(options.permissions ? { permissions: options.permissions } : {}),
     ...(options.quotes === false ? {} : { alsoPresent: ['quote_requests'] }),
@@ -127,9 +129,15 @@ async function openOpportunity(
   await screen.findByRole('heading', { level: 1, name: /Fleet renewal/ });
 }
 
-/** The Overview is a lazy chunk: a section is waited for, not assumed. */
+/**
+ * A tab is a lazy chunk: a section is waited for, not assumed. The value is a
+ * labelled group of the sidebar (an `h3`), a list of links a section of its tab
+ * (an `h2`) — either way, the block its heading names.
+ */
 const section = async (title: string): Promise<HTMLElement> =>
-  (await screen.findByRole('heading', { level: 2, name: title })).closest('section') as HTMLElement;
+  (await screen.findByRole('heading', { name: title })).closest(
+    'section, [role="group"]',
+  ) as HTMLElement;
 
 describe('the value of an Opportunity', () => {
   it('shows a typed-in value as such, and switches to a computed one in one press', async () => {

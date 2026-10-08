@@ -23,6 +23,9 @@ export interface AssigneeSectionProps {
  * screen. A refusal (`CRM_ASSIGNEE_INVALID` — somebody deactivated meanwhile)
  * is shown in the server's sentence and the field goes back to whoever holds
  * the Opportunity. Assigning notifies the new assignee; nothing here does.
+ *
+ * It is one labelled fact of the screen's sidebar: a group under an `h3`, not a
+ * landmark of its own.
  */
 export function AssigneeSection(props: AssigneeSectionProps): ReactNode {
   const { opportunity, canWrite, onChange } = props;
@@ -49,10 +52,10 @@ export function AssigneeSection(props: AssigneeSectionProps): ReactNode {
   };
 
   return (
-    <section aria-labelledby={headingId} className="space-y-3">
-      <h2 id={headingId} className="text-sm font-semibold tracking-tight">
+    <div role="group" aria-labelledby={headingId} className="space-y-2">
+      <h3 id={headingId} className="text-xs font-normal text-muted-foreground">
         {t('assignment.label')}
-      </h2>
+      </h3>
       <p className="text-sm">
         <AssigneeName assignee={assignee} />
       </p>
@@ -78,9 +81,9 @@ export function AssigneeSection(props: AssigneeSectionProps): ReactNode {
         </Alert>
       ) : null}
       {/* Mounted before it has text, so the announcement is reliable. */}
-      <p role="status" className="text-sm text-muted-foreground">
+      <p role="status" className="text-xs text-muted-foreground empty:sr-only">
         {notice}
       </p>
-    </section>
+    </div>
   );
 }

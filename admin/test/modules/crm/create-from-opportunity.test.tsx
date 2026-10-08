@@ -107,7 +107,9 @@ async function openOpportunity(
   } = {},
 ): Promise<void> {
   renderCrm(<OpportunityDetail />, {
-    path: `/crm/opportunities/${OPPORTUNITY_ID}${options.search ?? ''}`,
+    // The linked documents have a tab of their own (User Story 20). A return
+    // address (`?created=…`) selects it by itself — that is asserted below.
+    path: `/crm/opportunities/${OPPORTUNITY_ID}${options.search ?? '?tab=links'}`,
     pattern: '/crm/opportunities/:id',
     permissions: options.permissions ?? EVERYTHING,
     ...(options.quotes === false ? {} : { alsoPresent: ['quote_requests'] }),
@@ -116,7 +118,7 @@ async function openOpportunity(
   await screen.findByRole('heading', { level: 1, name: /Fleet renewal/ });
 }
 
-/** The Overview is a lazy chunk: a section is waited for, not assumed. */
+/** A tab is a lazy chunk: a section is waited for, not assumed. */
 const section = async (title: string): Promise<HTMLElement> =>
   (await screen.findByRole('heading', { level: 2, name: title })).closest('section') as HTMLElement;
 

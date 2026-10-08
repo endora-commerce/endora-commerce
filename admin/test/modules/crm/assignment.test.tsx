@@ -233,7 +233,8 @@ describe('the assignee on the opportunity', () => {
       ...(permissions ? { permissions } : {}),
     });
     await screen.findByRole('heading', { level: 1, name: /Fleet renewal/ });
-    return screen.findByRole('region', { name: en('assignment.label') });
+    // One labelled fact of the sidebar — a group, not a landmark (User Story 20).
+    return screen.findByRole('group', { name: en('assignment.label') });
   }
 
   it('names the assignee, and marks one who has been deactivated', async () => {

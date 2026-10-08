@@ -20,6 +20,9 @@ export interface TagsSectionProps {
  * Tagging is everyday work, so it is one gesture: ticking or unticking a tag
  * replaces the set (`PUT …/tags`) and the answer is put on screen. Which tags
  * *exist* is configuration and lives on the Tags screen.
+ *
+ * It is one labelled fact of the screen's sidebar: a group under an `h3`, not a
+ * landmark of its own. A long tag list wraps.
  */
 export function TagsSection(props: TagsSectionProps): ReactNode {
   const { opportunity, canWrite, onChange } = props;
@@ -44,10 +47,10 @@ export function TagsSection(props: TagsSectionProps): ReactNode {
   };
 
   return (
-    <section aria-labelledby={headingId} className="space-y-3">
-      <h2 id={headingId} className="text-sm font-semibold tracking-tight">
+    <div role="group" aria-labelledby={headingId} className="space-y-2">
+      <h3 id={headingId} className="text-xs font-normal text-muted-foreground">
         {t('tags.section')}
-      </h2>
+      </h3>
       {opportunity.tags.length > 0 ? (
         <TagChips tags={opportunity.tags} />
       ) : (
@@ -69,9 +72,9 @@ export function TagsSection(props: TagsSectionProps): ReactNode {
         </Alert>
       ) : null}
       {/* Mounted before it has text, so the announcement is reliable. */}
-      <p role="status" className="text-sm text-muted-foreground">
+      <p role="status" className="text-xs text-muted-foreground empty:sr-only">
         {notice}
       </p>
-    </section>
+    </div>
   );
 }

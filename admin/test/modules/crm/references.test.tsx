@@ -121,7 +121,8 @@ describe('a text with references, as it is read', () => {
     const panel = await open(null);
     const product = await within(panel).findByRole('link', { name: /Cargo van L2/ });
     expect(product).toHaveAttribute('href', `/catalog/products/${PRODUCT_ID}`);
-    const description = product.closest('dd') as HTMLElement;
+    // The description is a section of the Overview tab, no longer one row of a list.
+    const description = product.closest('section') as HTMLElement;
     expect(within(description).getByRole('link', { name: /ORD-1001/ })).toHaveAttribute(
       'href',
       `/orders/${ORDER_ID}`,
