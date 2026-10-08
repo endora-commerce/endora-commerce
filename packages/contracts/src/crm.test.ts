@@ -736,6 +736,29 @@ describe('events and the calendar (§12d, US21, US22)', () => {
     expect(crm.CreateOpportunityEventRequestSchema.parse(event).remindAt).toBeUndefined();
   });
 
+  it('an instant is one the database can hold: an offset may not carry it out of the years 0001 – 9999', () => {
+    const create = crm.CreateOpportunityEventRequestSchema;
+    // `9999-12-31T22:00-14:00` is noon on 1 January 10000, which JavaScript
+    // writes with a signed six-digit year and PostgreSQL refuses.
+    rejects(create, { ...event, startsAt: '9999-12-31T22:00:00-14:00', endsAt: '9999-12-31T23:00:00-14:00' });
+    rejects(create, { ...event, startsAt: '0000-01-01T00:00:00+14:00', endsAt: '0000-01-01T01:00:00+14:00' });
+    rejects(create, { ...event, startsAt: '0000-06-01T10:00:00Z', endsAt: '0000-06-01T11:00:00Z' });
+    rejects(create, { ...event, remindAt: '9999-12-31T23:00:00-14:00' });
+    rejects(create, { ...event, remindAt: '9999-12-31T23:59:59.999Z' });
+    accepts(create, { ...event, startsAt: '9999-12-29T10:00:00Z', endsAt: '9999-12-29T11:00:00Z', remindAt: '9999-12-29T09:00:00Z' });
+    accepts(create, { ...event, startsAt: '0001-01-03T10:00:00Z', endsAt: '0001-01-03T11:00:00Z' });
+
+    rejects(crm.UpdateOpportunityEventRequestSchema, { remindAt: '9999-12-31T23:00:00-14:00' });
+    rejects(crm.UpdateOpportunityEventRequestSchema, { startsAt: '9999-12-31T22:00:00-14:00' });
+    accepts(crm.UpdateOpportunityEventRequestSchema, { remindAt: null });
+
+    rejects(crm.CalendarEventsQuerySchema, { from: '9999-12-31T00:00:00-14:00', to: '9999-12-31T23:00:00-14:00' });
+    rejects(crm.CalendarEventsQuerySchema, { from: '0000-01-01T00:00:00Z', to: '0000-01-31T00:00:00Z' });
+    rejects(crm.CalendarEventsQuerySchema, { from: '9999-12-01T00:00:00Z', to: '9999-12-31T23:59:59.999Z' });
+    accepts(crm.CalendarEventsQuerySchema, { from: '9999-12-01T00:00:00Z', to: '9999-12-29T00:00:00Z' });
+    accepts(crm.CalendarEventsQuerySchema, { from: '0001-01-03T00:00:00Z', to: '0001-01-31T00:00:00Z' });
+  });
+
   it('create: the name is 1 to 200 characters after trimming, the description 5 000 at most', () => {
     rejects(crm.CreateOpportunityEventRequestSchema, { ...event, name: '' });
     rejects(crm.CreateOpportunityEventRequestSchema, { ...event, name: '   ' });
