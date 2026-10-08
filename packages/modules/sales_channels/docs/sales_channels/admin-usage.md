@@ -20,9 +20,9 @@ The list page shows every channel registered on the platform. The system-default
    - **Code** — lowercase machine-friendly identifier; immutable after creation.
    - **Display name** — currently a single `en-US` string; multi-locale support is a follow-up.
    - **Theme code** *(optional)* — opaque identifier the storefront uses to pick its theme.
-   - **Languages** — comma- or newline-separated. Codes must already exist in the i18n module's languages registry.
-   - **Default language** — must be one of the languages above.
-   - **Currencies** / **Default currency** — same shape; codes must exist in the currencies registry.
+   - **Languages** — a searchable multi-select over the active entries of the Dictionary's languages. Type part of a code (`pl-`) or of a name (`Polish`, `Polski`) to narrow the list, press **Enter** or click to add an entry, and remove one with the **×** on its chip or with **Backspace** in the empty search box. At least one is required.
+   - **Default language** — a searchable select offering only the languages selected above. Removing the language that is the current default empties this field: the form says so and cannot be saved until you choose a default again — it never picks one for you.
+   - **Currencies** / **Default currency** — the same two controls over the Dictionary's currencies, with the same rule for the default.
    - **Active** *(default `true`)*.
 3. **Create channel.** The system refuses if the code is already in use, or if any language / currency code is unknown.
 
