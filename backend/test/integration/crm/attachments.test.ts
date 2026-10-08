@@ -244,6 +244,9 @@ describe('crm attachments', () => {
           salesChannelAttributionRegistry: { register: () => undefined, owners: () => [] },
           // `audit_logs` owns this one, the module's third boot-hook push.
           auditReferenceRegistry: { register: () => undefined, owners: () => [], resolve: async () => new Map() },
+          // `transactional_emails` owns this one, the fourth push: the default
+          // subject and body of the Event reminder e-mail.
+          emailDefaultsPort: { register: () => undefined },
         });
         const composed = composeModules([{ id: 'crm', version: '1.0.0', registerModule }], {
           container,

@@ -109,6 +109,24 @@ describe('crm audit coverage — every Opportunity Command is recorded against t
     expect((await call('POST', `/opportunities/${id}/comments`, { kind: 'message', body: 'Hello' })).statusCode).toBe(201);
     await expectRecorded(id, 'crm.opportunity.message_add');
 
+    // An Event is the Opportunity's plan: its three Commands are recorded
+    // against the Opportunity, never under the Event's own id (User Story 21).
+    const planned = await call('POST', `/opportunities/${id}/events`, {
+      name: 'Call',
+      allDay: false,
+      startsAt: '2031-06-10T08:00:00.000Z',
+      endsAt: '2031-06-10T09:00:00.000Z',
+      timeZone: 'Europe/Warsaw',
+    });
+    expect(planned.statusCode, planned.body).toBe(201);
+    const eventId = (planned.json() as { data: { id: string } }).data.id;
+    await expectRecorded(id, 'crm.opportunity.event_add');
+    expect((await call('PATCH', `/opportunities/${id}/events/${eventId}`, { name: 'Call back' })).statusCode).toBe(200);
+    await expectRecorded(id, 'crm.opportunity.event_update');
+    expect((await call('DELETE', `/opportunities/${id}/events/${eventId}`)).statusCode).toBe(204);
+    await expectRecorded(id, 'crm.opportunity.event_remove');
+    expect(await h.auditLogService.query({ objectId: eventId })).toEqual([]);
+
     const asset = await seedCrmAsset(h.em());
     assetIds.push(asset.id);
     const attached = await call('POST', `/opportunities/${id}/attachments`, { assetId: asset.id });
@@ -138,6 +156,9 @@ describe('crm audit coverage — every Opportunity Command is recorded against t
     // Derived writes leave no entry: recalculating the value is not a change
     // anybody made.
     expect(shown).not.toContain('crm.opportunity.value_recalculate');
+    // Nor does the reminder sweep's bookkeeping: a delivery is not a change to
+    // an Opportunity.
+    expect(shown.filter((action) => action.startsWith('crm.event_reminder.'))).toEqual([]);
   });
 
   it('transition, the Order that did not follow, retry, dismiss, and the Order-caused change that was skipped', async () => {

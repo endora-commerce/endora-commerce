@@ -13,7 +13,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { TEST_ADMIN_ID, TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
-import { authPlugin } from '../../../../packages/modules/auth/src/backend/plugin.js';
+import { authPlugin, type AuthPluginOptions } from '../../../../packages/modules/auth/src/backend/plugin.js';
 
 /**
  * When an administrator was last seen — the stamp and the read, against the
@@ -68,7 +68,11 @@ describe('auth — an administrator’s presence', () => {
     h = await setupBackendServer();
     app = Fastify();
     await app.register(cookie);
-    await app.register(authPlugin, { sessionService: h.sessionService });
+    await app.register(authPlugin, {
+      // The plugin is this checkout's source and the harness's service is the
+      // built package's: one class, two declarations to the type-checker.
+      sessionService: h.sessionService as unknown as AuthPluginOptions['sessionService'],
+    });
     app.get('/who', async (request) => ({
       actor: request.actor.kind,
       admin: request.adminActor?.adminUserId ?? null,

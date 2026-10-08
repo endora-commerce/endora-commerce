@@ -1039,18 +1039,18 @@ what it found; `[P]` means parallel inside its own track.
 
 ### Tests first (each seen red for the stated reason)
 
-- [ ] T330 [P] [US21] `packages/modules/crm/src/backend/domain/event-time.test.ts` — no
+- [x] T330 [P] [US21] `packages/modules/crm/src/backend/domain/event-time.test.ts` — no
   database: an Event inside one local day accepted; one crossing local midnight in its zone
   refused (`spans_days`) though it is inside one UTC day, and the reverse accepted; all-day
   accepted only as local midnight to the next (`not_whole_day`), at 23, 24 and 25 hours on
   the two DST days of `Europe/Warsaw`; an unknown zone refused; `allDayDate` for a zone east
   and a zone west of UTC; `when` for a timed and an all-day Event.
-- [ ] T331 [P] [US21] [US22] `backend/test/contract/crm/events.contract.test.ts` — the five
+- [x] T331 [P] [US21] [US22] `backend/test/contract/crm/events.contract.test.ts` — the five
   routes against their schemas; `crm:read` reads and cannot write (403); the 404s
   (`CRM_OPPORTUNITY_NOT_FOUND` for the parent, `NOT_FOUND` for an Event under the wrong
   Opportunity); 400 for a malformed body and a 46-day range; 422 with each `details.rule`;
   `GET /opportunities/:id` carrying `upcomingEventCount`.
-- [ ] T332 [US21] [US22] `backend/test/integration/crm/events.test.ts` — real database:
+- [x] T332 [US21] [US22] `backend/test/integration/crm/events.test.ts` — real database:
   add, edit and delete, each leaving one history entry on the Opportunity that carries the
   name and times and **not** the description's text; any holder of `crm:write` edits
   another's Event; deleting the Opportunity deletes its Events; `upcomingEventCount` counts
@@ -1065,7 +1065,7 @@ what it found; `[P]` means parallel inside its own track.
   answers with no Event row written (FR-145 — assert `updated_at` unchanged); overlap at
   both edges of the range; an all-day Event of a far zone found by the widened range;
   `truncated` at 501; **the statement count equal at 5 and at 500 Events** (FR-151).
-- [ ] T333 [US21] `backend/test/integration/crm/event-reminders.test.ts` — the sweep driven
+- [x] T333 [US21] `backend/test/integration/crm/event-reminders.test.ts` — the sweep driven
   directly with a given `now`, as the orders sweep's tests drive theirs: the assignee at
   that moment is reminded, a former one is not (FR-138); unassigned → the creator; an
   inactive assignee, and one who cannot reach the Organization → the creator under the same
@@ -1085,28 +1085,28 @@ what it found; `[P]` means parallel inside its own track.
   in the `routes` probe; a due reminder delivered while on, **not** while deactivated,
   once after reactivation — **premise 7 first**: read how that file exercises the
   recalculation worker's gate and use the same road.
-- [ ] T334 [P] [US21] `packages/modules/crm/src/backend/services/crm-notifier.test.ts` — the
+- [x] T334 [P] [US21] `packages/modules/crm/src/backend/services/crm-notifier.test.ts` — the
   new kind's two sentences under the file's existing property. (`opportunity-history-labels.test.ts`
   needs no edit: it reds by itself when the three Commands appear without labels, and when
   the reminder Command is given one.)
-- [ ] T335 [P] [US21] `auth` — co-located test of `lastSeenByAdminUser` (newest per user;
+- [x] T335 [P] [US21] `auth` — co-located test of `lastSeenByAdminUser` (newest per user;
   `since` respected; a row with a `customerAccountId` is not the administrator's presence;
   empty input) and, in `backend/test/integration/auth/`, an authenticated admin request
   stamping `sessions.last_seen_at`, a second inside the minute writing nothing, and a
   customer request behaving as before (§CAL-B4).
-- [ ] T336 [P] [US22] `packages/demo-composition/src/sales-pipeline.test.ts` and
+- [x] T336 [P] [US22] `packages/demo-composition/src/sales-pipeline.test.ts` and
   `backend/test/integration/demo/demo-shop.test.ts` — Events on the open demonstration
   Opportunities, dated from the seed's day, none with a reminder; `crm_opportunity_events`
   in the recorded delta; the reset removing them (FR-152).
 
 ### Implementation
 
-- [ ] T337 [US21] `src/backend/entities/crm-opportunity-event.entity.ts`; the migration,
+- [x] T337 [US21] `src/backend/entities/crm-opportunity-event.entity.ts`; the migration,
   scaffolded with `pnpm --filter backend run migration:new -- --module crm --name
   opportunity_events` (table, check constraints, the three indexes, the cascade);
   `src/migrations/index.ts`; the class in `export const entities`; `composer:generate`,
   committed. `backend/test/integration/crm/migration.test.ts` gains the table.
-- [ ] T338 [P] [US21] The reminder e-mail: `src/backend/email-templates/event-reminder-defaults.ts`
+- [x] T338 [P] [US21] The reminder e-mail: `src/backend/email-templates/event-reminder-defaults.ts`
   (subject and body, `en-US` and `pl-PL`), `src/backend/services/event-reminder-email.ts`
   (the one send and its named outcomes — model: `shipments/…/shipment-email-notifier.ts`),
   the manifest's `transactionalEmails` entry and `transactional_emails` in `dependencies`,
@@ -1114,37 +1114,55 @@ what it found; `[P]` means parallel inside its own track.
   driver reports and what `salesChannelId: null` renders; whether `simpleEmailBodyTree`
   carries a link; the values of `preferredLanguage`. Then `manifests:generate` and
   `pnpm install --lockfile-only`.
-- [ ] T339 [P] [US21] `ADMIN_BASE_URL` in the manifest's `env` and
+- [x] T339 [P] [US21] `ADMIN_BASE_URL` in the manifest's `env` and
   `backend/scripts/ledgers/module-environment-inputs/crm.ts` (§CAL-C). **Premise 4 first —
   and stop and report if one input admits one owner**; the fallback that needs no ruling is
   an e-mail with the Opportunity's number and no link.
-- [ ] T340 [US21] `src/backend/domain/event-time.ts` — T330 green.
-- [ ] T341 [US21] `src/backend/services/opportunity-event-service.ts` (the list; the three
+- [x] T340 [US21] `src/backend/domain/event-time.ts` — T330 green.
+- [x] T341 [US21] `src/backend/services/opportunity-event-service.ts` (the list; the three
   Commands on the Opportunity's audit object; the re-arming rule),
   `src/backend/routes/routes.events.ts` (four routes), `upcomingEventCount` in
   `opportunity-service.ts`, the composition section in `src/backend/index.ts`; the three
   `auditLog.crm.opportunity.event_*` labels in both bundles. Model:
   `opportunity-comment-service.ts`, `routes.comments.ts`.
-- [ ] T342 [US22] `src/backend/services/calendar-service.ts` — the one statement under
+- [x] T342 [US22] `src/backend/services/calendar-service.ts` — the one statement under
   `orgConstraintFor()`, the scope rule, the assignees' names in one port call — and
   `GET /calendar/events` in `routes.events.ts`. Model: `analytics-service.ts`'s scope
   predicate. T331 and T332 green.
-- [ ] T343 [P] [US21] `packages/modules/auth/src/backend/services/session-port.ts`,
+- [x] T343 [P] [US21] `packages/modules/auth/src/backend/services/session-port.ts`,
   `plugin.ts` (§CAL-B2, B3) — T335 green; a changeset for `@endora-commerce/mod-auth`.
-- [ ] T344 [US21] `src/backend/services/crm-notifier.ts` — the kind
+- [x] T344 [US21] `src/backend/services/crm-notifier.ts` — the kind
   `crm.opportunity.event_reminder`, its two sentences with their keys, and a link that can
   carry `?tab=events&event=`; the two `notifications.eventReminder*` keys in both bundles.
-- [ ] T345 [US21] `src/backend/services/event-reminder-service.ts` — the tick of N-CAL5:
+- [x] T345 [US21] `src/backend/services/event-reminder-service.ts` — the tick of N-CAL5:
   expire, claim, resolve the recipient, deliver, record — and
   `src/backend/workers/event-reminder-worker.ts` (queue `crm-event-reminders`, the scheduler,
   the consumer through `ctx.worker`), composed where the recalculation worker is. Needs
   T338, T343, T344. Model: `orders/…/workers/transition-effect-sweep-worker.ts`. T333 green.
-- [ ] T346 [US22] `packages/demo-composition/src/sales-pipeline.ts` — T336 green.
-- [ ] T347 [US21] [US22] The track's close: the OpenAPI baseline regenerated; `composer:check`,
+- [x] T346 [US22] `packages/demo-composition/src/sales-pipeline.ts` — T336 green.
+- [x] T347 [US21] [US22] The track's close: the OpenAPI baseline regenerated; `composer:check`,
   `manifests:check`; `check:command-coverage`, `check:port-dependencies`,
   `check:off-state-coverage`, `check:bundle-pairing`; `pnpm --filter backend exec vitest run
   test/contract/crm test/integration/crm test/integration/auth`; the module's own unit
   tests; the eight premises reported.
+
+**Phase 25 as built** (research N-CAL15 has the premises and the reasons):
+
+- T339 **stopped where it says to**: `ADMIN_BASE_URL` is declared by nobody new, there is no
+  `module-environment-inputs/crm.ts`, and the e-mail carries the Opportunity's number and no
+  link. The `opportunity.url` variable of `events-and-ports.md` §5a is not declared.
+- T341: the audited state of an Event adds six keys (`eventId`, `eventName`, `allDay`,
+  `startsAt`, `endsAt`, `remindAt`). Their `history.field.*` labels are in both bundles;
+  **their membership in `src/admin/lib/history-fields.ts` is not** — that file is track F's —
+  so `src/admin/index.test.ts` › *labels every audited state key* is red on this track until
+  the join adds them (T380).
+- T334: `opportunity-history-labels.test.ts` **did** need an edit — the reminder's bell kind
+  and the sweep's three Commands match its scan — and has it.
+- T333: the existing off-state test drives no worker's gate (premise 7), so the sweep's is
+  proved by the tick the module registers, resolved from the container.
+- Not seen red before their implementation, and said so: the migration test of T337, the
+  worker's unit test of T345 and the pure demo test of T336; each was held by a mutation or
+  by the integration test beside it instead.
 
 ## Phase 26: Track F — Admin UI
 

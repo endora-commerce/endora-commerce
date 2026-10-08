@@ -4662,6 +4662,51 @@ depends on it re-derives it before writing.
   gate, to prove the sweep's the same way — T333; (8) that nothing else enumerates
   `AuthSessionReadPort`'s members (a test double that must grow a method) — T321.
 
+- **N-CAL15 — What the backend track found (Phase 25, 2026-10-08).** The premises of
+  N-CAL14, re-derived at the task that owns each, and what the design did not foresee.
+  (1) `email`'s `ConsoleMailer` answers `{ status: 'sent' }`, and `transactional_emails`
+  does not carry the transport's answer further — so on an instance with no SMTP a send
+  reports `sent` and reaches nobody, which is the case the "bell always" decision was made
+  for. `salesChannelId: null` skips the per-channel override and resolves the global
+  override, then the module default (`content-resolver.ts`), and branding takes `null` as
+  "platform-wide". (2) `simpleEmailBodyTree` carries a link only as an unconditional
+  button (`ctaLabel` / `ctaHref`); its text takes `{{if path}}…{{/if}}`, so a link that may
+  be absent belongs in the text. Moot until (4) is ruled. (3) `preferredLanguage` is `en`,
+  `pl` or `null`, validated at the route; the Admin UI draws itself from
+  `preferredLanguage ?? 'en'`. The e-mail maps by primary subtag: `pl` → `pl-PL`, anything
+  else and `null` → `en-US`. (4) **One input, one owner — stopped.** `owner` is a field of
+  the declaration; `check:env-inputs` would not refuse two modules declaring one name (a
+  shared name across authors is its platform-and-storefront case), but `mfa`'s own ledger
+  entry says in words that a second reader moves `ADMIN_BASE_URL` to the platform rather
+  than declaring it again. That move touches `mfa`'s manifest, its ledger shard and the
+  platform's declaration — none of them in §CAL — so nothing was declared and the reminder
+  e-mail has no link. **The owner's to schedule.** (7) `off-state.test.ts` drives no
+  worker's gate at all: the harness composes with no queue connection, so no consumer
+  exists in it. The sweep's gate is therefore proved in two halves — `check:subscribe-seam`
+  and the worker's unit test hold the `Worker` to `ctx.worker`, and the tick the module
+  registers (`crmEventReminderTick`), which decides presence before it reads a row, is
+  driven from the container under both axes.
+  *Not foreseen.* (a) `transactionalEmailSenderAccessor` cannot be read through `lazyPort`
+  as §5a says: it is a function, and `lazyPort` forwards method calls only. It is read off
+  the cradle per send, as `returns` reads it. (b) A test under `backend/test` may not import
+  a module **source** file that reaches an entity class: the class registers a second time
+  beside the built one and the ORM refuses to open. The reminder test resolves the composed
+  service and, for the one fault it injects, patches the module's own notifier in place.
+  (c) `src/admin/index.test.ts` holds every audited state key to
+  `src/admin/lib/history-fields.ts`, so three Commands in the backend track need six lines
+  in a file of the Admin UI track — a fourth shared file `plan.md` did not list.
+  (d) `opportunity-history-labels.test.ts` needed the edit T334 said it would not.
+  (e) An edit sends the editor's zone, so an Event that is one day where it was planned can
+  be two where it is edited (16:30 – 17:30 in Warsaw is 23:30 – 00:30 in Tokyo) and is then
+  refused `spans_days`; a rename that names no time member is not judged again.
+  (f) An all-day demo Event is a whole **UTC** day: finding a local midnight is the
+  arithmetic N-CAL1 keeps off the server, and the demo composition has no browser.
+  (g) `when` for an all-day Event is the date alone, with no zone beside it — a date is the
+  same date for every reader, and §12d's sentence allowed either reading.
+  (h) A reminder more than 24 hours overdue is marked `missed` whether or not its
+  Opportunity is closed, so a reminder paused for longer than that reads *missed*, not
+  *paused*, from then on.
+
 ## Questions put to the owner — all decided on 2026-10-05
 
 Nothing is open. The three questions this design raised were answered in the second round,
