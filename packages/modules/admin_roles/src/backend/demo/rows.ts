@@ -55,6 +55,12 @@ export const SALES_REPRESENTATIVE_PERMISSIONS: readonly string[] = [
   // endpoint and is gated on `price_lists:read` rather than on
   // `rfqs:handle`. Without this code the prefill answers 403.
   'price_lists:read',
+  // Feature 143 — a Sales Rep is who a Sales Opportunity is assigned to and
+  // who colleagues mention in its notes. Without `crm:read` the demo's reps
+  // are offered by neither list, and without `crm:write` they cannot move
+  // the Opportunities assigned to them.
+  'crm:read',
+  'crm:write',
 ];
 
 /**

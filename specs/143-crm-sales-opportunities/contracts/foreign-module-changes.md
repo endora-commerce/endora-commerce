@@ -278,6 +278,16 @@ eleven and one that arrived between the two and is not this section's.
 owner's request rather than by drift: the migration is `admin_notifications`' own, scaffolded
 into its own directory, and touches no CRM table.
 
+## M. `admin_roles` demo data — the demo Sales Rep holds the CRM codes
+
+Owner ruling of 2026-10-08 ("nadaj i domyślnie rola demo powinna je mieć"): the seeded
+`sales_representative` role gains `crm:read` and `crm:write`
+(`packages/modules/admin_roles/src/backend/demo/rows.ts`, `SALES_REPRESENTATIVE_PERMISSIONS`).
+Without them a demo Sales Rep was offered by neither `/lookups/assignees` nor
+`/lookups/mentionable`, so the owner's own example ("@Tomasz Nowak - przejmij temat") found
+nobody. The list already names other capabilities' codes (`rfqs:handle`, `price_lists:read`);
+a code whose module is off grants nothing. Demo data only — no installed role changes.
+
 ## F. Explicitly **not** changed
 
 - No column, table or migration of another module — **except §L**, the two nullable columns
