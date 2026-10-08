@@ -3,8 +3,10 @@ import { act, fireEvent, screen, within } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 import { withLocalStorage } from '../../helpers/with-local-storage';
+import { withViewportWidth } from '../../helpers/with-viewport-width';
 import {
   CMS_EDITOR_SETTINGS_STORAGE_KEY,
+  CMS_EDITOR_TWO_COLUMN_MIN_WIDTH,
   CmsContentEditorLayout,
   useCmsEditorSettingsPanel,
   type CmsEditorSettingsPanel,
@@ -63,8 +65,14 @@ function precedes(a: Element, b: Element): boolean {
   return Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 }
 
+/** Wide enough for the settings panel to be a column beside the builder. */
+const WIDE = 1920;
+/** A common laptop width, below the two-column breakpoint. */
+const NARROW = 1440;
+
 beforeEach(() => {
   withLocalStorage();
+  withViewportWidth(WIDE);
   panel = null;
 });
 
@@ -213,5 +221,71 @@ describe('CmsContentEditorLayout — the panel opens itself when it is needed', 
     expect(toggle().getAttribute('aria-expanded')).toBe('true');
     expect(screen.getByRole('complementary', { name: 'Settings' })).toBeTruthy();
     expect(window.localStorage.getItem(CMS_EDITOR_SETTINGS_STORAGE_KEY)).toBe('0');
+  });
+});
+
+describe('CmsContentEditorLayout — the default follows the room there is', () => {
+  it('starts collapsed where the panel would sit above the canvas, so the builder is on the first screen', () => {
+    withViewportWidth(NARROW);
+    renderWithI18n(<Harness />, bundle);
+
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+    expect(toggle().textContent).toContain('Show settings');
+    expect(screen.queryByRole('complementary', { name: 'Settings' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Canvas' })).toBeTruthy();
+  });
+
+  it('does not treat the old 1536px breakpoint as room enough', () => {
+    expect(CMS_EDITOR_TWO_COLUMN_MIN_WIDTH).toBeGreaterThan(1536);
+    withViewportWidth(1536);
+    renderWithI18n(<Harness />, bundle);
+
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('starts open exactly at the two-column width', () => {
+    withViewportWidth(CMS_EDITOR_TWO_COLUMN_MIN_WIDTH);
+    renderWithI18n(<Harness />, bundle);
+
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('lets a remembered choice win over the width, both ways', () => {
+    withViewportWidth(NARROW);
+    window.localStorage.setItem(CMS_EDITOR_SETTINGS_STORAGE_KEY, '1');
+    const first = renderWithI18n(<Harness />, bundle);
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    first.unmount();
+
+    withViewportWidth(WIDE);
+    window.localStorage.setItem(CMS_EDITOR_SETTINGS_STORAGE_KEY, '0');
+    renderWithI18n(<Harness />, bundle);
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('still opens for a new entity on a narrow screen: name and scope come before the canvas', () => {
+    withViewportWidth(NARROW);
+    renderWithI18n(<Harness isNew />, bundle);
+
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('still opens on reveal() on a narrow screen, without recording a choice', () => {
+    withViewportWidth(NARROW);
+    renderWithI18n(<Harness />, bundle);
+    expect(toggle().getAttribute('aria-expanded')).toBe('false');
+
+    act(() => panel?.reveal());
+
+    expect(toggle().getAttribute('aria-expanded')).toBe('true');
+    expect(window.localStorage.getItem(CMS_EDITOR_SETTINGS_STORAGE_KEY)).toBeNull();
+  });
+
+  it('places the panel beside the builder only from the two-column width', () => {
+    const { container } = renderWithI18n(<Harness />, bundle);
+    const grid = container.querySelector('[data-settings-open="true"]');
+
+    expect(grid?.className).toContain(`min-[${CMS_EDITOR_TWO_COLUMN_MIN_WIDTH}px]:grid-cols-`);
+    expect(grid?.className).not.toContain('2xl:');
   });
 });
