@@ -1,5 +1,9 @@
 import type { Redis } from 'ioredis';
-import type { CacheNamespaceDto } from '@endora-commerce/contracts';
+import {
+  CMS_STOREFRONT_CACHE_TAGS,
+  MEGAMENU_STOREFRONT_CACHE_TAG,
+  type CacheNamespaceDto,
+} from '@endora-commerce/contracts';
 import {
   inProcessCaches,
   type InProcessCacheRegistry,
@@ -38,6 +42,15 @@ interface CacheNamespace {
   label: string;
   description: string;
   patterns: string[];
+  /**
+   * The storefront Data Cache tags that hold a second copy of this namespace's
+   * content, when the storefront keeps one. Clearing Redis alone leaves that
+   * copy standing for its own time window, so an operator who cleared `cms`
+   * still read the old page — the reason the screen appeared to do nothing.
+   * The names come from the vocabulary both sides import; only the namespaces
+   * whose tags are published there are listed.
+   */
+  storefrontTags?: readonly string[];
 }
 
 export const CACHE_NAMESPACES: readonly CacheNamespace[] = [
@@ -64,12 +77,19 @@ export const CACHE_NAMESPACES: readonly CacheNamespace[] = [
     label: 'CMS',
     description: 'Storefront CMS pages, blocks and hook content.',
     patterns: ['cms:v1:*'],
+    storefrontTags: [
+      CMS_STOREFRONT_CACHE_TAGS.pages,
+      CMS_STOREFRONT_CACHE_TAGS.pageIndex,
+      CMS_STOREFRONT_CACHE_TAGS.blocks,
+      CMS_STOREFRONT_CACHE_TAGS.hooks,
+    ],
   },
   {
     key: 'megamenu',
     label: 'Mega menu',
     description: 'Resolved storefront mega-menu trees.',
     patterns: ['megamenu:v1:*'],
+    storefrontTags: [MEGAMENU_STOREFRONT_CACHE_TAG],
   },
   {
     key: 'dictionaries',
@@ -121,6 +141,13 @@ export class CacheAdminService {
     private readonly redis?: Redis,
     /** Injectable so a test does not clear this process's real caches. */
     private readonly caches: InProcessCacheRegistry = inProcessCaches,
+    /**
+     * Asks the storefront to drop Data Cache entries by tag. Best-effort by
+     * contract — the composition passes `StorefrontRevalidator.revalidate`,
+     * which logs and swallows — and absent in a composition with no storefront
+     * to tell.
+     */
+    private readonly revalidateStorefront?: (tags: string[]) => Promise<void>,
   ) {}
 
   get enabled(): boolean {
@@ -154,6 +181,10 @@ export class CacheAdminService {
       cleared.push({ key: ns.key, deletedKeysCount: deleted });
       totalDeletedKeys += deleted;
     }
+    // After every Redis namespace is clear, and in one request: the storefront
+    // answers by refetching, and a refetch must find nothing old to re-cache.
+    const tags = [...new Set(wanted.flatMap((ns) => ns.storefrontTags ?? []))];
+    if (tags.length > 0) await this.revalidateStorefront?.(tags);
     return { cleared, totalDeletedKeys };
   }
 

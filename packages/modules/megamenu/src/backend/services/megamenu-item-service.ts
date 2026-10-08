@@ -7,7 +7,7 @@ import {
   type PutItemsRequest,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import type { MegamenuCache } from './megamenu-cache.js';
+import type { MegamenuCacheInvalidation } from './megamenu-invalidator.js';
 import type { MegamenuService } from './megamenu-service.js';
 import { validateTarget } from './target-validator.js';
 import type { MegamenuCrossModulePorts } from './cross-module-ports.js';
@@ -45,7 +45,7 @@ export class MegamenuItemService {
     private readonly emFactory: () => EntityManager,
     private readonly menuService: MegamenuService,
     private readonly ports: MegamenuCrossModulePorts,
-    private readonly cache?: MegamenuCache,
+    private readonly cache?: MegamenuCacheInvalidation,
   ) {}
 
   async setTree(menuId: string, body: PutItemsRequest): Promise<SetTreeResult> {

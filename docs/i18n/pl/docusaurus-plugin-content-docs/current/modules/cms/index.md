@@ -193,10 +193,34 @@ cms:v1:hook:<code>:<channel>:<language>
 Unieważnianie następuje przy każdym zapisie strony, bloku, szablonu lub hooka:
 
 - Zapis strony → usuwa `cms:v1:page:<slug>:*` dla każdego sluga przypisanego do strony.
-- Zapis bloku → usuwa klucze bloku i wszystkie klucze stron (nie śledzimy jeszcze, które strony
-  osadzają który blok; w skali platformy usuwanie całości jest akceptowalne).
+- Zapis bloku → usuwa klucze bloku oraz wszystkie klucze stron i hooków (nie śledzimy jeszcze,
+  które strony i hooki osadzają który blok; w skali platformy usuwanie całości jest akceptowalne).
 - Zapis szablonu → usuwa wszystkie klucze w przestrzeni CMS.
 - Zapis hooka albo przypięcia → usuwa klucze hooka.
+
+### Pamięć podręczna storefrontu
+
+Storefront przechowuje drugą kopię każdego odczytu CMS w Data Cache Next.js przez 60 sekund,
+oznaczoną tagami z `CMS_STOREFRONT_CACHE_TAGS` w `@endora-commerce/contracts`. Samo usunięcie
+kluczy z Redis pozostawiłoby tę kopię, dlatego po zatwierdzeniu zapisu i usunięciu kluczy z Redis
+moduł publikuje na EventBus zdarzenie `cms.content_changed.v1` i sam na nie odpowiada, wysyłając
+odpowiednie tagi do `/api/revalidate` storefrontu:
+
+| Zapis | Odświeżane tagi |
+| --- | --- |
+| Strona | `cms:page:<slug>` dla każdego sluga strony, `cms:page-index` |
+| Blok | `cms:block:<code>`, `cms:page`, `cms:hook` |
+| Szablon | `cms:page` |
+| Hook albo przypięcie | `cms:hook:<code>` |
+
+Zapisana strona jest więc widoczna przy następnym żądaniu. Odświeżanie wymaga zmiennych
+`STOREFRONT_BASE_URL` i `REVALIDATE_SECRET` po stronie backendu oraz tego samego sekretu po stronie
+storefrontu; bez nich jest pomijane, a zabezpieczeniem pozostaje okno 60 sekund. Działa w trybie
+best-effort — niedostępny storefront jest odnotowywany w logu i nigdy nie powoduje błędu zapisu.
+
+Inny moduł, który przechowuje treść CMS wewnątrz własnej odpowiedzi, subskrybuje to samo zdarzenie
+przez `ctx.subscribe`; robi tak `megamenu` dla bloków osadzanych w menu. Ładunek zdarzenia to
+`CmsContentChange`: rodzaj (`page`, `block`, `template`, `hook`) oraz zmienione slugi lub kody.
 
 Cel wydajnościowy: odczyt strony z 5 osadzonymi blokami i 3 osadzonymi szablonami trwa
 &lt; 200 ms p95 bez pamięci podręcznej, a z nią &lt; 5 ms.
