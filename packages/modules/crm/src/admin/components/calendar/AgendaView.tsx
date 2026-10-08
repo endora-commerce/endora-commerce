@@ -65,7 +65,7 @@ export function AgendaView(props: AgendaViewProps): ReactNode {
             <ul className="m-0 list-none space-y-1.5 p-0">
               {entries.map((entry) => (
                 <li key={entry.id}>
-                  <EventChip entry={entry} variant="row" />
+                  <EventChip entry={entry} variant="agenda" />
                 </li>
               ))}
             </ul>

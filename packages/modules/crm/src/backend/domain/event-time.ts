@@ -103,8 +103,8 @@ export type EventWhenLanguage = 'en-US' | 'pl-PL';
 /**
  * When an Event starts, in words that need no browser and in the language of
  * whoever is told (owner ruling of 2026-10-08): the date and the time **in the
- * Event's own zone**, with the zone named beside them — "8 października 2026,
- * 18:42 (Europe/Warsaw)", "October 8, 2026, 6:42 PM (Europe/Warsaw)" — and the
+ * Event's own zone**, with the zone named beside them — "October 8, 2026,
+ * 6:42 PM (Europe/Warsaw)", and the Polish of it for a Polish reader — and the
  * date alone for an all-day one: a date is the same date for every reader
  * (FR-131), so a zone beside it would say something untrue.
  *

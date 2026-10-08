@@ -33,9 +33,11 @@ export interface EventChipProps {
   /**
    * `compact` — one line, for a month cell and the all-day row;
    * `block` — fills the box the time grid gives it;
-   * `row` — a full-width row of the agenda, 44 px tall.
+   * `agenda` — a full-width line of the agenda, 44 px tall. (Not "row": the design system
+   * declares a `row` class namespace, and `check:class-vocabulary` reads the word beside
+   * the classes as one of its classes that no stylesheet defines.)
    */
-  variant: 'compact' | 'block' | 'row';
+  variant: 'compact' | 'block' | 'agenda';
   /** The entry was cut at local midnight and goes on after it. */
   continues?: boolean;
   /**
@@ -88,11 +90,11 @@ export function EventChip(props: EventChipProps): ReactNode {
         'hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
         variant === 'compact' && 'flex min-h-6 items-center gap-1 px-1.5 text-xs leading-6',
         variant === 'block' && 'h-full min-h-6 px-1.5 py-0.5 text-xs leading-4',
-        variant === 'row' && 'flex min-h-11 items-center gap-3 px-3 py-2 text-sm',
+        variant === 'agenda' && 'flex min-h-11 items-center gap-3 px-3 py-2 text-sm',
         className,
       )}
     >
-      {variant === 'row' ? (
+      {variant === 'agenda' ? (
         <>
           <span className="w-20 shrink-0 tabular-nums text-muted-foreground">
             {time ?? t('calendar.allDay')}
