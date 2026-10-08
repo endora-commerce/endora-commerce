@@ -370,8 +370,9 @@ that a second reader moves `ADMIN_BASE_URL` to the platform rather than declarin
 and that move touches `mfa`'s manifest, its ledger shard and the platform's declaration —
 none of them rows of this page (`research.md` N-CAL15 (4)). So CRM's manifest declares no
 `env`, there is no `module-environment-inputs/crm.ts`, the e-mail's `opportunity.url`
-variable is not declared, and **the reminder e-mail carries no link**. The decision is the
-owner's (`spec.md` § Clarifications, OP-2). The original text is kept below as the design
+variable is not declared, and **the reminder e-mail carries no link**. The owner accepted
+that for now on 2026-10-08; the link is tracked as GitHub issue #185 (`spec.md` §
+Clarifications, OP-2). The original text is kept below as the design
 that was not carried out.
 
 | # | File | Change |

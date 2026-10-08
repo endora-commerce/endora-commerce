@@ -802,14 +802,16 @@ The dialog, for adding and editing:
 | **Date** | A new event opens on today. |
 | **From**, **To** | A new event is offered from the next whole hour, for one hour. Moving *From* moves *To* by the same amount. An end that is not after the start is refused before anything is sent. |
 | **Description** | Optional. |
-| **Remind me** | Off by default. |
-| **Remind at** | Shown when *Remind me* is ticked, already set to the event's start — or 09:00 on its date for an all-day event. It follows the start until you change it by hand. A time that is not in the future is refused. |
+| **Set a reminder** | Off by default. The hint under it says who is reminded. |
+| **Remind at** | Shown when *Set a reminder* is ticked, already set to the event's start — or 09:00 on its date for an all-day event. It follows the start until you change it by hand. A time that is not in the future is refused. |
 
 When an event is edited, a reminder time you did not touch is not judged
 against the clock again, so an event whose reminder has already gone out can
 still be renamed. Saving a **different** reminder time, in the future, arms the
-reminder again: it is sent once more, at the new time. Unticking *Remind me*,
-or deleting the event, means nothing is sent.
+reminder again: it is sent once more, at the new time. Unticking *Set a
+reminder*, moving the reminder to another time or deleting the event stops the
+reminder that was pending — even in the minute it is due, when the platform
+has already picked it up for sending.
 
 ### Who is reminded, and how
 
@@ -819,23 +821,31 @@ is decided at the moment it is due:**
 1. the person the opportunity is assigned to **at that moment** — not the
    person it was assigned to when the event was added;
 2. otherwise the person who added the event. That is the case when the
-   opportunity has no assignee, and also when the assignee has been
-   deactivated or can no longer see the opportunity's organization;
-3. otherwise nobody. The same two tests apply to the person who added the
-   event; when neither person passes them, nothing is sent and the event says
-   that there was nobody to remind.
+   opportunity has no assignee, and also when the assignee does not qualify;
+3. otherwise nobody: nothing is sent, and the event says that there was nobody
+   to remind.
 
-So *Remind me* reminds whoever holds the opportunity when the time comes,
-which is not necessarily the person who ticked it.
+A person qualifies when all three of these hold at that moment: their account
+is **active**, their role holds **`crm:read`**, and they can **see the
+opportunity's organization**. The same three tests apply to the assignee and
+to the person who added the event — somebody who could no longer open the
+opportunity is not told what is planned on it.
+
+So a reminder reaches whoever holds the opportunity when the time comes, which
+is not necessarily the person who ticked *Set a reminder*.
 
 The reminder then goes out in up to two ways:
 
 - **The notification bell — always.** The entry names the event, when it
   starts and the opportunity's number — *Reminder: Call back about the offer,
-  2026-10-12 10:00 Europe/Warsaw — opportunity OPP-000042* — in the reader's
-  own language, and opens the opportunity on **Events** with that event
-  marked. The time is written in the time zone the event was saved from, with
-  the zone's name; an all-day event shows its date alone.
+  October 12, 2026, 10:00 AM (Europe/Warsaw) — opportunity OPP-000042* — and
+  opens the opportunity on **Events** with that event marked. The date and
+  time are written in the recipient's language — the Polish month name and a
+  24-hour time for somebody whose Admin UI is in Polish — and in the time
+  zone the event was saved from, which is named beside them; an all-day event
+  shows its date alone. They are worded when the reminder is sent, so somebody
+  who changes their language afterwards keeps the date as it was written. A
+  line break in the event's name is said as a space.
 - **An e-mail in addition, when the person is not online.** Somebody who is
   online gets the bell entry only.
 
@@ -907,9 +917,9 @@ What the Events tab says about each reminder:
 | *Reminder for … is held while the opportunity is closed* | Nothing is sent until the opportunity is reopened. |
 | *Reminder sent … — notification bell* (and, or instead, *e-mail*) | Delivered, when, and by which of the two ways. |
 | *Reminder for … was missed — it was not sent* | It was found more than 24 hours late. |
-| *Reminder for …: there was nobody to remind* | Neither the assignee nor the person who added the event could be reminded. |
+| *Reminder for …: there was nobody to remind* | Neither the assignee nor the person who added the event qualified. |
 | *Reminder for … could not be delivered* | The bell is switched off and no e-mail went out. |
-| *Reminder for … was interrupted and may not have been delivered* | The delivery was cut short and is not repeated. |
+| *Reminder for … was interrupted and may not have been delivered* | The process that was sending it stopped before it could record the result. It is not repeated. |
 
 ### Closed opportunities
 
@@ -970,7 +980,9 @@ Events tab.
 - An opportunity the caller may not see answers 404
   `CRM_OPPORTUNITY_NOT_FOUND` on all four routes, exactly as one that does not
   exist; an `:eventId` that is not an event of that opportunity answers 404
-  `NOT_FOUND`. A malformed body answers 400 `VALIDATION_FAILED`. A well-formed
+  `NOT_FOUND`. A malformed body answers 400 `VALIDATION_FAILED` — and so does
+  a `startsAt`, `endsAt` or `remindAt` outside `0001-01-03T00:00:00Z` …
+  `9999-12-30T00:00:00Z`. A well-formed
   event the rules refuse answers **422** `VALIDATION_FAILED` with
   `details.field` and `details.rule`: `ends_before_start`, `spans_days`,
   `not_whole_day`, `unknown_time_zone` or `reminder_in_past`.
@@ -1062,7 +1074,8 @@ back to today; while it loads, and when loading fails, it says that too, with
 ### Limits
 
 - One read covers **at most 45 days** — enough for the six weeks of a month
-  with a day to spare on each side. A wider range answers 400.
+  with a day to spare on each side. A wider range answers 400, and so does a
+  `from` or a `to` outside `0001-01-03T00:00:00Z` … `9999-12-30T00:00:00Z`.
 - One read returns **at most 500 events**, the first 500 by start time. When
   there were more, the Calendar says that the range is incomplete and suggests
   a shorter range or *Mine*.
@@ -1984,7 +1997,8 @@ the person may see, and is no more than a name to choose by.
 The currencies offered when an opportunity is created are the ones the active
 sales channels sell in.
 
-**Events and the calendar have no permission of their own.** What a person's
+**Events and the calendar have no permission of their own.** `crm:read` is
+also what a person must hold to **receive** an event's reminder. What a person's
 calendar shows — everybody's events or only their own — follows from whether
 they may see every organization or a set of them, not from a code (see *The
 calendar*).

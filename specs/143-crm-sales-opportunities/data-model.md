@@ -25,9 +25,11 @@ Request panel reads `crm_opportunity_links`.
 are in `backend/src/db/migrations-registry.generated.ts`; the names carry the timestamps
 `migration:new` wrote and were not chosen.
 
-**A third migration is planned, not built (2026-10-08, User Stories 21 and 22)**: one new
+**A further migration, `20261008T135701_crm_opportunity_events.ts`, is built (2026-10-08,
+User Stories 21 and 22)** — the module's fourth, after
+`20261007T180600_crm_opportunity_reference_admin_user.ts`: one new
 table, `crm_opportunity_events`, with its entity class — § *`crm_opportunity_events`*
-below. It is scaffolded with `pnpm --filter backend run migration:new -- --module crm --name
+below. It was scaffolded with `pnpm --filter backend run migration:new -- --module crm --name
 opportunity_events`; no number or timestamp is chosen here. It is the only migration and the
 only entity of Phases 24 – 27, both in the backend track, so one branch regenerates the two
 registries and nothing collides.

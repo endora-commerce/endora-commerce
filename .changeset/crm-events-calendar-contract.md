@@ -18,6 +18,11 @@ this release.
   and an optional `remindAt`. The schema refuses what needs neither a clock nor zone data: an
   end that is not after the start, and a span over `OPPORTUNITY_EVENT_MAX_SPAN_HOURS` (25).
   The update is the same members, all optional, and strict.
+- **Every instant of these shapes** — `startsAt`, `endsAt`, `remindAt`, and `from` and `to` of
+  `CalendarEventsQuerySchema` — must lie in `0001-01-03T00:00:00Z` … `9999-12-30T00:00:00Z`, the
+  end excluded. A four-digit year as written is not enough: an offset carries
+  `9999-12-31T22:00:00-14:00` into the year 10000, which PostgreSQL refuses. Outside the range
+  the schema refuses, so the routes answer 400.
 - `OpportunityEventSchema` — the stored Event, with `allDayDate` computed by the server and a
   `reminder` of `{ at, state, handledAt, channels }` or `null`.
   `opportunityEventReminderStateSchema` names the seven states and

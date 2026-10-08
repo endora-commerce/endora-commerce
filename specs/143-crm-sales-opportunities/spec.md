@@ -6,7 +6,8 @@
 `feat/143-crm` and amended on 2026-10-06 to what was built (see *Clarifications* §
 *Amendments after implementation*). Tasks still open are listed in `tasks.md`.
 **User Stories 21 and 22 (Events, reminders, the Calendar) were added on 2026-10-08 and are
-built** (`tasks.md` Phases 24 – 26; Phase 27, the join, is open). Their open questions, each
+built and independently reviewed** (`tasks.md` Phases 24 – 26 and 28; of Phase 27, the join,
+T380, T382, T383 and T385 are open). Their open questions, each
 with the default applied, and what the build did differently from this text, are in
 *Clarifications* § *Events and the Calendar against the build*.
 **Input**: Owner's requirements for a CRM module (`crm`) on Endora Commerce: Sales
@@ -1566,7 +1567,7 @@ default was applied so the stories can be built; **every one of these is the own
 confirm or reverse**, and none blocks implementation. The reasoning and the code read for
 each are in `research.md`, the note named.
 
-- **OQ-1 `[NEEDS CLARIFICATION — owner]` — What "offline" means.** *Default applied*: a
+- **OQ-1 `[CONFIRMED — owner, 2026-10-08]` — What "offline" means.** *Default applied*: a
   person is online when the Admin UI made a request for them in the last five minutes —
   which, because the bell itself asks every 30 seconds, means "has the Admin UI open in a
   browser". The bell entry is always written; the e-mail is added when they are not online
@@ -1574,14 +1575,14 @@ each are in `research.md`, the note named.
   *Alternative*: send the e-mail when the bell entry is still unread N minutes after it was
   written — closer to "did they actually see it", later by N minutes, and a larger change
   to the notification capability (N-CAL6).
-- **OQ-2 `[NEEDS CLARIFICATION — owner]` — "Bell *or* e-mail" was built as "bell, *and*
+- **OQ-2 `[CONFIRMED — owner, 2026-10-08]` — "Bell *or* e-mail" was built as "bell, *and*
   e-mail when offline".** *Default applied*: an offline person gets both, so that an
   instance with no working e-mail never loses a reminder silently. *Alternative*: strictly
   one or the other (N-CAL6).
-- **OQ-3 `[NEEDS CLARIFICATION — owner]` — Who is reminded when the Opportunity has no
+- **OQ-3 `[CONFIRMED — owner, 2026-10-08]` — Who is reminded when the Opportunity has no
   assignee.** *Default applied*: the person who created the Event; if they cannot be, nobody
   (FR-138). *Alternative*: nobody at all — "to the person assigned" read strictly (N-CAL4).
-- **OQ-4 `[NEEDS CLARIFICATION — owner]` — "A Sales Rep sees only their own
+- **OQ-4 `[CONFIRMED — owner, 2026-10-08]` — "A Sales Rep sees only their own
   Opportunities' Events."** *Default applied*: "their own" is *assigned to them*; a Sales
   Rep's Calendar has no way to show a colleague's Opportunities, although the Sales Rep can
   open those Opportunities — and read their Events tab — when they share an Organization.
@@ -1616,8 +1617,24 @@ each are in `research.md`, the note named.
 A product-owner audit compared FR-130 – FR-152 and the nine questions above with the code at
 `4e3d7ad14` (the two tracks joined). **Every one of OQ-1 – OQ-9 is built with the default
 stated above; none was answered differently by the build.** Where the build differs from the
-text, the text was corrected in place and the difference is listed here. Three points are
-the owner's and are **open** — recorded, not resolved.
+text, the text was corrected in place and the difference is listed here. An independent
+review followed the same day (`tasks.md` Phase 28, `research.md` N-CALR1 – N-CALR12) and the
+owner ruled on several points; both are recorded below. **One point is still open: OP-3.**
+
+**Owner rulings, 2026-10-08** (after the audit and the review):
+
+- The bell always, and an e-mail as well when the recipient is offline — **confirmed**
+  (OQ-1, OQ-2).
+- The Event's creator is reminded when no assignee qualifies — **confirmed** (OQ-3, EC-6).
+- The Calendar's scope follows Organization reach, with no new permission — **confirmed**
+  (OQ-4).
+- The reminder e-mail without a link, for now — **confirmed** (EC-2, OP-2; GitHub issue #185
+  tracks the link).
+- The dialog's checkbox reads *Set a reminder* / *Ustaw przypomnienie* — it said *Remind me*,
+  which named the wrong person (EC-7).
+- A reminder says when in the recipient's language (EC-8).
+
+OQ-5 – OQ-9 were not part of these answers and stand with their defaults (`tasks.md` T385).
 
 Built differently, text amended:
 
@@ -1630,8 +1647,11 @@ Built differently, text amended:
   `ADMIN_BASE_URL`, which the `mfa` capability owns and whose own record says a second reader
   moves it to the platform rather than declaring it again (`research.md` N-CAL15 (4)). That
   move is outside this feature, so task T339 stopped as it was told to: nothing was declared,
-  and the e-mail names the Opportunity by its number. The bell entry links. **Open — OP-2.**
-- **EC-3 — a seventh reminder state, *interrupted*** (FR-141).
+  and the e-mail names the Opportunity by its number. The bell entry links. **Accepted by
+  the owner for now — OP-2.**
+- **EC-3 — a seventh reminder state, *interrupted*** (FR-141). Since the review it is left
+  only on a reminder whose sending process died; a reminder that was delivered never reads
+  so, however long the delivery took (N-CALR3).
 - **EC-4 — a reminder held on a closed Opportunity for more than 24 hours reads *missed*, not
   *paused*, from then on** — even while the Opportunity is still closed (`research.md`
   N-CAL15 (h)). FR-140 and User Story 21 scenario 8 already say it is not sent; this is what
@@ -1640,31 +1660,56 @@ Built differently, text amended:
   edit is the editor's browser: an Event that is one day where it was planned can be refused
   when its time is changed from a browser far away (`research.md` N-CAL15 (e)). FR-131 does
   not say whose day; this is the reading built.
-- **EC-6 — whoever added the Event is also reminded when the assignee does not qualify**
-  (deactivated, or no longer reaching the Organization), not only when nobody is assigned.
-  FR-138's first sentence names only the unassigned case; the *Edge Cases* entry "A reminder
-  falls due while the assignee cannot open the Opportunity" already says this, and the build
-  follows it.
+- **EC-6 — whoever added the Event is also reminded when the assignee does not qualify**,
+  not only when nobody is assigned. FR-138's first sentence names only the unassigned case;
+  the *Edge Cases* entry "A reminder falls due while the assignee cannot open the
+  Opportunity" already says this, and the build follows it. **Since the review, to qualify
+  is three tests, for the assignee and the creator alike**: an active account, holding
+  "View sales opportunities" (`crm:read`), and reaching the Opportunity's Organization
+  (N-CALR1) — FR-138's "may no longer see the Opportunity" read in full. Confirmed by the
+  owner.
+- **EC-7 — the checkbox is *Set a reminder***, and its hint says that with nobody assigned
+  the Event's author is reminded (owner ruling; N-CALR10). User Story 21 scenario 3 is
+  worded accordingly.
+- **EC-8 — a reminder says when in the recipient's language**, in the Event's own time zone,
+  named: "October 8, 2026, 6:42 PM (Europe/Warsaw)" or "8 października 2026, 18:42
+  (Europe/Warsaw)"; the date alone for an all-day Event (owner ruling; N-CALR11). It is
+  worded when the reminder is sent, so an entry already written keeps its language. This
+  replaces the language-neutral form OQ-8's default was first built with; OQ-8 itself —
+  whose zone — is unchanged.
+- **EC-9 — an Event that is deleted, or whose reminder is removed or moved, is not reminded
+  of even when the platform had already taken the reminder up for sending** (N-CALR2).
+  FR-137 said so; the first build did not hold it in that last minute.
+- **EC-10 — a date or time of an Event, of a reminder or of a Calendar range outside the
+  years the platform can store is refused** (0001-01-03 … 9999-12-30; N-CALR4). No
+  requirement names it; it was an internal error before the review.
+- **EC-11 — a reminder says an Event's name on one line**, and a very long name is shortened
+  only in the bell entry's stored English fallback, never in what the reader is shown
+  (N-CALR5, N-CALR6).
 
-Open for the owner:
+The three points the audit raised, and where each stands:
 
-- **OP-1 `[NEEDS CLARIFICATION — owner]` — CRM now cannot be installed without the
-  transactional e-mail capability.** The manifest lists `transactional_emails` among the
-  module's hard dependencies, as `contracts/events-and-ports.md` §5a planned. The
-  requirement, however, treats the e-mail as optional at run time (FR-139: an e-mail that
-  cannot be sent never costs the bell entry), and the code tolerates an absent sender. That
-  capability cannot be switched off by an operator, so no switch is held — but an instance
-  composed without it cannot have CRM. Whether the edge should be a hard one, or one the
-  module degrades without like the notification bell, is not decided here.
-- **OP-2 `[NEEDS CLARIFICATION — owner]` — a link in the reminder e-mail** (EC-2): schedule
-  the move of `ADMIN_BASE_URL` to the platform, or accept the e-mail without a link.
-- **OP-3 `[NEEDS CLARIFICATION — owner]` — an instance with no mail server reports the
+- **OP-1 — closed: the hard dependency on the transactional e-mail capability is kept.**
+  The audit asked whether CRM should degrade without that capability, as it does without
+  the notification bell, since FR-139 treats the e-mail as optional. The review judged that
+  it should not (N-CALR7): that capability cannot be switched off and is part of every
+  instance, so there is no state without it to degrade into, and a softer edge would promise
+  one. What is optional is each **message** — no sender, no transport, the e-mail switched
+  off by the operator, a transport that fails — and each of those costs the e-mail alone,
+  never the bell entry.
+- **OP-2 — closed for now: the reminder e-mail has no link** (EC-2). Accepted by the owner on
+  2026-10-08; adding it needs `ADMIN_BASE_URL` moved to the platform and is tracked as
+  GitHub issue #185. T339 stays stopped.
+- **OP-3 `[NEEDS CLARIFICATION — owner]` — open: an instance with no mail server reports the
   e-mail as sent.** With no SMTP connection the platform's mailer writes the message to the
   server's log and answers "sent" (`research.md` N-CAL15 (1)), so the *Events* tab shows
   "sent — notification bell and e-mail" for a reminder whose e-mail reached nobody. The bell
   entry is written, so FR-139's "MUST NOT cost the bell entry" holds; FR-141's "by which of
-  the two ways" is untrue in that one case. The cause is in the platform's e-mail
-  capability, not in CRM.
+  the two ways" is untrue in that one case. The review looked for a repair inside CRM and
+  found that none is honest (N-CALR12): CRM is told "sent" and has no other signal. It needs
+  a change in the platform's two e-mail capabilities — an outcome that says "written to the
+  log, delivered to nobody" — after which the tab says *bell* with no change in CRM. Not
+  scheduled; the module page states the limitation.
 
 ## Assumptions
 
@@ -1760,5 +1805,5 @@ taken; the reasoning is in `research.md`.
 Orders; Quote Requests; Organizations (including Sales-Rep assignment); customer accounts;
 Products (catalog); Admin UI users and roles; Sales Channels; the media library; Settings; the
 audit trail; Admin notifications; custom fields; webhooks; transactional e-mail and admin
-sessions (User Story 21's reminder). *(Transactional e-mail is a hard dependency as built —
-Clarifications, OP-1.)*
+sessions (User Story 21's reminder). *(Transactional e-mail is a hard dependency, kept after
+review — Clarifications, OP-1.)*

@@ -829,15 +829,17 @@ Okno dodawania i edycji:
 | **Data** | Nowe wydarzenie otwiera się z dzisiejszą datą. |
 | **Od**, **Do** | Nowe wydarzenie dostaje propozycję: od najbliższej pełnej godziny, na jedną godzinę. Zmiana pola *Od* przesuwa *Do* o tyle samo. Koniec, który nie jest późniejszy niż początek, jest odrzucany, zanim cokolwiek zostanie wysłane. |
 | **Opis** | Opcjonalny. |
-| **Przypomnij mi** | Domyślnie odznaczone. |
-| **Data i godzina przypomnienia** | Pojawia się po zaznaczeniu *Przypomnij mi*, od razu ustawiona na początek wydarzenia — albo na 9:00 w jego dniu, gdy wydarzenie trwa cały dzień. Podąża za początkiem, dopóki nie zmienisz jej ręcznie. Czas, który nie jest w przyszłości, jest odrzucany. |
+| **Ustaw przypomnienie** | Domyślnie odznaczone. Podpowiedź pod polem mówi, kto dostanie przypomnienie. |
+| **Data i godzina przypomnienia** | Pojawia się po zaznaczeniu *Ustaw przypomnienie*, od razu ustawiona na początek wydarzenia — albo na 9:00 w jego dniu, gdy wydarzenie trwa cały dzień. Podąża za początkiem, dopóki nie zmienisz jej ręcznie. Czas, który nie jest w przyszłości, jest odrzucany. |
 
 Przy edycji wydarzenia czas przypomnienia, którego nie ruszono, nie jest
 ponownie porównywany z zegarem, więc wydarzeniu, którego przypomnienie już
 wysłano, nadal można zmienić nazwę. Zapisanie **innego** czasu przypomnienia,
 w przyszłości, uzbraja przypomnienie od nowa: zostanie wysłane jeszcze raz, o
-nowej porze. Odznaczenie *Przypomnij mi* albo usunięcie wydarzenia oznacza, że
-nic nie zostanie wysłane.
+nowej porze. Odznaczenie *Ustaw przypomnienie*, przeniesienie przypomnienia
+na inną porę albo usunięcie wydarzenia zatrzymuje oczekujące przypomnienie —
+nawet w minucie, w której przypada jego termin, gdy platforma już je pobrała
+do wysyłki.
 
 ### Kto dostaje przypomnienie i jak
 
@@ -847,24 +849,32 @@ rozstrzyga się w chwili, gdy przypada jego termin:**
 1. osoba, do której szansa jest przypisana **w tej chwili** — a nie ta, do
    której była przypisana, gdy dodawano wydarzenie;
 2. w przeciwnym razie osoba, która dodała wydarzenie. Tak jest, gdy szansa nie
-   ma handlowca, a także wtedy, gdy handlowiec został dezaktywowany albo nie
-   widzi już organizacji szansy;
-3. w przeciwnym razie nikt. Te same dwa warunki dotyczą osoby, która dodała
-   wydarzenie; gdy żadna z dwóch osób ich nie spełnia, nic nie jest wysyłane,
-   a przy wydarzeniu widać, że nie było kogo powiadomić.
+   ma handlowca, a także wtedy, gdy handlowiec nie spełnia warunków;
+3. w przeciwnym razie nikt: nic nie jest wysyłane, a przy wydarzeniu widać, że
+   nie było kogo powiadomić.
 
-*Przypomnij mi* przypomina więc temu, kto prowadzi szansę, gdy nadejdzie
-termin — niekoniecznie osobie, która zaznaczyła to pole.
+Osoba spełnia warunki, gdy w tej chwili zachodzą wszystkie trzy: jej konto
+jest **aktywne**, jej rola ma uprawnienie **`crm:read`** i **widzi ona
+organizację szansy**. Te same trzy warunki dotyczą handlowca i osoby, która
+dodała wydarzenie — kto nie mógłby już otworzyć szansy, nie dowiaduje się, co
+w niej zaplanowano.
+
+Przypomnienie trafia więc do tego, kto prowadzi szansę, gdy nadejdzie termin
+— niekoniecznie do osoby, która zaznaczyła *Ustaw przypomnienie*.
 
 Przypomnienie trafia do odbiorcy najwyżej dwiema drogami:
 
 - **Dzwonek powiadomień — zawsze.** Wpis podaje nazwę wydarzenia, jego
   początek i numer szansy — *Przypomnienie: Oddzwonić w sprawie oferty,
-  2026-10-12 10:00 Europe/Warsaw — szansa sprzedażowa OPP-000042* — w języku
-  czytającej osoby i otwiera szansę na karcie **Wydarzenia** z zaznaczonym
-  tym wydarzeniem. Godzina jest podana w strefie czasowej, w której zapisano
-  wydarzenie, razem z nazwą strefy; przy wydarzeniu całodniowym jest sama
-  data.
+  12 października 2026, 10:00 (Europe/Warsaw) — szansa sprzedażowa
+  OPP-000042* — i otwiera szansę na karcie **Wydarzenia** z zaznaczonym tym
+  wydarzeniem. Data i godzina są zapisane w języku odbiorcy — *October 12,
+  2026, 10:00 AM (Europe/Warsaw)* dla osoby, której Admin UI jest po
+  angielsku — i w strefie czasowej, w której zapisano wydarzenie, podanej
+  obok; przy wydarzeniu całodniowym jest sama data. Powstają w chwili wysyłki
+  przypomnienia, więc osoba, która później zmieni język, zachowuje datę w
+  dawnym zapisie. Znak nowej linii w nazwie wydarzenia jest oddawany jako
+  spacja.
 - **Dodatkowo e-mail, gdy osoba nie jest online.** Kto jest online, dostaje
   tylko wpis w dzwonku.
 
@@ -941,9 +951,9 @@ Co karta Wydarzenia mówi o każdym przypomnieniu:
 | *Przypomnienie na … jest wstrzymane, dopóki szansa jest zamknięta* | Nic nie zostanie wysłane, dopóki szansa nie zostanie ponownie otwarta. |
 | *Przypomnienie wysłane … — dzwoneczek powiadomień* (oraz, albo zamiast niego, *e-mail*) | Dostarczone: kiedy i którą z dwóch dróg. |
 | *Przypomnienie na … przepadło — nie zostało wysłane* | Znaleziono je spóźnione o więcej niż 24 godziny. |
-| *Przypomnienie na …: nie było kogo powiadomić* | Nie dało się powiadomić ani handlowca, ani osoby, która dodała wydarzenie. |
+| *Przypomnienie na …: nie było kogo powiadomić* | Ani handlowiec, ani osoba, która dodała wydarzenie, nie spełniali warunków. |
 | *Przypomnienia na … nie udało się dostarczyć* | Dzwonek jest wyłączony i żaden e-mail nie wyszedł. |
-| *Wysyłka przypomnienia na … została przerwana — mogło nie dotrzeć* | Dostarczanie zostało przerwane i nie jest powtarzane. |
+| *Wysyłka przypomnienia na … została przerwana — mogło nie dotrzeć* | Proces, który je wysyłał, zatrzymał się, zanim zapisał wynik. Wysyłka nie jest powtarzana. |
 
 ### Zamknięte szanse
 
@@ -1007,7 +1017,8 @@ jest wpisem; widać to na karcie Wydarzenia.
   czterech trasach 404 `CRM_OPPORTUNITY_NOT_FOUND`, dokładnie tak jak szansa,
   która nie istnieje; `:eventId`, który nie jest wydarzeniem tej szansy,
   odpowiada 404 `NOT_FOUND`. Niepoprawnie zbudowana treść żądania odpowiada
-  400 `VALIDATION_FAILED`. Poprawnie zbudowane wydarzenie, które odrzucają
+  400 `VALIDATION_FAILED` — tak samo jak `startsAt`, `endsAt` albo `remindAt`
+  spoza zakresu `0001-01-03T00:00:00Z` … `9999-12-30T00:00:00Z`. Poprawnie zbudowane wydarzenie, które odrzucają
   reguły, odpowiada **422** `VALIDATION_FAILED` z polami `details.field` i
   `details.rule`: `ends_before_start`, `spans_days`, `not_whole_day`,
   `unknown_time_zone` albo `reminder_in_past`.
@@ -1105,7 +1116,8 @@ dzisiejszego dnia; mówi też, że wczytuje dane i że wczytywanie się nie uda�
 
 - Jeden odczyt obejmuje **najwyżej 45 dni** — tyle, ile potrzeba na sześć
   tygodni miesiąca z zapasem dnia z każdej strony. Szerszy zakres odpowiada
-  400.
+  400, tak samo jak `from` albo `to` spoza zakresu `0001-01-03T00:00:00Z` …
+  `9999-12-30T00:00:00Z`.
 - Jeden odczyt zwraca **najwyżej 500 wydarzeń**, pierwsze 500 według
   początku. Gdy było ich więcej, Kalendarz informuje, że zakres jest
   niepełny, i proponuje krótszy zakres albo *Moje*.
@@ -2048,7 +2060,9 @@ której się wybiera.
 Waluty proponowane przy tworzeniu szansy to te, w których sprzedają aktywne
 kanały sprzedaży.
 
-**Wydarzenia i kalendarz nie mają własnego uprawnienia.** To, co pokazuje
+**Wydarzenia i kalendarz nie mają własnego uprawnienia.** Uprawnienie
+`crm:read` jest też tym, które trzeba mieć, żeby **dostać** przypomnienie o
+wydarzeniu. To, co pokazuje
 czyjś kalendarz — wydarzenia wszystkich czy tylko własne — wynika z tego, czy
 ta osoba może zobaczyć każdą organizację, czy tylko ich zbiór, a nie z kodu
 uprawnienia (zobacz *Kalendarz*).

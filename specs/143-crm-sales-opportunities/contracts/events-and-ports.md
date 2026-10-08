@@ -280,8 +280,8 @@ edge: the kernel's `AuditPort` (cradle name `auditLogService`), `commandBus`, `e
 Three names join the table of §5, each resolved with `lazyPort` like the rest — **except
 `transactionalEmailSenderAccessor`, which as built is read off the cradle per send**: it is
 a function, and `lazyPort` forwards method calls only (`research.md` N-CAL15 (a)). The hard
-edge on `transactional_emails` is recorded as an open point in `spec.md` § Clarifications,
-OP-1. All three
+edge on `transactional_emails` was questioned by the audit and is kept (`spec.md` §
+Clarifications, OP-1; `research.md` N-CALR7). All three
 owners declare themselves non-deactivatable, so each edge is a `dependencies` entry and
 none can deaden an operator's switch (`auth` is one already).
 

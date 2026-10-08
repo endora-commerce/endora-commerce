@@ -1121,7 +1121,8 @@ what it found; `[P]` means parallel inside its own track.
   **Stopped, not done** *(unticked by the product-owner audit of 2026-10-08: the box said
   done for a task whose subject does not exist)*: the premise was re-derived, the input was
   **not** declared, no ledger shard was written, and the fallback is what shipped — the
-  e-mail has no link. Open for the owner as `spec.md` § Clarifications, OP-2.
+  e-mail has no link. Accepted by the owner for now (2026-10-08); the link is GitHub issue
+  #185 — `spec.md` § Clarifications, OP-2.
 - [x] T340 [US21] `src/backend/domain/event-time.ts` — T330 green.
 - [x] T341 [US21] `src/backend/services/opportunity-event-service.ts` (the list; the three
   Commands on the Opportunity's audit object; the re-arming rule),
@@ -1265,7 +1266,11 @@ what it found; `[P]` means parallel inside its own track.
   module's page gained *Last seen*, with its Polish page and cache;
   `.changeset/crm-events-calendar-admin.md` was renamed to `crm-events-calendar.md` and is
   the one `mod-crm` entry for the feature, and `crm-events-calendar-contract.md` now speaks
-  for `contracts` and `admin-kit` only.
+  for `contracts` and `admin-kit` only. *After the review (Phase 28)*: both pages, the cache
+  and the two changesets follow the reviewed code — who qualifies for a reminder, how it
+  says when, *Set a reminder*, the bounds of an instant — and
+  `.changeset/crm-events-review-repairs.md` is folded into those two and deleted, since it
+  described repairs to something no release had shipped.
 - [ ] T382 [US21] [US22] The `quality` job's set, run the way the job runs it — not the
   five checks a brief names: `typecheck`, `lint`, `check:naming`, `check:language`,
   `check:release-intent --since origin/master`, the OpenAPI check, the read-size bands
@@ -1282,7 +1287,9 @@ what it found; `[P]` means parallel inside its own track.
   drop the assignee test under `mine`; deliver before claiming) and confirms a test reds,
   then runs the whole `test/contract/crm` and `test/integration/crm` trees — a green pull
   request does not run them (`AGENTS.md`, D-198).
-- [ ] T385 [US21] [US22] **The owner's nine questions** (OQ-1 – OQ-9) put to the owner with
+- [ ] T385 [US21] [US22] *(Partly answered on 2026-10-08 — OQ-1, OQ-2, OQ-3 and OQ-4
+  confirmed as built, `spec.md` § Clarifications; OQ-5 – OQ-9 not yet put, so the box stays
+  open.)* **The owner's nine questions** (OQ-1 – OQ-9) put to the owner with
   what reversing each default costs: OQ-5 one param; OQ-3 one branch; OQ-4 one scope value
   offered to confined callers; OQ-2 one condition; OQ-1 a change in `admin_notifications`
   and a second sweep stage; OQ-6 and OQ-7 the library decision of `plan.md`; OQ-8 a

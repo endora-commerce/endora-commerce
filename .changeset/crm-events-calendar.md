@@ -48,13 +48,26 @@ publishes in this release:
 - `GET /opportunities/:id` now counts the Events that have not ended, in `upcomingEventCount`.
 
 **Reminders.** A reminder goes, when it is due, to the person the Opportunity is assigned to at
-that moment; failing that — nobody assigned, or an assignee who is deactivated or can no longer
-reach the Organization — to the person who added the Event, under the same tests; failing both,
-to nobody. It is always written to the notification bell, and sent as an e-mail as well when
-the recipient has made no request to the Admin UI in the last five minutes, or when
+that moment; failing that — nobody assigned, or an assignee who does not qualify — to the person
+who added the Event; failing both, to nobody (`no_recipient`). To qualify, a person must be an
+active administrator, hold `crm:read`, and reach the Opportunity's Organization — the same three
+tests for both. It is always written to the notification bell, and sent as an e-mail as well
+when the recipient has made no request to the Admin UI in the last five minutes, or when
 `admin_notifications` is switched off. It is delivered at most once; while its Opportunity is
 closed or the module is switched off it waits; found more than 24 hours late it is not sent and
 is reported as `missed`.
+
+- **How it says when.** `event.when` of the e-mail and the `when` param of the bell entry are
+  worded for the one recipient, in the language of their Admin UI and in the Event's own zone:
+  `October 8, 2026, 6:42 PM (Europe/Warsaw)`, `8 października 2026, 18:42 (Europe/Warsaw)`; the
+  date alone for an all-day Event.
+- **The name, on one line.** A line break in an Event's name is said as a space, in the bell
+  sentence and in the subject of the e-mail. The bell stores a title of at most 255 characters,
+  so for a very long name the stored English sentence is cut to fit; the translated sentence
+  the reader is shown keeps the name whole.
+- **An Event deleted, or a reminder removed or moved, is not reminded of** — also when the
+  sweep had already claimed it. `interrupted` is reported only for a reminder whose sending
+  process died before recording the result; it is not sent again.
 
 Three things an operator should know before relying on it:
 
@@ -79,7 +92,8 @@ Three things an operator should know before relying on it:
 - **An "Events" tab** on the Opportunity screen, third after *Links*, its label counting the
   Events that have not ended: the list — upcoming, then past — with what became of each reminder
   in words, a calendar of that Opportunity alone, and, for a holder of `crm:write`, adding,
-  editing and deleting. `/crm/opportunities/:id?tab=events&event=<id>` — what a reminder and a
+  editing and deleting. The dialog's reminder checkbox reads *Set a reminder* / *Ustaw
+  przypomnienie*, and its hint says who is reminded. `/crm/opportunities/:id?tab=events&event=<id>` — what a reminder and a
   Calendar entry link to — marks that Event. A closed Opportunity keeps the tab and says that its
   Events are off the Calendar and its reminders held.
 - Times are shown in the browser's time zone, which the screen names, and written the way the
