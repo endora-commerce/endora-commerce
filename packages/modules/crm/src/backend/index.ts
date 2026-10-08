@@ -1104,3 +1104,17 @@ export const entities = [
   CrmTag,
   CrmValueCountingStatus,
 ];
+
+/**
+ * The door to `crm_opportunity_number_seq`, published **by name** on
+ * `./backend` (`specs/143-crm-sales-opportunities/research.md` N-DD1).
+ *
+ * The instance's demo composition creates Opportunities — rows that carry an
+ * Organization and an assignee, so no demo body of this module may — and each
+ * needs a number. Taking it here keeps one statement of the format and one
+ * sequence: a demo Opportunity and the next one an operator creates cannot
+ * collide. D-168 bars an entity class from leaving by this door; a function is
+ * not one, and `price_lists`' `DefaultPriceListMigrator` and `inventory`'s
+ * `WarehouseChannelReconciler` are the precedent for exactly this shape.
+ */
+export { nextOpportunityNumber } from './services/opportunity-number.js';

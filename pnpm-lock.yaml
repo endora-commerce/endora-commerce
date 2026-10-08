@@ -923,6 +923,9 @@ importers:
 
   packages/demo-composition:
     devDependencies:
+      '@endora-commerce/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@endora-commerce/mod-admin-roles':
         specifier: workspace:*
         version: link:../modules/admin_roles
@@ -935,6 +938,9 @@ importers:
       '@endora-commerce/mod-credit-limits':
         specifier: workspace:*
         version: link:../modules/credit_limits
+      '@endora-commerce/mod-crm':
+        specifier: workspace:*
+        version: link:../modules/crm
       '@endora-commerce/mod-custom-fields':
         specifier: workspace:*
         version: link:../modules/custom_fields

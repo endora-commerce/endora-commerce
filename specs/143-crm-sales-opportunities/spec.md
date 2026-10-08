@@ -379,8 +379,7 @@ and confirm each figure equals the hand-computed one.
 
 An Organization's screen lists that Organization's Opportunities; the dashboard's recent
 activity names Opportunities by title; other modules can read an Opportunity and move it
-through its Workflow; the demo shop has a pipeline to look at *(the demo pipeline is deferred
-— see acceptance scenario 3)*.
+through its Workflow; the demo shop has a pipeline to look at.
 
 **Independent Test**: open an Organization with Opportunities and confirm they are listed
 there with links; switch the CRM module off and confirm the panel is gone.
@@ -395,12 +394,12 @@ there with links; switch the CRM module off and confirm the panel is gone.
    told the outcome as a value, without reaching into CRM internals.
 3. **Given** the demo data set is installed, **When** the board is opened, **Then** it shows
    Opportunities in several Statuses.
-   **Not built — deferred (Clarifications § Amendments, A-4).** The module ships no demo data.
-   A pipeline worth looking at is Opportunities of the demo Organization linked to a demo
-   Order, and a module's own demo data may write only that module's records: rows that join
-   two modules are assembled by the demo data set itself, which this feature was not admitted
-   to change, and the demo data set contains no Order at all. The scenario stays as the
-   statement of what is wanted.
+   **Built on 2026-10-08 (Clarifications § Amendments, A-4; `research.md` N-DD1).** The demo
+   data set gains twelve Opportunities for the demo Organization, two in each Status of the
+   default Workflow, assigned across the two demo Sales Reps with one left unassigned, with
+   three months of status history, tags, notes and an internal message. **None is linked to an
+   Order or a Quote Request**: the demo data set contains neither, and placing one was not
+   made part of this feature (`research.md` N-DD2).
 
 ---
 
@@ -980,10 +979,12 @@ note, or the requirement was left standing and marked. Nothing was removed.
   actions and a judgement under the same rule, not a missing requirement.
 - **A-3 — Analytics time zone.** UTC as built; see *Assumptions*. A platform time-zone
   setting is a possible follow-up.
-- **A-4 — Demo pipeline (User Story 14, scenario 3).** Not built; deferred, with the reason
-  beside the scenario (`research.md` N-G5). **[NEEDS CLARIFICATION — owner]**: admit the
-  change to the demo data set (and decide whether the demo gains an Order), or drop the
-  scenario.
+- **A-4 — Demo pipeline (User Story 14, scenario 3).** ~~Not built; deferred.~~ **Decided by
+  the owner on 2026-10-08** ("Tak, dodajmy dane demo dla CRM do naszych danych demo w seed"):
+  the change to the demo data set is admitted (`contracts/foreign-module-changes.md` §N) and
+  the pipeline is built (`research.md` N-DD1). The second half of the question — whether the
+  demo gains an Order — was not part of that answer and stays open: the pipeline links
+  nothing, and one Opportunity's calculated value is honestly zero (`research.md` N-DD2).
 - **A-5 — English-only texts (FR-072).** One exception, platform-level: a Setting's name and
   description are shown as declared, with no per-language variant, for every capability's
   Settings (`research.md` N-H5). Every other CRM text is in both languages. *(Until

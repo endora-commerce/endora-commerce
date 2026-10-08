@@ -1499,14 +1499,49 @@ Things an operator may look for and will not find in this release:
 - **Global search.** Opportunities are found on their own list and board, not
   through the Admin UI's search.
 - **Profit.** Every figure is a value; there is no cost or margin.
-- **Demo data** — see below.
 
 ## Demo data
 
-CRM ships no demo data: `endora demo seed` creates no opportunity. An
-opportunity always belongs to an organization, and a demo opportunity linked to
-an order needs a demo order as well — rows of other modules, which a module's
-own demo data may not create or read. A demo pipeline is therefore a step of
-the instance's demo composition rather than of this module, and is not part of
-this release. The default workflow is always installed, so a board has its
-columns from the first start.
+Demo data is optional: an instance that sells for real needs none of it, and
+none is created unless you run `endora demo seed`. When you do, CRM gets a
+pipeline to look at:
+
+- **Three tags** — `Key account`, `Upsell` and `Tender`. These are the module's
+  own demo data.
+- **Twelve opportunities** for the demo organization, two in each status of the
+  default workflow (new, qualified, proposal, negotiation, won, lost). Six are
+  assigned to one demo sales representative, five to the other and one to
+  nobody. Eleven carry a value entered by hand; one is set to be calculated
+  from its linked documents and is worth zero until something is linked to it.
+- **A history** for each of them, dated over the three months before the seed,
+  so the analytics screen has closed opportunities, time in status and more
+  than one month to show.
+- **Notes** on four of them and an exchange of **internal messages** on one —
+  one note naming a demo product, one message mentioning a person; the demo
+  buyer as contact person on four; tags on nine.
+
+The opportunities are created by the demo composition package
+(`@endora-commerce/demo-composition`), because each belongs to an organization
+and to an administrator — records of other modules. An instance that did not
+install that package gets the three tags only.
+
+What the demo pipeline does not have:
+
+- **No linked order or quote request.** The demo shop contains neither, so no
+  opportunity has a linked document and none shows order-status
+  synchronisation at work. Create an order from a demo opportunity to see it.
+- **No change history.** The History tab of a seeded opportunity is empty: the
+  demo writes the records directly, with past dates, and the tab shows only
+  what was done through the Admin UI or the API. Everything you do to a demo
+  opportunity afterwards is recorded as usual.
+- **No mappings.** The workflow configuration is left exactly as installed.
+
+Seeding again changes nothing that is already there: an opportunity you moved
+or edited stays as you left it. `endora demo reset` removes the twelve
+opportunities and the three tags, with everything attached to those
+opportunities, and nothing you created yourself.
+
+**Run `endora demo reset` with the CRM module switched on.** While the module
+is off its records are left alone — including the demo opportunities — and the
+demo organization they belong to cannot be removed, so the reset stops with an
+error at `organizations`. Switch CRM on and run it again.

@@ -1,4 +1,9 @@
-import { defineModuleManifest, defineModuleSettingsManifest } from '@endora-commerce/contracts';
+import {
+  defineModuleManifest,
+  defineModuleSettingsManifest,
+  type ModuleDemoManifest,
+} from '@endora-commerce/contracts';
+import type { ModuleContext } from '@endora-commerce/platform/kernel';
 
 /**
  * CRM — Sales Opportunities and their configurable status workflow
@@ -62,6 +67,32 @@ const settings = defineModuleSettingsManifest({
     },
   ],
 });
+
+/**
+ * The demo data this module owns (`specs/143-crm-sales-opportunities/research.md`
+ * N-DD1): a few tags.
+ *
+ * A typed `const` rather than an inline object literal: declared inline the
+ * parameter infers from the schema and is `never`, so the author loses
+ * `context.ctx: ModuleContext`.
+ *
+ * Both bodies are reached by a **relative `await import()`**, in
+ * `cliCommands.run`'s shape and for its reason: a manifest is loaded by every
+ * process that composes the platform and by the check scripts that import the
+ * generated index, so a demo body imported at the top of this file would be a
+ * service graph pulled into all of them.
+ *
+ * **The demo pipeline is not here.** An Opportunity belongs to an Organization
+ * and to an assignee, which are other modules' rows, so the Opportunities, their
+ * history and their notes are a step of the instance's demo composition
+ * (`@endora-commerce/demo-composition`). That step finds these tags by name. No
+ * `after` is declared: the body reads nothing another module seeds.
+ */
+const demo: ModuleDemoManifest<ModuleContext> = {
+  summary: 'The tags the demo sales pipeline is labelled with.',
+  seed: async (context) => (await import('./backend/demo/seed.js')).seedDemo(context),
+  reset: async (context) => (await import('./backend/demo/reset.js')).resetDemo(context),
+};
 
 export const manifest = defineModuleManifest({
   id: 'crm',
@@ -308,7 +339,5 @@ export const manifest = defineModuleManifest({
   ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },
-  // Demo data is a later story's decision (research R-24); `false` is a
-  // decision, absent would be "nobody has decided".
-  demo: false,
+  demo,
 });

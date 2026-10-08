@@ -16,7 +16,10 @@ withdrawn, and nothing is deleted. It depends on `orders`, `organizations`, `sal
 settings modules, and degrades without `quote_requests`, `admin_notifications` and `webhooks`. One queue consumer,
 `crm-value-recalculation`. Peers: `fastify`, `@fastify/multipart`, MikroORM, `bullmq`,
 `ioredis`, `zod`, and — optional, for the admin layer only — `@endora-commerce/admin-kit`,
-`react`, `react-router-dom`, `lucide-react`. It ships no demo data.
+`react`, `react-router-dom`, `lucide-react`. Its own demo data is three tags (`Key account`,
+`Upsell`, `Tender`); the demo sales pipeline that carries them is a step of
+`@endora-commerce/demo-composition`. `./backend` also exports `nextOpportunityNumber(em)`, the
+next `OPP-…` number from the module's sequence, for that step.
 
 **Permissions**, none granted to any role automatically: `crm:read`, `crm:write`,
 `crm:configure`, `crm:analytics`. `crm:read` advises `orders:read` and `custom_fields:read`.

@@ -37,10 +37,12 @@
     "test": "vitest run"
   },
   "peerDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/mod-admin-roles": "workspace:*",
     "@endora-commerce/mod-admin-users": "workspace:*",
     "@endora-commerce/mod-catalog": "workspace:*",
     "@endora-commerce/mod-credit-limits": "workspace:*",
+    "@endora-commerce/mod-crm": "workspace:*",
     "@endora-commerce/mod-custom-fields": "workspace:*",
     "@endora-commerce/mod-customer-accounts": "workspace:*",
     "@endora-commerce/mod-inventory": "workspace:*",
@@ -64,6 +66,9 @@
     "@endora-commerce/mod-credit-limits": {
       "optional": true
     },
+    "@endora-commerce/mod-crm": {
+      "optional": true
+    },
     "@endora-commerce/mod-custom-fields": {
       "optional": true
     },
@@ -84,10 +89,12 @@
     }
   },
   "devDependencies": {
+    "@endora-commerce/contracts": "workspace:*",
     "@endora-commerce/mod-admin-roles": "workspace:*",
     "@endora-commerce/mod-admin-users": "workspace:*",
     "@endora-commerce/mod-catalog": "workspace:*",
     "@endora-commerce/mod-credit-limits": "workspace:*",
+    "@endora-commerce/mod-crm": "workspace:*",
     "@endora-commerce/mod-custom-fields": "workspace:*",
     "@endora-commerce/mod-customer-accounts": "workspace:*",
     "@endora-commerce/mod-inventory": "workspace:*",

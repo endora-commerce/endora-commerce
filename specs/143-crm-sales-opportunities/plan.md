@@ -156,7 +156,8 @@ packages/modules/crm/                    # NEW — the module
     │   ├── services/                    # one service per area
     │   ├── routes/                      # one routes.<area>.ts per area
     │   └── workers/value-recalculation-worker.ts
-    │                                    # no demo/ — US14's demo data was not built (research N-G5)
+    │   └── demo/                        # rows.ts, seed.ts, reset.ts — the module's own demo rows: tags.
+    │                                    # The pipeline is a step of packages/demo-composition (research N-DD1)
     └── admin/
         ├── index.ts                     # contributions: routes, nav, zones
         ├── api.ts                       # typed calls

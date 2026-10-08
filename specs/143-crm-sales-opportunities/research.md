@@ -2446,6 +2446,8 @@ when it was measured, and what was done about it.
   shipment_ready`, `won → completed`), and link one Opportunity to the demo Order; `withdraw`
   deletes by those ids. The owner's standing position (demo data is optional and opt-in) is
   met either way — `endora demo seed` is the opt-in.
+  **Lifted on 2026-10-08 by the owner's ruling — see N-DD1 … N-DD4.** Facts (a) and (c)
+  were re-measured there and still hold; (b) is what changed.
 - **N-G6 (2026-10-06, T137) — the two ports, and what the contract leaves open.** Registered
   with `ctx.di.providePort` in one delimited section of `src/backend/index.ts` (N-6), and the
   two `Container name:` marker lines N-5 withheld are now in `packages/contracts/src/crm.ts`
@@ -3693,6 +3695,107 @@ when it was measured, and what was done about it.
   its entity is imported by no other module (the three files outside it that a search for
   the name finds — in `organizations`, `catalog` and `product_feeds` — hold a comment or
   a method name, never the entity). So `title` has no second reader to keep in step.
+- **N-DD1 (2026-10-08, T139, owner's ruling: "Tak, dodajmy dane demo dla CRM do naszych
+  danych demo w seed") — the stop of N-G5 is lifted, and the demo data is built in the two
+  places the demo-data rules leave it.** N-G5's fact (a) still holds — a module's demo body
+  writes only its own tables and reads nobody else's — so R-24's single module-own body
+  remains unbuildable; what the ruling changed is fact (b), that the demo composition was
+  not this feature's to touch (`contracts/foreign-module-changes.md` §N).
+  *The module's own body* (`packages/modules/crm/src/backend/demo/`, declared as `demo` in
+  the manifest) seeds the one kind of row of this module that names nobody else's: three
+  tags — `Key account`, `Upsell`, `Tender` — probed in lower case, as the table's unique
+  index compares them, and withdrawn by name. It declares no `after`: the body reads
+  nothing another module seeds, and `dependencies` already orders `crm` after its owners.
+  *The pipeline* is a composition step, `sales opportunities for the demo organisation`, in
+  `packages/demo-composition/src/sales-pipeline.ts` — a file of its own for its size,
+  appended to `STEPS` after the demo buyer it names as a contact person. Twelve
+  Opportunities for the demo Organization (found by its tax id), two in each of the six
+  seeded statuses; six assigned to Anna Wiśniewska, five to Tomasz Nowak, one to nobody;
+  eleven valued by hand (PLN 12 000 … 240 000) and one set to *computed*; 36
+  status-history rows walking only transitions the seeded workflow allows; ten tag joins;
+  the demo buyer as contact on four; two on the VIP channel and ten on the default one;
+  four notes and two messages, one note and one description naming a demo Product and one
+  message mentioning a person, in the contracts package's token grammar
+  (`formatOpportunityReferenceToken`) with their three rows in the reference index.
+  Each Opportunity has a fixed id: one already there is left as it is, a missing one is
+  created whole in one transaction, and the withdrawal deletes by those ids, the children
+  following through `crm`'s own cascading keys. Its number is asked of the module —
+  `nextOpportunityNumber`, now exported by name from `@endora-commerce/mod-crm/backend`, on
+  `price_lists`' `DefaultPriceListMigrator` precedent — so the format and the sequence keep
+  one statement and a demo number cannot collide with an operator's.
+  All five modules the step touches are on its guard; four of them are owners `crm`
+  declares and the platform refuses to switch off, so the answer that varies is `crm`'s.
+  A row that is missing degrades one Opportunity rather than the step: no demo
+  Organization — nothing is written; no such administrator — unassigned, and that author's
+  comments are left out; no buyer — no contact; no such Product — the sentence carries
+  plain words and references nothing; a status an operator removed — the Opportunities
+  that walk through it are left out.
+  **Alternatives rejected.** *The whole pipeline in the module's body, looking the
+  Organization up* — fact (a). *A `seedDemoPipeline(em, ids)` exported by `crm` and called
+  from the composition with the foreign ids* — keeps CRM's row shapes in CRM, but puts demo
+  rows on a module's published `./backend` surface, which every other module keeps off it;
+  the composition's `entityNamed` + structural row types is the shape ten steps already
+  have and `package-entity-lookup.test.ts` already reconciles. *More demo Organizations, so
+  the board shows several customers* — `organizations`' demo rows, a further foreign
+  change the ruling did not ask for; the twelve differ by title instead.
+- **N-DD2 (2026-10-08) — N-G5's fact (c) re-measured: there is still no demo Order and no
+  demo Quote Request, so nothing is linked.** `orders` and `quote_requests` declare no
+  `demo` at all, and none of the composition's steps places a document
+  (`grep -n "^  demo" packages/modules/*/src/manifest.ts`; the step list in
+  `composition.ts`). Placing one runs through `orders`' placement path — carts, prices,
+  stock, numbering — which is demo data for two other modules and was not invented for
+  this (T251). Consequences, each stated where an operator would meet it: no row in
+  `crm_opportunity_links`; the one *computed* Opportunity is in the start status and is
+  worth 0.00, which is what "calculated from its documents" honestly is with none linked
+  — a non-zero `computed_value` written by hand would be a figure the next recalculation
+  removes; and **no Order-status mapping or value-counting status is seeded**, although
+  N-G5 sketched them: those rows are the operator's workflow configuration (R-25), they
+  change behaviour rather than illustrate it, and a reset could not tell a mapping it wrote
+  from one an operator re-saved.
+- **N-DD3 (2026-10-08) — the rows are written, not commanded, and what that costs.** Every
+  Command of this module stamps `now`. A pipeline created in one second has no time in
+  status, no "won per month" and nothing for the analytics to chart, so the step writes
+  the Opportunity, its status history and its comments with dates counted back from the
+  moment of the seed (the oldest Opportunity is 90 days old; changes and notes are in
+  order and none is in the future — `sales-pipeline.test.ts` and `demo-shop.test.ts` hold
+  both). That is the licence every demo write in the platform runs on — `endora demo seed`
+  refuses a production database before anything is composed, and each module body carries
+  the same `command-coverage-ignore` — and the brief asked that it be checked rather than
+  assumed: the eight module bodies and the ten existing composition steps all write
+  through the EntityManager or SQL, none through the Command Bus. The costs: **the History
+  tab of a seeded Opportunity is empty** (it reads the audit log, and no Command ran);
+  nobody's bell rang for the assignments or the mention; and an operator-defined required
+  custom field is not held against these rows.
+- **N-DD4 (2026-10-08) — what was measured, and the one behaviour worth knowing.** Seen
+  red first: the delta ledger of `demo-shop.test.ts`, on the first composed run — the
+  reference rows were inserted before their Opportunity, because this module's entities
+  hold a parent's id by value and the unit of work knows no order between them; the step
+  now flushes the Opportunity first, inside one transaction. The two unit files and
+  `demo-pipeline-off-state.test.ts` were written before the code they cover but first run
+  after it, so each was held to a mutation instead: with `crm` taken off the step's guard,
+  five of the eight off-state cases and two unit cases fail; with the tag probe made
+  case-sensitive, two cases of the module's `demo.test.ts` fail. And
+  `service-dependent-ledger.test.ts` went red on the new integration file — a ledger
+  derived *about* the tree, which no targeted run names — and holds an entry for it now,
+  measured under `BACKEND_TEST_SERVICES=none` (`ECONNREFUSED`, all 8 cases skipped).
+  `demo-shop.test.ts` (25 cases): one seed over a reset database adds `crm_tags` 3,
+  `crm_opportunities` 12, `crm_opportunity_status_history` 36, `crm_opportunity_tags` 10,
+  `crm_opportunity_comments` 6, `crm_opportunity_references` 3 and moves no other table
+  it did not move before; three seeds leave what two left; the reset returns every one of
+  them to zero and leaves the six statuses and ten transitions alone; the access ledger is
+  unchanged — the step opens no scope of its own.
+  `demo-pipeline-off-state.test.ts` (8 cases, **new**), with `crm.enabled` set to `false`:
+  a seed builds the rest of the shop and writes no row to any `crm_` table, reporting
+  `crm` and the step as skipped; switched on, the next seed adds exactly the pipeline.
+  **A reset with CRM off withdraws nothing of CRM's — and then stops at `organizations`**,
+  whose demo row the twelve Opportunities still reference (`on delete restrict`), with a
+  non-zero exit naming the module and the table. Off is non-destructive (Principle XVII)
+  and a step whose module is absent is a skip in both directions, so this is the two rules
+  meeting rather than a defect of either; `credit_limits` has the same shape. Switched on
+  again, the reset completes. It is on the module's documentation page and in the
+  composition's changeset; a friendlier report is T252.
+  **Not verified**: the demo was never seeded into a running instance and never seen in a
+  browser (T250).
 
 ## Questions put to the owner — all decided on 2026-10-05
 
@@ -3717,6 +3820,9 @@ force:
 | --- | --- | --- |
 | A-1 | Repair the platform so an Order records the Quote Request it was placed from (N-E3), before CRM ships? | No repair inside this feature; FR-027, "counted once" and the second half of FR-061 stand as implemented-but-unreachable and are marked so |
 | A-4 | Admit the demo data set to this feature's foreign changes and decide whether the demo gains an Order (N-G5)? | Not built; User Story 14 scenario 3 stays, marked deferred |
+
+**A-4 was answered on 2026-10-08** — the demo data set is admitted and the pipeline is built
+(N-DD1); whether the demo gains an Order was not part of the answer and stays open (N-DD2).
 
 The nine decisions taken while implementing (`spec.md` § Clarifications, D-1…D-9) are not
 open questions — each is in force — but each is the owner's to reverse.
