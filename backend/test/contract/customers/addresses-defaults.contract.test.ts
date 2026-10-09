@@ -142,4 +142,21 @@ describe('Customer address book + defaults (US2)', () => {
     const ids = (list.json() as { data: { personal: Array<{ id: string }> } }).data.personal.map((x) => x.id);
     expect(ids).not.toContain(id);
   });
+
+  // Issue #144 — the same omission on the self-service side: `:addressId`
+  // reached PostgreSQL unvalidated, so a non-UUID answered 500.
+  it.each<[method: 'PATCH' | 'PUT' | 'DELETE', suffix: string, payload?: Record<string, unknown>]>([
+    ['PATCH', '', { city: 'Gdansk' }],
+    ['PUT', '/default'],
+    ['DELETE', ''],
+  ])('%s /addresses/:addressId%s answers 404 for an id that is not a UUID', async (method, suffix, payload) => {
+    const res = await h.app.inject({
+      method,
+      url: `/api/v1/me/customer/addresses/not-a-uuid${suffix}`,
+      cookies: { b2b_session: cookie },
+      ...(payload !== undefined ? { payload } : {}),
+    });
+    expect(res.statusCode, res.body).toBe(404);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('CUSTOMER_ADDRESS_NOT_FOUND');
+  });
 });

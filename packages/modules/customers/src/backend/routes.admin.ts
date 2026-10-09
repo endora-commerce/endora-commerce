@@ -44,6 +44,7 @@ import {
   serializeCustomerAddress,
   serializeOrganizationAddress,
 } from './serializers.js';
+import { isUuid } from './uuid-param.js';
 
 const ADMIN_SHADOW_COOKIE = 'admin_shadow_session';
 
@@ -131,6 +132,21 @@ export async function registerCustomersAdminRoutes(
   const { impersonationService, queryService, accounts, accountWrites } = deps;
   const customFieldValues = deps.customFieldValues;
 
+  /**
+   * The guard chain of every `/api/v1/admin/customers/:id…` route: the
+   * permission first, so an anonymous caller still gets 401, then the shape of
+   * the id. An id that is not a UUID names no customer and answers the same
+   * 404 an unknown one does — unchecked, it reached PostgreSQL and came back as
+   * a 500 (`invalid input syntax for type uuid`).
+   */
+  const requireCustomerId = async (request: FastifyRequest): Promise<void> => {
+    const { id } = request.params as { id: string };
+    if (!isUuid(id)) {
+      throw new HttpError(404, ERROR_CODES.CUSTOMER_NOT_FOUND, 'Customer not found.');
+    }
+  };
+  const forCustomer = (permission: string) => [requireAdmin(permission), requireCustomerId];
+
   // PATCH /api/v1/admin/customers/:id/custom-fields (feature 055).
   //
   // Feature 075 — the row is `customer_accounts`', so the Command that writes
@@ -141,7 +157,7 @@ export async function registerCustomersAdminRoutes(
   if (customFieldValues) {
     app.patch<{ Params: { id: string } }>(
       '/api/v1/admin/customers/:id/custom-fields',
-      { preHandler: requireAdmin('customers:manage'), schema: { body: customFieldValuesSchema } },
+      { preHandler: forCustomer('customers:manage'), schema: { body: customFieldValuesSchema } },
       async (request) => {
         const patch = customFieldValuesSchema.parse(request.body);
         const id = request.params.id;
@@ -211,7 +227,7 @@ export async function registerCustomersAdminRoutes(
   // GET /api/v1/admin/customers/:id — detail
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id',
-    { preHandler: requireAdmin('customers:read') },
+    { preHandler: forCustomer('customers:read') },
     async (request, reply) => {
       await resolveModerationActor(request);
       const detail = await queryService.getDetail(request.params.id);
@@ -226,7 +242,7 @@ export async function registerCustomersAdminRoutes(
   // POST /api/v1/admin/customers/:id/block
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/block',
-    { preHandler: requireAdmin('customers:manage'), schema: { body: blockCustomerRequestSchema } },
+    { preHandler: forCustomer('customers:manage'), schema: { body: blockCustomerRequestSchema } },
     async (request) => {
       const actor = await resolveModerationActor(request);
       const body = blockCustomerRequestSchema.parse(request.body ?? {});
@@ -248,7 +264,7 @@ export async function registerCustomersAdminRoutes(
   // POST /api/v1/admin/customers/:id/unblock
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/unblock',
-    { preHandler: requireAdmin('customers:manage') },
+    { preHandler: forCustomer('customers:manage') },
     async (request) => {
       const actor = await resolveModerationActor(request);
       const customer = await moderationService.unblock({
@@ -270,7 +286,7 @@ export async function registerCustomersAdminRoutes(
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/impersonate',
     {
-      preHandler: requireAdmin('customers:impersonate'),
+      preHandler: forCustomer('customers:impersonate'),
       schema: { body: startImpersonationRequestSchema },
     },
     async (request, reply) => {
@@ -322,7 +338,7 @@ export async function registerCustomersAdminRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/organization',
-    { preHandler: requireAdmin('customers:manage'), schema: { body: assignOrganizationRequestSchema } },
+    { preHandler: forCustomer('customers:manage'), schema: { body: assignOrganizationRequestSchema } },
     async (request) => {
       const actor = await resolveModerationActor(request);
       const body = assignOrganizationRequestSchema.parse(request.body);
@@ -345,7 +361,7 @@ export async function registerCustomersAdminRoutes(
    */
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/organization',
-    { preHandler: requireAdmin('customers:manage') },
+    { preHandler: forCustomer('customers:manage') },
     async (request) => {
       const actor = await resolveModerationActor(request);
       const customer = await deps.orgAssignmentService.unassign(request.params.id, actor);
@@ -357,7 +373,7 @@ export async function registerCustomersAdminRoutes(
 
   app.put<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/customer-group',
-    { preHandler: requireAdmin('customers:manage'), schema: { body: assignCustomerGroupRequestSchema } },
+    { preHandler: forCustomer('customers:manage'), schema: { body: assignCustomerGroupRequestSchema } },
     async (request) => {
       const actor = await resolveModerationActor(request);
       const body = assignCustomerGroupRequestSchema.parse(request.body);
@@ -374,7 +390,7 @@ export async function registerCustomersAdminRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/addresses',
-    { preHandler: requireAdmin('customers:read') },
+    { preHandler: forCustomer('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
       const customer = await accounts.findById(request.params.id);
@@ -399,7 +415,7 @@ export async function registerCustomersAdminRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/addresses',
-    { preHandler: requireAdmin('customers:manage'), schema: { body: customerAddressInputSchema } },
+    { preHandler: forCustomer('customers:manage'), schema: { body: customerAddressInputSchema } },
     async (request, reply) => {
       await resolveModerationActor(request);
       const body = customerAddressInputSchema.parse(request.body);
@@ -444,7 +460,7 @@ export async function registerCustomersAdminRoutes(
 
   app.get<{ Params: { id: string }; Querystring: { page?: string; pageSize?: string } }>(
     '/api/v1/admin/customers/:id/orders',
-    { preHandler: requireAdmin('customers:read') },
+    { preHandler: forCustomer('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
       const page = Math.max(1, Number.parseInt(request.query.page ?? '1', 10) || 1);
@@ -460,7 +476,7 @@ export async function registerCustomersAdminRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/quote-requests',
-    { preHandler: requireAdmin('customers:read') },
+    { preHandler: forCustomer('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
       const customer = await accounts.findById(request.params.id);
@@ -475,7 +491,7 @@ export async function registerCustomersAdminRoutes(
 
   app.get<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/carts',
-    { preHandler: requireAdmin('customers:read') },
+    { preHandler: forCustomer('customers:read') },
     async (request) => {
       await resolveModerationActor(request);
       return { data: await deps.cartQueryService.listForCustomer(request.params.id) };
@@ -497,7 +513,7 @@ export async function registerCustomersAdminRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/password-reset',
-    { preHandler: requireAdmin('customers:manage') },
+    { preHandler: forCustomer('customers:manage') },
     async (request, reply) => {
       const actor = await resolveModerationActor(request);
       const customer = await accounts.findById(request.params.id, { activeOnly: true });
@@ -541,7 +557,7 @@ export async function registerCustomersAdminRoutes(
 
   app.delete<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id',
-    { preHandler: requireAdmin('customers:manage') },
+    { preHandler: forCustomer('customers:manage') },
     async (request) => {
       const actor = await resolveModerationActor(request);
       const customer = await deps.deletionService.softDelete(request.params.id, actor);
@@ -551,7 +567,7 @@ export async function registerCustomersAdminRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/admin/customers/:id/restore',
-    { preHandler: requireAdmin('customers:manage') },
+    { preHandler: forCustomer('customers:manage') },
     async (request) => {
       const actor = await resolveModerationActor(request);
       const customer = await deps.deletionService.restore(request.params.id, actor);

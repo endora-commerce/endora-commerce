@@ -8,6 +8,7 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import { CustomerAddress } from '../entities/customer-address.entity.js';
+import { isUuid } from '../uuid-param.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 
@@ -233,13 +234,17 @@ export class CustomerAddressService {
     customerAccountId: string,
     addressId: string,
   ): Promise<CustomerAddress> {
-    const address = await this.#forAuthorisedCustomer(customerAccountId, () =>
-      em.findOne(CustomerAddress, {
-        id: addressId,
-        customerAccountId,
-        deletedAt: null,
-      }),
-    );
+    // An id that is not a UUID names no address; asking PostgreSQL about it
+    // raises `invalid input syntax for type uuid`, which is a 500.
+    const address = isUuid(addressId)
+      ? await this.#forAuthorisedCustomer(customerAccountId, () =>
+          em.findOne(CustomerAddress, {
+            id: addressId,
+            customerAccountId,
+            deletedAt: null,
+          }),
+        )
+      : null;
     if (!address) {
       throw new HttpError(
         404,
