@@ -82,6 +82,54 @@ describe('Admin customer list + detail (US5)', () => {
     expect(res.statusCode).toBe(404);
   });
 
+  /**
+   * Issue #144 — the path parameter reached PostgreSQL unvalidated, so an id
+   * that is not a UUID answered 500 (`invalid input syntax for type uuid`).
+   * A malformed id names no customer: every `:id` route answers the same 404
+   * it gives an unknown one.
+   */
+  const organizationId = '00000000-0000-4000-8000-0000000000a1';
+  const address = {
+    kind: 'delivery',
+    recipientName: 'List Me',
+    street: 'Main 1',
+    city: 'Warsaw',
+    postalCode: '00-001',
+    country: 'PL',
+  };
+  it.each<[method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', suffix: string, payload?: Record<string, unknown>]>([
+    ['GET', ''],
+    ['DELETE', ''],
+    ['PATCH', '/custom-fields', {}],
+    ['POST', '/block', {}],
+    ['POST', '/unblock'],
+    ['POST', '/impersonate', {}],
+    ['POST', '/organization', { organizationId }],
+    ['DELETE', '/organization'],
+    ['PUT', '/customer-group', { customerGroupId: null }],
+    ['GET', '/addresses'],
+    ['POST', '/addresses', address],
+    ['GET', '/orders'],
+    ['GET', '/quote-requests'],
+    ['GET', '/carts'],
+    ['POST', '/password-reset'],
+    ['POST', '/restore'],
+  ])('%s /:id%s answers 404 for an id that is not a UUID', async (method, suffix, payload) => {
+    const res = await h.app.inject({
+      method,
+      url: `/api/v1/admin/customers/not-a-uuid${suffix}`,
+      cookies: { b2b_session: 'stub-admin-session' },
+      ...(payload !== undefined ? { payload } : {}),
+    });
+    expect(res.statusCode, res.body).toBe(404);
+    expect((res.json() as { error: { code: string } }).error.code).toBe('CUSTOMER_NOT_FOUND');
+  });
+
+  it('still requires an admin session before it looks at the id', async () => {
+    const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/customers/not-a-uuid' });
+    expect(res.statusCode).toBe(401);
+  });
+
   it('requires an admin session', async () => {
     const res = await h.app.inject({ method: 'GET', url: '/api/v1/admin/customers' });
     expect(res.statusCode).toBe(401);
