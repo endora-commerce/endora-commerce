@@ -181,6 +181,8 @@ export const ERROR_CODES = {
   ADMIN_ROLE_REQUIRED: 'ADMIN_ROLE_REQUIRED',
   /** A write would leave an administrator account without a role. */
   ADMIN_USER_ROLE_REQUIRED: 'ADMIN_USER_ROLE_REQUIRED',
+  /** An administrator changing their own password chose the one they already have. */
+  NEW_PASSWORD_UNCHANGED: 'NEW_PASSWORD_UNCHANGED',
 
   // Settings (feature 004)
   SETTING_NOT_REGISTERED: 'SETTING_NOT_REGISTERED',

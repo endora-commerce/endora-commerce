@@ -18,6 +18,9 @@ import type { SupportedAdminLanguage } from '../../i18n/types.js';
  * without `currentPassword`, so the screen asks for it before it sends
  * anything, and shows a wrong one on that field rather than in the page
  * banner.
+ *
+ * A password change revokes the account's other sessions and keeps the one it
+ * was made from, so the screen stays where it is and says so.
  */
 export function ProfilePage(): ReactNode {
   const t = useTranslation('core');
@@ -69,7 +72,10 @@ export function ProfilePage(): ReactNode {
       await apiClient.patch<unknown>('/api/v1/admin/me', body);
       setPassword('');
       setCurrentPassword('');
-      setInfo(t('profile.info.updated'));
+      // A password change signs every other session of the account out and
+      // leaves this one alone, so there is nothing to recover from here — only
+      // something to tell the administrator.
+      setInfo(t(changingPassword ? 'profile.info.passwordChanged' : 'profile.info.updated'));
       await refresh();
     } catch (err) {
       if (err instanceof ApiError && err.envelope.error.code === 'CURRENT_PASSWORD_INVALID') {

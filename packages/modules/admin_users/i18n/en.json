@@ -2,5 +2,6 @@
   "nav.adminUsers.label": "Users",
   "actions.openAdminUsers.label": "Admin users",
   "actions.openAdminUsers.description": "Accounts that can sign in to the Admin UI",
-  "errors.ADMIN_USER_ROLE_REQUIRED": "An administrator account must hold a role. Choose a role for this account."
+  "errors.ADMIN_USER_ROLE_REQUIRED": "An administrator account must hold a role. Choose a role for this account.",
+  "errors.NEW_PASSWORD_UNCHANGED": "The new password is the same as the current one. Choose a different password."
 }

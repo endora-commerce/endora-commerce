@@ -22,7 +22,13 @@ modułów, które mogą mieć nazwę w liczbie pojedynczej (obok `example`).
 - **Zabezpieczenia tras** — `requireAdmin(permission?)`, `requireAdminAny(codes)` i
   `requireCustomer`, udostępniane jako porty z `backend.ts` i pobierane przez każdy moduł, który
   chroni trasy. Kiedyś były dekoratorami Fastify w pluginie; zamieniono je na porty, aby produkcja i
-  środowisko testowe korzystały z tej samej implementacji, a nie z dwóch różnych.
+  środowisko testowe korzystały z tej samej implementacji, a nie z dwóch różnych. Oba
+  zabezpieczenia administracyjne odrzucają też, z kodem 401, sesję, której konto administratora
+  nie jest już aktywne (dezaktywowane, usunięte albo nieistniejące), dzięki czemu sesja, która
+  przetrwała swoje konto, przestaje działać; aktywne konto bez wymaganego uprawnienia otrzymuje
+  403. `SessionService.destroyAllForAdmin(adminUserId, { exceptSessionId? })` unieważnia sesje
+  administratora oraz rozpoczęte przez niego sesje logowania jako klient, opcjonalnie
+  pozostawiając jedną.
 
 ## Ostatnia aktywność
 

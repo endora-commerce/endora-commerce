@@ -24,7 +24,11 @@ folders permitted by the naming conventions (alongside `example`).
   `requireCustomer`, provided as ports from `backend.ts` and resolved by every
   module that gates a route. They were Fastify decorators on the plugin once;
   they were turned into ports so production and the test harness run the same
-  implementation instead of one each.
+  implementation instead of one each. The two admin guards also refuse, with 401, a session whose
+  administrator account is no longer active (deactivated, deleted or gone), so a session row that
+  outlived its account does not keep answering; an active account that lacks the permission is
+  answered 403. `SessionService.destroyAllForAdmin(adminUserId, { exceptSessionId? })` revokes an
+  administrator's sessions and the impersonations they started, optionally sparing one.
 
 ## Last seen
 
