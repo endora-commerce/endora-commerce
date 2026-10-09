@@ -17,7 +17,10 @@ export interface CustomFieldValuesPanelProps {
   /** Current stored values for the host record. */
   values: Record<string, unknown>;
   /**
-   * Persist the edited bag. Host owns the write (its own endpoint). Omit it,
+   * Persist the edited bag. Host owns the write (its own endpoint). A field the
+   * operator cleared is in the bag as `null` (an empty string for text, an
+   * empty array for a multiselect) — never `undefined`, which JSON would drop
+   * and the server would read as "not edited". Forward the bag as it is. Omit it,
    * and pass `onChange`, to embed the fields in a form of the host's own: the
    * panel then renders no button and the host submits the bag with its form.
    */
@@ -82,6 +85,13 @@ export interface CustomFieldValuesPanelProps {
  * button: the host keeps the bag and sends it with its own request.
  * `fieldErrors` and `language` are optional in both modes and change nothing
  * for a caller that passes neither.
+ *
+ * **A cleared field is `null`, not `undefined`** (issue #176). The hosts send
+ * the bag as JSON, which omits a key whose value is `undefined`, and the
+ * server's merge reads an absent key as "not edited" and keeps the stored
+ * value — so a cleared number, date or choice used to save successfully and
+ * change nothing. `null` survives serialisation and is what the merge reads as
+ * "clear this". It also lets a host tell a cleared field from an untouched one.
  */
 export function CustomFieldValuesPanel({
   entityType,
@@ -206,7 +216,7 @@ function renderInput(
           type="number"
           className={inputClass}
           value={value === undefined || value === null ? '' : String(value)}
-          onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+          onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
         />
       );
     case 'date':
@@ -216,7 +226,7 @@ function renderInput(
           type="date"
           className={inputClass}
           value={typeof value === 'string' ? value : ''}
-          onChange={(e) => onChange(e.target.value || undefined)}
+          onChange={(e) => onChange(e.target.value || null)}
         />
       );
     case 'select':
@@ -224,7 +234,7 @@ function renderInput(
         <Select
           id={`cf-${def.key}`}
           value={typeof value === 'string' ? value : ''}
-          onChange={(e) => onChange(e.target.value || undefined)}
+          onChange={(e) => onChange(e.target.value || null)}
         >
           <option value="">—</option>
           {def.options.map((o) => (
