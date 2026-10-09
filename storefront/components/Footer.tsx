@@ -12,6 +12,15 @@ const COL_HEADING =
   'mb-[14px] font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-[#fafafa]';
 const COL_LINK = 'block py-[5px] text-[13px] text-[#a1a1aa] hover:text-white';
 
+/**
+ * Where the "Built with … Endora Commerce" credit points. The UTM parameters
+ * are what lets the product site's analytics tell a click on this footer link
+ * from any other referral: `utm_content=footer` names the placement, and the
+ * other three name the kind of visit.
+ */
+export const BUILT_WITH_URL =
+  'https://commerce.endora.software/?utm_source=storefront&utm_medium=referral&utm_campaign=built-with&utm_content=footer';
+
 export function Footer(props: {
   cmsLinks?: Array<{ path: string; title: string }>;
   top?: ReactNode;
@@ -101,6 +110,17 @@ export function Footer(props: {
             0000987654
           </span>
           {props.copyright}
+          <span>
+            Built with <span aria-hidden="true">❤️</span> using{' '}
+            <a
+              className="text-[#a1a1aa] underline underline-offset-2 hover:text-white"
+              href={BUILT_WITH_URL}
+              target="_blank"
+              rel="noopener"
+            >
+              Endora Commerce
+            </a>
+          </span>
           <span className="inline-flex gap-4">
             <a className="text-[#a1a1aa] hover:text-white" href="/regulamin">Regulamin</a>
             <a className="text-[#a1a1aa] hover:text-white" href="/polityka-prywatnosci">
