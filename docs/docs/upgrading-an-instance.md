@@ -9,7 +9,9 @@ sidebar_position: 4
 An instance holds no copy of the platform: the platform, the admin shell and every module are
 packages it depends on. Upgrading it means moving **every package of the release** to the new
 version together, installing them, and running the instance's own `setup` — which generates,
-builds, migrates and installs any module the release adds.
+builds, migrates and installs every module the instance declares. A module that is new in the
+release is not one of them until you declare it: see
+[Adding a module that is new in a release](#adding-a-new-module).
 
 One command does all of that:
 
@@ -77,7 +79,7 @@ Already at the version you asked for, it says so and changes nothing.
   is not beside the instance. So a storefront keeps the source it was created with: when a
   release changes the storefront a new installation gets, yours gains that change only when you
   bring it over — see [Module blocks in an existing storefront](#storefront-block-renderers) for
-  the one in `0.103.0`.
+  the one in `0.103.0` and [After upgrading to 0.104.0](#after-0-104-0) for the two in `0.104.0`.
 
 ## After it finishes
 
@@ -89,13 +91,41 @@ pnpm run preview:admin                           # setup rebuilt the admin bundl
 cd ../my-shop-storefront && pnpm run build && pnpm run start
 ```
 
-Sign in and open **Modules** (`/platform/modules`) to check that the list loads. A module that is
-new in the release is not added to your instance by the upgrade: declare it with `pnpm add`, then
-run `pnpm run setup`, which installs it.
+Sign in and open **Modules** (`/platform/modules`) to check that the list loads.
 
 If pnpm reports an *unmet peer* for a third-party package after the upgrade, a new release has
 raised a range your `package.json` still holds lower. Raise it there to the range the warning
 names and run `pnpm install`.
+
+### Adding a module that is new in a release {#adding-a-new-module}
+
+The upgrade moves the packages your instance already declares. A module that first appears in the
+release is not among them, so after the upgrade it is neither installed nor listed on **Modules**.
+To have it, declare its package in the root `package.json` and run `setup`, in the root of the
+instance:
+
+```bash
+pnpm add -w -E @endora-commerce/mod-<name>@<version>
+pnpm run setup
+```
+
+`<version>` is the release the instance is on — the version `@endora-commerce/platform` has in the
+root `package.json`. Then restart the API and the admin preview, as above: `setup` applied the
+module's migrations, installed it and rebuilt the admin bundle.
+
+Both flags matter:
+
+- **`-w`** — the root of an instance is a workspace root, and the module list is its
+  `dependencies`. Without the flag pnpm 9 refuses with `ERR_PNPM_ADDING_TO_ROOT`.
+- **`-E` and the version** — every package of the release is pinned in that file at exactly one
+  version. Without them pnpm writes a range, `^<version>`, for this one package, which an install
+  that resolves it again may take to a later patch than the rest: the mixed set described under
+  [An instance that is mixed from the start](#an-instance-that-is-mixed-from-the-start).
+  `pnpm run upgrade` keeps an exact pin exact and a `^` a `^`, so a range written here stays a
+  range.
+
+Whether the module comes up switched on is the module's own declaration; the section for the
+release that brings it says which.
 
 ## If a step fails
 
@@ -269,6 +299,99 @@ since, it produces the same files a `0.103.0` storefront has, and the type-check
 the build pass. It has not been exercised on a storefront whose files were changed, nor by
 rendering a module's block on a storefront brought forward this way — check the pages that hold
 Page Builder content before you deploy.
+
+### After upgrading to 0.104.0 {#after-0-104-0}
+
+`pnpm run upgrade 0.104.0` is the whole upgrade: nothing in the instance has to be edited for it.
+What follows is one module the upgrade does not add, three things that behave differently
+afterwards, and what an existing storefront and your own code may want to take.
+
+**The new module, CRM, is not added by the upgrade.** `0.104.0` is the first release of `crm`
+(`@endora-commerce/mod-crm`): sales opportunities with a status workflow, a board, a calendar and
+analytics, in the Admin UI. An instance that upgrades does not have it — it is not on **Modules**
+and `/crm/board` answers *Page not found*. To add it, in the root of the instance:
+
+```bash
+pnpm add -w -E @endora-commerce/mod-crm@0.104.0
+pnpm run setup
+```
+
+with the version your instance is on in place of `0.104.0` if it has moved since — see
+[Adding a module that is new in a release](#adding-a-new-module) for both flags. Then restart the
+API and the admin preview.
+
+- **It comes up switched on.** `setup` installs it, and from the restart it is active, with a
+  **CRM** section in the sidebar. If you want the package without the feature, switch it off on
+  **Modules** (`/platform/modules`): its screens, permissions and settings are withdrawn, its
+  routes answer `503 MODULE_DISABLED`, and nothing is deleted.
+- **No role is given its permissions.** `crm:read`, `crm:write`, `crm:configure` and
+  `crm:analytics` are granted to no role automatically. A platform administrator holds every
+  permission and sees the module at once; give the four to any other role that should.
+- **Demo data.** In an instance seeded with the demo shop, `pnpm run cli demo seed` adds a demo
+  sales pipeline. Once it has, run `pnpm run cli demo reset` only while CRM is switched on: while
+  it is off the reset stops at the organizations with a foreign-key refusal.
+
+See [CRM](./modules/crm.md) for what the module does.
+
+**Three things behave differently after the upgrade.** None needs a step unless you want the
+earlier behaviour.
+
+- **A search phrase is answered by the search module.** `GET /api/v1/catalog/products` with a
+  phrase (`q`) — what the storefront's `/search` page reads — used to be answered from the database
+  unless `CATALOG_SEARCH_BACKEND=meilisearch` was set. With the variable unset, a phrase now goes to
+  the `search` module whenever it is switched on: results are ranked by relevance and forgive a
+  typo, and a fragment from the middle of a word or a SKU no longer matches. Set
+  `CATALOG_SEARCH_BACKEND=postgres` in the instance's `.env` to keep the previous behaviour.
+- **A quote request with an unpriced line cannot be approved or ordered.** Accepting, approving
+  and converting a quote request now answer `409` while a line has no agreed unit price. A request
+  that is already `Approved` with such a line can no longer be converted into an order; its lines
+  cannot be edited in that status, so the way forward is to resubmit it. To find them:
+
+  ```sql
+  select distinct qr.id, qr.business_id
+    from quote_requests qr
+    join quote_request_items it on it.quote_request_id = qr.id
+   where qr.status = 'Approved' and it.agreed_unit_price is null;
+  ```
+
+  The same query with `qr.status = 'Completed'` lists the requests already ordered that way;
+  their orders are not touched.
+- **The Dictionary lists every ISO 639-1 language.** The rows that are missing are added on the
+  first boot after the upgrade, inactive, so nothing that reads the active languages changes;
+  `en-US` and `pl-PL` stay the only active ones until you activate another. An added row you
+  delete returns on the next boot — leave it inactive instead.
+
+**In an existing storefront**, which keeps the source it was created with:
+
+- In `lib/api/cms.ts`, change the cache tag of the `getCmsPageIndex` fetch from `'cms:page'` to
+  `CMS_STOREFRONT_CACHE_TAGS.pageIndex`, imported from `@endora-commerce/contracts`. Without it
+  everything keeps working, and a newly published CMS page reaches `sitemap.xml` only when the
+  60-second cache window runs out.
+- A category can now carry Page Builder content, edited from the **Content** action on the
+  category tree. A storefront shows it only if it renders it. One written by the `0.104.0` CLI
+  does: `app/(catalog)/c/[slug]/page.tsx` reads `getCategoryPageContent(node.id, ctx)`, a function
+  of `lib/api/catalog.ts`, and draws the result with `components/CategoryContent.tsx`. To take
+  them, create a storefront to copy from the way
+  [Module blocks in an existing storefront](#storefront-block-renderers) does.
+
+**`@dnd-kit/core` is a new peer dependency of `@endora-commerce/admin-kit`.** pnpm installs a
+missing peer by itself unless you have turned that off, so an instance needs to do nothing. If
+your `.npmrc` sets `auto-install-peers=false`, add `"@dnd-kit/core": "^6.3.1"` to the
+`dependencies` of `admin/package.json`, which declares the kit, and run `pnpm install`.
+
+**If your own code implements a platform port or builds one of its records** — an overlay module,
+or a test double — four shapes of `@endora-commerce/contracts` gained a required member, and that
+code does not compile until it has it: `CartRecord.sourceQuoteRequestId` (`null` when the cart
+came from no quote request), `CatalogAttributeView.isPriceRule` (`false`),
+`AuthSessionReadPort.lastSeenByAdminUser` and `LanguageSeedPort.ensureSeeded`.
+
+How far this has been exercised: the upgrade from `0.103.1`, on an instance created with the demo
+module set, ran to the end with pnpm 9 and nothing edited by hand, and the admin and an unchanged
+storefront built and served their pages afterwards; `crm` was then added with `pnpm add -w` and
+`setup`, and came up switched on. The exact form of `pnpm add` above was run on a scratch
+workspace and not on an upgraded instance. Switching `crm` off, the two storefront changes, an
+instance with `auto-install-peers=false` and one with overlay modules were not exercised; what
+this section says about them is what the release's changelogs state.
 
 ## An instance that is mixed from the start
 

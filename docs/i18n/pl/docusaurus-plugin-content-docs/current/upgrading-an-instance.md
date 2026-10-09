@@ -9,7 +9,9 @@ sidebar_position: 4
 Instancja nie zawiera kopii platformy: platforma, powłoka panelu administracyjnego i każdy moduł
 to pakiety, od których zależy. Aktualizacja polega na przeniesieniu **wszystkich pakietów
 wydania** razem na nową wersję, zainstalowaniu ich i uruchomieniu własnego `setup` instancji —
-który generuje pliki, buduje, wykonuje migracje i instaluje każdy moduł dodany w wydaniu.
+który generuje pliki, buduje, wykonuje migracje i instaluje każdy moduł zadeklarowany
+w instancji. Moduł nowy w wydaniu nie jest jednym z nich, dopóki go nie zadeklarujesz: zobacz
+[Dodawanie modułu, który jest nowy w wydaniu](#adding-a-new-module).
 
 Robi to jedno polecenie:
 
@@ -80,7 +82,8 @@ Jeśli instancja jest już w żądanej wersji, polecenie to mówi i niczego nie 
   zachowuje więc źródła, z którymi powstał: gdy wydanie zmienia storefront, jaki dostaje nowa
   instalacja, Twój zyska tę zmianę dopiero wtedy, gdy sam ją przeniesiesz — zmianę z wydania
   `0.103.0` opisuje sekcja
-  [Bloki modułów w istniejącym storefroncie](#storefront-block-renderers).
+  [Bloki modułów w istniejącym storefroncie](#storefront-block-renderers), a dwie z wydania
+  `0.104.0` — sekcja [Po aktualizacji do wydania 0.104.0](#after-0-104-0).
 
 ## Po zakończeniu
 
@@ -93,12 +96,41 @@ cd ../my-shop-storefront && pnpm run build && pnpm run start
 ```
 
 Zaloguj się i otwórz **Modules** (`/platform/modules`), żeby sprawdzić, że lista się wczytuje.
-Moduł nowy w wydaniu nie zostaje dodany do Twojej instancji przez aktualizację: zadeklaruj go
-przez `pnpm add`, a potem uruchom `pnpm run setup`, który go zainstaluje.
 
 Jeśli po aktualizacji pnpm zgłasza *unmet peer* dla pakietu zewnętrznego, nowe wydanie podniosło
 zakres, który Twój `package.json` wciąż ma niższy. Podnieś go tam do zakresu podanego
 w ostrzeżeniu i uruchom `pnpm install`.
+
+### Dodawanie modułu, który jest nowy w wydaniu {#adding-a-new-module}
+
+Aktualizacja przesuwa pakiety, które Twoja instancja już deklaruje. Moduł, który pojawia się
+w wydaniu po raz pierwszy, do nich nie należy, więc po aktualizacji nie jest ani zainstalowany,
+ani widoczny na ekranie **Modules**. Żeby go mieć, zadeklaruj jego pakiet w głównym
+`package.json` i uruchom `setup` — w katalogu głównym instancji:
+
+```bash
+pnpm add -w -E @endora-commerce/mod-<name>@<version>
+pnpm run setup
+```
+
+`<version>` to wydanie, w którym jest instancja — wersja, jaką `@endora-commerce/platform` ma
+w głównym `package.json`. Potem uruchom ponownie API i podgląd panelu, jak wyżej: `setup` wykonał
+migracje modułu, zainstalował go i zbudował panel od nowa.
+
+Obie flagi mają znaczenie:
+
+- **`-w`** — katalog główny instancji jest katalogiem głównym workspace'u, a lista modułów to
+  jego `dependencies`. Bez tej flagi pnpm 9 odmawia z błędem `ERR_PNPM_ADDING_TO_ROOT`.
+- **`-E` i wersja** — każdy pakiet wydania jest w tym pliku przypięty dokładnie do jednej wersji.
+  Bez nich pnpm zapisuje dla tego jednego pakietu zakres `^<version>`, a instalacja, która
+  rozwiązuje go od nowa, może wybrać dla niego późniejsze wydanie poprawkowe niż dla reszty: to
+  niespójny zestaw opisany w sekcji
+  [Instancja niespójna od początku](#instancja-niespójna-od-początku). `pnpm run upgrade`
+  zachowuje dokładne przypięcie jako dokładne, a `^` jako `^`, więc zakres zapisany tutaj
+  pozostaje zakresem.
+
+O tym, czy moduł jest po instalacji włączony, decyduje deklaracja samego modułu; podaje to sekcja
+wydania, które go wprowadza.
 
 ## Jeśli krok się nie powiedzie
 
@@ -278,6 +310,104 @@ i od tego czasu nieedytowanym daje te same pliki, które ma storefront `0.103.0`
 typów, testy i build przechodzą. Nie sprawdzono jej na storefroncie, którego pliki zmieniono, ani
 przez wyświetlenie bloku modułu w storefroncie uzupełnionym w ten sposób — przed wdrożeniem
 sprawdź strony, które zawierają treść z Page Buildera.
+
+### Po aktualizacji do wydania 0.104.0 {#after-0-104-0}
+
+`pnpm run upgrade 0.104.0` to cała aktualizacja: niczego w instancji nie trzeba w tym celu
+edytować. Poniżej: jeden moduł, którego aktualizacja nie dodaje, trzy rzeczy, które po niej
+działają inaczej, oraz to, co warto przenieść do istniejącego storefrontu i do własnego kodu.
+
+**Nowy moduł, CRM, nie zostaje dodany przez aktualizację.** `0.104.0` to pierwsze wydanie modułu
+`crm` (`@endora-commerce/mod-crm`): szanse sprzedaży z konfigurowalnym przepływem statusów,
+tablicą, kalendarzem i analityką, w panelu administracyjnym. Instancja po aktualizacji go nie
+ma — nie widać go na ekranie **Modules**, a `/crm/board` odpowiada *Page not found*. Żeby go
+dodać, w katalogu głównym instancji:
+
+```bash
+pnpm add -w -E @endora-commerce/mod-crm@0.104.0
+pnpm run setup
+```
+
+Jeśli instancja jest już w nowszym wydaniu, wpisz jego wersję zamiast `0.104.0` — obie flagi
+opisuje sekcja [Dodawanie modułu, który jest nowy w wydaniu](#adding-a-new-module). Potem uruchom
+ponownie API i podgląd panelu.
+
+- **Po instalacji jest włączony.** `setup` go instaluje, a od ponownego uruchomienia moduł jest
+  aktywny, z sekcją **CRM** w menu bocznym. Jeśli chcesz mieć pakiet bez tej funkcji, wyłącz moduł
+  na ekranie **Modules** (`/platform/modules`): jego ekrany, uprawnienia i ustawienia znikają,
+  jego trasy odpowiadają `503 MODULE_DISABLED`, a nic nie zostaje usunięte.
+- **Żadna rola nie dostaje jego uprawnień.** `crm:read`, `crm:write`, `crm:configure`
+  i `crm:analytics` nie są automatycznie nadawane żadnej roli. Administrator platformy ma
+  wszystkie uprawnienia i widzi moduł od razu; każdej innej roli, która ma z niego korzystać,
+  nadaj te cztery.
+- **Dane demonstracyjne.** W instancji z załadowanym sklepem demonstracyjnym
+  `pnpm run cli demo seed` dodaje demonstracyjny lejek sprzedaży. Od tej chwili uruchamiaj
+  `pnpm run cli demo reset` tylko przy włączonym CRM: gdy jest wyłączony, reset zatrzymuje się
+  na organizacjach z odmową klucza obcego.
+
+Co robi moduł, opisuje strona [CRM](./modules/crm.md).
+
+**Trzy rzeczy działają po aktualizacji inaczej.** Żadna nie wymaga kroku, chyba że chcesz
+zachować wcześniejsze zachowanie.
+
+- **Na frazę wyszukiwania odpowiada moduł wyszukiwania.** `GET /api/v1/catalog/products` z frazą
+  (`q`) — to, co czyta strona `/search` storefrontu — było dotąd obsługiwane z bazy danych,
+  chyba że ustawiono `CATALOG_SEARCH_BACKEND=meilisearch`. Gdy zmienna nie jest ustawiona, fraza
+  trafia teraz do modułu `search`, o ile jest włączony: wyniki są uporządkowane według trafności
+  i wybaczają literówkę, a fragment ze środka słowa lub SKU już nie pasuje. Żeby zachować
+  wcześniejsze zachowanie, ustaw `CATALOG_SEARCH_BACKEND=postgres` w pliku `.env` instancji.
+- **Zapytania ofertowego z niewycenioną pozycją nie da się zatwierdzić ani zamienić na
+  zamówienie.** Akceptacja, zatwierdzenie i zamiana zapytania ofertowego na zamówienie odpowiadają
+  teraz `409`, dopóki któraś pozycja nie ma uzgodnionej ceny jednostkowej. Zapytania, które już
+  ma status `Approved` i taką pozycję, nie da się zamienić na zamówienie; w tym statusie jego
+  pozycji nie można edytować, więc pozostaje złożyć je ponownie (`resubmit`). Żeby je znaleźć:
+
+  ```sql
+  select distinct qr.id, qr.business_id
+    from quote_requests qr
+    join quote_request_items it on it.quote_request_id = qr.id
+   where qr.status = 'Approved' and it.agreed_unit_price is null;
+  ```
+
+  To samo zapytanie z `qr.status = 'Completed'` wypisuje zapytania ofertowe, z których w ten
+  sposób już złożono zamówienia; same zamówienia pozostają bez zmian.
+- **Słownik zawiera każdy język ISO 639-1.** Brakujące wiersze są dodawane przy pierwszym starcie
+  po aktualizacji jako nieaktywne, więc nic, co czyta aktywne języki, się nie zmienia; `en-US`
+  i `pl-PL` pozostają jedynymi aktywnymi, dopóki nie aktywujesz kolejnego. Dodany wiersz, który
+  usuniesz, wraca przy następnym starcie — zamiast usuwać, zostaw go nieaktywnym.
+
+**W istniejącym storefroncie**, który zachowuje źródła, z którymi powstał:
+
+- W `lib/api/cms.ts` zmień tag pamięci podręcznej przy pobraniu `getCmsPageIndex` z `'cms:page'`
+  na `CMS_STOREFRONT_CACHE_TAGS.pageIndex`, importowany z `@endora-commerce/contracts`. Bez tej
+  zmiany wszystko działa dalej, a nowo opublikowana strona CMS trafia do `sitemap.xml` dopiero
+  po upływie 60-sekundowego okna pamięci podręcznej.
+- Kategoria może teraz mieć treść z Page Buildera, edytowaną przez akcję **Content** w drzewie
+  kategorii. Storefront pokazuje ją tylko wtedy, gdy ją wyświetla. Storefront zapisany przez CLI
+  wydania `0.104.0` to robi: `app/(catalog)/c/[slug]/page.tsx` wywołuje
+  `getCategoryPageContent(node.id, ctx)`, funkcję z `lib/api/catalog.ts`, i rysuje wynik
+  komponentem `components/CategoryContent.tsx`. Żeby je przenieść, utwórz storefront, z którego
+  skopiujesz pliki, tak jak w sekcji
+  [Bloki modułów w istniejącym storefroncie](#storefront-block-renderers).
+
+**`@dnd-kit/core` to nowa zależność peer pakietu `@endora-commerce/admin-kit`.** pnpm sam
+instaluje brakujący peer, o ile tego nie wyłączyłeś, więc instancja nie musi nic robić. Jeśli
+Twój `.npmrc` ustawia `auto-install-peers=false`, dodaj `"@dnd-kit/core": "^6.3.1"` do
+`dependencies` w `admin/package.json`, który deklaruje ten pakiet, i uruchom `pnpm install`.
+
+**Jeśli Twój własny kod implementuje port platformy albo buduje jeden z jej rekordów** — moduł
+nakładkowy albo dubler testowy — cztery kształty z `@endora-commerce/contracts` zyskały wymagany
+element i taki kod nie skompiluje się, dopóki go nie ma: `CartRecord.sourceQuoteRequestId`
+(`null`, gdy koszyk nie powstał z zapytania ofertowego), `CatalogAttributeView.isPriceRule`
+(`false`), `AuthSessionReadPort.lastSeenByAdminUser` i `LanguageSeedPort.ensureSeeded`.
+
+Na ile zostało to sprawdzone: aktualizacja z `0.103.1`, w instancji utworzonej z demonstracyjnym
+zestawem modułów, przeszła do końca z pnpm 9 i bez żadnej ręcznej edycji, a panel i niezmieniony
+storefront zbudowały się potem i wyświetlały swoje strony; następnie dodano `crm` poleceniami
+`pnpm add -w` i `setup` — po instalacji był włączony. Dokładną postać `pnpm add` podaną wyżej
+uruchomiono w pomocniczym workspace'ie, a nie w zaktualizowanej instancji. Nie sprawdzono
+wyłączenia `crm`, obu zmian w storefroncie, instancji z `auto-install-peers=false` ani instancji
+z modułami nakładkowymi; to, co ta sekcja o nich mówi, pochodzi z dzienników zmian wydania.
 
 ## Instancja niespójna od początku
 
