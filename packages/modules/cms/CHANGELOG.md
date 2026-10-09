@@ -1,5 +1,167 @@
 # @endora-commerce/mod-cms
 
+## 0.104.0
+
+### Minor Changes
+
+- fcf6daa: A category can carry content for its storefront page, authored in the Page Builder.
+
+  - **`@endora-commerce/mod-catalog`** — new nullable `categories.content` column (migration
+    `Migration20261008T092714CatalogCategoryContent`; run your instance's migrations) holding one
+    Page Builder document per language. New routes: `GET` / `PUT
+/api/v1/admin/catalog/categories/:id/content` (`catalog:read` / `catalog:write`) and the
+    storefront read `GET /api/v1/catalog/categories/:id/content`. New admin screen
+    `/catalog/categories/:id/content`, reached from a **Content** action on the category tree. A save
+    runs the `category.content.update` command and emits `category.content.updated.v1`, which flushes
+    the storefront's `catalog:categories` cache tag and — unlike `category.updated.v1` — does not
+    re-index the category's products. The category list, the category tree and
+    `CatalogCategoryRecord` are unchanged and do not carry the content.
+  - **`@endora-commerce/contracts`** — new `categoryContentEnvelopeSchema`,
+    `putCategoryContentRequestSchema`, `adminCategoryContentSchema`, `categoryPageContentSchema`,
+    their inferred types and `CATEGORY_CONTENT_MAX_BYTES` (1 MiB). New admin zone
+    `category.content.editor` with `CategoryContentEditorZoneProps`
+    (`{ categoryId, language, data, onChange }`): the catalog owns the document and mounts the zone,
+    and a module that owns a Page Builder contributes the editor. `assetReferenceKindSchema` gains
+    `'category_content'`: a library asset embedded in a category's content cannot be deleted while
+    the content references it.
+  - **`@endora-commerce/mod-cms`** — contributes its Page Builder to `category.content.editor`
+    (gated on `cms.read`). With the CMS module off the catalog's **Content** action is not offered;
+    stored content is kept.
+
+  A storefront has to render it to show it: read `getCategoryPageContent(node.id, ctx)` beside the
+  listing and render the result through the Page Builder render boundary, as the reference
+  storefront's `/c/[slug]` page and `components/CategoryContent.tsx` do.
+
+### Patch Changes
+
+- bf51b0b: The CMS page, block and template editors no longer squeeze the Page Builder on
+  mid-width screens.
+
+  The settings panel becomes a column beside the builder from 1800px instead of
+  1536px: between the two, the canvas was under 300px wide and the builder's
+  toolbar clipped its own title. Below 1800px the panel still sits above the
+  canvas, and it now starts collapsed there when editing existing content, so the
+  builder is on the first screen; "Show settings" opens it. A choice the operator
+  has already made is kept, a new page, block or template still opens the panel,
+  and a refused save still reveals it.
+
+- 1bfbcea: The CMS page, block and template editors put the Page Builder first.
+
+  The metadata card and the scope card used to sit in a row above the canvas, so every visit to an
+  editor began by scrolling past them. They are now a settings panel beside the canvas — a column to
+  its right from 1536 px of viewport, a block above it below that — and a **Hide settings / Show
+  settings** button over the canvas puts the panel away to give the builder the full width. The
+  choice is remembered per browser.
+
+  The panel opens by itself where it is needed: for a new page, block or template, which cannot be
+  saved without a name and a scope, and whenever a save is refused, so a validation error is never
+  behind a collapsed panel. The content language tabs moved to sit directly above the canvas they
+  switch.
+
+  Nothing about what is saved changed — the same fields, the same requests. No exported symbol
+  changed either: the shell is the module's own and `@endora-commerce/mod-cms/admin-ui` still
+  publishes only `PageBuilderEditor`, so the blog editors that render that canvas are untouched.
+
+- 5e2ade8: Saving content in the Admin UI now reaches the storefront on the next request. Until now a saved CMS
+  page, block, template or hook — and an edited megamenu — appeared only after the storefront's own
+  60-second cache window, and the **Cache** screen could not shorten that: it cleared Redis, which the
+  save had already done, and never told the storefront.
+
+  - **`@endora-commerce/contracts`** exports the cache-tag vocabulary both sides must spell alike:
+    `CMS_STOREFRONT_CACHE_TAGS`, `MEGAMENU_STOREFRONT_CACHE_TAG`, the event name
+    `CMS_CONTENT_CHANGED_EVENT` (`cms.content_changed.v1`) and its payload type `CmsContentChange`.
+    The tag strings are the ones the storefront already used, with one addition: the published-page
+    index (the sitemap's source) is tagged `cms:page-index` instead of `cms:page`.
+  - **`@endora-commerce/mod-cms`** publishes `cms.content_changed.v1` on the EventBus after every page,
+    block, template and hook write has committed, and answers it by posting the matching tags to the
+    storefront's `/api/revalidate`. A block save now also drops the cached hooks that inline that
+    block, which it did not before.
+  - **`@endora-commerce/mod-megamenu`** revalidates the `megamenu` tag on every menu write, and
+    subscribes to `cms.content_changed.v1` so a saved block or page drops the menus that embed or link
+    to it.
+  - **`@endora-commerce/mod-blog`** drops its cache when a category is created and when a tag is
+    renamed without a code change; both used to leave the old listing in place for five minutes.
+  - **`@endora-commerce/mod-settings`** — clearing the `cms` or `megamenu` namespace on the Cache
+    screen, or with `settings cache-clear`, now revalidates the storefront's copy too.
+
+  Nothing to configure beyond what an instance already sets: revalidation runs when
+  `STOREFRONT_BASE_URL` and `REVALIDATE_SECRET` are present on the backend and the same secret is on
+  the storefront, is skipped otherwise, and never fails a save when the storefront cannot be reached.
+
+  **An existing storefront tree** keeps working — its tags are the same strings — with one exception
+  worth taking: change the tag on its `getCmsPageIndex` fetch from `cms:page` to
+  `CMS_STOREFRONT_CACHE_TAGS.pageIndex`, or a newly published page reaches `sitemap.xml` only when the
+  60-second window runs out.
+
+- 9d6dfbc: Every Page Builder editor is laid out the same way: the blog post, blog category and
+  transactional e-mail editors join the CMS ones.
+
+  **`@endora-commerce/page-builder-admin` publishes the editor shell.** New exports on `.`:
+  `PageBuilderEditorLayout`, `usePageBuilderEditorSettingsPanel`,
+  `PAGE_BUILDER_EDITOR_SETTINGS_STORAGE_KEY`, `PAGE_BUILDER_EDITOR_TWO_COLUMN_MIN_WIDTH` and the
+  types `PageBuilderEditorLayoutProps` and `PageBuilderEditorSettingsPanel`. It is the layout the CMS
+  editors already have — canvas as the main column, the entity's cards in a settings panel that is a
+  column beside it from 1800 px, a block above it below that, collapsed by default there, always open
+  for a new entity, revealed when a save is refused, the choice remembered per browser — moved out of
+  `cms` so that a module does not have to depend on `cms` to lay out an editor. Three shapes: with a
+  settings panel; without one (`settings` omitted — the canvas has the page); and `builder={null}`
+  for an entity that has no canvas yet, where the cards are the page and nothing collapses. Its four
+  strings are `pageBuilder.editorLayout.*` in the `core` bundle (`@endora-commerce/mod-i18n`).
+
+  **Blog post and blog category editors.** The Page Builder is the main column and the fields are in
+  the settings panel, grouped: Metadata, Scope, Search engines (SEO), then for a post Tags, Related
+  posts, Related products and Lifecycle. **One Save replaces "Save metadata" and "Save content" /
+  "Save description"**: it is in the header with "Save and exit", sends the same requests (the fields,
+  then the canvas only if it was edited), and a save that cannot go through names what is missing and
+  opens the panel instead of leaving a disabled button. Publish / Unpublish moved to the header;
+  Archive is in the Lifecycle card. The canvas now follows the language tab, and saving tags or
+  related content no longer puts the stored content back under unsaved canvas edits. A new post or
+  category, which has no canvas until it exists, shows the fields as the page. `mod-blog` gains
+  `@endora-commerce/page-builder-admin` as an optional peer dependency, next to the
+  `@endora-commerce/mod-cms` one it already had. Removed bundle keys: `common.saveContent`,
+  `common.saveDescription`, `common.saveMetadata`, `messages.contentSaved`,
+  `messages.descriptionSaved`.
+
+  **Transactional e-mail, e-mail block and e-mail template editors.** The canvas takes the full
+  editor width and starts on the first screen; the scope, the language and the subject sit on one row
+  above it instead of in three stacked cards. These editors deliberately have **no** settings panel:
+  those fields say which message is on the canvas or are part of it. Their labels and messages are
+  now translated (`pl` included) instead of hard-coded English. A save without a subject is refused
+  on the screen, with a sentence that names the field and the cursor put in it, instead of the API's
+  generic validation error; `EmailSubjectWithVariables` (`@endora-commerce/page-builder-admin/email`)
+  gains the optional `invalid` and `describedBy` props that carry it.
+
+  **`mod-cms`**: no visible change. Its three editors import the shell from
+  `@endora-commerce/page-builder-admin`; the `editorLayout.*` keys left its bundle for `core`. The
+  shell was never exported from `cms` (`./admin-ui` still publishes only `PageBuilderEditor`), so no
+  import breaks. The remembered choice keeps its storage slot, `b2b-admin.cms-editor.settings-panel`,
+  so operators who already chose keep their choice — and it now applies to the blog editors too.
+  One behaviour differs: when a refused save opens the panel, the page scrolls to the top of the
+  editor, so the message is on screen with the fields under it, rather than to the panel alone.
+
+  No request, response or payload shape changed.
+
+- Updated dependencies [32775d5]
+- Updated dependencies [2f95785]
+- Updated dependencies [32775d5]
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+- Updated dependencies [9d6dfbc]
+- Updated dependencies [1a15fdc]
+  - @endora-commerce/admin-kit@0.104.0
+  - @endora-commerce/contracts@0.104.0
+  - @endora-commerce/page-builder-admin@0.104.0
+  - @endora-commerce/page-builder-core@0.104.0
+  - @endora-commerce/platform@0.104.0
+  - @endora-commerce/cms-components@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

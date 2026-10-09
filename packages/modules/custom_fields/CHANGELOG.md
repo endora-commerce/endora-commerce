@@ -1,5 +1,41 @@
 # @endora-commerce/mod-custom-fields
 
+## 0.104.0
+
+### Minor Changes
+
+- 32775d5: A custom-field host type may name the module it belongs to, and `opportunity` is the first
+  that does.
+
+  `SupportedEntityMeta` gains an optional `ownerModuleId`. While that module is not effectively
+  present, `GET /api/v1/admin/custom-fields/entity-types` omits the type, the definitions
+  already stored for it are not served — `GET /definitions` leaves them out and
+  `GET /definitions/:id` answers `404 CUSTOM_FIELD_NOT_FOUND` — and the definition and option
+  mutation routes answer `409 CUSTOM_FIELD_HOST_MANAGED` for it. Definitions and stored values
+  are kept, and are back when the owner is. Types that declare no owner — every type that
+  existed before — answer exactly as they did.
+
+  The registry gains the host type `opportunity`, owned by the `crm` module.
+
+### Patch Changes
+
+- Updated dependencies [32775d5]
+- Updated dependencies [2f95785]
+- Updated dependencies [32775d5]
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+- Updated dependencies [1a15fdc]
+  - @endora-commerce/admin-kit@0.104.0
+  - @endora-commerce/contracts@0.104.0
+  - @endora-commerce/platform@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

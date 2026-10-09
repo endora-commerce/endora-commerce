@@ -1,5 +1,103 @@
 # @endora-commerce/demo-composition
 
+## 0.104.0
+
+### Minor Changes
+
+- 22e2cea: The demo sales pipeline plans Events. The step `sales opportunities for the demo organisation`
+  now writes eight Events on six of the eight open demo opportunities — site visits, calls and two
+  all-day deadlines — so the CRM Calendar and an opportunity's Events tab have something to show
+  on a freshly seeded shop.
+
+  - They are dated from the day of the seed: seven in the coming two weeks and one five days back.
+  - **None has a reminder.** A seeded demo writes no notification and sends no e-mail.
+  - The closed opportunities have none: the Calendar shows active opportunities only.
+  - An all-day demo Event is a whole UTC day (`timeZone: 'UTC'`); a timed one is planned in
+    `Europe/Warsaw`, inside the working day.
+
+  Nothing the package exports changes: the pipeline's declarations are not on its barrel.
+
+  `pnpm run cli demo reset` removes the Events with their opportunities. An opportunity that was
+  already seeded before this change is left exactly as it is, as every re-seed leaves it — it
+  gains no Event; reset and seed again to get them.
+
+- 11ae65b: The demo shop gains a sales pipeline. A new step, `sales opportunities for the demo
+organisation`, creates twelve CRM opportunities for the demo organisation — two in each status of
+  the default workflow (`new`, `qualified`, `proposal`, `negotiation`, `won`, `lost`) — assigned
+  across the two demo sales representatives with one left unassigned, with status history dated
+  over the three months before the seed, the `crm` module's demo tags, the demo buyer as contact
+  person on four of them, six notes and internal messages, and references to a demo product and to
+  a person. Eleven carry a value entered by hand and one is set to be calculated from its linked
+  documents. None is linked to an order or a quote request: the demo shop has neither.
+
+  `pnpm run cli demo seed` adds the pipeline to a shop that is already seeded and leaves an
+  opportunity that is already there untouched; `pnpm run cli demo reset` removes exactly these
+  twelve, by id. The step runs only when `crm`, `organizations`, `admin_users`,
+  `customer_accounts` and `catalog` are all installed and switched on, and is reported as skipped
+  otherwise. The rows are written directly rather than through CRM's commands, so a seeded
+  opportunity's History tab is empty.
+
+  **Run `demo reset` with CRM switched on.** While `crm` is off the step is skipped in both
+  directions, the opportunities keep referencing the demo organisation, and the reset stops at
+  `organizations` with a foreign-key refusal.
+
+  Two peers are new: `@endora-commerce/mod-crm` (optional, like every module this package wires)
+  and `@endora-commerce/contracts`, which an instance already installs for its modules.
+
+### Patch Changes
+
+- 2d39d97: A product attribute carries a new flag, **`isPriceRule`** — whether the attribute may be used as a
+  price-building rule in a Price List. It is the pricing sibling of `isPromoRule` and travels the
+  same way: `false` by default, set on create, hot-toggled through
+  `PATCH /api/v1/admin/catalog/attributes/:key`, and shown as a column and a checkbox on the admin
+  Attributes screen.
+
+  - **`@endora-commerce/contracts`** — `createAttributeRequestSchema` and
+    `updateAttributeRequestSchema` accept an optional `isPriceRule`;
+    `adminAttributeResponseSchema` and `CatalogAttributeView` always carry it; `CatalogAttributeFlag`
+    and `CatalogAdminAttributeFlag` gain `'isPriceRule'`, so
+    `catalogAttributeReadPort.listByFlag('isPriceRule')` answers the attributes a price rule may name.
+    **If you build a `CatalogAttributeView` yourself** — a test double of `CatalogAttributeReadPort`
+    is the usual case — add `isPriceRule: false`; the field is required, which is why this is a
+    minor in a `0.x` series.
+  - **`@endora-commerce/mod-catalog`** — a migration adds `product_attributes.is_price_rule`
+    (`boolean not null default false`), and `GET /api/v1/admin/catalog/attributes/by-flag` accepts
+    `flag=isPriceRule`.
+  - **`@endora-commerce/demo-composition`** — `createAttributeFixture` accepts `isPriceRule`.
+
+  Nothing prices from the flag yet: a Price List's application rule still matches on sales channel,
+  customer group, organization, category and currency only. This release records the flag and
+  publishes it for the price-rule work to consume.
+
+- Updated dependencies [dbf6778]
+- Updated dependencies [44d35a6]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [eb04e42]
+- Updated dependencies [ce0471f]
+- Updated dependencies [bcd577c]
+- Updated dependencies [32775d5]
+- Updated dependencies [7af6470]
+- Updated dependencies [fd640a0]
+  - @endora-commerce/contracts@0.104.0
+  - @endora-commerce/mod-admin-roles@0.104.0
+  - @endora-commerce/mod-catalog@0.104.0
+  - @endora-commerce/mod-megamenu@0.104.0
+  - @endora-commerce/mod-crm@0.104.0
+  - @endora-commerce/mod-custom-fields@0.104.0
+  - @endora-commerce/mod-admin-users@0.104.0
+  - @endora-commerce/mod-credit-limits@0.104.0
+  - @endora-commerce/mod-customer-accounts@0.104.0
+  - @endora-commerce/mod-inventory@0.104.0
+  - @endora-commerce/mod-organizations@0.104.0
+  - @endora-commerce/mod-price-lists@0.104.0
+  - @endora-commerce/platform@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

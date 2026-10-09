@@ -1,5 +1,47 @@
 # @endora-commerce/mod-sales-channels
 
+## 0.104.0
+
+### Patch Changes
+
+- 1a15fdc: The Sales Channel create and edit forms pick languages and currencies from searchable controls,
+  and a default that is no longer selected is reported instead of being replaced.
+
+  - **`@endora-commerce/admin-kit/ui` exports `MultiCombobox`** (with `MultiComboboxProps`) — a
+    searchable multi-select: one combobox input over a filtered listbox, the selection shown as
+    removable chips. It takes the same `ComboboxOption[]` as `Combobox` and a `value: T[]` /
+    `onChange(next: T[])` pair, matches on `label` and `description` without regard to diacritics,
+    and is driven from the keyboard (arrows, `Home`/`End`, `Enter` to toggle, `Escape`, `Backspace`
+    to remove the last chip). `MultiSelect` is unchanged and remains the control for filter bars.
+  - **`Combobox` accepts `invalid` and `ariaDescribedBy`**, so it can be used as a validated form
+    field, and **closes its listbox when focus leaves it**. It used to stay open after `Tab`, until a
+    pointer press elsewhere; a caller that relied on that has nothing to change, the list simply no
+    longer covers the next field.
+  - **Sales Channel form**: _Languages_ and _Currencies_ are `MultiCombobox`es over the active
+    Dictionary entries, searchable by code and by name; _Default language_ and _Default currency_ are
+    `Combobox`es limited to what is selected. Removing the entry that is the current default now
+    **empties the default** and blocks saving until one is chosen — the form used to promote the
+    first remaining entry silently. The submitted value has the same shape as before.
+  - The shared admin bundle gains `common.multiCombobox.added`, `.noMatches`, `.remove` and
+    `.removed` in English and Polish.
+
+- Updated dependencies [32775d5]
+- Updated dependencies [2f95785]
+- Updated dependencies [32775d5]
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+- Updated dependencies [1a15fdc]
+  - @endora-commerce/admin-kit@0.104.0
+  - @endora-commerce/contracts@0.104.0
+  - @endora-commerce/platform@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

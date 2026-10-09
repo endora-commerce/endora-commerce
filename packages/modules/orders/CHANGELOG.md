@@ -1,5 +1,112 @@
 # @endora-commerce/mod-orders
 
+## 0.104.0
+
+### Minor Changes
+
+- 32775d5: Two additive seams for other modules; an instance in which nobody uses them behaves as before.
+
+  - **An opaque `origin` on an administrator-created order.** `POST /api/v1/admin/orders`
+    accepts an optional `origin: { type, id }` and echoes it, unread, on `order.created.v1`. The
+    key is absent from the event when the request carried none, so an existing subscriber sees
+    the payload it always saw. For an order created with one, an outbound webhook subscribed to
+    `order.created.v1` receives it too, since the webhook's payload is the event's. The value is
+    not stored, not returned and not interpreted, and a storefront placement cannot set it.
+    `OrderService.placeOrder` takes an optional third argument `{ origin? }`;
+    `OrderPlacementPort` is unchanged.
+  - **The create-order screen (`/orders/new`) can be opened by another screen**: it reads
+    `originType`, `originId`, `organizationId`, `customerAccountId`, `salesChannelId` and
+    `returnTo` from its query string. Opened without them it behaves as before.
+  - **A new admin zone, `order.detail.after`**, mounted once at the end of the order screen,
+    below its tabs, with `{ orderId }`. The module names no contributor; with nothing
+    contributed the screen is unchanged.
+
+- 85793d6: An order placed from an accepted quote request records it.
+
+  `sourceQuoteRequestId` has been on the order's API shape and in `orders.source_quote_request_id`
+  since the first release and was always `null`. It is now set when the order is placed from the
+  basket a quote conversion seeded — and only after the quote request has been read back through
+  `quoteRequestReadPort`:
+
+  - it belongs to the **same organization** as the order;
+  - it is still `Approved`;
+  - **no other order records it already** — two people of one organization can each turn the same
+    quote request into a basket, and the request's status only moves after the first order has
+    committed, so placement asks its own table (behind a transaction-scoped advisory lock on the
+    quote request's id, which makes two such placements take turns);
+  - the basket still holds at least one of its lines, the same product and variant at the agreed
+    unit price.
+
+  When any of the four fails, the order is placed as usual and records nothing; the reason is
+  logged at `warn`. No request body carries the field — the storefront, `POST
+/api/v1/admin/orders` and the external order API cannot name a quote request. No route and no
+  response shape changes; **a consumer that assumed the field is always `null` now sees a UUID**
+  on such orders, in `GET /api/v1/orders/:id`, the admin order reads, the external API and
+  `OrderRecord`.
+
+  **A new non-binding edge**: `quote_requests` / `quoteRequestReadPort`, `degrades-without`. With
+  the Quote Requests module switched off or not installed, orders are placed exactly as before
+  and record no quote request.
+
+  **Breaking for anyone composing the module by hand**: `OrdersModuleOptions` and
+  `OrderServiceNeighbourPorts` gain a required accessor, `quoteRequestRead: () =>
+QuoteRequestReadPort | null`. Return `null` to get the previous behaviour. The packaged
+  composition supplies it.
+
+### Patch Changes
+
+- 7af6470: The Dictionary's Languages tab lists every ISO 639-1 language, each with the countries that use it.
+
+  - **183 languages are seeded, inactive.** `mod-dictionaries` ships a static catalogue — code,
+    English name, native name, text direction and ISO 3166-1 country codes — and its boot reconciler
+    inserts the rows that are missing, so an existing installation receives them on its first boot
+    after the upgrade. No migration and no new dependency. `en-US` and `pl-PL` stay the only active
+    languages: the storefront registry, `GET /api/v1/i18n/config`, the catalogue's translation chains
+    and the product feeds read the _active_ set and are unchanged. An operator activates a language on
+    its row to start using it.
+  - **Seeding never overwrites.** A language row that exists is left exactly as it is — label, sort
+    order and activation included. A seeded row that is deleted returns on the next boot; leave it
+    inactive instead. A language is linked only to countries the dictionary holds, never as the
+    country's primary language, and a country added later is linked on the next boot.
+  - **`LanguageSeedPort` gains `ensureSeeded(rows: readonly LanguageSeedRow[]): Promise<number>`**,
+    and `@endora-commerce/contracts` exports `LanguageSeedRow`. It inserts every row whose `code` is
+    missing with `is_active = false` and returns how many it inserted. An implementation of the port
+    outside `mod-languages` has to add the method; a caller of `backfillNativeLabels` changes nothing.
+  - **Admin.** The Countries column shows country-code chips instead of a count; the list is searchable
+    by country, filterable by status and paged; translation completeness is requested for active
+    languages only, and the translations panel offers active languages only (the backend already
+    refused a label in an inactive one). `GET /api/v1/admin/dictionary/languages` builds its answer in
+    two statements instead of one per language.
+  - **A code that used to be unknown is now inactive.** A write naming a catalogue language that has
+    not been activated — `de` on a sales channel, say — answers `409 DICTIONARY_ENTRY_INACTIVE` where
+    it answered `409 DICTIONARY_ENTRY_NOT_FOUND`.
+  - `mod-orders`: the order-status screen asks the dictionary for its full page of languages, so an
+    active language cannot fall outside the first hundred rows.
+
+- Updated dependencies [32775d5]
+- Updated dependencies [2f95785]
+- Updated dependencies [32775d5]
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [85793d6]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+- Updated dependencies [1a15fdc]
+  - @endora-commerce/admin-kit@0.104.0
+  - @endora-commerce/contracts@0.104.0
+  - @endora-commerce/mod-carts@0.104.0
+  - @endora-commerce/mod-credit-limits@0.104.0
+  - @endora-commerce/mod-inventory@0.104.0
+  - @endora-commerce/mod-invoices@0.104.0
+  - @endora-commerce/mod-promotions@0.104.0
+  - @endora-commerce/platform@0.104.0
+  - @endora-commerce/email-components@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

@@ -1,5 +1,146 @@
 # @endora-commerce/admin-kit
 
+## 0.104.0
+
+### Minor Changes
+
+- 32775d5: `CustomFieldValuesPanel` can be embedded in a form. `save` is now optional: with `onChange` and
+  no `save` the panel renders the fields and no button, and reports the whole edited bag on
+  every change. Two further optional props: `fieldErrors` (a message per field key, shown at the
+  field) and `language` (the language labels are shown in; `en` when omitted). A caller passing
+  none of them sees no change.
+- 2f95785: A new component, `KanbanBoard`, and **a new peer dependency an application must provide:
+  `@dnd-kit/core` `^6.3.1`**.
+
+  **The peer.** `@endora-commerce/admin-kit` now declares `@dnd-kit/core` in `peerDependencies`,
+  the way it declares `echarts`. An application that embeds the kit and installs with a package
+  manager that adds missing peers by itself (pnpm with `auto-install-peers`, its default; npm 7
+  and later) needs to do nothing. One that does not — or that wants the version under its own
+  control — adds `"@dnd-kit/core": "^6.3.1"` to its own `dependencies`. It is MIT-licensed and
+  brings `@dnd-kit/accessibility`, `@dnd-kit/utilities` and `tslib` with it. A module package
+  that uses the board imports it from the kit and declares nothing for it.
+
+  **`KanbanBoard`**, exported from `@endora-commerce/admin-kit/components` with the types
+  `KanbanBoardProps`, `KanbanBoardLabels`, `KanbanColumnRenderState`, `KanbanCardRenderState`,
+  `KanbanColumnState` and `KanbanDropState`. A board of lanes whose cards move between lanes by
+  dragging — with a mouse, with a finger (press and hold) or from the keyboard (each card has a
+  handle: Space lifts, the left and right arrows choose a lane, Space drops, Escape cancels).
+
+  It is generic and knows no domain: the lanes (`columns`, `getColumnId`), the cards
+  (`itemsByColumn`, `getItemId`) and everything drawn (`renderCard`, `renderColumnHeader`,
+  optional `renderColumnFooter`) are the caller's.
+
+  - `onMove(itemId, fromColumnId, toColumnId)` is called once when a card is dropped on another
+    lane that accepts it. Return a promise and the move is optimistic: the card is shown in the
+    new lane while the promise is pending and goes back if it rejects.
+  - `canDrop(item, toColumnId, fromColumnId)` says which lanes accept the lifted card. Lanes
+    that refuse are marked while it is lifted, and a drop on one calls nothing.
+  - `getColumnState` with `renderColumnLoading`, `renderColumnError` and `renderColumnEmpty` give
+    each lane its loading, error and empty content.
+  - `labels` carries every string the board names something with or announces to a screen
+    reader. The kit ships none of them: the sentences name the caller's items and lanes, so the
+    caller translates them.
+  - `disabled` renders a read-only board.
+
+  Links, buttons and form controls inside a card never start a drag, and neither does anything
+  marked `data-kanban-no-drag`. **A consumer owes one thing the component cannot supply**: a way
+  to move a card with a single pointer and without dragging — a "Move to…" menu in `renderCard`
+  — because WCAG 2.2 SC 2.5.7 requires it and only the caller knows what the target lanes mean.
+  Cards have no order inside a lane; a drop reports the lane, not a position.
+
+  **Size and scrolling.** Lanes share the board's width down to 256 px each and then the board
+  scrolls sideways. The board bounds no height itself: give it one through `className` (for
+  example a `max-h-…` class) and every lane takes it — a lane's cards then scroll inside the
+  lane, under its header, and the board's own scroll bar stays in view. The drag handle is a
+  28 px picture with a 44 px hit area.
+
+- f02494f: The contract for Events on a Sales Opportunity and for the CRM Calendar. Additive throughout.
+  The routes that serve it and the screens that draw it are `@endora-commerce/mod-crm`'s, and
+  the port method is answered by `@endora-commerce/mod-auth`; each has a changeset of its own in
+  this release.
+
+  **`@endora-commerce/contracts` — `crm`.** The request and response shapes of five routes
+  (`GET`/`POST /opportunities/:id/events`, `PATCH`/`DELETE …/events/:eventId`,
+  `GET /calendar/events`):
+
+  - `CreateOpportunityEventRequestSchema` and `UpdateOpportunityEventRequestSchema` — a name of
+    1 to 200 characters, an optional description of 5 000 at most, `allDay`, `startsAt` and
+    `endsAt` as ISO 8601 instants with an offset, the IANA `timeZone` the times were chosen in,
+    and an optional `remindAt`. The schema refuses what needs neither a clock nor zone data: an
+    end that is not after the start, and a span over `OPPORTUNITY_EVENT_MAX_SPAN_HOURS` (25).
+    The update is the same members, all optional, and strict.
+  - **Every instant of these shapes** — `startsAt`, `endsAt`, `remindAt`, and `from` and `to` of
+    `CalendarEventsQuerySchema` — must lie in `0001-01-03T00:00:00Z` … `9999-12-30T00:00:00Z`, the
+    end excluded. A four-digit year as written is not enough: an offset carries
+    `9999-12-31T22:00:00-14:00` into the year 10000, which PostgreSQL refuses. Outside the range
+    the schema refuses, so the routes answer 400.
+  - `OpportunityEventSchema` — the stored Event, with `allDayDate` computed by the server and a
+    `reminder` of `{ at, state, handledAt, channels }` or `null`.
+    `opportunityEventReminderStateSchema` names the seven states and
+    `opportunityEventReminderChannelSchema` the two channels; `channels` is non-empty exactly
+    when the state is `sent`.
+  - `opportunityEventRuleSchema` — the five reasons a well-formed Event is refused with 422
+    `VALIDATION_FAILED` (`details.rule`).
+  - `CalendarEventsQuerySchema` (`from`, `to`, an optional `scope` of `mine` or `all`; a range
+    of `CALENDAR_EVENTS_MAX_RANGE_DAYS`, 45, at most), `CalendarEventSchema` — what a calendar
+    draws, without the description — `CalendarEventsMetaSchema` and
+    `CalendarEventsResponseSchema`; `CALENDAR_EVENTS_MAX_RESULTS` (500).
+  - `OpportunityDetailSchema` gains `upcomingEventCount`, a non-negative integer.
+
+  **`@endora-commerce/contracts` — `auth`.** `AuthSessionReadPort` gains
+  `lastSeenByAdminUser(adminUserIds, since)` and the type `AuthAdminLastSeen`, the twin of
+  `lastSeenByCustomerAccount`. **An implementer or a test double of this port outside the
+  repository must add the method to keep compiling.**
+
+  **`@endora-commerce/contracts` and `@endora-commerce/admin-kit`.** `CalendarDays` joins the
+  admin icon allowlist: `KnownIconNameSchema` gains the name and `resolveIcon` maps it to the
+  lucide component, the pair a declared icon needs in one change.
+
+- 1a15fdc: The Sales Channel create and edit forms pick languages and currencies from searchable controls,
+  and a default that is no longer selected is reported instead of being replaced.
+
+  - **`@endora-commerce/admin-kit/ui` exports `MultiCombobox`** (with `MultiComboboxProps`) — a
+    searchable multi-select: one combobox input over a filtered listbox, the selection shown as
+    removable chips. It takes the same `ComboboxOption[]` as `Combobox` and a `value: T[]` /
+    `onChange(next: T[])` pair, matches on `label` and `description` without regard to diacritics,
+    and is driven from the keyboard (arrows, `Home`/`End`, `Enter` to toggle, `Escape`, `Backspace`
+    to remove the last chip). `MultiSelect` is unchanged and remains the control for filter bars.
+  - **`Combobox` accepts `invalid` and `ariaDescribedBy`**, so it can be used as a validated form
+    field, and **closes its listbox when focus leaves it**. It used to stay open after `Tab`, until a
+    pointer press elsewhere; a caller that relied on that has nothing to change, the list simply no
+    longer covers the next field.
+  - **Sales Channel form**: _Languages_ and _Currencies_ are `MultiCombobox`es over the active
+    Dictionary entries, searchable by code and by name; _Default language_ and _Default currency_ are
+    `Combobox`es limited to what is selected. Removing the entry that is the current default now
+    **empties the default** and blocks saving until one is chosen — the form used to promote the
+    first remaining entry silently. The submitted value has the same shape as before.
+  - The shared admin bundle gains `common.multiCombobox.added`, `.noMatches`, `.remove` and
+    `.removed` in English and Polish.
+
+### Patch Changes
+
+- 32775d5: `readableTextColor` — and so `statusBadgeStyle` — picks the text colour by contrast ratio.
+
+  It chose white or dark grey by a brightness threshold, which put white text on the mid-tones an
+  operator actually picks for a status — amber, green, blue — at 2:1 to 3.7:1. It now answers
+  whichever of `#000000` and `#ffffff` has the higher WCAG contrast against the background,
+  which is at least 4.58:1 on any colour (SC 1.4.3 asks for 4.5:1).
+
+  **What changes on screen:** a status or tag badge on a mid-tone colour shows black text where
+  it showed white, on every screen that uses the helper — order statuses and return statuses
+  included. The dark text is `#000000` where it was `#1f2937`. Signatures are unchanged.
+
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+  - @endora-commerce/contracts@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

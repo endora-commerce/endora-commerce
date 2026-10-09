@@ -1,5 +1,46 @@
 # @endora-commerce/mod-carts
 
+## 0.104.0
+
+### Minor Changes
+
+- 85793d6: A basket remembers the accepted quote request it was seeded from.
+
+  - **One new nullable column, `carts.source_quote_request_id`**, arriving with the next
+    migration run (`Migration20261008T061751CartsCartSourceQuoteRequest`). No backfill, no
+    foreign key, no index; existing baskets hold `null`.
+  - `cartWritePort.replaceItemsForCustomer` accepts `{ sourceQuoteRequestId }` as an optional
+    third argument and stores it; a call without it clears the mark. Nothing a buyer can reach
+    sets it. Adding a line, removing one or changing a quantity keeps it, as it keeps the unit
+    prices the seed wrote; **removing the last line clears it**.
+  - `CartRecord`, as answered by `cartReadPort`, `cartWritePort` and `cartPlacementApplyPort`,
+    carries `sourceQuoteRequestId`.
+  - **Fixed:** `replaceItemsForCustomer` did not write the basket's `lastActivityAt` — it set it
+    on a row another `EntityManager` managed. A basket seeded by a reorder, an
+    administrator-created order or a quote conversion now has its activity time moved, which
+    the abandonment sweep reads.
+
+  No route, no response shape and no manifest edge changes.
+
+### Patch Changes
+
+- Updated dependencies [32775d5]
+- Updated dependencies [2f95785]
+- Updated dependencies [32775d5]
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+- Updated dependencies [1a15fdc]
+  - @endora-commerce/admin-kit@0.104.0
+  - @endora-commerce/contracts@0.104.0
+  - @endora-commerce/platform@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

@@ -1,5 +1,307 @@
 # @endora-commerce/contracts
 
+## 0.104.0
+
+### Minor Changes
+
+- dbf6778: An entry on the Admin UI's notification bell can be shown in each reader's language. Additive:
+  a module that records entries as before is unaffected, and so is a consumer that reads only
+  `title` and `body`.
+
+  **`@endora-commerce/contracts`.** New type `AdminNotificationMessage` —
+  `{ scope: string; key: string; params?: Record<string, string | number> }`, the bundle
+  namespace (a module id, or `core`), a key in that bundle and what fills its `{name}`
+  placeholders. `RecordAdminNotificationInput` gains two optional members, `titleMessage` and
+  `bodyMessage`; `title` stays required and is the English sentence shown when the message
+  cannot be resolved. `AdminNotificationRecord` gains the same two as optional members, so an
+  existing implementation of `AdminNotificationRecordPort` — a test double included — still
+  satisfies it.
+
+  ```ts
+  await adminNotifications.record({
+    audience: 'admin_user',
+    targetAdminUserId,
+    kind: 'my_module.thing.done',
+    title: `Thing ${number} is done`,
+    titleMessage: { scope: 'my_module', key: 'notifications.done.title', params: { number } },
+  });
+  ```
+
+  **`@endora-commerce/mod-admin-notifications`.** A migration,
+  `Migration20261007T194748AdminNotificationsMessageKeys`, adds two nullable `jsonb` columns to
+  `admin_notifications` — `title_message` and `body_message`; nothing is backfilled and existing
+  rows read `null`. `adminNotificationRecordPort.record` stores a message and answers it, and
+  **refuses** one it could not draw: a scope that is not a bundle namespace, an empty key or one
+  longer than 255 characters, a param that is not a string or a finite number, and a
+  `bodyMessage` without a `body`. `GET /api/v1/admin/notifications` answers `titleMessage` and
+  `bodyMessage` on every item, `null` when the entry has none.
+
+  **`@endora-commerce/admin-shell`.** `NotificationBell` resolves `titleMessage` and
+  `bodyMessage` through the loaded translation bundles — the reader's language, then English —
+  and shows the recorded `title` / `body` when the entry carries no message, when no bundle
+  holds the key (the recording module is switched off or not installed), or when the template
+  names a placeholder the entry has no param for. A raw key is never shown, and a param is drawn
+  as text.
+
+- 2d39d97: A product attribute carries a new flag, **`isPriceRule`** — whether the attribute may be used as a
+  price-building rule in a Price List. It is the pricing sibling of `isPromoRule` and travels the
+  same way: `false` by default, set on create, hot-toggled through
+  `PATCH /api/v1/admin/catalog/attributes/:key`, and shown as a column and a checkbox on the admin
+  Attributes screen.
+
+  - **`@endora-commerce/contracts`** — `createAttributeRequestSchema` and
+    `updateAttributeRequestSchema` accept an optional `isPriceRule`;
+    `adminAttributeResponseSchema` and `CatalogAttributeView` always carry it; `CatalogAttributeFlag`
+    and `CatalogAdminAttributeFlag` gain `'isPriceRule'`, so
+    `catalogAttributeReadPort.listByFlag('isPriceRule')` answers the attributes a price rule may name.
+    **If you build a `CatalogAttributeView` yourself** — a test double of `CatalogAttributeReadPort`
+    is the usual case — add `isPriceRule: false`; the field is required, which is why this is a
+    minor in a `0.x` series.
+  - **`@endora-commerce/mod-catalog`** — a migration adds `product_attributes.is_price_rule`
+    (`boolean not null default false`), and `GET /api/v1/admin/catalog/attributes/by-flag` accepts
+    `flag=isPriceRule`.
+  - **`@endora-commerce/demo-composition`** — `createAttributeFixture` accepts `isPriceRule`.
+
+  Nothing prices from the flag yet: a Price List's application rule still matches on sales channel,
+  customer group, organization, category and currency only. This release records the flag and
+  publishes it for the price-rule work to consume.
+
+- fcf6daa: A category can carry content for its storefront page, authored in the Page Builder.
+
+  - **`@endora-commerce/mod-catalog`** — new nullable `categories.content` column (migration
+    `Migration20261008T092714CatalogCategoryContent`; run your instance's migrations) holding one
+    Page Builder document per language. New routes: `GET` / `PUT
+/api/v1/admin/catalog/categories/:id/content` (`catalog:read` / `catalog:write`) and the
+    storefront read `GET /api/v1/catalog/categories/:id/content`. New admin screen
+    `/catalog/categories/:id/content`, reached from a **Content** action on the category tree. A save
+    runs the `category.content.update` command and emits `category.content.updated.v1`, which flushes
+    the storefront's `catalog:categories` cache tag and — unlike `category.updated.v1` — does not
+    re-index the category's products. The category list, the category tree and
+    `CatalogCategoryRecord` are unchanged and do not carry the content.
+  - **`@endora-commerce/contracts`** — new `categoryContentEnvelopeSchema`,
+    `putCategoryContentRequestSchema`, `adminCategoryContentSchema`, `categoryPageContentSchema`,
+    their inferred types and `CATEGORY_CONTENT_MAX_BYTES` (1 MiB). New admin zone
+    `category.content.editor` with `CategoryContentEditorZoneProps`
+    (`{ categoryId, language, data, onChange }`): the catalog owns the document and mounts the zone,
+    and a module that owns a Page Builder contributes the editor. `assetReferenceKindSchema` gains
+    `'category_content'`: a library asset embedded in a category's content cannot be deleted while
+    the content references it.
+  - **`@endora-commerce/mod-cms`** — contributes its Page Builder to `category.content.editor`
+    (gated on `cms.read`). With the CMS module off the catalog's **Content** action is not offered;
+    stored content is kept.
+
+  A storefront has to render it to show it: read `getCategoryPageContent(node.id, ctx)` beside the
+  listing and render the result through the Page Builder render boundary, as the reference
+  storefront's `/c/[slug]` page and `components/CategoryContent.tsx` do.
+
+- 85793d6: A basket can say which accepted quote request it was seeded from.
+
+  - `CartRecord.sourceQuoteRequestId: string | null` — new and **required**. **Breaking for
+    anything that builds a `CartRecord` or implements `CartReadPort` / `CartWritePort` itself**
+    (a test double, an alternative cart): add the field, `null` when the basket came from no
+    quote request. Consumers that only read a `CartRecord` are unaffected.
+  - `CartWritePort.replaceItemsForCustomer(ctx, lines, options?)` — a third, optional argument,
+    `CartSeedOptions { sourceQuoteRequestId?: string | null }`. Existing two-argument calls
+    compile and behave as before, with one thing to know: the mark is **replaced on every call**,
+    so a seed that passes no option clears what an earlier one set.
+
+  The value is a claim, not a fact: `carts` records what its caller said, and `orders` re-reads
+  the quote request through `QuoteRequestReadPort` before an order may carry it.
+
+- d5ab69f: An operator chooses which fields a card on the Opportunity board shows, and the board is
+  filtered by the fields its cards show. Additive: an instance nobody configures shows the card
+  it showed before.
+
+  **`@endora-commerce/mod-crm`.** A new Setting, `crm.board_card_fields` — a JSON array of field
+  references, platform-wide, defaulting to the card as it was (`builtin:number`,
+  `builtin:organization`, `builtin:value`, `builtin:assignee`, `builtin:tags`). It is edited in
+  the new _Board card_ section of **CRM → Workflow**, which the board links to for a holder of
+  `crm:configure`. A field is `builtin:<key>` or `custom:<definition key>`; a custom field
+  whose definition is deleted drops out of the cards, the filters and the section without an
+  error. At most six fields are shown, the title besides.
+
+  - `GET /api/v1/admin/crm/board/card-fields` (`crm:read`) answers `{ fields, available,
+maxFields }`; `PUT` on the same path (`crm:configure`) takes `{ fields: string[] }` and
+    answers the same.
+  - `GET /api/v1/admin/crm/board` answers `cardFields` beside `columns`, and every card carries
+    `cardValues` — the values of the chosen fields a summary does not already hold, keyed by
+    reference, and of no other field.
+  - `GET /api/v1/admin/crm/board` and `GET /api/v1/admin/crm/opportunities` accept
+    `fieldFilters`, a URL-encoded JSON object of operators per field reference (`contains`,
+    `in`, `is`, `min`, `max`, `from`, `to`). A reference that is not on the card is ignored. The
+    list also accepts `cardValues=true`.
+  - The board's filters are now carried in its address (`/crm/board?assignee=me&f.custom:lead_source.in=referral`),
+    so a filtered board can be reloaded and shared.
+
+  The module now resolves two more ports, both of owners it already depends on:
+  `customFieldDefinitionReadPort` (`custom_fields`) and `settingsAdminService` (`settings`).
+
+  **`@endora-commerce/contracts`.** New exports: `OPPORTUNITY_BOARD_CARD_MAX_FIELDS`,
+  `OPPORTUNITY_BOARD_BUILTIN_FIELD_KEYS`, `OPPORTUNITY_BOARD_DEFAULT_CARD_FIELDS`,
+  `opportunityBoardFieldRefSchema`, `opportunityBoardFieldKindSchema`,
+  `OpportunityBoardCardFieldSchema`, `SetOpportunityBoardCardFieldsRequestSchema`,
+  `OpportunityBoardCardConfigSchema` (and its response envelope), `OpportunityFieldFilterSchema`,
+  `OpportunityFieldFiltersSchema` and their inferred types. `OpportunityBoardSchema` gains the
+  required member `cardFields`; `OpportunitySummarySchema` gains the optional `cardValues`;
+  `OpportunityListQuerySchema` and `OpportunityBoardQuerySchema` gain the optional `fieldFilters`
+  (parsed from its JSON text) and the list query the optional `cardValues`.
+
+- 32775d5: The contract surface of the new CRM module, and the small additions its neighbours needed. All
+  additive; the notes say where an exhaustive `switch` gains a case. Nothing a released version
+  exported changes shape.
+
+  **CRM (`crm.ts`, exported from the package root).** The request and response schemas of the
+  CRM admin API with their inferred types — opportunities, the workflow and its mappings, links,
+  propagation outcomes, the board, tags, comments, attachments, history, references, lookups,
+  the five analytics reads and `OpportunityOfDocumentResponseSchema`; `CRM_EVENTS` and
+  `opportunityStatusEventName(kind, { from, to })` with the event payload types; the strict
+  webhook payload schemas `OpportunityCreatedEventV1Schema`,
+  `OpportunityStatusChangedEventV1Schema`, `OpportunityClosedEventV1Schema` with
+  `CRM_WEBHOOK_EVENT_TYPES` and `CRM_WEBHOOK_EVENT_SCHEMAS`; the ports `OpportunityReadPort`
+  (with `OpportunityRecord`), `OpportunityTransitionPort` (with `OpportunityTransitionOutcome`)
+  and `OpportunityTransitionGuardRegistryPort` (with `OpportunityTransitionGuard` and
+  `OpportunityTransitionVetoError`); the reference grammar —
+  `formatOpportunityReferenceToken`, `extractOpportunityReferenceTokens`,
+  `splitOpportunityReferenceText`, `mentionedAdminUserIds` — over three reference types,
+  `product`, `order` and `admin_user`; the mention lookup schemas
+  (`OpportunityMentionLookupQuerySchema`, `OpportunityMentionOptionSchema`,
+  `OpportunityMentionLookupResponseSchema`); and `OPPORTUNITY_ATTACHMENT_MAX_BYTES`. A history
+  entry (`OpportunityHistoryEntrySchema`) carries `references` for the description it shows, and
+  the history response (`OpportunityHistoryResponseSchema`, `OpportunityHistoryResponse`) carries
+  `truncated` beside `pagination`.
+
+  **`ERROR_CODES`** gains fifteen members, all prefixed `CRM_`: `CRM_OPPORTUNITY_NOT_FOUND`,
+  `CRM_INVALID_TRANSITION`, `CRM_TRANSITION_VETOED`, `CRM_TRANSITION_CONFLICT`,
+  `CRM_DOCUMENT_NOT_FOUND`, `CRM_DOCUMENT_ALREADY_LINKED`, `CRM_LINK_ORGANIZATION_MISMATCH`,
+  `CRM_STATUS_CODE_TAKEN`, `CRM_STATUS_IN_USE`, `CRM_STATUS_INITIAL_REQUIRED`,
+  `CRM_WORKFLOW_INVALID`, `CRM_ASSIGNEE_INVALID`, `CRM_TAG_NAME_TAKEN`,
+  `CRM_MESSAGE_IMMUTABLE` and `CRM_ATTACHMENT_TOO_LARGE`. A consumer that switches exhaustively
+  over `ErrorCode` gets a compile error until it handles them.
+
+  **New members of existing unions** — each a compile error for an exhaustive `switch` or a
+  `Record` over the union, which is why this is a `minor`:
+
+  - `AdminNavSectionNameSchema`: `'crm'`.
+  - `AdminZoneNameSchema` / `AdminZonePropsMap`: `'order.detail.after'`
+    (`OrderDetailZoneProps`) and `'quote_request.detail.after'` (`QuoteRequestDetailZoneProps
+{ quoteRequestId }`).
+  - `supportedEntityTypeSchema`: `'opportunity'`.
+  - `assetReferenceKindSchema`: `'crm_opportunity_attachment'`.
+
+  **For the neighbours.**
+
+  - `OriginReferenceSchema` / `OriginReference` (`{ type, id }`: a lower-case identifier of at
+    most 64 characters and a UUID, strict), optional as `origin` on
+    `adminCreateOrderRequestSchema` and `adminCreateQuoteRequestSchema`; the event payload types
+    `OrderCreatedEventPayload` and `RfqCreatedByAdminEventPayload`, and the name
+    `RFQ_CREATED_BY_ADMIN_EVENT`. A request without `origin` validates as before.
+  - `WebhookEventDescriptor` and `WebhookEventRegistryPort`, the contribution seam of
+    `@endora-commerce/mod-webhooks`.
+  - `QUOTE_REQUEST_STATUS_VALUES` is exported.
+
+- f02494f: The contract for Events on a Sales Opportunity and for the CRM Calendar. Additive throughout.
+  The routes that serve it and the screens that draw it are `@endora-commerce/mod-crm`'s, and
+  the port method is answered by `@endora-commerce/mod-auth`; each has a changeset of its own in
+  this release.
+
+  **`@endora-commerce/contracts` — `crm`.** The request and response shapes of five routes
+  (`GET`/`POST /opportunities/:id/events`, `PATCH`/`DELETE …/events/:eventId`,
+  `GET /calendar/events`):
+
+  - `CreateOpportunityEventRequestSchema` and `UpdateOpportunityEventRequestSchema` — a name of
+    1 to 200 characters, an optional description of 5 000 at most, `allDay`, `startsAt` and
+    `endsAt` as ISO 8601 instants with an offset, the IANA `timeZone` the times were chosen in,
+    and an optional `remindAt`. The schema refuses what needs neither a clock nor zone data: an
+    end that is not after the start, and a span over `OPPORTUNITY_EVENT_MAX_SPAN_HOURS` (25).
+    The update is the same members, all optional, and strict.
+  - **Every instant of these shapes** — `startsAt`, `endsAt`, `remindAt`, and `from` and `to` of
+    `CalendarEventsQuerySchema` — must lie in `0001-01-03T00:00:00Z` … `9999-12-30T00:00:00Z`, the
+    end excluded. A four-digit year as written is not enough: an offset carries
+    `9999-12-31T22:00:00-14:00` into the year 10000, which PostgreSQL refuses. Outside the range
+    the schema refuses, so the routes answer 400.
+  - `OpportunityEventSchema` — the stored Event, with `allDayDate` computed by the server and a
+    `reminder` of `{ at, state, handledAt, channels }` or `null`.
+    `opportunityEventReminderStateSchema` names the seven states and
+    `opportunityEventReminderChannelSchema` the two channels; `channels` is non-empty exactly
+    when the state is `sent`.
+  - `opportunityEventRuleSchema` — the five reasons a well-formed Event is refused with 422
+    `VALIDATION_FAILED` (`details.rule`).
+  - `CalendarEventsQuerySchema` (`from`, `to`, an optional `scope` of `mine` or `all`; a range
+    of `CALENDAR_EVENTS_MAX_RANGE_DAYS`, 45, at most), `CalendarEventSchema` — what a calendar
+    draws, without the description — `CalendarEventsMetaSchema` and
+    `CalendarEventsResponseSchema`; `CALENDAR_EVENTS_MAX_RESULTS` (500).
+  - `OpportunityDetailSchema` gains `upcomingEventCount`, a non-negative integer.
+
+  **`@endora-commerce/contracts` — `auth`.** `AuthSessionReadPort` gains
+  `lastSeenByAdminUser(adminUserIds, since)` and the type `AuthAdminLastSeen`, the twin of
+  `lastSeenByCustomerAccount`. **An implementer or a test double of this port outside the
+  repository must add the method to keep compiling.**
+
+  **`@endora-commerce/contracts` and `@endora-commerce/admin-kit`.** `CalendarDays` joins the
+  admin icon allowlist: `KnownIconNameSchema` gains the name and `resolveIcon` maps it to the
+  lucide component, the pair a declared icon needs in one change.
+
+- 7af6470: The Dictionary's Languages tab lists every ISO 639-1 language, each with the countries that use it.
+
+  - **183 languages are seeded, inactive.** `mod-dictionaries` ships a static catalogue — code,
+    English name, native name, text direction and ISO 3166-1 country codes — and its boot reconciler
+    inserts the rows that are missing, so an existing installation receives them on its first boot
+    after the upgrade. No migration and no new dependency. `en-US` and `pl-PL` stay the only active
+    languages: the storefront registry, `GET /api/v1/i18n/config`, the catalogue's translation chains
+    and the product feeds read the _active_ set and are unchanged. An operator activates a language on
+    its row to start using it.
+  - **Seeding never overwrites.** A language row that exists is left exactly as it is — label, sort
+    order and activation included. A seeded row that is deleted returns on the next boot; leave it
+    inactive instead. A language is linked only to countries the dictionary holds, never as the
+    country's primary language, and a country added later is linked on the next boot.
+  - **`LanguageSeedPort` gains `ensureSeeded(rows: readonly LanguageSeedRow[]): Promise<number>`**,
+    and `@endora-commerce/contracts` exports `LanguageSeedRow`. It inserts every row whose `code` is
+    missing with `is_active = false` and returns how many it inserted. An implementation of the port
+    outside `mod-languages` has to add the method; a caller of `backfillNativeLabels` changes nothing.
+  - **Admin.** The Countries column shows country-code chips instead of a count; the list is searchable
+    by country, filterable by status and paged; translation completeness is requested for active
+    languages only, and the translations panel offers active languages only (the backend already
+    refused a label in an inactive one). `GET /api/v1/admin/dictionary/languages` builds its answer in
+    two statements instead of one per language.
+  - **A code that used to be unknown is now inactive.** A write naming a catalogue language that has
+    not been activated — `de` on a sales channel, say — answers `409 DICTIONARY_ENTRY_INACTIVE` where
+    it answered `409 DICTIONARY_ENTRY_NOT_FOUND`.
+  - `mod-orders`: the order-status screen asks the dictionary for its full page of languages, so an
+    active language cannot fall outside the first hundred rows.
+
+### Patch Changes
+
+- 5e2ade8: Saving content in the Admin UI now reaches the storefront on the next request. Until now a saved CMS
+  page, block, template or hook — and an edited megamenu — appeared only after the storefront's own
+  60-second cache window, and the **Cache** screen could not shorten that: it cleared Redis, which the
+  save had already done, and never told the storefront.
+
+  - **`@endora-commerce/contracts`** exports the cache-tag vocabulary both sides must spell alike:
+    `CMS_STOREFRONT_CACHE_TAGS`, `MEGAMENU_STOREFRONT_CACHE_TAG`, the event name
+    `CMS_CONTENT_CHANGED_EVENT` (`cms.content_changed.v1`) and its payload type `CmsContentChange`.
+    The tag strings are the ones the storefront already used, with one addition: the published-page
+    index (the sitemap's source) is tagged `cms:page-index` instead of `cms:page`.
+  - **`@endora-commerce/mod-cms`** publishes `cms.content_changed.v1` on the EventBus after every page,
+    block, template and hook write has committed, and answers it by posting the matching tags to the
+    storefront's `/api/revalidate`. A block save now also drops the cached hooks that inline that
+    block, which it did not before.
+  - **`@endora-commerce/mod-megamenu`** revalidates the `megamenu` tag on every menu write, and
+    subscribes to `cms.content_changed.v1` so a saved block or page drops the menus that embed or link
+    to it.
+  - **`@endora-commerce/mod-blog`** drops its cache when a category is created and when a tag is
+    renamed without a code change; both used to leave the old listing in place for five minutes.
+  - **`@endora-commerce/mod-settings`** — clearing the `cms` or `megamenu` namespace on the Cache
+    screen, or with `settings cache-clear`, now revalidates the storefront's copy too.
+
+  Nothing to configure beyond what an instance already sets: revalidation runs when
+  `STOREFRONT_BASE_URL` and `REVALIDATE_SECRET` are present on the backend and the same secret is on
+  the storefront, is skipped otherwise, and never fails a save when the storefront cannot be reached.
+
+  **An existing storefront tree** keeps working — its tags are the same strings — with one exception
+  worth taking: change the tag on its `getCmsPageIndex` fetch from `cms:page` to
+  `CMS_STOREFRONT_CACHE_TAGS.pageIndex`, or a newly published page reaches `sitemap.xml` only when the
+  60-second window runs out.
+
 ## 0.103.1
 
 ## 0.103.0
