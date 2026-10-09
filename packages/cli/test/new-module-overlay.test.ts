@@ -353,7 +353,11 @@ describe('what an overlay module cannot be is refused before anything is written
     );
     expect(error).toBeInstanceOf(ScaffoldInputError);
     expect((error as Error).message).toContain('"blog"');
-    expect((error as Error).message).toContain('pnpm add');
+    // The root of an instance is a workspace root: without `-w` pnpm 9 refuses
+    // (`ERR_PNPM_ADDING_TO_ROOT`), and without `-E` and a version it writes a
+    // caret beside packages the scaffold pinned exactly (issue #192).
+    expect((error as Error).message).toContain('`pnpm add -w -E <package>@<version>`');
+    expect((error as Error).message).not.toContain('`pnpm add <package>`');
   });
 
   it('a permission, in an instance without `auth`', async () => {

@@ -1700,8 +1700,13 @@ ${commandBlock(scripts)}
 Your modules arrive as installed packages, and a package is installed by \`module:install\` and
 by **no boot**: that command applies its migrations, reconciles its settings and runs its
 install hook. Until it has run, \`start\` refuses and names the modules the platform requires.
-Adding a module later is \`pnpm add\`, then \`pnpm run migrate\` and \`module:install\` again —
-both are idempotent, so running them over a set that is already installed changes nothing.
+Adding a module later is \`pnpm add -w -E <package>@<version>\` in this directory, then
+\`pnpm run migrate\` and \`module:install\` again — both are idempotent, so running them over a
+set that is already installed changes nothing. \`<version>\` is the one the release's other
+packages have in \`package.json\`. \`-w\` is needed because this directory is a workspace root, and
+\`-E\` with the version keeps the new entry pinned exactly like the rest: without them pnpm either
+refuses or writes a range, which a later install may resolve to a different release than its
+neighbours.
 
 ## Changing what the platform does
 
