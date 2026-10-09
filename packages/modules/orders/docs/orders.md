@@ -24,6 +24,41 @@ Admin routes are gated by `orders:read` (read) / `orders:write` (mutations).
 | `POST /api/v1/admin/orders/:id/status` | admin | Status transition (audited) |
 | `POST /api/v1/admin/orders/:id/payment-status` | admin | Payment status transition (audited) |
 
+## Which sales channel an order records
+
+An order records one sales channel, and the minimum order value, the candidate
+warehouses, the channel-level fulfilment settings and the order-number
+prefix/suffix are all read for that channel. Where it comes from depends on who
+places the order:
+
+| Surface | The order's channel |
+| --- | --- |
+| Storefront — `POST /api/v1/orders`, one-click buy | The channel **the request resolved**: `X-Sales-Channel`, `?salesChannel=`, the host map, else the system default |
+| Admin order creation — `POST /api/v1/admin/orders` | The channel the operator chose for the order (`salesChannelId` in the body) |
+| API key — the external order intake | The channel the key is bound to |
+
+On the storefront the optional `salesChannelId` body field does not choose the
+channel. A request that omits it is placed on the resolved channel; one that
+sends the resolved channel's id is accepted; one that names a **different**
+channel is refused with `422 VALIDATION_FAILED` and
+`details.code = "order_sales_channel_mismatch"` (the details carry
+`requestedSalesChannelId` and `resolvedSalesChannelId`), before anything is
+written — the basket is left as it was.
+
+**Upgrading a multi-channel instance.** Until this rule, a storefront order that
+did not send `salesChannelId` in the body — which is every order placed through
+the reference storefront — was recorded on the system-default channel whichever
+channel the buyer was on. New orders placed on a non-default channel's
+storefront are now recorded on that channel, so that channel's minimum order
+value, warehouses, fulfilment settings and order numbering apply to them, and
+they appear under that channel in the order list and in reports. Existing orders
+are not rewritten. An instance with a single sales channel sees no change.
+
+The basket keeps a channel of its own, and today it is always the system
+default: promotions are still evaluated against the basket's channel, at
+checkout exactly as in the cart, so a promotion restricted to a non-default
+channel does not yet apply to an order placed there.
+
 ## Status machine (configurable)
 
 The order lifecycle is **admin-configurable**: statuses and allowed

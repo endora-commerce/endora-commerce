@@ -38,7 +38,7 @@ import type {
 } from '@endora-commerce/contracts';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { HttpError } from '@endora-commerce/platform/http';
-import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import { getResolvedChannel, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import type { OrderService } from './services/order-service.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
@@ -264,7 +264,49 @@ export async function registerOrderRoutes(
           throw err;
         }
       }
-      const order = await orderService.placeOrder(ctx, body);
+      // The order's channel is the one **this request resolved** — header,
+      // query, host map or the system default, in the resolver's own order —
+      // and not the one the body names.
+      //
+      // `placeOrder` stamps `req.salesChannelId`, else the system default, and
+      // this route used to hand it the body untouched. The reference storefront
+      // sends `X-Sales-Channel` and never the body field, so an order placed on
+      // a second channel's storefront was recorded on the default channel and
+      // took that channel's minimum order value, candidate warehouses and
+      // order-number prefix (test/contract/orders/place-order-request-channel.test.ts
+      // holds the observation). A client that *did* send the field could name
+      // any channel it liked, which is a buyer choosing whose rules their order
+      // is placed under.
+      //
+      // So the body field is a claim to be checked, not an instruction: equal
+      // to the resolved channel it is redundant and accepted, different it is
+      // refused — never silently overridden, because a client that believes it
+      // is on another channel has a defect worth hearing about. The refusal is
+      // here, ahead of the placement transaction, so nothing is written and the
+      // basket survives. 422 with a `details.code`, the shape
+      // `order_below_minimum` already gives a body that parses and cannot be
+      // honoured.
+      //
+      // Admin order creation and the API-key intake call `placeOrder` from
+      // their own services with the operator's chosen channel and the key's
+      // bound one; neither passes through here, and neither changes.
+      const requestChannel = getResolvedChannel(request);
+      if (body.salesChannelId !== undefined && body.salesChannelId !== requestChannel.id) {
+        throw new HttpError(
+          422,
+          ERROR_CODES.VALIDATION_FAILED,
+          'The order names a sales channel other than the one this request was made on.',
+          {
+            code: 'order_sales_channel_mismatch',
+            requestedSalesChannelId: body.salesChannelId,
+            resolvedSalesChannelId: requestChannel.id,
+          },
+        );
+      }
+      const order = await orderService.placeOrder(ctx, {
+        ...body,
+        salesChannelId: requestChannel.id,
+      });
       reply.status(201);
       return { data: await serializeForBuyer(order, ctx.customerAccountId) };
     },

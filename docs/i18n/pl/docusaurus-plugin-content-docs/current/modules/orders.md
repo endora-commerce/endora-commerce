@@ -24,6 +24,42 @@ Trasy administracyjne są chronione przez `orders:read` (odczyt) i `orders:write
 | `POST /api/v1/admin/orders/:id/status` | administrator | Zmiana statusu (audytowana) |
 | `POST /api/v1/admin/orders/:id/payment-status` | administrator | Zmiana statusu płatności (audytowana) |
 
+## Który kanał sprzedaży zapisuje zamówienie
+
+Zamówienie zapisuje jeden kanał sprzedaży i to dla niego odczytywane są: minimalna
+wartość zamówienia, magazyny brane pod uwagę przy rezerwacji, ustawienia realizacji
+na poziomie kanału oraz prefiks i sufiks numeru zamówienia. Skąd pochodzi kanał,
+zależy od tego, kto składa zamówienie:
+
+| Miejsce | Kanał zamówienia |
+| --- | --- |
+| Sklep — `POST /api/v1/orders`, zakup jednym kliknięciem | Kanał **rozpoznany dla żądania**: `X-Sales-Channel`, `?salesChannel=`, mapa hostów, a w ostatniej kolejności kanał domyślny |
+| Tworzenie zamówienia w panelu — `POST /api/v1/admin/orders` | Kanał wybrany przez operatora dla zamówienia (`salesChannelId` w treści żądania) |
+| Klucz API — zewnętrzne przyjmowanie zamówień | Kanał, z którym powiązany jest klucz |
+
+W sklepie opcjonalne pole `salesChannelId` w treści żądania nie wybiera kanału.
+Żądanie bez tego pola jest składane w rozpoznanym kanale; żądanie z identyfikatorem
+rozpoznanego kanału jest przyjmowane; żądanie wskazujące **inny** kanał jest
+odrzucane odpowiedzią `422 VALIDATION_FAILED` z
+`details.code = "order_sales_channel_mismatch"` (szczegóły zawierają
+`requestedSalesChannelId` i `resolvedSalesChannelId`), zanim cokolwiek zostanie
+zapisane — koszyk pozostaje bez zmian.
+
+**Aktualizacja instancji z wieloma kanałami.** Do tej pory zamówienie ze sklepu,
+które nie przekazywało `salesChannelId` w treści żądania — czyli każde zamówienie
+złożone przez referencyjny sklep — było zapisywane w kanale domyślnym, niezależnie
+od tego, w którym kanale był kupujący. Nowe zamówienia składane w sklepie kanału
+innego niż domyślny są teraz zapisywane w tym kanale, więc obowiązują dla nich jego
+minimalna wartość zamówienia, magazyny, ustawienia realizacji i numeracja zamówień,
+a na liście zamówień i w raportach pojawiają się pod tym kanałem. Istniejące
+zamówienia nie są zmieniane. W instancji z jednym kanałem sprzedaży nic się nie
+zmienia.
+
+Koszyk ma własny kanał i dziś jest nim zawsze kanał domyślny: promocje są nadal
+wyliczane dla kanału koszyka, przy składaniu zamówienia dokładnie tak jak w koszyku,
+więc promocja ograniczona do kanału innego niż domyślny nie obejmuje jeszcze
+zamówienia złożonego w tym kanale.
+
 ## Statusy i przejścia (konfigurowalne)
 
 Cykl życia zamówienia **konfiguruje się w panelu administracyjnym**: statusy i dozwolone przejścia

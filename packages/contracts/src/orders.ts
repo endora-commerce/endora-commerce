@@ -278,6 +278,18 @@ export const placeOrderRequestSchema = z.object({
   billingAddressId: uuidSchema,
   deliveryMethodId: uuidSchema,
   paymentMethodId: uuidSchema,
+  /**
+   * Optional, and on the storefront route it does **not** choose the channel:
+   * `POST /api/v1/orders` places the order on the channel the request resolved
+   * (`X-Sales-Channel`, `?salesChannel=`, the host map, else the system
+   * default). Omit it. A value equal to the resolved channel's id is accepted;
+   * a different one is refused with `422 VALIDATION_FAILED`,
+   * `details.code = "order_sales_channel_mismatch"`.
+   *
+   * It stays in the shape because `OrderPlacementPort.placeOrder` takes this
+   * type too, and there the caller — one-click buy, admin order creation, the
+   * API-key intake — states the channel it has already established.
+   */
   salesChannelId: uuidSchema.optional(),
   promotionCode: z.string().optional(),
   customerNote: z.string().max(4000).optional(),
