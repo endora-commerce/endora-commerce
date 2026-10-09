@@ -35,6 +35,27 @@ export const adminRoleSchema = z.object({
 });
 export type AdminRole = z.infer<typeof adminRoleSchema>;
 
+/**
+ * `GET /api/v1/admin/me` — the signed-in administrator, as the Admin UI's auth
+ * gate reads it. Gated on a session and on no permission code, so everything
+ * here is something every administrator is entitled to know about themselves.
+ *
+ * `idleLogoutMinutes` is the operator's `admin.idle_logout_minutes` setting.
+ * It travels here rather than through the settings admin API because that API
+ * requires `settings:read`, and an inactivity policy binds an administrator
+ * whether or not their role may open the settings screen. `null` means the
+ * backend could not resolve a usable value (the setting is not registered, or
+ * holds something that is not a positive number); a backend older than this
+ * field omits it. In both cases the Admin UI applies its built-in default.
+ */
+export const adminMeResponseSchema = z.object({
+  adminUser: adminUserSchema,
+  role: adminRoleSchema.nullable(),
+  permissions: z.array(z.string()),
+  idleLogoutMinutes: z.number().positive().nullable(),
+});
+export type AdminMeResponse = z.infer<typeof adminMeResponseSchema>;
+
 export const adminLoginRequestSchema = z.object({
   email: z.string().email(),
   password: z.string(),

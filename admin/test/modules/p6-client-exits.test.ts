@@ -89,13 +89,11 @@ const EXITS: readonly ClientExit[] = [
     clientPath: 'modules/settings/api/settings-client',
     endpoints: ['/api/v1/admin/settings/'],
   },
-  {
-    caller: '../packages/admin-shell/src/components/IdleLogout.tsx',
-    owner: 'settings',
-    binding: 'settingsClient',
-    clientPath: 'modules/settings/api/settings-client',
-    endpoints: ['/api/v1/admin/settings/'],
-  },
+  // `packages/admin-shell/src/components/IdleLogout.tsx` left this list: it no
+  // longer requests `/api/v1/admin/settings/:code` at all. That endpoint
+  // requires `settings:read`, so the idle-logout window now arrives on the
+  // session (`GET /api/v1/admin/me`), and `components/IdleLogout.test.tsx`
+  // asserts the component makes no request.
   {
     caller: '../packages/modules/pwa/src/admin/pages/PwaPage.tsx',
     owner: 'sales_channels',
