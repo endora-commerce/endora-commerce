@@ -39,7 +39,9 @@ wykonywane po kolei; jedno się udaje, a drugie dostaje `409 LIMIT_INSUFFICIENT`
 
 ## Emitowane zdarzenia
 
-`credit_limit.granted.v1`, `credit_limit.adjusted.v1`, `credit_limit.reservation_released.v1`.
+`credit_limit.granted.v1`, `credit_limit.adjusted.v1`. Są to zdarzenia działającej w procesie szyny
+zdarzeń; żadne z nich nie jest dostarczane do webhooków wychodzących. Zwolnienie rezerwacji nie
+emituje zdarzenia.
 
 ## Punkty rozszerzenia
 

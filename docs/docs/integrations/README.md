@@ -106,7 +106,9 @@ A webhook subscription declares:
 
 - `url` — the receiver endpoint that will accept `POST` deliveries.
 - `eventTypes[]` — versioned event names the receiver wants (e.g.
-  `order.created.v1`, `rfq.accepted.v1`, `product.updated.v1`).
+  `order.created.v1`, `order.status_changed.v1`). Only the names listed under
+  *Available events* below are accepted; any other is refused with
+  `422 WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE`.
 - `organizationId` — optional Organization scope. When set, the subscription
   receives only events attributed to that Organization (e.g. its orders);
   when omitted, the subscription is platform-wide and receives all matching
@@ -176,18 +178,38 @@ not guaranteed across event types.
 
 ### Available events
 
-The catalogue of stable events is the exhaustive list of strings emitted by
-the in-process event bus and bridged to webhooks (`packages/platform/src/events/`).
-US-relevant examples:
+An event is delivered to webhooks only when it is **bridged** to the delivery
+queue. Being emitted on the in-process event bus is not enough: most events on
+the bus are internal and are not delivered.
 
-- `product.created.v1`, `product.updated.v1`, `product.archived.v1`
-- `rfq.created.v1`, `rfq.quoted.v1`, `rfq.accepted.v1`, `rfq.expired.v1`
-- `order.created.v1`, `order.status_changed.v1`, `order.cancelled.v1`
-- `payment.settled.v1`
-- `credit_limit.adjusted.v1`, `credit_limit.reservation_released.v1`
+Two events are bridged by the `webhooks` module itself:
 
-Refer to `packages/contracts/src/*.ts` for the exact payload shape per
-event.
+- `order.created.v1` — an order was placed.
+- `order.status_changed.v1` — an order moved from one status to another. A
+  cancellation is announced this way, with the new status in the payload; there
+  is no separate cancellation event.
+
+A module can contribute further event types of its own, which are delivered
+while that module is switched on. The `crm` module, for example, contributes
+`crm.opportunity.status_changed.v1`, `crm.opportunity.created.v1` and
+`crm.opportunity.closed.v1`.
+
+The list for a running instance is what the subscription form offers:
+the two built-in events plus the answer of
+`GET /api/v1/admin/webhooks/event-types`. The built-in list is exported from
+`@endora-commerce/contracts` as `WEBHOOK_BUILT_IN_EVENT_TYPES`, and it is the
+same constant the backend bridges from, so the form cannot offer an event that
+is not delivered.
+
+A subscription may name only these events. `POST` and `PATCH` on
+`/api/v1/admin/webhooks` refuse any other name with
+`422 WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE`, and `error.details.eventTypes` carries
+the refused names. A subscription saved before this rule keeps the names it was
+saved with: it is still listed and can still be edited, the Admin UI marks the
+names that are not delivered, and it receives nothing for them.
+
+The event's payload is sent whole. Refer to `packages/contracts/src/*.ts` for
+the payload shapes that are published as contracts.
 
 ## Vendor credentials
 

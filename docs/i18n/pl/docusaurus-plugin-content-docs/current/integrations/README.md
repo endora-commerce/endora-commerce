@@ -98,7 +98,9 @@ Subskrypcja webhooka określa:
 
 - `url` — endpoint odbiorcy przyjmujący żądania `POST`.
 - `eventTypes[]` — wersjonowane nazwy zdarzeń, które odbiorca chce dostawać (np.
-  `order.created.v1`, `rfq.accepted.v1`, `product.updated.v1`).
+  `order.created.v1`, `order.status_changed.v1`). Przyjmowane są wyłącznie nazwy wymienione niżej
+  w sekcji *Dostępne zdarzenia*; każda inna jest odrzucana z
+  `422 WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE`.
 - `organizationId` — opcjonalne ograniczenie do organizacji. Gdy jest ustawione, subskrypcja dostaje
   tylko zdarzenia przypisane do tej organizacji (np. jej zamówienia); gdy go nie ma, subskrypcja
   obejmuje całą platformę i dostaje wszystkie pasujące zdarzenia. Zdarzenia bez przypisanej
@@ -166,16 +168,34 @@ gwarantowana.
 
 ### Dostępne zdarzenia
 
-Katalog stałych zdarzeń to pełna lista nazw emitowanych przez działającą w procesie szynę zdarzeń i
-przekazywanych do webhooków (`packages/platform/src/events/`). Przykłady istotne dla integracji:
+Zdarzenie trafia do webhooków tylko wtedy, gdy jest **przekazywane** do kolejki wysyłek. Samo
+wyemitowanie na działającej w procesie szynie zdarzeń nie wystarcza: większość zdarzeń na szynie
+jest wewnętrzna i nie jest dostarczana.
 
-- `product.created.v1`, `product.updated.v1`, `product.archived.v1`
-- `rfq.created.v1`, `rfq.quoted.v1`, `rfq.accepted.v1`, `rfq.expired.v1`
-- `order.created.v1`, `order.status_changed.v1`, `order.cancelled.v1`
-- `payment.settled.v1`
-- `credit_limit.adjusted.v1`, `credit_limit.reservation_released.v1`
+Dwa zdarzenia przekazuje sam moduł `webhooks`:
 
-Dokładną postać danych każdego zdarzenia opisują pliki `packages/contracts/src/*.ts`.
+- `order.created.v1` — złożono zamówienie.
+- `order.status_changed.v1` — zamówienie przeszło z jednego statusu w inny. W ten sposób ogłaszane
+  jest też anulowanie, z nowym statusem w treści zdarzenia; osobnego zdarzenia anulowania nie ma.
+
+Moduł może wnieść własne typy zdarzeń, które są dostarczane, dopóki ten moduł jest włączony. Na
+przykład moduł `crm` wnosi `crm.opportunity.status_changed.v1`, `crm.opportunity.created.v1` i
+`crm.opportunity.closed.v1`.
+
+Lista obowiązująca w działającej instancji to ta, którą oferuje formularz subskrypcji: dwa
+zdarzenia wbudowane oraz odpowiedź `GET /api/v1/admin/webhooks/event-types`. Lista wbudowana jest
+eksportowana z `@endora-commerce/contracts` jako `WEBHOOK_BUILT_IN_EVENT_TYPES` i jest tą samą
+stałą, z której backend zakłada swoje przekazywanie, więc formularz nie może zaoferować zdarzenia,
+które nie jest dostarczane.
+
+Subskrypcja może wskazywać wyłącznie te zdarzenia. `POST` i `PATCH` na `/api/v1/admin/webhooks`
+odrzucają każdą inną nazwę z `422 WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE`, a `error.details.eventTypes`
+zawiera odrzucone nazwy. Subskrypcja zapisana przed wprowadzeniem tej reguły zachowuje nazwy, z
+którymi ją zapisano: nadal jest widoczna na liście i nadal można ją edytować, panel administracyjny
+oznacza nazwy, które nie są dostarczane, a subskrypcja nic dla nich nie dostaje.
+
+Treść zdarzenia jest wysyłana w całości. Postać danych opublikowaną jako kontrakt opisują pliki
+`packages/contracts/src/*.ts`.
 
 ## Dane uwierzytelniające usług zewnętrznych
 

@@ -160,6 +160,11 @@ export const ERROR_CODES = {
   // API keys / webhooks / integrations
   API_KEY_OUT_OF_SCOPE: 'API_KEY_OUT_OF_SCOPE',
   WEBHOOK_DELIVERY_NOT_REPLAYABLE: 'WEBHOOK_DELIVERY_NOT_REPLAYABLE',
+  /**
+   * A webhook subscription names an event type nothing delivers — one that is
+   * neither bridged by `webhooks` nor contributed by a module that is present.
+   */
+  WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE: 'WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE',
 
   // Distributor API (feature 062)
   API_KEY_NOT_BOUND: 'API_KEY_NOT_BOUND',

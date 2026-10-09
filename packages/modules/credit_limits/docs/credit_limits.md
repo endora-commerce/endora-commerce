@@ -42,8 +42,9 @@ Index on `(credit_limit_id, status)` keeps the available-balance query fast.
 
 ## Events emitted
 
-`credit_limit.granted.v1`, `credit_limit.adjusted.v1`,
-`credit_limit.reservation_released.v1`.
+`credit_limit.granted.v1`, `credit_limit.adjusted.v1`. These are events on the
+in-process event bus; neither is delivered to outbound webhooks. Releasing a
+reservation emits no event.
 
 ## Extension points
 

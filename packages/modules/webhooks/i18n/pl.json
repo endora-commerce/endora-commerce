@@ -1,6 +1,8 @@
 {
   "errors.WEBHOOK_DELIVERY_NOT_REPLAYABLE": "Ponowić można tylko dostarczenie, które zakończyło się niepowodzeniem albo trafiło do kolejki martwych komunikatów. To wciąż oczekuje albo już się powiodło.",
+  "errors.WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE": "Te typy zdarzeń nie są dostarczane do webhooków: {eventTypes}. Subskrybuj wyłącznie typy zdarzeń dostępne na tym ekranie.",
   "nav.webhooks.label": "Webhooki",
   "actions.openWebhooks.label": "Webhooki",
-  "actions.openWebhooks.description": "Subskrypcje zdarzeń i dostarczenia"
+  "actions.openWebhooks.description": "Subskrypcje zdarzeń i dostarczenia",
+  "subscription.eventType.notDelivered": "Niedostarczane: nic nie wysyła tego zdarzenia do webhooków. Subskrypcja zachowuje je, dopóki go nie usuniesz."
 }

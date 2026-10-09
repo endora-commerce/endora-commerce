@@ -304,6 +304,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       + 'already holds the exclusive claim. The noun is the ERP connector claim, which '
       + '`erp_connector` owns.',
   },
+  WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE: {
+    to: 'webhooks',
+    reason:
+      'Minted after the prefix chain was deleted (issue #173): the refusal to save a webhook ' +
+      'subscription naming an event type nothing delivers — one neither bridged by `webhooks` ' +
+      'nor contributed by a module that is present. The noun is this module\'s `webhooks` row ' +
+      'and the one raise site is its own `services/webhook-service.ts`.',
+  },
 };
 
 /**

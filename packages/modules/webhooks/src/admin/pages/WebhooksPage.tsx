@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Check, Copy, Pause, Play, RefreshCw, Trash2 } from 'lucide-react';
-import type { Webhook, WebhookDelivery } from '@endora-commerce/contracts';
+import {
+  deliverableWebhookEventTypes,
+  type Webhook,
+  type WebhookDelivery,
+} from '@endora-commerce/contracts';
 import { ApiError, apiClient, formatDateTime } from '@endora-commerce/admin-kit/lib';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -25,22 +29,6 @@ import {
   TableRow,
 } from '@endora-commerce/admin-kit/ui';
 import { OrganizationPicker } from '@endora-commerce/admin-kit/components';
-
-const KNOWN_EVENT_TYPES = [
-  'product.created.v1',
-  'product.updated.v1',
-  'product.archived.v1',
-  'rfq.created.v1',
-  'rfq.quoted.v1',
-  'rfq.accepted.v1',
-  'rfq.expired.v1',
-  'order.created.v1',
-  'order.status_changed.v1',
-  'order.cancelled.v1',
-  'payment.settled.v1',
-  'credit_limit.adjusted.v1',
-  'credit_limit.reservation_released.v1',
-];
 
 /** `GET /api/v1/admin/webhooks/event-types` — the types other modules contribute. */
 interface ContributedEventTypesResponse {
@@ -68,7 +56,14 @@ export default function WebhooksPage(): ReactNode {
   const [copied, setCopied] = useState(false);
   // Feature 062 — best-effort id → name lookup for the org-scope column.
   const [orgNames, setOrgNames] = useState<Map<string, string>>(new Map());
-  const [contributedEventTypes, setContributedEventTypes] = useState<string[]>([]);
+  const tWebhooks = useTranslation('webhooks');
+  // `null` until the endpoint has answered: an unread list is not an empty one,
+  // and marking a contributed type as undelivered because the read failed would
+  // be a second wrong answer on the screen this list exists to make truthful.
+  const [contributedEventTypes, setContributedEventTypes] = useState<string[] | null>(null);
+  // What a subscription can receive — the backend bridges from, and validates
+  // against, the same function over the same data (issue #173).
+  const deliverable = deliverableWebhookEventTypes(contributedEventTypes ?? []);
 
   const copySecret = useCallback(async (secret: string): Promise<void> => {
     try {
@@ -112,8 +107,8 @@ export default function WebhooksPage(): ReactNode {
     void refreshWebhooks();
   }, [refreshWebhooks]);
 
-  // The event types other modules contribute, offered after this screen's own
-  // list. Best effort: the form keeps its own list when this cannot be read.
+  // The event types other modules contribute, offered after the built-in ones.
+  // Best effort: the form offers the built-in ones when this cannot be read.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -123,7 +118,7 @@ export default function WebhooksPage(): ReactNode {
         );
         if (!cancelled) setContributedEventTypes(res.data.map((descriptor) => descriptor.eventType));
       } catch {
-        /* the form offers its own list regardless */
+        /* the form offers the built-in types regardless */
       }
     })();
     return () => {
@@ -305,7 +300,7 @@ export default function WebhooksPage(): ReactNode {
           <CardTitle>{t('webhooks.create.title')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <CreateWebhookForm onSubmit={handleCreate} contributedEventTypes={contributedEventTypes} />
+          <CreateWebhookForm onSubmit={handleCreate} offeredEventTypes={deliverable} />
         </CardContent>
       </Card>
 
@@ -337,11 +332,30 @@ export default function WebhooksPage(): ReactNode {
                     <TableCell className="font-mono text-xs">{w.url}</TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {w.eventTypes.map((e) => (
-                          <Badge key={e} variant="outline" className="font-mono text-xs">
-                            {e}
-                          </Badge>
-                        ))}
+                        {w.eventTypes.map((e) =>
+                          // A subscription written before event types were
+                          // validated may carry one nothing delivers. It is
+                          // shown as stored, and marked, rather than hidden.
+                          contributedEventTypes !== null && !deliverable.includes(e) ? (
+                            <Badge
+                              key={e}
+                              variant="warning"
+                              className="font-mono text-xs"
+                              title={tWebhooks('subscription.eventType.notDelivered')}
+                              data-undelivered-event-type={e}
+                            >
+                              {e}
+                              <span className="sr-only">
+                                {' — '}
+                                {tWebhooks('subscription.eventType.notDelivered')}
+                              </span>
+                            </Badge>
+                          ) : (
+                            <Badge key={e} variant="outline" className="font-mono text-xs">
+                              {e}
+                            </Badge>
+                          ),
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
@@ -496,14 +510,14 @@ function CreateWebhookForm(props: {
     eventTypes: string[];
     organizationId: string | null;
   }) => Promise<void>;
-  /** Event types other modules contribute; offered after this screen's own, each once. */
-  contributedEventTypes: readonly string[];
+  /**
+   * Every event type a subscription can receive — the built-in ones, then the
+   * contributed ones, each once. The form keeps no list of its own.
+   */
+  offeredEventTypes: readonly string[];
 }): ReactNode {
   const t = useTranslation('core');
-  const offeredEventTypes = [
-    ...KNOWN_EVENT_TYPES,
-    ...props.contributedEventTypes.filter((eventType) => !KNOWN_EVENT_TYPES.includes(eventType)),
-  ];
+  const { offeredEventTypes } = props;
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [events, setEvents] = useState<Set<string>>(new Set());
