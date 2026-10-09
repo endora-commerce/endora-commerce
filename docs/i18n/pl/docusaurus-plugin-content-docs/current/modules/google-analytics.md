@@ -76,6 +76,11 @@ przeglądarce:
   chyba że ustawiono `BACKEND_ROLE=api` — wtedy tylko w procesie `worker`) przekazuje każde zdarzenie
   do GA4 przez **Measurement Protocol** i ponawia próbę po błędzie. Każde zdarzenie ma stały klucz
   idempotencji `eventId`.
+- **Nieskonfigurowany kanał nie dodaje żadnych zadań.** Dla kanału, w którym wysyłka po stronie
+  serwera nie jest skonfigurowana — główny przełącznik albo `server_side_enabled` jest wyłączony
+  albo Measurement ID jest pusty — trasa nie dodaje żadnego zadania i odpowiada `202` z
+  `accepted: 0`. Storefront w ogóle nie wysyła żądań dla takiego kanału; taką odpowiedź dostaje
+  żądanie ze strony, która wciąż ma starszą konfigurację.
 - **Domyślne metryki GA4 działają bez dodatkowej pracy.** Przeglądarka utrzymuje własny `client_id`
   i odnawiany co 30 minut `session_id` (w ciasteczkach dopiero po wyrażeniu zgody, wcześniej tylko w
   pamięci) i wysyła `engagement_time_msec` z każdym zdarzeniem, więc GA4 sam wyznacza

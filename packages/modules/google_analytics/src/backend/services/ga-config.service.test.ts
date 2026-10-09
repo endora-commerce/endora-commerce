@@ -69,4 +69,36 @@ describe('GaConfigService', () => {
     expect(cfg.enabled).toBe(false);
     expect(cfg.requireConsent).toBe(true);
   });
+
+  describe('isServerSideOn', () => {
+    const tracked = {
+      [C.ENABLED]: true,
+      [C.MEASUREMENT_ID]: 'G-ABC123',
+      [C.SERVER_SIDE_ENABLED]: true,
+    };
+
+    // Each case must agree with `getConfig().serverSide`: the collect route and
+    // the storefront have to be given the same answer.
+    it.each([
+      ['a fully configured channel', tracked, true],
+      ['the server-side switch off', { ...tracked, [C.SERVER_SIDE_ENABLED]: false }, false],
+      ['a blank Measurement ID', { ...tracked, [C.MEASUREMENT_ID]: '   ' }, false],
+      ['the master switch off', { ...tracked, [C.ENABLED]: false }, false],
+      ['unregistered settings', {}, false],
+    ])('answers for %s', async (_label, values, expected) => {
+      const svc = new GaConfigService(fakeSettings(values));
+      expect(await svc.isServerSideOn('chan-1')).toBe(expected);
+      expect((await svc.getConfig('chan-1')).serverSide).toBe(expected);
+    });
+
+    it('does not load the custom events', async () => {
+      let loads = 0;
+      const svc = new GaConfigService(fakeSettings(tracked), async () => {
+        loads += 1;
+        return [];
+      });
+      await svc.isServerSideOn('chan-1');
+      expect(loads).toBe(0);
+    });
+  });
 });

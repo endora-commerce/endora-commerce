@@ -81,6 +81,18 @@ export class GaConfigService {
     };
   }
 
+  /**
+   * Whether the channel uses server-side delivery — the `serverSide` flag of
+   * `getConfig`, without loading the custom events. The collect route asks this
+   * once per request, and must be told what the storefront was told.
+   */
+  async isServerSideOn(salesChannelId: string): Promise<boolean> {
+    const C = GOOGLE_ANALYTICS_SETTING_CODES;
+    if (!(await this.readBool(C.ENABLED, salesChannelId, false))) return false;
+    if (!(await this.readString(C.MEASUREMENT_ID, salesChannelId, '')).trim()) return false;
+    return this.readBool(C.SERVER_SIDE_ENABLED, salesChannelId, false);
+  }
+
   private async readBool(
     code: string,
     salesChannelId: string,
