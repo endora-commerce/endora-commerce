@@ -12,14 +12,33 @@ import type { Ga4MpClient } from './ga4-mp-client.js';
  *
  * - `makeEnqueuer` returns the producer used by the `/collect` route: it assigns
  *   an `eventId` per event (idempotency key) and enqueues one delivery job each.
- *   Pure producer — no forwarding here (Principle X).
+ *   Pure producer — no forwarding here (Principle X). It enqueues nothing, and
+ *   accepts zero, for a channel whose server-side delivery is not configured —
+ *   a queue exists on every instance with Redis, so its presence is not that
+ *   answer.
  * - `makeProcessor` returns the BullMQ processor: it resolves the channel's
  *   Measurement ID + endpoint + decrypted API secret from Settings and forwards
  *   via the MP client, throwing on failure so BullMQ retries. Idempotent w.r.t.
  *   retry (the destination call carries the stable `eventId` in params).
  */
-export function makeEnqueuer(queue: Queue<GaDeliveryJobData>) {
+export function makeEnqueuer(
+  queue: Queue<GaDeliveryJobData>,
+  /**
+   * Whether the channel delivers at all: the master switch and the server-side
+   * switch are on **and** a Measurement ID is set — `GaStorefrontConfig.serverSide`,
+   * the same answer the storefront is given. Required rather than defaulted,
+   * because the default would be "deliver for everybody", which is the
+   * behaviour this exists to stop.
+   */
+  isServerSideOn: (salesChannelId: string) => Promise<boolean>,
+) {
   return async (salesChannelId: string, request: GaCollectRequest): Promise<number> => {
+    // A storefront that honours its config never posts here for such a channel;
+    // one holding a stale config, or a crafted request, does. Nothing is
+    // delivered either way, so the only thing a job would add is work for this
+    // instance's own Redis. The processor keeps its check: the Measurement ID
+    // can still be cleared between enqueue and delivery.
+    if (!(await isServerSideOn(salesChannelId))) return 0;
     const occurredAt = new Date().toISOString();
     let accepted = 0;
     for (const event of request.events) {

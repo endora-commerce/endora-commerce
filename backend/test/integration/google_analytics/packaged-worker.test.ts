@@ -1,3 +1,5 @@
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { asValue } from 'awilix';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { Redis } from 'ioredis';
@@ -10,6 +12,7 @@ import {
   type ModuleRegistrationSink,
 } from '@endora-commerce/platform/composition';
 import { EventBus } from '@endora-commerce/platform/events';
+import { GOOGLE_ANALYTICS_SETTING_CODES } from '@endora-commerce/contracts';
 import { registryCache } from '../../../src/kernel/lifecycle/registry-cache.js';
 import {
   pauseWorkersFor,
@@ -78,17 +81,31 @@ import {
 
 const MODULE_ID = 'google_analytics';
 const CHANNEL_ID = '11111111-1111-4111-8111-111111111111';
+const C = GOOGLE_ANALYTICS_SETTING_CODES;
 
-/** The settings this module's processor reads. Blank measurement id ⇒ drop. */
-function settingsStub(): { get: (code: string) => Promise<unknown> } {
+/**
+ * The settings this module reads — on both sides of the queue, which is why
+ * they describe a configured channel. The producer enqueues nothing for a
+ * channel whose server-side delivery is not configured, so a blank Measurement
+ * ID would leave this file with no job to measure. The processor then delivers
+ * for real, and `server_side_endpoint` points that delivery at a sink on the
+ * loopback interface: this file measures *whether the job ran*, and a call to
+ * the GA4 Measurement Protocol would measure the network.
+ */
+function settingsStub(sinkUrl: () => string): { get: (code: string) => Promise<unknown> } {
   return {
     get: async (code: string) => {
-      // Blank on every code. A blank measurement id makes the processor treat
-      // the channel as untracked and return without calling out, which is
-      // deliberate: this file measures *whether the job ran*, and a real GA4
-      // Measurement Protocol call would measure the network.
-      void code;
-      return '';
+      switch (code) {
+        case C.ENABLED:
+        case C.SERVER_SIDE_ENABLED:
+          return true;
+        case C.MEASUREMENT_ID:
+          return 'G-PACKAGED1';
+        case C.SERVER_SIDE_ENDPOINT:
+          return sinkUrl();
+        default:
+          return '';
+      }
     },
   };
 }
@@ -99,6 +116,8 @@ describe('google_analytics — the packaged BullMQ consumer (Principle X)', () =
   let sink: ModuleRegistrationSink;
   let worker: Worker;
   let container: ReturnType<typeof createRootContainer>;
+  let deliverySink: Server;
+  let sinkUrl = '';
   const completed: string[] = [];
 
   beforeAll(async () => {
@@ -112,6 +131,15 @@ describe('google_analytics — the packaged BullMQ consumer (Principle X)', () =
       maxRetriesPerRequest: null,
     });
 
+    // Where the processor delivers: answers 204, as the Measurement Protocol does.
+    deliverySink = createServer((request, response) => {
+      request.resume();
+      response.statusCode = 204;
+      response.end();
+    });
+    await new Promise<void>((resolve) => deliverySink.listen(0, '127.0.0.1', resolve));
+    sinkUrl = `http://127.0.0.1:${(deliverySink.address() as AddressInfo).port}/mp/collect`;
+
     const scratchQueue = createGaDeliveryQueue(redis);
     await scratchQueue.obliterate({ force: true });
     await scratchQueue.close();
@@ -122,7 +150,7 @@ describe('google_analytics — the packaged BullMQ consumer (Principle X)', () =
         throw new Error('[packaged-worker] this composition touches no database');
       }),
       auditLogService: asValue({ record: async () => undefined }),
-      settingsReadPort: asValue(settingsStub()),
+      settingsReadPort: asValue(settingsStub(() => sinkUrl)),
       requireAdmin: asValue(() => async () => undefined),
       salesChannelCodeIdPort: asValue({
         idByCode: async () => CHANNEL_ID,
@@ -167,6 +195,7 @@ describe('google_analytics — the packaged BullMQ consumer (Principle X)', () =
     await worker?.close();
     await app?.close();
     await redis?.quit();
+    await new Promise<void>((resolve) => (deliverySink ? deliverySink.close(() => resolve()) : resolve()));
   });
 
   /**

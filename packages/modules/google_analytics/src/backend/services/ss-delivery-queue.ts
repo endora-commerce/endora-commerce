@@ -21,7 +21,9 @@ export interface GaDeliveryJobData {
 
 /**
  * Producer callback exposed to the storefront route. Assigns an `eventId` per
- * event, enqueues a delivery job for each, and returns how many were accepted.
+ * event, enqueues a delivery job for each, and returns how many were accepted —
+ * zero, with nothing enqueued, for a channel whose server-side delivery is not
+ * configured.
  */
 export type GaCollectEnqueuer = (
   salesChannelId: string,

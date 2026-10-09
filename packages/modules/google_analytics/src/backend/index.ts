@@ -118,7 +118,11 @@ export function registerModule(ctx: ModuleContext): void {
             customEvents,
             configService,
             invalidateConfig,
-            enqueueCollect: deliveryQueue ? makeEnqueuer(deliveryQueue) : undefined,
+            enqueueCollect: deliveryQueue
+              ? makeEnqueuer(deliveryQueue, (salesChannelId) =>
+                  configService.isServerSideOn(salesChannelId),
+                )
+              : undefined,
           };
         },
       )

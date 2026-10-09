@@ -80,6 +80,11 @@ and no browser-side Google library:
   (co-located in the API process unless `BACKEND_ROLE=api`, then only in the
   `worker` process) forwards each event to GA4 via the **Measurement Protocol**,
   retrying on failure. Each event carries a stable `eventId` idempotency key.
+- **An unconfigured channel enqueues nothing.** For a channel where server-side
+  delivery is not configured — the master switch or `server_side_enabled` is
+  off, or the Measurement ID is blank — the route adds no job and answers `202`
+  with `accepted: 0`. The storefront does not post for such a channel at all;
+  this is the answer a page still holding an older configuration gets.
 - **GA4 default metrics come for free.** The browser owns a first-party
   `client_id` and a rolling 30-minute `session_id` (cookies only once consent is
   granted; ephemeral in-memory before that) and sends `engagement_time_msec` with
