@@ -1,0 +1,986 @@
+/**
+ * `demo reset` withdraws a demo that has been used (issue #143).
+ *
+ * ## What `demo-shop.test.ts` cannot see
+ *
+ * That file seeds and resets a shop nobody has touched, so the withdrawal only
+ * ever meets the rows the seed wrote. A demo exists to be used: the buyer signs
+ * in, saves an address, places an order on credit — and from then on the demo
+ * organisation is referenced by rows no seed created. Two of those references
+ * are foreign keys that refuse the withdrawal outright, and the rest carry no
+ * foreign key at all, so a reset that did go through left them naming an
+ * organisation that no longer existed.
+ *
+ * ## What this file asserts
+ *
+ *  1. **A used demo resets, exit 0** — through the dispatcher the CLI runs,
+ *     over this file's own database.
+ *  2. **Nothing still names what the reset deleted** — derived, not listed: the
+ *     ids of every row the reset removed are collected by diffing the database
+ *     before and after, and then *every* id column of *every* table is asked
+ *     whether it still holds one. A reference this file did not think of is
+ *     found by existing. The columns allowed to keep one are a recorded ledger
+ *     below, each with its reason.
+ *  3. **A real customer on the same instance loses nothing** — a second
+ *     organisation is given the same usage rows, table for table, and every one
+ *     of them is still there afterwards.
+ *  4. **A refusal part-way leaves the instance as it found it** — a foreign key
+ *     this repository knows nothing about refuses the withdrawal, and not one
+ *     table's row count has moved; the buyer can still check out.
+ *  5. **`demo seed` afterwards gives a working shop back** — the buyer signs in
+ *     and places an order on credit again.
+ *  6. **A sub-organisation stops the reset before it starts** — the withdrawal
+ *     matches the demo organisation and nothing filed under it.
+ *
+ * ## How the demo is used
+ *
+ * The address and the order are the buyer's own requests against the composed
+ * HTTP surface — a real sign-in, `POST /organizations/mine/addresses`, a cart
+ * line, `POST /orders` with the credit-limit method — because those are the two
+ * the issue names and the path decides what else is written beside them (stock
+ * allocations, the reservation, the payment, the session). Every further table
+ * that can come to reference the demo organisation or one of its accounts gets
+ * one row, written directly: the population was read off this database's own
+ * foreign-key catalogue and its `uuid` columns, and reaching each through its
+ * own route would be forty features' fixtures in one file.
+ *
+ * ## Why it is in-process
+ *
+ * `demo-shop.test.ts` spawns the CLI against a database of its own. This file
+ * needs the composed application on the *same* database between the seed and
+ * the reset, to act as the buyer, so it drives `dispatchCli` — the function the
+ * CLI entry point calls — with the harness's composition. The exit code is the
+ * dispatcher's own.
+ */
+import { randomBytes, randomUUID } from 'node:crypto';
+import { Client } from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  createDemoComposition,
+  DEMO_BUYER_EMAIL,
+  DEMO_BUYER_PASSWORD,
+} from '@endora-commerce/demo-composition';
+import { cliFailureExitCode, dispatchCli, type CliComposition } from '@endora-commerce/platform/cli';
+import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
+import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
+import {
+  setupBackendServer,
+  teardownBackendServer,
+  type BackendServerHandle,
+} from '../../helpers/test-server.js';
+
+const SUITE_TIMEOUT_MS = 900_000;
+
+/** The demo organisation's tax id — `organizations`' own demo row is keyed on it. */
+const DEMO_ORG_TAX_ID = 'PL5210000099';
+/** The organisation standing in for a real customer on the same instance. */
+const REAL_ORG_TAX_ID = 'PL7777777777';
+
+/**
+ * The `uuid` columns that may still hold the id of a row the reset deleted.
+ *
+ * Each is a **record of something that happened**, kept on purpose: deleting it
+ * would be rewriting history rather than withdrawing data. Anything else that
+ * turns up fails the test — re-record an entry only with its reason.
+ *
+ * Two-way: an entry nothing produces any more fails as well.
+ */
+const KEPT_REFERENCES: Readonly<Record<string, string>> = {
+  // The audit trail is append-only: it names what a write was made to and who
+  // it was made for, whether or not either still exists.
+  'audit_log_entries.object_id': 'append-only audit trail',
+  'audit_log_entries.impersonated_customer_account_id': 'append-only audit trail',
+  // A log of messages that were really sent, and of bell entries an
+  // administrator was really shown.
+  'email_deliveries.document_id': 'delivery log of messages already sent',
+  'admin_notifications.subject_id': 'notification history of events that happened',
+};
+
+interface ColumnInfo {
+  readonly table_name: string;
+  readonly column_name: string;
+  readonly data_type: string;
+  readonly udt_name: string;
+  readonly is_nullable: 'YES' | 'NO';
+  readonly column_default: string | null;
+  readonly character_maximum_length: number | null;
+}
+
+/** Whose rows a batch of usage is written for. */
+interface Tenant {
+  readonly organizationId: string;
+  readonly customerAccountId: string;
+  readonly orderId: string;
+  readonly orderItemId: string;
+  readonly creditLimitId: string;
+}
+
+/** One row this file wrote, as the predicate that finds it again. */
+interface TrackedRow {
+  readonly table: string;
+  readonly where: Readonly<Record<string, unknown>>;
+}
+
+describe('demo reset on a demo that has been used (issue #143)', () => {
+  let h: BackendServerHandle;
+  let db: Client;
+  let columns: ColumnInfo[];
+
+  // ── the database, read generically ───────────────────────────────────────
+
+  async function query<Row extends Record<string, unknown>>(
+    text: string,
+    params: readonly unknown[] = [],
+  ): Promise<Row[]> {
+    return (await db.query(text, [...params])).rows as Row[];
+  }
+
+  function columnsOf(table: string): ColumnInfo[] {
+    const found = columns.filter((column) => column.table_name === table);
+    if (found.length === 0) throw new Error(`no table '${table}' in this database`);
+    return found;
+  }
+
+  /** A value for a `NOT NULL` column nobody gave one — typed, and otherwise meaningless. */
+  function filler(column: ColumnInfo): unknown {
+    const name = column.column_name;
+    if (name === 'currency') return 'PLN';
+    if (name === 'country') return 'PL';
+    if (name === 'email') return `u${randomBytes(6).toString('hex')}@usage.example`;
+    switch (column.data_type) {
+      case 'uuid':
+        return randomUUID();
+      case 'character varying':
+      case 'text':
+      case 'character': {
+        const value = `u${randomBytes(8).toString('hex')}`;
+        return column.character_maximum_length === null
+          ? value
+          : value.slice(0, column.character_maximum_length);
+      }
+      case 'integer':
+      case 'smallint':
+      case 'bigint':
+        return 1;
+      case 'numeric':
+      case 'double precision':
+        return '0';
+      case 'boolean':
+        return false;
+      case 'jsonb':
+      case 'json':
+        return '{}';
+      case 'timestamp with time zone':
+      case 'timestamp without time zone':
+      case 'date':
+        return new Date();
+      case 'inet':
+        return '127.0.0.1';
+      case 'bytea':
+        return randomBytes(12);
+      case 'ARRAY':
+        return '{}';
+      default:
+        throw new Error(
+          `no filler for ${column.table_name}.${column.column_name} (${column.data_type})`,
+        );
+    }
+  }
+
+  /** The operator's own product each tenant has three units of on order. */
+  const ownProducts = new Map<'demo' | 'real', string>();
+
+  const tracked = new Map<'demo' | 'real', TrackedRow[]>([
+    ['demo', []],
+    ['real', []],
+  ]);
+
+  /**
+   * Insert one row, giving every `NOT NULL` column without a default a typed
+   * filler, and remember how to find it.
+   *
+   * `given` is what makes the row *this tenant's* — the references under test —
+   * plus whatever a check constraint insists on.
+   */
+  async function insert(
+    owner: 'demo' | 'real',
+    table: string,
+    given: Readonly<Record<string, unknown>>,
+  ): Promise<string> {
+    const values: Record<string, unknown> = {};
+    for (const column of columnsOf(table)) {
+      if (column.column_name in given) {
+        values[column.column_name] = given[column.column_name];
+      } else if (column.column_name === 'id' && column.data_type === 'uuid') {
+        values['id'] = randomUUID();
+      } else if (column.is_nullable === 'NO' && column.column_default === null) {
+        values[column.column_name] = filler(column);
+      }
+    }
+    for (const name of Object.keys(given)) {
+      if (!(name in values)) throw new Error(`'${table}' has no column '${name}'`);
+    }
+    const names = Object.keys(values);
+    try {
+      await db.query(
+        `insert into "${table}" (${names.map((name) => `"${name}"`).join(', ')})
+         values (${names.map((_, index) => `$${index + 1}`).join(', ')})`,
+        names.map((name) => values[name]),
+      );
+    } catch (error) {
+      throw new Error(`usage row for '${table}' was refused: ${(error as Error).message}`);
+    }
+    const where = 'id' in values ? { id: values['id'] } : { ...given };
+    tracked.get(owner)!.push({ table, where });
+    return String(values['id'] ?? '');
+  }
+
+  async function countOf(row: TrackedRow): Promise<number> {
+    const names = Object.keys(row.where);
+    const rows = await query<{ n: string }>(
+      `select count(*)::text as n from "${row.table}"
+        where ${names.map((name, index) => `"${name}" = $${index + 1}`).join(' and ')}`,
+      names.map((name) => row.where[name]),
+    );
+    return Number(rows[0]!.n);
+  }
+
+  /** Every tracked row that is (or is not) still there, as `table {where}`. */
+  async function trackedRows(owner: 'demo' | 'real', present: boolean): Promise<string[]> {
+    const found: string[] = [];
+    for (const row of tracked.get(owner)!) {
+      if (((await countOf(row)) > 0) === present) {
+        found.push(`${row.table} ${JSON.stringify(row.where)}`);
+      }
+    }
+    return found.sort();
+  }
+
+  async function tableCounts(): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+    for (const table of new Set(columns.map((column) => column.table_name))) {
+      // The escape-hatch rows are an access log every composed run appends to.
+      const rows = await query<{ n: string }>(
+        table === 'audit_log_entries'
+          ? `select count(*)::text as n from audit_log_entries where action <> 'tenant.escape_hatch'`
+          : `select count(*)::text as n from "${table}"`,
+      );
+      counts[table] = Number(rows[0]!.n);
+    }
+    return counts;
+  }
+
+  /** The id of every row that has one, per table. */
+  async function idsByTable(): Promise<Map<string, Set<string>>> {
+    const result = new Map<string, Set<string>>();
+    for (const column of columns) {
+      if (column.column_name !== 'id' || column.data_type !== 'uuid') continue;
+      const rows = await query<{ id: string }>(`select id from "${column.table_name}"`);
+      result.set(column.table_name, new Set(rows.map((row) => row.id)));
+    }
+    return result;
+  }
+
+  /**
+   * Every column still holding the id of a row that is gone, with how many
+   * rows hold one — over the whole database, by no naming convention: every
+   * `uuid` column, and every textual `…_id` column, which is how a polymorphic
+   * reference (`document_type` / `document_id`) is usually stored.
+   */
+  async function referencesTo(deleted: readonly string[]): Promise<Record<string, number>> {
+    const found: Record<string, number> = {};
+    if (deleted.length === 0) return found;
+    for (const column of columns) {
+      const textual =
+        (column.data_type === 'character varying' || column.data_type === 'text') &&
+        column.column_name.endsWith('_id');
+      if (column.data_type !== 'uuid' && !textual) continue;
+      const rows = await query<{ n: string }>(
+        `select count(*)::text as n from "${column.table_name}"
+          where "${column.column_name}"::text = any($1::text[])`,
+        [deleted],
+      );
+      const n = Number(rows[0]!.n);
+      if (n > 0) found[`${column.table_name}.${column.column_name}`] = n;
+    }
+    return found;
+  }
+
+  // ── the demo, run the way the CLI runs it ────────────────────────────────
+
+  interface DemoRun {
+    readonly code: number;
+    readonly out: string;
+    readonly err: string;
+  }
+
+  async function demo(verb: 'seed' | 'reset'): Promise<DemoRun> {
+    let out = '';
+    let err = '';
+    const composition: CliComposition = {
+      container: h.container,
+      contextFor: () => ({ cradle: () => h.container.cradle }),
+      resolvedModules: [],
+      orm: h.orm,
+      // The composition is the harness's, torn down once in `afterAll`.
+      dispose: async () => {},
+    } as unknown as CliComposition;
+    try {
+      const code = await dispatchCli({
+        deploymentRoot: deploymentRoot(),
+        argv: ['demo', verb],
+        resolveEntries: resolvedManifestEntries,
+        compose: async () => composition,
+        demoComposition: async (input) => ({
+          found: true,
+          composition: createDemoComposition(input),
+        }),
+        out: (chunk) => (out += chunk),
+        err: (chunk) => (err += chunk),
+      });
+      return { code, out, err };
+    } catch (thrown) {
+      // What `runCli` does with a throw: the exit code an operator's shell sees.
+      const code = cliFailureExitCode(thrown, (chunk) => (err += chunk));
+      return { code, out, err };
+    }
+  }
+
+  // ── the demo, used the way a visitor uses it ─────────────────────────────
+
+  async function signInAsBuyer(): Promise<{ cookies: Record<string, string> }> {
+    const response = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/customer/login',
+      payload: { email: DEMO_BUYER_EMAIL, password: DEMO_BUYER_PASSWORD },
+    });
+    expect(response.statusCode, response.body).toBe(200);
+    const header = response.headers['set-cookie'];
+    const session = (Array.isArray(header) ? header : [String(header ?? '')])
+      .map((cookie) => /^b2b_session=([^;]+)/.exec(cookie)?.[1])
+      .find((value) => value !== undefined && value !== '');
+    if (session === undefined) throw new Error('the sign-in set no b2b_session cookie');
+    return { cookies: { b2b_session: decodeURIComponent(session) } };
+  }
+
+  async function saveAddress(
+    buyer: { cookies: Record<string, string> },
+    kind: 'delivery' | 'billing',
+  ): Promise<string> {
+    const response = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/organizations/mine/addresses',
+      payload: {
+        kind,
+        recipientName: 'Demo Buyer',
+        street: 'ul. Testowa 1',
+        city: 'Warszawa',
+        postalCode: '00-001',
+        country: 'PL',
+      },
+      ...buyer,
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    return (response.json() as { data: { id: string } }).data.id;
+  }
+
+  /** Sign in, save two addresses, and place a one-line order on credit. */
+  async function buyOnCredit(): Promise<string> {
+    const buyer = await signInAsBuyer();
+    const deliveryAddressId = await saveAddress(buyer, 'delivery');
+    const billingAddressId = await saveAddress(buyer, 'billing');
+    const [product] = await query<{ id: string }>(
+      `select id from products where slug like 'demo-screws-%' order by slug limit 1`,
+    );
+    const [deliveryMethod] = await query<{ id: string }>(
+      `select id from delivery_methods where code = 'in_person_pickup'`,
+    );
+    const [paymentMethod] = await query<{ id: string }>(
+      `select id from payment_methods where code = 'credit_limit'`,
+    );
+    const added = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/cart/items',
+      payload: { productId: product!.id, quantity: 1 },
+      ...buyer,
+    });
+    expect(added.statusCode, added.body).toBe(200);
+    const placed = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/orders',
+      payload: {
+        deliveryAddressId,
+        billingAddressId,
+        deliveryMethodId: deliveryMethod!.id,
+        paymentMethodId: paymentMethod!.id,
+      },
+      ...buyer,
+    });
+    expect(placed.statusCode, placed.body).toBe(201);
+    return (placed.json() as { data: { id: string } }).data.id;
+  }
+
+  /**
+   * One row in every table that can come to reference a tenant's organisation,
+   * its accounts or its orders — the same set for the demo and for the real
+   * customer, which is what makes the second a control for the first.
+   */
+  async function useEverythingElse(owner: 'demo' | 'real', tenant: Tenant): Promise<void> {
+    const { organizationId, customerAccountId, orderId, orderItemId, creditLimitId } = tenant;
+    const add = (table: string, given: Record<string, unknown>): Promise<string> =>
+      insert(owner, table, given);
+    const [channel] = await query<{ id: string }>(
+      `select id from sales_channels where system_default limit 1`,
+    );
+    const salesChannelId = channel!.id;
+    const [priceList] = await query<{ id: string }>(`select id from price_lists limit 1`);
+    const [warehouse] = await query<{ id: string }>(
+      `select id from warehouses where code <> 'pl-krk' order by created_at limit 1`,
+    );
+
+    // ── a colleague in the same organisation ───────────────────────────────
+    const colleagueId = await add('customer_accounts', {
+      organization_id: organizationId,
+      role: 'regular_user',
+    });
+    await add('organization_invitations', {
+      organization_id: organizationId,
+      invited_by_customer_account_id: customerAccountId,
+      role: 'regular_user',
+    });
+    await add('organization_sales_rep_assignments', { organization_id: organizationId });
+    await add('sales_channel_organizations', {
+      organization_id: organizationId,
+      sales_channel_id: salesChannelId,
+    });
+    await add('sales_channel_customer_accounts', {
+      customer_account_id: customerAccountId,
+      sales_channel_id: salesChannelId,
+    });
+
+    // ── the account's own belongings ───────────────────────────────────────
+    for (const accountId of [customerAccountId, colleagueId]) {
+      await add('sessions', { customer_account_id: accountId });
+      await add('customer_addresses', { customer_account_id: accountId, kind: 'delivery' });
+    }
+    await add('password_reset_tokens', { customer_account_id: customerAccountId });
+    await add('email_verification_tokens', { customer_account_id: customerAccountId });
+    const enrolmentId = await add('mfa_enrolments', {
+      subject_type: 'customer',
+      subject_id: customerAccountId,
+      status: 'confirmed',
+    });
+    await add('mfa_recovery_codes', { enrolment_id: enrolmentId });
+    await add('mfa_social_identities', {
+      subject_type: 'customer',
+      subject_id: customerAccountId,
+      provider: 'google',
+    });
+    await add('mfa_organization_policies', { organization_id: organizationId });
+
+    // ── addresses and the preferences that name them ───────────────────────
+    const addressId = await add('addresses', { organization_id: organizationId, kind: 'delivery' });
+    await add('quick_order_default_preferences', {
+      scope: 'organization',
+      scope_id: organizationId,
+      default_shipping_address_id: addressId,
+    });
+    await add('quick_order_default_preferences', {
+      scope: 'customer',
+      scope_id: customerAccountId,
+    });
+    await add('price_display_mode_overrides', {
+      scope: 'organization',
+      target_id: organizationId,
+      mode: 'net_only',
+    });
+    await add('price_list_assignments', {
+      organization_id: organizationId,
+      price_list_id: priceList!.id,
+    });
+
+    // ── carts, lists, comparisons, quote requests ──────────────────────────
+    const quoteRequestId = await add('quote_requests', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      sales_channel_id: salesChannelId,
+      status: 'Pending',
+    });
+    await add('quote_request_items', { quote_request_id: quoteRequestId });
+    const quoteEventId = await add('quote_request_events', {
+      quote_request_id: quoteRequestId,
+      actor_customer_account_id: customerAccountId,
+      event_type: 'created',
+    });
+    await add('quote_request_revisions', {
+      quote_request_id: quoteRequestId,
+      created_by_customer_account_id: customerAccountId,
+    });
+    await add('quote_request_notification_events', {
+      quote_request_id: quoteRequestId,
+      source_event_id: quoteEventId,
+      recipient_customer_account_id: customerAccountId,
+      channel: 'email',
+      status: 'queued',
+    });
+    const cartId = await add('carts', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      sales_channel_id: salesChannelId,
+      status: 'completed',
+      approval_status: 'not_required',
+      completed_order_id: orderId,
+      source_quote_request_id: quoteRequestId,
+    });
+    await add('cart_items', { cart_id: cartId });
+    await add('cart_audit_entries', {
+      cart_id: cartId,
+      actor_id: customerAccountId,
+      actor_type: 'customer',
+    });
+    const listId = await add('shopping_lists', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+    });
+    await add('shopping_list_items', { shopping_list_id: listId });
+    await add('comparisons', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      sales_channel_id: salesChannelId,
+    });
+
+    // ── what hangs off an order ────────────────────────────────────────────
+    await add('order_comments', { order_id: orderId, author_customer_account_id: customerAccountId });
+    await add('order_applied_promotions', { order_id: orderId });
+    await add('order_transition_effects', {
+      order_id: orderId,
+      organization_id: organizationId,
+      effect: 'stock.release',
+      origin: 'transition',
+      reason: 'order_cancelled',
+    });
+    await add('payments', { order_id: orderId });
+    await add('shipments', { order_id: orderId, status: 'pending' });
+    // A second line, for a product the operator added themselves: three units
+    // promised to this order and not released. The stock row is the
+    // operator's, so it is not tracked as either tenant's.
+    const ownProductId = randomUUID();
+    ownProducts.set(owner, ownProductId);
+    await db.query(
+      `insert into stock_levels (id, product_id, warehouse_id, on_hand, reserved, created_at, updated_at)
+       values ($1, $2, $3, 10, 3, now(), now())`,
+      [randomUUID(), ownProductId, warehouse!.id],
+    );
+    const heldItemId = await add('order_items', { order_id: orderId, product_id: ownProductId });
+    await add('stock_allocations', {
+      order_item_id: heldItemId,
+      warehouse_id: warehouse!.id,
+      quantity: 3,
+    });
+    await add('credit_limit_reservations', {
+      credit_limit_id: creditLimitId,
+      order_id: orderId,
+      reserving_organization_id: organizationId,
+      status: 'released',
+    });
+    const promotionId = await add('promotions', { organization_id: organizationId });
+    await add('promotion_usages', {
+      promotion_id: promotionId,
+      order_id: orderId,
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      sales_channel_id: salesChannelId,
+    });
+    const invoiceId = await add('invoices', {
+      organization_id: organizationId,
+      order_id: orderId,
+      sales_channel_id: salesChannelId,
+      origin: 'platform',
+    });
+    await add('invoice_lines', { invoice_id: invoiceId, order_item_id: orderItemId });
+    await add('invoice_external_attachments', { invoice_id: invoiceId });
+    await add('invoice_ledger_client_maps', {
+      organization_id: organizationId,
+      environment: 'sandbox',
+    });
+    await add('invoice_ledger_deliveries', {
+      organization_id: organizationId,
+      invoice_id: invoiceId,
+      environment: 'sandbox',
+      kind: 'invoice',
+      ksef_routing: 'native',
+      numbering_mode: 'endora',
+      status: 'queued',
+    });
+    await add('invoice_ledger_document_maps', {
+      organization_id: organizationId,
+      invoice_id: invoiceId,
+      environment: 'sandbox',
+    });
+
+    // ── returns ────────────────────────────────────────────────────────────
+    const returnCaseId = await add('return_cases', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      order_id: orderId,
+      sales_channel_id: salesChannelId,
+    });
+    const returnItemId = await add('return_case_items', {
+      return_case_id: returnCaseId,
+      order_item_id: orderItemId,
+    });
+    await add('return_case_comments', {
+      return_case_id: returnCaseId,
+      author_customer_account_id: customerAccountId,
+    });
+    await add('return_case_attachments', {
+      return_case_id: returnCaseId,
+      return_case_item_id: returnItemId,
+    });
+    await add('return_shipments', { return_case_id: returnCaseId });
+    await add('refunds', {
+      return_case_id: returnCaseId,
+      corrective_invoice_id: invoiceId,
+      corrective_invoice_outcome: 'issued',
+    });
+    await add('credit_limit_return_topups', {
+      organization_id: organizationId,
+      return_case_id: returnCaseId,
+    });
+
+    // ── the integration surface ────────────────────────────────────────────
+    const apiKeyId = await add('api_keys', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      sales_channel_id: salesChannelId,
+    });
+    await add('order_placement_intents', {
+      organization_id: organizationId,
+      api_key_id: apiKeyId,
+      order_id: orderId,
+    });
+    const webhookId = await add('webhooks', { organization_id: organizationId });
+    await add('webhook_deliveries', { webhook_id: webhookId });
+
+    // ── marketing and measurement ──────────────────────────────────────────
+    await add('analytics_events', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      sales_channel_id: salesChannelId,
+    });
+    await add('availability_notifications', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      status: 'queued',
+    });
+    await add('newsletter_subscribers', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      sales_channel_id: salesChannelId,
+    });
+    await add('push_subscriptions', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      sales_channel_id: salesChannelId,
+      status: 'active',
+    });
+
+    // ── CRM: an Opportunity an administrator opened, linked to the order ───
+    const [status] = await query<{ code: string }>(
+      `select code from crm_opportunity_statuses order by code limit 1`,
+    );
+    const opportunityId = await add('crm_opportunities', {
+      organization_id: organizationId,
+      customer_account_id: customerAccountId,
+      sales_channel_id: salesChannelId,
+      status_code: status!.code,
+      source: 'manual',
+      value_mode: 'manual',
+    });
+    const historyId = await add('crm_opportunity_status_history', {
+      opportunity_id: opportunityId,
+      to_status_code: status!.code,
+      cause_order_id: orderId,
+      cause: 'manual',
+    });
+    await add('crm_opportunity_links', {
+      opportunity_id: opportunityId,
+      document_kind: 'order',
+      document_id: orderId,
+      link_source: 'manual',
+    });
+    await add('crm_opportunity_references', {
+      opportunity_id: opportunityId,
+      target_type: 'order',
+      target_id: orderId,
+      source_kind: 'comment',
+    });
+    await add('crm_status_propagations', {
+      opportunity_id: opportunityId,
+      order_id: orderId,
+      status_history_id: historyId,
+      direction: 'order_to_opportunity',
+      outcome: 'applied',
+    });
+    await add('crm_opportunity_comments', { opportunity_id: opportunityId, kind: 'note' });
+    await add('crm_opportunity_events', {
+      opportunity_id: opportunityId,
+      starts_at: new Date(Date.now() + 3_600_000),
+      ends_at: new Date(Date.now() + 7_200_000),
+    });
+
+    // ── the records that are kept ──────────────────────────────────────────
+    await add('email_deliveries', { document_type: 'order', document_id: orderId });
+    await add('admin_notifications', {
+      subject_type: 'order',
+      subject_id: orderId,
+      audience: 'all_admins',
+    });
+  }
+
+  /** The demo organisation as the seed and the buyer's order left it. */
+  async function demoTenant(orderId: string): Promise<Tenant> {
+    const [organization] = await query<{ id: string }>(
+      `select id from organizations where tax_id = $1`,
+      [DEMO_ORG_TAX_ID],
+    );
+    const [buyer] = await query<{ id: string }>(
+      `select id from customer_accounts where email = $1`,
+      [DEMO_BUYER_EMAIL],
+    );
+    const [item] = await query<{ id: string }>(
+      `select id from order_items where order_id = $1 limit 1`,
+      [orderId],
+    );
+    const [limit] = await query<{ id: string }>(
+      `select id from credit_limits where organization_id = $1`,
+      [organization!.id],
+    );
+    return {
+      organizationId: organization!.id,
+      customerAccountId: buyer!.id,
+      orderId,
+      orderItemId: item!.id,
+      creditLimitId: limit!.id,
+    };
+  }
+
+  /** A second organisation with a buyer, a credit limit and an order of its own. */
+  async function realTenant(): Promise<Tenant> {
+    const organizationId = await insert('real', 'organizations', {
+      tax_id: REAL_ORG_TAX_ID,
+      name: 'A real customer',
+      status: 'active',
+    });
+    await db.query(`update organizations set path = '/' || id || '/' where id = $1`, [
+      organizationId,
+    ]);
+    const customerAccountId = await insert('real', 'customer_accounts', {
+      organization_id: organizationId,
+      role: 'organization_admin',
+    });
+    const creditLimitId = await insert('real', 'credit_limits', {
+      organization_id: organizationId,
+    });
+    const orderId = await insert('real', 'orders', {
+      organization_id: organizationId,
+      placed_by_customer_account_id: customerAccountId,
+    });
+    const orderItemId = await insert('real', 'order_items', { order_id: orderId });
+    return { organizationId, customerAccountId, orderId, orderItemId, creditLimitId };
+  }
+
+  // ── the run ──────────────────────────────────────────────────────────────
+
+  let seeded: DemoRun;
+  let demoOrderId: string;
+  let countsBeforeRefusal: Record<string, number>;
+  let refused: DemoRun;
+  let countsAfterRefusal: Record<string, number>;
+  let orderAfterRefusal: string;
+  let reset: DemoRun;
+  let leftBehind: Record<string, number>;
+  let demoRowsStillThere: string[];
+  let realRowsMissing: string[];
+  let demoOrganizationsAfterReset: number;
+  let reservedAfterReset: Record<string, number>;
+  let reseeded: DemoRun;
+  let orderAfterReseed: string;
+  let countsBeforeBranchRefusal: Record<string, number>;
+  let refusedOverBranch: DemoRun;
+  let countsAfterBranchRefusal: Record<string, number>;
+
+  beforeAll(async () => {
+    h = await setupBackendServer({ seed: 'none' });
+    db = new Client({ connectionString: process.env['DATABASE_URL'] });
+    await db.connect();
+    columns = await query<ColumnInfo & Record<string, unknown>>(
+      `select c.table_name, c.column_name, c.data_type, c.udt_name, c.is_nullable,
+              c.column_default, c.character_maximum_length
+         from information_schema.columns c
+         join information_schema.tables t
+           on t.table_schema = c.table_schema and t.table_name = c.table_name
+        where c.table_schema = 'public' and t.table_type = 'BASE TABLE'
+          and c.table_name <> 'mikro_orm_migrations'
+        order by c.table_name, c.ordinal_position`,
+    );
+
+    seeded = await demo('seed');
+    if (seeded.code !== 0) return;
+
+    // The demo is used, and so is the instance around it.
+    demoOrderId = await buyOnCredit();
+    await useEverythingElse('demo', await demoTenant(demoOrderId));
+    await useEverythingElse('real', await realTenant());
+
+    // A table this repository has never heard of — an installed module's, a
+    // deployment's own — holding a foreign key onto one of the demo's orders.
+    await db.query(
+      `create table "issue_143_foreign_table" (
+         "order_id" uuid not null references "orders" ("id")
+       )`,
+    );
+    await db.query(`insert into "issue_143_foreign_table" ("order_id") values ($1)`, [
+      demoOrderId,
+    ]);
+    countsBeforeRefusal = await tableCounts();
+    refused = await demo('reset');
+    countsAfterRefusal = await tableCounts();
+    orderAfterRefusal = await buyOnCredit();
+    await db.query(`drop table "issue_143_foreign_table"`);
+
+    const before = await idsByTable();
+    reset = await demo('reset');
+    const after = await idsByTable();
+    const deleted: string[] = [];
+    for (const [table, ids] of before) {
+      const kept = after.get(table) ?? new Set<string>();
+      for (const id of ids) if (!kept.has(id)) deleted.push(id);
+    }
+    leftBehind = await referencesTo(deleted);
+    demoRowsStillThere = await trackedRows('demo', true);
+    realRowsMissing = await trackedRows('real', false);
+    demoOrganizationsAfterReset = Number(
+      (
+        await query<{ n: string }>(
+          `select count(*)::text as n from organizations where tax_id = $1`,
+          [DEMO_ORG_TAX_ID],
+        )
+      )[0]!.n,
+    );
+
+    reservedAfterReset = {};
+    for (const [owner, productId] of ownProducts) {
+      const [level] = await query<{ reserved: number }>(
+        `select reserved from stock_levels where product_id = $1`,
+        [productId],
+      );
+      reservedAfterReset[owner] = Number(level!.reserved);
+    }
+
+    reseeded = await demo('seed');
+    if (reseeded.code !== 0) return;
+    orderAfterReseed = await buyOnCredit();
+
+    // An organisation filed under the demo one — an administrator's doing.
+    const [demoOrganization] = await query<{ id: string }>(
+      `select id from organizations where tax_id = $1`,
+      [DEMO_ORG_TAX_ID],
+    );
+    const branchId = randomUUID();
+    await db.query(
+      `insert into organizations (id, name, tax_id, status, vat_status, registered_address,
+                                  parent_id, path, created_at, updated_at)
+       select $1::uuid, 'A branch', 'PL8888888888', status, vat_status, registered_address,
+              id, path || $1::text || '/', now(), now()
+         from organizations where id = $2`,
+      [branchId, demoOrganization!.id],
+    );
+    countsBeforeBranchRefusal = await tableCounts();
+    refusedOverBranch = await demo('reset');
+    countsAfterBranchRefusal = await tableCounts();
+  }, SUITE_TIMEOUT_MS);
+
+  afterAll(async () => {
+    if (db !== undefined) {
+      await db.query(`drop table if exists "issue_143_foreign_table"`);
+      await db.end();
+    }
+    if (h !== undefined) await teardownBackendServer(h);
+  }, SUITE_TIMEOUT_MS);
+
+  it('seeds a demo the buyer can sign in to and buy from on credit', () => {
+    expect(seeded.code, seeded.err).toBe(0);
+    expect(demoOrderId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  describe('a withdrawal that is refused part-way', () => {
+    it('exits non-zero and says which constraint refused it', () => {
+      expect(refused.code).toBe(1);
+      expect(refused.err).toContain('issue_143_foreign_table');
+    });
+
+    it('leaves every table exactly as it found it', () => {
+      expect(countsAfterRefusal).toEqual(countsBeforeRefusal);
+    });
+
+    it('leaves checkout working: the buyer places another order on credit', () => {
+      expect(orderAfterRefusal).toMatch(/^[0-9a-f-]{36}$/);
+      expect(orderAfterRefusal).not.toBe(demoOrderId);
+    });
+  });
+
+  describe('the reset of a used demo', () => {
+    it('exits 0', () => {
+      expect(reset.code, reset.err).toBe(0);
+    });
+
+    it('removes the demo organisation', () => {
+      expect(demoOrganizationsAfterReset).toBe(0);
+    });
+
+    it('leaves no column anywhere naming a row it deleted, beyond the kept records', () => {
+      expect(Object.keys(leftBehind).sort()).toEqual(Object.keys(KEPT_REFERENCES).sort());
+    });
+
+    it('removes every row the demo organisation and its accounts were used to create', () => {
+      // The kept records are rows about the demo's order, not rows of it.
+      expect(demoRowsStillThere.map((row) => row.split(' ')[0])).toEqual([
+        'admin_notifications',
+        'email_deliveries',
+      ]);
+    });
+
+    it('removes nothing that belongs to another organisation on the same instance', () => {
+      expect(realRowsMissing).toEqual([]);
+    });
+
+    it("gives back the stock its orders held, and nobody else's", () => {
+      // Three units of the operator's own product were promised to each
+      // tenant's order. The demo's order is gone, so its three are free again;
+      // the real customer's order stands, and so does its hold.
+      expect(reservedAfterReset).toEqual({ demo: 0, real: 3 });
+    });
+  });
+
+  describe('seeding again afterwards', () => {
+    it('exits 0', () => {
+      expect(reseeded.code, reseeded.err).toBe(0);
+    });
+
+    it('gives back a shop the buyer can buy from on credit', () => {
+      expect(orderAfterReseed).toMatch(/^[0-9a-f-]{36}$/);
+    });
+  });
+
+  describe('a demo organisation with a sub-organisation filed under it', () => {
+    it('is not withdrawn: the reset stops and says what to do', () => {
+      expect(refusedOverBranch.code).toBe(1);
+      expect(refusedOverBranch.err).toContain('1 sub-organisation');
+    });
+
+    it('stops before anything has gone', () => {
+      expect(countsAfterBranchRefusal).toEqual(countsBeforeBranchRefusal);
+    });
+  });
+});

@@ -138,7 +138,11 @@ answer asks again. `--demo` also adds one package to your module list,
 the demo products sold on your default channel, the demo administrators holding their roles.
 If you change your mind later, `pnpm add -w @endora-commerce/demo-composition` and then
 `pnpm run cli demo seed` add demo data, and `pnpm run cli demo reset` withdraws it, leaving your
-own rows alone.
+own rows alone. The reset also removes what was created by *using* the demo under the demo
+organization — the orders its buyer placed, saved addresses, carts, quote requests, invoices and
+the like — because the organization they belong to goes with it. Another organization's data is
+never touched. If the reset is refused part-way, nothing has been withdrawn and the shop still
+works; the error says what refused it.
 
 **The administrator is never generated.** The password is the one value you have to remember, so
 nothing makes one up for you, and nothing else creates an account. It is not shown as you type it

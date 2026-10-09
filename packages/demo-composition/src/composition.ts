@@ -77,6 +77,7 @@ import type {
 import { SalesChannel, hashPassword } from '@endora-commerce/platform/kernel';
 import { entityNamed } from '@endora-commerce/platform/packages';
 import { createAttributeFixture, findAttributeDefinitionByKey } from './attribute-fixtures.js';
+import { withdrawDemoUsage } from './demo-usage.js';
 import { demoSalesPipelineStep } from './sales-pipeline.js';
 
 /** A sign-in detail the runner prints — the platform's own shape. */
@@ -1095,6 +1096,10 @@ const STEPS: readonly CompositionStep[] = [
       await em.persistAndFlush(buyer);
     },
     async withdraw(em) {
+      // On an instance that holds every module the buyer is already gone:
+      // the accounts of the demo organisation are withdrawn with what they
+      // were used to create, before any step (`demo-usage.ts`). This is what
+      // removes it where one of those modules is absent.
       const { CustomerAccount } = await customerAccountRows();
       const buyer = await em.findOne(CustomerAccount, { email: DEMO_BUYER_EMAIL });
       if (buyer === null) return;
@@ -1479,7 +1484,22 @@ export function createDemoComposition(deps: DemoCompositionDeps): DemoCompositio
 
   return {
     apply: () => runSteps('apply', STEPS),
-    withdraw: () => runSteps('withdraw', STEPS),
+    // What using the demo left behind goes first, in one transaction: it is the
+    // part a foreign key can refuse, and a refusal there has withdrawn nothing
+    // (`demo-usage.ts`). Only then are the steps unwound.
+    withdraw: async () => {
+      const usage = await withdrawDemoUsage({
+        em: deps.em,
+        isPresent: deps.isPresent,
+        organizationTaxId: DEMO_ORG_TAX_ID,
+        absenceReason,
+      });
+      const steps = await runSteps('withdraw', STEPS);
+      return {
+        applied: [...usage.applied, ...steps.applied],
+        skipped: [...usage.skipped, ...steps.skipped],
+      };
+    },
     // §5.5a. Declared rather than omitted even though `FOUNDATION_STEPS` holds
     // one step: the phase is what the runner calls, and an instance that grows
     // a second foundation step must not also have to remember to wire it.

@@ -23,6 +23,24 @@ demo administrator holds. This package is what says it:
 `pnpm run cli demo reset` withdraws exactly what it created, before the modules withdraw their
 own rows.
 
+A demo that has been used resets too. Before any step is unwound, the reset removes what using
+the demo created under the demo organisation and its customer accounts — orders with their
+payments, shipments, invoices, stock allocations and credit reservations, return cases, carts,
+quote requests, shopping lists, saved addresses, API keys, webhooks, sessions, the accounts
+themselves, and any Sales Opportunity opened for that organisation. They are deleted, not
+re-pointed: the organisation they belong to is withdrawn, and every row here belongs to exactly
+one. Only rows of the demo organisation are matched — it is found by the tax id the demo gives
+it — so another organisation on the same instance loses nothing.
+
+That part runs in one transaction and first. If a foreign key refuses it — a table of your own
+that references an order, say — the reset exits non-zero with nothing withdrawn and the shop
+still working. It also stops, before touching anything, when another organisation has been filed
+under the demo one: detach or delete the sub-organisation and run it again.
+
+Three records are kept on purpose, because they are logs of what happened rather than data of
+the demo organisation: the audit trail, the e-mail delivery log and administrators'
+notification history.
+
 ## How an instance gets it
 
 Ask for demo data when you scaffold — `endora install --demo` or `endora new instance --demo` —

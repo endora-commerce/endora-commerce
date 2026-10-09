@@ -143,7 +143,12 @@ jeden pakiet, `@endora-commerce/demo-composition`: to on łączy przykładowe da
 sklep — produkty demonstracyjne sprzedawane w domyślnym kanale, administratorów demonstracyjnych
 z przypisanymi rolami. Jeśli zmienisz zdanie, `pnpm add -w @endora-commerce/demo-composition`,
 a potem `pnpm run cli demo seed` dodają dane demonstracyjne, a `pnpm run cli demo reset` je
-wycofuje, nie ruszając Twoich własnych danych.
+wycofuje, nie ruszając Twoich własnych danych. Reset usuwa też to, co powstało podczas
+*korzystania* z demo w ramach organizacji demonstracyjnej — zamówienia złożone przez jej
+kupującego, zapisane adresy, koszyki, zapytania ofertowe, faktury i podobne dane — bo organizacja,
+do której należą, jest usuwana razem z nimi. Dane innych organizacji nigdy nie są ruszane. Jeśli
+reset zostanie odrzucony w trakcie, nic nie zostało wycofane i sklep nadal działa; komunikat
+błędu mówi, co go odrzuciło.
 
 **Administrator nigdy nie jest generowany.** Hasło to jedyna wartość, którą musisz zapamiętać, więc
 nic nie wymyśla go za Ciebie i nic innego nie tworzy konta. Hasło nie jest widoczne podczas

@@ -2212,7 +2212,10 @@ przesunięto albo edytowano, zostaje taka, jak ją zostawiono — a szansa
 zasilona, zanim pojawiły się wydarzenia, nie dostaje żadnego; żeby je mieć,
 wykonaj reset i zasil dane ponownie.
 `endora demo reset` usuwa dwanaście szans i trzy etykiety wraz ze wszystkim,
-co jest do tych szans dołączone, i nic, co utworzono samodzielnie.
+co jest do tych szans dołączone. Usuwa też każdą inną szansę otwartą dla
+organizacji demonstracyjnej, bo ta organizacja jest wycofywana razem ze
+wszystkim, co w niej utworzono. Szanse wszystkich pozostałych organizacji
+i etykiety utworzone samodzielnie pozostają nietknięte.
 
 **Uruchamiaj `endora demo reset` przy włączonym module CRM.** Gdy moduł jest
 wyłączony, jego rekordy pozostają nietknięte — także demonstracyjne szanse — a

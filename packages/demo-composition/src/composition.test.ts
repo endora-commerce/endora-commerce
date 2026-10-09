@@ -6,6 +6,7 @@ import {
   DEMO_COMPOSITION_STEP_NAMES,
   DEMO_FOUNDATION_STEP_NAMES,
 } from './composition.js';
+import { DEMO_USAGE_SECTION_NAMES, DEMO_USAGE_SECTIONS } from './demo-usage.js';
 
 /**
  * What this package promises an instance with a **smaller** module set — the
@@ -53,9 +54,88 @@ describe('a composition over an instance with none of its modules', () => {
   it('withdraws nothing either, in the reverse order', async () => {
     const result = await composition.withdraw();
     expect(result.applied).toEqual([]);
+    // What using the demo left behind is withdrawn before any step is unwound
+    // (issue #143), so its sections are reported first.
+    expect(result.skipped.map((entry) => entry.step)).toEqual([
+      ...DEMO_USAGE_SECTION_NAMES,
+      ...[...DEMO_COMPOSITION_STEP_NAMES].reverse(),
+    ]);
+  });
+});
+
+describe('what using the demo left behind (issue #143)', () => {
+  it('is found through the demo organisation in every statement, and by nothing wider', () => {
+    // The whole safety of this withdrawal is its predicate: a statement that
+    // did not go through the demo organisation's tax id would be a delete over
+    // somebody else's rows. Every `?` is bound to that one value.
+    for (const section of DEMO_USAGE_SECTIONS) {
+      for (const statement of section.statements) {
+        expect(statement, section.name).toContain('from organizations where tax_id = ?');
+        expect(statement, section.name).toMatch(/\bwhere\b/);
+      }
+    }
+  });
+
+  it('names the organisation module in every section, so none runs without its table', () => {
+    for (const section of DEMO_USAGE_SECTIONS) {
+      expect(section.modules, section.name).toContain('organizations');
+    }
+  });
+
+  it('deletes the accounts last: every other section finds its rows through them', () => {
+    expect(DEMO_USAGE_SECTION_NAMES.at(-1)).toBe('customer accounts of the demo organisation');
+  });
+
+  it('opens no transaction when none of its modules is present', async () => {
+    // Only the two admin modules: no section can run, so the EntityManager —
+    // which throws on any use — is never reached.
+    const composition = createDemoComposition({
+      em: untouchable,
+      isPresent: (moduleId) => moduleId === 'admin_users' || moduleId === 'admin_roles',
+    });
+    const result = await composition.withdraw();
     expect(result.skipped.map((entry) => entry.step)).toEqual(
-      [...DEMO_COMPOSITION_STEP_NAMES].reverse(),
+      expect.arrayContaining([...DEMO_USAGE_SECTION_NAMES]),
     );
+  });
+
+  it('runs every present section inside one transaction, and stops on sub-organisations', async () => {
+    const executed: string[] = [];
+    let transactions = 0;
+    const tx = {
+      execute: async (statement: string, params: readonly string[]) => {
+        // One bound value per placeholder, all of them the same tax id.
+        expect(params.length).toBe(statement.split('?').length - 1);
+        expect(new Set(params).size).toBe(1);
+        executed.push(statement);
+        return statement.includes('parent_id') ? [{ n: branches }] : [];
+      },
+    };
+    let branches = '0';
+    const em = {
+      transactional: async (work: (inner: typeof tx) => Promise<void>) => {
+        transactions += 1;
+        await work(tx);
+      },
+    } as unknown as EntityManager;
+    const { withdrawDemoUsage } = await import('./demo-usage.js');
+    const deps = {
+      em,
+      isPresent: (moduleId: string) => moduleId === 'organizations' || moduleId === 'addresses',
+      organizationTaxId: 'PL0000000001',
+      absenceReason: (absent: readonly string[]) => absent.join(','),
+    };
+
+    const result = await withdrawDemoUsage(deps);
+    expect(transactions).toBe(1);
+    expect(result.applied).toEqual(['addresses saved by the demo organisation']);
+    expect(executed.at(-1)).toContain('delete from addresses');
+
+    branches = '2';
+    executed.length = 0;
+    await expect(withdrawDemoUsage(deps)).rejects.toThrow(/2 sub-organisation/);
+    // The count, and nothing after it.
+    expect(executed).toHaveLength(1);
   });
 });
 
