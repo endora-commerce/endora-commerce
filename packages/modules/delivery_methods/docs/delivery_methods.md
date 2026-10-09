@@ -32,8 +32,9 @@ automatically, deliberately.
 | Verb + Path | Audience | Gate | Purpose |
 | --- | --- | --- | --- |
 | `GET /api/v1/delivery-methods` | anon | — | Eligible methods for the storefront checkout (active ∩ sales-channel ∩ Organization allow-list ∩ adapter registered ∩ `validateUseOnStorefront`) |
-| `GET /api/v1/admin/delivery-methods` | admin | `delivery_methods:read` | Full list with adapter, status mappings, sales channels, renderer key |
-| `PUT /api/v1/admin/delivery-methods/:code` | admin | `delivery_methods:write` | Upsert by code (name, cost/`price`, status, `statusOnSuccess`/`statusOnFailure`, sales channels) |
+| `GET /api/v1/admin/delivery-methods` | admin | `delivery_methods:read` | Full list with adapter, status mappings, sales channels, renderer key, and `availability` — whether checkout can offer the method and which module decides it |
+| `GET /api/v1/admin/delivery-methods/adapters` | admin | `delivery_methods:read` | The adapters a method may be bound to: `{ key, ownerModule }` for every registered adapter whose module is switched on |
+| `PUT /api/v1/admin/delivery-methods/:code` | admin | `delivery_methods:write` | Upsert by code (name, cost/`price`, `adapter`, status, `statusOnSuccess`/`statusOnFailure`, sales channels) |
 | `DELETE /api/v1/admin/delivery-methods/:id` | admin | `delivery_methods:write` | Hard delete (guarded: rejected with 409 when a `Shipment` references the method — set status `inactive` instead) |
 
 The admin status selectors read their options from `GET /api/v1/admin/order-statuses`
@@ -59,6 +60,41 @@ Orders module ships a configurable registry). Seed defaults: `shipped` /
 Sales-channel scoping reuses the generic `SalesChannelMembershipService`
 (`'delivery-method'`); per-Organization availability reuses
 `OrganizationRestrictionService` (`'delivery_method'`, opt-out blocklist).
+
+## Choosing the adapter
+
+The adapter is what makes a row a working delivery method: a method whose
+`adapter` is not registered, or whose contributing module is switched off, is
+kept in the catalog and **never offered at checkout**.
+
+On `/delivery-methods` the operator picks the adapter from a list when creating
+or editing a method. The list is the instance's own — the two bundled adapters
+plus one per installed, switched-on carrier module — so it grows when a carrier
+module is installed and shrinks when one is switched off. A new method cannot be
+saved without a choice.
+
+A row that cannot be offered is marked **Not offered at checkout** in the list,
+with the reason: no installed module provides its adapter, or the module that
+does is switched off or unavailable. Nothing repairs or removes such a row
+automatically. Open it and choose a registered adapter, or switch its carrier
+module back on. Until then the row can still be re-priced, renamed or set
+inactive: saving it with the adapter it already has is accepted.
+
+Three rules apply to the API as well as the screen:
+
+- **An adapter that is chosen must be registered.** Changing a method to a key
+  no module contributed answers 400.
+- **A method that already has shipments keeps its adapter.** A `Shipment`
+  records its delivery method, not the adapter that opened it, so the method's
+  `adapter` is the only record of which carrier holds those parcels. Changing it
+  answers 409; set the method `inactive` and create a new one for the other
+  adapter. With the `shipments` module switched off the platform cannot count,
+  so the change is refused until it is back on.
+- **`adapter` may still be omitted from the body.** A creation that omits it
+  takes the method's `code` as the adapter, as it did before adapters existed —
+  which yields a working method only when the code happens to be a registered
+  adapter key. Send `adapter` explicitly; `availability.available` in the
+  response says whether the method you just saved can be offered.
 
 ## How to build a shipping-method module
 
@@ -157,7 +193,8 @@ request**:
 | Read | Where | What an absent adapter means there |
 | --- | --- | --- |
 | Storefront eligibility | `GET /api/v1/delivery-methods` → `ShippingMethodEligibilityService.filter` | the method is not offered |
-| Admin upsert guard | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | an explicitly supplied key nobody contributed is rejected (400); a contributed one whose owner is off is accepted, because the read is presence-blind on purpose |
+| Admin adapter picker | `GET /api/v1/admin/delivery-methods/adapters` → `list` | the adapter is not offered as a choice |
+| Admin upsert guard | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | an explicitly supplied key nobody contributed is rejected (400) unless the row already carries it; a contributed one whose owner is off is accepted, because the read is presence-blind on purpose |
 | Order placement | `orders` re-validates the chosen method, then fires `onOrderCreated` | a method whose owner is off answers 503 `MODULE_DISABLED`; an unregistered one skips the hook |
 | Shipment generation | `ShipmentService.create` → `onShipmentCreated` | the adapter hook is skipped and the `Shipment` opens **`pending_manual`** naming the absent module — never plain `pending`, which would read as a shipment the carrier had accepted |
 | Order-confirmation e-mail | the method's `renderers.email` key | the platform default renderer is used |

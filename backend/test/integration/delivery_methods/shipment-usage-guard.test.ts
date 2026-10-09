@@ -159,4 +159,74 @@ describe('delivery-method delete guard — the count comes from `shipments`', ()
     expect(restored.statusCode).toBe(204);
     expect(await methodStillThere(method.id)).toBe(false);
   });
+  /**
+   * The same count guards a second write since the admin screen offers the
+   * adapter as a choice: a `Shipment` records its method and not the adapter
+   * that opened it, so rebinding a method hands the parcels already created
+   * against it to another carrier.
+   */
+  function rebind(method: DeliveryMethodRow, adapter: string) {
+    return h.app.inject({
+      method: 'PUT',
+      url: `/api/v1/admin/delivery-methods/${method.code}`,
+      cookies: ADMIN_COOKIE,
+      payload: { name: { default: 'Guarded method' }, cost: 11, currency: 'PLN', adapter },
+    });
+  }
+
+  async function adapterOf(id: string): Promise<string | undefined> {
+    const em = h.em();
+    em.clear();
+    return (await em.findOne(DeliveryMethod, { id }))?.adapter;
+  }
+
+  it('refuses a change of adapter while a shipment references the method', async () => {
+    const method = await seedMethod();
+    await seedShipment(method);
+
+    const response = await rebind(method, 'manual_courier');
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error.message).toContain('1 shipment(s)');
+    expect(await adapterOf(method.id)).toBe('flat_rate');
+  });
+
+  it('still saves an edit that repeats the adapter of a method with shipments', async () => {
+    const method = await seedMethod();
+    await seedShipment(method);
+
+    const response = await rebind(method, 'flat_rate');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().data.cost.amount).toBe(11);
+  });
+
+  it('changes the adapter of a method no shipment references', async () => {
+    const method = await seedMethod();
+
+    const response = await rebind(method, 'manual_courier');
+
+    expect(response.statusCode).toBe(200);
+    expect(await adapterOf(method.id)).toBe('manual_courier');
+  });
+
+  it('refuses a change of adapter while `shipments` is off, and allows it once restored', async () => {
+    const method = await seedMethod();
+
+    await withModuleOff('shipments', 'deactivated', async () => {
+      const response = await rebind(method, 'manual_courier');
+      expect(response.statusCode).toBe(409);
+      expect(response.json().error.message).toContain('shipments');
+      expect(await adapterOf(method.id)).toBe('flat_rate');
+
+      // An edit that changes nothing about the adapter asks nobody, so it is
+      // not held hostage by a module it never needed.
+      const unchanged = await rebind(method, 'flat_rate');
+      expect(unchanged.statusCode).toBe(200);
+    });
+
+    const restored = await rebind(method, 'manual_courier');
+    expect(restored.statusCode).toBe(200);
+    expect(await adapterOf(method.id)).toBe('manual_courier');
+  });
 });

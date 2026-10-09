@@ -31,8 +31,9 @@ automatycznie — celowo.
 | Metoda i ścieżka | Kto | Uprawnienie | Przeznaczenie |
 | --- | --- | --- | --- |
 | `GET /api/v1/delivery-methods` | anonimowy | — | Metody dostępne w checkoucie storefrontu (aktywne ∩ kanał sprzedaży ∩ lista dozwolonych organizacji ∩ zarejestrowany adapter ∩ `validateUseOnStorefront`) |
-| `GET /api/v1/admin/delivery-methods` | administrator | `delivery_methods:read` | Pełna lista z adapterem, przypisaniem statusów, kanałami sprzedaży i kluczem szablonu |
-| `PUT /api/v1/admin/delivery-methods/:code` | administrator | `delivery_methods:write` | Utworzenie lub aktualizacja według kodu (nazwa, koszt/`price`, status, `statusOnSuccess`/`statusOnFailure`, kanały sprzedaży) |
+| `GET /api/v1/admin/delivery-methods` | administrator | `delivery_methods:read` | Pełna lista z adapterem, przypisaniem statusów, kanałami sprzedaży, kluczem szablonu oraz polem `availability` — czy checkout może zaoferować metodę i który moduł o tym decyduje |
+| `GET /api/v1/admin/delivery-methods/adapters` | administrator | `delivery_methods:read` | Adaptery, do których można przypisać metodę: `{ key, ownerModule }` dla każdego zarejestrowanego adaptera, którego moduł jest włączony |
+| `PUT /api/v1/admin/delivery-methods/:code` | administrator | `delivery_methods:write` | Utworzenie lub aktualizacja według kodu (nazwa, koszt/`price`, `adapter`, status, `statusOnSuccess`/`statusOnFailure`, kanały sprzedaży) |
 | `DELETE /api/v1/admin/delivery-methods/:id` | administrator | `delivery_methods:write` | Trwałe usunięcie (chronione: odrzucane z 409, gdy metoda jest używana przez przesyłkę `Shipment` — zamiast tego ustaw status `inactive`) |
 
 Listy wyboru statusów w panelu pobierają opcje z `GET /api/v1/admin/order-statuses` (trasa
@@ -56,6 +57,38 @@ konfigurowalnego rejestru). Domyślne wartości początkowe: `shipped` / `in_ful
 Przypisanie do kanałów sprzedaży korzysta z ogólnego `SalesChannelMembershipService`
 (`'delivery-method'`); dostępność dla organizacji korzysta z `OrganizationRestrictionService`
 (`'delivery_method'`, lista blokad).
+
+## Wybór adaptera
+
+To adapter sprawia, że wiersz jest działającą metodą dostawy: metoda, której `adapter` nie jest
+zarejestrowany albo której moduł dostarczający adapter jest wyłączony, pozostaje w katalogu i
+**nigdy nie jest oferowana w checkoucie**.
+
+Na ekranie `/delivery-methods` operator wybiera adapter z listy podczas tworzenia lub edycji
+metody. Lista należy do danej instancji — dwa wbudowane adaptery oraz po jednym na każdy
+zainstalowany i włączony moduł przewoźnika — więc wydłuża się po zainstalowaniu modułu przewoźnika
+i skraca po jego wyłączeniu. Nowej metody nie da się zapisać bez dokonania wyboru.
+
+Wiersz, którego nie można zaoferować, jest na liście oznaczony jako **Nieoferowana przy składaniu
+zamówienia**, razem z przyczyną: żaden zainstalowany moduł nie dostarcza jego adaptera albo moduł,
+który go dostarcza, jest wyłączony lub niedostępny. Nic nie naprawia ani nie usuwa takiego wiersza
+automatycznie. Otwórz go i wybierz zarejestrowany adapter albo ponownie włącz moduł przewoźnika.
+Do tego czasu wierszowi nadal można zmienić cenę, nazwę lub ustawić go jako nieaktywny: zapis z
+adapterem, który wiersz już ma, jest przyjmowany.
+
+Trzy reguły obowiązują zarówno w API, jak i na ekranie:
+
+- **Wybierany adapter musi być zarejestrowany.** Zmiana metody na klucz, którego nie dodał żaden
+  moduł, kończy się odpowiedzią 400.
+- **Metoda, która ma już przesyłki, zachowuje swój adapter.** Przesyłka `Shipment` zapisuje metodę
+  dostawy, a nie adapter, który ją utworzył, więc `adapter` metody jest jedynym zapisem tego, który
+  przewoźnik ma te paczki. Jego zmiana kończy się odpowiedzią 409; ustaw metodę jako `inactive` i
+  utwórz nową dla drugiego adaptera. Gdy moduł `shipments` jest wyłączony, platforma nie może
+  policzyć przesyłek, więc zmiana jest odrzucana do czasu jego ponownego włączenia.
+- **Pole `adapter` nadal można pominąć w treści żądania.** Tworzenie bez tego pola przyjmuje jako
+  adapter `code` metody — tak jak przed wprowadzeniem adapterów — co daje działającą metodę tylko
+  wtedy, gdy kod jest akurat kluczem zarejestrowanego adaptera. Podawaj `adapter` jawnie;
+  `availability.available` w odpowiedzi mówi, czy właśnie zapisaną metodę można zaoferować.
 
 ## Jak zbudować moduł metody dostawy
 
@@ -148,7 +181,8 @@ dodawane **raz, podczas kompozycji**. Każdy odczyt następuje **później, w tr
 | Odczyt | Gdzie | Co oznacza brak adaptera |
 | --- | --- | --- |
 | Dostępność w storefroncie | `GET /api/v1/delivery-methods` → `ShippingMethodEligibilityService.filter` | metoda nie jest oferowana |
-| Zabezpieczenie zapisu w panelu | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | jawnie podany klucz, którego nikt nie dodał, jest odrzucany (400); klucz dodany przez wyłączony moduł jest akceptowany, bo ten odczyt celowo nie sprawdza obecności |
+| Wybór adaptera w panelu | `GET /api/v1/admin/delivery-methods/adapters` → `list` | adapter nie jest dostępny do wyboru |
+| Zabezpieczenie zapisu w panelu | `PUT /api/v1/admin/delivery-methods/:code` → `isRegistered` | jawnie podany klucz, którego nikt nie dodał, jest odrzucany (400), chyba że wiersz już go ma; klucz dodany przez wyłączony moduł jest akceptowany, bo ten odczyt celowo nie sprawdza obecności |
 | Składanie zamówienia | `orders` ponownie sprawdza wybraną metodę, a potem wywołuje `onOrderCreated` | metoda, której właściciel jest wyłączony, odpowiada 503 `MODULE_DISABLED`; dla niezarejestrowanej hook jest pomijany |
 | Generowanie przesyłki | `ShipmentService.create` → `onShipmentCreated` | hook adaptera jest pomijany, a `Shipment` powstaje w stanie **`pending_manual`** z nazwą nieobecnego modułu — nigdy w zwykłym `pending`, które wyglądałoby na przyjęte przez przewoźnika |
 | E-mail z potwierdzeniem zamówienia | klucz `renderers.email` metody | używany jest szablon domyślny platformy |

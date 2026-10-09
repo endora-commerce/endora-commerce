@@ -2461,6 +2461,15 @@
         }
       }
     },
+    "/api/v1/admin/delivery-methods/adapters": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/delivery-methods/{code}": {
       "put": {
         "responses": {

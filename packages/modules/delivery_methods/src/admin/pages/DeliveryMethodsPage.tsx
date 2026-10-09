@@ -9,12 +9,33 @@ import { useAdminZone, AdminZone } from '@endora-commerce/admin-kit/zones';
 import {
   deliveryMethodsClient,
   type AdminDeliveryMethod,
+  type DeliveryMethodAdapterOption,
   type OrderStatusOption,
 } from '../api/delivery-methods-client.js';
 import { resolveAdminDeliveryMethodRenderer } from '../renderers/registry.js';
 
+/**
+ * How far the adapter list has got. The form needs all three answers apart: a
+ * list still on its way, a list that arrived (possibly empty), and a list the
+ * API refused — which must not read as "this instance has no adapters".
+ */
+type AdaptersState = 'loading' | 'ready' | 'error';
+
+/**
+ * The labels this module owns: its two bundled adapters. A carrier module's
+ * adapter is shown by its key — the screen has no business knowing which
+ * modules are carriers, so it translates nothing it did not contribute.
+ */
+const ADAPTER_LABEL_KEYS: Record<string, string> = {
+  manual_courier: 'adapters.manual_courier.label',
+  personal_pickup: 'adapters.personal_pickup.label',
+};
+
 export function DeliveryMethodsPage(): ReactNode {
   const t = useTranslation('core');
+  // The adapter picker's copy lives in this module's own bundle; the rest of the
+  // screen still reads the shared `core` scope it was written against.
+  const tm = useTranslation('delivery_methods');
   /**
    * `useSurfaceVisibility` is the predicate the sidebar, the palette and the
    * dashboard already share, and it answers both axes at once: the operator's
@@ -63,6 +84,8 @@ export function DeliveryMethodsPage(): ReactNode {
   const integrations = useAdminZone('delivery_method.list.integrations', {});
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
   const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
+  const [adapters, setAdapters] = useState<DeliveryMethodAdapterOption[]>([]);
+  const [adaptersState, setAdaptersState] = useState<AdaptersState>('loading');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -74,19 +97,26 @@ export function DeliveryMethodsPage(): ReactNode {
       return;
     }
     setLoading(true);
+    setAdaptersState('loading');
     setError(null);
     try {
-      const [methods, statuses] = await Promise.all([
+      const [methods, statuses, adapterOptions] = await Promise.all([
         deliveryMethodsClient.list(),
         // Shared endpoint owned by the payment-methods admin routes (feature 035);
         // gated `requireAdminAny(['payment_methods:read', 'delivery_methods:read'])`
         // since this module took its own codes, so the read code that opened this
         // screen also opens the status list.
         deliveryMethodsClient.orderStatuses().catch(() => [] as OrderStatusOption[]),
+        // `null` rather than `[]` on a failure: the form says "could not load"
+        // and offers a retry, where an empty list would say "none installed".
+        deliveryMethodsClient.adapters().catch(() => null),
       ]);
       setRows(methods);
       setOrderStatuses(statuses);
+      setAdapters(adapterOptions ?? []);
+      setAdaptersState(adapterOptions === null ? 'error' : 'ready');
     } catch (err) {
+      setAdaptersState('error');
       setError(err instanceof ApiError ? err.envelope.error.message : 'Failed to load.');
     } finally {
       setLoading(false);
@@ -100,6 +130,7 @@ export function DeliveryMethodsPage(): ReactNode {
   const handleUpsert = useCallback(
     async (input: {
       code: string;
+      adapter: string;
       nameEn: string;
       namePl: string;
       cost: number;
@@ -114,6 +145,9 @@ export function DeliveryMethodsPage(): ReactNode {
       try {
         await deliveryMethodsClient.upsert(input.code, {
           code: input.code,
+          // Always sent: the API's default for a missing adapter is the code,
+          // which is how a method nobody can ship came to be saved silently.
+          adapter: input.adapter,
           name,
           cost: input.cost,
           currency: input.currency,
@@ -206,6 +240,9 @@ export function DeliveryMethodsPage(): ReactNode {
             onSubmit={handleUpsert}
             onCancel={(): void => setEditing(null)}
             orderStatuses={orderStatuses}
+            adapters={adapters}
+            adaptersState={adaptersState}
+            onRetryAdapters={(): void => void refresh()}
           />
         </CardContent>
       </Card>
@@ -222,7 +259,7 @@ export function DeliveryMethodsPage(): ReactNode {
                 <TableRow>
                   <TableHead>{t('legacyMethods.columns.code')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.name')}</TableHead>
-                  <TableHead>Adapter</TableHead>
+                  <TableHead>{tm('methods.columns.adapter')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.cost')}</TableHead>
                   <TableHead>On success / failure</TableHead>
                   <TableHead>{t('legacyMethods.columns.status')}</TableHead>
@@ -237,7 +274,7 @@ export function DeliveryMethodsPage(): ReactNode {
                     </TableCell>
                     <TableCell>{resolveAdminDeliveryMethodRenderer(r.rendererKey)(r)}</TableCell>
                     <TableCell>
-                      <code className="font-mono text-xs">{r.adapter}</code>
+                      <AdapterCell method={r} />
                     </TableCell>
                     <TableCell className="tabular-nums">
                       {formatMoney(r.cost.amount, r.cost.currency)}
@@ -283,15 +320,71 @@ export function DeliveryMethodsPage(): ReactNode {
   );
 }
 
+/** An adapter as the operator reads it: this module's label where it has one, else the key. */
+function useAdapterLabel(): (adapterKey: string) => string {
+  const tm = useTranslation('delivery_methods');
+  return useCallback(
+    (adapterKey: string): string => {
+      const labelKey = ADAPTER_LABEL_KEYS[adapterKey];
+      return labelKey ? tm(labelKey) : adapterKey;
+    },
+    [tm],
+  );
+}
+
+/**
+ * The adapter a row is bound to, and — when checkout cannot offer the method —
+ * that it is not offered and what brings it back.
+ *
+ * The reason is read from the server's `availability` projection, never from a
+ * module list held here, the way the payment-methods screen reads its own. The
+ * badge carries the state in words as well as colour, and the sentence names
+ * the repair: an adapter nobody registered is fixed on this screen, a carrier
+ * module that is off is fixed by switching it on.
+ */
+function AdapterCell({ method }: { method: AdminDeliveryMethod }): ReactNode {
+  const tm = useTranslation('delivery_methods');
+  const adapterLabel = useAdapterLabel();
+  const label = adapterLabel(method.adapter);
+  const { availability } = method;
+
+  const reason = availability.available
+    ? null
+    : availability.ownerModule === null
+      ? tm('methods.availability.noAdapter', { adapter: method.adapter })
+      : availability.ownerPresence?.platformState === 'installed'
+        ? tm('methods.availability.moduleOff', { module: availability.ownerModule })
+        : tm('methods.availability.moduleUnavailable', { module: availability.ownerModule });
+
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <span>
+        {label !== method.adapter ? <>{label} </> : null}
+        <code className="font-mono text-xs">{method.adapter}</code>
+      </span>
+      {reason ? (
+        <>
+          <Badge variant="warning">{tm('methods.availability.unavailable')}</Badge>
+          <span className="max-w-xs text-xs text-muted-foreground">{reason}</span>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 function UpsertForm({
   editing,
   onSubmit,
   onCancel,
   orderStatuses,
+  adapters,
+  adaptersState,
+  onRetryAdapters,
 }: {
   editing: AdminDeliveryMethod | null;
   onSubmit: (input: {
     code: string;
+    adapter: string;
     nameEn: string;
     namePl: string;
     cost: number;
@@ -302,9 +395,26 @@ function UpsertForm({
   }) => Promise<void>;
   onCancel: () => void;
   orderStatuses: OrderStatusOption[];
+  adapters: DeliveryMethodAdapterOption[];
+  adaptersState: AdaptersState;
+  onRetryAdapters: () => void;
 }): ReactNode {
   const t = useTranslation('core');
+  const tm = useTranslation('delivery_methods');
+  const adapterLabel = useAdapterLabel();
   const [code, setCode] = useState(editing?.code ?? '');
+  // A new method starts with no adapter and the select is `required`: the
+  // operator chooses, nothing is guessed from the code.
+  const [adapter, setAdapter] = useState(editing?.adapter ?? '');
+  // The row's own adapter stays selectable while it is not among the offered
+  // ones, so opening a method and saving it never rebinds it behind the
+  // operator's back; it is marked instead, and the hint says how to repair it.
+  // Whether it is unavailable is the server's verdict on the row, not an
+  // inference from the list — a list that failed to load proves nothing.
+  const currentIsUnavailable = editing !== null && !editing.availability.available;
+  const keepsCurrentOption =
+    editing !== null && !adapters.some((a) => a.key === editing.adapter);
+  const adapterHintId = 'dadapter-hint';
   const [nameEn, setNameEn] = useState(editing?.name['en-US'] ?? '');
   const [namePl, setNamePl] = useState(editing?.name['pl-PL'] ?? '');
   const [cost, setCost] = useState(editing ? String(editing.cost.amount) : '0');
@@ -317,8 +427,13 @@ function UpsertForm({
       className="space-y-4"
       onSubmit={(e: FormEvent): void => {
         e.preventDefault();
+        // The select is `required`, which is what tells the operator; this is
+        // the same rule for a submit that did not come through the browser's
+        // own validation.
+        if (!adapter) return;
         void onSubmit({
           code,
+          adapter,
           nameEn,
           namePl,
           cost: Number(cost),
@@ -340,6 +455,54 @@ function UpsertForm({
             disabled={editing !== null}
             readOnly={editing !== null}
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dadapter">{tm('methods.fields.adapter')}</Label>
+          <Select
+            id="dadapter"
+            value={adapter}
+            onChange={(e): void => setAdapter(e.target.value)}
+            required
+            disabled={adaptersState === 'loading'}
+            aria-busy={adaptersState === 'loading'}
+            aria-describedby={adapterHintId}
+            aria-invalid={currentIsUnavailable && adapter === editing?.adapter ? true : undefined}
+          >
+            <option value="" disabled>
+              {adaptersState === 'loading'
+                ? tm('methods.adapter.loading')
+                : tm('methods.adapter.placeholder')}
+            </option>
+            {keepsCurrentOption && editing ? (
+              <option value={editing.adapter}>
+                {currentIsUnavailable
+                  ? tm('methods.adapter.unavailableOption', { adapter: editing.adapter })
+                  : adapterLabel(editing.adapter)}
+              </option>
+            ) : null}
+            {adapters.map((a) => (
+              <option key={a.key} value={a.key}>
+                {adapterLabel(a.key) === a.key ? a.key : `${adapterLabel(a.key)} (${a.key})`}
+              </option>
+            ))}
+          </Select>
+          {/* Mounted before it has anything to say, so a change is announced. */}
+          <div id={adapterHintId} role="status" className="text-xs text-muted-foreground">
+            {adaptersState === 'error' ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <span>{tm('methods.adapter.loadError')}</span>
+                <Button type="button" variant="outline" size="sm" onClick={onRetryAdapters}>
+                  {tm('methods.adapter.retry')}
+                </Button>
+              </span>
+            ) : adaptersState === 'ready' && adapters.length === 0 ? (
+              tm('methods.adapter.empty')
+            ) : currentIsUnavailable && adapter === editing?.adapter ? (
+              tm('methods.adapter.currentUnavailable', { adapter: editing.adapter })
+            ) : adaptersState === 'ready' ? (
+              tm('methods.adapter.help')
+            ) : null}
+          </div>
         </div>
         <div className="space-y-2">
           <Label htmlFor="dnameen">{t('legacyMethods.fields.nameEn')}</Label>

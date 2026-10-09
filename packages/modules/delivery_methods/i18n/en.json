@@ -1,5 +1,21 @@
 {
   "nav.deliveryMethods.label": "Delivery methods",
   "actions.openDeliveryMethods.label": "Delivery methods",
-  "actions.openDeliveryMethods.description": "Delivery & shipping methods"
+  "actions.openDeliveryMethods.description": "Delivery & shipping methods",
+  "adapters.manual_courier.label": "Own courier (manual)",
+  "adapters.personal_pickup.label": "Personal pickup",
+  "methods.columns.adapter": "Adapter",
+  "methods.fields.adapter": "Adapter",
+  "methods.adapter.placeholder": "Choose an adapter…",
+  "methods.adapter.loading": "Loading adapters…",
+  "methods.adapter.help": "The adapter decides how parcels for this method are handled. Only adapters from installed, switched-on modules are listed.",
+  "methods.adapter.empty": "No adapter is registered in this instance, so a method cannot be saved yet. Install or switch on a module that provides one.",
+  "methods.adapter.loadError": "The list of adapters could not be loaded.",
+  "methods.adapter.retry": "Try again",
+  "methods.adapter.unavailableOption": "{adapter} (not available)",
+  "methods.adapter.currentUnavailable": "The adapter \"{adapter}\" is not available in this instance, so this method is not offered at checkout. Choose one of the listed adapters to repair it.",
+  "methods.availability.unavailable": "Not offered at checkout",
+  "methods.availability.noAdapter": "No installed module provides the \"{adapter}\" adapter. This method is not offered at checkout until it has a registered adapter — edit it and choose one.",
+  "methods.availability.moduleOff": "The \"{module}\" module that provides this adapter is switched off. This method is not offered at checkout until the module is switched on again or the method gets another registered adapter.",
+  "methods.availability.moduleUnavailable": "The \"{module}\" module that provides this adapter is not available in this installation. This method is not offered at checkout until the module is available again or the method gets another registered adapter."
 }

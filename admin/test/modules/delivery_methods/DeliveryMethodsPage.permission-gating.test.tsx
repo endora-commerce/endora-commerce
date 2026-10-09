@@ -43,6 +43,7 @@ const rows = [
     statusOnFailure: 'processing',
     salesChannelIds: [],
     rendererKey: null,
+    availability: { ownerModule: null, available: false, ownerPresence: null },
   },
 ];
 
@@ -56,6 +57,7 @@ vi.mock('../../../../packages/modules/delivery_methods/src/admin/api/delivery-me
   deliveryMethodsClient: {
     list: (...args: unknown[]) => list(...(args as [])),
     orderStatuses: (...args: unknown[]) => orderStatuses(...(args as [])),
+    adapters: vi.fn(async () => []),
     upsert: vi.fn(),
     remove: vi.fn(),
   },

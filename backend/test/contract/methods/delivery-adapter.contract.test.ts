@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  deliveryMethodAdapterOptionSchema,
+  deliveryMethodAdminListItemSchema,
+} from '@endora-commerce/contracts';
+import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
@@ -101,5 +105,125 @@ describe('Delivery-method adapter framework — routes', () => {
     expect(data.statusOnSuccess).toBe('completed');
     // The adapter is preserved (not reset to the code) when omitted from the body.
     expect(data.adapter).toBe('personal_pickup');
+  });
+  it('lists the registered adapters with the module that contributed each', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/delivery-methods/adapters',
+      cookies: adminCookies,
+    });
+    expect(res.statusCode).toBe(200);
+    const data = deliveryMethodAdapterOptionSchema.array().parse(res.json().data);
+    // The two bundled offline adapters are this module's own contribution.
+    expect(data).toEqual(
+      expect.arrayContaining([
+        { key: 'manual_courier', ownerModule: 'delivery_methods' },
+        { key: 'personal_pickup', ownerModule: 'delivery_methods' },
+      ]),
+    );
+    // A row's code is not an adapter: nothing registered `in_person_pickup`.
+    expect(data.map((a) => a.key)).not.toContain('in_person_pickup');
+  });
+
+  it('refuses the adapter list to a caller with no session', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/delivery-methods/adapters',
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('admin list says whether each method can be offered, and why not', async () => {
+    const res = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/delivery-methods',
+      cookies: adminCookies,
+    });
+    expect(res.statusCode).toBe(200);
+    const rows = deliveryMethodAdminListItemSchema.array().parse(res.json().data);
+    const seeded = rows.find((r) => r.code === 'in_person_pickup');
+    expect(seeded!.availability.available).toBe(true);
+    expect(seeded!.availability.ownerModule).toBe('delivery_methods');
+    expect(seeded!.availability.ownerPresence?.present).toBe(true);
+  });
+
+  it('keeps the code default for a creation that names no adapter, and says the result is not offered', async () => {
+    // The pre-adapter payload stays valid (the contract's promise), but the
+    // answer is no longer silent: nothing registered `adapterless_probe`.
+    const res = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/delivery-methods/adapterless_probe',
+      cookies: adminCookies,
+      payload: { name: { 'en-US': 'Adapterless' }, cost: 0, currency: 'PLN' },
+    });
+    expect(res.statusCode).toBe(200);
+    const row = deliveryMethodAdminListItemSchema.parse(res.json().data);
+    expect(row.adapter).toBe('adapterless_probe');
+    expect(row.availability).toEqual({
+      ownerModule: null,
+      available: false,
+      ownerPresence: null,
+    });
+
+    const publicList = await h.app.inject({ method: 'GET', url: '/api/v1/delivery-methods' });
+    const offered = (publicList.json() as { data: Array<{ code: string }> }).data;
+    expect(offered.map((m) => m.code)).not.toContain('adapterless_probe');
+  });
+
+  it('lets an edit repeat an unregistered adapter the row already carries', async () => {
+    // The form sends the adapter it was shown. Re-pricing or deactivating a
+    // row whose carrier is gone must not become a 400.
+    const res = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/delivery-methods/adapterless_probe',
+      cookies: adminCookies,
+      payload: {
+        name: { 'en-US': 'Adapterless' },
+        cost: 4,
+        currency: 'PLN',
+        adapter: 'adapterless_probe',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const row = deliveryMethodAdminListItemSchema.parse(res.json().data);
+    expect(row.cost.amount).toBe(4);
+    expect(row.availability.available).toBe(false);
+  });
+
+  it('still refuses changing a row to an adapter nobody registered', async () => {
+    const res = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/delivery-methods/adapterless_probe',
+      cookies: adminCookies,
+      payload: {
+        name: { 'en-US': 'Adapterless' },
+        cost: 4,
+        currency: 'PLN',
+        adapter: 'another_unknown_adapter',
+      },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('repairs the row by choosing a registered adapter, after which checkout offers it', async () => {
+    const res = await h.app.inject({
+      method: 'PUT',
+      url: '/api/v1/admin/delivery-methods/adapterless_probe',
+      cookies: adminCookies,
+      payload: {
+        name: { 'en-US': 'Adapterless' },
+        cost: 4,
+        currency: 'PLN',
+        adapter: 'manual_courier',
+      },
+    });
+    expect(res.statusCode).toBe(200);
+    const row = deliveryMethodAdminListItemSchema.parse(res.json().data);
+    expect(row.adapter).toBe('manual_courier');
+    expect(row.availability.available).toBe(true);
+
+    const publicList = await h.app.inject({ method: 'GET', url: '/api/v1/delivery-methods' });
+    const offered = (publicList.json() as { data: Array<{ code: string }> }).data;
+    expect(offered.map((m) => m.code)).toContain('adapterless_probe');
   });
 });

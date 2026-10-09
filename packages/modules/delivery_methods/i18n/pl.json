@@ -1,5 +1,21 @@
 {
   "nav.deliveryMethods.label": "Metody dostawy",
   "actions.openDeliveryMethods.label": "Metody dostawy",
-  "actions.openDeliveryMethods.description": "Metody dostawy i wysyłki"
+  "actions.openDeliveryMethods.description": "Metody dostawy i wysyłki",
+  "adapters.manual_courier.label": "Wysyłka własna (ręczna)",
+  "adapters.personal_pickup.label": "Odbiór osobisty",
+  "methods.columns.adapter": "Adapter",
+  "methods.fields.adapter": "Adapter",
+  "methods.adapter.placeholder": "Wybierz adapter…",
+  "methods.adapter.loading": "Wczytywanie adapterów…",
+  "methods.adapter.help": "Adapter decyduje o tym, jak obsługiwane są przesyłki tej metody. Lista zawiera tylko adaptery z zainstalowanych i włączonych modułów.",
+  "methods.adapter.empty": "W tej instalacji nie zarejestrowano żadnego adaptera, więc metody nie można jeszcze zapisać. Zainstaluj lub włącz moduł, który dostarcza adapter.",
+  "methods.adapter.loadError": "Nie udało się wczytać listy adapterów.",
+  "methods.adapter.retry": "Spróbuj ponownie",
+  "methods.adapter.unavailableOption": "{adapter} (niedostępny)",
+  "methods.adapter.currentUnavailable": "Adapter „{adapter}” nie jest dostępny w tej instalacji, więc ta metoda nie jest oferowana przy składaniu zamówienia. Wybierz jeden z adapterów z listy, aby to naprawić.",
+  "methods.availability.unavailable": "Nieoferowana przy składaniu zamówienia",
+  "methods.availability.noAdapter": "Żaden zainstalowany moduł nie dostarcza adaptera „{adapter}”. Ta metoda nie będzie oferowana przy składaniu zamówienia, dopóki nie otrzyma zarejestrowanego adaptera — edytuj ją i wybierz adapter.",
+  "methods.availability.moduleOff": "Moduł „{module}”, który dostarcza ten adapter, jest wyłączony. Ta metoda nie będzie oferowana przy składaniu zamówienia, dopóki moduł nie zostanie ponownie włączony albo metoda nie otrzyma innego zarejestrowanego adaptera.",
+  "methods.availability.moduleUnavailable": "Moduł „{module}”, który dostarcza ten adapter, nie jest dostępny w tej instalacji. Ta metoda nie będzie oferowana przy składaniu zamówienia, dopóki moduł nie będzie ponownie dostępny albo metoda nie otrzyma innego zarejestrowanego adaptera."
 }
