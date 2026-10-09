@@ -238,6 +238,85 @@ function afterKeysetCursor(
   return { $or: [{ createdAt: { [op]: at } }, { createdAt: at, id: { [op]: cursor.id } }] };
 }
 
+/**
+ * One condition of the listing statement: SQL over the `products` alias the ORM
+ * settles on, and the values its `?` placeholders bind, in order.
+ *
+ * A plain description rather than a `raw()` fragment on purpose — see
+ * `#listingNarrowing`.
+ */
+interface ListingCondition {
+  sql: (alias: string) => string;
+  params: unknown[];
+}
+
+/**
+ * JavaScript's `String(n)` for a `numeric` SQL expression.
+ *
+ * The attribute filter has always compared `String(value)`, and for a number
+ * that is not the text PostgreSQL stores: `jsonb` keeps `1e21` as a 22-digit
+ * integer where JavaScript prints `1e+21`, and keeps a hand-written `1.50` as
+ * written where JavaScript prints `1.5`. So the number is rendered the way
+ * JavaScript would render the double it parses to:
+ *
+ *  - beyond a double's range it is `Infinity`, and below its smallest
+ *    subnormal it is `0` — `JSON.parse`'s answers, and the two casts that would
+ *    otherwise fail the statement;
+ *  - at or above 1e21 and below 1e-6 JavaScript uses exponent notation, and so
+ *    does `float8`'s shortest round-trip output, which differs only in padding
+ *    the exponent to two digits (`1e-07`);
+ *  - from 1e-4 up to 1e15 both print the same plain shortest round-trip
+ *    decimal, which is what turns `1.50` into `1.5` and `2.0` into `2`;
+ *  - in the two bands between, `float8` has already switched to exponent
+ *    notation and JavaScript has not, so the stored digits are printed plain
+ *    with trailing zeros removed. That is exact for any value JavaScript wrote
+ *    and is the one place a value written by something else can differ: a
+ *    number in [1e15, 1e21) or [1e-6, 1e-4) carrying more than 17 significant
+ *    digits.
+ */
+function jsStringOfNumeric(n: string): string {
+  return (
+    `(case ` +
+    `when abs(${n}) > 1.7976931348623157e308 then (case when ${n} < 0 then '-' else '' end) || 'Infinity' ` +
+    `when abs(${n}) < 3e-324 then '0' ` +
+    `when abs(${n}) >= 1e21 or abs(${n}) < 1e-6 ` +
+    `then regexp_replace((${n})::float8::text, 'e([+-])0', 'e\\1') ` +
+    `when abs(${n}) >= 1e15 or abs(${n}) < 1e-4 then trim_scale(${n})::text ` +
+    `else (${n})::float8::text end)`
+  );
+}
+
+/**
+ * JavaScript's `String(value)` for a `jsonb` SQL expression, as the attribute
+ * filter needs it.
+ *
+ * A string or a boolean is its own text, a number is
+ * {@link jsStringOfNumeric}, a JSON `null` reads `'null'` and an object reads
+ * `[object Object]`. An **array** — a multiselect — joins its elements with a
+ * comma, each rendered the same way except that a `null` element is empty,
+ * which is `Array.prototype.join`'s rule.
+ *
+ * One kind is not reproduced: an array **nested inside** an array. JavaScript
+ * flattens it into the join (`[[1, 2], 3]` reads `1,2,3`); here the inner array
+ * contributes its JSON text. No attribute type stores one.
+ */
+function jsStringOfJsonb(value: string): string {
+  const scalar = (v: string, nullText: string): string =>
+    `(case jsonb_typeof(${v}) ` +
+    `when 'null' then '${nullText}' ` +
+    `when 'object' then '[object Object]' ` +
+    `when 'number' then (select ${jsStringOfNumeric('num.n')} ` +
+    `from (select (${v} #>> '{}')::numeric as n) num) ` +
+    `else ${v} #>> '{}' end)`;
+  return (
+    `(case jsonb_typeof(${value}) ` +
+    `when 'array' then (` +
+    `select coalesce(string_agg(${scalar('el.value', '')}, ',' order by el.position), '') ` +
+    `from jsonb_array_elements(${value}) with ordinality as el(value, position)) ` +
+    `else ${scalar(value, 'null')} end)`
+  );
+}
+
 export interface ListResult<T> {
   data: T[];
   pagination: { cursor: string | null; hasMore: boolean; limit: number };
@@ -609,17 +688,28 @@ export class CatalogQueryService {
       return { data: [], pagination: { cursor: null, hasMore: false, limit: params.limit } };
     }
 
-    const effectiveWhere = {
-      $and: [where, ...(cursorClause ? [cursorClause] : []), ...narrowing],
-    };
-
     // Over-fetch by one to detect hasMore — one more **matching** row, which is
     // what makes `hasMore` a statement about the listing rather than about the
     // table.
-    const products = await em.find(Product, effectiveWhere, {
-      limit: params.limit + 1,
-      orderBy: this.orderForSort(params.sort),
-    });
+    //
+    // The `raw()` keys are created here, in the expression that hands them to
+    // the statement, and nowhere earlier. MikroORM registers a fragment in a
+    // process-wide cache the moment it is used as a key and releases it when a
+    // statement consumes it, so one created on a path that then returns without
+    // querying is held for the life of the process — which an anonymous caller
+    // could repeat at will. Nothing may sit between the two: no `await`, no
+    // early return, nothing that can throw.
+    const products = await em.find(
+      Product,
+      {
+        $and: [
+          where,
+          ...(cursorClause ? [cursorClause] : []),
+          ...narrowing.map((c) => ({ [raw(c.sql, c.params)]: [] })),
+        ],
+      },
+      { limit: params.limit + 1, orderBy: this.orderForSort(params.sort) },
+    );
 
     const hasMore = products.length > params.limit;
     const page = hasMore ? products.slice(0, params.limit) : products;
@@ -627,11 +717,14 @@ export class CatalogQueryService {
       hasMore && page.length > 0 ? encodeObjectCursor(keyset.of(page[page.length - 1]!)) : null;
 
     // The audience and attribute predicates once more, over the rows the
-    // statement returned. Not a second filter: `isProductVisibleTo` is the
-    // platform's one answer to "may this caller see this product", the SQL above
-    // is a restatement of it, and a restatement that came to admit a row the
-    // predicate refuses must not be what decides a disclosure. It costs no
-    // statement, and while the two agree it removes nothing.
+    // statement returned — kept deliberately, as defence in depth.
+    // `isProductVisibleTo` is the platform's one answer to "may this caller see
+    // this product" and the SQL above is a restatement of it; a restatement that
+    // admits a row the predicate refuses must not be what decides a disclosure.
+    // The case that exists today is a stored allow-list that is not an array:
+    // the statement reads it as "no allow-list", the predicate does not. It
+    // costs no statement, and while the two agree it removes nothing — which is
+    // what the contract test holds them to, rule by rule, with full pages.
     const priceable = page.filter((p) => this.#passesPageFilters(p, params, ctx));
 
     // Build the summaries. The page is resolved **once** — `toSummary` used to
@@ -678,43 +771,47 @@ export class CatalogQueryService {
    *  - **each attribute filter** is `#passesPageFilters`' string comparison
    *    restated — see `#attributeCondition`.
    *
-   * Every fragment is built per call and used by one statement: a `raw()` key
-   * is single-use, so this returns fresh ones rather than holding any.
+   * **No `raw()` fragment is created here** — these are descriptions, and the
+   * caller turns them into keys in the expression that executes them. A
+   * fragment is registered process-wide when it becomes a key and released
+   * only by the statement that consumes it, so this method, which can answer
+   * `null` and awaits a read that can fail, is the wrong place to make one.
    */
   async #listingNarrowing(
     em: EntityManager,
     params: ListProductsParams,
     ctx: CatalogQueryContext,
-  ): Promise<Array<Record<string, unknown>> | null> {
-    const conditions: Array<Record<string, unknown>> = [];
-    const condition = (sql: (alias: string) => string, bindings: readonly unknown[]): void => {
-      conditions.push({ [raw(sql, [...bindings])]: [] });
-    };
+  ): Promise<ListingCondition[] | null> {
+    // First, because it is the one part that can end the request: an unknown,
+    // inactive or deleted category means no row matches.
+    let categoryIds: string[] | null = null;
+    if (params.categorySlug) {
+      categoryIds = await this.#categoryTreeIds(em, params.categorySlug);
+      if (categoryIds.length === 0) return null;
+    }
 
     const inChannel = this.#requireChannelMembership().entityIdsInChannelSubquery(
       ctx.resolvedChannel.id,
       'product',
     );
-    condition((alias) => `${alias}.id in (${inChannel.sql})`, inChannel.params);
+    const conditions: ListingCondition[] = [
+      { sql: (alias) => `${alias}.id in (${inChannel.sql})`, params: inChannel.params },
+      this.#audienceCondition(ctx.audience),
+    ];
 
-    const audience = this.#audienceCondition(ctx.audience);
-    condition(audience.sql, audience.params);
-
-    if (params.categorySlug) {
-      const categoryIds = await this.#categoryTreeIds(em, params.categorySlug);
-      if (categoryIds.length === 0) return null;
-      condition(
-        (alias) =>
+    if (categoryIds !== null) {
+      const ids = categoryIds;
+      conditions.push({
+        sql: (alias) =>
           `exists (select 1 from product_categories pc ` +
           `where pc.product_id = ${alias}.id ` +
-          `and pc.category_id in (${categoryIds.map(() => '?').join(',')}))`,
-        categoryIds,
-      );
+          `and pc.category_id in (${ids.map(() => '?').join(',')}))`,
+        params: ids,
+      });
     }
 
     for (const [key, values] of Object.entries(params.attributeFilters ?? {})) {
-      const attribute = this.#attributeCondition(key, values);
-      condition(attribute.sql, attribute.params);
+      conditions.push(this.#attributeCondition(key, values));
     }
 
     return conditions;
@@ -735,10 +832,7 @@ export class CatalogQueryService {
    * `@>` containment over the JSONB array, so the organisation has to be one of
    * its elements rather than a substring of the serialised bag.
    */
-  #audienceCondition(audience: ProductAudience): {
-    sql: (alias: string) => string;
-    params: unknown[];
-  } {
+  #audienceCondition(audience: ProductAudience): ListingCondition {
     const onAllowList = audience.organizationId !== null;
     return {
       sql: (alias) =>
@@ -757,41 +851,25 @@ export class CatalogQueryService {
    * One `filter[attr.<key>]`, as SQL: the product's value for `key`, rendered
    * the way `#passesPageFilters` renders it, is one of the requested values.
    *
-   * That method compares `String(value)`, and the three arms below are what
-   * `String` does to the JSON kinds an attribute value takes: an **array**
-   * (a multiselect) joins its elements with a comma, a JSON `null` reads
-   * `'null'`, and a string, a number or a boolean is its own text. A key the
+   * That method compares `String(value)`, so this is `String` restated for the
+   * JSON kinds a stored value can take — see {@link jsStringOfJsonb}. A key the
    * product does not carry is SQL `NULL` throughout and matches nothing, which
-   * is the method's `undefined` arm. An *object* value is the one kind left
-   * out — `String` gives `[object Object]` for it and no attribute stores one.
+   * is the method's `undefined` arm.
    *
    * The comparison is deliberately not improved here. A multiselect holding two
    * options matches neither of them alone, on either side of this change; that
    * is a question about what the filter means, and answering it in the
    * statement only would make the page-side predicate disagree with it.
    */
-  #attributeCondition(
-    key: string,
-    values: readonly string[],
-  ): { sql: (alias: string) => string; params: unknown[] } {
+  #attributeCondition(key: string, values: readonly string[]): ListingCondition {
     const wanted = values.map((v) => String(v));
     if (wanted.length === 0) return { sql: () => 'false', params: [] };
     return {
-      sql: (alias) => {
-        const value = `${alias}.attribute_values -> ?::text`;
-        return (
-          `(case jsonb_typeof(${value}) ` +
-          `when 'array' then (` +
-          `select coalesce(string_agg(` +
-          `case jsonb_typeof(el.value) when 'null' then '' else el.value #>> '{}' end, ` +
-          `',' order by el.position), '') ` +
-          `from jsonb_array_elements(${value}) with ordinality as el(value, position)) ` +
-          `when 'null' then 'null' ` +
-          `else ${alias}.attribute_values ->> ?::text end) ` +
-          `in (${wanted.map(() => '?').join(',')})`
-        );
-      },
-      params: [key, key, key, ...wanted],
+      sql: (alias) =>
+        `(select ${jsStringOfJsonb('val.v')} ` +
+        `from (select ${alias}.attribute_values -> ?::text as v) val) ` +
+        `in (${wanted.map(() => '?').join(',')})`,
+      params: [key, ...wanted],
     };
   }
 

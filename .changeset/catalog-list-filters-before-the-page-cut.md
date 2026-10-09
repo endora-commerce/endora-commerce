@@ -1,6 +1,6 @@
 ---
 '@endora-commerce/mod-catalog': patch
-'@endora-commerce/platform': patch
+'@endora-commerce/platform': minor
 ---
 
 The storefront product list cuts its page from the products that match. On the default listing
@@ -26,6 +26,13 @@ Two visible differences beyond the page size:
 - A consumer that worked around the defect by requesting further pages after an empty one keeps
   working; it simply never meets an empty page before the last.
 
+`filter[attr.<key>]` matches what it matched before: the stored value is compared as the string
+JavaScript prints for it, numbers included (`1e+21`, `1e-7`, `1.5` for a stored `1.50`), and an
+array as its comma-joined elements. Two stored shapes no attribute type produces compare
+differently from the previous release: an array nested inside an array (it used to be flattened into
+the join), and a number in `[1e15, 1e21)` or `[1e-6, 1e-4)` that was written with more than 17
+significant digits by something other than JavaScript.
+
 The two price-ordered paths (`sort=price`, `sort=-price`, `minPrice` / `maxPrice`) are not changed
 by this release: they already collect matching rows before cutting a page, bounded by their scan
 budget.
@@ -35,8 +42,18 @@ budget.
 `{ sql, params }` subquery (`select <entity id> from <bridge> where sales_channel_id = ?`) for a
 module to place inside its own statement as `<id column> in (…)`. It executes nothing. Use it where
 a listing has to be channel-scoped before its page is cut; `filterEntityIdsInChannel` remains the
-accessor for narrowing ids already held. **Breaking for a hand-written implementation of the
-port** — a test double typed as `SalesChannelMembershipPort` must add the method; code that only
-calls the port is unaffected.
+accessor for narrowing ids already held.
+
+**Breaking, hence `minor`: a hand-written implementation of `SalesChannelMembershipPort` no longer
+type-checks until it adds `entityIdsInChannelSubquery`.** That is a test double or an overlay's own
+stand-in typed as the port; code that only *calls* the port is unaffected, and the platform's own
+`SalesChannelMembershipService` already implements it. A minimal addition for a double that is
+never asked for it:
+
+```ts
+entityIdsInChannelSubquery: () => {
+  throw new Error('entityIdsInChannelSubquery is not stubbed');
+},
+```
 
 No setting, permission or migration changes.
