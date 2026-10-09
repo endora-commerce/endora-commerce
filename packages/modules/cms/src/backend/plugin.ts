@@ -144,6 +144,7 @@ export function cmsModule(options: CmsModuleOptions): {
   );
   const blockService = new CmsBlockService(
     options.emFactory,
+    options.commandBus,
     () => pageBuilderRegistry.knownNames(),
     referenceRegistry,
     invalidator,
