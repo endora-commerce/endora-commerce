@@ -150,6 +150,34 @@ describe('POST /api/v1/orders — the order records the resolved request channel
     expect(await recordedChannelOf(res.body)).toBe(channelB.id);
   });
 
+  it('accepts the resolved channel\'s id in upper case — the same id, spelled differently', async () => {
+    await freshBasket();
+    const res = await place({
+      channelHeader: channelB.code,
+      bodyChannelId: channelB.id.toUpperCase(),
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(await recordedChannelOf(res.body)).toBe(channelB.id);
+  });
+
+  /**
+   * A body naming a channel that does not exist, or one that is switched off,
+   * is refused by the same comparison: it is not the resolved channel. The two
+   * are stated because "refused on mismatch" would otherwise be read as being
+   * about *valid* other channels only.
+   */
+  it('refuses a body naming a channel that does not exist', async () => {
+    await freshBasket();
+    const res = await place({ bodyChannelId: '00000000-0000-4000-8000-00000000dead' });
+
+    expect(res.statusCode).toBe(422);
+    expect((res.body as { error: { details: unknown } }).error.details).toMatchObject({
+      code: 'order_sales_channel_mismatch',
+      resolvedSalesChannelId: defaultChannel.id,
+    });
+  });
+
   it.each([
     {
       name: 'the request resolves channel B and the body names the default',

@@ -275,10 +275,10 @@ export async function registerOrderRoutes(
       // default channel, and took that channel's minimum order value, candidate
       // warehouses and order-number prefix
       // (test/contract/orders/place-order-request-channel.test.ts holds the
-      // observation). A client that *did* send the field could name any channel
-      // it liked, which is a buyer choosing whose rules their order is placed
-      // under. The reference storefront sent neither on this call; it sends the
-      // header now (`storefront/lib/api/orders.ts`).
+      // observation; test/integration/orders/place-order-request-channel-consequences.test.ts
+      // holds those three reads). The reference storefront sent neither the
+      // header nor the field on this call; it sends the header now
+      // (`storefront/lib/api/orders.ts`).
       //
       // So the body field is a claim to be checked, not an instruction: equal
       // to the resolved channel it is redundant and accepted, different it is
@@ -287,13 +287,30 @@ export async function registerOrderRoutes(
       // here, ahead of the placement transaction, so nothing is written and the
       // basket survives. 422 with a `details.code`, the shape
       // `order_below_minimum` already gives a body that parses and cannot be
-      // honoured.
+      // honoured. The comparison ignores case: a UUID is the same id in either,
+      // and a client echoing one in upper case has named the same channel.
+      //
+      // **What this does not do, so nobody reads it as more than it is.** It
+      // makes the order's channel and the request's channel one thing; it does
+      // not bind a buyer to a channel. `X-Sales-Channel` and `?salesChannel=`
+      // are as much the client's to send as the body field was, and nothing
+      // ties a customer or an Organization to the channels they may order on —
+      // a buyer who sends another channel's header is placed under that
+      // channel's rules. Closing that is a decision about who may shop where,
+      // not about this route. Nor does it reconcile the order with its basket:
+      // a basket is created on the system-default channel whatever the request
+      // (`CartService`), so its assortment gate, its line prices and its
+      // promotions were all answered for that channel, and an order placed on
+      // another one carries them as they are.
       //
       // Admin order creation and the API-key intake call `placeOrder` from
       // their own services with the operator's chosen channel and the key's
       // bound one; neither passes through here, and neither changes.
       const requestChannel = getResolvedChannel(request);
-      if (body.salesChannelId !== undefined && body.salesChannelId !== requestChannel.id) {
+      if (
+        body.salesChannelId !== undefined &&
+        body.salesChannelId.toLowerCase() !== requestChannel.id.toLowerCase()
+      ) {
         throw new HttpError(
           422,
           ERROR_CODES.VALIDATION_FAILED,

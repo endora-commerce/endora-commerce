@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { placeOrder, previewOrderTotal } from '../../lib/api/orders';
+import {
+  cloneOrderToQuote,
+  placeOrder,
+  previewOrderTotal,
+  reorderOrder,
+} from '../../lib/api/orders';
 import { getOneClickEligibility, placeOneClickOrder } from '../../lib/api/quick-order';
 import type { RequestContext } from '../../lib/api/client';
 
@@ -10,11 +15,11 @@ import type { RequestContext } from '../../lib/api/client';
  * The backend records an order on the channel the placement request resolves.
  * These calls are made server-side, to the backend's own host, so the
  * `X-Sales-Channel` header is the only thing that can carry the storefront's
- * channel across — and none of the four functions below used to send it. Every
+ * channel across — and none of the functions below used to send it. Every
  * order placed from a second channel's storefront therefore reached the backend
  * with no channel signal at all and was recorded on the system default.
  *
- * `ctx` is a **required** parameter on all four now, so the header cannot be
+ * `ctx` is a **required** parameter on each of them now, so the header cannot be
  * forgotten by a caller; this file holds the other half, that the parameter is
  * actually forwarded. A deployment that stamps no channel (one storefront, one
  * channel) passes a context without a code, sends no header, and gets the
@@ -104,6 +109,25 @@ describe('order placement carries the sales channel', () => {
     expect(
       requestTo('/api/v1/quick-order/one-click/eligibility').headers['X-Sales-Channel'],
     ).toBe('b2b-eu');
+  });
+
+  /**
+   * The two calls that do not place an order but still depend on the request's
+   * channel: a reorder writes basket lines, gated on that channel's assortment,
+   * and a quote request records the channel it was raised on.
+   */
+  it('reorderOrder sends X-Sales-Channel', async () => {
+    await reorderOrder('session', 'order-id', ON_CHANNEL_B);
+
+    expect(requestTo('/api/v1/orders/order-id/reorder').headers['X-Sales-Channel']).toBe('b2b-eu');
+  });
+
+  it('cloneOrderToQuote sends X-Sales-Channel', async () => {
+    await cloneOrderToQuote('session', 'order-id', ON_CHANNEL_B);
+
+    expect(requestTo('/api/v1/orders/order-id/clone-to-quote').headers['X-Sales-Channel']).toBe(
+      'b2b-eu',
+    );
   });
 
   it('sends no channel header when the deployment stamps none, leaving the backend its default', async () => {

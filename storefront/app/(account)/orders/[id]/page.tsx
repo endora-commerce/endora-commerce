@@ -396,7 +396,8 @@ async function reorderAction(formData: FormData): Promise<void> {
   const id = (formData.get('id') as string) ?? '';
   let target = '/cart';
   try {
-    const result = await reorderOrder(session, id);
+    const { ctx } = await getServerContext();
+    const result = await reorderOrder(session, id, ctx);
     target = result.checkoutUrl || '/cart';
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Could not reorder.';
@@ -467,7 +468,8 @@ async function reorderToQuoteAction(formData: FormData): Promise<void> {
   if (!session) redirect('/login');
   const id = (formData.get('id') as string) ?? '';
   try {
-    await cloneOrderToQuote(session, id);
+    const { ctx } = await getServerContext();
+    await cloneOrderToQuote(session, id, ctx);
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Could not create quote request.';
     redirect(`/orders/${id}?error=${encodeURIComponent(message)}`);

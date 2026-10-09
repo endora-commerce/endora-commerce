@@ -83,7 +83,8 @@ Jeśli instancja jest już w żądanej wersji, polecenie to mówi i niczego nie 
   instalacja, Twój zyska tę zmianę dopiero wtedy, gdy sam ją przeniesiesz — zmianę z wydania
   `0.103.0` opisuje sekcja
   [Bloki modułów w istniejącym storefroncie](#storefront-block-renderers), a dwie z wydania
-  `0.104.0` — sekcja [Po aktualizacji do wydania 0.104.0](#after-0-104-0).
+  `0.104.0` — sekcja [Po aktualizacji do wydania 0.104.0](#after-0-104-0), a jedną z wydania
+  `0.105.0` — sekcja [Po aktualizacji do wydania 0.105.0](#after-0-105-0).
 
 ## Po zakończeniu
 
@@ -408,6 +409,53 @@ storefront zbudowały się potem i wyświetlały swoje strony; następnie dodano
 uruchomiono w pomocniczym workspace'ie, a nie w zaktualizowanej instancji. Nie sprawdzono
 wyłączenia `crm`, obu zmian w storefroncie, instancji z `auto-install-peers=false` ani instancji
 z modułami nakładkowymi; to, co ta sekcja o nich mówi, pochodzi z dzienników zmian wydania.
+
+### Po aktualizacji do wydania 0.105.0 {#after-0-105-0}
+
+**Zamówienie złożone w storefroncie jest zapisywane w kanale sprzedaży, w którym wykonano
+żądanie.** `POST /api/v1/orders` brał dotąd kanał zamówienia z opcjonalnego pola `salesChannelId`
+w treści żądania, a gdy go nie było — używał kanału domyślnego; teraz używa kanału rozpoznanego dla
+żądania — `X-Sales-Channel`, `?salesChannel=`, mapa hostów, a w ostatniej kolejności kanał
+domyślny — i odrzuca treść żądania, która wskazuje inny kanał. Co to oznacza, zależy od liczby
+kanałów sprzedaży w instancji.
+
+- **Jeden kanał sprzedaży.** Zmienić może się jedna rzecz. Jeśli `orders.min_order_value` jest
+  ustawione **dla kanału domyślnego**, a nie dla wszystkich kanałów, to nie było egzekwowane dla
+  zamówień ze storefrontu, a teraz jest. Jeśli nie masz pewności, który to przypadek, sprawdź
+  wartość w **Ustawieniach** przed aktualizacją.
+- **Więcej niż jeden.** Nowe zamówienia składane w storefroncie kanału innego niż domyślny są
+  zapisywane w tym kanale, a nie w domyślnym, i obowiązują dla nich jego minimalna wartość
+  zamówienia, magazyny, ustawienia realizacji, numeracja zamówień, dane sprzedawcy i numeracja
+  faktur oraz język wiadomości e-mail. Istniejące zamówienia nie są zmieniane. Koszyki nadal
+  powstają w kanale domyślnym, więc sprawdzenie asortymentu, ceny pozycji i promocje takiego
+  zamówienia są nadal z kanału domyślnego — zobacz *Który kanał sprzedaży zapisuje zamówienie* na
+  stronie modułu `orders`.
+
+**W istniejącym storefroncie**, który zachowuje źródła, z jakimi go utworzono, wywołania dotyczące
+zamówień nie informują backendu, w którym kanale jest kupujący: są wykonywane bez kontekstu
+żądania, więc nagłówek `X-Sales-Channel` nie jest wysyłany i backend rozpoznaje dla nich kanał
+domyślny. W instancji z jednym kanałem sprzedaży to poprawna odpowiedź i niczego nie trzeba
+zmieniać. W instancji z więcej niż jednym wprowadź poniższe zmiany — w przeciwnym razie zamówienia
+nadal będą zapisywane w kanale domyślnym:
+
+- W `lib/api/orders.ts` dodaj ostatni parametr `ctx: RequestContext` (importowany z `./client`) do
+  funkcji `placeOrder`, `previewOrderTotal`, `reorderOrder` i `cloneOrderToQuote` oraz przekaż
+  `ctx` w obiekcie opcji, który każda z nich podaje do `apiMutate`.
+- W `lib/api/quick-order.ts` zrób to samo dla `placeOneClickOrder` (`apiMutate`) i
+  `getOneClickEligibility` (`apiGetAuthed`).
+- Przekaż kontekst w miejscach wywołań — `const { ctx } = await getServerContext();` z
+  `lib/server-context` — w `app/(commerce)/checkout/page.tsx` (`placeOrder`),
+  `app/(catalog)/p/[slug]/page.tsx` (`getOneClickEligibility`, `placeOneClickOrder`) i
+  `app/(account)/orders/[id]/page.tsx` (`reorderOrder`, `cloneOrderToQuote`).
+
+`getServerContext()` bierze kanał z nagłówka `x-sales-channel` żądania, które otrzymuje sam
+storefront — tego samego, który Twoje reverse proxy albo middleware już ustawia dla każdego hosta,
+aby strony renderowały się we właściwym kanale.
+
+Na ile zostało to sprawdzone: zachowanie backendu, nagłówek w każdym z sześciu wywołań storefrontu
+oraz zmianę minimalnej wartości zamówienia w instancji z jednym kanałem obejmują testy wydania.
+Zmian nie naniesiono na storefront utworzony we wcześniejszym wydaniu, a całej ścieżki nie
+uruchomiono w przeglądarce na instancji z dwoma kanałami.
 
 ## Instancja niespójna od początku
 
