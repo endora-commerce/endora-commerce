@@ -1728,6 +1728,27 @@ describe('G3 — `.env.example` declares every input the instance reads (FR-010)
     expect(checked.stdout.split('\n').filter(Boolean)).toEqual(probes);
     expect(spawnSync('git', ['check-ignore', '-q', '--no-index', '.env.example'], { cwd: dir }).status).toBe(1);
   });
+
+  /**
+   * The documentation site's build output. `docs/docs/upgrading-an-instance.md`
+   * tells the operator to commit before upgrading "so the upgrade is one diff
+   * you can read", and an instance whose site had been built showed a diff of
+   * well over a hundred regenerated files instead. Asserted through git, and
+   * with the two neighbours that must stay visible: the pages a client writes
+   * and the site's own configuration.
+   */
+  it('§2.6 — git ignores the documentation site\'s build output and nothing the client writes there', () => {
+    const plan = planInstance(planInput({ declared: DECLARED }));
+    const dir = tempRoot();
+    writeFileSync(join(dir, '.gitignore'), plan.files.find((file) => file.path === '.gitignore')!.content);
+    expect(spawnSync('git', ['init', '-q'], { cwd: dir }).status).toBe(0);
+    const probes = ['docs/build/index.html', 'docs/.docusaurus/registry.js'];
+    const checked = spawnSync('git', ['check-ignore', '--no-index', ...probes], { cwd: dir, encoding: 'utf8' });
+    expect(checked.stdout.split('\n').filter(Boolean)).toEqual(probes);
+    for (const kept of ['docs/docs/intro.md', 'docs/docusaurus.config.js', 'docs/package.json']) {
+      expect(spawnSync('git', ['check-ignore', '-q', '--no-index', kept], { cwd: dir }).status, kept).toBe(1);
+    }
+  });
 });
 
 describe('G3 — the declaration reaches the scaffolder from the packages it resolved (SC-005)', () => {
