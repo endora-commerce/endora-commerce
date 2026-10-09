@@ -56,12 +56,41 @@ Admin routes are gated by `catalog:read` (list / get) /
 ## Events emitted
 
 `product.created.v1`, `product.updated.v1`, `product.archived.v1`,
-`attribute.updated.v1`. Picked up by the search indexer and bridged to
-webhook subscribers.
+`attribute.updated.v1`. Picked up by the search indexer. The three product
+events are also offered to outbound webhooks (next section);
+`attribute.updated.v1` is not.
 
 `category.updated.v1` and `category.content.updated.v1` both flush the
 storefront's category cache; the first also re-indexes the products of the
 changed category's subtree.
+
+## Events offered to outbound webhooks
+
+The module contributes three event types to the `webhooks` module's
+`webhookEventRegistry`, so a webhook subscription can name them while both
+modules are present. The payload is sent whole; the strict schemas are
+`CATALOG_WEBHOOK_EVENT_SCHEMAS` in `@endora-commerce/contracts`.
+
+| Event | Sent when | Payload, beside `eventId` and `occurredAt` |
+| --- | --- | --- |
+| `product.created.v1` | A product is created — in the Admin UI, through the API-key upsert, by an import or a PIM synchronisation, or by duplicating another product. | `productId` (UUID), `sku` — the SKU it was created with; it can change later, `productId` cannot. |
+| `product.updated.v1` | A product is written, or one of its variants is created, changed or deleted. | `productId`, `changedFields` — the names of the product fields the write addressed (`name`, `status`, `categoryIds`, …; `variants` for a variant write). Names only, an open list, and it may be empty. |
+| `product.archived.v1` | A product's status moves to `inactive` from another status. Once per transition: editing a product that is already inactive does not send it again. | `productId` |
+
+- **Order.** The archiving write sends `product.updated.v1` (with `status` in
+  `changedFields`) and then `product.archived.v1`.
+- **After the commit.** Each event is sent for a write that was committed. A
+  write that is refused or rolled back sends nothing.
+- **No content leaves.** No name, description, price, attribute value or
+  Organization allow-list is in any payload. A receiver reads the product
+  through the API with its own key.
+- **Platform-wide subscriptions only.** A product is not one Organization's
+  data, so the payloads carry no `organizationId` and a subscription bound to
+  an Organization never receives a product event.
+- **Volume.** One event per product written. A bulk edit, an import or a PIM
+  synchronisation writes products one by one and therefore sends one
+  `product.updated.v1` per product; nothing is batched. With no subscription
+  naming the type, nothing is enqueued.
 
 ## Extension points
 

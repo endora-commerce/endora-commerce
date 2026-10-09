@@ -1932,7 +1932,7 @@
   "webhooks.create.eventsLabel": "Events",
   "webhooks.create.nameLabel": "Name",
   "webhooks.create.namePlaceholder": "e.g. ERP order sync",
-  "webhooks.create.organizationHelp": "Leave empty for a platform-wide subscription that receives every organization's events. Bind an organization to deliver only that organization's order events.",
+  "webhooks.create.organizationHelp": "Leave empty for a platform-wide subscription that receives every event it names, for every organization. Bind an organization to deliver only the events about that organization, such as its orders and quote requests. Product events are not about an organization and reach platform-wide subscriptions only.",
   "webhooks.create.organizationLabel": "Organization (optional)",
   "webhooks.create.submit": "Subscribe",
   "webhooks.create.submitting": "Creating…",

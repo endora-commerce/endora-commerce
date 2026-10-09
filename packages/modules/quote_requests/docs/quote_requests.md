@@ -245,6 +245,34 @@ when another screen opens it: `originType` and `originId`, `organizationId` and
 `customerAccountId` to preselect the customer, and `returnTo`, a path inside
 the Admin UI to go back to once the quote request exists.
 
+## Events offered to outbound webhooks
+
+The module contributes two event types to the `webhooks` module's
+`webhookEventRegistry`, so a webhook subscription can name them while both
+modules are switched on. The payload is sent whole; the strict schemas are
+`QUOTE_REQUEST_WEBHOOK_EVENT_SCHEMAS` in `@endora-commerce/contracts`.
+
+| Event | Sent when | Payload, beside `eventId` and `occurredAt` |
+| --- | --- | --- |
+| `rfq.created.v1` | A customer submits a quote request. A quote request an administrator creates is `rfq.created_by_admin.v1`, which is not offered to webhooks. | `rfqId` (UUID), `organizationId` (UUID) |
+| `rfq.expired.v1` | The expiry job moves a quote request to `Expired`. One event per quote request. | `rfqId`, `organizationId` |
+
+- **No content leaves.** The payloads carry the two identifiers and nothing of
+  the request: no line, quantity, price, note, customer or administrator. A
+  receiver reads the quote request through the API with its own permissions.
+- **One Organization's data.** A platform-wide subscription receives every
+  Organization's events. A subscription bound to an Organization receives only
+  the events whose `organizationId` is that Organization — never another's.
+- **After the write.** `rfq.created.v1` is sent once the request, its lines and
+  its history are saved; a submission that is refused sends nothing.
+  `rfq.expired.v1` is sent after the status change is saved.
+- **While the module is switched off** neither type is offered and a new
+  subscription to them is refused; stored subscriptions are kept and receive
+  nothing until it is back on.
+
+No other quote-request event is delivered to webhooks: approval, modification,
+cancellation and conversion are announced on the in-process event bus only.
+
 ## Panels on the quote request screen
 
 The admin zone `quote_request.detail.after` is mounted once at the end of a

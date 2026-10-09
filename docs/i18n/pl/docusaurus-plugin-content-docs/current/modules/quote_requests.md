@@ -221,6 +221,33 @@ Ekran tworzenia (`/quote-requests/new`) czyta to samo z adresu, gdy otwiera go i
 `originType` i `originId`, `organizationId` i `customerAccountId` do wstępnego wyboru klienta oraz
 `returnTo`, czyli ścieżkę w Admin UI, do której wraca się po utworzeniu zapytania.
 
+## Zdarzenia oferowane webhookom wychodzącym
+
+Moduł wnosi dwa typy zdarzeń do rejestru `webhookEventRegistry` modułu `webhooks`, więc
+subskrypcja webhooka może je wskazać, dopóki oba moduły są włączone. Treść zdarzenia jest wysyłana
+w całości; ścisłe schematy to `QUOTE_REQUEST_WEBHOOK_EVENT_SCHEMAS` w `@endora-commerce/contracts`.
+
+| Zdarzenie | Kiedy jest wysyłane | Treść, poza `eventId` i `occurredAt` |
+| --- | --- | --- |
+| `rfq.created.v1` | Klient składa zapytanie ofertowe. Zapytanie utworzone przez administratora to `rfq.created_by_admin.v1`, którego webhookom się nie oferuje. | `rfqId` (UUID), `organizationId` (UUID) |
+| `rfq.expired.v1` | Zadanie wygaszania przenosi zapytanie ofertowe do statusu `Expired`. Jedno zdarzenie na zapytanie. | `rfqId`, `organizationId` |
+
+- **Treść nie opuszcza instancji.** Zdarzenia niosą dwa identyfikatory i nic z samego zapytania:
+  żadnej pozycji, ilości, ceny, notatki, klienta ani administratora. Odbiorca odczytuje zapytanie
+  ofertowe przez API z własnymi uprawnieniami.
+- **Dane jednej organizacji.** Subskrypcja obejmująca całą platformę dostaje zdarzenia wszystkich
+  organizacji. Subskrypcja powiązana z organizacją dostaje tylko zdarzenia, których
+  `organizationId` wskazuje tę organizację — nigdy innej.
+- **Po zapisie.** `rfq.created.v1` jest wysyłane po zapisaniu zapytania, jego pozycji i historii;
+  odrzucone zgłoszenie nie wysyła niczego. `rfq.expired.v1` jest wysyłane po zapisaniu zmiany
+  statusu.
+- **Gdy moduł jest wyłączony**, żaden z tych typów nie jest oferowany, a nowa subskrypcja na nie
+  jest odrzucana; zapisane subskrypcje zostają i nic nie dostają, dopóki moduł nie zostanie
+  włączony ponownie.
+
+Żadne inne zdarzenie zapytań ofertowych nie jest dostarczane do webhooków: zatwierdzenie, zmiana,
+anulowanie i zamiana na zamówienie są ogłaszane wyłącznie na działającej w procesie szynie zdarzeń.
+
 ## Panele na ekranie zapytania ofertowego
 
 Strefa panelu administracyjnego `quote_request.detail.after` jest osadzona raz, na końcu ekranu

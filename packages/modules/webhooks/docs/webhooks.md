@@ -101,6 +101,45 @@ What follows from a push:
 - Pushing the same type twice, or a type this module already bridges, delivers
   once.
 
+### Who contributes today
+
+| Module | Event types | Payload documented on |
+| --- | --- | --- |
+| `catalog` | `product.created.v1`, `product.updated.v1`, `product.archived.v1` | the `catalog` module page |
+| `quote_requests` | `rfq.created.v1`, `rfq.expired.v1` | the `quote_requests` module page |
+| `credit_limits` | `credit_limit.adjusted.v1` | the `credit_limits` module page |
+| `crm` | `crm.opportunity.status_changed.v1`, `crm.opportunity.created.v1`, `crm.opportunity.closed.v1` | `packages/contracts/src/crm.ts` |
+
+One rule for all of them: the module that emits an event is the one that offers
+it. `order.created.v1` and `order.status_changed.v1` are the two this module
+bridged before the registry existed, and they stay built in.
+
+### Who receives an event
+
+Subscriptions are created by an administrator holding `integrations:manage`;
+there is no customer-facing way to create one. A subscription is either
+platform-wide or bound to one organization, and the bridge decides per event:
+
+- an event whose payload carries an `organizationId` reaches every platform-wide
+  subscription naming its type, and the subscriptions bound to **that**
+  organization — quote-request, credit-limit, order and CRM events are of this
+  kind;
+- an event whose payload carries none reaches platform-wide subscriptions only —
+  product events are of this kind, so a subscription bound to an organization
+  never receives one.
+
+Subscriptions have no sales-channel dimension: an event is not filtered by the
+channel it happened on.
+
+### What one event costs
+
+For each bridged event the bridge reads the active subscriptions once and adds
+one job to the delivery queue per subscription that names the type and passes
+the organization rule. With no such subscription nothing is added to the queue.
+Nothing is batched or coalesced: a bulk edit, an import or a PIM synchronisation
+that writes a thousand products is a thousand `product.updated.v1` events and,
+per subscription naming that type, a thousand deliveries.
+
 ## Entities
 
 `Webhook` (name, url, eventTypes, secret, status), `WebhookDelivery`

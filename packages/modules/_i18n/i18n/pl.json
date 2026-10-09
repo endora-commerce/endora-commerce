@@ -1932,7 +1932,7 @@
   "webhooks.create.eventsLabel": "Zdarzenia",
   "webhooks.create.nameLabel": "Nazwa",
   "webhooks.create.namePlaceholder": "np. sync zamówień ERP",
-  "webhooks.create.organizationHelp": "Pozostaw puste, aby subskrypcja obejmowała całą platformę i otrzymywała zdarzenia wszystkich organizacji. Powiąż organizację, aby dostarczać wyłącznie zdarzenia zamówień tej organizacji.",
+  "webhooks.create.organizationHelp": "Pozostaw puste, aby subskrypcja obejmowała całą platformę i otrzymywała każde wskazane zdarzenie, dla wszystkich organizacji. Powiąż organizację, aby dostarczać wyłącznie zdarzenia dotyczące tej organizacji, na przykład jej zamówień i zapytań ofertowych. Zdarzenia produktów nie dotyczą żadnej organizacji i trafiają tylko do subskrypcji obejmujących całą platformę.",
   "webhooks.create.organizationLabel": "Organizacja (opcjonalnie)",
   "webhooks.create.submit": "Subskrybuj",
   "webhooks.create.submitting": "Tworzenie…",

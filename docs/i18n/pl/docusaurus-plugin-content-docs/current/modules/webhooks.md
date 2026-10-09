@@ -95,6 +95,43 @@ Co wynika ze zgłoszenia:
 - Zgłoszenie tego samego typu dwa razy albo typu, który ten moduł już
   przekazuje, daje jedną wysyłkę.
 
+### Kto dziś wnosi zdarzenia
+
+| Moduł | Typy zdarzeń | Treść opisana |
+| --- | --- | --- |
+| `catalog` | `product.created.v1`, `product.updated.v1`, `product.archived.v1` | na stronie modułu `catalog` |
+| `quote_requests` | `rfq.created.v1`, `rfq.expired.v1` | na stronie modułu `quote_requests` |
+| `credit_limits` | `credit_limit.adjusted.v1` | na stronie modułu `credit_limits` |
+| `crm` | `crm.opportunity.status_changed.v1`, `crm.opportunity.created.v1`, `crm.opportunity.closed.v1` | w `packages/contracts/src/crm.ts` |
+
+Jedna reguła dla wszystkich: zdarzenie oferuje ten moduł, który je emituje. `order.created.v1` i
+`order.status_changed.v1` to dwa zdarzenia, które ten moduł przekazywał, zanim powstał rejestr, i
+pozostają wbudowane.
+
+### Kto dostaje zdarzenie
+
+Subskrypcje tworzy administrator z uprawnieniem `integrations:manage`; klient nie ma żadnego
+sposobu, by utworzyć subskrypcję. Subskrypcja obejmuje całą platformę albo jest powiązana z jedną
+organizacją, a o każdym zdarzeniu rozstrzyga przekazywanie:
+
+- zdarzenie, którego treść zawiera `organizationId`, trafia do każdej subskrypcji obejmującej całą
+  platformę, która wskazuje jego typ, oraz do subskrypcji powiązanych z **tą** organizacją — takie
+  są zdarzenia zapytań ofertowych, limitu kredytowego, zamówień i CRM;
+- zdarzenie, którego treść go nie zawiera, trafia tylko do subskrypcji obejmujących całą
+  platformę — takie są zdarzenia produktów, więc subskrypcja powiązana z organizacją nigdy ich nie
+  dostaje.
+
+Subskrypcje nie mają wymiaru kanału sprzedaży: zdarzenie nie jest filtrowane według kanału, w
+którym nastąpiło.
+
+### Ile kosztuje jedno zdarzenie
+
+Dla każdego przekazywanego zdarzenia moduł raz odczytuje aktywne subskrypcje i dodaje do kolejki
+wysyłek jedno zadanie na każdą subskrypcję, która wskazuje dany typ i spełnia regułę organizacji.
+Gdy takiej subskrypcji nie ma, do kolejki nic nie trafia. Nic nie jest łączone w paczki ani
+scalane: edycja zbiorcza, import albo synchronizacja z PIM, które zapisują tysiąc produktów, to
+tysiąc zdarzeń `product.updated.v1` i — na każdą subskrypcję wskazującą ten typ — tysiąc wysyłek.
+
 ## Encje
 
 `Webhook` (name, url, eventTypes, secret, status), `WebhookDelivery` (wiersz audytu dla każdej

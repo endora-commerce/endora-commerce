@@ -40,8 +40,32 @@ wykonywane po kolei; jedno się udaje, a drugie dostaje `409 LIMIT_INSUFFICIENT`
 ## Emitowane zdarzenia
 
 `credit_limit.granted.v1`, `credit_limit.adjusted.v1`. Są to zdarzenia działającej w procesie szyny
-zdarzeń; żadne z nich nie jest dostarczane do webhooków wychodzących. Zwolnienie rezerwacji nie
-emituje zdarzenia.
+zdarzeń. `credit_limit.adjusted.v1` jest też oferowane webhookom wychodzącym (następna sekcja);
+`credit_limit.granted.v1` nie jest. Zwolnienie rezerwacji nie emituje zdarzenia.
+
+## Zdarzenie oferowane webhookom wychodzącym
+
+Moduł wnosi jeden typ zdarzenia do rejestru `webhookEventRegistry` modułu `webhooks`, więc
+subskrypcja webhooka może go wskazać, dopóki oba moduły są włączone. Treść zdarzenia jest wysyłana
+w całości; ścisły schemat to `CreditLimitAdjustedEventV1Schema` w `@endora-commerce/contracts`.
+
+| Zdarzenie | Kiedy jest wysyłane | Treść, poza `eventId` i `occurredAt` |
+| --- | --- | --- |
+| `credit_limit.adjusted.v1` | Administrator zmienia limit organizacji albo na limit zostaje zaliczony rozliczony zwrot. | `organizationId` (UUID) — organizacja, która ma limit; `amount` (liczba) — przyznany limit **po** zmianie. |
+
+- **`amount` to nowa suma**, a nie różnica, w walucie limitu. W treści nie ma waluty ani kwot
+  zarezerwowanej i dostępnej, podanego powodu ani informacji, kto dokonał zmiany.
+- **Dane jednej organizacji.** Subskrypcja obejmująca całą platformę dostaje zdarzenia wszystkich
+  organizacji. Subskrypcja powiązana z organizacją dostaje tylko zdarzenia, których
+  `organizationId` wskazuje tę organizację — nigdy innej. Organizacja, która *dziedziczy* limit
+  organizacji nadrzędnej, nie jest wskazywana: zdarzenie wskazuje organizację, której limit
+  przyznano.
+- **Po zatwierdzeniu zapisu.** Zdarzenie jest wysyłane dla zmiany, która została zatwierdzona.
+  Zmiana odrzucona (poniżej aktywnych rezerwacji) albo wycofana nie wysyła niczego, a zwrot już
+  raz zaliczony nie jest ogłaszany po raz drugi.
+- **Gdy moduł jest wyłączony**, typ nie jest oferowany, a nowa subskrypcja na niego jest
+  odrzucana; zapisane subskrypcje zostają i nic nie dostają, dopóki moduł nie zostanie włączony
+  ponownie.
 
 ## Punkty rozszerzenia
 

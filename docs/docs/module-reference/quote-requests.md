@@ -41,6 +41,7 @@ An operator switches this module on and off on **/platform/modules**. The choice
 | `taxes` | yes | installs and migrates after it, and an operator cannot switch it off underneath this module |
 | `carts` | gating only | resolves `cartWritePort`; withheld from `dependencies` because the install order cannot carry the edge |
 | `orders` | gating only | resolves `orderReadPort`; withheld from `dependencies` because the install order cannot carry the edge |
+| `webhooks` | no | contributes-to `webhookEventRegistry` |
 
 ## Permissions
 

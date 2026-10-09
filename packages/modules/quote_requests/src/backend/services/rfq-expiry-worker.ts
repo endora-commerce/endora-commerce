@@ -23,7 +23,10 @@ import { withSystemScope } from '@endora-commerce/platform/tenancy';
 
 declare module './rfq-service.js' {
   interface RfqEvents {
-    'rfq.expired.v1': import('@endora-commerce/platform/events').EventBase & { rfqId: string };
+    'rfq.expired.v1': import('@endora-commerce/platform/events').EventBase & {
+      rfqId: string;
+      organizationId: string;
+    };
   }
 }
 
@@ -100,10 +103,16 @@ export class RfqExpiryWorker {
         channels: ['email', 'in_app'],
       });
 
+      // `organizationId` is what the webhook delivery bridge filters on: a
+      // subscription bound to one Organization receives only that
+      // Organization's events, and an event without it reaches no bound
+      // subscription at all. This sweep crosses every Organization, so each
+      // event names the one its Quote Request belongs to.
       this.deps.events.emit('rfq.expired.v1', {
         eventId: randomUUID(),
         occurredAt: now.toISOString(),
         rfqId: rfq.id,
+        organizationId: rfq.organizationId,
       });
     }
 

@@ -545,3 +545,67 @@ export interface RfqCustomerPort {
   createForCustomer(ctx: RfqCustomerContext, input: CreateQuoteRequest): Promise<QuoteRequest>;
   listForCustomer(ctx: RfqCustomerContext): Promise<QuoteRequestSummary[]>;
 }
+
+// ---------------------------------------------------------------------------
+// Events offered to outbound webhooks
+// ---------------------------------------------------------------------------
+//
+// The webhook delivery bridge serialises an event whole, so for these two
+// **the event payload is the webhook payload** — a public, versioned contract.
+// Each has a strict schema and `quote_requests` pushes exactly these names into
+// `webhookEventRegistry`. Adding a field is a reviewed change here; removing or
+// renaming one is a new `.v2` event offered beside the old.
+//
+// Both carry identifiers only — no line, price, note or person. A Quote Request
+// belongs to one Organization, and `organizationId` is what the bridge filters
+// on: a subscription bound to an Organization receives only that Organization's
+// events, and an event without it would reach no bound subscription at all.
+
+const quoteRequestWebhookEventEnvelopeShape = {
+  eventId: z.string().min(1),
+  occurredAt: isoDateTimeSchema,
+};
+
+/** The fixed names of the Quote Request events offered to outbound webhooks. */
+export const QUOTE_REQUEST_WEBHOOK_EVENTS = {
+  CREATED: 'rfq.created.v1',
+  EXPIRED: 'rfq.expired.v1',
+} as const;
+
+/**
+ * Payload of `rfq.created.v1` — a customer submitted a Quote Request. One an
+ * administrator creates is announced as `rfq.created_by_admin.v1`, which is not
+ * offered to webhooks.
+ */
+export const RfqCreatedEventV1Schema = z
+  .object({
+    ...quoteRequestWebhookEventEnvelopeShape,
+    rfqId: uuidSchema,
+    /** Always present — what lets a subscription bound to one Organization receive only its own events. */
+    organizationId: uuidSchema,
+  })
+  .strict();
+export type RfqCreatedEventV1 = z.infer<typeof RfqCreatedEventV1Schema>;
+
+/** Payload of `rfq.expired.v1` — the expiry sweep moved a Quote Request to `Expired`. */
+export const RfqExpiredEventV1Schema = z
+  .object({
+    ...quoteRequestWebhookEventEnvelopeShape,
+    rfqId: uuidSchema,
+    /** Always present — what lets a subscription bound to one Organization receive only its own events. */
+    organizationId: uuidSchema,
+  })
+  .strict();
+export type RfqExpiredEventV1 = z.infer<typeof RfqExpiredEventV1Schema>;
+
+/** The event types `quote_requests` offers to outbound webhooks, in the order they are offered. */
+export const QUOTE_REQUEST_WEBHOOK_EVENT_TYPES = [
+  QUOTE_REQUEST_WEBHOOK_EVENTS.CREATED,
+  QUOTE_REQUEST_WEBHOOK_EVENTS.EXPIRED,
+] as const;
+
+/** The strict schema of each offered event's payload, by event type. */
+export const QUOTE_REQUEST_WEBHOOK_EVENT_SCHEMAS = {
+  [QUOTE_REQUEST_WEBHOOK_EVENTS.CREATED]: RfqCreatedEventV1Schema,
+  [QUOTE_REQUEST_WEBHOOK_EVENTS.EXPIRED]: RfqExpiredEventV1Schema,
+} as const;

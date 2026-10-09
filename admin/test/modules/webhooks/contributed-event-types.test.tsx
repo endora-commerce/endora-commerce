@@ -4,6 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { setMobileViewport } from '../../setup';
 import {
+  CATALOG_WEBHOOK_EVENT_TYPES,
+  CREDIT_LIMIT_WEBHOOK_EVENT_TYPES,
+  QUOTE_REQUEST_WEBHOOK_EVENT_TYPES,
   WEBHOOK_BUILT_IN_EVENT_TYPES,
   deliverableWebhookEventTypes,
 } from '@endora-commerce/contracts';
@@ -64,7 +67,12 @@ const EVENT_TYPES_PATH = '/api/v1/admin/webhooks/event-types';
 /** The built-in event types — the contracts constant the backend bridges from. */
 const BUILT_IN: string[] = [...WEBHOOK_BUILT_IN_EVENT_TYPES];
 
-/** The eleven names the form offered while nothing delivered them. */
+/**
+ * The eleven names the form offered while nothing delivered them. Five are
+ * still emitted by nothing. The other six — the catalogue, quote and credit
+ * events — are delivered now, and are offered only when the module that owns
+ * them contributes them: with nothing contributed the form offers none.
+ */
 const NEVER_DELIVERED = [
   'product.created.v1',
   'product.updated.v1',
@@ -160,6 +168,56 @@ describe('the webhook subscription form — it offers what is delivered', () => 
     );
     // The same function the backend bridges from and validates against.
     expect(offered()).toEqual(deliverableWebhookEventTypes(contributed.map((descriptor) => descriptor.eventType)));
+  });
+
+  it('offers the six catalogue, quote and credit events when their modules contribute them, and subscribes to them', async () => {
+    const six = [
+      ...CATALOG_WEBHOOK_EVENT_TYPES.map((eventType) => ({ ownerModuleId: 'catalog', eventType })),
+      ...QUOTE_REQUEST_WEBHOOK_EVENT_TYPES.map((eventType) => ({ ownerModuleId: 'quote_requests', eventType })),
+      ...CREDIT_LIMIT_WEBHOOK_EVENT_TYPES.map((eventType) => ({ ownerModuleId: 'credit_limits', eventType })),
+    ];
+    contributed = six;
+    stored = [subscription('w-six', ['rfq.created.v1', 'credit_limit.adjusted.v1'])];
+    await renderPage();
+    await waitFor(() =>
+      expect(offered()).toEqual([
+        ...BUILT_IN,
+        'product.created.v1',
+        'product.updated.v1',
+        'product.archived.v1',
+        'rfq.created.v1',
+        'rfq.expired.v1',
+        'credit_limit.adjusted.v1',
+      ]),
+    );
+    // A stored subscription naming them is not marked as undelivered.
+    await screen.findByText('Hook w-six');
+    expect(marked()).toEqual([]);
+
+    const user = userEvent.setup();
+    for (const eventType of ['product.archived.v1', 'rfq.expired.v1', 'credit_limit.adjusted.v1']) {
+      await user.click(
+        Array.from(document.querySelectorAll('form code')).find((node) => node.textContent === eventType) as HTMLElement,
+      );
+    }
+    await user.type(document.getElementById('webhook-name') as HTMLElement, 'ERP feed');
+    await user.type(document.getElementById('webhook-url') as HTMLElement, 'https://example.test/hook');
+    await user.click(document.querySelector('form button[type="submit"]') as HTMLElement);
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    expect(postSpy).toHaveBeenCalledWith('/api/v1/admin/webhooks', {
+      name: 'ERP feed',
+      url: 'https://example.test/hook',
+      eventTypes: ['product.archived.v1', 'rfq.expired.v1', 'credit_limit.adjusted.v1'],
+    });
+  });
+
+  it('with quote_requests and credit_limits switched off their events are not offered, and a stored one is marked', async () => {
+    // What `GET …/event-types` answers while those two owners are off: the registry leaves them out.
+    contributed = CATALOG_WEBHOOK_EVENT_TYPES.map((eventType) => ({ ownerModuleId: 'catalog', eventType }));
+    stored = [subscription('w-off', ['product.created.v1', 'rfq.created.v1', 'credit_limit.adjusted.v1'])];
+    await renderPage();
+    await waitFor(() => expect(offered()).toEqual([...BUILT_IN, ...CATALOG_WEBHOOK_EVENT_TYPES]));
+    await waitFor(() => expect(marked()).toEqual(['rfq.created.v1', 'credit_limit.adjusted.v1']));
   });
 
   it('subscribes to a contributed type like to any other', async () => {

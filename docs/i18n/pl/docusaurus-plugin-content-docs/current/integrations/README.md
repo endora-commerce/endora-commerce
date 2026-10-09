@@ -102,10 +102,10 @@ Subskrypcja webhooka określa:
   w sekcji *Dostępne zdarzenia*; każda inna jest odrzucana z
   `422 WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE`.
 - `organizationId` — opcjonalne ograniczenie do organizacji. Gdy jest ustawione, subskrypcja dostaje
-  tylko zdarzenia przypisane do tej organizacji (np. jej zamówienia); gdy go nie ma, subskrypcja
-  obejmuje całą platformę i dostaje wszystkie pasujące zdarzenia. Zdarzenia bez przypisanej
-  organizacji trafiają tylko do subskrypcji obejmujących całą platformę (w razie wątpliwości —
-  odmowa).
+  tylko zdarzenia przypisane do tej organizacji (jej zamówienia, zapytania ofertowe i limit
+  kredytowy); gdy go nie ma, subskrypcja obejmuje całą platformę i dostaje wszystkie pasujące
+  zdarzenia. Zdarzenia bez przypisanej organizacji — na przykład zdarzenia produktów — trafiają
+  tylko do subskrypcji obejmujących całą platformę (w razie wątpliwości — odmowa).
 
 > **Wysyłka zdarzeń zamówień już działa.** Subskrypcje utworzone, zanim powstał mechanizm wysyłki,
 > były przyjmowane, ale zdarzenia `order.created.v1` / `order.status_changed.v1` nie były wysyłane.
@@ -178,9 +178,43 @@ Dwa zdarzenia przekazuje sam moduł `webhooks`:
 - `order.status_changed.v1` — zamówienie przeszło z jednego statusu w inny. W ten sposób ogłaszane
   jest też anulowanie, z nowym statusem w treści zdarzenia; osobnego zdarzenia anulowania nie ma.
 
-Moduł może wnieść własne typy zdarzeń, które są dostarczane, dopóki ten moduł jest włączony. Na
-przykład moduł `crm` wnosi `crm.opportunity.status_changed.v1`, `crm.opportunity.created.v1` i
-`crm.opportunity.closed.v1`.
+Moduł może wnieść własne typy zdarzeń, które są dostarczane, dopóki ten moduł jest włączony.
+Moduły, które to robią:
+
+| Zdarzenie | Wnosi je | Co ogłasza | Treść, poza `eventId` i `occurredAt` |
+| --- | --- | --- | --- |
+| `product.created.v1` | `catalog` | Utworzono produkt, także przez powielenie innego. | `productId`, `sku` |
+| `product.updated.v1` | `catalog` | Zapisano produkt albo utworzono, zmieniono lub usunięto jeden z jego wariantów. | `productId`, `changedFields` |
+| `product.archived.v1` | `catalog` | Status produktu zmienił się na `inactive`. Wysyłane po zdarzeniu `product.updated.v1` tego samego zapisu. | `productId` |
+| `rfq.created.v1` | `quote_requests` | Klient złożył zapytanie ofertowe. | `rfqId`, `organizationId` |
+| `rfq.expired.v1` | `quote_requests` | Zadanie wygaszania przeniosło zapytanie ofertowe do statusu `Expired`. | `rfqId`, `organizationId` |
+| `credit_limit.adjusted.v1` | `credit_limits` | Zmienił się przyznany limit kredytowy organizacji. | `organizationId`, `amount` |
+| `crm.opportunity.status_changed.v1`, `crm.opportunity.created.v1`, `crm.opportunity.closed.v1` | `crm` | Szansa sprzedaży zmieniła status, została utworzona, wygrana albo przegrana. | Zobacz `packages/contracts/src/crm.ts`. |
+
+Co dotyczy ich wszystkich:
+
+- **Niosą identyfikatory, nie treść.** Zdarzenie produktu wskazuje produkt, a przy aktualizacji
+  także *nazwy* pól, których dotyczył zapis — nigdy wartość, cenę ani opis. Zdarzenie zapytania
+  ofertowego wskazuje zapytanie i jego organizację — bez pozycji, cen, notatek i osób. Aby na nie
+  zareagować, odczytaj obiekt przez API z uprawnieniami własnego klucza.
+  `credit_limit.adjusted.v1` jako jedyne niesie kwotę: `amount` to przyznany limit **po** zmianie,
+  jako liczba w walucie limitu (waluty w treści nie ma).
+- **Kto je dostaje.** Produkt należy do katalogu, a nie do organizacji, więc zdarzenia produktów
+  trafiają tylko do subskrypcji obejmujących całą platformę — subskrypcja powiązana z organizacją
+  nigdy ich nie dostaje. Zdarzenia zapytań ofertowych i limitu kredytowego należą do jednej
+  organizacji: trafiają do subskrypcji obejmujących całą platformę oraz do subskrypcji powiązanych
+  z tą organizacją i do żadnej subskrypcji powiązanej z inną.
+- **Następują po zatwierdzeniu zapisu.** Każde jest wysyłane dla zapisu, który został
+  zatwierdzony. Zapis odrzucony albo nieudany w trakcie zapisywania nie wysyła niczego.
+- **Jedna wysyłka na zdarzenie i subskrypcję, bez łączenia w paczki.** Edycja zbiorcza, import albo
+  synchronizacja z PIM zapisują produkty pojedynczo, więc subskrybent `product.updated.v1` dostaje
+  jedną wysyłkę na każdy zapisany produkt i powinien spodziewać się serii liczonych w tysiącach.
+  Typ zdarzenia, którego nie wskazuje żadna subskrypcja, niczego nie dodaje do kolejki.
+
+`rfq.created.v1` ogłasza zapytanie złożone przez klienta; zapytanie ofertowe utworzone przez
+administratora nie jest ogłaszane webhookom. `credit_limit.adjusted.v1` jest wysyłane, gdy
+administrator zmienia limit i gdy na limit zostaje zaliczony rozliczony zwrot; pierwsze przyznanie
+limitu nie jest ogłaszane webhookom.
 
 Lista obowiązująca w działającej instancji to ta, którą oferuje formularz subskrypcji: dwa
 zdarzenia wbudowane oraz odpowiedź `GET /api/v1/admin/webhooks/event-types`. Lista wbudowana jest
@@ -194,8 +228,12 @@ zawiera odrzucone nazwy. Subskrypcja zapisana przed wprowadzeniem tej reguły za
 którymi ją zapisano: nadal jest widoczna na liście i nadal można ją edytować, panel administracyjny
 oznacza nazwy, które nie są dostarczane, a subskrypcja nic dla nich nie dostaje.
 
-Treść zdarzenia jest wysyłana w całości. Postać danych opublikowaną jako kontrakt opisują pliki
-`packages/contracts/src/*.ts`.
+Treść zdarzenia jest wysyłana w całości. Każde wnoszone zdarzenie ma ścisły schemat w
+`@endora-commerce/contracts` — `CATALOG_WEBHOOK_EVENT_SCHEMAS`,
+`QUOTE_REQUEST_WEBHOOK_EVENT_SCHEMAS`, `CREDIT_LIMIT_WEBHOOK_EVENT_SCHEMAS` i
+`CRM_WEBHOOK_EVENT_SCHEMAS` — i to on jest opublikowaną postacią danych. Do treści zdarzenia `.v1`
+można dodać pole; pola nigdy się nie usuwa ani nie zmienia mu nazwy bez nowej wersji zdarzenia
+oferowanej obok dotychczasowej.
 
 ## Dane uwierzytelniające usług zewnętrznych
 

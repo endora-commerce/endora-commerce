@@ -3,7 +3,13 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
 import type { ChannelMemberEntityType } from '@endora-commerce/contracts';
-import { ERROR_CODES, type ListingPriceOrderPort, type ListingPricePort } from '@endora-commerce/contracts';
+import {
+  CATALOG_WEBHOOK_EVENT_TYPES,
+  ERROR_CODES,
+  type ListingPriceOrderPort,
+  type ListingPricePort,
+  type WebhookEventRegistryPort,
+} from '@endora-commerce/contracts';
 import type { AuditReferenceRegistryPort } from '@endora-commerce/contracts';
 import type {
   AssetReadPort,
@@ -304,6 +310,28 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.onBoot(() => {
     const { salesChannelBridgeRegistry } = ctx.cradle<CatalogCradle>();
     for (const bridge of salesChannelBridges) salesChannelBridgeRegistry.register(bridge);
+  });
+
+  /**
+   * The events this module offers to outbound webhooks — a **contribution**
+   * hook.
+   *
+   * It pushes three event names into `webhookEventRegistry`, an ungated
+   * registry `webhooks` owns, and carries no presence probe: the registry
+   * leaves out a contributor that is not present when it is read. `webhooks`
+   * names none of these events — a module owns its events (Principle I), so it
+   * is this module that says which of them may leave the instance. `webhooks`
+   * bridges each pushed type through its own gated subscription and sends the
+   * event payload whole, which is why the three have strict schemas in the
+   * contracts package.
+   *
+   * Nothing is read back and nothing degrades: with `webhooks` off the events
+   * are emitted as ever and nobody is told; in an instance without `webhooks`
+   * the push is dropped by the platform.
+   */
+  ctx.onBoot(() => {
+    const registry = lazyPort<WebhookEventRegistryPort>(ctx, 'webhookEventRegistry');
+    for (const eventType of CATALOG_WEBHOOK_EVENT_TYPES) registry.register({ ownerModuleId: 'catalog', eventType });
   });
 
   const cradle = (): CatalogCradle => ctx.cradle<CatalogCradle>();

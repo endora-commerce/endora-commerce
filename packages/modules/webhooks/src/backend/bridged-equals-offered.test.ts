@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CATALOG_WEBHOOK_EVENT_TYPES,
+  CREDIT_LIMIT_WEBHOOK_EVENT_TYPES,
+  CRM_WEBHOOK_EVENT_TYPES,
+  QUOTE_REQUEST_WEBHOOK_EVENT_TYPES,
   WEBHOOK_BUILT_IN_EVENT_TYPES,
   deliverableWebhookEventTypes,
   type WebhookEventRegistryPort,
@@ -85,19 +89,59 @@ describe('webhooks — the bridged set equals the offered set', () => {
     expect(offeredEventTypes(contributed)).toEqual(subscribed);
   });
 
-  it('offers nothing the bridge was never subscribed to — the eleven names the form used to carry are gone', () => {
+  it('names no other module\'s event of its own accord — the six catalogue, quote and credit events arrive only by contribution', () => {
     const { subscribed } = compose();
     for (const eventType of [
+      ...CATALOG_WEBHOOK_EVENT_TYPES,
+      ...QUOTE_REQUEST_WEBHOOK_EVENT_TYPES,
+      ...CREDIT_LIMIT_WEBHOOK_EVENT_TYPES,
+      ...CRM_WEBHOOK_EVENT_TYPES,
+    ]) {
+      expect(subscribed).not.toContain(eventType);
+      expect(offeredEventTypes([])).not.toContain(eventType);
+    }
+  });
+
+  it('with every contributing module present the bridged set and the offered set are the same eleven names', () => {
+    const { subscribed, registry } = compose();
+    const contributions: Array<[string, readonly string[]]> = [
+      ['crm', CRM_WEBHOOK_EVENT_TYPES],
+      ['catalog', CATALOG_WEBHOOK_EVENT_TYPES],
+      ['quote_requests', QUOTE_REQUEST_WEBHOOK_EVENT_TYPES],
+      ['credit_limits', CREDIT_LIMIT_WEBHOOK_EVENT_TYPES],
+    ];
+    for (const [ownerModuleId, eventTypes] of contributions) {
+      for (const eventType of eventTypes) registry.register({ ownerModuleId, eventType });
+    }
+
+    // What `GET /api/v1/admin/webhooks/event-types` answers with every owner
+    // present. Not `registry.list()`: that asks the lifecycle registry who is
+    // present, which only a composed application has loaded.
+    const contributed = contributions.flatMap(([, eventTypes]) => [...eventTypes]);
+    expect(offeredEventTypes(contributed)).toEqual(subscribed);
+    expect(subscribed).toEqual([
+      'order.created.v1',
+      'order.status_changed.v1',
+      'crm.opportunity.status_changed.v1',
+      'crm.opportunity.created.v1',
+      'crm.opportunity.closed.v1',
       'product.created.v1',
       'product.updated.v1',
       'product.archived.v1',
       'rfq.created.v1',
+      'rfq.expired.v1',
+      'credit_limit.adjusted.v1',
+    ]);
+    expect(new Set(subscribed).size).toBe(subscribed.length);
+  });
+
+  it('offers nothing the bridge was never subscribed to — the five names nothing emits stay out', () => {
+    const { subscribed } = compose();
+    for (const eventType of [
       'rfq.quoted.v1',
       'rfq.accepted.v1',
-      'rfq.expired.v1',
       'order.cancelled.v1',
       'payment.settled.v1',
-      'credit_limit.adjusted.v1',
       'credit_limit.reservation_released.v1',
     ]) {
       expect(subscribed).not.toContain(eventType);

@@ -110,10 +110,11 @@ A webhook subscription declares:
   *Available events* below are accepted; any other is refused with
   `422 WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE`.
 - `organizationId` — optional Organization scope. When set, the subscription
-  receives only events attributed to that Organization (e.g. its orders);
-  when omitted, the subscription is platform-wide and receives all matching
-  events. Events without an Organization attribution are delivered to
-  platform-wide subscriptions only (fail closed).
+  receives only events attributed to that Organization (its orders, quote
+  requests and credit limit); when omitted, the subscription is platform-wide
+  and receives all matching events. Events without an Organization attribution
+  — product events, for instance — are delivered to platform-wide
+  subscriptions only (fail closed).
 
 > **Delivery is now active for order events.** Subscriptions created before the
 > delivery pipeline existed were accepted but `order.created.v1` /
@@ -190,9 +191,46 @@ Two events are bridged by the `webhooks` module itself:
   is no separate cancellation event.
 
 A module can contribute further event types of its own, which are delivered
-while that module is switched on. The `crm` module, for example, contributes
-`crm.opportunity.status_changed.v1`, `crm.opportunity.created.v1` and
-`crm.opportunity.closed.v1`.
+while that module is switched on. The modules that do:
+
+| Event | Contributed by | Announces | Payload, beside `eventId` and `occurredAt` |
+| --- | --- | --- | --- |
+| `product.created.v1` | `catalog` | A product was created, also by duplicating another. | `productId`, `sku` |
+| `product.updated.v1` | `catalog` | A product was written, or one of its variants was created, changed or deleted. | `productId`, `changedFields` |
+| `product.archived.v1` | `catalog` | A product's status moved to `inactive`. Sent after the `product.updated.v1` of the same write. | `productId` |
+| `rfq.created.v1` | `quote_requests` | A customer submitted a quote request. | `rfqId`, `organizationId` |
+| `rfq.expired.v1` | `quote_requests` | The expiry job moved a quote request to `Expired`. | `rfqId`, `organizationId` |
+| `credit_limit.adjusted.v1` | `credit_limits` | An Organization's granted credit limit changed. | `organizationId`, `amount` |
+| `crm.opportunity.status_changed.v1`, `crm.opportunity.created.v1`, `crm.opportunity.closed.v1` | `crm` | A sales opportunity changed status, was created, was won or lost. | See `packages/contracts/src/crm.ts`. |
+
+What holds for all of them:
+
+- **They carry identifiers, not content.** A product event names the product
+  and, for an update, the *names* of the fields the write addressed — never a
+  value, a price or a description. A quote-request event names the request and
+  its Organization — no line, price, note or person. To act on one, read the
+  object through the API with your own key's permissions.
+  `credit_limit.adjusted.v1` is the one that carries a figure: `amount` is the
+  granted limit **after** the change, as a number in the limit's own currency
+  (the currency is not in the payload).
+- **Who receives them.** A product belongs to the catalogue and not to an
+  Organization, so product events reach platform-wide subscriptions only — a
+  subscription bound to an Organization never receives one. Quote-request and
+  credit-limit events belong to one Organization: they reach platform-wide
+  subscriptions and the subscriptions bound to that Organization, and no
+  subscription bound to another.
+- **They follow the commit.** Each is sent for a write that was committed. A
+  write that is refused, or fails while it is being saved, sends nothing.
+- **One delivery per event per subscription, with no batching.** A bulk edit,
+  an import or a PIM synchronisation writes products one by one, so a
+  subscriber to `product.updated.v1` receives one delivery per product written
+  and should expect bursts of thousands. An event type no subscription names
+  enqueues nothing.
+
+`rfq.created.v1` announces a customer's own submission; a quote request an
+administrator creates is not announced to webhooks. `credit_limit.adjusted.v1`
+is sent when an administrator adjusts a limit and when a settled return is
+credited to it; the first grant of a limit is not announced to webhooks.
 
 The list for a running instance is what the subscription form offers:
 the two built-in events plus the answer of
@@ -208,8 +246,12 @@ the refused names. A subscription saved before this rule keeps the names it was
 saved with: it is still listed and can still be edited, the Admin UI marks the
 names that are not delivered, and it receives nothing for them.
 
-The event's payload is sent whole. Refer to `packages/contracts/src/*.ts` for
-the payload shapes that are published as contracts.
+The event's payload is sent whole. Every contributed event has a strict schema
+in `@endora-commerce/contracts` — `CATALOG_WEBHOOK_EVENT_SCHEMAS`,
+`QUOTE_REQUEST_WEBHOOK_EVENT_SCHEMAS`, `CREDIT_LIMIT_WEBHOOK_EVENT_SCHEMAS` and
+`CRM_WEBHOOK_EVENT_SCHEMAS` — which is the published shape. A field may be
+added to a `.v1` payload; a field is never removed or renamed without a new
+event version offered beside the old one.
 
 ## Vendor credentials
 

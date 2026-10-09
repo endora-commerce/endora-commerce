@@ -414,7 +414,29 @@ export class CatalogAdminService {
       productId: r.product.id,
       changedFields: r.changedFields,
     });
+    if (r.archived) this.#emitArchived(r.product.id);
     return r.product;
+  }
+
+  /**
+   * `product.archived.v1` — the product's status moved to `inactive`.
+   *
+   * Emitted by the update paths themselves, after the write has committed and
+   * after the `product.updated.v1` of the same write. It used to be emitted
+   * only by `archiveProduct`, which nothing calls: archiving has been "update
+   * with `status: 'inactive'`" since feature 022, so the event the search
+   * indexer subscribes to and outbound webhooks are offered was announced by
+   * no path an operator, an importer or a PIM sync can take.
+   *
+   * Once per transition: a product that is already inactive is not archived
+   * again by a further edit, nor by a write naming the same status.
+   */
+  #emitArchived(productId: string): void {
+    this.events.emit('product.archived.v1', {
+      eventId: randomUUID(),
+      occurredAt: new Date().toISOString(),
+      productId,
+    });
   }
 
   /**
@@ -424,10 +446,21 @@ export class CatalogAdminService {
    */
   async updateProductAudited(id: string, req: UpdateProductRequest): Promise<Product> {
     if (!this.commandBus) return this.updateProduct(id, req);
-    return this.commandBus.run(this.#updateProductCommand(id, req));
+    const outcome = { archived: false };
+    const product = await this.commandBus.run(this.#updateProductCommand(id, req, outcome));
+    // After the Command has committed and dispatched its `product.updated.v1`:
+    // a Command declares one event, and this is the second announcement of the
+    // same write. Emitted here it still joins a caller's own event scope.
+    if (outcome.archived) this.#emitArchived(product.id);
+    return product;
   }
 
-  #updateProductCommand(id: string, req: UpdateProductRequest): Command<Product> {
+  #updateProductCommand(
+    id: string,
+    req: UpdateProductRequest,
+    /** Written by `run`: whether this write moved the product to `inactive`. */
+    outcome: { archived: boolean },
+  ): Command<Product> {
     let changedFields: string[] = [];
     return {
       action: 'product.update',
@@ -436,6 +469,7 @@ export class CatalogAdminService {
       run: async ({ em }) => {
         const r = await this.#applyProductUpdate(em, id, req);
         changedFields = r.changedFields;
+        outcome.archived = r.archived;
         return {
           result: r.product,
           before: r.stateBefore,
@@ -467,6 +501,8 @@ export class CatalogAdminService {
     stateBefore: Record<string, unknown>;
     stateAfter: Record<string, unknown>;
     changedFields: string[];
+    /** Whether this write moved the status to `inactive` from another one. */
+    archived: boolean;
   }> {
     const product = await em.findOne(Product, { id });
     if (!product) {
@@ -484,6 +520,7 @@ export class CatalogAdminService {
       allowedOrganizationIds: [...product.allowedOrganizationIds],
     };
     const changedFields: string[] = [];
+    let archived = false;
     // Feature 012 / FR-016 — SKU is mutable. Refused with 400 sku_in_use
     // when the new SKU collides with another product. The internal UUID
     // (product.id) is the canonical reference; snapshot tables keep the
@@ -532,6 +569,7 @@ export class CatalogAdminService {
       product.status = req.status;
       if (req.status === 'inactive') {
         product.archivedAt = new Date();
+        archived = true;
       } else {
         product.archivedAt = null;
       }
@@ -623,7 +661,7 @@ export class CatalogAdminService {
       attributeValues: { ...product.attributeValues },
       allowedOrganizationIds: [...product.allowedOrganizationIds],
     };
-    return { product, stateBefore, stateAfter, changedFields };
+    return { product, stateBefore, stateAfter, changedFields, archived };
   }
 
   /**
@@ -1014,16 +1052,12 @@ export class CatalogAdminService {
   }
 
   /**
-   * @deprecated Use `updateProduct` with `status: 'inactive'` instead.
-   * Kept for internal callers that still emit `product.archived.v1`.
+   * @deprecated Use `updateProduct` with `status: 'inactive'` instead — it is
+   * what this method does, and it is the update that emits
+   * `product.archived.v1` when the status actually moves.
    */
   async archiveProduct(id: string, auditCtx?: AdminAuditContext): Promise<void> {
     await this.updateProduct(id, { status: 'inactive' }, auditCtx);
-    this.events.emit('product.archived.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      productId: id,
-    });
   }
 
   async assertProductDeletable(em: EntityManager, productId: string): Promise<void> {

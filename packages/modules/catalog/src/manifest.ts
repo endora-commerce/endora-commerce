@@ -176,6 +176,23 @@ export const manifest = defineModuleManifest({
   ],
   // D-44 — five edges that are real to the container and bind no operator.
   nonBindingDependencies: [
+    // The catalogue offers three of its events to outbound webhooks by pushing
+    // their names into `webhooks`' registry from a contribution-only boot hook.
+    // A push, and nothing read back: with `webhooks` off or absent nothing is
+    // delivered and nothing in this module changes, so there is no
+    // `whenAbsent` to state.
+    {
+      moduleId: 'webhooks',
+      name: 'webhookEventRegistry',
+      kind: 'contributes-to',
+      reason:
+        'A push, from this module\'s contribution-only boot hook, of the three event names it ' +
+        'offers for outbound delivery — `product.created.v1`, `product.updated.v1` and ' +
+        '`product.archived.v1`. Nothing is read back: the registry is a plain registration that ' +
+        'leaves out every event type whose owner is not present when it is read, and `webhooks` ' +
+        'bridges and delivers through its own gated subscription. Not `dependencies`: this ' +
+        'module is `nonDeactivatable`, so the edge would make `webhooks.enabled` a dead switch.',
+    },
     {
       moduleId: 'admin_notifications',
       name: 'adminNotificationRecordPort',
