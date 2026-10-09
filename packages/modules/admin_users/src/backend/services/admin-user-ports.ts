@@ -1,6 +1,7 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { normalizeEmailAddress } from '@endora-commerce/contracts';
 import type {
+  AdminAuthenticationThrottlePort,
   AdminPasswordVerificationPort,
   AdminUserLookupOptions,
   AdminUserPreferencePort,
@@ -101,13 +102,28 @@ function activeFilter(options?: AdminUserLookupOptions): { deletedAt?: null } {
  */
 export function createAdminPasswordVerificationPort(
   emFactory: () => EntityManager,
+  throttle: AdminAuthenticationThrottlePort,
 ): AdminPasswordVerificationPort {
   return {
-    async verifyPassword(adminUserId, password) {
+    async verifyPassword(adminUserId, password, context) {
       const admin = await emFactory().findOne(AdminUser, { id: adminUserId });
-      // The bare call is the imported hasher: an object method name is not a
-      // binding, so it shadows nothing.
-      return admin ? verifyPassword(admin.passwordHash, password) : false;
+      if (!admin) return false;
+      // Counted under the account's e-mail address, the key sign-in uses, so a
+      // password guessed here and one guessed at sign-in share one budget.
+      return throttle.verify(
+        {
+          factor: 'password',
+          account: admin.email,
+          ...(context?.ip !== undefined ? { ip: context.ip } : {}),
+          ...(context?.knownDevice !== undefined ? { knownDevice: context.knownDevice } : {}),
+        },
+        // The bare call is the imported hasher: an object method name is not a
+        // binding, so it shadows nothing.
+        async () => ({
+          ok: await verifyPassword(admin.passwordHash, password),
+          adminUserId: admin.id,
+        }),
+      );
     },
   };
 }

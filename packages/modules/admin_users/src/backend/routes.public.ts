@@ -8,7 +8,12 @@
 // plugin stays the host's job, exactly as before.
 import type {} from '@fastify/cookie';
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { ADMIN_SESSION_COOKIE_NAME, adminLoginRequestSchema } from '@endora-commerce/contracts';
+import {
+  ADMIN_SESSION_COOKIE_NAME,
+  adminLoginRequestSchema,
+  type AdminAuthenticationThrottlePort,
+} from '@endora-commerce/contracts';
+import { readKnownDevice, rememberKnownDevice } from './known-device-cookie.js';
 import type { AdminAuthService } from './services/admin-auth-service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
 import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
@@ -19,6 +24,8 @@ import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.
  */
 export interface AdminPublicDeps {
   adminAuthService: AdminAuthService;
+  /** Mints the known-device cookie value once a sign-in has completed. */
+  authenticationThrottle: Pick<AdminAuthenticationThrottlePort, 'issueKnownDevice'>;
   /**
    * `mfa`'s answer to "does this admin hold a second factor". The login
    * response carries `twoFactorEnabled`, and it used to carry
@@ -33,7 +40,7 @@ export async function registerAdminPublicRoutes(
   app: FastifyInstance,
   deps: AdminPublicDeps,
 ): Promise<void> {
-  const { adminAuthService, twoFactorEnrolments } = deps;
+  const { adminAuthService, authenticationThrottle, twoFactorEnrolments } = deps;
 
   async function serializeOneAdminUser(user: AdminUser): Promise<Record<string, unknown>> {
     const enrolled = await twoFactorEnrolments([user.id]);
@@ -45,10 +52,12 @@ export async function registerAdminPublicRoutes(
     { schema: { body: adminLoginRequestSchema } },
     async (request, reply) => {
       const body = adminLoginRequestSchema.parse(request.body);
+      const knownDevice = readKnownDevice(request);
       const result = await adminAuthService.login({
         email: body.email,
         password: body.password,
         ...(request.ip ? { ip: request.ip } : {}),
+        ...(knownDevice !== undefined ? { knownDevice } : {}),
         ...(typeof request.headers['user-agent'] === 'string'
           ? { userAgent: request.headers['user-agent'] }
           : {}),
@@ -61,6 +70,11 @@ export async function registerAdminPublicRoutes(
         return { data: { status: 'mfaSetupRequired', setupTicket: result.setupTicket } };
       }
       setSessionCookie(reply, result.sessionCookieValue, result.sessionExpiresAt);
+      // Only here, on the one branch where the sign-in is complete. The two
+      // branches above still owe a second factor, and no failure path touches
+      // the cookie at all — so its presence or absence after a refusal says
+      // nothing about whether the account exists.
+      rememberKnownDevice(reply, await authenticationThrottle.issueKnownDevice(result.adminUser.id));
       return {
         data: {
           status: 'authenticated',

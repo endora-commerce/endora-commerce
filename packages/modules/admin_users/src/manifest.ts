@@ -186,7 +186,12 @@ export const manifest = defineModuleManifest({
    * without a role, `NEW_PASSWORD_UNCHANGED` when an administrator changing
    * their own password supplies the one they already have.
    */
-  errorCodes: [{ code: 'ADMIN_USER_ROLE_REQUIRED' }, { code: 'NEW_PASSWORD_UNCHANGED' }],
+  errorCodes: [
+    { code: 'ADMIN_AUTHENTICATION_THROTTLED' },
+    { code: 'ADMIN_AUTHENTICATION_UNAVAILABLE' },
+    { code: 'ADMIN_USER_ROLE_REQUIRED' },
+    { code: 'NEW_PASSWORD_UNCHANGED' },
+  ],
   demo,
   // Feature 072/073 (Constitution XVII) — this module owns the admin login
   // route, the admin session and the impersonation flow. Switched off, nobody
@@ -228,5 +233,20 @@ wildcard \`*\` permission; narrower roles are defined from the Admin UI.
   --role=<code>            an existing role code (default: platform_admin)
   --skip-role-bootstrap    do not create platform_admin when it is missing`,
     run: async (context) => (await import('./backend/cli/create-admin.js')).createAdmin(context),
+  },
+  {
+    name: 'unlock',
+    summary: 'Clear the authentication throttle for one admin account.',
+    help: `usage: admin_users unlock --email=<e>
+
+Sign-in is delayed after repeated wrong passwords or codes. A device the account
+has already been used from is not affected by wrong attempts made elsewhere; a
+device it has never been used from is, for as long as somebody keeps sending
+them. This command forgets every counter of the account, so that the next
+attempt from anywhere is admitted. Sign in straight after running it: the device
+is then remembered for the account.
+
+It does not change the password, end a session or touch the second factor.`,
+    run: async (context) => (await import('./backend/cli/unlock-sign-in.js')).unlockSignIn(context),
   },
 ];

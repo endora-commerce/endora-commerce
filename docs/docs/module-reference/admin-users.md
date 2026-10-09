@@ -62,3 +62,4 @@ Run these in the root of an instance. In a checkout of the Endora Commerce repos
 | Command | What it does |
 | --- | --- |
 | `pnpm run cli admin_users create` | Create or update an admin user, bootstrapping the platform_admin role. |
+| `pnpm run cli admin_users unlock` | Clear the authentication throttle for one admin account. |

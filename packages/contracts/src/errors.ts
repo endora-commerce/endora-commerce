@@ -187,6 +187,16 @@ export const ERROR_CODES = {
   ADMIN_USER_ROLE_REQUIRED: 'ADMIN_USER_ROLE_REQUIRED',
   /** An administrator changing their own password chose the one they already have. */
   NEW_PASSWORD_UNCHANGED: 'NEW_PASSWORD_UNCHANGED',
+  /**
+   * Too many wrong passwords or second-factor codes for one administrator
+   * account; answered with 429 and `Retry-After` until the delay has passed.
+   */
+  ADMIN_AUTHENTICATION_THROTTLED: 'ADMIN_AUTHENTICATION_THROTTLED',
+  /**
+   * The store the administrator authentication throttle counts in did not
+   * answer, so the attempt was refused without being checked; answered with 503.
+   */
+  ADMIN_AUTHENTICATION_UNAVAILABLE: 'ADMIN_AUTHENTICATION_UNAVAILABLE',
 
   // Settings (feature 004)
   SETTING_NOT_REGISTERED: 'SETTING_NOT_REGISTERED',

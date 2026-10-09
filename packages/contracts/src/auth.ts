@@ -28,6 +28,23 @@ export const SESSION_COOKIE_NAME = 'b2b_session';
 /** The admin session cookie. Same reasoning as {@link SESSION_COOKIE_NAME}. */
 export const ADMIN_SESSION_COOKIE_NAME = 'b2b_admin_session';
 
+/**
+ * The cookie a completed administrator sign-in leaves on the device, so that
+ * the device is recognised as one the account has been used from.
+ *
+ * It is **not a session** and grants nothing on its own: its only effect is
+ * that an attempt carrying it is counted against that device's own budget in
+ * the administrator authentication throttle, and not against the account-wide
+ * one a stranger can fill. The value comes from
+ * `AdminAuthenticationThrottlePort.issueKnownDevice` and the cookie is always
+ * set **signed** with the server's cookie secret and `httpOnly`; a reader
+ * accepts it only when the signature verifies.
+ */
+export const ADMIN_KNOWN_DEVICE_COOKIE_NAME = 'b2b_admin_device';
+
+/** How long a device stays known after its last completed sign-in: 90 days. */
+export const ADMIN_KNOWN_DEVICE_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
+
 // --- ports -------------------------------------------------------------------
 
 export type AuthSessionKind = 'customer' | 'admin' | 'impersonation';

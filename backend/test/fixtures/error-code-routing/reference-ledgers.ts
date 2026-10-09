@@ -90,6 +90,22 @@ import type {
  * author of one claim is two answers waiting to disagree.
  */
 export const MINTED_ERROR_CODES: MintedErrorCodes = {
+  ADMIN_AUTHENTICATION_THROTTLED: {
+    to: 'admin_users',
+    reason:
+      'Minted for the refusal an attempt earns while an administrator account is throttled ' +
+      'after repeated wrong passwords or second-factor codes. The throttle is `admin_users`\' ' +
+      'own service, its only raise site, and `mfa` reaches it through the port that module ' +
+      'publishes. `MFA_TOO_MANY_ATTEMPTS` is not reused: it tells the reader to sign in again, ' +
+      'which is the one thing that does not help here.',
+  },
+  ADMIN_AUTHENTICATION_UNAVAILABLE: {
+    to: 'admin_users',
+    reason:
+      'Minted for the refusal an attempt earns when the store the administrator authentication ' +
+      'throttle counts in does not answer. The attempt is refused unchecked rather than left ' +
+      'waiting or let through uncounted, and the one raise site is `admin_users`\' throttle.',
+  },
   ADMIN_ROLE_REQUIRED: {
     to: 'admin_roles',
     reason:

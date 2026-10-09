@@ -128,6 +128,7 @@ describe('collectModuleCommands — the declaration is enumerable', () => {
       '_i18n coverage',
       '_i18n reload',
       'admin_users create',
+      'admin_users unlock',
       'audit_logs read',
       'carts abandonment-sweep',
       'cms block-names',

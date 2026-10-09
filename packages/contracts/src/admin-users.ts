@@ -107,7 +107,105 @@ export interface AdminUserPreferencePort {
  * `nonDeactivatable` never enters one.
  */
 export interface AdminPasswordVerificationPort {
-  verifyPassword(adminUserId: string, password: string): Promise<boolean>;
+  /**
+   * `context` says where the request came from, when the caller knows. The
+   * comparison goes through {@link AdminAuthenticationThrottlePort}, so
+   * repeated wrong passwords here are throttled together with the ones typed
+   * at sign-in, and the call rejects with 429
+   * `ADMIN_AUTHENTICATION_THROTTLED` while a delay is running.
+   */
+  verifyPassword(
+    adminUserId: string,
+    password: string,
+    context?: AdminAuthenticationOrigin,
+  ): Promise<boolean>;
+}
+
+/** Where an attempt came from, as far as the caller knows. */
+export interface AdminAuthenticationOrigin {
+  /** The address the request came from. Absent, only the account is counted. */
+  readonly ip?: string;
+  /**
+   * The **verified** value of the `ADMIN_KNOWN_DEVICE_COOKIE_NAME` cookie —
+   * what `request.unsignCookie(...)` returned as valid — or absent. Never the
+   * raw cookie: the signature is the only thing that stops a stranger writing
+   * one. An attempt from a device the account has completed a sign-in on is
+   * counted against that device's own budget and is not refused by the
+   * account-wide one.
+   */
+  readonly knownDevice?: string;
+}
+
+/** Which credential of an administrator account an attempt presents. */
+export type AdminAuthenticationFactor = 'password' | 'second_factor';
+
+/** One attempt to prove a credential of an administrator account. */
+export interface AdminAuthenticationAttempt extends AdminAuthenticationOrigin {
+  readonly factor: AdminAuthenticationFactor;
+  /**
+   * What identifies the account on this route, the same string every time: the
+   * normalised e-mail address for a password — which at sign-in may belong to
+   * no account at all — and the administrator id for a second factor.
+   */
+  readonly account: string;
+}
+
+/** What the credential check found. */
+export interface AdminAuthenticationCheckResult {
+  readonly ok: boolean;
+  /**
+   * The administrator the attempt was made against, when there is one. It is
+   * what a throttle activation is audited under; an attempt against an address
+   * that belongs to nobody leaves it out.
+   */
+  readonly adminUserId?: string;
+}
+
+/**
+ * The throttle on repeated wrong administrator credentials.
+ *
+ * Container name: `adminAuthenticationThrottlePort`. Owner: `admin_users`.
+ *
+ * One method, wrapped around the comparison itself, so a route adopts it with
+ * one call:
+ *
+ * ```ts
+ * const ok = await throttle.verify(
+ *   { factor: 'password', account: admin.email, ip: request.ip, knownDevice },
+ *   async () => ({ ok: await verifyPassword(admin.passwordHash, typed), adminUserId: admin.id }),
+ * );
+ * ```
+ *
+ * `verify` takes the attempt **before** it runs `check`. While a delay is
+ * running, or while every slot is held by an attempt still being verified, it
+ * rejects with an `HttpError` — 429 `ADMIN_AUTHENTICATION_THROTTLED`, a
+ * `Retry-After` header and `details.retryAfterSeconds` — and does not run
+ * `check` at all, so a correct credential and a wrong one are answered
+ * identically. Otherwise it resolves to `check`'s `ok`: `true` forgets the
+ * failures counted so far, `false` counts one more. A `check` that throws is
+ * withdrawn and counted as neither. When the counters cannot be reached it
+ * rejects with 503 `ADMIN_AUTHENTICATION_UNAVAILABLE`.
+ *
+ * `issueKnownDevice` mints the value of the known-device cookie. Call it only
+ * after a **completed** sign-in — the password and, where one is asked for,
+ * the second factor — and set what it returns as
+ * `ADMIN_KNOWN_DEVICE_COOKIE_NAME`, signed and `httpOnly`. `null` means the
+ * account is not one a device can be known to (it is gone or inactive); set
+ * nothing then. The value stops being honoured when the account's password
+ * changes or the account is deactivated.
+ *
+ * `check` reports "no such account" as `{ ok: false }` rather than by throwing,
+ * which is what makes an unknown address throttle exactly like a real one.
+ *
+ * **Owner off:** the seam fails closed — resolving this port throws
+ * `ModuleDisabledError` and the call answers 503 `MODULE_DISABLED`.
+ */
+export interface AdminAuthenticationThrottlePort {
+  verify(
+    attempt: AdminAuthenticationAttempt,
+    check: () => Promise<AdminAuthenticationCheckResult>,
+  ): Promise<boolean>;
+  issueKnownDevice(adminUserId: string): Promise<string | null>;
 }
 
 export interface ImpersonationStartInput {

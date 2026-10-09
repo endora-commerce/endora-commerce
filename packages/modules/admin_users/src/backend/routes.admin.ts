@@ -6,11 +6,13 @@ import {
   updateAdminUserRequestSchema,
   updateAdminUserSelfRequestSchema,
   upsertAdminRoleRequestSchema,
+  type AdminAuthenticationThrottlePort,
   type AdminRolePort,
   type AdminRoleRecord,
   type PermissionCataloguePort,
   type PermissionReadPort,
 } from '@endora-commerce/contracts';
+import { readKnownDevice } from './known-device-cookie.js';
 import type { AdminUserService } from './services/admin-user-service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
 import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
@@ -25,6 +27,8 @@ import { readIdleLogoutMinutes } from './services/idle-logout-policy.js';
 
 export interface AdminUsersAdminDeps {
   adminUserService: AdminUserService;
+  /** The throttle the current-password check on `PATCH /admin/me` runs inside. */
+  authenticationThrottle: Pick<AdminAuthenticationThrottlePort, 'verify'>;
   adminRolePort: AdminRolePort;
   permissionCataloguePort: PermissionCataloguePort;
   permissionService: PermissionReadPort;
@@ -126,6 +130,7 @@ export async function registerAdminUsersAdminRoutes(
       const ctx = resolveAdminContext(request);
       const body = updateAdminUserSelfRequestSchema.parse(request.body);
       const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+      const knownDevice = readKnownDevice(request);
       const user = await adminUserService.updateSelf(
         ctx.adminUserId,
         {
@@ -135,7 +140,14 @@ export async function registerAdminUsersAdminRoutes(
             ? { password: body.password, currentPassword: body.currentPassword }
             : {}),
         },
-        { sessionCookieValue: cookies?.[ADMIN_SESSION_COOKIE_NAME] },
+        {
+          sessionCookieValue: cookies?.[ADMIN_SESSION_COOKIE_NAME],
+          throttle: deps.authenticationThrottle,
+          origin: {
+            ...(request.ip ? { ip: request.ip } : {}),
+            ...(knownDevice !== undefined ? { knownDevice } : {}),
+          },
+        },
       );
       return { data: await serializeOneAdminUser(user) };
     },

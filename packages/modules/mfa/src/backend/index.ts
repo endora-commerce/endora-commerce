@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import type { FastifyRequest } from 'fastify';
 import type { Redis } from 'ioredis';
 import type {
+  AdminAuthenticationThrottlePort,
   AdminPasswordVerificationPort,
   AdminUserReadPort,
   AuthSessionPort,
@@ -267,6 +268,13 @@ export function registerModule(ctx: ModuleContext): void {
                 'customerPasswordVerificationPort',
               ),
               lazyPort<AdminPasswordVerificationPort>(ctx, 'adminPasswordVerificationPort'),
+            ),
+            // `admin_users`' throttle on repeated wrong administrator
+            // credentials. A proxy like every port above, and for the same
+            // reason: this registration is a singleton.
+            adminAuthenticationThrottle: lazyPort<AdminAuthenticationThrottlePort>(
+              ctx,
+              'adminAuthenticationThrottlePort',
             ),
             // Spread rather than assigned: `exactOptionalPropertyTypes` makes
             // "absent" and "present as undefined" different types, and these

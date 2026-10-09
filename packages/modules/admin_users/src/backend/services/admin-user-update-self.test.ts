@@ -6,6 +6,8 @@
  */
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type {
+  AdminAuthenticationAttempt,
+  AdminAuthenticationThrottlePort,
   AdminRolePort,
   AuthResolvedSession,
   AuthSessionPort,
@@ -24,6 +26,20 @@ const CURRENT = 'the-current-pass-123!';
 const NEXT = 'a-new-strong-pass-456!';
 
 let currentHash: string;
+
+/** A throttle that admits every attempt and answers what the check found. */
+const admitEverything: Pick<AdminAuthenticationThrottlePort, 'verify'> = {
+  verify: async (_attempt, check) => (await check()).ok,
+};
+
+/** What `updateSelf` is told about the request, with the throttle out of the way. */
+function ctx(extra: { sessionCookieValue?: string | undefined } = {}): {
+  sessionCookieValue?: string | undefined;
+  throttle: Pick<AdminAuthenticationThrottlePort, 'verify'>;
+  origin: { ip?: string; knownDevice?: string };
+} {
+  return { throttle: admitEverything, origin: {}, ...extra };
+}
 
 interface AuditRecord {
   action: string;
@@ -108,7 +124,7 @@ describe('AdminUserService.updateSelf', () => {
   it('edits the name without any password', async () => {
     const existing = account();
     const { service, flushes, steps, audit } = serviceOver(existing);
-    await service.updateSelf('a1', { firstName: 'Augusta' }, { sessionCookieValue: 'own-cookie' });
+    await service.updateSelf('a1', { firstName: 'Augusta' }, ctx({ sessionCookieValue: 'own-cookie' }));
     expect(existing.firstName).toBe('Augusta');
     expect(existing.passwordHash).toBe(currentHash);
     expect(flushes()).toBe(1);
@@ -128,7 +144,7 @@ describe('AdminUserService.updateSelf', () => {
       service.updateSelf(
         'a1',
         { firstName: 'Augusta', lastName: 'King', password: NEXT, currentPassword },
-        { sessionCookieValue: 'own-cookie' },
+        ctx({ sessionCookieValue: 'own-cookie' }),
       ),
     ).rejects.toMatchObject({ statusCode: 403, code: 'CURRENT_PASSWORD_INVALID' });
     // Nothing was revoked and nothing was audited.
@@ -145,7 +161,11 @@ describe('AdminUserService.updateSelf', () => {
   it('stores the new password, and the rest of the request, when the current one is right', async () => {
     const existing = account();
     const { service, flushes } = serviceOver(existing);
-    await service.updateSelf('a1', { lastName: 'King', password: NEXT, currentPassword: CURRENT });
+    await service.updateSelf(
+      'a1',
+      { lastName: 'King', password: NEXT, currentPassword: CURRENT },
+      ctx(),
+    );
     expect(existing.lastName).toBe('King');
     expect(await verifyPassword(existing.passwordHash, NEXT)).toBe(true);
     expect(await verifyPassword(existing.passwordHash, CURRENT)).toBe(false);
@@ -155,7 +175,7 @@ describe('AdminUserService.updateSelf', () => {
   it('ignores a current password sent without a new one', async () => {
     const existing = account();
     const { service } = serviceOver(existing);
-    await service.updateSelf('a1', { firstName: 'Augusta', currentPassword: 'anything' });
+    await service.updateSelf('a1', { firstName: 'Augusta', currentPassword: 'anything' }, ctx());
     expect(existing.firstName).toBe('Augusta');
     expect(existing.passwordHash).toBe(currentHash);
   });
@@ -166,7 +186,7 @@ describe('AdminUserService.updateSelf', () => {
     await service.updateSelf(
       'a1',
       { password: NEXT, currentPassword: CURRENT },
-      { sessionCookieValue: 'own-cookie' },
+      ctx({ sessionCookieValue: 'own-cookie' }),
     );
     expect(steps).toEqual(['flush', 'revoke:a1:except=s-own', 'mfa:admin:a1']);
   });
@@ -182,7 +202,7 @@ describe('AdminUserService.updateSelf', () => {
     await service.updateSelf(
       'a1',
       { password: NEXT, currentPassword: CURRENT },
-      { sessionCookieValue },
+      ctx({ sessionCookieValue }),
     );
     expect(steps).toEqual(['flush', 'revoke:a1:except=none', 'mfa:admin:a1']);
   });
@@ -198,7 +218,11 @@ describe('AdminUserService.updateSelf', () => {
     const em = { findOne: async () => existing, flush: async () => {} } as unknown as EntityManager;
     const failing = new AdminUserService(() => em, {} as AdminRolePort, refusing);
     await expect(
-      failing.updateSelf('a1', { lastName: 'King', password: NEXT, currentPassword: CURRENT }),
+      failing.updateSelf(
+        'a1',
+        { lastName: 'King', password: NEXT, currentPassword: CURRENT },
+        ctx(),
+      ),
     ).rejects.toThrow('auth is not here');
   });
 
@@ -211,7 +235,7 @@ describe('AdminUserService.updateSelf', () => {
     const em = { findOne: async () => existing, flush: async () => {} } as unknown as EntityManager;
     // `mfa` absent: the accessor answers nothing, and nothing is asked.
     const service = new AdminUserService(() => em, {} as AdminRolePort, sessions, undefined, () => undefined);
-    await service.updateSelf('a1', { password: NEXT, currentPassword: CURRENT });
+    await service.updateSelf('a1', { password: NEXT, currentPassword: CURRENT }, ctx());
     expect(await verifyPassword(existing.passwordHash, NEXT)).toBe(true);
   });
 
@@ -221,7 +245,7 @@ describe('AdminUserService.updateSelf', () => {
     await service.updateSelf(
       'a1',
       { password: NEXT, currentPassword: CURRENT },
-      { sessionCookieValue: 'own-cookie' },
+      ctx({ sessionCookieValue: 'own-cookie' }),
     );
     expect(audit).toHaveLength(1);
     expect(audit[0]).toMatchObject({
@@ -238,11 +262,11 @@ describe('AdminUserService.updateSelf', () => {
   it('audits a request that changes the name and the password as both', async () => {
     const existing = account();
     const { service, audit } = serviceOver(existing);
-    await service.updateSelf('a1', {
-      lastName: 'King',
-      password: NEXT,
-      currentPassword: CURRENT,
-    });
+    await service.updateSelf(
+      'a1',
+      { lastName: 'King', password: NEXT, currentPassword: CURRENT },
+      ctx(),
+    );
     expect(audit.map((entry) => entry.action)).toEqual([
       'admin_user.change_password',
       'admin_user.update',
@@ -262,7 +286,7 @@ describe('AdminUserService.updateSelf — a new password equal to the current on
       service.updateSelf(
         'a1',
         { lastName: 'King', password: CURRENT, currentPassword: CURRENT },
-        { sessionCookieValue: 'own-cookie' },
+        ctx({ sessionCookieValue: 'own-cookie' }),
       ),
     ).rejects.toMatchObject({ statusCode: 400, code: 'NEW_PASSWORD_UNCHANGED' });
     expect(existing).toMatchObject({ lastName: 'Lovelace', passwordHash: currentHash });
@@ -277,7 +301,7 @@ describe('AdminUserService.updateSelf — a new password equal to the current on
     const existing = account();
     const { service } = serviceOver(existing);
     await expect(
-      service.updateSelf('a1', { password: NEXT, currentPassword: NEXT }),
+      service.updateSelf('a1', { password: NEXT, currentPassword: NEXT }, ctx()),
     ).rejects.toMatchObject({ statusCode: 403, code: 'CURRENT_PASSWORD_INVALID' });
   });
 });
@@ -326,5 +350,96 @@ describe('AdminUserService — withdrawing an account', () => {
     await service.softDelete('a1');
     expect(existing.deletedAt).toBeInstanceOf(Date);
     expect(steps).toEqual(['flush', 'revoke:a1:except=none', 'mfa:admin:a1']);
+  });
+});
+
+describe('AdminUserService.updateSelf — the current password is checked inside the throttle', () => {
+  beforeAll(async () => {
+    currentHash = await hashPassword(CURRENT);
+  });
+
+  it('takes the attempt under the key sign-in uses, with where the request came from', async () => {
+    const existing = account();
+    const { service } = serviceOver(existing);
+    const attempts: AdminAuthenticationAttempt[] = [];
+    const results: unknown[] = [];
+
+    await expect(
+      service.updateSelf(
+        'a1',
+        { password: NEXT, currentPassword: 'not-the-current-password' },
+        {
+          throttle: {
+            verify: async (attempt, check) => {
+              attempts.push(attempt);
+              const result = await check();
+              results.push(result);
+              return result.ok;
+            },
+          },
+          origin: { ip: '203.0.113.9', knownDevice: 'v1.a1.device.stamp' },
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'CURRENT_PASSWORD_INVALID' });
+
+    expect(attempts).toEqual([
+      {
+        factor: 'password',
+        account: 'ada@example.com',
+        ip: '203.0.113.9',
+        knownDevice: 'v1.a1.device.stamp',
+      },
+    ]);
+    expect(results).toEqual([{ ok: false, adminUserId: 'a1' }]);
+  });
+
+  it('passes the throttle refusal on and changes, revokes and audits nothing, even for the correct password', async () => {
+    const existing = account();
+    const { service, flushes, steps, audit } = serviceOver(existing);
+    const refusal = new Error('throttled');
+
+    await expect(
+      service.updateSelf(
+        'a1',
+        { firstName: 'Augusta', password: NEXT, currentPassword: CURRENT },
+        {
+          sessionCookieValue: 'own-cookie',
+          throttle: {
+            verify: async () => {
+              throw refusal;
+            },
+          },
+          origin: {},
+        },
+      ),
+    ).rejects.toBe(refusal);
+
+    expect(existing).toMatchObject({ firstName: 'Ada', passwordHash: currentHash });
+    expect(flushes()).toBe(0);
+    expect(steps).toEqual([]);
+    expect(audit).toEqual([]);
+  });
+
+  it('takes no attempt when no current password was presented at all', async () => {
+    const existing = account();
+    const { service } = serviceOver(existing);
+    let taken = 0;
+
+    await expect(
+      service.updateSelf(
+        'a1',
+        { password: NEXT },
+        {
+          throttle: {
+            verify: async (_attempt, check) => {
+              taken += 1;
+              return (await check()).ok;
+            },
+          },
+          origin: {},
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'CURRENT_PASSWORD_INVALID' });
+    expect(taken).toBe(0);
   });
 });

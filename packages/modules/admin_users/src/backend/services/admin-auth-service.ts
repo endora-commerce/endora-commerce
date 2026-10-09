@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
   normalizeEmailAddress,
+  type AdminAuthenticationThrottlePort,
   type AuthSessionPort,
   type MfaLoginPort,
 } from '@endora-commerce/contracts';
@@ -32,6 +33,11 @@ export class AdminAuthService {
     private readonly emFactory: () => EntityManager,
     /** `auth`'s published session surface (feature 075, Phase C). */
     private readonly sessionPort: AuthSessionPort,
+    /**
+     * Required, not optional: a composition without it would be a sign-in
+     * with no limit on wrong passwords, and nothing would report the gap.
+     */
+    private readonly throttle: AdminAuthenticationThrottlePort,
     /** Lazily resolved so composition can late-bind the MFA module. */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
   ) {}
@@ -41,6 +47,8 @@ export class AdminAuthService {
     password: string;
     ip?: string;
     userAgent?: string;
+    /** The verified known-device cookie value, when the request carried one. */
+    knownDevice?: string;
   }): Promise<AdminLoginOutcome> {
     const em = this.emFactory();
     // The address is folded before it is compared, because it was folded before
@@ -48,15 +56,33 @@ export class AdminAuthService {
     // created as `Operator.Mixed@example.com` matched no row when they typed the
     // address they were handed, and the refusal below says nothing about
     // casing. `normalizeEmailAddress` is the same fold the write applies.
-    const admin = await em.findOne(AdminUser, {
-      email: normalizeEmailAddress(input.email),
-      deletedAt: null,
-    });
-    if (!admin || admin.status !== 'active') {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Invalid email or password.');
-    }
-    const ok = await verifyPassword(admin.passwordHash, input.password);
-    if (!ok) {
+    const email = normalizeEmailAddress(input.email);
+    // The attempt is taken before the account is looked up, keyed by the
+    // address as typed and folded. So an address that belongs to nobody is
+    // throttled exactly like a real one, and while a delay runs neither this
+    // lookup nor the password comparison happens — see `AuthenticationThrottle`.
+    let admin: AdminUser | null = null;
+    const ok = await this.throttle.verify(
+      {
+        factor: 'password',
+        account: email,
+        ...(input.ip !== undefined ? { ip: input.ip } : {}),
+        ...(input.knownDevice !== undefined ? { knownDevice: input.knownDevice } : {}),
+      },
+      async () => {
+        const found = await em.findOne(AdminUser, { email, deletedAt: null });
+        if (!found || found.status !== 'active') return { ok: false };
+        admin = found;
+        return {
+          ok: await verifyPassword(found.passwordHash, input.password),
+          adminUserId: found.id,
+        };
+      },
+    );
+    // Re-read through a typed local: the assignment above happens inside a
+    // callback, which control-flow narrowing does not follow.
+    const signedIn = admin as AdminUser | null;
+    if (!ok || !signedIn) {
       throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Invalid email or password.');
     }
 
@@ -64,7 +90,7 @@ export class AdminAuthService {
     const mfaPort = this.getMfaLoginPort?.();
     if (mfaPort) {
       const decision = await mfaPort.beginLogin(
-        { subjectType: 'admin', subjectId: admin.id },
+        { subjectType: 'admin', subjectId: signedIn.id },
         { salesChannelId: null, organizationId: null },
       );
       if (decision.kind === 'challenge') {
@@ -77,17 +103,17 @@ export class AdminAuthService {
 
     const session = await this.sessionPort.createSession({
       kind: 'admin',
-      adminUserId: admin.id,
+      adminUserId: signedIn.id,
       ...(input.ip !== undefined ? { ipAddress: input.ip } : {}),
       ...(input.userAgent !== undefined ? { userAgent: input.userAgent } : {}),
     });
     // command-coverage-ignore: stamps lastLoginAt — high-volume auth bookkeeping
     // (session lifecycle owned by SessionService), not an audited domain write.
-    admin.lastLoginAt = new Date();
+    signedIn.lastLoginAt = new Date();
     await em.flush();
     return {
       status: 'authenticated',
-      adminUser: admin,
+      adminUser: signedIn,
       sessionCookieValue: session.cookieValue,
       sessionExpiresAt: session.expiresAt,
     };

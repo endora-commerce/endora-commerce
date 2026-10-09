@@ -6,11 +6,13 @@ import {
   mfaRegenerateRequestSchema,
   mfaSocialUnlinkParamsSchema,
 } from '@endora-commerce/contracts';
-import type { MfaSubjectRef } from '@endora-commerce/contracts';
+import type { AdminAuthenticationOrigin, MfaSubjectRef } from '@endora-commerce/contracts';
+import { readKnownDevice } from './known-device-cookie.js';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import type { MfaEnrolmentService } from './services/mfa-enrolment-service.js';
+import type { SecondFactorVerifier } from './services/second-factor-verifier.js';
 import type { MfaPolicyResolver } from './services/mfa-policy-resolver.js';
 import type { SocialLinkService } from './services/social-link-service.js';
 import type { FactorWithdrawal } from './services/factor-withdrawal.js';
@@ -30,6 +32,11 @@ export interface MfaSelfServiceOptions {
   resolveSubjectId: (req: FastifyRequest) => string;
   resolveOrganizationId?: (req: FastifyRequest) => string | null;
   enrolmentService: MfaEnrolmentService;
+  /**
+   * The check behind every code these routes take as proof — an
+   * administrator's goes through the account's authentication throttle.
+   */
+  verifySecondFactor: SecondFactorVerifier;
   policyResolver: MfaPolicyResolver;
   socialLinkService: SocialLinkService;
   auditLogService: AuditPort;
@@ -51,6 +58,7 @@ export interface MfaSelfServiceOptions {
     subjectType: 'customer' | 'admin',
     subjectId: string,
     password: string,
+    context?: AdminAuthenticationOrigin,
   ) => Promise<boolean>;
 }
 
@@ -113,7 +121,7 @@ export async function registerMfaSelfServiceRoutes(
     async (request) => {
       const body = mfaDisableRequestSchema.parse(request.body);
       const subject = subjectOf(request);
-      await reauthenticate(opts, subject, body);
+      await reauthenticate(opts, subject, body, originOf(request));
       const removed = await enrolmentService.disable(subject);
       await auditLogService.record({
         action: 'mfa.disabled',
@@ -136,7 +144,7 @@ export async function registerMfaSelfServiceRoutes(
     async (request) => {
       const body = mfaRegenerateRequestSchema.parse(request.body);
       const subject = subjectOf(request);
-      const verified = await enrolmentService.verifySecondFactor(subject, body.code);
+      const verified = await opts.verifySecondFactor(subject, body.code, originOf(request));
       if (!verified.ok) throw new HttpError(401, 'MFA_INVALID_CODE', 'The code is invalid or expired.');
       const res = await enrolmentService.regenerateRecoveryCodes(subject);
       await auditLogService.record({
@@ -189,19 +197,34 @@ export async function registerMfaSelfServiceRoutes(
   );
 }
 
+/** Where the request came from, for the administrator authentication throttle. */
+function originOf(request: FastifyRequest): AdminAuthenticationOrigin {
+  const knownDevice = readKnownDevice(request);
+  return {
+    ...(request.ip ? { ip: request.ip } : {}),
+    ...(knownDevice !== undefined ? { knownDevice } : {}),
+  };
+}
+
 /** Re-auth on self-disable: a current TOTP/recovery code or the password. */
 async function reauthenticate(
   opts: MfaSelfServiceOptions,
   subject: MfaSubjectRef,
   body: { code?: string | undefined; password?: string | undefined },
+  context: AdminAuthenticationOrigin,
 ): Promise<void> {
   if (body.code) {
-    const verified = await opts.enrolmentService.verifySecondFactor(subject, body.code);
+    const verified = await opts.verifySecondFactor(subject, body.code, context);
     if (verified.ok) return;
     throw new HttpError(401, 'MFA_INVALID_CODE', 'The code is invalid or expired.');
   }
   if (body.password) {
-    const ok = await opts.verifyAccountPassword(subject.subjectType, subject.subjectId, body.password);
+    const ok = await opts.verifyAccountPassword(
+      subject.subjectType,
+      subject.subjectId,
+      body.password,
+      context,
+    );
     if (ok) return;
     throw new HttpError(401, 'INVALID_CREDENTIALS', 'The password is incorrect.');
   }

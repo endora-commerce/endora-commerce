@@ -991,10 +991,21 @@ async function assertErrorTranslationsInstalled(i18n: {
  * (`cms` / `megamenu` / `blog` / `dictionaries` clear their own caches further
  * down through their module handle's `invalidateAll()`, which also drops the
  * per-process LRU the composition holds.)
+ *
+ * `admin-auth-throttle:*` is here for the same reason from the other side: its
+ * counters are keyed by an administrator's e-mail address and id, both of which
+ * are the same in every file, and they outlive the file by half an hour. A file
+ * that leaves the seeded administrator throttled must not hand that state to
+ * the next one in the run.
  */
 async function dropStaleCaches(redis: Redis): Promise<void> {
   // `sales-channels:*` covers every cache version (feature 053 bumped it to v2).
-  for (const pattern of ['session:*', 'sales-channels:*', 'settings:v1:*']) {
+  for (const pattern of [
+    'session:*',
+    'sales-channels:*',
+    'settings:v1:*',
+    'admin-auth-throttle:*',
+  ]) {
     const keys = await redis.keys(pattern);
     if (keys.length > 0) await redis.del(keys);
   }
