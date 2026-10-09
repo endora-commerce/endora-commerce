@@ -17,12 +17,23 @@ import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
 /**
  * Admin UI i18n HTTP surface — feature 019 / contracts/admin-http.md.
  *
- *   GET  /api/v1/admin/i18n/bundles?language=…   (E-1)
- *   PATCH /api/v1/admin/me/preferred-language    (E-2)
+ *   GET   /api/v1/admin/i18n/bundles?language=…   (E-1)
+ *   PATCH /api/v1/admin/me/preferred-language     (E-2)
+ *   GET   /api/v1/admin/i18n/coverage             (E-3)  settings:read
+ *   POST  /api/v1/admin/i18n/reload               (E-4)  settings:write
  *
- * Both endpoints sit behind the standard admin auth gate — any
- * authenticated admin may call them; no per-permission grant is
- * required (FR-004).
+ * E-1 and E-2 sit behind the admin session alone — any authenticated admin may
+ * call them, no per-permission grant is required (FR-004): the first is the
+ * strings every screen renders and the second writes the caller's own row.
+ *
+ * **E-3 and E-4 are not in that class, and were written as if they were**
+ * (issue #141). Both act on the whole instance — one reports on every module's
+ * bundles, the other replaces them — so each checks a permission. The codes
+ * are `settings`' rather than new ones of this module's: the reload's only
+ * caller is the cache screen under Settings, which is `settings:write`, and an
+ * operator who can open that screen and not press one of its buttons would be
+ * holding a page that half refuses. `settings` is non-deactivatable, so the
+ * codes cannot become un-grantable while these routes go on enforcing them.
  */
 
 export interface I18nAdminDeps {
@@ -77,13 +88,14 @@ export async function registerI18nAdminRoutes(
 
   // --- E-4 POST reload bundles (hot-reload on-disk translations) -----------
   // Re-reads every module's i18n JSON into `translation_bundles` (bumping
-  // versions) so edited translations appear without a backend restart. Any
-  // authenticated admin may trigger it, matching the other i18n endpoints.
+  // versions) so edited translations appear without a backend restart. It
+  // replaces the strings every administrator and every error envelope reads,
+  // so it takes the code of the cache screen it is pressed from.
   if (deps.reload) {
     const reload = deps.reload;
     app.post(
       '/api/v1/admin/i18n/reload',
-      { preHandler: deps.requireAdmin() },
+      { preHandler: deps.requireAdmin('settings:write') },
       async (): Promise<{ data: { installed: number; skipped: number; failed: number } }> => {
         const result = await reload();
         return { data: result };
@@ -120,7 +132,7 @@ export async function registerI18nAdminRoutes(
   app.get(
     '/api/v1/admin/i18n/coverage',
     {
-      preHandler: deps.requireAdmin(),
+      preHandler: deps.requireAdmin('settings:read'),
       schema: { querystring: I18nCoverageQuerySchema },
     },
     async (request): Promise<{ data: I18nCoverageResponse }> => {
