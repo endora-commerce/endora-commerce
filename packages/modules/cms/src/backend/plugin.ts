@@ -151,6 +151,7 @@ export function cmsModule(options: CmsModuleOptions): {
   );
   const templateService = new CmsTemplateService(
     options.emFactory,
+    options.commandBus,
     () => pageBuilderRegistry.knownNames(),
     referenceRegistry,
     invalidator,
