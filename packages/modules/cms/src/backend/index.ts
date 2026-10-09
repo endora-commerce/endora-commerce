@@ -111,7 +111,10 @@ export interface CmsCradle {
     }): void;
   };
   readonly emFactory: () => EntityManager;
-  /** The host's Command Bus — the audited path every Page write runs on (Constitution XIII). */
+  /**
+   * The host's Command Bus — the audited path every Page, Block, Template and
+   * Hook write runs on (Constitution XIII).
+   */
   readonly commandBus: CommandBus;
   /** The host's in-process bus — where a committed content change is published. */
   readonly eventBus: EventBus;

@@ -46,9 +46,10 @@ export type ColorPaletteWriter = (
 export interface CmsModuleOptions {
   emFactory: () => EntityManager;
   /**
-   * The platform's Command Bus (Constitution XIII): every admin write to a Page
-   * runs through it, so each one is audited in its own transaction. Required —
-   * an optional bus would be a write path whose absent form records nothing.
+   * The platform's Command Bus (Constitution XIII): every admin write to a
+   * Page, a Block, a Template or a Hook runs through it, so each one is audited
+   * in its own transaction. Required — an optional bus would be a write path
+   * whose absent form records nothing.
    */
   commandBus: CommandBus;
   /**
@@ -144,17 +145,19 @@ export function cmsModule(options: CmsModuleOptions): {
   );
   const blockService = new CmsBlockService(
     options.emFactory,
+    options.commandBus,
     () => pageBuilderRegistry.knownNames(),
     referenceRegistry,
     invalidator,
   );
   const templateService = new CmsTemplateService(
     options.emFactory,
+    options.commandBus,
     () => pageBuilderRegistry.knownNames(),
     referenceRegistry,
     invalidator,
   );
-  const hookService = new CmsHookService(options.emFactory, invalidator);
+  const hookService = new CmsHookService(options.emFactory, options.commandBus, invalidator);
   const storefrontResolver = new StorefrontResolver(options.emFactory, cache);
 
   let colorPaletteWriter: ColorPaletteWriter | null = null;
