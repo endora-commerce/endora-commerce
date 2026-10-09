@@ -5,7 +5,11 @@ import { NewsletterCampaign } from '../entities/newsletter-campaign.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import { NewsletterSendRecord } from '../entities/newsletter-send-record.entity.js';
 import type { NewsletterAudienceResolver } from './audience-resolver.js';
-import type { NewsletterContentService, EmailBrandingResolver } from './content.service.js';
+import type {
+  NewsletterContentService,
+  EmailBrandingResolver,
+  DefaultChannelIdResolver,
+} from './content.service.js';
 import { withEmailBranding } from './content.service.js';
 import type { NewsletterOptInService } from './opt-in.service.js';
 import type { NewsletterLinkBuilder } from './subscriber.service.js';
@@ -20,6 +24,8 @@ export interface CampaignDispatchDeps {
   resolveProvider: () => Promise<NewsletterSendProvider>;
   resolveSender: () => Promise<{ fromEmail: string; fromName: string }>;
   resolveEmailBranding?: EmailBrandingResolver;
+  /** Whose branding a campaign or automation with no Sales Channel carries (issue #121). */
+  resolveDefaultChannelId?: DefaultChannelIdResolver;
 }
 
 export interface DispatchResult {
@@ -108,6 +114,7 @@ export class NewsletterCampaignDispatchService {
       },
       campaign.salesChannelId,
       this.deps.resolveEmailBranding,
+      this.deps.resolveDefaultChannelId,
     );
     const rendered = this.deps.content.render({
       subject: campaign.subject,

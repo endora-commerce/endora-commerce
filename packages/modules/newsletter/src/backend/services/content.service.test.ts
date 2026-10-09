@@ -112,6 +112,54 @@ describe('withEmailBranding', () => {
     });
   });
 
+  // Issue #121. The ORM hydrates a NULL column as `undefined`, so "no channel"
+  // reaches this function as either; a branding source reads settings with the
+  // id it is given, and that seam refuses anything but a uuid or `null`.
+  it.each([[null], [undefined]])(
+    'reads the default sales channel when the owner has none (%s)',
+    async (salesChannelId) => {
+      const asked: Array<string | null> = [];
+      const out = await withEmailBranding(
+        {},
+        salesChannelId,
+        async (id) => {
+          asked.push(id);
+          return { logoUrl: '', accentColor: '#abcdef' };
+        },
+        async () => 'default-channel',
+      );
+      expect(asked).toEqual(['default-channel']);
+      expect(out.accentColor).toBe('#abcdef');
+    },
+  );
+
+  it('reads platform-wide, with null, when no default channel can be named', async () => {
+    const asked: Array<string | null> = [];
+    const resolve = async (id: string | null) => {
+      asked.push(id);
+      return { logoUrl: '', accentColor: '#abcdef' };
+    };
+    await withEmailBranding({}, undefined, resolve);
+    await withEmailBranding({}, undefined, resolve, async () => null);
+    expect(asked).toEqual([null, null]);
+  });
+
+  it('does not ask for the default channel when the owner has its own', async () => {
+    const asked: Array<string | null> = [];
+    await withEmailBranding(
+      {},
+      'channel-1',
+      async (id) => {
+        asked.push(id);
+        return { logoUrl: '', accentColor: '#abcdef' };
+      },
+      async () => {
+        throw new Error('the default channel was resolved for a campaign that has one');
+      },
+    );
+    expect(asked).toEqual(['channel-1']);
+  });
+
   it('leaves variables unchanged when no resolver is provided', async () => {
     const vars = { subscriber: { email: 'a@b.c' } };
     const out = await withEmailBranding(vars, null);

@@ -42,6 +42,9 @@ wyłączać**, aby nie kolidował z zewnętrzną usługą e-mail marketingu (Mai
 - **Zmienne** — katalog zmiennych newslettera obejmuje `subscriber.email`, `customFields.*`,
   `unsubscribeUrl`, `webviewUrl`, `channel.id` oraz klucze identyfikacji wizualnej; **Insert
   variable** w panelu działa w temacie i w treści.
+- **Identyfikacja wizualna** — logo i kolor akcentu pochodzą z kanału sprzedaży kampanii lub
+  automatyzacji. Kampania albo automatyzacja utworzona bez kanału sprzedaży jest podglądana
+  i wysyłana z identyfikacją wizualną **domyślnego** kanału sprzedaży.
 - **Dostawca wysyłki** — wybierany i konfigurowany w panelu administracyjnym; hasło SMTP jest
   przechowywane jako ustawienie typu `secret` (AES-256-GCM, na granicy API tylko do zapisu).
 

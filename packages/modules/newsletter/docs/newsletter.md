@@ -43,6 +43,9 @@ it never collides with an external ESP (MailerLite, GetResponse, …).
 - **Variables** — newsletter catalogue includes `subscriber.email`,
   `customFields.*`, `unsubscribeUrl`, `webviewUrl`, `channel.id`, plus branding
   keys; the admin **Insert variable** picker works on subject and content.
+- **Branding** — the logo and accent colour come from the campaign's or
+  automation's sales channel. One created without a sales channel is previewed
+  and sent with the **default** sales channel's branding.
 - **Provider** — selected + configured in the Admin UI; the SMTP password is
   stored as a Settings `secret` (AES-256-GCM, write-only at the boundary).
 

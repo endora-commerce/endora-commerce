@@ -64,14 +64,35 @@ export type EmailBrandingResolver = (
   salesChannelId: string | null,
 ) => Promise<{ logoUrl: string; accentColor: string }>;
 
-/** Merge channel branding into the directive variable map (logo + accent). */
+/**
+ * Names the platform's default Sales Channel — the accessor a composition
+ * binds to `salesChannelResolutionPort.getSystemDefault()` (Principle XII).
+ */
+export type DefaultChannelIdResolver = () => Promise<string | null>;
+
+/**
+ * Merge channel branding into the directive variable map (logo + accent).
+ *
+ * A campaign or automation with no Sales Channel is branded as the **default**
+ * channel (issue #121). "No channel" arrives here as `null` from a freshly
+ * created entity and as `undefined` from one read back from its row — the ORM
+ * is configured with `forceUndefined`, so a NULL column hydrates as `undefined`
+ * whatever the property's declared type says. Passed on unchanged, `undefined`
+ * is refused by the settings seam a branding source reads through, which is
+ * what answered 500 to a preview and failed the send of the same campaign.
+ *
+ * With no default-channel accessor, or one that names nothing, the read is the
+ * platform-wide one (`null`) — never `undefined`.
+ */
 export async function withEmailBranding(
   variables: Record<string, unknown>,
-  salesChannelId: string | null,
+  salesChannelId: string | null | undefined,
   resolve?: EmailBrandingResolver,
+  resolveDefaultChannelId?: DefaultChannelIdResolver,
 ): Promise<{ variables: Record<string, unknown>; accentColor?: string }> {
   if (!resolve) return { variables };
-  const branding = await resolve(salesChannelId);
+  const brandingChannelId = salesChannelId ?? (await resolveDefaultChannelId?.()) ?? null;
+  const branding = await resolve(brandingChannelId);
   return {
     variables: {
       ...variables,
