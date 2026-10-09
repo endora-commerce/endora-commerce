@@ -394,7 +394,7 @@ describe('OpportunityDetail — the reason of a status change', () => {
       screen.getByLabelText(en('opportunity.status.reason')),
       '  Chose a competitor.  ',
     );
-    await userEvent.click(screen.getByRole('button', { name: MOVE_TO_LOST }));
+    await userEvent.click(await screen.findByRole('button', { name: MOVE_TO_LOST }));
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/transition`, {
         to: 'lost',
@@ -406,7 +406,7 @@ describe('OpportunityDetail — the reason of a status change', () => {
   it('sends no reason when none was written', async () => {
     postSpy.mockResolvedValue(moved);
     await renderPage();
-    await userEvent.click(screen.getByRole('button', { name: MOVE_TO_LOST }));
+    await userEvent.click(await screen.findByRole('button', { name: MOVE_TO_LOST }));
     await waitFor(() =>
       expect(postSpy).toHaveBeenCalledWith(`${DETAIL_PATH}/transition`, { to: 'lost' }),
     );
