@@ -18,11 +18,13 @@ import {
 import { withModuleOff, type OffStateAxis } from '../../helpers/off-state.js';
 import { TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
+  atCommitOf,
   captureWebhookJobs,
   clearWebhookSubscriptions,
   createWebhookSubscription,
   eventsDispatchedBy,
   offeredWebhookEventTypes,
+  readAtEmit,
   storeWebhookSubscription,
   whenEventDelivered,
   type WebhookJobCapture,
@@ -251,22 +253,108 @@ describe('catalog outbound webhooks — product.created / updated / archived', (
     expect(jobsFor(product.id, PRODUCT_ARCHIVED).filter((job) => job.webhookId === subscription)).toHaveLength(1);
   });
 
-  it('the unaudited update path archives too — the composed service outside an HTTP request', async () => {
-    const product = await createProduct();
-    const subscription = await storeWebhookSubscription(h, [PRODUCT_ARCHIVED]);
-    capture.clear();
-    const service = h.container.resolve<CatalogAdminService>('catalogAdminService');
-
-    await whenEventDelivered(
-      h,
-      PRODUCT_ARCHIVED,
-      (payload) => payload['productId'] === product.id,
-      () => withSystemScope('catalog webhooks test — worker-style update', () => service.updateProduct(product.id, { status: 'inactive' })),
+  /**
+   * The unaudited update — `CatalogAdminService.updateProduct`, which the
+   * API-key upsert and the bulk edit call — outside an HTTP request, the way a
+   * worker reaches it.
+   */
+  const updateUnaudited = (id: string, patch: Record<string, unknown>) =>
+    withSystemScope('catalog webhooks test — worker-style update', () =>
+      h.container.resolve<CatalogAdminService>('catalogAdminService').updateProduct(id, patch as never),
     );
 
-    const delivered = jobsFor(product.id, PRODUCT_ARCHIVED).filter((job) => job.webhookId === subscription);
-    expect(delivered).toHaveLength(1);
-    ProductArchivedEventV1Schema.parse(delivered[0]?.payload);
+  /** What a reader on a connection of its own sees of the product. */
+  const readProduct = async (id: string): Promise<{ status: string; name: string } | null> => {
+    const rows = await h
+      .em()
+      .execute<Array<{ status: string; name: string }>>(
+        `select "status", "name"->>'en-US' as "name" from "products" where "id" = ?`,
+        [id],
+      );
+    return rows[0] ?? null;
+  };
+
+  it('the unaudited update path archives too, in the same order: product.updated.v1, then product.archived.v1', async () => {
+    const product = await createProduct();
+    const subscription = await storeWebhookSubscription(h, [PRODUCT_UPDATED, PRODUCT_ARCHIVED]);
+    capture.clear();
+
+    await updateUnaudited(product.id, { status: 'inactive' });
+    // Both are delivered by the time the write returns: nothing is left in flight.
+    const delivered = jobsFor(product.id).filter((job) => job.webhookId === subscription);
+    expect(delivered.map((job) => job.eventType)).toEqual([PRODUCT_UPDATED, PRODUCT_ARCHIVED]);
+    expect(ProductUpdatedEventV1Schema.parse(delivered[0]?.payload).changedFields).toEqual(['status']);
+    ProductArchivedEventV1Schema.parse(delivered[1]?.payload);
+
+    // Once per transition here as well.
+    capture.clear();
+    await whenEventDelivered(h, PRODUCT_UPDATED, (payload) => payload['productId'] === product.id, () =>
+      updateUnaudited(product.id, { status: 'inactive' }),
+    );
+    expect(jobsFor(product.id, PRODUCT_ARCHIVED)).toEqual([]);
+  });
+
+  it('the API-key upsert archives in that order too', async () => {
+    const minted = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/api-keys',
+      payload: { name: 'catalog webhooks test', scopes: ['catalog:write'] },
+      cookies: ADMIN,
+    });
+    expect(minted.statusCode, minted.body).toBe(201);
+    const token = (minted.json() as { data: { bearerToken: string } }).data.bearerToken;
+    const product = await createProduct();
+    const subscription = await storeWebhookSubscription(h, [PRODUCT_UPDATED, PRODUCT_ARCHIVED]);
+    capture.clear();
+
+    const response = await h.app.inject({
+      method: 'PUT',
+      url: `/api/v1/catalog/products/by-sku/${product.sku}`,
+      payload: { ...productRequest(product.sku), status: 'inactive' },
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.statusCode, response.body).toBe(200);
+
+    const delivered = jobsFor(product.id).filter((job) => job.webhookId === subscription);
+    expect(delivered.map((job) => job.eventType)).toEqual([PRODUCT_UPDATED, PRODUCT_ARCHIVED]);
+  });
+
+  it('the unaudited update announces a product that is already saved', async () => {
+    const product = await createProduct();
+    // A commit that takes a second: emitted before the write is saved, the
+    // event would be out — and the reader below answered — before the commit.
+    const { reads } = await atCommitOf(h, 'products', 'update', `perform pg_sleep(1); return null;`, () =>
+      readAtEmit(
+        h,
+        PRODUCT_UPDATED,
+        (payload) => readProduct(payload['productId'] as string),
+        () => updateUnaudited(product.id, { name: { 'en-US': 'Saved before it is announced' }, status: 'inactive' }),
+      ),
+    );
+    expect(reads).toEqual([{ status: 'inactive', name: 'Saved before it is announced' }]);
+  });
+
+  it('an unaudited update that fails while it is saved announces nothing and enqueues nothing', async () => {
+    const product = await createProduct();
+    await storeWebhookSubscription(h, CATALOG_WEBHOOK_EVENT_TYPES);
+    capture.clear();
+    const emitted: string[] = [];
+    const offs = [PRODUCT_UPDATED, PRODUCT_ARCHIVED].map((eventType) =>
+      h.eventBus.on(eventType as never, () => {
+        emitted.push(eventType);
+      }),
+    );
+    try {
+      await atCommitOf(h, 'products', 'update', `raise exception 'catalog webhooks test: forced failure at commit';`, () =>
+        expect(updateUnaudited(product.id, { status: 'inactive' })).rejects.toThrow(),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 750));
+    } finally {
+      offs.forEach((off) => off());
+    }
+    expect(emitted).toEqual([]);
+    expect(capture.jobs).toEqual([]);
+    expect((await readProduct(product.id))?.status).not.toBe('inactive');
   });
 
   it('a subscription bound to an Organization receives no product event; a platform-wide one does', async () => {

@@ -73,7 +73,16 @@ w całości; ścisłe schematy to `CATALOG_WEBHOOK_EVENT_SCHEMAS` w `@endora-com
 | `product.archived.v1` | Status produktu zmienia się na `inactive` z innego statusu. Raz na każdą taką zmianę: edycja produktu, który już jest nieaktywny, nie wysyła go ponownie. | `productId` |
 
 - **Kolejność.** Zapis archiwizujący wysyła `product.updated.v1` (ze `status` w `changedFields`), a
-  potem `product.archived.v1`.
+  potem `product.archived.v1` — na każdej ścieżce, która może zarchiwizować produkt: w panelu
+  administracyjnym, przy zapisie kluczem API, w edycji zbiorczej i w imporcie.
+- **Ponowna aktywacja nie ma własnego zdarzenia.** Produkt, który przestaje być `inactive`, wysyła
+  `product.updated.v1` ze `status` w `changedFields` i nic więcej — to ten sam sygnał co przy każdej
+  innej zmianie statusu, także przy opublikowaniu szkicu. Aby je rozróżnić, odczytaj produkt:
+  odpowiedzią jest jego `status`.
+- **Usunięcie nie jest dostarczane.** Usunięcie produktu emituje `product.deleted.v1` wyłącznie na
+  działającej w procesie szynie zdarzeń; webhookom się go nie oferuje i nie jest przy tym wysyłane
+  `product.archived.v1`. Odbiorca odwzorowujący katalog dowiaduje się o usunięciu z odczytu: API
+  przestaje zwracać produkt. Jeśli usunięcia są dla ciebie istotne, uzgadniaj stan z pełną listą.
 - **Po zatwierdzeniu zapisu.** Każde zdarzenie jest wysyłane dla zapisu, który został
   zatwierdzony. Zapis odrzucony albo wycofany nie wysyła niczego.
 - **Treść nie opuszcza instancji.** W żadnym zdarzeniu nie ma nazwy, opisu, ceny, wartości atrybutu

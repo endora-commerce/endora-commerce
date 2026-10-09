@@ -211,10 +211,21 @@ Co dotyczy ich wszystkich:
   jedną wysyłkę na każdy zapisany produkt i powinien spodziewać się serii liczonych w tysiącach.
   Typ zdarzenia, którego nie wskazuje żadna subskrypcja, niczego nie dodaje do kolejki.
 
-`rfq.created.v1` ogłasza zapytanie złożone przez klienta; zapytanie ofertowe utworzone przez
-administratora nie jest ogłaszane webhookom. `credit_limit.adjusted.v1` jest wysyłane, gdy
-administrator zmienia limit i gdy na limit zostaje zaliczony rozliczony zwrot; pierwsze przyznanie
-limitu nie jest ogłaszane webhookom.
+Co **nie** jest dostarczane i jak dziś się o tym dowiedzieć:
+
+- **Usunięcie produktu.** `product.deleted.v1` istnieje na działającej w procesie szynie zdarzeń i
+  nie jest oferowane webhookom, a usunięcie nie wysyła `product.archived.v1`. API po prostu
+  przestaje zwracać produkt; jeśli usunięcia są dla ciebie istotne, uzgadniaj stan z pełną listą.
+- **Ponowna aktywacja produktu.** Nie ma zdarzenia cofnięcia archiwizacji. Produkt, który przestaje
+  być `inactive`, wysyła `product.updated.v1` ze `status` w `changedFields`, jak przy każdej innej
+  zmianie statusu; odczytaj produkt, aby sprawdzić, jaki ma teraz status.
+- **Zapytanie ofertowe utworzone przez administratora.** `rfq.created.v1` ogłasza wyłącznie
+  zapytanie złożone przez klienta.
+- **Pierwsze przyznanie limitu kredytowego.** `credit_limit.adjusted.v1` jest wysyłane, gdy
+  administrator zmienia limit i gdy na limit zostaje zaliczony rozliczony zwrot.
+
+`rfq.expired.v1` wysyła wyłącznie zadanie wygaszania zapytań ofertowych: zdarzenie występuje tylko
+w instancji, w której to zadanie działa.
 
 Lista obowiązująca w działającej instancji to ta, którą oferuje formularz subskrypcji: dwa
 zdarzenia wbudowane oraz odpowiedź `GET /api/v1/admin/webhooks/event-types`. Lista wbudowana jest

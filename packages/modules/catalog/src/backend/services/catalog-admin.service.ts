@@ -408,13 +408,29 @@ export class CatalogAdminService {
         ...(auditCtx.requestId !== undefined ? { requestId: auditCtx.requestId } : {}),
       });
     }
-    this.events.emit('product.updated.v1', {
-      eventId: randomUUID(),
-      occurredAt: new Date().toISOString(),
-      productId: r.product.id,
-      changedFields: r.changedFields,
-    });
-    if (r.archived) this.#emitArchived(r.product.id);
+    const announceUpdated = (): void =>
+      this.events.emit('product.updated.v1', {
+        eventId: randomUUID(),
+        occurredAt: new Date().toISOString(),
+        productId: r.product.id,
+        changedFields: r.changedFields,
+      });
+    if (r.archived) {
+      // Two announcements of one write, in one event scope: outside a scope the
+      // bus starts each emit's subscribers at once and waits for none, so the
+      // two ran side by side and a subscriber could be handed
+      // `product.archived.v1` first. A scope dispatches in order and waits, so
+      // every subscriber sees "updated, then archived" — the order the audited
+      // path already had — and the search indexer's removal has finished
+      // before this returns, which is what keeps a reactivation that follows
+      // from being undone by a removal still on its way.
+      await this.events.run(async () => {
+        announceUpdated();
+        this.#emitArchived(r.product.id);
+      });
+    } else {
+      announceUpdated();
+    }
     return r.product;
   }
 
@@ -422,7 +438,8 @@ export class CatalogAdminService {
    * `product.archived.v1` — the product's status moved to `inactive`.
    *
    * Emitted by the update paths themselves, after the write has committed and
-   * after the `product.updated.v1` of the same write. It used to be emitted
+   * after the `product.updated.v1` of the same write, inside an event scope
+   * the path opens — see the two call sites for why. It used to be emitted
    * only by `archiveProduct`, which nothing calls: archiving has been "update
    * with `status: 'inactive'`" since feature 022, so the event the search
    * indexer subscribes to and outbound webhooks are offered was announced by
@@ -446,13 +463,21 @@ export class CatalogAdminService {
    */
   async updateProductAudited(id: string, req: UpdateProductRequest): Promise<Product> {
     if (!this.commandBus) return this.updateProduct(id, req);
+    const commandBus = this.commandBus;
     const outcome = { archived: false };
-    const product = await this.commandBus.run(this.#updateProductCommand(id, req, outcome));
-    // After the Command has committed and dispatched its `product.updated.v1`:
-    // a Command declares one event, and this is the second announcement of the
-    // same write. Emitted here it still joins a caller's own event scope.
-    if (outcome.archived) this.#emitArchived(product.id);
-    return product;
+    // A Command declares one event, and archiving is a second announcement of
+    // the same write. The Command Bus opens its own event scope, which ends —
+    // dispatching `product.updated.v1` and waiting for its subscribers — once
+    // the write has committed; `product.archived.v1` is emitted after that,
+    // into the scope opened here, so it is dispatched second and waited for as
+    // well. Emitted outside any scope it was started and not waited for: this
+    // method returned while the search indexer's removal was still on its way,
+    // and a reactivation that followed could be undone by it.
+    return this.events.run(async () => {
+      const product = await commandBus.run(this.#updateProductCommand(id, req, outcome));
+      if (outcome.archived) this.#emitArchived(product.id);
+      return product;
+    });
   }
 
   #updateProductCommand(

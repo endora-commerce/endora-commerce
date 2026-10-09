@@ -87,9 +87,11 @@ Co wynika ze zgłoszenia:
 - **Typ jest oferowany w formularzu subskrypcji** — za typami wbudowanymi — i
   przyjmowany przez API, dopóki jego właściciel jest włączony. `GET /api/v1/admin/webhooks/event-types`
   odpowiada `{ "data": [{ "ownerModuleId", "eventType" }] }`.
-- **Gdy właściciel jest wyłączony**, typ nie jest oferowany, a nowa subskrypcja
-  tego typu jest odrzucana. Subskrypcje, które go wskazują, zostają zachowane i
-  nic nie dostają, dopóki właściciel nie wróci.
+- **Gdy właściciel jest wyłączony**, typ nie jest oferowany, nowa subskrypcja
+  tego typu jest odrzucana i **nic tego typu nie jest dostarczane** —
+  przekazywanie sprawdza obecność właściciela przy każdym zdarzeniu, zanim
+  spojrzy na jakąkolwiek subskrypcję. Subskrypcje, które go wskazują, zostają
+  zachowane i nic nie dostają, dopóki właściciel nie wróci.
 - Subskrypcja przypisana do jednej organizacji dostaje wniesione zdarzenie tylko
   wtedy, gdy jego treść zawiera to `organizationId`.
 - Zgłoszenie tego samego typu dwa razy albo typu, który ten moduł już

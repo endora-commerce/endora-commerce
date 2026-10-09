@@ -150,3 +150,70 @@ export async function eventsDispatchedBy<T>(
     off();
   }
 }
+
+/**
+ * Run `act` and answer what a reader with a connection of its own saw **at the
+ * moment** each `eventName` was emitted.
+ *
+ * `read` is started synchronously inside `emit`, before any subscriber runs, so
+ * its answer does not depend on how long the subscribers registered ahead of a
+ * test's own take — the search indexer alone can outlast a commit. That is what
+ * makes "the event is emitted after the write is saved" a measurement: emitted
+ * too early, the read is on its way before the write is.
+ */
+export async function readAtEmit<T, R>(
+  h: BackendServerHandle,
+  eventName: string,
+  read: (payload: Record<string, unknown>) => Promise<R>,
+  act: () => Promise<T>,
+): Promise<{ result: T; reads: R[] }> {
+  const bus = h.eventBus as unknown as { emit: (name: string, payload: unknown) => void };
+  const original = bus.emit;
+  const pending: Array<Promise<R>> = [];
+  bus.emit = function emit(this: unknown, name: string, payload: unknown): void {
+    if (name === eventName) pending.push(read((payload ?? {}) as Record<string, unknown>));
+    original.call(this, name, payload);
+  };
+  try {
+    const result = await act();
+    return { result, reads: await Promise.all(pending) };
+  } finally {
+    bus.emit = original;
+  }
+}
+
+/**
+ * Install a deferred constraint trigger on `table` for the length of `act`.
+ *
+ * A deferred constraint is checked by COMMIT, after every statement of the
+ * transaction has succeeded, so `body` runs at the latest point a write can
+ * still be slowed down (`perform pg_sleep(1); return null;`) or refused
+ * (`raise exception '…';`).
+ */
+export async function atCommitOf<T>(
+  h: BackendServerHandle,
+  table: string,
+  operation: 'insert' | 'update',
+  body: string,
+  act: () => Promise<T>,
+): Promise<T> {
+  const name = `webhook_test_at_commit_${table}`;
+  await h.em().execute(`
+    create function ${name}() returns trigger language plpgsql as $$
+    begin
+      ${body}
+    end $$;
+    create constraint trigger ${name}
+      after ${operation} on "${table}"
+      deferrable initially deferred
+      for each row execute function ${name}();
+  `);
+  try {
+    return await act();
+  } finally {
+    await h.em().execute(`
+      drop trigger ${name} on "${table}";
+      drop function ${name}();
+    `);
+  }
+}

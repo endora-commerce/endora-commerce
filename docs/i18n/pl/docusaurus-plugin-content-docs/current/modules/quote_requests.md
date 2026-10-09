@@ -230,7 +230,7 @@ w całości; ścisłe schematy to `QUOTE_REQUEST_WEBHOOK_EVENT_SCHEMAS` w `@endo
 | Zdarzenie | Kiedy jest wysyłane | Treść, poza `eventId` i `occurredAt` |
 | --- | --- | --- |
 | `rfq.created.v1` | Klient składa zapytanie ofertowe. Zapytanie utworzone przez administratora to `rfq.created_by_admin.v1`, którego webhookom się nie oferuje. | `rfqId` (UUID), `organizationId` (UUID) |
-| `rfq.expired.v1` | Zadanie wygaszania przenosi zapytanie ofertowe do statusu `Expired`. Jedno zdarzenie na zapytanie. | `rfqId`, `organizationId` |
+| `rfq.expired.v1` | Zadanie wygaszania (`RfqExpiryWorker.sweep()`) przenosi zapytanie ofertowe do statusu `Expired`. Jedno zdarzenie na zapytanie. Nic innego go nie wysyła, więc występuje tylko tam, gdzie to zadanie działa. | `rfqId`, `organizationId` |
 
 - **Treść nie opuszcza instancji.** Zdarzenia niosą dwa identyfikatory i nic z samego zapytania:
   żadnej pozycji, ilości, ceny, notatki, klienta ani administratora. Odbiorca odczytuje zapytanie

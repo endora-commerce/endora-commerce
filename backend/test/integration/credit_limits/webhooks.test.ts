@@ -258,6 +258,19 @@ describe('credit_limits outbound webhooks — credit_limit.adjusted', () => {
         expect((refused.json() as { error: { code: string } }).error.code).toBe('WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE');
         // The module's own surface is gone with it, so nothing can cause the event.
         expect((await adjust(TEST_ORGANIZATION_ID, { grantedAmount: 7800 })).statusCode).toBe(503);
+        // And an event that carries its name all the same is not delivered to
+        // the subscriptions stored for it: delivery asks for the owner too.
+        await storeWebhookSubscription(h, [ADJUSTED]);
+        capture.clear();
+        await whenEventDelivered(h, ADJUSTED, (payload) => payload['eventId'] === 'hand-emitted', async () => {
+          h.eventBus.emit(ADJUSTED as never, {
+            eventId: 'hand-emitted',
+            occurredAt: new Date().toISOString(),
+            organizationId: TEST_ORGANIZATION_ID,
+            amount: 1,
+          } as never);
+        });
+        expect(capture.jobs).toEqual([]);
       });
       expect(
         (await offeredWebhookEventTypes(h))

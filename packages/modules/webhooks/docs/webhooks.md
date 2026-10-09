@@ -93,9 +93,11 @@ What follows from a push:
 - **It is offered on the subscription form** — after the built-in types —
   and accepted by the API while its owner is switched on. `GET /api/v1/admin/webhooks/event-types`
   answers `{ "data": [{ "ownerModuleId", "eventType" }] }`.
-- **While the owner is switched off** the type is not offered and a new
-  subscription to it is refused. Subscriptions that name it are kept and
-  receive nothing until the owner is back.
+- **While the owner is switched off** the type is not offered, a new
+  subscription to it is refused, and **nothing of that type is delivered** —
+  the bridge asks for the owner's presence per event, before it looks at any
+  subscription. Subscriptions that name it are kept and receive nothing until
+  the owner is back.
 - A subscription bound to one organization receives a contributed event only
   when its payload carries that `organizationId`.
 - Pushing the same type twice, or a type this module already bridges, delivers

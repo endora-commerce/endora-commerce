@@ -255,7 +255,7 @@ modules are switched on. The payload is sent whole; the strict schemas are
 | Event | Sent when | Payload, beside `eventId` and `occurredAt` |
 | --- | --- | --- |
 | `rfq.created.v1` | A customer submits a quote request. A quote request an administrator creates is `rfq.created_by_admin.v1`, which is not offered to webhooks. | `rfqId` (UUID), `organizationId` (UUID) |
-| `rfq.expired.v1` | The expiry job moves a quote request to `Expired`. One event per quote request. | `rfqId`, `organizationId` |
+| `rfq.expired.v1` | The expiry sweep (`RfqExpiryWorker.sweep()`) moves a quote request to `Expired`. One event per quote request. Nothing else sends it, so it occurs only where that sweep runs. | `rfqId`, `organizationId` |
 
 - **No content leaves.** The payloads carry the two identifiers and nothing of
   the request: no line, quantity, price, note, customer or administrator. A

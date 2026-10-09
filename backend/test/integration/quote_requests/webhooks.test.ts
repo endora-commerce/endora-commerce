@@ -18,11 +18,13 @@ import { OTHER_TEST_ORGANIZATION_ID, TEST_ORGANIZATION_ID } from '../../helpers/
 import { QuoteRequest } from '../../helpers/package-entities.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from '../../../../packages/modules/quote_requests/src/manifest.js';
 import {
+  atCommitOf,
   captureWebhookJobs,
   clearWebhookSubscriptions,
   createWebhookSubscription,
   eventsDispatchedBy,
   offeredWebhookEventTypes,
+  readAtEmit,
   storeWebhookSubscription,
   whenEventDelivered,
   type WebhookJobCapture,
@@ -180,6 +182,60 @@ describe('quote_requests outbound webhooks — rfq.created / rfq.expired', () =>
     expect(receivers(EXPIRED)).toContain(own);
     expect(receivers(CREATED)).not.toContain(foreign);
     expect(receivers(EXPIRED)).not.toContain(foreign);
+  });
+
+  it('rfq.created.v1 announces a Quote Request that is already saved whole — its lines, revision and history', async () => {
+    const saved = async (rfqId: string) => {
+      const count = async (table: string): Promise<number> =>
+        Number(
+          (
+            await h
+              .em()
+              .execute<Array<{ n: string }>>(`select count(*) as "n" from "${table}" where "quote_request_id" = ?`, [
+                rfqId,
+              ])
+          )[0]?.n ?? 0,
+        );
+      return {
+        lines: await count('quote_request_items'),
+        revisions: await count('quote_request_revisions'),
+        events: await count('quote_request_events'),
+      };
+    };
+    const { result, reads } = await readAtEmit(
+      h,
+      CREATED,
+      (payload) => saved(payload['rfqId'] as string),
+      // Settled, so that this submission's delivery is not still on its way
+      // when the next test starts counting.
+      () =>
+        whenEventDelivered(h, CREATED, () => true, () =>
+          submit({
+            items: [
+              { productId: SEED_PRODUCT_101_ID, quantity: 3 },
+              { productId: SEED_PRODUCT_101_ID, quantity: 5, lineNote: 'second line' },
+            ],
+          }),
+        ),
+    );
+    expect(result.statusCode, result.body).toBe(201);
+    // Two lines, the first revision, and the `created` and `submitted` history rows.
+    expect(reads).toEqual([{ lines: 2, revisions: 1, events: 2 }]);
+  });
+
+  it('a submission that fails while its lines are saved announces nothing and enqueues nothing', async () => {
+    await storeWebhookSubscription(h, QUOTE_REQUEST_WEBHOOK_EVENT_TYPES);
+    capture.clear();
+    const { result, seen } = await atCommitOf(
+      h,
+      'quote_request_items',
+      'insert',
+      `raise exception 'quote_requests webhooks test: forced failure at commit';`,
+      () => eventsDispatchedBy(h, CREATED, () => submit({ items: [{ productId: SEED_PRODUCT_101_ID, quantity: 1 }] })),
+    );
+    expect(result.statusCode, result.body).toBe(500);
+    expect(seen).toEqual([]);
+    expect(capture.jobs).toEqual([]);
   });
 
   it('an event type no subscription names enqueues nothing', async () => {

@@ -227,10 +227,24 @@ What holds for all of them:
   and should expect bursts of thousands. An event type no subscription names
   enqueues nothing.
 
-`rfq.created.v1` announces a customer's own submission; a quote request an
-administrator creates is not announced to webhooks. `credit_limit.adjusted.v1`
-is sent when an administrator adjusts a limit and when a settled return is
-credited to it; the first grant of a limit is not announced to webhooks.
+What is **not** delivered, and how to find it out today:
+
+- **A product being deleted.** `product.deleted.v1` exists on the in-process
+  event bus and is not offered to webhooks, and a deletion sends no
+  `product.archived.v1`. The product simply stops being returned by the API;
+  reconcile against a full listing if deletions matter to you.
+- **A product being reactivated.** There is no un-archive event. A product
+  leaving `inactive` sends `product.updated.v1` with `status` in
+  `changedFields`, like any other status change; read the product to see which
+  status it has now.
+- **A quote request an administrator creates.** `rfq.created.v1` announces a
+  customer's own submission only.
+- **The first grant of a credit limit.** `credit_limit.adjusted.v1` is sent
+  when an administrator adjusts a limit and when a settled return is credited
+  to it.
+
+`rfq.expired.v1` is sent by the quote-request expiry sweep and by nothing
+else: it occurs only on an instance where that sweep runs.
 
 The list for a running instance is what the subscription form offers:
 the two built-in events plus the answer of

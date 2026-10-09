@@ -78,7 +78,17 @@ modules are present. The payload is sent whole; the strict schemas are
 | `product.archived.v1` | A product's status moves to `inactive` from another status. Once per transition: editing a product that is already inactive does not send it again. | `productId` |
 
 - **Order.** The archiving write sends `product.updated.v1` (with `status` in
-  `changedFields`) and then `product.archived.v1`.
+  `changedFields`) and then `product.archived.v1`, on every path that can
+  archive a product: the Admin UI, the API-key upsert, a bulk edit, an import.
+- **Reactivation has no event of its own.** A product that leaves `inactive`
+  sends `product.updated.v1` with `status` in `changedFields` and nothing else —
+  the same signal as any other status change, a draft being published
+  included. To tell them apart, read the product: its `status` is the answer.
+- **Deletion is not delivered.** Deleting a product emits `product.deleted.v1`
+  on the in-process event bus only; it is not offered to webhooks, and no
+  `product.archived.v1` is sent for it. A receiver that mirrors the catalogue
+  learns of a deletion by reading: the product is no longer returned by the
+  API. Reconcile against a full listing if deletions matter to you.
 - **After the commit.** Each event is sent for a write that was committed. A
   write that is refused or rolled back sends nothing.
 - **No content leaves.** No name, description, price, attribute value or
