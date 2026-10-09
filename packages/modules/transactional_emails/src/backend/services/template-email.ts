@@ -24,10 +24,11 @@ export interface TemplateEmailDeps {
 export interface TemplateEmail {
   /**
    * `true` means "handled — do not use your legacy in-code builder". That
-   * covers a delivered email, one an operator deactivated, and a composition
-   * with no transport: in all three the platform decided what to send, and a
-   * fallback would either send mail the operator switched off or fail the same
-   * way. Only a code with no definition at all answers `false`.
+   * covers a delivered email, one the console driver only wrote to the log
+   * (issue #186), one an operator deactivated, and a composition with no
+   * transport: in all four the platform decided what to send, and a fallback
+   * would either send mail the operator switched off or end the same way. Only
+   * a code with no definition at all answers `false`.
    */
   trySend(input: {
     code: string;

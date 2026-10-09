@@ -727,7 +727,7 @@ export class OrderService {
       result =
         outcome.status === 'sent'
           ? { sent: true }
-          : orderEmailNotSent(undefined, emailContext, 'suppressed');
+          : orderEmailNotSent(undefined, emailContext, outcome.status);
     } catch (error) {
       // A mail failure never rolls back a placed order — but it is named now.
       // A switched-off module is not a delivery failure, so it travels on.
@@ -759,7 +759,7 @@ export class OrderService {
           // Each CC is independent, so a suppressed one is named on its own
           // rather than folded into the buyer's result above.
           if (outcome.status !== 'sent') {
-            orderEmailNotSent(undefined, emailContext, 'suppressed');
+            orderEmailNotSent(undefined, emailContext, outcome.status);
           }
         } catch (error) {
           // best-effort per recipient, and each one says so

@@ -209,7 +209,7 @@ export class OrderCreationAdminService {
             buildAdminCreatedOrderEmail({ to: customer.email, businessId: order.businessId, orderId: order.id }),
           );
           if (outcome.status !== 'sent') {
-            orderEmailNotSent(undefined, emailContext, 'suppressed');
+            orderEmailNotSent(undefined, emailContext, outcome.status);
           }
         } catch (error) {
           // A switched-off module is not a delivery failure, so it travels on.

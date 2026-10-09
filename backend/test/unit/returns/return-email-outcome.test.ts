@@ -129,6 +129,29 @@ describe('returns — the authorize/reject notifier reports what happened (#78)'
     expect(logged).toHaveLength(0);
   });
 
+  it('reports a message that was only logged as not sent, on both paths (issue #186)', async () => {
+    const logged: Logged[] = [];
+    const loggingMailer: EmailMailerPort = {
+      async send(): Promise<EmailMailerSendOutcome> {
+        return { status: 'logged' };
+      },
+    };
+
+    // Through the template sender, which passes the transport's answer on …
+    await expect(
+      notifier(new CapturingMailer(), new CapturingSender({ status: 'logged' }), logged).authorized(
+        returnCase(),
+      ),
+    ).resolves.toEqual({ sent: false, reason: 'logged' });
+    // … and through the legacy builder, where it is not the transport's
+    // duplicate suppression and must not be named as one.
+    await expect(notifier(loggingMailer, undefined, logged).rejected(returnCase())).resolves.toEqual({
+      sent: false,
+      reason: 'logged',
+    });
+    expect(logged.map((line) => line.context['reason'])).toEqual(['logged', 'logged']);
+  });
+
   it('separates "no recipient" from a delivered message', async () => {
     const logged: Logged[] = [];
 

@@ -32,6 +32,8 @@ export type OrderEmailNotSentReason =
    * one delivered the message — which is why it is not `failed`.
    */
   | 'suppressed'
+  /** No mail server is configured: the message was only written to the log (issue #186). */
+  | 'logged'
   /** The send raised, and the order operation stays committed. */
   | 'failed';
 

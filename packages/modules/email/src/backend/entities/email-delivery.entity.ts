@@ -52,7 +52,11 @@ export class EmailDelivery {
   kind!: string;
 
   /**
-   * The three answers, and the split is the load-bearing part of this table.
+   * The answers, and the split is the load-bearing part of this table.
+   *
+   * `logged` is a message the console driver wrote to the process log because
+   * no mail server is configured (issue #186): it reached nobody, and it is
+   * neither of the two below.
    *
    * `suppressed` is the platform deliberately not sending — the operator
    * switched this e-mail off, or the transport already accepted this message
@@ -63,7 +67,7 @@ export class EmailDelivery {
    */
   @Property({ type: 'string', length: 16 })
   @Index()
-  status!: 'sent' | 'suppressed' | 'failed';
+  status!: 'sent' | 'logged' | 'suppressed' | 'failed';
 
   /** Which suppression or which failure, `null` for a delivered message. */
   @Property({ type: 'string', length: 64, nullable: true })

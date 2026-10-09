@@ -679,6 +679,7 @@
   "invoices.emailNotSent.deactivated": "the invoice email is switched off",
   "invoices.emailNotSent.failed": "the send failed",
   "invoices.emailNotSent.invoice_not_found": "the invoice could not be loaded",
+  "invoices.emailNotSent.logged": "no mail server is configured, so the message was only written to the server log",
   "invoices.emailNotSent.no_definition": "there is no invoice email template",
   "invoices.emailNotSent.no_recipient": "the order has no email address",
   "invoices.emailNotSent.no_sender": "no email sender is configured",

@@ -370,7 +370,10 @@ export class NewsletterSubscriberService {
       html: `<p>Please confirm your subscription:</p><p><a href="${url}">Confirm subscription</a></p>`,
       kind: 'newsletter_confirmation',
     });
-    if (outcome.status !== 'sent') {
+    // Only the transport's refusal is named here. `logged` (issue #186) is the
+    // console driver saying no mail server is configured: it has already
+    // written the message to the log itself, and the delivery record says so.
+    if (outcome.status === 'suppressed') {
       // The subscriber row exists in `pending` either way; without the message
       // the double opt-in never completes, so it is named — and D-59's record
       // is what an operator reads when the subscriber says it never arrived.

@@ -26,9 +26,16 @@ describe('email — the transport reports what it did with a message (D-59)', ()
     await expect(new InMemoryMailer().send(message)).resolves.toEqual({ status: 'sent' });
   });
 
+  it('reports a message the console driver only wrote to the log as logged, not as sent (issue #186)', async () => {
+    // No mail server was involved: the message reached a log line and nobody's
+    // inbox. Answering `sent` made every record above this layer claim a
+    // delivery that did not happen.
+    await expect(new ConsoleMailer().send(message)).resolves.toEqual({ status: 'logged' });
+  });
+
   it('reports the dedupe on a repeated message id as suppressed, not as sent', async () => {
     const mailer = new ConsoleMailer();
-    await expect(mailer.send(message)).resolves.toEqual({ status: 'sent' });
+    await expect(mailer.send(message)).resolves.toEqual({ status: 'logged' });
     await expect(mailer.send(message)).resolves.toEqual({
       status: 'suppressed',
       reason: 'duplicate_message_id',

@@ -87,7 +87,9 @@ describe('the event reminder e-mail', () => {
     expect([...named].sort()).toEqual(['event.name', 'event.when', 'opportunity.number']);
   });
 
-  it.each(['deactivated', 'no_transport', 'no_definition'] as const)(
+  // `logged` is the console driver's answer on an instance with no mail server
+  // (issue #186): the message reached a log line, so it is not a delivery.
+  it.each(['deactivated', 'no_transport', 'no_definition', 'logged'] as const)(
     'names an outcome other than sent (%s), and says so in the log',
     async (status) => {
       const { email, log } = sending({ status });

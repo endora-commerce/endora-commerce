@@ -449,7 +449,10 @@ export class AvailabilityNotificationService {
           kind: 'availability_back_in_stock',
           meta,
         });
-        if (outcome.status !== 'sent') {
+        // Only the transport's refusal is named here. `logged` (issue #186) is the
+        // console driver saying no mail server is configured: it has already
+        // written the message to the log itself, and the delivery record says so.
+        if (outcome.status === 'suppressed') {
           // Still marked notified below: the transport's one suppression is an
           // already-accepted `messageId`, so this subscriber has the message.
           console.warn('[inventory] the back-in-stock e-mail was not sent', {

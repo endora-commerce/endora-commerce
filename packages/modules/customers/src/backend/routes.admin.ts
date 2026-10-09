@@ -531,7 +531,10 @@ export async function registerCustomersAdminRoutes(
           text: `An administrator started a password reset for your account. Set a new password here: ${link}`,
           kind: 'admin_password_reset',
         });
-        if (outcome.status !== 'sent') {
+        // Only the transport's refusal is named here. `logged` (issue #186) is the
+        // console driver saying no mail server is configured: it has already
+        // written the message to the log itself, and the delivery record says so.
+        if (outcome.status === 'suppressed') {
           // The reset token is minted either way, and the audit row below
           // records the request rather than the delivery — so the message's own
           // fate is named here and kept by D-59's record.

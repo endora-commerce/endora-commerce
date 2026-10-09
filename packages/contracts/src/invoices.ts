@@ -173,8 +173,8 @@ export type SendInvoiceEmailRequest = z.infer<typeof sendInvoiceEmailRequestSche
 /**
  * Why the invoice e-mail did not go out (issue #103).
  *
- * The dispatcher has answered these seven since #103; they only ever reached a
- * log. They are part of the API shape now because the operator who clicked
+ * The dispatcher has answered the first seven since #103; they only ever reached
+ * a log. They are part of the API shape now because the operator who clicked
  * "issue" is the one person who can act on them (issue #149).
  */
 export const invoiceEmailNotSentReasonSchema = z.enum([
@@ -190,6 +190,8 @@ export const invoiceEmailNotSentReasonSchema = z.enum([
   'no_transport',
   /** No `invoice_issued` template exists yet. */
   'no_definition',
+  /** No mail server is configured: the message was only written to the server log (issue #186). */
+  'logged',
   /** The send raised, and the issuance was kept (FR-029). */
   'failed',
 ]);

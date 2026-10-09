@@ -189,7 +189,10 @@ export class InvitationService {
       });
       if (!sentViaTemplate && this.mailer) {
         const outcome = await this.mailer.send(message);
-        if (outcome.status !== 'sent') {
+        // Only the transport's refusal is named here. `logged` (issue #186) is the
+        // console driver saying no mail server is configured: it has already
+        // written the message to the log itself, and the delivery record says so.
+        if (outcome.status === 'suppressed') {
           // This method answers the invitation, not the message, so the
           // non-send is named rather than returned — and since D-59 the same
           // fact is a row an operator can read after the log has rotated.

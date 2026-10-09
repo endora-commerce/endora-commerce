@@ -331,8 +331,16 @@ export interface TransactionalEmailSendInput {
  * sent nothing and a fallback would send mail the operator did not ask for.
  */
 export type TransactionalSendOutcome =
-  /** Handed to the transport. */
+  /** Handed to a mail server. */
   | { status: 'sent' }
+  /**
+   * Rendered and handed to a transport that only wrote it to the process log
+   * (issue #186) — `email`'s console driver, on an instance with no SMTP
+   * transport. The platform did decide what to send, so this is no licence to
+   * fall back to an in-code builder, which would be logged the same way; it is
+   * here so a caller that reports a delivery does not report this one.
+   */
+  | { status: 'logged' }
   /** The definition exists and an operator set `active = false`. */
   | { status: 'deactivated' }
   /** No mailer is wired in this composition — nothing can be delivered. */
@@ -342,7 +350,7 @@ export type TransactionalSendOutcome =
 
 export interface TransactionalEmailSender {
   /**
-   * An implementor must say which of the four happened — reporting nothing
+   * An implementor must say which of the five happened — reporting nothing
    * while delivering nothing is the defect this type exists to close. A
    * deployment decoration that still answers `void` stops compiling against
    * this interface, and that compile break is the intended signal.
