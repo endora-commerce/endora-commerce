@@ -12,13 +12,15 @@
  * module's `seed` and so finds both sides of the assignment already there.
  *
  * Idempotent by an existence probe on the natural key (§2.4): a second run
- * creates nothing and reports the same count.
+ * creates nothing and reports the same count. A role that is already there is
+ * left as it is, except that a retired code an earlier seed wrote is withdrawn
+ * from it (`RETIRED_DEMO_PERMISSION_CODES`).
  */
 import type { DemoSeedResult, ModuleDemoContext } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { AdminRole } from '../entities/admin-role.entity.js';
-import { DEMO_ADMIN_ROLES } from './rows.js';
+import { DEMO_ADMIN_ROLES, RETIRED_DEMO_PERMISSION_CODES } from './rows.js';
 
 /** The one thing a demo body needs off its module's own cradle. */
 interface AdminRolesDemoCradle {
@@ -41,7 +43,18 @@ export async function seedDemo(
     // what the demo sales representative may reach, and overwriting it here
     // would be this body deciding its own literal outranks their change —
     // which is `reset`'s question, not `seed`'s.
-    if (existing) continue;
+    //
+    // The one exception is a code this body itself wrote and has since
+    // retired (issue #180): no operator can have granted it, and while it is
+    // there the role cannot be saved from the role editor at all.
+    if (existing) {
+      if (existing.permissions.some((code) => RETIRED_DEMO_PERMISSION_CODES.includes(code))) {
+        existing.permissions = existing.permissions.filter(
+          (code) => !RETIRED_DEMO_PERMISSION_CODES.includes(code),
+        );
+      }
+      continue;
+    }
     em.create(AdminRole, {
       code: row.code,
       name: row.name,

@@ -24,6 +24,7 @@ import { AdminRole } from '../entities/admin-role.entity.js';
 import {
   DEMO_ADMIN_ROLES,
   DEMO_ADMIN_ROLE_CODES,
+  RETIRED_DEMO_PERMISSION_CODES,
   SALES_REPRESENTATIVE_PERMISSIONS,
 } from './rows.js';
 import { seedDemo } from './seed.js';
@@ -35,31 +36,38 @@ import { resetDemo } from './reset.js';
  * already there is the duplicate-key failure a non-idempotent body would hit
  * against Postgres.
  */
-function fakeEm(existing: readonly string[] = []): {
+function fakeEm(
+  existing: readonly string[] = [],
+  storedPermissions: Readonly<Record<string, string[]>> = {},
+): {
   em: EntityManager;
   created: Record<string, unknown>[];
   deletes: unknown[];
+  stored: Map<string, { code: string; permissions: string[] }>;
 } {
-  const rows = new Set(existing);
+  // The row objects are kept, as a managed entity is: what `seed` assigns onto
+  // the one `findOne` handed it is what the flush would write.
+  const stored = new Map(
+    existing.map((code) => [code, { code, permissions: storedPermissions[code] ?? [] }]),
+  );
   const created: Record<string, unknown>[] = [];
   const deletes: unknown[] = [];
   const em = {
-    findOne: async (_entity: unknown, where: { code: string }) =>
-      rows.has(where.code) ? { code: where.code } : null,
+    findOne: async (_entity: unknown, where: { code: string }) => stored.get(where.code) ?? null,
     create: (_entity: unknown, payload: Record<string, unknown>) => {
       const code = payload['code'] as string;
-      if (rows.has(code)) throw new Error(`duplicate key: ${code}`);
-      rows.add(code);
+      if (stored.has(code)) throw new Error(`duplicate key: ${code}`);
+      stored.set(code, { code, permissions: payload['permissions'] as string[] });
       created.push(payload);
       return payload;
     },
     flush: async () => undefined,
     nativeDelete: async (_entity: unknown, where: unknown) => {
       deletes.push(where);
-      return rows.size;
+      return stored.size;
     },
   };
-  return { em: em as unknown as EntityManager, created, deletes };
+  return { em: em as unknown as EntityManager, created, deletes, stored };
 }
 
 function contextOver(em: EntityManager): ModuleDemoContext<ModuleContext> {
@@ -85,6 +93,41 @@ describe('admin_roles demo data', () => {
     expect(result.created).toEqual([
       { entity: 'AdminRole', count: DEMO_ADMIN_ROLES.length },
     ]);
+  });
+
+  it('withdraws a retired code from a role an earlier seed wrote, and nothing else (issue #180)', async () => {
+    // An instance seeded before the fix holds a code no manifest declares, so
+    // the role editor cannot save the role and offers no checkbox to drop it.
+    // `seed` wrote that code, so `seed` takes it back — and leaves what an
+    // operator did to the role since exactly as it is.
+    const retired = RETIRED_DEMO_PERMISSION_CODES[0] as string;
+    const { em, created, stored } = fakeEm(['platform_admin', 'sales_representative'], {
+      platform_admin: ['*'],
+      sales_representative: ['rfqs:handle', retired, 'orders:read'],
+    });
+    await seedDemo(contextOver(em));
+    expect(created).toEqual([]);
+    expect(stored.get('sales_representative')?.permissions).toEqual(['rfqs:handle', 'orders:read']);
+    expect(stored.get('platform_admin')?.permissions).toEqual(['*']);
+  });
+
+  it('leaves an existing role that holds no retired code untouched', async () => {
+    const narrowed = ['catalog:read'];
+    const { em, stored } = fakeEm(['platform_admin', 'sales_representative'], {
+      platform_admin: ['*'],
+      sales_representative: narrowed,
+    });
+    await seedDemo(contextOver(em));
+    // Identity: not reassigned, so the unit of work has nothing to write.
+    expect(stored.get('sales_representative')?.permissions).toBe(narrowed);
+  });
+
+  it('seeds no code it also retires', () => {
+    for (const role of DEMO_ADMIN_ROLES) {
+      for (const code of RETIRED_DEMO_PERMISSION_CODES) {
+        expect(role.permissions).not.toContain(code);
+      }
+    }
   });
 
   it('withdraws by the codes it assigned, never by the table (§2.5)', async () => {
