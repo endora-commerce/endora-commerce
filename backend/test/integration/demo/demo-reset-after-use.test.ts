@@ -32,6 +32,20 @@
  *  6. **A sub-organisation stops the reset before it starts** — the withdrawal
  *     matches the demo organisation and nothing filed under it.
  *
+ * The reset in (1)–(3) runs with `crm` and `returns` **switched off**. Off is
+ * the operator's decision about a module's behaviour, not about whether its
+ * rows exist: an Opportunity of the demo organisation still refuses that
+ * organisation's deletion, and a return case still names its order. So the
+ * withdrawal asks whether a module's tables are there, not whether the module
+ * is active — one module of each kind, a foreign key that refuses and a column
+ * that silently dangles, is switched off to hold that.
+ *
+ * The refusal in (4) is asked three times, at three depths of the run: a
+ * foreign key onto an order, onto the organisation and onto a product. The
+ * last two are refused by a **module's own** withdrawal, long after the
+ * composition's — which is what makes "as it found it" a property of the whole
+ * reset rather than of its first step.
+ *
  * ## How the demo is used
  *
  * The address and the order are the buyer's own requests against the composed
@@ -61,8 +75,11 @@ import {
   DEMO_BUYER_PASSWORD,
 } from '@endora-commerce/demo-composition';
 import { cliFailureExitCode, dispatchCli, type CliComposition } from '@endora-commerce/platform/cli';
+import { DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG as FORCE } from '@endora-commerce/platform/demo';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
+import { withModulesDeactivated } from '../../helpers/modules-deactivated.js';
+import { promotionServiceFor } from '../../helpers/promotion-service.js';
 import {
   setupBackendServer,
   teardownBackendServer,
@@ -114,6 +131,13 @@ interface Tenant {
   readonly orderItemId: string;
   readonly creditLimitId: string;
 }
+
+/**
+ * Whose a row is: the demo organisation's, a real customer's, or **nobody's** —
+ * a guest's cart, an anonymous subscriber, an instance-wide webhook. The last
+ * is what a predicate that matched "no organisation" would take with it.
+ */
+type Owner = 'demo' | 'real' | 'nobody';
 
 /** One row this file wrote, as the predicate that finds it again. */
 interface TrackedRow {
@@ -190,9 +214,10 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
   /** The operator's own product each tenant has three units of on order. */
   const ownProducts = new Map<'demo' | 'real', string>();
 
-  const tracked = new Map<'demo' | 'real', TrackedRow[]>([
+  const tracked = new Map<Owner, TrackedRow[]>([
     ['demo', []],
     ['real', []],
+    ['nobody', []],
   ]);
 
   /**
@@ -203,7 +228,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
    * plus whatever a check constraint insists on.
    */
   async function insert(
-    owner: 'demo' | 'real',
+    owner: Owner,
     table: string,
     given: Readonly<Record<string, unknown>>,
   ): Promise<string> {
@@ -246,7 +271,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
   }
 
   /** Every tracked row that is (or is not) still there, as `table {where}`. */
-  async function trackedRows(owner: 'demo' | 'real', present: boolean): Promise<string[]> {
+  async function trackedRows(owner: Owner, present: boolean): Promise<string[]> {
     const found: string[] = [];
     for (const row of tracked.get(owner)!) {
       if (((await countOf(row)) > 0) === present) {
@@ -314,7 +339,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     readonly err: string;
   }
 
-  async function demo(verb: 'seed' | 'reset'): Promise<DemoRun> {
+  async function demo(verb: 'seed' | 'reset', ...flags: string[]): Promise<DemoRun> {
     let out = '';
     let err = '';
     const composition: CliComposition = {
@@ -328,7 +353,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     try {
       const code = await dispatchCli({
         deploymentRoot: deploymentRoot(),
-        argv: ['demo', verb],
+        argv: ['demo', verb, ...flags],
         resolveEntries: resolvedManifestEntries,
         compose: async () => composition,
         demoComposition: async (input) => ({
@@ -738,6 +763,61 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     });
   }
 
+  /** Every usage counter of `promotions`, as `<scope type> <scope key>` → count. */
+  async function promotionCounters(): Promise<Record<string, number>> {
+    const rows = await query<{ scope_type: string; scope_key: string; count: number }>(
+      `select scope_type, scope_key, count from promotion_usage_counters`,
+    );
+    return Object.fromEntries(
+      rows.map((row) => [`${row.scope_type} ${row.scope_key}`, Number(row.count)]),
+    );
+  }
+
+  /**
+   * One row with **no organisation** in every table whose scoping column is
+   * nullable — the control for a predicate that goes wider than the demo
+   * organisation by matching the absence of one.
+   */
+  async function useWithoutAnOrganization(real: Tenant): Promise<void> {
+    const add = (table: string, given: Record<string, unknown>): Promise<string> =>
+      insert('nobody', table, given);
+    const [channel] = await query<{ id: string }>(
+      `select id from sales_channels where system_default limit 1`,
+    );
+    const salesChannelId = channel!.id;
+    const [priceList] = await query<{ id: string }>(`select id from price_lists limit 1`);
+    const token = (): string => randomBytes(12).toString('hex');
+
+    // A guest's cart and comparison.
+    const cartId = await add('carts', {
+      sales_channel_id: salesChannelId,
+      status: 'active',
+      approval_status: 'not_required',
+      anonymous_cart_token: token(),
+    });
+    await add('cart_items', { cart_id: cartId });
+    await add('comparisons', { sales_channel_id: salesChannelId, anonymous_token: token() });
+    // Anonymous sign-ups and measurements.
+    await add('newsletter_subscribers', { sales_channel_id: salesChannelId });
+    await add('push_subscriptions', { sales_channel_id: salesChannelId, status: 'active' });
+    await add('analytics_events', { sales_channel_id: salesChannelId });
+    await add('availability_notifications', { status: 'queued', email: 'guest@usage.example' });
+    // Instance-wide configuration.
+    await add('webhooks', {});
+    await add('api_keys', {});
+    await add('promotions', {});
+    await add('price_list_assignments', { price_list_id: priceList!.id });
+    // An administrator's session names no customer account.
+    await add('sessions', {});
+    // Documents that name an order and no organisation of their own.
+    await add('invoices', { order_id: real.orderId, origin: 'platform' });
+    await add('return_cases', {
+      order_id: real.orderId,
+      customer_account_id: real.customerAccountId,
+      sales_channel_id: salesChannelId,
+    });
+  }
+
   /** The demo organisation as the seed and the buyer's order left it. */
   async function demoTenant(orderId: string): Promise<Tenant> {
     const [organization] = await query<{ id: string }>(
@@ -763,6 +843,19 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       orderItemId: item!.id,
       creditLimitId: limit!.id,
     };
+  }
+
+  /** The demo organisation and its buyer, on a demo nobody has ordered from. */
+  async function demoTenantWithoutOrder(): Promise<Pick<Tenant, 'organizationId' | 'customerAccountId'>> {
+    const [organization] = await query<{ id: string }>(
+      `select id from organizations where tax_id = $1`,
+      [DEMO_ORG_TAX_ID],
+    );
+    const [buyer] = await query<{ id: string }>(
+      `select id from customer_accounts where email = $1`,
+      [DEMO_BUYER_EMAIL],
+    );
+    return { organizationId: organization!.id, customerAccountId: buyer!.id };
   }
 
   /** A second organisation with a buyer, a credit limit and an order of its own. */
@@ -794,10 +887,16 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
 
   let seeded: DemoRun;
   let demoOrderId: string;
-  let countsBeforeRefusal: Record<string, number>;
-  let refused: DemoRun;
-  let countsAfterRefusal: Record<string, number>;
+  let operatorPromotionId: string;
+  let realTenantIds: Tenant;
+  let refusals: Record<
+    string,
+    { run: DemoRun; countsBefore: Record<string, number>; countsAfter: Record<string, number> }
+  >;
   let orderAfterRefusal: string;
+  let countersBeforeReset: Record<string, number>;
+  let countersAfterReset: Record<string, number>;
+  let nobodysRowsMissing: string[];
   let reset: DemoRun;
   let leftBehind: Record<string, number>;
   let demoRowsStillThere: string[];
@@ -809,6 +908,10 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
   let countsBeforeBranchRefusal: Record<string, number>;
   let refusedOverBranch: DemoRun;
   let countsAfterBranchRefusal: Record<string, number>;
+  let refusedOverPayment: DemoRun;
+  let refusedOverInvoice: DemoRun;
+  let resetWithoutFlag: DemoRun;
+  let demoRowsAfterUnforcedReset: number;
 
   beforeAll(async () => {
     h = await setupBackendServer({ seed: 'none' });
@@ -828,30 +931,93 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     seeded = await demo('seed');
     if (seeded.code !== 0) return;
 
+    // The operator's own promotion, with every kind of usage limit, applied to
+    // every cart — so each order below spends one use of it through the real
+    // placement path, counters included.
+    const promotions = promotionServiceFor(h);
+    operatorPromotionId = (
+      await promotions.upsert({
+        name: 'An operator promotion with limits',
+        action: { type: 'percentage_off_cart', percent: 5 },
+        rule: { kind: 'all' },
+        usageLimitGlobal: 100,
+        usageLimitPerOrganization: 50,
+        usageLimitPerCustomer: 50,
+      })
+    ).id;
+
     // The demo is used, and so is the instance around it.
     demoOrderId = await buyOnCredit();
-    await useEverythingElse('demo', await demoTenant(demoOrderId));
-    await useEverythingElse('real', await realTenant());
+    const demoIs = await demoTenant(demoOrderId);
+    await useEverythingElse('demo', demoIs);
+    const real = await realTenant();
+    await useEverythingElse('real', real);
+    await useWithoutAnOrganization(real);
+    const [channel] = await query<{ id: string }>(
+      `select id from sales_channels where system_default limit 1`,
+    );
+    await h.em().transactional((tx) =>
+      promotions.finalizeUsage(tx, {
+        orderId: real.orderId,
+        currency: 'PLN',
+        ctx: {
+          organizationId: real.organizationId,
+          customerAccountId: real.customerAccountId,
+          customerGroupId: null,
+          salesChannelId: channel!.id,
+        },
+        applied: [{ promotionId: operatorPromotionId, couponId: null, amount: 1 }],
+      }),
+    );
 
     // A table this repository has never heard of — an installed module's, a
-    // deployment's own — holding a foreign key onto one of the demo's orders.
-    await db.query(
-      `create table "issue_143_foreign_table" (
-         "order_id" uuid not null references "orders" ("id")
-       )`,
+    // deployment's own — holding a restricting foreign key onto a row the
+    // reset deletes. Three times, at three depths of the run: an order (what
+    // using the demo left), the organisation (a module's own withdrawal, long
+    // after the composition's) and a product (another module's again).
+    const [demoProduct] = await query<{ id: string }>(
+      `select id from products where slug like 'demo-screws-%' order by slug limit 1`,
     );
-    await db.query(`insert into "issue_143_foreign_table" ("order_id") values ($1)`, [
-      demoOrderId,
-    ]);
-    countsBeforeRefusal = await tableCounts();
-    refused = await demo('reset');
-    countsAfterRefusal = await tableCounts();
+    refusals = {};
+    for (const [parent, id] of [
+      ['orders', demoOrderId],
+      ['organizations', demoIs.organizationId],
+      ['products', demoProduct!.id],
+    ] as const) {
+      await db.query(
+        `create table "issue_143_foreign_table" (
+           "parent_id" uuid not null references "${parent}" ("id")
+         )`,
+      );
+      await db.query(`insert into "issue_143_foreign_table" ("parent_id") values ($1)`, [id]);
+      const countsBefore = await tableCounts();
+      // With the forcing flag, which forces the deletion of financial records
+      // and nothing else: a foreign key still refuses.
+      const run = await demo('reset', FORCE);
+      const countsAfter = await tableCounts();
+      await db.query(`drop table "issue_143_foreign_table"`);
+      // The table itself is the same before and after; it is not in `columns`.
+      refusals[parent] = { run, countsBefore, countsAfter };
+    }
+    // And once more with nothing in its way but what the demo's own orders
+    // wrote: every placement opens a payment and a pro-forma invoice.
+    {
+      const countsBefore = await tableCounts();
+      const run = await demo('reset');
+      refusals['financial records'] = { run, countsBefore, countsAfter: await tableCounts() };
+    }
     orderAfterRefusal = await buyOnCredit();
-    await db.query(`drop table "issue_143_foreign_table"`);
+    countersBeforeReset = await promotionCounters();
 
+    // The reset that counts, with two modules switched off by the operator:
+    // `crm`, whose rows hold a foreign key that refuses the organisation's
+    // deletion, and `returns`, whose rows hold none and would be left naming
+    // an order that is gone.
     const before = await idsByTable();
-    reset = await demo('reset');
+    reset = await withModulesDeactivated(['crm', 'returns'], () => demo('reset', FORCE));
     const after = await idsByTable();
+    countersAfterReset = await promotionCounters();
+    realTenantIds = real;
     const deleted: string[] = [];
     for (const [table, ids] of before) {
       const kept = after.get(table) ?? new Set<string>();
@@ -860,6 +1026,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     leftBehind = await referencesTo(deleted);
     demoRowsStillThere = await trackedRows('demo', true);
     realRowsMissing = await trackedRows('real', false);
+    nobodysRowsMissing = await trackedRows('nobody', false);
     demoOrganizationsAfterReset = Number(
       (
         await query<{ n: string }>(
@@ -897,8 +1064,55 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       [branchId, demoOrganization!.id],
     );
     countsBeforeBranchRefusal = await tableCounts();
-    refusedOverBranch = await demo('reset');
+    refusedOverBranch = await demo('reset', FORCE);
     countsAfterBranchRefusal = await tableCounts();
+
+    // ── a demo with no financial record resets without being told anything ──
+    await db.query(`delete from organizations where id = $1`, [branchId]);
+    const cleared = await demo('reset', FORCE);
+    const again = await demo('seed');
+    if (cleared.code !== 0 || again.code !== 0) return;
+    const buyer = await signInAsBuyer();
+    await saveAddress(buyer, 'delivery');
+    const [anyProduct] = await query<{ id: string }>(
+      `select id from products where slug like 'demo-screws-%' order by slug limit 1`,
+    );
+    await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/cart/items',
+      payload: { productId: anyProduct!.id, quantity: 1 },
+      ...buyer,
+    });
+    // An order with nothing financial beside it, which no placement leaves
+    // behind but a migration or an import can; then a payment alone, then an
+    // invoice alone, each of which is enough to refuse.
+    const fresh = await demoTenantWithoutOrder();
+    const bareOrderId = await insert('demo', 'orders', {
+      organization_id: fresh.organizationId,
+      placed_by_customer_account_id: fresh.customerAccountId,
+    });
+    const paymentId = await insert('demo', 'payments', { order_id: bareOrderId });
+    refusedOverPayment = await demo('reset');
+    await db.query(`delete from payments where id = $1`, [paymentId]);
+    const invoiceId = await insert('demo', 'invoices', {
+      organization_id: fresh.organizationId,
+      order_id: bareOrderId,
+      origin: 'platform',
+    });
+    refusedOverInvoice = await demo('reset');
+    await db.query(`delete from invoices where id = $1`, [invoiceId]);
+    resetWithoutFlag = await demo('reset');
+    demoRowsAfterUnforcedReset = Number(
+      (
+        await query<{ n: string }>(
+          `select (select count(*) from orders where id = $1)
+                + (select count(*) from addresses where organization_id = $2)
+                + (select count(*) from carts where organization_id = $2)
+                + (select count(*) from organizations where id = $2) as n`,
+          [bareOrderId, fresh.organizationId],
+        )
+      )[0]!.n,
+    );
   }, SUITE_TIMEOUT_MS);
 
   afterAll(async () => {
@@ -914,16 +1128,47 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     expect(demoOrderId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  describe('a withdrawal that is refused part-way', () => {
-    it('exits non-zero and says which constraint refused it', () => {
-      expect(refused.code).toBe(1);
-      expect(refused.err).toContain('issue_143_foreign_table');
+  describe.each(['orders', 'organizations', 'products'])(
+    'a reset refused by a foreign key onto %s',
+    (parent) => {
+      it('exits non-zero and says which constraint refused it — the forcing flag forces nothing here', () => {
+        expect(refusals[parent]!.run.code).toBe(1);
+        expect(refusals[parent]!.run.err).toContain('issue_143_foreign_table');
+      });
+
+      it('leaves every table exactly as it found it', () => {
+        expect(refusals[parent]!.countsAfter).toEqual(refusals[parent]!.countsBefore);
+      });
+    },
+  );
+
+  describe('a reset of a demo that holds financial records, not told to delete them', () => {
+    it('exits non-zero, saying what it found, that nothing changed, and how to force it', () => {
+      const { run } = refusals['financial records']!;
+      expect(run.code).toBe(1);
+      // One order placed over HTTP and one after it: a payment and a pro-forma
+      // invoice each, beside the rows written directly.
+      expect(run.err).toMatch(/^ {2}invoices: \d+$/m);
+      expect(run.err).toMatch(/^ {2}payments: \d+$/m);
+      expect(run.err).toMatch(/^ {2}accounting-system records: 3$/m);
+      expect(run.err).toMatch(/^ {2}refunds: 1$/m);
+      expect(run.err).toContain('Nothing has been changed');
+      expect(run.err).toContain('--force-delete-financial-records');
+    });
+
+    it('is a refusal, not a crash: no stack trace and no row id', () => {
+      const { run } = refusals['financial records']!;
+      expect(run.err).not.toMatch(/^\s+at /m);
+      expect(run.err).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-/);
     });
 
     it('leaves every table exactly as it found it', () => {
-      expect(countsAfterRefusal).toEqual(countsBeforeRefusal);
+      const { countsBefore, countsAfter } = refusals['financial records']!;
+      expect(countsAfter).toEqual(countsBefore);
     });
+  });
 
+  describe('after four refused resets', () => {
     it('leaves checkout working: the buyer places another order on credit', () => {
       expect(orderAfterRefusal).toMatch(/^[0-9a-f-]{36}$/);
       expect(orderAfterRefusal).not.toBe(demoOrderId);
@@ -933,6 +1178,13 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
   describe('the reset of a used demo', () => {
     it('exits 0', () => {
       expect(reset.code, reset.err).toBe(0);
+    });
+
+    it('withdraws every section: no table it needs is missing from a full instance', () => {
+      expect(reset.out).not.toContain('is not installed');
+      // The two switched-off modules included.
+      expect(reset.out).toMatch(/^ {2}Sales Opportunities opened for the demo organisation$/m);
+      expect(reset.out).toMatch(/^ {2}return cases of the demo organisation$/m);
     });
 
     it('removes the demo organisation', () => {
@@ -955,6 +1207,24 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       expect(realRowsMissing).toEqual([]);
     });
 
+    it('removes nothing that belongs to no organisation at all', () => {
+      // A guest's cart, an anonymous subscriber, an instance-wide webhook: the
+      // rows a predicate reading "no organisation" as "the demo's" would take.
+      expect(nobodysRowsMissing).toEqual([]);
+    });
+
+    it("gives the operator's promotion back the uses the demo spent, and only those", () => {
+      const promotion = operatorPromotionId;
+      // Two demo orders and the real customer's one, each counted three ways.
+      expect(countersBeforeReset[`global ${promotion}`]).toBe(3);
+      expect(Object.keys(countersBeforeReset)).toHaveLength(5);
+      expect(countersAfterReset).toEqual({
+        [`global ${promotion}`]: 1,
+        [`organization ${promotion}:${realTenantIds.organizationId}`]: 1,
+        [`customer ${promotion}:${realTenantIds.customerAccountId}`]: 1,
+      });
+    });
+
     it("gives back the stock its orders held, and nobody else's", () => {
       // Three units of the operator's own product were promised to each
       // tenant's order. The demo's order is gone, so its three are free again;
@@ -970,6 +1240,25 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
 
     it('gives back a shop the buyer can buy from on credit', () => {
       expect(orderAfterReseed).toMatch(/^[0-9a-f-]{36}$/);
+    });
+  });
+
+  describe('a demo whose usage is not financial', () => {
+    it('is refused over a payment alone', () => {
+      expect(refusedOverPayment.code).toBe(1);
+      expect(refusedOverPayment.err).toMatch(/^ {2}payments: 1$/m);
+      expect(refusedOverPayment.err).not.toContain('invoices:');
+    });
+
+    it('is refused over an invoice alone', () => {
+      expect(refusedOverInvoice.code).toBe(1);
+      expect(refusedOverInvoice.err).toMatch(/^ {2}invoices: 1$/m);
+      expect(refusedOverInvoice.err).not.toContain('payments:');
+    });
+
+    it('resets without the flag once it holds neither: the order, the address and the cart go', () => {
+      expect(resetWithoutFlag.code, resetWithoutFlag.err).toBe(0);
+      expect(demoRowsAfterUnforcedReset).toBe(0);
     });
   });
 

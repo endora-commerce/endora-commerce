@@ -134,6 +134,31 @@ describe('runDemo — failure (§3.8)', () => {
     );
   });
 
+  it('tells the operator what a failed run left behind, which depends on the transaction', async () => {
+    const failing = (atomic: boolean | undefined): Promise<unknown> =>
+      runDemo({
+        mode: 'reset',
+        entries: [
+          entry('organizations', {
+            summary: 'x',
+            seed: async () => ({ created: [] }),
+            reset: async () => {
+              throw new Error('violates foreign key constraint');
+            },
+          }),
+        ],
+        isPresent: present,
+        contextFor,
+        ...(atomic === undefined ? {} : { atomic }),
+      });
+    // Issue #143 — a reset the entry point put in one transaction has changed
+    // nothing, and telling its operator to clear half-written rows away would
+    // send them looking for rows that are not there.
+    await expect(failing(true)).rejects.toThrow(/nothing was changed/);
+    await expect(failing(true)).rejects.not.toThrow(/still there/);
+    await expect(failing(undefined)).rejects.toThrow(/still there/);
+  });
+
   it('does not run a later module after a failure', async () => {
     const later = vi.fn(async () => ({ created: [] }));
     await expect(

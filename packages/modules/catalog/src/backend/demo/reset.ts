@@ -39,7 +39,11 @@ export async function resetDemo(
   // entry point, same `mustBeNonProduction()` guard, same absence of an
   // operator to attribute the write to (contract §2.7).
   const em = context.ctx.cradle<CatalogDemoCradle>().emFactory();
-  const conn = em.getConnection();
+  // `em.execute`, never `em.getConnection().execute`: a demo reset is one
+  // transaction (issue #143) and this `EntityManager` is the one that carries
+  // it. The connection alone carries no transaction context, so a statement
+  // sent through it runs on a second connection — outside the reset, unable to
+  // see what the reset has already deleted, and waiting on rows it has locked.
   // `?, ?, ?` rather than `= any(?)`: the connection binds an array by
   // **expanding** it into a comma-separated list, so `any(?)` becomes
   // `any('a', 'b')` and Postgres refuses it.
@@ -48,19 +52,19 @@ export async function resetDemo(
 
   // The composites' structure first: every row of it points at a product this
   // call is about to remove.
-  await conn.execute(
+  await em.execute(
     `delete from bundle_slot_options where slot_id in
        (select s.id from bundle_slots s
           join products p on p.id = s.parent_product_id
          where p.sku in (${compositePlaceholders}))`,
     skus,
   );
-  await conn.execute(
+  await em.execute(
     `delete from bundle_slots where parent_product_id in
        (select id from products where sku in (${compositePlaceholders}))`,
     skus,
   );
-  await conn.execute(
+  await em.execute(
     `delete from grouped_items where parent_product_id in
        (select id from products where sku in (${compositePlaceholders}))`,
     skus,

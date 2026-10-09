@@ -328,8 +328,8 @@ API and the admin preview.
   `crm:analytics` are granted to no role automatically. A platform administrator holds every
   permission and sees the module at once; give the four to any other role that should.
 - **Demo data.** In an instance seeded with the demo shop, `pnpm run cli demo seed` adds a demo
-  sales pipeline. Once it has, run `pnpm run cli demo reset` only while CRM is switched on: while
-  it is off the reset stops at the organizations with a foreign-key refusal.
+  sales pipeline. `pnpm run cli demo reset` withdraws it whether or not CRM is switched on; the
+  three demo tags are withdrawn only by a reset run while it is on.
 
 See [CRM](./modules/crm.md) for what the module does.
 

@@ -183,12 +183,21 @@ export class DemoRunFailedError extends Error {
     readonly moduleId: string,
     readonly mode: DemoMode,
     override readonly cause: unknown,
+    /**
+     * The run was inside one transaction, which this failure rolls back
+     * (issue #143). What the operator is told to do next depends on it: there
+     * is nothing half-written to clear away.
+     */
+    readonly atomic = false,
   ) {
     super(
       `[demo] module '${moduleId}' failed while the demo ${mode} was running: ` +
-        `${cause instanceof Error ? cause.message : String(cause)}. Nothing after it ran; ` +
-        `the rows it wrote before failing are still there. Run the demo reset before ` +
-        `trying again.`,
+        `${cause instanceof Error ? cause.message : String(cause)}. ` +
+        (atomic
+          ? `The ${mode} runs in one transaction, so nothing was changed: the instance is ` +
+            `as it was before the command. Remove what refused it and run it again.`
+          : `Nothing after it ran; the rows it wrote before failing are still there. Run ` +
+            `the demo reset before trying again.`),
     );
     this.name = 'DemoRunFailedError';
   }
@@ -220,6 +229,13 @@ export interface RunDemoInput {
    * somewhere else, and a test asserting §6.3's three answers, passes its own.
    */
   readonly demoPackages?: DemoPackageResolver;
+  /**
+   * The caller has put this run inside one transaction that a failure rolls
+   * back (issue #143 — `reset-transaction.ts`). It changes nothing this
+   * function does; it is what lets {@link DemoRunFailedError} tell the
+   * operator the truth about what a failed run left behind.
+   */
+  readonly atomic?: boolean;
 }
 
 async function invoke(
@@ -341,7 +357,7 @@ export async function runDemo(input: RunDemoInput): Promise<DemoRunResult> {
       // the module's name, which is the whole of §3.8, and keeps the original
       // as its `cause` — including the import's own throw, which is §6.3's
       // third answer and must never be read as its second.
-      throw new DemoRunFailedError(step.moduleId, input.mode, error);
+      throw new DemoRunFailedError(step.moduleId, input.mode, error, input.atomic === true);
     }
   }
 

@@ -82,3 +82,6 @@ export { mustBeNonProduction, TEST_DATABASE_NAME_PATTERN } from './guard.js';
 export { DEMO_RESET_SCOPE_REASON, DEMO_SEED_SCOPE_REASON } from './scope.js';
 export { runDemo, type DemoComposition, type DemoCompositionResult } from './runner.js';
 export { type DemoCompositionInput } from './host-command.js';
+// Issue #143 — what a composition throws to decline a reset, and the flag its
+// message names. `@endora-commerce/demo-composition` is the consumer of both.
+export { DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG, DemoResetRefusedError } from './refusal.js';

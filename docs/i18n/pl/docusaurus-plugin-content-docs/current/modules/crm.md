@@ -2217,7 +2217,8 @@ organizacji demonstracyjnej, bo ta organizacja jest wycofywana razem ze
 wszystkim, co w niej utworzono. Szanse wszystkich pozostałych organizacji
 i etykiety utworzone samodzielnie pozostają nietknięte.
 
-**Uruchamiaj `endora demo reset` przy włączonym module CRM.** Gdy moduł jest
-wyłączony, jego rekordy pozostają nietknięte — także demonstracyjne szanse — a
-demonstracyjnej organizacji, do której należą, nie da się usunąć, więc reset
-zatrzymuje się z błędem na `organizations`. Włącz CRM i uruchom go ponownie.
+**Reset nie zależy od tego, czy CRM jest włączony.** Gdy moduł jest wyłączony,
+szanse organizacji demonstracyjnej i tak są usuwane razem z nią — inaczej nie
+dałoby się tej organizacji usunąć — ale trzy demonstracyjne etykiety zostają,
+bo własne dane demonstracyjne modułu nie są ruszane, dopóki jest wyłączony.
+Usuwa je reset uruchomiony przy włączonym CRM.

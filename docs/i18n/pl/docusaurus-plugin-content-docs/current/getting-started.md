@@ -145,10 +145,24 @@ z przypisanymi rolami. Jeśli zmienisz zdanie, `pnpm add -w @endora-commerce/dem
 a potem `pnpm run cli demo seed` dodają dane demonstracyjne, a `pnpm run cli demo reset` je
 wycofuje, nie ruszając Twoich własnych danych. Reset usuwa też to, co powstało podczas
 *korzystania* z demo w ramach organizacji demonstracyjnej — zamówienia złożone przez jej
-kupującego, zapisane adresy, koszyki, zapytania ofertowe, faktury i podobne dane — bo organizacja,
-do której należą, jest usuwana razem z nimi. Dane innych organizacji nigdy nie są ruszane. Jeśli
-reset zostanie odrzucony w trakcie, nic nie zostało wycofane i sklep nadal działa; komunikat
-błędu mówi, co go odrzuciło.
+kupującego, zapisane adresy, koszyki, zapytania ofertowe i podobne dane — bo organizacja, do
+której należą, jest usuwana razem z nimi. Dane innych organizacji nigdy nie są ruszane, podobnie
+jak wiersze nienależące do żadnej organizacji, na przykład koszyk gościa.
+
+Cały reset to jedna transakcja: albo kończy się w całości, albo niczego nie zmienia. Gdy zostaje
+odrzucony, sklep nadal działa, a komunikat mówi, co go odrzuciło.
+
+**Reset odmawia, gdy organizacja demonstracyjna ma zapisy finansowe** — faktury, płatności,
+zwroty środków albo to, co wysłano do systemu księgowego — i podaje, ile których znalazł.
+Wystarczy jedno złożone zamówienie: otwiera ono płatność, a przy włączonym fakturowaniu także
+fakturę pro forma. Jeśli dane instancji są jednorazowe, usuń je razem z resztą:
+
+```bash
+pnpm run cli demo reset --force-delete-financial-records
+```
+
+Flaga jest odczytywana wyłącznie z tego wiersza poleceń — nie ma dla niej zmiennej środowiskowej
+ani ustawienia — i nie pomija żadnego innego sprawdzenia.
 
 **Administrator nigdy nie jest generowany.** Hasło to jedyna wartość, którą musisz zapamiętać, więc
 nic nie wymyśla go za Ciebie i nic innego nie tworzy konta. Hasło nie jest widoczne podczas

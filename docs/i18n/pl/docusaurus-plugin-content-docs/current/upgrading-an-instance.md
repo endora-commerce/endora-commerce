@@ -341,9 +341,9 @@ ponownie API i podgląd panelu.
   wszystkie uprawnienia i widzi moduł od razu; każdej innej roli, która ma z niego korzystać,
   nadaj te cztery.
 - **Dane demonstracyjne.** W instancji z załadowanym sklepem demonstracyjnym
-  `pnpm run cli demo seed` dodaje demonstracyjny lejek sprzedaży. Od tej chwili uruchamiaj
-  `pnpm run cli demo reset` tylko przy włączonym CRM: gdy jest wyłączony, reset zatrzymuje się
-  na organizacjach z odmową klucza obcego.
+  `pnpm run cli demo seed` dodaje demonstracyjny lejek sprzedaży. `pnpm run cli demo reset`
+  wycofuje go niezależnie od tego, czy CRM jest włączony; trzy demonstracyjne etykiety wycofuje
+  tylko reset uruchomiony przy włączonym CRM.
 
 Co robi moduł, opisuje strona [CRM](./modules/crm.md).
 

@@ -25,21 +25,47 @@ own rows.
 
 A demo that has been used resets too. Before any step is unwound, the reset removes what using
 the demo created under the demo organisation and its customer accounts — orders with their
-payments, shipments, invoices, stock allocations and credit reservations, return cases, carts,
-quote requests, shopping lists, saved addresses, API keys, webhooks, sessions, the accounts
-themselves, and any Sales Opportunity opened for that organisation. They are deleted, not
-re-pointed: the organisation they belong to is withdrawn, and every row here belongs to exactly
-one. Only rows of the demo organisation are matched — it is found by the tax id the demo gives
-it — so another organisation on the same instance loses nothing.
+shipments, stock allocations (the stock they held is released) and credit reservations, return
+cases, carts, quote requests, shopping lists, saved addresses, API keys, webhooks, sessions, the
+accounts that joined the organisation, promotion uses (the limits they spent are given back), and
+any Sales Opportunity opened for that organisation. They are deleted, not re-pointed: the
+organisation they belong to is withdrawn, and every row here belongs to exactly one. Only rows of
+the demo organisation are matched — it is found by the tax id the demo gives it — so another
+organisation on the same instance loses nothing, and neither does a row that belongs to no
+organisation, such as a guest's cart.
 
-That part runs in one transaction and first. If a foreign key refuses it — a table of your own
-that references an order, say — the reset exits non-zero with nothing withdrawn and the shop
-still working. It also stops, before touching anything, when another organisation has been filed
-under the demo one: detach or delete the sub-organisation and run it again.
+**The whole reset is one transaction.** It either completes or changes nothing: if a foreign key
+refuses it anywhere — a table of your own that references an order or a product, say — the
+command exits non-zero and the shop still works.
+
+**It refuses when the demo organisation holds financial records**, and says how many of each it
+found: invoices (pro formas and corrections included), accounting-system records, payments,
+refunds, and refunds settled against the credit limit. One placed order is enough — it opens a
+payment and, with invoicing switched on, a pro-forma invoice. Where the data is disposable:
+
+```bash
+pnpm run cli demo reset --force-delete-financial-records
+```
+
+The flag is read from that command line only; no environment variable or setting stands in for
+it. It deletes the kinds listed above and forces nothing else — the production guard and every
+foreign key apply as before.
+
+A module being switched off does not exempt its rows: an Opportunity or a return case of the demo
+organisation is withdrawn whether or not its module is active, because it refers to the
+organisation either way. What decides is whether the module's tables exist.
+
+It also stops, before touching anything, when another organisation has been filed under the demo
+one: detach or delete the sub-organisation and run it again.
 
 Three records are kept on purpose, because they are logs of what happened rather than data of
 the demo organisation: the audit trail, the e-mail delivery log and administrators'
 notification history.
+
+A module that is not part of this package's repository is not covered: a table of its own that
+holds a foreign key onto one of these rows refuses the reset (with or without the flag), and one
+that holds a bare id is left naming a row that is gone. There is no extension point yet for such
+a module to add its own withdrawal.
 
 ## How an instance gets it
 

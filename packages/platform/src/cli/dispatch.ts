@@ -59,6 +59,11 @@ import { installedDemoCompositionLoader } from '../demo/installed-composition.js
 import { formatDemoReport } from '../demo/report.js';
 import { mustBeNonProduction } from '../demo/guard.js';
 import { runDemo, unwrapDemoFailure } from '../demo/runner.js';
+import {
+  DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG,
+  DemoResetRefusedError,
+} from '../demo/refusal.js';
+import { demoContextWithin } from '../demo/reset-transaction.js';
 import { DEMO_RESET_SCOPE_REASON, DEMO_SEED_SCOPE_REASON } from '../demo/scope.js';
 
 import {
@@ -202,6 +207,11 @@ async function runDemoCommand(
   compose: () => Promise<CliComposition>,
   loadComposition: DemoCompositionLoader | undefined,
   out: (chunk: string) => void,
+  /**
+   * `--force-delete-financial-records` was on this invocation's command line
+   * (issue #143). Read from `argv` by the caller and from nowhere else.
+   */
+  deleteFinancialRecords: boolean,
 ): Promise<number> {
   mustBeNonProduction();
 
@@ -218,27 +228,57 @@ async function runDemoCommand(
         // platform's own: a composition step over a switched-off module is a
         // reported skip (§5.4), decided from the conjunction of both axes and
         // never re-derived.
+        const run = async (
+          em: EntityManager,
+          contextFor: CliComposition['contextFor'],
+          atomic: boolean,
+        ): Promise<{ report: string; notice?: string }> => {
+          const found =
+            loadComposition === undefined
+              ? ({ found: false, notice: NO_DEMO_COMPOSITION_NOTICE } as const)
+              : await loadComposition({
+                  em,
+                  isPresent: (id) => effectiveState.isPresent(id),
+                  ...(deleteFinancialRecords ? { deleteFinancialRecords } : {}),
+                });
+          // Feature 113 T226 — there is no host residue left to run. Every demo
+          // row this repository seeds is now either a module's own (its
+          // `manifest.ts` declares it) or the composition's.
+          const result = await runDemo({
+            mode: verb,
+            entries,
+            isPresent: (id) => effectiveState.isPresent(id),
+            contextFor,
+            atomic,
+            ...(found.found ? { composition: found.composition } : {}),
+          });
+          return {
+            report: formatDemoReport(result),
+            ...(found.found ? {} : { notice: found.notice }),
+          };
+        };
         const em = composition.orm.em.fork();
-        const found =
-          loadComposition === undefined
-            ? ({ found: false, notice: NO_DEMO_COMPOSITION_NOTICE } as const)
-            : await loadComposition({
-                em,
-                isPresent: (id) => effectiveState.isPresent(id),
-              });
-        // Feature 113 T226 — there is no host residue left to run. Every demo
-        // row this repository seeds is now either a module's own (its
-        // `manifest.ts` declares it) or the composition's.
-        const result = await runDemo({
-          mode: verb,
-          entries,
-          isPresent: (id) => effectiveState.isPresent(id),
-          contextFor: composition.contextFor,
-          ...(found.found ? { composition: found.composition } : {}),
-        });
-        out(formatDemoReport(result));
+        // Issue #143 — **a reset is one transaction** (`reset-transaction.ts`).
+        // The composition is built over the transactional EntityManager and
+        // every module's body is handed it as its own, so a refusal anywhere
+        // in the run — the composition's withdrawal, any module's, the
+        // foundation's — has withdrawn nothing. A seed is idempotent and is
+        // repaired by running it again, so it stays as it was.
+        const { report, notice } =
+          verb === 'reset'
+            ? await em.transactional((tx) =>
+                run(
+                  tx,
+                  demoContextWithin(tx, composition.contextFor) as CliComposition['contextFor'],
+                  true,
+                ),
+              )
+            : await run(em, composition.contextFor, false);
+        // Printed once the transaction has committed: a report of rows removed
+        // must not precede a commit that can still be refused.
+        out(report);
         // §5.6, once and enumerating nothing.
-        if (!found.found) out(`\n${found.notice}\n`);
+        if (notice !== undefined) out(`\n${notice}\n`);
         return 0;
       },
       { entryPoint: 'cli', container: composition.container },
@@ -322,6 +362,9 @@ export async function dispatchCli(options: RunCliOptions): Promise<number> {
       compose,
       options.demoComposition ?? installedDemoCompositionLoader(),
       out,
+      // Of a reset only, and from the arguments only: there is no environment
+      // variable and no setting behind this, on purpose (`demo/refusal.ts`).
+      verb === 'reset' && rest.includes(DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG),
     );
   }
   if (moduleId === undefined || name === undefined) {
@@ -393,6 +436,12 @@ export function cliFailureExitCode(thrown: unknown, err: (chunk: string) => void
   // A refusal written for the operator is printed as the sentence it is; a
   // stack under it says "defect", which it is not.
   if (error instanceof OverlaySchemaError) {
+    err(`${error.message}\n`);
+    return 1;
+  }
+  // A reset that declined to run is the command working: its message says what
+  // it found and what to do, and a stack trace beside it would read as a crash.
+  if (error instanceof DemoResetRefusedError) {
     err(`${error.message}\n`);
     return 1;
   }

@@ -139,10 +139,24 @@ the demo products sold on your default channel, the demo administrators holding 
 If you change your mind later, `pnpm add -w @endora-commerce/demo-composition` and then
 `pnpm run cli demo seed` add demo data, and `pnpm run cli demo reset` withdraws it, leaving your
 own rows alone. The reset also removes what was created by *using* the demo under the demo
-organization — the orders its buyer placed, saved addresses, carts, quote requests, invoices and
-the like — because the organization they belong to goes with it. Another organization's data is
-never touched. If the reset is refused part-way, nothing has been withdrawn and the shop still
-works; the error says what refused it.
+organization — the orders its buyer placed, saved addresses, carts, quote requests and the
+like — because the organization they belong to goes with it. Another organization's data is
+never touched, and neither is a row that belongs to no organization, such as a guest's cart.
+
+The whole reset is one transaction: it either completes or changes nothing. When it is refused,
+the shop still works and the message says what refused it.
+
+**It refuses when the demo organization holds financial records** — invoices, payments, refunds,
+or what was sent to an accounting system — and names how many of each it found. Placing a single
+order is enough: it opens a payment and, with invoicing switched on, a pro-forma invoice. If the
+instance's data is disposable, delete them with the rest:
+
+```bash
+pnpm run cli demo reset --force-delete-financial-records
+```
+
+The flag is read from that command line only — there is no environment variable or setting for
+it — and it skips no other check.
 
 **The administrator is never generated.** The password is the one value you have to remember, so
 nothing makes one up for you, and nothing else creates an account. It is not shown as you type it
