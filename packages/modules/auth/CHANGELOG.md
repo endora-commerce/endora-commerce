@@ -1,5 +1,42 @@
 # @endora-commerce/mod-auth
 
+## 0.104.0
+
+### Minor Changes
+
+- caab2b1: `auth` now records when an administrator was last seen, and answers the question.
+
+  - **`AuthSessionReadPort.lastSeenByAdminUser(adminUserIds, since)`** — a method the port gains
+    in this release (`@endora-commerce/contracts`), implemented by `AuthSessionReadService`. It
+    answers the newest `lastSeenAt` per administrator among those asked about, restricted to
+    sessions seen at or after `since`; an administrator with no such session is absent from the
+    answer. A session in which an administrator is impersonating a customer is the customer's
+    presence and does not count.
+  - **An authenticated request carrying the admin session cookie stamps
+    `sessions.last_seen_at`**, as a customer's request has since the online-customers view:
+    fire-and-forget, and throttled by the session service to one row update per session per
+    minute (one Redis `SET NX EX 60` per request). Until this change the column held an
+    administrator's sign-in time and nothing after. With the Admin UI open the notification
+    bell polls every 30 seconds, so "seen in the last few minutes" means in practice "has the
+    Admin UI open in a browser" — it does not say anybody is looking at it.
+
+  No schema change: the column and its index on `admin_user_id` exist. Customer and
+  impersonation sessions are stamped exactly as before.
+
+### Patch Changes
+
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+  - @endora-commerce/contracts@0.104.0
+  - @endora-commerce/platform@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

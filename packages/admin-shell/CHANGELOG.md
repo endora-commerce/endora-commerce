@@ -1,5 +1,94 @@
 # @endora-commerce/admin-shell
 
+## 0.104.0
+
+### Minor Changes
+
+- dbf6778: An entry on the Admin UI's notification bell can be shown in each reader's language. Additive:
+  a module that records entries as before is unaffected, and so is a consumer that reads only
+  `title` and `body`.
+
+  **`@endora-commerce/contracts`.** New type `AdminNotificationMessage` —
+  `{ scope: string; key: string; params?: Record<string, string | number> }`, the bundle
+  namespace (a module id, or `core`), a key in that bundle and what fills its `{name}`
+  placeholders. `RecordAdminNotificationInput` gains two optional members, `titleMessage` and
+  `bodyMessage`; `title` stays required and is the English sentence shown when the message
+  cannot be resolved. `AdminNotificationRecord` gains the same two as optional members, so an
+  existing implementation of `AdminNotificationRecordPort` — a test double included — still
+  satisfies it.
+
+  ```ts
+  await adminNotifications.record({
+    audience: 'admin_user',
+    targetAdminUserId,
+    kind: 'my_module.thing.done',
+    title: `Thing ${number} is done`,
+    titleMessage: { scope: 'my_module', key: 'notifications.done.title', params: { number } },
+  });
+  ```
+
+  **`@endora-commerce/mod-admin-notifications`.** A migration,
+  `Migration20261007T194748AdminNotificationsMessageKeys`, adds two nullable `jsonb` columns to
+  `admin_notifications` — `title_message` and `body_message`; nothing is backfilled and existing
+  rows read `null`. `adminNotificationRecordPort.record` stores a message and answers it, and
+  **refuses** one it could not draw: a scope that is not a bundle namespace, an empty key or one
+  longer than 255 characters, a param that is not a string or a finite number, and a
+  `bodyMessage` without a `body`. `GET /api/v1/admin/notifications` answers `titleMessage` and
+  `bodyMessage` on every item, `null` when the entry has none.
+
+  **`@endora-commerce/admin-shell`.** `NotificationBell` resolves `titleMessage` and
+  `bodyMessage` through the loaded translation bundles — the reader's language, then English —
+  and shows the recorded `title` / `body` when the entry carries no message, when no bundle
+  holds the key (the recording module is switched off or not installed), or when the template
+  names a placeholder the entry has no param for. A raw key is never shown, and a param is drawn
+  as text.
+
+- 32775d5: The Admin UI's sidebar has a "CRM" section, placed after _Sales_. The shell declares no row in
+  it: every entry is a module's contribution (`section: 'crm'`), so the heading renders only
+  while a module contributes an entry the operator may see. Its label is `appShell.section.crm`
+  in the core bundle, in English and Polish.
+
+### Patch Changes
+
+- 4d5f0dd: The admin dashboard shows its numbers on the first visit.
+
+  After signing in, or after reloading the page on `/`, the four KPI tiles read "—" and the stock
+  alerts card read "No products are currently low on stock" until the operator opened another screen
+  and came back. `HomePage` decided which requests to send once, when it mounted, and it mounts in the
+  same render as `ModulePresenceProvider` — which answers "absent" for every module until its first
+  response arrives. So every request was skipped, and nothing went back for them when the answer
+  changed.
+
+  - **Each tile and the stock alerts card now owns its request**, and sends it when it is first
+    shown. A surface belonging to a module that is off, or to a permission the role does not hold,
+    still costs no request.
+  - **A tile says what state its number is in.** A placeholder while the request is pending, and a
+    message with a _Retry_ button when it fails — where it used to keep the same "—" for both and for
+    a response that carried no number.
+  - **The stock alerts card no longer reports a failure as an empty warehouse.** It has its own
+    loading and error states; "No products are currently low on stock" is shown only when the
+    request succeeded and returned none.
+
+  Seven strings are added to the `core` bundle, in English and Polish: `home.kpi.error`,
+  `home.kpi.loading`, `home.kpi.retry`, `home.kpi.retryLabel`, `home.stockAlerts.error`,
+  `home.stockAlerts.loading` and `home.stockAlerts.retry`.
+
+- Updated dependencies [32775d5]
+- Updated dependencies [2f95785]
+- Updated dependencies [32775d5]
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+- Updated dependencies [1a15fdc]
+  - @endora-commerce/admin-kit@0.104.0
+  - @endora-commerce/contracts@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

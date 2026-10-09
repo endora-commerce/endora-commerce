@@ -1,5 +1,117 @@
 # @endora-commerce/mod-i18n
 
+## 0.104.0
+
+### Patch Changes
+
+- 32775d5: The Admin UI's sidebar has a "CRM" section, placed after _Sales_. The shell declares no row in
+  it: every entry is a module's contribution (`section: 'crm'`), so the heading renders only
+  while a module contributes an entry the operator may see. Its label is `appShell.section.crm`
+  in the core bundle, in English and Polish.
+- 4d5f0dd: The admin dashboard shows its numbers on the first visit.
+
+  After signing in, or after reloading the page on `/`, the four KPI tiles read "—" and the stock
+  alerts card read "No products are currently low on stock" until the operator opened another screen
+  and came back. `HomePage` decided which requests to send once, when it mounted, and it mounts in the
+  same render as `ModulePresenceProvider` — which answers "absent" for every module until its first
+  response arrives. So every request was skipped, and nothing went back for them when the answer
+  changed.
+
+  - **Each tile and the stock alerts card now owns its request**, and sends it when it is first
+    shown. A surface belonging to a module that is off, or to a permission the role does not hold,
+    still costs no request.
+  - **A tile says what state its number is in.** A placeholder while the request is pending, and a
+    message with a _Retry_ button when it fails — where it used to keep the same "—" for both and for
+    a response that carried no number.
+  - **The stock alerts card no longer reports a failure as an empty warehouse.** It has its own
+    loading and error states; "No products are currently low on stock" is shown only when the
+    request succeeded and returned none.
+
+  Seven strings are added to the `core` bundle, in English and Polish: `home.kpi.error`,
+  `home.kpi.loading`, `home.kpi.retry`, `home.kpi.retryLabel`, `home.stockAlerts.error`,
+  `home.stockAlerts.loading` and `home.stockAlerts.retry`.
+
+- 9d6dfbc: Every Page Builder editor is laid out the same way: the blog post, blog category and
+  transactional e-mail editors join the CMS ones.
+
+  **`@endora-commerce/page-builder-admin` publishes the editor shell.** New exports on `.`:
+  `PageBuilderEditorLayout`, `usePageBuilderEditorSettingsPanel`,
+  `PAGE_BUILDER_EDITOR_SETTINGS_STORAGE_KEY`, `PAGE_BUILDER_EDITOR_TWO_COLUMN_MIN_WIDTH` and the
+  types `PageBuilderEditorLayoutProps` and `PageBuilderEditorSettingsPanel`. It is the layout the CMS
+  editors already have — canvas as the main column, the entity's cards in a settings panel that is a
+  column beside it from 1800 px, a block above it below that, collapsed by default there, always open
+  for a new entity, revealed when a save is refused, the choice remembered per browser — moved out of
+  `cms` so that a module does not have to depend on `cms` to lay out an editor. Three shapes: with a
+  settings panel; without one (`settings` omitted — the canvas has the page); and `builder={null}`
+  for an entity that has no canvas yet, where the cards are the page and nothing collapses. Its four
+  strings are `pageBuilder.editorLayout.*` in the `core` bundle (`@endora-commerce/mod-i18n`).
+
+  **Blog post and blog category editors.** The Page Builder is the main column and the fields are in
+  the settings panel, grouped: Metadata, Scope, Search engines (SEO), then for a post Tags, Related
+  posts, Related products and Lifecycle. **One Save replaces "Save metadata" and "Save content" /
+  "Save description"**: it is in the header with "Save and exit", sends the same requests (the fields,
+  then the canvas only if it was edited), and a save that cannot go through names what is missing and
+  opens the panel instead of leaving a disabled button. Publish / Unpublish moved to the header;
+  Archive is in the Lifecycle card. The canvas now follows the language tab, and saving tags or
+  related content no longer puts the stored content back under unsaved canvas edits. A new post or
+  category, which has no canvas until it exists, shows the fields as the page. `mod-blog` gains
+  `@endora-commerce/page-builder-admin` as an optional peer dependency, next to the
+  `@endora-commerce/mod-cms` one it already had. Removed bundle keys: `common.saveContent`,
+  `common.saveDescription`, `common.saveMetadata`, `messages.contentSaved`,
+  `messages.descriptionSaved`.
+
+  **Transactional e-mail, e-mail block and e-mail template editors.** The canvas takes the full
+  editor width and starts on the first screen; the scope, the language and the subject sit on one row
+  above it instead of in three stacked cards. These editors deliberately have **no** settings panel:
+  those fields say which message is on the canvas or are part of it. Their labels and messages are
+  now translated (`pl` included) instead of hard-coded English. A save without a subject is refused
+  on the screen, with a sentence that names the field and the cursor put in it, instead of the API's
+  generic validation error; `EmailSubjectWithVariables` (`@endora-commerce/page-builder-admin/email`)
+  gains the optional `invalid` and `describedBy` props that carry it.
+
+  **`mod-cms`**: no visible change. Its three editors import the shell from
+  `@endora-commerce/page-builder-admin`; the `editorLayout.*` keys left its bundle for `core`. The
+  shell was never exported from `cms` (`./admin-ui` still publishes only `PageBuilderEditor`), so no
+  import breaks. The remembered choice keeps its storage slot, `b2b-admin.cms-editor.settings-panel`,
+  so operators who already chose keep their choice — and it now applies to the blog editors too.
+  One behaviour differs: when a refused save opens the panel, the page scrolls to the top of the
+  editor, so the message is on screen with the fields under it, rather than to the panel alone.
+
+  No request, response or payload shape changed.
+
+- 1a15fdc: The Sales Channel create and edit forms pick languages and currencies from searchable controls,
+  and a default that is no longer selected is reported instead of being replaced.
+
+  - **`@endora-commerce/admin-kit/ui` exports `MultiCombobox`** (with `MultiComboboxProps`) — a
+    searchable multi-select: one combobox input over a filtered listbox, the selection shown as
+    removable chips. It takes the same `ComboboxOption[]` as `Combobox` and a `value: T[]` /
+    `onChange(next: T[])` pair, matches on `label` and `description` without regard to diacritics,
+    and is driven from the keyboard (arrows, `Home`/`End`, `Enter` to toggle, `Escape`, `Backspace`
+    to remove the last chip). `MultiSelect` is unchanged and remains the control for filter bars.
+  - **`Combobox` accepts `invalid` and `ariaDescribedBy`**, so it can be used as a validated form
+    field, and **closes its listbox when focus leaves it**. It used to stay open after `Tab`, until a
+    pointer press elsewhere; a caller that relied on that has nothing to change, the list simply no
+    longer covers the next field.
+  - **Sales Channel form**: _Languages_ and _Currencies_ are `MultiCombobox`es over the active
+    Dictionary entries, searchable by code and by name; _Default language_ and _Default currency_ are
+    `Combobox`es limited to what is selected. Removing the entry that is the current default now
+    **empties the default** and blocks saving until one is chosen — the form used to promote the
+    first remaining entry silently. The submitted value has the same shape as before.
+  - The shared admin bundle gains `common.multiCombobox.added`, `.noMatches`, `.remove` and
+    `.removed` in English and Polish.
+
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+  - @endora-commerce/contracts@0.104.0
+  - @endora-commerce/platform@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

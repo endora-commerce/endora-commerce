@@ -1,5 +1,21 @@
 # @endora-commerce/mod-pim-connector
 
+## 0.104.0
+
+### Patch Changes
+
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+  - @endora-commerce/contracts@0.104.0
+  - @endora-commerce/platform@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes

@@ -1,5 +1,43 @@
 # @endora-commerce/mod-webhooks
 
+## 0.104.0
+
+### Minor Changes
+
+- 32775d5: Other modules can offer event types of their own as outbound webhooks.
+
+  `webhookEventRegistry` (`WebhookEventRegistryPort`) is a new container name: a module pushes
+  `{ ownerModuleId, eventType }` from a boot hook and declares the edge as
+  `nonBindingDependencies: [{ moduleId: 'webhooks', name: 'webhookEventRegistry', kind: 'contributes-to' }]`.
+  Each contributed type is bridged to the delivery queue through this module's own gated
+  subscription, and its payload is sent whole — so an event a module offers is that module's
+  public contract. `GET /api/v1/admin/webhooks/event-types` (`integrations:manage`) lists the
+  contributed types whose owner is switched on, and the subscription form offers them after its
+  own list. While an owner is switched off its types are not offered; subscriptions naming them
+  are kept and receive nothing.
+
+  Nothing changes for an instance in which nobody contributes: the two built-in event types and
+  the form's own list are as they were.
+
+### Patch Changes
+
+- Updated dependencies [32775d5]
+- Updated dependencies [2f95785]
+- Updated dependencies [32775d5]
+- Updated dependencies [dbf6778]
+- Updated dependencies [2d39d97]
+- Updated dependencies [fcf6daa]
+- Updated dependencies [5e2ade8]
+- Updated dependencies [85793d6]
+- Updated dependencies [d5ab69f]
+- Updated dependencies [32775d5]
+- Updated dependencies [f02494f]
+- Updated dependencies [7af6470]
+- Updated dependencies [1a15fdc]
+  - @endora-commerce/admin-kit@0.104.0
+  - @endora-commerce/contracts@0.104.0
+  - @endora-commerce/platform@0.104.0
+
 ## 0.103.1
 
 ### Patch Changes
