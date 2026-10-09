@@ -13,7 +13,8 @@ import {
 import type { AdminUserService } from './services/admin-user-service.js';
 import type { AdminUser } from './entities/admin-user.entity.js';
 import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
+import { readIdleLogoutMinutes } from './services/idle-logout-policy.js';
 
 /**
  * Admin user + role CRUD (T193 / FR-080..FR-083). All gated by
@@ -38,6 +39,12 @@ export interface AdminUsersAdminDeps {
    * admin who had enrolled an hour earlier.
    */
   twoFactorEnrolments: TwoFactorEnrolmentReader;
+  /**
+   * The kernel's settings reader. `GET /admin/me` carries the idle-logout
+   * policy from it, so an administrator whose role lacks `settings:read` is
+   * held to the configured window too (the settings admin API refuses them).
+   */
+  settingsReadPort: SettingsReadPort;
 }
 
 export async function registerAdminUsersAdminRoutes(
@@ -52,6 +59,7 @@ export async function registerAdminUsersAdminRoutes(
     requireAdmin,
     resolveAdminContext,
     twoFactorEnrolments,
+    settingsReadPort,
   } = deps;
 
   /** One `mfa` read per response, whether the response carries one admin or a page. */
@@ -88,6 +96,7 @@ export async function registerAdminUsersAdminRoutes(
           adminUser: await serializeOneAdminUser(adminUser),
           role: role ? serializeAdminRole(role) : null,
           permissions,
+          idleLogoutMinutes: await readIdleLogoutMinutes(settingsReadPort),
         },
       };
     },

@@ -17,7 +17,7 @@ import type {
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import { effectiveState } from '@endora-commerce/platform/kernel';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { adminModule } from './plugin.js';
 import { AdminUser } from './entities/admin-user.entity.js';
 import {
@@ -139,6 +139,10 @@ export function registerModule(ctx: ModuleContext): void {
           // `undefined` selects.
           getMfaLoginPort: () => (effectiveState.isPresent('mfa') ? mfaLoginPort : undefined),
           twoFactorEnrolments,
+          // Kernel-owned and lazy for the reason every port above is: this
+          // registration is a singleton, and a cradle parameter would resolve
+          // the reader once, at composition.
+          settingsReadPort: lazyPort<SettingsReadPort>(ctx, 'settingsReadPort'),
         }),
       )
       .singleton(),

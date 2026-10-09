@@ -63,6 +63,13 @@ export interface AdminMe {
     permissions: string[];
   } | null;
   permissions: string[];
+  /**
+   * The operator's `admin.idle_logout_minutes`, delivered with the session so
+   * an administrator without `settings:read` is held to it too. `null` when the
+   * backend could not resolve a usable value; absent from a backend that
+   * predates the field. Either way the consumer applies its own default.
+   */
+  idleLogoutMinutes?: number | null;
 }
 
 interface AuthState {

@@ -15,7 +15,7 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { registerAdminPublicRoutes } from './routes.public.js';
 import { registerImpersonationRoutes } from './routes.impersonation.js';
 import { registerAdminUsersAdminRoutes } from './routes.admin.js';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory, SettingsReadPort } from '@endora-commerce/platform/kernel';
 import type { TwoFactorEnrolmentReader } from './services/two-factor-enrolments.js';
 
 /**
@@ -54,6 +54,8 @@ export interface AdminModuleOptions {
    * defect being repaired is exactly what a plausible default produces.
    */
   twoFactorEnrolments: TwoFactorEnrolmentReader;
+  /** The kernel's settings reader — the idle-logout policy on `GET /admin/me`. */
+  settingsReadPort: SettingsReadPort;
 }
 
 export interface AdminModuleHandle {
@@ -126,6 +128,7 @@ export function adminModule(
         requireAdmin: options.requireAdmin,
         resolveAdminContext: options.resolveAdminContext,
         twoFactorEnrolments: options.twoFactorEnrolments,
+        settingsReadPort: options.settingsReadPort,
       });
     },
   };
