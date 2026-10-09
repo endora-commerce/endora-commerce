@@ -89,15 +89,7 @@ describe('payments permission authority', () => {
     // are two facts about one role rather than two roles.
     const paymentsRoleId = await createRole('payments_viewer', 'Payments viewer', ['payments:read']);
     // The shipped role, verbatim from the seed's own constant, and created the
-    // way the seed creates it — straight onto the entity. It cannot go through
-    // `PUT /admin/admin-roles/:code`, because that route refuses the list: the
-    // seed's `organizations:read.assigned` is enforced nowhere and declared by
-    // no manifest, so the grantability guard answers `Unknown permission(s)`.
-    // That is a separate defect in the seed (a dead code in a shipped role,
-    // invisible to the permission inventory because a seed is neither a gate
-    // nor a manifest) and it is not this file's subject — but reproducing the
-    // role through a path that would not accept it would be reproducing a
-    // different role.
+    // way the seed creates it — straight onto the entity.
     const em = h.em();
     const salesRepRole = em.create(AdminRole, {
       code: 'payments_seeded_sales_rep',

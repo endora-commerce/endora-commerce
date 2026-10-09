@@ -44,11 +44,17 @@ export interface DemoAdminRoleRow {
  * What the seeded `sales_representative` role may reach.
  *
  * Assignment-scoped visibility (feature 008): the quickstart signs in as this
- * role to exercise it.
+ * role to exercise it. That scoping is a property of the account — which
+ * Organizations the representative is assigned to — and not of a permission
+ * code, so nothing here names it.
+ *
+ * Every code must be one the platform knows: the seed writes the list straight
+ * onto the entity, while the role editor's save validates each code, so an
+ * undeclared one makes the role impossible to save (issue #180).
+ * `backend/test/contract/admin_users/permission-inventory.test.ts` holds that.
  */
 export const SALES_REPRESENTATIVE_PERMISSIONS: readonly string[] = [
   'rfqs:handle',
-  'organizations:read.assigned',
   'catalog:read',
   // D-173 — the RFQ create screen prefills the agreed unit price from
   // `GET /admin/products/:id/resolved-price`, which is `price_lists`' own
@@ -62,6 +68,18 @@ export const SALES_REPRESENTATIVE_PERMISSIONS: readonly string[] = [
   'crm:read',
   'crm:write',
 ];
+
+/**
+ * Codes an earlier version of this list seeded and no longer does, which `seed`
+ * withdraws from a demo role that still holds them.
+ *
+ * `organizations:read.assigned` (issue #180) was declared by no manifest and by
+ * no catalogue row and checked by no gate, so it granted nothing — and a role
+ * holding it could not be saved, because the role service refuses an unknown
+ * code and the editor offers no checkbox for one. An operator cannot have put
+ * it there for the same reason, so taking it back overrides nobody's choice.
+ */
+export const RETIRED_DEMO_PERMISSION_CODES: readonly string[] = ['organizations:read.assigned'];
 
 /**
  * The two roles the demo shop has.

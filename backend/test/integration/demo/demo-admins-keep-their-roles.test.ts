@@ -105,6 +105,49 @@ describe('demo administrators hold their roles at every point a run can stop', (
     expect(await demoAdmins()).toEqual(DEMO_ADMINS);
   });
 
+  it('seed: a role an earlier seed left holding an undeclared code can be saved again (issue #180)', async () => {
+    // What an instance seeded before the fix holds: the retired code, plus a
+    // grant an operator added since.
+    const stale = ['rfqs:handle', 'organizations:read.assigned', 'catalog:write'];
+    await h
+      .em()
+      .getConnection()
+      .execute(`update "admin_roles" set "permissions" = ? where "code" = ?`, [
+        JSON.stringify(stale),
+        'sales_representative',
+      ]);
+    const save = (permissions: readonly string[]) =>
+      h.app.inject({
+        method: 'PUT',
+        url: '/api/v1/admin/admin-roles/sales_representative',
+        cookies: { b2b_session: 'stub-admin-session' },
+        payload: {
+          code: 'sales_representative',
+          name: 'Sales representative',
+          permissions: [...permissions],
+        },
+      });
+    const stored = async (): Promise<string[]> => {
+      const rows = (await h
+        .em()
+        .getConnection()
+        .execute(`select "permissions" from "admin_roles" where "code" = ?`, [
+          'sales_representative',
+        ])) as Array<{ permissions: string[] }>;
+      return rows[0]?.permissions ?? [];
+    };
+
+    // The defect: the editor sends the stored codes back and is refused.
+    expect((await save(await stored())).statusCode).toBe(400);
+
+    await rolesDemo.seed(context);
+
+    // Exactly the retired code is gone; the operator's grant is where it was.
+    expect(await stored()).toEqual(['rfqs:handle', 'catalog:write']);
+    expect((await save(await stored())).statusCode).toBe(200);
+    expect(await demoAdmins()).toEqual(DEMO_ADMINS);
+  });
+
   it('reset: the composition withdrawal leaves every account its role', async () => {
     const result = await adminOnlyComposition().withdraw();
     expect(result.applied).toContain('demo administrators take their roles');

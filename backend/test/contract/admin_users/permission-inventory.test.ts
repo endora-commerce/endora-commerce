@@ -27,6 +27,7 @@ import {
   type PermissionDependencyInput,
 } from '../../helpers/permission-dependencies.js';
 import { readSizeLine, readSizeRefusal } from '../../../scripts/lib/read-size.js';
+import { DEMO_ADMIN_ROLES } from '../../../../packages/modules/admin_roles/src/backend/demo/rows.js';
 
 /**
  * The `/admin-roles` catalogue and the server's gates have to describe the same
@@ -271,5 +272,51 @@ describe('permission dependencies (D-175)', () => {
       .filter((finding) => finding.kind === 'self-requirement')
       .map((finding) => `'${finding.code}' (${finding.owners.join('/')})`);
     expect(defects, 'holding the code satisfies it, so the entry advises nothing').toEqual([]);
+  });
+});
+
+/**
+ * Every permission code a demo role carries is one the platform knows
+ * (issue #180).
+ *
+ * The demo seed writes its roles straight onto the entity, so nothing validates
+ * the list on the way in — and `PUT /admin/admin-roles/:code` validates every
+ * code on the way back. A demo role holding a code no manifest and no catalogue
+ * row declares is therefore created without complaint and can never be saved
+ * again: the role editor sends the stored codes back, the route answers
+ * `400 Unknown permission(s)`, and the unknown code has no checkbox to un-tick.
+ * A seed is neither a gate nor a manifest, so none of the sweeps above sees it.
+ *
+ * It lives in this file for the reason the two sweeps above do: the vocabulary
+ * is the one that route validates against — `listKnownCodes()` over the
+ * composed manifests — and a second derivation of it would be free to pass a
+ * list the route refuses. It is the *known* set and not the grantable one, so
+ * a code whose owning module is merely switched off is not this finding.
+ */
+describe('demo admin roles hold only known permission codes (issue #180)', () => {
+  const known = new Set(
+    new PermissionCatalogueService({ registryEntries: RESOLVED_MANIFESTS }).listKnownCodes(),
+  );
+
+  it('reads a vocabulary and at least one role with named codes', () => {
+    // A green over an empty vocabulary or an all-wildcard role list would be
+    // a green about nothing.
+    expect(known.size).toBeGreaterThan(0);
+    expect(
+      DEMO_ADMIN_ROLES.some((role) => role.permissions.some((code) => code !== '*')),
+    ).toBe(true);
+  });
+
+  it('every code is declared by a module manifest or the core catalogue', () => {
+    const unknown = DEMO_ADMIN_ROLES.flatMap((role) =>
+      role.permissions
+        // `*` is the wildcard the role service collapses before it validates.
+        .filter((code) => code !== '*' && !known.has(code))
+        .map((code) => `${role.code}: '${code}'`),
+    );
+    expect(
+      unknown,
+      'a demo role carrying a code nothing declares cannot be saved from the role editor',
+    ).toEqual([]);
   });
 });
