@@ -120,5 +120,12 @@ export const manifest = defineModuleManifest({
    * `HttpError(409, code, message)` with no `details` argument, measured by
    * balanced-paren extraction of the call's own arguments.
    */
-  errorCodes: [{ code: 'WEBHOOK_DELIVERY_NOT_REPLAYABLE' }],
+  errorCodes: [
+    { code: 'WEBHOOK_DELIVERY_NOT_REPLAYABLE' },
+    // Issue #173 — a subscription write naming an event type nothing delivers.
+    // Raised only by `services/webhook-service.ts`, with `details.eventTypes`
+    // (the refused names) for the bundle sentence to interpolate; no reason
+    // token, so no `tokens`.
+    { code: 'WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE' },
+  ],
 });

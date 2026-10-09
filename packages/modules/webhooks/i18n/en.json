@@ -1,6 +1,8 @@
 {
   "errors.WEBHOOK_DELIVERY_NOT_REPLAYABLE": "Only a delivery that failed or was dead-lettered can be replayed. This one is still pending or has already succeeded.",
+  "errors.WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE": "These event types are not delivered to webhooks: {eventTypes}. Subscribe only to the event types this screen offers.",
   "nav.webhooks.label": "Webhooks",
   "actions.openWebhooks.label": "Webhooks",
-  "actions.openWebhooks.description": "Event subscriptions & deliveries"
+  "actions.openWebhooks.description": "Event subscriptions & deliveries",
+  "subscription.eventType.notDelivered": "Not delivered: nothing sends this event to webhooks. The subscription keeps it until you remove it."
 }

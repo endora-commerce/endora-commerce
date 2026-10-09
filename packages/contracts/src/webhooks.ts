@@ -25,6 +25,41 @@ export const webhookSchema = z.object({
 });
 export type Webhook = z.infer<typeof webhookSchema>;
 
+/**
+ * The event types `webhooks` bridges to the delivery queue of its own accord.
+ *
+ * **The one list.** The module's backend subscribes its bridge from this
+ * constant and the subscription form offers from it, so what is offered and
+ * what is delivered cannot drift apart: an event type added here is bridged and
+ * offered in the same change, and one that is not here is neither. Every other
+ * deliverable type is contributed at runtime through `webhookEventRegistry`
+ * (below) by the module that emits it.
+ *
+ * An event being emitted on the in-process bus does not make it deliverable —
+ * only a bridge subscription does.
+ */
+export const WEBHOOK_BUILT_IN_EVENT_TYPES = ['order.created.v1', 'order.status_changed.v1'] as const;
+export type WebhookBuiltInEventType = (typeof WEBHOOK_BUILT_IN_EVENT_TYPES)[number];
+
+/**
+ * Every event type a subscription can currently receive: the built-in ones,
+ * then the contributed ones whose owner is present, each once.
+ *
+ * `contributed` is `webhookEventRegistry.list()` on the backend and the answer
+ * of `GET /api/v1/admin/webhooks/event-types` in the Admin UI — the same
+ * function over the same data on both sides.
+ */
+export function deliverableWebhookEventTypes(contributed: readonly string[]): string[] {
+  return [...new Set<string>([...WEBHOOK_BUILT_IN_EVENT_TYPES, ...contributed])];
+}
+
+/**
+ * `eventTypes` is validated in two steps. This schema refuses the shapes that
+ * are never valid — an empty list, an empty string. Whether each name is
+ * **deliverable** depends on which modules are present, so it is decided by the
+ * route against `deliverableWebhookEventTypes(...)`, and a name outside it is
+ * refused with `WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE` (422).
+ */
 export const createWebhookRequestSchema = z.object({
   name: z.string().min(1).max(160),
   url: z.string().url(),

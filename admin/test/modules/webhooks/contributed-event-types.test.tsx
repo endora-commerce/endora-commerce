@@ -3,18 +3,28 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { setMobileViewport } from '../../setup';
+import {
+  WEBHOOK_BUILT_IN_EVENT_TYPES,
+  deliverableWebhookEventTypes,
+} from '@endora-commerce/contracts';
 import { renderWithI18n } from '../../helpers/render-with-i18n';
 
 /**
- * The webhook subscription form offers the event types other modules
- * contribute (`specs/143-crm-sales-opportunities/`, User Story 16 — T165,
- * T168; research R-27).
+ * What the webhook subscription form offers.
  *
- * `GET /api/v1/admin/webhooks/event-types` answers the contributed types whose
- * owner is switched on. The form offers them **in addition to** its own list,
- * which this change leaves exactly as it was — so with nothing contributed the
- * form is unchanged, and with something contributed the new options come after
- * the existing ones and can be subscribed to.
+ * **It offers what is delivered and nothing else** (issue #173). The form used
+ * to carry thirteen names of its own, of which the backend bridged two, so an
+ * operator could subscribe to an event that would never arrive. It now renders
+ * one option per element of `deliverableWebhookEventTypes(...)` — the contracts
+ * function the backend bridges from and validates against — over the built-in
+ * constant and the answer of `GET /api/v1/admin/webhooks/event-types`.
+ *
+ * **Contributed types** (`specs/143-crm-sales-opportunities/`, User Story 16 —
+ * T165, T168; research R-27) come after the built-in ones, each once, and can
+ * be subscribed to like any other.
+ *
+ * **A subscription stored before the rule** may carry a name nothing delivers.
+ * It is listed as stored and marked, never hidden and never a failure.
  */
 
 const getSpy = vi.fn();
@@ -51,8 +61,11 @@ const { default: WebhooksPage } = await import(
 
 const EVENT_TYPES_PATH = '/api/v1/admin/webhooks/event-types';
 
-/** The form's own list, as it stood before this change — the thirteen it has always offered. */
-const KNOWN = [
+/** The built-in event types — the contracts constant the backend bridges from. */
+const BUILT_IN: string[] = [...WEBHOOK_BUILT_IN_EVENT_TYPES];
+
+/** The eleven names the form offered while nothing delivered them. */
+const NEVER_DELIVERED = [
   'product.created.v1',
   'product.updated.v1',
   'product.archived.v1',
@@ -60,15 +73,37 @@ const KNOWN = [
   'rfq.quoted.v1',
   'rfq.accepted.v1',
   'rfq.expired.v1',
-  'order.created.v1',
-  'order.status_changed.v1',
   'order.cancelled.v1',
   'payment.settled.v1',
   'credit_limit.adjusted.v1',
   'credit_limit.reservation_released.v1',
 ];
 
+const WEBHOOKS_PATH = '/api/v1/admin/webhooks';
+const NOT_DELIVERED = 'Not delivered';
+
 let contributed: Array<{ ownerModuleId: string; eventType: string }>;
+let stored: Array<Record<string, unknown>>;
+
+function subscription(id: string, eventTypes: string[]): Record<string, unknown> {
+  return {
+    id,
+    name: `Hook ${id}`,
+    url: `https://example.test/${id}`,
+    eventTypes,
+    status: 'active',
+    organizationId: null,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+}
+
+/** The stored event types the list marks as not delivered. */
+function marked(): string[] {
+  return Array.from(document.querySelectorAll('[data-undelivered-event-type]')).map(
+    (node) => node.getAttribute('data-undelivered-event-type') ?? '',
+  );
+}
 
 /** The event types the form offers, in the order it offers them. */
 function offered(): string[] {
@@ -80,7 +115,7 @@ async function renderPage(): Promise<void> {
     <MemoryRouter>
       <WebhooksPage />
     </MemoryRouter>,
-    { core: {} },
+    { core: {}, webhooks: { 'subscription.eventType.notDelivered': NOT_DELIVERED } },
   );
   await waitFor(() => expect(getSpy).toHaveBeenCalledWith(EVENT_TYPES_PATH));
 }
@@ -90,30 +125,41 @@ beforeEach(() => {
   getSpy.mockReset();
   postSpy.mockReset();
   contributed = [];
+  stored = [];
   getSpy.mockImplementation((path: string) => {
     if (path === EVENT_TYPES_PATH) return Promise.resolve({ data: contributed });
+    if (path === WEBHOOKS_PATH) return Promise.resolve({ data: stored });
     return Promise.resolve({ data: [] });
   });
   postSpy.mockResolvedValue({ data: { id: 'w1', secret: '' } });
 });
 
-describe('the webhook subscription form — contributed event types', () => {
-  it('is unchanged when the endpoint returns none', async () => {
+describe('the webhook subscription form — it offers what is delivered', () => {
+  it('offers exactly the built-in event types when nothing is contributed', async () => {
     await renderPage();
-    await waitFor(() => expect(offered()).toEqual(KNOWN));
+    await waitFor(() => expect(offered()).toEqual(BUILT_IN));
+    expect(offered()).toEqual(['order.created.v1', 'order.status_changed.v1']);
   });
 
-  it('offers the contributed types after its own, each once', async () => {
+  it('offers none of the names nothing delivers', async () => {
+    await renderPage();
+    await waitFor(() => expect(offered()).toEqual(BUILT_IN));
+    for (const eventType of NEVER_DELIVERED) expect(offered()).not.toContain(eventType);
+  });
+
+  it('offers the contributed types after the built-in ones, each once', async () => {
     contributed = [
       { ownerModuleId: 'crm', eventType: 'crm.opportunity.status_changed.v1' },
       { ownerModuleId: 'crm', eventType: 'crm.opportunity.created.v1' },
-      // Already on the form's own list: not offered a second time.
+      // Already built in: not offered a second time.
       { ownerModuleId: 'orders', eventType: 'order.created.v1' },
     ];
     await renderPage();
     await waitFor(() =>
-      expect(offered()).toEqual([...KNOWN, 'crm.opportunity.status_changed.v1', 'crm.opportunity.created.v1']),
+      expect(offered()).toEqual([...BUILT_IN, 'crm.opportunity.status_changed.v1', 'crm.opportunity.created.v1']),
     );
+    // The same function the backend bridges from and validates against.
+    expect(offered()).toEqual(deliverableWebhookEventTypes(contributed.map((descriptor) => descriptor.eventType)));
   });
 
   it('subscribes to a contributed type like to any other', async () => {
@@ -134,13 +180,49 @@ describe('the webhook subscription form — contributed event types', () => {
     });
   });
 
-  it('keeps its own list when the endpoint cannot be read', async () => {
+  it('offers the built-in types when the endpoint cannot be read', async () => {
     getSpy.mockImplementation((path: string) => {
       if (path === EVENT_TYPES_PATH) return Promise.reject(new Error('503'));
       return Promise.resolve({ data: [] });
     });
     await renderPage();
-    await waitFor(() => expect(offered()).toEqual(KNOWN));
+    await waitFor(() => expect(offered()).toEqual(BUILT_IN));
     expect(document.body.textContent).not.toContain('503');
+  });
+});
+
+describe('the webhook list — a subscription stored with a type nothing delivers', () => {
+  it('shows every stored type and marks the ones that are not delivered', async () => {
+    contributed = [{ ownerModuleId: 'crm', eventType: 'crm.opportunity.created.v1' }];
+    stored = [subscription('w1', ['order.created.v1', 'product.updated.v1', 'crm.opportunity.created.v1'])];
+    await renderPage();
+
+    await waitFor(() => expect(marked()).toEqual(['product.updated.v1']));
+    const row = screen.getByText('Hook w1').closest('tr') as HTMLElement;
+    for (const eventType of ['order.created.v1', 'product.updated.v1', 'crm.opportunity.created.v1']) {
+      expect(row.textContent).toContain(eventType);
+    }
+    const badge = document.querySelector('[data-undelivered-event-type="product.updated.v1"]') as HTMLElement;
+    expect(badge.getAttribute('title')).toBe(NOT_DELIVERED);
+    expect(badge.textContent).toContain(NOT_DELIVERED);
+  });
+
+  it('marks nothing on a subscription whose every type is delivered', async () => {
+    stored = [subscription('w2', ['order.created.v1', 'order.status_changed.v1'])];
+    await renderPage();
+    await screen.findByText('Hook w2');
+    expect(marked()).toEqual([]);
+  });
+
+  it('marks nothing while the contributed types could not be read — an unread list is not an empty one', async () => {
+    stored = [subscription('w3', ['crm.opportunity.created.v1', 'order.created.v1'])];
+    getSpy.mockImplementation((path: string) => {
+      if (path === EVENT_TYPES_PATH) return Promise.reject(new Error('503'));
+      if (path === WEBHOOKS_PATH) return Promise.resolve({ data: stored });
+      return Promise.resolve({ data: [] });
+    });
+    await renderPage();
+    await screen.findByText('Hook w3');
+    expect(marked()).toEqual([]);
   });
 });

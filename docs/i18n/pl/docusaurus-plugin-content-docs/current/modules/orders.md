@@ -155,7 +155,8 @@ się po zmianach cen i katalogu.
 
 ## Emitowane zdarzenia
 
-`order.created.v1`, `order.status_changed.v1`, `order.cancelled.v1`. Każde przejście X→Y emituje
+`order.created.v1`, `order.status_changed.v1`. Anulowanie nie ma własnego zdarzenia: jest ogłaszane
+jako `order.status_changed.v1` z nowym statusem. Każde przejście X→Y emituje
 dodatkowo cztery zdarzenia **według szablonu** (budowane przez `events/order-status-events.ts`):
 `order.status.from_<x>_to_<y>.before`, `order.status.from_<x>.before` (synchroniczne, z możliwością
 zablokowania) oraz `order.status.from_<x>_to_<y>.after`, `order.status.to_<y>.after` (po

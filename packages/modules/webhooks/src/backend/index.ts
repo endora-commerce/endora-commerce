@@ -1,7 +1,11 @@
 import type { FastifyRequest } from 'fastify';
 import type { Queue, Worker } from 'bullmq';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import type { WebhookEventRegistryPort } from '@endora-commerce/contracts';
+import {
+  WEBHOOK_BUILT_IN_EVENT_TYPES,
+  deliverableWebhookEventTypes,
+  type WebhookEventRegistryPort,
+} from '@endora-commerce/contracts';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import { effectiveState, lazyPort, type ModuleContext } from '@endora-commerce/platform/kernel';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -56,8 +60,15 @@ import { Webhook } from './entities/webhook.entity.js';
  * deriving that from `BACKEND_ROLE` here would start one in every test file.
  */
 
-/** The events bridged to the delivery queue (contracts/order-webhooks.md §2). */
-export const BRIDGED_EVENT_TYPES = ['order.created.v1', 'order.status_changed.v1'] as const;
+/**
+ * The events bridged to the delivery queue (contracts/order-webhooks.md §2).
+ *
+ * **Not a list of this module's own**: it is the contracts package's constant,
+ * which the subscription form offers from as well, so what is offered and what
+ * is bridged are one array (issue #173). Adding an event type means adding it
+ * there; `bridged-equals-offered.test.ts` holds the two sides together.
+ */
+export const BRIDGED_EVENT_TYPES = WEBHOOK_BUILT_IN_EVENT_TYPES;
 
 export interface WebhooksCradle {
   readonly emFactory: () => EntityManager;
@@ -88,7 +99,14 @@ export function registerModule(ctx: ModuleContext): void {
     ctx
       .asFunction(
         ({ emFactory, auditLogService }: WebhooksCradle) =>
-          new WebhookService(emFactory, auditLogService),
+          new WebhookService(emFactory, auditLogService, () =>
+            // Read per write rather than captured: the registry answers for the
+            // contributors that are present *now*, and it is registered ungated
+            // further down, so resolving it here cannot meet a gate.
+            deliverableWebhookEventTypes(
+              ctx.cradle<WebhooksCradle>().webhookEventRegistry.list().map((descriptor) => descriptor.eventType),
+            ),
+          ),
       )
       .singleton(),
   );

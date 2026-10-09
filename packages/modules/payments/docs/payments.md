@@ -58,7 +58,9 @@ customer route and authorises through `requireCustomer`, not a permission.
 
 ## Events emitted
 
-`payment.settled.v1`, `payment.failed.v1`, `payment.refunded.v1`.
+`payment.received.v1`, `payment.failed.v1`, `payment.refunded.v1`. These are
+events on the in-process event bus; none of them is delivered to outbound
+webhooks.
 
 ## Extension points
 

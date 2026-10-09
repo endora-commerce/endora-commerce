@@ -56,7 +56,8 @@ klienta i jest autoryzowane przez `requireCustomer`, a nie przez uprawnienie.
 
 ## Emitowane zdarzenia
 
-`payment.settled.v1`, `payment.failed.v1`, `payment.refunded.v1`.
+`payment.received.v1`, `payment.failed.v1`, `payment.refunded.v1`. Są to zdarzenia działającej w
+procesie szyny zdarzeń; żadne z nich nie jest dostarczane do webhooków wychodzących.
 
 ## Punkty rozszerzenia
 

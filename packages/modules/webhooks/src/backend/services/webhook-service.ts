@@ -1,6 +1,6 @@
 import { randomBytes } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, WEBHOOK_BUILT_IN_EVENT_TYPES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { Webhook } from '../entities/webhook.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
@@ -19,7 +19,41 @@ export class WebhookService {
   constructor(
     private readonly emFactory: () => EntityManager,
     private readonly auditLog?: AuditPort,
+    /**
+     * Every event type a subscription can receive at this moment — the built-in
+     * ones and the contributed ones whose owner is present. Asked per write, so
+     * an operator's flip of a contributing module needs no restart. The default
+     * is the built-in set alone: a service composed without a registry accepts
+     * less, never more.
+     */
+    private readonly deliverableEventTypes: () => readonly string[] = () => WEBHOOK_BUILT_IN_EVENT_TYPES,
   ) {}
+
+  /**
+   * Refuse event types nothing delivers (issue #173).
+   *
+   * A subscription to an event that is not bridged is saved and then silent
+   * forever, and its owner cannot tell "nothing happened yet" from "this will
+   * never fire" — so the write is where it is stopped.
+   *
+   * `alreadyStored` is what keeps a subscription written before this rule
+   * editable: a name the row already carries is not judged again, so such a row
+   * can be renamed, re-pointed and have other types added or removed without
+   * first being forced to drop it. Only a name the write *adds* must be
+   * deliverable. Reads and deliveries never pass through here.
+   */
+  #assertDeliverable(requested: readonly string[], alreadyStored: readonly string[] = []): void {
+    const accepted = new Set<string>([...this.deliverableEventTypes(), ...alreadyStored]);
+    const refused = [...new Set(requested)].filter((eventType) => !accepted.has(eventType));
+    if (refused.length === 0) return;
+    const eventTypes = refused.join(', ');
+    throw new HttpError(
+      422,
+      ERROR_CODES.WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE,
+      `These event types are not delivered to webhooks: ${eventTypes}. Subscribe only to event types the Webhooks screen offers.`,
+      { eventTypes },
+    );
+  }
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
     if (this.auditLog) {
@@ -47,6 +81,7 @@ export class WebhookService {
     organizationId?: string | null;
     createdByAdminUserId?: string;
   }): Promise<Webhook> {
+    this.#assertDeliverable(input.eventTypes);
     const em = this.emFactory();
     const webhook = em.create(Webhook, {
       name: input.name,
@@ -82,6 +117,7 @@ export class WebhookService {
     const em = this.emFactory();
     const webhook = await em.findOne(Webhook, { id });
     if (!webhook) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Webhook not found.');
+    if (patch.eventTypes !== undefined) this.#assertDeliverable(patch.eventTypes, webhook.eventTypes);
     if (patch.name !== undefined) webhook.name = patch.name;
     if (patch.url !== undefined) webhook.url = patch.url;
     if (patch.eventTypes !== undefined) webhook.eventTypes = patch.eventTypes;
