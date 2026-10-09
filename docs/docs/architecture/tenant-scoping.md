@@ -203,6 +203,64 @@ platform resolution scope in one step, and emits the same escape-hatch audit
 record as `withSystemScope`. Use `withSystemScope` to widen an execution that
 already has a context, such as a request handler.
 
+### A scheduled tick with nothing to do enters no scope
+
+A repeating job — a BullMQ Job Scheduler, an interval timer — is the one caller
+that defeats the audit's aggregation: its ticks are further apart than one flush
+window, so a scope entered on every tick is one `tenant.escape_hatch` row per
+tick, whether or not the tick did anything. A sixty-second worker writes 1,440
+rows a day on an instance where nothing happened, and those rows bury the ones
+an auditor is looking for. An audit log is for what happened.
+
+So a scheduled tick **asks first, and enters the scope only when there is
+work**:
+
+```ts
+export async function runSweepTick(deps: SweepDeps): Promise<void> {
+  let hasWork = true;
+  try {
+    hasWork = await deps.service.hasSweepWork(); // no scope: answers yes or no
+  } catch (error) {
+    rethrowIfModuleDisabled(error); // a module switched off is never absorbed
+    hasWork = true; // cannot tell — run as before, scope and audit row included
+  }
+  if (!hasWork) return;
+  await enterSystemScope('orders: sweep outstanding order follow-ups', () => deps.service.sweep());
+}
+```
+
+The question runs with **no** tenant context, so it cannot go through a
+tenant-scoped entity — that read fail-closes with `MissingTenantContextError`,
+by design. It is a raw statement over the module's own tables, and it is held
+to four rules. They are what keeps it from becoming a way around the audit:
+
+1. **It returns one boolean.** `select exists(…)`, and nothing else: no row, no
+   id, no organization, no count. A caller that learns only "go and look" has
+   read no tenant's data, which is why there is nothing to record. A probe
+   that returns anything more is an unaudited cross-tenant read. Widen the
+   scope instead.
+2. **It is the job's own predicate.** `false` must mean the pass would read and
+   write nothing. Where the exact predicate needs something that belongs
+   inside the scope — a setting, another module's port — ask a wider question
+   that can only err towards `true`.
+3. **Its answer is never handed to the pass.** The work re-reads everything
+   inside the scope. The probe decides *whether* the scope is entered, never
+   *what* is done in it.
+4. **A probe that fails counts as `true`.** The tick then runs exactly as it
+   did before, audit row included. A failing probe may cost a row and can
+   never save one.
+
+Presence is still decided first: a module that is off asks its tables nothing.
+
+A tick that has work is recorded exactly as before, and so is every job that
+is work by definition — a queue consumer handed a job to process, a scheduled
+feed generation, a taxonomy check. Do not put a probe in front of those. If no
+scope-free question can be asked honestly, leave the scope where it is and
+accept the row: an extra audit row is noise, a missing one is a hole.
+
+This rule covers scheduled ticks only. The scope entries a process makes while
+it starts (`boot: …`) are still written one row each.
+
 ## Tests
 
 The backend test harness sets a default `system` context

@@ -1,6 +1,6 @@
 import { Queue, Worker, type Processor, type QueueOptions, type WorkerOptions } from 'bullmq';
 import type { Redis } from 'ioredis';
-import { enterSystemScope } from '@endora-commerce/platform/kernel';
+import { enterSystemScope, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 
 /**
  * BullMQ queues for the Product Feed module (feature 067, Principle X).
@@ -84,14 +84,50 @@ export function createFeedReaperQueue(
   });
 }
 
+export const FEED_REAPER_SCOPE_REASON = 'product_feeds: release stale run claims';
+
+/**
+ * What BullMQ invokes for one reaper job: ask whether any run holds a claim at
+ * all, and open the system scope only when one does (issue #120).
+ *
+ * Entering the scope is what writes the `tenant.escape_hatch` audit record, and
+ * a tick is five minutes from the last — further apart than the audit writer's
+ * aggregation window — so a scope entered on every tick is 288 audit rows a day
+ * on an installation that has never generated a feed.
+ *
+ * **`hasWork` is asked outside any scope and answers yes or no, nothing
+ * else.** Everything the sweep reads or writes is still read inside the scope,
+ * by `sweep` itself — the answer decides only *whether* the scope is
+ * entered.
+ *
+ * **A question that cannot be answered counts as yes.** The tick then runs as
+ * it always did, scope and audit record included: a failing probe may cost an
+ * audit row, and can never save one.
+ */
+export async function runFeedReaperJob(
+  hasWork: () => Promise<boolean>,
+  sweep: () => Promise<unknown>,
+): Promise<void> {
+  let work = true;
+  try {
+    work = await hasWork();
+  } catch (error) {
+    rethrowIfModuleDisabled(error);
+    work = true;
+  }
+  if (!work) return;
+  await enterSystemScope(FEED_REAPER_SCOPE_REASON, sweep);
+}
+
 export function createFeedReaperWorker(
   redis: Redis,
+  hasWork: () => Promise<boolean>,
   processor: Processor<FeedReaperJobData>,
   overrides?: Partial<WorkerOptions>,
 ): Worker<FeedReaperJobData> {
   return new Worker<FeedReaperJobData>(
     FEED_REAPER_QUEUE,
-    (job) => enterSystemScope('product_feeds: release stale run claims', () => processor(job)),
+    (job, token) => runFeedReaperJob(hasWork, () => processor(job, token)),
     { connection: redis, concurrency: 1, ...overrides },
   );
 }

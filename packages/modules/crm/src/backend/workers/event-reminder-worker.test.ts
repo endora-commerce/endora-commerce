@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
+import { getTenantContext } from '@endora-commerce/platform/tenancy';
 import {
   ensureEventReminderSchedule,
+  runEventReminderJob,
   eventReminderTick,
   EVENT_REMINDER_EVERY_MS,
   EVENT_REMINDER_QUEUE,
@@ -51,7 +53,14 @@ describe('crm event reminder worker', () => {
   ])('builds no consumer and installs no schedule where %s', async (_where, host) => {
     const attach = vi.fn();
     const onClose = vi.fn();
-    const started = await startEventReminders({ tick: async () => undefined, attach, onClose, ...host });
+    const started = await startEventReminders({
+      tick: async () => undefined,
+      isPresent: () => true,
+      hasWork: async () => true,
+      attach,
+      onClose,
+      ...host,
+    });
     expect(started).toBe(false);
     expect(attach).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
@@ -67,6 +76,8 @@ describe('crm event reminder worker', () => {
 
     const started = await startEventReminders({
       tick,
+      isPresent: () => true,
+      hasWork: async () => true,
       processRunsWorkers: true,
       moduleQueueRedis: redis,
       attach,
@@ -94,6 +105,100 @@ describe('crm event reminder worker', () => {
     expect(closers).toHaveLength(1);
     await closers[0]?.();
     expect(bull.queues[0]?.close).toHaveBeenCalledTimes(1);
+  });
+
+  describe('an idle tick opens no scope (issue #120)', () => {
+    /** Every escape-hatch record the default sink printed while `run` ran. */
+    const escapeHatchLines = async (run: () => Promise<unknown>): Promise<string[]> => {
+      const lines: string[] = [];
+      const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+        const line = String(chunk);
+        if (line.includes('tenant.escape_hatch')) lines.push(line);
+        return true;
+      });
+      try {
+        await run();
+      } finally {
+        write.mockRestore();
+      }
+      return lines;
+    };
+    const scopeOf = () => getTenantContext()?.actor.kind;
+
+    it('asks whether a reminder is due outside any tenant context, and stops there when none is', async () => {
+      const asked: Array<string | undefined> = [];
+      const tick = vi.fn(async () => undefined);
+      const processor = () =>
+        runEventReminderJob({
+          tick,
+          isPresent: () => true,
+          hasWork: async () => {
+            asked.push(scopeOf());
+            return false;
+          },
+        });
+
+      const lines = await escapeHatchLines(async () => {
+        await processor();
+        await processor();
+        await processor();
+      });
+
+      expect(asked).toEqual([undefined, undefined, undefined]);
+      expect(tick).not.toHaveBeenCalled();
+      expect(lines).toEqual([]);
+    });
+
+    it('a tick with a reminder due runs the pass in a system scope and reports the entry, as before', async () => {
+      const seen: Array<string | undefined> = [];
+      const processor = () =>
+        runEventReminderJob({
+          tick: async () => {
+            seen.push(scopeOf());
+          },
+          isPresent: () => true,
+          hasWork: async () => true,
+        });
+
+      const lines = await escapeHatchLines(processor);
+
+      expect(seen).toEqual(['system']);
+      expect(lines).toHaveLength(1);
+      expect(JSON.parse(lines[0] as string)).toMatchObject({
+        msg: 'tenant.escape_hatch',
+        scope: 'system',
+        reason: 'crm: deliver due event reminders',
+        entryPoint: 'worker',
+      });
+    });
+
+    it('a question that cannot be answered counts as yes — the pass runs, scope and record included', async () => {
+      const tick = vi.fn(async () => undefined);
+      const processor = () =>
+        runEventReminderJob({
+          tick,
+          isPresent: () => true,
+          hasWork: async () => {
+            throw new Error('connection refused');
+          },
+        });
+
+      const lines = await escapeHatchLines(processor);
+
+      expect(tick).toHaveBeenCalledTimes(1);
+      expect(lines).toHaveLength(1);
+    });
+
+    it('a module that is off asks its tables nothing', async () => {
+      const hasWork = vi.fn(async () => true);
+      const tick = vi.fn(async () => undefined);
+
+      const lines = await escapeHatchLines(() => runEventReminderJob({ tick, isPresent: () => false, hasWork }));
+
+      expect(hasWork).not.toHaveBeenCalled();
+      expect(tick).not.toHaveBeenCalled();
+      expect(lines).toEqual([]);
+    });
   });
 
   it('installs one schedule, every sixty seconds, whose job carries nothing', async () => {

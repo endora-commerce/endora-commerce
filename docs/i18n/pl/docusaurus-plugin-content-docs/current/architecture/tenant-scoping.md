@@ -190,6 +190,61 @@ w jednym kroku systemowy kontekst tenanta i zakres rozwiązywania platformy oraz
 wpis audytu obejścia co `withSystemScope`. `withSystemScope` służy do poszerzenia wykonania, które
 ma już kontekst, na przykład handlera trasy.
 
+### Cykliczne zadanie, które nie ma nic do zrobienia, nie otwiera zakresu
+
+Zadanie cykliczne — BullMQ Job Scheduler albo timer — to jedyny wywołujący, przy którym agregacja
+audytu nie działa: jego takty są od siebie dalej niż jedno okno zapisu, więc zakres otwierany przy
+każdym takcie to jeden wiersz `tenant.escape_hatch` na takt, niezależnie od tego, czy takt cokolwiek
+zrobił. Worker uruchamiany co sześćdziesiąt sekund zapisuje 1440 wierszy na dobę w instancji, w
+której nic się nie wydarzyło, a te wiersze zasłaniają wpisy, których szuka audytor. Dziennik audytu
+służy do zapisywania tego, co się wydarzyło.
+
+Dlatego takt zadania cyklicznego **najpierw pyta, a zakres otwiera tylko wtedy, gdy jest praca**:
+
+```ts
+export async function runSweepTick(deps: SweepDeps): Promise<void> {
+  let hasWork = true;
+  try {
+    hasWork = await deps.service.hasSweepWork(); // bez zakresu: odpowiada tak albo nie
+  } catch (error) {
+    rethrowIfModuleDisabled(error); // wyłączenie modułu nigdy nie jest pochłaniane
+    hasWork = true; // nie wiadomo — działaj jak dotąd, z zakresem i wierszem audytu
+  }
+  if (!hasWork) return;
+  await enterSystemScope('orders: sweep outstanding order follow-ups', () => deps.service.sweep());
+}
+```
+
+Pytanie działa **bez** kontekstu tenanta, więc nie może przejść przez encję objętą izolacją — taki
+odczyt celowo kończy się błędem `MissingTenantContextError`. Jest to surowe zapytanie do własnych
+tabel modułu i obowiązują je cztery reguły. To one sprawiają, że nie staje się ono sposobem na
+ominięcie audytu:
+
+1. **Zwraca jedną wartość logiczną.** `select exists(…)` i nic więcej: żadnego wiersza, żadnego
+   identyfikatora, żadnej organizacji, żadnej liczby. Wywołujący, który dowiaduje się tylko „idź i
+   sprawdź”, nie odczytał danych żadnego tenanta — dlatego nie ma czego zapisywać. Pytanie, które
+   zwraca cokolwiek więcej, jest nieaudytowanym odczytem między tenantami. W takim przypadku otwórz
+   zakres.
+2. **Jest własnym warunkiem zadania.** `false` musi oznaczać, że przebieg niczego by nie odczytał
+   ani nie zapisał. Jeśli dokładny warunek wymaga czegoś, co należy do zakresu — ustawienia albo
+   portu innego modułu — zadaj szersze pytanie, które może się mylić tylko w stronę `true`.
+3. **Jego odpowiedź nigdy nie trafia do przebiegu.** Praca odczytuje wszystko ponownie wewnątrz
+   zakresu. Pytanie rozstrzyga, *czy* zakres zostanie otwarty, nigdy *co* się w nim wykona.
+4. **Pytanie zakończone błędem liczy się jako `true`.** Takt działa wtedy dokładnie tak jak
+   wcześniej, razem z wierszem audytu. Błąd pytania może kosztować jeden wiersz i nigdy nie może
+   go oszczędzić.
+
+Obecność modułu nadal jest rozstrzygana najpierw: wyłączony moduł o nic nie pyta swoich tabel.
+
+Takt, który ma pracę, jest zapisywany dokładnie tak jak dotąd. To samo dotyczy każdego zadania,
+które jest pracą z definicji — konsumenta kolejki, który dostał zadanie do wykonania, zaplanowanego
+generowania feedu, sprawdzenia taksonomii. Przed nimi nie umieszczaj pytania. Jeśli nie da się
+uczciwie zadać pytania bez zakresu, zostaw zakres tam, gdzie jest, i zaakceptuj wiersz: nadmiarowy
+wiersz audytu to szum, a brakujący to luka.
+
+Ta reguła dotyczy wyłącznie taktów zadań cyklicznych. Wejścia do zakresu wykonywane przy starcie
+procesu (`boot: …`) nadal są zapisywane po jednym wierszu każde.
+
 ## Testy
 
 Środowisko testowe backendu ustawia domyślny kontekst `system` (`backend/test/tenancy-setup.ts`),

@@ -172,6 +172,44 @@ interface ClaimedRow {
 export class EventReminderService {
   constructor(private readonly deps: EventReminderServiceDeps) {}
 
+  /**
+   * Whether a {@link sweep} at `now` would do anything at all — **yes or no,
+   * and nothing else** (issue #120).
+   *
+   * The worker asks this before it opens its system scope, so that a tick with
+   * no reminder to deliver writes no `tenant.escape_hatch` audit row. It is
+   * the one statement of this service that runs with **no** tenant context,
+   * and what keeps that legitimate is what it returns: one bit from a `select
+   * exists(…)`. No Event, no Opportunity, no Organization and no count leaves
+   * the statement, so the caller learns nothing about anybody — only whether
+   * to go and look, under the scope, where the look is recorded. Widening what
+   * this returns is widening an unaudited read; do not.
+   *
+   * It is the pass's own predicate rather than an approximation: the three
+   * branches are what `#expire` marks missed, what it marks interrupted, and
+   * what `#claim` would claim — the join on an *open* Opportunity included, so
+   * a reminder waiting on a closed one is not work. Its answer is never handed
+   * to the pass, which re-reads everything inside the scope.
+   */
+  async hasSweepWork(now: Date = new Date()): Promise<boolean> {
+    const lateLimit = new Date(now.getTime() - REMINDER_LATE_LIMIT_MS);
+    const rows = (await this.deps.emFactory().execute(
+      `select exists(
+         select 1 from "crm_opportunity_events" e
+          where (e."remind_at" is not null and e."reminder_handled_at" is null and e."remind_at" < ?)
+             or (e."reminder_outcome" = 'sending' and e."reminder_handled_at" < ?)
+             or (e."remind_at" is not null and e."reminder_handled_at" is null
+                 and e."remind_at" <= ? and e."remind_at" >= ?
+                 and exists(
+                   select 1 from "crm_opportunities" o
+                     join "crm_opportunity_statuses" s on s."code" = o."status_code" and s."kind" = 'open'
+                    where o."id" = e."opportunity_id"))
+       ) as "has_work"`,
+      [lateLimit, new Date(now.getTime() - REMINDER_CLAIM_STALE_MS), now, lateLimit],
+    )) as Array<{ has_work: boolean }>;
+    return rows[0]?.has_work === true;
+  }
+
   /** One pass. `now` is the clock, handed in so that a test needs no sleep. */
   async sweep(now: Date = new Date()): Promise<EventReminderSweepSummary> {
     const summary: EventReminderSweepSummary = {

@@ -65,8 +65,10 @@ import type { OrderTransitionEffectHandlers } from './order-transition-effect-ha
  * do nothing` against a partial index, and neither has an ORM spelling. The statements name this module's own
  * table and nothing else. They pass through no tenant filter, so each entry
  * point says what bounds it: `record` and `drainForOrder` act on one order the
- * caller has already loaded through the filter, and `sweep` is a system
- * operation over every organization, run under a system scope by its caller.
+ * caller has already loaded through the filter, `sweep` is a system
+ * operation over every organization, run under a system scope by its caller,
+ * and `hasSweepWork` — the one that runs with no scope at all — returns a
+ * single boolean and no row.
  */
 
 /** The first retry waits this long; each later one twice the one before. */
@@ -188,6 +190,58 @@ export class OrderTransitionEffectService {
       summary[await this.attempt(id, new Date(), { onlyIfDue: false })] += 1;
     }
     return summary;
+  }
+
+  /**
+   * Whether a {@link sweep} at `now` would do anything at all — **yes or no,
+   * and nothing else** (issue #120).
+   *
+   * The background consumer asks this before it opens its system scope, so
+   * that a tick with nothing to do writes no `tenant.escape_hatch` audit row.
+   * It is therefore the one statement of this service that runs with **no**
+   * tenant context, and three properties keep that legitimate:
+   *
+   *  - **It answers one bit.** `select exists(…)` over this module's own
+   *    table: no row, no order id, no organization id and no count leaves the
+   *    statement, so the caller learns nothing about any organization — only
+   *    whether to go and look, under the scope, where the look is recorded.
+   *    Widening what this returns is widening an unaudited read; do not.
+   *  - **It is the sweep's own predicate, not an approximation of it.** The
+   *    three branches below are the three statements of `sweep()`: a row to
+   *    unblock because its owner is back, a row to mark as waiting because its
+   *    owner is away, a row that is due. `false` means that pass would change
+   *    and attempt nothing.
+   *  - **Its answer is never handed to the pass.** `sweep()` re-reads
+   *    everything inside the scope.
+   *
+   * A row that failed and is waiting out its back-off, or that is already
+   * marked as waiting on an absent owner, is not work — which is what keeps a
+   * module that stays off for months from costing one audit row a minute.
+   */
+  async hasSweepWork(now: Date = new Date()): Promise<boolean> {
+    const branches: string[] = [];
+    const params: unknown[] = [];
+    for (const effect of ORDER_TRANSITION_EFFECTS) {
+      const owner = ownerOfEffect(effect);
+      if (this.isPresent(owner)) {
+        branches.push(
+          `("effect" = ? and ("blocked_on" is not null
+             or (("claimed_until" is null or "claimed_until" <= now()) and "next_attempt_at" <= ?)))`,
+        );
+        params.push(effect, now);
+      } else {
+        branches.push(`("effect" = ? and "blocked_on" is distinct from ?)`);
+        params.push(effect, owner);
+      }
+    }
+    const [row] = await this.emFactory().execute<Array<{ has_work: boolean }>>(
+      `select exists(
+         select 1 from "order_transition_effects"
+          where "completed_at" is null and (${branches.join(' or ')})
+       ) as "has_work"`,
+      params,
+    );
+    return row?.has_work === true;
   }
 
   /**

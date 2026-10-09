@@ -59,7 +59,7 @@ beforeEach(() => {
 
 describe('the worker that ships', () => {
   it('consumes the module`s own queue, one tick at a time', () => {
-    buildTransitionEffectSweepWorker({ redis, effects: { sweep: async () => summary }, log: quiet });
+    buildTransitionEffectSweepWorker({ redis, effects: { sweep: async () => summary, hasSweepWork: async () => true }, log: quiet });
 
     expect(built.workers).toHaveLength(1);
     expect(built.workers[0]!.name).toBe(TRANSITION_EFFECT_SWEEP_QUEUE);
@@ -73,7 +73,11 @@ describe('the worker that ships', () => {
       seen.push(getTenantContext()?.actor.kind);
       return summary;
     });
-    buildTransitionEffectSweepWorker({ redis, effects: { sweep }, log: quiet });
+    buildTransitionEffectSweepWorker({
+      redis,
+      effects: { sweep, hasSweepWork: async () => true },
+      log: quiet,
+    });
     const { processor } = built.workers[0]!;
 
     // A worker has no request: there is no ambient context for it to inherit.
@@ -89,6 +93,7 @@ describe('the worker that ships', () => {
     buildTransitionEffectSweepWorker({
       redis,
       effects: {
+        hasSweepWork: async () => true,
         sweep: async () => {
           throw new Error('database unavailable');
         },
@@ -105,6 +110,90 @@ describe('the worker that ships', () => {
   });
 });
 
+describe('an idle tick opens no scope (issue #120)', () => {
+  /** Every escape-hatch record the default sink printed while `run` ran. */
+  const escapeHatchLines = async (run: () => Promise<unknown>): Promise<string[]> => {
+    const lines: string[] = [];
+    const write = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => {
+      const line = String(chunk);
+      if (line.includes('tenant.escape_hatch')) lines.push(line);
+      return true;
+    });
+    try {
+      await run();
+    } finally {
+      write.mockRestore();
+    }
+    return lines;
+  };
+
+  it('asks whether there is work outside any tenant context, and stops there when there is none', async () => {
+    const asked: Array<string | undefined> = [];
+    const sweep = vi.fn(async () => summary);
+    const hasSweepWork = vi.fn(async () => {
+      asked.push(getTenantContext()?.actor.kind);
+      return false;
+    });
+    buildTransitionEffectSweepWorker({ redis, effects: { sweep, hasSweepWork }, log: quiet });
+    const { processor } = built.workers[0]!;
+
+    const lines = await escapeHatchLines(async () => {
+      await processor();
+      await processor();
+      await processor();
+    });
+
+    expect(hasSweepWork).toHaveBeenCalledTimes(3);
+    // The question is not asked under a widened scope: there is none yet.
+    expect(asked).toEqual([undefined, undefined, undefined]);
+    expect(sweep).not.toHaveBeenCalled();
+    expect(lines).toEqual([]);
+  });
+
+  it('a tick with work reports its scope entry exactly as before', async () => {
+    const sweep = vi.fn(async () => summary);
+    buildTransitionEffectSweepWorker({
+      redis,
+      effects: { sweep, hasSweepWork: async () => true },
+      log: quiet,
+    });
+
+    const lines = await escapeHatchLines(() => built.workers[0]!.processor());
+
+    expect(sweep).toHaveBeenCalledTimes(1);
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!)).toMatchObject({
+      msg: 'tenant.escape_hatch',
+      scope: 'system',
+      reason: 'orders: sweep outstanding order follow-ups',
+      entryPoint: 'worker',
+    });
+  });
+
+  it('a question that cannot be answered counts as yes — the tick runs, scope and record included', async () => {
+    const seen: Array<string | undefined> = [];
+    const sweep = vi.fn(async () => {
+      seen.push(getTenantContext()?.actor.kind);
+      return summary;
+    });
+    buildTransitionEffectSweepWorker({
+      redis,
+      effects: {
+        sweep,
+        hasSweepWork: async () => {
+          throw new Error('connection refused');
+        },
+      },
+      log: quiet,
+    });
+
+    const lines = await escapeHatchLines(() => built.workers[0]!.processor());
+
+    expect(seen).toEqual(['system']);
+    expect(lines).toHaveLength(1);
+  });
+});
+
 describe('startTransitionEffectSweep — whether a consumer is built at all', () => {
   const start = (host: { processRunsWorkers: boolean; moduleQueueRedis: unknown }) => {
     const attach = vi.fn();
@@ -112,7 +201,7 @@ describe('startTransitionEffectSweep — whether a consumer is built at all', ()
     const started = startTransitionEffectSweep({
       processRunsWorkers: host.processRunsWorkers,
       moduleQueueRedis: host.moduleQueueRedis as never,
-      effects: { sweep: async () => summary },
+      effects: { sweep: async () => summary, hasSweepWork: async () => true },
       log: quiet,
       attach,
       onClose,

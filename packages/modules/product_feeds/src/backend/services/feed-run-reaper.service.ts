@@ -71,6 +71,35 @@ export class FeedRunReaperService {
   constructor(private readonly deps: FeedRunReaperDeps) {}
 
   /**
+   * Whether any run is `running` with a heartbeat at all — **yes or no, and
+   * nothing else** (issue #120).
+   *
+   * The worker asks this before it opens its system scope, so that a tick on
+   * an installation where nothing is generating writes no
+   * `tenant.escape_hatch` audit row. It runs with no tenant context, and
+   * returns one bit from a `select exists(…)` over a `@GlobalEntity` table: no
+   * run and no feed leaves the statement.
+   *
+   * Deliberately **wider** than what {@link releaseStaleClaims} acts on: it
+   * does not ask whether the heartbeat is *stale*, because the threshold is a
+   * setting and reading it belongs inside the scope. So `false` means the
+   * sweep would find nothing, and `true` means only that it should look —
+   * while a feed is generating, every tick still opens its scope and is
+   * recorded, exactly as before.
+   */
+  async hasClaimedRuns(): Promise<boolean> {
+    const rows = (await this.deps.emFactory().getConnection().execute(
+      `select exists(
+         select 1 from "product_feed_runs"
+          where "status" = 'running' and "heartbeat_at" is not null
+       ) as "has_work"`,
+      [],
+      'all',
+    )) as Array<{ has_work: boolean }>;
+    return rows[0]?.has_work === true;
+  }
+
+  /**
    * One sweep. Returns counts so the worker can log something an operator can
    * act on ("released 3") rather than a bare success.
    */

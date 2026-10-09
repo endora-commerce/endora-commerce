@@ -1123,6 +1123,8 @@ export function registerModule(ctx: ModuleContext): void {
     const cradle = ctx.cradle<RemindersCradle & ValueCradle>();
     await startEventReminders({
       tick: cradle.crmEventReminderTick,
+      isPresent: () => effectiveState.isPresent('crm'),
+      hasWork: () => cradle.crmEventReminderService.hasSweepWork(),
       processRunsWorkers: cradle.processRunsWorkers,
       moduleQueueRedis: cradle.moduleQueueRedis,
       attach: (worker) => ctx.worker(worker, { logger: app.log }),
