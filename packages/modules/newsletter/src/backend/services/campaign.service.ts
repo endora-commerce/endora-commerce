@@ -12,7 +12,11 @@ import { NewsletterCampaign } from '../entities/newsletter-campaign.entity.js';
 import { NewsletterCampaignSubscriber } from '../entities/newsletter-campaign-subscriber.entity.js';
 import { NewsletterSubscriber } from '../entities/newsletter-subscriber.entity.js';
 import type { NewsletterCampaignDispatchService } from './campaign-dispatch.service.js';
-import type { NewsletterContentService, EmailBrandingResolver } from './content.service.js';
+import type {
+  NewsletterContentService,
+  EmailBrandingResolver,
+  DefaultChannelIdResolver,
+} from './content.service.js';
 import { withEmailBranding } from './content.service.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -30,6 +34,8 @@ export interface CampaignServiceDeps {
    */
   enqueuePlan?: (campaignId: string, delayMs?: number) => Promise<string | undefined>;
   resolveEmailBranding?: EmailBrandingResolver;
+  /** Whose branding a campaign or automation with no Sales Channel carries (issue #121). */
+  resolveDefaultChannelId?: DefaultChannelIdResolver;
 }
 
 function iso(d: Date | null): string | null {
@@ -174,6 +180,7 @@ export class NewsletterCampaignService {
       { subscriber: { email }, customFields, channel: { id: campaign.salesChannelId } },
       campaign.salesChannelId,
       this.deps.resolveEmailBranding,
+      this.deps.resolveDefaultChannelId,
     );
     return this.deps.content.render({
       subject: campaign.subject,

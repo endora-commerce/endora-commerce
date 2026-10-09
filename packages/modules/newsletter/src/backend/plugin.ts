@@ -206,6 +206,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
     ...(options.resolveEmailBranding
       ? { resolveEmailBranding: options.resolveEmailBranding }
       : {}),
+    resolveDefaultChannelId: options.resolveDefaultChannelId,
   });
 
   // Producer-side queues (needed by the API to enqueue, regardless of worker role).
@@ -229,6 +230,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
     ...(options.resolveEmailBranding
       ? { resolveEmailBranding: options.resolveEmailBranding }
       : {}),
+    resolveDefaultChannelId: options.resolveDefaultChannelId,
   });
 
   const campaigns = new NewsletterCampaignService({
@@ -240,6 +242,7 @@ export function newsletterModule(options: NewsletterModuleOptions): ModuleAttach
     ...(options.resolveEmailBranding
       ? { resolveEmailBranding: options.resolveEmailBranding }
       : {}),
+    resolveDefaultChannelId: options.resolveDefaultChannelId,
     ...(planQueue
       ? {
           enqueuePlan: async (campaignId: string, delayMs?: number) => {

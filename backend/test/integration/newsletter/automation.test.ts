@@ -6,6 +6,8 @@ import { NewsletterContentService } from '../../../../packages/modules/newslette
 import { NewsletterAutomationService } from '../../../../packages/modules/newsletter/src/backend/services/automation.service.js';
 import { InMemoryNewsletterProvider } from '../../../../packages/modules/newsletter/src/backend/services/provider/console-provider.js';
 import type { SettingsService } from '../../../src/kernel/settings/settings.service.js';
+import { SettingsService as KernelSettingsService } from '../../../src/kernel/settings/settings.service.js';
+import { BrandingService } from '../../../../packages/modules/transactional_emails/src/backend/services/branding.service.js';
 import type { AutomationStep } from '@endora-commerce/contracts';
 import { NewsletterAutomationRun, NewsletterSubscriber } from '../../helpers/package-entities.js';
 
@@ -17,6 +19,28 @@ const STEPS: AutomationStep[] = [
   { type: 'wait', days: 3 },
   { type: 'send', subject: 'B', content: tree('Email B') },
 ];
+
+/**
+ * Issue #121 — the branding source a deployment actually composes: the real
+ * `BrandingService` over the real settings reader, which is what refuses a
+ * channel id that is neither a uuid nor `null`. The harness contributes no
+ * branding source at all, so nothing else in this directory reaches that guard.
+ * `asked` records the channel every read was made for.
+ */
+function deploymentBranding(db: TestDb): {
+  resolve: (salesChannelId: string | null) => Promise<{ logoUrl: string; accentColor: string }>;
+  asked: Array<string | null>;
+} {
+  const branding = new BrandingService(new KernelSettingsService(() => db.em()));
+  const asked: Array<string | null> = [];
+  return {
+    asked,
+    resolve: async (salesChannelId) => {
+      asked.push(salesChannelId);
+      return branding.resolve(salesChannelId);
+    },
+  };
+}
 
 describe('newsletter automations (US4)', () => {
   let db: TestDb;
@@ -142,5 +166,34 @@ describe('newsletter automations (US4)', () => {
     db.em().clear();
     const run = await db.em().findOneOrFail(NewsletterAutomationRun, { id: runId! });
     expect(run.status).toBe('cancelled');
+  });
+
+  it('sends a step of an automation with no sales channel, with the default channel\'s branding (issue #121)', async () => {
+    const branding = deploymentBranding(db);
+    const optIn = new NewsletterOptInService({} as unknown as SettingsService, new NewsletterTokenHelper('s'));
+    const brandedSvc = new NewsletterAutomationService({
+      emFactory: () => db.em(),
+      content: new NewsletterContentService(),
+      optIn,
+      links: { confirm: (t) => `c?${t}`, unsubscribe: (t) => `u?${t}` },
+      resolveProvider: async () => provider,
+      resolveSender: async () => ({ fromEmail: 'n@s.test', fromName: '' }),
+      enqueueStep: async (runId, stepIndex, delayMs) => {
+        pending.push({ runId, stepIndex, delayMs });
+      },
+      resolveEmailBranding: branding.resolve,
+      resolveDefaultChannelId: async () => db.systemDefaultChannelId,
+    });
+    const aid = await makeActive();
+    const sub = db.em().create(NewsletterSubscriber, { email: 'z@x.test', status: 'active' });
+    await db.em().flush();
+    const runId = await brandedSvc.enrol(aid, sub.id);
+    // The step runs in a worker: the automation is read back from its row.
+    db.em().clear();
+
+    await brandedSvc.processStep(runId!, 0);
+
+    expect(provider.sent.map((m) => m.subject)).toEqual(['A']);
+    expect(branding.asked).toEqual([db.systemDefaultChannelId]);
   });
 });
