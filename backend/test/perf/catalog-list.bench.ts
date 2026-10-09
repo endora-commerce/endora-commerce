@@ -19,13 +19,14 @@ import { Product } from '../helpers/package-entities.js';
  *
  * ## The corpus must belong to the resolved channel (issue #140)
  *
- * `CatalogQueryService.list` pages the products table, then narrows the page
- * through `filterByChannel`, which fails closed to the empty set (Principle
- * XII). A corpus seeded without a `sales_channel_products` row is therefore
- * paged, dropped, and serialised as an empty page — the request still answers
- * 200, and the harness still reports a p95. That is what this file measured
- * from the day channel scoping landed: the cost of assembling nothing, which
- * no budget stated for a page of summaries can catch.
+ * `CatalogQueryService.listProducts` scopes the listing to the resolved
+ * channel's membership and fails closed to the empty set (Principle XII) — in
+ * the statement the page is cut from since issue #151, on the fetched page
+ * before it. Either way a corpus seeded without a `sales_channel_products` row
+ * is serialised as an empty page: the request still answers 200, and the
+ * harness still reports a p95. That is what this file measured from the day
+ * channel scoping landed: the cost of assembling nothing, which no budget
+ * stated for a page of summaries can catch.
  *
  * So the fixture binds every seeded product to the channel an anonymous
  * request resolves, and the run asserts that every timed response carried a

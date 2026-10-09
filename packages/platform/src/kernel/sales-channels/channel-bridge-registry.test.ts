@@ -107,6 +107,9 @@ describe('the membership service over an unregistered member (FR-017)', () => {
     ['filterEntityIdsInChannel', () => service.filterEntityIdsInChannel('c', 'cms-page', ['e'])],
     ['listChannelsForEntity', () => service.listChannelsForEntity('cms-page', 'e')],
     ['listEntityIdsForChannel', () => service.listEntityIdsForChannel('c', 'cms-page')],
+    // Synchronous — it builds a fragment and reads nothing — so it is wrapped to
+    // refuse the way the rest of the table does.
+    ['entityIdsInChannelSubquery', async () => service.entityIdsInChannelSubquery('c', 'cms-page')],
   ];
 
   it.each(calls)('%s refuses and reaches no database', async (_name, call) => {
@@ -146,6 +149,18 @@ describe('the membership service over an unregistered member (FR-017)', () => {
     await expect(service.addToChannel('c', 'tax', 'e')).rejects.toThrow(
       /reached for an EntityManager/,
     );
+  });
+
+  it('spells the membership set as a subquery over the registered bridge, reaching no database', () => {
+    // Issue #151 — the read a listing needs *inside* the statement its page is
+    // cut from. `noDatabase()` throws on any `EntityManager` request, so
+    // answering at all is half the assertion: the fragment is the caller's to
+    // execute. The other half is that nothing but the channel is bound and
+    // nothing of the caller's is spliced.
+    expect(service.entityIdsInChannelSubquery('channel-1', 'tax')).toEqual({
+      sql: 'select "tax_id" from "sales_channel_taxes" where "sales_channel_id" = ?',
+      params: ['channel-1'],
+    });
   });
 
   it('covers every member of the published vocabulary in one state or the other', () => {

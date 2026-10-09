@@ -110,6 +110,19 @@ export interface SalesChannelMembershipPort {
     entityIds: readonly string[],
   ): Promise<string[]>;
 
+  /**
+   * The same membership set as a subquery — `select <entity id> from <bridge>
+   * where sales_channel_id = ?` — for a caller to place inside its own
+   * statement as `<its id column> in (…)`. For a listing that must be scoped
+   * **before** its page is cut, which {@link filterEntityIdsInChannel} cannot
+   * do: it narrows rows that were already fetched. Executes nothing; `?` in
+   * `sql` binds `params` in order.
+   */
+  entityIdsInChannelSubquery(
+    channelId: string,
+    entityType: ChannelMemberEntityType,
+  ): { sql: string; params: string[] };
+
   /** Channels an entity currently belongs to. */
   listChannelsForEntity(
     entityType: ChannelMemberEntityType,
