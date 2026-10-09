@@ -288,7 +288,7 @@ exists to prevent.
 ## The one thing there is no seam for
 
 **There is no way to replace a route handler wholesale.** `ctx.interceptors`
-runs after the route's own `preHandler` guards and after schema validation: a
+runs after the route's own guards and after schema validation: a
 pre-interceptor may veto by throwing a registered `HttpError` and may replace
 the validated body, and a post-interceptor may replace the payload, but neither
 can substitute the handler.

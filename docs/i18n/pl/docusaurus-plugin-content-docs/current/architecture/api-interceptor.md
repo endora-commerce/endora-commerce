@@ -16,8 +16,9 @@ działającą w procesie szynę zdarzeń `EventBus`, gdy wystarczy *zareagować 
 ## Co może interceptor — i co jest gwarantowane
 
 - **Miejsce w obsłudze żądania** — interceptor `pre` wykonuje się po własnych zabezpieczeniach
-  `preHandler` trasy (`requireAdmin` / `requireCustomer` / sprawdzenie klucza API) i po walidacji
-  Zod, tuż przed handlerem. Interceptor `post` wykonuje się w `preSerialization` i tylko dla udanych
+  trasy (`requireAdmin` / `requireCustomer` / sprawdzenie klucza API, które platforma uruchamia
+  przed walidacją — zobacz [Uprawnienia](./permissions.md#kiedy-działa-zabezpieczenie)) i po
+  walidacji Zod, tuż przed handlerem. Interceptor `post` wykonuje się w `preSerialization` i tylko dla udanych
   odpowiedzi (`statusCode < 400`).
 - **Ten sam kontekst** — interceptory działają w tym samym kontekście `TenantContext` i widzą ten
   sam rozstrzygnięty kanał sprzedaży co endpoint; usługi wywołane z interceptora mają dokładnie

@@ -126,6 +126,38 @@ Kod deklarowany przez więcej niż jeden moduł dostaje **sumę** wymagań wszys
 współdzielony kod otwiera więcej niż jeden ekran, każdy z własnymi potrzebami, a podpowiadanie
 więcej to kierunek, który nikogo nie zablokuje.
 
+## Kiedy działa zabezpieczenie
+
+Trasa deklaruje swoje zabezpieczenie jako `preHandler` — `{ preHandler: requireAdmin('catalog:write'),
+schema: { body } }` — a platforma uruchamia je **przed walidacją żądania**: łańcuch `preHandler`
+zadeklarowany w opcjach trasy jest przy jej rejestracji przenoszony do fazy `preValidation` tej
+trasy. Kolejność dla jednego żądania jest więc taka:
+
+1. `onRequest` — rozpoznanie sesji, ustalenie zakresu organizacji i kanału sprzedaży, odpowiedź
+   `503` dla wyłączonego modułu, zliczenie żądania przez ogranicznik liczby żądań;
+2. parsowanie treści żądania;
+3. **zabezpieczenia trasy** — `401` bez sesji, którą trasa akceptuje, `403` bez uprawnienia;
+4. walidacja żądania względem schematu trasy — `400 VALIDATION_FAILED`;
+5. interceptory API, a potem handler.
+
+Wywołujący, któremu trasa odmawia, dostaje więc `401` albo `403` i nie dowiaduje się niczego o
+kształcie żądania, cokolwiek w nim wyśle. Wcześniej jako pierwszy odpowiadał walidator i
+nieuwierzytelniony wywołujący mógł odczytać z odpowiedzi `400` nazwy pól i ograniczenia trasy
+administracyjnej.
+
+Co to oznacza dla zabezpieczenia, które piszesz samodzielnie: widzi ono `request.params` i
+`request.query` w postaci nadanej przez router oraz `request.body` **sparsowane, ale
+niezwalidowane** — dowolną wartość JSON, bez konwersji typów i wartości domyślnych. Porównuj to, co
+odczytujesz, z tym, czego oczekujesz, a w każdym innym przypadku odmawiaj albo nie zabieraj głosu.
+Praca wymagająca zwalidowanego żądania należy do handlera, do
+[interceptora API](./api-interceptor.md) albo do haka `preHandler` dodanego przez `addHook` we
+własnym zakresie wtyczki; żadne z nich nie jest przenoszone.
+
+Dwie rzeczy nadal odpowiadają przed jakimkolwiek zabezpieczeniem: żądanie odrzucone przez parser
+treści (niepoprawny JSON, nieobsługiwany typ zawartości, treść ponad limit) oraz trasa, która
+sprawdza sesję wewnątrz handlera, zamiast deklarować zabezpieczenie — schemat takiej trasy jest
+walidowany najpierw. Deklaruj zabezpieczenie.
+
 ## Dodawanie uprawnienia
 
 Zadeklaruj kod we własnym `manifest.ts` modułu, nadaj mu etykietę we własnych plikach

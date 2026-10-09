@@ -134,6 +134,37 @@ A code more than one module declares takes the **union** of its declarers'
 requirements: a shared code opens more than one surface, each with its own needs,
 and advising more is the direction that cannot strand anybody.
 
+## When the gate runs
+
+A route declares its gate as a `preHandler` — `{ preHandler: requireAdmin('catalog:write'),
+schema: { body } }` — and the platform runs it **before the request is validated**: the
+`preHandler` chain a route declares in its own options is moved to that route's `preValidation`
+phase when the route is registered. The order for one request is therefore:
+
+1. `onRequest` — the session is resolved, the tenant scope and the sales channel are established,
+   a switched-off module answers `503`, the rate limiter counts the request;
+2. the body is parsed;
+3. **the route's guards** — `401` without the session the route accepts, `403` without the
+   permission;
+4. the request is validated against the route's schema — `400 VALIDATION_FAILED`;
+5. API interceptors, then the handler.
+
+So a caller the route refuses is told `401` or `403` and nothing about the request shape, whatever
+the request holds. Before this ordering the validator answered first, and an unauthenticated
+caller could read an admin route's field names and constraints out of the `400`.
+
+What that means for a guard you write yourself: it sees `request.params` and `request.query` as
+the router produced them and `request.body` **parsed but not validated** — any JSON value, with no
+coercion or default applied. Compare what you read against what you expect and abstain or refuse
+on anything else. Work that needs the validated request belongs in the handler, in an
+[API interceptor](./api-interceptor.md), or in a `preHandler` added with `addHook` on your own
+plugin scope; none of those is moved.
+
+Two things still answer before any guard: a request the body parser refuses (malformed JSON, an
+unsupported media type, a body over the limit) and a route that checks the session inside its
+handler instead of declaring a guard — the schema of such a route is validated first. Declare the
+guard.
+
 ## Adding a permission
 
 Declare the code in your own module's `manifest.ts`, label it in your own module's

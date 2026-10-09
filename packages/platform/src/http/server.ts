@@ -10,6 +10,7 @@ import {
 } from '@fastify/type-provider-zod';
 
 import { attachPlatformLogger } from '../kernel/logging.js';
+import { makeGuardsBeforeValidationOnRoute } from './guards-before-validation.js';
 import { registerErrorEnvelope } from './error-envelope.js';
 import {
   attachOpenApiAutoRegistration,
@@ -165,6 +166,15 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
   app.addHook('onSend', async (request, reply) => {
     reply.header('x-request-id', request.id);
   });
+
+  // A route's guards run before its schema (`guards-before-validation.ts`):
+  // the `preHandler` chain a route declares moves to its `preValidation`, so a
+  // caller the route refuses is answered 401/403 and not by the validator.
+  // Installed BEFORE the module loop so it observes every route, BEFORE the
+  // interceptor listener below so the dispatch that one appends stays after
+  // validation, and unconditionally — it is not a feature a composition root
+  // may leave out.
+  app.addHook('onRoute', makeGuardsBeforeValidationOnRoute());
 
   // Feature 060 — API interceptors. Installed BEFORE the module loop so the
   // onRoute hooks observe every route (including those mounted in encapsulated
