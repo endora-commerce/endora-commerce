@@ -42,6 +42,19 @@ class SuppressingMailer implements EmailMailerPort {
   }
 }
 
+/**
+ * A transport with no mail server behind it — what `email`'s console driver
+ * answers (issue #186).
+ */
+class LoggingMailer implements EmailMailerPort {
+  readonly handed: EmailMailerSendInput[] = [];
+
+  async send(input: EmailMailerSendInput): Promise<{ status: 'logged' }> {
+    this.handed.push(input);
+    return { status: 'logged' };
+  }
+}
+
 const fakeSettings = {
   // D-48 — a *real* settings condition, not a bare `Error`. Branding used to
   // absorb anything a settings read threw, which is how it also absorbed the
@@ -112,6 +125,22 @@ describe('transactional emails — send outcome (issue 67)', () => {
       variables: { order: { businessId: 'ORD-3', items: [] } },
     });
     expect(outcome).toEqual({ status: 'sent' });
+    expect(mailer.handed).toHaveLength(1);
+  });
+
+  it('reports logged, not sent, when the transport only wrote the message to the log (issue #186)', async () => {
+    // Unlike the duplicate above, nothing went out here at all, and a caller
+    // that records how a message was delivered has to be able to tell.
+    const mailer = new LoggingMailer();
+    const outcome = await service(mailer, h).send({
+      code: 'order_confirmation',
+      salesChannelId: CHANNEL,
+      language: 'en-US',
+      to: 'buyer@example.com',
+      messageId: 'outcome:logged',
+      variables: { order: { businessId: 'ORD-4', items: [] } },
+    });
+    expect(outcome).toEqual({ status: 'logged' });
     expect(mailer.handed).toHaveLength(1);
   });
 

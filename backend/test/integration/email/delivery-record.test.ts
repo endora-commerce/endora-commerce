@@ -135,6 +135,11 @@ describe('email — the delivery record is written and never costs a send (D-59)
     em.clear();
     const rows = await em.find(EmailDelivery, { messageId: 'wired:1' });
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.status).toBe('sent');
+    // The composition under test configures no SMTP transport, so the driver
+    // behind the recording mailer is the console one: the message reached the
+    // log and nobody's inbox, and the row has to say so (issue #186). It said
+    // `sent` here until the console driver stopped answering that.
+    expect(rows[0]!.status).toBe('logged');
+    expect(rows[0]!.reason ?? null).toBeNull();
   });
 });

@@ -47,12 +47,17 @@ describe('crm event reminders', () => {
   let admins: Array<{ undo: () => void }> = [];
 
   /** The mail transport: what `transactional_emails` handed over, and a way to make it fail. */
-  const mail: { sent: EmailMailerSendInput[]; failWith: Error | null } = { sent: [], failWith: null };
+  const mail: { sent: EmailMailerSendInput[]; failWith: Error | null; logOnly: boolean } = {
+    sent: [],
+    failWith: null,
+    logOnly: false,
+  };
   const mailer = {
     async send(input: EmailMailerSendInput): Promise<EmailMailerSendOutcome> {
       if (mail.failWith) throw mail.failWith;
       mail.sent.push(input);
-      return { status: 'sent' };
+      // `logOnly` is an instance with no mail server: the console driver's answer.
+      return mail.logOnly ? { status: 'logged' } : { status: 'sent' };
     },
   };
 
@@ -157,6 +162,7 @@ describe('crm event reminders', () => {
   beforeEach(() => {
     mail.sent.length = 0;
     mail.failWith = null;
+    mail.logOnly = false;
   });
 
   afterAll(async () => {
@@ -397,6 +403,27 @@ describe('crm event reminders', () => {
       await sweep(new Date(broken.getTime() + 2 * MINUTE));
       expect(mailAbout(thrown.eventId)).toEqual([]);
       expect(await bellAbout(thrown.opportunity.id)).toHaveLength(1);
+    });
+
+    it('an e-mail that was only written to the log is not a delivery — the bell alone, or nothing at all (issue #186)', async () => {
+      // An instance with no mail server: the transport takes the message, logs
+      // it and says so. Recording "bell and e-mail" for it names a channel that
+      // reached nobody.
+      mail.logOnly = true;
+      const now = nextNow();
+      const away = await person('no-mail-server');
+      const logged = await due(now, { assignee: away.adminUserId });
+      await sweep(now);
+      expect(mailAbout(logged.eventId)).toHaveLength(1);
+      expect(await bellAbout(logged.opportunity.id)).toHaveLength(1);
+      expect(await outcomeOf(logged.eventId)).toBe('bell');
+
+      const later = nextNow();
+      const nothing = await due(later, { assignee: away.adminUserId });
+      await withModuleOff('admin_notifications', 'deactivated', () => sweep(later));
+      expect(mailAbout(nothing.eventId)).toHaveLength(1);
+      expect(await bellAbout(nothing.opportunity.id)).toEqual([]);
+      expect(await outcomeOf(nothing.eventId)).toBe('undeliverable');
     });
 
     it('with the bell switched off the e-mail goes out whether or not the recipient is online; with both unavailable nothing does', async () => {

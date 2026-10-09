@@ -35,6 +35,8 @@ export type ReturnEmailNotSentReason =
    * `messageId`, so an earlier call delivered the message and this one did not.
    */
   | 'suppressed'
+  /** No mail server is configured: the message was only written to the log (issue #186). */
+  | 'logged'
   /** The send raised, and the workflow transition stays applied. */
   | 'failed';
 
@@ -114,7 +116,7 @@ export class ReturnEmailNotifier implements ReturnNotifier {
       const outcome = await this.mailer.send(
         buildReturnAuthorizedEmail({ to, rmaNumber, returnCaseId: rc.id }),
       );
-      if (outcome.status !== 'sent') return this.notSent(rc, kind, 'suppressed');
+      if (outcome.status !== 'sent') return this.notSent(rc, kind, outcome.status);
       return { sent: true };
     } catch (error) {
       return this.contained(rc, kind, error);
@@ -144,7 +146,7 @@ export class ReturnEmailNotifier implements ReturnNotifier {
       const outcome = await this.mailer.send(
         buildReturnRejectedEmail({ to, reason, returnCaseId: rc.id }),
       );
-      if (outcome.status !== 'sent') return this.notSent(rc, kind, 'suppressed');
+      if (outcome.status !== 'sent') return this.notSent(rc, kind, outcome.status);
       return { sent: true };
     } catch (error) {
       return this.contained(rc, kind, error);

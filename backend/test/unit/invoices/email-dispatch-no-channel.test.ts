@@ -147,6 +147,18 @@ describe('invoices — dispatching the invoice e-mail with no sales channel (#10
     expect(logged[0]!.context).toMatchObject({ invoiceId: INVOICE_ID, reason: 'no_transport' });
   });
 
+  it('reports a message that was only written to the log as not sent (issue #186)', async () => {
+    const logged: Array<{ message: string; context: Record<string, unknown> }> = [];
+    const dispatcher = new InvoiceEmailDispatcher(
+      deps(fakeSettings(), new CapturingSender({ status: 'logged' }), logged),
+    );
+
+    // The reason is on the wire for the operator who clicked "issue": an
+    // instance with no mail server delivered the invoice to nobody.
+    await expect(dispatcher.dispatch(INVOICE_ID)).resolves.toEqual({ sent: false, reason: 'logged' });
+    expect(logged[0]!.context).toMatchObject({ invoiceId: INVOICE_ID, reason: 'logged' });
+  });
+
   it('contains a throwing send (FR-029) but names it in the result and the log', async () => {
     const settings = fakeSettings();
     const logged: Array<{ message: string; context: Record<string, unknown> }> = [];

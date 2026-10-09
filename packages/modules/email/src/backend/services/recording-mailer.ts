@@ -49,9 +49,12 @@ export class RecordingMailer implements Mailer {
 
     await this.recorder.record({
       ...contextOf(input),
-      ...(outcome.status === 'sent'
-        ? { status: 'sent' as const }
-        : { status: 'suppressed' as const, reason: outcome.reason }),
+      // `sent` and `logged` are recorded as themselves, with no reason: a row
+      // that said `sent` for a message the console driver only logged would be
+      // the record claiming a delivery that did not happen (issue #186).
+      ...(outcome.status === 'suppressed'
+        ? { status: 'suppressed' as const, reason: outcome.reason }
+        : { status: outcome.status }),
     });
     return outcome;
   }

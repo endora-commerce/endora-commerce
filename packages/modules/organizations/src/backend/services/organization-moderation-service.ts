@@ -353,7 +353,10 @@ export class OrganizationModerationService {
       text: input.fallbackText,
       meta,
     });
-    if (outcome.status !== 'sent') {
+    // Only the transport's refusal is named here. `logged` (issue #186) is the
+    // console driver saying no mail server is configured: it has already
+    // written the message to the log itself, and the delivery record says so.
+    if (outcome.status === 'suppressed') {
       // The moderation transition has committed and this notification runs
       // after it, so the non-send is named rather than raised — D-59's record
       // is what survives to answer "was the customer told".

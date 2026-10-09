@@ -104,7 +104,10 @@ export class OrgRegistrationNotifier {
             text: this.composeBody(org),
             meta: { organizationId: org.id, kind: 'organization.registered' },
           });
-          if (outcome.status !== 'sent') {
+          // Only the transport's refusal is named here. `logged` (issue #186) is the
+          // console driver saying no mail server is configured: it has already
+          // written the message to the log itself, and the delivery record says so.
+          if (outcome.status === 'suppressed') {
             // `onError` is for a throw; a suppression is not one. Each
             // recipient is independent, so it is named on its own — and D-59's
             // record holds the same fact per recipient.

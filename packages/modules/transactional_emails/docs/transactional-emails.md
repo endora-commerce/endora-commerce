@@ -153,17 +153,21 @@ record of that fate lives. The row carries the recipient, the email code, the
 sales channel, the message id, the business document the message delivered (an
 invoice, typically), the outcome and the moment it was attempted.
 
-The outcome is one of three, and the split is the point of the table:
+The outcome is one of four, and the split is the point of the table:
 
 | Status | Means | Typical reason |
 | --- | --- | --- |
-| `sent` | the transport accepted the message | — |
+| `sent` | a mail server accepted the message | — |
+| `logged` | no mail server is configured (`SMTP_URL` is unset), so the message was only written to the server log and reached nobody | — |
 | `suppressed` | the platform deliberately did not send | `deactivated` (an operator switched this email off), `duplicate_message_id` |
 | `failed` | the message was meant to go out and did not | `transport_error`, `no_transport`, `no_definition` |
 
 An operator asking "did the customer get the invoice" therefore gets an answer
 that outlives a log rotation, and one that does not confuse a configuration they
-chose with an outage. This is **best-effort delivery with a durable record**, not
+chose with an outage. A `logged` message is never reported as sent: the sender
+answers `logged` to the module that asked, so an invoice issued on an instance
+without a mail server says its email was not sent, and a reminder that would have
+gone to the bell and by email is recorded as delivered to the bell alone. This is **best-effort delivery with a durable record**, not
 guaranteed delivery: there is no retry queue and no outbox, a resend stays an
 operator action, and a message lost between the business write and the transport
 call is lost. There is no admin screen over the table yet — it is read from the

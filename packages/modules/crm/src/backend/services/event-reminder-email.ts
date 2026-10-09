@@ -17,6 +17,8 @@ export type EventReminderEmailNotSentReason =
   | 'no_transport'
   /** No `crm_event_reminder` definition exists yet. */
   | 'no_definition'
+  /** No mail server is configured: the message was only written to the log (issue #186). */
+  | 'logged'
   /** The send raised. */
   | 'failed';
 

@@ -93,6 +93,17 @@ describe('orders — the order e-mail helper reports what happened (#78)', () =>
     expect(logged).toHaveLength(1);
   });
 
+  it('reports a message that was only written to the log as not sent (issue #186)', async () => {
+    const logged: Logged[] = [];
+
+    await expect(
+      sendOrderTransactionalEmail(em, new CapturingSender({ status: 'logged' }), order, message, (m, c) =>
+        logged.push({ message: m, context: c }),
+      ),
+    ).resolves.toEqual({ sent: false, reason: 'logged' });
+    expect(logged).toHaveLength(1);
+  });
+
   it('reports a code with no definition', async () => {
     const logged: Logged[] = [];
 

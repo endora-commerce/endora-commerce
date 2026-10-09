@@ -147,16 +147,21 @@ o losie wiadomości decyduje transport, więc tam znajduje się zapis tego losu.
 odbiorcę, kod e-maila, kanał sprzedaży, identyfikator wiadomości, dokument biznesowy, który
 wiadomość dostarczała (zwykle fakturę), wynik i czas próby.
 
-Wynik jest jednym z trzech, a ten podział jest istotą tabeli:
+Wynik jest jednym z czterech, a ten podział jest istotą tabeli:
 
 | Status | Znaczenie | Typowy powód |
 | --- | --- | --- |
-| `sent` | transport przyjął wiadomość | — |
+| `sent` | serwer pocztowy przyjął wiadomość | — |
+| `logged` | nie skonfigurowano serwera pocztowego (`SMTP_URL` nie jest ustawione), więc wiadomość została jedynie zapisana w logu serwera i do nikogo nie dotarła | — |
 | `suppressed` | platforma celowo jej nie wysłała | `deactivated` (operator wyłączył ten e-mail), `duplicate_message_id` |
 | `failed` | wiadomość miała zostać wysłana i nie została | `transport_error`, `no_transport`, `no_definition` |
 
 Operator, który pyta, „czy klient dostał fakturę”, dostaje więc odpowiedź, która przetrwa rotację
-logów i nie myli konfiguracji, którą sam wybrał, z awarią. To **dostarczanie bez gwarancji, ale z
+logów i nie myli konfiguracji, którą sam wybrał, z awarią. Wiadomość ze statusem `logged` nigdy nie
+jest zgłaszana jako wysłana: nadawca odpowiada `logged` modułowi, który o nią poprosił, więc faktura
+wystawiona na instancji bez serwera pocztowego informuje, że e-mail nie został wysłany, a
+przypomnienie, które trafiłoby do dzwonka i na e-mail, jest zapisywane jako dostarczone wyłącznie do
+dzwonka. To **dostarczanie bez gwarancji, ale z
 trwałym zapisem**, a nie dostarczanie gwarantowane: nie ma kolejki ponowień ani skrzynki nadawczej
 (outbox), ponowna wysyłka pozostaje działaniem operatora, a wiadomość utracona między zapisem
 biznesowym a wywołaniem transportu przepada. Tabela nie ma jeszcze ekranu w panelu administracyjnym

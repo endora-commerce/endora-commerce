@@ -137,10 +137,10 @@ export class TransactionalEmailService implements TransactionalEmailSender {
   // --- Sending (port) -----------------------------------------------------
 
   /**
-   * Delivers the email and reports what happened. The three non-`sent` outcomes
-   * used to be one silent `return`, which left every caller unable to tell an
-   * operator's "off" from a code with no template — and suppressing its own
-   * fallback for both.
+   * Delivers the email and reports what happened. The three outcomes decided
+   * before the transport used to be one silent `return`, which left every
+   * caller unable to tell an operator's "off" from a code with no template —
+   * and suppressing its own fallback for both.
    *
    * Since D-59 each of those three also leaves a **row**. They are the outcomes
    * decided before the transport is reached, so the record `RecordingMailer`
@@ -186,16 +186,21 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       ...(fallbackLanguage ? { fallbackLanguage } : {}),
     });
 
-    // The transport's own answer (`sent` / `suppressed`, D-59) is deliberately
-    // not carried further, and this is the decision rather than an oversight:
-    // its one suppression reason is `duplicate_message_id`, meaning this exact
-    // message id was already accepted, so the message did go out. What
-    // `TransactionalSendOutcome` exists to tell a caller is whether it may fall
-    // back to its own in-code builder, and neither transport answer permits
-    // that. The row is not lost either — `RecordingMailer` writes the
-    // `suppressed` delivery record before returning. Widening the union here
-    // would publish a distinction no caller can act on.
-    await this.mailer.send({
+    // The transport's answer is passed on where a caller can act on it, and
+    // only there.
+    //
+    // `logged` is passed on (issue #186): the console driver wrote the message
+    // to the process log and no mail server ever saw it, so answering `sent`
+    // made every caller that records a delivery record one that did not happen.
+    //
+    // `suppressed` (D-59) is deliberately still answered as `sent`, and this is
+    // the decision rather than an oversight: its one reason is
+    // `duplicate_message_id`, meaning this exact message id was already
+    // accepted. What `TransactionalSendOutcome` exists to tell a caller is
+    // whether it may fall back to its own in-code builder, and that answer does
+    // not permit it. The row is not lost either — `RecordingMailer` writes the
+    // `suppressed` delivery record before returning.
+    const transportOutcome = await this.mailer.send({
       messageId: input.messageId,
       to: input.to,
       subject: rendered.subject,
@@ -210,7 +215,7 @@ export class TransactionalEmailService implements TransactionalEmailSender {
       ...(input.attachments ? { attachments: input.attachments } : {}),
       ...(input.meta ? { meta: input.meta } : {}),
     });
-    return { status: 'sent' };
+    return transportOutcome.status === 'logged' ? { status: 'logged' } : { status: 'sent' };
   }
 
   /**

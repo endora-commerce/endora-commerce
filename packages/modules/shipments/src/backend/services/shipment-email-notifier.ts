@@ -41,6 +41,8 @@ export type ShipmentEmailNotSentReason =
   | 'no_transport'
   /** No `shipment_created` template exists yet. */
   | 'no_definition'
+  /** No mail server is configured: the message was only written to the log (issue #186). */
+  | 'logged'
   /** The send raised, and the shipment stays created. */
   | 'failed';
 

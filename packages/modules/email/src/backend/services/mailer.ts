@@ -15,6 +15,10 @@ import type {
  * without an SMTP server. Production composition wires a real SMTP
  * transport (e.g. via nodemailer) by implementing this interface.
  *
+ * It answers `logged`, never `sent` (issue #186): the message reached a log
+ * line and nobody's inbox, and a caller that records how something was
+ * delivered has to be able to tell the two apart.
+ *
  * The four shapes moved to `@endora-commerce/contracts` in feature 075's Phase P —
  * thirty-two sites across eight modules named them at this path, and D-59's
  * `MailerSendOutcome` is read one layer up by `transactional_emails`. They are
@@ -46,13 +50,13 @@ export class ConsoleMailer implements Mailer {
         meta: input.meta,
       }),
     );
-    return { status: 'sent' };
+    return { status: 'logged' };
   }
 }
 
 /**
  * In-memory mailer for tests. Captures every sent message; tests assert
- * against `sent`.
+ * against `sent`. It stands in for a real mail server, so it answers `sent`.
  */
 export class InMemoryMailer implements Mailer {
   readonly sent: MailerSendInput[] = [];

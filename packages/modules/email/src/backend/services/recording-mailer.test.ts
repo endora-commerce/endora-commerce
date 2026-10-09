@@ -79,6 +79,19 @@ describe('email — the delivery record (D-59)', () => {
     });
   });
 
+  it('records a message that was only logged as logged, and passes that answer on (issue #186)', async () => {
+    const recorder = new StubRecorder();
+    const mailer = new RecordingMailer(transport({ status: 'logged' }), recorder);
+
+    await expect(mailer.send(MESSAGE)).resolves.toEqual({ status: 'logged' });
+
+    expect(recorder.rows).toHaveLength(1);
+    // Neither `sent` (nothing left the building) nor `suppressed`/`failed`
+    // (nothing was refused and nothing broke): the row says what happened.
+    expect(recorder.rows[0]).toMatchObject({ messageId: 'invoice_issued:abc', status: 'logged' });
+    expect(recorder.rows[0]?.reason).toBeUndefined();
+  });
+
   it('records a failed row and still raises for the caller', async () => {
     const recorder = new StubRecorder();
     const mailer = new RecordingMailer(

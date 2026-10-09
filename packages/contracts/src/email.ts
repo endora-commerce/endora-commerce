@@ -21,8 +21,15 @@ import { z } from 'zod';
  * shapes and one method.
  */
 
-/** What became of one outbound message. */
-export const emailDeliveryStatusSchema = z.enum(['sent', 'suppressed', 'failed']);
+/**
+ * What became of one outbound message.
+ *
+ * `logged` is the console driver's answer (issue #186): no mail server is
+ * configured, so the message was written to the process log and reached nobody.
+ * It is its own value because it is none of the other three — nothing was
+ * handed to a mail server, nothing was refused, and nothing broke.
+ */
+export const emailDeliveryStatusSchema = z.enum(['sent', 'logged', 'suppressed', 'failed']);
 export type EmailDeliveryStatus = z.infer<typeof emailDeliveryStatusSchema>;
 
 /**
@@ -153,8 +160,15 @@ export type EmailMailerSuppressionReason = 'duplicate_message_id';
  * as `TransactionalSendOutcome` does one layer up.
  */
 export type EmailMailerSendOutcome =
-  /** Handed to the transport. */
+  /** Handed to a mail server. */
   | { status: 'sent' }
+  /**
+   * Written to the process log and nowhere else (issue #186) — the console
+   * driver of an instance with no SMTP transport. Not a failure and nothing to
+   * retry: the same call would log it again. A caller that records or reports
+   * how a message was delivered must not count it as an e-mail.
+   */
+  | { status: 'logged' }
   /** The transport deliberately did not send it. */
   | { status: 'suppressed'; reason: EmailMailerSuppressionReason };
 

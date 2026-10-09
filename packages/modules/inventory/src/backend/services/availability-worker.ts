@@ -104,7 +104,10 @@ export class AvailabilityWorker {
           notificationId: sub.id,
         },
       });
-      if (outcome.status !== 'sent') {
+      // Only the transport's refusal is named here. `logged` (issue #186) is the
+      // console driver saying no mail server is configured: it has already
+      // written the message to the log itself, and the delivery record says so.
+      if (outcome.status === 'suppressed') {
         // The subscription is still consumed: the one suppression a transport
         // performs is an already-accepted `messageId`, which means this
         // subscriber was notified by an earlier run. Re-sending it is the

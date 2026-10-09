@@ -561,7 +561,10 @@ export class BulkOperationService {
           kind: `catalog.bulk_operation.${status}`,
           meta: { bulkOperationId: op.id, status },
         });
-        if (outcome.status !== 'sent') {
+        // Only the transport's refusal is named here. `logged` (issue #186) is the
+        // console driver saying no mail server is configured: it has already
+        // written the message to the log itself, and the delivery record says so.
+        if (outcome.status === 'suppressed') {
           // The products are already written; this only tells the operator it
           // finished. Named rather than silent, and durable in D-59's record.
           console.warn('[catalog] the bulk-operation e-mail was not sent', {

@@ -679,6 +679,7 @@
   "invoices.emailNotSent.deactivated": "wysyłka faktury mailem jest wyłączona",
   "invoices.emailNotSent.failed": "wysyłka nie powiodła się",
   "invoices.emailNotSent.invoice_not_found": "nie udało się wczytać faktury",
+  "invoices.emailNotSent.logged": "nie skonfigurowano serwera pocztowego, więc wiadomość została tylko zapisana w logu serwera",
   "invoices.emailNotSent.no_definition": "brak szablonu maila z fakturą",
   "invoices.emailNotSent.no_recipient": "zamówienie nie ma adresu e-mail",
   "invoices.emailNotSent.no_sender": "nie skonfigurowano nadawcy maili",

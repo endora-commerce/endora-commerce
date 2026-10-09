@@ -73,6 +73,13 @@ describe('template-email adapter — outcome to fallback mapping', () => {
     expect(await trySend(message)).toBe(true);
   });
 
+  it('suppresses the legacy builder when the message was only written to the log (issue #186)', async () => {
+    // No mail server is configured: the in-code version would be logged the
+    // same way, so falling back would only log the message twice.
+    const { trySend } = adapterFor({ status: 'logged' });
+    expect(await trySend(message)).toBe(true);
+  });
+
   it('falls back to the legacy builder when the code has no definition', async () => {
     const { trySend } = adapterFor({ status: 'no_definition' });
     expect(await trySend(message)).toBe(false);

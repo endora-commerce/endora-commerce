@@ -163,7 +163,10 @@ export class LowStockAlertService {
       kind: 'low_stock_alert',
       meta,
     });
-    if (outcome.status !== 'sent') {
+    // Only the transport's refusal is named here. `logged` (issue #186) is the
+    // console driver saying no mail server is configured: it has already
+    // written the message to the log itself, and the delivery record says so.
+    if (outcome.status === 'suppressed') {
       // This fires from a crossing detector with no caller to answer, so the
       // non-send is named here and durable in D-59's record.
       console.warn('[inventory] the low-stock alert was not sent', {
