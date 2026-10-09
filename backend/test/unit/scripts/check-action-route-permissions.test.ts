@@ -302,6 +302,96 @@ describe('check-action-route-permissions — the gate spellings in the tree', ()
   });
 });
 
+describe('check-action-route-permissions — registrations whose path is not a literal (issue #141)', () => {
+  // Each of these used to be read as no registration at all: four live admin
+  // routes were in no route record while `unreadablePaths` said 0.
+  const keys = (text: string, extra: Partial<Parameters<typeof findAdminRoutes>[0]> = {}) => {
+    const scan = findAdminRoutes({ sources: sources(`import type { FastifyInstance } from 'fastify';\n${text}`), ...extra });
+    return {
+      routes: scan.routes.map((route) => `${route.method.toUpperCase()} ${route.path} ${JSON.stringify(route.clauses)}`),
+      unreadable: scan.unreadable.map((registration) => registration.pathText),
+    };
+  };
+
+  it('reads a path held in a const, bare and inside a template', () => {
+    expect(
+      keys(
+        [
+          "const base = '/api/v1/admin/transactional-emails';",
+          "app.get(base, { preHandler: requireAdmin('t:read') }, async () => ({}));",
+          "app.put(`${base}/branding`, { preHandler: requireAdmin('t:write') }, async () => ({}));",
+        ].join('\n'),
+      ),
+    ).toEqual({
+      routes: [
+        'GET /api/v1/admin/transactional-emails [["t:read"]]',
+        'PUT /api/v1/admin/transactional-emails/branding [["t:write"]]',
+      ],
+      unreadable: [],
+    });
+  });
+
+  it("reads a local helper's path parameter through its call sites, one route per call", () => {
+    const read = keys(
+      [
+        'const patchRoute = (url: string, kind: string): void => {',
+        "  app.patch(url, { preHandler: requireAdmin('customers:manage') }, async () => ({ kind }));",
+        '};',
+        "patchRoute('/api/v1/admin/organizations/:id/restrictions/warehouses', 'warehouse');",
+        "patchRoute('/api/v1/admin/organizations/:id/restrictions/payment-methods', 'payment_method');",
+      ].join('\n'),
+    );
+    expect(read.routes).toEqual([
+      'PATCH /api/v1/admin/organizations/:id/restrictions/payment-methods [["customers:manage"]]',
+      'PATCH /api/v1/admin/organizations/:id/restrictions/warehouses [["customers:manage"]]',
+    ]);
+    expect(read.unreadable).toEqual([]);
+  });
+
+  it('reads `app.route({ … })`, `.all` and `.head`', () => {
+    expect(
+      keys(
+        [
+          "app.route({ method: ['GET', 'PUT'], url: '/api/v1/admin/a', preHandler: requireAdmin('a:x'), handler: h });",
+          "app.all('/api/v1/admin/b', async () => ({}));",
+          "app.head('/api/v1/admin/c', { preHandler: requireAdmin() }, async () => ({}));",
+        ].join('\n'),
+      ).routes,
+    ).toEqual([
+      'GET /api/v1/admin/a [["a:x"]]',
+      'PUT /api/v1/admin/a [["a:x"]]',
+      'ALL /api/v1/admin/b []',
+      'HEAD /api/v1/admin/c []',
+    ]);
+  });
+
+  it('reports a registration whose path it cannot resolve, unless the path has already left the admin prefix', () => {
+    const read = keys(
+      [
+        "app.get(pathFor('x'), { preHandler: requireAdmin('a:x') }, async () => ({}));",
+        'app.get(`${prefix}/status`, { preHandler: guard }, async () => ({}));',
+        'app.get(`/api/v1/auth/${surface}/providers`, async () => ({}));',
+        'const row = rows.get(key); await client.post(url, body);',
+      ].join('\n'),
+    );
+    expect(read.routes).toEqual([]);
+    expect(read.unreadable).toEqual(["pathFor('x')", '`${prefix}/status`']);
+  });
+
+  it('takes a value for a path identifier the file does not declare, one route per value', () => {
+    const read = keys('app.get(`${prefix}/status`, { preHandler: requireAdmin() }, async () => ({}));', {
+      pathBindings: new Map([[ROUTES_FILE, new Map([['prefix', ['/api/v1/account/mfa', '/api/v1/admin/account/mfa']]])]]),
+    });
+    expect(read).toEqual({ routes: ['GET /api/v1/admin/account/mfa/status []'], unreadable: [] });
+  });
+
+  it("reads `requireAdmin('')` as the bare guard it is at runtime", () => {
+    expect(keys("app.post('/api/v1/admin/x', { preHandler: requireAdmin('') }, h);").routes).toEqual([
+      'POST /api/v1/admin/x []',
+    ]);
+  });
+});
+
 describe('check-action-route-permissions — which route a target resolves to', () => {
   const tree = [
     "app.get('/api/v1/admin/inventory', { preHandler: requireAdmin('orders:read') }, h);",

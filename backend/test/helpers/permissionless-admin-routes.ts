@@ -8,6 +8,7 @@ import {
   findAdminRoutes,
   type AdminRoute,
   type RouteScanInput,
+  type UnreadableRegistration,
 } from '@endora-commerce/cli/rules/action-route-permissions.js';
 import { UI_LAYER_DIRECTORIES } from '@endora-commerce/cli/lib/ui-layer.js';
 
@@ -36,16 +37,31 @@ import { permissionScanRoots } from './permission-scan-roots.js';
  * `preHandler` at all — or unreadable has to be in
  * {@link PERMISSIONLESS_ADMIN_ROUTES} with the reason it is open.
  *
- * **What that reader cannot see, and the second count that covers it.** A
- * registration whose path is computed is not attributed to any URL: `mfa`
- * mounts one self-service surface twice, once per subject, under a `pathPrefix`
- * its registrar is handed, so `/api/v1/admin/account/mfa/*` appears in no
- * route record. The guard that opens those routes is still written somewhere —
- * `requireAdmin()` in `mfa/src/backend/plugin.ts` — so the sweep also counts
- * every bare guard **call** in every file and requires each one to be either
- * the gate of a route the first half listed or declared in
- * {@link HANDED_ON_SESSION_GUARDS}. A new `requireAdmin()` therefore cannot
- * arrive unseen whichever way its route is spelled.
+ * **A registrar mounted under a prefix it is handed.** `mfa` mounts one
+ * self-service surface twice, once per subject, under a `pathPrefix` its
+ * registrar receives from another file, and gates it with a guard it receives
+ * the same way. Neither is readable where the routes are written, so
+ * {@link REGISTRAR_MOUNTS} says which function mounts which file and the sweep
+ * **reads the rest off the call sites**: the prefixes, and the guard each mount
+ * is handed. The routes then exist by name like any other, and a route added to
+ * the registrar is a new name that is not on the list.
+ *
+ * **Every bare guard call is accounted for as well**, file by file: each
+ * `requireAdmin()` — or `requireAdmin('')`, which is the same thing at runtime —
+ * has to be the gate of a listed route in place or the guard a declared mount
+ * is handed. A guard passed on some third way opens routes the sweep cannot
+ * name, and that is a defect rather than a pass.
+ *
+ * **What it refuses to guess.** A registration whose path cannot be resolved,
+ * a gate that cannot be read, and a plugin registered under an admin `prefix`
+ * (whose routes carry only the tail of their URL) are each reported. None of
+ * them is counted as gated.
+ *
+ * **What it cannot see at all** is a route no source under the module layout
+ * registers through a Fastify verb — and for that there is a second,
+ * independent enumeration: `test/contract/admin_users/
+ * permissionless-admin-routes.runtime.test.ts` composes the application and
+ * holds the route table Fastify actually built against this one.
  *
  * Both lists are two-way: an entry that no longer describes anything fails too,
  * so gating a route retires its entry in the same change.
@@ -92,6 +108,48 @@ export const PERMISSIONLESS_ADMIN_ROUTES: Readonly<Record<string, Permissionless
   'PATCH /api/v1/admin/me/preferred-language': {
     guard: 'session',
     reason: "The caller's own Admin UI language, written to the caller's own row.",
+  },
+  'GET /api/v1/admin/account/mfa/status': {
+    guard: 'session',
+    reason:
+      "The caller's own second factor — whether it is enrolled. The handler resolves the subject from the " +
+      "session, so no request can name another administrator's; resetting somebody else's is " +
+      '`mfa:reset`.',
+  },
+  'POST /api/v1/admin/account/mfa/setup': {
+    guard: 'session',
+    reason:
+      "The caller's own second factor — starting an enrolment. The handler resolves the subject from the " +
+      "session, so no request can name another administrator's; resetting somebody else's is " +
+      '`mfa:reset`.',
+  },
+  'POST /api/v1/admin/account/mfa/activate': {
+    guard: 'session',
+    reason:
+      "The caller's own second factor — confirming an enrolment. The handler resolves the subject from the " +
+      "session, so no request can name another administrator's; resetting somebody else's is " +
+      '`mfa:reset`.',
+  },
+  'POST /api/v1/admin/account/mfa/disable': {
+    guard: 'session',
+    reason:
+      "The caller's own second factor — removing it. The handler resolves the subject from the " +
+      "session, so no request can name another administrator's; resetting somebody else's is " +
+      '`mfa:reset`.',
+  },
+  'POST /api/v1/admin/account/mfa/recovery-codes/regenerate': {
+    guard: 'session',
+    reason:
+      "The caller's own second factor — new recovery codes. The handler resolves the subject from the " +
+      "session, so no request can name another administrator's; resetting somebody else's is " +
+      '`mfa:reset`.',
+  },
+  'DELETE /api/v1/admin/account/mfa/social-links/:provider': {
+    guard: 'session',
+    reason:
+      "The caller's own second factor — unlinking a sign-in provider. The handler resolves the subject from the " +
+      "session, so no request can name another administrator's; resetting somebody else's is " +
+      '`mfa:reset`.',
   },
   'GET /api/v1/admin/module-presence': {
     guard: 'session',
@@ -142,35 +200,33 @@ export const PERMISSIONLESS_ADMIN_ROUTES: Readonly<Record<string, Permissionless
   },
 };
 
-/** A bare `requireAdmin()` that is passed on instead of gating a route in place. */
-export interface HandedOnGuardEntry {
-  /** How many bare guard calls in the file are handed on. */
-  readonly sites: number;
-  /** The routes it opens, for a reader; the count is what the sweep holds. */
-  readonly opens: readonly string[];
+/** A route file whose path prefix and guard are arguments of the function that mounts it. */
+export interface RegistrarMount {
+  /** The exported function that registers the routes. */
+  readonly registrar: string;
+  /** The source that calls it — where the prefixes and guards are written. */
+  readonly mountedIn: string;
+  /** The option the registrar reads its path prefix from. */
+  readonly pathParameter: string;
+  /** The option the registrar reads its guard from. */
+  readonly guardParameter: string;
   readonly reason: string;
 }
 
 /**
- * Bare guard calls whose routes {@link findAdminRoutes} cannot attribute to a
- * URL, keyed by source file.
+ * Registrars whose routes cannot be read where they are written, keyed by the
+ * registrar's own source file. An entry states structure only: the prefixes and
+ * the guards are read from `mountedIn` on every run.
  */
-export const HANDED_ON_SESSION_GUARDS: Readonly<Record<string, HandedOnGuardEntry>> = {
-  'packages/modules/mfa/src/backend/plugin.ts': {
-    sites: 1,
-    opens: [
-      'GET /api/v1/admin/account/mfa/status',
-      'POST /api/v1/admin/account/mfa/setup',
-      'POST /api/v1/admin/account/mfa/activate',
-      'POST /api/v1/admin/account/mfa/disable',
-      'POST /api/v1/admin/account/mfa/recovery-codes/regenerate',
-      'DELETE /api/v1/admin/account/mfa/social-links/:provider',
-    ],
+export const REGISTRAR_MOUNTS: Readonly<Record<string, RegistrarMount>> = {
+  'packages/modules/mfa/src/backend/routes.self-service.ts': {
+    registrar: 'registerMfaSelfServiceRoutes',
+    mountedIn: 'packages/modules/mfa/src/backend/plugin.ts',
+    pathParameter: 'pathPrefix',
+    guardParameter: 'requireGuard',
     reason:
-      "The caller's own second factor: its status, enrolment, removal, recovery codes and " +
-      'linked sign-in providers. Every handler resolves the subject from the session, so no ' +
-      "request can name another administrator's. Resetting somebody else's factor is a " +
-      'different route behind `mfa:reset`.',
+      'One second-factor self-service surface, mounted once for customers and once for ' +
+      'administrators, each under its own prefix and behind its own session guard.',
   },
 };
 
@@ -181,16 +237,20 @@ export const HANDED_ON_SESSION_GUARDS: Readonly<Record<string, HandedOnGuardEntr
 export interface PermissionlessRouteScan {
   /** Every admin route registration read, whatever its gate. */
   readonly routes: readonly AdminRoute[];
-  /** Registrations under the admin prefix whose path could not be read. */
-  readonly unreadablePaths: number;
-  /** Bare `requireAdmin()` / `requireAdminAny()` calls, by source key. */
+  /** Registrations whose path could not be resolved. */
+  readonly unreadable: readonly UnreadableRegistration[];
+  /** Bare `requireAdmin()` / `requireAdmin('')` calls, by source key. */
   readonly bareGuardSites: ReadonlyMap<string, number>;
+  /** Bare guards a declared mount hands to its registrar, by the mounting file. */
+  readonly handedOnGuards: ReadonlyMap<string, number>;
+  /** Defects found while reading — mounts and prefixed plugins. */
+  readonly readingDefects: readonly string[];
 }
 
 const GUARD_NAMES = new Set(['requireAdmin', 'requireAdminAny']);
 
 /** A bare guard call inside a route's own options text. */
-const BARE_GUARD_IN_PLACE = /\brequireAdmin(?:Any)?\s*(?:\?\.)?\(\s*\)/u;
+const BARE_GUARD_IN_PLACE = /\brequireAdmin(?:Any)?\s*(?:\?\.)?\(\s*(?:''|"")?\s*\)/u;
 
 function calleeName(node: ts.Expression): string | null {
   if (ts.isIdentifier(node)) return node.text;
@@ -201,16 +261,25 @@ function calleeName(node: ts.Expression): string | null {
   return null;
 }
 
-/** How many guard calls with no argument a source holds. Comments are not calls. */
+/**
+ * A guard call that checks no code: no argument, or the empty string — which
+ * the guard treats as no argument (`if (!permission) return`).
+ */
+function isBareGuardCall(node: ts.Node): node is ts.CallExpression {
+  if (!ts.isCallExpression(node)) return false;
+  const name = calleeName(node.expression);
+  if (name === null || !GUARD_NAMES.has(name)) return false;
+  const [first] = node.arguments;
+  return first === undefined || (ts.isStringLiteralLike(first) && first.text === '');
+}
+
+/** How many bare guard calls a source holds. Comments are not calls. */
 function countBareGuardCalls(file: string, text: string): number {
   if (!text.includes('requireAdmin')) return 0;
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   let count = 0;
   const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node) && node.arguments.length === 0) {
-      const name = calleeName(node.expression);
-      if (name !== null && GUARD_NAMES.has(name)) count += 1;
-    }
+    if (isBareGuardCall(node)) count += 1;
     node.forEachChild(visit);
   };
   sf.forEachChild(visit);
@@ -282,19 +351,157 @@ function forwardedCodeOf(route: AdminRoute, text: string | undefined): string | 
   return forwards ? code : null;
 }
 
-export function scanPermissionlessRoutes(input: RouteScanInput): PermissionlessRouteScan {
-  const scan = findAdminRoutes(input);
+/** One call of a registrar: the prefix it mounts under and the guard it is handed. */
+interface MountSite {
+  readonly prefix: string;
+  /** `[]` for a bare guard, the code for a coded one, `null` when it is neither. */
+  readonly clauses: readonly (readonly string[])[] | null;
+  readonly bare: boolean;
+}
+
+/** Read every call of a mount's registrar out of the file that makes them. */
+function readMountSites(
+  registrarFile: string,
+  mount: RegistrarMount,
+  sources: ReadonlyMap<string, string>,
+  defects: string[],
+): MountSite[] {
+  const text = sources.get(mount.mountedIn);
+  if (text === undefined) {
+    defects.push(
+      `[unreadable-mount] ${registrarFile}: REGISTRAR_MOUNTS says it is mounted in ` +
+        `${mount.mountedIn}, which was not read.`,
+    );
+    return [];
+  }
+  const sf = ts.createSourceFile(mount.mountedIn, text, ts.ScriptTarget.Latest, true);
+  const sites: MountSite[] = [];
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && calleeName(node.expression) === mount.registrar) {
+      const options = node.arguments.find(ts.isObjectLiteralExpression);
+      let prefix: string | null = null;
+      let guard: ts.Expression | null = null;
+      for (const property of options?.properties ?? []) {
+        if (!ts.isPropertyAssignment(property)) continue;
+        const name = property.name.getText();
+        if (name === mount.pathParameter && ts.isStringLiteralLike(property.initializer)) {
+          prefix = property.initializer.text;
+        }
+        if (name === mount.guardParameter) guard = property.initializer;
+      }
+      const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+      if (prefix === null) {
+        defects.push(
+          `[unreadable-mount] ${mount.mountedIn}:${line} calls ${mount.registrar} without a ` +
+            `literal \`${mount.pathParameter}\`, so the routes it mounts cannot be named.`,
+        );
+      } else {
+        let clauses: MountSite['clauses'] = null;
+        const bare = guard !== null && isBareGuardCall(guard);
+        if (bare) clauses = [];
+        else if (guard !== null && ts.isCallExpression(guard)) {
+          const name = calleeName(guard.expression);
+          const [first] = guard.arguments;
+          if (name === 'requireAdmin' && first !== undefined && ts.isStringLiteralLike(first)) {
+            clauses = [[first.text]];
+          }
+        }
+        sites.push({ prefix, clauses, bare });
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+  if (sites.length === 0) {
+    defects.push(
+      `[unreadable-mount] ${mount.mountedIn} holds no readable call of ${mount.registrar}. ` +
+        'Correct or delete the REGISTRAR_MOUNTS entry.',
+    );
+  }
+  return sites;
+}
+
+/** Whether what was read of a prefix shows it is not under the admin API. */
+function notAnAdminPrefix(prefix: string): boolean {
+  const admin = '/api/v1/admin';
+  const compared = Math.min(prefix.length, admin.length);
+  return prefix.slice(0, compared) !== admin.slice(0, compared);
+}
+
+/**
+ * `app.register(plugin, { prefix: '/api/v1/admin/x' })` — the routes inside
+ * carry only the tail of their URL, so nothing here can attribute them. There
+ * is none in the tree; the first one has to arrive as a finding.
+ */
+function findPrefixedPlugins(file: string, text: string, defects: string[]): void {
+  if (!text.includes('prefix')) return;
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && calleeName(node.expression) === 'register') {
+      for (const argument of node.arguments) {
+        if (!ts.isObjectLiteralExpression(argument)) continue;
+        for (const property of argument.properties) {
+          if (!ts.isPropertyAssignment(property) || property.name.getText() !== 'prefix') continue;
+          const literal = ts.isStringLiteralLike(property.initializer) ? property.initializer.text : null;
+          if (literal !== null && notAnAdminPrefix(literal)) continue;
+          const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+          defects.push(
+            `[prefixed-plugin] ${file}:${line} registers a plugin under prefix ` +
+              `\`${property.initializer.getText()}\`. Its routes carry only the tail of their ` +
+              'URL, so this sweep cannot say which of them check a permission. Write the full ' +
+              'path at each registration.',
+          );
+        }
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sf.forEachChild(visit);
+}
+
+export function scanPermissionlessRoutes(
+  input: RouteScanInput,
+  mounts: Readonly<Record<string, RegistrarMount>> = {},
+): PermissionlessRouteScan {
+  const readingDefects: string[] = [];
+  const handedOnGuards = new Map<string, number>();
+  const sitesByRegistrar = new Map<string, MountSite[]>();
+  const pathBindings = new Map<string, ReadonlyMap<string, readonly string[]>>(input.pathBindings ?? []);
+
+  for (const [registrarFile, mount] of Object.entries(mounts)) {
+    const sites = readMountSites(registrarFile, mount, input.sources, readingDefects);
+    sitesByRegistrar.set(registrarFile, sites);
+    if (sites.length > 0) {
+      pathBindings.set(registrarFile, new Map([[mount.pathParameter, sites.map((site) => site.prefix)]]));
+    }
+    const bare = sites.filter((site) => site.bare).length;
+    if (bare > 0) handedOnGuards.set(mount.mountedIn, (handedOnGuards.get(mount.mountedIn) ?? 0) + bare);
+  }
+
+  const scan = findAdminRoutes({ ...input, pathBindings });
   const routes = scan.routes.map((route): AdminRoute => {
     if (route.clauses !== null) return route;
+
+    // A route in a declared registrar, gated by the guard the registrar was handed.
+    const mount = mounts[route.file];
+    if (mount !== undefined && new RegExp(`\\bpreHandler:\\s*${mount.guardParameter}\\b`, 'u').test(route.gateText)) {
+      const site = (sitesByRegistrar.get(route.file) ?? []).find((candidate) =>
+        route.path.startsWith(`${candidate.prefix}/`),
+      );
+      if (site !== undefined && site.clauses !== null) return { ...route, clauses: site.clauses };
+    }
+
     const code = forwardedCodeOf(route, input.sources.get(route.file));
     return code === null ? route : { ...route, clauses: [[code]] };
   });
+
   const bareGuardSites = new Map<string, number>();
   for (const [file, text] of input.sources) {
     const count = countBareGuardCalls(file, text);
     if (count > 0) bareGuardSites.set(file, count);
+    findPrefixedPlugins(file, text, readingDefects);
   }
-  return { routes, unreadablePaths: scan.unreadablePaths, bareGuardSites };
+  return { routes, unreadable: scan.unreadable, bareGuardSites, handedOnGuards, readingDefects };
 }
 
 /** `METHOD /path` — the key {@link PERMISSIONLESS_ADMIN_ROUTES} is written in. */
@@ -308,23 +515,24 @@ function guardOf(route: AdminRoute): 'session' | 'none' {
 }
 
 /**
- * Everything that disagrees with the two lists, as sentences a failure can
- * print. Empty means every permissionless route and every bare guard is
- * accounted for, and no entry has outlived what it described.
+ * Everything that disagrees with the list, as sentences a failure can print.
+ * Empty means every permissionless route and every bare guard is accounted
+ * for, nothing was left unread, and no entry has outlived what it described.
  */
 export function findPermissionlessRouteDefects(
   scan: PermissionlessRouteScan,
   allowed: Readonly<Record<string, PermissionlessRouteEntry>> = PERMISSIONLESS_ADMIN_ROUTES,
-  handedOn: Readonly<Record<string, HandedOnGuardEntry>> = HANDED_ON_SESSION_GUARDS,
 ): string[] {
-  const defects: string[] = [];
+  const defects: string[] = [...scan.readingDefects];
   const seen = new Set<string>();
   const inPlaceByFile = new Map<string, number>();
+  const counted = new Set<string>();
 
-  if (scan.unreadablePaths > 0) {
+  for (const registration of scan.unreadable) {
     defects.push(
-      `[unreadable-path] ${scan.unreadablePaths} admin route registration(s) have a path the ` +
-        'scanner could not read, so their gates were not checked.',
+      `[unreadable-path] ${registration.file}:${registration.line} registers a route at ` +
+        `\`${registration.pathText}\`, which could not be resolved to a path, so its gate was ` +
+        'not checked. Write the path where it can be read, or teach the reader the shape.',
     );
   }
 
@@ -342,7 +550,10 @@ export function findPermissionlessRouteDefects(
 
     seen.add(key);
     const guard = guardOf(route);
-    if (guard === 'session' && BARE_GUARD_IN_PLACE.test(route.gateText)) {
+    // Counted per registration: one guard call gates every method an
+    // `app.route({ method: [...] })` names.
+    if (guard === 'session' && BARE_GUARD_IN_PLACE.test(route.gateText) && !counted.has(where)) {
+      counted.add(where);
       inPlaceByFile.set(route.file, (inPlaceByFile.get(route.file) ?? 0) + 1);
     }
     const entry = allowed[key];
@@ -369,17 +580,17 @@ export function findPermissionlessRouteDefects(
     }
   }
 
-  const files = new Set([...scan.bareGuardSites.keys(), ...Object.keys(handedOn)]);
+  const files = new Set([...scan.bareGuardSites.keys(), ...scan.handedOnGuards.keys()]);
   for (const file of [...files].sort()) {
     const bare = scan.bareGuardSites.get(file) ?? 0;
     const inPlace = inPlaceByFile.get(file) ?? 0;
-    const declared = handedOn[file]?.sites ?? 0;
-    if (bare === inPlace + declared) continue;
+    const handedOn = scan.handedOnGuards.get(file) ?? 0;
+    if (bare === inPlace + handedOn) continue;
     defects.push(
       `[unaccounted-guard] ${file} holds ${bare} bare requireAdmin() call(s): ${inPlace} gate a ` +
-        `listed route in place and HANDED_ON_SESSION_GUARDS declares ${declared}. A guard that ` +
-        'is handed to a registrar opens routes this sweep cannot name — declare it with the ' +
-        'routes it opens, or give it a permission code.',
+        `listed route in place and ${handedOn} are handed to a registrar REGISTRAR_MOUNTS ` +
+        'declares. A guard passed on any other way opens routes this sweep cannot name — ' +
+        'declare the mount, or give the guard a permission code.',
     );
   }
 
@@ -417,12 +628,15 @@ export async function readPermissionlessRoutes(): Promise<
 
   const { ConstantResolver } = await import('@endora-commerce/mod-admin-roles/backend');
   const resolver = new ConstantResolver();
-  const scan = scanPermissionlessRoutes({
-    sources,
-    hostResidentModules: layout.hostResidentModules,
-    absolutePathOf: layout.absolutePathOf,
-    lookupConstant: (file, name, property) => resolver.lookup(file, name, property),
-  });
+  const scan = scanPermissionlessRoutes(
+    {
+      sources,
+      hostResidentModules: layout.hostResidentModules,
+      absolutePathOf: layout.absolutePathOf,
+      lookupConstant: (file, name, property) => resolver.lookup(file, name, property),
+    },
+    REGISTRAR_MOUNTS,
+  );
   return { ...scan, files: sources.size };
 }
 
