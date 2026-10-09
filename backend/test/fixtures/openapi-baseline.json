@@ -2015,6 +2015,15 @@
         }
       }
     },
+    "/api/v1/admin/crm/opportunities/{id}/messages/read": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/crm/opportunities/{id}/propagations/{propagationId}/dismiss": {
       "post": {
         "responses": {

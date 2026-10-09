@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_TAB_ID,
   EVENTS_TAB_ID,
+  ITEM_COUNT_LABEL_KEY,
   LINKS_TAB_ID,
   OPPORTUNITY_TABS,
   searchForTab,
@@ -40,11 +41,29 @@ describe('the tabs of the Opportunity screen', () => {
   // This read "on the Links tab, and nothing on any other" until User Story 21:
   // Events carries a count too. What it held — that a count is deliberate, and
   // that no other tab has one — it still holds, for two tabs instead of one.
-  it('counts the linked documents on the Links tab and the Events ahead on the Events tab, and nothing on any other', () => {
+  //
+  // Five since the owner asked for a number on every tab that lists something.
+  // Overview and Change history hold no list of items to count.
+  it('counts the items on Links, Notes and Attachments, the Events ahead and the unread Messages, and nothing on any other', () => {
     const counted = OPPORTUNITY_TABS.filter((tab) => tab.count !== undefined);
-    expect(counted.map((tab) => tab.id)).toEqual([LINKS_TAB_ID, EVENTS_TAB_ID]);
+    expect(counted.map((tab) => tab.id)).toEqual([LINKS_TAB_ID, EVENTS_TAB_ID, 'notes', 'messages', 'attachments']);
     const links = [{ documentKind: 'order' }, { documentKind: 'quote_request' }];
-    expect(counted[0]?.count?.({ links } as never)).toBe(2);
+    const opportunity = { links, upcomingEventCount: 1, noteCount: 3, unreadMessageCount: 6, attachmentCount: 4 } as never;
+    expect(counted.map((tab) => tab.count?.(opportunity))).toEqual([2, 1, 3, 6, 4]);
+  });
+
+  it('says what a number is of wherever it is not a count of items', () => {
+    const named = Object.fromEntries(OPPORTUNITY_TABS.map((tab) => [tab.id, tab.countLabelKey]));
+    expect(named).toEqual({
+      overview: undefined,
+      links: undefined,
+      events: 'opportunity.tabs.upcoming',
+      notes: undefined,
+      messages: 'opportunity.tabs.unread',
+      attachments: undefined,
+      history: undefined,
+    });
+    expect(ITEM_COUNT_LABEL_KEY).toBe('opportunity.tabs.counted');
   });
 
   it('puts Events third, under an id that is in the addresses a reminder writes', () => {

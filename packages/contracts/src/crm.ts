@@ -595,6 +595,18 @@ export const OpportunityDetailSchema = OpportunitySummarySchema.extend({
   // §12d (US21) — the Opportunity's Events that have not ended yet. It is what
   // the *Events* tab's label carries, so the tab strip needs no second request.
   upcomingEventCount: z.number().int().nonnegative(),
+  // What the other tabs of the Opportunity screen carry on their labels, for the
+  // same reason: the strip is drawn before any tab is opened. Each is a count
+  // in the database and never the length of a list. `noteCount` leaves out
+  // deleted notes and counts no message; the linked documents need no member of
+  // their own, `links` being whole.
+  noteCount: z.number().int().nonnegative(),
+  attachmentCount: z.number().int().nonnegative(),
+  // The messages of the Opportunity that **the administrator asking** has not
+  // read: written by somebody else, after the point they have read up to. It is
+  // the reader's and nobody else's — two administrators get two numbers — and a
+  // caller that is no administrator gets 0.
+  unreadMessageCount: z.number().int().nonnegative(),
 });
 export type OpportunityDetail = z.infer<typeof OpportunityDetailSchema>;
 
@@ -737,6 +749,22 @@ export const CreateOpportunityCommentRequestSchema = z.object({
 });
 export type CreateOpportunityCommentRequest = z.infer<typeof CreateOpportunityCommentRequestSchema>;
 
+/**
+ * `POST /opportunities/:id/messages/read` — the administrator asking has read
+ * the conversation up to and including this message. Named by the message and
+ * not by a time, so no clock of the browser's is part of it.
+ */
+export const MarkOpportunityMessagesReadRequestSchema = z.object({
+  throughMessageId: z.string().uuid(),
+});
+export type MarkOpportunityMessagesReadRequest = z.infer<typeof MarkOpportunityMessagesReadRequestSchema>;
+
+/** What is left unread for the administrator asking, after the marker moved. */
+export const OpportunityUnreadMessagesSchema = z.object({
+  unreadMessageCount: z.number().int().nonnegative(),
+});
+export type OpportunityUnreadMessages = z.infer<typeof OpportunityUnreadMessagesSchema>;
+
 export const UpdateOpportunityCommentRequestSchema = z.object({
   body: commentBodySchema,
 });
@@ -754,6 +782,7 @@ export const OpportunityCommentSchema = z.object({
 export type OpportunityComment = z.infer<typeof OpportunityCommentSchema>;
 
 export const OpportunityCommentResponseSchema = dataEnvelope(OpportunityCommentSchema);
+export const OpportunityUnreadMessagesResponseSchema = dataEnvelope(OpportunityUnreadMessagesSchema);
 export const OpportunityCommentListResponseSchema = dataEnvelope(z.array(OpportunityCommentSchema));
 
 // ---------------------------------------------------------------------------

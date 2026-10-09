@@ -100,6 +100,20 @@ export interface OpportunityServiceDeps {
    * for the detail only — one count for one Opportunity, never per row of a list.
    */
   upcomingEventCount: (opportunityId: string) => Promise<number>;
+  /**
+   * How many notes, attachments and — for the administrator asking — unread
+   * messages an Opportunity has: what the tabs of its screen carry on their
+   * labels. Asked for the detail only, after the Opportunity was loaded
+   * through the scoped EntityManager.
+   */
+  childCounts: (opportunityId: string) => Promise<OpportunityChildCounts>;
+}
+
+/** The children of one Opportunity, counted — each by the service that owns the rows. */
+export interface OpportunityChildCounts {
+  noteCount: number;
+  attachmentCount: number;
+  unreadMessageCount: number;
 }
 
 /** An Opportunity the system creates for a document that was just placed. */
@@ -1006,7 +1020,7 @@ export class OpportunityService {
 
   async #detail(opportunity: CrmOpportunity, graph: OpportunityStatusGraph): Promise<OpportunityDetail> {
     const language = await this.#viewerLanguage();
-    const [summaries, contact, links, unresolvedPropagations, live, references, upcomingEventCount] = await Promise.all([
+    const [summaries, contact, links, unresolvedPropagations, live, references, upcomingEventCount, childCounts] = await Promise.all([
       this.#summaries([opportunity], graph, language),
       opportunity.customerAccountId
         ? this.deps.customerAccounts.findById(opportunity.customerAccountId)
@@ -1019,6 +1033,8 @@ export class OpportunityService {
       // request of its own. The Opportunity was loaded through the scoped
       // EntityManager before this is asked, as for every other child.
       this.deps.upcomingEventCount(opportunity.id),
+      // The other tabs' labels, on the same terms: counted, never listed.
+      this.deps.childCounts(opportunity.id),
     ]);
     const summary = summaries[0];
     if (!summary) throw new Error('crm: an opportunity produced no summary.');
@@ -1049,6 +1065,7 @@ export class OpportunityService {
       unresolvedPropagations,
       customFieldValues: await this.deps.customFields.project('opportunity', opportunity.customFieldValues ?? {}),
       upcomingEventCount,
+      ...childCounts,
     };
   }
 }

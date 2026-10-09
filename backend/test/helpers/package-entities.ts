@@ -133,6 +133,8 @@ import type { CrmOpportunity as CrmOpportunityRow } from '../../../packages/modu
 import type { CrmOpportunityAttachment as CrmOpportunityAttachmentRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-attachment.entity.js';
 import type { CrmOpportunityComment as CrmOpportunityCommentRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-comment.entity.js';
 import type { CrmOpportunityEvent as CrmOpportunityEventRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-event.entity.js';
+import type { CrmMessageReadBaseline as CrmMessageReadBaselineRow } from '../../../packages/modules/crm/src/backend/entities/crm-message-read-baseline.entity.js';
+import type { CrmOpportunityMessageRead as CrmOpportunityMessageReadRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-message-read.entity.js';
 import type { CrmOpportunityLink as CrmOpportunityLinkRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-link.entity.js';
 import type { CrmOpportunityReference as CrmOpportunityReferenceRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-reference.entity.js';
 import type { CrmOpportunityStatus as CrmOpportunityStatusRow } from '../../../packages/modules/crm/src/backend/entities/crm-opportunity-status.entity.js';
@@ -1040,6 +1042,8 @@ export const CrmOpportunity = classNamed<CrmOpportunityRow>(installedModuleEntit
 export const CrmOpportunityAttachment = classNamed<CrmOpportunityAttachmentRow>(installedModuleEntities, 'crm', 'CrmOpportunityAttachment');
 export const CrmOpportunityComment = classNamed<CrmOpportunityCommentRow>(installedModuleEntities, 'crm', 'CrmOpportunityComment');
 export const CrmOpportunityEvent = classNamed<CrmOpportunityEventRow>(installedModuleEntities, 'crm', 'CrmOpportunityEvent');
+export const CrmMessageReadBaseline = classNamed<CrmMessageReadBaselineRow>(installedModuleEntities, 'crm', 'CrmMessageReadBaseline');
+export const CrmOpportunityMessageRead = classNamed<CrmOpportunityMessageReadRow>(installedModuleEntities, 'crm', 'CrmOpportunityMessageRead');
 export const CrmOpportunityLink = classNamed<CrmOpportunityLinkRow>(installedModuleEntities, 'crm', 'CrmOpportunityLink');
 export const CrmOpportunityReference = classNamed<CrmOpportunityReferenceRow>(installedModuleEntities, 'crm', 'CrmOpportunityReference');
 export const CrmOpportunityStatus = classNamed<CrmOpportunityStatusRow>(installedModuleEntities, 'crm', 'CrmOpportunityStatus');
@@ -1054,6 +1058,8 @@ export type CrmOpportunity = CrmOpportunityRow;
 export type CrmOpportunityAttachment = CrmOpportunityAttachmentRow;
 export type CrmOpportunityComment = CrmOpportunityCommentRow;
 export type CrmOpportunityEvent = CrmOpportunityEventRow;
+export type CrmMessageReadBaseline = CrmMessageReadBaselineRow;
+export type CrmOpportunityMessageRead = CrmOpportunityMessageReadRow;
 export type CrmOpportunityLink = CrmOpportunityLinkRow;
 export type CrmOpportunityReference = CrmOpportunityReferenceRow;
 export type CrmOpportunityStatus = CrmOpportunityStatusRow;

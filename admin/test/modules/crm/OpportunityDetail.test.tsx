@@ -658,7 +658,45 @@ describe('OpportunityDetail — tabs and their address (User Story 20)', () => {
     });
     await renderPage();
     // Part of the tab's accessible name: what the number is of.
-    expect(screen.getByRole('tab', { name: `${en('opportunity.tabs.links')} 2` })).toBeInTheDocument();
+    const links = screen.getByRole('tab', { name: 'Links, items: 2' });
+    expect(links).toHaveTextContent(/^Links 2$/);
+  });
+
+  it('shows a number beside five labels — items on Links, Notes and Attachments, Events ahead, Messages unread — each from the Opportunity it has read, no tab opened', async () => {
+    current = detail({ upcomingEventCount: 2, noteCount: 3, unreadMessageCount: 4, attachmentCount: 12 });
+    await renderPage();
+    const shown = tabs().map((tab) => [tab.textContent, tab.getAttribute('aria-label')]);
+    expect(shown).toEqual([
+      ['Overview', null],
+      ['Links 1', 'Links, items: 1'],
+      ['Events 2', 'Events, upcoming: 2'],
+      ['Notes 3', 'Notes, items: 3'],
+      ['Messages 4', 'Messages, unread: 4'],
+      ['Attachments 12', 'Attachments, items: 12'],
+      ['Change history', null],
+    ]);
+    // A number is read aloud with what it counts, and the name still starts with the words on screen.
+    expect(screen.getByRole('tab', { name: 'Notes, items: 3' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Messages, unread: 4' })).toBeInTheDocument();
+    // No list was asked for and nothing was marked read: the numbers came with the Opportunity.
+    const asked = getSpy.mock.calls.map(([path]) => String(path));
+    expect(asked.filter((path) => /\/(comments|attachments|events|messages)/.test(path))).toEqual([]);
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('shows no number, and no zero, on a tab with nothing behind it', async () => {
+    current = detail({ links: [], upcomingEventCount: 0, noteCount: 0, attachmentCount: 0, unreadMessageCount: 0 });
+    await renderPage();
+    expect(tabs().map((tab) => tab.textContent)).toEqual([
+      'Overview',
+      'Links',
+      'Events',
+      'Notes',
+      'Messages',
+      'Attachments',
+      'Change history',
+    ]);
+    for (const tab of tabs()) expect(tab).not.toHaveAttribute('aria-label');
   });
 
   it('shows the Links tab without a number for an opportunity with no links', async () => {

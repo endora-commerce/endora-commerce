@@ -254,6 +254,16 @@ Third in `OPPORTUNITY_TABS`, after `links`: `labelKey: 'opportunity.tabs.events'
 `count: (opportunity) => opportunity.upcomingEventCount`. The id is an address and is not
 renamed.
 
+**Numbers on the other tabs, added 2026-10-09.** *Notes* counts `noteCount`, *Attachments*
+`attachmentCount`, *Messages* `unreadMessageCount` (`contracts/admin-api.md` §6, §12d);
+*Links* keeps `links.length`. Zero draws nothing, on every tab. A tab with a number is
+named with what the number counts, through `aria-label`: `opportunity.tabs.counted`
+("Notes, items: 3") unless the tab declares a `countLabelKey` — *Events*
+`opportunity.tabs.upcoming` ("Events, upcoming: 2"), *Messages* `opportunity.tabs.unread`
+("Messages, unread: 1"). A count follows an add or a removal on its own tab by a re-read of
+the Opportunity; *Messages* is told the answer of `POST …/messages/read`, sent once the
+conversation is on screen and again only when a message of somebody else's appears.
+
 | Region | Holds |
 | --- | --- |
 | Header row | `h2` *Events*; **Add event** (`crm:write`), which opens the dialog; a link **Open the calendar** to `/crm/calendar` |

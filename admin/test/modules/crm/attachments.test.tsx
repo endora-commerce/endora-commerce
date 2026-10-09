@@ -88,7 +88,7 @@ beforeEach(() => {
   getSpy.mockImplementation((path: string) => {
     const lookup = crmLookupResponse(path);
     if (lookup) return lookup;
-    if (path === DETAIL_PATH) return Promise.resolve({ data: detail() });
+    if (path === DETAIL_PATH) return Promise.resolve({ data: detail({ attachmentCount: attachments.length }) });
     if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
     if (path === ATTACHMENTS_PATH) {
       return failList
@@ -123,9 +123,15 @@ async function openTab(permissions: readonly string[] = WRITER): Promise<HTMLEle
     permissions,
   });
   await screen.findByRole('heading', { level: 1, name: /Fleet renewal/ });
-  await userEvent.click(screen.getByRole('tab', { name: en('opportunity.tabs.attachments') }));
-  return screen.findByRole('tabpanel', { name: en('opportunity.tabs.attachments') });
+  // A tab with something behind it is named with its count: "Attachments, items: 2".
+  const named = new RegExp(`^${en('opportunity.tabs.attachments')}(,|$)`);
+  await userEvent.click(screen.getByRole('tab', { name: named }));
+  return screen.findByRole('tabpanel', { name: named });
 }
+
+/** What the Attachments tab is called when it holds `count` files. */
+const countedTab = (count: number): string =>
+  en('opportunity.tabs.counted', { label: en('opportunity.tabs.attachments'), count });
 
 const row = (panel: HTMLElement, name: string): HTMLElement =>
   within(panel).getByText(name).closest('tr') as HTMLElement;
@@ -167,6 +173,7 @@ describe('the Attachments tab', () => {
     const panel = await openTab();
     await within(panel).findByText('brief.pdf');
     expect(within(panel).getByRole('button', { name: en('attachments.upload') })).toBeEnabled();
+    expect(screen.getByRole('tab', { name: countedTab(2) })).toBeInTheDocument();
 
     await userEvent.upload(fileInput(panel), pdf('offer.pdf'));
 
@@ -182,6 +189,8 @@ describe('the Attachments tab', () => {
     expect(postSpy).not.toHaveBeenCalled();
     expect(await within(panel).findByText('offer.pdf')).toBeInTheDocument();
     expect(within(panel).getByRole('status')).toHaveTextContent(en('attachments.added'));
+    // The tab's label follows without a reload of the page.
+    expect(await screen.findByRole('tab', { name: countedTab(3) })).toHaveTextContent(/^Attachments 3$/);
   });
 
   it('says a file is being uploaded and takes no second one meanwhile', async () => {
@@ -269,6 +278,7 @@ describe('the Attachments tab', () => {
     await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith(`${ATTACHMENTS_PATH}/${ID(1)}`));
     await waitFor(() => expect(within(panel).queryByText('brief.pdf')).toBeNull());
     expect(within(panel).getByText('drawing.dwg')).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: countedTab(1) })).toBeInTheDocument();
   });
 
   it('lets a reader download and offers nothing that changes anything', async () => {

@@ -35,6 +35,7 @@ import { errorMessage } from '../lib/labels.js';
 import { OpportunitySidebar } from './opportunity-detail/OpportunitySidebar.js';
 import {
   DEFAULT_TAB_ID,
+  ITEM_COUNT_LABEL_KEY,
   OPPORTUNITY_TABS,
   searchForTab,
   tabFromSearch,
@@ -473,6 +474,7 @@ export function OpportunityDetail(): ReactNode {
               {OPPORTUNITY_TABS.map((candidate) => {
                 const selected = candidate.id === tab?.id;
                 const count = candidate.count?.(opportunity) ?? 0;
+                const label = t(candidate.labelKey);
                 return (
                   <button
                     key={candidate.id}
@@ -480,17 +482,27 @@ export function OpportunityDetail(): ReactNode {
                     role="tab"
                     id={`crm-opportunity-tab-${candidate.id}`}
                     aria-selected={selected}
+                    // A bare number says nothing when it is read aloud: the name
+                    // says what is counted — "Notes, items: 3", "Messages,
+                    // unread: 2". It still begins with the words on screen, so
+                    // it can be asked for by voice.
+                    aria-label={
+                      count > 0 ? t(candidate.countLabelKey ?? ITEM_COUNT_LABEL_KEY, { label, count }) : undefined
+                    }
                     aria-controls="crm-opportunity-tabpanel"
                     // One stop for the strip; the arrows move inside it.
                     tabIndex={selected ? 0 : -1}
                     className={cn('b2b-tab', selected && 'is-active')}
                     onClick={(): void => selectTab(candidate.id)}
                   >
-                    {t(candidate.labelKey)}
-                    {/* Part of the tab's name on purpose: "Links 2" is what it holds. */}
+                    {label}
+                    {/*
+                      Zero draws nothing: a tab with a number has something
+                      behind it, and four grey zeros would say less than none.
+                    */}
                     {count > 0 ? (
                       <>
-                        {/* A real space, so the name is "Links 2" and not "Links2". */}
+                        {/* A real space, so a copy of the strip reads "Links 2" and not "Links2". */}
                         {' '}
                         <span className="b2b-badge tabular-nums">{count}</span>
                       </>

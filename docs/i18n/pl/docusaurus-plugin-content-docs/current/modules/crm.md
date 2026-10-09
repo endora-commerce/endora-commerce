@@ -128,9 +128,22 @@ karty.
 | **Przegląd** | Opis, pola niestandardowe oraz — po naciśnięciu **Edytuj** — formularz edycji. |
 | **Powiązania** | *Powiązane zamówienia* i *Powiązane zapytania ofertowe*: wiązanie, odłączanie, przełącznik *Podąża za szansą*, przyciski **Utwórz zamówienie** i **Utwórz zapytanie ofertowe**. Na karcie widać liczbę powiązanych dokumentów. |
 | **Wydarzenia** | To, co zaplanowano dla szansy — rozmowa, spotkanie, termin — jako lista i we własnym kalendarzu, każde z opcjonalnym przypomnieniem. Na karcie widać liczbę wydarzeń, które jeszcze się nie zakończyły. Zobacz *Wydarzenia i przypomnienia*. |
-| **Notatki**, **Wiadomości** | Dwie rozmowy. |
-| **Załączniki** | Pliki. |
+| **Notatki**, **Wiadomości** | Dwie rozmowy. Na karcie **Notatki** widać liczbę notatek, a na karcie **Wiadomości** — liczbę wiadomości, których jeszcze nie przeczytałeś. |
+| **Załączniki** | Pliki. Na karcie widać liczbę załączonych plików. |
 | **Historia zmian** | Wszystko, co zrobiono z szansą, od najnowszych zmian. |
+
+**Liczba przy etykiecie karty** mówi, ile się za nią kryje, a karta, za którą
+nic się nie kryje, nie pokazuje liczby — liczba zawsze więc oznacza, że jest co
+otworzyć. Na kartach *Powiązania*, *Notatki* i *Załączniki* jest to liczba
+pozycji: powiązanych dokumentów, notatek, plików. Na karcie *Wydarzenia* —
+liczba wydarzeń, które jeszcze się nie zakończyły. Na karcie *Wiadomości* —
+liczba wiadomości, których jeszcze nie przeczytałeś; zobacz *Notatki i
+wiadomości wewnętrzne*. Liczby przychodzą razem z szansą, są więc widoczne,
+zanim otworzysz którąkolwiek kartę, a każda zmienia się, gdy dodasz lub usuniesz
+pozycję na jej karcie. To, co w tym czasie doda ktoś inny, pojawi się po
+odświeżeniu strony. Czytnik ekranu odczytuje każdą liczbę razem z tym, co ona
+liczy — „Notatki, liczba pozycji: 3”, „Wydarzenia, nadchodzące: 2”,
+„Wiadomości, nieprzeczytane: 1”.
 
 Otwarta karta jest częścią adresu — `/crm/opportunities/:id?tab=links`,
 i odpowiednio `events`, `notes`, `messages`, `attachments` oraz `history` — dzięki czemu
@@ -678,16 +691,43 @@ wpisy od najstarszego, z autorem i datą, a posiadaczowi uprawnienia `crm:write`
 - Na karcie **Wiadomości** niczego nie można edytować ani usunąć, o czym karta
   informuje nad rozmową.
 
+**Nieprzeczytane wiadomości.** Karta *Wiadomości* pokazuje, ilu wiadomości
+szansy jeszcze nie przeczytałeś, a otwarcie karty oznacza ich przeczytanie:
+liczba znika, gdy tylko rozmowa pojawi się na ekranie. Licznik jest wyłącznie
+twój — to, że rozmowę przeczytał ktoś inny, niczego u ciebie nie zmienia — i
+działa tak samo dla osoby, która może czytać szanse, ale nie może w nich pisać.
+Wiadomość, którą napisałeś sam, nigdy nie jest nieprzeczytana. Wiadomość, która
+nadejdzie po otwarciu karty, znów jest nieprzeczytana i pokaże się przy
+następnym wczytaniu szansy. Czytanie nie zostawia śladu w szansie: w historii
+zmian nic się nie pojawia.
+
+Po aktualizacji modułu do wydania, które wprowadza licznik, nikt nie zastaje
+dotychczasowych rozmów jako nieprzeczytanych: dla szansy, której od tego czasu
+nie otwierałeś, liczą się tylko wiadomości napisane po aktualizacji.
+
 | Metoda + ścieżka | Uprawnienie | Cel |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | Notatki szansy, od najstarszej. `kind=message` — rozmowa. Parametr `kind` jest wymagany. |
 | `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Dodanie: `{ "kind": "note" \| "message", "body" }`. |
 | `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edycja notatki: `{ "body" }`. Tylko autor. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Usunięcie notatki. Tylko autor. |
+| `POST /api/v1/admin/crm/opportunities/:id/messages/read` | `crm:read` | Informacja, że przeczytałeś rozmowę aż do wskazanej wiadomości: `{ "throughMessageId" }`. Odpowiedź: `{ "unreadMessageCount" }` — ile wiadomości pozostaje dla ciebie nieprzeczytanych. |
 
 Edycja albo usunięcie cudzej notatki kończy się odpowiedzią 403; próba zrobienia
 tego z wiadomością — odpowiedzią 409 `CRM_MESSAGE_IMMUTABLE`, niezależnie od
 tego, kto pyta.
+
+`GET /api/v1/admin/crm/opportunities/:id` zawiera pola `noteCount`,
+`attachmentCount` i `unreadMessageCount`. Ostatnie jest liczone dla
+administratora, który pyta: dwóch administratorów czytających tę samą szansę
+dostaje dwie liczby. Oznaczenie wiadomości jako przeczytanych przesuwa wyłącznie
+twój własny znacznik i nigdy wstecz; `throughMessageId` musi wskazywać
+wiadomość tej szansy, w przeciwnym razie odpowiedzią jest 404. To, jak daleko
+przeczytał każdy administrator, jest przechowywane w tabeli
+`crm_opportunity_message_reads` — jeden wiersz na administratora i szansę — i
+znika razem z szansą, gdy zostanie ona usunięta. Tabela
+`crm_message_read_baselines` przechowuje jedną chwilę, od której liczone są
+nieprzeczytane wiadomości dla osoby, która nie ma jeszcze znacznika.
 
 ## Załączniki
 

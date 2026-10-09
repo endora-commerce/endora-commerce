@@ -977,4 +977,27 @@ describe('events and the calendar (§12d, US21, US22)', () => {
     rejects(count, 1.5);
     rejects(count, undefined);
   });
+
+  it('OpportunityDetail carries how many notes, attachments and unread messages it has, and the summary does not', () => {
+    for (const member of ['noteCount', 'attachmentCount', 'unreadMessageCount'] as const) {
+      expect(Object.keys(crm.OpportunityDetailSchema.shape)).toContain(member);
+      expect(Object.keys(crm.OpportunitySummarySchema.shape)).not.toContain(member);
+      const count = crm.OpportunityDetailSchema.shape[member];
+      accepts(count, 0);
+      accepts(count, 501);
+      rejects(count, -1);
+      rejects(count, 1.5);
+      rejects(count, undefined);
+    }
+    // Every Event is not counted on the wire: the Events tab shows the ones ahead.
+    expect(Object.keys(crm.OpportunityDetailSchema.shape)).not.toContain('eventCount');
+  });
+
+  it('marking messages read names the last message read, and answers what is left', () => {
+    accepts(crm.MarkOpportunityMessagesReadRequestSchema, { throughMessageId: '00000000-0000-4000-8000-000000000001' });
+    rejects(crm.MarkOpportunityMessagesReadRequestSchema, {});
+    rejects(crm.MarkOpportunityMessagesReadRequestSchema, { throughMessageId: 'yesterday' });
+    accepts(crm.OpportunityUnreadMessagesResponseSchema, { data: { unreadMessageCount: 0 } });
+    rejects(crm.OpportunityUnreadMessagesResponseSchema, { data: { unreadMessageCount: -1 } });
+  });
 });

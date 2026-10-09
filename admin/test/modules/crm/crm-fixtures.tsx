@@ -199,6 +199,9 @@ export function detail(overrides: Partial<OpportunityDetail> = {}): OpportunityD
     unresolvedPropagations: [],
     customFieldValues: {},
     upcomingEventCount: 0,
+    noteCount: 0,
+    attachmentCount: 0,
+    unreadMessageCount: 0,
     ...overrides,
   };
 }

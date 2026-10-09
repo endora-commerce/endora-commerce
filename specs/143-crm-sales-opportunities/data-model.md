@@ -406,6 +406,23 @@ the lock order of § *Locking*. Two worker processes sweeping at once split the 
 one changes no Event row: the Calendar's and the sweep's joins simply stop matching it, and
 match again when it is reopened.
 
+### `crm_opportunity_message_reads` and `crm_message_read_baselines` *(added 2026-10-09 — unread messages; `contracts/admin-api.md` §6)*
+
+`20261009T163307_crm_opportunity_message_reads.ts`.
+
+| Table | Column | Type | Notes |
+| --- | --- | --- | --- |
+| `crm_opportunity_message_reads` | `opportunity_id` | uuid | PK part; FK → `crm_opportunities`, `on delete cascade` |
+| | `admin_user_id` | uuid | PK part; a value, no foreign key |
+| | `last_read_at` | timestamptz | the stored `created_at` of the last message read; only moves forward |
+| `crm_message_read_baselines` | `id` | smallint | PK, `check (id = 1)` — one row |
+| | `unread_since` | timestamptz | `now()` when the migration ran |
+
+`CrmOpportunityMessageRead` is `@TransitivelyScoped('CrmOpportunity', 'opportunityId')`, the
+ninth child; `CrmMessageReadBaseline` is `@GlobalEntity()`. No Command writes either, and
+no audit action is added below: a read marker is the reader's view state, not a change to
+the Opportunity.
+
 ## State transitions
 
 **Opportunity status** — any edge present in `crm_opportunity_status_transitions`. Side

@@ -100,6 +100,10 @@ function planned(): OpportunityEvent[] {
 
 const upcomingCount = (): number => events.filter((event) => Date.parse(event.endsAt) > NOW.getTime()).length;
 
+/** What the Events tab is called when `count` Events are ahead: the number is read with what it counts. */
+const upcomingTab = (count: number): string =>
+  en('opportunity.tabs.upcoming', { label: en('opportunity.tabs.events'), count });
+
 const getCalls = (path: string): number => getSpy.mock.calls.filter(([asked]) => asked === path).length;
 
 beforeEach(() => {
@@ -218,7 +222,8 @@ describe('Events tab — its place in the strip', () => {
     const tabs = within(screen.getByRole('tablist')).getAllByRole('tab');
     expect(tabs[2]).toHaveTextContent(`${en('opportunity.tabs.events')} 3`);
     expect(tabs[2]).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: `${en('opportunity.tabs.events')} 3` })).toBe(tabs[2]);
+    expect(screen.getByRole('tab', { name: upcomingTab(3) })).toBe(tabs[2]);
+    expect(upcomingTab(3)).toBe('Events, upcoming: 3');
   });
 
   it('carries no number when nothing is ahead', async () => {
@@ -468,7 +473,7 @@ describe('Event dialog — adding', () => {
     expect(getCalls(EVENTS_PATH)).toBe(2);
     expect(getCalls(DETAIL_PATH)).toBe(2);
     // The Opportunity was read again: the tab's label counts the new Event.
-    expect(await screen.findByRole('tab', { name: `${en('opportunity.tabs.events')} 1` })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: upcomingTab(1) })).toBeInTheDocument();
     expect(within(panel).getByText(en('events.saved.created', { name: 'Call back about the offer' }))).toHaveAttribute('role', 'status');
   });
 
@@ -749,7 +754,7 @@ describe('Event dialog — editing and deleting', () => {
     expect(getCalls(EVENTS_PATH)).toBe(2);
     expect(getCalls(DETAIL_PATH)).toBe(2);
     expect(within(panel).getByText(en('events.saved.deleted', { name: 'Site visit' }))).toHaveAttribute('role', 'status');
-    expect(await screen.findByRole('tab', { name: `${en('opportunity.tabs.events')} 2` })).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: upcomingTab(2) })).toBeInTheDocument();
   });
 
   it('does not put an older list back when a slow read answers after a later one', async () => {
