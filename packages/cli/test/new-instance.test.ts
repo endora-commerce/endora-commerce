@@ -788,6 +788,14 @@ describe('the tree (§1, §2)', () => {
     expect(wiringLineCount(planInstance(planInput()))).toBeLessThan(250);
   });
 
+  it('the README gives the form of `pnpm add` that works in an instance root and keeps the pin exact (issue #192)', () => {
+    const readme = planInstance(planInput()).files.find((file) => file.path === 'README.md')!.content;
+    // A bare `pnpm add` exits 1 here under pnpm 9 (`ERR_PNPM_ADDING_TO_ROOT`),
+    // and `-w` alone writes `^<version>` beside entries pinned exactly.
+    expect(readme).toContain('`pnpm add -w -E <package>@<version>`');
+    expect(readme).not.toContain('Adding a module later is `pnpm add`,');
+  });
+
   it('the README says what is true of an instance today: every refusal of overlay schema, and a storefront that may already be there', () => {
     const readme = planInstance(planInput()).files.find((file) => file.path === 'README.md')!.content;
     // `generate` was named as the one refusal; `migrate`, `module:*` and the

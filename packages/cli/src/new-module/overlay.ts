@@ -286,7 +286,8 @@ export function planOverlayModule(
               'gate an admin route is behind)'
             : ''
         }. A dependency nothing provides is refused by \`module:install\`. Install the ` +
-        `package that ships it (\`pnpm add <package>\`, then \`pnpm run migrate\` and ` +
+        `package that ships it (\`pnpm add -w -E <package>@<version>\` in the instance's root, ` +
+        `at the version its other platform packages are pinned at, then \`pnpm run migrate\` and ` +
         `\`pnpm run module:install\`), or drop the dependency. Nothing is written.`,
     );
   }
