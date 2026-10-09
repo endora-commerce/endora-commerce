@@ -195,17 +195,28 @@ export interface QuickOrderOneClickResult {
 export async function getOneClickEligibility(
   sessionCookie: string,
   productId: string,
+  // Required: one-click buy is switched on per sales channel, so the question
+  // has to be asked for the channel the buyer is on — see `placeOneClickOrder`.
+  ctx: RequestContext,
 ): Promise<QuickOrderOneClickEligibility> {
   return apiGetAuthed<QuickOrderOneClickEligibility>({
     path: `/api/v1/quick-order/one-click/eligibility?productId=${encodeURIComponent(productId)}`,
     sessionCookie,
+    ctx,
   });
 }
 
-/** Place a one-click order from the buyer's defaults; returns order + nextAction. */
+/**
+ * Place a one-click order from the buyer's defaults; returns order + nextAction.
+ *
+ * `ctx` is required, as it is on `placeOrder` in `./orders` and for the same
+ * reason: the order is recorded on the channel this request resolves, and only
+ * the `X-Sales-Channel` header says which storefront the buyer is on.
+ */
 export async function placeOneClickOrder(
   sessionCookie: string,
   input: { productId: string; variantId?: string | null; quantity?: number },
+  ctx: RequestContext,
 ): Promise<QuickOrderOneClickResult> {
   const res = await apiMutate<QuickOrderOneClickResult>({
     method: 'POST',
@@ -216,6 +227,7 @@ export async function placeOneClickOrder(
       ...(input.quantity ? { quantity: input.quantity } : {}),
     },
     sessionCookie,
+    ctx,
   });
   return res.data!;
 }

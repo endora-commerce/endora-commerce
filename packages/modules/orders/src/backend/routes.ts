@@ -269,14 +269,16 @@ export async function registerOrderRoutes(
       // and not the one the body names.
       //
       // `placeOrder` stamps `req.salesChannelId`, else the system default, and
-      // this route used to hand it the body untouched. The reference storefront
-      // sends `X-Sales-Channel` and never the body field, so an order placed on
-      // a second channel's storefront was recorded on the default channel and
-      // took that channel's minimum order value, candidate warehouses and
-      // order-number prefix (test/contract/orders/place-order-request-channel.test.ts
-      // holds the observation). A client that *did* send the field could name
-      // any channel it liked, which is a buyer choosing whose rules their order
-      // is placed under.
+      // this route used to hand it the body untouched. So a request that named
+      // its channel the way every other storefront request does — with
+      // `X-Sales-Channel` — and left the body field out was recorded on the
+      // default channel, and took that channel's minimum order value, candidate
+      // warehouses and order-number prefix
+      // (test/contract/orders/place-order-request-channel.test.ts holds the
+      // observation). A client that *did* send the field could name any channel
+      // it liked, which is a buyer choosing whose rules their order is placed
+      // under. The reference storefront sent neither on this call; it sends the
+      // header now (`storefront/lib/api/orders.ts`).
       //
       // So the body field is a claim to be checked, not an instruction: equal
       // to the resolved channel it is redundant and accepted, different it is

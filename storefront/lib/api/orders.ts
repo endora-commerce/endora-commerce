@@ -1,5 +1,6 @@
 import { purchaseConversionClaimResponseSchema } from '@endora-commerce/contracts';
 import { apiGetAuthed, apiMutate } from './mutations';
+import type { RequestContext } from './client';
 
 /**
  * Order API bindings (T157, T158, T159). All endpoints require an
@@ -124,28 +125,51 @@ export interface OrderTotalPreview {
   currency: string;
 }
 
+/**
+ * `ctx` is required for the reason {@link placeOrder} gives: the preview is for
+ * the order the buyer is about to place, on the channel they are shopping.
+ */
 export async function previewOrderTotal(
   sessionCookie: string,
   payload: { deliveryMethodId: string; paymentMethodId: string; billingAddressId?: string },
+  ctx: RequestContext,
 ): Promise<OrderTotalPreview> {
   const result = await apiMutate<OrderTotalPreview>({
     method: 'POST',
     path: '/api/v1/orders/preview-total',
     body: payload,
     sessionCookie,
+    ctx,
   });
   return result.data!;
 }
 
+/**
+ * Places the order **on the sales channel the buyer is shopping**.
+ *
+ * `ctx` is not optional decoration. The backend records an order on the channel
+ * the placement request resolves, and this request is made server-side, to the
+ * backend's own host — so nothing but the `X-Sales-Channel` header `ctx`
+ * carries can tell the backend which storefront the buyer is on. This function
+ * used to send no `ctx` at all, which made every order placed here an order on
+ * the system-default channel, whichever channel's storefront it came from. A
+ * required parameter is what stops the next caller repeating that: the header
+ * cannot be forgotten, only passed.
+ *
+ * The body deliberately carries no `salesChannelId`: the channel is the
+ * request's, and the backend refuses a body that names a different one.
+ */
 export async function placeOrder(
   sessionCookie: string,
   payload: PlaceOrderPayload,
+  ctx: RequestContext,
 ): Promise<OrderSummary> {
   const result = await apiMutate<OrderSummary>({
     method: 'POST',
     path: '/api/v1/orders',
     body: payload,
     sessionCookie,
+    ctx,
   });
   return result.data!;
 }

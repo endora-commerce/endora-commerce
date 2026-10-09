@@ -6,11 +6,19 @@
 A storefront order is recorded on the sales channel the request was made on.
 
 `POST /api/v1/orders` took the order's channel from the optional `salesChannelId` body field and
-fell back to the system-default channel. The reference storefront never sends that field — it
-sends `X-Sales-Channel` — so an order placed on a second channel's storefront was recorded on the
-default channel, and a client that did send the field could name any channel. The route now places
-the order on the channel the request resolved (`X-Sales-Channel`, `?salesChannel=`, the host map,
-else the system default).
+fell back to the system-default channel, ignoring the channel the request itself resolved. A
+request that named its channel with `X-Sales-Channel`, as every other storefront request does, was
+therefore recorded on the default channel, and a client that sent the body field could name any
+channel. The route now places the order on the channel the request resolved (`X-Sales-Channel`,
+`?salesChannel=`, the host map, else the system default).
+
+**A storefront must name the channel on the placement request.** The reference storefront did not:
+its order placement, order-total preview and one-click-buy calls sent no `X-Sales-Channel` at all,
+so every order it placed reached the backend with no channel signal. It forwards the header on
+those calls now. A storefront scaffolded from an earlier release has the same omission in
+`lib/api/orders.ts` and `lib/api/quick-order.ts` and needs the same change — `placeOrder`,
+`previewOrderTotal`, `placeOneClickOrder` and `getOneClickEligibility` take the request context as
+a required argument.
 
 **The body field no longer chooses the channel.** Omitted, or equal to the resolved channel's id,
 the request is accepted as before. Naming a different channel is refused with

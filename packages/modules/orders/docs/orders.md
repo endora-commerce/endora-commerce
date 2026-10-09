@@ -54,6 +54,12 @@ value, warehouses, fulfilment settings and order numbering apply to them, and
 they appear under that channel in the order list and in reports. Existing orders
 are not rewritten. An instance with a single sales channel sees no change.
 
+The storefront has to name the channel on the placement request itself. The
+reference storefront forwards `X-Sales-Channel` on order placement, the
+order-total preview and one-click buy; a storefront scaffolded from an earlier
+release did not, and needs the same change in `lib/api/orders.ts` and
+`lib/api/quick-order.ts`.
+
 The basket keeps a channel of its own, and today it is always the system
 default: promotions are still evaluated against the basket's channel, at
 checkout exactly as in the cart, so a promotion restricted to a non-default

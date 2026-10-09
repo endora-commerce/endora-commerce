@@ -409,7 +409,10 @@ async function submitAction(formData: FormData): Promise<void> {
 
   let order;
   try {
-    order = await placeOrder(session, await buildPlaceOrderPayload(session, formData));
+    // The action's own request carries the channel the buyer is shopping, and
+    // the placement has to be told: see `placeOrder`.
+    const { ctx } = await getServerContext();
+    order = await placeOrder(session, await buildPlaceOrderPayload(session, formData), ctx);
   } catch (err) {
     // Feature 036 (US4) — placement failed: the transaction rolled back, so the
     // cart is intact. Send the buyer to the Failure Page with a reason-specific

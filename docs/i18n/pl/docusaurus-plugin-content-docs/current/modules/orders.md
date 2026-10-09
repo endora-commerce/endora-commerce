@@ -55,6 +55,11 @@ a na liście zamówień i w raportach pojawiają się pod tym kanałem. Istniej�
 zamówienia nie są zmieniane. W instancji z jednym kanałem sprzedaży nic się nie
 zmienia.
 
+Sklep musi wskazać kanał w samym żądaniu złożenia zamówienia. Referencyjny sklep
+przekazuje `X-Sales-Channel` przy składaniu zamówienia, podglądzie sumy zamówienia
+i zakupie jednym kliknięciem; sklep utworzony z wcześniejszego wydania tego nie
+robił i wymaga tej samej zmiany w `lib/api/orders.ts` oraz `lib/api/quick-order.ts`.
+
 Koszyk ma własny kanał i dziś jest nim zawsze kanał domyślny: promocje są nadal
 wyliczane dla kanału koszyka, przy składaniu zamówienia dokładnie tak jak w koszyku,
 więc promocja ograniczona do kanału innego niż domyślny nie obejmuje jeszcze

@@ -24,14 +24,18 @@ import { Cart, Order } from '../../helpers/package-entities.js';
  *
  * The storefront placement route handed its body to `OrderService.placeOrder`
  * untouched, and `placeOrder` stamps `req.salesChannelId`, else the system
- * default. The body's `salesChannelId` is optional and the reference storefront
- * never sends it — it sends `X-Sales-Channel`, which the resolver middleware
- * turns into the request's channel and which the placement never read. So an
- * order placed on a second channel's storefront was recorded on the **default**
- * channel, and took that channel's minimum order value, candidate warehouses
- * and order-number prefix with it. The first case below is that observation: it
- * was red — `expected <default id> to be <channel B id>` — before the route
- * changed.
+ * default. The body's `salesChannelId` is optional; `X-Sales-Channel` is how
+ * every other storefront request names its channel, and the resolver middleware
+ * turns it into the request's channel — which the placement never read. So an
+ * order placed with the header and without the body field was recorded on the
+ * **default** channel, and took that channel's minimum order value, candidate
+ * warehouses and order-number prefix with it. The first case below is that
+ * observation: it was red — `expected <default id> to be <channel B id>` —
+ * before the route changed.
+ *
+ * (The reference storefront sent neither the header nor the body field on this
+ * call, so it reached the same wrong answer by a second road; that half is
+ * `storefront/test/lib/order-placement-channel.test.ts`.)
  *
  * ## The rule
  *
