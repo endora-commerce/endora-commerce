@@ -231,6 +231,84 @@ describe('CustomFieldValuesPanel — it renders the host\'s bag and hands it bac
   });
 });
 
+describe('CustomFieldValuesPanel — a cleared field is reported as `null`, never `undefined`', () => {
+  /**
+   * Issue #176. A host sends the bag as JSON, and JSON drops a key whose value
+   * is `undefined` — so a cleared number, date or choice used to leave the
+   * request without the key, and the server reads an absent key as "not
+   * edited" and keeps the stored value. `null` survives serialisation and is
+   * what the server reads as "clear this".
+   *
+   * The second assertion in each case is the one the defect lived behind: not
+   * the bag in memory, but the bag as it reaches the wire.
+   */
+  const option = {
+    id: '00000000-0000-4000-8000-00000000e003',
+    value: 'smb',
+    label: { en: 'SMB' },
+    labelDefault: 'SMB',
+    isDefault: false,
+    sortOrder: 0,
+  };
+
+  const cases = [
+    {
+      valueType: 'number',
+      stored: 42,
+      clear: async (input: HTMLElement): Promise<void> => userEvent.clear(input),
+    },
+    {
+      valueType: 'date',
+      stored: '2026-03-01',
+      clear: async (input: HTMLElement): Promise<void> => userEvent.clear(input),
+    },
+    {
+      valueType: 'select',
+      stored: 'smb',
+      clear: async (input: HTMLElement): Promise<void> => {
+        await userEvent.selectOptions(input, '');
+      },
+    },
+  ] as const;
+
+  for (const { valueType, stored, clear } of cases) {
+    it(`hands \`save\` a null for a cleared ${valueType}, beside the untouched keys`, async () => {
+      getSpy.mockResolvedValue({
+        data: [definition({ key: 'field', label: { en: 'Field' }, labelDefault: 'Field', valueType, options: [option] })],
+      });
+      const save = vi.fn().mockResolvedValue(undefined);
+
+      renderWithI18n(
+        <CustomFieldValuesPanel entityType="customer" values={{ field: stored, other: 'kept' }} save={save} />,
+        bundle,
+      );
+
+      await clear(await screen.findByLabelText('Field'));
+      await userEvent.click(screen.getByRole('button', { name: COPY.save }));
+
+      await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+      const bag = save.mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(bag).toStrictEqual({ field: null, other: 'kept' });
+      expect(JSON.parse(JSON.stringify(bag))).toStrictEqual({ field: null, other: 'kept' });
+    });
+
+    it(`tells an embedding host a null for a cleared ${valueType}`, async () => {
+      getSpy.mockResolvedValue({
+        data: [definition({ key: 'field', label: { en: 'Field' }, labelDefault: 'Field', valueType, options: [option] })],
+      });
+      const onChange = vi.fn();
+
+      renderWithI18n(
+        <CustomFieldValuesPanel entityType="customer" values={{ field: stored }} onChange={onChange} />,
+        bundle,
+      );
+
+      await clear(await screen.findByLabelText('Field'));
+      expect(onChange.mock.lastCall?.[0]).toStrictEqual({ field: null });
+    });
+  }
+});
+
 describe('CustomFieldValuesPanel — an empty entity type and a failed load are not the same screen', () => {
   /**
    * These two cases are the whole point of the repair, so they are written as a

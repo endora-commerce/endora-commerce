@@ -132,6 +132,47 @@ describe('merge + retention semantics (FR-010)', () => {
   });
 });
 
+describe('clearing a stored value (issue #176)', () => {
+  /**
+   * The admin panel reports a cleared number, date or choice as `null`. That
+   * only removes anything if a `null` in the patch is read as "clear this"
+   * rather than "not edited" — which is what an absent key means.
+   */
+  const defs: DefLite[] = [
+    { key: 'n', valueType: 'number' },
+    { key: 'd', valueType: 'date' },
+    { key: 's', valueType: 'select', options: ['a', 'b'] },
+  ];
+  const stored = { n: 42, d: '2026-03-01', s: 'a' };
+
+  for (const key of ['n', 'd', 's'] as const) {
+    it(`removes the stored ${defs.find((d) => d.key === key)?.valueType} when the patch carries null`, async () => {
+      const out = await svc(defs).validateAndMerge('organization', stored, { [key]: null });
+      const { [key]: _removed, ...rest } = stored;
+      expect(out).toStrictEqual(rest);
+      expect(Object.prototype.hasOwnProperty.call(out, key)).toBe(false);
+    });
+  }
+
+  it('keeps every stored value when the patch names none of them', async () => {
+    // The other half of the pair: this is what a bag serialised with
+    // `undefined` values amounted to, and why nothing was removed.
+    const out = await svc(defs).validateAndMerge(
+      'organization',
+      stored,
+      JSON.parse(JSON.stringify({ n: undefined, d: undefined, s: undefined })) as Record<string, unknown>,
+    );
+    expect(out).toStrictEqual(stored);
+  });
+
+  it('refuses a null for a required field instead of removing it', async () => {
+    const s = svc([{ key: 'n', valueType: 'number', required: true }]);
+    await expect(s.validateAndMerge('organization', { n: 42 }, { n: null })).rejects.toMatchObject({
+      errors: [{ field: 'n', code: 'missing_required' }],
+    });
+  });
+});
+
 describe('CustomFieldValueService.project — dormant stripping (US2 scenario 4)', () => {
   it('drops keys with no live definition', async () => {
     const s = svc([{ key: 'live', valueType: 'text' }]);
