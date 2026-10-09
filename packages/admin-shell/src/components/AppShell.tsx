@@ -27,6 +27,7 @@ import {
   type AdminRegistryEntry,
 } from '../lib/module-registry/index.js';
 import { LanguagePicker } from './LanguagePicker.js';
+import { RoleRequiredNotice } from './RoleRequiredNotice.js';
 import { useViewportTier } from './hooks/useViewportTier.js';
 import { NotificationBell } from './notifications/index.js';
 import { useAdminActions } from '../lib/admin-actions/useAdminActions.js';
@@ -1407,6 +1408,9 @@ export function AppShell(): ReactNode {
         </div>
         <main className="b2b-main" style={{ flex: 1, overflow: 'auto' }}>
           <div className="b2b-impersonation-slot" data-impersonation-banner />
+          {/* Issue #140 — a session whose role is null reaches no gated
+              surface, so the shell says why instead of showing an empty panel. */}
+          {me !== null && me.role === null ? <RoleRequiredNotice /> : null}
           <Outlet />
         </main>
       </div>

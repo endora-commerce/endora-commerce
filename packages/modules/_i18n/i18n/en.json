@@ -221,6 +221,8 @@
   "appShell.nav.invoiceTemplates": "Invoice templates",
   "appShell.nav.platformModules": "Modules",
   "appShell.nav.pwa": "PWA",
+  "appShell.noRole.description": "Without a role this account cannot open any section of the admin panel. Ask another administrator to assign you a role on the Users screen. If no administrator can sign in, a role can be assigned from the command line with the admin:create command.",
+  "appShell.noRole.title": "Your administrator account has no role",
   "appShell.notifications.empty": "No notifications.",
   "appShell.notifications.markAllRead": "Mark all read",
   "appShell.notifications.title": "Notifications",

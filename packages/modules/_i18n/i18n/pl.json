@@ -221,6 +221,8 @@
   "appShell.nav.invoiceTemplates": "Szablony faktur",
   "appShell.nav.platformModules": "Moduły",
   "appShell.nav.pwa": "PWA",
+  "appShell.noRole.description": "Bez roli to konto nie może otworzyć żadnej sekcji panelu administracyjnego. Poproś innego administratora o przypisanie roli na ekranie Użytkownicy. Jeśli żaden administrator nie może się zalogować, rolę można przypisać z wiersza poleceń, komendą admin:create.",
+  "appShell.noRole.title": "Twoje konto administratora nie ma przypisanej roli",
   "appShell.notifications.empty": "Brak powiadomień.",
   "appShell.notifications.markAllRead": "Oznacz wszystkie jako przeczytane",
   "appShell.notifications.title": "Powiadomienia",
