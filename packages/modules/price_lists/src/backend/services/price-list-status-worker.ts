@@ -1,5 +1,6 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import { PriceList } from '../entities/price-list.entity.js';
+import { anyRowExists } from './scheduled-work-probe.js';
 
 /**
  * Status worker (feature 011 / FR-009, SC-006, research §R4 + §R13).
@@ -32,22 +33,31 @@ export class PriceListStatusWorker {
    *
    * The timer asks this before it opens its system scope, so that a tick with
    * no transition due writes no `tenant.escape_hatch` audit row. It runs with
-   * no tenant context and returns one bit from a `select exists(…)`: no price
+   * no tenant context and returns one bit, through `anyRowExists`: no price
    * list leaves the statement. The predicate is the sweep's own two — a
    * `scheduled` list whose start has come, an `active` one whose end has
    * passed — and its answer is never handed to the sweep, which re-reads
    * inside the scope.
+   *
+   * **Two statements of the predicate, unlike the other scheduled probes.**
+   * The sweep selects through the ORM (`em.find` with a filter object, so that
+   * it joins the caller's unit of work and flushes entities), and a probe may
+   * not load entities at all; sharing one would mean rewriting the sweep as
+   * raw SQL. What holds the two together instead is a test per branch in
+   * which only that branch makes the tick do its work
+   * (`backend/test/integration/tenancy/idle-worker-ticks-audit.test.ts`).
    */
   async hasDueTransitions(now: Date = new Date()): Promise<boolean> {
-    const rows = (await this.emFactory().execute(
-      `select exists(
-         select 1 from "price_lists"
-          where ("status" = 'scheduled' and "starts_at" is not null and "starts_at" <= ?)
-             or ("status" = 'active' and "ends_at" is not null and "ends_at" < ?)
-       ) as "has_work"`,
-      [now, now],
-    )) as Array<{ has_work: boolean }>;
-    return rows[0]?.has_work === true;
+    return anyRowExists(this.emFactory(), [
+      {
+        from: `from "price_lists" where "status" = 'scheduled' and "starts_at" is not null and "starts_at" <= ?`,
+        params: [now],
+      },
+      {
+        from: `from "price_lists" where "status" = 'active' and "ends_at" is not null and "ends_at" < ?`,
+        params: [now],
+      },
+    ]);
   }
 
   async sweep(now: Date = new Date()): Promise<SweepResult> {

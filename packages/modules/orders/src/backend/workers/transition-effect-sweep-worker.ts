@@ -29,7 +29,7 @@ import type { OrderTransitionEffectService } from '../services/order-transition-
  * split the rows between them rather than running any twice.
  *
  * The interval is a constant, not a setting: nobody has asked to tune it, and
- * the cost of a tick with nothing outstanding is one indexed statement — the
+ * the cost of a tick with nothing outstanding is one statement — the
  * question `runTransitionEffectSweepTick` asks before it opens a scope.
  */
 

@@ -205,7 +205,7 @@ Dlatego takt zadania cyklicznego **najpierw pyta, a zakres otwiera tylko wtedy, 
 export async function runSweepTick(deps: SweepDeps): Promise<void> {
   let hasWork = true;
   try {
-    hasWork = await deps.service.hasSweepWork(); // bez zakresu: odpowiada tak albo nie
+    hasWork = await deps.service.hasSweepWork(); // bez zakresu: anyRowExists(…), tak albo nie
   } catch (error) {
     rethrowIfModuleDisabled(error); // wyłączenie modułu nigdy nie jest pochłaniane
     hasWork = true; // nie wiadomo — działaj jak dotąd, z zakresem i wierszem audytu
@@ -224,17 +224,32 @@ ominięcie audytu:
    identyfikatora, żadnej organizacji, żadnej liczby. Wywołujący, który dowiaduje się tylko „idź i
    sprawdź”, nie odczytał danych żadnego tenanta — dlatego nie ma czego zapisywać. Pytanie, które
    zwraca cokolwiek więcej, jest nieaudytowanym odczytem między tenantami. W takim przypadku otwórz
-   zakres.
+   zakres. Pytanie nie wykonuje własnego zapytania: przekazuje źródła wierszy `from … where …` do
+   `anyRowExists` (`services/scheduled-work-probe.ts` w module), które buduje `select exists(…)`
+   i zwraca `true` albo `false`. Nie ma listy kolumn, którą wywołujący mógłby poszerzyć.
+   `backend/test/unit/tenancy/scheduled-work-probes.test.ts` wymienia pytania i kończy się błędem,
+   gdy któreś z nich samo cokolwiek odczytuje, więc nowe pytanie dopisuje się do tej listy.
+   Zapytania wykonanego przed otwarciem zakresu inną drogą ten test nie widzi — wychwyci je tylko
+   przegląd kodu.
 2. **Jest własnym warunkiem zadania.** `false` musi oznaczać, że przebieg niczego by nie odczytał
-   ani nie zapisał. Jeśli dokładny warunek wymaga czegoś, co należy do zakresu — ustawienia albo
-   portu innego modułu — zadaj szersze pytanie, które może się mylić tylko w stronę `true`.
+   ani nie zapisał. Pytanie węższe niż przebieg to praca, która po cichu nigdy się nie wykona,
+   dlatego każdy warunek zapisz **raz** i niech czytają go oba miejsca — przebieg, żeby działać,
+   pytanie, żeby zapytać. Jeśli przebieg wybiera wiersze przez ORM i nie może współdzielić
+   zapytania, zostaw dwa i pokryj każdą gałąź testem, w którym tylko ta gałąź sprawia, że takt
+   wykonuje swoją pracę. Jeśli dokładny warunek wymaga czegoś, co należy do zakresu — ustawienia
+   albo portu innego modułu — zadaj szersze pytanie, które może się mylić tylko w stronę `true`.
 3. **Jego odpowiedź nigdy nie trafia do przebiegu.** Praca odczytuje wszystko ponownie wewnątrz
    zakresu. Pytanie rozstrzyga, *czy* zakres zostanie otwarty, nigdy *co* się w nim wykona.
 4. **Pytanie zakończone błędem liczy się jako `true`.** Takt działa wtedy dokładnie tak jak
    wcześniej, razem z wierszem audytu. Błąd pytania może kosztować jeden wiersz i nigdy nie może
    go oszczędzić.
 
-Obecność modułu nadal jest rozstrzygana najpierw: wyłączony moduł o nic nie pyta swoich tabel.
+Pytanie niczego nie zmienia w rozstrzyganiu obecności modułu. Takt, który sam rozstrzyga obecność,
+robi to przed pytaniem, więc wyłączony moduł o nic nie pyta swoich tabel; konsument zatrzymywany
+razem z modułem przez mechanizm workerów platformy w ogóle nie dochodzi do pytania.
+
+Pytanie to jedno zapytanie na takt, ale niekoniecznie odczyt z indeksu: kosztuje tyle, ile własny
+wybór wierszy przebiegu. Jeśli tabela jest duża, załóż indeks na warunek.
 
 Takt, który ma pracę, jest zapisywany dokładnie tak jak dotąd. To samo dotyczy każdego zadania,
 które jest pracą z definicji — konsumenta kolejki, który dostał zadanie do wykonania, zaplanowanego

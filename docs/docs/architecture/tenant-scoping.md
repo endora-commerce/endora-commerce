@@ -219,7 +219,7 @@ work**:
 export async function runSweepTick(deps: SweepDeps): Promise<void> {
   let hasWork = true;
   try {
-    hasWork = await deps.service.hasSweepWork(); // no scope: answers yes or no
+    hasWork = await deps.service.hasSweepWork(); // no scope: anyRowExists(…), yes or no
   } catch (error) {
     rethrowIfModuleDisabled(error); // a module switched off is never absorbed
     hasWork = true; // cannot tell — run as before, scope and audit row included
@@ -238,11 +238,23 @@ to four rules. They are what keeps it from becoming a way around the audit:
    id, no organization, no count. A caller that learns only "go and look" has
    read no tenant's data, which is why there is nothing to record. A probe
    that returns anything more is an unaudited cross-tenant read. Widen the
-   scope instead.
+   scope instead. The probe does not run a statement of its own: it hands
+   `from … where …` row sources to `anyRowExists`
+   (`services/scheduled-work-probe.ts` in the module), which builds the
+   `select exists(…)` and returns `true` or `false`. There is no select list
+   for a caller to widen. `backend/test/unit/tenancy/scheduled-work-probes.test.ts`
+   lists the probes and fails when one of them reads anything itself, so a new
+   probe is added to that list. A statement run before a scope by any other
+   route is invisible to that test and is caught only in review.
 2. **It is the job's own predicate.** `false` must mean the pass would read and
-   write nothing. Where the exact predicate needs something that belongs
-   inside the scope — a setting, another module's port — ask a wider question
-   that can only err towards `true`.
+   write nothing. A probe narrower than its pass is work that silently never
+   happens, so write each condition **once** and have both the pass and the
+   probe read it — the pass to act, the probe to ask. Where the pass selects
+   through the ORM and cannot share a statement, keep two and cover every
+   branch with a test in which only that branch makes the tick do its work.
+   Where the exact predicate needs something that belongs inside the scope — a
+   setting, another module's port — ask a wider question that can only err
+   towards `true`.
 3. **Its answer is never handed to the pass.** The work re-reads everything
    inside the scope. The probe decides *whether* the scope is entered, never
    *what* is done in it.
@@ -250,7 +262,13 @@ to four rules. They are what keeps it from becoming a way around the audit:
    did before, audit row included. A failing probe may cost a row and can
    never save one.
 
-Presence is still decided first: a module that is off asks its tables nothing.
+The probe changes nothing about presence. A tick that decides presence itself
+decides it before the probe, so a module that is off asks its tables nothing; a
+consumer that is stopped with its module through the platform's worker seam
+never reaches the probe at all.
+
+The probe is one statement per tick, not necessarily an index lookup: it costs
+what the pass's own selection costs. Index the condition if the table is large.
 
 A tick that has work is recorded exactly as before, and so is every job that
 is work by definition — a queue consumer handed a job to process, a scheduled

@@ -251,6 +251,80 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
       expect(await blockedOn()).toBeNull();
       expect(await recorded(SWEEP_SCOPE_REASON)).toBe(before + 2);
     });
+
+    /** One order owing `effect`, with its row's columns overridden as given. */
+    const owingWith = async (
+      effect: 'stock.release' | 'credit.release',
+      set: string,
+    ): Promise<string> => {
+      const orderId = await seedOrder();
+      await emFactory().transactional((tx) =>
+        service().record(
+          tx,
+          { id: orderId, organizationId: TEST_ORGANIZATION_ID },
+          [{ effect, reason: 'order_cancelled' }],
+          'transition',
+        ),
+      );
+      if (set.length > 0) {
+        await h
+          .em()
+          .getConnection()
+          .execute(`update "order_transition_effects" set ${set} where "order_id" = ?`, [orderId]);
+      }
+      return orderId;
+    };
+
+    it('only a credit release due: the tick runs it — the question covers every kind of follow-up', async () => {
+      credit.mockClear();
+      stock.mockClear();
+      const orderId = await owingWith('credit.release', '');
+      const before = await recorded(SWEEP_SCOPE_REASON);
+
+      await tick();
+
+      expect(credit).toHaveBeenCalledWith({ orderId, reason: 'order_cancelled' });
+      expect(stock).not.toHaveBeenCalled();
+      expect(await recorded(SWEEP_SCOPE_REASON)).toBe(before + 1);
+    });
+
+    it('only a row still marked as waiting on a module that is back, deep in its back-off: the tick releases it now', async () => {
+      stock.mockClear();
+      // Not due by its own clock for an hour: the one thing that makes this
+      // tick work is the mark, which a present owner no longer justifies.
+      const orderId = await owingWith(
+        'stock.release',
+        `"blocked_on" = 'inventory', "attempts" = 3, "next_attempt_at" = now() + interval '1 hour'`,
+      );
+      const before = await recorded(SWEEP_SCOPE_REASON);
+
+      await tick();
+
+      expect(stock).toHaveBeenCalledWith({ orderId, reason: 'order_cancelled' });
+      expect(await recorded(SWEEP_SCOPE_REASON)).toBe(before + 1);
+    });
+
+    it('a row under a live lease is somebody else`s and not work; once the lease has expired the tick runs it', async () => {
+      stock.mockClear();
+      const orderId = await owingWith('stock.release', `"claimed_until" = now() + interval '5 minutes'`);
+      const before = await recorded(SWEEP_SCOPE_REASON);
+
+      for (let i = 0; i < IDLE_TICKS; i += 1) await tick();
+      expect(stock).not.toHaveBeenCalled();
+      expect(await recorded(SWEEP_SCOPE_REASON)).toBe(before);
+
+      await h
+        .em()
+        .getConnection()
+        .execute(
+          `update "order_transition_effects" set "claimed_until" = now() - interval '1 second' where "order_id" = ?`,
+          [orderId],
+        );
+      await tick();
+
+      expect(stock).toHaveBeenCalledWith({ orderId, reason: 'order_cancelled' });
+      expect(await recorded(SWEEP_SCOPE_REASON)).toBe(before + 1);
+    });
   });
 
   // --- crm: event reminders, every 60 s ---------------------------------------
@@ -320,6 +394,56 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
       await tick();
       expect(await recorded(EVENT_REMINDER_SCOPE_REASON)).toBe(before + 1);
     });
+
+    /** An Event on a fresh open Opportunity, with the reminder columns as given. */
+    const eventWith = async (
+      label: string,
+      reminder: { remindAt: Date; reminderHandledAt?: Date; reminderOutcome?: string },
+    ): Promise<string> => {
+      const organizationId = await seedCrmOrganization(h.em(), `Idle ticks ${label}`);
+      const opportunity = await createCrmOpportunity(h, { organizationId });
+      const startsAt = new Date(Date.now() + 3_600_000);
+      return seedCrmEventRow(h.em(), opportunity.id, {
+        startsAt,
+        endsAt: new Date(startsAt.getTime() + 3_600_000),
+        timeZone: 'UTC',
+        createdByAdminUserId: TEST_ADMIN_ID,
+        ...reminder,
+      });
+    };
+
+    it('only a reminder more than a day overdue: the tick marks it missed — a branch of its own', async () => {
+      const eventId = await eventWith('missed', { remindAt: new Date(Date.now() - 25 * 3_600_000) });
+      const before = await recorded(EVENT_REMINDER_SCOPE_REASON);
+
+      await tick();
+
+      expect((await crmEventReminderRow(h.em(), eventId))?.outcome).toBe('missed');
+      expect(await recorded(EVENT_REMINDER_SCOPE_REASON)).toBe(before + 1);
+    });
+
+    it('only a claim left unrecorded for more than ten minutes: the tick marks it interrupted — a branch of its own', async () => {
+      const eventId = await eventWith('interrupted', {
+        remindAt: new Date(Date.now() - 12 * 60_000),
+        reminderHandledAt: new Date(Date.now() - 11 * 60_000),
+        reminderOutcome: 'sending',
+      });
+      const before = await recorded(EVENT_REMINDER_SCOPE_REASON);
+
+      await tick();
+
+      expect((await crmEventReminderRow(h.em(), eventId))?.outcome).toBe('interrupted');
+      expect(await recorded(EVENT_REMINDER_SCOPE_REASON)).toBe(before + 1);
+      // A claim that is recent is still somebody's: not work.
+      const recent = await eventWith('claimed', {
+        remindAt: new Date(Date.now() - 2 * 60_000),
+        reminderHandledAt: new Date(Date.now() - 60_000),
+        reminderOutcome: 'sending',
+      });
+      for (let i = 0; i < IDLE_TICKS; i += 1) await tick();
+      expect((await crmEventReminderRow(h.em(), recent))?.outcome).toBe('sending');
+      expect(await recorded(EVENT_REMINDER_SCOPE_REASON)).toBe(before + 1);
+    });
   });
 
   // --- product_feeds: stale run claims, every 5 min ---------------------------
@@ -329,14 +453,20 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
     const tick = () =>
       asWorker(() => runFeedRunReaperTick({ reaper: h.productFeeds.reaper }));
 
-    async function abandonedRun(): Promise<string> {
+    let channelId: string;
+    let templateId: string;
+
+    beforeAll(async () => {
       await setChannelStorefrontUrl(h, 'pl_retail');
-      const channelId = (await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' })).id;
+      channelId = (await h.em().findOneOrFail(SalesChannel, { code: 'pl_retail' })).id;
       await seedFeedPrices(h.em(), { code: 'feed_idle_ticks_list' });
       const templates = await h.app.inject({ method: 'GET', url: '/api/v1/admin/feed-templates', ...ADMIN });
-      const templateId = (
+      templateId = (
         templates.json() as { data: Array<{ id: string; systemCode: string | null }> }
       ).data.find((template) => template.systemCode === 'google_merchant_v1')!.id;
+    });
+
+    async function abandonedRun(): Promise<string> {
       const created = await h.app.inject({
         method: 'POST',
         url: '/api/v1/admin/product-feeds',
@@ -393,6 +523,29 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
       await tick();
       expect(await recorded(FEED_REAPER_SCOPE_REASON)).toBe(before + 1);
     });
+
+    it('a question that cannot be answered counts as yes: the sweep runs, and is recorded', async () => {
+      const runId = await abandonedRun();
+      const before = await recorded(FEED_REAPER_SCOPE_REASON);
+
+      await asWorker(() =>
+        runFeedRunReaperTick({
+          reaper: {
+            hasClaimedRuns: async () => {
+              throw new Error('connection refused');
+            },
+            releaseStaleClaims: () => h.productFeeds.reaper.releaseStaleClaims(),
+          },
+        }),
+      );
+
+      const rows = (await h
+        .em()
+        .getConnection()
+        .execute(`select "status" from "product_feed_runs" where "id" = ?`, [runId])) as Array<{ status: string }>;
+      expect(rows[0]?.status).toBe('failed');
+      expect(await recorded(FEED_REAPER_SCOPE_REASON)).toBe(before + 1);
+    });
   });
 
   // --- price_lists: date-driven status transitions, every 5 min ---------------
@@ -433,6 +586,58 @@ describe('idle worker ticks write no escape-hatch audit row (issue #120)', () =>
       expect(row.status).toBe('active');
       expect(await recorded(STATUS_SWEEP_SCOPE_REASON)).toBe(before + 1);
       expect(await tick()).toBeNull();
+      expect(await recorded(STATUS_SWEEP_SCOPE_REASON)).toBe(before + 1);
+    });
+
+    it('only an active list whose end has passed: the tick expires it — the other branch of the question', async () => {
+      const em = h.em();
+      const suffix = randomUUID().slice(0, 8);
+      const active = em.create(PriceList, {
+        code: `idle-ticks-ended-${suffix}`,
+        name: `Idle ticks ended ${suffix}`,
+        currency: 'PLN',
+        type: 'sale',
+        status: 'active',
+        startsAt: new Date(Date.now() - 3 * 86_400_000),
+        endsAt: new Date(Date.now() - 86_400_000),
+      });
+      await em.persistAndFlush(active);
+      const before = await recorded(STATUS_SWEEP_SCOPE_REASON);
+
+      expect(await tick()).toEqual({ scheduledToActive: 0, activeToExpired: 1 });
+
+      const row = await h.em().findOneOrFail(PriceList, { id: active.id }, { refresh: true });
+      expect(row.status).toBe('expired');
+      expect(await recorded(STATUS_SWEEP_SCOPE_REASON)).toBe(before + 1);
+    });
+
+    it('a question that cannot be answered counts as yes: the sweep runs, and is recorded', async () => {
+      const em = h.em();
+      const suffix = randomUUID().slice(0, 8);
+      const scheduled = em.create(PriceList, {
+        code: `idle-ticks-unanswered-${suffix}`,
+        name: `Idle ticks unanswered ${suffix}`,
+        currency: 'PLN',
+        type: 'sale',
+        status: 'scheduled',
+        startsAt: new Date(Date.now() - 86_400_000),
+      });
+      await em.persistAndFlush(scheduled);
+      const worker = new PriceListStatusWorker(emFactory);
+      const before = await recorded(STATUS_SWEEP_SCOPE_REASON);
+
+      const result = await asWorker(() =>
+        statusSweepTick({
+          hasDueTransitions: async () => {
+            throw new Error('connection refused');
+          },
+          sweep: (now) => worker.sweep(now),
+        }),
+      );
+
+      expect(result).toEqual({ scheduledToActive: 1, activeToExpired: 0 });
+      const row = await h.em().findOneOrFail(PriceList, { id: scheduled.id }, { refresh: true });
+      expect(row.status).toBe('active');
       expect(await recorded(STATUS_SWEEP_SCOPE_REASON)).toBe(before + 1);
     });
   });

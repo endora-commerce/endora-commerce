@@ -2,6 +2,7 @@ import type { EntityManager } from '@mikro-orm/postgresql';
 import { FeedArtefact } from '../entities/feed-artefact.entity.js';
 import { ProductFeed } from '../entities/product-feed.entity.js';
 import type { ArtefactStorageBackend, ArtefactStorePort } from './artefact-store.js';
+import { anyRowExists } from './scheduled-work-probe.js';
 
 /**
  * Stale-claim reaper — feature 067 / FR-036, research §R5.3.
@@ -67,6 +68,15 @@ interface StaleRunRow {
   product_feed_id: string;
 }
 
+/**
+ * A run that holds a claim and has reported a heartbeat — the rows the sweep
+ * starts from, and exactly what {@link FeedRunReaperService.hasClaimedRuns}
+ * asks about. One statement of it, so the question cannot become narrower than
+ * the sweep: the sweep is this **and** a stale heartbeat, never anything this
+ * does not cover.
+ */
+const CLAIMED_RUNS = `"status" = 'running' and "heartbeat_at" is not null`;
+
 export class FeedRunReaperService {
   constructor(private readonly deps: FeedRunReaperDeps) {}
 
@@ -77,7 +87,7 @@ export class FeedRunReaperService {
    * The worker asks this before it opens its system scope, so that a tick on
    * an installation where nothing is generating writes no
    * `tenant.escape_hatch` audit row. It runs with no tenant context, and
-   * returns one bit from a `select exists(…)` over a `@GlobalEntity` table: no
+   * returns one bit, through `anyRowExists`, over a `@GlobalEntity` table: no
    * run and no feed leaves the statement.
    *
    * Deliberately **wider** than what {@link releaseStaleClaims} acts on: it
@@ -88,15 +98,9 @@ export class FeedRunReaperService {
    * recorded, exactly as before.
    */
   async hasClaimedRuns(): Promise<boolean> {
-    const rows = (await this.deps.emFactory().getConnection().execute(
-      `select exists(
-         select 1 from "product_feed_runs"
-          where "status" = 'running' and "heartbeat_at" is not null
-       ) as "has_work"`,
-      [],
-      'all',
-    )) as Array<{ has_work: boolean }>;
-    return rows[0]?.has_work === true;
+    return anyRowExists(this.deps.emFactory(), [
+      { from: `from "product_feed_runs" where ${CLAIMED_RUNS}`, params: [] },
+    ]);
   }
 
   /**
@@ -115,8 +119,7 @@ export class FeedRunReaperService {
     const stale = (await conn.execute(
       `select "id", "product_feed_id"
          from "product_feed_runs"
-        where "status" = 'running'
-          and "heartbeat_at" is not null
+        where ${CLAIMED_RUNS}
           and "heartbeat_at" < now() - (? || ' minutes')::interval`,
       [String(timeoutMinutes)],
       'all',

@@ -26,8 +26,10 @@ import type { EventReminderService } from '../services/event-reminder-service.js
  * settings, and one queue would couple the two.
  *
  * The interval is a constant, not a setting: nobody has asked to tune it, and a
- * tick with nothing due is one indexed statement — the question
- * `runEventReminderJob` asks before it opens a scope.
+ * tick with nothing due is one statement — the question
+ * `runEventReminderJob` asks before it opens a scope. That statement is not
+ * an index lookup: nothing indexes a claim left `sending`, so it reads the
+ * Events table, as the pass's own `interrupted` update always has.
  */
 
 export const EVENT_REMINDER_QUEUE = 'crm-event-reminders';
