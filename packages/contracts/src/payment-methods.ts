@@ -51,6 +51,13 @@ export const paymentMethodUpsertSchema = z.object({
   statusOnPending: z.string().min(1).max(64).optional(),
   statusOnSuccess: z.string().min(1).max(64).optional(),
   statusOnFailure: z.string().min(1).max(64).optional(),
+  /**
+   * The sales channels the method is offered in. **Omitted** leaves the
+   * memberships untouched on an update and binds a new method to the
+   * system-default channel; **`[]`** removes every membership, which offers the
+   * method in every channel; a non-empty list replaces the set with exactly
+   * those channels.
+   */
   salesChannelIds: z.array(uuidSchema).optional(),
 });
 export type PaymentMethodUpsert = z.infer<typeof paymentMethodUpsertSchema>;
@@ -349,6 +356,14 @@ export interface PaymentMethodReadPort {
   listAll(): Promise<PaymentMethodRecord[]>;
   /** Only `status === 'active'`, ordered by code — the buyer-facing catalogue. */
   listActive(): Promise<PaymentMethodRecord[]>;
+  /**
+   * Whether the method is offered in the sales channel: it is bound to that
+   * channel, **or it is bound to no channel at all** — for a payment method a
+   * membership is a restriction, and an unrestricted method is offered
+   * everywhere. Independent of `status`; `orders` asks it at placement, against
+   * the channel the order records. `false` for an id that names no method.
+   */
+  isAvailableInChannel(id: string, salesChannelId: string): Promise<boolean>;
 }
 
 /**

@@ -58,6 +58,7 @@ export interface PaymentMethodsCradle {
       entityType: ChannelMemberEntityType;
       table: string;
       entityIdColumn: string;
+      emptyMeansEveryChannel?: boolean;
     }): void;
   };
   readonly emFactory: () => EntityManager;
@@ -159,7 +160,21 @@ export function registerModule(ctx: ModuleContext): void {
     'paymentMethodReadPort',
     ctx
       .asFunction(
-        ({ emFactory }: PaymentMethodsCradle) => new PaymentMethodReadService(emFactory),
+        ({ emFactory }: PaymentMethodsCradle) =>
+          new PaymentMethodReadService(emFactory, {
+            // The membership port is read **per call**, through `ctx.cradle`,
+            // and never captured by this singleton's factory: a port is a
+            // transient gate, and `check:port-dependencies` refuses a factory
+            // parameter that holds one.
+            filterEntityIdsInChannel: (...args) =>
+              requiredMembership(
+                ctx.cradle<PaymentMethodsCradle>().salesChannelMembershipPort,
+              ).filterEntityIdsInChannel(...args),
+            listChannelsForEntity: (...args) =>
+              requiredMembership(
+                ctx.cradle<PaymentMethodsCradle>().salesChannelMembershipPort,
+              ).listChannelsForEntity(...args),
+          }),
       )
       .singleton(),
   );
@@ -173,7 +188,9 @@ export function registerModule(ctx: ModuleContext): void {
       paymentMethodEligibility,
       paymentOrderStatusRegistry,
     } = ctx.cradle<PaymentMethodsCradle>();
-    const membership = ctx.cradle<PaymentMethodsCradle>().salesChannelMembershipPort;
+    const membership = requiredMembership(
+      ctx.cradle<PaymentMethodsCradle>().salesChannelMembershipPort,
+    );
 
     /**
      * Composed here from the two halves, and deliberately without a `catch`.
@@ -193,6 +210,7 @@ export function registerModule(ctx: ModuleContext): void {
 
     await registerPaymentMethodsPublicRoutes(app, {
       emFactory,
+      salesChannelMembership: membership,
       registry,
       eligibility: paymentMethodEligibility,
       resolveOrganizationPaymentMethodAllowList: resolveAllowList,
@@ -225,7 +243,7 @@ export function registerModule(ctx: ModuleContext): void {
       registry,
       orderStatusRegistry: paymentOrderStatusRegistry,
       paymentRead,
-      ...(membership === undefined ? {} : { salesChannelMembership: membership }),
+      salesChannelMembership: membership,
     });
   });
 }
@@ -258,6 +276,36 @@ export const salesChannelBridges: ReadonlyArray<{
   readonly entityType: ChannelMemberEntityType;
   readonly table: string;
   readonly entityIdColumn: string;
+  readonly emptyMeansEveryChannel?: boolean;
 }> = [
-  { entityType: 'payment-method', table: 'sales_channel_payment_methods', entityIdColumn: 'payment_method_id' },
+  {
+    entityType: 'payment-method',
+    table: 'sales_channel_payment_methods',
+    entityIdColumn: 'payment_method_id',
+    // A payment method bound to no channel is offered in every channel — the
+    // rule and the reasons are in `./services/channel-availability.ts`.
+    emptyMeansEveryChannel: true,
+  },
 ];
+
+/**
+ * The membership port, or a composition error.
+ *
+ * The cradle types it as possibly absent, from the time a root could compose
+ * this module without the kernel's sales channels. No root does, and the two
+ * reads that now depend on it — the storefront catalogue's channel filter and
+ * `isAvailableInChannel` — must not treat "not wired" as "not restricted": that
+ * is every method offered on every channel, which is the fail-open answer. So
+ * absence stops the composition instead of widening a checkout.
+ */
+function requiredMembership(
+  membership: SalesChannelMembershipPort | undefined,
+): SalesChannelMembershipPort {
+  if (membership === undefined) {
+    throw new Error(
+      'payment_methods: `salesChannelMembershipPort` is not composed, so payment methods cannot be ' +
+        'scoped to a sales channel. Compose the platform kernel before this module.',
+    );
+  }
+  return membership;
+}

@@ -44,24 +44,24 @@ describe('listPaymentMethods when the catalogue module is switched off', () => {
       { error: { code: 'MODULE_DISABLED', message: 'Module payment_methods is disabled' } },
       503,
     );
-    return expect(listPaymentMethods()).resolves.toEqual([]);
+    return expect(listPaymentMethods({})).resolves.toEqual([]);
   });
 
   it('propagates a real backend failure instead of reporting an empty catalogue', async () => {
     stubResponse({ error: { code: 'INTERNAL', message: 'boom' } }, 500);
-    await expect(listPaymentMethods()).rejects.toThrow();
+    await expect(listPaymentMethods({})).rejects.toThrow();
   });
 
   it('propagates a 503 that is not a module refusal', async () => {
     // A load balancer draining, a dependency timing out. Same status, different
     // meaning; only the code discriminates them.
     stubResponse({ error: { code: 'SERVICE_UNAVAILABLE', message: 'draining' } }, 503);
-    await expect(listPaymentMethods()).rejects.toThrow();
+    await expect(listPaymentMethods({})).rejects.toThrow();
   });
 
   it('returns the catalogue untouched when the module is on', async () => {
     stubResponse({ data: [{ id: 'p1', code: 'bank_transfer' }] }, 200);
-    await expect(listPaymentMethods()).resolves.toHaveLength(1);
+    await expect(listPaymentMethods({})).resolves.toHaveLength(1);
   });
 });
 

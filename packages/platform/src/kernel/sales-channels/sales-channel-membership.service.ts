@@ -364,6 +364,60 @@ export class SalesChannelMembershipService {
   }
 
   /**
+   * Remove **every** channel membership of an entity, leaving it bound to none.
+   *
+   * The one mutation that deliberately ends below FR-008's at-least-one-channel
+   * floor, and so the one that is refused unless the owning module declared, on
+   * its bridge registration, that a row-less entity of this type means "every
+   * channel" (`emptyMeansEveryChannel`). For such a type the empty set is a
+   * state an operator chooses — "do not restrict this method" — and it has to be
+   * reachable through the audited mutator rather than through SQL the owner
+   * writes against its own table, which would leave no audit row and emit no
+   * `sales_channels.membership_changed`.
+   *
+   * For every other type the refusal is the same `ENTITY_WOULD_HAVE_ZERO_CHANNELS`
+   * {@link removeFromChannel} raises, because it is the same fact: a product
+   * bound to no channel is published nowhere, and that is unpublishing, which
+   * has its own route.
+   *
+   * One audit row and one event per membership removed, exactly as
+   * {@link replaceChannelsForEntity} accounts for the rows it drops. An entity
+   * already bound to nothing is a no-op and is not audited.
+   */
+  async clearChannelsForEntity(
+    entityType: ChannelMemberEntityType,
+    entityId: string,
+    options: MembershipMutationOptions = {},
+  ): Promise<MembershipMutationResult> {
+    const bridge = this.bridges.require(entityType);
+    if (bridge.emptyMeansEveryChannel !== true) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.ENTITY_WOULD_HAVE_ZERO_CHANNELS,
+        `A ${entityType} must belong to at least one sales channel; its memberships cannot all ` +
+          'be removed.',
+        [{ path: 'entityId', issue: entityId }],
+      );
+    }
+    const em = this.emFactory();
+    const removed = await em
+      .getConnection()
+      .execute<Array<{ sales_channel_id: string }>>(
+        `delete from "${bridge.table}" where "${bridge.entityIdColumn}" = ? ` +
+          `returning "sales_channel_id"`,
+        [entityId],
+        'all',
+        em.getTransactionContext(),
+      );
+    if (removed.length === 0) return { changed: false };
+    for (const row of removed) {
+      await this.auditMembership(row.sales_channel_id, entityType, entityId, 'remove', options);
+      this.emitMembershipChanged(row.sales_channel_id, entityType, entityId, 'remove');
+    }
+    return { changed: true };
+  }
+
+  /**
    * Narrow a **known** set of entity ids to those bound to `channelId`
    * (issue #185).
    *

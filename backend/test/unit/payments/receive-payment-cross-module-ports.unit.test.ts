@@ -209,6 +209,8 @@ function readPort(record: PaymentMethodRecord | null): PaymentMethodReadPort {
     findByCode: async () => record,
     listAll: async () => (record ? [record] : []),
     listActive: async () => (record ? [record] : []),
+    // A settlement never asks which channel offers a method.
+    isAvailableInChannel: async () => record !== null,
   };
 }
 

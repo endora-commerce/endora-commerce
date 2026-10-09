@@ -55,6 +55,7 @@ export interface DeliveryMethodsCradle {
       entityType: ChannelMemberEntityType;
       table: string;
       entityIdColumn: string;
+      emptyMeansEveryChannel?: boolean;
     }): void;
   };
   readonly emFactory: () => EntityManager;
@@ -128,7 +129,21 @@ export function registerModule(ctx: ModuleContext): void {
     'deliveryMethodReadPort',
     ctx
       .asFunction(
-        ({ emFactory }: DeliveryMethodsCradle) => new DeliveryMethodReadService(emFactory),
+        ({ emFactory }: DeliveryMethodsCradle) =>
+          new DeliveryMethodReadService(emFactory, {
+            // The membership port is read **per call**, through `ctx.cradle`,
+            // and never captured by this singleton's factory: a port is a
+            // transient gate, and `check:port-dependencies` refuses a factory
+            // parameter that holds one.
+            filterEntityIdsInChannel: (...args) =>
+              requiredMembership(
+                ctx.cradle<DeliveryMethodsCradle>().salesChannelMembershipPort,
+              ).filterEntityIdsInChannel(...args),
+            listChannelsForEntity: (...args) =>
+              requiredMembership(
+                ctx.cradle<DeliveryMethodsCradle>().salesChannelMembershipPort,
+              ).listChannelsForEntity(...args),
+          }),
       )
       .singleton(),
   );
@@ -141,7 +156,9 @@ export function registerModule(ctx: ModuleContext): void {
       shippingMethodEligibility,
       shippingOrderStatusRegistry,
     } = ctx.cradle<DeliveryMethodsCradle>();
-    const membership = ctx.cradle<DeliveryMethodsCradle>().salesChannelMembershipPort;
+    const membership = requiredMembership(
+      ctx.cradle<DeliveryMethodsCradle>().salesChannelMembershipPort,
+    );
 
     /** Composed from the two halves, without a `catch` — see the payment twin. */
     const resolveAllowList = async (req: FastifyRequest): Promise<string[] | null> => {
@@ -153,6 +170,7 @@ export function registerModule(ctx: ModuleContext): void {
 
     await registerDeliveryMethodsPublicRoutes(app, {
       emFactory,
+      salesChannelMembership: membership,
       registry,
       eligibility: shippingMethodEligibility,
       resolveOrganizationDeliveryMethodAllowList: resolveAllowList,
@@ -180,7 +198,7 @@ export function registerModule(ctx: ModuleContext): void {
         isShipmentsPresent: () => effectiveState.isPresent('shipments'),
         shipmentUsage: () => lazyPort<ShipmentUsagePort>(ctx, 'shipmentUsagePort'),
       }),
-      ...(membership === undefined ? {} : { salesChannelMembership: membership }),
+      salesChannelMembership: membership,
     });
   });
 
@@ -232,6 +250,36 @@ export const salesChannelBridges: ReadonlyArray<{
   readonly entityType: ChannelMemberEntityType;
   readonly table: string;
   readonly entityIdColumn: string;
+  readonly emptyMeansEveryChannel?: boolean;
 }> = [
-  { entityType: 'delivery-method', table: 'sales_channel_delivery_methods', entityIdColumn: 'delivery_method_id' },
+  {
+    entityType: 'delivery-method',
+    table: 'sales_channel_delivery_methods',
+    entityIdColumn: 'delivery_method_id',
+    // A delivery method bound to no channel is offered in every channel — the
+    // rule and the reasons are in `./services/channel-availability.ts`.
+    emptyMeansEveryChannel: true,
+  },
 ];
+
+/**
+ * The membership port, or a composition error.
+ *
+ * The cradle types it as possibly absent, from the time a root could compose
+ * this module without the kernel's sales channels. No root does, and the two
+ * reads that now depend on it — the storefront catalogue's channel filter and
+ * `isAvailableInChannel` — must not treat "not wired" as "not restricted": that
+ * is every method offered on every channel, which is the fail-open answer. So
+ * absence stops the composition instead of widening a checkout.
+ */
+function requiredMembership(
+  membership: SalesChannelMembershipPort | undefined,
+): SalesChannelMembershipPort {
+  if (membership === undefined) {
+    throw new Error(
+      'delivery_methods: `salesChannelMembershipPort` is not composed, so delivery methods cannot be ' +
+        'scoped to a sales channel. Compose the platform kernel before this module.',
+    );
+  }
+  return membership;
+}

@@ -53,24 +53,24 @@ describe('listDeliveryMethods when the catalogue module is switched off', () => 
       { error: { code: 'MODULE_DISABLED', message: 'Module delivery_methods is disabled' } },
       503,
     );
-    await expect(listDeliveryMethods()).resolves.toEqual([]);
+    await expect(listDeliveryMethods({})).resolves.toEqual([]);
   });
 
   it('propagates a real backend failure instead of reporting an empty catalogue', async () => {
     stubResponse({ error: { code: 'INTERNAL', message: 'boom' } }, 500);
-    await expect(listDeliveryMethods()).rejects.toThrow();
+    await expect(listDeliveryMethods({})).rejects.toThrow();
   });
 
   it('propagates a 503 that is not a module refusal', async () => {
     // A load balancer draining, a dependency timing out. Same status, different
     // meaning; only the code discriminates them.
     stubResponse({ error: { code: 'SERVICE_UNAVAILABLE', message: 'draining' } }, 503);
-    await expect(listDeliveryMethods()).rejects.toThrow();
+    await expect(listDeliveryMethods({})).rejects.toThrow();
   });
 
   it('returns the catalogue untouched when the module is on', async () => {
     stubResponse({ data: [{ id: 'd1', code: 'courier' }] }, 200);
-    await expect(listDeliveryMethods()).resolves.toHaveLength(1);
+    await expect(listDeliveryMethods({})).resolves.toHaveLength(1);
   });
 });
 

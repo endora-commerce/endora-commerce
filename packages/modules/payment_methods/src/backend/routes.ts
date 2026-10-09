@@ -20,7 +20,12 @@ import {
   toModulePresenceDto,
 } from '@endora-commerce/platform/kernel';
 import { PaymentMethod } from './entities/payment-method.entity.js';
+import { currentSalesChannel } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import {
+  paymentMethodIdsAvailableInChannel,
+  type PaymentMethodChannelReads,
+} from './services/channel-availability.js';
 import type { PaymentAdapterRegistry } from './services/payment-adapter-registry.js';
 import type { PaymentMethodEligibilityService } from './services/payment-method-eligibility.js';
 import {
@@ -41,6 +46,12 @@ import type {
  */
 export interface PaymentMethodsPublicDeps {
   emFactory: () => EntityManager;
+  /**
+   * The bridge reads behind the catalogue's sales-channel filter. Required, not
+   * optional: an absent one would be indistinguishable from "no method is
+   * restricted", which offers every method on every channel.
+   */
+  salesChannelMembership: PaymentMethodChannelReads;
   /**
    * Feature 026 US4 — per-Organization allow-list of payment-method IDs.
    * Empty / null ⇒ platform defaults apply (every active method is offered).
@@ -97,10 +108,30 @@ export async function registerPaymentMethodsPublicRoutes(
       }
     }
 
+    // The sales-channel filter (Constitution XII): only the methods offered in
+    // the channel **this request resolved**. A method bound to no channel is
+    // offered in every one — `services/channel-availability.ts` states the rule
+    // and why it differs from a product's.
+    //
+    // `currentSalesChannel()` is `null` only where the resolver did not run,
+    // which inside `/api/v1/*` is never: it falls back to the system default.
+    // The `null` arm therefore narrows nothing rather than inventing a channel
+    // to narrow against — the same reading `productIdsInRequestChannel` gives it.
+    const channel = currentSalesChannel();
+    if (channel) {
+      const offered = await paymentMethodIdsAvailableInChannel(
+        deps.salesChannelMembership,
+        channel.id,
+        rows.map((m) => m.id),
+      );
+      rows = rows.filter((m) => offered.has(m.id));
+    }
+
     // Feature 034 — adapter validateUseOnStorefront + registered-adapter filter.
-    // Sales-channel-assignment filtering is applied upstream once the storefront
-    // checkout passes the resolved channel; org/customer context is best-effort
-    // here (built-in validators do not depend on it).
+    // The adapter context is deliberately left as it was (`salesChannelId:
+    // null`): which channel an adapter's own validator is told about is a
+    // separate question from which methods the channel offers, and changing it
+    // here would change what every gateway and carrier module decides.
     if (deps.eligibility) {
       rows = await deps.eligibility.filter(rows, {
         salesChannelId: null,
@@ -221,12 +252,13 @@ export async function registerPaymentMethodsAdminRoutes(
       // Channel membership is the sales-channel bridge's own write, on its own
       // EntityManager, so it stays outside the Command rather than pretending to
       // share its transaction.
-      if (created && deps.salesChannelMembership) {
-        await deps.salesChannelMembership.bindToDefaultIfEmpty('payment-method', row.id);
-      }
-      // Replace sales-channel membership when an explicit (non-empty) set is given.
-      if (body.salesChannelIds && body.salesChannelIds.length > 0 && deps.salesChannelMembership) {
-        await replaceChannelMembership(deps.salesChannelMembership, row.id, body.salesChannelIds);
+      if (deps.salesChannelMembership) {
+        await applyChannelSelection(
+          deps.salesChannelMembership,
+          row.id,
+          body.salesChannelIds,
+          created,
+        );
       }
 
       return { data: await serializeAdmin(row, deps) };
@@ -284,6 +316,39 @@ function assertValidStatus(registry: OrderStatusRegistry, ref: string): void {
     }
     throw err;
   }
+}
+
+/**
+ * What `salesChannelIds` on the upsert body means — three answers, and the
+ * difference between the first two is the point.
+ *
+ * - **Omitted** — the caller said nothing about channels. An update leaves the
+ *   memberships exactly as they are. A create binds the new method to the
+ *   system-default channel, which is what this route has always done for a
+ *   caller that does not send the field: an integration written before channels
+ *   could be chosen keeps producing the row state it always produced, and a new
+ *   method does not appear on a second channel because nobody mentioned it.
+ * - **`[]`** — the caller chose "no restriction". Every membership is removed
+ *   and the method is offered in every channel. This is what the admin form
+ *   sends for "All channels", on create as on edit, and it is why an empty set
+ *   is not treated as an omission any more.
+ * - **One or more ids** — exactly those channels, replacing whatever was there.
+ */
+async function applyChannelSelection(
+  membership: SalesChannelMembershipPort,
+  methodId: string,
+  salesChannelIds: string[] | undefined,
+  created: boolean,
+): Promise<void> {
+  if (salesChannelIds === undefined) {
+    if (created) await membership.bindToDefaultIfEmpty('payment-method', methodId);
+    return;
+  }
+  if (salesChannelIds.length === 0) {
+    await membership.clearChannelsForEntity('payment-method', methodId);
+    return;
+  }
+  await replaceChannelMembership(membership, methodId, salesChannelIds);
 }
 
 async function replaceChannelMembership(

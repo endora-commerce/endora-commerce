@@ -1,6 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { PaymentMethodReadPort, PaymentMethodRecord } from '@endora-commerce/contracts';
 import { PaymentMethod } from '../entities/payment-method.entity.js';
+import {
+  paymentMethodIdsAvailableInChannel,
+  type PaymentMethodChannelReads,
+} from './channel-availability.js';
 
 /**
  * The row-level read model `payment_methods` publishes (feature 075, Phase P).
@@ -14,7 +18,28 @@ import { PaymentMethod } from '../entities/payment-method.entity.js';
  * and lands verbatim in the order's `paymentMethodSnapshot`.
  */
 export class PaymentMethodReadService implements PaymentMethodReadPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly channelMembership: PaymentMethodChannelReads,
+  ) {}
+
+  /**
+   * Whether the method is offered in `salesChannelId` — bound to it, or bound
+   * to no channel at all (`./channel-availability.ts`). It says nothing about
+   * `status`: a caller placing an order asks both questions, and a caller
+   * explaining an old order asks neither.
+   */
+  async isAvailableInChannel(id: string, salesChannelId: string): Promise<boolean> {
+    // An id that names no method is bound to no channel either, and must not
+    // read as "unrestricted".
+    if ((await this.emFactory().count(PaymentMethod, { id })) === 0) return false;
+    const offered = await paymentMethodIdsAvailableInChannel(
+      this.channelMembership,
+      salesChannelId,
+      [id],
+    );
+    return offered.has(id);
+  }
 
   async findById(id: string): Promise<PaymentMethodRecord | null> {
     const method = await this.emFactory().findOne(PaymentMethod, { id });

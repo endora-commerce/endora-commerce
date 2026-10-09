@@ -37,6 +37,8 @@ import { InvoicePlacementApplyService } from '../../../packages/modules/invoices
 import { PaymentPlacementApplyService } from '../../../packages/modules/payments/src/backend/services/payment-placement-apply-port.js';
 import type { OrderServiceNeighbourPorts } from '../../../packages/modules/orders/src/backend/services/order-service.js';
 import type { BackendServerHandle } from './test-server.js';
+import { EventBus } from '@endora-commerce/platform/events';
+import { SalesChannelMembershipService } from '../../src/kernel/sales-channels/sales-channel-membership.service.js';
 
 /**
  * The neighbouring modules' ports an `orders` service needs when a test builds
@@ -89,8 +91,21 @@ export function orderServiceNeighbours(
   emFactory: () => EntityManager,
 ): OrderServiceNeighbourPorts {
   const base = ordersNeighbourPorts(emFactory);
-  const deliveryMethodRead: DeliveryMethodReadPort = new DeliveryMethodReadService(emFactory);
-  const paymentMethodRead: PaymentMethodReadPort = new PaymentMethodReadService(emFactory);
+  // The two method catalogues answer `isAvailableInChannel` from the bridge, so
+  // they are given the kernel's own membership service over this rig's
+  // `EntityManager` — the reads only; nothing here mutates a membership, which
+  // is why a throwaway bus and no audit sink are enough. Every caller of this
+  // helper has booted a server or run `setupTestDb()`, either of which has
+  // declared the bridges the service resolves.
+  const channelMembership = new SalesChannelMembershipService(emFactory, new EventBus());
+  const deliveryMethodRead: DeliveryMethodReadPort = new DeliveryMethodReadService(
+    emFactory,
+    channelMembership,
+  );
+  const paymentMethodRead: PaymentMethodReadPort = new PaymentMethodReadService(
+    emFactory,
+    channelMembership,
+  );
   const addressRead: AddressReadPort = new AddressReadService(emFactory);
   return {
     organizationDetails: base.organizationDetails,

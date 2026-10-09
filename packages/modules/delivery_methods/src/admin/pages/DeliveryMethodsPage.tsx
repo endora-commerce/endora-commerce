@@ -3,6 +3,13 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { ApiError, formatMoney, useSurfaceVisibility } from '@endora-commerce/admin-kit/lib';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { CurrencyPicker } from '@endora-commerce/admin-kit/components';
+import {
+  MethodSalesChannelsCell,
+  MethodSalesChannelsField,
+  salesChannelIdsToSubmit,
+  useSalesChannelOptions,
+  type MethodSalesChannelOptions,
+} from '@endora-commerce/admin-kit/components';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import { useAdminZone, AdminZone } from '@endora-commerce/admin-kit/zones';
 
@@ -82,6 +89,9 @@ export function DeliveryMethodsPage(): ReactNode {
    * two.
    */
   const integrations = useAdminZone('delivery_method.list.integrations', {});
+  // The instance's sales channels, for the form's channel field and the list's
+  // channel column — loaded once, so the two cannot disagree.
+  const salesChannels = useSalesChannelOptions(canRead);
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
   const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const [adapters, setAdapters] = useState<DeliveryMethodAdapterOption[]>([]);
@@ -138,6 +148,8 @@ export function DeliveryMethodsPage(): ReactNode {
       status: 'active' | 'inactive';
       statusOnSuccess: string;
       statusOnFailure: string;
+      /** `undefined` leaves the method's channels as they are — see `salesChannelIdsToSubmit`. */
+      salesChannelIds: string[] | undefined;
     }): Promise<void> => {
       const name: Record<string, string> = {};
       if (input.nameEn) name['en-US'] = input.nameEn;
@@ -154,6 +166,9 @@ export function DeliveryMethodsPage(): ReactNode {
           status: input.status,
           ...(input.statusOnSuccess ? { statusOnSuccess: input.statusOnSuccess } : {}),
           ...(input.statusOnFailure ? { statusOnFailure: input.statusOnFailure } : {}),
+          ...(input.salesChannelIds !== undefined
+            ? { salesChannelIds: input.salesChannelIds }
+            : {}),
         });
         setInfo(t('legacyMethods.messages.saved', { code: input.code }));
         setEditing(null);
@@ -243,6 +258,7 @@ export function DeliveryMethodsPage(): ReactNode {
             adapters={adapters}
             adaptersState={adaptersState}
             onRetryAdapters={(): void => void refresh()}
+            salesChannels={salesChannels}
           />
         </CardContent>
       </Card>
@@ -262,6 +278,7 @@ export function DeliveryMethodsPage(): ReactNode {
                   <TableHead>{tm('methods.columns.adapter')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.cost')}</TableHead>
                   <TableHead>On success / failure</TableHead>
+                  <TableHead>{t('methodSalesChannels.column')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.status')}</TableHead>
                   <TableHead />
                 </TableRow>
@@ -281,6 +298,12 @@ export function DeliveryMethodsPage(): ReactNode {
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
                       {r.statusOnSuccess} / {r.statusOnFailure}
+                    </TableCell>
+                    <TableCell>
+                      <MethodSalesChannelsCell
+                        options={salesChannels}
+                        salesChannelIds={r.salesChannelIds}
+                      />
                     </TableCell>
                     <TableCell>
                       <Badge variant={r.status === 'active' ? 'success' : 'secondary'}>
@@ -380,6 +403,7 @@ function UpsertForm({
   adapters,
   adaptersState,
   onRetryAdapters,
+  salesChannels,
 }: {
   editing: AdminDeliveryMethod | null;
   onSubmit: (input: {
@@ -392,12 +416,14 @@ function UpsertForm({
     status: 'active' | 'inactive';
     statusOnSuccess: string;
     statusOnFailure: string;
+    salesChannelIds: string[] | undefined;
   }) => Promise<void>;
   onCancel: () => void;
   orderStatuses: OrderStatusOption[];
   adapters: DeliveryMethodAdapterOption[];
   adaptersState: AdaptersState;
   onRetryAdapters: () => void;
+  salesChannels: MethodSalesChannelOptions;
 }): ReactNode {
   const t = useTranslation('core');
   const tm = useTranslation('delivery_methods');
@@ -422,6 +448,11 @@ function UpsertForm({
   const [status, setStatus] = useState<'active' | 'inactive'>(editing?.status ?? 'active');
   const [statusOnSuccess, setStatusOnSuccess] = useState(editing?.statusOnSuccess ?? '');
   const [statusOnFailure, setStatusOnFailure] = useState(editing?.statusOnFailure ?? '');
+  // Empty means every channel — for a new method that is the form's default,
+  // and what the operator sees in the field before touching it.
+  const [salesChannelIds, setSalesChannelIds] = useState<string[]>(
+    editing?.salesChannelIds ?? [],
+  );
   return (
     <form
       className="space-y-4"
@@ -441,6 +472,7 @@ function UpsertForm({
           status,
           statusOnSuccess,
           statusOnFailure,
+          salesChannelIds: salesChannelIdsToSubmit(salesChannels, salesChannelIds),
         });
       }}
     >
@@ -573,6 +605,11 @@ function UpsertForm({
             ))}
           </Select>
         </div>
+        <MethodSalesChannelsField
+          options={salesChannels}
+          value={salesChannelIds}
+          onChange={setSalesChannelIds}
+        />
       </div>
       <div className="flex gap-2">
         <Button type="submit">{t('common.action.save')}</Button>

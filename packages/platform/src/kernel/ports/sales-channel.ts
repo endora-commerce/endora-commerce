@@ -89,6 +89,19 @@ export interface SalesChannelMembershipPort {
   ): Promise<MembershipMutationResult>;
 
   /**
+   * Remove every membership of an entity, leaving it bound to no channel.
+   * Refused with `ENTITY_WOULD_HAVE_ZERO_CHANNELS` unless the owning module
+   * registered the type's bridge with `emptyMeansEveryChannel` — the types for
+   * which "no membership" means "not restricted to any channel" (delivery and
+   * payment methods) rather than "published nowhere" (products).
+   */
+  clearChannelsForEntity(
+    entityType: ChannelMemberEntityType,
+    entityId: string,
+    options?: MembershipMutationOptions,
+  ): Promise<MembershipMutationResult>;
+
+  /**
    * Give the target every channel the source belongs to, one audited add per
    * membership (issue #185). `catalog`'s product duplication is the caller.
    */

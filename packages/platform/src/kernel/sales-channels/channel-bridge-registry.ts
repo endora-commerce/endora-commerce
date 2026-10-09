@@ -55,6 +55,35 @@ export interface ChannelBridgeRegistration {
   readonly table: string;
   /** The column in it holding the entity's id; `sales_channel_id` holds the other side. */
   readonly entityIdColumn: string;
+  /**
+   * What an entity of this type with **no** membership row means, said by the
+   * module that owns it.
+   *
+   * Absent — the default, and every type's meaning until this field existed —
+   * is the bridge's own convention: an entity belongs to at least one channel
+   * (FR-008), a row-less one is in **no** channel, and every channel-scoped
+   * read fails closed on it. That is right for a product: an unpublished
+   * product must not appear anywhere.
+   *
+   * `true` is the other convention, and it is a different one rather than a
+   * relaxation: for this type a membership row is a **restriction**, and an
+   * entity nobody restricted is offered in every channel. Delivery and payment
+   * methods declare it, because their rows are legitimately created without a
+   * membership — a module's install hook runs before the first boot has created
+   * the system-default channel, and a demo seed writes none — and a rule that
+   * read those rows as "nowhere" would empty every existing checkout.
+   *
+   * It is declared here, beside the table, so that the platform holds the two
+   * conventions as one stated property per entity type instead of as two habits
+   * in two sets of modules. Two things read it:
+   * `SalesChannelMembershipService.clearChannelsForEntity`, which is refused
+   * for a type that did not declare it, and the owning module's own availability
+   * read. Nothing else changes for such a type: removing its **last** membership
+   * one channel at a time is still refused, because turning "only channel A"
+   * into "every channel" must be an explicit act and never the side effect of a
+   * removal.
+   */
+  readonly emptyMeansEveryChannel?: boolean;
 }
 
 export class ChannelBridgeRegistry {
@@ -80,12 +109,21 @@ export class ChannelBridgeRegistry {
   register(bridge: ChannelBridgeRegistration): void {
     const held = this.bridges.get(bridge.entityType);
     if (held !== undefined) {
-      if (held.table === bridge.table && held.entityIdColumn === bridge.entityIdColumn) return;
+      if (
+        held.table === bridge.table &&
+        held.entityIdColumn === bridge.entityIdColumn &&
+        (held.emptyMeansEveryChannel ?? false) === (bridge.emptyMeansEveryChannel ?? false)
+      ) {
+        return;
+      }
       throw new Error(
         `sales-channel bridge '${bridge.entityType}' is already registered as ` +
           `"${held.table}"."${held.entityIdColumn}" and cannot be re-registered as ` +
-          `"${bridge.table}"."${bridge.entityIdColumn}" — two modules claim one member of the ` +
-          'channel-membership vocabulary',
+          `"${bridge.table}"."${bridge.entityIdColumn}"` +
+          ((held.emptyMeansEveryChannel ?? false) !== (bridge.emptyMeansEveryChannel ?? false)
+            ? ' with a different meaning for an entity bound to no channel'
+            : '') +
+          ' — two modules claim one member of the channel-membership vocabulary',
       );
     }
     this.bridges.set(bridge.entityType, bridge);

@@ -1,10 +1,22 @@
-import { apiGet } from './client';
+import { apiGet, type RequestContext } from './client';
 import { withModuleAbsence } from './module-absence';
 
 /**
  * Public method-listing bindings used by the checkout step (T157).
  * Both endpoints are anonymous: they describe what the buyer can choose,
  * not what the buyer has chosen.
+ *
+ * ## Both take the request context, and it is required
+ *
+ * A method is offered per sales channel: the backend lists only the methods
+ * offered in the channel **the request resolves**. These reads are made
+ * server-side, to the backend's own host, so the `X-Sales-Channel` header `ctx`
+ * carries is the only thing that tells the backend which storefront the buyer
+ * is on. Both functions used to call the backend with no context at all, which
+ * was harmless while the backend ignored the channel and would now answer every
+ * storefront with the **default** channel's methods — a checkout offering
+ * methods the order placed from it would then be refused for. The parameter is
+ * required so that the header can be passed and cannot be forgotten.
  */
 
 export interface DeliveryMethodSummary {
@@ -54,12 +66,15 @@ export interface PaymentMethodSummary {
  * still throw, and the checkout error boundary — not this empty state — is what
  * the buyer sees for those.
  */
-export async function listDeliveryMethods(): Promise<DeliveryMethodSummary[]> {
-  return withModuleAbsence(fetchDeliveryMethods, []);
+export async function listDeliveryMethods(ctx: RequestContext): Promise<DeliveryMethodSummary[]> {
+  return withModuleAbsence(() => fetchDeliveryMethods(ctx), []);
 }
 
-async function fetchDeliveryMethods(): Promise<DeliveryMethodSummary[]> {
-  const payload = await apiGet<{ data: DeliveryMethodSummary[] }>('/api/v1/delivery-methods');
+async function fetchDeliveryMethods(ctx: RequestContext): Promise<DeliveryMethodSummary[]> {
+  const payload = await apiGet<{ data: DeliveryMethodSummary[] }>(
+    '/api/v1/delivery-methods',
+    channelOnly(ctx),
+  );
   return payload.data;
 }
 
@@ -85,11 +100,26 @@ async function fetchDeliveryMethods(): Promise<DeliveryMethodSummary[]> {
  * still throws, and the checkout error boundary — not this empty state — is what
  * the buyer sees for those.
  */
-export async function listPaymentMethods(): Promise<PaymentMethodSummary[]> {
-  return withModuleAbsence(fetchPaymentMethods, []);
+export async function listPaymentMethods(ctx: RequestContext): Promise<PaymentMethodSummary[]> {
+  return withModuleAbsence(() => fetchPaymentMethods(ctx), []);
 }
 
-async function fetchPaymentMethods(): Promise<PaymentMethodSummary[]> {
-  const payload = await apiGet<{ data: PaymentMethodSummary[] }>('/api/v1/payment-methods');
+async function fetchPaymentMethods(ctx: RequestContext): Promise<PaymentMethodSummary[]> {
+  const payload = await apiGet<{ data: PaymentMethodSummary[] }>(
+    '/api/v1/payment-methods',
+    channelOnly(ctx),
+  );
   return payload.data;
+}
+
+/**
+ * The channel, and nothing else of the context.
+ *
+ * The two reads sent no headers before they took a context; forwarding the
+ * whole of it would also start sending `Accept-Language`, which is a second
+ * change to what these requests carry and not the one being made. The channel
+ * is what the answer depends on.
+ */
+function channelOnly(ctx: RequestContext): RequestContext {
+  return ctx.salesChannelCode !== undefined ? { salesChannelCode: ctx.salesChannelCode } : {};
 }

@@ -95,6 +95,17 @@ export type { ScopePickerProps, ScopePickerValue } from './scope-picker/ScopePic
 export { fetchScopeSalesChannel, listScopeSalesChannels } from './scope-picker/sales-channels-api.js';
 export { SalesChannelPicker } from './sales-channel-picker/SalesChannelPicker.js';
 export type { SalesChannelPickerProps } from './sales-channel-picker/SalesChannelPicker.js';
+export {
+  MethodSalesChannelsCell,
+  MethodSalesChannelsField,
+  salesChannelIdsToSubmit,
+  useSalesChannelOptions,
+} from './method-sales-channels/MethodSalesChannels.js';
+export type {
+  MethodSalesChannelOption,
+  MethodSalesChannelOptions,
+  MethodSalesChannelsFieldProps,
+} from './method-sales-channels/MethodSalesChannels.js';
 export { StatusTransitionGraph } from './status-transition-graph/StatusTransitionGraph.js';
 export type { StatusTransitionGraphProps, StatusTransitionGraphStatus, StatusTransitionGraphTransition } from './status-transition-graph/StatusTransitionGraph.js';
 export { ScopeNotice } from './scope-notice/ScopeNotice.js';

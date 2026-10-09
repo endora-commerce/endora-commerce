@@ -26,7 +26,7 @@ uprawnienie do katalogu nie daje już dostępu do wspólnej listy.
 
 | Metoda i ścieżka | Kto | Uprawnienie | Przeznaczenie |
 | --- | --- | --- | --- |
-| `GET /api/v1/payment-methods` | anonimowy | — | Metody dostępne w checkoucie storefrontu (aktywne ∩ lista dozwolonych dla organizacji ∩ zarejestrowany adapter ∩ `validateUseOnStorefront`) |
+| `GET /api/v1/payment-methods` | anonimowy | — | Metody dostępne w checkoucie storefrontu (aktywne ∩ kanał sprzedaży ∩ lista dozwolonych dla organizacji ∩ zarejestrowany adapter ∩ `validateUseOnStorefront`) |
 | `GET /api/v1/admin/payment-methods` | administrator | `payment_methods:read` | Pełna konfiguracja (aktywne i nieaktywne), łącznie z `adapter`, `additionalPrice`, `statusOn*` i kanałami sprzedaży |
 | `GET /api/v1/admin/payment-methods/adapters` | administrator | `payment_methods:read` | Zarejestrowane klucze adapterów, do listy wyboru w panelu |
 | `GET /api/v1/admin/order-statuses` | administrator | `payment_methods:read` **albo** `delivery_methods:read` | Statusy zamówienia do list wyboru `statusOn*`, tutaj i na ekranie metod dostawy |
@@ -124,6 +124,63 @@ dodał, a każdy odczyt przeznaczony dla kupującego (`get`, `resolve`, `list`) 
 właściciela nie ma. Odczyty dla panelu (`entry`, `ownerOf`, `isRegistered`, `listAll`) celowo tego
 nie robią: wyłączenie modułu to nie jego odinstalowanie, więc ekran `/payment-methods` zachowuje
 wiersz i pokazuje, dlaczego metoda jest niedostępna.
+
+## Kanały sprzedaży
+
+Każda metoda płatności jest dostępna w tych kanałach sprzedaży, które wybierze dla niej
+operator. Na ekranie `/payment-methods` formularz ma pole **Kanały sprzedaży**, a lista pokazuje kanały
+każdej metody.
+
+**Przypisanie jest ograniczeniem, a metoda bez przypisania jest dostępna w każdym kanale.**
+Metoda przypisana do jednego lub kilku kanałów jest dostępna dokładnie w nich. Metoda
+nieprzypisana do żadnego kanału — *Wszystkie kanały* w formularzu — jest dostępna w każdym kanale,
+także w kanałach utworzonych później. To celowo inna reguła niż dla produktów, gdzie produkt bez
+kanału nie jest opublikowany nigdzie: metody płatności często powstają bez przypisania (moduł
+dostarczający własną metodę tworzy wpis podczas instalacji, zanim istnieje kanał domyślny, a dane
+demonstracyjne nie przypisują żadnego kanału), więc potraktowanie „żadnego” jako „nigdzie” odebrałoby
+istniejącym sklepom metody dostępne przy składaniu zamówienia.
+
+Przypisanie jest egzekwowane tam, gdzie spotyka je kupujący:
+
+- `GET /api/v1/payment-methods` zwraca tylko metody dostępne w kanale sprzedaży rozpoznanym dla żądania
+  (`X-Sales-Channel`, `?salesChannel=`, mapa hostów, a w ostatniej kolejności kanał domyślny).
+  Sklep musi więc wskazać swój kanał przy tym odczycie: referencyjny sklep przekazuje
+  `X-Sales-Channel`, a sklep utworzony z wcześniejszego wydania wymaga tej samej zmiany w
+  `lib/api/methods.ts` — w przeciwnym razie otrzyma metody kanału domyślnego.
+- Złożenie zamówienia i podgląd jego sumy odrzucają metodę, która nie jest dostępna w kanale
+  sprzedaży zamówienia, odpowiedzią `400 VALIDATION_FAILED` z
+  `details.code = "payment_method_not_in_sales_channel"`. Dotyczy to zakupu w sklepie, zakupu
+  jednym kliknięciem, zamówienia tworzonego przez administratora w imieniu klienta (kanał wybrany
+  dla zamówienia) oraz zamówienia złożonego kluczem API (kanał klucza). Formularz tworzenia
+  zamówienia w panelu zawęża listy metod do wybranego kanału.
+
+Pole `salesChannelIds` w `PUT /api/v1/admin/payment-methods/:code` ma trzy znaczenia:
+
+| `salesChannelIds` | Skutek |
+| --- | --- |
+| pominięte | Aktualizacja nie zmienia przypisania. **Nowa** metoda zostaje przypisana tylko do kanału domyślnego. |
+| `[]` | Wszystkie przypisania są usuwane: metoda jest dostępna w każdym kanale. |
+| jeden lub więcej identyfikatorów | Metoda jest dostępna dokładnie w tych kanałach. |
+
+Formularz w panelu zawsze wysyła to pole, więc metoda utworzona w nim bez zaznaczenia żadnego
+kanału jest dostępna w każdym kanale. Jeśli formularz nie może wczytać listy kanałów sprzedaży,
+informuje o tym i nie wysyła pola, a zapis pozostawia przypisanie bez zmian.
+
+Poza tym nadal obowiązuje reguła co najmniej jednego kanału: usunięcie **ostatniego** kanału metody
+od strony kanału sprzedaży jest odrzucane, a usunięcie kanału sprzedaży, który jest jedynym
+kanałem metody, jest odrzucane albo przepina metodę do kanału domyślnego. Udostępnienie metody
+wszędzie jest zawsze świadomym wyborem dokonanym na metodzie.
+
+**Aktualizacja instancji z więcej niż jednym kanałem sprzedaży.** Dotychczas sklep pokazywał każdą
+aktywną metodę w każdym kanale i pomijał przypisanie, a każda metoda utworzona w panelu była
+przypisana tylko do kanału domyślnego. Takie metody znikają teraz z pozostałych kanałów przy
+składaniu zamówienia, dopóki ich przypisanie nie zostanie przejrzane: otwórz każdą metodę na
+ekranie `/payment-methods` i wybierz jej kanały albo odznacz wszystkie, aby była dostępna wszędzie. Metody,
+które nigdy nie były przypisane do kanału — utworzone podczas instalacji i demonstracyjne —
+pozostają dostępne w każdym kanale. W instancji z jednym kanałem sprzedaży nic się nie zmienia.
+
+Przypisania są przechowywane w tabeli `sales_channel_payment_methods` i są odczytywane oraz zapisywane wyłącznie przez
+usługę przypisań kanałów sprzedaży platformy.
 
 ## Dostępność dla organizacji
 
