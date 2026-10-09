@@ -104,15 +104,36 @@ export type UpdateAdminUserRequest = z.infer<typeof updateAdminUserRequestSchema
  * Self-update payload — every authenticated admin can edit their own
  * first/last name and rotate their password without needing the
  * `admin_users:manage` permission. Role and status are intentionally
- * NOT exposed here.
+ * NOT exposed here, and neither is the e-mail address.
+ *
+ * `password` is the new password, and it is a credential change: a payload
+ * that carries it MUST carry `currentPassword` as well, which the route
+ * verifies before it changes anything. A session alone does not prove the
+ * caller knows the password — an unattended browser holds one too. A payload
+ * without `password` needs no `currentPassword`, and one sent anyway is
+ * ignored.
+ *
+ * `currentPassword` is bounded but otherwise unconstrained: it is compared, not
+ * stored, and the password policy it was created under is not this schema's to
+ * restate.
  */
 export const updateAdminUserSelfRequestSchema = z
   .object({
     firstName: z.string().min(1).max(120).optional(),
     lastName: z.string().min(1).max(120).optional(),
     password: z.string().min(12).max(120).optional(),
+    currentPassword: z.string().min(1).max(256).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((body, ctx) => {
+    if (body.password !== undefined && body.currentPassword === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['currentPassword'],
+        message: 'The current password is required to set a new one.',
+      });
+    }
+  });
 export type UpdateAdminUserSelfRequest = z.infer<typeof updateAdminUserSelfRequestSchema>;
 
 /**

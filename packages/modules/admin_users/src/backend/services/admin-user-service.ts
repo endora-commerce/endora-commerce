@@ -7,7 +7,7 @@ import {
   type AuthSessionPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { hashPassword } from '@endora-commerce/platform/kernel';
+import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
 import { AdminUser } from '../entities/admin-user.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -21,7 +21,8 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
  *   - an account always holds a role: creating one without, or clearing the
  *     role of one that has it, is refused (`ADMIN_USER_ROLE_REQUIRED`)
  *   - role existence on assignment
- *   - password rehash on create, on self-rotation, and on a peer reset
+ *   - password rehash on create, on self-rotation (which requires the current
+ *     password), and on a peer reset
  *   - soft delete via `deletedAt`; status flip is the everyday lever
  */
 
@@ -38,9 +39,32 @@ export interface UpdateAdminUserInput {
   lastName?: string;
   adminRoleId?: string | null;
   status?: 'active' | 'inactive';
-  /** Optional password rotation. When supplied the value is hashed
-   *  before being persisted. */
+}
+
+/**
+ * What an administrator may change about their own account. A new `password`
+ * is only ever accepted together with `currentPassword`; the type keeps
+ * `currentPassword` optional so that a caller which forgot it reaches the
+ * refusal in {@link AdminUserService.updateSelf} instead of compiling its way
+ * past it.
+ */
+export interface UpdateOwnAdminUserInput {
+  firstName?: string;
+  lastName?: string;
   password?: string;
+  currentPassword?: string | undefined;
+}
+
+/** The refusal a self-service password change earns without the right current password. */
+function currentPasswordInvalidRefusal(): HttpError {
+  // 403 and not the 401 the buyer-side route answers with: the session is
+  // valid, and the Admin UI treats every 401 as an expired session and signs
+  // the administrator out — which a mistyped password must not do.
+  return new HttpError(
+    403,
+    ERROR_CODES.CURRENT_PASSWORD_INVALID,
+    'The current password is incorrect.',
+  );
 }
 
 export interface ListAdminUsersOptions {
@@ -257,9 +281,44 @@ export class AdminUserService {
     if (input.firstName !== undefined) user.firstName = input.firstName;
     if (input.lastName !== undefined) user.lastName = input.lastName;
     if (input.status !== undefined) user.status = input.status;
+    this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
+    await em.flush();
+    return user;
+  }
+
+  /**
+   * An administrator edits their own account — `PATCH /api/v1/admin/me`.
+   *
+   * A new password is a credential change, so it is accepted only with the
+   * current one, verified with `verifyPassword` — the same constant-time
+   * argon2 verification sign-in uses. A session is not that proof: whoever
+   * holds an unattended browser or a copied cookie holds a session, and
+   * without this check could replace the password and keep the account.
+   *
+   * The verification runs **before anything is assigned**, and the new hash is
+   * computed before the first assignment too, so the request takes effect
+   * whole or not at all: a refused password change does not leave the name
+   * half of the same request applied.
+   *
+   * The sessions the account holds are left as they are, as they were before
+   * this check existed; `resetPassword` is the write that revokes them.
+   */
+  async updateSelf(id: string, input: UpdateOwnAdminUserInput): Promise<AdminUser> {
+    const em = this.emFactory();
+    const user = await this.#getByIdOn(em, id);
+    let passwordHash: string | undefined;
     if (input.password !== undefined) {
-      user.passwordHash = await hashPassword(input.password);
+      if (
+        input.currentPassword === undefined ||
+        !(await verifyPassword(user.passwordHash, input.currentPassword))
+      ) {
+        throw currentPasswordInvalidRefusal();
+      }
+      passwordHash = await hashPassword(input.password);
     }
+    if (input.firstName !== undefined) user.firstName = input.firstName;
+    if (input.lastName !== undefined) user.lastName = input.lastName;
+    if (passwordHash !== undefined) user.passwordHash = passwordHash;
     this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
     await em.flush();
     return user;

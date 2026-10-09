@@ -16,6 +16,7 @@ Zarządzanie użytkownikami i rolami wymaga uprawnienia `admin_users:manage`.
 | --- | --- |
 | `POST /api/v1/auth/admin/login` | Logowanie administratora (z weryfikacją 2FA, gdy wymaga tego rola) |
 | `POST /api/v1/auth/admin/logout` | Zakończenie sesji administratora |
+| `PATCH /api/v1/admin/me` | Zalogowany administrator edytuje własne imię i nazwisko oraz zmienia własne hasło; nie jest potrzebne żadne uprawnienie. Nowe `password` musi być wysłane razem z `currentPassword`: bez niego żądanie jest odrzucane z 400 `VALIDATION_FAILED`, z błędnym — z 403 `CURRENT_PASSWORD_INVALID`, a odrzucone żądanie niczego nie zmienia — imienia i nazwiska również |
 | `GET /api/v1/admin/admin-users` | Lista administratorów (usunięte konta są pomijane) |
 | `POST /api/v1/admin/admin-users` | Utworzenie administratora. Pole `adminRoleId` jest wymagane: konto bez roli jest odrzucane z 400 `ADMIN_USER_ROLE_REQUIRED`. Powtórzony e-mail jest odrzucany z `EMAIL_ALREADY_REGISTERED` |
 | `PATCH /api/v1/admin/admin-users/:id` | Aktualizacja imienia, przypisanej roli lub statusu. Rolę można zmienić na inną, ale nie można jej usunąć: `adminRoleId: null` jest odrzucane z 400 `ADMIN_USER_ROLE_REQUIRED` |
