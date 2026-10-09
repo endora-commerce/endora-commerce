@@ -127,8 +127,14 @@ import {
 /** Every admin API path starts here; nothing else is an admin surface. */
 const ADMIN_API_PREFIX = '/api/v1/admin';
 
-/** The Fastify shorthand methods a route registration can be written as. */
-const ROUTE_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete']);
+/**
+ * The Fastify shorthand methods a route registration can be written as.
+ *
+ * `all`, `head` and `options` are here although no shipped route uses them: a
+ * reader that only knows the verbs somebody has already typed reports the first
+ * `app.all(...)` as nothing at all.
+ */
+const ROUTE_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete', 'all', 'head', 'options']);
 
 /** The verbs a create form submits through — the write half of a surface. */
 const WRITE_METHODS = new Set(['post', 'put', 'patch', 'delete']);
@@ -193,6 +199,17 @@ export interface RouteScanInput {
    * owning module's own routes — has nothing to fall back to.
    */
   readonly hostResidentModules?: HostResidentModules;
+  /**
+   * Values for a path identifier that no declaration **in the file** supplies —
+   * a registrar mounted under a prefix its caller hands it
+   * (`mfa`'s `registerMfaSelfServiceRoutes(app, { pathPrefix })`, called once
+   * per subject from another file). Keyed by source file, then identifier.
+   *
+   * One route is read per value. It is an input rather than something this
+   * reader follows across files, because the caller is the one who can say
+   * where a registrar is mounted and be held to it.
+   */
+  readonly pathBindings?: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -241,30 +258,170 @@ function localBindings(sf: ts.SourceFile): Map<string, ts.Expression> {
   return bindings;
 }
 
+/** What a path expression is read against. */
+interface PathContext {
+  readonly bindings: ReadonlyMap<string, ts.Expression>;
+  /** Every call in the file, by callee name — a local helper's call sites. */
+  readonly callsByName: ReadonlyMap<string, readonly ts.CallExpression[]>;
+  /** {@link RouteScanInput.pathBindings} for this file. */
+  readonly external: ReadonlyMap<string, readonly string[]> | undefined;
+  /** Every `name: <initialiser>` in an object literal in the file, by name. */
+  readonly propertiesByName: ReadonlyMap<string, readonly ts.Expression[]>;
+}
+
 /**
- * The path a route registration's first argument denotes.
+ * A path expression, read as far as it can be.
  *
- * Two spellings appear: a plain literal, and a template whose head is a
- * module-local `const base = '/api/v1/admin/<module>'` (`newsletter`,
- * `transactional_emails`). A span that cannot be resolved yields `null` — the
- * registration is then not attributed to any target, and the run says how many
- * such there were rather than quietly shrinking the population.
+ * `values` is every string the expression can denote, or `null` when some part
+ * of it could not be resolved. `head` is the literal text before the first
+ * unresolved part — enough, often, to say that a registration is **not** an
+ * admin one (`/api/v1/auth/${surface}/…`) without knowing the rest.
  */
-function routePathOf(node: ts.Expression, bindings: ReadonlyMap<string, ts.Expression>): string | null {
-  const literal = stringLiteralOf(node);
-  if (literal !== null) return literal;
-  if (ts.isTemplateExpression(node)) {
-    let out = node.head.text;
-    for (const span of node.templateSpans) {
-      const name = ts.isIdentifier(span.expression) ? span.expression.text : null;
-      const bound = name === null ? undefined : bindings.get(name);
-      const value = bound === undefined ? null : stringLiteralOf(bound);
-      if (value === null) return null;
-      out += value + span.literal.text;
-    }
-    return out;
+interface PathReading {
+  readonly values: readonly string[] | null;
+  readonly head: string;
+}
+
+const UNREAD: PathReading = { values: null, head: '' };
+
+/** The function a node sits in whose parameter list declares `name`, with the index. */
+function enclosingParameter(
+  node: ts.Node,
+  name: string,
+): { readonly fn: ts.FunctionLikeDeclaration; readonly index: number } | null {
+  for (let current: ts.Node | undefined = node.parent; current !== undefined; current = current.parent) {
+    if (!ts.isFunctionLike(current) || !('parameters' in current)) continue;
+    const fn = current as ts.FunctionLikeDeclaration;
+    const index = fn.parameters.findIndex(
+      (parameter) => ts.isIdentifier(parameter.name) && parameter.name.text === name,
+    );
+    if (index >= 0) return { fn, index };
   }
   return null;
+}
+
+/** The name a local function is called by: `const f = (…) => …` or `function f(…)`. */
+function localFunctionName(fn: ts.FunctionLikeDeclaration): string | null {
+  if (ts.isFunctionDeclaration(fn)) return fn.name?.text ?? null;
+  const parent = fn.parent;
+  if (parent !== undefined && ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)) {
+    return parent.name.text;
+  }
+  return null;
+}
+
+/**
+ * The paths a route registration's path argument denotes.
+ *
+ * The spellings in the tree, all resolved **inside the file**:
+ *
+ *  - a plain literal;
+ *  - a template or a `+` concatenation whose parts resolve
+ *    (`${base}/branding`, with `const base = '/api/v1/admin/<module>'`);
+ *  - a bare identifier bound to one of those (`app.get(base, …)`);
+ *  - a **parameter of a local helper**, read through that helper's call sites
+ *    (`const patchRoute = (url, kind) => { app.patch(url, …) }` called three
+ *    times with three literals is three routes);
+ *  - a **member of a table row** (`cfg.verifyPath`), read as every value the
+ *    file assigns to a property of that name.
+ *
+ * This reader used to accept the first two and silently skip the rest: a
+ * registration whose path was an identifier was not a registration at all, so
+ * four live admin routes were in no route record and `unreadablePaths` said 0.
+ * An argument that still cannot be read is now reported — see
+ * {@link RouteScanResult.unreadable}.
+ */
+function readPath(node: ts.Expression, context: PathContext, depth = 0): PathReading {
+  if (depth > 6) return UNREAD;
+  const literal = stringLiteralOf(node);
+  if (literal !== null) return { values: [literal], head: literal };
+
+  if (ts.isAsExpression(node) || ts.isNonNullExpression(node) || ts.isParenthesizedExpression(node)) {
+    return readPath(node.expression, context, depth + 1);
+  }
+
+  if (ts.isIdentifier(node)) return readIdentifier(node, context, depth);
+
+  // `cfg.setupBeginPath`, with `cfg` one row of a table declared in the file:
+  // every `setupBeginPath: …` the file writes is a value it can take.
+  if (ts.isPropertyAccessExpression(node)) {
+    const initialisers = context.propertiesByName.get(node.name.text) ?? [];
+    const values: string[] = [];
+    for (const initialiser of initialisers) {
+      const reading = readPath(initialiser, context, depth + 1);
+      if (reading.values === null) return UNREAD;
+      values.push(...reading.values);
+    }
+    return values.length === 0 ? UNREAD : { values, head: values.length === 1 ? (values[0] ?? '') : '' };
+  }
+
+  if (ts.isTemplateExpression(node)) {
+    let reading: PathReading = { values: [node.head.text], head: node.head.text };
+    for (const span of node.templateSpans) {
+      reading = concat(reading, readPath(span.expression, context, depth + 1));
+      reading = concat(reading, { values: [span.literal.text], head: span.literal.text });
+    }
+    return reading;
+  }
+
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    return concat(readPath(node.left, context, depth + 1), readPath(node.right, context, depth + 1));
+  }
+
+  return UNREAD;
+}
+
+function concat(left: PathReading, right: PathReading): PathReading {
+  if (left.values === null) return left;
+  if (right.values === null) {
+    // Known so far, unknown from here: the head is what was known. Where the
+    // left side is ambiguous there is no single head to speak of.
+    return { values: null, head: left.values.length === 1 ? (left.values[0] ?? '') + right.head : '' };
+  }
+  const values = left.values.flatMap((a) => (right.values ?? []).map((b) => a + b));
+  return { values, head: values.length === 1 ? (values[0] ?? '') : '' };
+}
+
+function readIdentifier(node: ts.Identifier, context: PathContext, depth: number): PathReading {
+  // A parameter first: `bindings` is first-writer-wins over the whole file, and
+  // a `const url` somewhere else in it must not answer for this function's `url`.
+  const parameter = enclosingParameter(node, node.text);
+  if (parameter !== null) {
+    const name = localFunctionName(parameter.fn);
+    const calls = name === null ? [] : (context.callsByName.get(name) ?? []);
+    const values: string[] = [];
+    for (const call of calls) {
+      const argument = call.arguments[parameter.index];
+      const reading = argument === undefined ? UNREAD : readPath(argument, context, depth + 1);
+      if (reading.values === null) return UNREAD;
+      values.push(...reading.values);
+    }
+    if (values.length > 0) return { values, head: values.length === 1 ? (values[0] ?? '') : '' };
+    return external(node.text, context);
+  }
+
+  const bound = context.bindings.get(node.text);
+  if (bound !== undefined) {
+    const reading = readPath(bound, context, depth + 1);
+    if (reading.values !== null) return reading;
+  }
+  return external(node.text, context);
+}
+
+function external(name: string, context: PathContext): PathReading {
+  const values = context.external?.get(name);
+  if (values === undefined || values.length === 0) return UNREAD;
+  return { values: [...values], head: values.length === 1 ? (values[0] ?? '') : '' };
+}
+
+/**
+ * Whether the literal start of a path settles that it is **not** an admin path:
+ * it has diverged from `/api/v1/admin` before the unresolved part began.
+ */
+function provablyNotAdmin(head: string): boolean {
+  if (head === '') return false;
+  const compared = Math.min(head.length, ADMIN_API_PREFIX.length);
+  return head.slice(0, compared) !== ADMIN_API_PREFIX.slice(0, compared);
 }
 
 /** The permission codes a guard call requires, as one clause, or `null`. */
@@ -292,13 +449,19 @@ function clauseOfGuardCall(
     const codes: string[] = [];
     for (const element of argument.elements) {
       const code = ts.isSpreadElement(element) ? null : codeOf(element);
-      if (code === null) return null;
+      // An empty member is unreadable rather than dropped: at runtime it is a
+      // code nobody holds, and silently narrowing the any-of would misstate it.
+      if (code === null || code === '') return null;
       codes.push(code);
     }
     return codes;
   }
   const code = codeOf(argument);
-  return code === null ? null : [code];
+  if (code === null) return null;
+  // `requireAdmin('')` is `requireAdmin()` at runtime — the guard returns as
+  // soon as the code is falsy — so it is read as what it does, not as a gate on
+  // a code called the empty string.
+  return code === '' ? [] : [code];
 }
 
 interface GateReading {
@@ -398,49 +561,173 @@ function clauseOfPreHandler(
   return undefined;
 }
 
+/** A route registration whose path could not be read, and so whose gate was not. */
+export interface UnreadableRegistration {
+  readonly file: string;
+  readonly line: number;
+  /** The path argument as written. */
+  readonly pathText: string;
+}
+
 export interface RouteScanResult {
   readonly routes: readonly AdminRoute[];
-  /** Registrations whose path is computed and could not be read. */
+  /** `unreadable.length` — kept as a number because the check's summary line prints it. */
   readonly unreadablePaths: number;
+  /**
+   * Registrations whose path is computed and could not be read, unless the part
+   * that *was* read already shows the path is not an admin one.
+   */
+  readonly unreadable: readonly UnreadableRegistration[];
+}
+
+/** The property a route-shaped options object is recognised by. */
+const OPTION_KEYS = new Set(['preHandler', 'schema', 'config', 'handler', 'onRequest', 'preValidation']);
+
+/**
+ * Whether a `<x>.<verb>(…)` call is a route registration rather than a `Map`
+ * read or an HTTP client call.
+ *
+ * A literal path settles it. Without one the call has to look like a
+ * registration in its other arguments: a handler function, or an options object
+ * carrying a route option. `cache.get(key)` and `client.post(url, body)` have
+ * neither.
+ */
+function isRegistrationShaped(call: ts.CallExpression): boolean {
+  return call.arguments.slice(1).some(
+    (argument) =>
+      ts.isArrowFunction(argument) ||
+      ts.isFunctionExpression(argument) ||
+      (ts.isObjectLiteralExpression(argument) &&
+        argument.properties.some(
+          (property) =>
+            (ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property)) &&
+            OPTION_KEYS.has(property.name.getText()),
+        )),
+  );
+}
+
+/** `app.route({ method, url, … })` — the methods it names, or `null` if it is not one. */
+function fullDeclarationOf(
+  call: ts.CallExpression,
+): { readonly methods: readonly string[] | null; readonly url: ts.Expression; readonly options: ts.ObjectLiteralExpression } | null {
+  if (!ts.isPropertyAccessExpression(call.expression) || call.expression.name.text !== 'route') return null;
+  const [options] = call.arguments;
+  if (options === undefined || !ts.isObjectLiteralExpression(options)) return null;
+  let url: ts.Expression | null = null;
+  let methods: string[] | null = null;
+  let sawMethod = false;
+  for (const property of options.properties) {
+    if (!ts.isPropertyAssignment(property)) continue;
+    const name = property.name.getText();
+    if (name === 'url') url = property.initializer;
+    if (name === 'method') {
+      sawMethod = true;
+      const elements = ts.isArrayLiteralExpression(property.initializer)
+        ? property.initializer.elements
+        : [property.initializer];
+      const read = elements.map((element) => stringLiteralOf(element));
+      methods = read.every((method): method is string => method !== null)
+        ? read.map((method) => method.toLowerCase())
+        : null;
+    }
+  }
+  if (url === null || !sawMethod) return null;
+  return { methods, url, options };
 }
 
 /** Every `/api/v1/admin/**` route registration under `sources`, with its gate. */
 export function findAdminRoutes(input: RouteScanInput): RouteScanResult {
   const routes: AdminRoute[] = [];
-  let unreadablePaths = 0;
+  const unreadable: UnreadableRegistration[] = [];
 
   for (const [file, text] of input.sources) {
-    if (!text.includes(ADMIN_API_PREFIX)) continue;
+    // A file that neither names the admin prefix nor registers Fastify routes
+    // holds nothing to read. The second half is what keeps a registrar mounted
+    // under a prefix it is *handed* in the population: it never spells the
+    // prefix, and skipping it is how its routes went unread.
+    if (!text.includes(ADMIN_API_PREFIX) && !/from 'fastify'/.test(text)) continue;
     const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
     const bindings = localBindings(sf);
     const moduleId = moduleIdOf(file, input.hostResidentModules);
 
+    const callsByName = new Map<string, ts.CallExpression[]>();
+    const collect = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+        const list = callsByName.get(node.expression.text) ?? [];
+        list.push(node);
+        callsByName.set(node.expression.text, list);
+      }
+      node.forEachChild(collect);
+    };
+    sf.forEachChild(collect);
+    const propertiesByName = new Map<string, ts.Expression[]>();
+    const collectProperties = (node: ts.Node): void => {
+      if (ts.isPropertyAssignment(node) && (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name))) {
+        const list = propertiesByName.get(node.name.text) ?? [];
+        list.push(node.initializer);
+        propertiesByName.set(node.name.text, list);
+      }
+      node.forEachChild(collectProperties);
+    };
+    sf.forEachChild(collectProperties);
+    const context: PathContext = {
+      bindings,
+      callsByName,
+      external: input.pathBindings?.get(file),
+      propertiesByName,
+    };
+
+    const record = (
+      call: ts.CallExpression,
+      methods: readonly string[] | null,
+      pathArgument: ts.Expression,
+      optionsArgument: ts.Node | undefined,
+      shaped: boolean,
+    ): void => {
+      const line = sf.getLineAndCharacterOfPosition(call.getStart(sf)).line + 1;
+      const reading = readPath(pathArgument, context);
+      const pathText = pathArgument.getText().replace(/\s+/g, ' ').slice(0, 120);
+      if (reading.values === null) {
+        // What was read already shows the path has left the admin prefix.
+        if (provablyNotAdmin(reading.head)) return;
+        // A call that is not shaped like a registration is only a registration
+        // if its path says so in as many words; `rows.get(`${id}:order`, …)`
+        // is a template and is not a route.
+        if (!shaped && !pathText.includes(ADMIN_API_PREFIX)) return;
+        unreadable.push({ file, line, pathText });
+        return;
+      }
+      const admin = reading.values.filter((path) => path.startsWith(ADMIN_API_PREFIX));
+      if (admin.length === 0) return;
+      if (methods === null) {
+        unreadable.push({ file, line, pathText });
+        return;
+      }
+      for (const path of admin) {
+        const gate = gateOf(optionsArgument, file, input, bindings);
+        for (const method of methods) {
+          routes.push({ file, line, method, path, moduleId, clauses: gate.clauses, gateText: gate.text });
+        }
+      }
+    };
+
     const visit = (node: ts.Node): void => {
-      if (
-        ts.isCallExpression(node) &&
-        ts.isPropertyAccessExpression(node.expression) &&
-        ROUTE_METHODS.has(node.expression.name.text) &&
-        node.arguments.length >= 2
-      ) {
-        const [pathArgument, optionsArgument] = node.arguments;
-        if (pathArgument !== undefined) {
-          const looksLikePath =
-            ts.isStringLiteralLike(pathArgument) || ts.isTemplateExpression(pathArgument);
-          const path = looksLikePath ? routePathOf(pathArgument, bindings) : null;
-          if (looksLikePath && path === null && pathArgument.getText().includes(ADMIN_API_PREFIX)) {
-            unreadablePaths += 1;
-          }
-          if (path !== null && path.startsWith(ADMIN_API_PREFIX)) {
-            const gate = gateOf(optionsArgument, file, input, bindings);
-            routes.push({
-              file,
-              line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
-              method: node.expression.name.text,
-              path,
-              moduleId,
-              clauses: gate.clauses,
-              gateText: gate.text,
-            });
+      if (ts.isCallExpression(node)) {
+        const full = fullDeclarationOf(node);
+        if (full !== null) {
+          record(node, full.methods, full.url, full.options, true);
+        } else if (
+          ts.isPropertyAccessExpression(node.expression) &&
+          ROUTE_METHODS.has(node.expression.name.text) &&
+          node.arguments.length >= 2
+        ) {
+          const [pathArgument, optionsArgument] = node.arguments;
+          if (pathArgument !== undefined) {
+            const looksLikePath =
+              ts.isStringLiteralLike(pathArgument) || ts.isTemplateExpression(pathArgument);
+            if (looksLikePath || isRegistrationShaped(node)) {
+              record(node, [node.expression.name.text], pathArgument, optionsArgument, isRegistrationShaped(node));
+            }
           }
         }
       }
@@ -450,7 +737,7 @@ export function findAdminRoutes(input: RouteScanInput): RouteScanResult {
   }
 
   routes.sort((a, b) => (a.path === b.path ? a.method.localeCompare(b.method) : a.path.localeCompare(b.path)));
-  return { routes, unreadablePaths };
+  return { routes, unreadablePaths: unreadable.length, unreadable };
 }
 
 /**
