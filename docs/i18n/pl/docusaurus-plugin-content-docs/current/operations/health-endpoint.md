@@ -22,6 +22,27 @@ Ta strona znajduje się w drzewie samej witryny, a nie obok kodu modułu, tak sa
 | Metoda i ścieżka | Przeznaczenie |
 | --- | --- |
 | `GET /api/v1/_health` | Zwraca `200` z JSON-em opisującym dostępność Postgresa, Redis i Meilisearch. Zwraca `503`, gdy któraś z tych usług jest niedostępna. |
+| `GET /api/v1/admin/platform-info` | Tylko dla zalogowanych administratorów. Zwraca `200` z `{ "version": … }`, czyli wydaniem opisanym niżej. Nie sprawdza żadnej zależności. |
+
+## Pole `version`
+
+Pole `version` w odpowiedzi to **wydanie Endora Commerce**, na którym działa instancja — wersja
+pakietu `@endora-commerce/platform` załadowanego przez proces serwera, na przykład `0.104.0`.
+Wszystkie pakiety `@endora-commerce/*` są wydawane pod jedną wspólną wersją, więc ten jeden numer
+nazywa całe wydanie.
+
+Nie jest to wersja z pliku `package.json` Twojej instancji i żadne ustawienie środowiska jej nie
+zmienia. Przed tą poprawką pole czytało `npm_package_version`, czyli wersję z manifestu aplikacji
+hosta, której w ogóle nie ma, gdy kontener uruchamia serwer poleceniem `node dist/index.js`;
+dlatego każde wdrożenie zgłaszało `0.0.0`. Jeśli platforma nie potrafi odczytać własnego wydania,
+pole ma wartość `unknown`, a nie liczbę.
+
+Panel administracyjny pokazuje ten sam numer jako znaczek pod nazwą w nagłówku paska bocznego.
+Odczytuje go z `GET /api/v1/admin/platform-info` — endpointu dla zalogowanego administratora,
+który odpowiada `{ "version": "0.104.0" }` (albo `null`) i nie sprawdza żadnej zależności — a nie
+z tego endpointu stanu, który odpowiada `503`, gdy któraś zależność jest niedostępna. Gdy wydanie
+jest nieznane, znaczek w ogóle się nie pojawia. Przy zwiniętym pasku bocznym wydanie jest w
+podpowiedzi nad logo.
 
 ## Zastosowania
 

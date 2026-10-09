@@ -223,7 +223,14 @@ describe('a moved module tree is refused, not reported clean (issue #215)', () =
       expect(result.output, `refused the population it was given: ${result.output}`).not.toMatch(
         /produced none for/,
       );
-    });
+      // An explicit budget, the one this file's split-tree cases already carry,
+      // because the suite's 30 s default was the thing being measured rather
+      // than the check. `check-test-ownership.ts` is the slow member — it runs
+      // to completion over the staged tree instead of refusing early — and on
+      // a hosted runner its control took 16.0 s, 26.9 s, 27.9 s and 29.6 s on
+      // four green runs of 2026-10-09 and 30.4 s and 30.9 s on two red ones,
+      // over trees that differ by nothing this case reads.
+    }, 120_000);
   }
 });
 

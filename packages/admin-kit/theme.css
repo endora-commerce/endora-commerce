@@ -361,6 +361,9 @@ body,
   justify-content: center;
 }
 .b2b-sidebar--rail .b2b-sidebar__brand-text { display: none; }
+/* 64px leaves no room for a release number; it stays in the logo's tooltip
+   (AppShell sets the link's `title`). */
+.b2b-sidebar--rail .b2b-sidebar__brand-version { display: none; }
 .b2b-sidebar--rail .b2b-sidebar__search { padding: 8px 0; display: flex; justify-content: center; }
 .b2b-sidebar__search-rail {
   width: 36px; height: 36px;
@@ -483,6 +486,53 @@ body,
   font-weight: 600; font-size: 14px; color: #fff;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   transition: background 80ms ease;
+}
+/* The brand link with the release badge under the wordmark.
+
+   Under, not beside: measured at the sidebar's 248px, the logo, the gaps and
+   the wordmark (128px at 14px/600) leave 65px, and `v0.104.0` in a badge
+   needs 73 — beside the wordmark it wrapped "Endora Commerce" onto two lines.
+   The second column starts where the wordmark does (16 padding + 28 logo +
+   10 gap), so the badge reads as the wordmark's subtitle.
+
+   The badge is the link's sibling, not its child (the link's `aria-label`
+   would swallow it), and is laid over the link's own bottom padding with
+   `pointer-events: none`, so the whole header stays one click target. The
+   row owns the divider so that it runs under both. */
+.b2b-sidebar__brand-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.b2b-sidebar__brand-row .b2b-sidebar__brand {
+  grid-column: 1 / -1; grid-row: 1;
+  border-bottom: 0;
+}
+.b2b-sidebar__brand-row--versioned .b2b-sidebar__brand { padding-bottom: 28px; }
+.b2b-sidebar--rail .b2b-sidebar__brand-row--versioned .b2b-sidebar__brand { padding: 14px 0; }
+/* Sidebar tokens rather than the badge's own: the sidebar is #1a1c1e in both
+   themes, and the `outline` variant's `text-foreground` is near-black in the
+   light one. --sidebar-fg-muted on --bg-sidebar measures 5.32:1, so this
+   11px text clears AA's 4.5:1 while staying quieter than the wordmark. The
+   border is decoration and carries no information the text does not.
+   `max-width` + ellipsis is for a long pre-release or build identifier; the
+   full sentence is in the brand link's `title`. */
+.b2b-sidebar__brand-version {
+  grid-column: 2; grid-row: 1;
+  align-self: end; justify-self: start;
+  margin: 0 16px 8px 0;
+  max-width: calc(100% - 16px);
+  padding: 0 6px;
+  border-color: rgba(255,255,255,0.16);
+  color: var(--sidebar-fg-muted);
+  font-size: 11px; font-weight: 500; line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.b2b-sidebar__brand-version > [aria-hidden="true"] {
+  display: block; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis;
 }
 .b2b-sidebar__brand:hover { background: var(--bg-sidebar-hover); }
 .b2b-sidebar__brand:focus-visible {

@@ -157,6 +157,7 @@ export * from './storefront-cache-tags.js';
 export * from './blog.js';
 export * from './dictionary.js';
 export * from './modules.js';
+export * from './platform-info.js';
 export * from './admin-actions.js';
 export * from './admin-contributions.js';
 export * from './product-scope-overrides.js';
