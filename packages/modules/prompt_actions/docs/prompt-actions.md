@@ -60,15 +60,29 @@ Settings → group **Prompt actions (AI assistant)**:
 
 | Setting | Default | Meaning |
 |---------|---------|---------|
-| `prompt_actions.enabled` | `false` | Platform-wide kill switch. When off, the palette behaves exactly as without the module. |
-| `prompt_actions.provider` | `anthropic` | LLM provider: `anthropic` (Claude), `google` (Gemini) or `openai` (GPT). |
-| `prompt_actions.model` | `claude-sonnet-4-6` | Model ID for the chosen provider. |
-| `prompt_actions.api_key` | *(unset)* | Provider credential. **Write-only secret**: encrypted at rest, never returned by the settings API after saving. |
+| `prompt_actions.activation` | `true` | The module switch. Off, the whole module is absent: the prompt API, the plan preview and execution path, and the tools other modules contribute to it. |
+| `prompt_actions.enabled` | `false` | The assistant's own switch. When off, the module stays present and the palette behaves exactly as without it. |
+| `prompt_actions.llm_credentials` | *(unset)* | Reference to an `llm` credential configuration created on the **Credentials** screen. That configuration is the single source of the provider, the model ID and the API key; the settings group holds no key of its own. |
 | `prompt_actions.bulk_limit` | `500` | Maximum records one prompt may affect; larger plans are blocked at preview. |
 
-Configuration changes apply on the next prompt — no restart. The backend
-needs `SETTINGS_SECRET_ENCRYPTION_KEY` in its environment to store the API
-key (see the root README, *Environment variables*).
+To configure the assistant, create a credential configuration of type **LLM**
+on the Credentials screen — provider `anthropic` (Claude), `google` (Gemini) or
+`openai` (GPT), a model ID and the API key — then select it in
+`prompt_actions.llm_credentials` and switch `prompt_actions.enabled` on. The
+API key is a write-only secret: encrypted at rest and never returned after
+saving. The Credentials screen also offers providers the assistant has no
+adapter for; a reference to one of those leaves the assistant not configured.
+
+**Ask the assistant…** is offered only while all three hold: the assistant is
+enabled, the reference resolves to a supported provider with a model and a key,
+and you hold the permission below. While one of them does not, the palette
+shows no assistant row and no explanation.
+
+Configuration changes apply without a restart and without reloading the admin
+page: the backend reads the settings on every prompt, and the palette asks
+whether the assistant is available each time it is opened. The backend needs
+`SETTINGS_SECRET_ENCRYPTION_KEY` in its environment to store the API key (see
+the root README, *Environment variables*).
 
 Grant operators the **Use the prompt assistant** (`prompt_actions:use`)
 permission on the Roles screen. Each planned operation additionally requires

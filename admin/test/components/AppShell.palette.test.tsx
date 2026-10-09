@@ -193,6 +193,67 @@ describe('AppShell palette — assistant gating (T056)', () => {
     expect(screen.queryByText('palette.entry.label')).toBeNull();
   });
 
+  // The owner's report: enable the assistant and attach credentials on the
+  // Settings screen, press Ctrl+K, and the assistant is still not offered —
+  // until the page is reloaded. The backend answered `ready` from the first
+  // read after the save; the palette had asked once, earlier in the same page
+  // session, and never asked again.
+  it('offers the assistant on the next open after it is configured, without a remount', async () => {
+    capabilityStatus = 'not_configured';
+    renderShell();
+    await openPalette();
+    await waitFor(() => expect(capabilitySpy).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText('palette.entry.label')).toBeNull();
+
+    const user = userEvent.setup();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.b2b-palette')).toBeNull());
+
+    // The operator saves the settings; nothing in the shell is told.
+    capabilityStatus = 'ready';
+    await openPalette();
+    await waitFor(() => expect(screen.getByText('palette.entry.label')).toBeTruthy());
+    expect(capabilitySpy).toHaveBeenCalledTimes(2);
+  });
+
+  // The same staleness in the other direction: an entry that stays offered
+  // after the assistant is switched off answers every prompt with a 409.
+  it('withdraws the assistant on the next open after it is switched off', async () => {
+    renderShell();
+    await openPalette();
+    await waitFor(() => expect(screen.getByText('palette.entry.label')).toBeTruthy());
+
+    const user = userEvent.setup();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.b2b-palette')).toBeNull());
+
+    capabilityStatus = 'disabled';
+    await openPalette();
+    await waitFor(() => expect(screen.queryByText('palette.entry.label')).toBeNull());
+  });
+
+  // A probe that fails says nothing about the assistant being usable, so the
+  // entry is withdrawn — and the next open asks again rather than remembering
+  // the failure for the rest of the session.
+  it('withdraws the assistant when the probe fails, and asks again on the next open', async () => {
+    renderShell();
+    await openPalette();
+    await waitFor(() => expect(screen.getByText('palette.entry.label')).toBeTruthy());
+
+    const user = userEvent.setup();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.b2b-palette')).toBeNull());
+
+    capabilitySpy.mockRejectedValueOnce(new Error('503'));
+    await openPalette();
+    await waitFor(() => expect(screen.queryByText('palette.entry.label')).toBeNull());
+
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(document.querySelector('.b2b-palette')).toBeNull());
+    await openPalette();
+    await waitFor(() => expect(screen.getByText('palette.entry.label')).toBeTruthy());
+  });
+
   // The shifted chord belongs to in-page search (e.g. the Settings filter),
   // so the palette must ignore it rather than swallowing the keypress.
   it('leaves Ctrl+Shift+K alone — the palette stays closed', async () => {
