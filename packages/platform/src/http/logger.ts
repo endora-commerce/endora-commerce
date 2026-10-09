@@ -1,5 +1,6 @@
 import { pino, type Logger as PinoLogger, type LoggerOptions } from 'pino';
 
+import { LOG_REDACT_CENSOR, LOG_REDACT_PATHS } from './log-redaction.js';
 import { prettyTransport } from './pretty-transport.js';
 
 export type Logger = PinoLogger;
@@ -19,8 +20,8 @@ export function createLogger(options: CreateLoggerOptions = {}): Logger {
     base: { pid: process.pid },
     timestamp: pino.stdTimeFunctions.isoTime,
     redact: {
-      paths: ['req.headers.authorization', 'req.headers.cookie', '*.password', '*.passwordHash', '*.secret'],
-      censor: '[REDACTED]',
+      paths: [...LOG_REDACT_PATHS],
+      censor: LOG_REDACT_CENSOR,
     },
   };
 

@@ -156,6 +156,77 @@ describe('PATCH /api/v1/admin/me — password change', () => {
     }
   });
 
+  it('refuses a new password equal to the current one, and changes nothing', async () => {
+    const before = await readMe();
+    const res = await patchMe({
+      lastName: 'Partial',
+      password: ORIGINAL_PASSWORD,
+      currentPassword: ORIGINAL_PASSWORD,
+    });
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { error: { code: string; message: string } };
+    expect(body.error.code).toBe(ERROR_CODES.NEW_PASSWORD_UNCHANGED);
+    expect(body.error.message).toBe(
+      'The new password is the same as the current one. Choose a different password.',
+    );
+    expect(JSON.stringify(body)).not.toContain(ORIGINAL_PASSWORD);
+    expect(await readMe()).toMatchObject({ lastName: before.lastName });
+    // Not a sign-out either: the session that asked is still the caller's.
+    expect((await login(ORIGINAL_PASSWORD)).statusCode).toBe(200);
+  });
+
+  it('answers that refusal in the language the administrator chose', async () => {
+    const setLanguage = async (preferredLanguage: 'pl' | null): Promise<void> => {
+      const res = await h.app.inject({
+        method: 'PATCH',
+        url: '/api/v1/admin/me/preferred-language',
+        cookies: { [ADMIN_SESSION_COOKIE_NAME]: sessionCookie },
+        payload: { preferredLanguage },
+      });
+      expect(res.statusCode).toBe(200);
+    };
+    await setLanguage('pl');
+    try {
+      const res = await patchMe({
+        password: ORIGINAL_PASSWORD,
+        currentPassword: ORIGINAL_PASSWORD,
+      });
+      expect(res.statusCode).toBe(400);
+      expect((res.json() as { error: { message: string } }).error.message).toBe(
+        'Nowe hasło jest takie samo jak obecne. Wybierz inne hasło.',
+      );
+    } finally {
+      await setLanguage(null);
+    }
+  });
+
+  it('cannot set a password through the generic admin-user edit', async () => {
+    // `PATCH /admin/admin-users/:id` is for name, role and status. A password
+    // accepted there would be a password write with no current password, no
+    // session revocation and no password audit entry.
+    const me = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/me',
+      cookies: { [ADMIN_SESSION_COOKIE_NAME]: sessionCookie },
+    });
+    const id = (me.json() as { data: { adminUser: { id: string } } }).data.adminUser.id;
+    for (const field of ['password', 'currentPassword', 'newPassword']) {
+      const res = await h.app.inject({
+        method: 'PATCH',
+        url: `/api/v1/admin/admin-users/${id}`,
+        cookies: { b2b_session: 'stub-admin-session' },
+        payload: { firstName: 'Generic', [field]: NEW_PASSWORD },
+      });
+      expect(res.statusCode).toBe(400);
+      expect((res.json() as { error: { code: string } }).error.code).toBe(
+        ERROR_CODES.VALIDATION_FAILED,
+      );
+    }
+    expect((await readMe()).firstName).not.toBe('Generic');
+    expect((await login(NEW_PASSWORD)).statusCode).toBe(401);
+    expect((await login(ORIGINAL_PASSWORD)).statusCode).toBe(200);
+  });
+
   it('changes the password when the current one is correct', async () => {
     const res = await patchMe({
       lastName: 'Rotated',

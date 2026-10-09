@@ -2,5 +2,6 @@
   "nav.adminUsers.label": "Użytkownicy",
   "actions.openAdminUsers.label": "Użytkownicy panelu",
   "actions.openAdminUsers.description": "Konta z dostępem do panelu administracyjnego",
-  "errors.ADMIN_USER_ROLE_REQUIRED": "Konto administratora musi mieć przypisaną rolę. Wybierz rolę dla tego konta."
+  "errors.ADMIN_USER_ROLE_REQUIRED": "Konto administratora musi mieć przypisaną rolę. Wybierz rolę dla tego konta.",
+  "errors.NEW_PASSWORD_UNCHANGED": "Nowe hasło jest takie samo jak obecne. Wybierz inne hasło."
 }

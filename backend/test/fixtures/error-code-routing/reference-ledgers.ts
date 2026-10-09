@@ -107,6 +107,14 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'noun is the admin account, `admin_users`\' own row, and both raise sites are in its ' +
       'service.',
   },
+  NEW_PASSWORD_UNCHANGED: {
+    to: 'admin_users',
+    reason:
+      'Minted for the refusal an administrator earns by changing their own password to the ' +
+      'one they already have: the request would report a change, and sign the other sessions ' +
+      'out, without changing the credential. The noun is the admin account, `admin_users`\' own ' +
+      'row, and the one raise site is its service.',
+  },
   CRM_OPPORTUNITY_NOT_FOUND: {
     to: 'crm',
     reason:

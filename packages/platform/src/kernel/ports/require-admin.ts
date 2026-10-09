@@ -32,6 +32,13 @@ export type RequireAdminAnyFactory = (
  */
 export interface AdminPermissionChecker {
   hasPermission(adminUserId: string, code: string): Promise<boolean>;
+  /**
+   * Whether the id names an administrator account that may act at all: it
+   * exists, is not deleted and its status is `active`. The guard asks it so a
+   * session that outlived its account's deactivation is refused as not signed
+   * in, whichever write forgot to revoke it.
+   */
+  isActiveAdministrator(adminUserId: string): Promise<boolean>;
 }
 
 /**

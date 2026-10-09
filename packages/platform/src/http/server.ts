@@ -17,6 +17,7 @@ import {
   type OpenApiMetadata,
 } from './openapi.js';
 import type { ErrorEnvelopeOptions } from './error-envelope.js';
+import { LOG_REDACT_CENSOR, LOG_REDACT_PATHS } from './log-redaction.js';
 import { prettyTransport } from './pretty-transport.js';
 import { toFastifyTrustProxy, type TrustedProxy } from './trusted-proxy.js';
 import {
@@ -93,8 +94,8 @@ export async function buildServer(options: BuildServerOptions): Promise<FastifyI
     logger: {
       level: process.env['LOG_LEVEL'] ?? 'info',
       redact: {
-        paths: ['req.headers.authorization', 'req.headers.cookie', '*.password', '*.passwordHash', '*.secret'],
-        censor: '[REDACTED]',
+        paths: [...LOG_REDACT_PATHS],
+        censor: LOG_REDACT_CENSOR,
       },
       // Development only, and only when it resolves: a missing `pino-pretty`
       // means JSON lines, never a server that will not start.

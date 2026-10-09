@@ -87,6 +87,24 @@ export function registerModule(ctx: ModuleContext): void {
   const permissionChecker = (): AdminPermissionChecker => ({
     hasPermission: (adminUserId, permission) =>
       ctx.cradle<AuthCradle>().permissionService.hasPermission(adminUserId, permission),
+    // The account check has an answer only while the two modules that hold it
+    // are here: `admin_roles` provides this port and reads the account through
+    // `admin_users`. With either absent, the gated port refuses — and on a
+    // route with no permission code that refusal would be new: the guard never
+    // used to touch the port there, which is what lets the kernel's
+    // `/admin/module-presence` keep answering in exactly that state so the
+    // Admin UI can render it (Constitution XVII). So presence is probed first,
+    // the way `apiKeyResolver` is below, and an absent owner means the check is
+    // not made rather than failed. Nothing is opened by that: every
+    // permission-gated route already refuses with 503 in that state, sign-in is
+    // `admin_users`' own and gone with it, and the routes that deactivate or
+    // delete an account — which revoke its sessions themselves — are too.
+    isActiveAdministrator: async (adminUserId) => {
+      if (!effectiveState.isPresent('admin_roles') || !effectiveState.isPresent('admin_users')) {
+        return true;
+      }
+      return ctx.cradle<AuthCradle>().permissionService.isActiveAdministrator(adminUserId);
+    },
   });
 
   // Feature 075 Phase P — the published session surface. `sessionService` keeps

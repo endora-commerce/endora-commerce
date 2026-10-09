@@ -1435,6 +1435,7 @@
   "profile.field.role": "Role",
   "profile.identityTitle": "Identity",
   "profile.info.nothingToSave": "Nothing to save.",
+  "profile.info.passwordChanged": "Password changed. You are still signed in here; every other session of your account has been signed out.",
   "profile.info.updated": "Profile updated.",
   "profile.loading": "Loading…",
   "profile.page.descriptionPrefix": "Edit your name and rotate your password. Role and status are managed by an administrator with the",

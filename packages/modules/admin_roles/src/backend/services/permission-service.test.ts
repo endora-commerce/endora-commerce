@@ -94,3 +94,32 @@ describe('PermissionService.hasPermission', () => {
     expect(await serviceOver(admin({ adminRoleId: null }), PLATFORM).listPermissions('a1')).toEqual([]);
   });
 });
+
+describe('PermissionService.isActiveAdministrator', () => {
+  it('answers yes for an active account, with or without a role', async () => {
+    expect(await serviceOver(admin({}), PLATFORM).isActiveAdministrator('a1')).toBe(true);
+    expect(
+      await serviceOver(admin({ adminRoleId: null }), PLATFORM).isActiveAdministrator('a1'),
+    ).toBe(true);
+  });
+
+  it('answers no for a deactivated account and for an id that names nobody', async () => {
+    expect(
+      await serviceOver(admin({ status: 'inactive' }), PLATFORM).isActiveAdministrator('a1'),
+    ).toBe(false);
+    expect(await serviceOver(null, PLATFORM).isActiveAdministrator('nobody')).toBe(false);
+  });
+
+  it('asks for live accounts only, so a deleted one is not found', async () => {
+    const asked: unknown[] = [];
+    const adminUsers = {
+      findById: async (_id: string, options: unknown) => {
+        asked.push(options);
+        return null;
+      },
+    } as unknown as AdminUserReadPort;
+    const service = new PermissionService(() => ({}) as EntityManager, adminUsers);
+    expect(await service.isActiveAdministrator('a1')).toBe(false);
+    expect(asked).toEqual([{ activeOnly: true }]);
+  });
+});
