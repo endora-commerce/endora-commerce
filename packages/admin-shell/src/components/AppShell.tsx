@@ -1590,7 +1590,19 @@ interface CommandPaletteProps {
  *  instead of navigating (feature 043; module_actions are navigation-only). */
 const PROMPT_MODE_SENTINEL = '__prompt_actions_mode__';
 
-/** Module-level capability cache: one fetch per session unless it failed. */
+/**
+ * The last answer the capability probe gave, kept at module level so a palette
+ * that mounts again paints the assistant row at once instead of one round trip
+ * later. **It is a first paint, not an answer**: every open asks again.
+ *
+ * It used to be the answer — "one fetch per session" — and that is the defect
+ * the owner reported: an operator who had opened the palette once, then
+ * enabled the assistant and attached credentials on the Settings screen, was
+ * shown the pre-save state until the page was reloaded, while the backend had
+ * answered `ready` from the first read after the save. Nothing tells the shell
+ * that a setting changed, so the only honest lifetime for this value is one
+ * open.
+ */
 let promptCapabilityCache: 'ready' | 'unavailable' | null = null;
 
 /** Test seam — interaction tests exercise multiple capability states. */
@@ -1621,16 +1633,24 @@ function CommandPalette(props: CommandPaletteProps): ReactNode {
   // assistant. With the feature disabled/unconfigured (or the permission
   // missing) the palette renders exactly as before (FR-015/FR-020, SC-006).
   const mayUseAssistant = hasPermission('prompt_actions:use');
+  // Asked on every open, never once per session: the assistant's settings are
+  // changed on another screen of this same page, and a remembered answer is
+  // the pre-save one. A failed probe withdraws the row as well — it used to
+  // leave a `ready` state standing — and is not remembered past this open.
   useEffect(() => {
-    if (!open || !mayUseAssistant || promptCapabilityCache !== null) return;
+    if (!open || !mayUseAssistant) return;
+    let superseded = false;
+    const settle = (answer: 'ready' | 'unavailable'): void => {
+      if (superseded) return;
+      promptCapabilityCache = answer;
+      setAssistantReady(answer === 'ready');
+    };
     void getPromptCapability()
-      .then((cap) => {
-        promptCapabilityCache = cap.status === 'ready' ? 'ready' : 'unavailable';
-        setAssistantReady(promptCapabilityCache === 'ready');
-      })
-      .catch(() => {
-        promptCapabilityCache = 'unavailable';
-      });
+      .then((cap) => settle(cap.status === 'ready' ? 'ready' : 'unavailable'))
+      .catch(() => settle('unavailable'));
+    return (): void => {
+      superseded = true;
+    };
   }, [open, mayUseAssistant]);
 
   // FR-018 — completion notice: prompts that finished while the palette was

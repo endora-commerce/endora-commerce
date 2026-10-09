@@ -54,15 +54,27 @@ Ustawienia → grupa **Prompt actions (AI assistant)**:
 
 | Ustawienie | Wartość domyślna | Znaczenie |
 |---------|---------|---------|
-| `prompt_actions.enabled` | `false` | Główny wyłącznik w platformie. Gdy wyłączony, paleta działa tak, jakby modułu nie było. |
-| `prompt_actions.provider` | `anthropic` | Dostawca modelu językowego: `anthropic` (Claude), `google` (Gemini) albo `openai` (GPT). |
-| `prompt_actions.model` | `claude-sonnet-4-6` | Identyfikator modelu u wybranego dostawcy. |
-| `prompt_actions.api_key` | *(nieustawione)* | Dane uwierzytelniające u dostawcy. **Sekret tylko do zapisu**: szyfrowany w bazie i nigdy nie zwracany przez API ustawień po zapisaniu. |
+| `prompt_actions.activation` | `true` | Przełącznik modułu. Gdy wyłączony, całego modułu nie ma: API poleceń, podglądu planu i ścieżki wykonania oraz narzędzi, które wnoszą do niego inne moduły. |
+| `prompt_actions.enabled` | `false` | Własny przełącznik asystenta. Gdy wyłączony, moduł pozostaje obecny, a paleta działa tak, jakby go nie było. |
+| `prompt_actions.llm_credentials` | *(nieustawione)* | Odwołanie do konfiguracji danych uwierzytelniających typu `llm`, utworzonej na ekranie **Poświadczenia** (*Credentials*). Ta konfiguracja jest jedynym źródłem dostawcy, identyfikatora modelu i klucza API; sama grupa ustawień nie przechowuje żadnego klucza. |
 | `prompt_actions.bulk_limit` | `500` | Największa liczba rekordów, które może zmienić jedno polecenie; większe plany są blokowane już na etapie podglądu. |
 
-Zmiany konfiguracji obowiązują od następnego polecenia — bez restartu. Aby zapisać klucz API, backend
-potrzebuje w środowisku zmiennej `SETTINGS_SECRET_ENCRYPTION_KEY` (zobacz główny README, sekcja
-*Environment variables*).
+Aby skonfigurować asystenta, utwórz na ekranie Poświadczenia konfigurację danych uwierzytelniających
+typu **LLM** — dostawca `anthropic` (Claude), `google` (Gemini) albo `openai` (GPT), identyfikator
+modelu i klucz API — a następnie wybierz ją w ustawieniu `prompt_actions.llm_credentials` i włącz
+`prompt_actions.enabled`. Klucz API jest sekretem tylko do zapisu: szyfrowany w bazie i nigdy nie
+zwracany po zapisaniu. Ekran Poświadczenia oferuje też dostawców, dla których asystent nie ma
+adaptera; odwołanie do takiej konfiguracji pozostawia asystenta nieskonfigurowanego.
+
+Pozycja **Ask the assistant…** jest dostępna tylko wtedy, gdy spełnione są wszystkie trzy warunki:
+asystent jest włączony, odwołanie wskazuje obsługiwanego dostawcę z modelem i kluczem, a Ty masz
+uprawnienie opisane niżej. Gdy któryś z nich nie jest spełniony, paleta nie pokazuje wiersza
+asystenta ani żadnego wyjaśnienia.
+
+Zmiany konfiguracji obowiązują bez restartu i bez przeładowania strony panelu: backend odczytuje
+ustawienia przy każdym poleceniu, a paleta pyta o dostępność asystenta przy każdym otwarciu. Aby
+zapisać klucz API, backend potrzebuje w środowisku zmiennej `SETTINGS_SECRET_ENCRYPTION_KEY`
+(zobacz główny README, sekcja *Environment variables*).
 
 Przyznaj operatorom uprawnienie **Use the prompt assistant** (`prompt_actions:use`) na ekranie ról.
 Każda zaplanowana operacja wymaga dodatkowo tego samego uprawnienia co odpowiadająca jej czynność
