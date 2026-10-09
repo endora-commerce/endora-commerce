@@ -3,6 +3,8 @@ import type { MikroORM } from '@mikro-orm/postgresql';
 import type { Redis } from 'ioredis';
 import { z } from 'zod';
 
+import { PLATFORM_VERSION } from './platform-version.js';
+
 /**
  * The liveness and readiness probe — **the platform's, not a module's**
  * (D-229).
@@ -123,7 +125,12 @@ export async function registerHealthRoutes(app: FastifyInstance, deps: HealthDep
     const body: HealthResponse = {
       status: allOk ? 'ok' : 'degraded',
       checks: { database, redis, meilisearch },
-      version: process.env['npm_package_version'] ?? '0.0.0',
+      // The platform's own release, not the host application's manifest
+      // version — see `platform-version.ts` for why that one answered `0.0.0`
+      // everywhere. `unknown` rather than a number-shaped placeholder when the
+      // release cannot be read: a reader must be able to tell "no answer" from
+      // an answer.
+      version: PLATFORM_VERSION ?? 'unknown',
       uptimeSeconds: Math.round(process.uptime()),
     };
     // Return the reply (not a bare `reply.send()` in an async handler) — Fastify

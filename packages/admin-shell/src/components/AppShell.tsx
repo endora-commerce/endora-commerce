@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useFocusTrap } from './hooks/useFocusTrap.js';
 import { BrandLogo } from './BrandLogo.js';
+import { VersionBadge } from './VersionBadge.js';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Boxes,
@@ -32,6 +33,7 @@ import { NotificationBell } from './notifications/index.js';
 import { useAdminActions } from '../lib/admin-actions/useAdminActions.js';
 import { normalize } from '../lib/text-normalization.js';
 import { useModulePresence } from '../lib/module-presence/index.js';
+import { usePlatformVersion } from '../lib/platform-info/usePlatformVersion.js';
 import {
   useSurfaceVisibility,
   type GatedSurface,
@@ -1039,6 +1041,7 @@ export function AppShell(): ReactNode {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState<Set<string>>(() => loadCollapsed());
   const [railMode, setRailMode] = useState<boolean>(() => loadRailMode());
+  const platformVersion = usePlatformVersion();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [navDrawerOpen, setNavDrawerOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement | null>(null);
@@ -1054,6 +1057,18 @@ export function AppShell(): ReactNode {
     });
   }, []);
   const t = useTranslation('core');
+  // The brand link's tooltip. With a release known it is the full sentence in
+  // either mode: collapsed, the badge has no room and this is the only place
+  // the number is; expanded, the badge takes no pointer events (the whole
+  // header is one click target) and this is what spells out an identifier the
+  // badge had to truncate. A sentence that does not carry the number is an
+  // unresolved key, and the tooltip then stays what it was before the badge.
+  const brandTooltip = useMemo((): string | undefined => {
+    const fallback = railMode ? t('appShell.brand.text') : undefined;
+    if (platformVersion === null) return fallback;
+    const sentence = t('appShell.brand.versionLabel', { version: platformVersion });
+    return sentence.includes(platformVersion) ? sentence : fallback;
+  }, [t, platformVersion, railMode]);
   const navLabel = useNavLabel();
   // The raw, scope-taking resolver, for the breadcrumb: a crumb a module
   // contributed resolves its label in that module's own namespace.
@@ -1133,24 +1148,35 @@ export function AppShell(): ReactNode {
         role="navigation"
         aria-label={t('appShell.mobileMenu.title')}
       >
-        <NavLink
-          to="/"
-          end
-          className="b2b-sidebar__brand"
-          style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
-          aria-label={t('appShell.brand.dashboardLink')}
-          title={railMode ? t('appShell.brand.text') : undefined}
+        {/* The badge is the link's sibling, not its child: the link's
+            `aria-label` replaces its content as the accessible name, so a
+            version inside it would be announced by nothing. */}
+        <div
+          className={cn(
+            'b2b-sidebar__brand-row',
+            platformVersion !== null && 'b2b-sidebar__brand-row--versioned',
+          )}
         >
-          <span className="b2b-sidebar__brand-logo">
-            <BrandLogo label={t('appShell.brand.text')} />
-          </span>
-          <span className="b2b-sidebar__brand-text">
-            {t('appShell.brand.textPrimary')}{' '}
-            <span className="b2b-sidebar__brand-text-accent">
-              {t('appShell.brand.textAccent')}
+          <NavLink
+            to="/"
+            end
+            className="b2b-sidebar__brand"
+            style={{ textDecoration: 'none', color: 'inherit', cursor: 'pointer' }}
+            aria-label={t('appShell.brand.dashboardLink')}
+            title={brandTooltip}
+          >
+            <span className="b2b-sidebar__brand-logo">
+              <BrandLogo label={t('appShell.brand.text')} />
             </span>
-          </span>
-        </NavLink>
+            <span className="b2b-sidebar__brand-text">
+              {t('appShell.brand.textPrimary')}{' '}
+              <span className="b2b-sidebar__brand-text-accent">
+                {t('appShell.brand.textAccent')}
+              </span>
+            </span>
+          </NavLink>
+          {platformVersion !== null ? <VersionBadge version={platformVersion} /> : null}
+        </div>
 
         <div className="b2b-sidebar__search">
           {railMode ? (

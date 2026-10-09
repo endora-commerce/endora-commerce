@@ -2,6 +2,7 @@ import type { MfaEnrolmentCountPort } from '@endora-commerce/contracts';
 import type { ModuleContext } from '../kernel/index.js';
 import { lazyPort } from '../kernel/index.js';
 import type { ApiInterceptorRegistry } from '../http/interceptors/index.js';
+import { registerPlatformInfoRoutes } from '../http/platform-info.js';
 import type { RequireAdminFactory } from '../kernel/ports/require-admin.js';
 import {
   registerApiInterceptorAdminRoutes,
@@ -105,6 +106,18 @@ export function registerModule(ctx: ModuleContext): void {
           requireAdmin: cradle.requireAdmin,
         });
       }
+    },
+  );
+
+  ctx.ungatedRoutes(
+    'Which release this platform is: a fact about the platform itself, read by the admin ' +
+      'header on every screen. There is no module whose absence should take it away, and ' +
+      'gating it on this one would blank the version exactly when an operator is being asked ' +
+      'for it.',
+    (app) => {
+      registerPlatformInfoRoutes(app, {
+        requireAdmin: ctx.cradle<LifecycleCradle>().requireAdmin,
+      });
     },
   );
 }

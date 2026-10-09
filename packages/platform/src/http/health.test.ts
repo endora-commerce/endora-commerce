@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { buildServer } from '../composition/index.js';
 import { healthResponseSchema, healthRoutePlugin, registerHealthRoutes } from './health.js';
+import { PLATFORM_VERSION } from './platform-version.js';
 
 /**
  * D-229 — the liveness probe is served because this is an Endora instance.
@@ -91,6 +92,32 @@ describe('the platform serves the liveness probe with no module composed', () =>
     expect(res.statusCode).toBe(503);
     expect(body.status).toBe('degraded');
     expect(body.checks.redis).toBe(false);
+  });
+
+  /**
+   * The payload said `0.0.0` on every deployment there was. It read
+   * `npm_package_version`, which is the **host application's** manifest version
+   * — `0.0.0` in the reference backend and in a scaffolded instance — and which
+   * is not set at all when a container starts the server with
+   * `node dist/index.js`, so the literal fallback answered instead. The release
+   * an instance runs is the platform package's own version.
+   */
+  it('reports the platform release, whatever the host application calls itself', async () => {
+    const before = process.env['npm_package_version'];
+    process.env['npm_package_version'] = '9.9.9';
+    try {
+      const served = await serveProbes({ pingDatabase: up, pingRedis: up, pingMeilisearch: up });
+
+      const res = await served.inject({ method: 'GET', url: '/api/v1/_health' });
+      const body = healthResponseSchema.parse(res.json());
+
+      expect(PLATFORM_VERSION).toMatch(/^\d+\.\d+\.\d+/);
+      expect(body.version).toBe(PLATFORM_VERSION);
+      expect(body.version).not.toBe('0.0.0');
+    } finally {
+      if (before === undefined) delete process.env['npm_package_version'];
+      else process.env['npm_package_version'] = before;
+    }
   });
 
   /**

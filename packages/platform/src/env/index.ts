@@ -458,23 +458,4 @@ export const PLATFORM_ENVIRONMENT_INPUTS: readonly EnvironmentInput[] = [
     consumers: ['backend'],
     addressOf: null,
   },
-  {
-    name: 'npm_package_version',
-    describes: {
-      en: 'The version this instance reports in its health payload. The package manager sets it when it starts the server; an operator has nothing to choose here.',
-      pl: 'Wersja, którą ta instancja podaje w odpowiedzi kontroli stanu. Ustawia ją menedżer pakietów przy starcie serwera; operator nie ma tu nic do wyboru.',
-    },
-    requirement: {
-      kind: 'optional',
-      without: {
-        en: 'The health payload carries no usable version, so one deployment cannot be told apart from the one before it.',
-        pl: 'Odpowiedź kontroli stanu nie niesie użytecznej wersji, więc nie da się odróżnić jednego wdrożenia od poprzedniego.',
-      },
-    },
-    secret: false,
-    generable: false,
-    owner: { kind: 'platform' },
-    consumers: ['backend'],
-    addressOf: null,
-  },
 ];

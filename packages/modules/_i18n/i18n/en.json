@@ -201,6 +201,7 @@
   "appShell.brand.text": "Endora Commerce",
   "appShell.brand.textPrimary": "Endora",
   "appShell.brand.textAccent": "Commerce",
+  "appShell.brand.versionLabel": "Endora Commerce version {version}",
   "appShell.collapse.collapse": "Collapse",
   "appShell.collapse.expand": "Expand",
   "appShell.crumb.audit": "Audit",
