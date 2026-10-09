@@ -54,6 +54,7 @@ export interface UpsertDeliveryMethodResult {
 
 export function makeUpsertDeliveryMethodCommand(
   input: UpsertDeliveryMethodInput,
+  countShipmentsForMethod: ShipmentUsageCounter,
 ): Command<UpsertDeliveryMethodResult> {
   const { body } = input;
   const id = input.existingId ?? randomUUID();
@@ -77,6 +78,30 @@ export function makeUpsertDeliveryMethodCommand(
       // row defaults its adapter to the code. Resolved here rather than in the
       // caller so it reads the row the transaction sees.
       const adapter = body.adapter ?? row?.adapter ?? input.code;
+
+      // Rebinding a method that shipments already reference is refused. A
+      // `Shipment` records its delivery method and not the adapter that opened
+      // it, so every later read of "which carrier is this parcel with" goes
+      // through this column: the `providerDetails` envelope is opaque to
+      // everyone but the adapter that wrote it, a retry of a failed attempt
+      // fires `onShipmentCreated` on whatever the method names *now*, and the
+      // `shipment.received.v1` / `shipment.failed.v1` events report it too. A
+      // rebind would hand one carrier's parcels to another. The operator's way
+      // out loses nothing: set this method inactive and create one for the
+      // other adapter. An unchanged adapter asks `shipments` nothing, so an
+      // ordinary edit costs no cross-module read.
+      if (row !== null && adapter !== row.adapter) {
+        const referencing = await countShipmentsForMethod(row.id, 'change-adapter');
+        if (referencing > 0) {
+          throw new HttpError(
+            409,
+            ERROR_CODES.VALIDATION_FAILED,
+            `Cannot change the adapter of delivery method "${row.code}": ${referencing} ` +
+              `shipment(s) were created against it through "${row.adapter}". Set its status to ` +
+              '"inactive" and create a new method for the other adapter instead.',
+          );
+        }
+      }
 
       if (row) {
         row.name = body.name;
@@ -133,7 +158,14 @@ export function makeUpsertDeliveryMethodCommand(
  *      switched off — the answer is a refusal, and it is the caller's to make
  *      before it resolves anything.
  */
-export type ShipmentUsageCounter = (deliveryMethodId: string) => Promise<number>;
+export type ShipmentUsageCounter = (
+  deliveryMethodId: string,
+  /** Which write is asking — it only selects the refusal's wording. Defaults to `'delete'`. */
+  intent?: ShipmentUsageIntent,
+) => Promise<number>;
+
+/** The two writes the count guards: removing a method, and rebinding its adapter. */
+export type ShipmentUsageIntent = 'delete' | 'change-adapter';
 
 export function makeDeleteDeliveryMethodCommand(
   id: string,

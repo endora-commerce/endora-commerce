@@ -151,6 +151,28 @@ describe('delivery_methods permission authority', () => {
     );
   });
 
+  it('gates the adapter list on delivery_methods:read, like the list it serves', async () => {
+    // The picker's read is the screen's own: the role that opens the screen
+    // opens it, and no neighbouring code does.
+    for (const denied of [CATALOG_EDITOR, SEEDED_SALES_REP]) {
+      expectForbidden(
+        await h.app.inject({
+          method: 'GET',
+          url: '/api/v1/admin/delivery-methods/adapters',
+          ...denied,
+        }),
+      );
+    }
+
+    const served = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/admin/delivery-methods/adapters',
+      ...DELIVERY_VIEWER,
+    });
+    expect(served.statusCode).toBe(200);
+    expect((served.json() as { data: unknown[] }).data.length).toBeGreaterThan(0);
+  });
+
   it('refuses the configuration write to a role holding catalog:write and not delivery_methods:write', async () => {
     const { id, code } = await seedMethod();
 

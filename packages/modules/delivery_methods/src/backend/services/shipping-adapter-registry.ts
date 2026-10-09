@@ -24,8 +24,9 @@ import { ModuleDisabledError } from '@endora-commerce/platform/kernel';
  * modules are being composed, so an adapter that is not in the table yet — or
  * whose owner is switched off — is not a fault a contributor can observe, let
  * alone react to. The reads are `ShippingMethodEligibilityService.filter` on
- * `GET /api/v1/delivery-methods`, the `isRegistered` guard on the admin upsert
- * `PUT /api/v1/admin/delivery-methods/:code`, `orders` re-validating the chosen
+ * `GET /api/v1/delivery-methods`, `list` behind the admin adapter picker
+ * `GET /api/v1/admin/delivery-methods/adapters`, the `isRegistered` guard on the
+ * admin upsert `PUT /api/v1/admin/delivery-methods/:code`, `orders` re-validating the chosen
  * method and firing `onOrderCreated` at placement, `ShipmentService.create`
  * firing `onShipmentCreated`, and the order-confirmation e-mail resolving
  * `renderers.email`. Each of those runs inside a request, after every boot hook

@@ -1,6 +1,9 @@
 import { ERROR_CODES, type ShipmentUsagePort } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import type { ShipmentUsageCounter } from '../commands/delivery-method.commands.js';
+import type {
+  ShipmentUsageCounter,
+  ShipmentUsageIntent,
+} from '../commands/delivery-method.commands.js';
 
 /** What the counter needs, so a test supplies both halves without a container. */
 export interface ShipmentUsageCounterDeps {
@@ -31,16 +34,27 @@ export interface ShipmentUsageCounterDeps {
  * not. So the operator is told which switch to flip and nothing is destroyed.
  */
 export function makeShipmentUsageCounter(deps: ShipmentUsageCounterDeps): ShipmentUsageCounter {
-  return async (deliveryMethodId: string): Promise<number> => {
+  return async (deliveryMethodId, intent = 'delete'): Promise<number> => {
     if (!deps.isShipmentsPresent()) {
-      throw new HttpError(
-        409,
-        ERROR_CODES.VALIDATION_FAILED,
-        'Cannot delete delivery method: the "shipments" module is switched off, so the ' +
-          'platform cannot tell whether any shipment was created against this method. ' +
-          'Switch shipments on and try again, or set this method\'s status to "inactive".',
-      );
+      throw new HttpError(409, ERROR_CODES.VALIDATION_FAILED, SHIPMENTS_OFF_REFUSAL[intent]);
     }
     return deps.shipmentUsage().countForDeliveryMethod(deliveryMethodId);
   };
 }
+
+/**
+ * The refusal per question asked. Changing a method's adapter is refused blind
+ * for the reason the delete is: the count is the only thing that says whether
+ * parcels were already handed to the carrier this method is bound to, and with
+ * `shipments` off nobody can take it.
+ */
+const SHIPMENTS_OFF_REFUSAL: Record<ShipmentUsageIntent, string> = {
+  delete:
+    'Cannot delete delivery method: the "shipments" module is switched off, so the ' +
+    'platform cannot tell whether any shipment was created against this method. ' +
+    'Switch shipments on and try again, or set this method\'s status to "inactive".',
+  'change-adapter':
+    'Cannot change the adapter of this delivery method: the "shipments" module is switched ' +
+    'off, so the platform cannot tell whether any shipment was created against this method. ' +
+    'Switch shipments on and try again, or create a new method for the other adapter.',
+};

@@ -1,6 +1,12 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { ERROR_CODES, deliveryMethodUpsertSchema } from '@endora-commerce/contracts';
+import {
+  ERROR_CODES,
+  deliveryMethodUpsertSchema,
+  type DeliveryMethodAdapterOption,
+  type DeliveryMethodAdminListItem,
+  type DeliveryMethodAvailability,
+} from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
@@ -9,7 +15,11 @@ import {
   type ShipmentUsageCounter,
 } from './commands/delivery-method.commands.js';
 import { DeliveryMethod } from './entities/delivery-method.entity.js';
-import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import {
+  effectiveState,
+  toModulePresenceDto,
+  type SalesChannelMembershipPort,
+} from '@endora-commerce/platform/kernel';
 import type { ShippingAdapterRegistry } from './services/shipping-adapter-registry.js';
 import type { ShippingMethodEligibilityService } from './services/shipping-method-eligibility.js';
 import {
@@ -54,7 +64,8 @@ export interface DeliveryMethodsAdminDeps {
    * Feature 075 — the FR-003 delete guard's count, asked of `shipments` because
    * the rows are its own. Required, not optional: a guard that can be left out
    * is a guard that silently is, and it is the only thing protecting shipment
-   * history from a delete (there is no foreign key).
+   * history from a delete (there is no foreign key). The upsert asks it too,
+   * before it rebinds a method to another adapter.
    */
   countShipmentsForMethod: ShipmentUsageCounter;
 }
@@ -112,6 +123,29 @@ export async function registerDeliveryMethodsAdminRoutes(
     },
   );
 
+  /**
+   * The adapters an operator may bind a method to — powers the adapter picker
+   * on `/delivery-methods`.
+   *
+   * `list()` and not `listAll()`: the picker offers what can ship a parcel now,
+   * so a carrier module an operator switched off drops out of the choice while
+   * the rows already bound to it keep saying why they are unavailable (the
+   * `availability` projection below). Registered before the `:code` write so
+   * the literal segment is never read as a method code.
+   */
+  app.get(
+    '/api/v1/admin/delivery-methods/adapters',
+    { preHandler: requireAdmin('delivery_methods:read') },
+    async () => {
+      const registry = deps.registry;
+      const data: DeliveryMethodAdapterOption[] = (registry?.list() ?? []).map((key) => ({
+        key,
+        ownerModule: registry?.ownerOf(key) ?? '',
+      }));
+      return { data };
+    },
+  );
+
   // Note: `GET /api/v1/admin/order-statuses` is registered once by the
   // payment-methods admin routes (same OrderStatusRegistry data); the admin
   // delivery-methods page reuses that endpoint for its status selectors. Since
@@ -130,11 +164,24 @@ export async function registerDeliveryMethodsAdminRoutes(
       const body = deliveryMethodUpsertSchema.parse(request.body);
       const em = deps.emFactory();
 
-      // Only hard-reject an *explicitly* provided unknown adapter. A row whose
-      // derived adapter is not registered is retained but excluded from
-      // selection by the eligibility filter (FR-003), so admins can still
-      // manage catalog rows whose adapter module is currently disabled.
-      if (body.adapter !== undefined && deps.registry && !deps.registry.isRegistered(body.adapter)) {
+      // The read tells the Command whether this call creates or updates, and
+      // tells the adapter guard below what the row is bound to now; the write
+      // itself happens inside the bus transaction, which is also where the
+      // adapter is resolved against the row it finds (#125).
+      const existing = await em.findOne(DeliveryMethod, { code: request.params.code });
+
+      // Only hard-reject an explicitly provided unknown adapter the row does
+      // not already carry. A row whose adapter is not registered is retained
+      // but excluded from selection by the eligibility filter (FR-003), so an
+      // admin can still manage — re-price, deactivate — a row whose carrier
+      // module is gone, and a form that sends the adapter it was shown does not
+      // turn that edit into a 400. Choosing an unknown key is what is refused.
+      if (
+        body.adapter !== undefined &&
+        body.adapter !== existing?.adapter &&
+        deps.registry &&
+        !deps.registry.isRegistered(body.adapter)
+      ) {
         throw new HttpError(
           400,
           ERROR_CODES.VALIDATION_FAILED,
@@ -148,16 +195,15 @@ export async function registerDeliveryMethodsAdminRoutes(
         }
       }
 
-      // The read below only tells the Command whether this call creates or
-      // updates; the write itself happens inside the bus transaction, which is
-      // also where the adapter is resolved against the row it finds (#125).
-      const existing = await em.findOne(DeliveryMethod, { code: request.params.code });
       const { method: row, created: isNew } = await deps.commandBus.run(
-        makeUpsertDeliveryMethodCommand({
-          code: request.params.code,
-          body,
-          existingId: existing?.id ?? null,
-        }),
+        makeUpsertDeliveryMethodCommand(
+          {
+            code: request.params.code,
+            body,
+            existingId: existing?.id ?? null,
+          },
+          deps.countShipmentsForMethod,
+        ),
       );
 
       // Channel membership is the sales-channel bridge's own write, on its own
@@ -231,7 +277,29 @@ function serializeDeliveryMethod(m: DeliveryMethod, deps: { registry?: ShippingA
   };
 }
 
-async function serializeAdmin(m: DeliveryMethod, deps: DeliveryMethodsAdminDeps) {
+/**
+ * Why this method is — or is not — offered at checkout, read off the registry
+ * the public list filters on. Presence-blind for the owner and presence-aware
+ * for the verdict, like the payment twin: an admin has to see the row *and*
+ * which module would bring it back.
+ */
+function availabilityOf(
+  m: DeliveryMethod,
+  deps: { registry?: ShippingAdapterRegistry },
+): DeliveryMethodAvailability {
+  const ownerModule = deps.registry?.ownerOf(m.adapter) ?? null;
+  const presence = ownerModule === null ? undefined : effectiveState.presence(ownerModule);
+  return {
+    ownerModule,
+    available: deps.registry?.isAvailable(m.adapter) ?? false,
+    ownerPresence: presence ? toModulePresenceDto(presence) : null,
+  };
+}
+
+async function serializeAdmin(
+  m: DeliveryMethod,
+  deps: DeliveryMethodsAdminDeps,
+): Promise<DeliveryMethodAdminListItem> {
   const channels = deps.salesChannelMembership
     ? await deps.salesChannelMembership.listChannelsForEntity('delivery-method', m.id)
     : [];
@@ -246,5 +314,6 @@ async function serializeAdmin(m: DeliveryMethod, deps: DeliveryMethodsAdminDeps)
     statusOnFailure: m.statusOnFailure,
     salesChannelIds: channels.map((c) => c.id),
     rendererKey: deps.registry?.get(m.adapter)?.renderers?.admin ?? null,
+    availability: availabilityOf(m, deps),
   };
 }

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { uuidSchema } from './common.js';
+import { ModulePresenceSchema } from './modules.js';
 import type { OrderStatusOption } from './payment-methods.js';
 
 /**
@@ -36,6 +37,11 @@ export type DeliveryMethodName = z.infer<typeof deliveryMethodNameSchema>;
  * statuses (shipped / in_fulfilment) when omitted — keeping the pre-feature-035
  * payload (`{ code, name, cost, currency }`) valid while letting the richer
  * admin form send the full configuration.
+ *
+ * **Send `adapter` when creating a method.** The `code` default only yields a
+ * method that can be offered when the code happens to be a registered adapter
+ * key; otherwise the row is saved and never reaches checkout. The response's
+ * `availability.available` says which of the two happened.
  */
 export const deliveryMethodUpsertSchema = z.object({
   code: z.string().min(1).max(64).optional(),
@@ -64,6 +70,58 @@ export const deliveryMethodAdminSchema = z.object({
   rendererKey: z.string().nullable(),
 });
 export type DeliveryMethodAdmin = z.infer<typeof deliveryMethodAdminSchema>;
+
+/**
+ * Why a delivery method can — or cannot — be offered at checkout.
+ *
+ * The delivery-side twin of `paymentMethodAvailabilitySchema`, the same three
+ * fields for the same reason: a method ships through an adapter, an adapter is
+ * contributed by a module, and `GET /api/v1/delivery-methods` drops a method
+ * whose adapter is not registered or whose contributor is absent. The buyer
+ * never sees such a method; the admin keeps the row and needs the reason.
+ *
+ * `ownerModule` is `null` when no module contributes the method's adapter at
+ * all — a row created with an adapter key nobody registered, or a carrier
+ * module removed from the deployment — and `ownerPresence` is then `null` too.
+ * `available` is "registered **and** its owner effectively present".
+ */
+export const deliveryMethodAvailabilitySchema = z.object({
+  ownerModule: z.string().nullable(),
+  available: z.boolean(),
+  ownerPresence: ModulePresenceSchema.nullable(),
+});
+export type DeliveryMethodAvailability = z.infer<typeof deliveryMethodAvailabilitySchema>;
+
+/**
+ * One row of the admin delivery-method list and the body the admin upsert
+ * answers with: the stored configuration plus its availability.
+ *
+ * A separate schema rather than a field on `deliveryMethodAdminSchema`, because
+ * that one is also what `ShippingEligibilityContext.deliveryMethod` hands an
+ * adapter's validator — which is asked *whether* the method is offered and
+ * cannot be told the answer.
+ */
+export const deliveryMethodAdminListItemSchema = deliveryMethodAdminSchema.extend({
+  availability: deliveryMethodAvailabilitySchema,
+});
+export type DeliveryMethodAdminListItem = z.infer<typeof deliveryMethodAdminListItemSchema>;
+
+/**
+ * One adapter an operator may bind a delivery method to —
+ * `GET /api/v1/admin/delivery-methods/adapters`.
+ *
+ * The list holds the adapters whose contributing module is effectively present,
+ * so it shrinks when a carrier module is switched off and grows when one is
+ * installed. An object rather than the bare key the payment twin answers with,
+ * so the shape can gain a field without breaking a reader. `key` is a machine
+ * token and is never translated; the consumer owns the label it shows for it.
+ */
+export const deliveryMethodAdapterOptionSchema = z.object({
+  key: z.string(),
+  /** The module that contributed the adapter. */
+  ownerModule: z.string(),
+});
+export type DeliveryMethodAdapterOption = z.infer<typeof deliveryMethodAdapterOptionSchema>;
 
 /** Storefront list item — what checkout needs to render an eligible method. */
 export const deliveryMethodListItemSchema = z.object({
