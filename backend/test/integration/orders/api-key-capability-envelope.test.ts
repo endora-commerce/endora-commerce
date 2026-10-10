@@ -15,6 +15,7 @@ import {
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 
 import {
+  seedCartForStubCustomer,
   seedSuspendedOrganization,
   SEED_ADDRESS_BILLING_ID,
   SEED_ADDRESS_DELIVERY_ID,
@@ -45,7 +46,7 @@ import { DeliveryMethod } from '../../helpers/package-entities.js';
  *    the SAME 423 the org's own buyer gets;
  *  - org-restriction allow-lists (`h.organizations.restrictionService`, the
  *    feature-026 fixture service) ⇒ a method outside the allow-list is
- *    refused with the customer flow's method-unavailable error;
+ *    refused with the refusal the org's own buyer gets at checkout;
  *  - credit-limit fixture (`seedCreditLimitRaceFixture`) ⇒ an over-limit key
  *    order gets the same 409 LIMIT_INSUFFICIENT the buyer gets.
  *
@@ -55,6 +56,18 @@ import { DeliveryMethod } from '../../helpers/package-entities.js';
  */
 
 const ADMIN_COOKIE = { b2b_session: 'stub-admin-session' };
+
+interface MethodRefusal {
+  code: string;
+  message: string;
+  details?: { code?: string };
+}
+
+/** What a refusal says, without the per-request id the envelope also carries. */
+function refusalOf(res: { json: () => unknown }): MethodRefusal {
+  const { code, message, details } = (res.json() as { error: MethodRefusal }).error;
+  return { code, message, ...(details ? { details } : {}) };
+}
 
 describe('external order intake — org capability envelope (062 / T022)', () => {
   let h: BackendServerHandle;
@@ -82,6 +95,28 @@ describe('external order intake — org capability envelope (062 / T022)', () =>
         'idempotency-key': `env-${randomUUID()}`,
       },
     });
+
+  /**
+   * The same seeded methods and addresses, submitted by Organization A's own
+   * buyer — from a basket seeded here, so the answer is about the methods and
+   * not about whatever an earlier case left in the basket.
+   */
+  const placeAsBuyer = async () => {
+    const em = h.em();
+    await em.nativeDelete(Cart, { customerAccountId: TEST_CUSTOMER_ID, status: 'active' });
+    await seedCartForStubCustomer(em);
+    return h.app.inject({
+      method: 'POST',
+      url: '/api/v1/orders',
+      payload: {
+        deliveryAddressId: SEED_ADDRESS_DELIVERY_ID,
+        billingAddressId: SEED_ADDRESS_BILLING_ID,
+        deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+        paymentMethodId: SEED_PAYMENT_METHOD_ID,
+      },
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+  };
 
   const mint = async (payload: Record<string, unknown>): Promise<string> => {
     const res = await h.app.inject({
@@ -291,14 +326,18 @@ describe('external order intake — org capability envelope (062 / T022)', () =>
     const offered = (listing.json() as { data: Array<{ id: string }> }).data.map((m) => m.id);
     expect(offered).not.toContain(SEED_PAYMENT_METHOD_ID);
 
-    // Key surface: submitting the disallowed method is refused with the
-    // customer flow's method-unavailable error (same code + message as the
-    // placeOrder usability guard).
+    // Key surface: submitting the disallowed method is refused, and by the
+    // refusal the org's own buyer gets — both surfaces reach the one gate in
+    // `OrderService` (`organization-method-allow-list-gate.ts`).
     const keyRes = await postKey(orgAToken, keyPayload());
     expect(keyRes.statusCode).toBe(400);
-    const err = (keyRes.json() as { error: { code: string; message: string } }).error;
+    const err = (keyRes.json() as { error: MethodRefusal }).error;
     expect(err.code).toBe(ERROR_CODES.VALIDATION_FAILED);
-    expect(err.message).toBe('The selected payment method is not available for this order.');
+    expect(err.details?.code).toBe('payment_method_not_allowed_for_organization');
+
+    const buyerRes = await placeAsBuyer();
+    expect(buyerRes.statusCode).toBe(400);
+    expect(refusalOf(buyerRes)).toEqual(refusalOf(keyRes));
   });
 
   it('delivery method outside the org allow-list is refused identically', async () => {
@@ -313,8 +352,12 @@ describe('external order intake — org capability envelope (062 / T022)', () =>
 
     const keyRes = await postKey(orgAToken, keyPayload());
     expect(keyRes.statusCode).toBe(400);
-    const err = (keyRes.json() as { error: { code: string; message: string } }).error;
+    const err = (keyRes.json() as { error: MethodRefusal }).error;
     expect(err.code).toBe(ERROR_CODES.VALIDATION_FAILED);
-    expect(err.message).toBe('The selected shipping method is not available for this order.');
+    expect(err.details?.code).toBe('delivery_method_not_allowed_for_organization');
+
+    const buyerRes = await placeAsBuyer();
+    expect(buyerRes.statusCode).toBe(400);
+    expect(refusalOf(buyerRes)).toEqual(refusalOf(keyRes));
   });
 });

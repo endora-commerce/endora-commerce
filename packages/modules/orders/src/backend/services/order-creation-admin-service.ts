@@ -83,6 +83,16 @@ export class OrderCreationAdminService {
     const organizationId = customer.organizationId;
     const customerCtx = { customerAccountId: input.customerAccountId, organizationId };
 
+    // The customer's Organization allow-lists bind the operator too. Asked
+    // here as well as inside `placeOrder`, because this method replaces the
+    // customer's basket before it places: nothing is written yet, no inline
+    // address either.
+    await this.orderService.assertMethodsAllowedForOrganization({
+      organizationId,
+      deliveryMethodId: input.deliveryMethodId,
+      paymentMethodId: input.paymentMethodId,
+    });
+
     // Resolve each address side to an org address id. An inline address is
     // created in the org book (so placeOrder can look it up and snapshot it);
     // a non-saved inline address is soft-deleted again after placement — the

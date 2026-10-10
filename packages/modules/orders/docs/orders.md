@@ -93,6 +93,41 @@ payment and shipping adapters' validators are given that channel id too, where
 they were given none. An instance that set the minimum platform-wide, or not at
 all, sees no change.
 
+## Method allow-lists at placement
+
+An Organization can be restricted to a subset of delivery and payment methods
+(see the `organizations` module, *Per-organization commercial scoping*).
+Placement and both previews refuse a method outside a non-empty list with
+`400 VALIDATION_FAILED`:
+
+| `error.details.code` | Also carries | Meaning |
+| --- | --- | --- |
+| `delivery_method_not_allowed_for_organization` | `deliveryMethodId` | The Organization's delivery allow-list does not contain the chosen method |
+| `payment_method_not_allowed_for_organization` | `paymentMethodId` | The Organization's payment allow-list does not contain the chosen method |
+
+- **Where** — `POST /api/v1/orders`, `POST /api/v1/orders/preview-total`,
+  `POST /api/v1/admin/orders`, `POST /api/v1/admin/orders/preview`,
+  `POST /api/v1/external/orders`, and every other caller of
+  `orderPlacementPort.placeOrder`. One-click buy does not reach the refusal: a
+  default method the list excludes makes the buyer ineligible
+  (`one_click_unavailable`, reason `missing_defaults`).
+- **Which Organization** — the one the order is placed for: the signed-in
+  buyer's, the one an API key is bound to, or the customer's when an
+  administrator creates the order. A request cannot name another.
+- **Empty means unrestricted** — an empty list, or no list, allows every active
+  method, and the two lists are independent.
+- **Nothing is written** — no order, stock reservation or payment, and the
+  customer's basket is unchanged. Admin create and the API-key intake check
+  before they replace the basket.
+- **Administrators are bound too** — by decision, an order created on a
+  customer's behalf honours that customer's Organization allow-lists, and no
+  setting exempts it. The create form lists every method; the preview and the
+  create answer the refusal above for one the Organization does not allow.
+- **When both methods are outside the lists** the delivery method is the one
+  reported.
+- **When the lists cannot be read** the request answers `500 INTERNAL` and
+  nothing is placed, as the two method listings do.
+
 ## Status machine (configurable)
 
 The order lifecycle is **admin-configurable**: statuses and allowed

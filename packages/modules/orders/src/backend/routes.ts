@@ -808,6 +808,14 @@ export async function registerOrderRoutes(
         (await em.findOne(SalesChannel, { status: 'active' }));
       if (!salesChannel) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Sales channel not found.');
       const organization = await deps.organizationDetails.findById(customer.organizationId);
+      // The refusal creating this order would raise, so the form is not shown
+      // totals for a method the customer's Organization may not use. Only the
+      // methods the form has chosen so far are judged.
+      await orderService.assertMethodsAllowedForOrganization({
+        organizationId: customer.organizationId,
+        deliveryMethodId: body.deliveryMethodId,
+        paymentMethodId: body.paymentMethodId,
+      });
       const deliveryMethodRead = deps.deliveryMethodRead();
       const paymentMethodRead = deps.paymentMethodRead();
       const deliveryMethod =

@@ -141,6 +141,7 @@ import type {
   OrderStatusRegistry,
   OrganizationDetailsPort,
   OrganizationRecord,
+  OrganizationRestrictionPort,
   PaymentAdapterRegistryPort,
   PaymentMethodReadPort,
   PaymentMethodRecord,
@@ -157,6 +158,10 @@ import {
   noCarrierShippingLineRenderer,
   noGatewayPaymentLineRenderer,
 } from '../email-templates/adapter-line-baselines.js';
+import {
+  assertMethodsAllowedForOrganization,
+  type OrganizationMethodChoice,
+} from './organization-method-allow-list-gate.js';
 
 
 export interface OrderEvents extends Record<string, EventBase> {
@@ -217,7 +222,8 @@ export interface CustomerContext {
  *   1. Cart must be non-empty → else 409 CART_EMPTY.
  *   2. Organization must be active → else 423 ORGANIZATION_SUSPENDED.
  *   3. Addresses must belong to the org → else 403 ADDRESS_NOT_OWNED.
- *   4. Delivery + payment methods must be active.
+ *   4. Delivery + payment methods must be on the Organization's allow-lists
+ *      (when it has any) and active.
  *   5. Reserve each line through `inventoryReservationApplyPort`, which takes
  *      this transaction's SELECT … FOR UPDATE lock — if (on_hand - reserved) <
  *      quantity, raise 409 STOCK_UNAVAILABLE.
@@ -237,6 +243,14 @@ export interface CustomerContext {
  */
 export interface OrderServiceNeighbourPorts {
   readonly organizationDetails: OrganizationDetailsPort;
+  /**
+   * `organizations` — the Organization's delivery- and payment-method
+   * allow-lists, which placement and the total preview refuse against
+   * (`organization-method-allow-list-gate.ts`). Not an accessor: `organizations`
+   * is a binding dependency, so an absent owner refuses the placement at the
+   * port instead of reading as "no restriction".
+   */
+  readonly organizationRestriction: OrganizationRestrictionPort;
   readonly customerAccountRead: CustomerAccountReadPort;
   readonly addressRead: AddressReadPort;
   readonly catalogProductRead: CatalogProductReadPort;
@@ -991,6 +1005,17 @@ export class OrderService {
     return method && method.status === 'active' ? method : null;
   }
 
+  /**
+   * Refuses a delivery or payment method the Organization's allow-lists
+   * exclude. The one implementation of that rule for this module:
+   * {@link placeOrder} and {@link previewTotal} call it, and so do the callers
+   * that replace the buyer's basket before they place — admin create and the
+   * API-key intake — so that their refusal comes before the basket is touched.
+   */
+  async assertMethodsAllowedForOrganization(choice: OrganizationMethodChoice): Promise<void> {
+    await assertMethodsAllowedForOrganization(this.neighbours.organizationRestriction, choice);
+  }
+
   private async computeMonetaryTotals(input: {
     items: Array<{
       productId: string;
@@ -1161,6 +1186,13 @@ export class OrderService {
     if (!cart || items.length === 0) {
       throw new HttpError(409, ERROR_CODES.CART_EMPTY, 'Cart is empty.');
     }
+    // The same refusal the placement gives, so a checkout is never shown totals
+    // for a method its Organization may not use.
+    await this.assertMethodsAllowedForOrganization({
+      organizationId: ctx.organizationId,
+      deliveryMethodId: req.deliveryMethodId,
+      paymentMethodId: req.paymentMethodId,
+    });
     const deliveryMethod = await this.activeDeliveryMethod(req.deliveryMethodId);
     if (!deliveryMethod) {
       throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Delivery method is not active.');
@@ -1373,6 +1405,18 @@ export class OrderService {
       if (!delivery || !billing) {
         throw new HttpError(403, ERROR_CODES.ADDRESS_NOT_OWNED, 'Address does not belong to the caller organization.');
       }
+
+      // The Organization's method allow-lists. The storefront catalogues list
+      // only the allowed methods; this is the refusal behind that listing, for
+      // every surface that places through here, against the Organization in
+      // `ctx` — the one the caller resolved, never one a request named. Before
+      // anything is written: the basket has only been read so far. No caller
+      // is exempt — an administrator placing on a customer's behalf included.
+      await this.assertMethodsAllowedForOrganization({
+        organizationId: ctx.organizationId,
+        deliveryMethodId: req.deliveryMethodId,
+        paymentMethodId: req.paymentMethodId,
+      });
 
       const deliveryMethod = await this.activeDeliveryMethod(req.deliveryMethodId);
       if (!deliveryMethod) {

@@ -72,6 +72,10 @@ const placedOrder = { id: ORDER_ID, businessId: 'ORD-1' };
 
 const orderService = {
   placeOrder: async () => placedOrder,
+  // Both services ask the Organization's method allow-lists before they touch
+  // the basket; these cases are about the address cleanup, so nothing is
+  // restricted.
+  assertMethodsAllowedForOrganization: async () => undefined,
 } as unknown as OrderService;
 
 describe('OrderCreationAdminService — inline-address cleanup', () => {

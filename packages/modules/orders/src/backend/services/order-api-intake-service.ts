@@ -68,16 +68,6 @@ export interface OrderApiIntakeDeps {
   pricingService: LinePricePort;
   /** Per-key intake lock (research §R8 step 2). Absent ⇒ no serialization. */
   redis?: Redis | undefined;
-  /**
-   * Feature 026 US4 — the org's method allow-lists (empty list = no
-   * restriction). The customer flow enforces these at the storefront listing
-   * / preflight seam; this surface has no listing step, so the same rule is
-   * applied here with the customer flow's method-unavailable refusal.
-   */
-  resolveOrganizationMethodAllowLists?: ((organizationId: string) => Promise<{
-    paymentMethodIds: string[];
-    deliveryMethodIds: string[];
-  } | null>) | undefined;
   /** Audit attribution of key placements (`order.place_via_api_key`). */
   auditLogService?: AuditPort | undefined;
 }
@@ -172,34 +162,16 @@ export class OrderApiIntakeService {
     const channel = await em.findOne(SalesChannel, { id: binding.salesChannelId });
     const organization = await this.deps.organizationDetails.findById(binding.organizationId);
 
-    // FR-021 — the org's method allow-lists (feature 026 US4). The customer
-    // flow never offers a disallowed method; this surface refuses it with the
-    // same method-unavailable error the customer submit guard emits.
-    const allowLists = await this.deps
-      .resolveOrganizationMethodAllowLists?.(binding.organizationId)
-      .catch(() => null);
-    if (allowLists) {
-      if (
-        allowLists.paymentMethodIds.length > 0 &&
-        !allowLists.paymentMethodIds.includes(body.paymentMethodId)
-      ) {
-        throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
-          'The selected payment method is not available for this order.',
-        );
-      }
-      if (
-        allowLists.deliveryMethodIds.length > 0 &&
-        !allowLists.deliveryMethodIds.includes(body.deliveryMethodId)
-      ) {
-        throw new HttpError(
-          400,
-          ERROR_CODES.VALIDATION_FAILED,
-          'The selected shipping method is not available for this order.',
-        );
-      }
-    }
+    // FR-021 — the bound Organization's method allow-lists (feature 026 US4).
+    // The rule and its refusal are `OrderService`'s, the same ones `placeOrder`
+    // applies to every surface; it is asked here as well because this method
+    // replaces the service account's basket before it places, and a refusal
+    // that waited for `placeOrder` would leave that basket replaced.
+    await this.deps.orderService.assertMethodsAllowedForOrganization({
+      organizationId: binding.organizationId,
+      deliveryMethodId: body.deliveryMethodId,
+      paymentMethodId: body.paymentMethodId,
+    });
 
     // Step 4 — SKU → product + bound-channel assortment + resolvable price.
     // Refusals are whole-order 422 with per-line issues; nothing persists.
