@@ -1966,6 +1966,19 @@ export class OrderService {
               409,
               ERROR_CODES.LIMIT_INSUFFICIENT,
               `Available credit limit (${result.availableAmount}) is below order total (${total}).`,
+              // Issue #86 — the figures the sentence above carried and the
+              // bundle sentence that replaces it did not. Two-decimal strings
+              // rather than numbers: the envelope substitutes a placeholder
+              // with `String(value)` and formats nothing, so `999.5` would be
+              // what the buyer read. The currency travels beside them so the
+              // sentence is never a bare number. Both amounts are the placing
+              // organization's own — what `GET /me/credit-limit` already tells
+              // the same buyer, and the total of the order they are placing.
+              {
+                availableAmount: result.availableAmount.toFixed(2),
+                orderTotal: total.toFixed(2),
+                currency,
+              },
             );
           }
           if (result.code === 'CREDIT_LIMIT_NOT_GRANTED') {
