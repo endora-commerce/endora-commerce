@@ -1,5 +1,6 @@
 {
   "nav.apiKeys.label": "API keys",
   "actions.openApiKeys.label": "API keys",
-  "actions.openApiKeys.description": "Machine-to-machine bearer tokens"
+  "actions.openApiKeys.description": "Machine-to-machine bearer tokens",
+  "errors.API_KEY_OUT_OF_SCOPE": "API key lacks the required scope: {requiredScope}."
 }

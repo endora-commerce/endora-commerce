@@ -86,6 +86,7 @@ All API errors use the standard envelope:
   "error": {
     "code": "API_KEY_OUT_OF_SCOPE",
     "message": "API key lacks the required scope: catalog:write.",
+    "details": { "requiredScope": "catalog:write" },
     "requestId": "req_…"
   }
 }
