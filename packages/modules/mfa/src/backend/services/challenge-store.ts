@@ -51,6 +51,17 @@ export interface OAuthTransaction {
   next: string;
 }
 
+/**
+ * Count one attempt and (re)arm the counter's expiry in the same step, so the
+ * counter is collected with the challenge it counts for whatever happens to
+ * the caller in between. KEYS[1] the counter, ARGV[1] its lifetime in seconds.
+ */
+const TAKE_ATTEMPT_SCRIPT = `
+local taken = redis.call('INCR', KEYS[1])
+redis.call('EXPIRE', KEYS[1], ARGV[1])
+return taken
+`;
+
 function generationKey(subjectType: 'customer' | 'admin', subjectId: string): string {
   return `${GENERATION_PREFIX}${subjectType}:${subjectId}`;
 }
@@ -125,20 +136,23 @@ export class ChallengeStore {
 
   /**
    * Take one attempt from the challenge's budget, **before** the code is
-   * checked. Answers how many are left afterwards, or `-1` when there was none
-   * to take — the challenge is then burned.
+   * checked. Answers how many are left afterwards; `-1` when there was none to
+   * take — the challenge is then burned; and `null` when there is no such
+   * challenge any more — consumed, expired or withdrawn — which is "start
+   * over" rather than "too many attempts".
    *
-   * The count is one `INCR`, so of any number of attempts taken at the same
-   * time exactly the budget are admitted. The budget used to be read, the code
-   * checked, and the budget written back: codes sent together were all checked
-   * against the same unspent budget, and five was not a limit.
+   * The count is one script, so of any number of attempts taken at the same
+   * time exactly the budget are admitted, and the counter can never be left
+   * without an expiry. The budget used to be read, the code checked, and the
+   * budget written back: codes sent together were all checked against the same
+   * unspent budget, and five was not a limit.
    */
-  async takeAttempt(id: string): Promise<number> {
+  async takeAttempt(id: string): Promise<number | null> {
     const challenge = await this.getChallenge(id);
-    if (!challenge) return -1;
-    const taken = await this.redis.incr(ATTEMPTS_PREFIX + id);
-    // Collected with the challenge it counts for, whatever happens to it.
-    await this.redis.expire(ATTEMPTS_PREFIX + id, CHALLENGE_TTL_SECONDS);
+    if (!challenge) return null;
+    const taken = Number(
+      await this.redis.eval(TAKE_ATTEMPT_SCRIPT, 1, ATTEMPTS_PREFIX + id, CHALLENGE_TTL_SECONDS),
+    );
     const remaining = challenge.attemptsRemaining - taken;
     if (remaining < 0) {
       await this.consumeChallenge(id);

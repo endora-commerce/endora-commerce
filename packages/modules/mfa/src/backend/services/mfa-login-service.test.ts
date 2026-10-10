@@ -29,8 +29,8 @@ function fakeRedis(): Redis {
       await tick();
       return keys.filter((key) => store.delete(key)).length;
     },
-    // One command, as in Redis: read and written with nothing in between.
-    async incr(key: string) {
+    // One script, as in Redis: read and written with nothing in between.
+    async eval(_script: string, _keys: number, key: string) {
       const next = Number(store.get(key) ?? '0') + 1;
       store.set(key, String(next));
       await tick();
@@ -41,9 +41,6 @@ function fakeRedis(): Redis {
       store.set(key, String(next));
       await tick();
       return next;
-    },
-    async expire() {
-      return 1;
     },
     async ttl() {
       return 300;
@@ -124,6 +121,22 @@ describe('MfaLoginService.verifyChallenge — the attempt budget', () => {
     refuse = false;
     const first = await login.verifyChallenge(id, '000000');
     expect(first).toMatchObject({ ok: false, error: 'invalid_code' });
+  });
+
+  it('answers "start over", not "too many attempts", when the challenge goes while a code is in flight', async () => {
+    const { login, store } = service(async () => ({ ok: false }));
+    const id = await store.issueChallenge(SUBJECT);
+    // Another request completes the challenge after this one has read it.
+    const take = store.takeAttempt.bind(store);
+    store.takeAttempt = async (challengeId) => {
+      await store.consumeChallenge(challengeId);
+      return take(challengeId);
+    };
+
+    expect(await login.verifyChallenge(id, '000000')).toEqual({
+      ok: false,
+      error: 'invalid_challenge',
+    });
   });
 
   it('consumes the challenge on a correct code', async () => {

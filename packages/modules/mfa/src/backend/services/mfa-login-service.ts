@@ -104,6 +104,9 @@ export class MfaLoginService implements MfaLoginPort {
     // The attempt is taken before the code is looked at, so codes sent at the
     // same time cannot all be checked against one unspent budget.
     const remaining = await this.challengeStore.takeAttempt(challengeId);
+    // Gone between the read above and the take — consumed by a request that
+    // completed it, expired, or withdrawn: start over, not "too many attempts".
+    if (remaining === null) return { ok: false, error: 'invalid_challenge' };
     if (remaining < 0) return { ok: false, error: 'locked', subject };
     let verified: Awaited<ReturnType<SecondFactorVerifier>>;
     try {

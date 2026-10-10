@@ -17,6 +17,8 @@ import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
  */
 const CUSTOMER_COOKIE = { b2b_session: 'stub-customer-session' };
 const CUSTOMER_EMAIL = 'stub-customer@example.com';
+const ADMIN_COOKIE = { b2b_admin_session: 'stub-admin-session' };
+const ADMIN_EMAIL = 'platform-admin@example.com';
 
 function totpCode(secretBase32: string): string {
   return new TOTP({
@@ -40,6 +42,9 @@ describe('customer second step — the attempt budget under parallel requests', 
       null,
       { actorAdminUserId: null },
     );
+    await h.settings.adminService.setValueForAllChannels('mfa.admin.totp_enabled', true, null, {
+      actorAdminUserId: null,
+    });
   });
   afterAll(async () => {
     await teardownBackendServer(h);
@@ -86,5 +91,49 @@ describe('customer second step — the attempt budget under parallel requests', 
     // The challenge is gone: a correct code no longer completes it.
     const late = await verify(recoveryCodes[0]!);
     expect(late.statusCode, late.body).toBe(400);
+  });
+
+  it('checks at most five of thirty wrong codes sent at once on an administrator challenge too', async () => {
+    const setup = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/account/mfa/setup',
+      cookies: ADMIN_COOKIE,
+    });
+    const { secret } = setup.json().data as { secret: string };
+    const activated = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/admin/account/mfa/activate',
+      cookies: ADMIN_COOKIE,
+      payload: { code: totpCode(secret) },
+    });
+    expect(activated.statusCode, activated.body).toBe(200);
+    const recoveryCodes = activated.json().data.recoveryCodes as string[];
+
+    const login = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/admin/login',
+      payload: { email: ADMIN_EMAIL, password: STUB_CUSTOMER_PASSWORD },
+    });
+    expect(login.json().data.status).toBe('mfaRequired');
+    const challengeId = login.json().data.challengeId as string;
+
+    const verify = (code: string) =>
+      h.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/admin/mfa/verify',
+        payload: { challengeId, code },
+      });
+    const answers = await Promise.all(Array.from({ length: 30 }, () => verify('000000')));
+
+    // The store is the one the customer route uses; the account's throttle
+    // refuses with 429 as well, and what it refuses spends nothing.
+    const statuses = answers.map((answer) => answer.statusCode);
+    expect(statuses.filter((status) => status === 401).length).toBeLessThanOrEqual(4);
+    expect(statuses.every((status) => [400, 401, 429].includes(status))).toBe(true);
+
+    // No session came out of it, and a correct code does not complete it now.
+    expect(answers.some((answer) => answer.cookies.some((c) => c.name === 'b2b_admin_session'))).toBe(false);
+    const late = await verify(recoveryCodes[0]!);
+    expect([400, 429]).toContain(late.statusCode);
   });
 });

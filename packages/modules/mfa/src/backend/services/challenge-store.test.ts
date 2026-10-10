@@ -4,7 +4,7 @@ import { ChallengeStore } from './challenge-store.js';
 
 /**
  * Minimal in-memory fake of the ioredis surface used by ChallengeStore
- * (`set key val 'EX' ttl`, `get`, `del`, `incr`, `decr`, `expire`). Keeps the unit test
+ * (`set key val 'EX' ttl`, `get`, `del`, `incr`, `decr`, `eval`). Keeps the unit test
  * dependency-free; the real Redis is exercised in integration tests.
  */
 function fakeRedis(): Redis {
@@ -30,10 +30,11 @@ function fakeRedis(): Redis {
       store.set(key, { value: String(next), ttl: store.get(key)?.ttl ?? -1 });
       return next;
     },
-    async expire(key: string, ttl: number) {
-      const entry = store.get(key);
-      if (entry) entry.ttl = ttl;
-      return entry ? 1 : 0;
+    // The one script the store runs: count an attempt and arm its expiry.
+    async eval(_script: string, _keys: number, key: string, ttl: number) {
+      const next = Number(store.get(key)?.value ?? '0') + 1;
+      store.set(key, { value: String(next), ttl });
+      return next;
     },
   } as unknown as Redis;
 }
@@ -75,6 +76,41 @@ describe('ChallengeStore', () => {
     });
     const taken = await Promise.all(Array.from({ length: 30 }, () => store.takeAttempt(id)));
     expect(taken.filter((remaining) => remaining >= 0)).toHaveLength(5);
+  });
+
+  it('answers null, not "none left", for a challenge that is no longer there', async () => {
+    const id = await store.issueChallenge({
+      subjectType: 'customer',
+      subjectId: 'c1',
+      salesChannelId: null,
+    });
+    await store.consumeChallenge(id);
+    expect(await store.takeAttempt(id)).toBeNull();
+    expect(await store.takeAttempt('never-issued')).toBeNull();
+  });
+
+  it('arms the counter\u2019s expiry in the same step as the count', async () => {
+    const calls: unknown[][] = [];
+    const redis = fakeRedis();
+    const original = redis.eval.bind(redis) as (...args: unknown[]) => Promise<unknown>;
+    (redis as unknown as { eval: (...args: unknown[]) => Promise<unknown> }).eval = (...args) => {
+      calls.push(args);
+      return original(...args);
+    };
+    const armed = new ChallengeStore(redis);
+    const id = await armed.issueChallenge({
+      subjectType: 'customer',
+      subjectId: 'c1',
+      salesChannelId: null,
+    });
+    await armed.takeAttempt(id);
+
+    expect(calls).toHaveLength(1);
+    const [script, keys, key, ttl] = calls[0]!;
+    expect(String(script)).toMatch(/INCR[\s\S]*EXPIRE/);
+    expect(keys).toBe(1);
+    expect(key).toBe(`mfa:chal-attempts:${id}`);
+    expect(ttl).toBe(300);
   });
 
   it('gives an attempt back, so one that was never checked costs nothing', async () => {
@@ -159,7 +195,7 @@ describe('ChallengeStore', () => {
     it('counts a withdrawn challenge as gone when an attempt is taken against it', async () => {
       const challenge = await store.issueChallenge(admin);
       await store.invalidateSubject('admin', 'a1');
-      expect(await store.takeAttempt(challenge)).toBe(-1);
+      expect(await store.takeAttempt(challenge)).toBeNull();
     });
   });
 });
