@@ -32,23 +32,24 @@ export interface OrderCompletionReactorDeps {
  * How long the reactor looks for an order its event has announced: the pauses
  * between reads, in milliseconds — a little over two seconds in all.
  *
- * `orders` announces `order.created.v1` from **inside** the transaction that
- * places the order, and the bus runs a handler at once, so a read on a
- * connection of its own races the commit: measured through the storefront
- * route, the first placement of a process is not found and is found
- * milliseconds later (`specs/143-crm-sales-opportunities/research.md`, N-E7 and
- * N-QS3). While nothing wrote `orders.source_quote_request_id` the lost race
- * cost nothing, because there was never a request to complete. Now there is,
- * and an order read once and not found would leave its request `Approved` —
- * convertible a second time — for ever.
+ * `orders` announces `order.created.v1` once the transaction that places the
+ * order has committed (issue #171), so the first read below finds it and this
+ * wait is not normally entered. It is kept as a second line: until that fix
+ * the event was emitted from **inside** the transaction, a read on a
+ * connection of its own raced the commit
+ * (`specs/143-crm-sales-opportunities/research.md`, N-E7 and N-QS3), and an
+ * order read once and not found would leave its request `Approved` —
+ * convertible a second time — for ever. A caller that places an order inside a
+ * transaction of its own would bring that race back, and this is what absorbs
+ * it.
  *
  * The same pauses `crm` uses for the same event, and for the same reason not
  * awaited on the bus: `EventBus.dispatch` runs subscribers one after another,
  * so a handler that slept here would hold every later subscriber for as long.
  *
- * An order still missing after the last pause was, almost always, rolled back
- * — and "almost" is why the give-up is said out loud rather than returned
- * from: a commit that took longer than the wait leaves an Order that names its
+ * An order still missing after the last pause is not expected at all, which
+ * is why the give-up is said out loud rather than returned from: a commit
+ * that took longer than the wait leaves an Order that names its
  * request and a request that still reads `Approved`, and nothing comes back
  * for it. The deferred work throws, `defer` logs, and an operator can find the
  * order. (`orders` refuses to write a second Order onto such a request by
