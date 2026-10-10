@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { type ComponentConfig, type PuckComponent } from '@puckeditor/core';
 import { withHideOn } from '@endora-commerce/page-builder-core';
 import type { CategoryListProps } from '../schema/component-types.js';
@@ -11,8 +10,8 @@ import {
   BOX_PADDING_FIELD,
   DEFAULT_BOX_PROPS,
 } from '../fields/shared-fields.js';
-import { fetchCategoryTree, filterCategories } from '../utils/catalog-fetch.js';
-import { waitForCatalogSkeletonMin } from '../utils/catalog-load.js';
+import { useCatalogBlockData } from '../hooks/use-catalog-block-data.js';
+import { categorySelectionDataRequest, type CatalogCategoryItem } from '../utils/catalog-block-data.js';
 import { estimateCategoryListSkeletonCount } from '../utils/catalog-skeleton-estimate.js';
 import { CategoryListSkeleton } from './catalog/CatalogSkeletons.js';
 import { resolveCategorySelectionFields } from '../fields/catalog-resolve-fields.js';
@@ -34,35 +33,13 @@ const CategoryListRender: PuckComponent<CategoryListProps> = (props) => {
     ...box
   } = props;
   const editing = puck?.isEditing === true;
-  const [items, setItems] = useState<{ slug: string; name: string; productCount: number; depth: number }[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    const startedAt = Date.now();
-    void (async () => {
-      try {
-        const tree = await fetchCategoryTree();
-        const filtered = filterCategories(tree, {
-          selectionMode,
-          categorySlugs,
-          parentSlug,
-          ...(maxDepth !== undefined ? { maxDepth } : {}),
-        });
-        await waitForCatalogSkeletonMin(startedAt);
-        if (!cancelled) setItems(filtered);
-      } catch {
-        await waitForCatalogSkeletonMin(startedAt);
-        if (!cancelled) setItems([]);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectionMode, categorySlugs, parentSlug, maxDepth]);
+  // Provided by the page's server render on the storefront; fetched from an effect only in
+  // the editor preview, which is the one caller that ever sees `loading`.
+  const { loading: isLoading, data } = useCatalogBlockData<CatalogCategoryItem[]>(
+    categorySelectionDataRequest({ selectionMode, categorySlugs, parentSlug, maxDepth }),
+    { holdSkeleton: true },
+  );
+  const items = data ?? [];
 
   const listClass = `cmsc-pb-category-list cmsc-pb-category-list--${layout}`;
 
