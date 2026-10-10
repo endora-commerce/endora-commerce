@@ -11,8 +11,13 @@ import {
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
-import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import {
+  OTHER_TEST_ORGANIZATION_ID,
+  TEST_CUSTOMER_ID,
+  TEST_ORGANIZATION_ID,
+} from '../../helpers/test-actors.js';
 import { seedShippedOrder, RFQ_SHIPPED_ORDER_ID } from '../../helpers/seed-commerce.js';
+import { seedOtherTestOrganization } from '../../helpers/seed-organizations.js';
 import { makePushDeliveryProcessor } from '../../../../packages/modules/pwa/src/backend/workers/push-delivery-worker.js';
 
 /**
@@ -276,12 +281,32 @@ describe('PWA module — admin + storefront', () => {
     });
     expect(created.statusCode).toBe(201);
 
+    const wrong = { p256dh: 'other-p256dh', auth: 'other-auth' };
     expect(await revoke({ endpoint })).toBe(204);
-    expect(await revoke({ endpoint, keys })).toBe(204);
-    expect(await revoke({ endpoint, keys }, 'stub-customer-session-other-org')).toBe(204);
+    expect(await revoke({ endpoint, keys: wrong })).toBe(204);
+    expect(await revoke({ endpoint }, 'stub-customer-session-other-org')).toBe(204);
+    expect(await revoke({ endpoint, keys: wrong }, 'stub-customer-session-other-org')).toBe(204);
     expect(await subscriptionCount(endpoint)).toBe(1);
 
+    // The owner needs no keys.
     expect(await revoke({ endpoint }, 'stub-customer-session')).toBe(204);
+    expect(await subscriptionCount(endpoint)).toBe(0);
+  });
+
+  it('removes a customer subscription for the signed-out browser that holds its keys', async () => {
+    await enablePush();
+    const endpoint = `https://fcm.googleapis.com/fcm/send/signed-out-${randomUUID()}`;
+    const keys = { p256dh: 'device-p256dh', auth: 'device-auth' };
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/storefront/pwa/subscriptions',
+      headers: channelHeader,
+      cookies: { b2b_session: 'stub-customer-session' },
+      payload: { endpoint, keys },
+    });
+    expect(created.statusCode).toBe(201);
+
+    expect(await revoke({ endpoint, keys })).toBe(204);
     expect(await subscriptionCount(endpoint)).toBe(0);
   });
 
@@ -341,7 +366,7 @@ describe('PWA module — admin + storefront', () => {
    * together; this is the end-to-end proof of that, and it is the only thing
    * in the platform that holds the invariant on this side.
    */
-  it('keeps the account and the organisation when an owned endpoint is re-subscribed anonymously', async () => {
+  it('clears the account and the organisation together, and only for the browser holding the keys', async () => {
     await enablePush();
     const endpoint = `https://fcm.googleapis.com/fcm/send/deassociate-${randomUUID()}`;
     const attribution = async (): Promise<{
@@ -369,9 +394,8 @@ describe('PWA module — admin + storefront', () => {
       organization_id: TEST_ORGANIZATION_ID,
     });
 
-    // The same endpoint, nobody signed in. An owned row is updated only by its
-    // owner's session, so this is answered like a fresh subscribe and changes
-    // nothing — the account and the organisation stay together.
+    // The same endpoint, nobody signed in, keys that are not the row's: answered
+    // like a fresh subscribe, and nothing changes.
     const anonymous = await h.app.inject({
       method: 'POST',
       url: '/api/v1/storefront/pwa/subscriptions',
@@ -382,6 +406,21 @@ describe('PWA module — admin + storefront', () => {
     expect(await attribution()).toEqual({
       customer_account_id: TEST_CUSTOMER_ID,
       organization_id: TEST_ORGANIZATION_ID,
+    });
+
+    // The same device, nobody signed in: the browser holds the row's keys, so
+    // this is the *same row*, and it stops belonging to the account — the
+    // organisation going with it.
+    const signedOut = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/storefront/pwa/subscriptions',
+      headers: channelHeader,
+      payload: { endpoint, keys: { p256dh: 'p', auth: 'a' } },
+    });
+    expect(signedOut.statusCode).toBe(200);
+    expect(await attribution()).toEqual({
+      customer_account_id: null,
+      organization_id: null,
     });
   });
 
@@ -434,9 +473,6 @@ describe('PWA module — admin + storefront', () => {
       expect(await storedRow(endpoint)).toEqual(owned);
     }
 
-    // Even the right keys do not move an owned row without its owner's session.
-    expect((await subscribe({ endpoint, keys })).status).toBe(201);
-    expect(await storedRow(endpoint)).toEqual(owned);
   });
 
   it('does not let another party take over an anonymous subscription', async () => {
@@ -454,6 +490,44 @@ describe('PWA module — admin + storefront', () => {
     expect(await storedRow(endpoint)).toEqual(anonymous);
     expect(await revoke({ endpoint, keys: other })).toBe(204);
     expect(await storedRow(endpoint)).toEqual(anonymous);
+  });
+
+  it('re-points a customer subscription to the next customer on the same browser', async () => {
+    await enablePush();
+    // The other-organisation stub session has no account row of its own.
+    const OTHER_CUSTOMER_ID = '00000000-0000-4000-8000-0000000000a7';
+    const patch = (fields: Record<string, string>): string => JSON.stringify(fields);
+    await seedOtherTestOrganization(h.em());
+    await h.em().getConnection().execute(
+      `insert into customer_accounts
+         select (jsonb_populate_record(null::customer_accounts, to_jsonb(c) || ?::jsonb)).*
+           from customer_accounts c where c.id = ?
+       on conflict do nothing`,
+      [
+        patch({
+          id: OTHER_CUSTOMER_ID,
+          organization_id: OTHER_TEST_ORGANIZATION_ID,
+          email: `other-${randomUUID()}@example.com`,
+        }),
+        TEST_CUSTOMER_ID,
+      ],
+    );
+
+    const endpoint = `https://fcm.googleapis.com/fcm/send/handover-${randomUUID()}`;
+    const keys = { p256dh: 'device-p256dh', auth: 'device-auth' };
+    const fresh = await subscribe({ endpoint, keys }, 'stub-customer-session');
+    expect(fresh.status).toBe(201);
+
+    const next = await subscribe({ endpoint, keys }, 'stub-customer-session-other-org');
+    expect(next.status).toBe(200);
+    expect(next.body['id']).toBe(fresh.body['id']);
+    const rows = (await h.em().getConnection().execute(
+      `select customer_account_id, organization_id from push_subscriptions where endpoint = ?`,
+      [endpoint],
+    )) as Array<{ customer_account_id: string | null; organization_id: string | null }>;
+    expect(rows).toEqual([
+      { customer_account_id: OTHER_CUSTOMER_ID, organization_id: OTHER_TEST_ORGANIZATION_ID },
+    ]);
   });
 
   it('still re-subscribes, claims and re-keys for the party that proves ownership', async () => {

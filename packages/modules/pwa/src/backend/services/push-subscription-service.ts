@@ -22,23 +22,26 @@ function secretEquals(a: string, b: string): boolean {
 }
 
 /**
- * Whether `proof` shows the caller is the party that created `existing`.
+ * Whether `proof` shows the caller is the party that holds `existing`.
  *
- * A subscription a customer account owns belongs to that account's session. One
- * no account owns belongs to whoever presents its `p256dh` and `auth` keys,
- * which the subscribing browser holds and the endpoint URL does not reveal.
+ * Either of two things proves it. The row's own `p256dh` and `auth` keys, which
+ * the subscribing browser holds and the endpoint URL does not reveal — the
+ * browser holding them *is* the device, whoever is or is not signed in on it.
+ * Or, for a row a customer account owns, that account's session, which needs
+ * no keys: it is how the owner re-keys or removes a device.
  */
 function provesOwnership(existing: PushSubscription, proof: RevokeProof): boolean {
-  if (existing.customerAccountId !== null && existing.customerAccountId !== undefined) {
-    return existing.customerAccountId === proof.customerAccountId;
-  }
-  return (
+  const ownerSession =
+    existing.customerAccountId !== null &&
+    existing.customerAccountId !== undefined &&
+    existing.customerAccountId === proof.customerAccountId;
+  const holdsKeys =
     proof.keys !== undefined &&
     // Both compared, with no short-circuit between them.
     Number(secretEquals(existing.p256dh, proof.keys.p256dh)) +
       Number(secretEquals(existing.auth, proof.keys.auth)) ===
-      2
-  );
+      2;
+  return ownerSession || holdsKeys;
 }
 
 /**
@@ -87,7 +90,7 @@ type ResolvedSubscriptionOwner =
  *
  * Both directions of the upsert go through this function, which is the whole
  * point: signing in on a subscribed device stamps the account and the
- * organisation, and an anonymous owner clears both.
+ * organisation, and re-subscribing that same device anonymously clears both.
  */
 function ownerColumns(owner: ResolvedSubscriptionOwner): {
   customerAccountId: string | null;
@@ -165,22 +168,23 @@ export class PushSubscriptionService {
     };
   }
 
-  register(input: RegisterSubscriptionInput): Promise<RegisterSubscriptionResult> {
-    return withSystemScope(ENDPOINT_SCOPE_REASON, () => this.#register(input));
+  /** The row behind an endpoint, whoever owns it — and nothing else is read this way. */
+  #findByEndpoint(em: EntityManager, endpoint: string): Promise<PushSubscription | null> {
+    return withSystemScope(ENDPOINT_SCOPE_REASON, () => em.findOne(PushSubscription, { endpoint }));
   }
 
-  async #register(input: RegisterSubscriptionInput): Promise<RegisterSubscriptionResult> {
+  async register(input: RegisterSubscriptionInput): Promise<RegisterSubscriptionResult> {
     // command-coverage-ignore: push-notification infrastructure — device
     // subscription / message delivery / icon asset, not audited domain state.
     const em = this.emFactory();
-    const existing = await em.findOne(PushSubscription, { endpoint: input.endpoint });
+    const existing = await this.#findByEndpoint(em, input.endpoint);
 
     // An endpoint that is already registered is updated only for the party that
-    // created the row ({@link provesOwnership}); the keys in the request are the
-    // proof for a row no account owns. Anyone else is answered as a first
-    // subscribe is — a fresh id, `created` — and nothing is written, so the
-    // answer does not say the endpoint is registered. A browser whose keys were
-    // rotated lands here too unless its owner's session vouches for it.
+    // holds the row ({@link provesOwnership}): the keys in the request, or the
+    // owning account's session. Anyone else is answered as a first subscribe is
+    // — a fresh id, `created` — and nothing is written, so the answer does not
+    // say the endpoint is registered. A browser whose keys were rotated lands
+    // here too unless its owner's session vouches for it.
     if (
       existing &&
       !provesOwnership(existing, {
@@ -202,9 +206,9 @@ export class PushSubscriptionService {
       existing.auth = input.keys.auth;
       existing.salesChannelId = input.salesChannelId;
       // D-187 — the account and the organisation move together, in **both**
-      // directions. Signing in on this device stamps both; an anonymous owner
-      // clears both — which only an ownerless row can reach now, since an
-      // owned one is updated by its owner's session alone. The `CHECK` catches only the first of those,
+      // directions. Signing in on this device stamps both — re-pointing them
+      // when another account had it — and re-subscribing it anonymously clears
+      // both. The `CHECK` catches only the first of those,
       // by design (it is an implication, so R-6 stays open); the second is
       // held here, by there being no arm of `ownerColumns` that writes one
       // without the other. `em.assign` rather than two statements, for the same
@@ -245,15 +249,11 @@ export class PushSubscriptionService {
    *
    * Ownership is {@link provesOwnership}'s rule.
    */
-  revoke(endpoint: string, proof: RevokeProof): Promise<boolean> {
-    return withSystemScope(ENDPOINT_SCOPE_REASON, () => this.#revoke(endpoint, proof));
-  }
-
-  async #revoke(endpoint: string, proof: RevokeProof): Promise<boolean> {
+  async revoke(endpoint: string, proof: RevokeProof): Promise<boolean> {
     // command-coverage-ignore: push-notification infrastructure — device
     // subscription / message delivery / icon asset, not audited domain state.
     const em = this.emFactory();
-    const existing = await em.findOne(PushSubscription, { endpoint });
+    const existing = await this.#findByEndpoint(em, endpoint);
     if (!existing) return false;
     const authorised = provesOwnership(existing, proof);
     if (!authorised) return false;
