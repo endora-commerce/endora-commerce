@@ -1,5 +1,6 @@
 ---
 '@endora-commerce/mod-admin-users': minor
+'@endora-commerce/cli': patch
 ---
 
 An instance can switch the account-wide administrator password limit off, by environment variable.
@@ -19,3 +20,6 @@ credentials` on every start. Any value other than `off` leaves the limit on.
 
 Do not set it on an instance whose administrator passwords are not public. Without the variable
 nothing changes.
+
+A scaffolded instance can set it too: the compose file `endora new instance` writes forwards
+`ADMIN_AUTH_ACCOUNT_WIDE_LIMIT` to the backend, and its `.env.example` lists it, empty.

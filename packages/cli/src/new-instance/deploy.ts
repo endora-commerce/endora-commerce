@@ -233,6 +233,10 @@ const BACKEND_ENVIRONMENT: readonly string[] = [
   '  # backend trusts none and every request looks like it came from your proxy.',
   '  TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS}',
   '  TRUSTED_PROXY_ADDRESSES: ${TRUSTED_PROXY_ADDRESSES}',
+  '  # Demo instances that publish an administrator password ONLY: `off` switches',
+  '  # off the account-wide limit on wrong administrator passwords. Empty, the',
+  '  # limit is on.',
+  '  ADMIN_AUTH_ACCOUNT_WIDE_LIMIT: ${ADMIN_AUTH_ACCOUNT_WIDE_LIMIT}',
   '  DEFAULT_SALES_CHANNEL_CODE: ${DEFAULT_SALES_CHANNEL_CODE}',
   '  SALES_CHANNEL_HOST_MAP: ${SALES_CHANNEL_HOST_MAP}',
   '  SMTP_URL: ${SMTP_URL}',
@@ -1071,6 +1075,15 @@ const RUNTIME_INPUTS: readonly RuntimeInput[] = [
       'The alternative to the hop count, for a proxy whose address is fixed: IPs, CIDR ' +
       'ranges, or loopback / linklocal / uniquelocal. Set ONE of the two — the backend ' +
       'refuses to boot with both, and there is deliberately no "trust everything" value.',
+    example: '',
+  },
+  {
+    name: 'ADMIN_AUTH_ACCOUNT_WIDE_LIMIT',
+    meaning:
+      'Leave empty. Exactly `off` switches off the limit on wrong administrator passwords ' +
+      'counted for one account across all addresses — for a public demo that publishes an ' +
+      'administrator password ONLY, never where those passwords are secret. Empty, the ' +
+      'limit is on.',
     example: '',
   },
   {
