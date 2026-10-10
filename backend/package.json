@@ -217,7 +217,7 @@
   "devDependencies": {
     "@endora-commerce/cli": "workspace:*",
     "@endora-commerce/test-kit": "workspace:*",
-    "@mikro-orm/cli": "^6.6.13",
+    "@mikro-orm/cli": "^7.2.3",
     "@types/node": "^22.9.0",
     "@types/pdfmake": "^0.3.2",
     "@types/pg": "^8.20.0",

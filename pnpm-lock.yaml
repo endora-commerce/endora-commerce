@@ -627,8 +627,8 @@ importers:
         specifier: workspace:*
         version: link:../packages/test-kit
       '@mikro-orm/cli':
-        specifier: ^6.6.13
-        version: 6.6.16(pg@8.20.0)
+        specifier: ^7.2.3
+        version: 7.2.3(dataloader@2.2.3)
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
@@ -1354,7 +1354,7 @@ importers:
         version: link:../../platform
       '@mikro-orm/postgresql':
         specifier: ^6.6.13
-        version: 6.6.16(@mikro-orm/core@6.6.16)
+        version: 6.6.16(@mikro-orm/core@7.2.3(dataloader@2.2.3))
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
@@ -3544,7 +3544,7 @@ importers:
         version: 10.3.0
       '@mikro-orm/postgresql':
         specifier: ^6.6.13
-        version: 6.6.16(@mikro-orm/core@6.6.16)
+        version: 6.6.16(@mikro-orm/core@7.2.3(dataloader@2.2.3))
       '@types/node':
         specifier: ^22.9.0
         version: 22.19.17
@@ -6245,9 +6245,6 @@ packages:
   '@ioredis/commands@1.5.1':
     resolution: {integrity: sha512-JH8ZL/ywcJyR9MmJ5BNqZllXNZQqQbnVZOqpPQqE1vHiFgAw4NHbvE0FOduNU8IX9babitBT46571OnPTT0Zcw==}
 
-  '@jercle/yargonaut@1.1.5':
-    resolution: {integrity: sha512-zBp2myVvBHp1UaJsNTyS6q4UDKT7eRiqTS4oNTS6VQMd6mpxYOdbeK4pY279cDCdakGy6hG0J3ejoXZVsPwHqw==}
-
   '@jest/schemas@29.6.3':
     resolution: {integrity: sha512-mo5j5X+jIZmJQveBKeS/clAueipV7KgiX1vMgCxam1RNYiqE1w62n0/tJJnHtjW8ZHcQco5gY85jA3mi0L+nSA==}
     engines: {node: ^14.15.0 || ^16.10.0 || >=18.0.0}
@@ -6432,14 +6429,23 @@ packages:
       '@types/react': '>=16'
       react: '>=16'
 
-  '@mikro-orm/cli@6.6.16':
-    resolution: {integrity: sha512-EsAr7A4wbmBib3LwUcnH1cJOYgGC8irBptt+0BiC7IaP+p2UsnQBvTBbM895rAk1rXiInFhqWKjBgSKZcDf4yQ==}
-    engines: {node: '>= 18.12.0'}
+  '@mikro-orm/cli@7.2.3':
+    resolution: {integrity: sha512-iuZ1IIyy1b3ifVAmStSv1QNWIObCefmJLPpoZagiB6wTU8xB8H3HIg95mqDWAZeKg5Y7v8QKQJDgl93a2Os2Rw==}
+    engines: {node: '>= 22.17.0'}
     hasBin: true
 
   '@mikro-orm/core@6.6.16':
     resolution: {integrity: sha512-ym26fbhTti7Zh6oN1y74byoUoMEq1ahckiV7BZX5pHU/0OaUESiQA+Zar2Tv2ZFuZA9946XQ805F7/4NH6oDUQ==}
     engines: {node: '>= 18.12.0'}
+
+  '@mikro-orm/core@7.2.3':
+    resolution: {integrity: sha512-c/OHEApYBzfUtr1VoBe5hiTDEV+tHZJifdgF4RlGrmuhuNJCsgWHxdv1ZjI0zzG79B6QdxqQ8ujgGqwLhCzOPg==}
+    engines: {node: '>= 22.17.0'}
+    peerDependencies:
+      dataloader: 2.2.3
+    peerDependenciesMeta:
+      dataloader:
+        optional: true
 
   '@mikro-orm/knex@6.6.16':
     resolution: {integrity: sha512-H0fYK4vSe2mtmfBDDNsOw5Z56JDYEzbaoIo24JhkzmoGna85ddwyYzYB289DMS8Ukn7qZKhfR2pn2kQDRSJiyw==}
@@ -9323,10 +9329,6 @@ packages:
     resolution: {integrity: sha512-y4Mg2tXshplEbSGzx7amzPwKKOCGuoSRP/CjEdwwk0FOGlUbq6lKuoyDZTNZkmxHdJtp54hdfY/JUrdL7Xfdug==}
     engines: {node: '>=14'}
 
-  commander@14.0.3:
-    resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
-    engines: {node: '>=20'}
-
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
 
@@ -10197,11 +10199,6 @@ packages:
 
   fflate@0.8.3:
     resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
-
-  figlet@1.12.0:
-    resolution: {integrity: sha512-Ith3WsUi0N/EqGt+0/F6XnWhT04sohhH2tT0Dq7GdUmWbMTIoCbg2Jq9qKggmTO62ST5kRCfB311EmIMbizGyA==}
-    engines: {node: '>= 17.0.0'}
-    hasBin: true
 
   file-entry-cache@11.1.5:
     resolution: {integrity: sha512-+PFTHITI08JIGhnNpGNI8T8inUpgZfk3GNEqfT9R2zZV2iFXg3CvqzSl/uEhs7TSGujYRELEANyDvS8Fj7+S7Q==}
@@ -11621,6 +11618,10 @@ packages:
     resolution: {integrity: sha512-42bvve+XSzvBpOuZeZxJsM5aW4DQnDn23E5to4cvEjUdaPX7jg1bRh+l8f/8/WJJNzG1T05V5vHSe+SHzqN87A==}
     engines: {node: '>= 18.12.0'}
 
+  mikro-orm@7.2.3:
+    resolution: {integrity: sha512-gB44siyXW5GGVxi8quW6A8QdfdVS83NLXBUIJCWe+BSj0roFdDI6FMwXaGdK7EODirPcRDujwrw+YoU+txta+g==}
+    engines: {node: '>= 22.17.0'}
+
   mime-db@1.33.0:
     resolution: {integrity: sha512-BHJ/EKruNIqJf/QahvxwQZXKygOQ256myeN/Ew+THcAa5q+PjyTTMMeNQC4DZw5AwfvelsUrA6B67NKMqXDbzQ==}
     engines: {node: '>= 0.6'}
@@ -11992,10 +11993,6 @@ packages:
   parent-module@1.0.1:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}
     engines: {node: '>=6'}
-
-  parent-require@1.0.0:
-    resolution: {integrity: sha512-2MXDNZC4aXdkkap+rBBMv0lUsfJqvX5/2FiYYnfCnorZt3Pk06/IOR5KeaoghgS2w07MLWgjbsnyaq6PdHn2LQ==}
-    engines: {node: '>= 0.4.0'}
 
   parse-entities@4.0.2:
     resolution: {integrity: sha512-GG2AQYWoLgL877gQIKeRPGO1xF9+eG1ujIb5soS5gPvLQ1y2o8FL90w2QWNdf9I361Mpp7726c+lj3U0qK1uGw==}
@@ -13429,10 +13426,6 @@ packages:
     resolution: {integrity: sha512-uCC2VHvQRYu+lMh4My/sFNmF2klFymLX1wHJeXnbEJERpV/ZsVuonzerjfrGpIGF7LBVa1O7i9kjiWvJiFck8g==}
     engines: {node: '>=0.10.0'}
 
-  strip-bom@3.0.0:
-    resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
-    engines: {node: '>=4'}
-
   strip-final-newline@2.0.0:
     resolution: {integrity: sha512-BrpvfNAE3dcvq7ll3xVumzjKjZQ5tI1sEUIKr3Uoks0XUl45St3FlatVqef9prk4jRDzhW6WZg+3bk93y6pLjA==}
     engines: {node: '>=6'}
@@ -13668,10 +13661,6 @@ packages:
     engines: {node: '>=18.12'}
     peerDependencies:
       typescript: '>=4.8.4'
-
-  tsconfig-paths@4.2.0:
-    resolution: {integrity: sha512-NoZ4roiN7LnbKn9QqE1amc9DJfzvZXxF4xDavcOWt1BPkdx+m+0gJuPM+S0vCe7zTJMYUP0R8pO2XMr+Y8oLIg==}
-    engines: {node: '>=6'}
 
   tslib@1.14.1:
     resolution: {integrity: sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==}
@@ -17897,12 +17886,6 @@ snapshots:
 
   '@ioredis/commands@1.5.1': {}
 
-  '@jercle/yargonaut@1.1.5':
-    dependencies:
-      chalk: 4.1.2
-      figlet: 1.12.0
-      parent-require: 1.0.0
-
   '@jest/schemas@29.6.3':
     dependencies:
       '@sinclair/typebox': 0.27.10
@@ -18130,26 +18113,13 @@ snapshots:
       '@types/react': 19.3.0
       react: 19.2.5
 
-  '@mikro-orm/cli@6.6.16(pg@8.20.0)':
+  '@mikro-orm/cli@7.2.3(dataloader@2.2.3)':
     dependencies:
-      '@jercle/yargonaut': 1.1.5
-      '@mikro-orm/core': 6.6.16
-      '@mikro-orm/knex': 6.6.16(@mikro-orm/core@6.6.16)(pg@8.20.0)
-      fs-extra: 11.3.3
-      tsconfig-paths: 4.2.0
+      '@mikro-orm/core': 7.2.3(dataloader@2.2.3)
+      mikro-orm: 7.2.3
       yargs: 17.7.2
     transitivePeerDependencies:
-      - better-sqlite3
-      - libsql
-      - mariadb
-      - mysql
-      - mysql2
-      - pg
-      - pg-native
-      - pg-query-stream
-      - sqlite3
-      - supports-color
-      - tedious
+      - dataloader
 
   '@mikro-orm/core@6.6.16':
     dependencies:
@@ -18161,9 +18131,29 @@ snapshots:
       mikro-orm: 6.6.16
       reflect-metadata: 0.2.2
 
+  '@mikro-orm/core@7.2.3(dataloader@2.2.3)':
+    optionalDependencies:
+      dataloader: 2.2.3
+
   '@mikro-orm/knex@6.6.16(@mikro-orm/core@6.6.16)(pg@8.20.0)':
     dependencies:
       '@mikro-orm/core': 6.6.16
+      fs-extra: 11.3.3
+      knex: 3.2.10(pg@8.20.0)
+      sqlstring: 2.3.3
+    transitivePeerDependencies:
+      - mysql
+      - mysql2
+      - pg
+      - pg-native
+      - pg-query-stream
+      - sqlite3
+      - supports-color
+      - tedious
+
+  '@mikro-orm/knex@6.6.16(@mikro-orm/core@7.2.3(dataloader@2.2.3))(pg@8.20.0)':
+    dependencies:
+      '@mikro-orm/core': 7.2.3(dataloader@2.2.3)
       fs-extra: 11.3.3
       knex: 3.2.10(pg@8.20.0)
       sqlstring: 2.3.3
@@ -18201,6 +18191,26 @@ snapshots:
     dependencies:
       '@mikro-orm/core': 6.6.16
       '@mikro-orm/knex': 6.6.16(@mikro-orm/core@6.6.16)(pg@8.20.0)
+      pg: 8.20.0
+      postgres-array: 3.0.4
+      postgres-date: 2.1.0
+      postgres-interval: 4.0.2
+    transitivePeerDependencies:
+      - better-sqlite3
+      - libsql
+      - mariadb
+      - mysql
+      - mysql2
+      - pg-native
+      - pg-query-stream
+      - sqlite3
+      - supports-color
+      - tedious
+
+  '@mikro-orm/postgresql@6.6.16(@mikro-orm/core@7.2.3(dataloader@2.2.3))':
+    dependencies:
+      '@mikro-orm/core': 7.2.3(dataloader@2.2.3)
+      '@mikro-orm/knex': 6.6.16(@mikro-orm/core@7.2.3(dataloader@2.2.3))(pg@8.20.0)
       pg: 8.20.0
       postgres-array: 3.0.4
       postgres-date: 2.1.0
@@ -21283,8 +21293,6 @@ snapshots:
 
   commander@10.0.1: {}
 
-  commander@14.0.3: {}
-
   commander@2.20.3: {}
 
   commander@5.1.0: {}
@@ -22331,10 +22339,6 @@ snapshots:
       xml-js: 1.6.11
 
   fflate@0.8.3: {}
-
-  figlet@1.12.0:
-    dependencies:
-      commander: 14.0.3
 
   file-entry-cache@11.1.5:
     dependencies:
@@ -24147,6 +24151,8 @@ snapshots:
 
   mikro-orm@6.6.16: {}
 
+  mikro-orm@7.2.3: {}
+
   mime-db@1.33.0: {}
 
   mime-db@1.52.0: {}
@@ -24494,8 +24500,6 @@ snapshots:
   parent-module@1.0.1:
     dependencies:
       callsites: 3.1.0
-
-  parent-require@1.0.0: {}
 
   parse-entities@4.0.2:
     dependencies:
@@ -26205,8 +26209,6 @@ snapshots:
 
   strip-bom-string@1.0.0: {}
 
-  strip-bom@3.0.0: {}
-
   strip-final-newline@2.0.0: {}
 
   strip-indent@3.0.0:
@@ -26398,12 +26400,6 @@ snapshots:
   ts-api-utils@2.5.0(typescript@5.9.3):
     dependencies:
       typescript: 5.9.3
-
-  tsconfig-paths@4.2.0:
-    dependencies:
-      json5: 2.2.3
-      minimist: 1.2.8
-      strip-bom: 3.0.0
 
   tslib@1.14.1: {}
 
