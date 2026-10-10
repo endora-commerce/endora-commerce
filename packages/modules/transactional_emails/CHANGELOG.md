@@ -1,5 +1,78 @@
 # @endora-commerce/mod-transactional-emails
 
+## 0.105.0
+
+### Minor Changes
+
+- 0184be5: An e-mail that was only written to the server log is no longer reported as sent. On an instance
+  with no `SMTP_URL` the console mailer logs the message and used to answer `{ status: 'sent' }`,
+  and the transactional e-mail service answered a constant `sent` of its own, so every module that
+  records or reports a delivery recorded one that did not happen.
+
+  **Breaking for a consumer of the two port types — three unions gain a member:**
+
+  - `EmailMailerSendOutcome` gains `{ status: 'logged' }`. The console mailer answers it instead of
+    `sent`; the SMTP mailer and `InMemoryMailer` still answer `sent`.
+  - `TransactionalSendOutcome` gains `{ status: 'logged' }`, and `TransactionalEmailSender.send`
+    passes the transport's `logged` on. A transport's `suppressed` (an already accepted message id)
+    is still answered as `sent`, as before.
+  - `emailDeliveryStatusSchema` / `EmailDeliveryStatus` gain `'logged'`, and
+    `invoiceEmailNotSentReasonSchema` / `InvoiceEmailNotSentReason` gain `'logged'`.
+
+  What to do: code with an exhaustive `switch` over one of these unions, or that passes
+  `outcome.status` into a closed union of its own, stops compiling until it handles `logged`; code
+  that reads `outcome.reason` after `outcome.status !== 'sent'` must narrow to
+  `outcome.status === 'suppressed'` first, because `logged` carries no reason. Code that compares
+  with `=== 'sent'` keeps compiling and now treats a logged message as not sent. `logged` is not a
+  failure and there is nothing to retry: the same call would log the message again. An own
+  implementation of `EmailMailerPort` or `TransactionalEmailSender` needs no change.
+
+  What changes on an instance without a mail server:
+
+  - `email_deliveries` rows are written with `status = 'logged'` instead of `'sent'`. The column is
+    a plain `varchar(16)`, so there is no migration; rows written earlier keep `sent`.
+  - The order, return, payment-status, shipment and invoice e-mail results answer
+    `{ sent: false, reason: 'logged' }`, each with its usual "was not sent" log line. Issuing an
+    invoice or re-sending its e-mail from the Admin UI says the e-mail was not sent because no mail
+    server is configured, in English and Polish (`invoices.emailNotSent.logged`).
+  - A CRM Event reminder is recorded as delivered to the bell alone — or as undeliverable when the
+    bell is unavailable too — instead of "bell and e-mail".
+  - `POST /api/v1/organizations/register` answers `emailVerificationSent: false` when the
+    verification e-mail went through the in-code builder and was only logged.
+
+  No setting, permission or migration changes.
+
+### Patch Changes
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+  - @endora-commerce/page-builder-admin@0.105.0
+  - @endora-commerce/page-builder-core@0.105.0
+  - @endora-commerce/email-components@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

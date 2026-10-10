@@ -1,5 +1,120 @@
 # @endora-commerce/mod-customers
 
+## 0.105.0
+
+### Patch Changes
+
+- 0184be5: An e-mail that was only written to the server log is no longer reported as sent. On an instance
+  with no `SMTP_URL` the console mailer logs the message and used to answer `{ status: 'sent' }`,
+  and the transactional e-mail service answered a constant `sent` of its own, so every module that
+  records or reports a delivery recorded one that did not happen.
+
+  **Breaking for a consumer of the two port types — three unions gain a member:**
+
+  - `EmailMailerSendOutcome` gains `{ status: 'logged' }`. The console mailer answers it instead of
+    `sent`; the SMTP mailer and `InMemoryMailer` still answer `sent`.
+  - `TransactionalSendOutcome` gains `{ status: 'logged' }`, and `TransactionalEmailSender.send`
+    passes the transport's `logged` on. A transport's `suppressed` (an already accepted message id)
+    is still answered as `sent`, as before.
+  - `emailDeliveryStatusSchema` / `EmailDeliveryStatus` gain `'logged'`, and
+    `invoiceEmailNotSentReasonSchema` / `InvoiceEmailNotSentReason` gain `'logged'`.
+
+  What to do: code with an exhaustive `switch` over one of these unions, or that passes
+  `outcome.status` into a closed union of its own, stops compiling until it handles `logged`; code
+  that reads `outcome.reason` after `outcome.status !== 'sent'` must narrow to
+  `outcome.status === 'suppressed'` first, because `logged` carries no reason. Code that compares
+  with `=== 'sent'` keeps compiling and now treats a logged message as not sent. `logged` is not a
+  failure and there is nothing to retry: the same call would log the message again. An own
+  implementation of `EmailMailerPort` or `TransactionalEmailSender` needs no change.
+
+  What changes on an instance without a mail server:
+
+  - `email_deliveries` rows are written with `status = 'logged'` instead of `'sent'`. The column is
+    a plain `varchar(16)`, so there is no migration; rows written earlier keep `sent`.
+  - The order, return, payment-status, shipment and invoice e-mail results answer
+    `{ sent: false, reason: 'logged' }`, each with its usual "was not sent" log line. Issuing an
+    invoice or re-sending its e-mail from the Admin UI says the e-mail was not sent because no mail
+    server is configured, in English and Polish (`invoices.emailNotSent.logged`).
+  - A CRM Event reminder is recorded as delivered to the bell alone — or as undeliverable when the
+    bell is unavailable too — instead of "bell and e-mail".
+  - `POST /api/v1/organizations/register` answers `emailVerificationSent: false` when the
+    verification e-mail went through the in-code builder and was only logged.
+
+  No setting, permission or migration changes.
+
+- 560f2e3: More credential changes withdraw the sessions and pending sign-ins obtained before them.
+
+  - **`admin_users create` run again for an existing account** replaces the password, so it now
+    ends every session of that account and withdraws its pending second-factor challenges and
+    setup tickets, through the same path as a peer reset. The write is audited as
+    `admin_user.change_password` with `via: 'cli'` and no acting administrator. Creating a new
+    account is unchanged.
+  - **Removing a second factor.** Disabling your own two-factor authentication
+    (`POST /api/v1/admin/account/mfa/disable`, `POST /api/v1/account/mfa/disable`) ends every other
+    session of the account and keeps the one the request was made from. An administrator's reset of
+    a customer's second factor (`POST /api/v1/admin/customers/:customerId/mfa/reset`, and the bulk
+    route for each account it actually resets) ends every session of that customer. Both withdraw
+    the account's pending challenges and setup tickets. Enrolling a factor ends no session, and a
+    disable or reset that removes nothing ends none either.
+  - **Customer password change** (`POST /api/v1/me/customer/change-password`,
+    `POST /api/v1/me/password`) ends every other session of the account and keeps the calling one.
+    **Redeeming a reset token** (`POST /api/v1/auth/password-reset/confirm`) ends all of them. Both
+    mark every other outstanding reset token of the account as consumed and withdraw its pending
+    second-factor challenges and setup tickets.
+
+  In every case the new state is persisted first and the sessions are revoked after it.
+
+  Port changes, all additive: `AuthSessionPort.destroyAllForCustomer` takes an optional
+  `{ exceptSessionId }` (`AuthDestroyAllForCustomerOptions`), mirroring `destroyAllForAdmin`;
+  `CustomerAuthPort.changePassword` takes an optional fourth argument
+  `{ sessionCookieValue }` (`CustomerChangePasswordContext`) naming the session to keep — a caller
+  that omits it keeps none. No port member was removed or changed incompatibly.
+
+  Not ports, but changed for anyone constructing these classes directly: `PasswordResetService`'s
+  constructor takes the session port as its second argument (the audit port moved to third), and
+  `MfaEnrolmentService.disable` returns whether a factor was removed.
+
+- b0c0959: A customer or address id that is not a UUID answers `404` instead of `500`. Every
+  `/api/v1/admin/customers/:id…` route handed its path parameter to the database unchecked, so a
+  mistyped URL such as `GET /api/v1/admin/customers/not-a-uuid` came back as
+  `invalid input syntax for type uuid` behind an `INTERNAL` error. These routes now answer the same
+  `404 CUSTOMER_NOT_FOUND` they give an unknown customer, after the permission check, so an anonymous
+  caller still gets `401`. The self-service address routes
+  (`PATCH`/`DELETE /api/v1/me/customer/addresses/:addressId` and `PUT …/default`) had the same
+  omission and now answer `404 CUSTOMER_ADDRESS_NOT_FOUND`.
+
+  One visible difference beyond the status code: the read-only panels
+  (`…/:id/addresses`, `/orders`, `/quote-requests`, `/carts`) answer `404` for a malformed id while
+  still answering `200` with empty lists for a well-formed id no customer has.
+
+  No setting or permission changes.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

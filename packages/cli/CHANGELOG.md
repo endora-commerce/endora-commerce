@@ -1,5 +1,263 @@
 # @endora-commerce/cli
 
+## 0.105.0
+
+### Patch Changes
+
+- 1ba6b26: An instance can switch the account-wide administrator password limit off, by environment variable.
+
+  The account-wide limit — twenty wrong passwords for one account from all addresses that are not a
+  known device — assumes the password is a secret. On an instance that publishes an administrator
+  password on purpose, a public demo, every visitor is a first-time device, so anybody could keep all
+  of them out of the account with twenty wrong passwords and a few more each half hour.
+
+  `ADMIN_AUTH_ACCOUNT_WIDE_LIMIT=off` in the backend's environment switches off the account-wide
+  count of wrong **passwords** and nothing else: the limit per address on one account, the limit per
+  known device, both limits on second-factor codes and the delays are unchanged, and an attempt that
+  arrives with no client address is still counted for the account. It is read once at start, it is
+  not a Setting and cannot be changed from the Admin UI, and while it is off the backend logs
+  `account-wide administrator attempt limit is OFF — intended for demo instances with published
+credentials` on every start. Any value other than `off` leaves the limit on.
+
+  Do not set it on an instance whose administrator passwords are not public. Without the variable
+  nothing changes.
+
+  A scaffolded instance can set it too: the compose file `endora new instance` writes forwards
+  `ADMIN_AUTH_ACCOUNT_WIDE_LIMIT` to the backend, and its `.env.example` lists it, empty.
+
+- 964ada7: Catalogue blocks on a CMS page are part of the server-rendered HTML. `ProductGrid`,
+  `ProductSlider`, `ProductCard`, `CategoryList` and `CategoryGrid` used to fetch their own data
+  from an effect, so the document a crawler, a link preview or a browser without JavaScript received
+  held a skeleton and no product or category at all.
+
+  Each block now declares the data it needs, and the application rendering the page resolves it on
+  the server:
+
+  - `@endora-commerce/cms-components/utils/catalog-block-data` (new, importable from a Server
+    Component) exports `collectCatalogBlockDataRequests(documents)`, `resolveCatalogBlockData(requests,
+source)` and `catalogBlockDataKey(request)`. The resolver reads each distinct product, listing
+    and the category tree once, in parallel with a bound of six, and leaves a failed read out so
+    that only its block degrades.
+  - `CatalogPreviewProvider` takes a new optional `data` prop — the resolved answers — and its
+    `api` prop is now optional. With `data` present a block renders from it during the server
+    render and during hydration: it does not fetch on mount and never shows its loading state. A
+    request with no answer renders the block's existing empty state.
+  - Without `data` nothing changes: the admin page builder still passes `api`, and a block with
+    neither still fetches from an effect and shows its skeleton meanwhile.
+
+  All of it is additive; no existing prop or export changed meaning.
+
+  The storefront `endora new` writes does the resolving: `components/CatalogBlockData.tsx` is a
+  Server Component that `CmsPageRenderer` and `Hook` mount around their Page Builder trees, and
+  `lib/page-builder/catalog-block-data.ts` reads through `lib/api/catalog` with the request's
+  context, so a block shows the sales channel's catalogue in the request's language and, for a
+  signed-in buyer, that buyer's prices — fetched `no-store`, as the product listing's are.
+  `CmsPageRenderer` now requires a `ctx` prop for that reason.
+
+  A storefront that already exists keeps the source it was created with. Upgrading
+  `@endora-commerce/cms-components` alone changes nothing there — its blocks keep fetching in the
+  browser as before — until it mounts the provider with `data`: copy the two files above and wrap
+  the `PageBuilderRender` call sites as the reference storefront does. Other render sites of the
+  reference storefront (blog post bodies, category page content, the megamenu and the consent
+  messages) are not wrapped yet and behave as before.
+
+- 0e34c8c: The instructions for adding a module package to an instance give a command that works. The README
+  `endora new` writes into an instance said "Adding a module later is `pnpm add`", and
+  `endora new-module` refused a dependency nothing provides with "`pnpm add <package>`". In the root
+  of an instance — a pnpm workspace root whose `dependencies` are the module list — that command
+  exits 1 under pnpm 9 with `ERR_PNPM_ADDING_TO_ROOT`, and under pnpm 10 writes a range, `^<version>`,
+  beside packages the scaffold pinned exactly. Both now say
+  `pnpm add -w -E <package>@<version>`, with the version the release's other packages are pinned at.
+
+  Messages only: no command, option or exit code changes. An instance that already exists keeps the
+  README it was created with; the form to use there is the same, and
+  `docs/docs/upgrading-an-instance.md` § _Adding a module that is new in a release_ describes it.
+
+- bdb823b: `demo reset` withdraws a demo that has been used, in one transaction, and refuses to delete
+  financial records unless it is told to.
+
+  **What was wrong.** `demo reset` exited 1 as soon as the demo buyer had placed one order on credit
+  (`credit_limit_reservations_credit_limit_fk`) or saved one address (`addresses_organization_fk`).
+  The refusal came after the demo payment methods, the delivery methods and the buyer were already
+  gone, so checkout was left broken. A reset that did go through left the demo organisation's
+  orders, carts and quote requests naming an organisation that no longer existed.
+
+  **A reset is now one transaction** (`@endora-commerce/platform`). The dispatcher opens it, builds
+  the composition over it and hands it to every module's demo body as that body's own
+  `EntityManager`. A refusal anywhere in the run — the composition's withdrawal, a module's, a
+  foreign key from a table of your own — changes nothing. `demo seed` is unchanged.
+
+  - **Breaking for a module's `demo.reset` body and for a composition's `withdraw`**: write through
+    the `EntityManager` you are handed (`em.nativeDelete`, `em.execute`), not through
+    `em.getConnection().execute(…)`. The bare connection carries no transaction: the statement runs
+    on a second connection, cannot see what the reset has already deleted, and waits on rows the
+    reset has locked. `@endora-commerce/mod-catalog`'s reset and every statement of
+    `@endora-commerce/demo-composition` were moved accordingly.
+  - **Breaking for a demo composition**: declare `withdrawsInsideTransaction: true` on the object
+    `createDemoComposition` returns. A reset over a composition that does not is refused before it
+    starts — which is what happens to `@endora-commerce/demo-composition` 0.104 under this platform;
+    the two are released in lockstep and the composition's peer range is the exact platform version.
+  - The transaction is `REPEATABLE READ`, so what the reset counts and what it deletes are one
+    snapshot; `lock_timeout` (60 s) and `idle_in_transaction_session_timeout` (120 s) are set on it;
+    and while it runs, anything in its async context that asks the pool for a second connection is
+    refused immediately with "a reset body wrote outside the reset transaction". A body that brings a
+    database client of its own is ended by the idle bound instead of hanging.
+  - Every refusal — the composition's, a module's, the database's (an integrity constraint, a
+    snapshot conflict, a lock wait) — is printed as a message saying what refused and that nothing
+    has been changed, without a stack. An unanticipated failure keeps its stack and says the same.
+  - `DemoRunFailedError` says "nothing was changed" for such a run instead of telling the operator
+    to clear half-written rows away.
+
+  **What using the demo left behind is withdrawn first** (`@endora-commerce/demo-composition`):
+  orders with their shipments, stock allocations (the stock they held is released) and credit
+  reservations, return cases, carts, quote requests, shopping lists, comparisons, addresses, API
+  keys, webhooks, sessions, two-factor enrolments, newsletter and push subscriptions, analytics
+  events, price-list assignments, promotion uses (the usage counters they spent are given back),
+  promotions restricted to that organisation, Sales Opportunities opened for it, and the accounts
+  that joined it. **These rows are deleted, not re-pointed.** Only rows of the demo organisation
+  are matched — it is found by the tax id the demo gives it — so another organisation on the same
+  instance loses nothing, and neither does a row with no organisation, such as a guest's cart. The
+  audit trail, the e-mail delivery log and administrators' notification history are kept.
+
+  A module that is **switched off** does not exempt its rows: they are withdrawn when the module's
+  tables exist, whether or not it is active. A reset with CRM off used to stop at `organizations`;
+  it now completes, and leaves only CRM's three demo tags, which a reset with CRM on removes.
+
+  **Breaking: the reset refuses when the demo organisation holds financial records.** It exits 1
+  before deleting anything and prints how many of each it found. What counts:
+
+  - a payment whose status is `paid`, `refunded` or `partially_refunded`;
+  - an invoice of kind `invoice` or `correction`, or of any kind that carries a KSeF reference
+    number or an external document reference, or that has an accounting-system row;
+  - any row of `invoice_ledger_deliveries`, `invoice_ledger_document_maps` or
+    `invoice_ledger_client_maps`;
+  - a refund, and a refund settled against the credit limit (`credit_limit_return_topups`).
+
+  A payment still `awaiting_payment`, `deferred` or `failed`, and a pro-forma invoice or delivery
+  note with no external reference, do not count: they are what an order placement opens and are
+  withdrawn with the order, so a demo on which orders were placed and nothing was paid resets
+  without the flag. To delete the financial records with the rest:
+
+  ```
+  pnpm run cli demo reset --force-delete-financial-records
+  ```
+
+  The flag is read from that command line only — no environment variable, no setting — and forces
+  nothing else: the production guard and every foreign key apply as before. An automated job that
+  resets a used demo needs the flag on its command line.
+
+  The reset also stops before touching anything when another organisation has been filed under the
+  demo one — detach or delete the sub-organisation and run it again.
+
+  New exports of `@endora-commerce/platform/demo`: `DemoResetRefusedError` (thrown by a composition
+  to decline a reset; printed as its message, without a stack) and
+  `DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG`. `DemoCompositionInput` gains the optional
+  `deleteFinancialRecords`.
+
+  `organizations`' own demo withdrawal now removes the invitations sent from the demo organisation
+  and the sales representatives assigned to it before removing the organisation, and reports both
+  counts beside `Organization`.
+
+  Promotion counters: a redemption made before its promotion had a global limit bumped no counter,
+  and nothing records that, so it is subtracted like the others; a real promotion's counter can end
+  up lower than the real uses made since, never below zero.
+
+  `@endora-commerce/cli`: the install and `new instance` closing messages mention the refusal and
+  the flag beside `demo reset`.
+
+  The getting-started, upgrade and CRM documentation pages say what the reset now does.
+
+- 77a76a7: The `.gitignore` that `endora new` writes into an instance ignores the build output of the
+  instance's documentation site. Building the site writes `docs/build/` and `docs/.docusaurus/`, and
+  neither was ignored, so an instance that had built its docs and then ran `pnpm run upgrade` saw a
+  diff of well over a hundred regenerated files instead of the `package.json` per member and the
+  lockfile that `docs/docs/upgrading-an-instance.md` promises.
+
+  An instance that already exists keeps the `.gitignore` it was created with. Add these two lines to
+  it by hand:
+
+  ```
+  docs/build/
+  docs/.docusaurus/
+  ```
+
+  If either directory is already committed, also run `git rm -r --cached docs/build docs/.docusaurus`
+  once: git never ignores a file it tracks.
+
+- d09cc6d: The admin route reader behind `check:action-route-permissions` reads registrations whose path is
+  not a literal at the call site. A route registered through a `const` (`app.get(base, …)`), through
+  a local helper's parameter (`patchRoute(url, …)`), as a `+` concatenation, as a member of a table
+  declared in the file, with `app.route({ method, url, … })`, or with `.all` / `.head` / `.options`
+  was not read as a registration at all, while the summary's `unreadable-paths` said `0`. Four admin
+  routes in this repository were in no route record for that reason.
+
+  A registration whose path still cannot be resolved is now reported in `RouteScanResult.unreadable`
+  (file, line and the path as written) instead of being skipped, unless the part that was read
+  already shows the path is outside `/api/v1/admin`. `unreadablePaths` is that list's length.
+
+  `RouteScanInput.pathBindings` lets a caller supply the values of a path identifier no declaration
+  in the file provides — a registrar mounted under a prefix it is handed.
+
+  `requireAdmin('')` is read as `requireAdmin()`: the guard returns before checking anything when
+  the code is empty, so the route is open to any administrator session and is reported that way.
+
+  For `check:action-route-permissions` itself the verdicts are unchanged in this repository: one
+  action now resolves at the `exact` level instead of `subtree`, to the same code.
+
+- fee2de0: The storefront `endora new` writes credits the platform in its footer: "Built with ❤️ using Endora
+  Commerce", where the product name links to `https://commerce.endora.software`. The link carries
+  `utm_source=storefront`, `utm_medium=referral`, `utm_campaign=built-with` and `utm_content=footer`,
+  and the URL is exported from `components/Footer.tsx` as `BUILT_WITH_URL`.
+
+  A storefront that already exists keeps the source it was created with and does not gain the line.
+  To remove it from a new one, delete the `<span>` that renders it in `components/Footer.tsx`.
+
+- 8ca54eb: The storefront `endora new` creates asks for the delivery and payment methods of the sales channel
+  the buyer is shopping.
+
+  `listDeliveryMethods` and `listPaymentMethods` in `lib/api/methods.ts` called the backend with no
+  request context, so no `X-Sales-Channel` header was sent. They take the context as a required
+  argument now, and the checkout and the buyer's preferences page pass `(await getServerContext()).ctx`.
+
+  A storefront that already exists keeps its source and does not receive this. On an instance with
+  more than one sales channel it is then answered with the default channel's methods on every
+  channel; the steps are in _Upgrading an instance_.
+
+- ad4aa50: The storefront `endora new` creates tells the backend which sales channel an order is placed on.
+
+  The storefront's order calls went out with no `X-Sales-Channel` header: they are made server-side,
+  to the backend's own host, and did not forward the request context. Whatever channel the buyer was
+  shopping, the backend resolved the system default for them. The storefront now forwards the
+  context — and with it the header — on order placement, the order-total preview, one-click buy and
+  its eligibility check, and "order again as a quote request".
+
+  In `lib/api/orders.ts`, `placeOrder`, `previewOrderTotal` and `cloneOrderToQuote`,
+  and in `lib/api/quick-order.ts`, `placeOneClickOrder` and `getOneClickEligibility`, take the request
+  context as a required last argument; the checkout, order and product pages pass
+  `(await getServerContext()).ctx`.
+
+  A storefront that already exists keeps its source and does not receive this. It matters only on an
+  instance with more than one sales channel; the steps are in _Upgrading an instance_.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

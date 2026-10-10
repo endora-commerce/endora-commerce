@@ -1,5 +1,88 @@
 # @endora-commerce/mod-price-lists
 
+## 0.105.0
+
+### Patch Changes
+
+- 3383720: Two refusals of a cart line have an error code of their own instead of `VALIDATION_FAILED`, and a
+  sentence in English and Polish. **A client that matches on `VALIDATION_FAILED` for these two cases
+  now sees the specific code**; the HTTP status of each is unchanged.
+
+  - `CART_PRODUCT_QUOTE_ONLY` (`400`) — the product's price is withheld from this buyer (the resolved
+    price display mode is `none`), so it is quoted rather than added to a cart. It was
+    `400 VALIDATION_FAILED` with the identifier `product_quote_only` as its message, which is what
+    the buyer read, in every language. `details.productId` names the product. Besides
+    `POST /api/v1/cart/items`, every flow that fills a cart line by line can answer it: quick order,
+    one-click buy, a shopping list added to the cart, an order created in the admin and an order
+    taken in through the API.
+  - `CART_QUANTITY_INVALID` (`422`) — the quantity is below the minimum a cart line may hold. It was
+    `422 VALIDATION_FAILED` with the English message `Quantity must be > 0.`, held by no bundle.
+    `details.minimum` and `details.quantity` carry the values, and both sentences name the minimum.
+    No HTTP route reaches it — every request schema in front of the cart already refuses such a
+    quantity as a malformed request, which is still `400 VALIDATION_FAILED` — so it is what a module
+    calling the cart write port (`CartWritePort.addItem`) in-process is answered.
+
+  `@endora-commerce/contracts` gains the two members of `ERROR_CODES`. The `price_lists` documentation
+  page, which names the first refusal, names the new code. No setting or permission changes.
+
+- 34fe84f: A scheduled tick that finds nothing to do no longer writes a `tenant.escape_hatch` audit row. Four
+  repeating jobs entered a system scope on every tick, and each entry is one row in
+  `audit_log_entries` because ticks are further apart than the audit writer's ten-second aggregation
+  window: the order follow-up sweep and the CRM event reminders (every 60 seconds, 1,440 rows a day
+  each), the product feed stale-claim reaper and the price list status sweep (every 5 minutes, 288 a
+  day each) — on an instance where none of them did anything.
+
+  Each now asks first whether a pass would do anything, with a statement that runs outside any scope
+  and returns one boolean and nothing else, and enters the system scope only when the answer is yes.
+  A tick with work is recorded exactly as before. A question that fails counts as yes, so a failing
+  probe can cost an audit row and never save one. Every probe goes through one helper,
+  `anyRowExists` (`services/scheduled-work-probe.ts`, an identical file in each of the four modules),
+  which builds the `select exists(…)` itself and returns a boolean, so a probe has no select list to
+  widen. In `mod-orders`, `mod-crm` and `mod-product-feeds` the probe and the pass read the same
+  statement of each condition, so the question cannot become narrower than the work. The rule is written down in
+  `docs/docs/architecture/tenant-scoping.md` § _A scheduled tick with nothing to do enters no scope_.
+
+  Not changed: the rows a process writes while it starts (`boot: …`), and the search reindex timer,
+  which reads a setting before it can know whether it has work.
+
+  For code that builds these consumers itself — inside 0.x, and nothing in the published surface of
+  `@endora-commerce/platform` moves:
+
+  - `mod-orders`: `TransitionEffectSweepDeps.effects` also needs `hasSweepWork`; new
+    `OrderTransitionEffectService.hasSweepWork()` and `runTransitionEffectSweepTick()`.
+  - `mod-crm`: `startEventReminders()` also takes `isPresent` and `hasWork`; new
+    `EventReminderService.hasSweepWork()` and `runEventReminderJob()`.
+  - `mod-product-feeds`: `createFeedReaperWorker(redis, hasWork, processor)` takes the question as its
+    second argument; new `FeedRunReaperService.hasClaimedRuns()`, `runFeedReaperJob()` and
+    `runFeedRunReaperTick()`.
+  - `mod-price-lists`: new `PriceListStatusWorker.hasDueTransitions()` and `statusSweepTick()`.
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+
 ## 0.104.0
 
 ### Patch Changes

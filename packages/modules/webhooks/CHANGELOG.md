@@ -1,5 +1,129 @@
 # @endora-commerce/mod-webhooks
 
+## 0.105.0
+
+### Minor Changes
+
+- 602e5ba: Six more events are delivered to webhooks: three product events, two quote-request events and the
+  credit-limit adjustment.
+
+  They were emitted on the in-process event bus and delivered to nobody. Each is now offered on the
+  Webhooks screen, accepted by the API and delivered, while the module that owns it is present:
+
+  | Event                      | Owner            | Payload, beside `eventId` and `occurredAt`                      |
+  | -------------------------- | ---------------- | --------------------------------------------------------------- |
+  | `product.created.v1`       | `catalog`        | `productId`, `sku`                                              |
+  | `product.updated.v1`       | `catalog`        | `productId`, `changedFields` (field names only)                 |
+  | `product.archived.v1`      | `catalog`        | `productId`                                                     |
+  | `rfq.created.v1`           | `quote_requests` | `rfqId`, `organizationId`                                       |
+  | `rfq.expired.v1`           | `quote_requests` | `rfqId`, `organizationId`                                       |
+  | `credit_limit.adjusted.v1` | `credit_limits`  | `organizationId`, `amount` (the granted limit after the change) |
+
+  **The owning module offers its own events.** `catalog`, `quote_requests` and `credit_limits` push
+  their event names into `webhooks`' `webhookEventRegistry` from a boot hook and declare the edge as
+  `contributes-to` — the mechanism `crm` already uses. `webhooks` names none of them, and its two
+  built-in types are unchanged. With `quote_requests` or `credit_limits` switched off, their types are
+  not offered and a new subscription to them is refused; stored subscriptions are kept and receive
+  nothing until the module is back.
+
+  **Who receives them.** Product events carry no `organizationId`, so they reach platform-wide
+  subscriptions only. Quote-request and credit-limit events reach platform-wide subscriptions and the
+  subscriptions bound to that Organization, never one bound to another.
+
+  **The payloads are published contracts.** `@endora-commerce/contracts` exports a strict schema for
+  each — `CATALOG_WEBHOOK_EVENT_SCHEMAS`, `QUOTE_REQUEST_WEBHOOK_EVENT_SCHEMAS`,
+  `CREDIT_LIMIT_WEBHOOK_EVENT_SCHEMAS` — with the matching `*_WEBHOOK_EVENT_TYPES` and
+  `*_WEBHOOK_EVENTS` constants and one `…EventV1Schema` and type per event.
+
+  Three changes of behaviour in the owning modules:
+
+  - **`catalog` now emits `product.archived.v1` when a product's status moves to `inactive`.** The
+    event was emitted only by a deprecated method nothing called, so no path an administrator, an
+    import or a PIM synchronisation takes ever announced it. It is emitted once per transition, after
+    the `product.updated.v1` of the same write, on every update path. A subscriber on the in-process
+    bus — the search indexer removes the product from the index on it — now receives it. The
+    archiving write waits for the subscribers of both events before it returns, so a reactivation
+    that follows at once cannot be undone by a removal still on its way; on the unaudited update
+    path (the API-key upsert, a bulk edit) that makes an archiving write as slow as its subscribers,
+    where it used to return without waiting.
+  - **`rfq.expired.v1` carries `organizationId`.** Without it the event could reach no subscription
+    bound to an Organization. An additive field.
+  - **`CreditLimitService` constructed without a Command Bus emits `credit_limit.adjusted.v1` after
+    its transaction has committed**, not from inside it, so an adjustment whose commit fails is not
+    announced. The composed module always has a Command Bus and was not affected.
+
+  **A contributed event type is delivered only while its owner is present.** `webhooks` asked for
+  its own presence before delivering and not for the contributing module's, so an event carrying the
+  name of a switched-off module was still delivered to the subscriptions stored for it. The bridge
+  now asks per event, for every contributed type — the `crm` ones included. The two built-in order
+  events are unaffected.
+
+  Not delivered, and documented as such: a product being deleted (`product.deleted.v1` stays
+  in-process), and a product being reactivated (there is no un-archive event; it shows as `status` in
+  `changedFields`). `rfq.expired.v1` is sent only by the quote-request expiry sweep, so it occurs
+  only on an instance where that sweep runs.
+
+  **Volume.** Nothing is batched: a bulk edit, an import or a PIM synchronisation writes products one
+  by one, so a subscription to `product.updated.v1` receives one delivery per product written. An
+  event type no subscription names enqueues nothing.
+
+- 8ee69de: The Webhooks screen offers only event types that are delivered, and the API refuses the rest.
+
+  The subscription form offered thirteen event types while the backend delivered two of them,
+  `order.created.v1` and `order.status_changed.v1`. A subscription to any of the other eleven was
+  saved without complaint and never received anything, and the API accepted any non-empty string, a
+  misspelled name included.
+
+  **Breaking for API clients.** `POST /api/v1/admin/webhooks` and
+  `PATCH /api/v1/admin/webhooks/:id` now answer `422` with the new error code
+  `WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE` when `eventTypes` names an event type that is neither built in
+  nor contributed by a module that is switched on; `error.details.eventTypes` carries the refused
+  names. A client that sent other strings must send only the names the screen offers: the two above,
+  plus the answer of `GET /api/v1/admin/webhooks/event-types`. The request schema's shape is
+  unchanged.
+
+  **Subscriptions that already exist are untouched.** There is no migration. A stored subscription
+  that carries a name nothing delivers is still listed, can still be paused, renamed, re-pointed and
+  deleted, and may keep that name through an `eventTypes` update — only a name a write _adds_ is
+  checked. The screen marks such names as not delivered. They receive nothing, as they did before.
+
+  `@endora-commerce/contracts` exports the list both sides now read:
+  `WEBHOOK_BUILT_IN_EVENT_TYPES`, the `WebhookBuiltInEventType` type,
+  `deliverableWebhookEventTypes(contributed)` and `ERROR_CODES.WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE`.
+  The backend subscribes its delivery bridge from the constant and the form offers from it, so the
+  two cannot drift apart again. A module that wants its events delivered contributes them through
+  `webhookEventRegistry`, as before.
+
+  No event type is delivered that was not delivered before, and none stopped being delivered.
+
+### Patch Changes
+
+- Updated dependencies [18ae962]
+- Updated dependencies [1190180]
+- Updated dependencies [a65b215]
+- Updated dependencies [9260c36]
+- Updated dependencies [3383720]
+- Updated dependencies [202f0d9]
+- Updated dependencies [0184be5]
+- Updated dependencies [560f2e3]
+- Updated dependencies [60cfd18]
+- Updated dependencies [79bd849]
+- Updated dependencies [31a2c0b]
+- Updated dependencies [266cd38]
+- Updated dependencies [bdb823b]
+- Updated dependencies [8d4440f]
+- Updated dependencies [8ca54eb]
+- Updated dependencies [6b2ba06]
+- Updated dependencies [be5b3ce]
+- Updated dependencies [82ca6dd]
+- Updated dependencies [38e8818]
+- Updated dependencies [335750c]
+- Updated dependencies [602e5ba]
+- Updated dependencies [8ee69de]
+  - @endora-commerce/contracts@0.105.0
+  - @endora-commerce/platform@0.105.0
+  - @endora-commerce/admin-kit@0.105.0
+
 ## 0.104.0
 
 ### Minor Changes
