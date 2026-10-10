@@ -385,17 +385,18 @@ export const ACCOUNT_WIDE_LIMIT_VARIABLE = 'ADMIN_AUTH_ACCOUNT_WIDE_LIMIT';
  * sets the variable to `off`.
  *
  * It is an environment variable and not a Setting on purpose: a Setting would
- * be a switch in the Admin UI that the limit protects. Only `off` switches it
- * off; a value this function does not know leaves the limit on and says so. A
+ * be a switch in the Admin UI that the limit protects. Only the exact value
+ * `off` switches it off; anything else — `OFF`, ` off `, `false` — leaves the
+ * limit on and says so. A
  * warning is logged every time the limit is off.
  */
 export function accountWideLimitFromEnvironment(
   value: string | undefined,
   log: PlatformLogger,
 ): boolean {
-  const setting = (value ?? '').trim().toLowerCase();
-  if (setting === '' || setting === 'on') return true;
-  if (setting === 'off') {
+  // Compared exactly: `OFF` or ` off ` is a value this function does not know.
+  if (value === undefined || value === '' || value === 'on') return true;
+  if (value === 'off') {
     log.warn(
       { variable: ACCOUNT_WIDE_LIMIT_VARIABLE },
       'account-wide administrator attempt limit is OFF — intended for demo instances with published credentials',

@@ -243,9 +243,10 @@ addresses: without it, a party with a thousand addresses gets five guesses from
 each of them every half hour.
 
 It is an environment variable and not a Setting on purpose — a Setting would be
-a switch in the Admin UI that the limit protects. Only the value `off` switches
-the limit off; any other value leaves it on and logs a warning. While it is off
-the backend logs this warning on every start:
+a switch in the Admin UI that the limit protects. Only the exact value `off`
+switches the limit off — lower case, with nothing around it; any other value,
+`OFF` included, leaves it on and logs a warning. While it is off the backend
+logs this warning on every start:
 
 ```text
 account-wide administrator attempt limit is OFF — intended for demo instances with published credentials

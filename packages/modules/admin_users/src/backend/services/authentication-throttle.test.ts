@@ -614,21 +614,23 @@ describe('accountWideLimitFromEnvironment', () => {
     }
   });
 
-  it('is off only for `off`, and says so every time it is read', () => {
+  it('is off only for the exact value `off`, and says so every time it is read', () => {
     const { log, warnings } = logs();
     expect(accountWideLimitFromEnvironment('off', log)).toBe(false);
-    expect(accountWideLimitFromEnvironment(' OFF ', log)).toBe(false);
+    expect(accountWideLimitFromEnvironment('off', log)).toBe(false);
     expect(warnings).toHaveLength(2);
     expect(warnings[0]).toContain('account-wide administrator attempt limit is OFF');
     expect(warnings[0]).toContain('demo instances with published credentials');
   });
 
-  it('stays on, with a warning, for a value it does not know', () => {
-    for (const value of ['false', '0', 'disabled']) {
+  it.each(['OFF', 'Off', ' off', 'off ', ' Off ', 'off\n', 'false', '0', 'disabled', 'ON', ' on'])(
+    'stays on, with the unknown-value warning, for %j',
+    (value) => {
       const { log, warnings } = logs();
       expect(accountWideLimitFromEnvironment(value, log)).toBe(true);
       expect(warnings).toHaveLength(1);
       expect(warnings[0]).toContain('ADMIN_AUTH_ACCOUNT_WIDE_LIMIT');
-    }
-  });
+      expect(warnings[0]).toContain('stays on');
+    },
+  );
 });

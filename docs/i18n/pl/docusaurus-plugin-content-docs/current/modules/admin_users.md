@@ -254,8 +254,8 @@ z nich co pół godziny.
 
 To celowo zmienna środowiskowa, a nie ustawienie — ustawienie byłoby
 przełącznikiem w panelu administracyjnym, który ten limit chroni. Limit wyłącza
-tylko wartość `off`; każda inna pozostawia go włączonym i zapisuje ostrzeżenie
-w logu. Gdy limit jest wyłączony, backend przy każdym starcie zapisuje w logu
+tylko dokładna wartość `off` — małymi literami, bez żadnych znaków dookoła;
+każda inna, także `OFF`, pozostawia go włączonym i zapisuje ostrzeżenie w logu. Gdy limit jest wyłączony, backend przy każdym starcie zapisuje w logu
 ostrzeżenie:
 
 ```text
