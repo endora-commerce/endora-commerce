@@ -13,6 +13,7 @@ import { AdminUser } from './entities/admin-user.entity.js';
 import {
   AuthenticationThrottle,
   type AttemptCounterStore,
+  accountWideLimitFromEnvironment,
 } from './services/authentication-throttle.js';
 import { ImpersonationService } from './services/impersonation-service.js';
 import { AdminUserService } from './services/admin-user-service.js';
@@ -99,6 +100,12 @@ export function adminModule(
     redis: options.redis,
     auditLog: options.auditLogService,
     log: options.log,
+    // An instance-level opt-out for demo instances, read once here and warned
+    // about on every boot it is active.
+    accountWideLimit: accountWideLimitFromEnvironment(
+      process.env['ADMIN_AUTH_ACCOUNT_WIDE_LIMIT'],
+      options.log,
+    ),
     // Read only for a known-device value whose signature a route has verified,
     // and when one is minted. An inactive or deleted account answers `null`,
     // which is what stops its devices being known the moment it is deactivated.

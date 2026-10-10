@@ -7,12 +7,14 @@ import { randomBytes } from 'crypto';
  * Three kinds of ephemeral token, all TTL-bounded so abandonment never
  * materializes into a session:
  *   - pending-login challenge (`mfa:chal:<id>`) — after a correct password,
- *     before the second factor; carries an attempt budget;
+ *     before the second factor; carries an attempt budget, and the attempts
+ *     taken from it are counted beside it (`mfa:chal-attempts:<id>`);
  *   - setup ticket (`mfa:setup:<id>`) — enforced-but-unenrolled subject, may
  *     only call the enrolment endpoints until activation;
  *   - OAuth transaction (`mfa:oauth:<state>`) — PKCE verifier + nonce + next.
  */
 const CHAL_PREFIX = 'mfa:chal:';
+const ATTEMPTS_PREFIX = 'mfa:chal-attempts:';
 const SETUP_PREFIX = 'mfa:setup:';
 const OAUTH_PREFIX = 'mfa:oauth:';
 const GENERATION_PREFIX = 'mfa:gen:';
@@ -26,6 +28,7 @@ export interface PendingChallenge {
   subjectType: 'customer' | 'admin';
   subjectId: string;
   salesChannelId: string | null;
+  /** The budget the challenge was issued with. What is left of it: `takeAttempt`. */
   attemptsRemaining: number;
   /** The subject's generation when this was issued — see `invalidateSubject`. */
   generation?: number;
@@ -47,6 +50,17 @@ export interface OAuthTransaction {
   nonce: string;
   next: string;
 }
+
+/**
+ * Count one attempt and (re)arm the counter's expiry in the same step, so the
+ * counter is collected with the challenge it counts for whatever happens to
+ * the caller in between. KEYS[1] the counter, ARGV[1] its lifetime in seconds.
+ */
+const TAKE_ATTEMPT_SCRIPT = `
+local taken = redis.call('INCR', KEYS[1])
+redis.call('EXPIRE', KEYS[1], ARGV[1])
+return taken
+`;
 
 function generationKey(subjectType: 'customer' | 'admin', subjectId: string): string {
   return `${GENERATION_PREFIX}${subjectType}:${subjectId}`;
@@ -121,25 +135,35 @@ export class ChallengeStore {
   }
 
   /**
-   * Record a failed attempt: decrement the budget and burn the challenge when
-   * it reaches zero. Returns the remaining budget (0 ⇒ burned).
+   * Take one attempt from the challenge's budget, **before** the code is
+   * checked. Answers how many are left afterwards; `-1` when there was none to
+   * take — the challenge is then burned; and `null` when there is no such
+   * challenge any more — consumed, expired or withdrawn — which is "start
+   * over" rather than "too many attempts".
+   *
+   * The count is one script, so of any number of attempts taken at the same
+   * time exactly the budget are admitted, and the counter can never be left
+   * without an expiry. The budget used to be read, the code checked, and the
+   * budget written back: codes sent together were all checked against the same
+   * unspent budget, and five was not a limit.
    */
-  async recordFailedAttempt(id: string): Promise<number> {
+  async takeAttempt(id: string): Promise<number | null> {
     const challenge = await this.getChallenge(id);
-    if (!challenge) return 0;
-    const remaining = challenge.attemptsRemaining - 1;
-    if (remaining <= 0) {
-      await this.consumeChallenge(id);
-      return 0;
-    }
-    const ttl = await this.redis.ttl(CHAL_PREFIX + id);
-    await this.redis.set(
-      CHAL_PREFIX + id,
-      JSON.stringify({ ...challenge, attemptsRemaining: remaining }),
-      'EX',
-      ttl > 0 ? ttl : CHALLENGE_TTL_SECONDS,
+    if (!challenge) return null;
+    const taken = Number(
+      await this.redis.eval(TAKE_ATTEMPT_SCRIPT, 1, ATTEMPTS_PREFIX + id, CHALLENGE_TTL_SECONDS),
     );
+    const remaining = challenge.attemptsRemaining - taken;
+    if (remaining < 0) {
+      await this.consumeChallenge(id);
+      return -1;
+    }
     return remaining;
+  }
+
+  /** Give back an attempt whose code was never checked. */
+  async returnAttempt(id: string): Promise<void> {
+    await this.redis.decr(ATTEMPTS_PREFIX + id);
   }
 
   async consumeChallenge(id: string): Promise<void> {

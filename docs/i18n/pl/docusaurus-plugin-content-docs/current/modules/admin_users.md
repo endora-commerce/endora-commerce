@@ -221,6 +221,47 @@ klienci mają jeden wspólny adres: pięć błędnych haseł od kogokolwiek wstr
 wtedy każde urządzenie, które nie jest znane, dla każdego konta, na którym je
 wypróbowano.
 
+### Instancje demonstracyjne, które publikują hasło administratora
+
+Limit dla całego konta — 20 błędnych haseł dla jednego konta ze wszystkich
+adresów, które nie są znanym urządzeniem — zakłada, że hasło jest tajne.
+Publiczne demo, które wypisuje adres e-mail i hasło administratora na stronie
+logowania, łamie to założenie: każdy odwiedzający jest urządzeniem logującym
+się po raz pierwszy, więc ktokolwiek może zablokować je wszystkie dwudziestoma
+błędnymi hasłami i kilkoma kolejnymi co pół godziny.
+
+Dla takiej instancji, i tylko dla takiej, ustaw
+
+```bash
+ADMIN_AUTH_ACCOUNT_WIDE_LIMIT=off
+```
+
+w środowisku backendu i uruchom go ponownie. Co się zmienia, a co nie:
+
+- **Wyłączone:** liczenie błędnych **haseł** dla całego konta. Urządzenie
+  logujące się po raz pierwszy jest wtedy odrzucane wyłącznie za błędne próby
+  z własnego adresu.
+- **Nadal włączone:** limit pięciu prób z jednego adresu na jednym koncie,
+  limit pięciu prób dla znanego urządzenia, oba limity kodów drugiego
+  składnika — łącznie z limitem dla całego konta — oraz same opóźnienia.
+- Żądanie, które dociera do backendu bez żadnego adresu klienta, jest nadal
+  liczone dla konta, aby żadna próba nie pozostała niepoliczona.
+
+**Nie ustawiaj tej zmiennej na instancji, której hasła administratorów nie są
+publiczne.** Tam limit dla całego konta ogranicza zgadywanie rozłożone na wiele
+adresów: bez niego ktoś, kto ma tysiąc adresów, dostaje pięć prób z każdego
+z nich co pół godziny.
+
+To celowo zmienna środowiskowa, a nie ustawienie — ustawienie byłoby
+przełącznikiem w panelu administracyjnym, który ten limit chroni. Limit wyłącza
+tylko dokładna wartość `off` — małymi literami, bez żadnych znaków dookoła;
+każda inna, także `OFF`, pozostawia go włączonym i zapisuje ostrzeżenie w logu. Gdy limit jest wyłączony, backend przy każdym starcie zapisuje w logu
+ostrzeżenie:
+
+```text
+account-wide administrator attempt limit is OFF — intended for demo instances with published credentials
+```
+
 ### Co widzi operator
 
 Za każdym razem, gdy dla istniejącego konta rozpoczyna się wstrzymanie,

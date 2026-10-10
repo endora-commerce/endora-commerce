@@ -80,8 +80,8 @@ export class MfaLoginService implements MfaLoginPort {
 
   /**
    * Complete the second step: verify the code against the challenge's subject.
-   * On failure, the attempt budget is decremented and the challenge burned when
-   * exhausted. On success the challenge is consumed and the subject returned so
+   * An attempt is taken from the challenge's budget before the code is checked,
+   * and the challenge is burned when the last one fails. On success the challenge is consumed and the subject returned so
    * the route can mint the session.
    *
    * An administrator's code is checked inside the account's authentication
@@ -101,10 +101,25 @@ export class MfaLoginService implements MfaLoginPort {
       subjectType: challenge.subjectType,
       subjectId: challenge.subjectId,
     };
-    const verified = await this.verifySecondFactor(subject, code, context);
+    // The attempt is taken before the code is looked at, so codes sent at the
+    // same time cannot all be checked against one unspent budget.
+    const remaining = await this.challengeStore.takeAttempt(challengeId);
+    // Gone between the read above and the take — consumed by a request that
+    // completed it, expired, or withdrawn: start over, not "too many attempts".
+    if (remaining === null) return { ok: false, error: 'invalid_challenge' };
+    if (remaining < 0) return { ok: false, error: 'locked', subject };
+    let verified: Awaited<ReturnType<SecondFactorVerifier>>;
+    try {
+      verified = await this.verifySecondFactor(subject, code, context);
+    } catch (error) {
+      // Refused before the code was checked — the throttle's 429, a store that
+      // did not answer. Nothing was learned from it, so it costs nothing.
+      await this.challengeStore.returnAttempt(challengeId);
+      throw error;
+    }
     if (!verified.ok) {
-      const remaining = await this.challengeStore.recordFailedAttempt(challengeId);
-      return { ok: false, error: remaining <= 0 ? 'locked' : 'invalid_code', subject };
+      if (remaining === 0) await this.challengeStore.consumeChallenge(challengeId);
+      return { ok: false, error: remaining === 0 ? 'locked' : 'invalid_code', subject };
     }
     await this.challengeStore.consumeChallenge(challengeId);
     return { ok: true, subject, factor: verified.factor ?? 'totp' };
