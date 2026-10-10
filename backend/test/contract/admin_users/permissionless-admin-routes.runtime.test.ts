@@ -260,6 +260,60 @@ describe('permissionless admin routes, at runtime (issue #141)', () => {
       expect(codeOf(permitted.body)).toBe(ERROR_CODES.VALIDATION_FAILED);
     });
 
+    it('a route with two guards: the second one refuses an invalid body too, 403 and not 400', async () => {
+      // `POST …/crm/opportunities/:id/attachments` asks for `crm:write`, then
+      // `assets.read`. An account holding only the first passes one guard and
+      // is refused by the next — which must also happen before the schema.
+      const roleCode = `crm_writer_${Date.now()}`;
+      const role = await h.app.inject({
+        method: 'PUT',
+        url: `/api/v1/admin/admin-roles/${roleCode}`,
+        cookies: { b2b_session: 'stub-admin-session' },
+        payload: { code: roleCode, name: 'CRM writer', permissions: ['crm:write'] },
+      });
+      expect(role.statusCode).toBe(200);
+      const em = h.em();
+      const account = em.create(AdminUser, {
+        email: `crm-writer-${Date.now()}@audit.local`,
+        passwordHash: 'x'.repeat(60),
+        firstName: 'Crm',
+        lastName: 'Writer',
+        adminRoleId: (role.json() as { data: { id: string } }).data.id,
+        status: 'active',
+      });
+      await em.persistAndFlush(account);
+      const cookie = `stub-runtime-crm-writer-${Date.now()}`;
+      ADMIN_COOKIES[cookie] = { adminUserId: account.id };
+      try {
+        const request = {
+          method: 'POST' as const,
+          url: `/api/v1/admin/crm/opportunities/${NIL_ID}/attachments`,
+          payload: { assetId: 'not-a-uuid' },
+        };
+        const refused = await h.app.inject({ ...request, cookies: { b2b_session: cookie } });
+        expect(refused.statusCode).toBe(403);
+        expect(codeOf(refused.body)).toBe(ERROR_CODES.FORBIDDEN);
+
+        // It is the second guard that refused: on a route asking for
+        // `crm:write` alone, the same account reaches the validator.
+        const firstGuardPasses = await h.app.inject({
+          method: 'POST',
+          url: '/api/v1/admin/crm/opportunities',
+          cookies: { b2b_session: cookie },
+          payload: {},
+        });
+        expect(firstGuardPasses.statusCode).toBe(400);
+        expect(codeOf(firstGuardPasses.body)).toBe(ERROR_CODES.VALIDATION_FAILED);
+
+        // The same request from an account holding both codes is the validator's.
+        const validated = await h.app.inject({ ...request, cookies: { b2b_session: 'stub-admin-session' } });
+        expect(validated.statusCode).toBe(400);
+        expect(codeOf(validated.body)).toBe(ERROR_CODES.VALIDATION_FAILED);
+      } finally {
+        delete ADMIN_COOKIES[cookie];
+      }
+    });
+
     it('an authorised administrator is still answered by the validator, in the shape it always had', async () => {
       const invalid = await h.app.inject({
         method: 'POST',

@@ -1,5 +1,5 @@
 ---
-'@endora-commerce/platform': patch
+'@endora-commerce/platform': minor
 ---
 
 A route's guards now run before the request is validated. A caller with no session was answered
@@ -25,8 +25,13 @@ route's `preHandler` now runs after the body is parsed and **before** it is vali
 defaults the route's schema applies. A guard that reads the request has to tolerate any shape. If
 a route-level `preHandler` of yours depends on the validated request, move that work into the
 handler, into an API interceptor (`ctx.interceptors`, which still runs after validation), or into
-a `preHandler` added with `addHook` on your plugin scope — the listener moves none of those. No
-guard in the platform's own modules needed a change.
+a `preHandler` added with `addHook` on your plugin scope — the listener moves none of those.
+
+**A second change follows from the first: an `addHook('preHandler')` on a plugin scope now runs
+after the route's guards, where it used to run before them.** The hook stays in the `preHandler`
+phase and the route's own guards have moved ahead of it, so a value such a hook puts on the request
+is `undefined` when a route guard reads it. Anything a route guard depends on must be established
+in `onRequest` or `preValidation`. No guard or hook in the platform's own modules needed a change.
 
 Not covered: a request the body parser refuses (malformed JSON, an unsupported media type, a body
 over the limit) is still answered before any guard, and so is a route that checks the session

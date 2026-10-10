@@ -153,6 +153,14 @@ Praca wymagająca zwalidowanego żądania należy do handlera, do
 [interceptora API](./api-interceptor.md) albo do haka `preHandler` dodanego przez `addHook` we
 własnym zakresie wtyczki; żadne z nich nie jest przenoszone.
 
+**Ta ostatnia możliwość działa teraz po zabezpieczeniach trasy, a wcześniej działała przed nimi.**
+Hak `preHandler` dodany przez `addHook` pozostaje w fazie `preHandler`, podczas gdy własne
+zabezpieczenia trasy zostały przeniesione przed nią, więc tego, co taki hak zapisuje w żądaniu,
+nie ma jeszcze w chwili, gdy odczytuje to zabezpieczenie trasy. Wszystko, od czego zależy
+zabezpieczenie trasy, musi zostać ustalone w `onRequest` albo `preValidation` — hak
+`addHook('preValidation')` w zakresie wtyczki działa przed zabezpieczeniami tras znajdujących się
+w tym zakresie.
+
 Dwie rzeczy nadal odpowiadają przed jakimkolwiek zabezpieczeniem: żądanie odrzucone przez parser
 treści (niepoprawny JSON, nieobsługiwany typ zawartości, treść ponad limit) oraz trasa, która
 sprawdza sesję wewnątrz handlera, zamiast deklarować zabezpieczenie — schemat takiej trasy jest

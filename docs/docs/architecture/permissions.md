@@ -160,6 +160,13 @@ on anything else. Work that needs the validated request belongs in the handler, 
 [API interceptor](./api-interceptor.md), or in a `preHandler` added with `addHook` on your own
 plugin scope; none of those is moved.
 
+**That last option now runs after the route's guards, where it used to run before them.** A
+`preHandler` added with `addHook` stays in the `preHandler` phase while the route's own guards have
+moved ahead of it, so anything such a hook puts on the request is no longer there when a route
+guard reads it. Whatever a route guard depends on must be established in `onRequest` or
+`preValidation` — an `addHook('preValidation')` on a plugin scope runs before the guards of the
+routes inside it.
+
 Two things still answer before any guard: a request the body parser refuses (malformed JSON, an
 unsupported media type, a body over the limit) and a route that checks the session inside its
 handler instead of declaring a guard — the schema of such a route is validated first. Declare the
