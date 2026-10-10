@@ -127,9 +127,20 @@ whichever tab is open.
 | **Overview** | The description, the custom fields, and — after **Edit** — the edit form. |
 | **Links** | *Linked orders* and *Linked quote requests*: link, unlink, the *follow the opportunity's status* switch, **Create order** and **Create quote request**. The tab shows how many documents are linked. |
 | **Events** | What is planned for the opportunity — a call, a meeting, a deadline — as a list and on a calendar of its own, each with an optional reminder. The tab shows how many events have not ended yet. See *Events and reminders*. |
-| **Notes**, **Messages** | The two conversations. |
-| **Attachments** | The files. |
+| **Notes**, **Messages** | The two conversations. The **Notes** tab shows how many notes there are; the **Messages** tab shows how many messages you have not read yet. |
+| **Attachments** | The files. The tab shows how many are attached. |
 | **Change history** | Everything that was done to the opportunity, newest first. |
+
+**The number beside a tab's label** says how much is behind it, and a tab with
+nothing behind it shows no number — so a number always means there is something
+to open. On *Links*, *Notes* and *Attachments* it is the number of items: linked
+documents, notes, files. On *Events* it is the events that have not ended yet.
+On *Messages* it is the messages you have not read — see *Notes and internal
+messages*. The numbers come with the opportunity itself, so they are there
+before any tab is opened, and each follows when you add or remove an item on its
+tab. What a colleague adds in the meantime appears after a reload. A screen
+reader announces each number with what it counts — "Notes, items: 3",
+"Events, upcoming: 2", "Messages, unread: 1".
 
 The open tab is part of the address — `/crm/opportunities/:id?tab=links`, and
 likewise `events`, `notes`, `messages`, `attachments` and `history` — so it survives a
@@ -660,15 +671,40 @@ holder of `crm:write` — a field under the list to write the next one.
 - On **Messages** nothing can be edited or deleted, and the tab says so above
   the conversation.
 
+**Unread messages.** The *Messages* tab shows how many messages of the
+opportunity you have not read yet, and opening the tab reads them: the number
+goes as soon as the conversation is on screen. The count is yours alone — a
+colleague reading the conversation changes nothing for you — and it works the
+same for somebody who may read opportunities but not write. A message you wrote
+yourself is never unread. A message that arrives after you opened the tab is
+unread again, and shows the next time the opportunity is loaded. Reading leaves
+no trace on the opportunity: nothing appears in its change history.
+
+When the module is upgraded to the release that introduces the count, nobody
+finds the existing conversations unread: for an opportunity you have not opened
+since, only messages written after the upgrade count.
+
 | Verb + Path | Permission | Purpose |
 | --- | --- | --- |
 | `GET /api/v1/admin/crm/opportunities/:id/comments?kind=note` | `crm:read` | The opportunity's notes, oldest first. `kind=message` for the conversation. `kind` is required. |
 | `POST /api/v1/admin/crm/opportunities/:id/comments` | `crm:write` | Write one: `{ "kind": "note" \| "message", "body" }`. |
 | `PATCH /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Edit a note: `{ "body" }`. Its author only. |
 | `DELETE /api/v1/admin/crm/opportunities/:id/comments/:commentId` | `crm:write` | Delete a note. Its author only. |
+| `POST /api/v1/admin/crm/opportunities/:id/messages/read` | `crm:read` | Say that you have read the conversation up to a message: `{ "throughMessageId" }`. Answers `{ "unreadMessageCount" }` — what is left unread for you. |
 
 Editing or deleting somebody else's note answers 403; doing either to a message
 answers 409 `CRM_MESSAGE_IMMUTABLE`, whoever asks.
+
+`GET /api/v1/admin/crm/opportunities/:id` carries `noteCount`,
+`attachmentCount` and `unreadMessageCount`. The last one is counted for the
+administrator who asks: two administrators reading the same opportunity get two
+numbers. Marking messages read moves only your own marker, and never backwards;
+`throughMessageId` has to be a message of that opportunity, or the answer is
+404. How far each administrator has read is stored in the table
+`crm_opportunity_message_reads`, one row per administrator and opportunity, and
+goes with the opportunity when it is deleted. `crm_message_read_baselines` holds
+the one instant from which unread messages are counted for somebody with no
+marker.
 
 ## Attachments
 

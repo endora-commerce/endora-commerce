@@ -57,6 +57,7 @@ const CRM_ROW_TABLES = [
   'crm_opportunity_references',
   'crm_opportunity_events',
   'crm_opportunity_links',
+  'crm_opportunity_message_reads',
   'crm_tags',
 ] as const;
 
@@ -237,6 +238,8 @@ describe('the demo sales pipeline while CRM is switched off', () => {
         crm_opportunity_references: 3,
         crm_opportunity_events: 8,
         crm_opportunity_links: 0,
+        // Nobody has opened a conversation in a shop that was only seeded.
+        crm_opportunity_message_reads: 0,
         crm_tags: 3,
       });
       expect(shopAfterOnSeed).toEqual(shopAfterOffSeed);

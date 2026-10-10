@@ -44,6 +44,7 @@ import type { OpportunityTabProps } from '../tabs.js';
  */
 export function AttachmentsTab(props: OpportunityTabProps): ReactNode {
   const opportunityId = props.opportunity.id;
+  const reloadOpportunity = props.reload;
   const t = useTranslation('crm');
   const tCore = useTranslation('core');
   const { language } = useAppLanguage();
@@ -97,6 +98,8 @@ export function AttachmentsTab(props: OpportunityTabProps): ReactNode {
           : [...(previous ?? []), added],
       );
       setNotice(t('attachments.added'));
+      // The tab's label counts the files; the page reads that count again.
+      void reloadOpportunity();
     } catch (failure) {
       setActionError(errorMessage(failure, t('attachments.error.attach')));
     } finally {
@@ -135,6 +138,7 @@ export function AttachmentsTab(props: OpportunityTabProps): ReactNode {
       setAttachments((previous) => (previous ?? []).filter((item) => item.id !== pendingRemove.id));
       setNotice(t('attachments.removed', { name: pendingRemove.fileName }));
       setPendingRemove(null);
+      void reloadOpportunity();
     } catch (failure) {
       setRemoveError(errorMessage(failure, t('attachments.error.remove')));
     } finally {

@@ -36,6 +36,17 @@ export interface CommentThreadProps {
   organizationId: string;
   kind: OpportunityCommentKind;
   copy: CommentThreadCopy;
+  /**
+   * An entry was added or deleted — there is one more, or one fewer, than
+   * before. Whoever shows a count of them reads it again. Not called for an
+   * edit, which changes no number.
+   */
+  onCountChange?: () => void | Promise<void>;
+  /**
+   * The entries on screen, each time they are read or change — for whoever
+   * keeps something about them, as the Messages tab keeps what was read.
+   */
+  onEntries?: (entries: readonly OpportunityComment[]) => void;
 }
 
 /**
@@ -52,7 +63,7 @@ export interface CommentThreadProps {
  * refusal if one comes anyway.
  */
 export function CommentThread(props: CommentThreadProps): ReactNode {
-  const { opportunityId, organizationId, kind, copy } = props;
+  const { opportunityId, organizationId, kind, copy, onCountChange, onEntries } = props;
   const t = useTranslation('crm');
   const tCore = useTranslation('core');
   const { hasPermission, me } = useAuth();
@@ -91,10 +102,15 @@ export function CommentThread(props: CommentThreadProps): ReactNode {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (entries !== null) onEntries?.(entries);
+  }, [entries, onEntries]);
+
   const add = async (body: string): Promise<void> => {
     const created = await crmApi.addComment(opportunityId, kind, body);
     setEntries((previous) => [...(previous ?? []), created]);
     setNotice(copy.added);
+    void onCountChange?.();
   };
 
   const saveEdit = async (): Promise<void> => {
@@ -129,6 +145,7 @@ export function CommentThread(props: CommentThreadProps): ReactNode {
       setEntries((previous) => (previous ?? []).filter((item) => item.id !== pendingDelete.id));
       setPendingDelete(null);
       setNotice(t('comments.deleted'));
+      void onCountChange?.();
     } catch (failure) {
       setDeleteError(errorMessage(failure, t('comments.error.delete')));
     } finally {

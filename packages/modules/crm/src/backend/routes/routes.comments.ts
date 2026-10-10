@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import {
   CreateOpportunityCommentRequestSchema,
+  MarkOpportunityMessagesReadRequestSchema,
   OpportunityCommentListQuerySchema,
   UpdateOpportunityCommentRequestSchema,
 } from '@endora-commerce/contracts';
@@ -42,6 +43,19 @@ export async function registerCrmCommentRoutes(app: FastifyInstance, deps: Comme
       );
       reply.code(201);
       return { data: comment };
+    },
+  );
+
+  // The administrator asking has read the conversation up to one message.
+  // `crm:read`, deliberately: it moves that person's own marker and changes
+  // nothing about the Opportunity, so whoever may read the messages may say
+  // they have read them — a reader without `crm:write` included.
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/admin/crm/opportunities/:id/messages/read',
+    { preHandler: requireAdmin('crm:read'), schema: { body: MarkOpportunityMessagesReadRequestSchema } },
+    async (request) => {
+      const body = MarkOpportunityMessagesReadRequestSchema.parse(request.body);
+      return { data: await comments.markMessagesRead(request.params.id, body.throughMessageId) };
     },
   );
 

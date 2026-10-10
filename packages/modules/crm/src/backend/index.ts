@@ -105,6 +105,8 @@ import { CrmOpportunity } from './entities/crm-opportunity.entity.js';
 import { CrmOpportunityAttachment } from './entities/crm-opportunity-attachment.entity.js';
 import { CrmOpportunityComment } from './entities/crm-opportunity-comment.entity.js';
 import { CrmOpportunityEvent } from './entities/crm-opportunity-event.entity.js';
+import { CrmMessageReadBaseline } from './entities/crm-message-read-baseline.entity.js';
+import { CrmOpportunityMessageRead } from './entities/crm-opportunity-message-read.entity.js';
 import { CrmOpportunityLink } from './entities/crm-opportunity-link.entity.js';
 import { CrmOpportunityReference } from './entities/crm-opportunity-reference.entity.js';
 import { CrmOpportunityStatus } from './entities/crm-opportunity-status.entity.js';
@@ -481,6 +483,17 @@ export function registerModule(ctx: ModuleContext): void {
             // detail alone, so the list and the board ask nothing more.
             upcomingEventCount: (opportunityId) =>
               ctx.cradle<EventsCradle>().crmOpportunityEventService.upcomingCount(opportunityId),
+            // What the other tabs' labels carry — each count asked of the
+            // service that owns the rows, resolved per call as the one above is.
+            childCounts: async (opportunityId) => {
+              const cradle = ctx.cradle<CrmCradle>();
+              const [noteCount, attachmentCount, unreadMessageCount] = await Promise.all([
+                cradle.crmOpportunityCommentService.noteCount(opportunityId),
+                cradle.crmOpportunityAttachmentService.count(opportunityId),
+                cradle.crmOpportunityCommentService.unreadMessageCount(opportunityId),
+              ]);
+              return { noteCount, attachmentCount, unreadMessageCount };
+            },
           }),
       )
       .singleton(),
@@ -1269,18 +1282,23 @@ function readOrderStatusChange(payload: unknown): OrderStatusChange | null {
  * the package is installed; a missing array is answered with zero entities
  * registered and no error anywhere.
  *
- * Fourteen classes, the whole schema of the module: the Opportunity
- * (`@OrgScoped`), its eight children (`@TransitivelyScoped` through it) and
- * five configuration tables (`@GlobalEntity`). Thirteen were here before the
+ * Sixteen classes, the whole schema of the module: the Opportunity
+ * (`@OrgScoped`), its nine children (`@TransitivelyScoped` through it) and
+ * six global tables (`@GlobalEntity`). Thirteen were here before the
  * first user story, so that no story changed a generated registry; the
- * fourteenth, `CrmOpportunityEvent`, came with User Stories 21 and 22.
+ * fourteenth, `CrmOpportunityEvent`, came with User Stories 21 and 22. The
+ * fifteenth and sixteenth came with the unread count of the Messages tab: a
+ * ninth child, `CrmOpportunityMessageRead`, and a sixth global table of one
+ * row, `CrmMessageReadBaseline`.
  */
 export const entities = [
+  CrmMessageReadBaseline,
   CrmOpportunity,
   CrmOpportunityAttachment,
   CrmOpportunityComment,
   CrmOpportunityEvent,
   CrmOpportunityLink,
+  CrmOpportunityMessageRead,
   CrmOpportunityReference,
   CrmOpportunityStatus,
   CrmOpportunityStatusHistory,

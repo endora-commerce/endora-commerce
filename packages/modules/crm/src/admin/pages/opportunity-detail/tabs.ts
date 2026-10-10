@@ -44,9 +44,23 @@ export interface OpportunityTab {
   /** Relative to the module's namespace. */
   labelKey: string;
   component: LazyExoticComponent<ComponentType<OpportunityTabProps>>;
-  /** A number to show on the tab's label — how much is behind it. Zero is not shown. */
+  /**
+   * A number to show on the tab's label — how many items are behind it. Zero is
+   * not shown. It is read from the Opportunity the page already holds, never
+   * from the tab's own list: the strip is drawn before any tab is opened, and a
+   * list may be a capped page.
+   */
   count?: (opportunity: OpportunityDetail) => number;
+  /**
+   * What the number is of, for the tab's accessible name — a template taking
+   * `{label}` and `{count}`. A count of items needs none; a tab that counts
+   * something else says what.
+   */
+  countLabelKey?: string;
 }
+
+/** "Notes, items: 3" — what a counted tab is called unless it says otherwise. */
+export const ITEM_COUNT_LABEL_KEY = 'opportunity.tabs.counted';
 
 /** The tab a visit opens on when its address names none. */
 export const DEFAULT_TAB_ID = 'overview';
@@ -79,27 +93,36 @@ export const OPPORTUNITY_TABS: readonly OpportunityTab[] = [
   },
   // User Story 21 — third, after what the deal is and what it consists of:
   // what happens next. The label counts the Events that have not ended yet —
-  // "is anything planned?" — not a total that only grows (research N-CAL12).
+  // "is anything planned?" — not a total that only grows (research N-CAL12;
+  // kept by the owner on 2026-10-09 when the other tabs got their totals), and
+  // its name says so.
   {
     id: EVENTS_TAB_ID,
     labelKey: 'opportunity.tabs.events',
     component: lazy(() => import('./tabs/EventsTab.js')),
     count: (opportunity) => opportunity.upcomingEventCount,
+    countLabelKey: 'opportunity.tabs.upcoming',
   },
   {
     id: 'notes',
     labelKey: 'opportunity.tabs.notes',
     component: lazy(() => import('./tabs/NotesTab.js')),
+    count: (opportunity) => opportunity.noteCount,
   },
   {
     id: 'messages',
     labelKey: 'opportunity.tabs.messages',
     component: lazy(() => import('./tabs/MessagesTab.js')),
+    // Not how many there are: how many the person looking has not read. Opening
+    // the tab reads them, and the number goes.
+    count: (opportunity) => opportunity.unreadMessageCount,
+    countLabelKey: 'opportunity.tabs.unread',
   },
   {
     id: 'attachments',
     labelKey: 'opportunity.tabs.attachments',
     component: lazy(() => import('./tabs/AttachmentsTab.js')),
+    count: (opportunity) => opportunity.attachmentCount,
   },
   // User Story 11 — the owner named this tab "Change history" / "Historia zmian".
   {

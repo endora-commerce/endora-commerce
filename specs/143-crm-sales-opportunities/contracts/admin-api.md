@@ -209,6 +209,26 @@ create and `PATCH`.
 | `POST /opportunities/:id/comments` | `crm:write` | `{ kind, body }` | 201 |
 | `PATCH /opportunities/:id/comments/:commentId` | `crm:write` | `{ body }` | 200; 403 not the author; 409 `CRM_MESSAGE_IMMUTABLE` |
 | `DELETE /opportunities/:id/comments/:commentId` | `crm:write` | — | 204; same refusals |
+| `POST /opportunities/:id/messages/read` | `crm:read` | `{ throughMessageId: uuid }` | `{ data: { unreadMessageCount } }`; 404 `NOT_FOUND` when it is not a message of this Opportunity |
+
+**Unread messages, added 2026-10-09** (owner ruling of that day: a per-administrator
+last-read marker per Opportunity). `crm_opportunity_message_reads (opportunity_id,
+admin_user_id, last_read_at)` — a ninth child of the Opportunity, cascading with it.
+Unread, for the administrator asking: messages of the Opportunity whose author is somebody
+else and whose `created_at` is later than their marker. A message one wrote oneself is
+never unread. Opening the *Messages* tab is the act of reading: the page posts the id of
+the last message it shows, the marker takes **that message's stored `created_at`** — no
+clock of the browser's, no loss of precision — and only ever moves forward. The gate is
+`crm:read`: the marker is the reader's own view state, so whoever may read may mark.
+
+*No Command.* The marker is not a change to the Opportunity, so it is written as
+`admin_notifications` writes a bell entry's `read_at` — directly, under a
+`command-coverage-ignore` that says so — and never appears in §11's history.
+
+*The day it ships.* `crm_message_read_baselines` holds one row, the instant the migration
+ran; with no marker, only messages later than it are unread. Markers are not backfilled
+per pair because the pairs cannot be enumerated: who may open an Opportunity follows from
+other modules' roles and assignments, which also change afterwards.
 
 `OpportunityComment`: `id`, `kind`, `author { id, name }`, `body`, `references`, `editedAt`,
 `createdAt`.
@@ -530,6 +550,16 @@ reported as `scheduled`.
 Events with `endsAt` later than now. It is what the *Events* tab's label carries
 (`contracts/admin-surfaces.md` §1a), so the tab strip needs no second request. Additive;
 `OpportunitySummary` is unchanged, and so are the list and the board.
+
+**And three more, added 2026-10-09**, for the other tabs' labels and on the same terms:
+`noteCount` — what `GET …/comments?kind=note` lists, so no message and no deleted note;
+`attachmentCount` — what `GET …/attachments` lists; `unreadMessageCount` — §6, counted for
+the administrator asking and 0 for a caller that is none. Each is a count in the database,
+never the length of a list. The linked documents need no member: `links` is whole. Behind
+the same gate (`crm:read`) and the same scoped load as the Opportunity, so a reader refused
+the Opportunity is refused its numbers with it. Additive. **No total of Events is on the
+wire**: the owner kept the *Events* label on `upcomingEventCount` (research N-CAL12), and a
+member nothing reads is not published.
 
 **`CalendarEventsQuerySchema`**
 

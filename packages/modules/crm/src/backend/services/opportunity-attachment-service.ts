@@ -81,6 +81,11 @@ export class OpportunityAttachmentService {
     return this.#render(rows);
   }
 
+  /** The attachments `list` would answer, counted — for the detail read, which loaded the Opportunity first. */
+  async count(opportunityId: string): Promise<number> {
+    return this.deps.emFactory().count(CrmOpportunityAttachment, { opportunityId });
+  }
+
   /**
    * Attach a file of the library. Attaching one the Opportunity already has
    * answers the attachment that exists and writes nothing (`created: false`).

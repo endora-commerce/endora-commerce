@@ -14,12 +14,14 @@ import { Migration20261005T132439CrmInit } from './20261005T132439_crm_init.js';
 import { Migration20261005T215329CrmOpportunityCustomFieldValues } from './20261005T215329_crm_opportunity_custom_field_values.js';
 import { Migration20261007T180600CrmOpportunityReferenceAdminUser } from './20261007T180600_crm_opportunity_reference_admin_user.js';
 import { Migration20261008T135701CrmOpportunityEvents } from './20261008T135701_crm_opportunity_events.js';
+import { Migration20261009T163307CrmOpportunityMessageReads } from './20261009T163307_crm_opportunity_message_reads.js';
 
 export const migrations = [
   Migration20261005T132439CrmInit,
   Migration20261005T215329CrmOpportunityCustomFieldValues,
   Migration20261007T180600CrmOpportunityReferenceAdminUser,
   Migration20261008T135701CrmOpportunityEvents,
+  Migration20261009T163307CrmOpportunityMessageReads,
 ];
 
 export {
@@ -27,4 +29,5 @@ export {
   Migration20261005T215329CrmOpportunityCustomFieldValues,
   Migration20261007T180600CrmOpportunityReferenceAdminUser,
   Migration20261008T135701CrmOpportunityEvents,
+  Migration20261009T163307CrmOpportunityMessageReads,
 };

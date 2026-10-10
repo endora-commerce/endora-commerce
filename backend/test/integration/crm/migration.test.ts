@@ -11,7 +11,9 @@ import {
   CrmOpportunity,
   CrmOpportunityAttachment,
   CrmOpportunityComment,
+  CrmMessageReadBaseline,
   CrmOpportunityEvent,
+  CrmOpportunityMessageRead,
   CrmOpportunityLink,
   CrmOpportunityReference,
   CrmOpportunityStatus,
@@ -39,11 +41,13 @@ import { createCrmOpportunity } from '../../helpers/seed-crm.js';
  */
 
 const TABLES = [
+  'crm_message_read_baselines',
   'crm_opportunities',
   'crm_opportunity_attachments',
   'crm_opportunity_comments',
   'crm_opportunity_events',
   'crm_opportunity_links',
+  'crm_opportunity_message_reads',
   'crm_opportunity_references',
   'crm_opportunity_status_history',
   'crm_opportunity_status_transitions',
@@ -79,7 +83,7 @@ describe('crm init migration', () => {
     return found.map((row) => row.indexdef.replace(/\s+/g, ' '));
   }
 
-  it('creates the fourteen tables of the data model and no fifteenth', async () => {
+  it('creates the sixteen tables of the data model and no seventeenth', async () => {
     const found = await rows<{ table_name: string }>(
       `select table_name from information_schema.tables
         where table_schema = current_schema() and table_name like 'crm\\_%' order by table_name`,
@@ -187,12 +191,47 @@ describe('crm init migration', () => {
         'crm_opportunity_comments',
         'crm_opportunity_events',
         'crm_opportunity_links',
+        'crm_opportunity_message_reads',
         'crm_opportunity_references',
         'crm_opportunity_status_history',
         'crm_opportunity_tags',
         'crm_status_propagations',
       ].map((child) => ({ child, on_delete: 'c' })),
     );
+  });
+
+  describe('the unread-message tables', () => {
+    it('keys a read marker by Opportunity and administrator — one row per pair, no other index', async () => {
+      const definitions = await indexDefinitions('crm_opportunity_message_reads');
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatch(/UNIQUE INDEX crm_opportunity_message_reads_pkey .*\(opportunity_id, admin_user_id\)/);
+      const columns = await rows<{ column_name: string; data_type: string; is_nullable: string }>(
+        `select column_name, data_type, is_nullable from information_schema.columns
+          where table_schema = current_schema() and table_name = 'crm_opportunity_message_reads'
+          order by ordinal_position`,
+      );
+      expect(columns).toEqual([
+        { column_name: 'opportunity_id', data_type: 'uuid', is_nullable: 'NO' },
+        { column_name: 'admin_user_id', data_type: 'uuid', is_nullable: 'NO' },
+        { column_name: 'last_read_at', data_type: 'timestamp with time zone', is_nullable: 'NO' },
+      ]);
+      // A value, as every admin-user reference of the module is: the one foreign key is to the Opportunity.
+      const keys = await rows<{ referenced: string }>(
+        `select c.confrelid::regclass::text as referenced from pg_constraint c
+          where c.contype = 'f' and c.conrelid = 'crm_opportunity_message_reads'::regclass`,
+      );
+      expect(keys).toEqual([{ referenced: 'crm_opportunities' }]);
+    });
+
+    it('records when unread messages started being counted — one row, written by the migration, and no second', async () => {
+      const found = await rows<{ id: number; in_the_past: boolean }>(
+        `select "id", "unread_since" <= now() as in_the_past from "crm_message_read_baselines"`,
+      );
+      expect(found).toEqual([{ id: 1, in_the_past: true }]);
+      await expect(
+        rows(`insert into "crm_message_read_baselines" ("id", "unread_since") values (2, now())`),
+      ).rejects.toThrow(/crm_message_read_baselines_single_row_check/);
+    });
   });
 
   describe('crm_opportunity_events (User Stories 21 and 22)', () => {
@@ -309,7 +348,9 @@ describe('crm init migration', () => {
       CrmOpportunity,
       CrmOpportunityAttachment,
       CrmOpportunityComment,
+      CrmMessageReadBaseline,
       CrmOpportunityEvent,
+      CrmOpportunityMessageRead,
       CrmOpportunityLink,
       CrmOpportunityReference,
       CrmOpportunityStatus,

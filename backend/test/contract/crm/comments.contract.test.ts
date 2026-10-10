@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   OpportunityCommentListResponseSchema,
   OpportunityCommentResponseSchema,
+  OpportunityDetailResponseSchema,
+  OpportunityUnreadMessagesResponseSchema,
 } from '@endora-commerce/contracts';
 import {
   setupBackendServer,
@@ -181,6 +183,43 @@ describe('crm notes and messages (contract)', () => {
       const response = await call('DELETE', `/opportunities/${opportunityId}/comments/${message.id}`);
       expect(response.statusCode, response.body).toBe(409);
       expect(response.json().error.code).toBe('CRM_MESSAGE_IMMUTABLE');
+    });
+  });
+
+  describe('POST /opportunities/:id/messages/read', () => {
+    it('answers what is left unread for the administrator asking — 200, gated crm:read and no more', async () => {
+      const message = await add('message', 'For the viewer to read.');
+      const before = await call('GET', `/opportunities/${opportunityId}`, undefined, viewer.cookies);
+      expect(OpportunityDetailResponseSchema.parse(before.json()).data.unreadMessageCount).toBeGreaterThan(0);
+
+      const response = await call(
+        'POST',
+        `/opportunities/${opportunityId}/messages/read`,
+        { throughMessageId: message.id },
+        viewer.cookies,
+      );
+      expect(response.statusCode, response.body).toBe(200);
+      expect(OpportunityUnreadMessagesResponseSchema.parse(response.json()).data).toEqual({ unreadMessageCount: 0 });
+      const after = await call('GET', `/opportunities/${opportunityId}`, undefined, viewer.cookies);
+      expect(OpportunityDetailResponseSchema.parse(after.json()).data.unreadMessageCount).toBe(0);
+    });
+
+    it('answers 400 for a body that is not of the schema, and 404 for a message or an Opportunity that is not there', async () => {
+      const message = await add('message', 'Named below.');
+      const path = `/opportunities/${opportunityId}/messages/read`;
+      for (const body of [{}, { throughMessageId: 'yesterday' }, { throughMessageId: null }]) {
+        const response = await call('POST', path, body);
+        expect(response.statusCode, response.body).toBe(400);
+        expect(response.json().error.code).toBe('VALIDATION_FAILED');
+      }
+      const unknownMessage = await call('POST', path, { throughMessageId: MISSING });
+      expect(unknownMessage.statusCode, unknownMessage.body).toBe(404);
+      expect(unknownMessage.json().error.code).toBe('NOT_FOUND');
+      const unknownOpportunity = await call('POST', `/opportunities/${MISSING}/messages/read`, {
+        throughMessageId: message.id,
+      });
+      expect(unknownOpportunity.statusCode, unknownOpportunity.body).toBe(404);
+      expect(unknownOpportunity.json().error.code).toBe('CRM_OPPORTUNITY_NOT_FOUND');
     });
   });
 });

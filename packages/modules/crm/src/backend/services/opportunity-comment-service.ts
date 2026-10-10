@@ -82,6 +82,94 @@ export class OpportunityCommentService {
     return this.#render(rows);
   }
 
+  /**
+   * The notes `list` would answer, counted: no message and no deleted note.
+   * For the detail read, which has loaded the Opportunity through the scoped
+   * EntityManager already.
+   */
+  async noteCount(opportunityId: string): Promise<number> {
+    return this.deps.emFactory().count(CrmOpportunityComment, { opportunityId, kind: 'note', deletedAt: null });
+  }
+
+  /**
+   * The messages of an Opportunity the administrator asking has not read:
+   * written by somebody else, after the point they have read up to — their
+   * marker, or, having none, the instant unread messages started being counted
+   * on this installation (`CrmMessageReadBaseline`). A message one wrote
+   * oneself is never unread. `0` for a caller that is no administrator.
+   *
+   * For the detail read, which has loaded the Opportunity through the scoped
+   * EntityManager already. One statement, compared in the database: a marker
+   * read into a `Date` would lose the microseconds a stored instant may carry,
+   * and the message it was taken from would count as unread for ever.
+   */
+  async unreadMessageCount(opportunityId: string): Promise<number> {
+    const reader = actingAdminUserId();
+    if (reader === null) return 0;
+    const rows = await this.deps
+      .emFactory()
+      .getConnection()
+      .execute<Array<{ n: number }>>(
+        `select count(*)::int as n
+           from "crm_opportunity_comments" c
+          where c."opportunity_id" = ?
+            and c."kind" = 'message'
+            and c."author_admin_user_id" <> ?
+            and c."created_at" > coalesce(
+                  (select r."last_read_at" from "crm_opportunity_message_reads" r
+                    where r."opportunity_id" = ? and r."admin_user_id" = ?),
+                  (select b."unread_since" from "crm_message_read_baselines" b where b."id" = 1),
+                  '-infinity'::timestamptz)`,
+        [opportunityId, reader, opportunityId, reader],
+        'all',
+      );
+    return rows[0]?.n ?? 0;
+  }
+
+  /**
+   * The administrator asking has read the conversation up to and including one
+   * of its messages — what opening the *Messages* tab says. Answers what is
+   * left unread for them, which is 0 unless something arrived meanwhile.
+   *
+   * The marker is theirs alone and only ever moves forward: an older tab
+   * answering late cannot make read messages unread again.
+   *
+   * **No Command, on purpose.** The marker is one person's place in a
+   * conversation, not a change to the Opportunity: nothing is undone by it, and
+   * a Command recorded against the Opportunity would put "somebody opened a
+   * tab" into its change history. It is the bookkeeping `admin_notifications`
+   * does for a bell entry's `read_at`, written the same way. Reading asks for
+   * `crm:read` and nothing more, for the same reason.
+   */
+  async markMessagesRead(opportunityId: string, throughMessageId: string): Promise<{ unreadMessageCount: number }> {
+    const reader = actingAdminUserId();
+    if (reader === null) {
+      throw new HttpError(403, ERROR_CODES.FORBIDDEN, 'Only an administrator reads the messages of an opportunity.');
+    }
+    const em = this.deps.emFactory();
+    // The parent first: an Opportunity the caller cannot see is a 404, and
+    // nothing is written about it.
+    const opportunity = await loadOpportunity(em, opportunityId);
+    if (!isUuid(throughMessageId)) throw commentNotFound();
+    // command-coverage-ignore: a per-administrator read marker — view state of
+    // the person reading, not an audited change to the Opportunity. The same
+    // escape `admin_notifications` takes for a bell entry's read state.
+    const marked = await em.getConnection().execute<Array<{ opportunity_id: string }>>(
+      `insert into "crm_opportunity_message_reads" ("opportunity_id", "admin_user_id", "last_read_at")
+       select c."opportunity_id", ?, c."created_at"
+         from "crm_opportunity_comments" c
+        where c."id" = ? and c."opportunity_id" = ? and c."kind" = 'message'
+       on conflict ("opportunity_id", "admin_user_id") do update
+          set "last_read_at" = greatest("crm_opportunity_message_reads"."last_read_at", excluded."last_read_at")
+       returning "opportunity_id"`,
+      [reader, throughMessageId, opportunity.id],
+      'all',
+    );
+    // Not a message of this Opportunity: a note, another Opportunity's, or nothing.
+    if (marked.length === 0) throw commentNotFound();
+    return { unreadMessageCount: await this.unreadMessageCount(opportunity.id) };
+  }
+
   async add(opportunityId: string, input: CreateOpportunityCommentRequest): Promise<OpportunityComment> {
     const author = this.#author();
     // The parent first: an Opportunity the caller cannot see is a 404.

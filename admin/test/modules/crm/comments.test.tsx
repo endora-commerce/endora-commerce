@@ -70,6 +70,9 @@ function comment(overrides: Partial<OpportunityComment>): OpportunityComment {
 let notes: OpportunityComment[];
 let messages: OpportunityComment[];
 let failList = false;
+/** What the server counts as unread for the signed-in administrator. */
+let unread = 0;
+const READ_PATH = `${DETAIL_PATH}/messages/read`;
 
 beforeEach(() => {
   for (const spy of [getSpy, postSpy, patchSpy, deleteSpy]) spy.mockReset();
@@ -94,10 +97,17 @@ beforeEach(() => {
     }),
   ];
   failList = false;
+  unread = 0;
+  // Opening Messages says how far it was read; a test about sending replaces this.
+  postSpy.mockImplementation((path: string) =>
+    path === READ_PATH
+      ? Promise.resolve({ data: { unreadMessageCount: 0 } })
+      : Promise.reject(new Error(`unexpected POST ${path}`)),
+  );
   getSpy.mockImplementation((path: string) => {
     const lookup = crmLookupResponse(path);
     if (lookup) return lookup;
-    if (path === DETAIL_PATH) return Promise.resolve({ data: detail() });
+    if (path === DETAIL_PATH) return Promise.resolve({ data: detail({ noteCount: notes.length, unreadMessageCount: unread }) });
     if (path === '/api/v1/admin/orders/statuses') return Promise.resolve({ data: ORDER_STATUS_GRAPH });
     if (path.startsWith(`${COMMENTS_PATH}?`)) {
       if (failList) {
@@ -119,9 +129,17 @@ async function openTab(
     ...(permissions ? { permissions } : {}),
   });
   await screen.findByRole('heading', { level: 1, name: /Fleet renewal/ });
-  await userEvent.click(screen.getByRole('tab', { name: label }));
-  return screen.findByRole('tabpanel', { name: label });
+  // A tab with something behind it is named with its count: "Notes, items: 2".
+  const named = new RegExp(`^${label}(,|$)`);
+  await userEvent.click(screen.getByRole('tab', { name: named }));
+  return screen.findByRole('tabpanel', { name: named });
 }
+
+/** What a tab with a number is called: its label and what the number is of. */
+const countedTab = (labelKey: string, count: number): string =>
+  en('opportunity.tabs.counted', { label: en(labelKey), count });
+
+const detailReads = (): number => getSpy.mock.calls.filter(([path]) => path === DETAIL_PATH).length;
 
 const entry = (panel: HTMLElement, text: string): HTMLElement =>
   within(panel).getByText(text).closest('li') as HTMLElement;
@@ -169,8 +187,12 @@ describe('the Notes tab', () => {
 
   it('adds a note and clears the composer', async () => {
     const added = comment({ id: ID(5), body: 'Budget approved.', createdAt: '2026-10-05T13:00:00.000Z' });
-    postSpy.mockResolvedValue({ data: added });
+    postSpy.mockImplementation(() => {
+      notes = [...notes, added];
+      return Promise.resolve({ data: added });
+    });
     const panel = await open();
+    expect(screen.getByRole('tab', { name: countedTab('opportunity.tabs.notes', 2) })).toBeInTheDocument();
     const field = within(panel).getByLabelText(en('comments.notes.composer.label'));
     await userEvent.type(field, 'Budget approved.');
     await userEvent.click(within(panel).getByRole('button', { name: en('comments.notes.composer.submit') }));
@@ -181,6 +203,11 @@ describe('the Notes tab', () => {
     expect(await within(panel).findByText('Budget approved.')).toBeInTheDocument();
     expect(storedText(field)).toBe('');
     expect(within(panel).getAllByRole('listitem')).toHaveLength(3);
+    // The tab's label follows without a reload of the page: the Opportunity is read again.
+    expect(await screen.findByRole('tab', { name: countedTab('opportunity.tabs.notes', 3) })).toHaveTextContent(
+      /^Notes 3$/,
+    );
+    expect(detailReads()).toBe(2);
   });
 
   it('refuses an empty note without calling the server', async () => {
@@ -227,7 +254,10 @@ describe('the Notes tab', () => {
   });
 
   it('deletes the author\'s own note after asking', async () => {
-    deleteSpy.mockResolvedValue(undefined);
+    deleteSpy.mockImplementation(() => {
+      notes = notes.filter((item) => item.id !== ID(1));
+      return Promise.resolve(undefined);
+    });
     const panel = await open();
     await userEvent.click(
       within(entry(panel, 'Call back on Friday.')).getByRole('button', { name: en('comments.delete') }),
@@ -238,6 +268,7 @@ describe('the Notes tab', () => {
     await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith(`${COMMENTS_PATH}/${ID(1)}`));
     await waitFor(() => expect(within(panel).queryByText('Call back on Friday.')).toBeNull());
     expect(within(panel).getByText('They want forty vans.')).toBeInTheDocument();
+    expect(await screen.findByRole('tab', { name: countedTab('opportunity.tabs.notes', 1) })).toBeInTheDocument();
   });
 
   it('shows a reader the notes and nothing to write with', async () => {
@@ -264,9 +295,14 @@ describe('the Messages tab', () => {
   });
 
   it('sends a message', async () => {
-    postSpy.mockResolvedValue({
-      data: comment({ id: ID(6), kind: 'message', body: 'Sent today.', createdAt: '2026-10-05T15:00:00.000Z' }),
-    });
+    postSpy.mockImplementation((path: string) =>
+      Promise.resolve({
+        data:
+          path === READ_PATH
+            ? { unreadMessageCount: 0 }
+            : comment({ id: ID(6), kind: 'message', body: 'Sent today.', createdAt: '2026-10-05T15:00:00.000Z' }),
+      }),
+    );
     const panel = await open();
     // The tab is a lazy chunk: wait for the composer rather than assume it is there.
     await userEvent.type(
@@ -281,6 +317,64 @@ describe('the Messages tab', () => {
     );
     expect(await within(panel).findByText('Sent today.')).toBeInTheDocument();
     expect(within(panel).getByRole('status')).toHaveTextContent(en('comments.messages.added'));
+    // Messages counts what is unread, not what is there: one's own message adds
+    // nothing to it, asks for no second read of the Opportunity, and says
+    // nothing new about how far the conversation was read.
+    expect(screen.getByRole('tab', { name: en('opportunity.tabs.messages') })).toHaveTextContent(/^Messages$/);
+    expect(detailReads()).toBe(1);
+    expect(postSpy.mock.calls.filter(([path]) => path === READ_PATH)).toHaveLength(1);
+  });
+
+  it('shows how many messages are unread, and reads them by being opened — up to the last one shown', async () => {
+    unread = 1;
+    postSpy.mockImplementation((path: string) => {
+      if (path !== READ_PATH) return Promise.reject(new Error(`unexpected POST ${path}`));
+      unread = 0;
+      return Promise.resolve({ data: { unreadMessageCount: 0 } });
+    });
+    renderCrm(<OpportunityDetail />, {
+      path: `/crm/opportunities/${OPPORTUNITY_ID}`,
+      pattern: '/crm/opportunities/:id',
+    });
+    await screen.findByRole('heading', { level: 1, name: /Fleet renewal/ });
+    const tab = screen.getByRole('tab', { name: 'Messages, unread: 1' });
+    expect(tab).toHaveTextContent(/^Messages 1$/);
+    // Nothing is read by looking at the label.
+    expect(postSpy).not.toHaveBeenCalled();
+
+    await userEvent.click(tab);
+    await screen.findByText('I will.');
+    await waitFor(() => expect(postSpy).toHaveBeenCalledWith(READ_PATH, { throughMessageId: ID(4) }));
+    // The label is what the server answered — no reload of the page, no second read of the Opportunity.
+    expect(await screen.findByRole('tab', { name: en('opportunity.tabs.messages') })).toHaveTextContent(/^Messages$/);
+    expect(detailReads()).toBe(1);
+    expect(postSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets a reader without crm:write read the messages too', async () => {
+    unread = 2;
+    postSpy.mockResolvedValue({ data: { unreadMessageCount: 0 } });
+    const panel = await openTab(en('opportunity.tabs.messages'), ['crm:read']);
+    await within(panel).findByText('I will.');
+    await waitFor(() => expect(postSpy).toHaveBeenCalledWith(READ_PATH, { throughMessageId: ID(4) }));
+    expect(await screen.findByRole('tab', { name: en('opportunity.tabs.messages') })).toHaveTextContent(/^Messages$/);
+  });
+
+  it('keeps the number when the server could not be told, and the messages stay on screen', async () => {
+    unread = 1;
+    postSpy.mockRejectedValue(new ApiError(500, { error: { code: 'INTERNAL', message: 'Boom.' } }));
+    const panel = await openTab(en('opportunity.tabs.messages'));
+    await within(panel).findByText('I will.');
+    await waitFor(() => expect(postSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('tab', { name: 'Messages, unread: 1' })).toBeInTheDocument();
+    expect(within(panel).queryByText('Boom.')).toBeNull();
+  });
+
+  it('tells the server nothing when only one\'s own messages are there, or none', async () => {
+    messages = [messages[0]!];
+    const panel = await openTab(en('opportunity.tabs.messages'));
+    await within(panel).findByText('Who sends the offer?');
+    expect(postSpy).not.toHaveBeenCalled();
   });
 
   it('says there are no messages yet', async () => {

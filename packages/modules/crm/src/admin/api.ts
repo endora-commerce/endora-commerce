@@ -11,6 +11,7 @@ import type {
   OpportunityAttachment,
   OpportunityComment,
   OpportunityCommentKind,
+  OpportunityUnreadMessages,
   OpportunityBoard,
   OpportunityBoardCardConfig,
   OpportunityDetail,
@@ -335,6 +336,18 @@ export const crmApi = {
       apiClient.get<{ data: OpportunityComment[] }>(
         `${BASE}/opportunities/${id}/comments?kind=${kind}`,
       ),
+    );
+  },
+
+  /**
+   * The signed-in administrator has read the messages up to and including
+   * `throughMessageId`. Answers how many are left unread for them.
+   */
+  markMessagesRead(id: string, throughMessageId: string): Promise<OpportunityUnreadMessages> {
+    return data(
+      apiClient.post<{ data: OpportunityUnreadMessages }>(`${BASE}/opportunities/${id}/messages/read`, {
+        throughMessageId,
+      }),
     );
   },
 

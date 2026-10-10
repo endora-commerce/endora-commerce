@@ -137,6 +137,7 @@ import { Migration20261005T132439CrmInit } from '@endora-commerce/mod-crm/migrat
 import { Migration20261005T215329CrmOpportunityCustomFieldValues } from '@endora-commerce/mod-crm/migrations';
 import { Migration20261007T180600CrmOpportunityReferenceAdminUser } from '@endora-commerce/mod-crm/migrations';
 import { Migration20261008T135701CrmOpportunityEvents } from '@endora-commerce/mod-crm/migrations';
+import { Migration20261009T163307CrmOpportunityMessageReads } from '@endora-commerce/mod-crm/migrations';
 
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
@@ -439,6 +440,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
   migration('crm', Migration20261005T215329CrmOpportunityCustomFieldValues),
   migration('crm', Migration20261007T180600CrmOpportunityReferenceAdminUser),
   migration('crm', Migration20261008T135701CrmOpportunityEvents),
+  migration('crm', Migration20261009T163307CrmOpportunityMessageReads),
 
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),
