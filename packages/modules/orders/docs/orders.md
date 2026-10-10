@@ -128,6 +128,39 @@ Placement and both previews refuse a method outside a non-empty list with
 - **When the lists cannot be read** the request answers `500 INTERNAL` and
   nothing is placed, as the two method listings do.
 
+## Methods and the order's sales channel
+
+A delivery or payment method can also be restricted to sales channels (see the
+`delivery_methods` and `payment_methods` modules, *Sales channels*). Placement
+and both previews refuse a method that is not offered on **the order's** channel
+with `400 VALIDATION_FAILED`:
+
+| `error.details.code` | Also carries | Meaning |
+| --- | --- | --- |
+| `delivery_method_not_in_sales_channel` | `deliveryMethodId`, `salesChannelId` | The delivery method is restricted to sales channels and the order's is not one of them |
+| `payment_method_not_in_sales_channel` | `paymentMethodId`, `salesChannelId` | The payment method is restricted to sales channels and the order's is not one of them |
+
+- **Where** — the same routes as the allow-lists above. One-click buy does not
+  reach the refusal here either: a default method the request's channel does not
+  offer makes the buyer ineligible (`one_click_unavailable`, reason
+  `missing_defaults`).
+- **Which channel** — the one the order records; see *Which sales channel an
+  order records* above.
+- **No assignment means every channel** — a method assigned to no sales channel
+  is offered on all of them.
+- **Nothing is written** — as for the allow-lists, and admin create and the
+  API-key intake check before they replace the basket.
+
+### A method that fails both
+
+The two refusals are independent, and a request is checked in a fixed order:
+the Organization's allow-lists first, then that the method is active, then its
+adapter's own validator, then the order's channel. So a method that is both
+outside the Organization's allow-list **and** not offered on the order's channel
+is refused with the allow-list code (`…_not_allowed_for_organization`); the
+channel code (`…_not_in_sales_channel`) is what a method reports when the
+Organization may use it — or has no list — and the channel does not offer it.
+
 ## Status machine (configurable)
 
 The order lifecycle is **admin-configurable**: statuses and allowed

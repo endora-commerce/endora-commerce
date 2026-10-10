@@ -126,6 +126,38 @@ listy odpowiedzią `400 VALIDATION_FAILED`:
 - **Gdy list nie da się odczytać**, żądanie kończy się odpowiedzią `500 INTERNAL` i zamówienie nie
   powstaje — tak samo odpowiadają obie listy metod.
 
+## Metody a kanał sprzedaży zamówienia
+
+Metodę dostawy lub płatności można także ograniczyć do kanałów sprzedaży (zobacz moduły
+`delivery_methods` i `payment_methods`, *Kanały sprzedaży*). Składanie zamówienia i oba podglądy
+odrzucają metodę, która nie jest dostępna w kanale **zamówienia**, odpowiedzią
+`400 VALIDATION_FAILED`:
+
+| `error.details.code` | Zawiera też | Znaczenie |
+| --- | --- | --- |
+| `delivery_method_not_in_sales_channel` | `deliveryMethodId`, `salesChannelId` | Metoda dostawy jest ograniczona do kanałów sprzedaży, a kanału zamówienia wśród nich nie ma |
+| `payment_method_not_in_sales_channel` | `paymentMethodId`, `salesChannelId` | Metoda płatności jest ograniczona do kanałów sprzedaży, a kanału zamówienia wśród nich nie ma |
+
+- **Gdzie** — te same trasy co dla list dozwolonych metod powyżej. Zakup jednym kliknięciem
+  również tutaj nie dociera do odmowy: domyślna metoda, której kanał żądania nie udostępnia,
+  sprawia, że kupujący nie kwalifikuje się do zakupu (`one_click_unavailable`, powód
+  `missing_defaults`).
+- **Który kanał** — ten, który zapisuje zamówienie; zobacz *Który kanał sprzedaży zapisuje
+  zamówienie* powyżej.
+- **Brak przypisania oznacza każdy kanał** — metoda nieprzypisana do żadnego kanału sprzedaży
+  jest dostępna we wszystkich.
+- **Nic nie jest zapisywane** — tak jak przy listach dozwolonych metod, a tworzenie zamówienia w
+  panelu i przyjmowanie zamówień kluczem API sprawdzają to, zanim podmienią koszyk.
+
+### Metoda, która nie przechodzi obu sprawdzeń
+
+Obie odmowy są niezależne, a żądanie jest sprawdzane w stałej kolejności: najpierw listy
+dozwolonych metod organizacji, potem to, czy metoda jest aktywna, potem walidator jej adaptera,
+a na końcu kanał zamówienia. Dlatego metoda, która jest jednocześnie poza listą dozwolonych metod
+organizacji **i** niedostępna w kanale zamówienia, jest odrzucana z kodem listy
+(`…_not_allowed_for_organization`); kod kanału (`…_not_in_sales_channel`) zwraca metoda, której
+organizacja może używać — albo która nie ma listy — a kanał jej nie udostępnia.
+
 ## Statusy i przejścia (konfigurowalne)
 
 Cykl życia zamówienia **konfiguruje się w panelu administracyjnym**: statusy i dozwolone przejścia
