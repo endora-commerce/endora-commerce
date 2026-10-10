@@ -363,6 +363,50 @@ export interface AuthenticationThrottleOptions {
   readonly storeDeadlineMs?: number;
   readonly addressPolicy?: AttemptPolicy;
   readonly accountPolicy?: AttemptPolicy;
+  /**
+   * `false` leaves a stranger's **password** attempts to the address counter
+   * alone. See {@link accountWideLimitFromEnvironment}. Default `true`.
+   */
+  readonly accountWideLimit?: boolean;
+}
+
+/** The environment variable that switches the account-wide password limit off. */
+export const ACCOUNT_WIDE_LIMIT_VARIABLE = 'ADMIN_AUTH_ACCOUNT_WIDE_LIMIT';
+
+/**
+ * Whether the account-wide counter applies to passwords on this instance, from
+ * the value of `ADMIN_AUTH_ACCOUNT_WIDE_LIMIT`. Read once, at composition.
+ *
+ * The account counter is the one a stranger can fill for somebody else, and the
+ * known-device exemption is what keeps the account's holder out of it. On an
+ * instance that **publishes** an administrator's credentials — a public demo —
+ * every visitor is a first-time device, so anybody can keep all of them out
+ * with twenty wrong passwords and a few more each half hour. Such an instance
+ * sets the variable to `off`.
+ *
+ * It is an environment variable and not a Setting on purpose: a Setting would
+ * be a switch in the Admin UI that the limit protects. Only `off` switches it
+ * off; a value this function does not know leaves the limit on and says so. A
+ * warning is logged every time the limit is off.
+ */
+export function accountWideLimitFromEnvironment(
+  value: string | undefined,
+  log: PlatformLogger,
+): boolean {
+  const setting = (value ?? '').trim().toLowerCase();
+  if (setting === '' || setting === 'on') return true;
+  if (setting === 'off') {
+    log.warn(
+      { variable: ACCOUNT_WIDE_LIMIT_VARIABLE },
+      'account-wide administrator attempt limit is OFF — intended for demo instances with published credentials',
+    );
+    return false;
+  }
+  log.warn(
+    { variable: ACCOUNT_WIDE_LIMIT_VARIABLE },
+    'ADMIN_AUTH_ACCOUNT_WIDE_LIMIT has a value that is neither `on` nor `off`; the account-wide administrator attempt limit stays on',
+  );
+  return true;
 }
 
 export class AuthenticationThrottle implements AdminAuthenticationThrottlePort {
@@ -374,6 +418,7 @@ export class AuthenticationThrottle implements AdminAuthenticationThrottlePort {
   private readonly storeDeadlineMs: number;
   private readonly addressPolicy: AttemptPolicy;
   private readonly accountPolicy: AttemptPolicy;
+  private readonly accountWideLimit: boolean;
 
   constructor(options: AuthenticationThrottleOptions) {
     this.redis = options.redis;
@@ -386,6 +431,7 @@ export class AuthenticationThrottle implements AdminAuthenticationThrottlePort {
     this.storeDeadlineMs = options.storeDeadlineMs ?? DEFAULT_STORE_DEADLINE_MS;
     this.addressPolicy = options.addressPolicy ?? ADDRESS_POLICY;
     this.accountPolicy = options.accountPolicy ?? ACCOUNT_POLICY;
+    this.accountWideLimit = options.accountWideLimit ?? true;
   }
 
   async verify(
@@ -574,13 +620,18 @@ export class AuthenticationThrottle implements AdminAuthenticationThrottlePort {
       return [counter('device', `device:${digest(deviceId)}`, this.addressPolicy)];
     }
     // Widest first: `verify` reports the first counter that started a delay.
-    const counters = [counter('account', 'account', this.accountPolicy)];
-    if (attempt.ip !== undefined && attempt.ip !== '') {
-      counters.push(
-        counter('address', `address:${digest(addressOrigin(attempt.ip))}`, this.addressPolicy),
-      );
+    const address =
+      attempt.ip !== undefined && attempt.ip !== ''
+        ? counter('address', `address:${digest(addressOrigin(attempt.ip))}`, this.addressPolicy)
+        : null;
+    // The instance-level opt-out covers passwords only, and only an attempt
+    // that has an address to be counted by: one with neither counter would be
+    // an unlimited one.
+    if (!this.accountWideLimit && attempt.factor === 'password' && address !== null) {
+      return [address];
     }
-    return counters;
+    const account = counter('account', 'account', this.accountPolicy);
+    return address === null ? [account] : [account, address];
   }
 
   private async release(keys: string[], attemptId: string, forgetFailures: boolean): Promise<void> {

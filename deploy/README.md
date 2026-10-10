@@ -350,6 +350,11 @@ docker compose --env-file .env -f compose.prod.yml run --rm backend \
   for every module the platform composes and that the deployment's overlay modules
   are still there — the two things that were reproduced silently broken on the
   half-built compiled path.
+- **Public demo instances only**: `ADMIN_AUTH_ACCOUNT_WIDE_LIMIT=off` switches off
+  the account-wide limit on wrong administrator passwords, for an instance that
+  publishes an administrator password on purpose. It is not in
+  `.env.prod.example` and no workflow sets it; never set it where administrator
+  passwords are secret. See the `admin_users` module page.
 - **Client IP**: the backend trusts `X-Forwarded-For` only from the hop named by
   `TRUSTED_PROXY_HOPS` (or `TRUSTED_PROXY_ADDRESSES`). `.env.prod.example` ships
   `TRUSTED_PROXY_HOPS=1`, which is right for this stack — one host nginx in front

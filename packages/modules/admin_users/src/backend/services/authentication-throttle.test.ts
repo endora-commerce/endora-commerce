@@ -8,6 +8,7 @@ import {
   addressOrigin,
   type AdminCredentialState,
   type AttemptCounterStore,
+  accountWideLimitFromEnvironment,
 } from './authentication-throttle.js';
 
 /**
@@ -38,7 +39,11 @@ const ADMIN: AdminCredentialState = {
 
 function harness(
   answers: { take?: [number, number] | Promise<[number, number]>; fail?: [number, number] } = {},
-  options: { admin?: AdminCredentialState | null; storeDeadlineMs?: number } = {},
+  options: {
+    admin?: AdminCredentialState | null;
+    storeDeadlineMs?: number;
+    accountWideLimit?: boolean;
+  } = {},
 ): {
   throttle: AuthenticationThrottle;
   calls: () => Call[];
@@ -90,6 +95,7 @@ function harness(
         return admin && admin.adminUserId === adminUserId ? admin : null;
       },
       ...(options.storeDeadlineMs === undefined ? {} : { storeDeadlineMs: options.storeDeadlineMs }),
+      ...(options.accountWideLimit === undefined ? {} : { accountWideLimit: options.accountWideLimit }),
     }),
     calls: () => calls,
     audits: () => audits,
@@ -539,5 +545,90 @@ describe('AuthenticationThrottle — describeStore', () => {
 
   it('does not invent an address for a store that reports none', () => {
     expect(describeWith(undefined)).toBe('an unidentified Redis');
+  });
+});
+
+describe('AuthenticationThrottle — the account-wide limit switched off for the instance', () => {
+  it('holds a stranger’s password to the address alone', async () => {
+    const h = harness({}, { accountWideLimit: false });
+    await h.throttle.verify(ATTEMPT, async () => ({ ok: false }));
+
+    const take = h.calls()[0]!;
+    expect(take.keys).toHaveLength(2);
+    expect(take.keys[0]).toMatch(/:password:\{[0-9a-f]{64}\}:address:[0-9a-f]{64}$/);
+    expect(take.args.slice(3)).toEqual(policyArgs(ADDRESS_POLICY));
+  });
+
+  it('still counts the account when the caller has no address, so no attempt goes uncounted', async () => {
+    const h = harness({}, { accountWideLimit: false });
+    await h.throttle.verify({ factor: 'password', account: 'operator@example.test' }, async () => ({
+      ok: false,
+    }));
+
+    expect(h.calls()[0]!.keys).toHaveLength(2);
+    expect(h.calls()[0]!.keys[0]).toMatch(/:password:\{[0-9a-f]{64}\}:account$/);
+  });
+
+  it('leaves the second factor on both counters', async () => {
+    const h = harness({}, { accountWideLimit: false });
+    await h.throttle.verify(
+      { factor: 'second_factor', account: 'a-1', ip: '203.0.113.9' },
+      async () => ({ ok: false }),
+    );
+
+    const take = h.calls()[0]!;
+    expect(take.keys).toHaveLength(4);
+    expect(take.keys[0]).toMatch(/:second_factor:\{[0-9a-f]{64}\}:account$/);
+  });
+
+  it('leaves a known device on its own counter', async () => {
+    const h = harness({}, { accountWideLimit: false });
+    const knownDevice = (await h.throttle.issueKnownDevice('a-1'))!;
+    await h.throttle.verify({ ...ATTEMPT, knownDevice }, async () => ({ ok: false }));
+
+    expect(h.calls()[0]!.keys).toHaveLength(2);
+    expect(h.calls()[0]!.keys[0]).toMatch(/:device:[0-9a-f]{64}$/);
+  });
+});
+
+describe('accountWideLimitFromEnvironment', () => {
+  function logs(): { log: PlatformLogger; warnings: string[] } {
+    const warnings: string[] = [];
+    return {
+      warnings,
+      log: {
+        info: () => undefined,
+        warn: (_obj, message) => {
+          warnings.push(String(message));
+        },
+        error: () => undefined,
+      },
+    };
+  }
+
+  it('is on, silently, when the variable is not set or says on', () => {
+    for (const value of [undefined, '', 'on']) {
+      const { log, warnings } = logs();
+      expect(accountWideLimitFromEnvironment(value, log)).toBe(true);
+      expect(warnings).toEqual([]);
+    }
+  });
+
+  it('is off only for `off`, and says so every time it is read', () => {
+    const { log, warnings } = logs();
+    expect(accountWideLimitFromEnvironment('off', log)).toBe(false);
+    expect(accountWideLimitFromEnvironment(' OFF ', log)).toBe(false);
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toContain('account-wide administrator attempt limit is OFF');
+    expect(warnings[0]).toContain('demo instances with published credentials');
+  });
+
+  it('stays on, with a warning, for a value it does not know', () => {
+    for (const value of ['false', '0', 'disabled']) {
+      const { log, warnings } = logs();
+      expect(accountWideLimitFromEnvironment(value, log)).toBe(true);
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('ADMIN_AUTH_ACCOUNT_WIDE_LIMIT');
+    }
   });
 });
