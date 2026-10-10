@@ -88,8 +88,20 @@ export const PushSubscriptionInputSchema = z.object({
 });
 export type PushSubscriptionInput = z.infer<typeof PushSubscriptionInputSchema>;
 
+/**
+ * `keys` are the subscription's own `p256dh` / `auth`, which only the browser
+ * that created it holds. They are what authorises removing a subscription no
+ * customer account owns; one that an account owns is removed by that account's
+ * session and needs none.
+ */
 export const PushSubscriptionDeleteSchema = z.object({
   endpoint: z.string().url(),
+  keys: z
+    .object({
+      p256dh: z.string().min(1),
+      auth: z.string().min(1),
+    })
+    .optional(),
 });
 export type PushSubscriptionDelete = z.infer<typeof PushSubscriptionDeleteSchema>;
 

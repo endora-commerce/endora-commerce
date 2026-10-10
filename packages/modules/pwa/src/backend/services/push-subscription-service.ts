@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { CustomerAccountReadPort, PushSubscriptionInput } from '@endora-commerce/contracts';
 import { PushSubscription } from '../entities/push-subscription.entity.js';
@@ -5,6 +6,18 @@ import { PushSubscription } from '../entities/push-subscription.entity.js';
 export interface RegisterSubscriptionInput extends PushSubscriptionInput {
   salesChannelId: string;
   customerAccountId?: string | null;
+}
+
+/** What a caller offers as evidence that a subscription is theirs to remove. */
+export interface RevokeProof {
+  customerAccountId: string | null;
+  keys?: { p256dh: string; auth: string } | undefined;
+}
+
+/** Constant-time string equality; hashing first makes the lengths equal. */
+function secretEquals(a: string, b: string): boolean {
+  const digest = (value: string): Buffer => createHash('sha256').update(value).digest();
+  return timingSafeEqual(digest(a), digest(b));
 }
 
 export interface RegisterSubscriptionResult {
@@ -171,13 +184,30 @@ export class PushSubscriptionService {
     return { id: sub.id, status: 'active', created: true };
   }
 
-  /** Revoke by endpoint. Idempotent — returns false if nothing was deleted. */
-  async revoke(endpoint: string): Promise<boolean> {
+  /**
+   * Revoke by endpoint, for the party that created the subscription. Idempotent
+   * — returns false if nothing was deleted, and does so identically whether the
+   * endpoint is unknown or the caller did not prove it is theirs.
+   *
+   * A subscription a customer account owns is removed by that account. One no
+   * account owns is removed by whoever presents its `p256dh` and `auth` keys,
+   * which the subscribing browser holds and the endpoint URL does not reveal.
+   */
+  async revoke(endpoint: string, proof: RevokeProof): Promise<boolean> {
     // command-coverage-ignore: push-notification infrastructure — device
     // subscription / message delivery / icon asset, not audited domain state.
     const em = this.emFactory();
     const existing = await em.findOne(PushSubscription, { endpoint });
     if (!existing) return false;
+    const authorised =
+      existing.customerAccountId !== null && existing.customerAccountId !== undefined
+        ? existing.customerAccountId === proof.customerAccountId
+        : proof.keys !== undefined &&
+          // Both compared, with no short-circuit between them.
+          Number(secretEquals(existing.p256dh, proof.keys.p256dh)) +
+            Number(secretEquals(existing.auth, proof.keys.auth)) ===
+            2;
+    if (!authorised) return false;
     await em.removeAndFlush(existing);
     return true;
   }

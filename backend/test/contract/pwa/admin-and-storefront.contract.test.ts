@@ -210,9 +210,79 @@ describe('PWA module — admin + storefront', () => {
       method: 'DELETE',
       url: '/api/v1/storefront/pwa/subscriptions',
       headers: channelHeader,
-      payload: { endpoint: sub.endpoint },
+      payload: sub,
     });
     expect(revoked.statusCode).toBe(204);
+    expect(await subscriptionCount(sub.endpoint)).toBe(0);
+  });
+
+  // ---- Only the subscriber may revoke ----
+
+  const subscriptionCount = async (endpoint: string): Promise<number> => {
+    const rows = (await h.em().getConnection().execute(
+      `select id from push_subscriptions where endpoint = ?`,
+      [endpoint],
+    )) as unknown[];
+    return rows.length;
+  };
+
+  const revoke = async (
+    payload: Record<string, unknown>,
+    session?: string,
+  ): Promise<number> => {
+    const res = await h.app.inject({
+      method: 'DELETE',
+      url: '/api/v1/storefront/pwa/subscriptions',
+      headers: channelHeader,
+      ...(session ? { cookies: { b2b_session: session } } : {}),
+      payload,
+    });
+    return res.statusCode;
+  };
+
+  it('keeps an anonymous subscription unless the request carries its keys', async () => {
+    await enablePush();
+    const endpoint = `https://fcm.googleapis.com/fcm/send/anon-${randomUUID()}`;
+    const keys = { p256dh: 'device-p256dh', auth: 'device-auth' };
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/storefront/pwa/subscriptions',
+      headers: channelHeader,
+      payload: { endpoint, keys },
+    });
+    expect(created.statusCode).toBe(201);
+
+    // Every refusal answers exactly as "nothing to delete" does.
+    expect(await revoke({ endpoint })).toBe(204);
+    expect(await revoke({ endpoint }, 'stub-customer-session')).toBe(204);
+    expect(await revoke({ endpoint, keys: { ...keys, auth: 'wrong' } })).toBe(204);
+    expect(await revoke({ endpoint, keys: { ...keys, p256dh: 'wrong' } })).toBe(204);
+    expect(await subscriptionCount(endpoint)).toBe(1);
+
+    expect(await revoke({ endpoint, keys })).toBe(204);
+    expect(await subscriptionCount(endpoint)).toBe(0);
+  });
+
+  it('keeps a customer subscription unless that customer is signed in', async () => {
+    await enablePush();
+    const endpoint = `https://fcm.googleapis.com/fcm/send/mine-${randomUUID()}`;
+    const keys = { p256dh: 'device-p256dh', auth: 'device-auth' };
+    const created = await h.app.inject({
+      method: 'POST',
+      url: '/api/v1/storefront/pwa/subscriptions',
+      headers: channelHeader,
+      cookies: { b2b_session: 'stub-customer-session' },
+      payload: { endpoint, keys },
+    });
+    expect(created.statusCode).toBe(201);
+
+    expect(await revoke({ endpoint })).toBe(204);
+    expect(await revoke({ endpoint, keys })).toBe(204);
+    expect(await revoke({ endpoint, keys }, 'stub-customer-session-other-org')).toBe(204);
+    expect(await subscriptionCount(endpoint)).toBe(1);
+
+    expect(await revoke({ endpoint }, 'stub-customer-session')).toBe(204);
+    expect(await subscriptionCount(endpoint)).toBe(0);
   });
 
   // ---- Feature 087 Group B / D-187: the attribution the row carries ----

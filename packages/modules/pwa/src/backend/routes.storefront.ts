@@ -84,10 +84,16 @@ export async function registerPwaStorefrontRoutes(
     return reply.code(result.created ? 201 : 200).send({ id: result.id, status: result.status });
   });
 
-  // DELETE subscribe — revoke (FR-018). Idempotent.
+  // DELETE subscribe — revoke (FR-018). Idempotent, and only for the party that
+  // subscribed: the owning customer's session, or the subscription's own keys
+  // when no account owns it. Anything else answers 204 as well, so the reply
+  // does not say whether the endpoint is registered.
   app.delete('/api/v1/storefront/pwa/subscriptions', async (request, reply) => {
     const body = PushSubscriptionDeleteSchema.parse(request.body);
-    await deps.subscriptionService.revoke(body.endpoint);
+    await deps.subscriptionService.revoke(body.endpoint, {
+      customerAccountId: callingCustomerAccountId(request),
+      keys: body.keys,
+    });
     return reply.code(204).send();
   });
 }
