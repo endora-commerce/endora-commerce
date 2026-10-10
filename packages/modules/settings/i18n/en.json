@@ -57,7 +57,7 @@
   "quoteRequestsTab.error.save": "Save failed.",
   "quoteRequestsTab.error.invalidExpiry": "Expiry must be an integer ≥ 0.",
   "quoteRequestsTab.expiry.label": "Auto-expire pending after (days)",
-  "quoteRequestsTab.expiry.help": "0 disables auto-expiry entirely. Pending and Created from admin Quote Requests older than this threshold flip to Expired automatically.",
+  "quoteRequestsTab.expiry.help": "0 disables auto-expiry entirely. Otherwise a Pending or Created from admin Quote Request with no activity for this many days becomes Expired automatically — unless it carries an offer whose validity date is still ahead. Turning this on, or lowering it, expires every open request that has already been inactive that long, on the next runs of the expiry sweep. The value of the default sales channel applies to all channels.",
   "quoteRequestsTab.showOnCards": "Show \"Add to quote\" button on storefront product cards",
   "quoteRequestsTab.showOnPdp": "Show \"Add to quote\" button on storefront product detail pages",
   "table.column.code": "Code",

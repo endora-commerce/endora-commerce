@@ -57,7 +57,7 @@
   "quoteRequestsTab.error.save": "Zapis nie powiódł się.",
   "quoteRequestsTab.error.invalidExpiry": "Liczba dni do wygaśnięcia musi być liczbą całkowitą ≥ 0.",
   "quoteRequestsTab.expiry.label": "Automatyczne wygaszenie oczekujących po (dni)",
-  "quoteRequestsTab.expiry.help": "0 całkowicie wyłącza auto-wygaszanie. Zapytania ze statusem „Oczekujące” lub „Utworzone z poziomu admina”, starsze niż ta wartość, są automatycznie przenoszone do „Wygasłe”.",
+  "quoteRequestsTab.expiry.help": "0 całkowicie wyłącza auto-wygaszanie. W przeciwnym razie zapytanie ze statusem „Oczekujące” lub „Utworzone z poziomu admina”, z którym nic się nie działo przez tyle dni, automatycznie wygasa — chyba że niesie ofertę, której termin ważności jeszcze nie minął. Włączenie tej opcji albo zmniejszenie wartości wygasza, przy najbliższych uruchomieniach zadania wygaszania, każde otwarte zapytanie, które już tak długo jest bezczynne. Wartość domyślnego kanału sprzedaży obowiązuje we wszystkich kanałach.",
   "quoteRequestsTab.showOnCards": "Pokaż przycisk „Dodaj do zapytania” na kafelkach produktów w sklepie",
   "quoteRequestsTab.showOnPdp": "Pokaż przycisk „Dodaj do zapytania” na stronie produktu w sklepie",
   "table.column.code": "Kod",

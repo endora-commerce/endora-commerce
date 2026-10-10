@@ -122,7 +122,7 @@ group and are configured through the existing settings module.
 
 | Code | Type | Default | Effect |
 | --- | --- | --- | --- |
-| `quote_requests.expiry_days` | integer | `0` | Auto-expire Pending / Created from admin RFQs after N days. `0` disables. |
+| `quote_requests.expiry_days` | integer | `0` | Expire Pending / Created from admin requests after N days without activity, unless they carry an offer that is still valid. `0` disables. Setting it expires the existing backlog — see *Background jobs*. |
 | `quote_requests.show_add_to_quote_on_card` | boolean | `true` | Toggle the "Add to quote" button on storefront product cards. |
 | `quote_requests.show_add_to_quote_on_pdp` | boolean | `true` | Toggle the "Add to quote" button on product detail pages. |
 
@@ -133,32 +133,73 @@ queues (`BACKEND_ROLE=worker` or `all`): a BullMQ Job Scheduler on the queue
 `quote_requests.expiry.sweep`, installed by the module itself. While the module
 is switched off, no tick runs.
 
-Each tick reads `quote_requests.expiry_days`; `0` — the default — disables the
-sweep, so a fresh instance expires nothing until an operator sets it. Otherwise
-every Pending and Created from admin request whose
-`updated_at < now() - <expiry_days> days` is moved to `Expired`:
+### Which requests it expires
 
-- **One request at a time.** The status change, the `expired` history row and
-  the notification rows of one request commit together, and
+Each tick reads `quote_requests.expiry_days`. `0` — the default — disables the
+sweep. Otherwise a request is moved to `Expired` when **all three** hold:
+
+1. **It is still open** — `Pending` or `Created from admin`. That covers a
+   request waiting for the seller's first answer and an offer waiting for the
+   buyer.
+2. **Nothing has happened to it for `expiry_days`.** The clock is the request's
+   latest history entry — the entries both parties see on the request. What
+   restarts it: the submission, an edit by the customer, a revision or a note
+   by the seller. What does **not**: the customer opening the request (which
+   only marks the revision as seen), an assignment to another administrator,
+   and any other write that adds no history entry.
+3. **It carries no offer that is still valid.** When the seller put a validity
+   date on an offer (`expiresInDays` → `expiresAt`), that date wins over
+   `expiry_days`: the request is never expired by this sweep while the date is
+   ahead, however long it has been quiet. Once the date has passed, or where
+   the seller set none, the inactivity rule applies as to any other request.
+
+The sweep does not expire a request *because* its validity date passed. That
+date is enforced when the buyer accepts or converts (`410`); it does not, on
+its own, close the request.
+
+### What one tick does
+
+- **One request at a time.** The status change, the `expired` history entry
+  and the notification records of one request commit together, and
   `rfq.expired.v1` is emitted once they have. A request that fails stays as it
-  was and is tried again on the next tick; the others are not held up by it.
+  was; the worker process leaves it alone for two hours and then tries again,
+  so requests that keep failing cannot hold up the others.
+- **It cannot cross somebody's answer.** A buyer accepting or declining, and a
+  seller approving, revising, cancelling or assigning, hold the request while
+  they write it. The sweep skips a request that is held, and an answer to a
+  request the sweep has just expired is refused with `409 VERSION_CONFLICT`:
+  exactly one of the two happens.
 - **A bounded batch.** A tick expires at most 500 requests, oldest first. A
   larger backlog is worked off over the following ticks.
-- **Late news is not sent.** A request that became due more than 24 hours
-  before the tick that reaches it is expired, gets its history row and is
-  announced as `rfq.expired.v1` like any other, but no notification row is
-  written for it, for the customer or for the sales side. This is what happens
-  to the backlog of an instance upgraded from a release in which the sweep did
-  not run: the requests become `Expired`, and nobody is told months late.
+- **No notification record for an expiry that is old news.** A request that
+  became due more than 24 hours before the tick that reaches it is expired,
+  gets its history entry and is announced as `rfq.expired.v1` like any other,
+  but no notification record is written for it. See *Notifications* below for
+  what a notification record is today.
 - **An idle tick is silent.** When nothing is due, the tick enters no system
   scope and writes no `tenant.escape_hatch` audit row.
 
-> **Before this was scheduled.** In releases up to and including 0.104.0 the
-> sweep existed and was documented here, and nothing ran it: no request was
-> ever expired automatically. If `quote_requests.expiry_days` is set on your
-> instance, the first ticks after the upgrade expire everything that has been
-> due since. Set it to `0` before upgrading if you want to review that backlog
-> first.
+### Turning it on expires the backlog
+
+`expiry_days` is not applied from the day it is set: it is applied to
+everything that is open. **Changing it from `0` to `N` expires, over the next
+ticks, every open request that has been quiet for more than `N` days** — on an
+instance that has run with `0` for a year, that can be most of the open
+requests. The same holds for lowering it. Requests with an offer that is still
+valid are not touched (rule 3), and no notification record is written for the
+ones that became due more than 24 hours earlier.
+
+Releases up to and including 0.104.0 documented this sweep and never ran it, so
+an instance that already has `expiry_days` set meets the same backlog on the
+first ticks after upgrading. Set it to `0` before the upgrade to review the
+open requests first.
+
+### One value for every sales channel
+
+The sweep reads `expiry_days` once per tick, **for the default sales channel**,
+and applies it to every request whatever channel it was raised on. A different
+value set for another channel is not used by the sweep, and a channel set to
+`0` is not exempt.
 
 ## Data model
 
@@ -210,12 +251,16 @@ will be one.
 
 ## Notifications
 
-Every state transition fans out through `RfqNotificationService` to
-the appropriate recipients (customer for admin-side actions, sales
-reps + platform admins for customer-side actions, both parties on
-expiry). Email and in-account channels both fire. The unique
-constraint on `quote_request_notification_events` guarantees once-only
-delivery per (transition, recipient, channel).
+Every state transition **records** who should be told: `RfqNotificationService`
+writes one row per recipient and channel (`email`, `in_app`) into
+`quote_request_notification_events`, with status `queued` — the customer for
+admin-side actions, sales reps and platform admins for customer-side actions,
+both parties on expiry. The unique constraint on that table keeps it to one
+row per (transition, recipient, channel).
+
+**Nothing delivers these rows yet.** No worker reads the table, so no e-mail
+and no in-account notification is sent for any quote-request transition; the
+rows stay `queued`. They are the record a delivery worker would work from.
 
 ## Conversion to order
 

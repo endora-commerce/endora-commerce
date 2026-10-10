@@ -6,6 +6,7 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
 import { QuoteRequest } from '../../helpers/package-entities.js';
+import { ageQuoteRequest } from '../../helpers/quote-request-age.js';
 import { QUOTE_REQUESTS_SETTING_CODES } from '../../../../packages/modules/quote_requests/src/manifest.js';
 
 const CUSTOMER = { b2b_session: 'stub-customer-session' };
@@ -57,9 +58,7 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
     });
     expect(created.statusCode, created.body).toBe(201);
     const id = (created.json() as { data: { id: string } }).data.id;
-    await h
-      .em()
-      .nativeUpdate(QuoteRequest, { id }, { updatedAt: new Date(Date.now() - EXPIRY_DAYS * DAY_MS - overdueMs) });
+    await ageQuoteRequest(h.em(), id, new Date(Date.now() - EXPIRY_DAYS * DAY_MS - overdueMs));
     return id;
   };
 
@@ -156,8 +155,12 @@ describe('RfqExpiryWorker — each Quote Request expires as one unit of work', (
       }
       expect(announced.map((event) => event.rfqId).sort()).toEqual([first, third].sort());
 
-      // The next pass finds it and expires it.
-      const next = await announcedDuring(ids, () => worker().sweep());
+      // This process leaves a request that failed alone for a while, so the
+      // pass right after does not touch it …
+      expect(await worker().sweep()).toMatchObject({ expiredCount: 0, failedCount: 0 });
+      expect(await statusOf(second)).toBe('Pending');
+      // … and the first pass after that expires it.
+      const next = await announcedDuring(ids, () => worker().sweep(new Date(Date.now() + 3 * 60 * 60_000)));
       expect(await statusOf(second)).toBe('Expired');
       expect(await expiredHistoryRows(second)).toBe(1);
       expect(next.announced.map((event) => event.rfqId)).toEqual([second]);
