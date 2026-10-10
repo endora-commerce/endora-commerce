@@ -54,11 +54,17 @@ export async function unsubscribeFromPush(): Promise<void> {
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return;
+  const json = subscription.toJSON();
   await fetch('/pwa/subscriptions', {
     method: 'DELETE',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ endpoint: subscription.endpoint }),
+    // The keys prove this browser created the subscription; the backend does
+    // not remove an anonymous one on the endpoint alone.
+    body: JSON.stringify({
+      endpoint: subscription.endpoint,
+      keys: { p256dh: json.keys?.['p256dh'] ?? '', auth: json.keys?.['auth'] ?? '' },
+    }),
   });
   await subscription.unsubscribe();
 }

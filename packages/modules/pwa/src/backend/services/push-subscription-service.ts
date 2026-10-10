@@ -1,4 +1,6 @@
+import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
+import { withSystemScope } from '@endora-commerce/platform/tenancy';
 import type { CustomerAccountReadPort, PushSubscriptionInput } from '@endora-commerce/contracts';
 import { PushSubscription } from '../entities/push-subscription.entity.js';
 
@@ -6,6 +8,53 @@ export interface RegisterSubscriptionInput extends PushSubscriptionInput {
   salesChannelId: string;
   customerAccountId?: string | null;
 }
+
+/** What a caller offers as evidence that a subscription is theirs to remove. */
+export interface RevokeProof {
+  customerAccountId: string | null;
+  keys?: { p256dh: string; auth: string } | undefined;
+}
+
+/** Constant-time string equality; hashing first makes the lengths equal. */
+function secretEquals(a: string, b: string): boolean {
+  const digest = (value: string): Buffer => createHash('sha256').update(value).digest();
+  return timingSafeEqual(digest(a), digest(b));
+}
+
+/**
+ * Whether `proof` shows the caller is the party that holds `existing`.
+ *
+ * Either of two things proves it. The row's own `p256dh` and `auth` keys, which
+ * the subscribing browser holds and the endpoint URL does not reveal — the
+ * browser holding them *is* the device, whoever is or is not signed in on it.
+ * Or, for a row a customer account owns, that account's session, which needs
+ * no keys: it is how the owner re-keys or removes a device.
+ */
+function provesOwnership(existing: PushSubscription, proof: RevokeProof): boolean {
+  const ownerSession =
+    existing.customerAccountId !== null &&
+    existing.customerAccountId !== undefined &&
+    existing.customerAccountId === proof.customerAccountId;
+  const holdsKeys =
+    proof.keys !== undefined &&
+    // Both compared, with no short-circuit between them.
+    Number(secretEquals(existing.p256dh, proof.keys.p256dh)) +
+      Number(secretEquals(existing.auth, proof.keys.auth)) ===
+      2;
+  return ownerSession || holdsKeys;
+}
+
+/**
+ * Why the endpoint lookup leaves the caller's tenant scope.
+ *
+ * `endpoint` is unique across the table, and the row behind it may belong to
+ * nobody or to another organisation — which the caller's scope hides. A hidden
+ * row read as "no row" is an insert that then collides with it, and the
+ * collision answers differently from a first subscribe. So the row is read
+ * whoever owns it, and {@link provesOwnership} decides what the caller may do.
+ */
+const ENDPOINT_SCOPE_REASON =
+  'pwa: a push subscription is keyed by its device endpoint; ownership is checked explicitly';
 
 export interface RegisterSubscriptionResult {
   id: string;
@@ -119,11 +168,32 @@ export class PushSubscriptionService {
     };
   }
 
+  /** The row behind an endpoint, whoever owns it — and nothing else is read this way. */
+  #findByEndpoint(em: EntityManager, endpoint: string): Promise<PushSubscription | null> {
+    return withSystemScope(ENDPOINT_SCOPE_REASON, () => em.findOne(PushSubscription, { endpoint }));
+  }
+
   async register(input: RegisterSubscriptionInput): Promise<RegisterSubscriptionResult> {
     // command-coverage-ignore: push-notification infrastructure — device
     // subscription / message delivery / icon asset, not audited domain state.
     const em = this.emFactory();
-    const existing = await em.findOne(PushSubscription, { endpoint: input.endpoint });
+    const existing = await this.#findByEndpoint(em, input.endpoint);
+
+    // An endpoint that is already registered is updated only for the party that
+    // holds the row ({@link provesOwnership}): the keys in the request, or the
+    // owning account's session. Anyone else is answered as a first subscribe is
+    // — a fresh id, `created` — and nothing is written, so the answer does not
+    // say the endpoint is registered. A browser whose keys were rotated lands
+    // here too unless its owner's session vouches for it.
+    if (
+      existing &&
+      !provesOwnership(existing, {
+        customerAccountId: input.customerAccountId ?? null,
+        keys: input.keys,
+      })
+    ) {
+      return { id: randomUUID(), status: 'active', created: true };
+    }
 
     // D-187 — resolved **before** the managed entity is touched, not between
     // the account assignment and the flush. `existing` is managed, so a throw
@@ -136,8 +206,9 @@ export class PushSubscriptionService {
       existing.auth = input.keys.auth;
       existing.salesChannelId = input.salesChannelId;
       // D-187 — the account and the organisation move together, in **both**
-      // directions. Signing in on this device stamps both; re-subscribing it
-      // anonymously clears both. The `CHECK` catches only the first of those,
+      // directions. Signing in on this device stamps both — re-pointing them
+      // when another account had it — and re-subscribing it anonymously clears
+      // both. The `CHECK` catches only the first of those,
       // by design (it is an implication, so R-6 stays open); the second is
       // held here, by there being no arm of `ownerColumns` that writes one
       // without the other. `em.assign` rather than two statements, for the same
@@ -171,13 +242,21 @@ export class PushSubscriptionService {
     return { id: sub.id, status: 'active', created: true };
   }
 
-  /** Revoke by endpoint. Idempotent — returns false if nothing was deleted. */
-  async revoke(endpoint: string): Promise<boolean> {
+  /**
+   * Revoke by endpoint, for the party that created the subscription. Idempotent
+   * — returns false if nothing was deleted, and does so identically whether the
+   * endpoint is unknown or the caller did not prove it is theirs.
+   *
+   * Ownership is {@link provesOwnership}'s rule.
+   */
+  async revoke(endpoint: string, proof: RevokeProof): Promise<boolean> {
     // command-coverage-ignore: push-notification infrastructure — device
     // subscription / message delivery / icon asset, not audited domain state.
     const em = this.emFactory();
-    const existing = await em.findOne(PushSubscription, { endpoint });
+    const existing = await this.#findByEndpoint(em, endpoint);
     if (!existing) return false;
+    const authorised = provesOwnership(existing, proof);
+    if (!authorised) return false;
     await em.removeAndFlush(existing);
     return true;
   }
