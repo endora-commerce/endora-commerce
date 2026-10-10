@@ -12,6 +12,7 @@ import type {
   OrderTransitionEffectReason,
 } from '../entities/order-transition-effect.entity.js';
 import type { OrderTransitionEffectHandlers } from './order-transition-effect-handlers.js';
+import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
 
 /**
  * The follow-ups an order transition owes, as a queue that lives in the
@@ -65,8 +66,10 @@ import type { OrderTransitionEffectHandlers } from './order-transition-effect-ha
  * do nothing` against a partial index, and neither has an ORM spelling. The statements name this module's own
  * table and nothing else. They pass through no tenant filter, so each entry
  * point says what bounds it: `record` and `drainForOrder` act on one order the
- * caller has already loaded through the filter, and `sweep` is a system
- * operation over every organization, run under a system scope by its caller.
+ * caller has already loaded through the filter, `sweep` is a system
+ * operation over every organization, run under a system scope by its caller,
+ * and `hasSweepWork` — the one that runs with no scope at all — returns a
+ * single boolean and no row.
  */
 
 /** The first retry waits this long; each later one twice the one before. */
@@ -113,6 +116,27 @@ interface ClaimedRow {
   reason: OrderTransitionEffectReason;
   attempts: number;
 }
+
+/** A condition over `order_transition_effects`, beside {@link OUTSTANDING}. */
+interface EffectRows {
+  readonly where: string;
+  readonly params: readonly unknown[];
+}
+
+interface SweepPlan {
+  readonly unblock: readonly EffectRows[];
+  readonly block: ReadonlyArray<EffectRows & { readonly owner: string }>;
+  readonly due: EffectRows | null;
+}
+
+/** Every statement of a pass is over rows that are still owed. */
+const OUTSTANDING = `"completed_at" is null`;
+
+/** The rows a pass statement selects, as a source the probe can ask about. */
+const outstandingRows = (rows: EffectRows): WorkRows => ({
+  from: `from "order_transition_effects" where ${OUTSTANDING} and ${rows.where}`,
+  params: rows.params,
+});
 
 const emptySummary = (): EffectAttemptSummary => ({ done: 0, blocked: 0, failed: 0, skipped: 0 });
 
@@ -191,6 +215,86 @@ export class OrderTransitionEffectService {
   }
 
   /**
+   * Whether a {@link sweep} at `now` would do anything at all — **yes or no,
+   * and nothing else** (issue #120).
+   *
+   * The background consumer asks this before it opens its system scope, so
+   * that a tick with nothing to do writes no `tenant.escape_hatch` audit row.
+   * It is therefore the one statement of this service that runs with **no**
+   * tenant context, and three properties keep that legitimate:
+   *
+   *  - **It answers one bit.** It goes through `anyRowExists`, which builds
+   *    a `select exists(…)` and returns a boolean: no row, no order id, no
+   *    organization id and no count leaves the statement, so the caller learns nothing about any organization — only
+   *    whether to go and look, under the scope, where the look is recorded.
+   *    Widening what this returns is widening an unaudited read; do not.
+   *  - **It is the sweep's own predicate, not a copy of it.** Both read
+   *    {@link sweepPlan}: a row to unblock because its owner is back, a row to
+   *    mark as waiting because its owner is away, a row that is due. `false`
+   *    means that pass would change and attempt nothing.
+   *  - **Its answer is never handed to the pass.** `sweep()` re-reads
+   *    everything inside the scope.
+   *
+   * A row that failed and is waiting out its back-off, or that is already
+   * marked as waiting on an absent owner, is not work — which is what keeps a
+   * module that stays off for months from costing one audit row a minute.
+   */
+  async hasSweepWork(now: Date = new Date()): Promise<boolean> {
+    const plan = this.sweepPlan(now);
+    return anyRowExists(
+      this.emFactory(),
+      [...plan.unblock, ...plan.block, ...(plan.due ? [plan.due] : [])].map(outstandingRows),
+    );
+  }
+
+  /**
+   * What one pass at `now` selects, as the three row sets it acts on — **the
+   * one statement of them**, read by {@link sweep} to act and by
+   * {@link hasSweepWork} to ask. They are built here and nowhere else so that
+   * the question cannot drift from the pass: a condition added to a pass
+   * statement is added to the probe by the same edit, and a probe narrower
+   * than its pass — work that silently never happens — has no place to be
+   * written.
+   *
+   *  - `unblock`: per present owner, the rows still marked as waiting on it;
+   *  - `block`: per absent owner, the rows not yet marked as waiting on it;
+   *  - `due`: the rows of present owners that are unclaimed and due — absent
+   *    when no owner is present.
+   *
+   * `sweep` runs `unblock` before it reads `due`, and unblocking makes a row
+   * due; the probe needs no ordering, because a row `unblock` would touch is
+   * already a yes.
+   */
+  private sweepPlan(now: Date): SweepPlan {
+    const unblock: EffectRows[] = [];
+    const block: Array<EffectRows & { owner: string }> = [];
+    const runnable: OrderTransitionEffectKind[] = [];
+    for (const effect of ORDER_TRANSITION_EFFECTS) {
+      const owner = ownerOfEffect(effect);
+      if (this.isPresent(owner)) {
+        runnable.push(effect);
+        unblock.push({ where: `"effect" = ? and "blocked_on" is not null`, params: [effect] });
+      } else {
+        block.push({
+          owner,
+          where: `"effect" = ? and "blocked_on" is distinct from ?`,
+          params: [effect, owner],
+        });
+      }
+    }
+    const due: EffectRows | null =
+      runnable.length === 0
+        ? null
+        : {
+            where: `("claimed_until" is null or "claimed_until" <= now())
+          and "next_attempt_at" <= ?
+          and "effect" in (${runnable.map(() => '?').join(', ')})`,
+            params: [now, ...runnable],
+          };
+    return { unblock, block, due };
+  }
+
+  /**
    * One pass of the background consumer: attempt every outstanding row that is
    * due and whose owning module is present.
    *
@@ -209,44 +313,37 @@ export class OrderTransitionEffectService {
     const summary = emptySummary();
     const em = this.emFactory();
 
-    const runnable: OrderTransitionEffectKind[] = [];
-    for (const effect of ORDER_TRANSITION_EFFECTS) {
-      const owner = ownerOfEffect(effect);
-      if (this.isPresent(owner)) {
-        runnable.push(effect);
-        // The owner is back: a row still marked as waiting on it is no longer
-        // waiting, whether or not its own retry is due in this pass.
-        // It is also due **now**, whatever back-off it carried from before the
-        // owner went away: a release that waited on a module runs within one
-        // sweep of the module returning (FR-008), not up to an hour later.
-        await em.execute(
-          `update "order_transition_effects"
-              set "blocked_on" = null, "next_attempt_at" = least("next_attempt_at", ?),
-                  "updated_at" = now()
-            where "completed_at" is null and "effect" = ? and "blocked_on" is not null`,
-          [now, effect],
-        );
-        continue;
-      }
+    const plan = this.sweepPlan(now);
+    for (const rows of plan.unblock) {
+      // The owner is back: a row still marked as waiting on it is no longer
+      // waiting, whether or not its own retry is due in this pass.
+      // It is also due **now**, whatever back-off it carried from before the
+      // owner went away: a release that waited on a module runs within one
+      // sweep of the module returning (FR-008), not up to an hour later.
+      await em.execute(
+        `update "order_transition_effects"
+            set "blocked_on" = null, "next_attempt_at" = least("next_attempt_at", ?),
+                "updated_at" = now()
+          where ${OUTSTANDING} and ${rows.where}`,
+        [now, ...rows.params],
+      );
+    }
+    for (const rows of plan.block) {
       await em.execute(
         `update "order_transition_effects"
             set "blocked_on" = ?, "updated_at" = now()
-          where "completed_at" is null and "effect" = ?
-            and "blocked_on" is distinct from ?`,
-        [owner, effect, owner],
+          where ${OUTSTANDING} and ${rows.where}`,
+        [rows.owner, ...rows.params],
       );
     }
-    if (runnable.length === 0) return summary;
+    if (plan.due === null) return summary;
 
     const due = await em.execute<Array<{ id: string }>>(
       `select "id" from "order_transition_effects"
-        where "completed_at" is null
-          and ("claimed_until" is null or "claimed_until" <= now())
-          and "next_attempt_at" <= ?
-          and "effect" in (${runnable.map(() => '?').join(', ')})
+        where ${OUTSTANDING} and ${plan.due.where}
         order by "next_attempt_at"
         limit ${EFFECT_SWEEP_BATCH}`,
-      [now, ...runnable],
+      [...plan.due.params],
     );
     for (const { id } of due) {
       summary[await this.attempt(id, now, { onlyIfDue: true })] += 1;

@@ -13,6 +13,7 @@ import type { AdminReach } from './admin-reach.js';
 import { crmNotificationText, type CrmNotifier } from './crm-notifier.js';
 import { reminderEmailLanguage, type EventReminderEmail } from './event-reminder-email.js';
 import { isActiveAdministrator } from './opportunity-assignment-service.js';
+import { anyRowExists, type WorkRows } from './scheduled-work-probe.js';
 
 /** A reminder found due later than this is not sent: it is shown as missed. */
 export const REMINDER_LATE_LIMIT_MS = 24 * 60 * 60 * 1000;
@@ -110,6 +111,53 @@ interface ClaimedRow {
 }
 
 /**
+ * The three row sets one pass acts on — **the one statement of each**, read by
+ * the pass to act (`#expire`, `#claim`) and by `hasSweepWork` to ask whether
+ * there is anything to act on (issue #120). They are written here and nowhere
+ * else so that the question cannot drift from the pass: a condition added to a
+ * pass statement is added to the probe by the same edit, and a probe narrower
+ * than its pass — a reminder that silently never fires — has no place to be
+ * written.
+ */
+interface EventRows {
+  readonly where: string;
+  readonly params: readonly unknown[];
+}
+
+/** Unhandled and more than 24 hours overdue: marked `missed`. */
+function missedReminders(now: Date): EventRows {
+  return {
+    where: `"remind_at" is not null and "reminder_handled_at" is null and "remind_at" < ?`,
+    params: [new Date(now.getTime() - REMINDER_LATE_LIMIT_MS)],
+  };
+}
+
+/** Claimed and still unrecorded after ten minutes: marked `interrupted`. */
+function interruptedClaims(now: Date): EventRows {
+  return {
+    where: `"reminder_outcome" = 'sending' and "reminder_handled_at" < ?`,
+    params: [new Date(now.getTime() - REMINDER_CLAIM_STALE_MS)],
+  };
+}
+
+/** Due, within the 24 hours, on an Opportunity whose status is open: claimed. */
+function claimableReminders(now: Date): WorkRows {
+  return {
+    from: `from "crm_opportunity_events" e
+             join "crm_opportunities" o on o."id" = e."opportunity_id"
+             join "crm_opportunity_statuses" s on s."code" = o."status_code" and s."kind" = 'open'
+            where e."remind_at" is not null and e."reminder_handled_at" is null
+              and e."remind_at" <= ? and e."remind_at" >= ?`,
+    params: [now, new Date(now.getTime() - REMINDER_LATE_LIMIT_MS)],
+  };
+}
+
+const eventRows = (rows: EventRows): WorkRows => ({
+  from: `from "crm_opportunity_events" where ${rows.where}`,
+  params: rows.params,
+});
+
+/**
  * The reminders of Events, delivered by a sweep
  * (`specs/143-crm-sales-opportunities/spec.md` FR-137 – FR-141; `data-model.md`
  * § *`crm_opportunity_events`* → *Reminder states*; research N-CAL4 – N-CAL7).
@@ -171,6 +219,33 @@ interface ClaimedRow {
  */
 export class EventReminderService {
   constructor(private readonly deps: EventReminderServiceDeps) {}
+
+  /**
+   * Whether a {@link sweep} at `now` would do anything at all — **yes or no,
+   * and nothing else** (issue #120).
+   *
+   * The worker asks this before it opens its system scope, so that a tick with
+   * no reminder to deliver writes no `tenant.escape_hatch` audit row. It is
+   * the one statement of this service that runs with **no** tenant context,
+   * and what keeps that legitimate is what it returns: one bit, through
+   * `anyRowExists`. No Event, no Opportunity, no Organization and no count leaves
+   * the statement, so the caller learns nothing about anybody — only whether
+   * to go and look, under the scope, where the look is recorded. Widening what
+   * this returns is widening an unaudited read; do not.
+   *
+   * It is the pass's own predicate rather than a copy of it: the three row
+   * sets are the ones `#expire` and `#claim` themselves read
+   * (`missedReminders`, `interruptedClaims`, `claimableReminders`) — the join on an *open* Opportunity included, so
+   * a reminder waiting on a closed one is not work. Its answer is never handed
+   * to the pass, which re-reads everything inside the scope.
+   */
+  async hasSweepWork(now: Date = new Date()): Promise<boolean> {
+    return anyRowExists(this.deps.emFactory(), [
+      eventRows(missedReminders(now)),
+      eventRows(interruptedClaims(now)),
+      claimableReminders(now),
+    ]);
+  }
 
   /** One pass. `now` is the clock, handed in so that a test needs no sleep. */
   async sweep(now: Date = new Date()): Promise<EventReminderSweepSummary> {
@@ -355,16 +430,16 @@ export class EventReminderService {
         const missed = (await em.execute(
           `update "crm_opportunity_events"
               set "reminder_handled_at" = ?, "reminder_outcome" = 'missed'
-            where "remind_at" is not null and "reminder_handled_at" is null and "remind_at" < ?
+            where ${missedReminders(now).where}
         returning "id"`,
-          [now, new Date(now.getTime() - REMINDER_LATE_LIMIT_MS)],
+          [now, ...missedReminders(now).params],
         )) as unknown[];
         const interrupted = (await em.execute(
           `update "crm_opportunity_events"
               set "reminder_outcome" = 'interrupted'
-            where "reminder_outcome" = 'sending' and "reminder_handled_at" < ?
+            where ${interruptedClaims(now).where}
         returning "id"`,
-          [new Date(now.getTime() - REMINDER_CLAIM_STALE_MS)],
+          [...interruptedClaims(now).params],
         )) as unknown[];
         return { result: { missed: missed.length, interrupted: interrupted.length }, skipAudit: true };
       },
@@ -386,15 +461,11 @@ export class EventReminderService {
         const rows = (await em.execute(
           `select e."id", e."opportunity_id", e."name", e."all_day", e."starts_at", e."time_zone", e."remind_at",
                   e."created_by_admin_user_id", o."number", o."organization_id", o."assigned_admin_user_id"
-             from "crm_opportunity_events" e
-             join "crm_opportunities" o on o."id" = e."opportunity_id"
-             join "crm_opportunity_statuses" s on s."code" = o."status_code" and s."kind" = 'open'
-            where e."remind_at" is not null and e."reminder_handled_at" is null
-              and e."remind_at" <= ? and e."remind_at" >= ?
+             ${claimableReminders(now).from}
             order by e."remind_at", e."id"
             limit ?
               for update of e skip locked`,
-          [now, new Date(now.getTime() - REMINDER_LATE_LIMIT_MS), REMINDER_BATCH_SIZE],
+          [...claimableReminders(now).params, REMINDER_BATCH_SIZE],
         )) as ClaimedRow[];
         if (rows.length > 0) {
           await em.execute(

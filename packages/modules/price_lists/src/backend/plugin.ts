@@ -5,17 +5,62 @@ import { PriceListService } from './services/price-list-service.js';
 import { PricingService } from './services/pricing-service.js';
 import type { PriceListTargetReads } from './services/price-list-service.js';
 import type { PricingServiceContract } from './services/pricing-service.interface.js';
-import { PriceListStatusWorker } from './services/price-list-status-worker.js';
+import { PriceListStatusWorker, type SweepResult } from './services/price-list-status-worker.js';
 import { PricingCache } from './services/pricing-cache.js';
 import { registerPricingRoutes } from './routes.js';
 import { registerStorefrontPricingRoutes } from './routes.storefront.js';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
-import { effectiveState } from '@endora-commerce/platform/kernel';
-import { enterSystemScope } from '@endora-commerce/platform/kernel';
+import {
+  effectiveState,
+  enterSystemScope,
+  rethrowIfModuleDisabled,
+} from '@endora-commerce/platform/kernel';
 
 const STATUS_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
+export const STATUS_SWEEP_SCOPE_REASON = 'price_lists: status sweep';
+
+/**
+ * The body of one tick of the status sweeper's timer: ask whether any price
+ * list is due to change status, and open the system scope only when one is
+ * (issue #120). Answers what the sweep flipped, or `null` when it did not run.
+ *
+ * Entering the scope is what writes the `tenant.escape_hatch` audit record, and
+ * a tick is five minutes from the last — further apart than the audit writer's
+ * aggregation window — so a scope entered on every tick is 288 audit rows a day
+ * on an installation whose price lists carry no dates at all.
+ *
+ * **The question is asked outside any scope and answers yes or no, nothing
+ * else** (`PriceListStatusWorker.hasDueTransitions`). Everything the sweep
+ * reads or writes is still read inside the scope, by `sweep()` itself — the
+ * answer decides only *whether* the scope is entered.
+ *
+ * **A question that cannot be answered counts as yes.** The tick then runs as
+ * it always did, scope and audit record included: a failing probe may cost an
+ * audit row, and can never save one.
+ *
+ * The scope opens here, for the timer, and not inside `sweep()`: the same
+ * method is reachable from an admin route (`routes.ts`), where it already runs
+ * inside the request's scope and must not open a second one (feature 072,
+ * T034).
+ */
+export async function statusSweepTick(
+  worker: Pick<PriceListStatusWorker, 'sweep' | 'hasDueTransitions'>,
+): Promise<SweepResult | null> {
+  let hasWork = true;
+  try {
+    hasWork = await worker.hasDueTransitions();
+  } catch (error) {
+    rethrowIfModuleDisabled(error);
+    hasWork = true;
+  }
+  if (!hasWork) return null;
+  return enterSystemScope(STATUS_SWEEP_SCOPE_REASON, () => worker.sweep(), {
+    entryPoint: 'interval',
+  });
+}
 
 export interface PriceListsAuditContext {
   actorAdminUserId: string;
@@ -143,14 +188,12 @@ export function priceListsModule(options: PriceListsModuleOptions): {
           // while price lists are off changes what customers are charged.
           if (!effectiveState.isPresent('price_lists')) return;
           // Feature 072 (T034) — the timer is the entry point, so the scope
-          // opens here and not inside `sweep()`: the same method is reachable
-          // from an admin route (`routes.ts`), where it already runs inside the
-          // request's scope and must not open a second one.
-          enterSystemScope('price_lists: status sweep', () => statusWorker.sweep(), {
-            entryPoint: 'interval',
-          })
+          // opens for it and not inside `sweep()`. Issue #120 — and only on a
+          // tick that has a transition to make: `statusSweepTick` asks first,
+          // outside any scope, and answers `null` when nothing was due.
+          statusSweepTick(statusWorker)
             .then((result) => {
-              if (result.scheduledToActive > 0 || result.activeToExpired > 0) {
+              if (result && (result.scheduledToActive > 0 || result.activeToExpired > 0)) {
                 app.log.info(
                   { result },
                   'price-list status sweep flipped lifecycle rows',

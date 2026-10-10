@@ -26,7 +26,10 @@ import type { EventReminderService } from '../services/event-reminder-service.js
  * settings, and one queue would couple the two.
  *
  * The interval is a constant, not a setting: nobody has asked to tune it, and a
- * tick with nothing due is three indexed statements.
+ * tick with nothing due is one statement — the question
+ * `runEventReminderJob` asks before it opens a scope. That statement is not
+ * an index lookup: nothing indexes a claim left `sending`, so it reads the
+ * Events table, as the pass's own `interrupted` update always has.
  */
 
 export const EVENT_REMINDER_QUEUE = 'crm-event-reminders';
@@ -36,7 +39,7 @@ export const EVENT_REMINDER_EVERY_MS = 60_000;
 
 export type EventReminderJobData = Record<string, never>;
 
-const SCOPE_REASON = 'crm: deliver due event reminders';
+export const EVENT_REMINDER_SCOPE_REASON = 'crm: deliver due event reminders';
 
 export interface EventReminderTickDeps {
   readonly reminders: Pick<EventReminderService, 'sweep'>;
@@ -75,6 +78,50 @@ export function eventReminderTick(deps: EventReminderTickDeps): () => Promise<vo
   };
 }
 
+export interface EventReminderJobDeps {
+  /** One pass, run inside the system scope — {@link eventReminderTick}. */
+  readonly tick: () => Promise<void>;
+  /** Whether this module is present — asked before anything is read. */
+  readonly isPresent: () => boolean;
+  /** Whether a pass would do anything: yes or no, and nothing else. */
+  readonly hasWork: () => Promise<boolean>;
+}
+
+/**
+ * What BullMQ invokes for one job: ask whether a pass has anything to do, and
+ * open the system scope only when it has (issue #120).
+ *
+ * Entering the scope is what writes the `tenant.escape_hatch` audit record, and
+ * a tick is sixty seconds from the last — further apart than the audit
+ * writer's aggregation window — so a scope entered on every tick is one audit
+ * row a minute on an instance where nobody was reminded of anything.
+ *
+ * **Presence first.** A module that is off asks its tables nothing.
+ *
+ * **The question is asked outside any scope and answers yes or no, nothing
+ * else** (`EventReminderService.hasSweepWork`): no row, no id, no count leaves
+ * it. Everything a pass reads or writes is still read inside the scope, by the
+ * pass itself — the answer decides only *whether* the scope is entered.
+ *
+ * **A question that cannot be answered counts as yes.** The tick then runs as
+ * it always did, scope and audit record included: a failing probe may cost an
+ * audit row, and can never save one. A module switched off is the one thing
+ * that is not a failed question, and is never absorbed.
+ */
+export async function runEventReminderJob(deps: EventReminderJobDeps): Promise<void> {
+  if (!deps.isPresent()) return;
+  let hasWork = true;
+  try {
+    hasWork = await deps.hasWork();
+  } catch (error) {
+    rethrowIfModuleDisabled(error);
+    hasWork = true;
+  }
+  if (!hasWork) return;
+  // There is no request behind a tick, and the pass is platform-wide by design.
+  await enterSystemScope(EVENT_REMINDER_SCOPE_REASON, deps.tick);
+}
+
 export function createEventReminderQueue(redis: Redis): Queue<EventReminderJobData> {
   return new Queue<EventReminderJobData>(EVENT_REMINDER_QUEUE, {
     connection: redis,
@@ -109,25 +156,24 @@ export async function ensureEventReminderSchedule(
  * module; `onClose` registers the queue's own shutdown. Answers whether a
  * consumer was started.
  */
-export async function startEventReminders(input: {
-  readonly tick: () => Promise<void>;
+export async function startEventReminders(
+  input: EventReminderJobDeps & {
   readonly processRunsWorkers: boolean;
   readonly moduleQueueRedis: Redis | undefined;
   readonly attach: (worker: Worker<EventReminderJobData>) => void;
   readonly onClose: (close: () => Promise<void>) => void;
-}): Promise<boolean> {
-  const { processRunsWorkers, moduleQueueRedis, tick } = input;
+  },
+): Promise<boolean> {
+  const { processRunsWorkers, moduleQueueRedis } = input;
   if (!processRunsWorkers || moduleQueueRedis === undefined) return false;
   const queue = createEventReminderQueue(moduleQueueRedis);
   input.onClose(async () => {
     await queue.close();
   });
   input.attach(
-    // The scope is written at the site that has no caller — the function
-    // BullMQ invokes: there is no request behind a tick, and the pass is
-    // platform-wide by design. One tick at a time per process: a second
-    // concurrent pass would only skip the rows the first holds.
-    new Worker<EventReminderJobData>(EVENT_REMINDER_QUEUE, () => enterSystemScope(SCOPE_REASON, tick), {
+    // One tick at a time per process: a second concurrent pass would only
+    // skip the rows the first holds.
+    new Worker<EventReminderJobData>(EVENT_REMINDER_QUEUE, () => runEventReminderJob(input), {
       connection: moduleQueueRedis,
       concurrency: 1,
     }),
