@@ -3,7 +3,6 @@ import {
   cloneOrderToQuote,
   placeOrder,
   previewOrderTotal,
-  reorderOrder,
 } from '../../lib/api/orders';
 import { getOneClickEligibility, placeOneClickOrder } from '../../lib/api/quick-order';
 import type { RequestContext } from '../../lib/api/client';
@@ -112,16 +111,9 @@ describe('order placement carries the sales channel', () => {
   });
 
   /**
-   * The two calls that do not place an order but still depend on the request's
-   * channel: a reorder writes basket lines, gated on that channel's assortment,
-   * and a quote request records the channel it was raised on.
+   * The one call that does not place an order but still depends on the
+   * request's channel: a quote request records the channel it was raised on.
    */
-  it('reorderOrder sends X-Sales-Channel', async () => {
-    await reorderOrder('session', 'order-id', ON_CHANNEL_B);
-
-    expect(requestTo('/api/v1/orders/order-id/reorder').headers['X-Sales-Channel']).toBe('b2b-eu');
-  });
-
   it('cloneOrderToQuote sends X-Sales-Channel', async () => {
     await cloneOrderToQuote('session', 'order-id', ON_CHANNEL_B);
 

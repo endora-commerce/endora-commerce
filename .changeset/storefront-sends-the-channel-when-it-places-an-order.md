@@ -8,9 +8,9 @@ The storefront's order calls went out with no `X-Sales-Channel` header: they are
 to the backend's own host, and did not forward the request context. Whatever channel the buyer was
 shopping, the backend resolved the system default for them. The storefront now forwards the
 context — and with it the header — on order placement, the order-total preview, one-click buy and
-its eligibility check, reordering, and "order again as a quote request".
+its eligibility check, and "order again as a quote request".
 
-In `lib/api/orders.ts`, `placeOrder`, `previewOrderTotal`, `reorderOrder` and `cloneOrderToQuote`,
+In `lib/api/orders.ts`, `placeOrder`, `previewOrderTotal` and `cloneOrderToQuote`,
 and in `lib/api/quick-order.ts`, `placeOneClickOrder` and `getOneClickEligibility`, take the request
 context as a required last argument; the checkout, order and product pages pass
 `(await getServerContext()).ctx`.

@@ -56,8 +56,8 @@ Z kanału zamówienia odczytywane są:
 
 **Sklep musi wskazać kanał w samym żądaniu złożenia zamówienia.** Referencyjny
 sklep przekazuje `X-Sales-Channel` przy składaniu zamówienia, podglądzie sumy
-zamówienia, zakupie jednym kliknięciem, ponawianiu zamówienia i funkcji „zamów
-ponownie jako zapytanie ofertowe”. Sklep utworzony we wcześniejszym wydaniu tego
+zamówienia, zakupie jednym kliknięciem i funkcji „zamów ponownie jako zapytanie
+ofertowe”. Sklep utworzony we wcześniejszym wydaniu tego
 nie robił; kroki opisuje strona *Aktualizacja instancji*.
 
 ### Co nie jest powiązane z kanałem zamówienia

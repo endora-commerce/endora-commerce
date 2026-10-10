@@ -9,21 +9,22 @@ import type { RequestContext } from './client';
  * something or *asks a channel-dependent question*, the answer depends on it.
  * These requests are made server-side to the backend's own host, so the
  * `X-Sales-Channel` header — forwarded from the request context — is the only
- * thing that can say which storefront the buyer is on. Four calls here take the
- * context, as a required argument:
+ * thing that can say which storefront the buyer is on. Three calls here take
+ * the context, as a required argument:
  *
- *   - `placeOrder`, `previewOrderTotal` — the order is recorded on, and priced
- *     for, the resolved channel;
- *   - `reorderOrder` — it writes basket lines, gated on the request channel's
- *     assortment;
+ *   - `placeOrder`, `previewOrderTotal` — the order is recorded on the resolved
+ *     channel;
  *   - `cloneOrderToQuote` — the quote request records the channel it was raised
- *     on.
+ *     on, and its lines are checked against that channel's assortment.
  *
  * The rest — listing and reading the buyer's own orders, their comments,
- * cancelling one, claiming a purchase conversion — address an order that
- * already exists and already carries its channel. The backend answers them from
- * the order, scoped to the buyer, and the channel of the request asking does
- * not change the answer; they send none.
+ * cancelling one, reordering one, claiming a purchase conversion — address an
+ * order that already exists and already carries its channel. The backend
+ * answers them from the order, scoped to the buyer, and the channel of the
+ * request asking does not change the answer; they send none. That includes
+ * `reorderOrder`: whether an order may be reordered is read for the **order's**
+ * channel, and the basket it rebuilds is deliberately not filtered by the
+ * request's.
  */
 
 /**
@@ -243,25 +244,13 @@ export interface ReorderResult {
   unavailableItems: Array<{ productId: string; variantId?: string | null; reason: string }>;
 }
 
-/**
- * Reorder a past order — rebuilds the cart and returns the checkout URL (US6).
- *
- * `ctx` is required: the reorder writes basket lines, and the basket's
- * assortment gate asks whether **the request's** channel sells each product.
- * Every basket write in `./cart` carries the channel for that reason; without
- * it here the lines were checked against the system-default channel.
- */
-export async function reorderOrder(
-  sessionCookie: string,
-  id: string,
-  ctx: RequestContext,
-): Promise<ReorderResult> {
+/** Reorder a past order — rebuilds the cart and returns the checkout URL (US6). */
+export async function reorderOrder(sessionCookie: string, id: string): Promise<ReorderResult> {
   const result = await apiMutate<ReorderResult>({
     method: 'POST',
     path: `/api/v1/orders/${id}/reorder`,
     body: {},
     sessionCookie,
-    ctx,
   });
   return result.data!;
 }
@@ -290,8 +279,8 @@ export async function cancelMyOrder(sessionCookie: string, id: string): Promise<
 export async function cloneOrderToQuote(
   sessionCookie: string,
   id: string,
-  // Required: a quote request records the channel it was raised on, and that
-  // is the channel this request resolves.
+  // Required: a quote request records the channel it was raised on — the one
+  // this request resolves — and its lines are checked against that channel.
   ctx: RequestContext,
 ): Promise<{ quoteRequestId: string }> {
   const result = await apiMutate<{ quoteRequestId: string }>({

@@ -409,8 +409,9 @@ a different one. What that means depends on how many sales channels the instance
   channel rather than on the default one, and its minimum order value, warehouses, fulfilment
   settings, order numbering, invoice seller details and numbering, and e-mail language apply to
   them. Existing orders are not rewritten. Baskets are still created on the default channel, so
-  the assortment check, the line prices and the promotions of such an order are still the default
-  channel's — see *Which sales channel an order records* on the `orders` module page.
+  the line prices and the promotions of such an order are still the default channel's, and each
+  product was checked against the channel of the request that added it to the basket, not against
+  the order's — see *Which sales channel an order records* on the `orders` module page.
 
 **In an existing storefront**, which keeps the source it was created with, the order calls do not
 tell the backend which channel the buyer is on: they are made without the request context, so no
@@ -418,21 +419,27 @@ tell the backend which channel the buyer is on: they are made without the reques
 instance with one sales channel that is the right answer and nothing has to change. On an instance
 with more than one, make these edits, or orders go on being recorded on the default channel:
 
-- In `lib/api/orders.ts`, add a last parameter `ctx: RequestContext` (imported from `./client`) to
-  `placeOrder`, `previewOrderTotal`, `reorderOrder` and `cloneOrderToQuote`, and pass `ctx` in the
-  options object each of them hands to `apiMutate`.
-- In `lib/api/quick-order.ts`, do the same for `placeOneClickOrder` (`apiMutate`) and
-  `getOneClickEligibility` (`apiGetAuthed`).
-- Pass the context at the call sites — `const { ctx } = await getServerContext();` from
-  `lib/server-context` — in `app/(commerce)/checkout/page.tsx` (`placeOrder`),
-  `app/(catalog)/p/[slug]/page.tsx` (`getOneClickEligibility`, `placeOneClickOrder`) and
-  `app/(account)/orders/[id]/page.tsx` (`reorderOrder`, `cloneOrderToQuote`).
+- In `lib/api/orders.ts`, add `import type { RequestContext } from './client';`, add a last
+  parameter `ctx: RequestContext` to `placeOrder`, `previewOrderTotal` and `cloneOrderToQuote`,
+  and add `ctx,` to the options object each of them hands to `apiMutate`.
+- In `lib/api/quick-order.ts`, which already imports `RequestContext`, do the same for
+  `placeOneClickOrder` (`apiMutate`) and `getOneClickEligibility` (`apiGetAuthed`).
+- Pass the context as the new last argument at the five call sites. `getServerContext` is already
+  imported in all three files:
+  - `app/(commerce)/checkout/page.tsx`, in `submitAction`: add
+    `const { ctx } = await getServerContext();` before the `placeOrder` call and pass `ctx`.
+  - `app/(catalog)/p/[slug]/page.tsx`: the page component **already has** `ctx` in scope, so pass
+    it to `getOneClickEligibility` and declare nothing; in `oneClickAction`, a separate function,
+    add `const { ctx } = await getServerContext();` before the `placeOneClickOrder` call and pass
+    `ctx`.
+  - `app/(account)/orders/[id]/page.tsx`, in `reorderToQuoteAction`: add
+    `const { ctx } = await getServerContext();` before the `cloneOrderToQuote` call and pass `ctx`.
 
 `getServerContext()` takes the channel from the `x-sales-channel` header of the request the
 storefront itself receives, which is what your reverse proxy or middleware already stamps per
 host for the pages to render in the right channel.
 
-How far this has been exercised: the backend behaviour, the header on each of the six storefront
+How far this has been exercised: the backend behaviour, the header on each of the five storefront
 calls and the single-channel minimum-order-value change are covered by the release's tests. The
 edits were not applied to a storefront created by an earlier release, and the whole path was not
 run in a browser against an instance with two channels.

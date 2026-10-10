@@ -427,9 +427,10 @@ kanałów sprzedaży w instancji.
   zapisywane w tym kanale, a nie w domyślnym, i obowiązują dla nich jego minimalna wartość
   zamówienia, magazyny, ustawienia realizacji, numeracja zamówień, dane sprzedawcy i numeracja
   faktur oraz język wiadomości e-mail. Istniejące zamówienia nie są zmieniane. Koszyki nadal
-  powstają w kanale domyślnym, więc sprawdzenie asortymentu, ceny pozycji i promocje takiego
-  zamówienia są nadal z kanału domyślnego — zobacz *Który kanał sprzedaży zapisuje zamówienie* na
-  stronie modułu `orders`.
+  powstają w kanale domyślnym, więc ceny pozycji i promocje takiego zamówienia są nadal z kanału
+  domyślnego, a każdy produkt został sprawdzony względem kanału żądania, które dodało go do
+  koszyka, a nie względem kanału zamówienia — zobacz *Który kanał sprzedaży zapisuje zamówienie*
+  na stronie modułu `orders`.
 
 **W istniejącym storefroncie**, który zachowuje źródła, z jakimi go utworzono, wywołania dotyczące
 zamówień nie informują backendu, w którym kanale jest kupujący: są wykonywane bez kontekstu
@@ -438,21 +439,28 @@ domyślny. W instancji z jednym kanałem sprzedaży to poprawna odpowiedź i nic
 zmieniać. W instancji z więcej niż jednym wprowadź poniższe zmiany — w przeciwnym razie zamówienia
 nadal będą zapisywane w kanale domyślnym:
 
-- W `lib/api/orders.ts` dodaj ostatni parametr `ctx: RequestContext` (importowany z `./client`) do
-  funkcji `placeOrder`, `previewOrderTotal`, `reorderOrder` i `cloneOrderToQuote` oraz przekaż
-  `ctx` w obiekcie opcji, który każda z nich podaje do `apiMutate`.
-- W `lib/api/quick-order.ts` zrób to samo dla `placeOneClickOrder` (`apiMutate`) i
-  `getOneClickEligibility` (`apiGetAuthed`).
-- Przekaż kontekst w miejscach wywołań — `const { ctx } = await getServerContext();` z
-  `lib/server-context` — w `app/(commerce)/checkout/page.tsx` (`placeOrder`),
-  `app/(catalog)/p/[slug]/page.tsx` (`getOneClickEligibility`, `placeOneClickOrder`) i
-  `app/(account)/orders/[id]/page.tsx` (`reorderOrder`, `cloneOrderToQuote`).
+- W `lib/api/orders.ts` dodaj `import type { RequestContext } from './client';`, dodaj ostatni
+  parametr `ctx: RequestContext` do funkcji `placeOrder`, `previewOrderTotal` i
+  `cloneOrderToQuote` oraz dodaj `ctx,` do obiektu opcji, który każda z nich podaje do `apiMutate`.
+- W `lib/api/quick-order.ts`, który już importuje `RequestContext`, zrób to samo dla
+  `placeOneClickOrder` (`apiMutate`) i `getOneClickEligibility` (`apiGetAuthed`).
+- Przekaż kontekst jako nowy ostatni argument w pięciu miejscach wywołań. `getServerContext` jest
+  już importowany we wszystkich trzech plikach:
+  - `app/(commerce)/checkout/page.tsx`, w `submitAction`: dodaj
+    `const { ctx } = await getServerContext();` przed wywołaniem `placeOrder` i przekaż `ctx`.
+  - `app/(catalog)/p/[slug]/page.tsx`: komponent strony **ma już** `ctx` w zasięgu, więc przekaż
+    go do `getOneClickEligibility` i niczego nie deklaruj; w `oneClickAction`, osobnej funkcji,
+    dodaj `const { ctx } = await getServerContext();` przed wywołaniem `placeOneClickOrder` i
+    przekaż `ctx`.
+  - `app/(account)/orders/[id]/page.tsx`, w `reorderToQuoteAction`: dodaj
+    `const { ctx } = await getServerContext();` przed wywołaniem `cloneOrderToQuote` i przekaż
+    `ctx`.
 
 `getServerContext()` bierze kanał z nagłówka `x-sales-channel` żądania, które otrzymuje sam
 storefront — tego samego, który Twoje reverse proxy albo middleware już ustawia dla każdego hosta,
 aby strony renderowały się we właściwym kanale.
 
-Na ile zostało to sprawdzone: zachowanie backendu, nagłówek w każdym z sześciu wywołań storefrontu
+Na ile zostało to sprawdzone: zachowanie backendu, nagłówek w każdym z pięciu wywołań storefrontu
 oraz zmianę minimalnej wartości zamówienia w instancji z jednym kanałem obejmują testy wydania.
 Zmian nie naniesiono na storefront utworzony we wcześniejszym wydaniu, a całej ścieżki nie
 uruchomiono w przeglądarce na instancji z dwoma kanałami.

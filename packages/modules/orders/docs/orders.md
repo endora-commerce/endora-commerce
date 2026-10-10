@@ -56,8 +56,7 @@ What is read from an order's channel:
 
 **The storefront has to name the channel on the placement request itself.** The
 reference storefront forwards `X-Sales-Channel` on order placement, the
-order-total preview, one-click buy, reordering and "order again as a quote
-request". One created by an earlier release did not; the steps are in
+order-total preview, one-click buy and "order again as a quote request". One created by an earlier release did not; the steps are in
 *Upgrading an instance*.
 
 ### What is not tied to the order's channel

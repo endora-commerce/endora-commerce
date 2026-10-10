@@ -396,8 +396,7 @@ async function reorderAction(formData: FormData): Promise<void> {
   const id = (formData.get('id') as string) ?? '';
   let target = '/cart';
   try {
-    const { ctx } = await getServerContext();
-    const result = await reorderOrder(session, id, ctx);
+    const result = await reorderOrder(session, id);
     target = result.checkoutUrl || '/cart';
   } catch (err) {
     const message = err instanceof StorefrontApiError ? err.message : 'Could not reorder.';
