@@ -1277,6 +1277,18 @@ export class OrderService {
     options?: { origin?: OriginReference },
   ): Promise<Order> {
     const em = this.emFactory();
+    // What this placement announces, emitted once the transaction below has
+    // returned (issue #171). The storefront checkout, one-click, external
+    // intake and admin create paths all reach this method outside a Command
+    // Bus event scope, where `EventBus.emit` runs subscribers at once: emitted
+    // from inside the callback, `order.created.v1` reached them before the
+    // commit — a subscriber reading on a connection of its own found no order,
+    // and a placement that failed afterwards had already been announced, to
+    // the webhook bridge among others. Collected rather than wrapped in
+    // `EventBus.run`: a nested scope dispatches when it ends, which under a
+    // caller's own scope would be earlier than the caller asked for; emitted
+    // after the commit, the events join that scope's buffer as before.
+    const announce: Array<() => void> = [];
     const order = await em.transactional(async (tx) => {
       const org = await this.neighbours.organizationDetails.findById(ctx.organizationId);
       if (!org) throw new HttpError(404, ERROR_CODES.NOT_FOUND, 'Organization not found.');
@@ -2040,26 +2052,31 @@ export class OrderService {
       });
       await tx.flush();
 
-      this.events.emit('order.created.v1', {
-        eventId: randomUUID(),
-        occurredAt: new Date().toISOString(),
-        orderId: order.id,
-        organizationId: ctx.organizationId,
-        ...(options?.origin ? { origin: options.origin } : {}),
-      });
+      const occurredAt = new Date().toISOString();
+      announce.push(() =>
+        this.events.emit('order.created.v1', {
+          eventId: randomUUID(),
+          occurredAt,
+          orderId: order.id,
+          organizationId: ctx.organizationId,
+          ...(options?.origin ? { origin: options.origin } : {}),
+        }),
+      );
 
       // Feature 045 (T092) — one fire-and-forget event per finalized redemption
       // for downstream consumers (analytics / webhooks). Not the enforcement
       // path — usage was already finalized atomically above.
       for (const ap of appliedPromotions) {
-        this.events.emit('promotion.used.v1', {
-          eventId: randomUUID(),
-          occurredAt: new Date().toISOString(),
-          orderId: order.id,
-          promotionId: ap.promotionId,
-          couponId: ap.couponId ?? null,
-          amount: ap.amount,
-        });
+        announce.push(() =>
+          this.events.emit('promotion.used.v1', {
+            eventId: randomUUID(),
+            occurredAt,
+            orderId: order.id,
+            promotionId: ap.promotionId,
+            couponId: ap.couponId ?? null,
+            amount: ap.amount,
+          }),
+        );
       }
 
       // Impersonated order placement → audit row tying the Admin User to the
@@ -2078,6 +2095,9 @@ export class OrderService {
 
       return order;
     });
+
+    // Post-commit: the order exists, so it can be announced.
+    for (const emit of announce) emit();
 
     // Post-commit: order-confirmation e-mail (feature 034). Best effort — a
     // mail failure must not undo a placed order.

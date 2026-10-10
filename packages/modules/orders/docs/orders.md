@@ -176,6 +176,10 @@ carries that `origin`, unchanged; for every other order the key is absent.
 The value travels wherever the event does — an outbound webhook subscribed to
 `order.created.v1` receives it in the payload.
 
+`order.created.v1` is emitted after the placement has committed, on every
+placement path: a subscriber can read the order it names, and a placement
+that fails announces nothing.
+
 ## Admin operations
 
 - **Create on behalf** — `POST /api/v1/admin/orders` builds the customer's cart

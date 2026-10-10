@@ -167,6 +167,10 @@ z polem `origin` (zob. *Tworzenie w imieniu klienta* niżej), niesie także to `
 dla każdego innego zamówienia tego klucza nie ma. Wartość trafia wszędzie tam, dokąd zdarzenie —
 webhook wychodzący subskrybujący `order.created.v1` dostaje ją w treści.
 
+`order.created.v1` jest emitowane po zatwierdzeniu transakcji składającej zamówienie, na każdej
+ścieżce składania: subskrybent może odczytać zamówienie, które zdarzenie wskazuje, a nieudane
+złożenie zamówienia niczego nie ogłasza.
+
 ## Operacje w panelu administracyjnym
 
 - **Tworzenie w imieniu klienta** — `POST /api/v1/admin/orders` buduje koszyk klienta z pozycji

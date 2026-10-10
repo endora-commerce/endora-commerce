@@ -69,14 +69,13 @@ export type AutoCreateOutcome =
  * How long a handler waits for a document its event has announced: the pauses
  * between reads, in milliseconds — a little over two seconds in all.
  *
- * `orders` announces `order.created.v1` from **inside** the transaction that
- * places the Order (`order-service.ts`, the emit before the transactional
- * callback returns), and the bus runs a handler straight away. Measured through
- * the storefront route: a subscriber that reads the Order at once does not find
- * it on a cold connection and finds it five milliseconds later
- * (`research.md`, N-E7). So a first read that finds nothing is not the answer —
- * a document that is still missing after the last pause was rolled back, and
- * nothing is created for it.
+ * `orders` announces `order.created.v1` once the transaction that places the
+ * Order has committed (issue #171), so a first read normally finds it and this
+ * wait is not entered. It is kept as a second line: until that fix the event
+ * was emitted from **inside** the transaction and a subscriber that read the
+ * Order at once did not find it on a cold connection (`research.md`, N-E7). A
+ * document that is still missing after the last pause is treated as not
+ * placed, and nothing is created for it.
  */
 const COMMIT_WAIT_PAUSES = [10, 25, 75, 150, 250, 500, 1000] as const;
 
