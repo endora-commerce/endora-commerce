@@ -32,6 +32,7 @@ Operator włącza i wyłącza ten moduł na **/platform/modules**. Decyduje o ty
 | `auth` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `orders` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
 | `organizations` | tak | ten moduł instaluje się i migruje po nim, a operator nie może go wyłączyć, dopóki ten moduł działa |
+| `webhooks` | nie | contributes-to `webhookEventRegistry` |
 
 ## Uprawnienia
 

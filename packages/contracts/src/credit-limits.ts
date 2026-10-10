@@ -130,3 +130,50 @@ export interface ContractorCreditLimitPort {
     allowOverAllocation?: boolean;
   }): Promise<{ ok: boolean }>;
 }
+
+// ---------------------------------------------------------------------------
+// Events offered to outbound webhooks
+// ---------------------------------------------------------------------------
+//
+// The webhook delivery bridge serialises an event whole, so for this one **the
+// event payload is the webhook payload** — a public, versioned contract. It has
+// a strict schema and `credit_limits` pushes exactly this name into
+// `webhookEventRegistry`. Adding a field is a reviewed change here; removing or
+// renaming one is a new `.v2` event offered beside the old.
+//
+// A credit limit belongs to one Organization, and `organizationId` is what the
+// bridge filters on: a subscription bound to an Organization receives only that
+// Organization's events.
+
+/** The fixed name of the credit-limit event offered to outbound webhooks. */
+export const CREDIT_LIMIT_WEBHOOK_EVENTS = {
+  ADJUSTED: 'credit_limit.adjusted.v1',
+} as const;
+
+/**
+ * Payload of `credit_limit.adjusted.v1` — an Organization's granted limit
+ * changed: an administrator adjusted it, or a settled return was credited to
+ * it. The first grant is `credit_limit.granted.v1`, which is not offered.
+ */
+export const CreditLimitAdjustedEventV1Schema = z
+  .object({
+    eventId: z.string().min(1),
+    occurredAt: isoDateTimeSchema,
+    /** The Organization that holds the limit — the one it was granted to, not one that inherits it. */
+    organizationId: uuidSchema,
+    /**
+     * The granted limit **after** the change, in the limit's own currency. It
+     * is the new total, not the difference, and the currency is not carried.
+     */
+    amount: z.number().finite().nonnegative(),
+  })
+  .strict();
+export type CreditLimitAdjustedEventV1 = z.infer<typeof CreditLimitAdjustedEventV1Schema>;
+
+/** The event types `credit_limits` offers to outbound webhooks. */
+export const CREDIT_LIMIT_WEBHOOK_EVENT_TYPES = [CREDIT_LIMIT_WEBHOOK_EVENTS.ADJUSTED] as const;
+
+/** The strict schema of the offered event's payload, by event type. */
+export const CREDIT_LIMIT_WEBHOOK_EVENT_SCHEMAS = {
+  [CREDIT_LIMIT_WEBHOOK_EVENTS.ADJUSTED]: CreditLimitAdjustedEventV1Schema,
+} as const;

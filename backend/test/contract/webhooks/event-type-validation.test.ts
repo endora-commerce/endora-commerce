@@ -31,8 +31,12 @@ import { Webhook } from '../../helpers/package-entities.js';
 
 const ADMIN = { b2b_session: 'stub-admin-session' };
 const CODE = 'WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE';
-/** Emitted on the bus, bridged by nothing. */
-const EMITTED_NOT_BRIDGED = 'product.updated.v1';
+/**
+ * Emitted on the bus, offered by nobody. `credit_limits` contributes
+ * `credit_limit.adjusted.v1` and not this one, so it stands for every event
+ * that exists in-process and does not leave the instance.
+ */
+const EMITTED_NOT_BRIDGED = 'credit_limit.granted.v1';
 /** Emitted by nothing at all. */
 const NEVER_EMITTED = 'payment.settled.v1';
 /** An operator-switchable module to stand as the owner of a contributed type. */

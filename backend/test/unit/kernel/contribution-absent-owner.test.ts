@@ -35,6 +35,11 @@ import { registerModule as registerOrders } from '@endora-commerce/mod-orders/ba
 // `crm` by its published specifier for the same reason: `CrmOpportunity` is the
 // `@TransitivelyScoped` parent of seven child classes.
 import { registerModule as registerCrm } from '@endora-commerce/mod-crm/backend';
+// `quote_requests` and `credit_limits` by their published specifiers as well,
+// so that this file loads the entity classes the rest of the process loads
+// rather than a second copy of each from source.
+import { registerModule as registerQuoteRequests } from '@endora-commerce/mod-quote-requests/backend';
+import { registerModule as registerCreditLimits } from '@endora-commerce/mod-credit-limits/backend';
 
 /**
  * **A contribution to a registry that was never registered is dropped**
@@ -203,6 +208,16 @@ const COMPOSERS: Readonly<
       salesChannelAttributionRegistry: { register: () => {} },
       auditReferenceRegistry: { register: () => {} },
       emailDefaultsPort: { register: () => {} },
+    }),
+  // `credit_limits` offers `credit_limit.adjusted.v1` to `webhooks`' registry.
+  // It has no other boot hook.
+  credit_limits: (withOwner, ownerNames) => compose('credit_limits', registerCreditLimits, ownerNames, withOwner),
+  // `quote_requests` offers `rfq.created.v1` and `rfq.expired.v1` to the same
+  // registry. Its other boot hook pushes into `sales_channels`' attribution
+  // registry, an owner it declares in `dependencies`.
+  quote_requests: (withOwner, ownerNames) =>
+    compose('quote_requests', registerQuoteRequests, ownerNames, withOwner, {
+      salesChannelAttributionRegistry: { register: () => {} },
     }),
   inventory: (withOwner, ownerNames) =>
     compose('inventory', registerInventory, ownerNames, withOwner, {

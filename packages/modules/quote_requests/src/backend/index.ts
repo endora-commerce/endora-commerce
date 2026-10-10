@@ -3,7 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
 import type { EventBus } from '@endora-commerce/platform/events';
-import { ERROR_CODES } from '@endora-commerce/contracts';
+import { ERROR_CODES, QUOTE_REQUEST_WEBHOOK_EVENT_TYPES } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import type {
   Actor,
@@ -19,6 +19,7 @@ import type {
   RfqCustomerPort,
   SalesChannelAttributionRegistryPort,
   TaxServicePort,
+  WebhookEventRegistryPort,
 } from '@endora-commerce/contracts';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { QuoteRequestReadService } from './services/quote-request-read-port.js';
@@ -497,6 +498,30 @@ export function registerModule(ctx: ModuleContext): void {
       lazyPort<SalesChannelAttributionRegistryPort>(ctx, 'salesChannelAttributionRegistry'),
       ctx.cradle<QuoteRequestsCradle>().emFactory,
     );
+  });
+
+  /**
+   * The events this module offers to outbound webhooks — a **contribution**
+   * hook.
+   *
+   * It pushes two event names into `webhookEventRegistry`, an ungated registry
+   * `webhooks` owns, and carries no presence probe: the registry leaves out a
+   * contributor that is not present when it is read, so a push made while this
+   * module is off costs nothing, and one skipped here would make switching the
+   * module on need a restart before its events were offered. `webhooks` names
+   * neither event — a module owns its events (Principle I) — and sends the
+   * payload whole, which is why the two have strict schemas in the contracts
+   * package.
+   *
+   * Nothing is read back and nothing degrades: with `webhooks` off the events
+   * are emitted as ever and nobody is told; in an instance without `webhooks`
+   * the push is dropped by the platform.
+   */
+  ctx.onBoot(() => {
+    const registry = lazyPort<WebhookEventRegistryPort>(ctx, 'webhookEventRegistry');
+    for (const eventType of QUOTE_REQUEST_WEBHOOK_EVENT_TYPES) {
+      registry.register({ ownerModuleId: 'quote_requests', eventType });
+    }
   });
 
   ctx.routes(async (app) => {

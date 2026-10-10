@@ -80,4 +80,24 @@ describe('WebhookEventRegistry — an absent contributor’s event types are not
     descriptor.ownerModuleId = 'tampered';
     expect(subject.list()).toEqual([{ ownerModuleId: 'crm', eventType: 'crm.opportunity.created.v1' }]);
   });
+
+  it('a contributed type is deliverable only while its owner is present — asked per event, so a flip needs no restart', () => {
+    let present = true;
+    const { subject } = registry((moduleId) => moduleId !== 'crm' || present);
+    subject.register({ ownerModuleId: 'crm', eventType: 'crm.opportunity.created.v1' });
+
+    expect(subject.isDeliverable('crm.opportunity.created.v1')).toBe(true);
+    present = false;
+    expect(subject.isDeliverable('crm.opportunity.created.v1')).toBe(false);
+    present = true;
+    expect(subject.isDeliverable('crm.opportunity.created.v1')).toBe(true);
+  });
+
+  it('a built-in type is deliverable whoever names it, and so is a type nobody contributed', () => {
+    const { subject } = registry(() => false);
+    // A contributor naming a built-in type does not become its gate.
+    subject.register({ ownerModuleId: 'orders', eventType: 'order.created.v1' });
+    expect(subject.isDeliverable('order.created.v1')).toBe(true);
+    expect(subject.isDeliverable('order.status_changed.v1')).toBe(true);
+  });
 });

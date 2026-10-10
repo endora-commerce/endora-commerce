@@ -152,8 +152,19 @@ export function registerModule(ctx: ModuleContext): void {
    * the module's effective state decide whether the handler runs at all, so
    * the lookup inside is never reached while the module is off.
    */
+  /**
+   * The registry of contributed types, once something has resolved it. Held
+   * here because the bridge asks it a question the port does not carry —
+   * whether a contributed type's owner is present at delivery time.
+   */
+  let contributedTypes: WebhookEventRegistry | undefined;
+
   const bridge = (eventType: string): void => {
     ctx.subscribe(eventType, (payload) => {
+      // A contributed type is delivered only while its owner is present. An
+      // in-memory answer, asked before the subscription lookup, so an event of
+      // a switched-off module reads no row and enqueues nothing.
+      if (contributedTypes !== undefined && !contributedTypes.isDeliverable(eventType)) return;
       const { webhookQueue, webhookService } = ctx.cradle<WebhooksCradle>();
       return bridgeEventHandler(eventType, {
         queue: webhookQueue,
@@ -185,12 +196,14 @@ export function registerModule(ctx: ModuleContext): void {
   ctx.di.register({
     webhookEventRegistry: ctx
       .asFunction(
-        (): WebhookEventRegistryPort =>
-          new WebhookEventRegistry({
+        (): WebhookEventRegistryPort => {
+          contributedTypes = new WebhookEventRegistry({
             isPresent: (moduleId) => effectiveState.isPresent(moduleId),
             bridge,
             alreadyBridged: BRIDGED_EVENT_TYPES,
-          }),
+          });
+          return contributedTypes;
+        },
       )
       .singleton(),
   });

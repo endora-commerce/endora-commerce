@@ -164,6 +164,32 @@ describe('webhooks — contributed event types [integration]', () => {
     },
   );
 
+  it.each<OffStateAxis>(['deactivated', 'platform-unavailable'])(
+    'nothing is enqueued for a contributed type while its owner is %s, and delivery resumes after',
+    async (axis) => {
+      // The stored subscription is what makes this a claim about delivery: it
+      // names the type, it is active, and it is platform-wide.
+      const subscription = await subscribe([CONTRIBUTED]);
+      await withModuleOff(OWNER, axis, async () => {
+        // Emitted by hand, as anything still holding the bus could: the owner
+        // being off must stop the delivery, not merely the offer.
+        const eventId = await emitAndSettle(CONTRIBUTED, { organizationId: TEST_ORGANIZATION_ID });
+        expect(jobs.filter((job) => job.eventId === eventId)).toEqual([]);
+      });
+      const eventId = await emitAndSettle(CONTRIBUTED, { organizationId: TEST_ORGANIZATION_ID });
+      expect(jobs.filter((job) => job.eventId === eventId).map((job) => job.webhookId)).toContain(subscription);
+    },
+  );
+
+  it('a built-in type is delivered whatever a contributor naming it is doing', async () => {
+    registry.register({ ownerModuleId: OWNER, eventType: 'order.created.v1' });
+    const subscription = await subscribe(['order.created.v1']);
+    await withModuleOff(OWNER, 'deactivated', async () => {
+      const eventId = await emitAndSettle('order.created.v1', { orderId: randomUUID(), organizationId: TEST_ORGANIZATION_ID });
+      expect(jobs.filter((job) => job.eventId === eventId).map((job) => job.webhookId)).toContain(subscription);
+    });
+  });
+
   it('registering the same type twice does not deliver twice', async () => {
     registry.register({ ownerModuleId: OWNER, eventType: CONTRIBUTED });
     registry.register({ ownerModuleId: OWNER, eventType: CONTRIBUTED });

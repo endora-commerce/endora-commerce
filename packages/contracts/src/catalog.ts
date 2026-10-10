@@ -3219,3 +3219,87 @@ export interface CatalogProductFilterPort {
   listSellable(query: CatalogSellableProductQuery): Promise<CatalogProductRecord[]>;
   countSellable(query: Omit<CatalogSellableProductQuery, 'afterId' | 'limit'>): Promise<number>;
 }
+
+// ---------------------------------------------------------------------------
+// Events offered to outbound webhooks
+// ---------------------------------------------------------------------------
+//
+// The webhook delivery bridge serialises an event whole, so for these three
+// **the event payload is the webhook payload** — a public, versioned contract.
+// Each has a strict schema and `catalog` pushes exactly these names into
+// `webhookEventRegistry`. Adding a field is a reviewed change here; removing or
+// renaming one is a new `.v2` event offered beside the old.
+//
+// None of them carries an `organizationId`: a product belongs to the catalogue,
+// not to an Organization. The delivery bridge therefore hands them to
+// platform-wide subscriptions only — a subscription bound to one Organization
+// never receives a product event. They carry identifiers and field names, never
+// a value: a receiver that wants the product reads it through the API with the
+// permissions of its own key.
+
+const catalogWebhookEventEnvelopeShape = {
+  eventId: z.string().min(1),
+  occurredAt: isoDateTimeSchema,
+};
+
+/** The fixed names of the catalogue events offered to outbound webhooks. */
+export const CATALOG_WEBHOOK_EVENTS = {
+  PRODUCT_CREATED: 'product.created.v1',
+  PRODUCT_UPDATED: 'product.updated.v1',
+  PRODUCT_ARCHIVED: 'product.archived.v1',
+} as const;
+
+/** Payload of `product.created.v1` — a product row was created (also by duplication). */
+export const ProductCreatedEventV1Schema = z
+  .object({
+    ...catalogWebhookEventEnvelopeShape,
+    productId: uuidSchema,
+    /** The SKU the product was created with. It is mutable afterwards; `productId` is the stable reference. */
+    sku: z.string().min(1),
+  })
+  .strict();
+export type ProductCreatedEventV1 = z.infer<typeof ProductCreatedEventV1Schema>;
+
+/**
+ * Payload of `product.updated.v1` — one per product write, also when a variant
+ * of the product was created, changed or deleted (`changedFields` is then
+ * `['variants']`).
+ */
+export const ProductUpdatedEventV1Schema = z
+  .object({
+    ...catalogWebhookEventEnvelopeShape,
+    productId: uuidSchema,
+    /**
+     * The names of the product fields the write addressed — names only, never
+     * values. An open list: a new product field adds a name. May be empty.
+     */
+    changedFields: z.array(z.string().min(1)),
+  })
+  .strict();
+export type ProductUpdatedEventV1 = z.infer<typeof ProductUpdatedEventV1Schema>;
+
+/**
+ * Payload of `product.archived.v1` — a product's status moved to `inactive`.
+ * Emitted beside the `product.updated.v1` of the same write, after it.
+ */
+export const ProductArchivedEventV1Schema = z
+  .object({
+    ...catalogWebhookEventEnvelopeShape,
+    productId: uuidSchema,
+  })
+  .strict();
+export type ProductArchivedEventV1 = z.infer<typeof ProductArchivedEventV1Schema>;
+
+/** The event types `catalog` offers to outbound webhooks, in the order they are offered. */
+export const CATALOG_WEBHOOK_EVENT_TYPES = [
+  CATALOG_WEBHOOK_EVENTS.PRODUCT_CREATED,
+  CATALOG_WEBHOOK_EVENTS.PRODUCT_UPDATED,
+  CATALOG_WEBHOOK_EVENTS.PRODUCT_ARCHIVED,
+] as const;
+
+/** The strict schema of each offered event's payload, by event type. */
+export const CATALOG_WEBHOOK_EVENT_SCHEMAS = {
+  [CATALOG_WEBHOOK_EVENTS.PRODUCT_CREATED]: ProductCreatedEventV1Schema,
+  [CATALOG_WEBHOOK_EVENTS.PRODUCT_UPDATED]: ProductUpdatedEventV1Schema,
+  [CATALOG_WEBHOOK_EVENTS.PRODUCT_ARCHIVED]: ProductArchivedEventV1Schema,
+} as const;

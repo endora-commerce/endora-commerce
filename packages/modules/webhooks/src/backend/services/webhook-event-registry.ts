@@ -47,6 +47,26 @@ export class WebhookEventRegistry implements WebhookEventRegistryPort {
     }
   }
 
+  /**
+   * Whether an event of this type may be delivered **now**.
+   *
+   * A contributed type is delivered only while the module that contributed it
+   * is effectively present — the same condition `list()` offers it under, so
+   * "offered", "accepted" and "delivered" stay one set at every moment. The
+   * bridge is this module's own gated subscription, which stops everything
+   * when `webhooks` is off; without this it said nothing about the *owner*, so
+   * an event carrying a switched-off module's name was still delivered to the
+   * subscriptions stored for it. A type nobody contributed is one this module
+   * bridges of its own accord, and has no owner to ask about.
+   *
+   * Not on the port: contributors push and read nothing back.
+   */
+  isDeliverable(eventType: string): boolean {
+    const descriptor = this.descriptors.get(eventType);
+    if (descriptor === undefined || this.options.alreadyBridged.includes(eventType)) return true;
+    return this.options.isPresent(descriptor.ownerModuleId);
+  }
+
   owners(): readonly string[] {
     return [...new Set([...this.descriptors.values()].map((descriptor) => descriptor.ownerModuleId))];
   }

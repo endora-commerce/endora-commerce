@@ -28,6 +28,23 @@ export const manifest = defineModuleManifest({
   // acknowledged edge, which drops the install ordering the constraint says is
   // backwards and keeps the bind (D-94.3).
   dependencies: ['organizations', 'auth', 'orders'],
+  // This module offers one of its events to outbound webhooks by pushing its
+  // name into `webhooks`' registry from a contribution-only boot hook. A push,
+  // and nothing read back: with `webhooks` off or absent nothing is delivered
+  // and nothing in this module changes, so there is no `whenAbsent` to state.
+  nonBindingDependencies: [
+    {
+      moduleId: 'webhooks',
+      name: 'webhookEventRegistry',
+      kind: 'contributes-to',
+      reason:
+        'A push, from this module\'s contribution-only boot hook, of the one event name it ' +
+        'offers for outbound delivery — `credit_limit.adjusted.v1`. Nothing is read back: the ' +
+        'registry is a plain registration that leaves out every event type whose owner is not ' +
+        'present when it is read, and `webhooks` bridges and delivers through its own gated ' +
+        'subscription.',
+    },
+  ],
   settings: {
     moduleCode: 'credit_limits',
     groups: [{ code: 'credit_limits', name: 'Credit limits' }],

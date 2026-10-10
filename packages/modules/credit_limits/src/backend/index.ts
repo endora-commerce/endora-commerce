@@ -4,10 +4,12 @@ import type { CommandBus } from '@endora-commerce/platform/commands';
 import type { EventBus } from '@endora-commerce/platform/events';
 import type { ModuleContext, RequireAdminFactory } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
-import type {
-  CreditLimitReadPort,
-  OrganizationDetailsPort,
-  OrganizationInheritancePort,
+import {
+  CREDIT_LIMIT_WEBHOOK_EVENT_TYPES,
+  type CreditLimitReadPort,
+  type OrganizationDetailsPort,
+  type OrganizationInheritancePort,
+  type WebhookEventRegistryPort,
 } from '@endora-commerce/contracts';
 import { CreditLimitService, type CreditLimitEventBus } from './services/credit-limit-service.js';
 import { CreditLimitReadService } from './services/credit-limit-read.js';
@@ -168,6 +170,30 @@ export function registerModule(ctx: ModuleContext): void {
       resolveAdminUserId: (request) =>
         ctx.cradle<CreditLimitsCradle>().adminContextResolver(request).adminUserId,
     });
+  });
+
+  /**
+   * The event this module offers to outbound webhooks — a **contribution**
+   * hook.
+   *
+   * It pushes one event name into `webhookEventRegistry`, an ungated registry
+   * `webhooks` owns, and carries no presence probe: the registry leaves out a
+   * contributor that is not present when it is read, so a push made while this
+   * module is off costs nothing, and one skipped here would make switching the
+   * module on need a restart before its event was offered. `webhooks` does not
+   * name the event — a module owns its events (Principle I) — and sends the
+   * payload whole, which is why it has a strict schema in the contracts
+   * package.
+   *
+   * Nothing is read back and nothing degrades: with `webhooks` off the event
+   * is emitted as ever and nobody is told; in an instance without `webhooks`
+   * the push is dropped by the platform.
+   */
+  ctx.onBoot(() => {
+    const registry = lazyPort<WebhookEventRegistryPort>(ctx, 'webhookEventRegistry');
+    for (const eventType of CREDIT_LIMIT_WEBHOOK_EVENT_TYPES) {
+      registry.register({ ownerModuleId: 'credit_limits', eventType });
+    }
   });
 }
 

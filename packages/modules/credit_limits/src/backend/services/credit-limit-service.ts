@@ -203,12 +203,14 @@ export class CreditLimitService {
     }
     // Legacy fallback (no bus injected — e.g. unit tests): unaudited, but
     // byte-identical to the pre-054 behavior.
+    // The event is emitted once the transaction has returned, never from
+    // inside its callback: outside an event scope the bus runs subscribers at
+    // once, so an adjustment whose commit then failed would already have been
+    // announced — to the webhook delivery bridge among others.
     const em = this.emFactory();
-    return em.transactional(async (tx) => {
-      const r = await this.#applyAdjust(tx, input);
-      if (r.result.ok) this.#emitAdjusted(input);
-      return r.result;
-    });
+    const result = await em.transactional(async (tx) => (await this.#applyAdjust(tx, input)).result);
+    if (result.ok) this.#emitAdjusted(input);
+    return result;
   }
 
   /** The `adjust` write expressed as a Command (audited via the bus). */
@@ -304,17 +306,18 @@ export class CreditLimitService {
     }
     // Legacy fallback (no bus injected — e.g. unit tests): the same write,
     // unaudited, in the same single transaction.
+    // Emitted after the commit, for the reason given in `adjust`.
     const em = this.emFactory();
-    return em.transactional(async (tx) => {
-      const applied = await this.#applyCreditFromReturn(tx, input);
-      if (applied.result.applied && !applied.result.alreadyApplied) {
-        this.#emitAdjusted({
-          organizationId: input.organizationId,
-          grantedAmount: applied.result.availableAmountAfter ?? 0,
-        });
-      }
-      return applied.result;
-    });
+    const result = await em.transactional(
+      async (tx) => (await this.#applyCreditFromReturn(tx, input)).result,
+    );
+    if (result.applied && !result.alreadyApplied) {
+      this.#emitAdjusted({
+        organizationId: input.organizationId,
+        grantedAmount: result.availableAmountAfter ?? 0,
+      });
+    }
+    return result;
   }
 
   /** The `creditFromReturn` write expressed as a Command (audited via the bus). */

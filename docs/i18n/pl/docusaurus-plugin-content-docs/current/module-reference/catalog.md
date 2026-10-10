@@ -46,6 +46,7 @@ Strona wygenerowana z manifestu modułu, bez żadnych ręcznych zmian. Co moduł
 | `prompt_actions` | nie | contributes-to `promptActionToolRegistry` |
 | `search` | nie | degrades-without `searchQueryPort` — listy produktów w sklepie są pobierane z PostgreSQL zamiast z indeksu wyszukiwarki |
 | `search` | nie | degrades-without `searchReindexPort` — zmiana flagi `searchable` atrybutu nie przebudowuje indeksu wyszukiwarki |
+| `webhooks` | nie | contributes-to `webhookEventRegistry` |
 
 ## Uprawnienia
 

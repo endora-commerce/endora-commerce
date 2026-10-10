@@ -157,6 +157,23 @@ export const manifest = defineModuleManifest({
         'acknowledged edge adds no refusal that was reachable before.',
     },
   ],
+  // This module offers two of its events to outbound webhooks by pushing their
+  // names into `webhooks`' registry from a contribution-only boot hook. A push,
+  // and nothing read back: with `webhooks` off or absent nothing is delivered
+  // and nothing in this module changes, so there is no `whenAbsent` to state.
+  nonBindingDependencies: [
+    {
+      moduleId: 'webhooks',
+      name: 'webhookEventRegistry',
+      kind: 'contributes-to',
+      reason:
+        'A push, from this module\'s contribution-only boot hook, of the two event names it ' +
+        'offers for outbound delivery — `rfq.created.v1` and `rfq.expired.v1`. Nothing is read ' +
+        'back: the registry is a plain registration that leaves out every event type whose ' +
+        'owner is not present when it is read, and `webhooks` bridges and delivers through its ' +
+        'own gated subscription.',
+    },
+  ],
   settings,
   // Feature 073 (Constitution XVII) — the operator's activation control.
   activation: { settingCode: 'quote_requests.enabled', default: true },

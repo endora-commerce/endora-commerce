@@ -54,10 +54,46 @@ Trasy administracyjne są chronione przez `catalog:read` (lista i odczyt) i `cat
 ## Emitowane zdarzenia
 
 `product.created.v1`, `product.updated.v1`, `product.archived.v1`, `attribute.updated.v1`.
-Odbiera je indeksowanie wyszukiwarki i są przekazywane subskrybentom webhooków.
+Odbiera je indeksowanie wyszukiwarki. Trzy zdarzenia produktów są też oferowane webhookom
+wychodzącym (następna sekcja); `attribute.updated.v1` nie jest.
 
 `category.updated.v1` i `category.content.updated.v1` czyszczą pamięć podręczną kategorii w
 storefroncie; pierwsze dodatkowo ponownie indeksuje produkty z poddrzewa zmienionej kategorii.
+
+## Zdarzenia oferowane webhookom wychodzącym
+
+Moduł wnosi trzy typy zdarzeń do rejestru `webhookEventRegistry` modułu `webhooks`, więc
+subskrypcja webhooka może je wskazać, dopóki oba moduły są obecne. Treść zdarzenia jest wysyłana
+w całości; ścisłe schematy to `CATALOG_WEBHOOK_EVENT_SCHEMAS` w `@endora-commerce/contracts`.
+
+| Zdarzenie | Kiedy jest wysyłane | Treść, poza `eventId` i `occurredAt` |
+| --- | --- | --- |
+| `product.created.v1` | Utworzono produkt — w panelu administracyjnym, przez zapis kluczem API, przez import albo synchronizację z PIM, albo przez powielenie innego produktu. | `productId` (UUID), `sku` — SKU, z którym produkt utworzono; może się później zmienić, `productId` nie. |
+| `product.updated.v1` | Zapisano produkt albo utworzono, zmieniono lub usunięto jeden z jego wariantów. | `productId`, `changedFields` — nazwy pól produktu, których dotyczył zapis (`name`, `status`, `categoryIds`, …; `variants` przy zapisie wariantu). Same nazwy, lista otwarta, może być pusta. |
+| `product.archived.v1` | Status produktu zmienia się na `inactive` z innego statusu. Raz na każdą taką zmianę: edycja produktu, który już jest nieaktywny, nie wysyła go ponownie. | `productId` |
+
+- **Kolejność.** Zapis archiwizujący wysyła `product.updated.v1` (ze `status` w `changedFields`), a
+  potem `product.archived.v1` — na każdej ścieżce, która może zarchiwizować produkt: w panelu
+  administracyjnym, przy zapisie kluczem API, w edycji zbiorczej i w imporcie.
+- **Ponowna aktywacja nie ma własnego zdarzenia.** Produkt, który przestaje być `inactive`, wysyła
+  `product.updated.v1` ze `status` w `changedFields` i nic więcej — to ten sam sygnał co przy każdej
+  innej zmianie statusu, także przy opublikowaniu szkicu. Aby je rozróżnić, odczytaj produkt:
+  odpowiedzią jest jego `status`.
+- **Usunięcie nie jest dostarczane.** Usunięcie produktu emituje `product.deleted.v1` wyłącznie na
+  działającej w procesie szynie zdarzeń; webhookom się go nie oferuje i nie jest przy tym wysyłane
+  `product.archived.v1`. Odbiorca odwzorowujący katalog dowiaduje się o usunięciu z odczytu: API
+  przestaje zwracać produkt. Jeśli usunięcia są dla ciebie istotne, uzgadniaj stan z pełną listą.
+- **Po zatwierdzeniu zapisu.** Każde zdarzenie jest wysyłane dla zapisu, który został
+  zatwierdzony. Zapis odrzucony albo wycofany nie wysyła niczego.
+- **Treść nie opuszcza instancji.** W żadnym zdarzeniu nie ma nazwy, opisu, ceny, wartości atrybutu
+  ani listy dozwolonych organizacji. Odbiorca odczytuje produkt przez API własnym kluczem.
+- **Tylko subskrypcje obejmujące całą platformę.** Produkt nie jest danymi jednej organizacji, więc
+  zdarzenia nie niosą `organizationId`, a subskrypcja powiązana z organizacją nigdy nie dostaje
+  zdarzenia produktu.
+- **Liczba zdarzeń.** Jedno zdarzenie na zapisany produkt. Edycja zbiorcza, import albo
+  synchronizacja z PIM zapisują produkty pojedynczo, więc wysyłają jedno `product.updated.v1` na
+  produkt; nic nie jest łączone w paczki. Gdy żadna subskrypcja nie wskazuje danego typu, nic nie
+  trafia do kolejki.
 
 ## Punkty rozszerzenia
 
