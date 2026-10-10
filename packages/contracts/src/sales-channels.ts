@@ -57,6 +57,25 @@ export const SalesChannelSummarySchema = z.object({
 });
 export type SalesChannelSummary = z.infer<typeof SalesChannelSummarySchema>;
 
+/**
+ * A sales channel as a **choice** — what a screen needs to offer the instance's
+ * channels in a field: the id it stores, a name to show, the code as the
+ * secondary line, and whether the channel is switched on.
+ *
+ * Served by a module that lets its own entities be assigned to channels, on a
+ * route of its own gated by that module's permission
+ * (`GET /api/v1/admin/delivery-methods/sales-channels`, and the payment twin):
+ * an administrator who may configure a method may see the channels to assign
+ * it to, without being granted the sales-channel administration screens.
+ */
+export const SalesChannelOptionSchema = z.object({
+  id: uuidSchema,
+  code: SalesChannelCodeSchema,
+  name: SalesChannelNameSchema,
+  active: z.boolean(),
+});
+export type SalesChannelOption = z.infer<typeof SalesChannelOptionSchema>;
+
 /** Full detail returned by the admin GET-by-code endpoint. */
 export const SalesChannelDetailSchema = SalesChannelSummarySchema.extend({
   languages: z.array(z.string()).min(1),

@@ -47,31 +47,18 @@ const CHANNEL_B = '00000000-0000-4000-8000-0000000000b1';
 const CHANNEL_C = '00000000-0000-4000-8000-0000000000c1';
 
 function channel(id: string, code: string, name: string, active = true): Record<string, unknown> {
-  return {
-    id,
-    code,
-    name: { 'en-US': name },
-    active,
-    systemDefault: code === 'default',
-    defaultLanguage: 'en-US',
-    defaultCurrency: 'PLN',
-    themeCode: null,
-    logoAssetId: null,
-    version: 1,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-  };
+  return { id, code, name: { 'en-US': name }, active };
 }
 
+/** The owning module's own channel-options route; here the delivery one. */
+const OPTIONS_PATH = '/api/v1/admin/delivery-methods/sales-channels';
+
 const CHANNELS = {
-  items: [
+  data: [
     channel(CHANNEL_A, 'default', 'Default shop'),
     channel(CHANNEL_B, 'b2b-eu', 'B2B Europe'),
     channel(CHANNEL_C, 'old', 'Old shop', false),
   ],
-  page: 0,
-  pageSize: 200,
-  total: 3,
 };
 
 /** Real sentences for the keys whose parameters a case reads back. */
@@ -94,7 +81,7 @@ const BUNDLE = {
 
 /** The field as a screen mounts it, reporting what a save would send. */
 function Harness({ initial, onState }: { initial: string[]; onState: (v: unknown) => void }): ReactNode {
-  const options = useSalesChannelOptions(true);
+  const options = useSalesChannelOptions(OPTIONS_PATH, true);
   const [value, setValue] = useState(initial);
   onState({ status: options.status, submit: salesChannelIdsToSubmit(options, value) });
   return (
@@ -127,12 +114,18 @@ beforeEach(() => {
 });
 
 describe('MethodSalesChannelsField', () => {
-  it('asks for every channel of the instance, inactive ones included', async () => {
+  /**
+   * The path is the screen's, not the kit's: the module whose entity is being
+   * assigned serves the options under its own permission, so the field works
+   * for an administrator who configures methods and does not administer sales
+   * channels. The kit must not fall back to the sales-channel admin route.
+   */
+  it('reads the channel options from the path the screen gives it, once', async () => {
     getSpy.mockResolvedValue(CHANNELS);
     mount([]);
 
     await waitFor(() => expect(getSpy).toHaveBeenCalledTimes(1));
-    expect(getSpy).toHaveBeenCalledWith('/api/v1/admin/sales-channels?pageSize=200');
+    expect(getSpy).toHaveBeenCalledWith(OPTIONS_PATH);
   });
 
   it('says "All channels" for an empty selection, and that a save sends the empty set', async () => {
@@ -185,7 +178,7 @@ describe('MethodSalesChannelsField', () => {
   });
 
   it('keeps an assigned channel the loaded list does not contain', async () => {
-    getSpy.mockResolvedValue({ ...CHANNELS, items: CHANNELS.items.slice(0, 1) });
+    getSpy.mockResolvedValue({ data: CHANNELS.data.slice(0, 1) });
     const view = mount([CHANNEL_A, CHANNEL_B]);
     const user = userEvent.setup();
 

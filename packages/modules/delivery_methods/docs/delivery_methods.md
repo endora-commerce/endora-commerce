@@ -29,11 +29,20 @@ method outright. A role that was relying on the catalogue codes for this screen
 has to be granted the new ones on `/admin-roles`; nothing grants them
 automatically, deliberately.
 
+**Choosing a method's sales channels needs these codes and no other.** Where a
+method is offered is part of configuring the method, so `delivery_methods:write` is
+sufficient to assign, replace and clear its sales channels, and `delivery_methods:read` to
+see the channels there are to choose from
+(`GET /api/v1/admin/delivery-methods/sales-channels`). Neither `sales_channels:read`
+nor `sales_channels:write` is required — by decision, not by omission — and
+holding the `delivery_methods` codes grants nothing on the sales-channel screens.
+
 | Verb + Path | Audience | Gate | Purpose |
 | --- | --- | --- | --- |
 | `GET /api/v1/delivery-methods` | anon | — | Eligible methods for the storefront checkout (active ∩ sales-channel ∩ Organization allow-list ∩ adapter registered ∩ `validateUseOnStorefront`) |
 | `GET /api/v1/admin/delivery-methods` | admin | `delivery_methods:read` | Full list with adapter, status mappings, sales channels, renderer key, and `availability` — whether checkout can offer the method and which module decides it |
 | `GET /api/v1/admin/delivery-methods/adapters` | admin | `delivery_methods:read` | The adapters a method may be bound to: `{ key, ownerModule }` for every registered adapter whose module is switched on |
+| `GET /api/v1/admin/delivery-methods/sales-channels` | admin | `delivery_methods:read` | The sales channels a method may be assigned to — `{ id, code, name, active }` for every channel, inactive ones included |
 | `PUT /api/v1/admin/delivery-methods/:code` | admin | `delivery_methods:write` | Upsert by code (name, cost/`price`, `adapter`, status, `statusOnSuccess`/`statusOnFailure`, sales channels) |
 | `DELETE /api/v1/admin/delivery-methods/:id` | admin | `delivery_methods:write` | Hard delete (guarded: rejected with 409 when a `Shipment` references the method — set status `inactive` instead) |
 
@@ -58,11 +67,13 @@ delivery methods exist without an assignment as a matter of course, so reading
 "none" as "nowhere" would empty existing checkouts. Where a method that nobody
 assigned by hand stands:
 
-- A module that ships its own method seeds it when the module is installed, and
-  assigns it to the default channel **if that channel exists at that moment**.
-  It exists on any instance that has been started at least once. During the
-  first setup of a new instance — migrated, modules installed, not yet started —
-  it does not, and the method is left assigned to no channel.
+- A module that ships its own method seeds it when the module is installed and
+  assigns it to **no** channel, so it is offered on every channel — whenever the
+  module is installed, on a new instance or on one that has run for years.
+  Releases before this rule did otherwise: the seed assigned the method to the
+  default channel when that channel existed at installation, which it does on
+  any instance that has been started at least once. Methods seeded then keep
+  that assignment.
 - Demo data assigns none.
 - A method created through the API without `salesChannelIds` is assigned to the
   default channel; one created in the admin form with nothing ticked is
@@ -114,10 +125,12 @@ each method stands now:
 
 - assigned to the **default channel only**, and so gone from the other channels'
   checkouts until changed — every method created in the admin so far, and every
-  method a module seeded when it was installed on an instance that had already
-  been started;
-- assigned to **no channel**, and so still offered everywhere — methods a module
-  seeded during the instance's first setup, and demo-data methods.
+  method a module seeded **under an earlier release** on an instance that had
+  already been started. Nothing widens these automatically: such a row cannot be
+  told apart from one restricted on purpose;
+- assigned to **no channel**, and so offered everywhere — every method a module
+  seeds from this release on, methods a module seeded under an earlier release
+  during the instance's first setup, and demo-data methods.
 
 Open each method and choose its channels, or untick all of them to offer it
 everywhere. An instance with a single sales channel is unaffected.

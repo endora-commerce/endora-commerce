@@ -58,7 +58,12 @@ vi.mock('../../../../packages/modules/payment_methods/src/admin/api/payment-meth
   },
 }));
 
-/** Answers the channel list; every other kit read (currencies, …) gets nothing. */
+/**
+ * Answers the channel options — and only on **this module's own** route: a
+ * request to the sales-channel admin route would be refused here, as it is for
+ * an administrator who configures payment methods and does not hold that
+ * permission.
+ */
 const channelsRequest = vi.fn();
 
 vi.mock('@endora-commerce/admin-kit/lib', async () => {
@@ -69,7 +74,7 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
     ...actual,
     apiClient: {
       get: (url: string) =>
-        url.startsWith('/api/v1/admin/sales-channels')
+        url === '/api/v1/admin/payment-methods/sales-channels'
           ? channelsRequest(url)
           : Promise.reject(new Error(`unexpected GET ${url}`)),
       post: vi.fn(),
@@ -81,27 +86,11 @@ vi.mock('@endora-commerce/admin-kit/lib', async () => {
 });
 
 function channel(id: string, code: string, name: string): Record<string, unknown> {
-  return {
-    id,
-    code,
-    name: { 'en-US': name },
-    active: true,
-    systemDefault: code === 'default',
-    defaultLanguage: 'en-US',
-    defaultCurrency: 'PLN',
-    themeCode: null,
-    logoAssetId: null,
-    version: 1,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-  };
+  return { id, code, name: { 'en-US': name }, active: true };
 }
 
 const CHANNELS = {
-  items: [channel(CHANNEL_A, 'default', 'Default shop'), channel(CHANNEL_B, 'b2b-eu', 'B2B Europe')],
-  page: 0,
-  pageSize: 200,
-  total: 2,
+  data: [channel(CHANNEL_A, 'default', 'Default shop'), channel(CHANNEL_B, 'b2b-eu', 'B2B Europe')],
 };
 
 const BUNDLE = {

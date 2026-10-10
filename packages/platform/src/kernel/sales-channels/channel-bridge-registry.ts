@@ -69,9 +69,9 @@ export interface ChannelBridgeRegistration {
    * relaxation: for this type a membership row is a **restriction**, and an
    * entity nobody restricted is offered in every channel. Delivery and payment
    * methods declare it, because their rows are legitimately created without a
-   * membership — a module's install hook runs before the first boot has created
-   * the system-default channel, and a demo seed writes none — and a rule that
-   * read those rows as "nowhere" would empty every existing checkout.
+   * membership — a module's install hook seeds its method with none, and so
+   * does a demo seed — and a rule that read those rows as "nowhere" would empty
+   * every existing checkout.
    *
    * It is declared here, beside the table, so that the platform holds the two
    * conventions as one stated property per entity type instead of as two habits

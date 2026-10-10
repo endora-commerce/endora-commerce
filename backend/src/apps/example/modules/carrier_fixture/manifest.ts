@@ -42,10 +42,12 @@ import { CARRIER_FIXTURE_ADAPTER_KEYS } from './backend.js';
  * the standing consumer, and the sequencing was ruled **B** on 2026-09-18 on the
  * condition that W7 ends by wiring it.
  *
- * The hooks below carry all three obligations that section named, and the reason
- * each one is written the way it is stays beside it: `bindToDefaultChannel` only
- * on `created === true`, `status: 'inactive'` passed explicitly, and the
- * uninstall behind `if (!ctx.hard) return;`.
+ * The hooks below carry the obligations that section named, and the reason each
+ * one is written the way it is stays beside it: `status: 'inactive'` passed
+ * explicitly, and the uninstall behind `if (!ctx.hard) return;`. The third it
+ * named — binding the seeded method to the default channel, only on
+ * `created === true` — no longer exists: a seeded method is bound to no channel
+ * and so offered on every one.
  * `specs/134-paid-module-extraction/contracts/foreign-write-repair.md` is
  * normative for all three.
  */
@@ -130,23 +132,22 @@ export const CARRIER_FIXTURE_DELIVERY_METHOD: DeliveryMethodSeedDefaults = {
  * owner's service from and the factory import is the seam
  * (`specs/conventions/module-composition.md` item 9a).
  *
- * **`bindToDefaultChannel` runs only when `created === true`.** Never as a
- * reconcile: an unguarded call is issue #96 verbatim, a method an operator
- * deliberately unbound from every channel coming back bound with nothing saying
- * so. "Unbound" is a state an operator is entitled to reach and to keep.
+ * **It binds the method to no sales channel.** The seed surface has no binding
+ * step any more: a seeded method carries no membership, and a method with none
+ * is offered on every channel until an operator restricts it. `created` is read
+ * only so the log line is written once.
  */
 export const installHook: ModuleInstallHook = async (ctx) => {
   const em = ctx.em as EntityManager;
   const seeder = createDeliveryMethodSeeder();
-  const { row, created } = await seeder.ensureMethodForAdapter(
+  const { created } = await seeder.ensureMethodForAdapter(
     em,
     CARRIER_FIXTURE_ADAPTER_KEYS.COURIER,
     CARRIER_FIXTURE_DELIVERY_METHOD,
   );
   if (!created) return;
-  await seeder.bindToDefaultChannel(em, row.id);
   ctx.log.info(
-    `carrier_fixture: seeded delivery method ${CARRIER_FIXTURE_DELIVERY_METHOD.code} in the default channel`,
+    `carrier_fixture: seeded delivery method ${CARRIER_FIXTURE_DELIVERY_METHOD.code}, offered on every sales channel until restricted`,
   );
 };
 

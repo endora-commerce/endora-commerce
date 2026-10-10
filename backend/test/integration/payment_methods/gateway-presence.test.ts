@@ -257,8 +257,8 @@ describe('payment methods of an absent gateway [integration]', () => {
       name: { default: 'Unbound probe' },
     });
 
-    // `ensureMethodForAdapter` binds nothing, whoever calls it: the binding is
-    // `bindToDefaultChannel`'s, and a caller issues it once, on `created === true`.
+    // `ensureMethodForAdapter` binds nothing, whoever calls it — and since the
+    // per-channel availability rule nothing else in the seed surface does.
     expect(created).toBe(true);
     expect(await channelCount(h, row.id)).toBe(0);
 

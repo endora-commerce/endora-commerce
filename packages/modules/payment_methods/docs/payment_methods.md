@@ -18,6 +18,14 @@ edit a product could also decide how the shop takes money. A role that was
 relying on the catalogue codes for this screen has to be granted the new ones on
 `/admin-roles`; nothing grants them automatically, deliberately.
 
+**Choosing a method's sales channels needs these codes and no other.** Where a
+method is offered is part of configuring the method, so `payment_methods:write` is
+sufficient to assign, replace and clear its sales channels, and `payment_methods:read` to
+see the channels there are to choose from
+(`GET /api/v1/admin/payment-methods/sales-channels`). Neither `sales_channels:read`
+nor `sales_channels:write` is required — by decision, not by omission — and
+holding the `payment_methods` codes grants nothing on the sales-channel screens.
+
 `GET /api/v1/admin/order-statuses` is the one exception, and it is an any-of
 rather than a widening: the route is registered here but read by two editors —
 this module's screen and the `delivery_methods` one — so it accepts either
@@ -31,6 +39,7 @@ holder reaches the shared list any more.
 | `GET /api/v1/payment-methods` | anon | — | Eligible methods for the storefront checkout (active ∩ sales channel ∩ org allow-list ∩ registered adapter ∩ `validateUseOnStorefront`) |
 | `GET /api/v1/admin/payment-methods` | admin | `payment_methods:read` | Full config (active + inactive) incl. `adapter`, `additionalPrice`, `statusOn*`, sales channels |
 | `GET /api/v1/admin/payment-methods/adapters` | admin | `payment_methods:read` | Registered adapter keys, for the admin adapter picker |
+| `GET /api/v1/admin/payment-methods/sales-channels` | admin | `payment_methods:read` | The sales channels a method may be assigned to — `{ id, code, name, active }` for every channel, inactive ones included |
 | `GET /api/v1/admin/order-statuses` | admin | `payment_methods:read` **or** `delivery_methods:read` | Order-status options for the `statusOn*` selectors, here and on the delivery-method screen |
 | `PUT /api/v1/admin/payment-methods/:code` | admin | `payment_methods:write` | Upsert by code; `adapter` defaults to `kind`, `statusOn*` validated against the order-status registry |
 | `PATCH /api/v1/admin/payment-methods/:id/status` | admin | `payment_methods:write` | Availability alone — the one write the four gateway screens link to |
@@ -153,11 +162,13 @@ payment methods exist without an assignment as a matter of course, so reading
 "none" as "nowhere" would empty existing checkouts. Where a method that nobody
 assigned by hand stands:
 
-- A module that ships its own method seeds it when the module is installed, and
-  assigns it to the default channel **if that channel exists at that moment**.
-  It exists on any instance that has been started at least once. During the
-  first setup of a new instance — migrated, modules installed, not yet started —
-  it does not, and the method is left assigned to no channel.
+- A module that ships its own method seeds it when the module is installed and
+  assigns it to **no** channel, so it is offered on every channel — whenever the
+  module is installed, on a new instance or on one that has run for years.
+  Releases before this rule did otherwise: the seed assigned the method to the
+  default channel when that channel existed at installation, which it does on
+  any instance that has been started at least once. Methods seeded then keep
+  that assignment.
 - Demo data assigns none.
 - A method created through the API without `salesChannelIds` is assigned to the
   default channel; one created in the admin form with nothing ticked is
@@ -209,10 +220,12 @@ each method stands now:
 
 - assigned to the **default channel only**, and so gone from the other channels'
   checkouts until changed — every method created in the admin so far, and every
-  method a module seeded when it was installed on an instance that had already
-  been started;
-- assigned to **no channel**, and so still offered everywhere — methods a module
-  seeded during the instance's first setup, and demo-data methods.
+  method a module seeded **under an earlier release** on an instance that had
+  already been started. Nothing widens these automatically: such a row cannot be
+  told apart from one restricted on purpose;
+- assigned to **no channel**, and so offered everywhere — every method a module
+  seeds from this release on, methods a module seeded under an earlier release
+  during the instance's first setup, and demo-data methods.
 
 Open each method and choose its channels, or untick all of them to offer it
 everywhere. An instance with a single sales channel is unaffected.

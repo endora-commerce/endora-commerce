@@ -28,11 +28,19 @@ decydować o sposobach wysyłki sklepu i całkowicie usuwać metody dostawy. Rol
 kodów katalogu przy tym ekranie, musi dostać nowe kody na `/admin-roles`; nic nie przyznaje ich
 automatycznie — celowo.
 
+**Wybór kanałów sprzedaży metody wymaga tych kodów i żadnych innych.** To, gdzie metoda jest
+dostępna, jest częścią konfiguracji metody, więc `delivery_methods:write` wystarcza, aby przypisać, zmienić i
+usunąć jej kanały sprzedaży, a `delivery_methods:read` — aby zobaczyć kanały do wyboru
+(`GET /api/v1/admin/delivery-methods/sales-channels`). Ani `sales_channels:read`, ani
+`sales_channels:write` nie są wymagane — to decyzja, nie przeoczenie — a kody `delivery_methods` nie dają
+żadnych uprawnień na ekranach kanałów sprzedaży.
+
 | Metoda i ścieżka | Kto | Uprawnienie | Przeznaczenie |
 | --- | --- | --- | --- |
 | `GET /api/v1/delivery-methods` | anonimowy | — | Metody dostępne w checkoucie storefrontu (aktywne ∩ kanał sprzedaży ∩ lista dozwolonych organizacji ∩ zarejestrowany adapter ∩ `validateUseOnStorefront`) |
 | `GET /api/v1/admin/delivery-methods` | administrator | `delivery_methods:read` | Pełna lista z adapterem, przypisaniem statusów, kanałami sprzedaży, kluczem szablonu oraz polem `availability` — czy checkout może zaoferować metodę i który moduł o tym decyduje |
 | `GET /api/v1/admin/delivery-methods/adapters` | administrator | `delivery_methods:read` | Adaptery, do których można przypisać metodę: `{ key, ownerModule }` dla każdego zarejestrowanego adaptera, którego moduł jest włączony |
+| `GET /api/v1/admin/delivery-methods/sales-channels` | administrator | `delivery_methods:read` | Kanały sprzedaży, do których można przypisać metodę — `{ id, code, name, active }` dla każdego kanału, także nieaktywnych |
 | `PUT /api/v1/admin/delivery-methods/:code` | administrator | `delivery_methods:write` | Utworzenie lub aktualizacja według kodu (nazwa, koszt/`price`, `adapter`, status, `statusOnSuccess`/`statusOnFailure`, kanały sprzedaży) |
 | `DELETE /api/v1/admin/delivery-methods/:id` | administrator | `delivery_methods:write` | Trwałe usunięcie (chronione: odrzucane z 409, gdy metoda jest używana przez przesyłkę `Shipment` — zamiast tego ustaw status `inactive`) |
 
@@ -55,11 +63,12 @@ kanału nie jest opublikowany nigdzie: metody dostawy istnieją bez przypisania 
 sytuacjach, więc potraktowanie „żadnego” jako „nigdzie” odebrałoby istniejącym sklepom metody
 dostępne przy składaniu zamówienia. Stan metody, której nikt nie przypisał ręcznie:
 
-- Moduł dostarczający własną metodę tworzy ją podczas instalacji modułu i przypisuje do kanału
-  domyślnego, **jeśli ten kanał w tym momencie istnieje**. Istnieje w każdej instancji, która
-  została uruchomiona przynajmniej raz. Podczas pierwszej konfiguracji nowej instancji — po
-  migracji i instalacji modułów, przed pierwszym uruchomieniem — nie istnieje, a metoda pozostaje
-  nieprzypisana do żadnego kanału.
+- Moduł dostarczający własną metodę tworzy ją podczas instalacji modułu i nie przypisuje jej do
+  **żadnego** kanału, więc jest dostępna w każdym kanale — niezależnie od tego, kiedy moduł
+  zostanie zainstalowany: w nowej instancji czy w działającej od lat. Wydania sprzed tej reguły
+  działały inaczej: metoda była przypisywana do kanału domyślnego, jeśli ten kanał istniał w
+  chwili instalacji, a istnieje on w każdej instancji uruchomionej przynajmniej raz. Metody
+  utworzone wtedy zachowują to przypisanie.
 - Dane demonstracyjne nie przypisują żadnego kanału.
 - Metoda utworzona przez API bez `salesChannelIds` zostaje przypisana do kanału domyślnego;
   metoda utworzona w formularzu panelu bez zaznaczenia kanału nie jest przypisana do żadnego.
@@ -105,9 +114,12 @@ Dotychczas sklep pokazywał każdą aktywną metodę w każdym kanale i pomijał
 
 - przypisana **tylko do kanału domyślnego**, a więc niedostępna przy składaniu zamówienia w
   pozostałych kanałach, dopóki tego nie zmienisz — każda metoda utworzona dotąd w panelu oraz
-  każda metoda utworzona przez moduł zainstalowany w instancji, która była już uruchomiona;
-- nieprzypisana **do żadnego kanału**, a więc nadal dostępna wszędzie — metody utworzone przez
-  moduł podczas pierwszej konfiguracji instancji oraz metody z danych demonstracyjnych.
+  każda metoda utworzona przez moduł **we wcześniejszym wydaniu** w instancji, która była już
+  uruchomiona. Nic nie poszerza ich automatycznie: takiego wpisu nie da się odróżnić od metody
+  ograniczonej celowo;
+- nieprzypisana **do żadnego kanału**, a więc dostępna wszędzie — każda metoda tworzona przez
+  moduł od tego wydania, metody utworzone przez moduł we wcześniejszym wydaniu podczas pierwszej
+  konfiguracji instancji oraz metody z danych demonstracyjnych.
 
 Otwórz każdą metodę i wybierz jej kanały albo odznacz wszystkie, aby była dostępna wszędzie. W
 instancji z jednym kanałem sprzedaży nic się nie zmienia.

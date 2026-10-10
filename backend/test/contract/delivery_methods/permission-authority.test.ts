@@ -306,4 +306,66 @@ describe('delivery_methods permission authority', () => {
       }),
     );
   });
+
+  /**
+   * Assigning a method to sales channels is part of configuring the method
+   * (owner ruling): this module's own pair is sufficient, and the sales-channel
+   * module's permissions are neither required nor granted by it.
+   *
+   * Both halves are asserted, because either alone proves little: the viewer is
+   * **refused** the sales-channel admin list — so it really does not hold that
+   * permission — and is **served** this module's own channel options; the
+   * editor, who holds no sales-channel code either, replaces and clears an
+   * assignment.
+   */
+  describe('sales-channel assignment is gated on delivery_methods’ own codes', () => {
+    const OPTIONS = '/api/v1/admin/delivery-methods/sales-channels';
+
+    it('serves the channel options to delivery_methods:read, which the sales-channel list refuses', async () => {
+      expectForbidden(
+        await h.app.inject({ method: 'GET', url: '/api/v1/admin/sales-channels', ...DELIVERY_VIEWER }),
+      );
+
+      const served = await h.app.inject({ method: 'GET', url: OPTIONS, ...DELIVERY_VIEWER });
+      expect(served.statusCode).toBe(200);
+      const options = (served.json() as { data: Array<Record<string, unknown>> }).data;
+      expect(options.length).toBeGreaterThan(0);
+      // A choice, not a channel's configuration: four fields and no more.
+      expect(Object.keys(options[0]!).sort()).toEqual(['active', 'code', 'id', 'name']);
+    });
+
+    it('refuses the channel options to a role without delivery_methods:read', async () => {
+      expectForbidden(await h.app.inject({ method: 'GET', url: OPTIONS, ...CATALOG_EDITOR }));
+    });
+
+    it('lets delivery_methods:write replace and clear an assignment without any sales-channel code', async () => {
+      expectForbidden(
+        await h.app.inject({ method: 'GET', url: '/api/v1/admin/sales-channels', ...DELIVERY_EDITOR }),
+      );
+      const channelId = (
+        (await h.app.inject({ method: 'GET', url: OPTIONS, ...DELIVERY_EDITOR })).json() as {
+          data: Array<{ id: string }>;
+        }
+      ).data[0]!.id;
+      const code = 'channel_gate_delivery';
+      const put = (salesChannelIds: string[]): Promise<{ statusCode: number; json: () => unknown }> =>
+        h.app.inject({
+          method: 'PUT',
+          url: `/api/v1/admin/delivery-methods/${code}`,
+          ...DELIVERY_EDITOR,
+          payload: { ...({ code, name: { 'en-US': 'Channel gate' }, cost: 1, currency: 'PLN', adapter: 'manual_courier' }), salesChannelIds },
+        });
+
+      const assigned = await put([channelId]);
+      expect(assigned.statusCode).toBe(200);
+      expect((assigned.json() as { data: { salesChannelIds: string[] } }).data.salesChannelIds).toEqual([
+        channelId,
+      ]);
+
+      const cleared = await put([]);
+      expect(cleared.statusCode).toBe(200);
+      expect((cleared.json() as { data: { salesChannelIds: string[] } }).data.salesChannelIds).toEqual([]);
+    });
+  });
+
 });

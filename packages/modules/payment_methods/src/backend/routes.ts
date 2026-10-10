@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  type SalesChannelOption,
   paymentMethodStatusPatchSchema,
   paymentMethodUpsertSchema,
   type PaymentMethodAdminListItem,
@@ -216,6 +217,39 @@ export async function registerPaymentMethodsAdminRoutes(
     },
   );
 
+  /**
+   * The sales channels a method may be assigned to — the options of the form's
+   * **Sales channels** field.
+   *
+   * Gated on this module's own read code, and deliberately not on the
+   * sales-channel module's. Choosing where a method is offered is part of
+   * configuring the method (the `PUT` below takes `salesChannelIds` on this
+   * module's write code alone, by owner ruling), so the administrator who may
+   * do that must be able to see what there is to choose from; sending them to
+   * `GET /api/v1/admin/sales-channels` would hand the field a 403 for every
+   * role that configures methods and does not administer channels. It answers
+   * the four fields a choice needs and nothing of a channel's configuration.
+   *
+   * Inactive channels are included and flagged: a method may be assigned to
+   * one, and a form that could not show it would drop it on the next save.
+   */
+  app.get(
+    '/api/v1/admin/payment-methods/sales-channels',
+    { preHandler: requireAdmin('payment_methods:read') },
+    async () => {
+      const channels = await deps
+        .emFactory()
+        .find(SalesChannel, {}, { orderBy: { code: 'asc' } });
+      const data: SalesChannelOption[] = channels.map((c) => ({
+        id: c.id,
+        code: c.code,
+        name: c.name,
+        active: c.active,
+      }));
+      return { data };
+    },
+  );
+
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/payment-methods/:code',
     {
@@ -398,7 +432,7 @@ async function applyChannelSelection(
  * error, before the method is written.
  *
  * `SalesChannel` is the platform's published entity for a kernel-owned table,
- * read here the way this module's install seam reads it; an inactive channel is
+ * read here as the channel-options route above reads it; an inactive channel is
  * a channel, and a method may be assigned to one.
  */
 async function assertSalesChannelsExist(

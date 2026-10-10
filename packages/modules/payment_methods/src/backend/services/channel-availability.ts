@@ -20,11 +20,9 @@ import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kerne
  * are how methods ordinarily exist:
  *
  *   - a module that ships its own method seeds the row from its **install
- *     hook**, and `bindToDefaultChannel` answers `false` there whenever the
- *     system-default channel does not exist yet — which is every fresh
- *     instance, since that channel is created at first boot and the install
- *     runs before it (`payment-method-reconciler.ts`);
- *   - the demo seed writes no membership at all;
+ *     hook**, and the seed writes no membership
+ *     (`payment-method-reconciler.ts`);
+ *   - the demo seed writes none either;
  *   - and until this rule the storefront catalogue filtered on nothing, so
  *     every such method has been offered at every checkout all along.
  *

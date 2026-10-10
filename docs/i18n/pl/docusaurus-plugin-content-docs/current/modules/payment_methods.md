@@ -17,6 +17,13 @@ Trasy administracyjne są chronione przez `payment_methods:read` (odczyt) i
 decydować o tym, jak sklep przyjmuje płatności. Rola, która korzystała z kodów katalogu przy tym
 ekranie, musi dostać nowe kody na `/admin-roles`; nic nie przyznaje ich automatycznie — celowo.
 
+**Wybór kanałów sprzedaży metody wymaga tych kodów i żadnych innych.** To, gdzie metoda jest
+dostępna, jest częścią konfiguracji metody, więc `payment_methods:write` wystarcza, aby przypisać, zmienić i
+usunąć jej kanały sprzedaży, a `payment_methods:read` — aby zobaczyć kanały do wyboru
+(`GET /api/v1/admin/payment-methods/sales-channels`). Ani `sales_channels:read`, ani
+`sales_channels:write` nie są wymagane — to decyzja, nie przeoczenie — a kody `payment_methods` nie dają
+żadnych uprawnień na ekranach kanałów sprzedaży.
+
 Jedynym wyjątkiem jest `GET /api/v1/admin/order-statuses` i jest to warunek „jedno z”, a nie
 poszerzenie uprawnień: trasa jest zarejestrowana w tym module, ale korzystają z niej dwa edytory —
 ekran tego modułu i `delivery_methods` — więc akceptuje kod odczytu któregokolwiek z tych modułów.
@@ -29,6 +36,7 @@ uprawnienie do katalogu nie daje już dostępu do wspólnej listy.
 | `GET /api/v1/payment-methods` | anonimowy | — | Metody dostępne w checkoucie storefrontu (aktywne ∩ kanał sprzedaży ∩ lista dozwolonych dla organizacji ∩ zarejestrowany adapter ∩ `validateUseOnStorefront`) |
 | `GET /api/v1/admin/payment-methods` | administrator | `payment_methods:read` | Pełna konfiguracja (aktywne i nieaktywne), łącznie z `adapter`, `additionalPrice`, `statusOn*` i kanałami sprzedaży |
 | `GET /api/v1/admin/payment-methods/adapters` | administrator | `payment_methods:read` | Zarejestrowane klucze adapterów, do listy wyboru w panelu |
+| `GET /api/v1/admin/payment-methods/sales-channels` | administrator | `payment_methods:read` | Kanały sprzedaży, do których można przypisać metodę — `{ id, code, name, active }` dla każdego kanału, także nieaktywnych |
 | `GET /api/v1/admin/order-statuses` | administrator | `payment_methods:read` **albo** `delivery_methods:read` | Statusy zamówienia do list wyboru `statusOn*`, tutaj i na ekranie metod dostawy |
 | `PUT /api/v1/admin/payment-methods/:code` | administrator | `payment_methods:write` | Utworzenie lub aktualizacja według kodu; `adapter` domyślnie przyjmuje wartość `kind`, a `statusOn*` jest sprawdzane względem rejestru statusów zamówienia |
 | `PATCH /api/v1/admin/payment-methods/:id/status` | administrator | `payment_methods:write` | Wyłącznie dostępność — jedyna zmiana, do której odsyłają cztery ekrany bramek płatności |
@@ -139,11 +147,12 @@ kanału nie jest opublikowany nigdzie: metody płatności istnieją bez przypisa
 sytuacjach, więc potraktowanie „żadnego” jako „nigdzie” odebrałoby istniejącym sklepom metody
 dostępne przy składaniu zamówienia. Stan metody, której nikt nie przypisał ręcznie:
 
-- Moduł dostarczający własną metodę tworzy ją podczas instalacji modułu i przypisuje do kanału
-  domyślnego, **jeśli ten kanał w tym momencie istnieje**. Istnieje w każdej instancji, która
-  została uruchomiona przynajmniej raz. Podczas pierwszej konfiguracji nowej instancji — po
-  migracji i instalacji modułów, przed pierwszym uruchomieniem — nie istnieje, a metoda pozostaje
-  nieprzypisana do żadnego kanału.
+- Moduł dostarczający własną metodę tworzy ją podczas instalacji modułu i nie przypisuje jej do
+  **żadnego** kanału, więc jest dostępna w każdym kanale — niezależnie od tego, kiedy moduł
+  zostanie zainstalowany: w nowej instancji czy w działającej od lat. Wydania sprzed tej reguły
+  działały inaczej: metoda była przypisywana do kanału domyślnego, jeśli ten kanał istniał w
+  chwili instalacji, a istnieje on w każdej instancji uruchomionej przynajmniej raz. Metody
+  utworzone wtedy zachowują to przypisanie.
 - Dane demonstracyjne nie przypisują żadnego kanału.
 - Metoda utworzona przez API bez `salesChannelIds` zostaje przypisana do kanału domyślnego;
   metoda utworzona w formularzu panelu bez zaznaczenia kanału nie jest przypisana do żadnego.
@@ -189,9 +198,12 @@ Dotychczas sklep pokazywał każdą aktywną metodę w każdym kanale i pomijał
 
 - przypisana **tylko do kanału domyślnego**, a więc niedostępna przy składaniu zamówienia w
   pozostałych kanałach, dopóki tego nie zmienisz — każda metoda utworzona dotąd w panelu oraz
-  każda metoda utworzona przez moduł zainstalowany w instancji, która była już uruchomiona;
-- nieprzypisana **do żadnego kanału**, a więc nadal dostępna wszędzie — metody utworzone przez
-  moduł podczas pierwszej konfiguracji instancji oraz metody z danych demonstracyjnych.
+  każda metoda utworzona przez moduł **we wcześniejszym wydaniu** w instancji, która była już
+  uruchomiona. Nic nie poszerza ich automatycznie: takiego wpisu nie da się odróżnić od metody
+  ograniczonej celowo;
+- nieprzypisana **do żadnego kanału**, a więc dostępna wszędzie — każda metoda tworzona przez
+  moduł od tego wydania, metody utworzone przez moduł we wcześniejszym wydaniu podczas pierwszej
+  konfiguracji instancji oraz metody z danych demonstracyjnych.
 
 Otwórz każdą metodę i wybierz jej kanały albo odznacz wszystkie, aby była dostępna wszędzie. W
 instancji z jednym kanałem sprzedaży nic się nie zmienia.

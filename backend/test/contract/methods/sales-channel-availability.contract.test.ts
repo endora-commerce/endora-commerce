@@ -8,6 +8,9 @@ import {
 } from '../../helpers/test-server.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
 import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
+import { createDeliveryMethodSeeder } from '@endora-commerce/mod-delivery-methods/install';
+import { createPaymentMethodSeeder } from '@endora-commerce/mod-payment-methods/install';
+import type { EntityManager } from '@mikro-orm/postgresql';
 
 /**
  * In which sales channels a delivery or payment method is offered.
@@ -42,6 +45,11 @@ interface Kind {
   readonly seededMethodId: string;
   /** A valid upsert body for this kind, without `salesChannelIds`. */
   body(code: string): Record<string, unknown>;
+  /**
+   * Seeds a method the way a gateway or carrier module's install hook does,
+   * through the module's published install surface; answers the row's id.
+   */
+  seed(em: EntityManager, code: string): Promise<string>;
 }
 
 const KINDS: readonly Kind[] = [
@@ -57,6 +65,13 @@ const KINDS: readonly Kind[] = [
       currency: 'PLN',
       adapter: 'manual_courier',
     }),
+    seed: async (em, code) =>
+      (
+        await createDeliveryMethodSeeder().ensureMethodForAdapter(em, 'manual_courier', {
+          code,
+          name: { default: code },
+        })
+      ).row.id,
   },
   {
     name: 'payment',
@@ -69,6 +84,14 @@ const KINDS: readonly Kind[] = [
       kind: 'bank_transfer',
       adapter: 'bank_transfer',
     }),
+    seed: async (em, code) =>
+      (
+        await createPaymentMethodSeeder().ensureMethodForAdapter(em, 'bank_transfer', {
+          code,
+          type: 'bank_transfer',
+          name: { default: code },
+        })
+      ).row.id,
   },
 ];
 
@@ -189,6 +212,20 @@ describe.each(KINDS)('$name methods — sales-channel availability', (kind) => {
     expect(await listedOn()).toContain(kind.seededMethodId);
     expect(await listedOn(channelA.code)).toContain(kind.seededMethodId);
     expect(await listedOn(channelB.code)).toContain(kind.seededMethodId);
+  });
+
+  /**
+   * A method a gateway or carrier module seeds is offered on every channel —
+   * **whenever** the module is installed. This instance has booted and has a
+   * default channel, which is the state in which the seed used to bind the
+   * method to that channel alone; it binds nothing now.
+   */
+  it('lists a method a module seeds on a booted instance on every channel, bound to none', async () => {
+    const id = await kind.seed(h.em(), `module_seeded_${kind.name}`);
+
+    expect(await adminChannelsOf(id)).toEqual([]);
+    expect(await listedOn(channelA.code)).toContain(id);
+    expect(await listedOn(channelB.code)).toContain(id);
   });
 
   describe('what `salesChannelIds` on the upsert means', () => {

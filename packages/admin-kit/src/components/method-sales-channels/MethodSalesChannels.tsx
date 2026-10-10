@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { SalesChannelListResponse } from '@endora-commerce/contracts';
+import type { SalesChannelOption } from '@endora-commerce/contracts';
 // The barrel, not `../../lib/api-client.js` — `SalesChannelPicker` beside this
 // file says why: it is the only spelling an admin test can `vi.mock`.
 import { apiClient } from '../../lib/index.js';
@@ -45,13 +45,11 @@ import { MultiSelect, type MultiSelectOption } from '../../ui/multi-select.js';
  *
  * `useSalesChannelOptions` is called by the page and its result handed to both
  * the form field and the list cells, so the two always agree and the screen
- * asks once. The request is built from the published path and the published
- * response type, the way `SalesChannelPicker` does it; inactive channels are
- * included and marked, because a method may be assigned to one and the form
- * must not silently drop it.
+ * asks once. It reads the path the page gives it — the method module's own
+ * channel-options route — so the field works for every administrator who may
+ * open the screen. Inactive channels are included and marked, because a method
+ * may be assigned to one and the form must not silently drop it.
  */
-
-const PAGE_SIZE = 200;
 
 export interface MethodSalesChannelOption {
   id: string;
@@ -86,15 +84,24 @@ export type MethodSalesChannelOptions =
 /**
  * Every sales channel of the instance, for the field and the list cells.
  *
+ * `path` is the owning module's own read of the channels — for the two method
+ * screens `/api/v1/admin/delivery-methods/sales-channels` and its payment
+ * twin, each gated on that module's read permission. It is a parameter because
+ * the answer to "may this operator see the channels to assign to" belongs to
+ * the module whose entity is being assigned, not to the kit and not to the
+ * sales-channel administration screens.
+ *
  * `enabled` is the screen's own read gate: a page that renders nothing for an
  * operator without the permission has no reason to ask.
  *
- * `error` covers every way the list can be unavailable — a network failure, an
- * operator who may edit methods and not read sales channels (403), the
- * `sales_channels` module switched off (503). The field degrades the same way
+ * `error` covers every way the list can be unavailable — a network failure or
+ * a server error. The field degrades the same way
  * for all of them, and says so; see {@link MethodSalesChannelsField}.
  */
-export function useSalesChannelOptions(enabled: boolean): MethodSalesChannelOptions {
+export function useSalesChannelOptions(
+  path: string,
+  enabled: boolean,
+): MethodSalesChannelOptions {
   // Read without `useAppLanguage`, which throws outside the provider: the two
   // method screens are mounted without it in their own tests, and a missing
   // language is no reason for a channel field to take a whole screen down.
@@ -108,11 +115,11 @@ export function useSalesChannelOptions(enabled: boolean): MethodSalesChannelOpti
     let alive = true;
     setStatus('loading');
     apiClient
-      .get<SalesChannelListResponse>(`/api/v1/admin/sales-channels?pageSize=${PAGE_SIZE}`)
+      .get<{ data: SalesChannelOption[] }>(path)
       .then((res) => {
         if (!alive) return;
         setChannels(
-          res.items.map((ch) => ({
+          res.data.map((ch) => ({
             id: ch.id,
             code: ch.code,
             label: channelLabel(ch.name, ch.code, language),
@@ -127,7 +134,7 @@ export function useSalesChannelOptions(enabled: boolean): MethodSalesChannelOpti
     return (): void => {
       alive = false;
     };
-  }, [enabled, language, attempt]);
+  }, [path, enabled, language, attempt]);
 
   const retry = useCallback((): void => setAttempt((n) => n + 1), []);
   return useMemo(() => ({ status, channels, retry }), [status, channels, retry]);
@@ -179,9 +186,9 @@ export function MethodSalesChannelsField({
   );
 
   const selectedLabels = selectOptions.filter((o) => value.includes(o.value)).map((o) => o.label);
-  // Ids the loaded list does not contain. Deleting a channel rebinds or refuses
-  // its members, so this is a list cut off at the page size rather than a
-  // dangling id — and `MultiSelect` only ever returns ids it has an option for,
+  // Ids the loaded list does not contain — an assignment that changed between
+  // the two reads the screen makes. Deleting a channel rebinds or refuses its
+  // members, so it is not a dangling id — and `MultiSelect` only ever returns ids it has an option for,
   // so `toggle` below puts these back on every change instead of dropping them.
   const listedIds = new Set(selectOptions.map((o) => o.value));
   const unlistedIds = value.filter((id) => !listedIds.has(id));

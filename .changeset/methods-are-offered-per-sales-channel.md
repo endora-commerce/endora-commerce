@@ -18,23 +18,41 @@ choose channels, and an order could be placed with any active method.
 **The rule.** An assignment is a restriction. A method assigned to one or more sales channels is
 offered in exactly those; a method assigned to **no** channel is offered in every channel. That
 differs from products on purpose — methods exist without an assignment as a matter of course (a
-module that ships its own method seeds it during the instance's first setup, before the default
-channel exists, and demo data assigns none), so "none" cannot mean "nowhere".
+module that ships its own method seeds it with none, and so does demo data), so "none" cannot mean
+"nowhere".
 
 **Upgrade note for an instance with more than one sales channel: review every method.** The new
 **Sales channels** column on `/delivery-methods` and `/payment-methods` shows where each one stands.
 
-- Assigned to the **default channel only**, and so gone from the other channels' checkouts until
-  changed: every method created in the admin so far (the screens offered nothing else), and every
-  method a gateway or carrier module seeded when it was installed on an instance that had already
-  been started — its installation assigns the method to the default channel when that channel
-  exists.
-- Assigned to **no channel**, and so still offered on every channel: methods a module seeded during
-  the instance's first setup, before its first start, when no default channel existed yet, and
-  methods created by demo data.
+- **Created in the admin so far** — assigned to the **default channel only** (the screens offered
+  nothing else), and so gone from the other channels' checkouts until changed.
+- **Seeded by a gateway or carrier module under an earlier release, on an instance that had already
+  been started** — also assigned to the **default channel only**: that release's seed bound the
+  method to the default channel whenever it existed. They do not appear on other channels until an
+  operator widens them.
+- **Seeded by a module from this release on** — assigned to **no channel**, and so offered on every
+  channel, whenever the module is installed. The same holds for methods a module seeded under an
+  earlier release during the instance's first setup, before its first start, and for demo data.
 
 Open each method and choose its channels, or untick all of them to offer it everywhere. No data is
-migrated. An instance with a single sales channel is unaffected.
+migrated: a method bound to the default channel by an earlier seed cannot be told apart from one an
+operator restricted on purpose, so none is widened automatically. An instance with a single sales
+channel is unaffected.
+
+**For authors of a gateway or carrier module.** `bindToDefaultChannel` is removed from
+`DeliveryMethodSeedApi` and `PaymentMethodSeedApi` (`@endora-commerce/mod-delivery-methods/ports`,
+`@endora-commerce/mod-payment-methods/ports`, and the seeders their `./install` subpaths create).
+An install hook that called it after `ensureMethodForAdapter` must delete the call — it does not
+compile otherwise — and needs no replacement: the seeded method is offered on every channel until
+an operator restricts it. A module that must seed a method restricted to particular channels has
+no seam for that at install; restrict it in the admin.
+
+**Permissions.** Choosing a method's sales channels is part of configuring the method:
+`delivery_methods:write` / `payment_methods:write` is sufficient to assign, replace and clear them,
+and `sales_channels:write` is not required. The form reads its options from a route of the method
+module itself, `GET /api/v1/admin/{delivery,payment}-methods/sales-channels`, gated on that
+module's `:read` code, so an administrator who configures methods and does not administer sales
+channels can use the field.
 
 **A storefront must name the channel when it reads the two catalogues.** The reference storefront
 read `GET /api/v1/delivery-methods` and `GET /api/v1/payment-methods` with no `X-Sales-Channel`
@@ -64,7 +82,8 @@ What changed, by package:
   order creation and its preview, and the API-key order intake; the last three refuse before the
   customer's basket is touched. The admin order-creation form narrows its method lists to the
   chosen channel.
-- **`contracts`** — `DeliveryMethodReadPort` and `PaymentMethodReadPort` gain
+- **`contracts`** — new `SalesChannelOptionSchema` / `SalesChannelOption`, the shape of the two
+  channel-options routes. `DeliveryMethodReadPort` and `PaymentMethodReadPort` gain
   `isAvailableInChannel(id, salesChannelId): Promise<boolean>`. An implementation of either port
   outside this repository must add it.
 - **`platform`** — a sales-channel bridge registration may declare `emptyMeansEveryChannel`, and
@@ -75,7 +94,8 @@ What changed, by package:
   `ENTITY_WOULD_HAVE_ZERO_CHANNELS` for a type that does not declare it. Products keep the
   at-least-one-channel rule. An implementation of the port outside this repository must add both.
 - **`admin-kit`** — new `MethodSalesChannelsField`, `MethodSalesChannelsCell`,
-  `useSalesChannelOptions` and `salesChannelIdsToSubmit` on `@endora-commerce/admin-kit/components`.
+  `useSalesChannelOptions(path, enabled)` and `salesChannelIdsToSubmit` on
+  `@endora-commerce/admin-kit/components`.
 - **`mod-i18n`** — the `methodSalesChannels.*` strings of the `core` bundle, in English and Polish.
 - **`mod-quick-order`** — one-click buy is not offered when the buyer's default delivery or payment
   method is not offered in the sales channel of the request:

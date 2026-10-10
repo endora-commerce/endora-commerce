@@ -91,7 +91,7 @@ export function DeliveryMethodsPage(): ReactNode {
   const integrations = useAdminZone('delivery_method.list.integrations', {});
   // The instance's sales channels, for the form's channel field and the list's
   // channel column — loaded once, so the two cannot disagree.
-  const salesChannels = useSalesChannelOptions(canRead);
+  const salesChannels = useSalesChannelOptions('/api/v1/admin/delivery-methods/sales-channels', canRead);
   const [rows, setRows] = useState<AdminDeliveryMethod[]>([]);
   const [orderStatuses, setOrderStatuses] = useState<OrderStatusOption[]>([]);
   const [adapters, setAdapters] = useState<DeliveryMethodAdapterOption[]>([]);
