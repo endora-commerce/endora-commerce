@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { type ComponentConfig, type PuckComponent } from '@puckeditor/core';
 import type { CmsProductSummary } from '../schema/catalog-types.js';
 import {
@@ -21,8 +20,8 @@ import {
   DEFAULT_BOX_PROPS,
 } from '../fields/shared-fields.js';
 import { CmsProductCardView } from './CmsProductCard.js';
-import { fetchProductsBySlugs, fetchProductsList } from '../utils/catalog-fetch.js';
-import { waitForCatalogSkeletonMin } from '../utils/catalog-load.js';
+import { useCatalogBlockData } from '../hooks/use-catalog-block-data.js';
+import { productSourceDataRequest } from '../utils/catalog-block-data.js';
 import { estimateProductGridSkeletonCount } from '../utils/catalog-skeleton-estimate.js';
 import { ProductGridSkeleton } from './catalog/CatalogSkeletons.js';
 import { resolveProductSourceFields } from '../fields/catalog-resolve-fields.js';
@@ -54,39 +53,16 @@ function ProductGridBody({
     puck: _puck,
     ...box
   } = props;
-  const [products, setProducts] = useState<CmsProductSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Provided by the page's server render on the storefront; fetched from an effect only in
+  // the editor preview, which is the one caller that ever sees `loading`.
+  const { loading: isLoading, data } = useCatalogBlockData<CmsProductSummary[]>(
+    productSourceDataRequest({ source, productSlugs, categorySlug, searchQuery, limit }),
+    { holdSkeleton: true },
+  );
+  const products = data ?? [];
   const colCount = resolveResponsiveNumber(columns, tier, 4);
   const gapPx = resolveResponsiveNumber(gap, tier, 16);
   const gridView = resolveResponsive(view, tier, 'grid');
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    const startedAt = Date.now();
-    void (async () => {
-      try {
-        let list: CmsProductSummary[] = [];
-        if (source === 'manual') list = await fetchProductsBySlugs(productSlugs);
-        else
-          list = await fetchProductsList({
-            ...(source === 'category' && categorySlug ? { categorySlug } : {}),
-            ...(source === 'query' && searchQuery ? { q: searchQuery } : {}),
-            limit,
-          });
-        await waitForCatalogSkeletonMin(startedAt);
-        if (!cancelled) setProducts(list);
-      } catch {
-        await waitForCatalogSkeletonMin(startedAt);
-        if (!cancelled) setProducts([]);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [source, productSlugs, categorySlug, searchQuery, limit]);
 
   if (isLoading) {
     return (
