@@ -5,6 +5,7 @@ import { Render } from '@puckeditor/core';
 import { parseBlockName } from '@endora-commerce/page-builder-core';
 import * as CmsComponents from '@endora-commerce/cms-components';
 import { defaultPageBuilderConfig } from '@endora-commerce/cms-components';
+import { CatalogPreviewProvider } from '@endora-commerce/cms-components/components/catalog-preview-context';
 import * as CatalogSkeletons from '@endora-commerce/cms-components/components/catalog/CatalogSkeletons';
 import {
   BLOCKS_RENDERING_A_LOADING_STATE,
@@ -39,13 +40,13 @@ import {
  * 1. **A block that renders `null` while loading.** Its HTML is absent rather than skeletal, and
  *    "this block renders nothing from its defaults" is true of many correct blocks.
  *    `check:rsc-discipline` (Phase 3, FR-020) is the net for that shape.
- * 2. **A block whose loading branch its own defaults cannot reach.** Measured on the day this
- *    landed: the `ProductCard` block delegates to `CmsProductCardLoader`, which populates a
- *    product from an effect and holds a `loading` branch — but its `defaultProps` carry
- *    `productSlug: ''`, so `loading` initialises **false** and the defaults render the
- *    "Select a product" placeholder. The defect is real and is `CmsProductCard.tsx`'s; it is
- *    invisible to a defaults-driven population by construction, and it is Phase 3's subject.
- *    Supplying a slug here would be the hand-written fixture FR-003 forbids.
+ * 2. **A block whose loading branch its own defaults cannot reach.** The worked case was the
+ *    `ProductCard` block: its `defaultProps` carry `productSlug: ''`, so the defaults render
+ *    the "Select a product" placeholder whether or not a selected product would have rendered
+ *    "Loading product…" to a crawler — which it did, until the block was handed its data by
+ *    the page's server render. A defaults-driven population cannot see that shape by
+ *    construction; `test/ssr/catalog-blocks.test.tsx` renders each catalogue block with a
+ *    selection, and supplying a slug *here* would be the hand-written fixture FR-003 forbids.
  * 3. **A block that loads correctly on the server and discards the result on the client.**
  * 4. **A block whose content is real but wrong.** This is a completeness gate, not a correctness
  *    one.
@@ -61,18 +62,37 @@ import {
  * (`Row`, `Column`, `ContentSlider`, `Slide`) on an unrendered `content: []` array, which throws
  * `Element type is invalid` — a property of the caller, not of the block.
  */
-function renderBlock(name: string, block: PaletteBlock): string {
+function renderTree(name: string, block: PaletteBlock) {
   const data = {
     root: { props: {} },
     content: [{ type: name, props: { id: `${name}-1`, ...(block.defaultProps ?? {}) } }],
     zones: {},
   };
+  return createElement(Render as never, {
+    config: defaultPageBuilderConfig as never,
+    data: data as never,
+  });
+}
+
+/**
+ * Under the catalogue provider, because that is where the storefront renders a
+ * Page Builder tree: `CatalogBlockData` resolves what the page's blocks declare
+ * and mounts `CatalogPreviewProvider` with the answers. The answers here are
+ * none — an empty catalogue, or a backend that did not answer — which is the
+ * least a block can be given and still must not answer with a skeleton.
+ */
+function renderBlock(name: string, block: PaletteBlock): string {
   return renderToString(
-    createElement(Render as never, {
-      config: defaultPageBuilderConfig as never,
-      data: data as never,
-    }),
+    createElement(CatalogPreviewProvider, { data: {}, children: renderTree(name, block) }),
   );
+}
+
+/**
+ * The same block with no provider above it — the editor preview's situation,
+ * where there is no server and a catalogue block fetches from an effect.
+ */
+function renderBlockWithoutProvider(name: string, block: PaletteBlock): string {
+  return renderToString(renderTree(name, block));
 }
 
 /**
@@ -120,10 +140,13 @@ const markers = deriveLoadingStateMarkers(
   ),
 );
 
-function run(ledger: typeof BLOCKS_RENDERING_A_LOADING_STATE) {
+function run(
+  ledger: typeof BLOCKS_RENDERING_A_LOADING_STATE,
+  render: typeof renderBlock = renderBlock,
+) {
   return runBlockSsrFloor({
     palette: PALETTE as never,
-    renderBlock,
+    renderBlock: render,
     markers,
     ledger,
     disagreementLedger: POPULATION_DISAGREEMENTS,
@@ -141,10 +164,12 @@ describe('the block SSR floor', () => {
 
   it('names every unledgered block, and only the blocks that render a loading state', () => {
     // The failing assertion this floor was written from (T102), kept as the discrimination
-    // proof: with no ledger the floor names exactly the blocks whose server HTML is a skeleton,
-    // and `ProductCard` — the block that is what the others look like repaired — is not among
-    // them. It finds a shape, not a directory.
-    const result = run({});
+    // proof. Its subject used to be the storefront's own render; the catalogue blocks are
+    // repaired there, so the proof is taken where the loading branch still legitimately
+    // exists: with no catalogue provider above the tree, which is the editor preview. There
+    // the floor names exactly the blocks whose HTML is a skeleton, and `ProductCard` — whose
+    // defaults select no product — is not among them. It finds a shape, not a directory.
+    const result = run({}, renderBlockWithoutProvider);
 
     expect(result.findings.map((finding) => finding.block).sort()).toEqual([
       'catalog.CategoryGrid',

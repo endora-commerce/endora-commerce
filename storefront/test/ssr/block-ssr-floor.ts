@@ -365,30 +365,12 @@ export function formatReadLine(counts: {
  * outgrown its population — narrow it, never add the entry.
  */
 export const BLOCKS_RENDERING_A_LOADING_STATE: Readonly<Record<string, LedgerEntry>> = {
-  'catalog.ProductGrid': {
-    state: 'ProductGridSkeleton',
-    reason:
-      'isLoading initialises true and is cleared from a useEffect that server rendering never runs.',
-    repairedBy: 'specs/096-page-builder-block-ownership/ — D-31 block `load` seam',
-  },
-  'catalog.ProductSlider': {
-    state: 'ProductSliderSkeleton',
-    reason:
-      'isLoading initialises true and is cleared from a useEffect that server rendering never runs.',
-    repairedBy: 'specs/096-page-builder-block-ownership/ — D-31 block `load` seam',
-  },
-  'catalog.CategoryList': {
-    state: 'CategoryListSkeleton',
-    reason:
-      'isLoading initialises true and is cleared from a useEffect that server rendering never runs.',
-    repairedBy: 'specs/096-page-builder-block-ownership/ — D-31 block `load` seam',
-  },
-  'catalog.CategoryGrid': {
-    state: 'CategoryGridSkeleton',
-    reason:
-      'isLoading initialises true and is cleared from a useEffect that server rendering never runs.',
-    repairedBy: 'specs/096-page-builder-block-ownership/ — D-31 block `load` seam',
-  },
+  // Empty, and its emptying is the staleness signal the note above describes. It arrived
+  // holding `catalog.ProductGrid`, `catalog.ProductSlider`, `catalog.CategoryList` and
+  // `catalog.CategoryGrid`, each clearing `isLoading` from an effect that server rendering
+  // never runs. Those blocks now read what they show from `CatalogPreviewProvider`'s `data`,
+  // which the storefront resolves on the server while it renders the page; the floor renders
+  // under that provider, as the storefront does, and finds no skeleton.
 };
 
 /**

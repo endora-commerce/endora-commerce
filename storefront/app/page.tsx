@@ -51,7 +51,7 @@ export default async function HomePage(): Promise<ReactNode> {
       return (
         <>
           <OrganizationJsonLd ctx={ctx} />
-          <CmsPageRenderer page={cmsPage} />
+          <CmsPageRenderer page={cmsPage} ctx={ctx} />
         </>
       );
     }
