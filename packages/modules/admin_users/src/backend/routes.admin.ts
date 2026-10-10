@@ -106,6 +106,11 @@ export async function registerAdminUsersAdminRoutes(
   // Any authenticated admin can edit their own first/last name and rotate
   // their password without holding `admin_users:manage`. Role + status
   // changes are intentionally NOT exposed here.
+  //
+  // A new password is only accepted together with the current one. The schema
+  // refuses a `password` without `currentPassword`; the service verifies it
+  // and refuses before it writes anything, so a refused password change never
+  // leaves a renamed account behind.
   app.patch(
     '/api/v1/admin/me',
     {
@@ -115,10 +120,12 @@ export async function registerAdminUsersAdminRoutes(
     async (request) => {
       const ctx = resolveAdminContext(request);
       const body = updateAdminUserSelfRequestSchema.parse(request.body);
-      const user = await adminUserService.update(ctx.adminUserId, {
+      const user = await adminUserService.updateSelf(ctx.adminUserId, {
         ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
         ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
-        ...(body.password !== undefined ? { password: body.password } : {}),
+        ...(body.password !== undefined
+          ? { password: body.password, currentPassword: body.currentPassword }
+          : {}),
       });
       return { data: await serializeOneAdminUser(user) };
     },

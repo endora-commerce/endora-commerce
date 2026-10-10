@@ -16,6 +16,7 @@ User + role CRUD is gated by the `admin_users:manage` permission.
 | --- | --- |
 | `POST /api/v1/auth/admin/login` | Admin login (2FA challenge if Role requires it) |
 | `POST /api/v1/auth/admin/logout` | Destroy admin session |
+| `PATCH /api/v1/admin/me` | The signed-in administrator edits their own first and last name and changes their own password; no permission code is needed. A new `password` must come with `currentPassword`: without it the request is refused with 400 `VALIDATION_FAILED`, with a wrong one with 403 `CURRENT_PASSWORD_INVALID`, and a refused request changes nothing — not the name either |
 | `GET /api/v1/admin/admin-users` | List admin users (deleted rows filtered) |
 | `POST /api/v1/admin/admin-users` | Create admin user. `adminRoleId` is required: an account with no role is refused with 400 `ADMIN_USER_ROLE_REQUIRED`. Rejects dup email with `EMAIL_ALREADY_REGISTERED` |
 | `PATCH /api/v1/admin/admin-users/:id` | Update name / role assignment / status. A role can be changed for another, never cleared: `adminRoleId: null` is refused with 400 `ADMIN_USER_ROLE_REQUIRED` |

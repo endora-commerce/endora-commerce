@@ -13,6 +13,11 @@ import type { SupportedAdminLanguage } from '../../i18n/types.js';
  * `PATCH /api/v1/admin/me`, which any authenticated admin can call
  * without holding `admin_users:manage`. Linked from the avatar in the
  * top-right corner of the AppShell.
+ *
+ * A new password travels with the current one: the route refuses a `password`
+ * without `currentPassword`, so the screen asks for it before it sends
+ * anything, and shows a wrong one on that field rather than in the page
+ * banner.
  */
 export function ProfilePage(): ReactNode {
   const t = useTranslation('core');
@@ -20,6 +25,8 @@ export function ProfilePage(): ReactNode {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [currentPasswordError, setCurrentPasswordError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -37,14 +44,23 @@ export function ProfilePage(): ReactNode {
 
   const handleSubmit = async (e: FormEvent): Promise<void> => {
     e.preventDefault();
-    setSubmitting(true);
     setError(null);
     setInfo(null);
+    setCurrentPasswordError(null);
+    const changingPassword = password.trim().length > 0;
+    if (changingPassword && currentPassword.length === 0) {
+      setCurrentPasswordError(t('profile.error.currentPasswordRequired'));
+      return;
+    }
+    setSubmitting(true);
     try {
       const body: Record<string, unknown> = {};
       if (firstName !== me.adminUser.firstName) body['firstName'] = firstName;
       if (lastName !== me.adminUser.lastName) body['lastName'] = lastName;
-      if (password.trim().length > 0) body['password'] = password;
+      if (changingPassword) {
+        body['password'] = password;
+        body['currentPassword'] = currentPassword;
+      }
       if (Object.keys(body).length === 0) {
         setInfo(t('profile.info.nothingToSave'));
         setSubmitting(false);
@@ -52,10 +68,18 @@ export function ProfilePage(): ReactNode {
       }
       await apiClient.patch<unknown>('/api/v1/admin/me', body);
       setPassword('');
+      setCurrentPassword('');
       setInfo(t('profile.info.updated'));
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.envelope.error.message : t('profile.error.save'));
+      if (err instanceof ApiError && err.envelope.error.code === 'CURRENT_PASSWORD_INVALID') {
+        // The refusal is about one field, so it is shown there. The new
+        // password is kept: only the wrong field needs retyping.
+        setCurrentPasswordError(err.envelope.error.message);
+        setCurrentPassword('');
+      } else {
+        setError(err instanceof ApiError ? err.envelope.error.message : t('profile.error.save'));
+      }
     } finally {
       setSubmitting(false);
     }
@@ -154,6 +178,35 @@ export function ProfilePage(): ReactNode {
         <div className="b2b-card" style={{ marginBottom: 16 }}>
           <div className="b2b-card__head"><h2>{t('profile.changePassword')}</h2></div>
           <div className="b2b-card__body">
+            <div style={{ marginBottom: 16 }}>
+              <label className="b2b-label" htmlFor="me-current-pwd">{t('profile.field.currentPassword')}</label>
+              <input
+                id="me-current-pwd"
+                className="b2b-field"
+                type="password"
+                value={currentPassword}
+                onChange={(e): void => {
+                  setCurrentPassword(e.target.value);
+                  setCurrentPasswordError(null);
+                }}
+                maxLength={256}
+                autoComplete="current-password"
+                aria-invalid={currentPasswordError ? true : undefined}
+                aria-describedby={currentPasswordError ? 'me-current-pwd-error' : 'me-current-pwd-help'}
+              />
+              {currentPasswordError ? (
+                <div
+                  id="me-current-pwd-error"
+                  className="b2b-help"
+                  role="alert"
+                  style={{ color: 'var(--danger-soft-fg)' }}
+                >
+                  {currentPasswordError}
+                </div>
+              ) : (
+                <div id="me-current-pwd-help" className="b2b-help">{t('profile.field.currentPasswordHelp')}</div>
+              )}
+            </div>
             <div>
               <label className="b2b-label" htmlFor="me-pwd">{t('profile.field.newPassword')}</label>
               <input
