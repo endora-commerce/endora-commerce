@@ -1509,6 +1509,8 @@ export class OrderService {
               backorderEnabled: p.backorderEnabled ?? false,
               fulfilmentStrategy: p.fulfilmentStrategy ?? null,
               fulfilmentStrategyWarehouseOrder: p.fulfilmentStrategyWarehouseOrder ?? null,
+              sku: p.sku,
+              name: this.anyValue(p.name),
             },
           ]),
         );
@@ -1574,6 +1576,23 @@ export class OrderService {
               409,
               ERROR_CODES.STOCK_UNAVAILABLE,
               `Insufficient stock for product ${item.productId}.`,
+              // Issue #86 — which line to change, in the terms the buyer
+              // ordered it in: the product as the order line would have
+              // snapshotted it, and the quantity asked for. `productId` is the
+              // message's own figure, kept for a client.
+              //
+              // **How many are left is deliberately not here.** The storefront
+              // shows an exact figure only in the `exact` stock display mode
+              // (`exactOnHand` is `null` in `band` and `available_or_not`), and
+              // a refusal naming the available quantity would hand every buyer
+              // the number those modes withhold — one order of 100000 pieces
+              // would read a competitor's stock level out of any shop.
+              {
+                productId: item.productId,
+                sku: flags?.sku ?? '',
+                productName: flags?.name || flags?.sku || item.productId,
+                requestedQuantity: item.quantity,
+              },
             );
           }
 

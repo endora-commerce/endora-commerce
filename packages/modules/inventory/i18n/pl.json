@@ -1,7 +1,7 @@
 {
   "actions.openInventory.label": "Otwórz zapasy",
   "actions.openInventory.description": "Wyświetl i zarządzaj stanami magazynowymi",
-  "errors.STOCK_UNAVAILABLE": "Błąd: stock unavailable.",
+  "errors.STOCK_UNAVAILABLE": "Produkt „{productName}” ({sku}) nie jest dostępny w zamówionej ilości ({requestedQuantity}). Zmniejsz ilość albo usuń produkt z zamówienia.",
   "errors.WAREHOUSE_NOT_FOUND": "Błąd: warehouse not found.",
   "errors.WAREHOUSE_CODE_TAKEN": "Błąd: warehouse code taken.",
   "errors.WAREHOUSE_INVALID_CODE": "Błąd: warehouse invalid code.",
