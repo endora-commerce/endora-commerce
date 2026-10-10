@@ -95,6 +95,7 @@ export function adminModule(
     options.adminRolePort,
     options.authSessionPort,
     options.auditLogService,
+    options.getMfaLoginPort,
   );
   const handle: AdminModuleHandle = {
     adminAuthService,

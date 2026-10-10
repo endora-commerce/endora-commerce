@@ -15,6 +15,7 @@ import { randomBytes } from 'crypto';
 const CHAL_PREFIX = 'mfa:chal:';
 const SETUP_PREFIX = 'mfa:setup:';
 const OAUTH_PREFIX = 'mfa:oauth:';
+const GENERATION_PREFIX = 'mfa:gen:';
 
 const CHALLENGE_TTL_SECONDS = 5 * 60;
 const SETUP_TTL_SECONDS = 10 * 60;
@@ -26,12 +27,16 @@ export interface PendingChallenge {
   subjectId: string;
   salesChannelId: string | null;
   attemptsRemaining: number;
+  /** The subject's generation when this was issued — see `invalidateSubject`. */
+  generation?: number;
 }
 
 export interface SetupTicket {
   subjectType: 'customer' | 'admin';
   subjectId: string;
   salesChannelId: string | null;
+  /** The subject's generation when this was issued — see `invalidateSubject`. */
+  generation?: number;
 }
 
 export interface OAuthTransaction {
@@ -43,6 +48,10 @@ export interface OAuthTransaction {
   next: string;
 }
 
+function generationKey(subjectType: 'customer' | 'admin', subjectId: string): string {
+  return `${GENERATION_PREFIX}${subjectType}:${subjectId}`;
+}
+
 function newToken(): string {
   return randomBytes(32).toString('base64url');
 }
@@ -50,16 +59,52 @@ function newToken(): string {
 export class ChallengeStore {
   constructor(private readonly redis: Redis) {}
 
+  // --- invalidation by subject ------------------------------------------------
+
+  /**
+   * Withdraw every challenge and setup ticket issued for the subject so far.
+   *
+   * Both are issued after a password verified, and neither is indexed by
+   * subject, so they are not searched for: each carries the subject's
+   * *generation* at the moment it was issued, and this bumps the generation. A
+   * read then treats an artefact from an older generation as absent. A counter
+   * rather than a timestamp, so it does not depend on two servers agreeing
+   * what time it is; and it is never expired, because an expired counter would
+   * read as zero and let through an artefact issued before it lapsed.
+   *
+   * The generation is read *before* the artefact is written, so an
+   * invalidation that lands between the two leaves the artefact stamped with
+   * the older generation — withdrawn, which is the safe side.
+   */
+  async invalidateSubject(subjectType: 'customer' | 'admin', subjectId: string): Promise<void> {
+    await this.redis.incr(generationKey(subjectType, subjectId));
+  }
+
+  private async generationOf(subjectType: 'customer' | 'admin', subjectId: string): Promise<number> {
+    const raw = await this.redis.get(generationKey(subjectType, subjectId));
+    return raw ? Number(raw) : 0;
+  }
+
+  /** `null` for an artefact issued before the subject's last invalidation. */
+  private async current<T extends { subjectType: 'customer' | 'admin'; subjectId: string; generation?: number }>(
+    artefact: T | null,
+  ): Promise<T | null> {
+    if (!artefact) return null;
+    const generation = await this.generationOf(artefact.subjectType, artefact.subjectId);
+    return (artefact.generation ?? 0) < generation ? null : artefact;
+  }
+
   // --- pending-login challenge ---------------------------------------------
 
   async issueChallenge(
-    input: Omit<PendingChallenge, 'attemptsRemaining'>,
+    input: Omit<PendingChallenge, 'attemptsRemaining' | 'generation'>,
     attemptBudget = DEFAULT_ATTEMPT_BUDGET,
   ): Promise<string> {
     const id = newToken();
     const payload: PendingChallenge = {
       ...input,
       attemptsRemaining: attemptBudget,
+      generation: await this.generationOf(input.subjectType, input.subjectId),
     };
     await this.redis.set(
       CHAL_PREFIX + id,
@@ -72,7 +117,7 @@ export class ChallengeStore {
 
   async getChallenge(id: string): Promise<PendingChallenge | null> {
     const raw = await this.redis.get(CHAL_PREFIX + id);
-    return raw ? (JSON.parse(raw) as PendingChallenge) : null;
+    return this.current(raw ? (JSON.parse(raw) as PendingChallenge) : null);
   }
 
   /**
@@ -103,11 +148,15 @@ export class ChallengeStore {
 
   // --- setup ticket ---------------------------------------------------------
 
-  async issueSetupTicket(input: SetupTicket): Promise<string> {
+  async issueSetupTicket(input: Omit<SetupTicket, 'generation'>): Promise<string> {
     const id = newToken();
+    const payload: SetupTicket = {
+      ...input,
+      generation: await this.generationOf(input.subjectType, input.subjectId),
+    };
     await this.redis.set(
       SETUP_PREFIX + id,
-      JSON.stringify(input),
+      JSON.stringify(payload),
       'EX',
       SETUP_TTL_SECONDS,
     );
@@ -116,7 +165,7 @@ export class ChallengeStore {
 
   async getSetupTicket(id: string): Promise<SetupTicket | null> {
     const raw = await this.redis.get(SETUP_PREFIX + id);
-    return raw ? (JSON.parse(raw) as SetupTicket) : null;
+    return this.current(raw ? (JSON.parse(raw) as SetupTicket) : null);
   }
 
   async consumeSetupTicket(id: string): Promise<void> {

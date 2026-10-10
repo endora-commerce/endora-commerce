@@ -3,6 +3,7 @@
 '@endora-commerce/platform': minor
 '@endora-commerce/mod-auth': minor
 '@endora-commerce/mod-admin-roles': minor
+'@endora-commerce/mod-mfa': minor
 '@endora-commerce/mod-admin-users': minor
 '@endora-commerce/admin-shell': patch
 '@endora-commerce/mod-i18n': patch
@@ -27,6 +28,25 @@ Three writes used to leave every session of the account answering:
 
 A peer reset (`POST /api/v1/admin/admin-users/:id/password`) already revoked every session and is
 unchanged. API keys are not sessions and are not touched; neither is the account's second factor.
+
+**A revoked session could come back.** `SessionService.destroyAllForAdmin` and
+`destroyAllForCustomer` cleared the Redis cache entries and then deleted the rows, so a request from
+a session being revoked could read the row in between and cache it again — after which it answered
+from the cache until its thirty-day expiry. Rows are deleted first now, and `loadSession` looks for
+the row again after filling the cache and takes the entry back out when it is gone.
+
+**Logins begun with the old password are withdrawn.** A pending second-factor challenge or setup
+ticket issued after the old password verified could still be completed after a password change, a
+peer reset, a deactivation or a delete. `MfaLoginPort` gains a required method,
+`invalidatePending(subject)` (**breaking for implementers**), which `mfa` implements with a
+per-subject generation counter in its challenge store, and `AdminUserService` calls it wherever it
+revokes sessions. `AdminUserService`'s constructor takes the lazily resolved MFA port as an optional
+fifth argument.
+
+**Write first, revoke second.** The self-service change, the peer reset, deactivation and deletion
+now persist the new state and then revoke, where the peer reset used to revoke first: a sign-in with
+the old password between the two steps kept a session nothing revoked. A refusal from the session
+port therefore surfaces as the request's error with the new password already in force.
 
 **Audit.** A self-service password change is now recorded as `admin_user.change_password` with
 `via: 'self_service'` — the action a peer reset already records with `via: 'peer_reset'` — where it

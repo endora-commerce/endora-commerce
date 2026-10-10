@@ -62,6 +62,10 @@ export class MfaLoginService implements MfaLoginPort {
     return { kind: 'proceed' };
   }
 
+  async invalidatePending(subject: MfaSubjectRef): Promise<void> {
+    await this.challengeStore.invalidateSubject(subject.subjectType, subject.subjectId);
+  }
+
   /**
    * Whether the subject currently has an active TOTP enrolment.
    *

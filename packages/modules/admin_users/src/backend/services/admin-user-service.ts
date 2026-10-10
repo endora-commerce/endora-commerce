@@ -5,6 +5,7 @@ import {
   normalizeEmailAddress,
   type AdminRolePort,
   type AuthSessionPort,
+  type MfaLoginPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
@@ -169,7 +170,42 @@ export class AdminUserService {
      */
     private readonly sessions: AuthSessionPort,
     private readonly auditLog?: AuditPort,
+    /**
+     * `mfa`'s login port, resolved lazily and absent while `mfa` is — the same
+     * accessor `AdminAuthService` signs in through. A login begun with a
+     * password leaves a pending challenge or setup ticket there, and those are
+     * withdrawn with the password they were issued under.
+     */
+    private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
   ) {}
+
+  /**
+   * Withdraw what the account's credential had already been exchanged for:
+   * its sessions (all, or all but `keepSessionId`) and its pending second-step
+   * logins.
+   *
+   * **Called after the flush, never before.** Once the new state is committed
+   * nothing new can be obtained with the old credential — sign-in reads the
+   * row — so everything obtained earlier exists by now and is withdrawn here.
+   * Revoking first left a window: a sign-in with the old password between the
+   * revocation and the flush kept a session nothing would ever revoke. What
+   * the ordering leaves is a sign-in that verified the old password *before*
+   * the flush and mints its session *after* this call, a window of one request.
+   *
+   * No `catch`: a write that reported success while the old sessions kept
+   * answering would be reporting something false. A refusal here surfaces as
+   * the request's error, with the new password already in force.
+   */
+  async #withdrawCredentials(adminUserId: string, keepSessionId?: string): Promise<void> {
+    await this.sessions.destroyAllForAdmin(
+      adminUserId,
+      keepSessionId === undefined ? undefined : { exceptSessionId: keepSessionId },
+    );
+    await this.getMfaLoginPort?.()?.invalidatePending({
+      subjectType: 'admin',
+      subjectId: adminUserId,
+    });
+  }
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
     if (this.auditLog) {
@@ -313,12 +349,11 @@ export class AdminUserService {
     if (input.firstName !== undefined) user.firstName = input.firstName;
     if (input.lastName !== undefined) user.lastName = input.lastName;
     if (input.status !== undefined) user.status = input.status;
-    // A deactivated account must not keep answering on the sessions it already
-    // holds — the permission check refuses it, a route gated on the session
-    // alone does not. Before the flush, for the reason `resetPassword` gives.
-    if (input.status === 'inactive') await this.sessions.destroyAllForAdmin(user.id);
     this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
     await em.flush();
+    // A deactivated account must not keep answering on the sessions it already
+    // holds, nor finish a login it had begun.
+    if (input.status === 'inactive') await this.#withdrawCredentials(user.id);
     return user;
   }
 
@@ -353,11 +388,10 @@ export class AdminUserService {
    * made it on; it is taken from the request's cookie and counted only when it
    * resolves to an admin session of this very account.
    *
-   * The revocation runs before the flush, as in `resetPassword` and for the
-   * reason given there: it reaches another module and may refuse, and refusing
-   * first leaves the password unchanged rather than changed with the old
-   * sessions still answering. The two writes are not one transaction — the
-   * sessions are `auth`'s rows and its Redis cache.
+   * The revocation runs **after** the flush, as in `resetPassword` and for the
+   * reason `#withdrawCredentials` gives. The two writes are not one
+   * transaction — the sessions are `auth`'s rows and its Redis cache. Which
+   * session is the caller's is worked out before anything is written.
    *
    * The audit trail tells the two halves apart. A password change is an
    * `admin_user.change_password` entry marked `via: 'self_service'` (a peer
@@ -386,13 +420,10 @@ export class AdminUserService {
       passwordHash = await hashPassword(input.password);
     }
     const editsProfile = input.firstName !== undefined || input.lastName !== undefined;
-    if (passwordHash !== undefined) {
-      const keep = await this.#ownSessionId(user.id, context.sessionCookieValue);
-      await this.sessions.destroyAllForAdmin(
-        user.id,
-        keep === undefined ? undefined : { exceptSessionId: keep },
-      );
-    }
+    const keep =
+      passwordHash === undefined
+        ? undefined
+        : await this.#ownSessionId(user.id, context.sessionCookieValue);
     if (input.firstName !== undefined) user.firstName = input.firstName;
     if (input.lastName !== undefined) user.lastName = input.lastName;
     if (passwordHash !== undefined) {
@@ -406,6 +437,7 @@ export class AdminUserService {
       this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
     }
     await em.flush();
+    if (passwordHash !== undefined) await this.#withdrawCredentials(user.id, keep);
     return user;
   }
 
@@ -436,36 +468,26 @@ export class AdminUserService {
    *
    * Two things happen, in this order:
    *
-   *  1. every session the target holds is revoked — including, when an
-   *     operator resets their own password here, the one making the request —
-   *     and
-   *  2. the new hash is persisted with an `admin_user.change_password` audit
+   *  1. the new hash is persisted with an `admin_user.change_password` audit
    *     row that records the target and the route taken — never the password
-   *     and never its hash.
+   *     and never its hash, and
+   *  2. every session the target holds is revoked — including, when an
+   *     operator resets their own password here, the one making the request —
+   *     and so is every login the target had begun and not finished.
    *
-   * The revocation runs **before** the flush on purpose. It reaches another
-   * module, so it can refuse; refusing first means the reset either takes
-   * effect whole or not at all, where a flush-then-revoke order could leave a
-   * changed password with the old password's sessions still answering. A
-   * revocation that succeeded over a flush that then failed only signs the
-   * target out, which their existing password undoes.
-   *
-   * No `catch` around the port call: an operator told "reset" while the old
-   * sessions kept working would be told something false.
+   * The order is `#withdrawCredentials`'s to explain: revoking first let a
+   * sign-in with the old password, between the two steps, keep a session.
    */
   async resetPassword(id: string, newPassword: string): Promise<AdminUser> {
     const em = this.emFactory();
     const user = await this.#getByIdOn(em, id);
-    // Hashed before the revocation so the window between "signed out" and
-    // "new password live" is not an argon2 pass wide.
-    const passwordHash = await hashPassword(newPassword);
-    await this.sessions.destroyAllForAdmin(user.id);
-    user.passwordHash = passwordHash;
+    user.passwordHash = await hashPassword(newPassword);
     this.#audit(em, 'admin_user.change_password', user.id, null, {
       email: user.email,
       via: 'peer_reset',
     });
     await em.flush();
+    await this.#withdrawCredentials(user.id);
     return user;
   }
 
@@ -479,11 +501,10 @@ export class AdminUserService {
     const user = await this.#getByIdOn(em, id);
     user.deletedAt = new Date();
     user.status = 'inactive';
-    // A deleted account's sessions go with it; before the flush, for the
-    // reason `resetPassword` gives.
-    await this.sessions.destroyAllForAdmin(user.id);
     this.#audit(em, 'admin_user.delete', user.id, { email: user.email }, null);
     await em.flush();
+    // A deleted account's sessions, and any login it had begun, go with it.
+    await this.#withdrawCredentials(user.id);
   }
 
   /**

@@ -8,7 +8,8 @@ import {
 } from '../../helpers/test-server.js';
 import { PLATFORM_ADMIN_ROLE_ID } from '../../helpers/seed-admins.js';
 import { Session } from '../../helpers/package-entities.js';
-import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { TEST_ADMIN_ID, TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { STUB_CUSTOMER_PASSWORD } from '../../helpers/seed-organizations.js';
 
 /**
  * `PATCH /api/v1/admin/me` — a password change withdraws the sessions the old
@@ -297,4 +298,42 @@ describe('PATCH /api/v1/admin/me — a password change revokes the other session
       await h.em().count(AuditLogEntry, { action: 'admin_user.update', objectId: adminId }),
     ).toBe(updatesBefore + 1);
   });
+
+  it('spares nothing for a valid session cookie that belongs to another administrator', async () => {
+    // The caller here is the seeded platform administrator, identified by the
+    // harness's stub session; the admin cookie beside it is a real, valid
+    // session — of somebody else. It must not be taken for the caller's own:
+    // it names no session of the target's to spare, and it is not the
+    // target's to revoke.
+    const signIn = async (email: string, pw: string): Promise<string> => {
+      const res = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/auth/admin/login',
+        payload: { email, password: pw },
+      });
+      expect(res.statusCode).toBe(200);
+      return (res.cookies as Array<{ name: string; value: string }>).find(
+        (c) => c.name === ADMIN_SESSION_COOKIE_NAME,
+      )!.value;
+    };
+    const targetOne = await signIn('platform-admin@example.com', STUB_CUSTOMER_PASSWORD);
+    const targetTwo = await signIn('platform-admin@example.com', STUB_CUSTOMER_PASSWORD);
+    const someoneElse = await session();
+
+    const res = await h.app.inject({
+      method: 'PATCH',
+      url: '/api/v1/admin/me',
+      cookies: { b2b_session: 'stub-admin-session', [ADMIN_SESSION_COOKIE_NAME]: someoneElse },
+      payload: { password: 'platform-rotated-pass-1!', currentPassword: STUB_CUSTOMER_PASSWORD },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { data: { id: string } }).data.id).toBe(TEST_ADMIN_ID);
+
+    expect(await meStatus(targetOne)).toBe(401);
+    expect(await meStatus(targetTwo)).toBe(401);
+    expect(await h.em().count(Session, { adminUserId: TEST_ADMIN_ID })).toBe(0);
+    // The other administrator's session was neither spared-for nor touched.
+    expect(await h.em().count(Session, { adminUserId: adminId })).toBe(1);
+  });
 });
+

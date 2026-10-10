@@ -110,4 +110,70 @@ describe('SessionService.destroyAllForAdmin', () => {
   it('is a no-op for an administrator with no sessions', async () => {
     await expect(service.destroyAllForAdmin(randomUUID())).resolves.toBeUndefined();
   });
+
+  /**
+   * The revocation racing a request from the session it revokes.
+   *
+   * `loadSession` reads the row and then fills the Redis cache. A revocation
+   * that lands between the two used to leave the fill behind: the row was
+   * gone, the cache entry was written after the revocation had cleared it, and
+   * the revoked session answered from the cache until its thirty-day expiry.
+   * The interleaving is forced here by revoking from inside the cache write.
+   */
+  it('does not let a cache fill outlive the row it was filled from', async () => {
+    const admin = randomUUID();
+    const calling = await service.createSession({ kind: 'admin', adminUserId: admin });
+    const other = await service.createSession({ kind: 'admin', adminUserId: admin });
+    // The other session is not cached, so its next load goes to the database.
+    await redis.del(`session:${other.session.id}`);
+
+    let revoked = false;
+    const racing = new Proxy(redis, {
+      get(target, property, receiver) {
+        if (property !== 'set') {
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+        return async (...args: unknown[]) => {
+          const key = String(args[0]);
+          if (!revoked && key === `session:${other.session.id}`) {
+            revoked = true;
+            // The row has been read; revoke before the fill is written.
+            await service.destroyAllForAdmin(admin, { exceptSessionId: calling.session.id });
+          }
+          return (target.set as (...a: unknown[]) => Promise<unknown>)(...args);
+        };
+      },
+    });
+    const racingService = new SessionService(() => em, racing);
+
+    const duringTheRace = await racingService.loadSession(other.cookieValue);
+    expect(revoked).toBe(true);
+    expect(duringTheRace).toBeNull();
+    expect(await redis.get(`session:${other.session.id}`)).toBeNull();
+    expect(await service.loadSession(other.cookieValue)).toBeNull();
+    expect(await service.loadSession(calling.cookieValue)).not.toBeNull();
+  });
+
+  it('removes the rows before the cache entries', async () => {
+    const admin = randomUUID();
+    const held = await service.createSession({ kind: 'admin', adminUserId: admin });
+    const order: string[] = [];
+    const observing = new Proxy(redis, {
+      get(target, property, receiver) {
+        if (property !== 'del') {
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === 'function' ? value.bind(target) : value;
+        }
+        return async (...args: unknown[]) => {
+          const rows = await em.count(Session, { id: held.session.id });
+          order.push(`del-with-${rows}-rows`);
+          return (target.del as (...a: unknown[]) => Promise<unknown>)(...args);
+        };
+      },
+    });
+    await new SessionService(() => em, observing).destroyAllForAdmin(admin);
+    expect(order).toEqual(['del-with-0-rows']);
+  });
 });
+

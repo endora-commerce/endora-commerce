@@ -9,6 +9,7 @@ import type {
   AdminRolePort,
   AuthResolvedSession,
   AuthSessionPort,
+  MfaLoginPort,
 } from '@endora-commerce/contracts';
 import {
   hashPassword,
@@ -75,8 +76,13 @@ function serviceOver(existing: AdminUser): Harness {
       audit.push(input);
     },
   } as unknown as AuditPort;
+  const mfa = {
+    invalidatePending: async (subject: { subjectType: string; subjectId: string }) => {
+      steps.push(`mfa:${subject.subjectType}:${subject.subjectId}`);
+    },
+  } as unknown as MfaLoginPort;
   return {
-    service: new AdminUserService(() => em, {} as AdminRolePort, sessions, auditLog),
+    service: new AdminUserService(() => em, {} as AdminRolePort, sessions, auditLog, () => mfa),
     flushes: () => flushes,
     steps,
     audit,
@@ -154,7 +160,7 @@ describe('AdminUserService.updateSelf', () => {
     expect(existing.passwordHash).toBe(currentHash);
   });
 
-  it('revokes every session but the caller\'s, before the new hash is written', async () => {
+  it('withdraws every session but the caller\'s, and the pending logins, after the new hash is written', async () => {
     const existing = account();
     const { service, steps } = serviceOver(existing);
     await service.updateSelf(
@@ -162,7 +168,7 @@ describe('AdminUserService.updateSelf', () => {
       { password: NEXT, currentPassword: CURRENT },
       { sessionCookieValue: 'own-cookie' },
     );
-    expect(steps).toEqual(['revoke:a1:except=s-own', 'flush']);
+    expect(steps).toEqual(['flush', 'revoke:a1:except=s-own', 'mfa:admin:a1']);
   });
 
   it.each([
@@ -178,12 +184,11 @@ describe('AdminUserService.updateSelf', () => {
       { password: NEXT, currentPassword: CURRENT },
       { sessionCookieValue },
     );
-    expect(steps).toEqual(['revoke:a1:except=none', 'flush']);
+    expect(steps).toEqual(['flush', 'revoke:a1:except=none', 'mfa:admin:a1']);
   });
 
-  it('leaves the password unchanged when the revocation refuses', async () => {
+  it('reports a refusal from the revocation instead of a success', async () => {
     const existing = account();
-    const { flushes } = serviceOver(existing);
     const refusing = {
       loadSession: async () => null,
       destroyAllForAdmin: async () => {
@@ -195,8 +200,19 @@ describe('AdminUserService.updateSelf', () => {
     await expect(
       failing.updateSelf('a1', { lastName: 'King', password: NEXT, currentPassword: CURRENT }),
     ).rejects.toThrow('auth is not here');
-    expect(existing).toMatchObject({ lastName: 'Lovelace', passwordHash: currentHash });
-    expect(flushes()).toBe(0);
+  });
+
+  it('changes the password without a second factor module to tell', async () => {
+    const existing = account();
+    const sessions = {
+      loadSession: async () => null,
+      destroyAllForAdmin: async () => {},
+    } as unknown as AuthSessionPort;
+    const em = { findOne: async () => existing, flush: async () => {} } as unknown as EntityManager;
+    // `mfa` absent: the accessor answers nothing, and nothing is asked.
+    const service = new AdminUserService(() => em, {} as AdminRolePort, sessions, undefined, () => undefined);
+    await service.updateSelf('a1', { password: NEXT, currentPassword: CURRENT });
+    expect(await verifyPassword(existing.passwordHash, NEXT)).toBe(true);
   });
 
   it('audits a password change as one, marked self-service, with no secret in it', async () => {
@@ -289,12 +305,12 @@ describe('AdminUserService — withdrawing an account', () => {
     currentHash = await hashPassword(CURRENT);
   });
 
-  it('revokes every session when the account is deactivated, before the write', async () => {
+  it('withdraws every session and pending login when the account is deactivated, after the write', async () => {
     const existing = account();
     const { service, steps } = serviceOver(existing);
     await service.update('a1', { status: 'inactive' });
     expect(existing.status).toBe('inactive');
-    expect(steps).toEqual(['revoke:a1:except=none', 'flush']);
+    expect(steps).toEqual(['flush', 'revoke:a1:except=none', 'mfa:admin:a1']);
   });
 
   it('revokes nothing on an edit that leaves the account active', async () => {
@@ -304,11 +320,11 @@ describe('AdminUserService — withdrawing an account', () => {
     expect(steps).toEqual(['flush']);
   });
 
-  it('revokes every session when the account is deleted, before the write', async () => {
+  it('withdraws every session and pending login when the account is deleted, after the write', async () => {
     const existing = account();
     const { service, steps } = serviceOver(existing);
     await service.softDelete('a1');
     expect(existing.deletedAt).toBeInstanceOf(Date);
-    expect(steps).toEqual(['revoke:a1:except=none', 'flush']);
+    expect(steps).toEqual(['flush', 'revoke:a1:except=none', 'mfa:admin:a1']);
   });
 });

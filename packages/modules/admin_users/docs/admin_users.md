@@ -66,7 +66,10 @@ A session is a credential, so it is withdrawn when the thing it stood for is:
 | The account is deactivated (`status: 'inactive'`) or deleted | Every session of the account |
 
 "Every session" means the sign-ins on other browsers and devices and the impersonation sessions
-the administrator started. After a self-service change the administrator stays signed in where
+the administrator started. The same writes withdraw every sign-in the account had begun and not
+finished — a pending second-factor challenge or two-factor setup ticket — so a login started with
+the old password cannot be completed afterwards. The new state is written first and the sessions
+are revoked after it, so nothing can be obtained with the old password once revocation has run. After a self-service change the administrator stays signed in where
 they made it — no new cookie is issued and the profile screen stays open — and has to sign in
 again everywhere else, with the new password. A refused change (a wrong or missing
 `currentPassword`) revokes nothing, and neither does a request that changes only the name.

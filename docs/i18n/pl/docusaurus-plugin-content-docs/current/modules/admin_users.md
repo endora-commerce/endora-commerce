@@ -65,7 +65,12 @@ potwierdzała:
 | Konto zostaje dezaktywowane (`status: 'inactive'`) albo usunięte | Wszystkie sesje konta |
 
 „Wszystkie sesje” to logowania w innych przeglądarkach i na innych urządzeniach oraz sesje
-logowania jako klient rozpoczęte przez tego administratora. Po samodzielnej zmianie hasła
+logowania jako klient rozpoczęte przez tego administratora. Te same zapisy wycofują każde
+logowanie, które konto rozpoczęło i którego nie dokończyło — oczekującą weryfikację drugiego
+składnika albo bilet konfiguracji uwierzytelniania dwuskładnikowego — dlatego logowania
+rozpoczętego starym hasłem nie da się później dokończyć. Najpierw zapisywany jest nowy stan,
+a dopiero potem unieważniane są sesje, więc po unieważnieniu nie da się już niczego uzyskać
+starym hasłem. Po samodzielnej zmianie hasła
 administrator pozostaje zalogowany tam, gdzie ją wykonał — nie jest wydawane nowe ciasteczko,
 a ekran profilu pozostaje otwarty — natomiast wszędzie indziej musi zalogować się ponownie, już
 nowym hasłem. Odrzucona zmiana (błędne albo brakujące `currentPassword`) nie unieważnia żadnej

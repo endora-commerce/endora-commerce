@@ -229,4 +229,12 @@ export type MfaLoginDecision =
  */
 export interface MfaLoginPort {
   beginLogin(subject: MfaSubjectRef, ctx: MfaLoginContext): Promise<MfaLoginDecision>;
+  /**
+   * Withdraw every pending login challenge and setup ticket `beginLogin` has
+   * issued for the subject. Both are issued on the strength of a password that
+   * verified, so the module that owns the account calls this when that
+   * password is replaced or the account is withdrawn — otherwise a login begun
+   * with the old password could still be completed with it.
+   */
+  invalidatePending(subject: MfaSubjectRef): Promise<void>;
 }
