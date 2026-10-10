@@ -10,6 +10,12 @@
   "customFields.entity.opportunity": "Szansa sprzedażowa",
   "customFields.managedBy.catalogAttributes": "Zarządzane w Katalog → Atrybuty",
   "customFields.managedBy.notice": "Definicje dla tego typu encji są zarządzane przez inny moduł i są tutaj tylko do odczytu.",
+  "customFields.audience.label": "Kto widzi wartość",
+  "customFields.audience.column": "Widoczne dla",
+  "customFields.audience.rowLabel": "Kto widzi wartość pola {key}",
+  "customFields.audience.internal": "Wewnętrzne — tylko administratorzy",
+  "customFields.audience.customer": "Klient — widoczne dla klienta",
+  "customFields.audience.help": "Wartości pól wewnętrznych widzą wyłącznie administratorzy. Wartości pól widocznych dla klienta są także zwracane klientowi w sklepie oraz integracjom korzystającym z zewnętrznego API. Nowe pola są wewnętrzne, dopóki nie wybierzesz inaczej.",
   "actions.openCustomFields.label": "Pola niestandardowe",
   "actions.openCustomFields.description": "Definiuj pola na kluczowych encjach.",
   "nav.customFields.label": "Pola niestandardowe"

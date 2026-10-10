@@ -10,6 +10,12 @@
   "customFields.entity.opportunity": "Opportunity",
   "customFields.managedBy.catalogAttributes": "Managed on Catalog → Attributes",
   "customFields.managedBy.notice": "Definitions for this entity type are managed by another module and are read-only here.",
+  "customFields.audience.label": "Who can see the value",
+  "customFields.audience.column": "Visible to",
+  "customFields.audience.rowLabel": "Who can see the value of {key}",
+  "customFields.audience.internal": "Internal — administrators only",
+  "customFields.audience.customer": "Customer — shown to the customer",
+  "customFields.audience.help": "Internal values are shown to administrators only. Customer-visible values are also returned to the customer in the storefront and to integrations that use the external API. New fields are internal unless you choose otherwise.",
   "actions.openCustomFields.label": "Custom fields",
   "actions.openCustomFields.description": "Define runtime fields on core entities.",
   "nav.customFields.label": "Custom Fields"

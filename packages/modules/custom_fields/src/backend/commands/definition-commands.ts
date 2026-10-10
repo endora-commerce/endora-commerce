@@ -36,6 +36,7 @@ function snapshotDefinition(def: CustomFieldDefinition): Record<string, unknown>
     labelDefault: def.labelDefault,
     valueType: def.valueType,
     required: def.required,
+    audience: def.audience,
     sortOrder: def.sortOrder,
     config: def.config,
   };

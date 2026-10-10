@@ -97,6 +97,7 @@ export function toCustomFieldDefinitionRecord(
     labelDefault: definition.labelDefault,
     valueType: definition.valueType,
     required: definition.required,
+    audience: definition.audience,
     sortOrder: definition.sortOrder,
     config: definition.config ?? {},
     createdAt: definition.createdAt,

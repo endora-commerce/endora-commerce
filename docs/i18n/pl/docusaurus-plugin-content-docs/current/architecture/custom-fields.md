@@ -37,7 +37,44 @@ moduł* niżej).
   wskazującym pole. Następnie moduł encji zapisuje wartości we własnej kolumnie
   `customFieldValues`.
 - **Odczyt razem z polami wbudowanymi.** Wartości są zwracane wszędzie tam, gdzie odczytywany jest
-  rekord (szczegóły w panelu administracyjnym i odpowiednie odpowiedzi API).
+  rekord — administratorowi zawsze, a każdemu innemu tylko wtedy, gdy pozwala na to **widoczność**
+  pola (następna sekcja).
+
+## Widoczność: kto odczytuje wartości pola
+
+Każda definicja określa, komu zwracane są zapisane wartości pola:
+
+| Widoczność | Kto odczytuje wartości |
+|---|---|
+| `internal` | Wyłącznie administratorzy. Wartości nigdy nie opuszczają API administracyjnego. |
+| `customer` | Administratorzy **oraz** odpowiedzi encji przeznaczone dla osób spoza administracji: odpowiedzi sklepu dla klienta i odpowiedzi zewnętrznego API (klucz API). |
+
+- **Nowe pole jest `internal`**, dopóki autor nie wybierze inaczej — w formularzu definicji („Kto
+  widzi wartość”) albo polem `audience` w `POST /api/v1/admin/custom-fields/definitions`. Notatka,
+  ocena kredytowa czy flaga ryzyka zamodelowana jako pole niestandardowe pozostaje więc w panelu
+  administracyjnym, dopóki ktoś świadomie jej nie udostępni. Widoczność istniejącego pola zmienia
+  się na tym samym ekranie albo przez `PATCH …/definitions/:id`; zmiana działa od następnego
+  odczytu i nie modyfikuje zapisanych wartości.
+- **Sama aktualizacja niczego nie zmienia.** Definicje istniejące przed wprowadzeniem tego atrybutu
+  zostały zmigrowane do `customer`, ponieważ ich wartości były już zwracane klientom. Po
+  aktualizacji przejrzyj je i przenieś do `internal` wszystko, co nigdy nie miało być pokazywane.
+- **Gdzie to dziś obowiązuje.** Dwie encje zwracają wartości pól niestandardowych osobom spoza
+  administracji: **Zamówienie** (odpowiedzi dla klienta pod `/api/v1/orders` i odpowiedzi
+  zewnętrzne pod `/api/v1/external/orders`) oraz **Zapytanie ofertowe** (szczegóły zapytania
+  klienta pod `/api/v1/quote-requests/:id`). Wartości kategorii, organizacji, kont klientów i szans
+  sprzedażowych są zwracane wyłącznie w trasach administracyjnych. W każdym przypadku obiekt
+  `customFieldValues` zachowuje swój kształt i po prostu zawiera mniej kluczy.
+- **Wartość bez definicji jest traktowana jak wewnętrzna.** Po usunięciu pola jego zapisane
+  wartości pozostają w rekordach (zob. *Retencja danych*) i nie są zwracane ani klientowi, ani
+  integracji.
+- **Atrybutów produktu to nie dotyczy.** Typ `product` jest zarządzany przez moduł encji: o tym,
+  czy kupujący widzi atrybut, decydują własne flagi atrybutów katalogu.
+- **Dla modułu encji.** Przepuść zapisany zbiór wartości przez
+  `CustomFieldValuePort.projectForCustomer(entityType, bag)` w tym jednym serializatorze, który
+  odpowiada osobom spoza administracji, i nigdy nie zwracaj tam surowej kolumny. Metoda korzysta z
+  pamięci podręcznej definicji dla typu encji, więc wywołanie jej raz na wiersz listy nie kosztuje
+  zapytania na wiersz. Żadna trasa nie pozwala osobie spoza administracji *zapisywać* wartości pól
+  niestandardowych.
 
 ## Podział odpowiedzialności
 
@@ -123,6 +160,6 @@ da się cofnąć, a zapisy encji nigdy nie prowadzą kaskadowo do utraty danych.
 ## Dodawanie pola niestandardowego
 
 Zdefiniuj pole na ekranie pól niestandardowych w panelu administracyjnym, dla wybranego typu encji
-(klucz, przetłumaczona etykieta, typ wartości, wymagalność, opcje). Od tej chwili pole pojawia się
+(klucz, przetłumaczona etykieta, typ wartości, wymagalność, widoczność, opcje). Od tej chwili pole pojawia się
 w każdym rekordzie tego typu, a jego wartość jest zapisywana i odczytywana przez zwykłe ścieżki
 tworzenia, edycji i odczytu encji — bez zmiany kodu.

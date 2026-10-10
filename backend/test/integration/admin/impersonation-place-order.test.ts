@@ -14,7 +14,7 @@ import { seedCartForStubCustomer } from '../../helpers/seed-commerce.js';
  * Admin User as actor (action='order.place_on_behalf').
  */
 
-interface PlacedOrder { id: string; placedOnBehalfByAdminUserId: string | null }
+interface PlacedOrder { id: string; placedOnBehalf: boolean }
 
 function parseCookies(setCookie: string | string[] | undefined): {
   b2b_session?: string;
@@ -71,7 +71,21 @@ describe('Impersonated place-order tagging', () => {
     });
     expect(place.statusCode).toBe(201);
     const order = (place.json() as { data: PlacedOrder }).data;
-    expect(order.placedOnBehalfByAdminUserId).toBe('00000000-0000-4000-8000-0000000000b1');
+    // The placement reply is a buyer-facing one: it says the order was placed
+    // on the customer's behalf and does not name the administrator. The
+    // administrator's identifier is the admin surface's to answer.
+    expect(order.placedOnBehalf).toBe(true);
+    expect(order).not.toHaveProperty('placedOnBehalfByAdminUserId');
+    const adminRead = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/orders/${order.id}`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(adminRead.statusCode).toBe(200);
+    expect(
+      (adminRead.json() as { data: { placedOnBehalfByAdminUserId: string | null } }).data
+        .placedOnBehalfByAdminUserId,
+    ).toBe('00000000-0000-4000-8000-0000000000b1');
 
     const entry = await h.em().findOne(
       AuditLogEntry,

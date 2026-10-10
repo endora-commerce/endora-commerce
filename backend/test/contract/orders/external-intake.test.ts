@@ -7,6 +7,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { deepStrict, disagreements } from '../../helpers/strict-schema.js';
+import { seedCustomFieldAudienceCases } from '../../helpers/custom-field-audience.js';
 import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
 import {
   seedSuspendedOrganization,
@@ -410,6 +411,45 @@ describe('POST /api/v1/external/orders — contract (062 / T020)', () => {
     expect(order.id).toBe(happyOrderId);
     expect(order.organizationId).toBe(TEST_ORGANIZATION_ID);
     expect(orderSchemaDisagreements(order)).toEqual([]);
+  });
+
+  it('the external replies carry only customer-visible custom-field values and no administrator id', async () => {
+    const audience = await seedCustomFieldAudienceCases(h, 'order', happyOrderId);
+    const headers = { authorization: `Bearer ${boundToken}` };
+
+    const detail = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/external/orders/${happyOrderId}`,
+      headers,
+    });
+    expect(detail.statusCode).toBe(200);
+    const order = (detail.json() as { data: Record<string, unknown> }).data;
+    expect(order.customFieldValues).toEqual(audience.customerVisible);
+    expect(order.placedOnBehalf).toBe(false);
+    expect(order).not.toHaveProperty('placedOnBehalfByAdminUserId');
+    expect(orderSchemaDisagreements(order as unknown as SerializedOrder)).toEqual([]);
+
+    const list = await h.app.inject({ method: 'GET', url: '/api/v1/external/orders', headers });
+    expect(list.statusCode).toBe(200);
+    const rows = (list.json() as { data: Array<Record<string, unknown>> }).data;
+    expect(rows.find((o) => o.id === happyOrderId)?.customFieldValues).toEqual(
+      audience.customerVisible,
+    );
+    expect(rows.filter((o) => 'placedOnBehalfByAdminUserId' in o)).toEqual([]);
+    for (const key of [audience.internalKey, audience.implicitKey, audience.orphanKey]) {
+      expect(list.body).not.toContain(key);
+    }
+
+    // The administrator still reads all of it.
+    const admin = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/orders/${happyOrderId}`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(admin.statusCode).toBe(200);
+    expect((admin.json() as { data: { customFieldValues: unknown } }).data.customFieldValues).toEqual(
+      audience.stored,
+    );
   });
 
   it("key of another org fetching org A's order id ⇒ 404 (no existence leak)", async () => {

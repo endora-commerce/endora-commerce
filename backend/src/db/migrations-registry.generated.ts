@@ -141,6 +141,7 @@ import { Migration20261009T163307CrmOpportunityMessageReads } from '@endora-comm
 
 // ── custom_fields ───────────────────────────────────────────────────────────
 import { Migration20260718T200338CustomFieldsInit } from '@endora-commerce/mod-custom-fields/migrations';
+import { Migration20261010T090000CustomFieldsDefinitionAudience } from '@endora-commerce/mod-custom-fields/migrations';
 
 // ── customer_accounts ───────────────────────────────────────────────────────
 import { Migration20260425T055041CustomerAccountsPasswordResetTokens } from '@endora-commerce/mod-customer-accounts/migrations';
@@ -444,6 +445,7 @@ export const MIGRATION_REGISTRY: readonly MigrationRegistryEntry[] = [
 
   // ── custom_fields ───────────────────────────────────────────────────────────
   migration('custom_fields', Migration20260718T200338CustomFieldsInit),
+  migration('custom_fields', Migration20261010T090000CustomFieldsDefinitionAudience),
 
   // ── customer_accounts ───────────────────────────────────────────────────────
   migration('customer_accounts', Migration20260425T055041CustomerAccountsPasswordResetTokens),

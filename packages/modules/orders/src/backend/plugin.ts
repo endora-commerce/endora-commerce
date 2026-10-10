@@ -661,6 +661,7 @@ export function commerceModule(options: OrdersModuleOptions) {
         intakeService: orderApiIntakeService,
         requireBoundApiKey: options.requireBoundApiKey,
         assertOrganizationCanTransact: options.assertOrganizationCanTransact,
+        customFieldValues: options.customFieldValues,
       });
     }
 

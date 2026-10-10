@@ -55,7 +55,7 @@ import type { CustomerOrderCancellationService } from './services/order-cancella
 import type { PurchaseConversionService } from './services/purchase-conversion-service.js';
 import { Order } from './entities/order.entity.js';
 import { replyAfterCommittedWrite } from './services/committed-write-reply.js';
-import { serializeOrder } from './order-response.js';
+import { serializeOrderForAdmin, serializeOrderForCustomer } from './order-response.js';
 import { OrderTransitionEffect } from './entities/order-transition-effect.entity.js';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type { PlatformLogger, RequireAdminFactory } from '@endora-commerce/platform/kernel';
@@ -187,7 +187,7 @@ export async function registerOrderRoutes(
     order: Order,
     customerAccountId: string,
   ): Promise<OrderResponse> =>
-    serializeOrder(emFactory(), order, {
+    serializeOrderForCustomer(emFactory(), order, customFieldValues, {
       customerCancellable: await deps.customerOrderCancellation.isCancellableByCustomer(
         order,
         customerAccountId,
@@ -226,7 +226,7 @@ export async function registerOrderRoutes(
         };
         try {
           const order = await commandBus.run(command);
-          return { data: await serializeOrder(emFactory(), order) };
+          return { data: await serializeOrderForAdmin(emFactory(), order) };
         } catch (err) {
           if (isCustomFieldValidationFailure(err)) {
             throw new HttpError(
@@ -356,7 +356,11 @@ export async function registerOrderRoutes(
     );
     return {
       data: await Promise.all(
-        orders.map((o) => serializeOrder(em, o, { customerCancellable: cancellable.has(o.id) })),
+        orders.map((o) =>
+          serializeOrderForCustomer(em, o, customFieldValues, {
+            customerCancellable: cancellable.has(o.id),
+          }),
+        ),
       ),
       pagination: { cursor: null, hasMore: false, limit: 50 },
     };
@@ -772,7 +776,7 @@ export async function registerOrderRoutes(
       await assertCustomerInScope(request, body.customerAccountId);
       const order = await deps.orderCreationAdminService.create(resolveAdminUserId(request), body);
       reply.code(201);
-      return { data: await serializeOrder(emFactory(), order) };
+      return { data: await serializeOrderForAdmin(emFactory(), order) };
     },
   );
 
@@ -1286,7 +1290,7 @@ function resolveAdminUserId(req: FastifyRequest): string | null {
  * retried or because the module that owns it is switched off. An order that
  * owes nothing carries no field at all.
  *
- * A function of its own rather than a flag on `serializeOrder`, so that the
+ * A function of its own rather than a flag on the buyer's serialiser, so that the
  * buyer-facing reads cannot acquire the field by passing an argument: a
  * release the platform is still retrying is an operator's concern and changes
  * nothing a buyer can do.
@@ -1304,7 +1308,7 @@ async function serializeAdminOrder(em: EntityManager, order: Order): Promise<Ord
     lastAttemptAt: row.lastAttemptAt ? row.lastAttemptAt.toISOString() : null,
   }));
   return {
-    ...(await serializeOrder(em, order)),
+    ...(await serializeOrderForAdmin(em, order)),
     ...(pendingEffects.length > 0 ? { pendingEffects } : {}),
   };
 }

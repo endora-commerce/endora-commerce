@@ -165,6 +165,7 @@ export function quoteRequestsModule(options: QuoteRequestsModuleOptions): {
     businessId: businessIdGenerator,
     resolveTaxRate: options.resolveTaxRate,
     ...(options.auditLog ? { auditLog: options.auditLog } : {}),
+    ...(options.customFieldValues ? { customFieldValues: options.customFieldValues } : {}),
   });
 
   const adminService = new RfqAdminService({

@@ -111,6 +111,7 @@ function serialize({ definition, options }: CachedDefinition): Record<string, un
     labelDefault: definition.labelDefault,
     valueType: definition.valueType,
     required: definition.required,
+    audience: definition.audience,
     sortOrder: definition.sortOrder,
     config: definition.config,
     options: options.map((o) => ({

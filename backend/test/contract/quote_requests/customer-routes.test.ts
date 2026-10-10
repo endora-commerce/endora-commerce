@@ -5,6 +5,7 @@ import {
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
+import { seedCustomFieldAudienceCases } from '../../helpers/custom-field-audience.js';
 
 /**
  * T026 — Customer-facing Quote Requests routes.
@@ -86,6 +87,43 @@ describe('Customer Quote Requests routes (US1)', () => {
     expect(body.data.id).toBe(createdRfqId);
     expect(body.data.awaitingCustomerRevisionAcceptance).toBe(false);
     expect(body.data.comparisonAgainstLastSeen).toBeNull();
+  });
+
+  it('answers the customer only customer-visible custom-field values; the administrator reads all', async () => {
+    const audience = await seedCustomFieldAudienceCases(h, 'quote_request', createdRfqId);
+
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/quote-requests/${createdRfqId}`,
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect((res.json() as { data: { customFieldValues: unknown } }).data.customFieldValues).toEqual(
+      audience.customerVisible,
+    );
+    for (const key of [audience.internalKey, audience.implicitKey, audience.orphanKey]) {
+      expect(res.body).not.toContain(key);
+    }
+
+    // The customer list is a summary and carries no custom-field values at all.
+    const list = await h.app.inject({
+      method: 'GET',
+      url: '/api/v1/quote-requests',
+      cookies: { b2b_session: 'stub-customer-session' },
+    });
+    expect(list.statusCode).toBe(200);
+    expect(list.body).not.toContain(audience.visibleKey);
+    expect(list.body).not.toContain(audience.internalKey);
+
+    const admin = await h.app.inject({
+      method: 'GET',
+      url: `/api/v1/admin/quote-requests/${createdRfqId}`,
+      cookies: { b2b_session: 'stub-admin-session' },
+    });
+    expect(admin.statusCode).toBe(200);
+    expect((admin.json() as { data: { customFieldValues: unknown } }).data.customFieldValues).toEqual(
+      audience.stored,
+    );
   });
 
   it('rejects a draft body without items (FR-021)', async () => {

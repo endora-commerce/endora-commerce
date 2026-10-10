@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
+  type CustomFieldValuePort,
   ERROR_CODES,
   isProductVisibleTo,
   type ProductAudience,
@@ -79,6 +80,12 @@ export interface RfqServiceDeps {
   revisionService: RfqRevisionService;
   notificationService: RfqNotificationService;
   salesRepAssignment: SalesRepAssignmentPort;
+  /**
+   * Narrows a quote's custom-field values to the ones a customer may read
+   * (`custom_fields`' `projectForCustomer`). Absent — the port is not wired —
+   * means the customer-facing reply carries none of them.
+   */
+  customFieldValues?: Pick<CustomFieldValuePort, 'projectForCustomer'>;
   /**
    * Feature 075, Phase C — the four rows this service reads and none of which
    * it owns, plus the one it writes.
@@ -930,7 +937,24 @@ export class RfqService {
 
   /** Serialise to the customer-facing response shape. Hides internal admin
    * actor identity behind `actorRoleLabel` per FR-037 unless
-   * `includeFullActorIdentity = true` (admin path). */
+   * `includeFullActorIdentity = true` (admin path).
+   *
+   * The same flag decides the custom-field values: the admin path answers
+   * every stored value, the customer path only those whose definition has the
+   * `customer` audience — an `internal` field's value, and one whose definition
+   * is gone, are not answered to a customer. This is the one place the quote
+   * surface applies that rule. */
+  private async customFieldValuesFor(
+    rfq: QuoteRequest,
+    forAdmin: boolean,
+  ): Promise<Record<string, unknown>> {
+    const bag = rfq.customFieldValues ?? {};
+    if (forAdmin) return bag;
+    return this.deps.customFieldValues
+      ? this.deps.customFieldValues.projectForCustomer('quote_request', bag)
+      : {};
+  }
+
   async serializeFull(
     em: EntityManager,
     rfq: QuoteRequest,
@@ -983,7 +1007,7 @@ export class RfqService {
       lastCustomerSeenRevisionNumber: rfq.lastCustomerSeenRevisionNumber,
       headerNote: rfq.headerNote ?? null,
       cancellationReason: rfq.cancellationReason ?? null,
-      customFieldValues: rfq.customFieldValues ?? {},
+      customFieldValues: await this.customFieldValuesFor(rfq, includeFullActorIdentity),
       items: items.map((it) => ({
         id: it.id,
         productId: it.productId,
