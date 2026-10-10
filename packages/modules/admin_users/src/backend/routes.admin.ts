@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
+  ADMIN_SESSION_COOKIE_NAME,
   createAdminUserRequestSchema,
   resetAdminUserPasswordRequestSchema,
   updateAdminUserRequestSchema,
@@ -111,6 +112,10 @@ export async function registerAdminUsersAdminRoutes(
   // refuses a `password` without `currentPassword`; the service verifies it
   // and refuses before it writes anything, so a refused password change never
   // leaves a renamed account behind.
+  //
+  // A password change revokes the account's other sessions. The cookie is
+  // handed over so the service can tell which session is the caller's and
+  // leave that one alone; no new cookie is issued.
   app.patch(
     '/api/v1/admin/me',
     {
@@ -120,13 +125,18 @@ export async function registerAdminUsersAdminRoutes(
     async (request) => {
       const ctx = resolveAdminContext(request);
       const body = updateAdminUserSelfRequestSchema.parse(request.body);
-      const user = await adminUserService.updateSelf(ctx.adminUserId, {
-        ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
-        ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
-        ...(body.password !== undefined
-          ? { password: body.password, currentPassword: body.currentPassword }
-          : {}),
-      });
+      const cookies = (request as { cookies?: Record<string, string | undefined> }).cookies;
+      const user = await adminUserService.updateSelf(
+        ctx.adminUserId,
+        {
+          ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
+          ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
+          ...(body.password !== undefined
+            ? { password: body.password, currentPassword: body.currentPassword }
+            : {}),
+        },
+        { sessionCookieValue: cookies?.[ADMIN_SESSION_COOKIE_NAME] },
+      );
       return { data: await serializeOneAdminUser(user) };
     },
   );

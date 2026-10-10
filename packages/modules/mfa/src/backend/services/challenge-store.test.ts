@@ -20,6 +20,11 @@ function fakeRedis(): Redis {
     async del(key: string) {
       return store.delete(key) ? 1 : 0;
     },
+    async incr(key: string) {
+      const next = Number(store.get(key)?.value ?? '0') + 1;
+      store.set(key, { value: String(next), ttl: -1 });
+      return next;
+    },
     async ttl(key: string) {
       return store.get(key)?.ttl ?? -2;
     },
@@ -88,5 +93,41 @@ describe('ChallengeStore', () => {
     expect(tx).toMatchObject({ provider: 'google', pkceVerifier: 'verifier', next: '/account' });
     await store.consumeOAuthTransaction(state);
     expect(await store.getOAuthTransaction(state)).toBeNull();
+  });
+
+  describe('invalidateSubject', () => {
+    const admin = { subjectType: 'admin', subjectId: 'a1', salesChannelId: null } as const;
+
+    it('withdraws the challenges and setup tickets issued before it', async () => {
+      const challenge = await store.issueChallenge(admin);
+      const ticket = await store.issueSetupTicket(admin);
+      await store.invalidateSubject('admin', 'a1');
+      expect(await store.getChallenge(challenge)).toBeNull();
+      expect(await store.getSetupTicket(ticket)).toBeNull();
+    });
+
+    it('leaves what is issued after it, and survives a second invalidation only until then', async () => {
+      await store.invalidateSubject('admin', 'a1');
+      const challenge = await store.issueChallenge(admin);
+      const ticket = await store.issueSetupTicket(admin);
+      expect(await store.getChallenge(challenge)).not.toBeNull();
+      expect(await store.getSetupTicket(ticket)).not.toBeNull();
+      await store.invalidateSubject('admin', 'a1');
+      expect(await store.getChallenge(challenge)).toBeNull();
+    });
+
+    it('touches nobody else — not another id, not the same id on the other surface', async () => {
+      const other = await store.issueChallenge({ ...admin, subjectId: 'a2' });
+      const customer = await store.issueChallenge({ ...admin, subjectType: 'customer' });
+      await store.invalidateSubject('admin', 'a1');
+      expect(await store.getChallenge(other)).not.toBeNull();
+      expect(await store.getChallenge(customer)).not.toBeNull();
+    });
+
+    it('counts a withdrawn challenge as gone when an attempt is recorded against it', async () => {
+      const challenge = await store.issueChallenge(admin);
+      await store.invalidateSubject('admin', 'a1');
+      expect(await store.recordFailedAttempt(challenge)).toBe(0);
+    });
   });
 });

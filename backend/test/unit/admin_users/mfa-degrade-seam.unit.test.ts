@@ -50,6 +50,7 @@ function compose(): { consumerCtx: ModuleContext } {
   const ownerCtx = contextFor(OWNER, container);
   const port: MfaLoginPort = {
     beginLogin: async () => ({ kind: 'challenge', challengeId: 'ch-1' }),
+    invalidatePending: async () => {},
   };
   ownerCtx.di.providePort('mfaLoginPort', ownerCtx.asFunction(() => port).transient());
   return { consumerCtx: contextFor(CONSUMER, container) };

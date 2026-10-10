@@ -64,6 +64,17 @@ export class PermissionService {
     return role.permissions.includes('*') || role.permissions.includes(permission);
   }
 
+  /**
+   * Whether the id names an account that may act at all — it exists, is not
+   * deleted and is `active`. Unlike `hasPermission` it says nothing about the
+   * role: an active account with no role is still an account, and is told
+   * about its role by name.
+   */
+  async isActiveAdministrator(adminUserId: string): Promise<boolean> {
+    const admin = await this.adminUsers.findById(adminUserId, { activeOnly: true });
+    return admin?.status === 'active';
+  }
+
   async listPermissions(adminUserId: string): Promise<string[]> {
     const admin = await this.adminUsers.findById(adminUserId, { activeOnly: true });
     const role = await this.#roleById(admin?.adminRoleId ?? null);

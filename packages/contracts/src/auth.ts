@@ -83,6 +83,12 @@ export interface AuthResolvedSession {
  * Whether `auth` has an off state at all is its manifest's `activation` to
  * say, not this line's: a module declaring `nonDeactivatable` never enters one.
  */
+/** What `AuthSessionPort.destroyAllForAdmin` may be asked to leave in place. */
+export interface AuthDestroyAllForAdminOptions {
+  /** The one session to keep — the caller's own. */
+  exceptSessionId?: string;
+}
+
 export interface AuthSessionPort {
   createSession(input: AuthCreateSessionInput): Promise<AuthSessionCookiePayload>;
   loadSession(cookieValue: string): Promise<AuthResolvedSession | null>;
@@ -92,9 +98,19 @@ export interface AuthSessionPort {
    * Revoke every session an admin user holds — the ones they signed in with
    * and the impersonations they started. Called when their password is set by
    * somebody other than the current session, so a credential the reset was
-   * meant to withdraw cannot outlive it (issue #252).
+   * meant to withdraw cannot outlive it (issue #252), and when the account is
+   * deactivated or deleted.
+   *
+   * `exceptSessionId` spares one session: the one an administrator changed
+   * their own password from, so the change does not sign them out of the
+   * screen they made it on. It spares nothing unless it names a session this
+   * call would otherwise have revoked, so an id belonging to somebody else is
+   * simply ignored.
    */
-  destroyAllForAdmin(adminUserId: string): Promise<void>;
+  destroyAllForAdmin(
+    adminUserId: string,
+    options?: AuthDestroyAllForAdminOptions,
+  ): Promise<void>;
   touchLastSeen(sessionId: string): Promise<void>;
   /** Customer-account ids seen inside the window. Feature 040's "online" view. */
   listRecentlyActiveCustomers(windowMinutes: number): Promise<string[]>;
@@ -213,4 +229,12 @@ export type MfaLoginDecision =
  */
 export interface MfaLoginPort {
   beginLogin(subject: MfaSubjectRef, ctx: MfaLoginContext): Promise<MfaLoginDecision>;
+  /**
+   * Withdraw every pending login challenge and setup ticket `beginLogin` has
+   * issued for the subject. Both are issued on the strength of a password that
+   * verified, so the module that owns the account calls this when that
+   * password is replaced or the account is withdrawn — otherwise a login begun
+   * with the old password could still be completed with it.
+   */
+  invalidatePending(subject: MfaSubjectRef): Promise<void>;
 }

@@ -5,6 +5,7 @@ import {
   normalizeEmailAddress,
   type AdminRolePort,
   type AuthSessionPort,
+  type MfaLoginPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
 import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
@@ -24,6 +25,9 @@ import type { AuditPort } from '@endora-commerce/platform/kernel';
  *   - password rehash on create, on self-rotation (which requires the current
  *     password), and on a peer reset
  *   - soft delete via `deletedAt`; status flip is the everyday lever
+ *   - the account's sessions are revoked whenever what they stood for is
+ *     withdrawn: all of them on a peer reset, a deactivation and a delete, all
+ *     but the calling one on a self-service password change
  */
 
 export interface CreateAdminUserInput {
@@ -55,6 +59,17 @@ export interface UpdateOwnAdminUserInput {
   currentPassword?: string | undefined;
 }
 
+/** Where a self-service edit came from — what `updateSelf` needs besides the edit. */
+export interface UpdateOwnAdminUserContext {
+  /**
+   * The raw admin session cookie the request carried. A password change
+   * revokes every session the account holds except the one this resolves to.
+   * Absent, or not resolving to a session of this administrator, means there
+   * is no session to spare and all of them go.
+   */
+  sessionCookieValue?: string | undefined;
+}
+
 /** The refusal a self-service password change earns without the right current password. */
 function currentPasswordInvalidRefusal(): HttpError {
   // 403 and not the 401 the buyer-side route answers with: the session is
@@ -64,6 +79,24 @@ function currentPasswordInvalidRefusal(): HttpError {
     403,
     ERROR_CODES.CURRENT_PASSWORD_INVALID,
     'The current password is incorrect.',
+  );
+}
+
+/**
+ * The refusal a self-service password change earns when the new password is
+ * the one the account already has.
+ *
+ * Such a request would be answered "changed" and would sign every other
+ * session out while leaving the credential exactly as it was — the opposite of
+ * what somebody changing a password they no longer trust is asking for. Only
+ * raised once the current password has been verified, so it says nothing to a
+ * caller who does not already know it.
+ */
+function newPasswordUnchangedRefusal(): HttpError {
+  return new HttpError(
+    400,
+    ERROR_CODES.NEW_PASSWORD_UNCHANGED,
+    'The new password is the same as the current one. Choose a different password.',
   );
 }
 
@@ -137,7 +170,42 @@ export class AdminUserService {
      */
     private readonly sessions: AuthSessionPort,
     private readonly auditLog?: AuditPort,
+    /**
+     * `mfa`'s login port, resolved lazily and absent while `mfa` is — the same
+     * accessor `AdminAuthService` signs in through. A login begun with a
+     * password leaves a pending challenge or setup ticket there, and those are
+     * withdrawn with the password they were issued under.
+     */
+    private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
   ) {}
+
+  /**
+   * Withdraw what the account's credential had already been exchanged for:
+   * its sessions (all, or all but `keepSessionId`) and its pending second-step
+   * logins.
+   *
+   * **Called after the flush, never before.** Once the new state is committed
+   * nothing new can be obtained with the old credential — sign-in reads the
+   * row — so everything obtained earlier exists by now and is withdrawn here.
+   * Revoking first left a window: a sign-in with the old password between the
+   * revocation and the flush kept a session nothing would ever revoke. What
+   * the ordering leaves is a sign-in that verified the old password *before*
+   * the flush and mints its session *after* this call, a window of one request.
+   *
+   * No `catch`: a write that reported success while the old sessions kept
+   * answering would be reporting something false. A refusal here surfaces as
+   * the request's error, with the new password already in force.
+   */
+  async #withdrawCredentials(adminUserId: string, keepSessionId?: string): Promise<void> {
+    await this.sessions.destroyAllForAdmin(
+      adminUserId,
+      keepSessionId === undefined ? undefined : { exceptSessionId: keepSessionId },
+    );
+    await this.getMfaLoginPort?.()?.invalidatePending({
+      subjectType: 'admin',
+      subjectId: adminUserId,
+    });
+  }
 
   #audit(em: EntityManager, action: string, objectId: string, stateBefore: Record<string, unknown> | null, stateAfter: Record<string, unknown> | null): void {
     if (this.auditLog) {
@@ -283,6 +351,9 @@ export class AdminUserService {
     if (input.status !== undefined) user.status = input.status;
     this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
     await em.flush();
+    // A deactivated account must not keep answering on the sessions it already
+    // holds, nor finish a login it had begun.
+    if (input.status === 'inactive') await this.#withdrawCredentials(user.id);
     return user;
   }
 
@@ -295,15 +366,44 @@ export class AdminUserService {
    * holds an unattended browser or a copied cookie holds a session, and
    * without this check could replace the password and keep the account.
    *
+   * A new password equal to the current one is refused too
+   * (`NEW_PASSWORD_UNCHANGED`): it would report a change, and sign the other
+   * sessions out, without changing the credential.
+   *
+   * A refused attempt is **not** written to the audit log. That follows what
+   * the module does for a failed sign-in, which is refused without a row; the
+   * audit log records writes that happened.
+   *
    * The verification runs **before anything is assigned**, and the new hash is
    * computed before the first assignment too, so the request takes effect
    * whole or not at all: a refused password change does not leave the name
    * half of the same request applied.
    *
-   * The sessions the account holds are left as they are, as they were before
-   * this check existed; `resetPassword` is the write that revokes them.
+   * A password change also **revokes every other session the account holds**
+   * — the sign-ins on other browsers and the impersonations it started —
+   * through the same `destroyAllForAdmin` a peer reset uses. Somebody changing
+   * their password because another party may hold a session needs that
+   * session gone, not merely unable to sign in again. The one session kept is
+   * the caller's own, so the change does not throw them out of the screen they
+   * made it on; it is taken from the request's cookie and counted only when it
+   * resolves to an admin session of this very account.
+   *
+   * The revocation runs **after** the flush, as in `resetPassword` and for the
+   * reason `#withdrawCredentials` gives. The two writes are not one
+   * transaction — the sessions are `auth`'s rows and its Redis cache. Which
+   * session is the caller's is worked out before anything is written.
+   *
+   * The audit trail tells the two halves apart. A password change is an
+   * `admin_user.change_password` entry marked `via: 'self_service'` (a peer
+   * reset is `via: 'peer_reset'`), and it carries neither password nor hash; a
+   * name change is the `admin_user.update` entry it always was. A request that
+   * does both records both.
    */
-  async updateSelf(id: string, input: UpdateOwnAdminUserInput): Promise<AdminUser> {
+  async updateSelf(
+    id: string,
+    input: UpdateOwnAdminUserInput,
+    context: UpdateOwnAdminUserContext = {},
+  ): Promise<AdminUser> {
     const em = this.emFactory();
     const user = await this.#getByIdOn(em, id);
     let passwordHash: string | undefined;
@@ -314,14 +414,48 @@ export class AdminUserService {
       ) {
         throw currentPasswordInvalidRefusal();
       }
+      // `currentPassword` has just been verified, so comparing the two strings
+      // is comparing the new password with the stored one.
+      if (input.password === input.currentPassword) throw newPasswordUnchangedRefusal();
       passwordHash = await hashPassword(input.password);
     }
+    const editsProfile = input.firstName !== undefined || input.lastName !== undefined;
+    const keep =
+      passwordHash === undefined
+        ? undefined
+        : await this.#ownSessionId(user.id, context.sessionCookieValue);
     if (input.firstName !== undefined) user.firstName = input.firstName;
     if (input.lastName !== undefined) user.lastName = input.lastName;
-    if (passwordHash !== undefined) user.passwordHash = passwordHash;
-    this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
+    if (passwordHash !== undefined) {
+      user.passwordHash = passwordHash;
+      this.#audit(em, 'admin_user.change_password', user.id, null, {
+        email: user.email,
+        via: 'self_service',
+      });
+    }
+    if (editsProfile || passwordHash === undefined) {
+      this.#audit(em, 'admin_user.update', user.id, null, { email: user.email, status: user.status });
+    }
     await em.flush();
+    if (passwordHash !== undefined) await this.#withdrawCredentials(user.id, keep);
     return user;
+  }
+
+  /**
+   * The id of the session `cookieValue` resolves to, when it is an admin
+   * session of `adminUserId` — otherwise nothing. `loadSession` checks the
+   * token, so a cookie that merely names another session's id spares nothing.
+   */
+  async #ownSessionId(
+    adminUserId: string,
+    cookieValue: string | undefined,
+  ): Promise<string | undefined> {
+    if (!cookieValue) return undefined;
+    const resolved = await this.sessions.loadSession(cookieValue);
+    if (resolved?.kind !== 'admin' || resolved.session.adminUserId !== adminUserId) {
+      return undefined;
+    }
+    return resolved.session.id;
   }
 
   /**
@@ -334,34 +468,26 @@ export class AdminUserService {
    *
    * Two things happen, in this order:
    *
-   *  1. every session the target holds is revoked, and
-   *  2. the new hash is persisted with an `admin_user.change_password` audit
+   *  1. the new hash is persisted with an `admin_user.change_password` audit
    *     row that records the target and the route taken — never the password
-   *     and never its hash.
+   *     and never its hash, and
+   *  2. every session the target holds is revoked — including, when an
+   *     operator resets their own password here, the one making the request —
+   *     and so is every login the target had begun and not finished.
    *
-   * The revocation runs **before** the flush on purpose. It reaches another
-   * module, so it can refuse; refusing first means the reset either takes
-   * effect whole or not at all, where a flush-then-revoke order could leave a
-   * changed password with the old password's sessions still answering. A
-   * revocation that succeeded over a flush that then failed only signs the
-   * target out, which their existing password undoes.
-   *
-   * No `catch` around the port call: an operator told "reset" while the old
-   * sessions kept working would be told something false.
+   * The order is `#withdrawCredentials`'s to explain: revoking first let a
+   * sign-in with the old password, between the two steps, keep a session.
    */
   async resetPassword(id: string, newPassword: string): Promise<AdminUser> {
     const em = this.emFactory();
     const user = await this.#getByIdOn(em, id);
-    // Hashed before the revocation so the window between "signed out" and
-    // "new password live" is not an argon2 pass wide.
-    const passwordHash = await hashPassword(newPassword);
-    await this.sessions.destroyAllForAdmin(user.id);
-    user.passwordHash = passwordHash;
+    user.passwordHash = await hashPassword(newPassword);
     this.#audit(em, 'admin_user.change_password', user.id, null, {
       email: user.email,
       via: 'peer_reset',
     });
     await em.flush();
+    await this.#withdrawCredentials(user.id);
     return user;
   }
 
@@ -377,6 +503,8 @@ export class AdminUserService {
     user.status = 'inactive';
     this.#audit(em, 'admin_user.delete', user.id, { email: user.email }, null);
     await em.flush();
+    // A deleted account's sessions, and any login it had begun, go with it.
+    await this.#withdrawCredentials(user.id);
   }
 
   /**

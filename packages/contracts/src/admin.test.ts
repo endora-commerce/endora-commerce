@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { updateAdminUserSelfRequestSchema } from './admin.js';
+import { updateAdminUserRequestSchema, updateAdminUserSelfRequestSchema } from './admin.js';
 
 /**
  * `PATCH /api/v1/admin/me` — the self-update payload.
@@ -42,5 +42,28 @@ describe('updateAdminUserSelfRequestSchema', () => {
   it('still refuses fields the self-update does not expose', () => {
     const parsed = updateAdminUserSelfRequestSchema.safeParse({ email: 'other@example.com' });
     expect(parsed.success).toBe(false);
+  });
+});
+
+describe('updateAdminUserRequestSchema', () => {
+  // The generic edit of somebody else's account carries no password. Setting
+  // one is `POST /api/v1/admin/admin-users/:id/password`, which revokes the
+  // target's sessions and has its own audit action; a `password` accepted here
+  // would be a password write that does neither.
+  it.each(['password', 'currentPassword', 'newPassword', 'passwordHash'])(
+    'refuses `%s`',
+    (field) => {
+      const result = updateAdminUserRequestSchema.safeParse({
+        firstName: 'Ada',
+        [field]: 'a-new-strong-pass-456!',
+      });
+      expect(result.success).toBe(false);
+    },
+  );
+
+  it('accepts the fields it is for', () => {
+    expect(
+      updateAdminUserRequestSchema.safeParse({ firstName: 'Ada', status: 'inactive' }).success,
+    ).toBe(true);
   });
 });

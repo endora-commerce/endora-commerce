@@ -1435,6 +1435,7 @@
   "profile.field.role": "Rola",
   "profile.identityTitle": "Tożsamość",
   "profile.info.nothingToSave": "Nic do zapisania.",
+  "profile.info.passwordChanged": "Hasło zostało zmienione. W tym miejscu pozostajesz zalogowany; wszystkie pozostałe sesje Twojego konta zostały wylogowane.",
   "profile.info.updated": "Profil zaktualizowany.",
   "profile.loading": "Ładowanie…",
   "profile.page.descriptionPrefix": "Edytuj swoje imię i nazwisko oraz zmień hasło. Rolą i statusem zarządza administrator z uprawnieniem",

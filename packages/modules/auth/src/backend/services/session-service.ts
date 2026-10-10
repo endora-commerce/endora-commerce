@@ -98,6 +98,17 @@ export class SessionService {
     if (session.expiresAt.getTime() <= Date.now()) return null;
 
     await this.cache(session);
+    // A cache entry must not outlive the row it was filled from. A revocation
+    // that landed between the read above and the fill has already cleared the
+    // key, so the fill would bring the revoked session back until it expired.
+    // Looking again after the write closes it from this side: either the row
+    // is still there — and any later revocation clears the key after this
+    // write, because it removes rows before keys — or it is gone and the entry
+    // is taken back out.
+    if ((await em.count(Session, { id: sessionId })) === 0) {
+      await this.redis.del(REDIS_KEY_PREFIX + sessionId);
+      return null;
+    }
     return { session, kind: deriveKind(session) };
   }
 
@@ -123,33 +134,54 @@ export class SessionService {
     const em = this.emFactory();
     const sessions = await em.find(Session, { customerAccountId });
     if (sessions.length === 0) return;
-    for (const session of sessions) {
-      await this.redis.del(REDIS_KEY_PREFIX + session.id);
-    }
+    // Rows first, cache keys second — see `destroyAllForAdmin`.
+    const ids = sessions.map((session) => session.id);
     await em.removeAndFlush(sessions);
+    for (const id of ids) {
+      await this.redis.del(REDIS_KEY_PREFIX + id);
+    }
   }
 
   /**
    * Revoke every session an admin user holds — both the sessions they signed
    * in with and the impersonations they started, which carry the admin id in
    * `impersonatorAdminUserId` and a customer id in `customerAccountId`. Used
-   * when a peer resets their password (issue #252): a session that survives
+   * when their password changes or their account is withdrawn. It began with
+   * the peer reset (issue #252): a session that survives
    * the reset is a credential the reset did not withdraw, which is exactly
    * what the compromised-account case needs withdrawn.
+   *
+   * `exceptSessionId` keeps one of them: the session an administrator changed
+   * their own password from. It is applied as a filter over this
+   * administrator's sessions, so an id that is not one of theirs spares
+   * nothing.
    */
-  async destroyAllForAdmin(adminUserId: string): Promise<void> {
+  async destroyAllForAdmin(
+    adminUserId: string,
+    options: { exceptSessionId?: string } = {},
+  ): Promise<void> {
     // command-coverage-ignore: session lifecycle — revokes all sessions for an
     // admin; auth infrastructure. The domain-state write that triggers it is
-    // audited by its own caller (`admin_user.change_password`).
+    // audited by its own caller (`admin_user.change_password`,
+    // `admin_user.update`, `admin_user.delete`).
     const em = this.emFactory();
-    const sessions = await em.find(Session, {
+    const held = await em.find(Session, {
       $or: [{ adminUserId }, { impersonatorAdminUserId: adminUserId }],
     });
+    const sessions =
+      options.exceptSessionId === undefined
+        ? held
+        : held.filter((session) => session.id !== options.exceptSessionId);
     if (sessions.length === 0) return;
-    for (const session of sessions) {
-      await this.redis.del(REDIS_KEY_PREFIX + session.id);
-    }
+    // Rows first, cache keys second. The other order left a window in which a
+    // request from a session being revoked found its key gone, read the row
+    // that was still there and cached it again — after which the row was
+    // deleted and the cache answered for it for up to thirty days.
+    const ids = sessions.map((session) => session.id);
     await em.removeAndFlush(sessions);
+    for (const id of ids) {
+      await this.redis.del(REDIS_KEY_PREFIX + id);
+    }
   }
 
   /**

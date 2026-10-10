@@ -67,17 +67,55 @@ async function resolveAdminActor(request: FastifyRequest): Promise<AdminActorSli
   return actor;
 }
 
-/** Gate a route on an admin session, optionally holding one permission code. */
+function adminSessionRequired(): HttpError {
+  return new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+}
+
+/**
+ * Refuse a session whose account may no longer act — deactivated, deleted or
+ * gone — as **not signed in**.
+ *
+ * Every write that withdraws an account also revokes its sessions, but that is
+ * a step each of them has to remember, and a session row can outlive one that
+ * forgot: the bootstrap CLI, a direct database edit, a write added later. This
+ * is the check that does not depend on any of them. Before it, a route gated on
+ * the session alone answered such a session in full, and a permission-gated
+ * one answered 403 — "you lack a permission" — to somebody who is not an
+ * administrator any more.
+ *
+ * 401 rather than 403 on purpose: the Admin UI signs out on a 401, which is
+ * exactly what should happen to this browser.
+ */
+async function assertActiveAccount(
+  permissionService: AdminPermissionChecker,
+  adminUserId: string,
+): Promise<void> {
+  if (!(await permissionService.isActiveAdministrator(adminUserId))) {
+    throw adminSessionRequired();
+  }
+}
+
+/**
+ * Gate a route on an admin session, optionally holding one permission code.
+ *
+ * The account check costs a read, so it is made where it can change the
+ * answer: always on a route with no permission code, and on a permission-gated
+ * route only once the permission check has said no — a granted permission
+ * already proves an active account, and a refused one is then told apart as
+ * 401 (no longer an administrator) or 403 (an administrator without the code).
+ */
 export function createRequireAdmin({ permissionService }: RequireAdminDeps): RequireAdminFactory {
   return (permission?: string) =>
     async (request): Promise<void> => {
       const actor = await resolveAdminActor(request);
-      if (!actor) {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
+      if (!actor) throw adminSessionRequired();
+      if (!permission) {
+        await assertActiveAccount(permissionService, actor.adminUserId);
+        return;
       }
-      if (!permission) return;
       const ok = await permissionService.hasPermission(actor.adminUserId, permission);
       if (!ok) {
+        await assertActiveAccount(permissionService, actor.adminUserId);
         throw new HttpError(403, ERROR_CODES.FORBIDDEN, `Missing permission: ${permission}.`);
       }
     };
@@ -97,12 +135,11 @@ export function createRequireAdminAny({
   return (codes) =>
     async (request): Promise<void> => {
       const actor = await resolveAdminActor(request);
-      if (!actor) {
-        throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-      }
+      if (!actor) throw adminSessionRequired();
       for (const code of codes) {
         if (await permissionService.hasPermission(actor.adminUserId, code)) return;
       }
+      await assertActiveAccount(permissionService, actor.adminUserId);
       throw new HttpError(
         403,
         ERROR_CODES.FORBIDDEN,

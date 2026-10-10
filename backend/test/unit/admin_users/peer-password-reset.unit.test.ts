@@ -16,13 +16,14 @@ import { AdminUserService } from '../../../../packages/modules/admin_users/src/b
 /**
  * Issue #252 — the peer password-reset seam, on its three claims:
  *
- *   1. the target's sessions are revoked **before** the new hash is flushed,
- *      so a refusal at the seam leaves the account exactly as it was rather
- *      than pairing a new password with the old password's sessions;
+ *   1. the new hash is flushed **before** the target's sessions are revoked,
+ *      so no session can be obtained with the old password after the
+ *      revocation — revoking first left a sign-in between the two steps
+ *      holding a session nothing would revoke;
  *   2. the audit row names the action and the route taken and carries neither
  *      the password nor its hash;
- *   3. nothing catches a refusal from `auth` — the reset fails closed instead
- *      of reporting a success it did not achieve.
+ *   3. nothing catches a refusal from `auth` — the reset reports the failure
+ *      instead of a success it did not achieve.
  */
 
 const OLD_PASSWORD = 'the-original-strong-pass';
@@ -80,7 +81,7 @@ function recordingAuditLog(entries: AuditRecord[]): AuditLogService {
 const rolePort = {} as unknown as AdminRolePort;
 
 describe('admin_users — peer password reset', () => {
-  it('revokes the target sessions before flushing the new hash', async () => {
+  it('flushes the new hash before revoking the target sessions', async () => {
     const admin = await makeAdmin();
     const steps: string[] = [];
     const entries: AuditRecord[] = [];
@@ -99,7 +100,7 @@ describe('admin_users — peer password reset', () => {
 
     const updated = await service.resetPassword('a-1', NEW_PASSWORD);
 
-    expect(steps).toEqual(['revoke:a-1', 'flush']);
+    expect(steps).toEqual(['flush', 'revoke:a-1']);
     expect(await verifyPassword(updated.passwordHash, NEW_PASSWORD)).toBe(true);
     expect(await verifyPassword(updated.passwordHash, OLD_PASSWORD)).toBe(false);
   });
@@ -134,7 +135,7 @@ describe('admin_users — peer password reset', () => {
     expect(serialised).not.toContain('$argon2');
   });
 
-  it('fails closed when the session seam refuses, leaving the password alone', async () => {
+  it('reports a refusal from the session seam instead of a success', async () => {
     const admin = await makeAdmin();
     const originalHash = admin.passwordHash;
     const steps: string[] = [];
@@ -153,9 +154,11 @@ describe('admin_users — peer password reset', () => {
     );
 
     await expect(service.resetPassword('a-1', NEW_PASSWORD)).rejects.toThrow('MODULE_DISABLED');
-    expect(admin.passwordHash).toBe(originalHash);
-    expect(steps).not.toContain('flush');
-    expect(entries).toHaveLength(0);
+    // The new password is in force by then: the write precedes the revocation
+    // on purpose, and the caller is told the reset did not complete.
+    expect(admin.passwordHash).not.toBe(originalHash);
+    expect(steps).toEqual(['flush']);
+    expect(entries).toHaveLength(1);
   });
 
   it('404s on an admin user that is not there', async () => {

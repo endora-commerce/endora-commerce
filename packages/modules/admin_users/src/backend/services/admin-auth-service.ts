@@ -6,10 +6,8 @@ import {
   type MfaLoginPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
+import { verifyPassword } from '@endora-commerce/platform/kernel';
 import { AdminUser } from '../entities/admin-user.entity.js';
-import { recordAuditFromContext } from '@endora-commerce/platform/commands';
-import type { AuditPort } from '@endora-commerce/platform/kernel';
 
 /**
  * AdminAuthService (T186; two-step login added in feature 042). login →
@@ -36,7 +34,6 @@ export class AdminAuthService {
     private readonly sessionPort: AuthSessionPort,
     /** Lazily resolved so composition can late-bind the MFA module. */
     private readonly getMfaLoginPort?: () => MfaLoginPort | undefined,
-    private readonly auditLog?: AuditPort,
   ) {}
 
   async login(input: {
@@ -96,36 +93,14 @@ export class AdminAuthService {
     };
   }
 
-  async changePassword(
-    adminUserId: string,
-    currentPassword: string,
-    newPassword: string,
-  ): Promise<void> {
-    const em = this.emFactory();
-    const admin = await em.findOne(AdminUser, { id: adminUserId, deletedAt: null });
-    if (!admin) {
-      throw new HttpError(401, ERROR_CODES.UNAUTHORIZED, 'Admin session required.');
-    }
-    const ok = await verifyPassword(admin.passwordHash, currentPassword);
-    if (!ok) {
-      throw new HttpError(
-        401,
-        ERROR_CODES.CURRENT_PASSWORD_INVALID,
-        'Current password is incorrect.',
-      );
-    }
-    admin.passwordHash = await hashPassword(newPassword);
-    if (this.auditLog) {
-      recordAuditFromContext(this.auditLog, em, {
-        action: 'admin_user.change_password',
-        objectType: 'admin_user',
-        objectId: admin.id,
-        stateBefore: null,
-        stateAfter: { via: 'self_service' },
-      });
-    }
-    await em.flush();
-  }
+  /*
+   * There is deliberately no `changePassword` here. One stood in this class
+   * with no caller: it verified the current password and audited
+   * `admin_user.change_password`, but answered a wrong one with 401 — which the
+   * Admin UI reads as an expired session — and revoked nothing. The one
+   * implementation is `AdminUserService.updateSelf`, behind
+   * `PATCH /api/v1/admin/me`.
+   */
 
   async logout(sessionId: string): Promise<void> {
     await this.sessionPort.destroySession(sessionId);

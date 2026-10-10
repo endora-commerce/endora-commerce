@@ -288,6 +288,7 @@ describe('the route decides which session a request runs as', () => {
 
     const permissionService = {
       hasPermission: async (_adminUserId: string, code: string) => permitted.has(code),
+      isActiveAdministrator: async () => true,
     };
     const requireAdmin = createRequireAdmin({ permissionService });
     const requireAdminAny = createRequireAdminAny({ permissionService });

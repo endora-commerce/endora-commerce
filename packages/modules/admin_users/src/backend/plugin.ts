@@ -83,7 +83,6 @@ export function adminModule(
     options.emFactory,
     options.authSessionPort,
     options.getMfaLoginPort,
-    options.auditLogService,
   );
   const impersonationService = new ImpersonationService(
     options.emFactory,
@@ -96,6 +95,7 @@ export function adminModule(
     options.adminRolePort,
     options.authSessionPort,
     options.auditLogService,
+    options.getMfaLoginPort,
   );
   const handle: AdminModuleHandle = {
     adminAuthService,
