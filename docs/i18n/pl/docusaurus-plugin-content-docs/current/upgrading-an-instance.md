@@ -459,8 +459,10 @@ niczego więcej; uprawnienia kanałów sprzedaży nie są potrzebne.
 
 **Jeśli Twój własny moduł tworzy metodę dostawy lub płatności w swoim `installHook`**, funkcja
 `bindToDefaultChannel` zniknęła z interfejsu tworzenia metod: usuń jej wywołanie po
-`ensureMethodForAdapter`. Moduł nie skompiluje się, dopóki tego nie zrobisz, i nic jej nie
-zastępuje — utworzona metoda jest dostępna w każdym kanale.
+`ensureMethodForAdapter`. Nic jej nie zastępuje — utworzona metoda jest dostępna w każdym kanale.
+Źródła modułu nie skompilują się, dopóki tego nie zrobisz. Wcześniej opublikowana wersja modułu
+nie jest kompilowana ponownie, więc zawiedzie później — błędem `TypeError` w `installHook`, gdy po
+raz pierwszy będzie tworzyć swoją metodę — i trzeba ją wydać ponownie dla tego wydania.
 
 **W istniejącym storefroncie**, który zachowuje źródła, z jakimi go utworzono, ani wywołania
 dotyczące zamówień, ani oba katalogi metod nie informują backendu, w którym kanale jest kupujący:
@@ -485,6 +487,13 @@ zamówienie trafiałoby do innego i byłoby odrzucane:
   - dodaj ten sam parametr do obu prywatnych funkcji, `fetchDeliveryMethods(ctx: RequestContext)`
     i `fetchPaymentMethods(ctx: RequestContext)`, i w każdej przekaż `ctx` jako drugi argument jej
     wywołania `apiGet`.
+- W plikach `test/checkout/delivery-catalogue-absence.test.tsx` i
+  `test/checkout/payment-catalogue-absence.test.tsx`, które utworzony storefront zawiera i które
+  obejmuje jego `tsconfig.json`, obie funkcje są wywoływane bez argumentu — po cztery razy w każdym
+  pliku. Zmień każde `listDeliveryMethods()` na `listDeliveryMethods({})` i każde
+  `listPaymentMethods()` na `listPaymentMethods({})`. Bez tego sprawdzenie typów storefrontu kończy
+  się błędem `Expected 1 arguments, but got 0` w tych dwóch plikach. Pomiń ten krok, jeśli je
+  usunąłeś.
 - Przekaż kontekst w miejscach wywołań. `getServerContext` jest już importowany we wszystkich
   czterech plikach:
   - `app/(commerce)/checkout/page.tsx`: komponent strony zawiera
@@ -510,10 +519,11 @@ aby strony renderowały się we właściwym kanale.
 Na ile zostało to sprawdzone: zachowanie backendu — kanał zamówienia, listę metod i odmowy —
 nagłówek w każdym z siedmiu wywołań storefrontu oraz zmianę minimalnej wartości zamówienia w
 instancji z jednym kanałem obejmują testy wydania. Powyższe zmiany w storefroncie naniesiono
-dokładnie tak, jak je opisano, na siedem plików w postaci z wydania `0.104.0`, po czym storefront
-przeszedł sprawdzenie typów; nie uruchomiono ich w storefroncie utworzonym we wcześniejszym
-wydaniu, a ekranów panelu administracyjnego ani składania zamówienia nie obejrzano w przeglądarce
-na instancji z dwoma kanałami.
+dokładnie tak, jak je opisano, na cały katalog `storefront/` w postaci z wydania `0.104.0` —
+siedem plików źródłowych i dwa pliki testów — po czym `tsc --noEmit` zakończył się powodzeniem, a
+oba pliki testów przeszły; zrobiono to w repozytorium samej platformy, z pakietami tego wydania, a
+nie w storefroncie utworzonym we wcześniejszym wydaniu, a ekranów panelu administracyjnego ani
+składania zamówienia nie obejrzano w przeglądarce na instancji z dwoma kanałami.
 
 ## Instancja niespójna od początku
 

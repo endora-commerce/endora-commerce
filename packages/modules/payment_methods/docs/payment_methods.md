@@ -210,8 +210,13 @@ default channel. So an assignment is never lost as a side effect of another
 operation: a method is offered everywhere only because it was saved with no
 channel chosen, or was seeded without one as described above. A save that names
 a sales channel which does not exist is refused with `400 VALIDATION_FAILED`
-before anything is written, and if assigning the channels of a **new** method
-fails the method is not created.
+before anything is written. If assigning the channels of a **new** method still
+fails, the creation is taken back: the method is removed again — without asking
+`payments`, since nothing can reference a method created in the same request, so
+this works with `payments` switched off too — and the request answers with the
+failure. Should the removal itself fail, the method is left **inactive** rather
+than active with no channel, so the worst outcome is a method that is not
+offered.
 
 **Upgrading an instance with more than one sales channel: review every method.**
 Before this rule the storefront listed every active method on every channel and

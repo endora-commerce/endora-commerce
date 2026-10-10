@@ -440,8 +440,10 @@ else; the sales-channel permissions are not required.
 
 **If your own module seeds a delivery or payment method from its install hook**,
 `bindToDefaultChannel` is gone from the seed surface: delete the call after
-`ensureMethodForAdapter`. The module does not compile until you do, and nothing replaces it — the
-seeded method is offered on every channel.
+`ensureMethodForAdapter`. Nothing replaces it — the seeded method is offered on every channel. The
+module's source does not compile until you do. A build of it that was published earlier is not
+compiled again, so it fails later instead — with a `TypeError` in its install hook the first time
+it creates its method — and has to be re-released for this version.
 
 **In an existing storefront**, which keeps the source it was created with, neither the order calls
 nor the two method catalogues tell the backend which channel the buyer is on: they are made without
@@ -466,6 +468,12 @@ would be refused:
   - give the two private functions the same parameter, `fetchDeliveryMethods(ctx: RequestContext)`
     and `fetchPaymentMethods(ctx: RequestContext)`, and in each pass `ctx` as the second argument
     of its `apiGet` call.
+- In `test/checkout/delivery-catalogue-absence.test.tsx` and
+  `test/checkout/payment-catalogue-absence.test.tsx`, which a created storefront carries and its
+  `tsconfig.json` includes, the two functions are called without an argument — four times in each
+  file. Change every `listDeliveryMethods()` to `listDeliveryMethods({})` and every
+  `listPaymentMethods()` to `listPaymentMethods({})`. Without this the storefront's type-check
+  fails with `Expected 1 arguments, but got 0` in those two files. Skip it if you have deleted them.
 - Pass the context at the call sites. `getServerContext` is already imported in all four files:
   - `app/(commerce)/checkout/page.tsx`: the page component reads
     `const { locale } = await getServerContext();` — change it to
@@ -489,10 +497,11 @@ host for the pages to render in the right channel.
 How far this has been exercised: the backend behaviour — the order's channel, the method listing
 and the refusals — the header on each of the seven storefront calls and the single-channel
 minimum-order-value change are covered by the release's tests. The storefront edits above were
-applied exactly as written to the seven files as they are in `0.104.0` and the storefront
-type-checked; they were not run in a storefront created by an earlier release, and neither the
-Admin UI screens nor the checkout were looked at in a browser against an instance with two
-channels.
+applied exactly as written to the whole `storefront/` directory as it is in `0.104.0` — the seven
+source files and the two test files — after which `tsc --noEmit` passed and the two test files ran
+green; that was done inside the platform's own repository against the packages of this release,
+not in a storefront created by an earlier release, and neither the Admin UI screens nor the
+checkout were looked at in a browser against an instance with two channels.
 
 ## An instance that is mixed from the start
 

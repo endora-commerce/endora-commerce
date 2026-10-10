@@ -36,6 +36,7 @@ async function rig(options: {
   existing: boolean;
   membershipFails: boolean;
   deleteFails?: boolean;
+  deactivateFails?: boolean;
 }): Promise<Rig> {
   const commands: string[] = [];
   const logged: unknown[] = [];
@@ -63,6 +64,12 @@ async function rig(options: {
         commands.push(`${command.action}:${command.objectId}`);
         if (command.action.endsWith('.delete')) {
           if (options.deleteFails) throw new Error('delete failed');
+          return undefined;
+        }
+        // The first command of a request is the upsert itself; a later
+        // `.update` in a request that created the row is the deactivation.
+        if (commands.length > 1 && command.action.endsWith('.update')) {
+          if (options.deactivateFails) throw new Error('deactivate failed');
           return undefined;
         }
         return { method: row, created: !options.existing };
@@ -119,14 +126,37 @@ describe('delivery-method upsert — a failed channel assignment', () => {
     expect(r.commands).toEqual([`delivery_method.update:${METHOD_ID}`]);
   });
 
-  it('still reports the original failure, and says so loudly, when the take-back fails too', async () => {
+  /**
+   * The take-back is a removal that asks nobody: the row was created in this
+   * request, so nothing can reference it. If the removal fails all the same,
+   * the method is set inactive — never left active and bound to nothing.
+   */
+  it('sets the new method inactive when it cannot be removed, and still reports the original failure', async () => {
     const r = await rig({ existing: false, membershipFails: true, deleteFails: true });
 
     await expect(r.put({ ...BODY, salesChannelIds: [CHANNEL] })).rejects.toThrow(
       'the bridge is unavailable',
     );
 
+    expect(r.commands).toHaveLength(3);
+    expect(r.commands[1]).toBe(`delivery_method.delete:${METHOD_ID}`);
+    expect(r.commands[2]).toBe(`delivery_method.update:${METHOD_ID}`);
     expect(r.logged).toHaveLength(1);
+  });
+
+  it('says so loudly, and still reports the original failure, when it can be neither removed nor deactivated', async () => {
+    const r = await rig({
+      existing: false,
+      membershipFails: true,
+      deleteFails: true,
+      deactivateFails: true,
+    });
+
+    await expect(r.put({ ...BODY, salesChannelIds: [CHANNEL] })).rejects.toThrow(
+      'the bridge is unavailable',
+    );
+
+    expect(r.logged).toHaveLength(2);
   });
 
   it('deletes nothing when the assignment succeeds', async () => {

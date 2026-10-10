@@ -189,8 +189,11 @@ kanałem metody, jest odrzucane albo przepina metodę do kanału domyślnego. Pr
 więc jako skutek uboczny innej operacji: metoda jest dostępna wszędzie tylko dlatego, że zapisano
 ją bez wybranego kanału albo utworzono bez przypisania, jak opisano wyżej. Zapis wskazujący kanał
 sprzedaży, który nie istnieje, jest odrzucany odpowiedzią `400 VALIDATION_FAILED`, zanim cokolwiek
-zostanie zapisane, a jeśli przypisanie kanałów **nowej** metody się nie powiedzie, metoda nie
-zostaje utworzona.
+zostanie zapisane. Jeśli przypisanie kanałów **nowej** metody mimo to się nie powiedzie,
+utworzenie jest wycofywane: metoda zostaje usunięta — bez pytania modułu `payments`, bo do metody
+utworzonej w tym samym żądaniu nic nie może się odwoływać, więc działa to także przy wyłączonym
+`payments` — a żądanie kończy się błędem. Gdyby samo usunięcie się nie powiodło, metoda pozostaje
+**nieaktywna**, a nie aktywna bez kanału, więc w najgorszym razie po prostu nie jest oferowana.
 
 **Aktualizacja instancji z więcej niż jednym kanałem sprzedaży: przejrzyj każdą metodę.**
 Dotychczas sklep pokazywał każdą aktywną metodę w każdym kanale i pomijał przypisanie. Kolumna

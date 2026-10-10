@@ -427,67 +427,89 @@ describe('order placement — methods must be offered in the order’s sales cha
       expect(await basketSnapshot()).toBe(before);
     });
 
-    it('one-click buy — which is not offered, and when attempted anyway changes nothing', async () => {
-      // One-click buy on for both channels, and the buyer's default delivery
-      // method is one only channel B offers.
-      await h.settings.adminService.setValueForSubset(
-        ONE_CLICK_ENABLED,
-        [channelA.code, channelB.code],
-        true,
-        null,
-        { actorAdminUserId: null },
-      );
-      await h.settings.cache.invalidate(ONE_CLICK_ENABLED);
-      const prefs = await h.app.inject({
-        method: 'PUT',
-        url: '/api/v1/quick-order/preferences',
-        cookies: CUSTOMER,
-        payload: {
-          scope: 'customer',
-          scopeId: TEST_CUSTOMER_ID,
-          defaultPaymentMethodId: SEED_PAYMENT_METHOD_ID,
+    /**
+     * Once per kind of default: a **delivery** default the channel does not
+     * offer, and a **payment** default it does not offer. They are two
+     * predicates in `DefaultPreferenceService`, and a channel-blind payment one
+     * is invisible to a test that only ever restricts the delivery default.
+     */
+    it.each([
+      {
+        kind: 'delivery',
+        defaults: (): { defaultDeliveryMethodId: string; defaultPaymentMethodId: string } => ({
           defaultDeliveryMethodId: deliveryOnlyB,
-          defaultBillingAddressId: SEED_ADDRESS_BILLING_ID,
-          defaultShippingAddressId: SEED_ADDRESS_DELIVERY_ID,
-        },
-      });
-      expect(prefs.statusCode).toBe(200);
+          defaultPaymentMethodId: SEED_PAYMENT_METHOD_ID,
+        }),
+      },
+      {
+        kind: 'payment',
+        defaults: (): { defaultDeliveryMethodId: string; defaultPaymentMethodId: string } => ({
+          defaultDeliveryMethodId: SEED_DELIVERY_METHOD_ID,
+          defaultPaymentMethodId: paymentOnlyB,
+        }),
+      },
+    ])(
+      'one-click buy with a $kind default the channel does not offer — not offered, and when attempted anyway changes nothing',
+      async ({ defaults }) => {
+        // One-click buy on for both channels.
+        await h.settings.adminService.setValueForSubset(
+          ONE_CLICK_ENABLED,
+          [channelA.code, channelB.code],
+          true,
+          null,
+          { actorAdminUserId: null },
+        );
+        await h.settings.cache.invalidate(ONE_CLICK_ENABLED);
+        const prefs = await h.app.inject({
+          method: 'PUT',
+          url: '/api/v1/quick-order/preferences',
+          cookies: CUSTOMER,
+          payload: {
+            scope: 'customer',
+            scopeId: TEST_CUSTOMER_ID,
+            ...defaults(),
+            defaultBillingAddressId: SEED_ADDRESS_BILLING_ID,
+            defaultShippingAddressId: SEED_ADDRESS_DELIVERY_ID,
+          },
+        });
+        expect(prefs.statusCode).toBe(200);
 
-      const eligibility = async (channelCode?: string): Promise<unknown> =>
-        (
+        const eligibility = async (channelCode?: string): Promise<unknown> =>
           (
-            await h.app.inject({
-              method: 'GET',
-              url: '/api/v1/quick-order/one-click/eligibility',
-              cookies: CUSTOMER,
-              ...(channelCode ? { headers: { 'x-sales-channel': channelCode } } : {}),
-            })
-          ).json() as { data: unknown }
-        ).data;
+            (
+              await h.app.inject({
+                method: 'GET',
+                url: '/api/v1/quick-order/one-click/eligibility',
+                cookies: CUSTOMER,
+                ...(channelCode ? { headers: { 'x-sales-channel': channelCode } } : {}),
+              })
+            ).json() as { data: unknown }
+          ).data;
 
-      // Not offered on the channel that does not offer the default method…
-      expect(await eligibility()).toEqual({ enabled: false, reason: 'missing_defaults' });
-      // …and offered on the one that does: the answer is about the channel, not
-      // about a one-click buy that is broken for this buyer everywhere.
-      expect(await eligibility(channelB.code)).toEqual({ enabled: true, reason: null });
+        // Not offered on the channel that does not offer the default method…
+        expect(await eligibility()).toEqual({ enabled: false, reason: 'missing_defaults' });
+        // …and offered on the one that does: the answer is about the channel,
+        // not about a one-click buy that is broken for this buyer everywhere.
+        expect(await eligibility(channelB.code)).toEqual({ enabled: true, reason: null });
 
-      await freshBasket();
-      const before = await basketSnapshot();
+        await freshBasket();
+        const before = await basketSnapshot();
 
-      const res = await h.app.inject({
-        method: 'POST',
-        url: '/api/v1/quick-order/one-click',
-        cookies: CUSTOMER,
-        payload: { productId: SEED_PRODUCT_101_ID, quantity: 5 },
-      });
+        const res = await h.app.inject({
+          method: 'POST',
+          url: '/api/v1/quick-order/one-click',
+          cookies: CUSTOMER,
+          payload: { productId: SEED_PRODUCT_101_ID, quantity: 5 },
+        });
 
-      expect(res.statusCode).toBe(422);
-      expect((res.json() as { error: { details: unknown } }).error.details).toMatchObject({
-        code: 'one_click_unavailable',
-        reason: 'missing_defaults',
-      });
-      expect(await basketSnapshot()).toBe(before);
-    });
+        expect(res.statusCode).toBe(422);
+        expect((res.json() as { error: { details: unknown } }).error.details).toMatchObject({
+          code: 'one_click_unavailable',
+          reason: 'missing_defaults',
+        });
+        expect(await basketSnapshot()).toBe(before);
+      },
+    );
   });
 
 });

@@ -12,7 +12,9 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
+  makeDeactivateCreatedPaymentMethodCommand,
   makeDeletePaymentMethodCommand,
+  makeWithdrawCreatedPaymentMethodCommand,
   makeSetPaymentMethodStatusCommand,
   makeUpsertPaymentMethodCommand,
 } from './commands/payment-method.commands.js';
@@ -316,16 +318,14 @@ export async function registerPaymentMethodsAdminRoutes(
           // back, and the caller is told it failed. An update needs nothing
           // here: its assignment is replaced in one transaction of the bridge's
           // own, so a failure leaves the method offered exactly where it was.
+          //
+          // The take-back does not go through the operator's delete and its
+          // `payments` usage guard — a row created in this request cannot be
+          // referenced, and the guard refuses whenever `payments` is off —
+          // and if the removal itself fails the row is left **inactive**, so
+          // the worst outcome is a method that is not offered.
           if (created) {
-            await deps.commandBus
-              .run(makeDeletePaymentMethodCommand(row.id, { paymentRead: deps.paymentRead }))
-              .catch((cleanupError: unknown) => {
-                request.log.error(
-                  { err: cleanupError, paymentMethodId: row.id },
-                  '[payment_methods] a new method whose channel assignment failed could not be removed; ' +
-                    'it is offered on every sales channel until an operator assigns or deletes it',
-                );
-              });
+            await withdrawCreatedMethod(deps, row.id, request);
           }
           throw error;
         }
@@ -385,6 +385,38 @@ function assertValidStatus(registry: OrderStatusRegistry, ref: string): void {
       throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, `Unknown order status "${ref}".`);
     }
     throw err;
+  }
+}
+
+/**
+ * Removes a method this request created, or — failing that — leaves it inactive.
+ * Never throws: the caller is already reporting the failure that made this
+ * necessary, and that is the one the client must see.
+ */
+async function withdrawCreatedMethod(
+  deps: PaymentMethodsAdminDeps,
+  methodId: string,
+  request: FastifyRequest,
+): Promise<void> {
+  try {
+    await deps.commandBus.run(makeWithdrawCreatedPaymentMethodCommand(methodId));
+    return;
+  } catch (removeError) {
+    request.log.error(
+      { err: removeError, paymentMethodId: methodId },
+      '[payment_methods] a new method whose channel assignment failed could not be removed; ' +
+        'setting it inactive instead',
+    );
+  }
+  try {
+    await deps.commandBus.run(makeDeactivateCreatedPaymentMethodCommand(methodId));
+  } catch (deactivateError) {
+    request.log.error(
+      { err: deactivateError, paymentMethodId: methodId },
+      '[payment_methods] a new method whose channel assignment failed could be neither removed nor ' +
+        'set inactive; it is active with no channel assignment — offered on every sales ' +
+        'channel — until an operator assigns, deactivates or deletes it',
+    );
   }
 }
 

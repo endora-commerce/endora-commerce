@@ -153,13 +153,28 @@ with `400 VALIDATION_FAILED`:
 
 ### A method that fails both
 
-The two refusals are independent, and a request is checked in a fixed order:
-the Organization's allow-lists first, then that the method is active, then its
-adapter's own validator, then the order's channel. So a method that is both
+The two refusals are independent, and on every route the Organization's
+allow-lists are asked **before** the order's channel. So a method that is both
 outside the Organization's allow-list **and** not offered on the order's channel
 is refused with the allow-list code (`…_not_allowed_for_organization`); the
 channel code (`…_not_in_sales_channel`) is what a method reports when the
 Organization may use it — or has no list — and the channel does not offer it.
+
+Where "the method is active" and the adapter's own validator fall between the
+two differs by route:
+
+- **Storefront placement and one-click buy** (`placeOrder`) — allow-lists, then
+  the method is active, then its adapter's validator, then the channel.
+- **Storefront preview** — allow-lists, then the method is active, then the
+  channel; the adapter's validator is not run for a preview.
+- **Admin order creation and the API-key intake** — allow-lists and the channel
+  are both asked first, before the customer's basket is touched; the order then
+  goes through `placeOrder`, which repeats them around the active and adapter
+  checks. An inactive method that is also not offered on the channel therefore
+  reports the channel code on these two routes, and "not active" on the
+  storefront.
+- **Admin preview** — allow-lists, then the channel; an inactive method is not
+  refused by a preview.
 
 ## Status machine (configurable)
 

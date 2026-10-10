@@ -151,12 +151,25 @@ odrzucają metodę, która nie jest dostępna w kanale **zamówienia**, odpowied
 
 ### Metoda, która nie przechodzi obu sprawdzeń
 
-Obie odmowy są niezależne, a żądanie jest sprawdzane w stałej kolejności: najpierw listy
-dozwolonych metod organizacji, potem to, czy metoda jest aktywna, potem walidator jej adaptera,
-a na końcu kanał zamówienia. Dlatego metoda, która jest jednocześnie poza listą dozwolonych metod
+Obie odmowy są niezależne, a na każdej trasie listy dozwolonych metod organizacji są sprawdzane
+**przed** kanałem zamówienia. Dlatego metoda, która jest jednocześnie poza listą dozwolonych metod
 organizacji **i** niedostępna w kanale zamówienia, jest odrzucana z kodem listy
 (`…_not_allowed_for_organization`); kod kanału (`…_not_in_sales_channel`) zwraca metoda, której
 organizacja może używać — albo która nie ma listy — a kanał jej nie udostępnia.
+
+To, gdzie między tymi dwoma sprawdzeniami wypada „metoda jest aktywna” i walidator adaptera,
+zależy od trasy:
+
+- **Składanie zamówienia w sklepie i zakup jednym kliknięciem** (`placeOrder`) — listy, potem
+  aktywność metody, potem walidator jej adaptera, potem kanał.
+- **Podgląd w sklepie** — listy, potem aktywność metody, potem kanał; walidator adaptera nie jest
+  uruchamiany dla podglądu.
+- **Tworzenie zamówienia w panelu i przyjmowanie zamówień kluczem API** — listy i kanał są
+  sprawdzane najpierw, zanim koszyk klienta zostanie zmieniony; zamówienie przechodzi następnie
+  przez `placeOrder`, które powtarza je wokół sprawdzenia aktywności i adaptera. Nieaktywna
+  metoda, która jest też niedostępna w kanale, zwraca więc na tych dwóch trasach kod kanału, a w
+  sklepie — „metoda nieaktywna”.
+- **Podgląd w panelu** — listy, potem kanał; podgląd nie odrzuca nieaktywnej metody.
 
 ## Statusy i przejścia (konfigurowalne)
 

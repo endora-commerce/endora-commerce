@@ -42,9 +42,14 @@ channel is unaffected.
 **For authors of a gateway or carrier module.** `bindToDefaultChannel` is removed from
 `DeliveryMethodSeedApi` and `PaymentMethodSeedApi` (`@endora-commerce/mod-delivery-methods/ports`,
 `@endora-commerce/mod-payment-methods/ports`, and the seeders their `./install` subpaths create).
-An install hook that called it after `ensureMethodForAdapter` must delete the call — it does not
-compile otherwise — and needs no replacement: the seeded method is offered on every channel until
-an operator restricts it. A module that must seed a method restricted to particular channels has
+An install hook that called it after `ensureMethodForAdapter` must delete the call, and needs no
+replacement: the seeded method is offered on every channel until an operator restricts it. Two
+things follow for a module that still calls it. Its **source** no longer compiles against this
+release. And a **build published earlier** does not fail at compile time at all: the seeder object
+simply has no such method, so the module's install hook throws a `TypeError` the first time it
+creates its method — on a new instance, or on any instance where the method's row does not exist
+yet. An instance that already has the row is unaffected, because the hook only calls the bind for a
+row it has just created. Such modules must therefore be re-released for this version. A module that must seed a method restricted to particular channels has
 no seam for that at install; restrict it in the admin.
 
 **Permissions.** Choosing a method's sales channels is part of configuring the method:
