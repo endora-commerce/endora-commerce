@@ -320,9 +320,11 @@ działają inaczej, oraz to, co warto przenieść do istniejącego storefrontu i
 
 **Nowy moduł, CRM, nie zostaje dodany przez aktualizację.** `0.104.0` to pierwsze wydanie modułu
 `crm` (`@endora-commerce/mod-crm`): szanse sprzedaży z konfigurowalnym przepływem statusów,
-tablicą, kalendarzem i analityką, w panelu administracyjnym. Instancja po aktualizacji go nie
-ma — nie widać go na ekranie **Modules**, a `/crm/board` odpowiada *Page not found*. Żeby go
-dodać, w katalogu głównym instancji:
+tablicą, kalendarzem i analityką, w panelu administracyjnym. Instancja utworzona w wydaniu
+`0.103.x` lub wcześniejszym po aktualizacji go nie ma — nie widać go na ekranie **Modules**, a
+`/crm/board` odpowiada *Page not found*. (Instancja utworzona przez instalator wydania `0.104.0`
+już deklaruje ten pakiet, a `pnpm add` odpowiada *Already up to date*.) Żeby go dodać, w katalogu
+głównym instancji:
 
 ```bash
 pnpm add -w -E @endora-commerce/mod-crm@0.104.0
@@ -448,7 +450,8 @@ Po aktualizacji, zanim instancja znów przyjmie ruch:
    konto z każdego urządzenia, na którym wcześniej się na nie nie zalogowano. Jak dobrać wartość,
    mówi
    [punkt G3 listy kontrolnej pierwszego wdrożenia](./deployment/first-deployment-checklist.md#g3-wskaż-backendowi-któremu-serwerowi-pośredniczącemu-wolno-podawać-adres-ip-klienta).
-5. **W instancji z więcej niż jednym kanałem sprzedaży** przejrzyj każdą metodę dostawy i
+5. **W instancji z więcej niż jednym kanałem sprzedaży** — a jest nią każda instancja z
+   załadowanymi danymi demonstracyjnymi — przejrzyj każdą metodę dostawy i
    płatności (*Metody dostawy i płatności są udostępniane w wybranych kanałach sprzedaży* poniżej)
    i wprowadź zmiany z części [W istniejącym storefroncie](#after-0-105-0-storefront).
 6. **Przejrzyj definicje pól niestandardowych** na ekranie Pola niestandardowe. Aktualizacja
@@ -468,17 +471,24 @@ Po aktualizacji, zanim instancja znów przyjmie ruch:
 
 W dowolnym momencie:
 
-10. Dodaj dwa wiersze do pliku `.gitignore` instancji, który zachowuje treść, z jaką powstał:
+10. Dodaj trzy wiersze do pliku `.gitignore` instancji, który zachowuje treść, z jaką powstał:
 
     ```
     docs/build/
     docs/.docusaurus/
+    backend/var/
     ```
 
-    Zbudowanie strony dokumentacji instancji zapisuje oba katalogi, a gdy git je śledzi, różnica
-    po następnej aktualizacji to już nie `package.json` każdego członka workspace'u i plik
-    blokady. Jeśli któryś z nich jest już w repozytorium, uruchom raz
-    `git rm -r --cached docs/build docs/.docusaurus`: git nigdy nie ignoruje pliku, który śledzi.
+    Zbudowanie strony dokumentacji instancji zapisuje dwa pierwsze katalogi, a gdy git je śledzi,
+    różnica po aktualizacji to już nie `package.json` każdego członka workspace'u i plik
+    blokady — w aktualizacji opisanej na końcu tej sekcji były to 162 pliki. Jeśli któryś z nich
+    jest już w repozytorium, uruchom raz `git rm -r --cached docs/build docs/.docusaurus`: git
+    nigdy nie ignoruje pliku, który śledzi. `backend/var/` to miejsce, w którym zapisywane są
+    pliki przesłane do biblioteki zasobów, dopóki `assets.local.base_dir` ma wartość domyślną
+    `var/assets`. Plik `.gitignore` z żadnego wydania go nie obejmuje, więc katalog pojawia się
+    jako nieśledzony obok różnicy z aktualizacji. To dane Twojego sklepu, a nie źródła: trzymaj
+    go poza repozytorium i twórz jego kopię zapasową razem z bazą danych — baza odtworzona bez
+    niego zawiera zasoby, których plików brakuje.
 11. W instancji z załadowanym sklepem demonstracyjnym uruchom ponownie `pnpm run cli demo seed`.
     Demonstracyjna rola `sales_representative` dostała przy tworzeniu kod uprawnienia, którego
     nie deklaruje żaden moduł, przez co edytor ról odrzuca każdy zapis tej roli odpowiedzią
@@ -590,7 +600,9 @@ Zobacz [Zadania w tle](./modules/quote_requests.md#zadania-w-tle).
 w treści żądania, a gdy go nie było — używał kanału domyślnego; teraz używa kanału rozpoznanego dla
 żądania — `X-Sales-Channel`, `?salesChannel=`, mapa hostów, a w ostatniej kolejności kanał
 domyślny — i odrzuca treść żądania, która wskazuje inny kanał. Co to oznacza, zależy od liczby
-kanałów sprzedaży w instancji.
+kanałów sprzedaży w instancji. Instancja z załadowanymi danymi demonstracyjnymi ma dwa —
+`pl_retail`, domyślny, oraz `pl_b2b_vip` — więc dotyczy jej przypadek *Więcej niż jeden*, tutaj i
+przy metodach poniżej.
 
 - **Jeden kanał sprzedaży.** Zmienić może się jedna rzecz. Jeśli `orders.min_order_value` jest
   ustawione **dla kanału domyślnego**, a nie dla wszystkich kanałów, to nie było egzekwowane dla
@@ -626,6 +638,16 @@ kanału jest dostępna w każdym kanale.
     uruchomieniem; oraz metody z danych demonstracyjnych.
 
   Otwórz każdą metodę i wybierz jej kanały albo odznacz wszystkie, aby była dostępna wszędzie.
+- **Metoda dostawy utworzona w panelu administracyjnym we wcześniejszym wydaniu może nie być
+  oferowana przy składaniu zamówienia w żadnym kanale**, niezależnie od liczby kanałów w
+  instancji — i nie była też przed aktualizacją. Ekran nie wysyłał adaptera, więc metoda została
+  zapisana z własnym kodem jako adapterem, a jeśli ten kod nie jest kluczem zarejestrowanego
+  adaptera, nie ma czym jej oferować. To wydanie oznacza taki wiersz jako *Nieoferowana przy
+  składaniu zamówienia*, wraz z przyczyną. Otwórz metodę i wybierz adapter w nowym polu
+  **Adapter** — *Wysyłka własna (ręczna)* dla przesyłek, które nadajesz samodzielnie. Od tej
+  chwili jest oferowana w kanałach, do których jest przypisana, czyli dla metody utworzonej w ten
+  sposób — tylko w kanale domyślnym. Metod płatności to nie dotyczy: nie dało się utworzyć metody
+  z adapterem, który nie jest zarejestrowany.
 
 Przypisywanie kanałów sprzedaży wymaga `delivery_methods:write` / `payment_methods:write` i
 niczego więcej; uprawnienia kanałów sprzedaży nie są potrzebne.
@@ -1035,18 +1057,45 @@ Trzy kolejne zmiany, których storefront utworzony we wcześniejszym wydaniu nie
 Storefront zapisany przez CLI wydania `0.105.0` ma też w stopce wzmiankę o platformie; istniejący
 jej nie zyskuje.
 
-Na ile zostało to sprawdzone: zachowanie backendu — kanał zamówienia, listę metod i odmowy —
-nagłówek w każdym z siedmiu wywołań storefrontu oraz zmianę minimalnej wartości zamówienia w
-instancji z jednym kanałem obejmują testy wydania. Powyższe zmiany w storefroncie dotyczące kanału
-sprzedaży naniesiono dokładnie tak, jak je opisano, na cały katalog `storefront/` w postaci z
-wydania `0.104.0` — siedem plików źródłowych i dwa pliki testów — po czym `tsc --noEmit` zakończył
-się powodzeniem, a oba pliki testów przeszły; zrobiono to w repozytorium samej platformy, z
-pakietami tego wydania, a nie w storefroncie utworzonym we wcześniejszym wydaniu, a ekranów panelu
-administracyjnego ani składania zamówienia nie obejrzano w przeglądarce na instancji z dwoma
-kanałami. Cała reszta tej sekcji to treść dzienników zmian wydania, sprawdzona ze źródłami tego
-wydania. Niczego z niej nie sprawdzono w instancji zaktualizowanej z `0.104.0`, a w chwili pisania
-tej sekcji żadna taka aktualizacja nie została ukończona: kolejność kroków, zmiany w storefroncie
-dotyczące subskrypcji push i bloków katalogu oraz wiersz w `compose.prod.yml` nie były próbowane.
+Na ile zostało to sprawdzone: instancję utworzoną przez instalator wydania `0.104.0` z danymi
+demonstracyjnymi — API, panel i storefront — zaktualizowano poleceniem `pnpm run upgrade 0.105.0`
+z pnpm 9, z pakietami wydania udostępnionymi z lokalnego rejestru, i polecenie przeszło do końca.
+Co w niej zaobserwowano:
+
+- wykonały się dokładnie dwie migracje, odbiorców pól niestandardowych i znaczników przeczytania
+  wiadomości CRM; endpoint stanu i znaczek w panelu administracyjnym podają `0.105.0`;
+- pięć błędnych haseł administratora otrzymuje `401`, a szóste
+  `429 ADMIN_AUTHENTICATION_THROTTLED` z `Retry-After: 60`, co ustępuje po upływie opóźnienia albo
+  po poleceniu `unlock`; żądanie bez sesji i z niepoprawną treścią otrzymuje `401`;
+- metody utworzone w panelu przed aktualizacją są dostępne tylko w kanale domyślnym, metody
+  utworzone przez moduły — w każdym kanale, a metoda przypisana do innego kanału jest tam
+  dostępna; metoda dostawy utworzona w panelu była oznaczona jako *Nieoferowana przy składaniu
+  zamówienia*, a wybranie adaptera to naprawiło;
+- zamówienie albo jego podgląd są odrzucane dla metody, której kanał nie oferuje, dla treści
+  wskazującej inny kanał i dla metody spoza listy dozwolonych metod organizacji, a po każdej
+  odmowie koszyk i liczba zamówień były bez zmian;
+- ze storefrontem w postaci zapisanej przez `0.104.0` składanie zamówienia w kanale innym niż
+  domyślny pokazuje metody kanału domyślnego, a zamówienie jest zapisywane w kanale domyślnym; z
+  powyższymi zmianami — naniesionymi dokładnie tak, jak je opisano, na siedem plików źródłowych i
+  dwa pliki testów, przy czym każdy cytowany fragment został znaleziony — pokazuje metody tego
+  kanału, zamówienie jest zapisywane w tym kanale, a `tsc --noEmit`, testy storefrontu i
+  `next build` kończą się powodzeniem;
+- każda istniejąca definicja pola niestandardowego zachowuje `customer`, a jej wartość nadal jest
+  w zamówieniu kupującego; definicja utworzona później ma `internal` i jej wartości tam nie ma;
+- szansa sprzedaży CRM sprzed aktualizacji nie pokazuje nikomu licznika nieprzeczytanych, a
+  wiadomość napisana później jest nieprzeczytana tylko dla drugiego administratora;
+- subskrypcja webhooka sprzed aktualizacji się wczytuje, a nieznany typ zdarzenia to `422`.
+
+Nie sprawdzono: instancji starszej niż `0.104.0`, instancji z modułami nakładkowymi ani modułu,
+który nadal wywołuje `bindToDefaultChannel`; zmiennych proxy, limitu dla całego konta i
+`ADMIN_AUTH_ACCOUNT_WIDE_LIMIT`, limitu kodów drugiego składnika ani sesji kończonych przez zmianę
+danych uwierzytelniających; zadania wygaszającego zapytania ofertowe; zakupu jednym kliknięciem,
+strony preferencji ani ponownego zamówienia jako zapytania ofertowego w działaniu; formularza
+tworzenia zamówienia w panelu ani przyjmowania zamówień z kluczem API; `demo reset`; dostarczenia
+webhooka; zmian w storefroncie dotyczących subskrypcji push i bloków katalogu, wiersza w
+`compose.prod.yml` ani wierszy `.gitignore` dla `backend/var/`; ani odtworzenia kopii zapasowej.
+To, co ta sekcja o nich mówi, pochodzi z dzienników zmian wydania, sprawdzonych ze źródłami tego
+wydania.
 
 ## Instancja niespójna od początku
 

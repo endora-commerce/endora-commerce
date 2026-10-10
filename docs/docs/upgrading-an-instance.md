@@ -309,8 +309,10 @@ afterwards, and what an existing storefront and your own code may want to take.
 
 **The new module, CRM, is not added by the upgrade.** `0.104.0` is the first release of `crm`
 (`@endora-commerce/mod-crm`): sales opportunities with a status workflow, a board, a calendar and
-analytics, in the Admin UI. An instance that upgrades does not have it — it is not on **Modules**
-and `/crm/board` answers *Page not found*. To add it, in the root of the instance:
+analytics, in the Admin UI. An instance created by `0.103.x` or earlier does not have it after
+the upgrade — it is not on **Modules** and `/crm/board` answers *Page not found*. (One created by
+the `0.104.0` installer already declares the package, and `pnpm add` answers *Already up to
+date*.) To add it, in the root of the instance:
 
 ```bash
 pnpm add -w -E @endora-commerce/mod-crm@0.104.0
@@ -430,7 +432,8 @@ After the upgrade, before the instance takes traffic again:
    sign-in to that account from every device that has not signed in to it before.
    [G3 of the first-deployment checklist](./deployment/first-deployment-checklist.md#g3-tell-the-backend-which-proxy-may-name-the-clients-ip-address)
    says how to choose the value.
-5. **On an instance with more than one sales channel**, review every delivery and payment method
+5. **On an instance with more than one sales channel** — every instance seeded with the demo data
+   is one — review every delivery and payment method
    (*Delivery and payment methods are offered per sales channel* below) and make the edits under
    [In an existing storefront](#after-0-105-0-storefront).
 6. **Review your custom-field definitions** on the Custom Fields screen. The upgrade marks every
@@ -448,17 +451,23 @@ After the upgrade, before the instance takes traffic again:
 
 Whenever it suits you:
 
-10. Add two lines to the instance's `.gitignore`, which keeps the content it was created with:
+10. Add three lines to the instance's `.gitignore`, which keeps the content it was created with:
 
     ```
     docs/build/
     docs/.docusaurus/
+    backend/var/
     ```
 
-    Building the instance's documentation site writes both directories, and with them tracked
-    the diff of the next upgrade is no longer the `package.json` per member and the lockfile. If
-    either is already committed, run `git rm -r --cached docs/build docs/.docusaurus` once: git
-    never ignores a file it tracks.
+    Building the instance's documentation site writes the first two directories, and with them
+    tracked the diff of an upgrade is no longer the `package.json` per member and the lockfile —
+    in the upgrade described at the end of this section it was 162 files. If either is already
+    committed, run `git rm -r --cached docs/build docs/.docusaurus` once: git never ignores a
+    file it tracks. `backend/var/` is where files uploaded to the asset library are stored while
+    `assets.local.base_dir` has its default, `var/assets`. No release's `.gitignore` covers it,
+    so it shows as untracked beside the upgrade's diff. It is your shop's data and not source:
+    keep it out of the repository and back it up together with the database — a database
+    restored without it lists assets whose files are missing.
 11. In an instance seeded with the demo shop, run `pnpm run cli demo seed` again. The demo
     `sales_representative` role was seeded with a permission code no module declares, which makes
     the role editor refuse every save of that role with
@@ -563,7 +572,9 @@ See [Background jobs](./modules/quote_requests.md#background-jobs).
 `POST /api/v1/orders` used to take the order's channel from an optional `salesChannelId` in the
 body and otherwise use the system-default channel; it now uses the channel the request resolves —
 `X-Sales-Channel`, `?salesChannel=`, the host map, else the default — and refuses a body that names
-a different one. What that means depends on how many sales channels the instance has.
+a different one. What that means depends on how many sales channels the instance has. An
+instance seeded with the demo data has two — `pl_retail`, the default, and `pl_b2b_vip` — so
+*More than one* is the branch that applies to it, here and for the methods below.
 
 - **One sales channel.** One thing can change. If `orders.min_order_value` is set **for the default
   channel** rather than for all channels, it was not enforced on storefront orders and now is.
@@ -597,6 +608,15 @@ every channel.
     data.
 
   Open each method and choose its channels, or untick all of them to offer it everywhere.
+- **A delivery method created in the Admin UI under an earlier release may be offered at no
+  checkout at all**, on an instance with any number of channels, and was not before the upgrade
+  either. The screen sent no adapter, so the method was saved with its own code as its adapter,
+  and unless that code is the key of a registered adapter there is nothing to offer it with. This
+  release marks such a row *Not offered at checkout*, with the reason. Open it and choose an
+  adapter in the new **Adapter** select — *Own courier (manual)*, for one you ship yourself. It is
+  then offered on the channels it is assigned to, which for a method created that way is the
+  default channel only. Payment methods are not affected: one could not be created with an
+  adapter that is not registered.
 
 Assigning sales channels needs `delivery_methods:write` / `payment_methods:write` and nothing
 else; the sales-channel permissions are not required.
@@ -979,18 +999,43 @@ Three more changes a storefront created by an earlier release does not receive:
 A storefront written by the `0.105.0` CLI also credits the platform in its footer; an existing
 one does not gain the line.
 
-How far this has been exercised: the backend behaviour — the order's channel, the method listing
-and the refusals — the header on each of the seven storefront calls and the single-channel
-minimum-order-value change are covered by the release's tests. The storefront edits for the sales
-channel above were applied exactly as written to the whole `storefront/` directory as it is in
-`0.104.0` — the seven source files and the two test files — after which `tsc --noEmit` passed and
-the two test files ran green; that was done inside the platform's own repository against the
-packages of this release, not in a storefront created by an earlier release, and neither the Admin
-UI screens nor the checkout were looked at in a browser against an instance with two channels.
-Everything else in this section is what the release's changelogs state, read against the source
-of the release. None of it was exercised on an instance upgraded from `0.104.0`, and no such
-upgrade had been completed when this section was written: the order of the steps, the push and
-catalogue-block edits in a storefront, and the `compose.prod.yml` line are untried.
+How far this has been exercised: an instance created by the `0.104.0` installer with its demo
+data — API, admin and storefront — was upgraded with `pnpm run upgrade 0.105.0` under pnpm 9,
+against the packages of the release served from a local registry, and the command ran to the end.
+What was observed on it:
+
+- exactly two migrations applied, the custom-field audience and the CRM message read markers;
+  health and the badge in the Admin UI report `0.105.0`;
+- five wrong administrator passwords answer `401` and the sixth
+  `429 ADMIN_AUTHENTICATION_THROTTLED` with `Retry-After: 60`, cleared by the delay or by the
+  `unlock` command; a request without a session and with an invalid body answers `401`;
+- the methods created in the Admin UI before the upgrade are listed on the default channel only,
+  the seeded ones on every channel, and a method assigned to another channel is listed there; the
+  delivery method created in the Admin UI was marked *Not offered at checkout* and choosing an
+  adapter repaired it;
+- an order or a preview is refused for a method its channel does not offer, for a body naming
+  another channel and for a method outside the Organization's allow-list, and after each refusal
+  the basket and the number of orders were unchanged;
+- with the storefront as `0.104.0` wrote it, the checkout of a non-default channel lists the
+  default channel's methods and the order is recorded on the default channel; with the edits
+  above — applied exactly as written to the seven source files and the two test files, every
+  quoted string found — it lists that channel's methods and the order is recorded on that
+  channel, and `tsc --noEmit`, the storefront's tests and `next build` pass;
+- every custom-field definition that existed stays `customer` and its value is still in the
+  buyer's order, and one created afterwards is `internal` and absent from it;
+- a CRM Opportunity from before the upgrade shows no unread count for anybody, and a message
+  written afterwards is unread for the other administrator only;
+- a webhook subscription from before the upgrade loads, and an unknown event type answers `422`.
+
+Not exercised: an instance older than `0.104.0`, one with overlay modules, and a module that
+still calls `bindToDefaultChannel`; the proxy variables, the account-wide limit and
+`ADMIN_AUTH_ACCOUNT_WIDE_LIMIT`, the limit on second-factor codes, and sessions ended by a
+credential change; the quote-request expiry sweep; one-click buy, the preferences page and
+ordering again as a quote request, at runtime; the admin order-creation form and the API-key order
+intake; `demo reset`; a delivered webhook; the push and catalogue-block edits in a storefront, the
+`compose.prod.yml` line and the `.gitignore` lines for `backend/var/`; and restoring the backup.
+What this section says about those is what the release's changelogs state, read against the
+source of the release.
 
 ## An instance that is mixed from the start
 
