@@ -61,7 +61,10 @@ export interface DeliveryMethodsCradle {
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
   readonly commandBus: CommandBus;
-  readonly salesChannelMembershipPort: SalesChannelMembershipPort | undefined;
+  /** The platform's name for the acting administrator on an audit record. */
+  readonly adminAuditActorResolver: (request: FastifyRequest) => {
+    actorAdminUserId: string | null;
+  };
   /** The two halves the allow-list is composed from — see the payment twin (T138). */
   readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
   readonly organizationRestrictionPort: {
@@ -131,18 +134,15 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ emFactory }: DeliveryMethodsCradle) =>
           new DeliveryMethodReadService(emFactory, {
-            // The membership port is read **per call**, through `ctx.cradle`,
-            // and never captured by this singleton's factory: a port is a
-            // transient gate, and `check:port-dependencies` refuses a factory
-            // parameter that holds one.
-            filterEntityIdsInChannel: (...args) =>
-              requiredMembership(
-                ctx.cradle<DeliveryMethodsCradle>().salesChannelMembershipPort,
-              ).filterEntityIdsInChannel(...args),
-            listChannelsForEntity: (...args) =>
-              requiredMembership(
-                ctx.cradle<DeliveryMethodsCradle>().salesChannelMembershipPort,
-              ).listChannelsForEntity(...args),
+            // Resolved **per call** with `lazyPort`, never captured by this
+            // singleton's factory (`module-composition.md` §3): a port is a
+            // transient gate, and a captured one keeps answering after its
+            // owner is switched off.
+            filterEntityIdsAvailableInChannel: (...args) =>
+              lazyPort<SalesChannelMembershipPort>(
+                ctx,
+                'salesChannelMembershipPort',
+              ).filterEntityIdsAvailableInChannel(...args),
           }),
       )
       .singleton(),
@@ -156,9 +156,9 @@ export function registerModule(ctx: ModuleContext): void {
       shippingMethodEligibility,
       shippingOrderStatusRegistry,
     } = ctx.cradle<DeliveryMethodsCradle>();
-    const membership = requiredMembership(
-      ctx.cradle<DeliveryMethodsCradle>().salesChannelMembershipPort,
-    );
+    // `lazyPort`, by its literal name, as `catalog` reads the same port
+    // (`module-composition.md` §3). The routes hold the proxy, not the port.
+    const membership = lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort');
 
     /** Composed from the two halves, without a `catch` — see the payment twin. */
     const resolveAllowList = async (req: FastifyRequest): Promise<string[] | null> => {
@@ -199,6 +199,8 @@ export function registerModule(ctx: ModuleContext): void {
         shipmentUsage: () => lazyPort<ShipmentUsagePort>(ctx, 'shipmentUsagePort'),
       }),
       salesChannelMembership: membership,
+      resolveAuditActor: (request) =>
+        ctx.cradle<DeliveryMethodsCradle>().adminAuditActorResolver(request),
     });
   });
 
@@ -262,24 +264,3 @@ export const salesChannelBridges: ReadonlyArray<{
   },
 ];
 
-/**
- * The membership port, or a composition error.
- *
- * The cradle types it as possibly absent, from the time a root could compose
- * this module without the kernel's sales channels. No root does, and the two
- * reads that now depend on it — the storefront catalogue's channel filter and
- * `isAvailableInChannel` — must not treat "not wired" as "not restricted": that
- * is every method offered on every channel, which is the fail-open answer. So
- * absence stops the composition instead of widening a checkout.
- */
-function requiredMembership(
-  membership: SalesChannelMembershipPort | undefined,
-): SalesChannelMembershipPort {
-  if (membership === undefined) {
-    throw new Error(
-      'delivery_methods: `salesChannelMembershipPort` is not composed, so delivery methods cannot be ' +
-        'scoped to a sales channel. Compose the platform kernel before this module.',
-    );
-  }
-  return membership;
-}

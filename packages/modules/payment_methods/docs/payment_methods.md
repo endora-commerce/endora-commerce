@@ -149,10 +149,19 @@ channel.** A method assigned to one or more channels is offered in exactly
 those. A method assigned to no channel — *All channels* in the form — is offered
 in every channel, including channels created later. This is deliberately not the
 rule products follow, where a product in no channel is published nowhere:
-payment methods are routinely created without an assignment (a module that
-ships its own method seeds the row at install, before the default channel
-exists, and demo data assigns none), so reading "none" as "nowhere" would empty
-existing checkouts.
+payment methods exist without an assignment as a matter of course, so reading
+"none" as "nowhere" would empty existing checkouts. Where a method that nobody
+assigned by hand stands:
+
+- A module that ships its own method seeds it when the module is installed, and
+  assigns it to the default channel **if that channel exists at that moment**.
+  It exists on any instance that has been started at least once. During the
+  first setup of a new instance — migrated, modules installed, not yet started —
+  it does not, and the method is left assigned to no channel.
+- Demo data assigns none.
+- A method created through the API without `salesChannelIds` is assigned to the
+  default channel; one created in the admin form with nothing ticked is
+  assigned to none.
 
 The assignment is enforced where a buyer meets it:
 
@@ -186,17 +195,27 @@ was.
 Elsewhere the at-least-one-channel rule still applies: removing a method's
 **last** channel from the sales-channel side is refused, and deleting a sales
 channel that is a method's only one is refused or rebinds the method to the
-default channel. Offering a method everywhere is always an explicit choice made
-on the method.
+default channel. So an assignment is never lost as a side effect of another
+operation: a method is offered everywhere only because it was saved with no
+channel chosen, or was seeded without one as described above. A save that names
+a sales channel which does not exist is refused with `400 VALIDATION_FAILED`
+before anything is written, and if assigning the channels of a **new** method
+fails the method is not created.
 
-**Upgrading an instance with more than one sales channel.** Before this rule the
-storefront listed every active method on every channel and ignored the
-assignment, while every method created in the admin was assigned to the default
-channel only. Those methods now disappear from the other channels' checkouts
-until their assignment is reviewed: open each method on `/payment-methods` and choose its
-channels, or untick all of them to offer it everywhere. Methods that were never
-assigned to a channel — seeded and demo methods — stay offered on every channel.
-An instance with a single sales channel is unaffected.
+**Upgrading an instance with more than one sales channel: review every method.**
+Before this rule the storefront listed every active method on every channel and
+ignored the assignment. The **Sales channels** column on `/payment-methods` shows where
+each method stands now:
+
+- assigned to the **default channel only**, and so gone from the other channels'
+  checkouts until changed — every method created in the admin so far, and every
+  method a module seeded when it was installed on an instance that had already
+  been started;
+- assigned to **no channel**, and so still offered everywhere — methods a module
+  seeded during the instance's first setup, and demo-data methods.
+
+Open each method and choose its channels, or untick all of them to offer it
+everywhere. An instance with a single sales channel is unaffected.
 
 Memberships live in `sales_channel_payment_methods` and are read and written only through the
 platform's sales-channel membership service.

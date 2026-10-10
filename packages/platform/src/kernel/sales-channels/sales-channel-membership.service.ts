@@ -495,6 +495,51 @@ export class SalesChannelMembershipService {
     };
   }
 
+  /**
+   * Narrow a known set of entity ids to those **offered** in `channelId`, by
+   * the convention the owning module declared for the type.
+   *
+   * For a type whose bridge is registered without `emptyMeansEveryChannel` —
+   * a product — this is {@link filterEntityIdsInChannel} exactly: bound to the
+   * channel, or not offered. For a type registered with it — a delivery or a
+   * payment method — a membership is a restriction, so the answer also holds
+   * every id bound to **no** channel at all.
+   *
+   * The convention is read here, off the registration, and nowhere else: the
+   * owning module's catalogue and its `isAvailableInChannel` both ask this one
+   * question, so "bound to nothing means offered everywhere" has a single
+   * statement and a module that stops declaring the flag stops getting that
+   * answer.
+   */
+  async filterEntityIdsAvailableInChannel(
+    channelId: string,
+    entityType: ChannelMemberEntityType,
+    entityIds: readonly string[],
+  ): Promise<string[]> {
+    const ids = [...new Set(entityIds)];
+    if (ids.length === 0) return [];
+    const bridge = this.bridges.require(entityType);
+    const bound = await this.filterEntityIdsInChannel(channelId, entityType, ids);
+    if (bridge.emptyMeansEveryChannel !== true) return bound;
+
+    const em = this.emFactory();
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = await em
+      .getConnection()
+      .execute<Array<Record<string, string>>>(
+        `select distinct "${bridge.entityIdColumn}" from "${bridge.table}" ` +
+          `where "${bridge.entityIdColumn}" in (${placeholders})`,
+        ids,
+        'all',
+        em.getTransactionContext(),
+      );
+    const boundSomewhere = new Set(rows.map((row) => row[bridge.entityIdColumn]!));
+    const boundHere = new Set(bound);
+    // Bound to this channel, or bound to none. Bound to other channels only:
+    // restricted, and not to this one.
+    return ids.filter((id) => boundHere.has(id) || !boundSomewhere.has(id));
+  }
+
   /** Channels an entity currently belongs to. */
   async listChannelsForEntity(
     entityType: ChannelMemberEntityType,

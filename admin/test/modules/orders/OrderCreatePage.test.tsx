@@ -196,6 +196,79 @@ describe('OrderCreatePage', () => {
     await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith('/orders/new-order-1'));
   });
 
+  /**
+   * A method is offered per sales channel, so the two method selects follow the
+   * channel select — and a method already chosen has to go when the channel
+   * that offered it is swapped for one that does not. Without that the form
+   * keeps a value its own select no longer shows and submits it, to be refused
+   * by the server.
+   */
+  it('clears a chosen method when the channel is changed to one that does not offer it', async () => {
+    const reference = getSpy.getMockImplementation()!;
+    getSpy.mockImplementation((path: string) => {
+      if (path.startsWith('/api/v1/admin/sales-channels')) {
+        return Promise.resolve({
+          items: [
+            { id: 'chan-1', code: 'CH1', name: { 'en-US': 'Channel 1' }, active: true },
+            { id: 'chan-2', code: 'CH2', name: { 'en-US': 'Channel 2' }, active: true },
+          ],
+        });
+      }
+      if (path.startsWith('/api/v1/admin/delivery-methods')) {
+        return Promise.resolve({
+          data: [
+            {
+              id: 'del-only-1',
+              code: 'D1',
+              name: { 'en-US': 'Only on channel 1' },
+              status: 'active',
+              salesChannelIds: ['chan-1'],
+            },
+            {
+              id: 'del-any',
+              code: 'DA',
+              name: { 'en-US': 'Everywhere' },
+              status: 'active',
+              salesChannelIds: [],
+            },
+          ],
+        });
+      }
+      return reference(path) as Promise<unknown>;
+    });
+    renderPage();
+
+    await userEvent.type(screen.getByLabelText('customerAccountId'), 'Jan');
+    await pick('customerAccountId', 'Jan Kowalski');
+    await pick('salesChannelId', 'Channel 1');
+    await pick('paymentMethodId', 'Payment 1');
+    await pick('deliveryMethodId', 'Only on channel 1');
+    await userEvent.type(screen.getByLabelText('product-0'), 'Wid');
+    await pick('product-0', 'Widget');
+
+    const submit = screen.getByText('orderCreate.submit');
+    await waitFor(() => expect(submit).not.toBeDisabled());
+
+    // The other channel does not offer the chosen delivery method.
+    await pick('salesChannelId', 'Channel 2');
+
+    // The choice is gone: the form is incomplete again, and what it would have
+    // sent is not sent.
+    await waitFor(() => expect(submit).toBeDisabled());
+    await userEvent.click(screen.getByLabelText('deliveryMethodId'));
+    expect(await screen.findByRole('option', { name: /Everywhere/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Only on channel 1/ })).not.toBeInTheDocument();
+
+    // A method both channels offer completes it again, with the new channel.
+    await userEvent.click(screen.getByRole('option', { name: /Everywhere/ }));
+    await waitFor(() => expect(submit).not.toBeDisabled());
+    await userEvent.click(submit);
+    expect(postSpy).toHaveBeenCalledWith(
+      '/api/v1/admin/orders',
+      expect.objectContaining({ salesChannelId: 'chan-2', deliveryMethodId: 'del-any' }),
+    );
+  });
+
   it('keeps submit disabled until required fields are filled', async () => {
     renderPage();
     expect(screen.getByText('orderCreate.submit')).toBeDisabled();

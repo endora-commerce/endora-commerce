@@ -75,10 +75,12 @@ export interface ChannelBridgeRegistration {
    *
    * It is declared here, beside the table, so that the platform holds the two
    * conventions as one stated property per entity type instead of as two habits
-   * in two sets of modules. Two things read it:
-   * `SalesChannelMembershipService.clearChannelsForEntity`, which is refused
-   * for a type that did not declare it, and the owning module's own availability
-   * read. Nothing else changes for such a type: removing its **last** membership
+   * in two sets of modules. Two methods of `SalesChannelMembershipService` read
+   * it, and nothing else does: `clearChannelsForEntity`, which is refused for a
+   * type that did not declare it, and `filterEntityIdsAvailableInChannel`, the
+   * read the owning module's catalogue and availability check are built on —
+   * so a module that stops declaring it stops having its row-less entities
+   * offered. Nothing else changes for such a type: removing its **last** membership
    * one channel at a time is still refused, because turning "only channel A"
    * into "every channel" must be an explicit act and never the side effect of a
    * removal.

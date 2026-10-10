@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ERROR_CODES } from '@endora-commerce/contracts';
 import { SalesChannel } from '@endora-commerce/platform/kernel';
@@ -14,8 +15,8 @@ import {
   seedCartForStubCustomer,
 } from '../../helpers/seed-commerce.js';
 import { SEED_PRODUCT_101_ID } from '../../helpers/seed-catalog.js';
-import { TEST_CUSTOMER_ID } from '../../helpers/test-actors.js';
-import { Cart, Order } from '../../helpers/package-entities.js';
+import { TEST_CUSTOMER_ID, TEST_ORGANIZATION_ID } from '../../helpers/test-actors.js';
+import { Cart, CartItem, Order } from '../../helpers/package-entities.js';
 
 /**
  * An order may only ship and be paid with methods offered in **its** sales
@@ -326,4 +327,167 @@ describe('order placement — methods must be offered in the order’s sales cha
       );
     });
   });
+
+  /**
+   * Three callers do not hand `placeOrder` the customer's basket as it stands:
+   * one-click buy, admin order creation and the API-key intake each **clear**
+   * the active basket and reseed it with the order's own lines first. A refusal
+   * raised inside `placeOrder` would therefore arrive after the customer's
+   * basket had already been replaced — and for one-click buy that was reachable
+   * by an ordinary buyer, on every click of a button the eligibility check
+   * still offered. Each of the three asks about the channel **before** it
+   * touches the basket, and one-click buy is not offered at all.
+   *
+   * "Unchanged" is asserted on the whole basket — its id and every line's
+   * product, variant, quantity and unit price — not on a count.
+   */
+  describe('a refused order leaves the customer’s basket exactly as it was', () => {
+    const ONE_CLICK_ENABLED = 'quick_order.one_click_buy_enabled';
+
+    async function basketSnapshot(): Promise<string> {
+      const em = h.em();
+      const cart = await em.findOneOrFail(Cart, {
+        customerAccountId: TEST_CUSTOMER_ID,
+        status: 'active',
+      });
+      const items = await em.find(CartItem, { cartId: cart.id });
+      return JSON.stringify({
+        cartId: cart.id,
+        lines: items
+          .map((i) => ({
+            id: i.id,
+            productId: i.productId,
+            variantId: i.variantId ?? null,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+          }))
+          .sort((x, y) => x.id.localeCompare(y.id)),
+      });
+    }
+
+    it('admin order creation', async () => {
+      await freshBasket();
+      const before = await basketSnapshot();
+
+      const res = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/orders',
+        cookies: ADMIN,
+        payload: {
+          customerAccountId: TEST_CUSTOMER_ID,
+          salesChannelId: channelA.id,
+          // Not the basket's own line, so a reseed could not pass unnoticed.
+          items: [{ productId: SEED_PRODUCT_101_ID, quantity: 5 }],
+          deliveryAddressId: SEED_ADDRESS_DELIVERY_ID,
+          billingAddressId: SEED_ADDRESS_BILLING_ID,
+          deliveryMethodId: deliveryOnlyB,
+          paymentMethodId: SEED_PAYMENT_METHOD_ID,
+        },
+      });
+
+      expectRefusal(res, 'delivery_method_not_in_sales_channel', channelA.id);
+      expect(await basketSnapshot()).toBe(before);
+    });
+
+    it('the API-key order intake', async () => {
+      const minted = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/admin/api-keys',
+        cookies: ADMIN,
+        payload: {
+          name: 'Method gate intake key',
+          scopes: ['orders:read', 'orders:write'],
+          binding: {
+            organizationId: TEST_ORGANIZATION_ID,
+            salesChannelId: channelA.id,
+            customerAccountId: TEST_CUSTOMER_ID,
+          },
+        },
+      });
+      expect(minted.statusCode).toBe(201);
+      const token = (minted.json() as { data: { bearerToken: string } }).data.bearerToken;
+
+      await freshBasket();
+      const before = await basketSnapshot();
+
+      const res = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/external/orders',
+        headers: { authorization: `Bearer ${token}`, 'idempotency-key': `gate-${randomUUID()}` },
+        payload: {
+          lines: [{ sku: 'EXAMPLE-SIMPLE-001', quantity: 7 }],
+          deliveryMethodId: SEED_DELIVERY_METHOD_ID,
+          paymentMethodId: paymentOnlyB,
+          deliveryAddressId: SEED_ADDRESS_DELIVERY_ID,
+          billingAddressId: SEED_ADDRESS_BILLING_ID,
+        },
+      });
+
+      expectRefusal(res, 'payment_method_not_in_sales_channel', channelA.id);
+      expect(await basketSnapshot()).toBe(before);
+    });
+
+    it('one-click buy — which is not offered, and when attempted anyway changes nothing', async () => {
+      // One-click buy on for both channels, and the buyer's default delivery
+      // method is one only channel B offers.
+      await h.settings.adminService.setValueForSubset(
+        ONE_CLICK_ENABLED,
+        [channelA.code, channelB.code],
+        true,
+        null,
+        { actorAdminUserId: null },
+      );
+      await h.settings.cache.invalidate(ONE_CLICK_ENABLED);
+      const prefs = await h.app.inject({
+        method: 'PUT',
+        url: '/api/v1/quick-order/preferences',
+        cookies: CUSTOMER,
+        payload: {
+          scope: 'customer',
+          scopeId: TEST_CUSTOMER_ID,
+          defaultPaymentMethodId: SEED_PAYMENT_METHOD_ID,
+          defaultDeliveryMethodId: deliveryOnlyB,
+          defaultBillingAddressId: SEED_ADDRESS_BILLING_ID,
+          defaultShippingAddressId: SEED_ADDRESS_DELIVERY_ID,
+        },
+      });
+      expect(prefs.statusCode).toBe(200);
+
+      const eligibility = async (channelCode?: string): Promise<unknown> =>
+        (
+          (
+            await h.app.inject({
+              method: 'GET',
+              url: '/api/v1/quick-order/one-click/eligibility',
+              cookies: CUSTOMER,
+              ...(channelCode ? { headers: { 'x-sales-channel': channelCode } } : {}),
+            })
+          ).json() as { data: unknown }
+        ).data;
+
+      // Not offered on the channel that does not offer the default method…
+      expect(await eligibility()).toEqual({ enabled: false, reason: 'missing_defaults' });
+      // …and offered on the one that does: the answer is about the channel, not
+      // about a one-click buy that is broken for this buyer everywhere.
+      expect(await eligibility(channelB.code)).toEqual({ enabled: true, reason: null });
+
+      await freshBasket();
+      const before = await basketSnapshot();
+
+      const res = await h.app.inject({
+        method: 'POST',
+        url: '/api/v1/quick-order/one-click',
+        cookies: CUSTOMER,
+        payload: { productId: SEED_PRODUCT_101_ID, quantity: 5 },
+      });
+
+      expect(res.statusCode).toBe(422);
+      expect((res.json() as { error: { details: unknown } }).error.details).toMatchObject({
+        code: 'one_click_unavailable',
+        reason: 'missing_defaults',
+      });
+      expect(await basketSnapshot()).toBe(before);
+    });
+  });
+
 });

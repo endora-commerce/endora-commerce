@@ -33,18 +33,19 @@ import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kerne
  * module declares the other convention on its bridge registration
  * (`emptyMeansEveryChannel`, `../index.ts`) and this file is where it is read.
  *
- * ## The read
+ * ## The read, and where the rule is actually applied
  *
- * Through the two sanctioned bridge accessors and no SQL of its own
- * (Constitution XII): `filterEntityIdsInChannel` answers which of the methods
- * are bound to the channel, and `listChannelsForEntity` is asked, for the
- * remainder only, whether a method is bound to anything at all. A deployment
- * holds a handful of methods, so the per-method question is a handful of
- * indexed lookups.
+ * One call to the sanctioned bridge accessor and no SQL of this module's own
+ * (Constitution XII): `filterEntityIdsAvailableInChannel`. The platform's
+ * membership service applies the "bound to none means offered" half **because
+ * this module's bridge is registered with `emptyMeansEveryChannel`**
+ * (`../index.ts`) — the declaration is the single source of the convention, and
+ * without it the same call answers the way it does for a product. This file
+ * names the entity type and adds nothing to the rule.
  */
 export type DeliveryMethodChannelReads = Pick<
   SalesChannelMembershipPort,
-  'filterEntityIdsInChannel' | 'listChannelsForEntity'
+  'filterEntityIdsAvailableInChannel'
 >;
 
 /**
@@ -56,17 +57,7 @@ export async function deliveryMethodIdsAvailableInChannel(
   channelId: string,
   methodIds: readonly string[],
 ): Promise<ReadonlySet<string>> {
-  const ids = [...new Set(methodIds)];
-  if (ids.length === 0) return new Set<string>();
-
-  const available = new Set(
-    await membership.filterEntityIdsInChannel(channelId, 'delivery-method', ids),
+  return new Set(
+    await membership.filterEntityIdsAvailableInChannel(channelId, 'delivery-method', methodIds),
   );
-  for (const id of ids) {
-    if (available.has(id)) continue;
-    const boundTo = await membership.listChannelsForEntity('delivery-method', id);
-    // Bound to other channels only: restricted, and not to this one.
-    if (boundTo.length === 0) available.add(id);
-  }
-  return available;
 }

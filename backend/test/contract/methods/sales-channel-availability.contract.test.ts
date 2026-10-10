@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { SalesChannel } from '@endora-commerce/platform/kernel';
+import { ERROR_CODES, SALES_CHANNEL_AUDIT_ACTIONS } from '@endora-commerce/contracts';
+import { AuditLogEntry, SalesChannel } from '@endora-commerce/platform/kernel';
 import {
   setupBackendServer,
   teardownBackendServer,
   type BackendServerHandle,
 } from '../../helpers/test-server.js';
 import { SEED_DELIVERY_METHOD_ID, SEED_PAYMENT_METHOD_ID } from '../../helpers/seed-commerce.js';
+import { TEST_ADMIN_ID } from '../../helpers/test-actors.js';
 
 /**
  * In which sales channels a delivery or payment method is offered.
@@ -225,4 +227,103 @@ describe.each(KINDS)('$name methods — sales-channel availability', (kind) => {
       expect(await adminChannelsOf(method.id)).toEqual([channelB.id]);
     });
   });
+
+  /**
+   * A channel id that names no channel — one deleted while the form was open,
+   * or a mistyped id from an API caller.
+   *
+   * It used to reach the bridge and fail on its foreign key: a 500, after the
+   * method's own row had been committed. For a **new** method that left a row
+   * with no membership at all, and no membership means offered on every
+   * channel — the widest possible answer to a request that asked for one
+   * channel. It is refused before anything is written now.
+   */
+  describe('a sales channel that does not exist', () => {
+    const NO_SUCH_CHANNEL = '00000000-0000-4000-8000-00000000dead';
+
+    async function put(code: string, salesChannelIds: string[]): Promise<{
+      statusCode: number;
+      body: unknown;
+    }> {
+      const res = await h.app.inject({
+        method: 'PUT',
+        url: `${kind.adminPath}/${code}`,
+        cookies: ADMIN,
+        payload: { ...kind.body(code), salesChannelIds },
+      });
+      return { statusCode: res.statusCode, body: res.json() };
+    }
+
+    async function adminCodes(): Promise<string[]> {
+      const res = await h.app.inject({ method: 'GET', url: kind.adminPath, cookies: ADMIN });
+      return (res.json() as { data: Array<{ code: string }> }).data.map((m) => m.code);
+    }
+
+    function expectFieldError(res: { statusCode: number; body: unknown }): void {
+      expect(res.statusCode).toBe(400);
+      const error = (res.body as { error: { code: string; details: unknown } }).error;
+      expect(error.code).toBe(ERROR_CODES.VALIDATION_FAILED);
+      expect(error.details).toEqual([{ path: 'salesChannelIds', issue: NO_SUCH_CHANNEL }]);
+    }
+
+    it('refuses a create naming one, and creates no method', async () => {
+      const code = `unknown_create_${kind.name}`;
+
+      expectFieldError(await put(code, [NO_SUCH_CHANNEL]));
+
+      expect(await adminCodes()).not.toContain(code);
+    });
+
+    it('refuses a create naming one beside a real channel, and creates no method', async () => {
+      const code = `unknown_mixed_${kind.name}`;
+
+      expectFieldError(await put(code, [channelB.id, NO_SUCH_CHANNEL]));
+
+      expect(await adminCodes()).not.toContain(code);
+    });
+
+    it('refuses an update naming one, and leaves the assignment as it was', async () => {
+      const code = `unknown_update_${kind.name}`;
+      const method = await upsert(code, [channelB.id]);
+
+      expectFieldError(await put(code, [NO_SUCH_CHANNEL]));
+
+      expect(await adminChannelsOf(method.id)).toEqual([channelB.id]);
+      expect(await listedOn(channelA.code)).not.toContain(method.id);
+    });
+  });
+
+  /**
+   * Where a method is offered decides how a buyer may ship and pay, and the
+   * change is made through the method's own route — so the audit row of every
+   * membership it adds or removes has to name the administrator who made it,
+   * as the central sales-channel routes already do.
+   */
+  it('audits every channel change made through the method route with the acting administrator', async () => {
+    const code = `audited_${kind.name}`;
+    const method = await upsert(code, [channelA.id]);
+    await upsert(code, [channelB.id]);
+    await upsert(code, []);
+
+    const changes = (
+      await h.em().find(AuditLogEntry, { action: SALES_CHANNEL_AUDIT_ACTIONS.MEMBERSHIP_CHANGED })
+    )
+      .map((entry) => ({
+        actor: entry.actorAdminUserId ?? null,
+        ...(entry.stateAfter as { entityId: string; channelId: string; op: string }),
+      }))
+      .filter((change) => change.entityId === method.id);
+
+    // add A; then remove A and add B; then remove B.
+    expect(changes.map((c) => `${c.op}:${c.channelId}`).sort()).toEqual(
+      [
+        `add:${channelA.id}`,
+        `remove:${channelA.id}`,
+        `add:${channelB.id}`,
+        `remove:${channelB.id}`,
+      ].sort(),
+    );
+    expect(changes.map((c) => c.actor)).toEqual(changes.map(() => TEST_ADMIN_ID));
+  });
+
 });

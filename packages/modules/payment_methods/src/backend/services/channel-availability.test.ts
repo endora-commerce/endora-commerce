@@ -5,87 +5,31 @@ import {
 } from './channel-availability.js';
 
 /**
- * The membership-less rule, stated against the two bridge reads it is built
- * from: a method bound to the channel is offered there, a method bound to
- * **other** channels only is not, and a method bound to **no** channel is
- * offered in every one.
+ * This module asks the platform's membership service one question and adds
+ * nothing to the answer: which of these methods are **offered** in the channel,
+ * for the entity type `payment-method`.
  *
- * The fake is the bridge reduced to a map — channel ids per method — so each
- * case reads as the table it describes. The route-level proof, over the real
- * bridge and the resolved request channel, is
- * `backend/test/contract/methods/sales-channel-availability.contract.test.ts`.
+ * The rule itself — a method bound to no channel is offered in every one — is
+ * not in this module. It is applied by the service because this module's bridge
+ * is registered with `emptyMeansEveryChannel`, and it is held where it lives:
+ * `backend/test/integration/sales_channels/available-in-channel.test.ts` over a
+ * real bridge, and
+ * `backend/test/contract/methods/sales-channel-availability.contract.test.ts`
+ * over the HTTP surface.
  */
-const CHANNEL_A = 'channel-a';
-const CHANNEL_B = 'channel-b';
-
-function bridge(memberships: Record<string, readonly string[]>): {
-  reads: PaymentMethodChannelReads;
-  asked: string[];
-} {
-  const asked: string[] = [];
-  const reads: PaymentMethodChannelReads = {
-    filterEntityIdsInChannel: async (channelId, entityType, entityIds) => {
-      asked.push(`filter:${entityType}`);
-      return entityIds.filter((id) => (memberships[id] ?? []).includes(channelId));
-    },
-    listChannelsForEntity: async (entityType, entityId) => {
-      asked.push(`list:${entityType}:${entityId}`);
-      return (memberships[entityId] ?? []).map((id) => ({ id })) as never;
-    },
-  };
-  return { reads, asked };
-}
-
 describe('paymentMethodIdsAvailableInChannel', () => {
-  it('offers a method bound to the channel', async () => {
-    const { reads } = bridge({ m1: [CHANNEL_A] });
+  it('asks the bridge for the methods offered in the channel, as `payment-method`, and returns its answer', async () => {
+    const asked: unknown[][] = [];
+    const reads: PaymentMethodChannelReads = {
+      filterEntityIdsAvailableInChannel: async (...args) => {
+        asked.push(args);
+        return ['m1', 'm3'];
+      },
+    };
 
-    expect([...(await paymentMethodIdsAvailableInChannel(reads, CHANNEL_A, ['m1']))]).toEqual(['m1']);
-  });
+    const offered = await paymentMethodIdsAvailableInChannel(reads, 'channel-a', ['m1', 'm2', 'm3']);
 
-  it('does not offer a method bound only to another channel', async () => {
-    const { reads } = bridge({ m1: [CHANNEL_B] });
-
-    expect([...(await paymentMethodIdsAvailableInChannel(reads, CHANNEL_A, ['m1']))]).toEqual([]);
-  });
-
-  it('offers a method bound to no channel at all, in every channel', async () => {
-    const { reads } = bridge({});
-
-    expect([...(await paymentMethodIdsAvailableInChannel(reads, CHANNEL_A, ['m1']))]).toEqual(['m1']);
-    expect([...(await paymentMethodIdsAvailableInChannel(reads, CHANNEL_B, ['m1']))]).toEqual(['m1']);
-  });
-
-  it('answers each method of a mixed set on its own terms', async () => {
-    const { reads } = bridge({
-      onA: [CHANNEL_A],
-      onB: [CHANNEL_B],
-      onBoth: [CHANNEL_A, CHANNEL_B],
-      // `unbound` has no entry: bound to nothing.
-    });
-
-    const offered = await paymentMethodIdsAvailableInChannel(reads, CHANNEL_A, [
-      'onA',
-      'onB',
-      'onBoth',
-      'unbound',
-    ]);
-
-    expect([...offered].sort()).toEqual(['onA', 'onBoth', 'unbound']);
-  });
-
-  it('reads the bridge as `payment-method`, and asks about memberships only for methods not bound to the channel', async () => {
-    const { reads, asked } = bridge({ onA: [CHANNEL_A], onB: [CHANNEL_B] });
-
-    await paymentMethodIdsAvailableInChannel(reads, CHANNEL_A, ['onA', 'onB', 'onA']);
-
-    expect(asked).toEqual(['filter:payment-method', 'list:payment-method:onB']);
-  });
-
-  it('asks nothing for an empty set', async () => {
-    const { reads, asked } = bridge({});
-
-    expect((await paymentMethodIdsAvailableInChannel(reads, CHANNEL_A, [])).size).toBe(0);
-    expect(asked).toEqual([]);
+    expect(asked).toEqual([['channel-a', 'payment-method', ['m1', 'm2', 'm3']]]);
+    expect([...offered]).toEqual(['m1', 'm3']);
   });
 });

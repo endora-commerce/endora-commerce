@@ -1000,6 +1000,26 @@ export class OrderService {
     return method && method.status === 'active' ? method : null;
   }
 
+  /**
+   * The channel gate, for a caller that has to ask **before** it prepares a
+   * placement.
+   *
+   * `placeOrder` applies the same gate itself, inside its transaction, and that
+   * is enough for a caller that hands it the buyer's basket as it stands. Admin
+   * order creation and the API-key intake do not: each clears the customer's
+   * active basket and reseeds it with the order's lines *before* calling
+   * `placeOrder`, so a refusal raised there arrives after the basket has
+   * already been replaced. They ask here first, and a refused order leaves the
+   * basket exactly as it was.
+   */
+  async assertMethodsOfferedInChannel(input: {
+    salesChannelId: string;
+    deliveryMethodId: string;
+    paymentMethodId: string;
+  }): Promise<void> {
+    await assertMethodsOfferedInChannel(this.neighbours, input);
+  }
+
   /** The payment twin of {@link activeDeliveryMethod}. */
   private async activePaymentMethod(id: string) {
     const method = await this.neighbours.paymentMethodRead()?.findById(id);

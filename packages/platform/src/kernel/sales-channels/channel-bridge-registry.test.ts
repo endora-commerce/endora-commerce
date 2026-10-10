@@ -179,6 +179,10 @@ describe('the membership service over an unregistered member (FR-017)', () => {
     ['replaceChannelsForEntity', () => service.replaceChannelsForEntity('cms-page', 'e', ['c'])],
     ['clearChannelsForEntity', () => service.clearChannelsForEntity('cms-page', 'e')],
     ['filterEntityIdsInChannel', () => service.filterEntityIdsInChannel('c', 'cms-page', ['e'])],
+    [
+      'filterEntityIdsAvailableInChannel',
+      () => service.filterEntityIdsAvailableInChannel('c', 'cms-page', ['e']),
+    ],
     ['listChannelsForEntity', () => service.listChannelsForEntity('cms-page', 'e')],
     ['listEntityIdsForChannel', () => service.listEntityIdsForChannel('c', 'cms-page')],
     // Synchronous — it builds a fragment and reads nothing — so it is wrapped to

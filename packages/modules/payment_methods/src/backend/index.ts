@@ -69,7 +69,10 @@ export interface PaymentMethodsCradle {
    */
   readonly requireAdminAny: RequireAdminAnyFactory;
   readonly commandBus: CommandBus;
-  readonly salesChannelMembershipPort: SalesChannelMembershipPort | undefined;
+  /** The platform's name for the acting administrator on an audit record. */
+  readonly adminAuditActorResolver: (request: FastifyRequest) => {
+    actorAdminUserId: string | null;
+  };
   /**
    * The two halves the allow-list is composed from (T138). This used to be one
    * `organizationPaymentMethodAllowList` contribution point that a root filled
@@ -162,18 +165,15 @@ export function registerModule(ctx: ModuleContext): void {
       .asFunction(
         ({ emFactory }: PaymentMethodsCradle) =>
           new PaymentMethodReadService(emFactory, {
-            // The membership port is read **per call**, through `ctx.cradle`,
-            // and never captured by this singleton's factory: a port is a
-            // transient gate, and `check:port-dependencies` refuses a factory
-            // parameter that holds one.
-            filterEntityIdsInChannel: (...args) =>
-              requiredMembership(
-                ctx.cradle<PaymentMethodsCradle>().salesChannelMembershipPort,
-              ).filterEntityIdsInChannel(...args),
-            listChannelsForEntity: (...args) =>
-              requiredMembership(
-                ctx.cradle<PaymentMethodsCradle>().salesChannelMembershipPort,
-              ).listChannelsForEntity(...args),
+            // Resolved **per call** with `lazyPort`, never captured by this
+            // singleton's factory (`module-composition.md` §3): a port is a
+            // transient gate, and a captured one keeps answering after its
+            // owner is switched off.
+            filterEntityIdsAvailableInChannel: (...args) =>
+              lazyPort<SalesChannelMembershipPort>(
+                ctx,
+                'salesChannelMembershipPort',
+              ).filterEntityIdsAvailableInChannel(...args),
           }),
       )
       .singleton(),
@@ -188,9 +188,9 @@ export function registerModule(ctx: ModuleContext): void {
       paymentMethodEligibility,
       paymentOrderStatusRegistry,
     } = ctx.cradle<PaymentMethodsCradle>();
-    const membership = requiredMembership(
-      ctx.cradle<PaymentMethodsCradle>().salesChannelMembershipPort,
-    );
+    // `lazyPort`, by its literal name, as `catalog` reads the same port
+    // (`module-composition.md` §3). The routes hold the proxy, not the port.
+    const membership = lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort');
 
     /**
      * Composed here from the two halves, and deliberately without a `catch`.
@@ -244,6 +244,8 @@ export function registerModule(ctx: ModuleContext): void {
       orderStatusRegistry: paymentOrderStatusRegistry,
       paymentRead,
       salesChannelMembership: membership,
+      resolveAuditActor: (request) =>
+        ctx.cradle<PaymentMethodsCradle>().adminAuditActorResolver(request),
     });
   });
 }
@@ -288,24 +290,3 @@ export const salesChannelBridges: ReadonlyArray<{
   },
 ];
 
-/**
- * The membership port, or a composition error.
- *
- * The cradle types it as possibly absent, from the time a root could compose
- * this module without the kernel's sales channels. No root does, and the two
- * reads that now depend on it — the storefront catalogue's channel filter and
- * `isAvailableInChannel` — must not treat "not wired" as "not restricted": that
- * is every method offered on every channel, which is the fail-open answer. So
- * absence stops the composition instead of widening a checkout.
- */
-function requiredMembership(
-  membership: SalesChannelMembershipPort | undefined,
-): SalesChannelMembershipPort {
-  if (membership === undefined) {
-    throw new Error(
-      'payment_methods: `salesChannelMembershipPort` is not composed, so payment methods cannot be ' +
-        'scoped to a sales channel. Compose the platform kernel before this module.',
-    );
-  }
-  return membership;
-}

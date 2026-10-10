@@ -2,6 +2,7 @@
 '@endora-commerce/mod-delivery-methods': minor
 '@endora-commerce/mod-payment-methods': minor
 '@endora-commerce/mod-orders': minor
+'@endora-commerce/mod-quick-order': minor
 '@endora-commerce/contracts': minor
 '@endora-commerce/platform': minor
 '@endora-commerce/admin-kit': minor
@@ -16,17 +17,24 @@ choose channels, and an order could be placed with any active method.
 
 **The rule.** An assignment is a restriction. A method assigned to one or more sales channels is
 offered in exactly those; a method assigned to **no** channel is offered in every channel. That
-differs from products on purpose — methods are routinely created without an assignment (a module's
-install hook runs before the default channel exists, and demo data assigns none), so "none" cannot
-mean "nowhere".
+differs from products on purpose — methods exist without an assignment as a matter of course (a
+module that ships its own method seeds it during the instance's first setup, before the default
+channel exists, and demo data assigns none), so "none" cannot mean "nowhere".
 
-**Upgrade note for an instance with more than one sales channel.** Every method created in the
-admin so far was assigned to the **default channel only**, because the screens offered nothing
-else. Those methods now disappear from the other channels' checkouts until their assignment is
-reviewed: open each method on `/delivery-methods` and `/payment-methods` and choose its channels,
-or untick all of them to offer it everywhere. Methods that were never assigned to a channel —
-seeded by a module's install or by demo data — stay offered on every channel. No data is migrated.
-An instance with a single sales channel is unaffected.
+**Upgrade note for an instance with more than one sales channel: review every method.** The new
+**Sales channels** column on `/delivery-methods` and `/payment-methods` shows where each one stands.
+
+- Assigned to the **default channel only**, and so gone from the other channels' checkouts until
+  changed: every method created in the admin so far (the screens offered nothing else), and every
+  method a gateway or carrier module seeded when it was installed on an instance that had already
+  been started — its installation assigns the method to the default channel when that channel
+  exists.
+- Assigned to **no channel**, and so still offered on every channel: methods a module seeded during
+  the instance's first setup, before its first start, when no default channel existed yet, and
+  methods created by demo data.
+
+Open each method and choose its channels, or untick all of them to offer it everywhere. No data is
+migrated. An instance with a single sales channel is unaffected.
 
 **A storefront must name the channel when it reads the two catalogues.** The reference storefront
 read `GET /api/v1/delivery-methods` and `GET /api/v1/payment-methods` with no `X-Sales-Channel`
@@ -45,22 +53,32 @@ What changed, by package:
   meanings: **omitted** leaves the assignment unchanged on an update and assigns a new method to
   the default channel (unchanged behaviour); **`[]`** removes every assignment, offering the method
   in every channel (it used to be ignored); a non-empty list replaces the assignment (unchanged).
+  An id that names no sales channel is now refused with `400 VALIDATION_FAILED` and a
+  `salesChannelIds` field error, before anything is written; it used to answer `500`. Channel
+  changes made through these routes are audited with the acting administrator.
   The modules' sales-channel bridges are registered with `emptyMeansEveryChannel: true`.
 - **`mod-orders`** — placing an order and previewing its total refuse a delivery or payment method
   not offered in the order's sales channel: `400 VALIDATION_FAILED` with
   `details.code` `delivery_method_not_in_sales_channel` / `payment_method_not_in_sales_channel`.
   This covers `POST /api/v1/orders`, `POST /api/v1/orders/preview-total`, one-click buy, admin
-  order creation and its preview, and the API-key order intake. The admin order-creation form
-  narrows its method lists to the chosen channel.
+  order creation and its preview, and the API-key order intake; the last three refuse before the
+  customer's basket is touched. The admin order-creation form narrows its method lists to the
+  chosen channel.
 - **`contracts`** — `DeliveryMethodReadPort` and `PaymentMethodReadPort` gain
   `isAvailableInChannel(id, salesChannelId): Promise<boolean>`. An implementation of either port
   outside this repository must add it.
-- **`platform`** — `SalesChannelMembershipPort` gains
-  `clearChannelsForEntity(entityType, entityId, options?)`, and a sales-channel bridge
-  registration may declare `emptyMeansEveryChannel`. Clearing is refused with
-  `ENTITY_WOULD_HAVE_ZERO_CHANNELS` for an entity type whose bridge does not declare it, so
-  products keep the at-least-one-channel rule. An implementation of the port outside this
-  repository must add the method.
+- **`platform`** — a sales-channel bridge registration may declare `emptyMeansEveryChannel`, and
+  `SalesChannelMembershipPort` gains two methods that read it:
+  `filterEntityIdsAvailableInChannel(channelId, entityType, entityIds)` — the ids bound to the
+  channel, plus, for a declaring type only, the ids bound to none — and
+  `clearChannelsForEntity(entityType, entityId, options?)`, refused with
+  `ENTITY_WOULD_HAVE_ZERO_CHANNELS` for a type that does not declare it. Products keep the
+  at-least-one-channel rule. An implementation of the port outside this repository must add both.
 - **`admin-kit`** — new `MethodSalesChannelsField`, `MethodSalesChannelsCell`,
   `useSalesChannelOptions` and `salesChannelIdsToSubmit` on `@endora-commerce/admin-kit/components`.
 - **`mod-i18n`** — the `methodSalesChannels.*` strings of the `core` bundle, in English and Polish.
+- **`mod-quick-order`** — one-click buy is not offered when the buyer's default delivery or payment
+  method is not offered in the sales channel of the request:
+  `GET /api/v1/quick-order/one-click/eligibility` answers `{ enabled: false, reason: "missing_defaults" }`
+  there, and `POST /api/v1/quick-order/one-click` refuses with `one_click_unavailable` without
+  touching the basket.

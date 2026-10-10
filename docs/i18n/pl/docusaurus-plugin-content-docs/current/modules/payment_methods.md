@@ -135,10 +135,18 @@ każdej metody.
 Metoda przypisana do jednego lub kilku kanałów jest dostępna dokładnie w nich. Metoda
 nieprzypisana do żadnego kanału — *Wszystkie kanały* w formularzu — jest dostępna w każdym kanale,
 także w kanałach utworzonych później. To celowo inna reguła niż dla produktów, gdzie produkt bez
-kanału nie jest opublikowany nigdzie: metody płatności często powstają bez przypisania (moduł
-dostarczający własną metodę tworzy wpis podczas instalacji, zanim istnieje kanał domyślny, a dane
-demonstracyjne nie przypisują żadnego kanału), więc potraktowanie „żadnego” jako „nigdzie” odebrałoby
-istniejącym sklepom metody dostępne przy składaniu zamówienia.
+kanału nie jest opublikowany nigdzie: metody płatności istnieją bez przypisania w zwykłych
+sytuacjach, więc potraktowanie „żadnego” jako „nigdzie” odebrałoby istniejącym sklepom metody
+dostępne przy składaniu zamówienia. Stan metody, której nikt nie przypisał ręcznie:
+
+- Moduł dostarczający własną metodę tworzy ją podczas instalacji modułu i przypisuje do kanału
+  domyślnego, **jeśli ten kanał w tym momencie istnieje**. Istnieje w każdej instancji, która
+  została uruchomiona przynajmniej raz. Podczas pierwszej konfiguracji nowej instancji — po
+  migracji i instalacji modułów, przed pierwszym uruchomieniem — nie istnieje, a metoda pozostaje
+  nieprzypisana do żadnego kanału.
+- Dane demonstracyjne nie przypisują żadnego kanału.
+- Metoda utworzona przez API bez `salesChannelIds` zostaje przypisana do kanału domyślnego;
+  metoda utworzona w formularzu panelu bez zaznaczenia kanału nie jest przypisana do żadnego.
 
 Przypisanie jest egzekwowane tam, gdzie spotyka je kupujący:
 
@@ -168,16 +176,25 @@ informuje o tym i nie wysyła pola, a zapis pozostawia przypisanie bez zmian.
 
 Poza tym nadal obowiązuje reguła co najmniej jednego kanału: usunięcie **ostatniego** kanału metody
 od strony kanału sprzedaży jest odrzucane, a usunięcie kanału sprzedaży, który jest jedynym
-kanałem metody, jest odrzucane albo przepina metodę do kanału domyślnego. Udostępnienie metody
-wszędzie jest zawsze świadomym wyborem dokonanym na metodzie.
+kanałem metody, jest odrzucane albo przepina metodę do kanału domyślnego. Przypisanie nie znika
+więc jako skutek uboczny innej operacji: metoda jest dostępna wszędzie tylko dlatego, że zapisano
+ją bez wybranego kanału albo utworzono bez przypisania, jak opisano wyżej. Zapis wskazujący kanał
+sprzedaży, który nie istnieje, jest odrzucany odpowiedzią `400 VALIDATION_FAILED`, zanim cokolwiek
+zostanie zapisane, a jeśli przypisanie kanałów **nowej** metody się nie powiedzie, metoda nie
+zostaje utworzona.
 
-**Aktualizacja instancji z więcej niż jednym kanałem sprzedaży.** Dotychczas sklep pokazywał każdą
-aktywną metodę w każdym kanale i pomijał przypisanie, a każda metoda utworzona w panelu była
-przypisana tylko do kanału domyślnego. Takie metody znikają teraz z pozostałych kanałów przy
-składaniu zamówienia, dopóki ich przypisanie nie zostanie przejrzane: otwórz każdą metodę na
-ekranie `/payment-methods` i wybierz jej kanały albo odznacz wszystkie, aby była dostępna wszędzie. Metody,
-które nigdy nie były przypisane do kanału — utworzone podczas instalacji i demonstracyjne —
-pozostają dostępne w każdym kanale. W instancji z jednym kanałem sprzedaży nic się nie zmienia.
+**Aktualizacja instancji z więcej niż jednym kanałem sprzedaży: przejrzyj każdą metodę.**
+Dotychczas sklep pokazywał każdą aktywną metodę w każdym kanale i pomijał przypisanie. Kolumna
+**Kanały sprzedaży** na ekranie `/payment-methods` pokazuje obecny stan każdej metody:
+
+- przypisana **tylko do kanału domyślnego**, a więc niedostępna przy składaniu zamówienia w
+  pozostałych kanałach, dopóki tego nie zmienisz — każda metoda utworzona dotąd w panelu oraz
+  każda metoda utworzona przez moduł zainstalowany w instancji, która była już uruchomiona;
+- nieprzypisana **do żadnego kanału**, a więc nadal dostępna wszędzie — metody utworzone przez
+  moduł podczas pierwszej konfiguracji instancji oraz metody z danych demonstracyjnych.
+
+Otwórz każdą metodę i wybierz jej kanały albo odznacz wszystkie, aby była dostępna wszędzie. W
+instancji z jednym kanałem sprzedaży nic się nie zmienia.
 
 Przypisania są przechowywane w tabeli `sales_channel_payment_methods` i są odczytywane oraz zapisywane wyłącznie przez
 usługę przypisań kanałów sprzedaży platformy.
