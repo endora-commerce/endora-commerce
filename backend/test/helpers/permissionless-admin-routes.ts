@@ -76,12 +76,6 @@ export interface PermissionlessRouteEntry {
   readonly guard: 'session' | 'none';
   /** Why this route must answer whatever the caller's role grants. */
   readonly reason: string;
-  /**
-   * Set on an entry nobody has ruled on: the sweep found the route open, it is
-   * not self-service on the face of it, and it is listed as found rather than
-   * silently gated or silently blessed. Carries the recommendation.
-   */
-  readonly undecided?: string;
 }
 
 /**
@@ -91,6 +85,12 @@ export interface PermissionlessRouteEntry {
  * Adding an entry is a decision that the route does nothing on behalf of the
  * instance: it reads or changes the caller's own account, or it is something
  * the shell cannot render without. Anything else takes a permission code.
+ *
+ * **There is no "undecided" entry, deliberately.** The list once carried four
+ * routes marked as awaiting a ruling; the owner ruled that all four stay open
+ * and the marker went with them. A route found open is given a code or is
+ * listed with the reason it is open — a third state would be a place for the
+ * next one to sit indefinitely with the sweep green.
  */
 export const PERMISSIONLESS_ADMIN_ROUTES: Readonly<Record<string, PermissionlessRouteEntry>> = {
   'GET /api/v1/admin/me': {
@@ -160,43 +160,28 @@ export const PERMISSIONLESS_ADMIN_ROUTES: Readonly<Record<string, Permissionless
   'GET /api/v1/admin/platform-info': {
     guard: 'session',
     reason:
-      'Which release the instance runs, for the version badge in the header of every screen. ' +
-      'Its own registration says the missing code is deliberate, on the same ground as the ' +
-      'presence projection.',
-    undecided:
-      'Not named in issue #141; it arrived on master while that issue was open. ' +
-      'Recommendation: keep session-only — it answers one string, and the liveness probe ' +
-      'already hands the same number to an anonymous caller.',
+      'Which release the instance runs, for the version badge in the header of every screen — ' +
+      'one string, shown to whoever is signed in, whatever their role.',
   },
   'GET /api/v1/admin/i18n/bundles': {
     guard: 'session',
     reason:
       'The strings every screen renders, including the notice an account without a role is ' +
-      'shown. Read-only, and the same answer for every administrator.',
-    undecided:
-      'Not named in issue #141. Recommendation: keep session-only — the shell cannot render a ' +
-      'single label without it.',
+      'shown; without it the shell cannot render a single label.',
   },
   'GET /api/v1/admin/admin-actions': {
     guard: 'session',
     reason:
-      'The command palette list. The service filters it by the permissions the caller holds, ' +
-      'so the route answers each administrator with what they may open and nothing more.',
-    undecided:
-      'Not named in issue #141. Recommendation: keep session-only — the filtering is per ' +
-      'caller, and a code here would hide the palette from roles that can use part of it.',
+      'The command palette list, which the service filters by the permissions the caller ' +
+      'holds: each administrator is answered with what they may open and nothing more.',
   },
   'POST /api/v1/admin/impersonation/end': {
     guard: 'none',
     reason:
-      'Ends the impersonation the caller started. The request arrives carrying the ' +
-      'impersonation session rather than an administrator one, so the handler authenticates ' +
-      'it by the impersonation cookie and the shadow cookie together and answers 401 without ' +
-      'both.',
-    undecided:
-      'Not named in issue #141, and the one admin route with no guard at all. Recommendation: ' +
-      'keep — starting an impersonation is permission-gated, and refusing to end one would ' +
-      'strand the administrator inside the customer session.',
+      'Ends the impersonation the caller started. It carries no `requireAdmin` guard because ' +
+      'the request arrives as the impersonated customer: the handler authenticates it itself, ' +
+      'by the impersonation session cookie and the administrator shadow cookie together, and ' +
+      'answers 401 without both.',
   },
 };
 
