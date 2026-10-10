@@ -22,7 +22,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import type { ModuleContext } from '@endora-commerce/platform/kernel';
 import { lazyPort } from '@endora-commerce/platform/kernel';
 import type { OrganizationReadPort } from '@endora-commerce/platform/kernel';
-import type { RequireAdminFactory } from '@endora-commerce/platform/kernel';
+import type { RequireAdminFactory, RequireCustomerGuard } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
 import type { SettingsReadPort } from '@endora-commerce/platform/kernel';
 import { abandonmentSettingsReaders } from './services/cart-abandonment-settings.js';
@@ -105,6 +105,8 @@ export interface CartsCradle {
   readonly auditLogService: AuditPort;
   readonly redis: Redis;
   readonly requireAdmin: RequireAdminFactory;
+  /** A port `auth` provides — read per request, never captured. */
+  readonly requireCustomer: RequireCustomerGuard;
   readonly settingsReadPort: SettingsReadPort;
   /**
    * Feature 075, Phase C — the six ports every service here used to reach by
@@ -311,9 +313,13 @@ export function registerModule(ctx: ModuleContext): void {
     // instead of stopping the routes (D-40).
     const cartService = lazyPort<CartService>(ctx, 'cartService');
 
+    const requireCustomer: RequireCustomerGuard = (req) =>
+      ctx.cradle<CartsCradle>().requireCustomer(req);
+
     await registerCartRoutes(app, {
       emFactory,
       resolveCartActor,
+      requireCustomer,
       cartService,
       catalogProducts: lazyPort<CatalogProductReadPort>(ctx, 'catalogProductReadPort'),
       cartUpsellService: new CartUpsellService(
@@ -359,6 +365,7 @@ export function registerModule(ctx: ModuleContext): void {
     await registerCartsOrganizationRoutes(app, {
       emFactory,
       resolveCartActor,
+      requireCustomer,
       cartService,
       cartApprovalService: cradle.cartApprovalService,
       customerAccounts: lazyPort<CustomerAccountReadPort>(ctx, 'customerAccountReadPort'),

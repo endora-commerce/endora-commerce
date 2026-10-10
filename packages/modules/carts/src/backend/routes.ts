@@ -33,12 +33,18 @@ import type { CartItem } from './entities/cart-item.entity.js';
 
 import { HttpError } from '@endora-commerce/platform/http';
 import { productAudienceOf } from '@endora-commerce/platform/http';
-import { rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
+import { rethrowIfModuleDisabled, type RequireCustomerGuard } from '@endora-commerce/platform/kernel';
 
 const ANON_COOKIE = 'b2b_cart_anon';
 
 export interface CartsDeps {
   cartService: CartService;
+  /**
+   * The customer-session guard, declared on the routes below that validate a
+   * body: a declared guard runs before schema validation, a check inside the
+   * handler does not.
+   */
+  requireCustomer: RequireCustomerGuard;
   /**
    * Feature 027 — Up-sell aggregator. Optional so legacy compositions
    * that haven't yet wired the new service still build successfully;
@@ -351,7 +357,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    */
   app.post<{ Params: { itemId: string } }>(
     '/api/v1/cart/items/:itemId/save-to-shopping-list',
-    { schema: { body: saveCartItemToListSchema } },
+    { preHandler: deps.requireCustomer, schema: { body: saveCartItemToListSchema } },
     async (request, reply) => {
       const actor = resolveCartActor(request);
       if (!actor.customer) {
@@ -494,7 +500,7 @@ export async function registerCartRoutes(app: FastifyInstance, deps: CartsDeps):
    */
   app.post(
     '/api/v1/cart/convert-to-quote-request',
-    { schema: { body: convertCartToQrSchema } },
+    { preHandler: deps.requireCustomer, schema: { body: convertCartToQrSchema } },
     async (request) => {
       const actor = resolveCartActor(request);
       if (!actor.customer) {

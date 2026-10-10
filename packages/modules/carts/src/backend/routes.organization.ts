@@ -15,6 +15,7 @@ import type { CartService } from './services/cart-service.js';
 import type { CartApprovalService } from './services/cart-approval-service.js';
 import type { CartOrganizationVisibilityService } from './services/cart-organization-visibility-service.js';
 import { HttpError } from '@endora-commerce/platform/http';
+import type { RequireCustomerGuard } from '@endora-commerce/platform/kernel';
 
 /**
  * Storefront routes scoped to an Organization Admin (feature 027 US4).
@@ -64,6 +65,8 @@ export interface CartsOrganizationRoutesDeps {
   cartApprovalService: CartApprovalService;
   visibilityService: CartOrganizationVisibilityService;
   emFactory: () => EntityManager;
+  /** Declared on the routes that validate a body, so it runs before validation. */
+  requireCustomer: RequireCustomerGuard;
   resolveCartActor: (request: FastifyRequest) => {
     customer?: { customerAccountId: string; organizationId: string | null };
     anonymousToken?: string;
@@ -79,6 +82,7 @@ export async function registerCartsOrganizationRoutes(
     cartApprovalService,
     visibilityService,
     customerAccounts,
+    requireCustomer,
     resolveCartActor,
   } = deps;
 
@@ -151,7 +155,7 @@ export async function registerCartsOrganizationRoutes(
 
   app.patch(
     '/api/v1/organization/policies/cart-approval',
-    { schema: { body: setCartApprovalPolicySchema } },
+    { preHandler: requireCustomer, schema: { body: setCartApprovalPolicySchema } },
     async (request) => {
       const orgAdmin = await requireOrgAdmin(request);
       const body = setCartApprovalPolicySchema.parse(request.body);
@@ -206,7 +210,7 @@ export async function registerCartsOrganizationRoutes(
 
   app.post<{ Params: { id: string } }>(
     '/api/v1/organization/carts/:id/reject',
-    { schema: { body: rejectOrgCartSchema } },
+    { preHandler: requireCustomer, schema: { body: rejectOrgCartSchema } },
     async (request) => {
       const orgAdmin = await requireOrgAdmin(request);
       const body = rejectOrgCartSchema.parse(request.body);
