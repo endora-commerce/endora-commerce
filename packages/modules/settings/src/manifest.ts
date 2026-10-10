@@ -353,7 +353,11 @@ export const manifest = defineModuleManifest({
     { code: 'SETTING_NOT_REGISTERED' },
     { code: 'SETTING_OUT_OF_SCOPE_FOR_CHANNEL' },
     { code: 'SETTING_SECRET_KEY_MISSING' },
-    { code: 'SETTING_VALUE_SHAPE_MISMATCH' },
+    // Issue #86 — the first tokens in this module, and the paragraph above was
+    // true until they arrived: the two refusals under this code now name
+    // themselves in `details.code`, so each has a sentence of its own that says
+    // what the setting accepts. The bare key stays for a raise that names none.
+    { code: 'SETTING_VALUE_SHAPE_MISMATCH', tokens: ['wrong_type', 'not_an_option'] },
   ],
   i18n: { bundlesDir: 'i18n' },
   docs: { dir: 'docs' },

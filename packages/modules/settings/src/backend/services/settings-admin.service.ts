@@ -354,10 +354,22 @@ export class SettingsAdminService {
         400,
         ERROR_CODES.SETTING_VALUE_SHAPE_MISMATCH,
         `Value does not match valueType="${setting.valueType}".`,
-        parsed.error.issues.map((issue) => ({
-          path: issue.path.join('.') || '(root)',
-          issue: issue.message,
-        })),
+        // Issue #86 — the type this message named and the bundle sentence
+        // that replaces it did not. `code` is the refusal token: the envelope
+        // reads it as the tail of the sentence key, which is what lets the
+        // two refusals under this one code say different things. The
+        // validator's findings used to be the whole of `details`, as a bare
+        // array; an array fills no placeholder, so they are now `issues`
+        // inside the object.
+        {
+          code: 'wrong_type',
+          settingCode: setting.code,
+          valueType: setting.valueType,
+          issues: parsed.error.issues.map((issue) => ({
+            path: issue.path.join('.') || '(root)',
+            issue: issue.message,
+          })),
+        },
       );
     }
 
@@ -371,6 +383,15 @@ export class SettingsAdminService {
           400,
           ERROR_CODES.SETTING_VALUE_SHAPE_MISMATCH,
           `Value must be one of: ${setting.enumOptions.join(', ')}.`,
+          // Issue #86 — the options, twice on purpose: the envelope fills a
+          // placeholder from scalars only, so the sentence reads the joined
+          // string and a client reads the array.
+          {
+            code: 'not_an_option',
+            settingCode: setting.code,
+            allowedValues: setting.enumOptions.join(', '),
+            enumOptions: [...setting.enumOptions],
+          },
         );
       }
     }

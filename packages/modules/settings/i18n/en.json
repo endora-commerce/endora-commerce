@@ -116,6 +116,8 @@
   "errors.SETTING_NOT_REGISTERED": "Setting is not registered.",
   "errors.SETTING_OUT_OF_SCOPE_FOR_CHANNEL": "Setting is out of scope for this channel.",
   "errors.SETTING_VALUE_SHAPE_MISMATCH": "Setting value does not match the required shape.",
+  "errors.SETTING_VALUE_SHAPE_MISMATCH.wrong_type": "The value of \"{settingCode}\" must be of type \"{valueType}\".",
+  "errors.SETTING_VALUE_SHAPE_MISMATCH.not_an_option": "The value of \"{settingCode}\" must be one of: {allowedValues}.",
   "errors.SETTING_EMPTY_SUBSET": "Choose at least one sales channel.",
   "errors.SETTING_GROUP_PROTECTED": "Setting group is protected.",
   "errors.SETTING_GROUP_NOT_FOUND": "Setting group not found.",
