@@ -75,6 +75,7 @@ export interface SalesChannelMembershipPort {
   bindToDefaultIfEmpty(
     entityType: ChannelMemberEntityType,
     entityId: string,
+    options?: MembershipMutationOptions,
   ): Promise<MembershipMutationResult>;
 
   /**
@@ -85,6 +86,19 @@ export interface SalesChannelMembershipPort {
     entityType: ChannelMemberEntityType,
     entityId: string,
     channelIds: readonly [string, ...string[]],
+    options?: MembershipMutationOptions,
+  ): Promise<MembershipMutationResult>;
+
+  /**
+   * Remove every membership of an entity, leaving it bound to no channel.
+   * Refused with `ENTITY_WOULD_HAVE_ZERO_CHANNELS` unless the owning module
+   * registered the type's bridge with `emptyMeansEveryChannel` — the types for
+   * which "no membership" means "not restricted to any channel" (delivery and
+   * payment methods) rather than "published nowhere" (products).
+   */
+  clearChannelsForEntity(
+    entityType: ChannelMemberEntityType,
+    entityId: string,
     options?: MembershipMutationOptions,
   ): Promise<MembershipMutationResult>;
 
@@ -122,6 +136,19 @@ export interface SalesChannelMembershipPort {
     channelId: string,
     entityType: ChannelMemberEntityType,
   ): { sql: string; params: string[] };
+
+  /**
+   * Narrow a known set of entity ids to those **offered** in `channelId`, by
+   * the convention the owning module registered for the type: bound to the
+   * channel — and, for a type registered with `emptyMeansEveryChannel`, bound
+   * to no channel at all. For every other type it is
+   * {@link filterEntityIdsInChannel}.
+   */
+  filterEntityIdsAvailableInChannel(
+    channelId: string,
+    entityType: ChannelMemberEntityType,
+    entityIds: readonly string[],
+  ): Promise<string[]>;
 
   /** Channels an entity currently belongs to. */
   listChannelsForEntity(

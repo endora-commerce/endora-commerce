@@ -108,22 +108,6 @@ export interface DeliveryMethodSeedApi {
     defaults: DeliveryMethodSeedDefaults,
   ): Promise<DeliveryMethodSeedOutcome>;
 
-  /**
-   * Put the method in the system-default sales channel.
-   *
-   * **Call it only when `ensureMethodForAdapter` answered `created === true`.**
-   * Never as a reconcile: "unbound from every channel" is a state an operator is
-   * entitled to reach and to keep, and an unguarded call brings the method back
-   * with nothing saying so (issue #96).
-   *
-   * Answers whether a membership row was written — `false` when the method was
-   * already in that channel, and `false` when the platform has **no**
-   * system-default channel yet, which a database that has been migrated and never
-   * booted does not: the default channel is created at boot, and an install
-   * composes nothing. The row is then seeded and unbound, which is what the seed
-   * migration this replaced did in the same state.
-   */
-  bindToDefaultChannel(em: EntityManager, deliveryMethodId: string): Promise<boolean>;
 
   /**
    * Remove the method and, by cascade, its channel memberships.

@@ -98,55 +98,60 @@ describe('DeliveryMethodSeedApi — delivery_methods\' published install surface
     expect(second.row.statusOnSuccess).toBe('completed'); // admin edit preserved
   });
 
-  it('binds a method to the system-default channel once, and answers false on a repeat', async () => {
+  /**
+   * A seeded method is bound to **no** sales channel — on a database that has a
+   * system-default channel, which is the state the seed surface used to bind
+   * in (`setupTestDb` gives this one a default channel; the last assertion pins
+   * that, so the case cannot pass on a database with none).
+   *
+   * For this entity type no membership is a meaning, not a gap: the method is
+   * offered on every channel until an operator restricts it. The surface no
+   * longer has a binding step at all, so the answer is the same whenever a
+   * module is installed — before the instance's first boot or years after it.
+   */
+  it('seeds a method bound to no sales channel, although a default channel exists', async () => {
     const seeder = createDeliveryMethodSeeder();
-    const code = `recon_ship_bind_${Date.now()}`;
-    const { row } = await seeder.ensureMethodForAdapter(db.em(), 'bind_carrier', {
+    const code = `recon_delivery_unbound_${Date.now()}`;
+    const { row, created } = await seeder.ensureMethodForAdapter(db.em(), 'bind_carrier', {
       code,
       name: { default: 'Bind' },
     });
 
-    expect(await seeder.bindToDefaultChannel(db.em(), row.id)).toBe(true);
-    expect(await seeder.bindToDefaultChannel(db.em(), row.id)).toBe(false);
-
-    const bound = await db
-      .em()
-      .execute<Array<{ sales_channel_id: string }>>(
-        'select "sales_channel_id" from "sales_channel_delivery_methods" where "delivery_method_id" = ?',
-        [row.id],
-      );
-    expect(bound.map((r) => r.sales_channel_id)).toEqual([db.systemDefaultChannelId]);
+    expect(created).toBe(true);
+    expect(await membershipsOf(row.id)).toEqual([]);
+    expect(db.systemDefaultChannelId).toBeTruthy();
+    // The published seed surface offers no way to bind one.
+    expect('bindToDefaultChannel' in seeder).toBe(false);
   });
 
-  it('answers false, and writes nothing, when the platform has no system-default channel', async () => {
-    // The state of a database that has been migrated and never booted: the
-    // default channel is `DefaultChannelReconciler`'s, and it runs from
-    // `composeApp`, which `module:install` does not (D-46). The partial unique
-    // index permits zero winners, so clearing the flag inside this transaction is
-    // the state rather than a contrivance. The seed migration this surface
-    // replaced behaved the same way — its `cross join … where "system_default"`
-    // matched nothing and inserted nothing.
-    await db.em().execute('update "sales_channels" set "system_default" = false');
+  /**
+   * What an **earlier release** left behind, and why it is not repaired. Its
+   * seed bound a new method to the default channel whenever that channel
+   * existed, so an instance that had already booted holds seeded methods bound
+   * to "default only". That row is indistinguishable from one an operator
+   * restricted on purpose, so a re-run of the seed leaves it exactly as it is
+   * — no backfill, in either direction.
+   */
+  it('leaves the membership of a row an earlier release bound to the default channel', async () => {
     const seeder = createDeliveryMethodSeeder();
-    const code = `recon_ship_nochannel_${Date.now()}`;
-    const { row } = await seeder.ensureMethodForAdapter(db.em(), 'unbound_carrier', {
+    const code = `recon_delivery_legacy_${Date.now()}`;
+    const args = {
       code,
-      name: { default: 'Unbound' },
-    });
-
-    expect(await seeder.bindToDefaultChannel(db.em(), row.id)).toBe(false);
-
-    const bound = await db
+      name: { default: 'Bind' },
+    };
+    const { row } = await seeder.ensureMethodForAdapter(db.em(), 'bind_carrier', args);
+    // The earlier release's write, verbatim in effect.
+    await db
       .em()
-      .execute<Array<{ sales_channel_id: string }>>(
-        'select "sales_channel_id" from "sales_channel_delivery_methods" where "delivery_method_id" = ?',
-        [row.id],
-      );
-    expect(bound).toEqual([]);
-    // The method itself is there, unbound — an operator binds it, or the first
-    // boot's reconciler gives the platform a default channel and a re-install
-    // does nothing, because the row already exists.
-    expect(await db.em().findOne(DeliveryMethod, { code })).not.toBeNull();
+      .execute('insert into "sales_channel_delivery_methods" ("sales_channel_id", "delivery_method_id") values (?, ?)', [
+        db.systemDefaultChannelId,
+        row.id,
+      ]);
+
+    const again = await seeder.ensureMethodForAdapter(db.em(), 'bind_carrier', args);
+
+    expect(again.created).toBe(false);
+    expect(await membershipsOf(row.id)).toEqual([db.systemDefaultChannelId]);
   });
 
   it('removes the method and its channel memberships on the hard-uninstall path', async () => {
@@ -156,7 +161,12 @@ describe('DeliveryMethodSeedApi — delivery_methods\' published install surface
       code,
       name: { default: 'Remove' },
     });
-    await seeder.bindToDefaultChannel(db.em(), row.id);
+    await db
+      .em()
+      .execute('insert into "sales_channel_delivery_methods" ("sales_channel_id", "delivery_method_id") values (?, ?)', [
+        db.systemDefaultChannelId,
+        row.id,
+      ]);
 
     expect(await seeder.removeMethodForAdapter(db.em(), code)).toBe(true);
     // Idempotent: a code that is not there is not an error.
@@ -171,4 +181,15 @@ describe('DeliveryMethodSeedApi — delivery_methods\' published install surface
       );
     expect(bound).toEqual([]);
   });
+
+  async function membershipsOf(methodId: string): Promise<string[]> {
+    const rows = await db
+      .em()
+      .execute<Array<{ sales_channel_id: string }>>(
+        'select "sales_channel_id" from "sales_channel_delivery_methods" where "delivery_method_id" = ?',
+        [methodId],
+      );
+    return rows.map((r) => r.sales_channel_id);
+  }
+
 });

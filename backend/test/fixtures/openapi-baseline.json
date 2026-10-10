@@ -2479,6 +2479,15 @@
         }
       }
     },
+    "/api/v1/admin/delivery-methods/sales-channels": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/v1/admin/delivery-methods/{code}": {
       "put": {
         "responses": {
@@ -4422,6 +4431,15 @@
       }
     },
     "/api/v1/admin/payment-methods/adapters": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/payment-methods/sales-channels": {
       "get": {
         "responses": {
           "200": {

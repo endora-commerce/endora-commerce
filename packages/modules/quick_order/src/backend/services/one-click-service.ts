@@ -63,7 +63,12 @@ export class OneClickService {
     const enabled = await this.resolveOneClickEnabled(salesChannelId);
     if (!enabled) return { enabled: false, reason: 'setting_disabled' };
 
-    const defaults = await this.preferenceService.resolveForCustomer(customerAccountId);
+    // For this channel: a default method the channel does not offer is not a
+    // usable default, and the button must not be offered on the strength of it.
+    const defaults = await this.preferenceService.resolveForCustomer(
+      customerAccountId,
+      salesChannelId,
+    );
     if (
       !defaults.paymentMethodId ||
       !defaults.deliveryMethodId ||
@@ -88,7 +93,13 @@ export class OneClickService {
       });
     }
 
-    const defaults = await this.preferenceService.resolveForCustomer(ctx.customerAccountId);
+    // The same channel-aware read `eligibility` just made, so the methods used
+    // below are the ones it vouched for — and the refusal above came before the
+    // basket is cleared.
+    const defaults = await this.preferenceService.resolveForCustomer(
+      ctx.customerAccountId,
+      salesChannelId,
+    );
     const customerCtx = { customerAccountId: ctx.customerAccountId, organizationId: ctx.organizationId };
 
     // Clear-then-seed matches the single-active-cart model used by admin

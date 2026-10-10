@@ -76,6 +76,9 @@ const orderService = {
   // the basket; these cases are about the address cleanup, so nothing is
   // restricted.
   assertMethodsAllowedForOrganization: async () => undefined,
+  // Both services ask whether the chosen methods are offered in the order's
+  // channel before they touch the customer's basket; here they are.
+  assertMethodsOfferedInChannel: async () => undefined,
 } as unknown as OrderService;
 
 describe('OrderCreationAdminService — inline-address cleanup', () => {

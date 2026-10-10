@@ -10,6 +10,13 @@ import { useSearchParams } from 'react-router-dom';
 import { Pencil, Trash2 } from 'lucide-react';
 import { ApiError, useAuth } from '@endora-commerce/admin-kit/lib';
 import { AdminZone, useAdminZone } from '@endora-commerce/admin-kit/zones';
+import {
+  MethodSalesChannelsCell,
+  MethodSalesChannelsField,
+  salesChannelIdsToSubmit,
+  useSalesChannelOptions,
+  type MethodSalesChannelOptions,
+} from '@endora-commerce/admin-kit/components';
 import { Alert, AlertDescription, Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageHeader, Select, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@endora-commerce/admin-kit/ui';
 import { useTranslation } from '@endora-commerce/admin-kit/i18n';
 import {
@@ -60,6 +67,9 @@ export function PaymentMethodsPage(): ReactNode {
   // `useAdminZone` applies platform presence, operator activation and the
   // contribution's permission before deciding whether the card exists.
   const integrations = useAdminZone('payment_method.list.integrations', {});
+  // The instance's sales channels, for the form's channel field and the list's
+  // channel column — loaded once, so the two cannot disagree.
+  const salesChannels = useSalesChannelOptions('/api/v1/admin/payment-methods/sales-channels', canRead);
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!canRead) {
@@ -119,6 +129,9 @@ export function PaymentMethodsPage(): ReactNode {
           ...(input.statusOnPending ? { statusOnPending: input.statusOnPending } : {}),
           ...(input.statusOnSuccess ? { statusOnSuccess: input.statusOnSuccess } : {}),
           ...(input.statusOnFailure ? { statusOnFailure: input.statusOnFailure } : {}),
+          ...(input.salesChannelIds !== undefined
+            ? { salesChannelIds: input.salesChannelIds }
+            : {}),
         });
         setInfo(t('legacyMethods.messages.saved', { code: input.code }));
         resetForm();
@@ -226,6 +239,7 @@ export function PaymentMethodsPage(): ReactNode {
             initial={editing}
             adapters={adapters}
             orderStatuses={orderStatuses}
+            salesChannels={salesChannels}
             onSubmit={handleUpsert}
             {...(editing ? { onCancel: resetForm } : {})}
           />
@@ -245,6 +259,7 @@ export function PaymentMethodsPage(): ReactNode {
                   <TableHead>{t('legacyMethods.columns.code')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.name')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.adapter')}</TableHead>
+                  <TableHead>{t('methodSalesChannels.column')}</TableHead>
                   <TableHead>{t('legacyMethods.columns.status')}</TableHead>
                   <TableHead />
                 </TableRow>
@@ -270,6 +285,12 @@ export function PaymentMethodsPage(): ReactNode {
                       {r.additionalPrice > 0 ? (
                         <span className="text-muted-foreground"> (+{r.additionalPrice})</span>
                       ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <MethodSalesChannelsCell
+                        options={salesChannels}
+                        salesChannelIds={r.salesChannelIds}
+                      />
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col items-start gap-1">
@@ -360,6 +381,8 @@ interface UpsertFormValue {
   statusOnPending: string;
   statusOnSuccess: string;
   statusOnFailure: string;
+  /** `undefined` leaves the method's channels as they are — see `salesChannelIdsToSubmit`. */
+  salesChannelIds: string[] | undefined;
 }
 
 function UpsertForm({
@@ -368,12 +391,14 @@ function UpsertForm({
   onSubmit,
   onCancel,
   orderStatuses,
+  salesChannels,
 }: {
   initial?: AdminPaymentMethod | null;
   adapters: string[];
   onSubmit: (input: UpsertFormValue) => Promise<void>;
   onCancel?: () => void;
   orderStatuses: OrderStatusOption[];
+  salesChannels: MethodSalesChannelOptions;
 }): ReactNode {
   const t = useTranslation('core');
   const isEdit = Boolean(initial);
@@ -387,6 +412,11 @@ function UpsertForm({
   const [statusOnPending, setStatusOnPending] = useState(initial?.statusOnPending ?? '');
   const [statusOnSuccess, setStatusOnSuccess] = useState(initial?.statusOnSuccess ?? '');
   const [statusOnFailure, setStatusOnFailure] = useState(initial?.statusOnFailure ?? '');
+  // Empty means every channel — for a new method that is the form's default,
+  // and what the operator sees in the field before touching it.
+  const [salesChannelIds, setSalesChannelIds] = useState<string[]>(
+    initial?.salesChannelIds ?? [],
+  );
 
   // Offer the known adapter keys, but never drop the row's current adapter even
   // if the registry list failed to load — so an edit never silently rebinds it.
@@ -429,6 +459,7 @@ function UpsertForm({
           statusOnPending,
           statusOnSuccess,
           statusOnFailure,
+          salesChannelIds: salesChannelIdsToSubmit(salesChannels, salesChannelIds),
         });
       }}
     >
@@ -506,6 +537,11 @@ function UpsertForm({
         {statusSelect('pmsop', t('legacyMethods.fields.statusOnPending'), statusOnPending, setStatusOnPending)}
         {statusSelect('pmsos', t('legacyMethods.fields.statusOnSuccess'), statusOnSuccess, setStatusOnSuccess)}
         {statusSelect('pmsof', t('legacyMethods.fields.statusOnFailure'), statusOnFailure, setStatusOnFailure)}
+        <MethodSalesChannelsField
+          options={salesChannels}
+          value={salesChannelIds}
+          onChange={setSalesChannelIds}
+        />
       </div>
       <div className="flex gap-2">
         <Button type="submit">{t('common.action.save')}</Button>

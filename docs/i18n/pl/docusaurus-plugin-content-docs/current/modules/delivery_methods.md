@@ -28,11 +28,19 @@ decydować o sposobach wysyłki sklepu i całkowicie usuwać metody dostawy. Rol
 kodów katalogu przy tym ekranie, musi dostać nowe kody na `/admin-roles`; nic nie przyznaje ich
 automatycznie — celowo.
 
+**Wybór kanałów sprzedaży metody wymaga tych kodów i żadnych innych.** To, gdzie metoda jest
+dostępna, jest częścią konfiguracji metody, więc `delivery_methods:write` wystarcza, aby przypisać, zmienić i
+usunąć jej kanały sprzedaży, a `delivery_methods:read` — aby zobaczyć kanały do wyboru
+(`GET /api/v1/admin/delivery-methods/sales-channels`). Ani `sales_channels:read`, ani
+`sales_channels:write` nie są wymagane — to decyzja, nie przeoczenie — a kody `delivery_methods` nie dają
+żadnych uprawnień na ekranach kanałów sprzedaży.
+
 | Metoda i ścieżka | Kto | Uprawnienie | Przeznaczenie |
 | --- | --- | --- | --- |
 | `GET /api/v1/delivery-methods` | anonimowy | — | Metody dostępne w checkoucie storefrontu (aktywne ∩ kanał sprzedaży ∩ lista dozwolonych organizacji ∩ zarejestrowany adapter ∩ `validateUseOnStorefront`) |
 | `GET /api/v1/admin/delivery-methods` | administrator | `delivery_methods:read` | Pełna lista z adapterem, przypisaniem statusów, kanałami sprzedaży, kluczem szablonu oraz polem `availability` — czy checkout może zaoferować metodę i który moduł o tym decyduje |
 | `GET /api/v1/admin/delivery-methods/adapters` | administrator | `delivery_methods:read` | Adaptery, do których można przypisać metodę: `{ key, ownerModule }` dla każdego zarejestrowanego adaptera, którego moduł jest włączony |
+| `GET /api/v1/admin/delivery-methods/sales-channels` | administrator | `delivery_methods:read` | Kanały sprzedaży, do których można przypisać metodę — `{ id, code, name, active }` dla każdego kanału, także nieaktywnych |
 | `PUT /api/v1/admin/delivery-methods/:code` | administrator | `delivery_methods:write` | Utworzenie lub aktualizacja według kodu (nazwa, koszt/`price`, `adapter`, status, `statusOnSuccess`/`statusOnFailure`, kanały sprzedaży) |
 | `DELETE /api/v1/admin/delivery-methods/:id` | administrator | `delivery_methods:write` | Trwałe usunięcie (chronione: odrzucane z 409, gdy metoda jest używana przez przesyłkę `Shipment` — zamiast tego ustaw status `inactive`) |
 
@@ -40,6 +48,87 @@ Listy wyboru statusów w panelu pobierają opcje z `GET /api/v1/admin/order-stat
 administracyjna modułu metod płatności; wspólny `OrderStatusRegistry`). Ta trasa wymaga
 `payment_methods:read` **albo** `delivery_methods:read` — wystarczy jedno z uprawnień obu
 edytorów, które z niej korzystają, więc kod otwierający ten ekran otwiera też jego listy statusów.
+
+## Kanały sprzedaży
+
+Każda metoda dostawy jest dostępna w tych kanałach sprzedaży, które wybierze dla niej
+operator. Na ekranie `/delivery-methods` formularz ma pole **Kanały sprzedaży**, a lista pokazuje kanały
+każdej metody.
+
+**Przypisanie jest ograniczeniem, a metoda bez przypisania jest dostępna w każdym kanale.**
+Metoda przypisana do jednego lub kilku kanałów jest dostępna dokładnie w nich. Metoda
+nieprzypisana do żadnego kanału — *Wszystkie kanały* w formularzu — jest dostępna w każdym kanale,
+także w kanałach utworzonych później. To celowo inna reguła niż dla produktów, gdzie produkt bez
+kanału nie jest opublikowany nigdzie: metody dostawy istnieją bez przypisania w zwykłych
+sytuacjach, więc potraktowanie „żadnego” jako „nigdzie” odebrałoby istniejącym sklepom metody
+dostępne przy składaniu zamówienia. Stan metody, której nikt nie przypisał ręcznie:
+
+- Moduł dostarczający własną metodę tworzy ją podczas instalacji modułu i nie przypisuje jej do
+  **żadnego** kanału, więc jest dostępna w każdym kanale — niezależnie od tego, kiedy moduł
+  zostanie zainstalowany: w nowej instancji czy w działającej od lat. Wydania sprzed tej reguły
+  działały inaczej: metoda była przypisywana do kanału domyślnego, jeśli ten kanał istniał w
+  chwili instalacji, a istnieje on w każdej instancji uruchomionej przynajmniej raz. Metody
+  utworzone wtedy zachowują to przypisanie.
+- Dane demonstracyjne nie przypisują żadnego kanału.
+- Metoda utworzona przez API bez `salesChannelIds` zostaje przypisana do kanału domyślnego;
+  metoda utworzona w formularzu panelu bez zaznaczenia kanału nie jest przypisana do żadnego.
+
+Przypisanie jest egzekwowane tam, gdzie spotyka je kupujący:
+
+- `GET /api/v1/delivery-methods` zwraca tylko metody dostępne w kanale sprzedaży rozpoznanym dla żądania
+  (`X-Sales-Channel`, `?salesChannel=`, mapa hostów, a w ostatniej kolejności kanał domyślny).
+  Sklep musi więc wskazać swój kanał przy tym odczycie: referencyjny sklep przekazuje
+  `X-Sales-Channel`, a sklep utworzony z wcześniejszego wydania wymaga tej samej zmiany w
+  `lib/api/methods.ts` — w przeciwnym razie otrzyma metody kanału domyślnego.
+- Złożenie zamówienia i podgląd jego sumy odrzucają metodę, która nie jest dostępna w kanale
+  sprzedaży zamówienia, odpowiedzią `400 VALIDATION_FAILED` z
+  `details.code = "delivery_method_not_in_sales_channel"`. Dotyczy to zakupu w sklepie, zakupu
+  jednym kliknięciem, zamówienia tworzonego przez administratora w imieniu klienta (kanał wybrany
+  dla zamówienia) oraz zamówienia złożonego kluczem API (kanał klucza). Formularz tworzenia
+  zamówienia w panelu zawęża listy metod do wybranego kanału.
+
+Pole `salesChannelIds` w `PUT /api/v1/admin/delivery-methods/:code` ma trzy znaczenia:
+
+| `salesChannelIds` | Skutek |
+| --- | --- |
+| pominięte | Aktualizacja nie zmienia przypisania. **Nowa** metoda zostaje przypisana tylko do kanału domyślnego. |
+| `[]` | Wszystkie przypisania są usuwane: metoda jest dostępna w każdym kanale. |
+| jeden lub więcej identyfikatorów | Metoda jest dostępna dokładnie w tych kanałach. |
+
+Formularz w panelu zawsze wysyła to pole, więc metoda utworzona w nim bez zaznaczenia żadnego
+kanału jest dostępna w każdym kanale. Jeśli formularz nie może wczytać listy kanałów sprzedaży,
+informuje o tym i nie wysyła pola, a zapis pozostawia przypisanie bez zmian.
+
+Poza tym nadal obowiązuje reguła co najmniej jednego kanału: usunięcie **ostatniego** kanału metody
+od strony kanału sprzedaży jest odrzucane, a usunięcie kanału sprzedaży, który jest jedynym
+kanałem metody, jest odrzucane albo przepina metodę do kanału domyślnego. Przypisanie nie znika
+więc jako skutek uboczny innej operacji: metoda jest dostępna wszędzie tylko dlatego, że zapisano
+ją bez wybranego kanału albo utworzono bez przypisania, jak opisano wyżej. Zapis wskazujący kanał
+sprzedaży, który nie istnieje, jest odrzucany odpowiedzią `400 VALIDATION_FAILED`, zanim cokolwiek
+zostanie zapisane. Jeśli przypisanie kanałów **nowej** metody mimo to się nie powiedzie,
+utworzenie jest wycofywane: metoda zostaje usunięta — bez pytania modułu `shipments`, bo do metody
+utworzonej w tym samym żądaniu nic nie może się odwoływać, więc działa to także przy wyłączonym
+`shipments` — a żądanie kończy się błędem. Gdyby samo usunięcie się nie powiodło, metoda pozostaje
+**nieaktywna**, a nie aktywna bez kanału, więc w najgorszym razie po prostu nie jest oferowana.
+
+**Aktualizacja instancji z więcej niż jednym kanałem sprzedaży: przejrzyj każdą metodę.**
+Dotychczas sklep pokazywał każdą aktywną metodę w każdym kanale i pomijał przypisanie. Kolumna
+**Kanały sprzedaży** na ekranie `/delivery-methods` pokazuje obecny stan każdej metody:
+
+- przypisana **tylko do kanału domyślnego**, a więc niedostępna przy składaniu zamówienia w
+  pozostałych kanałach, dopóki tego nie zmienisz — każda metoda utworzona dotąd w panelu oraz
+  każda metoda utworzona przez moduł **we wcześniejszym wydaniu** w instancji, która była już
+  uruchomiona. Nic nie poszerza ich automatycznie: takiego wpisu nie da się odróżnić od metody
+  ograniczonej celowo;
+- nieprzypisana **do żadnego kanału**, a więc dostępna wszędzie — każda metoda tworzona przez
+  moduł od tego wydania, metody utworzone przez moduł we wcześniejszym wydaniu podczas pierwszej
+  konfiguracji instancji oraz metody z danych demonstracyjnych.
+
+Otwórz każdą metodę i wybierz jej kanały albo odznacz wszystkie, aby była dostępna wszędzie. W
+instancji z jednym kanałem sprzedaży nic się nie zmienia.
+
+Przypisania są przechowywane w tabeli `sales_channel_delivery_methods` i są odczytywane oraz zapisywane wyłącznie przez
+usługę przypisań kanałów sprzedaży platformy.
 
 ## Pola wpisu
 

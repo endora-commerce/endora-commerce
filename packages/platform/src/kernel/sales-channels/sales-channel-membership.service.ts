@@ -216,6 +216,7 @@ export class SalesChannelMembershipService {
   async bindToDefaultIfEmpty(
     entityType: ChannelMemberEntityType,
     entityId: string,
+    options: MembershipMutationOptions = {},
   ): Promise<MembershipMutationResult> {
     const bridge = this.bridges.require(entityType);
     const em = this.emFactory();
@@ -236,7 +237,9 @@ export class SalesChannelMembershipService {
         em.getTransactionContext(),
       );
 
-    await this.auditMembership(defaultId, entityType, entityId, 'add', {});
+    // The actor when the caller has one: a create that falls back to Default is
+    // still somebody's create, and its audit row should say whose.
+    await this.auditMembership(defaultId, entityType, entityId, 'add', options);
     this.emitMembershipChanged(defaultId, entityType, entityId, 'add');
     return { changed: true };
   }
@@ -364,6 +367,60 @@ export class SalesChannelMembershipService {
   }
 
   /**
+   * Remove **every** channel membership of an entity, leaving it bound to none.
+   *
+   * The one mutation that deliberately ends below FR-008's at-least-one-channel
+   * floor, and so the one that is refused unless the owning module declared, on
+   * its bridge registration, that a row-less entity of this type means "every
+   * channel" (`emptyMeansEveryChannel`). For such a type the empty set is a
+   * state an operator chooses — "do not restrict this method" — and it has to be
+   * reachable through the audited mutator rather than through SQL the owner
+   * writes against its own table, which would leave no audit row and emit no
+   * `sales_channels.membership_changed`.
+   *
+   * For every other type the refusal is the same `ENTITY_WOULD_HAVE_ZERO_CHANNELS`
+   * {@link removeFromChannel} raises, because it is the same fact: a product
+   * bound to no channel is published nowhere, and that is unpublishing, which
+   * has its own route.
+   *
+   * One audit row and one event per membership removed, exactly as
+   * {@link replaceChannelsForEntity} accounts for the rows it drops. An entity
+   * already bound to nothing is a no-op and is not audited.
+   */
+  async clearChannelsForEntity(
+    entityType: ChannelMemberEntityType,
+    entityId: string,
+    options: MembershipMutationOptions = {},
+  ): Promise<MembershipMutationResult> {
+    const bridge = this.bridges.require(entityType);
+    if (bridge.emptyMeansEveryChannel !== true) {
+      throw new HttpError(
+        422,
+        ERROR_CODES.ENTITY_WOULD_HAVE_ZERO_CHANNELS,
+        `A ${entityType} must belong to at least one sales channel; its memberships cannot all ` +
+          'be removed.',
+        [{ path: 'entityId', issue: entityId }],
+      );
+    }
+    const em = this.emFactory();
+    const removed = await em
+      .getConnection()
+      .execute<Array<{ sales_channel_id: string }>>(
+        `delete from "${bridge.table}" where "${bridge.entityIdColumn}" = ? ` +
+          `returning "sales_channel_id"`,
+        [entityId],
+        'all',
+        em.getTransactionContext(),
+      );
+    if (removed.length === 0) return { changed: false };
+    for (const row of removed) {
+      await this.auditMembership(row.sales_channel_id, entityType, entityId, 'remove', options);
+      this.emitMembershipChanged(row.sales_channel_id, entityType, entityId, 'remove');
+    }
+    return { changed: true };
+  }
+
+  /**
    * Narrow a **known** set of entity ids to those bound to `channelId`
    * (issue #185).
    *
@@ -439,6 +496,51 @@ export class SalesChannelMembershipService {
         `where "sales_channel_id" = ?`,
       params: [channelId],
     };
+  }
+
+  /**
+   * Narrow a known set of entity ids to those **offered** in `channelId`, by
+   * the convention the owning module declared for the type.
+   *
+   * For a type whose bridge is registered without `emptyMeansEveryChannel` —
+   * a product — this is {@link filterEntityIdsInChannel} exactly: bound to the
+   * channel, or not offered. For a type registered with it — a delivery or a
+   * payment method — a membership is a restriction, so the answer also holds
+   * every id bound to **no** channel at all.
+   *
+   * The convention is read here, off the registration, and nowhere else: the
+   * owning module's catalogue and its `isAvailableInChannel` both ask this one
+   * question, so "bound to nothing means offered everywhere" has a single
+   * statement and a module that stops declaring the flag stops getting that
+   * answer.
+   */
+  async filterEntityIdsAvailableInChannel(
+    channelId: string,
+    entityType: ChannelMemberEntityType,
+    entityIds: readonly string[],
+  ): Promise<string[]> {
+    const ids = [...new Set(entityIds)];
+    if (ids.length === 0) return [];
+    const bridge = this.bridges.require(entityType);
+    const bound = await this.filterEntityIdsInChannel(channelId, entityType, ids);
+    if (bridge.emptyMeansEveryChannel !== true) return bound;
+
+    const em = this.emFactory();
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = await em
+      .getConnection()
+      .execute<Array<Record<string, string>>>(
+        `select distinct "${bridge.entityIdColumn}" from "${bridge.table}" ` +
+          `where "${bridge.entityIdColumn}" in (${placeholders})`,
+        ids,
+        'all',
+        em.getTransactionContext(),
+      );
+    const boundSomewhere = new Set(rows.map((row) => row[bridge.entityIdColumn]!));
+    const boundHere = new Set(bound);
+    // Bound to this channel, or bound to none. Bound to other channels only:
+    // restricted, and not to this one.
+    return ids.filter((id) => boundHere.has(id) || !boundSomewhere.has(id));
   }
 
   /** Channels an entity currently belongs to. */

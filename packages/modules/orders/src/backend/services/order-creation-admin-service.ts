@@ -93,6 +93,16 @@ export class OrderCreationAdminService {
       paymentMethodId: input.paymentMethodId,
     });
 
+    // Before the customer's basket is touched. The cart is cleared and reseeded
+    // with this order's lines further down, and `placeOrder`'s own channel gate
+    // would refuse only after that — leaving the customer with the
+    // administrator's lines in place of their own.
+    await this.orderService.assertMethodsOfferedInChannel({
+      salesChannelId: input.salesChannelId,
+      deliveryMethodId: input.deliveryMethodId,
+      paymentMethodId: input.paymentMethodId,
+    });
+
     // Resolve each address side to an org address id. An inline address is
     // created in the org book (so placeOrder can look it up and snapshot it);
     // a non-saved inline address is soft-deleted again after placement — the

@@ -42,13 +42,14 @@ export default async function PreferencesPage({
   const session = await getSessionCookie();
   if (!session) redirect('/login?next=/preferences');
   const sp = await searchParams;
-  const { locale } = await getServerContext();
+  const { locale, ctx } = await getServerContext();
 
   const [me, paymentMethods, deliveryMethods, deliveryAddresses, billingAddresses] =
     await Promise.all([
       getMe(session),
-      listPaymentMethods(),
-      listDeliveryMethods(),
+      // The buyer's defaults are chosen from what this channel offers.
+      listPaymentMethods(ctx),
+      listDeliveryMethods(ctx),
       listAddresses(session, 'delivery'),
       listAddresses(session, 'billing'),
     ]);

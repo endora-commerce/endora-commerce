@@ -130,6 +130,7 @@ export type {
   PromotionUsageFinalizer,
 };
 import { OrderAccessService } from './order-access-service.js';
+import { assertMethodsOfferedInChannel } from './method-channel-gate.js';
 import type {
   AddressReadPort,
   CartReadPort,
@@ -999,6 +1000,26 @@ export class OrderService {
     return method && method.status === 'active' ? method : null;
   }
 
+  /**
+   * The channel gate, for a caller that has to ask **before** it prepares a
+   * placement.
+   *
+   * `placeOrder` applies the same gate itself, inside its transaction, and that
+   * is enough for a caller that hands it the buyer's basket as it stands. Admin
+   * order creation and the API-key intake do not: each clears the customer's
+   * active basket and reseeds it with the order's lines *before* calling
+   * `placeOrder`, so a refusal raised there arrives after the basket has
+   * already been replaced. They ask here first, and a refused order leaves the
+   * basket exactly as it was.
+   */
+  async assertMethodsOfferedInChannel(input: {
+    salesChannelId: string;
+    deliveryMethodId: string;
+    paymentMethodId: string;
+  }): Promise<void> {
+    await assertMethodsOfferedInChannel(this.neighbours, input);
+  }
+
   /** The payment twin of {@link activeDeliveryMethod}. */
   private async activePaymentMethod(id: string) {
     const method = await this.neighbours.paymentMethodRead()?.findById(id);
@@ -1146,7 +1167,19 @@ export class OrderService {
    */
   async previewTotal(
     ctx: CustomerContext,
-    req: { deliveryMethodId: string; paymentMethodId: string; billingAddressId?: string | undefined },
+    req: {
+      deliveryMethodId: string;
+      paymentMethodId: string;
+      billingAddressId?: string | undefined;
+      /**
+       * The channel the previewed order would be placed on. The storefront
+       * route passes the request's resolved channel; when it is given, the
+       * preview refuses a method not offered there, exactly as the placement
+       * will (`method-channel-gate.ts`). A caller that names none previews
+       * the totals only.
+       */
+      salesChannelId?: string | undefined;
+    },
   ): Promise<{
     subtotal: number;
     taxTotal: number;
@@ -1200,6 +1233,13 @@ export class OrderService {
     const paymentMethod = await this.activePaymentMethod(req.paymentMethodId);
     if (!paymentMethod) {
       throw new HttpError(400, ERROR_CODES.VALIDATION_FAILED, 'Payment method is not active.');
+    }
+    if (req.salesChannelId) {
+      await assertMethodsOfferedInChannel(this.neighbours, {
+        salesChannelId: req.salesChannelId,
+        deliveryMethodId: deliveryMethod.id,
+        paymentMethodId: paymentMethod.id,
+      });
     }
     const products =
       items.length > 0
@@ -1458,6 +1498,16 @@ export class OrderService {
       // invariant says this cannot happen after boot — so say so, rather than
       // persisting the `randomUUID()` that used to stand here (issue #85).
       if (orderChannel === null) throw new NoSystemDefaultChannel();
+
+      // Both chosen methods must be offered in the channel this order records.
+      // The storefront catalogues list only such methods; this is the refusal
+      // behind the listing, for a client that sends an id the catalogue never
+      // showed it. Before any stock is reserved — see `method-channel-gate.ts`.
+      await assertMethodsOfferedInChannel(this.neighbours, {
+        salesChannelId: orderChannel.id,
+        deliveryMethodId: deliveryMethod.id,
+        paymentMethodId: paymentMethod.id,
+      });
 
       // Reserve stock — feature 010 / US7 strategy-driven multi-warehouse
       // allocation (T079). Replaces the foundation 001 single-bucket

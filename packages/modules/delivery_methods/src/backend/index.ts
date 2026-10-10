@@ -55,12 +55,16 @@ export interface DeliveryMethodsCradle {
       entityType: ChannelMemberEntityType;
       table: string;
       entityIdColumn: string;
+      emptyMeansEveryChannel?: boolean;
     }): void;
   };
   readonly emFactory: () => EntityManager;
   readonly requireAdmin: RequireAdminFactory;
   readonly commandBus: CommandBus;
-  readonly salesChannelMembershipPort: SalesChannelMembershipPort | undefined;
+  /** The platform's name for the acting administrator on an audit record. */
+  readonly adminAuditActorResolver: (request: FastifyRequest) => {
+    actorAdminUserId: string | null;
+  };
   /** The two halves the allow-list is composed from — see the payment twin (T138). */
   readonly customerOrganizationIdResolver: (req: FastifyRequest) => string | null;
   readonly organizationRestrictionPort: {
@@ -128,7 +132,18 @@ export function registerModule(ctx: ModuleContext): void {
     'deliveryMethodReadPort',
     ctx
       .asFunction(
-        ({ emFactory }: DeliveryMethodsCradle) => new DeliveryMethodReadService(emFactory),
+        ({ emFactory }: DeliveryMethodsCradle) =>
+          new DeliveryMethodReadService(emFactory, {
+            // Resolved **per call** with `lazyPort`, never captured by this
+            // singleton's factory (`module-composition.md` §3): a port is a
+            // transient gate, and a captured one keeps answering after its
+            // owner is switched off.
+            filterEntityIdsAvailableInChannel: (...args) =>
+              lazyPort<SalesChannelMembershipPort>(
+                ctx,
+                'salesChannelMembershipPort',
+              ).filterEntityIdsAvailableInChannel(...args),
+          }),
       )
       .singleton(),
   );
@@ -141,7 +156,9 @@ export function registerModule(ctx: ModuleContext): void {
       shippingMethodEligibility,
       shippingOrderStatusRegistry,
     } = ctx.cradle<DeliveryMethodsCradle>();
-    const membership = ctx.cradle<DeliveryMethodsCradle>().salesChannelMembershipPort;
+    // `lazyPort`, by its literal name, as `catalog` reads the same port
+    // (`module-composition.md` §3). The routes hold the proxy, not the port.
+    const membership = lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort');
 
     /** Composed from the two halves, without a `catch` — see the payment twin. */
     const resolveAllowList = async (req: FastifyRequest): Promise<string[] | null> => {
@@ -153,6 +170,7 @@ export function registerModule(ctx: ModuleContext): void {
 
     await registerDeliveryMethodsPublicRoutes(app, {
       emFactory,
+      salesChannelMembership: membership,
       registry,
       eligibility: shippingMethodEligibility,
       resolveOrganizationDeliveryMethodAllowList: resolveAllowList,
@@ -180,7 +198,9 @@ export function registerModule(ctx: ModuleContext): void {
         isShipmentsPresent: () => effectiveState.isPresent('shipments'),
         shipmentUsage: () => lazyPort<ShipmentUsagePort>(ctx, 'shipmentUsagePort'),
       }),
-      ...(membership === undefined ? {} : { salesChannelMembership: membership }),
+      salesChannelMembership: membership,
+      resolveAuditActor: (request) =>
+        ctx.cradle<DeliveryMethodsCradle>().adminAuditActorResolver(request),
     });
   });
 
@@ -232,6 +252,15 @@ export const salesChannelBridges: ReadonlyArray<{
   readonly entityType: ChannelMemberEntityType;
   readonly table: string;
   readonly entityIdColumn: string;
+  readonly emptyMeansEveryChannel?: boolean;
 }> = [
-  { entityType: 'delivery-method', table: 'sales_channel_delivery_methods', entityIdColumn: 'delivery_method_id' },
+  {
+    entityType: 'delivery-method',
+    table: 'sales_channel_delivery_methods',
+    entityIdColumn: 'delivery_method_id',
+    // A delivery method bound to no channel is offered in every channel — the
+    // rule and the reasons are in `./services/channel-availability.ts`.
+    emptyMeansEveryChannel: true,
+  },
 ];
+

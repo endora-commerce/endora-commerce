@@ -78,6 +78,79 @@ describe('ChannelBridgeRegistry', () => {
   it('starts empty, so a process that composed nothing claims nothing', () => {
     expect(new ChannelBridgeRegistry().list()).toEqual([]);
   });
+
+  /**
+   * `emptyMeansEveryChannel` is part of what a registration states — what an
+   * entity of this type bound to no channel means — so it is part of what makes
+   * two registrations the same one.
+   */
+  it('keeps the meaning of an unbound entity with the bridge, and takes an identical repeat as a no-op', () => {
+    const registry = new ChannelBridgeRegistry();
+    const unrestricted = { ...BRIDGE, emptyMeansEveryChannel: true };
+    registry.register(unrestricted);
+    registry.register({ ...unrestricted });
+
+    expect(registry.list()).toHaveLength(1);
+    expect(registry.require('tax').emptyMeansEveryChannel).toBe(true);
+  });
+
+  it('refuses a second registration that differs only in what an unbound entity means', () => {
+    // Two modules agreeing on the table and disagreeing on this would decide,
+    // by composition order, whether a row-less entity is offered everywhere or
+    // nowhere. Absent and `false` are the same statement and are not a conflict.
+    const registry = new ChannelBridgeRegistry();
+    registry.register(BRIDGE);
+    registry.register({ ...BRIDGE, emptyMeansEveryChannel: false });
+
+    expect(() => registry.register({ ...BRIDGE, emptyMeansEveryChannel: true })).toThrow(
+      /different meaning for an entity bound to no channel/,
+    );
+    expect(registry.require('tax').emptyMeansEveryChannel).toBeUndefined();
+  });
+});
+
+describe('clearChannelsForEntity and the at-least-one-channel floor', () => {
+  /**
+   * The refusal for a type that did not declare `emptyMeansEveryChannel` comes
+   * **before** the database, like the unregistered-member refusal below: the
+   * factory here throws if it is reached, so a clear that deleted first and
+   * asked afterwards would fail with that sentence instead of the 422.
+   */
+  it('refuses, without reaching the database, for a bridge that does not declare empty-means-every-channel', async () => {
+    const registry = new ChannelBridgeRegistry();
+    registry.register(BRIDGE);
+    const service = new SalesChannelMembershipService(
+      noDatabase(),
+      new EventBus(),
+      undefined,
+      registry,
+    );
+
+    const refusal = await service.clearChannelsForEntity('tax', 'e').then(
+      () => null,
+      (err: unknown) => err,
+    );
+
+    expect(refusal).toBeInstanceOf(HttpError);
+    expect((refusal as HttpError).statusCode).toBe(422);
+    expect((refusal as HttpError).code).toBe(ERROR_CODES.ENTITY_WOULD_HAVE_ZERO_CHANNELS);
+  });
+
+  it('gets past the declaration for a bridge that makes it', async () => {
+    const registry = new ChannelBridgeRegistry();
+    registry.register({ ...BRIDGE, emptyMeansEveryChannel: true });
+    const service = new SalesChannelMembershipService(
+      noDatabase(),
+      new EventBus(),
+      undefined,
+      registry,
+    );
+
+    // As far as a test with no database goes: the declaration let it through.
+    await expect(service.clearChannelsForEntity('tax', 'e')).rejects.toThrow(
+      /reached for an EntityManager/,
+    );
+  });
 });
 
 describe('the membership service over an unregistered member (FR-017)', () => {
@@ -92,8 +165,8 @@ describe('the membership service over an unregistered member (FR-017)', () => {
 
   /**
    * Every public method that takes an entity type, because the refusal is worth
-   * nothing if one of them still reaches the database: eight sites read the
-   * bridge and each is a separate `require`. The list is written out rather
+   * nothing if one of them still reaches the database: every site that reads the
+   * bridge is a separate `require`. The list is written out rather
    * than derived — a `Reflect.ownKeys` sweep of the prototype would have to
    * invent an argument list per method — so adding a ninth method means adding
    * a row here, which is what the count assertion below is for.
@@ -104,7 +177,12 @@ describe('the membership service over an unregistered member (FR-017)', () => {
     ['bindToDefaultIfEmpty', () => service.bindToDefaultIfEmpty('cms-page', 'e')],
     ['copyMemberships', () => service.copyMemberships('cms-page', 'a', 'b')],
     ['replaceChannelsForEntity', () => service.replaceChannelsForEntity('cms-page', 'e', ['c'])],
+    ['clearChannelsForEntity', () => service.clearChannelsForEntity('cms-page', 'e')],
     ['filterEntityIdsInChannel', () => service.filterEntityIdsInChannel('c', 'cms-page', ['e'])],
+    [
+      'filterEntityIdsAvailableInChannel',
+      () => service.filterEntityIdsAvailableInChannel('c', 'cms-page', ['e']),
+    ],
     ['listChannelsForEntity', () => service.listChannelsForEntity('cms-page', 'e')],
     ['listEntityIdsForChannel', () => service.listEntityIdsForChannel('c', 'cms-page')],
     // Synchronous — it builds a fragment and reads nothing — so it is wrapped to

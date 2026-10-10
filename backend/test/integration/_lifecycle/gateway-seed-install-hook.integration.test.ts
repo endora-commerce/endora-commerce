@@ -204,7 +204,7 @@ describe('Gateway payment-method seeds — the install-hook seam (integration)',
    * so it is installed through the same orchestrator, with its overlay entry
    * handed in rather than discovered.
    */
-  it('payment_gateway_fixture: the standing consumer seeds one inactive method and binds it once', async () => {
+  it('payment_gateway_fixture: the standing consumer seeds one inactive method and binds it to no channel', async () => {
     const code = PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD.code;
 
     await clearMethods([code]);
@@ -215,9 +215,27 @@ describe('Gateway payment-method seeds — the install-hook seam (integration)',
     expect(seeded.methods[0]?.status).toBe('inactive');
     expect(seeded.methods[0]?.status_on_failure).toBe('on_hold');
     expect(seeded.methods[0]?.adapter).toBe(code);
-    expect(seeded.memberships.map((r) => r.channel_code)).toHaveLength(1);
+    // No membership — on a database that has a default channel, which is the
+    // case the old seed bound in. A method bound to nothing is offered on every
+    // channel, whenever its module is installed.
+    expect(seeded.memberships).toEqual([]);
 
-    // An operator unbinds it; a re-install does not put it back (issue #96).
+    // A row an **earlier release** bound to the default channel is not
+    // rewritten by a re-install: that membership cannot be told apart from an
+    // operator's deliberate "default only", so it stays (no backfill).
+    await db
+      .em()
+      .execute(
+        `insert into "sales_channel_payment_methods" ("sales_channel_id", "payment_method_id")
+         select sc."id", m."id" from "sales_channels" sc, "payment_methods" m
+          where sc."system_default" = true and m."code" = ?`,
+        [code],
+      );
+    expect((await snapshot([code])).memberships).toHaveLength(1);
+    await install('payment_gateway_fixture', [FIXTURE_ENTRY]);
+    expect((await snapshot([code])).memberships).toHaveLength(1);
+
+    // And one an operator unbound stays unbound across a re-install (issue #96).
     await db
       .em()
       .execute(

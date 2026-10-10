@@ -1,5 +1,4 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
-import { SalesChannel } from '@endora-commerce/platform/kernel';
 import type {
   PaymentMethodSeedApi,
   PaymentMethodSeedDefaults,
@@ -36,16 +35,26 @@ import { PaymentMethod } from '../entities/payment-method.entity.js';
  * at the call, so the write lands in the transaction the orchestrator will
  * commit or revert rather than on a fork of it.
  *
- * **It no longer touches sales-channel membership unconditionally (issue #96).**
- * It used to call `bindToDefaultIfEmpty` for every row it created, and the four
- * gateway modules called it from their plugin body on every composition — so a
- * method an operator had deliberately unbound from every channel came back bound
- * to Default at the next boot, and nothing said so. Binding belongs to the two
- * seams that own the decision: the admin create path (a method an operator just
- * created has to land somewhere) and the module's own seed (once, for the rows it
- * creates). `bindToDefaultChannel` below is that second seam, and the caller
- * guards it on `created === true`. "Unbound" is a state an operator is entitled
- * to reach and to keep.
+ * **It writes no sales-channel membership at all.** A seeded method is left
+ * bound to no channel, and for this entity type that is a meaning rather than
+ * a gap: a membership is a restriction, and a method nobody restricted is
+ * offered in every channel (`./channel-availability.ts`).
+ *
+ * It took two steps to get here. The reconciler first bound every row it
+ * created to the default channel on every composition, which brought a method
+ * an operator had deliberately unbound back to Default at the next boot
+ * (issue #96). The bind then became a separate `bindToDefaultChannel`, called
+ * by the seeding module once, for a row it had just created — and it bound
+ * only when a default channel already existed, so the same module seeded a
+ * method "everywhere" on a database that had never booted and "Default only" on
+ * one that had. That method is gone (owner ruling, with the per-channel
+ * availability feature): whenever a module is installed, its method is offered
+ * on every channel until an operator restricts it.
+ *
+ * Rows an earlier release bound are **not** touched — a membership it wrote
+ * cannot be told apart from an operator's deliberate "default only", so
+ * `ensureMethodForAdapter` leaves the memberships of a row it finds exactly as
+ * they are.
  */
 export class PaymentMethodReconciler implements PaymentMethodSeedApi {
   async ensureMethodForAdapter(
@@ -84,56 +93,6 @@ export class PaymentMethodReconciler implements PaymentMethodSeedApi {
     });
     await em.persistAndFlush(row);
     return { row: recordOf(row), created: true };
-  }
-
-  /**
-   * The seed's channel binding — one membership row in the system-default
-   * channel, written against **this module's own** bridge table.
-   *
-   * Not through `SalesChannelMembershipService`, and the reason is structural
-   * rather than a preference: that service needs the `EventBus`, the audit port
-   * and the channel-bridge registry, and the registry is contributed from a boot
-   * hook. An install composes nothing, so at this seam it holds no registration
-   * for `'payment-method'` and `bridges.require` would refuse (FR-017) before the
-   * database was touched. `sales_channel_payment_methods` is this module's since
-   * `specs/120-migration-closure-bridge-ownership/` Phase 2 (D-226), so the
-   * statement is the owner's own and crosses no boundary — which is what FR-064
-   * buys by putting the writer here instead of in the seeding module.
-   *
-   * The channel itself is read through the kernel's own `SalesChannel` entity
-   * rather than in SQL — `api_keys` reads it the same way — because a raw
-   * `select … from "sales_channels"` from a module is a `check:module-boundary`
-   * finding against a kernel-owned table, and correctly so: the table is not
-   * this module's and the entity is the platform's published name for it.
-   *
-   * `em.execute` for the insert rather than `em.getConnection().execute`, so the
-   * statement runs inside the caller's transaction (issue #200). The bridge has
-   * no entity class — the kernel's membership service writes it in SQL too.
-   *
-   * **No system-default channel answers `false` rather than raising**, exactly as
-   * the delivery twin does and for the same measured reason: the default channel
-   * is created by `DefaultChannelReconciler` at **boot**, from `composeApp`, and
-   * `module:install` composes nothing (D-46), so a database that has been migrated
-   * and never booted has none. The seed migration this replaced degraded the same
-   * way, silently — its `cross join "sales_channels" where "system_default"`
-   * produced no rows and inserted no membership — so answering `false` is what
-   * keeps a fresh install and an upgraded one at the same row state in that state
-   * too. Raising instead **aborts the install**, and the hook is not inside a
-   * database transaction.
-   */
-  async bindToDefaultChannel(em: EntityManager, paymentMethodId: string): Promise<boolean> {
-    // command-coverage-ignore: install-time seed membership for a row this seam
-    // just created — a system-invariant write with no request and no actor.
-    const defaultChannel = await em.findOne(SalesChannel, { systemDefault: true });
-    if (!defaultChannel) return false;
-
-    const inserted = await em.execute<Array<{ payment_method_id: string }>>(
-      'insert into "sales_channel_payment_methods" ("sales_channel_id", "payment_method_id") ' +
-        'values (?, ?) on conflict ("sales_channel_id", "payment_method_id") do nothing ' +
-        'returning "payment_method_id"',
-      [defaultChannel.id, paymentMethodId],
-    );
-    return inserted.length > 0;
   }
 
   /**

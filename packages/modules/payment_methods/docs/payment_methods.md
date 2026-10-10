@@ -18,6 +18,14 @@ edit a product could also decide how the shop takes money. A role that was
 relying on the catalogue codes for this screen has to be granted the new ones on
 `/admin-roles`; nothing grants them automatically, deliberately.
 
+**Choosing a method's sales channels needs these codes and no other.** Where a
+method is offered is part of configuring the method, so `payment_methods:write` is
+sufficient to assign, replace and clear its sales channels, and `payment_methods:read` to
+see the channels there are to choose from
+(`GET /api/v1/admin/payment-methods/sales-channels`). Neither `sales_channels:read`
+nor `sales_channels:write` is required — by decision, not by omission — and
+holding the `payment_methods` codes grants nothing on the sales-channel screens.
+
 `GET /api/v1/admin/order-statuses` is the one exception, and it is an any-of
 rather than a widening: the route is registered here but read by two editors —
 this module's screen and the `delivery_methods` one — so it accepts either
@@ -28,9 +36,10 @@ holder reaches the shared list any more.
 
 | Verb + Path | Audience | Gate | Purpose |
 | --- | --- | --- | --- |
-| `GET /api/v1/payment-methods` | anon | — | Eligible methods for the storefront checkout (active ∩ org allow-list ∩ registered adapter ∩ `validateUseOnStorefront`) |
+| `GET /api/v1/payment-methods` | anon | — | Eligible methods for the storefront checkout (active ∩ sales channel ∩ org allow-list ∩ registered adapter ∩ `validateUseOnStorefront`) |
 | `GET /api/v1/admin/payment-methods` | admin | `payment_methods:read` | Full config (active + inactive) incl. `adapter`, `additionalPrice`, `statusOn*`, sales channels |
 | `GET /api/v1/admin/payment-methods/adapters` | admin | `payment_methods:read` | Registered adapter keys, for the admin adapter picker |
+| `GET /api/v1/admin/payment-methods/sales-channels` | admin | `payment_methods:read` | The sales channels a method may be assigned to — `{ id, code, name, active }` for every channel, inactive ones included |
 | `GET /api/v1/admin/order-statuses` | admin | `payment_methods:read` **or** `delivery_methods:read` | Order-status options for the `statusOn*` selectors, here and on the delivery-method screen |
 | `PUT /api/v1/admin/payment-methods/:code` | admin | `payment_methods:write` | Upsert by code; `adapter` defaults to `kind`, `statusOn*` validated against the order-status registry |
 | `PATCH /api/v1/admin/payment-methods/:id/status` | admin | `payment_methods:write` | Availability alone — the one write the four gateway screens link to |
@@ -137,6 +146,97 @@ every buyer-facing read (`get`, `resolve`, `list`) skips an entry whose owner is
 absent. The admin-facing reads (`entry`, `ownerOf`, `isRegistered`, `listAll`)
 deliberately do not: switching a module off is not uninstalling it, so the
 `/payment-methods` screen keeps the row and shows why it is unavailable.
+
+## Sales channels
+
+Each payment method is offered in the sales channels the operator chooses for
+it. On `/payment-methods` the form has a **Sales channels** field, and the list shows
+every method's channels.
+
+**An assignment is a restriction, and a method with none is offered in every
+channel.** A method assigned to one or more channels is offered in exactly
+those. A method assigned to no channel — *All channels* in the form — is offered
+in every channel, including channels created later. This is deliberately not the
+rule products follow, where a product in no channel is published nowhere:
+payment methods exist without an assignment as a matter of course, so reading
+"none" as "nowhere" would empty existing checkouts. Where a method that nobody
+assigned by hand stands:
+
+- A module that ships its own method seeds it when the module is installed and
+  assigns it to **no** channel, so it is offered on every channel — whenever the
+  module is installed, on a new instance or on one that has run for years.
+  Releases before this rule did otherwise: the seed assigned the method to the
+  default channel when that channel existed at installation, which it does on
+  any instance that has been started at least once. Methods seeded then keep
+  that assignment.
+- Demo data assigns none.
+- A method created through the API without `salesChannelIds` is assigned to the
+  default channel; one created in the admin form with nothing ticked is
+  assigned to none.
+
+The assignment is enforced where a buyer meets it:
+
+- `GET /api/v1/payment-methods` lists only the methods offered in the sales channel the request
+  resolved (`X-Sales-Channel`, `?salesChannel=`, the host map, else the system
+  default). A storefront therefore has to name its channel on this read: the
+  reference storefront forwards `X-Sales-Channel`, and one scaffolded from an
+  earlier release needs the same change in `lib/api/methods.ts`, or it is
+  answered with the default channel's methods.
+- Placing an order, and previewing its total, refuses a method that is not
+  offered in the order's sales channel with `400 VALIDATION_FAILED` and
+  `details.code = "payment_method_not_in_sales_channel"`. That holds for a
+  storefront checkout, for one-click buy, for an order an administrator creates
+  on a customer's behalf (the channel chosen for the order) and for an API-key
+  order (the key's channel). The admin order-creation form narrows its method
+  lists to the chosen channel.
+
+`salesChannelIds` on `PUT /api/v1/admin/payment-methods/:code` has three meanings:
+
+| `salesChannelIds` | Effect |
+| --- | --- |
+| omitted | An update leaves the assignment unchanged. A **new** method is assigned to the system-default channel only. |
+| `[]` | Every assignment is removed: the method is offered in every channel. |
+| one or more ids | The method is offered in exactly those channels. |
+
+The admin form always sends the field, so a method created there with nothing
+ticked is offered in every channel. If the form cannot load the list of sales
+channels it says so and sends nothing, and the save leaves the assignment as it
+was.
+
+Elsewhere the at-least-one-channel rule still applies: removing a method's
+**last** channel from the sales-channel side is refused, and deleting a sales
+channel that is a method's only one is refused or rebinds the method to the
+default channel. So an assignment is never lost as a side effect of another
+operation: a method is offered everywhere only because it was saved with no
+channel chosen, or was seeded without one as described above. A save that names
+a sales channel which does not exist is refused with `400 VALIDATION_FAILED`
+before anything is written. If assigning the channels of a **new** method still
+fails, the creation is taken back: the method is removed again — without asking
+`payments`, since nothing can reference a method created in the same request, so
+this works with `payments` switched off too — and the request answers with the
+failure. Should the removal itself fail, the method is left **inactive** rather
+than active with no channel, so the worst outcome is a method that is not
+offered.
+
+**Upgrading an instance with more than one sales channel: review every method.**
+Before this rule the storefront listed every active method on every channel and
+ignored the assignment. The **Sales channels** column on `/payment-methods` shows where
+each method stands now:
+
+- assigned to the **default channel only**, and so gone from the other channels'
+  checkouts until changed — every method created in the admin so far, and every
+  method a module seeded **under an earlier release** on an instance that had
+  already been started. Nothing widens these automatically: such a row cannot be
+  told apart from one restricted on purpose;
+- assigned to **no channel**, and so offered everywhere — every method a module
+  seeds from this release on, methods a module seeded under an earlier release
+  during the instance's first setup, and demo-data methods.
+
+Open each method and choose its channels, or untick all of them to offer it
+everywhere. An instance with a single sales channel is unaffected.
+
+Memberships live in `sales_channel_payment_methods` and are read and written only through the
+platform's sales-channel membership service.
 
 ## Per-Organization availability
 

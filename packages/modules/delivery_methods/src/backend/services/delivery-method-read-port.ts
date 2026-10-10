@@ -1,6 +1,10 @@
 import type { EntityManager } from '@mikro-orm/postgresql';
 import type { DeliveryMethodReadPort, DeliveryMethodRecord } from '@endora-commerce/contracts';
 import { DeliveryMethod } from '../entities/delivery-method.entity.js';
+import {
+  deliveryMethodIdsAvailableInChannel,
+  type DeliveryMethodChannelReads,
+} from './channel-availability.js';
 
 /**
  * The row-level read model `delivery_methods` publishes (feature 075, Phase P).
@@ -14,7 +18,28 @@ import { DeliveryMethod } from '../entities/delivery-method.entity.js';
  * `deliveryMethodSnapshot`, and a `number` cannot round-trip it.
  */
 export class DeliveryMethodReadService implements DeliveryMethodReadPort {
-  constructor(private readonly emFactory: () => EntityManager) {}
+  constructor(
+    private readonly emFactory: () => EntityManager,
+    private readonly channelMembership: DeliveryMethodChannelReads,
+  ) {}
+
+  /**
+   * Whether the method is offered in `salesChannelId` — bound to it, or bound
+   * to no channel at all (`./channel-availability.ts`). It says nothing about
+   * `status`: a caller placing an order asks both questions, and a caller
+   * explaining an old order asks neither.
+   */
+  async isAvailableInChannel(id: string, salesChannelId: string): Promise<boolean> {
+    // An id that names no method is bound to no channel either, and must not
+    // read as "unrestricted".
+    if ((await this.emFactory().count(DeliveryMethod, { id })) === 0) return false;
+    const offered = await deliveryMethodIdsAvailableInChannel(
+      this.channelMembership,
+      salesChannelId,
+      [id],
+    );
+    return offered.has(id);
+  }
 
   async findById(id: string): Promise<DeliveryMethodRecord | null> {
     const method = await this.emFactory().findOne(DeliveryMethod, { id });

@@ -173,6 +173,16 @@ export class OrderApiIntakeService {
       paymentMethodId: body.paymentMethodId,
     });
 
+    // The methods must be offered on the key's bound channel — asked here,
+    // with the other refusals, because the service account's basket is cleared
+    // and reseeded below and `placeOrder`'s own gate would refuse only after
+    // that.
+    await this.deps.orderService.assertMethodsOfferedInChannel({
+      salesChannelId: binding.salesChannelId,
+      deliveryMethodId: body.deliveryMethodId,
+      paymentMethodId: body.paymentMethodId,
+    });
+
     // Step 4 — SKU → product + bound-channel assortment + resolvable price.
     // Refusals are whole-order 422 with per-line issues; nothing persists.
     const skus = Array.from(new Set(body.lines.map((l) => l.sku)));

@@ -234,3 +234,63 @@ export function makeDeletePaymentMethodCommand(
     },
   };
 }
+
+/**
+ * Takes back a payment method **this request created**, when the step after the
+ * creation failed — the channel assignment, which the sales-channel bridge
+ * writes on a transaction of its own.
+ *
+ * Not {@link makeDeletePaymentMethodCommand}, and the difference is the point.
+ * That Command asks `payments` whether anything references the method, and
+ * refuses when `payments` is switched off because nobody can answer. For an
+ * operator's delete that refusal is right. For a row created a moment ago, in
+ * the same request, the question has an answer nobody needs to be asked: no
+ * payment attempt can reference a method that did not exist before this request. Going
+ * through the guard here would turn "`payments` is off" into "the take-back
+ * is refused" — and leave a new method active and bound to no channel, which
+ * for this entity type means offered on every one.
+ *
+ * It is still an audited delete, under the delete action, so the trail reads
+ * create then delete and says who.
+ */
+export function makeWithdrawCreatedPaymentMethodCommand(id: string): Command<void> {
+  return {
+    action: 'payment_method.delete',
+    objectType: 'payment_method',
+    objectId: id,
+    run: async ({ em }) => {
+      const row = await em.findOne(PaymentMethod, { id });
+      // Already gone: there is nothing left to take back, and nothing to audit.
+      if (!row) return { result: undefined, skipAudit: true };
+      const before = paymentMethodAuditState(row);
+      await em.removeAndFlush(row);
+      return { result: undefined, before, after: null };
+    },
+  };
+}
+
+/**
+ * The fallback when even {@link makeWithdrawCreatedPaymentMethodCommand} fails:
+ * the method this request created is set **inactive**.
+ *
+ * A row that could be neither assigned nor removed must not stay active with no
+ * channel membership, because that is "offered on every channel". Inactive is
+ * the one state reachable with a single column write in which the worst outcome
+ * is "not offered" — and an operator who finds it sees a method to finish or
+ * delete, not one already on sale where nobody put it.
+ */
+export function makeDeactivateCreatedPaymentMethodCommand(id: string): Command<void> {
+  return {
+    action: 'payment_method.update',
+    objectType: 'payment_method',
+    objectId: id,
+    run: async ({ em }) => {
+      const row = await em.findOne(PaymentMethod, { id });
+      if (!row || row.status === 'inactive') return { result: undefined, skipAudit: true };
+      const before = paymentMethodAuditState(row);
+      row.status = 'inactive';
+      await em.flush();
+      return { result: undefined, before, after: paymentMethodAuditState(row) };
+    },
+  };
+}

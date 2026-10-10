@@ -111,12 +111,12 @@ export interface PaymentMethodSeedRecord {
 }
 
 /**
- * Created-versus-found, which the caller needs and cannot derive.
+ * Created-versus-found, which the caller needs and cannot derive — for its own
+ * log line, or for a step it owes only a row it has just created.
  *
- * `created` is what a channel binding is guarded on: the seed binds **once, for
- * the rows it creates**, and re-binding a method an operator deliberately
- * unbound from every channel is issue #96 verbatim
- * (`contracts/foreign-write-repair.md` §2.3).
+ * It used to guard a channel binding. There is none any more: a seeded method
+ * is left bound to no sales channel, which for a method means it is offered in
+ * every channel until an operator restricts it.
  */
 export interface PaymentMethodSeedOutcome {
   readonly row: PaymentMethodSeedRecord;
@@ -135,22 +135,6 @@ export interface PaymentMethodSeedApi {
     defaults: PaymentMethodSeedDefaults,
   ): Promise<PaymentMethodSeedOutcome>;
 
-  /**
-   * Put the method in the system-default sales channel.
-   *
-   * **Call it only when `ensureMethodForAdapter` answered `created === true`.**
-   * Never as a reconcile: "unbound from every channel" is a state an operator is
-   * entitled to reach and to keep, and an unguarded call brings the method back
-   * with nothing saying so (issue #96).
-   *
-   * Answers whether a membership row was written — `false` when the method was
-   * already in that channel, and `false` when the platform has **no**
-   * system-default channel yet, which a database that has been migrated and never
-   * booted does not: the default channel is created at boot, and an install
-   * composes nothing. The row is then seeded and unbound, which is what the seed
-   * migration this replaced did in the same state.
-   */
-  bindToDefaultChannel(em: EntityManager, paymentMethodId: string): Promise<boolean>;
 
   /**
    * Remove the method and, by cascade, its channel memberships and every

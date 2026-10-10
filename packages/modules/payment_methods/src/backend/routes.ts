@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { EntityManager } from '@mikro-orm/postgresql';
 import {
   ERROR_CODES,
+  type SalesChannelOption,
   paymentMethodStatusPatchSchema,
   paymentMethodUpsertSchema,
   type PaymentMethodAdminListItem,
@@ -11,7 +12,9 @@ import {
 import { HttpError } from '@endora-commerce/platform/http';
 import type { CommandBus } from '@endora-commerce/platform/commands';
 import {
+  makeDeactivateCreatedPaymentMethodCommand,
   makeDeletePaymentMethodCommand,
+  makeWithdrawCreatedPaymentMethodCommand,
   makeSetPaymentMethodStatusCommand,
   makeUpsertPaymentMethodCommand,
 } from './commands/payment-method.commands.js';
@@ -20,7 +23,12 @@ import {
   toModulePresenceDto,
 } from '@endora-commerce/platform/kernel';
 import { PaymentMethod } from './entities/payment-method.entity.js';
+import { getResolvedChannel, SalesChannel } from '@endora-commerce/platform/kernel';
 import type { SalesChannelMembershipPort } from '@endora-commerce/platform/kernel';
+import {
+  paymentMethodIdsAvailableInChannel,
+  type PaymentMethodChannelReads,
+} from './services/channel-availability.js';
 import type { PaymentAdapterRegistry } from './services/payment-adapter-registry.js';
 import type { PaymentMethodEligibilityService } from './services/payment-method-eligibility.js';
 import {
@@ -41,6 +49,12 @@ import type {
  */
 export interface PaymentMethodsPublicDeps {
   emFactory: () => EntityManager;
+  /**
+   * The bridge reads behind the catalogue's sales-channel filter. Required, not
+   * optional: an absent one would be indistinguishable from "no method is
+   * restricted", which offers every method on every channel.
+   */
+  salesChannelMembership: PaymentMethodChannelReads;
   /**
    * Feature 026 US4 — per-Organization allow-list of payment-method IDs.
    * Empty / null ⇒ platform defaults apply (every active method is offered).
@@ -64,6 +78,13 @@ export interface PaymentMethodsAdminDeps {
   commandBus: CommandBus;
   /** Feature 005 / T027b — new payment methods auto-bind to the system default. */
   salesChannelMembership?: SalesChannelMembershipPort;
+  /**
+   * Who is acting, for the audit row of every channel assignment this route
+   * changes. A change of where a method is offered is a Principle XIII write
+   * like the method's own, and an audit row without its actor answers "what
+   * changed" and not "who changed it".
+   */
+  resolveAuditActor?: (request: FastifyRequest) => { actorAdminUserId: string | null };
   /** Feature 034 — validates `adapter` against the registered adapters. */
   registry?: PaymentAdapterRegistry;
   /** Feature 034 — validates `statusOn*` references + powers /admin/order-statuses. */
@@ -97,10 +118,29 @@ export async function registerPaymentMethodsPublicRoutes(
       }
     }
 
+    // The sales-channel filter (Constitution XII): only the methods offered in
+    // the channel **this request resolved**. A method bound to no channel is
+    // offered in every one — `services/channel-availability.ts` states the rule
+    // and why it differs from a product's.
+    //
+    // `getResolvedChannel` and not the nullable `currentSalesChannel()`: inside
+    // `/api/v1/*` the resolver always leaves a channel (it falls back to the
+    // system default), so "no channel" here can only be a composition that
+    // mounted this route without the resolver — and that must stop the request
+    // rather than list every method on it.
+    const channel = getResolvedChannel(request);
+    const offered = await paymentMethodIdsAvailableInChannel(
+      deps.salesChannelMembership,
+      channel.id,
+      rows.map((m) => m.id),
+    );
+    rows = rows.filter((m) => offered.has(m.id));
+
     // Feature 034 — adapter validateUseOnStorefront + registered-adapter filter.
-    // Sales-channel-assignment filtering is applied upstream once the storefront
-    // checkout passes the resolved channel; org/customer context is best-effort
-    // here (built-in validators do not depend on it).
+    // The adapter context is deliberately left as it was (`salesChannelId:
+    // null`): which channel an adapter's own validator is told about is a
+    // separate question from which methods the channel offers, and changing it
+    // here would change what every gateway and carrier module decides.
     if (deps.eligibility) {
       rows = await deps.eligibility.filter(rows, {
         salesChannelId: null,
@@ -179,6 +219,39 @@ export async function registerPaymentMethodsAdminRoutes(
     },
   );
 
+  /**
+   * The sales channels a method may be assigned to — the options of the form's
+   * **Sales channels** field.
+   *
+   * Gated on this module's own read code, and deliberately not on the
+   * sales-channel module's. Choosing where a method is offered is part of
+   * configuring the method (the `PUT` below takes `salesChannelIds` on this
+   * module's write code alone, by owner ruling), so the administrator who may
+   * do that must be able to see what there is to choose from; sending them to
+   * `GET /api/v1/admin/sales-channels` would hand the field a 403 for every
+   * role that configures methods and does not administer channels. It answers
+   * the four fields a choice needs and nothing of a channel's configuration.
+   *
+   * Inactive channels are included and flagged: a method may be assigned to
+   * one, and a form that could not show it would drop it on the next save.
+   */
+  app.get(
+    '/api/v1/admin/payment-methods/sales-channels',
+    { preHandler: requireAdmin('payment_methods:read') },
+    async () => {
+      const channels = await deps
+        .emFactory()
+        .find(SalesChannel, {}, { orderBy: { code: 'asc' } });
+      const data: SalesChannelOption[] = channels.map((c) => ({
+        id: c.id,
+        code: c.code,
+        name: c.name,
+        active: c.active,
+      }));
+      return { data };
+    },
+  );
+
   app.put<{ Params: { code: string } }>(
     '/api/v1/admin/payment-methods/:code',
     {
@@ -209,6 +282,13 @@ export async function registerPaymentMethodsAdminRoutes(
       // the Command whether this call creates or updates — the write itself
       // happens inside the bus transaction (issue #125).
       const existing = await em.findOne(PaymentMethod, { code: request.params.code });
+      // Before anything is written: every channel named must exist. An unknown
+      // id used to surface as a foreign-key failure from the membership write —
+      // a 500, **after** the Command had committed the row — which for a new
+      // method left it with no membership at all, and no membership means
+      // offered on every channel.
+      await assertSalesChannelsExist(em, body.salesChannelIds);
+
       const { method: row, created } = await deps.commandBus.run(
         makeUpsertPaymentMethodCommand({
           code: request.params.code,
@@ -221,12 +301,34 @@ export async function registerPaymentMethodsAdminRoutes(
       // Channel membership is the sales-channel bridge's own write, on its own
       // EntityManager, so it stays outside the Command rather than pretending to
       // share its transaction.
-      if (created && deps.salesChannelMembership) {
-        await deps.salesChannelMembership.bindToDefaultIfEmpty('payment-method', row.id);
-      }
-      // Replace sales-channel membership when an explicit (non-empty) set is given.
-      if (body.salesChannelIds && body.salesChannelIds.length > 0 && deps.salesChannelMembership) {
-        await replaceChannelMembership(deps.salesChannelMembership, row.id, body.salesChannelIds);
+      if (deps.salesChannelMembership) {
+        try {
+          await applyChannelSelection(
+            deps.salesChannelMembership,
+            row.id,
+            body.salesChannelIds,
+            created,
+            deps.resolveAuditActor?.(request) ?? { actorAdminUserId: null },
+          );
+        } catch (error) {
+          // Fail closed. The row and its memberships are written on two
+          // transactions, and a **new** row whose assignment failed is a
+          // method bound to nothing — offered on every channel, which is wider
+          // than anything the operator asked for. So the creation is taken
+          // back, and the caller is told it failed. An update needs nothing
+          // here: its assignment is replaced in one transaction of the bridge's
+          // own, so a failure leaves the method offered exactly where it was.
+          //
+          // The take-back does not go through the operator's delete and its
+          // `payments` usage guard — a row created in this request cannot be
+          // referenced, and the guard refuses whenever `payments` is off —
+          // and if the removal itself fails the row is left **inactive**, so
+          // the worst outcome is a method that is not offered.
+          if (created) {
+            await withdrawCreatedMethod(deps, row.id, request);
+          }
+          throw error;
+        }
       }
 
       return { data: await serializeAdmin(row, deps) };
@@ -286,21 +388,102 @@ function assertValidStatus(registry: OrderStatusRegistry, ref: string): void {
   }
 }
 
-async function replaceChannelMembership(
+/**
+ * Removes a method this request created, or — failing that — leaves it inactive.
+ * Never throws: the caller is already reporting the failure that made this
+ * necessary, and that is the one the client must see.
+ */
+async function withdrawCreatedMethod(
+  deps: PaymentMethodsAdminDeps,
+  methodId: string,
+  request: FastifyRequest,
+): Promise<void> {
+  try {
+    await deps.commandBus.run(makeWithdrawCreatedPaymentMethodCommand(methodId));
+    return;
+  } catch (removeError) {
+    request.log.error(
+      { err: removeError, paymentMethodId: methodId },
+      '[payment_methods] a new method whose channel assignment failed could not be removed; ' +
+        'setting it inactive instead',
+    );
+  }
+  try {
+    await deps.commandBus.run(makeDeactivateCreatedPaymentMethodCommand(methodId));
+  } catch (deactivateError) {
+    request.log.error(
+      { err: deactivateError, paymentMethodId: methodId },
+      '[payment_methods] a new method whose channel assignment failed could be neither removed nor ' +
+        'set inactive; it is active with no channel assignment — offered on every sales ' +
+        'channel — until an operator assigns, deactivates or deletes it',
+    );
+  }
+}
+
+/**
+ * What `salesChannelIds` on the upsert body means — three answers, and the
+ * difference between the first two is the point.
+ *
+ * - **Omitted** — the caller said nothing about channels. An update leaves the
+ *   memberships exactly as they are. A create binds the new method to the
+ *   system-default channel, which is what this route has always done for a
+ *   caller that does not send the field: an integration written before channels
+ *   could be chosen keeps producing the row state it always produced, and a new
+ *   method does not appear on a second channel because nobody mentioned it.
+ * - **`[]`** — the caller chose "no restriction". Every membership is removed
+ *   and the method is offered in every channel. This is what the admin form
+ *   sends for "All channels", on create as on edit, and it is why an empty set
+ *   is not treated as an omission any more.
+ * - **One or more ids** — exactly those channels, replacing whatever was there.
+ */
+async function applyChannelSelection(
   membership: SalesChannelMembershipPort,
   methodId: string,
-  desiredChannelIds: string[],
+  salesChannelIds: string[] | undefined,
+  created: boolean,
+  actor: { actorAdminUserId: string | null },
 ): Promise<void> {
-  const current = await membership.listChannelsForEntity('payment-method', methodId);
-  const currentIds = new Set(current.map((c) => c.id));
-  const desired = new Set(desiredChannelIds);
-  // Add first so a later removal never transiently leaves zero channels.
-  for (const id of desired) {
-    if (!currentIds.has(id)) await membership.addToChannel(id, 'payment-method', methodId);
+  if (salesChannelIds === undefined) {
+    if (created) await membership.bindToDefaultIfEmpty('payment-method', methodId, actor);
+    return;
   }
-  for (const id of currentIds) {
-    if (!desired.has(id)) await membership.removeFromChannel(id, 'payment-method', methodId);
+  if (salesChannelIds.length === 0) {
+    await membership.clearChannelsForEntity('payment-method', methodId, actor);
+    return;
   }
+  // One transaction of the bridge's own: the set is replaced whole or not at
+  // all, so a failure cannot leave the method on a mixture of the old channels
+  // and the new ones.
+  const [first, ...rest] = salesChannelIds as [string, ...string[]];
+  await membership.replaceChannelsForEntity('payment-method', methodId, [first, ...rest], actor);
+}
+
+/**
+ * Refuses a `salesChannelIds` naming a channel that does not exist — one deleted
+ * while the form was open, or a mistyped id from an API caller — with a field
+ * error, before the method is written.
+ *
+ * `SalesChannel` is the platform's published entity for a kernel-owned table,
+ * read here as the channel-options route above reads it; an inactive channel is
+ * a channel, and a method may be assigned to one.
+ */
+async function assertSalesChannelsExist(
+  em: EntityManager,
+  salesChannelIds: readonly string[] | undefined,
+): Promise<void> {
+  if (salesChannelIds === undefined || salesChannelIds.length === 0) return;
+  const ids = [...new Set(salesChannelIds)];
+  const known = new Set(
+    (await em.find(SalesChannel, { id: { $in: ids } }, { fields: ['id'] })).map((c) => c.id),
+  );
+  const unknown = ids.filter((id) => !known.has(id));
+  if (unknown.length === 0) return;
+  throw new HttpError(
+    400,
+    ERROR_CODES.VALIDATION_FAILED,
+    'One or more of the sales channels do not exist. Reload and choose again.',
+    unknown.map((id) => ({ path: 'salesChannelIds', issue: id })),
+  );
 }
 
 function serializePublic(m: PaymentMethod, deps: { registry?: PaymentAdapterRegistry }) {

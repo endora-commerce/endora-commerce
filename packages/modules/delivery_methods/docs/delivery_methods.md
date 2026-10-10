@@ -29,11 +29,20 @@ method outright. A role that was relying on the catalogue codes for this screen
 has to be granted the new ones on `/admin-roles`; nothing grants them
 automatically, deliberately.
 
+**Choosing a method's sales channels needs these codes and no other.** Where a
+method is offered is part of configuring the method, so `delivery_methods:write` is
+sufficient to assign, replace and clear its sales channels, and `delivery_methods:read` to
+see the channels there are to choose from
+(`GET /api/v1/admin/delivery-methods/sales-channels`). Neither `sales_channels:read`
+nor `sales_channels:write` is required — by decision, not by omission — and
+holding the `delivery_methods` codes grants nothing on the sales-channel screens.
+
 | Verb + Path | Audience | Gate | Purpose |
 | --- | --- | --- | --- |
 | `GET /api/v1/delivery-methods` | anon | — | Eligible methods for the storefront checkout (active ∩ sales-channel ∩ Organization allow-list ∩ adapter registered ∩ `validateUseOnStorefront`) |
 | `GET /api/v1/admin/delivery-methods` | admin | `delivery_methods:read` | Full list with adapter, status mappings, sales channels, renderer key, and `availability` — whether checkout can offer the method and which module decides it |
 | `GET /api/v1/admin/delivery-methods/adapters` | admin | `delivery_methods:read` | The adapters a method may be bound to: `{ key, ownerModule }` for every registered adapter whose module is switched on |
+| `GET /api/v1/admin/delivery-methods/sales-channels` | admin | `delivery_methods:read` | The sales channels a method may be assigned to — `{ id, code, name, active }` for every channel, inactive ones included |
 | `PUT /api/v1/admin/delivery-methods/:code` | admin | `delivery_methods:write` | Upsert by code (name, cost/`price`, `adapter`, status, `statusOnSuccess`/`statusOnFailure`, sales channels) |
 | `DELETE /api/v1/admin/delivery-methods/:id` | admin | `delivery_methods:write` | Hard delete (guarded: rejected with 409 when a `Shipment` references the method — set status `inactive` instead) |
 
@@ -42,6 +51,97 @@ The admin status selectors read their options from `GET /api/v1/admin/order-stat
 route is gated `payment_methods:read` **or** `delivery_methods:read` — an any-of
 over the two editors that read it, so the code that opens this screen also opens
 its status selectors.
+
+## Sales channels
+
+Each delivery method is offered in the sales channels the operator chooses for
+it. On `/delivery-methods` the form has a **Sales channels** field, and the list shows
+every method's channels.
+
+**An assignment is a restriction, and a method with none is offered in every
+channel.** A method assigned to one or more channels is offered in exactly
+those. A method assigned to no channel — *All channels* in the form — is offered
+in every channel, including channels created later. This is deliberately not the
+rule products follow, where a product in no channel is published nowhere:
+delivery methods exist without an assignment as a matter of course, so reading
+"none" as "nowhere" would empty existing checkouts. Where a method that nobody
+assigned by hand stands:
+
+- A module that ships its own method seeds it when the module is installed and
+  assigns it to **no** channel, so it is offered on every channel — whenever the
+  module is installed, on a new instance or on one that has run for years.
+  Releases before this rule did otherwise: the seed assigned the method to the
+  default channel when that channel existed at installation, which it does on
+  any instance that has been started at least once. Methods seeded then keep
+  that assignment.
+- Demo data assigns none.
+- A method created through the API without `salesChannelIds` is assigned to the
+  default channel; one created in the admin form with nothing ticked is
+  assigned to none.
+
+The assignment is enforced where a buyer meets it:
+
+- `GET /api/v1/delivery-methods` lists only the methods offered in the sales channel the request
+  resolved (`X-Sales-Channel`, `?salesChannel=`, the host map, else the system
+  default). A storefront therefore has to name its channel on this read: the
+  reference storefront forwards `X-Sales-Channel`, and one scaffolded from an
+  earlier release needs the same change in `lib/api/methods.ts`, or it is
+  answered with the default channel's methods.
+- Placing an order, and previewing its total, refuses a method that is not
+  offered in the order's sales channel with `400 VALIDATION_FAILED` and
+  `details.code = "delivery_method_not_in_sales_channel"`. That holds for a
+  storefront checkout, for one-click buy, for an order an administrator creates
+  on a customer's behalf (the channel chosen for the order) and for an API-key
+  order (the key's channel). The admin order-creation form narrows its method
+  lists to the chosen channel.
+
+`salesChannelIds` on `PUT /api/v1/admin/delivery-methods/:code` has three meanings:
+
+| `salesChannelIds` | Effect |
+| --- | --- |
+| omitted | An update leaves the assignment unchanged. A **new** method is assigned to the system-default channel only. |
+| `[]` | Every assignment is removed: the method is offered in every channel. |
+| one or more ids | The method is offered in exactly those channels. |
+
+The admin form always sends the field, so a method created there with nothing
+ticked is offered in every channel. If the form cannot load the list of sales
+channels it says so and sends nothing, and the save leaves the assignment as it
+was.
+
+Elsewhere the at-least-one-channel rule still applies: removing a method's
+**last** channel from the sales-channel side is refused, and deleting a sales
+channel that is a method's only one is refused or rebinds the method to the
+default channel. So an assignment is never lost as a side effect of another
+operation: a method is offered everywhere only because it was saved with no
+channel chosen, or was seeded without one as described above. A save that names
+a sales channel which does not exist is refused with `400 VALIDATION_FAILED`
+before anything is written. If assigning the channels of a **new** method still
+fails, the creation is taken back: the method is removed again — without asking
+`shipments`, since nothing can reference a method created in the same request, so
+this works with `shipments` switched off too — and the request answers with the
+failure. Should the removal itself fail, the method is left **inactive** rather
+than active with no channel, so the worst outcome is a method that is not
+offered.
+
+**Upgrading an instance with more than one sales channel: review every method.**
+Before this rule the storefront listed every active method on every channel and
+ignored the assignment. The **Sales channels** column on `/delivery-methods` shows where
+each method stands now:
+
+- assigned to the **default channel only**, and so gone from the other channels'
+  checkouts until changed — every method created in the admin so far, and every
+  method a module seeded **under an earlier release** on an instance that had
+  already been started. Nothing widens these automatically: such a row cannot be
+  told apart from one restricted on purpose;
+- assigned to **no channel**, and so offered everywhere — every method a module
+  seeds from this release on, methods a module seeded under an earlier release
+  during the instance's first setup, and demo-data methods.
+
+Open each method and choose its channels, or untick all of them to offer it
+everywhere. An instance with a single sales channel is unaffected.
+
+Memberships live in `sales_channel_delivery_methods` and are read and written only through the
+platform's sales-channel membership service.
 
 ## Entry fields
 

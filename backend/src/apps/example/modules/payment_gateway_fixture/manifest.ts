@@ -67,10 +67,9 @@ import {
  * The hooks below carry all four obligations this section named before the owner
  * half existed, and the reason each one is written the way it is stays beside it:
  *
- *  * `bindToDefaultChannel` runs **only** when `created === true`, never as a
- *    reconcile — an unguarded call is issue #96 verbatim, a method an operator
- *    deliberately unbound from every channel coming back bound with nothing
- *    saying so;
+ *  * the seeded method is bound to **no** sales channel — the binding step this
+ *    list used to open with is gone from the seed surface, and a method with no
+ *    membership is offered on every channel until an operator restricts it;
  *  * the seeded row's `status` is passed **explicitly**, because the seeder's
  *    default and the value a fixture wants disagree, and a fixture that took the
  *    default would exercise neither the argument nor the defect
@@ -169,23 +168,22 @@ export const PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD: PaymentMethodSeedDefaults =
  * to resolve the owner's service from and the factory import is the seam
  * (`specs/conventions/module-composition.md` item 9a).
  *
- * **`bindToDefaultChannel` runs only when `created === true`.** Never as a
- * reconcile: an unguarded call is issue #96 verbatim, a method an operator
- * deliberately unbound from every channel coming back bound with nothing saying
- * so. "Unbound" is a state an operator is entitled to reach and to keep.
+ * **It binds the method to no sales channel.** The seed surface has no binding
+ * step any more: a seeded method carries no membership, and a method with none
+ * is offered on every channel until an operator restricts it. `created` is read
+ * only so the log line is written once.
  */
 export const installHook: ModuleInstallHook = async (ctx) => {
   const em = ctx.em as EntityManager;
   const seeder = createPaymentMethodSeeder();
-  const { row, created } = await seeder.ensureMethodForAdapter(
+  const { created } = await seeder.ensureMethodForAdapter(
     em,
     PAYMENT_GATEWAY_FIXTURE_ADAPTER_KEYS.REDIRECT,
     PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD,
   );
   if (!created) return;
-  await seeder.bindToDefaultChannel(em, row.id);
   ctx.log.info(
-    `payment_gateway_fixture: seeded payment method ${PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD.code} in the default channel`,
+    `payment_gateway_fixture: seeded payment method ${PAYMENT_GATEWAY_FIXTURE_PAYMENT_METHOD.code}, offered on every sales channel until restricted`,
   );
 };
 

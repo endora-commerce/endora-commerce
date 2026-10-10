@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Copy, Plus, Trash2 } from 'lucide-react';
 import { ApiError, apiClient, useUnsavedChangesPrompt, formatMoney as formatMoneyShared } from '@endora-commerce/admin-kit/lib';
@@ -25,6 +25,36 @@ interface MethodSummary {
   code: string;
   name: Record<string, string>;
   status: string;
+  /** The channels the method is restricted to; empty means every channel. */
+  salesChannelIds?: string[];
+}
+
+/**
+ * The methods an order on `salesChannelId` may use: those bound to that channel
+ * and those bound to none, which are offered in every channel. With no channel
+ * chosen yet nothing is narrowed — the operator has not said where the order
+ * is, and an empty select would read as "this shop has no methods".
+ *
+ * The server refuses an out-of-channel method on preview and on create; this is
+ * what keeps the operator from being offered one in the first place.
+ */
+export function methodsOfferedInChannel<M extends { salesChannelIds?: string[] }>(
+  methods: readonly M[],
+  salesChannelId: string,
+): M[] {
+  if (!salesChannelId) return [...methods];
+  return methods.filter((m) => {
+    const restrictedTo = m.salesChannelIds ?? [];
+    return restrictedTo.length === 0 || restrictedTo.includes(salesChannelId);
+  });
+}
+
+function toMethodOptions(methods: readonly MethodSummary[]): ComboboxOption<string>[] {
+  return methods.map((m) => ({
+    value: m.id,
+    label: pickName(m.name, m.code),
+    description: m.code,
+  }));
 }
 
 /** Sales-channel / method names are localized maps; pick a display string. */
@@ -465,8 +495,31 @@ export function OrderCreatePage(): ReactNode {
 
   // Static reference lists, loaded once on mount.
   const [channelOptions, setChannelOptions] = useState<ComboboxOption<string>[]>([]);
-  const [paymentOptions, setPaymentOptions] = useState<ComboboxOption<string>[]>([]);
-  const [deliveryOptions, setDeliveryOptions] = useState<ComboboxOption<string>[]>([]);
+  // The active methods as loaded; the two selects offer the ones the chosen
+  // channel offers, so the lists follow the channel select.
+  const [paymentMethods, setPaymentMethods] = useState<MethodSummary[]>([]);
+  const [deliveryMethods, setDeliveryMethods] = useState<MethodSummary[]>([]);
+  const paymentOptions = useMemo(
+    () => toMethodOptions(methodsOfferedInChannel(paymentMethods, salesChannelId)),
+    [paymentMethods, salesChannelId],
+  );
+  const deliveryOptions = useMemo(
+    () => toMethodOptions(methodsOfferedInChannel(deliveryMethods, salesChannelId)),
+    [deliveryMethods, salesChannelId],
+  );
+  // Changing the channel can take the chosen method out of the list. Clear it
+  // then, so the form does not go on submitting a method the select no longer
+  // shows — the required-field check asks the operator to choose again.
+  useEffect(() => {
+    if (paymentMethodId && !paymentOptions.some((o) => o.value === paymentMethodId)) {
+      setPaymentMethodId('');
+    }
+  }, [paymentOptions, paymentMethodId]);
+  useEffect(() => {
+    if (deliveryMethodId && !deliveryOptions.some((o) => o.value === deliveryMethodId)) {
+      setDeliveryMethodId('');
+    }
+  }, [deliveryOptions, deliveryMethodId]);
 
   // Address lists, refetched whenever the customer changes.
   const [addressOptions, setAddressOptions] = useState<ComboboxOption<string>[]>([]);
@@ -496,16 +549,8 @@ export function OrderCreatePage(): ReactNode {
             description: c.code,
           })),
         );
-        setPaymentOptions(
-          payments.data
-            .filter((m) => m.status === 'active')
-            .map((m) => ({ value: m.id, label: pickName(m.name, m.code), description: m.code })),
-        );
-        setDeliveryOptions(
-          deliveries.data
-            .filter((m) => m.status === 'active')
-            .map((m) => ({ value: m.id, label: pickName(m.name, m.code), description: m.code })),
-        );
+        setPaymentMethods(payments.data.filter((m) => m.status === 'active'));
+        setDeliveryMethods(deliveries.data.filter((m) => m.status === 'active'));
       } catch (err) {
         if (!alive) return;
         setError(err instanceof ApiError ? err.envelope.error.message : t('orderCreate.loadError'));

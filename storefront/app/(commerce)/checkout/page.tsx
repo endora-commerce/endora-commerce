@@ -67,7 +67,7 @@ export default async function CheckoutPage({
   const jar: CartCookieJar = await readJar();
   // Feature 036 (T039) — resolve the active locale so checkout components
   // can render their copy in PL/EN.
-  const { locale } = await getServerContext();
+  const { locale, ctx } = await getServerContext();
 
   let loaded: [
     Awaited<ReturnType<typeof getCart>>,
@@ -83,8 +83,9 @@ export default async function CheckoutPage({
     loaded = await Promise.all([
       getCart(jar),
       listAddresses(session),
-      listDeliveryMethods(),
-      listPaymentMethods(),
+      // For the channel the buyer is shopping: a method is offered per channel.
+      listDeliveryMethods(ctx),
+      listPaymentMethods(ctx),
       // Credit limit is optional context — an org without a granted limit (or a
       // failing lookup) must not bounce a logged-in buyer to login or crash the
       // page. Downstream already treats a null limit as "no credit option".

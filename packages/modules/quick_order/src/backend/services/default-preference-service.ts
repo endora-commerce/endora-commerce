@@ -139,7 +139,18 @@ export class DefaultPreferenceService {
    * Effective defaults for a customer: customer-over-org per field, then each
    * value is dropped to null if it is no longer eligible (FR-020).
    */
-  async resolveForCustomer(customerAccountId: string): Promise<QuickOrderResolvedDefaults> {
+  async resolveForCustomer(
+    customerAccountId: string,
+    /**
+     * The sales channel the defaults are about to be **used** on, when the
+     * caller has one. A default method that channel does not offer is dropped
+     * like any other ineligible default, so one-click buy is not offered — and
+     * not attempted — with a method the order would be refused for. Without a
+     * channel the defaults are answered as stored and still live: the
+     * preferences screen shows what the buyer chose.
+     */
+    salesChannelId: string | null = null,
+  ): Promise<QuickOrderResolvedDefaults> {
     const em = this.emFactory();
     const organizationId = await this.customerOrganizationId(customerAccountId);
 
@@ -171,10 +182,10 @@ export class DefaultPreferenceService {
       : null;
 
     const payment = await this.keepIf(resolved.payment, (id) =>
-      this.isPaymentEligible(id, allowedPayment),
+      this.isPaymentEligible(id, allowedPayment, salesChannelId),
     );
     const delivery = await this.keepIf(resolved.delivery, (id) =>
-      this.isDeliveryEligible(id, allowedDelivery),
+      this.isDeliveryEligible(id, allowedDelivery, salesChannelId),
     );
     const billing = await this.keepIf(resolved.billing, (id) =>
       this.isAddressEligible(id, organizationId, customerAccountId),
@@ -205,16 +216,32 @@ export class DefaultPreferenceService {
     return (await eligible(field.id)) ? field : { id: null, source: null };
   }
 
-  private async isPaymentEligible(id: string, allowed: string[] | null): Promise<boolean> {
+  private async isPaymentEligible(
+    id: string,
+    allowed: string[] | null,
+    salesChannelId: string | null,
+  ): Promise<boolean> {
     const method = await this.ports.paymentMethods.findById(id);
     if (!method || method.status !== 'active') return false;
-    return unrestricted(allowed) || allowed.includes(id);
+    if (!(unrestricted(allowed) || allowed.includes(id))) return false;
+    return (
+      salesChannelId === null ||
+      (await this.ports.paymentMethods.isAvailableInChannel(id, salesChannelId))
+    );
   }
 
-  private async isDeliveryEligible(id: string, allowed: string[] | null): Promise<boolean> {
+  private async isDeliveryEligible(
+    id: string,
+    allowed: string[] | null,
+    salesChannelId: string | null,
+  ): Promise<boolean> {
     const method = await this.ports.deliveryMethods.findById(id);
     if (!method || method.status !== 'active') return false;
-    return unrestricted(allowed) || allowed.includes(id);
+    if (!(unrestricted(allowed) || allowed.includes(id))) return false;
+    return (
+      salesChannelId === null ||
+      (await this.ports.deliveryMethods.isAvailableInChannel(id, salesChannelId))
+    );
   }
 
   private async isAddressEligible(

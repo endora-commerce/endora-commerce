@@ -41,6 +41,7 @@ import { HttpError } from '@endora-commerce/platform/http';
 import { getResolvedChannel, rethrowIfModuleDisabled } from '@endora-commerce/platform/kernel';
 import type { Command, CommandBus } from '@endora-commerce/platform/commands';
 import type { OrderService } from './services/order-service.js';
+import { assertMethodsOfferedInChannel } from './services/method-channel-gate.js';
 import type { OrderStatusGraphService } from './services/order-status-graph-service.js';
 import type { OrderTransitionService } from './services/order-transition-service.js';
 import type { OrderListService, OrderListScope } from './services/order-list-service.js';
@@ -341,7 +342,12 @@ export async function registerOrderRoutes(
     async (request) => {
       const body = orderPreviewTotalRequestSchema.parse(request.body);
       const ctx = resolveCustomerContext(request);
-      const totals = await orderService.previewTotal(ctx, body);
+      // The preview is for the channel the buyer is on, so it refuses a method
+      // that channel does not offer — the same answer the placement will give.
+      const totals = await orderService.previewTotal(ctx, {
+        ...body,
+        salesChannelId: getResolvedChannel(request).id,
+      });
       return { data: totals };
     },
   );
@@ -826,6 +832,15 @@ export async function registerOrderRoutes(
         body.paymentMethodId && paymentMethodRead
           ? await paymentMethodRead.findById(body.paymentMethodId)
           : null;
+
+      // The create form narrows its two method selects to the chosen channel;
+      // this is the refusal behind that narrowing, and the same one creating
+      // the order would raise.
+      await assertMethodsOfferedInChannel(deps, {
+        salesChannelId: salesChannel.id,
+        deliveryMethodId: deliveryMethod?.id,
+        paymentMethodId: paymentMethod?.id,
+      });
 
       const currency = deliveryMethod?.currency ?? salesChannel.defaultCurrency;
       const customerGroupId = customer.customerGroupId ?? organization?.customerGroupId ?? null;

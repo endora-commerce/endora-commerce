@@ -58,6 +58,7 @@ export interface PaymentMethodsCradle {
       entityType: ChannelMemberEntityType;
       table: string;
       entityIdColumn: string;
+      emptyMeansEveryChannel?: boolean;
     }): void;
   };
   readonly emFactory: () => EntityManager;
@@ -68,7 +69,10 @@ export interface PaymentMethodsCradle {
    */
   readonly requireAdminAny: RequireAdminAnyFactory;
   readonly commandBus: CommandBus;
-  readonly salesChannelMembershipPort: SalesChannelMembershipPort | undefined;
+  /** The platform's name for the acting administrator on an audit record. */
+  readonly adminAuditActorResolver: (request: FastifyRequest) => {
+    actorAdminUserId: string | null;
+  };
   /**
    * The two halves the allow-list is composed from (T138). This used to be one
    * `organizationPaymentMethodAllowList` contribution point that a root filled
@@ -159,7 +163,18 @@ export function registerModule(ctx: ModuleContext): void {
     'paymentMethodReadPort',
     ctx
       .asFunction(
-        ({ emFactory }: PaymentMethodsCradle) => new PaymentMethodReadService(emFactory),
+        ({ emFactory }: PaymentMethodsCradle) =>
+          new PaymentMethodReadService(emFactory, {
+            // Resolved **per call** with `lazyPort`, never captured by this
+            // singleton's factory (`module-composition.md` §3): a port is a
+            // transient gate, and a captured one keeps answering after its
+            // owner is switched off.
+            filterEntityIdsAvailableInChannel: (...args) =>
+              lazyPort<SalesChannelMembershipPort>(
+                ctx,
+                'salesChannelMembershipPort',
+              ).filterEntityIdsAvailableInChannel(...args),
+          }),
       )
       .singleton(),
   );
@@ -173,7 +188,9 @@ export function registerModule(ctx: ModuleContext): void {
       paymentMethodEligibility,
       paymentOrderStatusRegistry,
     } = ctx.cradle<PaymentMethodsCradle>();
-    const membership = ctx.cradle<PaymentMethodsCradle>().salesChannelMembershipPort;
+    // `lazyPort`, by its literal name, as `catalog` reads the same port
+    // (`module-composition.md` §3). The routes hold the proxy, not the port.
+    const membership = lazyPort<SalesChannelMembershipPort>(ctx, 'salesChannelMembershipPort');
 
     /**
      * Composed here from the two halves, and deliberately without a `catch`.
@@ -193,6 +210,7 @@ export function registerModule(ctx: ModuleContext): void {
 
     await registerPaymentMethodsPublicRoutes(app, {
       emFactory,
+      salesChannelMembership: membership,
       registry,
       eligibility: paymentMethodEligibility,
       resolveOrganizationPaymentMethodAllowList: resolveAllowList,
@@ -225,7 +243,9 @@ export function registerModule(ctx: ModuleContext): void {
       registry,
       orderStatusRegistry: paymentOrderStatusRegistry,
       paymentRead,
-      ...(membership === undefined ? {} : { salesChannelMembership: membership }),
+      salesChannelMembership: membership,
+      resolveAuditActor: (request) =>
+        ctx.cradle<PaymentMethodsCradle>().adminAuditActorResolver(request),
     });
   });
 }
@@ -258,6 +278,15 @@ export const salesChannelBridges: ReadonlyArray<{
   readonly entityType: ChannelMemberEntityType;
   readonly table: string;
   readonly entityIdColumn: string;
+  readonly emptyMeansEveryChannel?: boolean;
 }> = [
-  { entityType: 'payment-method', table: 'sales_channel_payment_methods', entityIdColumn: 'payment_method_id' },
+  {
+    entityType: 'payment-method',
+    table: 'sales_channel_payment_methods',
+    entityIdColumn: 'payment_method_id',
+    // A payment method bound to no channel is offered in every channel — the
+    // rule and the reasons are in `./services/channel-availability.ts`.
+    emptyMeansEveryChannel: true,
+  },
 ];
+

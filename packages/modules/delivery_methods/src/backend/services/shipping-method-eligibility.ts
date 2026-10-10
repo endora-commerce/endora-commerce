@@ -9,7 +9,8 @@ import type { ShippingAdapterRegistry } from './shipping-adapter-registry.js';
  * allow-list at the route), keeps only those whose adapter is currently
  * registered (FR-003 — a disabled adapter drops out) and whose surface
  * validator returns true. Sales-channel-assignment filtering is applied by the
- * caller via the membership bridge.
+ * caller — the storefront catalogue route, through `channel-availability.ts` —
+ * before the rows reach this service.
  */
 export interface ShippingEligibilityContext {
   salesChannelId: string | null;
