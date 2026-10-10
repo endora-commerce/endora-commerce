@@ -218,6 +218,25 @@ export const MINTED_ERROR_CODES: MintedErrorCodes = {
       'did not exist when the prefix chain was deleted: the refusal to edit or delete an ' +
       'internal message on an Opportunity, which is immutable once sent, whoever asks.',
   },
+  CART_PRODUCT_QUOTE_ONLY: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal to put a product whose price is withheld from this buyer into a ' +
+      'cart. It was raised as `VALIDATION_FAILED` with the identifier `product_quote_only` as ' +
+      'its message, which the envelope leaves untouched for that code, so a client could not ' +
+      'tell it from a malformed request and the buyer read an identifier. The noun is the cart ' +
+      'line and the one raise site is `carts`\' `CartService.addItem`.',
+  },
+  CART_QUANTITY_INVALID: {
+    to: 'carts',
+    reason:
+      'Minted for the refusal of a cart line whose quantity is below the minimum a line may ' +
+      'hold. It was raised as `VALIDATION_FAILED` with an English sentence no bundle held; ' +
+      '`details.minimum` now carries the value both sentences name. The one raise site is ' +
+      '`carts`\' `CartService.addItem`, which an in-process caller of the cart write port ' +
+      'reaches — every request schema in front of it already refuses the same quantity as a ' +
+      'malformed request.',
+  },
   CMS_SLUG_RESERVED: {
     to: 'cms',
     reason:

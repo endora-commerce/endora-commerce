@@ -119,7 +119,7 @@ oraz koszyk i składanie zamówienia.
 Cztery wartości: `gross_only`, `net_only`, `both`, `none`. Pierwsze trzy decydują o kolumnach cen we
 wszystkich miejscach storefrontu, które pokazują cenę; `none` ukrywa wszystkie elementy ceny i
 zastępuje przycisk Add-to-cart istniejącym przyciskiem zapytania ofertowego. Endpointy pozycji koszyka
-i składania zamówienia dodatkowo odrzucają pozycję z `400 product_quote_only`, gdy dla trójki
+i składania zamówienia dodatkowo odrzucają pozycję z `400 CART_PRODUCT_QUOTE_ONLY`, gdy dla trójki
 `(product, organization, channel)` wyznaczony tryb to `none` — jako druga linia obrony.
 
 ## API publiczne
