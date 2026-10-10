@@ -72,7 +72,14 @@ describe('quote_requests outbound webhooks — rfq.created / rfq.expired', () =>
 
   /** Make the request overdue and run the composed expiry worker — the sweep the scheduler runs. */
   const expire = async (rfqId: string): Promise<void> => {
-    await h.em().nativeUpdate(QuoteRequest, { id: rfqId }, { updatedAt: new Date(Date.now() - 400 * 86_400_000) });
+    // Both clocks the sweep has read: the row's `updated_at`, and the request's
+    // latest history row.
+    const longAgo = new Date(Date.now() - 400 * 86_400_000);
+    await h.em().nativeUpdate(QuoteRequest, { id: rfqId }, { updatedAt: longAgo });
+    await h.em().execute(`update "quote_request_events" set "created_at" = ? where "quote_request_id" = ?`, [
+      longAgo,
+      rfqId,
+    ]);
     const worker = (
       h.container.cradle as unknown as {
         quoteRequests: { handle(): { expiryWorker: { sweep(): Promise<{ expiredCount: number }> } } };
