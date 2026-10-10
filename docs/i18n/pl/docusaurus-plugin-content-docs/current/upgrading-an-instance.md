@@ -412,6 +412,179 @@ z modułami nakładkowymi; to, co ta sekcja o nich mówi, pochodzi z dzienników
 
 ### Po aktualizacji do wydania 0.105.0 {#after-0-105-0}
 
+`pnpm run upgrade 0.105.0` przenosi pakiety i wykonuje migracje wydania, a instancja uruchamia się
+potem bez edycji żadnego ze swoich plików. To wydanie zmienia zachowanie: sposób logowania
+administratorów i czas życia sesji, kanał sprzedaży, do którego należy zamówienie i metoda, to,
+kto odczytuje pole niestandardowe, oraz szereg odpowiedzi API. Ta sekcja mówi, co zrobić i w
+jakiej kolejności, a potem — co działa inaczej, osobno dla każdego czytelnika:
+[operatorów](#after-0-105-0-operators), [klientów API i integratorów](#after-0-105-0-api),
+[autorów modułów i modułów nakładkowych](#after-0-105-0-authors) oraz właściciela
+[istniejącego storefrontu](#after-0-105-0-storefront).
+
+#### Co zrobić i w jakiej kolejności {#after-0-105-0-steps}
+
+Przed aktualizacją:
+
+1. **Odczytaj `quote_requests.expiry_days`** — *Automatyczne wygaszenie oczekujących po (dni)* na
+   karcie Zapytania ofertowe w **Ustawieniach** — dla domyślnego kanału sprzedaży. Przy `0`,
+   wartości domyślnej, nic z tego nie wynika. Przy każdej innej wartości zadanie wygaszające,
+   które od tego wydania rzeczywiście działa, w pierwszych przebiegach po aktualizacji wygasza
+   każde otwarte zapytanie ofertowe nieaktywne przez tyle dni. Jeśli chcesz najpierw przejrzeć
+   otwarte zapytania, ustaw wcześniej `0`; regułę opisuje punkt *Zapytania ofertowe wygasają* w
+   części [Dla operatorów](#after-0-105-0-operators).
+2. **W instancji z jednym kanałem sprzedaży odczytaj `orders.min_order_value`.** Ustawione dla
+   kanału domyślnego, a nie dla wszystkich kanałów, nie było egzekwowane dla zamówień ze
+   storefrontu, a teraz jest.
+3. **Jeśli Twoje zadanie uruchamia `demo reset`**, zdecyduj, czy jego wiersz poleceń potrzebuje
+   `--force-delete-financial-records`: bez tej flagi reset odmawia teraz wycofania danych
+   demonstracyjnych, w których przyjęto płatność albo wystawiono fakturę.
+
+Po aktualizacji, zanim instancja znów przyjmie ruch:
+
+4. **Za reverse proxy sprawdź, czy ustawiono `TRUSTED_PROXY_HOPS` albo `TRUSTED_PROXY_ADDRESSES`**
+   w środowisku backendu. Żadna z tych zmiennych nie jest nowa. Nowy jest limit błędnych haseł
+   administratora liczony dla adresu klienta: bez jednej z nich każde żądanie ma adres proxy, więc
+   pięć błędnych haseł do jednego konta, wysłanych przez kogokolwiek, opóźnia logowanie na to
+   konto z każdego urządzenia, na którym wcześniej się na nie nie zalogowano. Jak dobrać wartość,
+   mówi
+   [punkt G3 listy kontrolnej pierwszego wdrożenia](./deployment/first-deployment-checklist.md#g3-wskaż-backendowi-któremu-serwerowi-pośredniczącemu-wolno-podawać-adres-ip-klienta).
+5. **W instancji z więcej niż jednym kanałem sprzedaży** przejrzyj każdą metodę dostawy i
+   płatności (*Metody dostawy i płatności są udostępniane w wybranych kanałach sprzedaży* poniżej)
+   i wprowadź zmiany z części [W istniejącym storefroncie](#after-0-105-0-storefront).
+6. **Przejrzyj definicje pól niestandardowych** na ekranie Pola niestandardowe. Aktualizacja
+   oznacza każdą istniejącą definicję jako `customer`, więc nic, co klienci i integracje dotąd
+   otrzymywali, nie zostaje wycofane. Każde pole, którego wartości są przeznaczone tylko dla
+   administratorów, przestaw na `internal`.
+7. **Jeśli skrypt albo integracja wywołuje `POST /api/v1/admin/i18n/reload` lub
+   `GET /api/v1/admin/i18n/coverage`**, nadaj roli administratora, jako który się loguje,
+   uprawnienie `settings:write` dla pierwszej trasy i `settings:read` dla drugiej.
+8. **Tylko w publicznej instancji demonstracyjnej, która celowo publikuje hasło administratora**,
+   rozważ `ADMIN_AUTH_ACCOUNT_WIDE_LIMIT=off` — punkt *Logowanie administratora jest ograniczane*
+   poniżej mówi, kiedy i co ta zmienna wyłącza.
+9. **Zbuduj własne moduły ponownie z tym wydaniem.** Źródła, które implementują jeden z portów
+   wymienionych w części [Dla autorów modułów i modułów nakładkowych](#after-0-105-0-authors), nie
+   skompilują się, dopóki ich nie zmienisz, a moduł, który tworzy metodę dostawy lub płatności,
+   trzeba wydać ponownie.
+
+W dowolnym momencie:
+
+10. Dodaj dwa wiersze do pliku `.gitignore` instancji, który zachowuje treść, z jaką powstał:
+
+    ```
+    docs/build/
+    docs/.docusaurus/
+    ```
+
+    Zbudowanie strony dokumentacji instancji zapisuje oba katalogi, a gdy git je śledzi, różnica
+    po następnej aktualizacji to już nie `package.json` każdego członka workspace'u i plik
+    blokady. Jeśli któryś z nich jest już w repozytorium, uruchom raz
+    `git rm -r --cached docs/build docs/.docusaurus`: git nigdy nie ignoruje pliku, który śledzi.
+11. W instancji z załadowanym sklepem demonstracyjnym uruchom ponownie `pnpm run cli demo seed`.
+    Demonstracyjna rola `sales_representative` dostała przy tworzeniu kod uprawnienia, którego
+    nie deklaruje żaden moduł, przez co edytor ról odrzuca każdy zapis tej roli odpowiedzią
+    `400 Unknown permission(s): organizations:read.assigned`; ponowne załadowanie danych wycofuje
+    ten kod z roli i niczego więcej w niej nie zmienia.
+
+#### Dla operatorów {#after-0-105-0-operators}
+
+**Logowanie administratora jest ograniczane.** Hasło albo kod drugiego składnika dla konta
+administratora można próbować tylko kilka razy z rzędu: pięć błędnych prób z jednego adresu na
+jedno konto albo dwadzieścia na jedno konto ze wszystkich adresów łącznie rozpoczyna opóźnienie
+jednej minuty, które podwaja się z każdą kolejną błędną próbą, najwyżej do piętnastu minut. W
+czasie opóźnienia próba otrzymuje odpowiedź `429 ADMIN_AUTHENTICATION_THROTTLED`, a poprawne hasło
+również jest odrzucane. Nic nie jest blokowane na stałe: licznik zeruje udana próba, a bez niej
+jest zapominany trzydzieści minut po pierwszej błędnej.
+
+- Zakończone logowanie hasłem zostawia na urządzeniu plik cookie `b2b_admin_device`. To nie jest
+  sesja i niczego nie daje; urządzenie, które go ma, jest liczone we własnym limicie pięciu prób,
+  a nie w limicie dwudziestu dla konta, więc błędne hasła wysyłane przez kogoś innego nie
+  odcinają administratora od urządzenia, z którego już korzystał.
+- Żeby wyzerować wszystkie liczniki jednego konta, w katalogu głównym instancji:
+
+  ```bash
+  pnpm run cli admin_users unlock --email=<their e-mail>
+  ```
+
+  W obrazie produkcyjnym to samo polecenie to
+  `node dist/cli.js admin_users unlock --email=<their e-mail>`, uruchomione w kontenerze backendu.
+  Pierwszy wiersz jego wyjścia podaje, na której instancji Redis zadziałało.
+- Każde opóźnienie rozpoczęte dla istniejącego konta zapisuje jeden wpis w dzienniku audytu,
+  `admin_user.authentication_throttled`.
+- Liczniki są przechowywane w Redis. Dopóki Redis nie odpowiada, logowanie jest odrzucane
+  odpowiedzią `503 ADMIN_AUTHENTICATION_UNAVAILABLE`.
+- **Publiczna instancja demonstracyjna.** Limit dwudziestu prób zakłada, że hasło jest tajne. W
+  instancji, która celowo publikuje adres e-mail i hasło administratora, każdy odwiedzający jest
+  urządzeniem logującym się po raz pierwszy i korzysta z tego wspólnego limitu. W takiej
+  instancji, i tylko w takiej, ustaw `ADMIN_AUTH_ACCOUNT_WIDE_LIMIT=off` w środowisku backendu i
+  uruchom go ponownie. Zmienna wyłącza liczenie błędnych **haseł** dla całego konta i nic więcej —
+  limit dla adresu, limit dla znanego urządzenia, oba limity kodów drugiego składnika i
+  opóźnienia pozostają — a backend, dopóki limit jest wyłączony, zapisuje ostrzeżenie w logu
+  przy każdym starcie. Działa wyłącznie dokładna wartość `off`. To nie jest ustawienie i nie da
+  się go zmienić w panelu administracyjnym. Plik `compose.prod.yml` zapisany przez wcześniejsze
+  wydanie nie przekazuje tej zmiennej do backendu: dodaj
+  `ADMIN_AUTH_ACCOUNT_WIDE_LIMIT: ${ADMIN_AUTH_ACCOUNT_WIDE_LIMIT}` obok wiersza
+  `TRUSTED_PROXY_ADDRESSES`. Nie ustawiaj jej tam, gdzie hasła administratorów nie są publiczne.
+
+Liczby są stałymi modułu, a nie ustawieniami. Zobacz
+[Ograniczanie powtarzanych błędnych haseł i kodów](./modules/admin_users.md#ograniczanie-powtarzanych-błędnych-haseł-i-kodów).
+
+**Zmiana danych uwierzytelniających kończy sesje uzyskane przed nią.** Spodziewaj się, że
+administratorzy i klienci zostaną wylogowani na pozostałych urządzeniach tam, gdzie dotąd nie
+byli:
+
+- administrator, który zmienia własne hasło albo wyłącza własne uwierzytelnianie dwuskładnikowe,
+  kończy wszystkie pozostałe sesje konta i zachowuje tę, z której dokonano zmiany;
+- dezaktywacja albo usunięcie administratora kończy wszystkie sesje konta, a sesja konta, które
+  nie jest aktywne, jest odrzucana niezależnie od tego, czy cokolwiek ją unieważniło;
+- `pnpm run admin:create` uruchomione ponownie dla istniejącego konta zastępuje jego hasło, jak
+  dotąd, a teraz kończy też wszystkie sesje tego konta;
+- klient, który zmienia hasło albo wyłącza uwierzytelnianie dwuskładnikowe, kończy wszystkie
+  pozostałe sesje konta; użycie odnośnika resetującego hasło kończy je wszystkie, podobnie jak
+  zresetowanie drugiego składnika klienta przez administratora.
+
+Każda z tych operacji wycofuje też logowanie rozpoczęte i niedokończone — oczekujące wyzwanie
+drugiego składnika albo bilet konfiguracji. Klucze API nie są sesjami i pozostają bez zmian.
+Zobacz [Sesje a zmiana hasła](./modules/admin_users.md#sesje-a-zmiana-hasła).
+
+**Żeby zmienić własne hasło, administrator podaje obecne.** Ekran profilu ma pole *Obecne hasło*
+nad polem *Nowe hasło*, wymagane tylko wtedy, gdy wpisano nowe hasło, a nowe hasło równe obecnemu
+jest odrzucane. Reset hasła innego administratora na ekranie **Users** oraz `admin:create`
+pozostają bez zmian.
+
+**Czas bezczynności do wylogowania obowiązuje każdego administratora.**
+`admin.idle_logout_minutes` trafia teraz do każdego zalogowanego administratora. Administrator,
+którego rola nie obejmuje `settings:read`, był wylogowywany po wbudowanych 60 minutach niezależnie
+od ustawienia, a teraz jest wylogowywany po skonfigurowanym czasie.
+
+**Pole niestandardowe ma odbiorców.** Każda definicja mówi, komu zwracane są jej wartości:
+`internal` — tylko administratorom — albo `customer` — także w odpowiedziach dla klienta
+dotyczących jego zamówień i zapytań ofertowych oraz w zewnętrznych (dla klucza API) odpowiedziach
+z zamówieniami. Definicje istniejące przed aktualizacją mają `customer`; pole utworzone od teraz
+ma `internal`, chyba że autor wybierze inaczej w formularzu definicji (*Kto widzi wartość*).
+Zmiana odbiorców działa od następnego odczytu, a do każdego procesu API może dotrzeć z opóźnieniem
+do pięciu sekund. Zobacz
+[Widoczność: kto odczytuje wartości pola](./architecture/custom-fields.md#widoczność-kto-odczytuje-wartości-pola).
+
+**Zapytania ofertowe wygasają.** Zadanie wygaszające, które opisuje dokumentacja modułu
+`quote_requests`, teraz działa: co 30 minut, w każdym procesie obsługującym kolejki, dopóki moduł
+jest włączony. `quote_requests.expiry_days = 0`, wartość domyślna, wyłącza je. W przeciwnym razie
+zapytanie, które nadal ma status `Pending` albo `Created from admin`, od tylu dni nie dostało
+żadnego wpisu w historii i nie zawiera oferty, której termin ważności jeszcze nie minął,
+otrzymuje status `Expired`.
+
+- **Włączenie ustawienia albo obniżenie jego wartości wygasza zaległości.** Reguła dotyczy
+  wszystkiego, co jest otwarte, a nie liczy się od dnia ustawienia — a instancja, która ma już to
+  ustawienie, trafia na te zaległości w pierwszych przebiegach po tej aktualizacji.
+- Jeden przebieg wygasza najwyżej 500 zapytań, od najstarszych; większe zaległości są
+  obsługiwane w kolejnych przebiegach.
+- Dla zapytania, które powinno było wygasnąć ponad 24 godziny przed przebiegiem, który do niego
+  dotarł, nie jest zapisywany rekord powiadomienia. Wpis w historii nadal powstaje, a
+  `rfq.expired.v1` nadal jest emitowane.
+- Zadanie odczytuje wartość domyślnego kanału sprzedaży i stosuje ją do zapytań z każdego kanału;
+  kanał ustawiony na `0` nie jest wyjątkiem.
+
+Zobacz [Zadania w tle](./modules/quote_requests.md#zadania-w-tle).
+
 **Zamówienie złożone w storefroncie jest zapisywane w kanale sprzedaży, w którym wykonano
 żądanie.** `POST /api/v1/orders` brał dotąd kanał zamówienia z opcjonalnego pola `salesChannelId`
 w treści żądania, a gdy go nie było — używał kanału domyślnego; teraz używa kanału rozpoznanego dla
@@ -457,12 +630,325 @@ kanału jest dostępna w każdym kanale.
 Przypisywanie kanałów sprzedaży wymaga `delivery_methods:write` / `payment_methods:write` i
 niczego więcej; uprawnienia kanałów sprzedaży nie są potrzebne.
 
+**Listy dozwolonych metod organizacji obowiązują przy każdym sposobie składania zamówienia.**
+Metoda dostawy lub płatności spoza niepustej listy dozwolonych metod organizacji, dla której
+składane jest zamówienie, jest odrzucana przy składaniu zamówienia i przy jego podglądzie — w
+storefroncie, przy przyjmowaniu zamówień z kluczem API oraz wtedy, gdy administrator tworzy
+zamówienie dla klienta. Żadne ustawienie nie zwalnia z tego administratora: formularz tworzenia
+pokazuje każdą metodę, a podgląd i utworzenie odrzucają tę, której organizacja nie dopuszcza.
+Pusta lista, jak dotąd, niczego nie ogranicza. Zobacz
+[Listy dozwolonych metod przy składaniu zamówienia](./modules/orders.md#listy-dozwolonych-metod-przy-składaniu-zamówienia).
+
+**Adapter metody dostawy wybiera się na ekranie `/delivery-methods`.** Formularz ma wymagane pole
+wyboru **Adapter**. Metoda, której adaptera nie dostarcza żaden włączony moduł, jest oznaczona
+jako *Nieoferowana przy składaniu zamówienia* wraz z przyczyną, a naprawia się ją, otwierając ją
+i wybierając zarejestrowany adapter; nic nie jest za Ciebie przepisywane ani usuwane. Adaptera
+metody, do której odwołują się przesyłki, nie da się zmienić: ustaw metodę jako nieaktywną i
+utwórz drugą dla innego adaptera.
+
+**Ekran Webhooks oferuje te typy zdarzeń, które są dostarczane, i żadnych innych.** Zapisana
+subskrypcja, która wskazuje typ przez nic niedostarczany, zostaje zachowana, jest na ekranie
+oznaczona jako niedostarczana i niczego nie otrzymuje, jak dotąd. Dostarczanych jest sześć typów,
+których dotąd nie dostarczano: `product.created.v1`, `product.updated.v1`,
+`product.archived.v1`, `rfq.created.v1`, `rfq.expired.v1` i `credit_limit.adjusted.v1`. Nic nie
+jest grupowane — subskrypcja `product.updated.v1` otrzymuje jedno dostarczenie na każdy produkt
+zapisany przez import albo edycję zbiorczą. Zobacz
+[Które zdarzenia są dostarczane](./modules/webhooks.md#które-zdarzenia-są-dostarczane).
+
+**Wiadomość e-mail, która została tylko zapisana w logu serwera, nie jest odnotowywana jako
+wysłana.** W instancji bez `SMTP_URL` wiersze `email_deliveries` są zapisywane z
+`status = 'logged'` zamiast `'sent'` (wiersze zapisane wcześniej zachowują `sent`), wystawienie
+faktury albo ponowne wysłanie jej wiadomości z panelu administracyjnego informuje, że wiadomości
+nie wysłano, bo nie skonfigurowano serwera poczty, a przypomnienie o wydarzeniu CRM jest
+odnotowywane jako dostarczone wyłącznie do dzwonka powiadomień.
+
+**`demo reset` to jedna transakcja i odmawia, gdy dane demonstracyjne obejmują dokumenty
+finansowe.** Albo kończy się w całości, albo niczego nie zmienia. Wycofuje też to, co zostało po
+korzystaniu ze sklepu demonstracyjnego w ramach organizacji demonstracyjnej — zamówienia, koszyki,
+zapytania ofertowe, adresy i podobne; te wiersze są usuwane, a dane innej organizacji pozostają
+nietknięte. Polecenie kończy się kodem 1, zanim cokolwiek usunie, gdy organizacja demonstracyjna
+ma płatność opłaconą lub zwróconą, fakturę albo korektę, rekord systemu księgowego albo zwrot, i
+wypisuje, ile każdego z nich znalazło. Zamówienia złożone i nigdy nieopłacone się nie liczą. Żeby
+usunąć dokumenty finansowe razem z resztą:
+
+```bash
+pnpm run cli demo reset --force-delete-financial-records
+```
+
+Flaga jest odczytywana wyłącznie z tego wiersza poleceń. Pełną listę tego, co się liczy, podaje
+strona [Pierwsze kroki](./getting-started.md).
+
+**Endpoint stanu podaje wydanie.** Pole `version` w `GET /api/v1/_health` to wersja pakietu
+`@endora-commerce/platform` załadowanego przez proces — `0.105.0` — albo `unknown`, podczas gdy
+dotąd każda instancja podawała `0.0.0`. Monitoring, który porównywał to pole z `0.0.0`, albo
+wdrożenie, które sterowało nim zmienną `npm_package_version`, wymaga zmiany. Panel administracyjny
+pokazuje to samo wydanie jako znaczek pod logotypem w menu bocznym. Zobacz
+[Pole `version`](./operations/health-endpoint.md#pole-version).
+
+**W dzienniku audytu przybywa wpisów i ubywa szumu.** Każdy zapis bloku, szablonu albo hooka CMS
+wykonany w panelu zostawia teraz wpis w dzienniku audytu (`cms_block.*`, `cms_template.*`,
+`cms_hook.*`), tak jak dotąd zapisy stron. Zmiana własnego hasła przez administratora jest
+zapisywana jako `admin_user.change_password` z `via: 'self_service'`, a nie jako
+`admin_user.update`. A cztery zadania cykliczne — domykanie następstw zamówień, przypomnienia o
+wydarzeniach CRM, porządkowanie przebiegów plików produktowych i przegląd statusów cenników —
+nie zapisują już wiersza `tenant.escape_hatch` w przebiegu, który nie ma nic do zrobienia, co w
+spokojnej instancji dawało kilka tysięcy wierszy dziennie.
+
+Trzy drobniejsze rzeczy: administrator, którego konto nie ma roli, widzi o tym komunikat w panelu
+administracyjnym; karty szansy sprzedaży w CRM pokazują liczniki, a migracja, która dodaje
+liczniki nieprzeczytanych wiadomości, oznacza każdą wiadomość napisaną przed nią jako przeczytaną
+przez wszystkich; a kampania newslettera bez kanału sprzedaży jest podglądana i wysyłana z
+identyfikacją wizualną kanału domyślnego.
+
+#### Dla klientów API i integratorów {#after-0-105-0-api}
+
+Uwierzytelnianie i autoryzacja:
+
+- **Zabezpieczenie trasy odpowiada przed walidacją treści żądania.** Na każdej trasie, która
+  deklaruje zabezpieczenie sesją, uprawnieniem albo kluczem API, żądanie bez ważnych danych
+  uwierzytelniających otrzymuje `401`, a bez uprawnienia `403`, niezależnie od treści. Klient,
+  który dla niepoprawnej treści wysłanej bez danych uwierzytelniających oczekiwał
+  `400 VALIDATION_FAILED`, zobaczy `401`/`403`. Uprawniony klient z niepoprawną treścią otrzymuje
+  to samo `400` co dotąd, a treść odrzucana przez sam parser — błędny JSON, nieobsługiwany typ
+  mediów, treść ponad limit — nadal otrzymuje odpowiedź jako pierwsza.
+- **`PATCH /api/v1/admin/me` wymaga `currentPassword` do zmiany hasła.** `password` bez tego pola
+  to `400 VALIDATION_FAILED`; błędne — `403 CURRENT_PASSWORD_INVALID`; nowe hasło równe obecnemu —
+  `400 NEW_PASSWORD_UNCHANGED`. Odrzucone żądanie niczego nie zmienia, także imienia i nazwiska
+  wysłanych razem z nim. Żądanie bez `password` działa jak dotąd.
+- **Trasy danych uwierzytelniających administratora mogą odpowiedzieć
+  `429 ADMIN_AUTHENTICATION_THROTTLED`**, z nagłówkiem `Retry-After` i tą samą liczbą w
+  `error.details.retryAfterSeconds`, albo `503 ADMIN_AUTHENTICATION_UNAVAILABLE`:
+  `POST /api/v1/auth/admin/login`, obecne hasło w `PATCH /api/v1/admin/me`,
+  `POST /api/v1/auth/admin/mfa/verify`, `POST /api/v1/admin/account/mfa/disable` i
+  `POST /api/v1/admin/account/mfa/recovery-codes/regenerate`. Trasy klientów pozostają bez zmian.
+- **Jedno wyzwanie drugiego składnika dopuszcza pięć kodów**, dla klientów i administratorów,
+  niezależnie od tego, jak są wysyłane; kolejny kod to `429 MFA_TOO_MANY_ATTEMPTS`, a logowanie
+  zaczyna się od nowa.
+- **Sesja konta administratora, które jest zdezaktywowane albo usunięte, otrzymuje
+  `401 UNAUTHORIZED`** na każdej trasie panelu; trasa z kodem uprawnienia odpowiadała jej
+  `403 FORBIDDEN`. Aktywne konto bez uprawnienia nadal otrzymuje `403`.
+- **Przy logowaniu klienta `403 ACCOUNT_BLOCKED` pojawia się tylko wtedy, gdy hasło jest
+  poprawne.** Błędne hasło do zablokowanego konta to `401 INVALID_CREDENTIALS`.
+- **`POST /api/v1/admin/i18n/reload` wymaga `settings:write`, a
+  `GET /api/v1/admin/i18n/coverage` wymaga `settings:read`**; sesja bez tego kodu otrzymuje `403`.
+- **Subskrypcje push należą do tego, kto je utworzył.**
+  `DELETE /api/v1/storefront/pwa/subscriptions` usuwa subskrypcję tylko wtedy, gdy żądanie zawiera
+  jej własne klucze — `{ endpoint, keys: { p256dh, auth } }` — albo sesję klienta, do którego
+  należy; w obu przypadkach odpowiada `204`. `POST` na tę samą ścieżkę aktualizuje już
+  zarejestrowany endpoint na podstawie tego samego dowodu, a w przeciwnym razie odpowiada `201` z
+  nowym `id` i niczego nie zapisuje.
+
+Zamówienia, metody i zapytania ofertowe:
+
+- **`POST /api/v1/orders` zapisuje kanał rozpoznany dla żądania.** `salesChannelId` w treści,
+  które wskazuje inny kanał, to `422 VALIDATION_FAILED` z
+  `details.code = "order_sales_channel_mismatch"`. Przestań wysyłać to pole i podaj kanał w
+  `X-Sales-Channel`.
+- **Składanie zamówienia i jego podgląd odrzucają metodę, której nie dopuszcza kanał zamówienia
+  albo organizacja** — `400 VALIDATION_FAILED` z `error.details.code` równym
+  `delivery_method_not_in_sales_channel`, `payment_method_not_in_sales_channel`,
+  `delivery_method_not_allowed_for_organization` albo
+  `payment_method_not_allowed_for_organization`, na `POST /api/v1/orders`,
+  `POST /api/v1/orders/preview-total`, `POST /api/v1/admin/orders`,
+  `POST /api/v1/admin/orders/preview` i `POST /api/v1/external/orders`. Na ostatniej z nich odmowa
+  z powodu listy dozwolonych metod już istniała; jej `error.message` kończy się teraz *"… is not
+  available to this Organization."*, `error.details` jest obecne, a gdy obie metody są spoza
+  list, wskazywana jest metoda dostawy. Dopasowuj po `error.details.code`.
+- **`GET /api/v1/delivery-methods` i `GET /api/v1/payment-methods` zwracają metody kanału
+  rozpoznanego dla żądania.** Klient, który nie wysyła `X-Sales-Channel`, otrzymuje odpowiedź dla
+  kanału domyślnego. Zakup jednym kliknięciem działa tak samo:
+  `GET /api/v1/quick-order/one-click/eligibility` odpowiada
+  `{ enabled: false, reason: "missing_defaults" }`, gdy domyślna metoda kupującego nie jest
+  dostępna w kanale żądania.
+- **`salesChannelIds` w `PUT /api/v1/admin/{delivery,payment}-methods/:code`**: pominięte —
+  zostawia przypisanie bez zmian (a nową metodę przypisuje do kanału domyślnego), jak dotąd;
+  **`[]` usuwa teraz wszystkie przypisania**, udostępniając metodę w każdym kanale, podczas gdy
+  dotąd było ignorowane; identyfikator, który nie wskazuje żadnego kanału sprzedaży, to
+  `400 VALIDATION_FAILED`, a nie `500`.
+- **`PUT /api/v1/admin/delivery-methods/:code` odpowiada `409` na zmianę `adapter`** metody, do
+  której odwołują się przesyłki. Wiersze `GET /api/v1/admin/delivery-methods` zawierają
+  `availability: { ownerModule, available, ownerPresence }`, a
+  `GET /api/v1/admin/delivery-methods/adapters` wymienia adaptery do wyboru. Utworzenie metody bez
+  `adapter` nadal przyjmuje kod metody jako adapter: wysyłaj to pole i odczytuj
+  `availability.available` z odpowiedzi.
+- **Odpowiedzi z zamówieniami.** Odpowiedzi dla klienta i zewnętrzne zawierają
+  `placedOnBehalf: boolean` i nie zawierają już `placedOnBehalfByAdminUserId`; odpowiedzi dla
+  panelu zawierają oba pola. Zastąp `order.placedOnBehalfByAdminUserId !== null` przez
+  `order.placedOnBehalf`. `customFieldValues` w tych odpowiedziach zawiera tylko pola, których
+  odbiorcą jest `customer`.
+- **Odpowiedzi dla klienta nie zawierają identyfikatorów administratorów.** Odpowiedzi z
+  zapytaniami ofertowymi dla klienta nie zawierają już `createdByAdminUserId` i
+  `assignedAdminUserId`, a ich `events[]` — `actorAdminUserId` (`actorRoleLabel` nadal mówi, kto
+  działał); odpowiedzi z komentarzami do zamówienia dla klienta nie zawierają już
+  `authorAdminUserId` — komentarz, którego `authorCustomerAccountId` ma wartość `null`, napisał
+  pracownik. Odpowiedzi dla panelu pozostają bez zmian.
+- **Z dwóch równoczesnych przejść jednego zapytania ofertowego wygrywa jedno.** Akceptacja albo
+  odrzucenie przez kupującego, edycja przez klienta oraz zatwierdzenie, rewizja, anulowanie albo
+  przypisanie przez sprzedawcę, które przegrywają z innym przejściem albo z zadaniem
+  wygaszającym, otrzymują `409 VERSION_CONFLICT`.
+
+Pola niestandardowe, webhooki i zdarzenia:
+
+- **`POST /api/v1/admin/custom-fields/definitions` bez `audience` tworzy pole `internal`.** Wyślij
+  `"audience": "customer"` dla pola, które mają odczytywać klienci i integracje. Ponowne
+  utworzenie, jako `customer`, usuniętego klucza, który nadal ma zapisane wartości, to
+  `409 CUSTOM_FIELD_DEFINITION_INVALID`: utwórz pole jako `internal`, a potem zmień odbiorców.
+  `PATCH …/definitions/:id` przyjmuje `audience` i nie zeruje już `config`, gdy treść go nie
+  wymienia.
+- **`eventTypes` webhooka są walidowane.** `POST /api/v1/admin/webhooks` i
+  `PATCH /api/v1/admin/webhooks/:id` odpowiadają `422 WEBHOOK_EVENT_TYPE_NOT_DELIVERABLE`, z
+  odrzuconymi nazwami w `error.details.eventTypes`, dla typu, który nie jest ani wbudowany, ani
+  wniesiony przez włączony moduł. Sprawdzana jest tylko nazwa, którą zapis dodaje; zapisana
+  subskrypcja zachowuje nazwy, które ma. Dostarczane w tym wydaniu: `order.created.v1` i
+  `order.status_changed.v1`; `crm.opportunity.created.v1`, `crm.opportunity.status_changed.v1` i
+  `crm.opportunity.closed.v1`, dopóki `crm` jest włączony; oraz sześć nowych, dopóki ich moduł
+  jest włączony — `product.created.v1`, `product.updated.v1`, `product.archived.v1`,
+  `rfq.created.v1`, `rfq.expired.v1` i `credit_limit.adjusted.v1`.
+  `GET /api/v1/admin/webhooks/event-types` zwraca typy wniesione przez moduły. Zdarzenia
+  produktów trafiają wyłącznie do subskrypcji ogólnoplatformowych.
+- **Wniesiony typ zdarzenia jest dostarczany tylko wtedy, gdy jego moduł jest włączony**; zapisane
+  subskrypcje zostają zachowane i w tym czasie niczego nie otrzymują.
+- **`order.created.v1` jest ogłaszane po zatwierdzeniu transakcji zamówienia**, więc nieudane
+  złożenie zamówienia niczego nie ogłasza. `rfq.expired.v1` zyskuje `organizationId` i występuje
+  tylko tam, gdzie działa zadanie wygaszające. `product.archived.v1` jest teraz emitowane zawsze,
+  gdy status produktu zmienia się na `inactive`.
+
+Kody błędów i drobniejsze zmiany:
+
+- **Dwie odmowy dotyczące pozycji koszyka mają własny kod zamiast `VALIDATION_FAILED`**:
+  `400 CART_PRODUCT_QUOTE_ONLY` (`details.productId`), którym poza `POST /api/v1/cart/items` mogą
+  odpowiedzieć także szybkie zamówienie, zakup jednym kliknięciem, dodanie listy zakupów do
+  koszyka, tworzenie zamówienia w panelu i przyjmowanie zamówień z kluczem API; oraz
+  `422 CART_QUANTITY_INVALID`, do którego nie prowadzi żadna trasa HTTP — otrzymuje go moduł
+  wywołujący `CartWritePort.addItem` w procesie.
+- **`details` zyskało pola**, przy niezmienionym kodzie i statusie: `409 LIMIT_INSUFFICIENT` —
+  `availableAmount`, `orderTotal` (napisy z dwoma miejscami po przecinku) i `currency`;
+  `409 STOCK_UNAVAILABLE` — `productId`, `sku`, `productName` i `requestedQuantity`;
+  `413 ASSET_UPLOAD_TOO_LARGE` — `maxFileSizeMb`; `403 API_KEY_OUT_OF_SCOPE` — `requiredScope`.
+  Klient, który porównywał `error.message`, zobaczy dłuższe zdania, teraz także po polsku.
+- **`details` zmieniło kształt w `400 SETTING_VALUE_SHAPE_MISMATCH`.** To obiekt z
+  `details.code` — `wrong_type` albo `not_an_option` — oraz `settingCode`; tablica
+  `{ path, issue }`, którą odmowa z powodu typu zwracała jako samo `details`, to teraz
+  `details.issues`, a odmowa z powodu opcji zawiera `allowedValues` i `enumOptions`.
+- **Niepoprawny identyfikator to `404`, a nie `500`**, na każdej trasie
+  `/api/v1/admin/customers/:id…` (`CUSTOMER_NOT_FOUND`) i na samoobsługowych trasach adresów
+  (`CUSTOMER_ADDRESS_NOT_FOUND`).
+- **`GET /api/v1/catalog/products` wycina stronę z produktów, które pasują.** Na domyślnej
+  ścieżce listy strona zawiera `limit` pasujących produktów, o ile tyle istnieje, a `hasMore` ma
+  wartość `true` tylko wtedy, gdy istnieje kolejny. `filter[category]` wskazujące kategorię,
+  która nie istnieje, zwraca jedną pustą stronę z `hasMore: false`. Kształt odpowiedzi i format
+  kursora pozostają bez zmian.
+- **`POST /api/v1/organizations/register` odpowiada `emailVerificationSent: false`** w instancji
+  bez serwera poczty, w której wiadomość została tylko zapisana w logu.
+- **Nowe elementy**: `idleLogoutMinutes` w `GET /api/v1/admin/me`;
+  `GET /api/v1/admin/platform-info` (`{ "version": string | null }`, dla każdego zalogowanego
+  administratora); `noteCount`, `attachmentCount` i `unreadMessageCount` w szansie sprzedaży CRM
+  oraz `POST /api/v1/admin/crm/opportunities/:id/messages/read`.
+
+#### Dla autorów modułów i modułów nakładkowych {#after-0-105-0-authors}
+
+**Zabezpieczenie zadeklarowane na trasie działa przed walidacją.** Łańcuch `preHandler`, który
+trasa deklaruje we własnych opcjach, jest przy rejestracji trasy przenoszony do jej
+`preValidation`; żadne miejsce wywołania się nie zmienia, a moduł zbudowany z wcześniejszą
+platformą jest objęty bez ponownego budowania. Dwie rzeczy do sprawdzenia we własnym kodzie:
+
+- Funkcja przekazana jako `preHandler` trasy widzi `request.body` sparsowane, ale
+  **niezwalidowane** — dowolną wartość JSON — oraz `request.params` / `request.query` bez
+  konwersji i wartości domyślnych ze schematu. Praca wymagająca zwalidowanego żądania należy do
+  handlera, do interceptora API albo do `preHandler` dodanego przez `addHook` w zasięgu Twojej
+  wtyczki.
+- `addHook('preHandler')` w zasięgu wtyczki działa teraz **po** zabezpieczeniach trasy. To, co
+  zabezpieczenie trasy odczytuje z żądania, musi się tam znaleźć w `onRequest` albo
+  `preValidation`.
+
+Zobacz [Kiedy działa zabezpieczenie](./architecture/permissions.md#kiedy-działa-zabezpieczenie).
+
+**Kod, który implementuje opublikowany port albo buduje jeden z jego rekordów, nie skompiluje
+się, dopóki nie ma nowego elementu** — własna implementacja w module nakładkowym albo dubler
+testowy o typie portu:
+
+| Gdzie | Nowy wymagany element |
+| --- | --- |
+| `AdminPermissionChecker` (`@endora-commerce/platform`) | `isActiveAdministrator(adminUserId)` |
+| `SalesChannelMembershipPort` (`@endora-commerce/platform`) | `entityIdsInChannelSubquery`, `filterEntityIdsAvailableInChannel`, `clearChannelsForEntity` |
+| `MfaLoginPort` | `invalidatePending(subject)` |
+| `CustomFieldValuePort` | `projectForCustomer(entityType, bag)` |
+| `DeliveryMethodReadPort`, `PaymentMethodReadPort` | `isAvailableInChannel(id, salesChannelId)` |
+| `CustomFieldDefinitionRecord`, `CreateCustomFieldDefinitionRequest` | `audience` |
+| `Order` (typ wywnioskowany) | `customFieldValues` (`{}`), `placedOnBehalf` |
+
+Wiersze bez podanego pakietu dotyczą `@endora-commerce/contracts`. Moduł, który zwraca wartości pól
+niestandardowych komuś innemu niż administrator, przepuszcza zapisany zbiór wartości przez
+`CustomFieldValuePort.projectForCustomer` w swoim serializatorze.
+
+**Usunięte.** `AdminAuthService.changePassword` w `@endora-commerce/mod-admin-users`, razem z
+czwartym argumentem konstruktora tej klasy — jedyną implementacją jest
+`AdminUserService.updateSelf`, a `AdminUserService.update` nie przyjmuje już `password`.
+`ChallengeStore.recordFailedAttempt` w `@endora-commerce/mod-mfa`, zastąpione przez `takeAttempt`
+i `returnAttempt`. Oraz `bindToDefaultChannel`:
+
 **Jeśli Twój własny moduł tworzy metodę dostawy lub płatności w swoim `installHook`**, funkcja
 `bindToDefaultChannel` zniknęła z interfejsu tworzenia metod: usuń jej wywołanie po
 `ensureMethodForAdapter`. Nic jej nie zastępuje — utworzona metoda jest dostępna w każdym kanale.
 Źródła modułu nie skompilują się, dopóki tego nie zrobisz. Wcześniej opublikowana wersja modułu
 nie jest kompilowana ponownie, więc zawiedzie później — błędem `TypeError` w `installHook`, gdy po
-raz pierwszy będzie tworzyć swoją metodę — i trzeba ją wydać ponownie dla tego wydania.
+raz pierwszy będzie tworzyć swoją metodę — i trzeba ją wydać ponownie dla tego wydania. Instancji,
+która ma już wiersz tej metody, to nie dotyczy, bo hook wykonuje to wywołanie tylko dla wiersza,
+który właśnie utworzył. Nie ma mechanizmu tworzenia metody ograniczonej do wybranych kanałów;
+ogranicz ją w panelu administracyjnym.
+
+**Wyniki wysyłki poczty zyskały `logged`.** `EmailMailerSendOutcome`, `TransactionalSendOutcome`,
+`EmailDeliveryStatus` i `InvoiceEmailNotSentReason` mają nowy element, którym konsolowy mailer
+odpowiada zamiast `sent`. Kod z wyczerpującym `switch` po jednym z nich przestaje się kompilować,
+dopóki nie obsłuży `logged`; kod, który odczytuje `outcome.reason` po
+`outcome.status !== 'sent'`, musi najpierw zawęzić typ do `'suppressed'`; kod, który porównuje z
+`=== 'sent'`, kompiluje się dalej i traktuje teraz wiadomość zapisaną w logu jako niewysłaną.
+`logged` nie jest błędem i nie ma czego ponawiać.
+
+**Kompozycja danych demonstracyjnych i kod resetu działają wewnątrz transakcji resetu.**
+
+- Obiekt zwracany przez `createDemoComposition` musi deklarować
+  `withdrawsInsideTransaction: true`. Reset na kompozycji, która tego nie robi, jest odrzucany,
+  zanim się zacznie.
+- Kod `demo.reset` modułu i `withdraw` kompozycji muszą zapisywać przez `EntityManager`, który
+  otrzymują (`em.nativeDelete`, `em.execute`), a nie przez `em.getConnection().execute(…)`: samo
+  połączenie jest poza transakcją, a w czasie resetu drugie połączenie jest odrzucane komunikatem
+  *a reset body wrote outside the reset transaction*.
+- `@endora-commerce/platform/demo` eksportuje `DemoResetRefusedError`, którym kompozycja odmawia
+  resetu z komunikatem, oraz `DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG`.
+
+**Zachowania, na które może trafić Twój kod.**
+
+- `AdminPasswordVerificationPort.verifyPassword` może teraz odrzucić wywołanie odpowiedzią `429`
+  albo `503` limitu logowania, zamiast zawsze zwracać wartość logiczną, i przyjmuje opcjonalny
+  trzeci argument opisujący pochodzenie żądania. Moduł, który sam weryfikuje dane uwierzytelniające
+  administratora, korzysta z tych samych liczników przez `adminAuthenticationThrottlePort`.
+- `AuthSessionPort.destroyAllForAdmin` i `destroyAllForCustomer` przyjmują opcjonalne
+  `{ exceptSessionId }`. Implementacja, która je ignoruje, nadal przechodzi sprawdzenie typów i
+  kończy także sesję wywołującego.
+- `validateUseOnStorefront` adaptera płatności lub dostawy otrzymuje identyfikator kanału
+  zamówienia w `salesChannelId` przy zamówieniu ze storefrontu, podczas gdy dotąd otrzymywało
+  `null`.
+- Subskrybent `order.created.v1` albo `promotion.used.v1` na szynie zdarzeń w procesie działa po
+  zatwierdzeniu transakcji zamówienia. `product.archived.v1` jest teraz emitowane na każdej
+  ścieżce, która zmienia status produktu na `inactive`, a zapis czeka na subskrybentów.
+- Moduł udostępnia własne zdarzenia webhookom, dopisując ich nazwy do `webhookEventRegistry` w
+  hooku startowym i deklarując krawędź jako `contributes-to`.
+- `CustomFieldValuesPanel` w `@endora-commerce/admin-kit` przekazuje do `save` i `onChange`
+  `null`, a nie `undefined`, dla wyczyszczonej liczby, daty albo pola wyboru.
+- Nadpisanie motywu, które styluje dolną krawędź `.b2b-sidebar__brand`, należy przenieść na
+  `.b2b-sidebar__brand-row`, do którego należy teraz linia oddzielająca.
+- `npm_package_version` nie jest już zadeklarowaną zmienną środowiskową platformy.
+
+**Jeśli sam konstruujesz te klasy**, a nie przez `composeApp` albo zestaw testowy:
+`CmsBlockService`, `CmsTemplateService` i `CmsHookService` przyjmują `CommandBus` jako drugi
+argument konstruktora; `PasswordResetService` przyjmuje port sesji jako drugi argument, a port
+audytu jako trzeci; `makeEnqueuer` w `@endora-commerce/mod-google-analytics` przyjmuje drugi,
+wymagany argument; a cykliczne konsumenty z `mod-orders`, `mod-crm`, `mod-product-feeds` i
+`mod-price-lists` przyjmują pytanie, czy przebieg ma coś do zrobienia — dziennik zmian każdego
+pakietu wymienia te elementy.
+
+#### W istniejącym storefroncie {#after-0-105-0-storefront}
 
 **W istniejącym storefroncie**, który zachowuje źródła, z jakimi go utworzono, ani wywołania
 dotyczące zamówień, ani oba katalogi metod nie informują backendu, w którym kanale jest kupujący:
@@ -516,14 +1002,51 @@ zamówienie trafiałoby do innego i byłoby odrzucane:
 storefront — tego samego, który Twoje reverse proxy albo middleware już ustawia dla każdego hosta,
 aby strony renderowały się we właściwym kanale.
 
+Trzy kolejne zmiany, których storefront utworzony we wcześniejszym wydaniu nie otrzymuje:
+
+- **Usuwanie subskrypcji push.** W `lib/api/pwa.ts` funkcja `unsubscribeFromPush()` wysyła sam
+  endpoint, na co backend reaguje teraz tylko dla zalogowanego klienta, do którego subskrypcja
+  należy. Wysyłaj razem z nim klucze — przed `fetch` odczytaj
+  `const json = subscription.toJSON();` i ustaw treść żądania na
+
+  ```ts
+  body: JSON.stringify({
+    endpoint: subscription.endpoint,
+    keys: { p256dh: json.keys?.['p256dh'] ?? '', auth: json.keys?.['auth'] ?? '' },
+  }),
+  ```
+
+  Bez tego wyłączenie powiadomień w przeglądarce bez zalogowanego klienta zostawia subskrypcję
+  zarejestrowaną w backendzie, dopóki usługa push nie zgłosi, że już jej nie ma.
+- **Bloki katalogu w HTML renderowanym na serwerze.** `ProductGrid`, `ProductSlider`,
+  `ProductCard`, `CategoryList` i `CategoryGrid` na stronie CMS nadal pobierają dane w
+  przeglądarce, jak dotąd, dopóki storefront nie rozwiąże ich danych na serwerze. Storefront
+  zapisany przez CLI wydania `0.105.0` to robi: weź z niego `components/CatalogBlockData.tsx` i
+  `lib/page-builder/catalog-block-data.ts`, weź jego `components/CmsPageRenderer.tsx` i
+  `components/Hook.tsx` oraz przekaż `ctx` do `CmsPageRenderer` w `app/page.tsx` i
+  `app/(content)/[...slug]/page.tsx` — ta właściwość jest tam wymagana. Utwórz storefront, z
+  którego skopiujesz pliki, tak jak w sekcji
+  [Bloki modułów w istniejącym storefroncie](#storefront-block-renderers).
+- **Twoje własne typy.** `lib/api/rfq.ts` deklaruje `createdByAdminUserId`, `assignedAdminUserId`
+  i `actorAdminUserId`, których odpowiedzi dla klienta już nie zawierają; referencyjny storefront
+  nie odczytywał żadnego z nich. Jeśli Twój kod je odczytuje — albo
+  `placedOnBehalfByAdminUserId` zamówienia — odczyta teraz `undefined`.
+
+Storefront zapisany przez CLI wydania `0.105.0` ma też w stopce wzmiankę o platformie; istniejący
+jej nie zyskuje.
+
 Na ile zostało to sprawdzone: zachowanie backendu — kanał zamówienia, listę metod i odmowy —
 nagłówek w każdym z siedmiu wywołań storefrontu oraz zmianę minimalnej wartości zamówienia w
-instancji z jednym kanałem obejmują testy wydania. Powyższe zmiany w storefroncie naniesiono
-dokładnie tak, jak je opisano, na cały katalog `storefront/` w postaci z wydania `0.104.0` —
-siedem plików źródłowych i dwa pliki testów — po czym `tsc --noEmit` zakończył się powodzeniem, a
-oba pliki testów przeszły; zrobiono to w repozytorium samej platformy, z pakietami tego wydania, a
-nie w storefroncie utworzonym we wcześniejszym wydaniu, a ekranów panelu administracyjnego ani
-składania zamówienia nie obejrzano w przeglądarce na instancji z dwoma kanałami.
+instancji z jednym kanałem obejmują testy wydania. Powyższe zmiany w storefroncie dotyczące kanału
+sprzedaży naniesiono dokładnie tak, jak je opisano, na cały katalog `storefront/` w postaci z
+wydania `0.104.0` — siedem plików źródłowych i dwa pliki testów — po czym `tsc --noEmit` zakończył
+się powodzeniem, a oba pliki testów przeszły; zrobiono to w repozytorium samej platformy, z
+pakietami tego wydania, a nie w storefroncie utworzonym we wcześniejszym wydaniu, a ekranów panelu
+administracyjnego ani składania zamówienia nie obejrzano w przeglądarce na instancji z dwoma
+kanałami. Cała reszta tej sekcji to treść dzienników zmian wydania, sprawdzona ze źródłami tego
+wydania. Niczego z niej nie sprawdzono w instancji zaktualizowanej z `0.104.0`, a w chwili pisania
+tej sekcji żadna taka aktualizacja nie została ukończona: kolejność kroków, zmiany w storefroncie
+dotyczące subskrypcji push i bloków katalogu oraz wiersz w `compose.prod.yml` nie były próbowane.
 
 ## Instancja niespójna od początku
 
