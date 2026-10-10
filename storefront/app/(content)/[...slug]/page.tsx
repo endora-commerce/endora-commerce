@@ -79,7 +79,7 @@ export default async function CmsContentPage({ params }: PageProps): Promise<Rea
       <div className="mx-auto max-w-[1360px] px-[24px] pt-[24px] max-md:pt-[16px]">
         <Breadcrumbs crumbs={[{ href: '/', label: t('nav.home') }, { href: `/${path}`, label: page.name }]} />
       </div>
-      <CmsPageRenderer page={page} />
+      <CmsPageRenderer page={page} ctx={ctx} />
     </>
   );
 }

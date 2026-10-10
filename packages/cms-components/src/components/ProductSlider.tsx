@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { type ComponentConfig, type PuckComponent } from '@puckeditor/core';
 import type { CmsProductSummary } from '../schema/catalog-types.js';
 import {
@@ -23,8 +22,8 @@ import {
 import { CmsProductCardView } from './CmsProductCard.js';
 import { CarouselShell } from './carousel/CarouselShell.js';
 import { ProductSliderSkeleton } from './catalog/CatalogSkeletons.js';
-import { fetchProductsBySlugs, fetchProductsList } from '../utils/catalog-fetch.js';
-import { waitForCatalogSkeletonMin } from '../utils/catalog-load.js';
+import { useCatalogBlockData } from '../hooks/use-catalog-block-data.js';
+import { productSourceDataRequest } from '../utils/catalog-block-data.js';
 import { estimateProductSliderSkeletonCount } from '../utils/catalog-skeleton-estimate.js';
 import { resolveProductSourceFields } from '../fields/catalog-resolve-fields.js';
 import { CATALOG_DATA_FIELD_META } from '../fields/catalog-data-fields.js';
@@ -60,40 +59,17 @@ function ProductSliderBody({
     puck: _puck,
     ...box
   } = props;
-  const [products, setProducts] = useState<CmsProductSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Provided by the page's server render on the storefront; fetched from an effect only in
+  // the editor preview, which is the one caller that ever sees `loading`.
+  const { loading: isLoading, data } = useCatalogBlockData<CmsProductSummary[]>(
+    productSourceDataRequest({ source, productSlugs, categorySlug, searchQuery, limit }),
+    { holdSkeleton: true },
+  );
+  const products = data ?? [];
   const perViewFallback = tier === 'desktop' ? 8 : tier === 'tablet' ? 4 : 1;
   const perView = resolveResponsiveNumber(slidesPerView, tier, perViewFallback);
   const gapPx = resolveResponsiveNumber(gap, tier, 16);
   const carouselId = typeof props.id === 'string' ? props.id : undefined;
-
-  useEffect(() => {
-    let cancelled = false;
-    setIsLoading(true);
-    const startedAt = Date.now();
-    void (async () => {
-      try {
-        let list: CmsProductSummary[] = [];
-        if (source === 'manual') list = await fetchProductsBySlugs(productSlugs);
-        else
-          list = await fetchProductsList({
-            ...(source === 'category' && categorySlug ? { categorySlug } : {}),
-            ...(source === 'query' && searchQuery ? { q: searchQuery } : {}),
-            limit,
-          });
-        await waitForCatalogSkeletonMin(startedAt);
-        if (!cancelled) setProducts(list);
-      } catch {
-        await waitForCatalogSkeletonMin(startedAt);
-        if (!cancelled) setProducts([]);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [source, productSlugs, categorySlug, searchQuery, limit]);
 
   if (isLoading) {
     return (

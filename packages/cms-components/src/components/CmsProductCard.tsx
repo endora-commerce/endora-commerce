@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { type CSSProperties } from 'react';
 import {
   CORNER_RADIUS_PX,
   resolveResponsiveNumber,
@@ -8,6 +8,8 @@ import {
 } from '@endora-commerce/page-builder-core';
 import type { CmsProductSummary } from '../schema/catalog-types.js';
 import type { CmsProductCardProps } from '../schema/component-types.js';
+import { useCatalogBlockData } from '../hooks/use-catalog-block-data.js';
+import { productCardDataRequest } from '../utils/catalog-block-data.js';
 
 function formatPrice(product: CmsProductSummary, locale: string): string | null {
   if (!product.price) return null;
@@ -139,40 +141,10 @@ export function CmsProductCardLoader(
   props: CmsProductCardProps & { locale?: string; editing?: boolean; previewTier?: BreakpointTier },
 ): React.ReactElement {
   const { productSlug, editing = false, locale = 'pl-PL', previewTier, ...viewProps } = props;
-  const [product, setProduct] = useState<CmsProductSummary | null>(null);
-  const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(Boolean(productSlug));
-
-  useEffect(() => {
-    if (!productSlug) {
-      setProduct(null);
-      setError(false);
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setLoading(true);
-    void (async () => {
-      try {
-        const { fetchProductsBySlugs } = await import('../utils/catalog-fetch.js');
-        const list = await fetchProductsBySlugs([productSlug]);
-        if (!cancelled) {
-          setProduct(list[0] ?? null);
-          setError(!list[0]);
-          setLoading(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setProduct(null);
-          setError(true);
-          setLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [productSlug]);
+  // Provided by the page's server render on the storefront; fetched from an effect only in
+  // the editor preview, which is the one caller that ever sees `loading`.
+  const { loading, data } = useCatalogBlockData<CmsProductSummary[]>(productCardDataRequest({ productSlug }));
+  const product = data?.[0] ?? null;
 
   if (!productSlug) {
     return (
@@ -188,7 +160,7 @@ export function CmsProductCardLoader(
       </div>
     );
   }
-  if (error || !product) {
+  if (!product) {
     return (
       <div className="cmsc-pb-product-card cmsc-pb-product-card--placeholder">
         <p className="cmsc:text-sm cmsc:text-[#64748b]">

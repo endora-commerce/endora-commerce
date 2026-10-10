@@ -15,8 +15,11 @@ import type { ClientFetchLedgerEntry } from '../../check-rsc-discipline.js';
  * membership), a control (a PWA opt-in, an autocomplete dropdown), or a surface
  * behind a `noindex` declaration Phase 2 wrote (checkout, compare, the RFQ
  * draft). None of it is content a crawler is owed. The blocks a shop composes
- * onto its *indexable* pages are the ones that are, and they are in
- * `cms-components.ts` — where all eleven entries are `firstPaint: true`.
+ * onto its *indexable* pages are the ones that are. They were recorded in a
+ * `cms-components.ts` shard beside this one — eleven entries, all
+ * `firstPaint: true` — until the catalogue blocks were handed their data by the
+ * page's server render; that shard drained and was deleted, which is what an
+ * empty shard owes.
  *
  * So none of these retires on `specs/096-page-builder-block-ownership/`'s D-31
  * seam. Each `retiredBy` names instead the change that would make the exemption
