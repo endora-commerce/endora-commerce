@@ -78,6 +78,10 @@ x-backend-env: &backend-env
   # see deploy/.env.prod.example for why 1 is the answer here.
   TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-}
   TRUSTED_PROXY_ADDRESSES: ${TRUSTED_PROXY_ADDRESSES:-}
+  # Demo instances that publish an administrator password ONLY: `off` switches
+  # off the account-wide limit on wrong administrator passwords. Unset, the
+  # limit is on — see deploy/.env.prod.example.
+  ADMIN_AUTH_ACCOUNT_WIDE_LIMIT: ${ADMIN_AUTH_ACCOUNT_WIDE_LIMIT:-}
   # Sales channels.
   DEFAULT_SALES_CHANNEL_CODE: ${DEFAULT_SALES_CHANNEL_CODE:-default}
   SALES_CHANNEL_HOST_MAP: ${SALES_CHANNEL_HOST_MAP:-}

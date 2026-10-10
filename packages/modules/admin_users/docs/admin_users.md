@@ -212,6 +212,46 @@ appears to come from the proxy, so all clients share one address: five wrong
 passwords from anyone then delay every device that is not a known one, for
 every account they were tried on.
 
+### Demo instances that publish an administrator password
+
+The account-wide limit — 20 wrong passwords for one account from all addresses
+that are not a known device — assumes that the password is a secret. A public
+demo that prints an administrator's e-mail address and password on its sign-in
+page breaks that assumption: every visitor is a first-time device, so anybody
+can keep all of them out with twenty wrong passwords and a few more each half
+hour.
+
+For such an instance, and only for such an instance, set
+
+```bash
+ADMIN_AUTH_ACCOUNT_WIDE_LIMIT=off
+```
+
+in the backend's environment and restart it. What changes and what does not:
+
+- **Off:** the account-wide count of wrong **passwords**. A first-time device
+  is then refused only for its own address's wrong attempts.
+- **Still on:** the limit of five per address on one account, the limit of five
+  per known device, both limits on second-factor codes — the account-wide one
+  included — and the delays themselves.
+- A request that reaches the backend with no client address at all is still
+  counted for the account, so that no attempt goes uncounted.
+
+**Do not set it on an instance whose administrator passwords are not public.**
+There the account-wide limit is what bounds guessing spread over many
+addresses: without it, a party with a thousand addresses gets five guesses from
+each of them every half hour.
+
+It is an environment variable and not a Setting on purpose — a Setting would be
+a switch in the Admin UI that the limit protects. Only the exact value `off`
+switches the limit off — lower case, with nothing around it; any other value,
+`OFF` included, leaves it on and logs a warning. While it is off the backend
+logs this warning on every start:
+
+```text
+account-wide administrator attempt limit is OFF — intended for demo instances with published credentials
+```
+
 ### What an operator sees
 
 Each time a delay starts for an existing account, one audit row is written with

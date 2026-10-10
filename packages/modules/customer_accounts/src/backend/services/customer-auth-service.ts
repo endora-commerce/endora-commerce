@@ -7,7 +7,7 @@ import {
   type MfaLoginPort,
 } from '@endora-commerce/contracts';
 import { HttpError } from '@endora-commerce/platform/http';
-import { hashPassword, verifyPassword } from '@endora-commerce/platform/kernel';
+import { hashPassword, verifyPassword, verifyPasswordOrDummy } from '@endora-commerce/platform/kernel';
 import { CustomerAccount } from '../entities/customer-account.entity.js';
 import { recordAuditFromContext } from '@endora-commerce/platform/commands';
 import type { AuditPort } from '@endora-commerce/platform/kernel';
@@ -75,28 +75,27 @@ export class CustomerAuthService {
     // so comparing the address exactly as typed refused every account whose
     // holder had capitalised anything — with the generic error above, which
     // says nothing they or support could act on.
-    const customer = await em.findOne(CustomerAccount, {
+    const found = await em.findOne(CustomerAccount, {
       email: normalizeEmailAddress(input.email),
     });
-    if (!customer) {
+    const customer = found !== null && !found.deletedAt ? found : null;
+    // Verified whether or not there is an account to verify against: an
+    // address nobody holds must not be refused sooner than a wrong password.
+    const ok = await verifyPasswordOrDummy(customer?.passwordHash, input.password);
+    if (!customer || !ok) {
       // Generic error to avoid account enumeration.
-      throw new HttpError(401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password.');
-    }
-    if (customer.deletedAt) {
       throw new HttpError(401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password.');
     }
     // Feature 040 — a blocked account cannot log in (FR-012/FR-016). The
     // distinct error lets the storefront show a clear "account blocked" message.
+    // It is given only to somebody who has the password: answered before the
+    // password is looked at, it told anybody which addresses have an account.
     if (customer.blockedAt) {
       throw new HttpError(
         403,
         ERROR_CODES.ACCOUNT_BLOCKED,
         'This account has been blocked. Please contact support.',
       );
-    }
-    const ok = await verifyPassword(customer.passwordHash, input.password);
-    if (!ok) {
-      throw new HttpError(401, ERROR_CODES.INVALID_CREDENTIALS, 'Invalid email or password.');
     }
 
     // Second factor (feature 042). No session is issued until it succeeds.

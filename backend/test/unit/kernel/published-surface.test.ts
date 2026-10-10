@@ -183,7 +183,7 @@ const PUBLISHED_KERNEL_SURFACE: Readonly<Record<string, readonly string[]>> = {
     'InProcessCacheLayer',
   ],
   /** Rows 20 and 38. */
-  'crypto/password-hasher.js': ['hashPassword', 'verifyPassword'],
+  'crypto/password-hasher.js': ['hashPassword', 'verifyPassword', 'verifyPasswordOrDummy'],
   /** Row 9 — the singleton case (§3). */
   'sales-channels/sales-channel.entity.js': ['SalesChannel'],
   /** Row 34 — the four symbols modules take. */

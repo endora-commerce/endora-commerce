@@ -46,6 +46,31 @@ export const manifest = defineModuleManifest({
   description:
     'Admin user accounts, sessions, and impersonation flows.',
   version: '1.0.0',
+  /**
+   * What this module needs from the environment. Why it is not a Setting is its
+   * entry in `backend/scripts/ledgers/module-environment-inputs/admin_users.ts`.
+   */
+  env: [
+    {
+      name: 'ADMIN_AUTH_ACCOUNT_WIDE_LIMIT',
+      describes: {
+        en: 'Set to `off` only on a demo instance that publishes an administrator password: it switches off the limit on wrong passwords counted for one account across all addresses.',
+        pl: 'Ustaw `off` wyłącznie na instancji demonstracyjnej, która publikuje hasło administratora: wyłącza limit błędnych haseł liczony dla jednego konta ze wszystkich adresów.',
+      },
+      requirement: {
+        kind: 'optional',
+        without: {
+          en: 'The limit is on, which is right for every instance whose administrator passwords are not public: twenty wrong passwords for one account start a delay for every device that has not signed in to it before.',
+          pl: 'Limit jest włączony, co jest właściwe dla każdej instancji, której hasła administratorów nie są publiczne: dwadzieścia błędnych haseł dla jednego konta uruchamia opóźnienie dla każdego urządzenia, które wcześniej się na nie nie logowało.',
+        },
+      },
+      secret: false,
+      generable: false,
+      owner: { kind: 'module', moduleId: 'admin_users' },
+      consumers: ['backend'],
+      addressOf: null,
+    },
+  ],
   dependencies: ['admin_roles', 'auth'],
   /**
    * Feature 075, Phase C — impersonation resolves its target through
