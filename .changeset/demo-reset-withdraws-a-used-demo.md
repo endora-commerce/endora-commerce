@@ -4,6 +4,7 @@
 '@endora-commerce/mod-organizations': patch
 '@endora-commerce/mod-catalog': patch
 '@endora-commerce/mod-crm': patch
+'@endora-commerce/cli': patch
 ---
 
 `demo reset` withdraws a demo that has been used, in one transaction, and refuses to delete
@@ -26,6 +27,18 @@ foreign key from a table of your own — changes nothing. `demo seed` is unchang
   on a second connection, cannot see what the reset has already deleted, and waits on rows the
   reset has locked. `@endora-commerce/mod-catalog`'s reset and every statement of
   `@endora-commerce/demo-composition` were moved accordingly.
+- **Breaking for a demo composition**: declare `withdrawsInsideTransaction: true` on the object
+  `createDemoComposition` returns. A reset over a composition that does not is refused before it
+  starts — which is what happens to `@endora-commerce/demo-composition` 0.104 under this platform;
+  the two are released in lockstep and the composition's peer range is the exact platform version.
+- The transaction is `REPEATABLE READ`, so what the reset counts and what it deletes are one
+  snapshot; `lock_timeout` (60 s) and `idle_in_transaction_session_timeout` (120 s) are set on it;
+  and while it runs, anything in its async context that asks the pool for a second connection is
+  refused immediately with "a reset body wrote outside the reset transaction". A body that brings a
+  database client of its own is ended by the idle bound instead of hanging.
+- Every refusal — the composition's, a module's, the database's (an integrity constraint, a
+  snapshot conflict, a lock wait) — is printed as a message saying what refused and that nothing
+  has been changed, without a stack. An unanticipated failure keeps its stack and says the same.
 - `DemoRunFailedError` says "nothing was changed" for such a run instead of telling the operator
   to clear half-written rows away.
 
@@ -69,5 +82,12 @@ to decline a reset; printed as its message, without a stack) and
 `organizations`' own demo withdrawal now removes the invitations sent from the demo organisation
 and the sales representatives assigned to it before removing the organisation, and reports both
 counts beside `Organization`.
+
+Promotion counters: a redemption made before its promotion had a global limit bumped no counter,
+and nothing records that, so it is subtracted like the others; a real promotion's counter can end
+up lower than the real uses made since, never below zero.
+
+`@endora-commerce/cli`: the install and `new instance` closing messages mention the refusal and
+the flag beside `demo reset`.
 
 The getting-started, upgrade and CRM documentation pages say what the reset now does.

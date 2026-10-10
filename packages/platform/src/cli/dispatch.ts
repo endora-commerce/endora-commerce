@@ -63,7 +63,11 @@ import {
   DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG,
   DemoResetRefusedError,
 } from '../demo/refusal.js';
-import { demoContextWithin } from '../demo/reset-transaction.js';
+import {
+  demoContextWithin,
+  runDemoResetTransaction,
+  type DemoResetBounds,
+} from '../demo/reset-transaction.js';
 import { DEMO_RESET_SCOPE_REASON, DEMO_SEED_SCOPE_REASON } from '../demo/scope.js';
 
 import {
@@ -175,6 +179,12 @@ export interface RunCliOptions {
   readonly out?: (chunk: string) => void;
   readonly err?: (chunk: string) => void;
   readonly env?: NodeJS.ProcessEnv;
+  /**
+   * The waits a `demo reset` tolerates (issue #143). A test's seam: the
+   * defaults are a minute and two, and a test that reproduces a wait cannot
+   * afford either.
+   */
+  readonly demoResetBounds?: DemoResetBounds;
 }
 
 /**
@@ -212,6 +222,7 @@ async function runDemoCommand(
    * (issue #143). Read from `argv` by the caller and from nowhere else.
    */
   deleteFinancialRecords: boolean,
+  resetBounds: DemoResetBounds | undefined,
 ): Promise<number> {
   mustBeNonProduction();
 
@@ -241,6 +252,20 @@ async function runDemoCommand(
                   isPresent: (id) => effectiveState.isPresent(id),
                   ...(deleteFinancialRecords ? { deleteFinancialRecords } : {}),
                 });
+          // Refused at the door rather than discovered as a wait: a composition
+          // that has not said it withdraws inside the transaction it is given
+          // was written for the reset that had none.
+          if (atomic && found.found && found.composition.withdrawsInsideTransaction !== true) {
+            throw new DemoResetRefusedError(
+              '[demo] the installed demo composition was written for a release in which a ' +
+                'reset was not one transaction, and this release cannot run its withdrawal ' +
+                'safely. Nothing has been changed. Upgrade the composition package to the ' +
+                'version that matches this platform (`pnpm update ' +
+                '@endora-commerce/demo-composition`); the author of a composition of your own ' +
+                'declares `withdrawsInsideTransaction: true` once every statement of its ' +
+                'withdrawal goes through the EntityManager it is given.',
+            );
+          }
           // Feature 113 T226 — there is no host residue left to run. Every demo
           // row this repository seeds is now either a module's own (its
           // `manifest.ts` declares it) or the composition's.
@@ -264,14 +289,20 @@ async function runDemoCommand(
         // in the run — the composition's withdrawal, any module's, the
         // foundation's — has withdrawn nothing. A seed is idempotent and is
         // repaired by running it again, so it stays as it was.
+        // `runDemoResetTransaction` is that transaction, with the three things
+        // that make "nothing" true in practice: one snapshot, bounded waits,
+        // and a refusal for any body that reaches for a connection of its own.
         const { report, notice } =
           verb === 'reset'
-            ? await em.transactional((tx) =>
-                run(
-                  tx,
-                  demoContextWithin(tx, composition.contextFor) as CliComposition['contextFor'],
-                  true,
-                ),
+            ? await runDemoResetTransaction(
+                em,
+                (tx) =>
+                  run(
+                    tx,
+                    demoContextWithin(tx, composition.contextFor) as CliComposition['contextFor'],
+                    true,
+                  ),
+                resetBounds,
               )
             : await run(em, composition.contextFor, false);
         // Printed once the transaction has committed: a report of rows removed
@@ -365,6 +396,7 @@ export async function dispatchCli(options: RunCliOptions): Promise<number> {
       // Of a reset only, and from the arguments only: there is no environment
       // variable and no setting behind this, on purpose (`demo/refusal.ts`).
       verb === 'reset' && rest.includes(DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG),
+      options.demoResetBounds,
     );
   }
   if (moduleId === undefined || name === undefined) {

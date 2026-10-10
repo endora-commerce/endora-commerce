@@ -1482,6 +1482,10 @@ export function createDemoComposition(deps: DemoCompositionDeps): DemoCompositio
   };
 
   return {
+    // Every statement in this package goes through `deps.em` — see "Every
+    // statement goes through the EntityManager" above, and the test that
+    // reads these sources for anything else.
+    withdrawsInsideTransaction: true,
     apply: () => runSteps('apply', STEPS),
     // What using the demo left behind goes first (`demo-usage.ts`): every later
     // step, and every module's own withdrawal, assumes nothing still refers to

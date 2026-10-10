@@ -9,10 +9,14 @@ import {
 } from './composition.js';
 import {
   bind,
+  countOf,
   DEMO_FINANCIAL_RECORDS,
   DEMO_USAGE_SECTION_NAMES,
   DEMO_USAGE_SECTIONS,
   DEMO_USAGE_WITHDRAWAL_NAME,
+  EVERY_ROW,
+  requiredTablesOf,
+  settleArms,
   tablesOf,
   withdrawDemoUsage,
 } from './demo-usage.js';
@@ -93,6 +97,8 @@ describe('what using the demo left behind (issue #143)', () => {
         // One bound value per placeholder, and nothing left unbound.
         expect(params.length).toBe(statement.split('?').length - 1);
         expect(statement).not.toContain(':buyer_email');
+        // No optional arm reaches the database unsettled.
+        expect(statement).not.toMatch(/[{}]/);
         executed.push(statement);
         if (statement.includes('parent_id')) return [{ n: String(branches) }];
         if (statement.includes('count(*)::text as n')) return [{ n: String(financial) }];
@@ -147,6 +153,43 @@ describe('what using the demo left behind (issue #143)', () => {
     for (const table of everyTable) expect(table).toMatch(/^[a-z]+(_[a-z]+)*$/);
     expect(everyTable).not.toContain('held');
     expect(everyTable).not.toContain('select');
+  });
+
+  it('drops an optional arm whose table is not there, and keeps the statement', () => {
+    const statement = 'delete from carts where a in (select id from organizations) or {b in (select id from customer_accounts)}';
+    expect(settleArms(statement, new Set(['carts', 'organizations', 'customer_accounts']))).toBe(
+      'delete from carts where a in (select id from organizations) or b in (select id from customer_accounts)',
+    );
+    expect(settleArms(statement, new Set(['carts', 'organizations']))).toBe(
+      'delete from carts where a in (select id from organizations) or false',
+    );
+    // What it cannot run without is what stands outside every arm.
+    expect(requiredTablesOf([statement])).toEqual(['carts', 'organizations']);
+    // An arm inside a dropped arm goes with it.
+    expect(settleArms('x or {y in (select 1 from orders where {z in (select 1 from carts)})}', new Set(['carts']))).toBe(
+      'x or false',
+    );
+  });
+
+  it('runs a section whose only missing table is one it reaches through an optional arm', async () => {
+    // `orders` is how an invoice with no organisation of its own is found. An
+    // instance without that table still has invoices to withdraw; the section
+    // used to be skipped whole.
+    const database = fakeDatabase(everyTable.filter((table) => table !== 'orders'));
+    const result = await withdrawDemoUsage({
+      em: database.em,
+      ...identity,
+      deleteFinancialRecords: true,
+    });
+    expect(result.applied).toContain('invoices issued to the demo organisation');
+    expect(result.applied).toContain('carts of the demo organisation');
+    // Sections that are *about* orders cannot run, and say why.
+    expect(result.skipped.map((skip) => skip.step)).toContain(
+      'orders placed by the demo organisation',
+    );
+    const invoices = database.executed.find((statement) => statement.includes('delete from invoices'))!;
+    expect(invoices).toContain('or false');
+    expect(invoices).not.toContain('orders');
   });
 
   it('binds the tax id and the buyer, each where it is written', () => {
@@ -209,7 +252,7 @@ describe('what using the demo left behind (issue #143)', () => {
         ),
       );
       const counted = DEMO_FINANCIAL_RECORDS.flatMap((kind) =>
-        kind.counts.map((statement) => /count\(\*\)::text as n from ([a-z_]+)/.exec(statement)![1]!),
+        kind.tables.map((entry) => entry.table),
       );
       expect(counted.sort()).toEqual([
         'credit_limit_return_topups',
@@ -221,6 +264,24 @@ describe('what using the demo left behind (issue #143)', () => {
         'refunds',
       ]);
       for (const table of counted) expect(deleted, table).toContain(table);
+    });
+
+    it('are every row of those tables today, and are narrowed in one column of one table', () => {
+      // The classification is `financialWhen`, per table. Narrowing it — to
+      // settled payments, to invoices that are accounting documents — is a
+      // change to that entry and to this test, and to nothing else.
+      for (const kind of DEMO_FINANCIAL_RECORDS) {
+        for (const entry of kind.tables) expect(entry.financialWhen, entry.table).toBe(EVERY_ROW);
+      }
+      expect(
+        countOf({
+          table: 'payments',
+          ofTheDemo: 'order_id in (1)',
+          financialWhen: "status in ('paid', 'refunded')",
+        }),
+      ).toBe(
+        "select count(*)::text as n from payments where (order_id in (1)) and (status in ('paid', 'refunded'))",
+      );
     });
 
     it('refuse the reset before a single row is deleted, naming each kind, its count and the flag', async () => {

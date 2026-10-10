@@ -51,6 +51,15 @@ The flag is read from that command line only; no environment variable or setting
 it. It deletes the kinds listed above and forces nothing else — the production guard and every
 foreign key apply as before.
 
+If you write a composition of your own: every statement of `withdraw` and `withdrawFoundation`
+goes through the `EntityManager` the composition is built over (`em.execute`, `em.nativeDelete`),
+never through `em.getConnection()`, `em.getKnex()` or a fork — those take a second connection,
+outside the reset's transaction. Declare `withdrawsInsideTransaction: true` on the object you
+return once that holds; the reset refuses a composition that does not, and refuses on the spot a
+body that asks for a connection of its own. As a last resort the transaction's waits are bounded
+(a minute for a lock, two idle), so a body that bypasses all of this ends the reset instead of
+hanging it.
+
 A module being switched off does not exempt its rows: an Opportunity or a return case of the demo
 organisation is withdrawn whether or not its module is active, because it refers to the
 organisation either way. What decides is whether the module's tables exist.

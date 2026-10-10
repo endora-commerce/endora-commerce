@@ -94,6 +94,20 @@ export interface DemoComposition {
    * another name.
    */
   withdrawFoundation?(): Promise<DemoCompositionResult>;
+  /**
+   * Every statement of `withdraw` and `withdrawFoundation` goes through the
+   * `EntityManager` this composition was built over (issue #143).
+   *
+   * A `demo reset` is one transaction, and that `EntityManager` is what
+   * carries it. A statement sent any other way — `em.getConnection()`,
+   * `em.getKnex()`, a fork — runs on a second connection, outside the reset,
+   * and waits on rows the reset has locked. So the entry point asks before it
+   * starts, and refuses a reset over a composition that does not say `true`:
+   * one written for a release in which a reset was a sequence of commits.
+   * It is a declaration by the composition's author, not something the
+   * platform can verify by looking.
+   */
+  readonly withdrawsInsideTransaction?: true;
 }
 
 /**

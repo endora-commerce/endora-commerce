@@ -49,7 +49,9 @@
  * finds it goes through the organisation this very run deletes. So a section
  * runs when every table it names is in this database, and is a reported skip
  * naming the missing ones when the module was never installed. The table list
- * is read off the statements themselves, so it cannot fall behind them.
+ * is read off the statements themselves, so it cannot fall behind them, and it
+ * tells apart the tables a statement cannot run without from the ones it only
+ * reaches through an optional arm (see the fragments below).
  *
  * The order is children before parents, twice over: a foreign key refuses the
  * other order, and a section finds its rows *through* the orders, invoices and
@@ -108,24 +110,31 @@ import {
 // apart from the accounts that joined it; `bind` turns both into bound values
 // in the order they occur, so a statement is written once and never beside a
 // hand-maintained parameter list.
+//
+// **An arm in braces is optional.** `{order_id in (…orders…)}` is one more way
+// a row can turn out to be the demo's, reached through another module's table.
+// Where that table is not in this database the arm cannot match anything, so
+// it is dropped — replaced by `false` — and the rest of the statement still
+// runs. Everything outside braces is what the statement cannot do without: if
+// one of those tables is missing, its section is skipped whole.
 
 const ORGANIZATIONS = `(select id from organizations where tax_id = ?)`;
 const ACCOUNTS = `(select id from customer_accounts where organization_id in ${ORGANIZATIONS})`;
 const ORDERS = `(select id from orders where organization_id in ${ORGANIZATIONS})`;
 const ORDER_ITEMS = `(select id from order_items where order_id in ${ORDERS})`;
 const INVOICES = `(select id from invoices
-   where organization_id in ${ORGANIZATIONS} or order_id in ${ORDERS})`;
+   where organization_id in ${ORGANIZATIONS} or {order_id in ${ORDERS}})`;
 const RETURN_CASES = `(select id from return_cases
-   where organization_id in ${ORGANIZATIONS} or order_id in ${ORDERS}
-      or customer_account_id in ${ACCOUNTS})`;
+   where organization_id in ${ORGANIZATIONS} or {order_id in ${ORDERS}}
+      or {customer_account_id in ${ACCOUNTS}})`;
 const CREDIT_LIMITS = `(select id from credit_limits where organization_id in ${ORGANIZATIONS})`;
 
 /** The demo's own promotions: the ones an administrator restricted to the demo organisation. */
 const OWN_PROMOTIONS = `(select id from promotions where organization_id in ${ORGANIZATIONS})`;
 /** The redemptions the demo organisation, its accounts or its orders made. */
 const USAGES = `promotion_usages redemption
-   where (redemption.order_id in ${ORDERS} or redemption.organization_id in ${ORGANIZATIONS}
-          or redemption.customer_account_id in ${ACCOUNTS})`;
+   where ({redemption.order_id in ${ORDERS}} or redemption.organization_id in ${ORGANIZATIONS}
+          or {redemption.customer_account_id in ${ACCOUNTS}})`;
 
 /** One module's share of the withdrawal. */
 export interface DemoUsageSection {
@@ -141,8 +150,37 @@ export interface DemoUsageSection {
 export interface DemoFinancialRecordKind {
   /** What an operator reads beside the count. */
   readonly label: string;
-  /** One `select count(*)::text as n …` per table of this kind. */
-  readonly counts: readonly string[];
+  /** Each table that holds records of this kind. */
+  readonly tables: readonly DemoFinancialTable[];
+}
+
+/** One table of financial records: whose rows, and which of them count. */
+export interface DemoFinancialTable {
+  readonly table: string;
+  /** The predicate that makes a row the demo organisation's. */
+  readonly ofTheDemo: string;
+  /**
+   * The predicate, over that table's own columns, that makes a row a
+   * **financial record** rather than a row that merely lives in this table.
+   *
+   * This is where the classification is narrowed, one table at a time and
+   * nowhere else — by a status set (`status in ('paid', 'refunded',
+   * 'partially_refunded')`), by a kind (`kind in ('invoice', 'correction')`),
+   * by whether the record left the shop (`ksef_reference_number is not null`).
+   * Today every entry says {@link EVERY_ROW}.
+   */
+  readonly financialWhen: string;
+}
+
+/** No narrowing: every row of the table that is the demo's is a financial record. */
+export const EVERY_ROW = 'true';
+
+/** The statement that counts one table's financial records. */
+export function countOf(entry: DemoFinancialTable): string {
+  return (
+    `select count(*)::text as n from ${entry.table} ` +
+    `where (${entry.ofTheDemo}) and (${entry.financialWhen})`
+  );
 }
 
 /**
@@ -177,32 +215,56 @@ export interface DemoFinancialRecordKind {
 export const DEMO_FINANCIAL_RECORDS: readonly DemoFinancialRecordKind[] = [
   {
     label: 'invoices',
-    counts: [`select count(*)::text as n from invoices where id in ${INVOICES}`],
+    tables: [
+      // Every `kind` today: `invoice`, `correction`, `proforma`, `wz`.
+      { table: 'invoices', ofTheDemo: `id in ${INVOICES}`, financialWhen: EVERY_ROW },
+    ],
   },
   {
     label: 'accounting-system records',
-    counts: [
-      `select count(*)::text as n from invoice_ledger_deliveries
-        where organization_id in ${ORGANIZATIONS}`,
-      `select count(*)::text as n from invoice_ledger_document_maps
-        where organization_id in ${ORGANIZATIONS}`,
-      `select count(*)::text as n from invoice_ledger_client_maps
-        where organization_id in ${ORGANIZATIONS}`,
+    tables: [
+      {
+        table: 'invoice_ledger_deliveries',
+        ofTheDemo: `organization_id in ${ORGANIZATIONS}`,
+        financialWhen: EVERY_ROW,
+      },
+      {
+        table: 'invoice_ledger_document_maps',
+        ofTheDemo: `organization_id in ${ORGANIZATIONS}`,
+        financialWhen: EVERY_ROW,
+      },
+      {
+        table: 'invoice_ledger_client_maps',
+        ofTheDemo: `organization_id in ${ORGANIZATIONS}`,
+        financialWhen: EVERY_ROW,
+      },
     ],
   },
   {
     label: 'payments',
-    counts: [`select count(*)::text as n from payments where order_id in ${ORDERS}`],
+    tables: [
+      // Every `status` today, `awaiting_payment` and `deferred` included.
+      { table: 'payments', ofTheDemo: `order_id in ${ORDERS}`, financialWhen: EVERY_ROW },
+    ],
   },
   {
     label: 'refunds',
-    counts: [`select count(*)::text as n from refunds where return_case_id in ${RETURN_CASES}`],
+    tables: [
+      {
+        table: 'refunds',
+        ofTheDemo: `return_case_id in ${RETURN_CASES}`,
+        financialWhen: EVERY_ROW,
+      },
+    ],
   },
   {
     label: 'refunds settled against the credit limit',
-    counts: [
-      `select count(*)::text as n from credit_limit_return_topups
-        where organization_id in ${ORGANIZATIONS}`,
+    tables: [
+      {
+        table: 'credit_limit_return_topups',
+        ofTheDemo: `organization_id in ${ORGANIZATIONS}`,
+        financialWhen: EVERY_ROW,
+      },
     ],
   },
 ];
@@ -266,8 +328,19 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
     // deleting the redemptions alone would leave a real promotion's global,
     // per-coupon or per-batch limit spent by orders that no longer exist. Each
     // redemption therefore returns exactly what `buildGuards` took for it —
-    // the same three questions, in SQL — before it goes; the floor is for a
-    // limit that was introduced after the redemption was made.
+    // the same three questions, in SQL — before it goes.
+    //
+    // **Exact when the limit is at least as old as the demo's redemptions,
+    // and an under-count otherwise.** A redemption made while the promotion
+    // had no global limit bumped no counter, and nothing records that: neither
+    // the redemption nor the counter says when the limit was introduced. Such
+    // a redemption is subtracted here all the same, so a real promotion's
+    // counter can end up lower than the real uses made since — never below
+    // zero, and never by more than the demo's own redemptions of it. Counting
+    // the remaining redemptions instead is not a correct rule either: it would
+    // charge the promotion for real uses made before it had a limit. The exact
+    // answer needs `promotions` to record what each redemption counted
+    // against, which is that module's change to make.
     name: 'promotion uses spent by the demo organisation',
     statements: [
       `update promotion_usage_counters
@@ -284,9 +357,9 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
                          join promotion_usages redemption on redemption.promotion_id = promotion.id
                          left join promotion_coupons coupon on coupon.id = redemption.coupon_id
                         where promotion.usage_limit_global is not null
-                          and (redemption.order_id in ${ORDERS}
+                          and ({redemption.order_id in ${ORDERS}}
                                or redemption.organization_id in ${ORGANIZATIONS}
-                               or redemption.customer_account_id in ${ACCOUNTS})) counted
+                               or {redemption.customer_account_id in ${ACCOUNTS}})) counted
                 group by counted.scope_type, counted.scope_key) spent
         where promotion_usage_counters.scope_type = spent.scope_type
           and promotion_usage_counters.scope_key = spent.scope_key`,
@@ -296,8 +369,8 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
       `delete from promotion_usage_counters
         where (scope_type = 'organization'
                and split_part(scope_key, ':', 2) in (select id::text from ${ORGANIZATIONS} demo))
-           or (scope_type = 'customer'
-               and split_part(scope_key, ':', 2) in (select id::text from ${ACCOUNTS} demo))`,
+           or {scope_type = 'customer'
+               and split_part(scope_key, ':', 2) in (select id::text from ${ACCOUNTS} demo)}`,
       // `promotion_usages.order_id` is `on delete restrict`.
       `delete from ${USAGES}`,
     ],
@@ -352,7 +425,7 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
     name: 'back-in-stock requests of the demo organisation',
     statements: [
       `delete from availability_notifications
-        where organization_id in ${ORGANIZATIONS} or customer_account_id in ${ACCOUNTS}`,
+        where organization_id in ${ORGANIZATIONS} or {customer_account_id in ${ACCOUNTS}}`,
     ],
   },
   {
@@ -365,7 +438,7 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
     statements: [
       `delete from credit_limit_reservations
         where credit_limit_id in ${CREDIT_LIMITS}
-           or reserving_organization_id in ${ORGANIZATIONS} or order_id in ${ORDERS}`,
+           or reserving_organization_id in ${ORGANIZATIONS} or {order_id in ${ORDERS}}`,
       `delete from credit_limit_return_topups where organization_id in ${ORGANIZATIONS}`,
       `delete from credit_limits where organization_id in ${ORGANIZATIONS}`,
     ],
@@ -375,7 +448,7 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
     name: 'carts of the demo organisation',
     statements: [
       `delete from carts
-        where organization_id in ${ORGANIZATIONS} or customer_account_id in ${ACCOUNTS}`,
+        where organization_id in ${ORGANIZATIONS} or {customer_account_id in ${ACCOUNTS}}`,
     ],
   },
   {
@@ -398,14 +471,14 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
     name: 'shopping lists of the demo organisation',
     statements: [
       `delete from shopping_lists
-        where organization_id in ${ORGANIZATIONS} or customer_account_id in ${ACCOUNTS}`,
+        where organization_id in ${ORGANIZATIONS} or {customer_account_id in ${ACCOUNTS}}`,
     ],
   },
   {
     name: 'product comparisons of the demo organisation',
     statements: [
       `delete from comparisons
-        where organization_id in ${ORGANIZATIONS} or customer_account_id in ${ACCOUNTS}`,
+        where organization_id in ${ORGANIZATIONS} or {customer_account_id in ${ACCOUNTS}}`,
     ],
   },
   {
@@ -413,7 +486,7 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
     statements: [
       `delete from quick_order_default_preferences
         where (scope = 'organization' and scope_id in ${ORGANIZATIONS})
-           or (scope = 'customer' and scope_id in ${ACCOUNTS})`,
+           or {scope = 'customer' and scope_id in ${ACCOUNTS}}`,
     ],
   },
   {
@@ -439,7 +512,7 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
     name: 'API keys issued to the demo organisation',
     statements: [
       `delete from api_keys
-        where organization_id in ${ORGANIZATIONS} or customer_account_id in ${ACCOUNTS}`,
+        where organization_id in ${ORGANIZATIONS} or {customer_account_id in ${ACCOUNTS}}`,
     ],
   },
   {
@@ -450,21 +523,21 @@ export const DEMO_USAGE_SECTIONS: readonly DemoUsageSection[] = [
     name: 'analytics events of the demo organisation',
     statements: [
       `delete from analytics_events
-        where organization_id in ${ORGANIZATIONS} or customer_account_id in ${ACCOUNTS}`,
+        where organization_id in ${ORGANIZATIONS} or {customer_account_id in ${ACCOUNTS}}`,
     ],
   },
   {
     name: 'newsletter subscriptions of the demo organisation',
     statements: [
       `delete from newsletter_subscribers
-        where organization_id in ${ORGANIZATIONS} or customer_account_id in ${ACCOUNTS}`,
+        where organization_id in ${ORGANIZATIONS} or {customer_account_id in ${ACCOUNTS}}`,
     ],
   },
   {
     name: 'push subscriptions of the demo organisation',
     statements: [
       `delete from push_subscriptions
-        where organization_id in ${ORGANIZATIONS} or customer_account_id in ${ACCOUNTS}`,
+        where organization_id in ${ORGANIZATIONS} or {customer_account_id in ${ACCOUNTS}}`,
     ],
   },
   {
@@ -529,6 +602,31 @@ export function bind(statement: string, identity: DemoIdentity): [string, string
  * what follows `from`, `join`, `update` or `into`; a sub-select follows them
  * with a parenthesis and names nothing itself.
  */
+/** A brace group with no brace inside it — the innermost optional arm. */
+const INNERMOST_ARM = /\{([^{}]*)\}/g;
+
+/**
+ * A statement with every optional arm settled against the tables that exist:
+ * kept, braces removed, where all of its tables are there, and `false` where
+ * one is not. Innermost first, so an arm inside a dropped arm goes with it.
+ */
+export function settleArms(statement: string, present: ReadonlySet<string>): string {
+  let settled = statement;
+  while (settled.includes('{')) {
+    const next = settled.replace(INNERMOST_ARM, (_whole, arm: string) =>
+      tablesOf([arm]).every((table) => present.has(table)) ? arm : 'false',
+    );
+    if (next === settled) break;
+    settled = next;
+  }
+  return settled;
+}
+
+/** The tables a list of statements cannot run without: those named outside every optional arm. */
+export function requiredTablesOf(statements: readonly string[]): string[] {
+  return tablesOf(statements.map((statement) => settleArms(statement, new Set())));
+}
+
 export function tablesOf(statements: readonly string[]): string[] {
   const tables = new Set<string>();
   for (const statement of statements) {
@@ -612,7 +710,7 @@ export async function withdrawDemoUsage(
     const named = [
       ...new Set([
         ...DEMO_USAGE_SECTIONS.flatMap((section) => tablesOf(section.statements)),
-        ...DEMO_FINANCIAL_RECORDS.flatMap((kind) => tablesOf(kind.counts)),
+        ...DEMO_FINANCIAL_RECORDS.flatMap((kind) => tablesOf(kind.tables.map(countOf))),
       ]),
     ];
     const found = await tx.execute<{ table_name: string }[]>(
@@ -625,7 +723,9 @@ export async function withdrawDemoUsage(
 
     const running: DemoUsageSection[] = [];
     for (const section of DEMO_USAGE_SECTIONS) {
-      const missing = tablesOf(section.statements).filter((table) => !present.has(table));
+      const missing = requiredTablesOf(section.statements).filter(
+        (table) => !present.has(table),
+      );
       if (missing.length === 0) running.push(section);
       else {
         skipped.push({
@@ -655,9 +755,11 @@ export async function withdrawDemoUsage(
       const held: { label: string; rows: number }[] = [];
       for (const kind of DEMO_FINANCIAL_RECORDS) {
         let rows = 0;
-        for (const statement of kind.counts) {
-          if (!tablesOf([statement]).every((table) => present.has(table))) continue;
-          const counted = await tx.execute<{ n: string }[]>(...bind(statement, deps));
+        for (const statement of kind.tables.map(countOf)) {
+          if (!requiredTablesOf([statement]).every((table) => present.has(table))) continue;
+          const counted = await tx.execute<{ n: string }[]>(
+            ...bind(settleArms(statement, present), deps),
+          );
           rows += Number(counted[0]?.n ?? '0');
         }
         if (rows > 0) held.push({ label: kind.label, rows });
@@ -667,7 +769,7 @@ export async function withdrawDemoUsage(
 
     for (const section of running) {
       for (const statement of section.statements) {
-        await tx.execute(...bind(statement, deps));
+        await tx.execute(...bind(settleArms(statement, present), deps));
       }
       applied.push(section.name);
     }

@@ -75,7 +75,11 @@ import {
   DEMO_BUYER_PASSWORD,
 } from '@endora-commerce/demo-composition';
 import { cliFailureExitCode, dispatchCli, type CliComposition } from '@endora-commerce/platform/cli';
-import { DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG as FORCE } from '@endora-commerce/platform/demo';
+import {
+  DEMO_FORCE_DELETE_FINANCIAL_RECORDS_FLAG as FORCE,
+  type DemoComposition,
+  type DemoCompositionInput,
+} from '@endora-commerce/platform/demo';
 import { resolvedManifestEntries } from '../../../src/lifecycle/registered-manifests.js';
 import { deploymentRoot } from '../../../src/overlay/overlay-roots.js';
 import { withModulesDeactivated } from '../../helpers/modules-deactivated.js';
@@ -339,7 +343,24 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     readonly err: string;
   }
 
+  /** What a test changes about one run: the composition it is given, and how long it may wait. */
+  interface RunVariation {
+    readonly composition?: (
+      built: DemoComposition,
+      input: DemoCompositionInput,
+    ) => DemoComposition;
+    readonly bounds?: { lockTimeoutMs: number; idleTimeoutMs: number };
+  }
+
   async function demo(verb: 'seed' | 'reset', ...flags: string[]): Promise<DemoRun> {
+    return await demoVaried({}, verb, ...flags);
+  }
+
+  async function demoVaried(
+    variation: RunVariation,
+    verb: 'seed' | 'reset',
+    ...flags: string[]
+  ): Promise<DemoRun> {
     let out = '';
     let err = '';
     const composition: CliComposition = {
@@ -356,10 +377,14 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
         argv: ['demo', verb, ...flags],
         resolveEntries: resolvedManifestEntries,
         compose: async () => composition,
-        demoComposition: async (input) => ({
-          found: true,
-          composition: createDemoComposition(input),
-        }),
+        demoComposition: async (input) => {
+          const built = createDemoComposition(input);
+          return {
+            found: true,
+            composition: variation.composition?.(built, input) ?? built,
+          };
+        },
+        ...(variation.bounds === undefined ? {} : { demoResetBounds: variation.bounds }),
         out: (chunk) => (out += chunk),
         err: (chunk) => (err += chunk),
       });
@@ -891,7 +916,12 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
   let realTenantIds: Tenant;
   let refusals: Record<
     string,
-    { run: DemoRun; countsBefore: Record<string, number>; countsAfter: Record<string, number> }
+    {
+      run: DemoRun;
+      countsBefore: Record<string, number>;
+      countsAfter: Record<string, number>;
+      tookMs?: number;
+    }
   >;
   let orderAfterRefusal: string;
   let countersBeforeReset: Record<string, number>;
@@ -908,6 +938,9 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
   let countsBeforeBranchRefusal: Record<string, number>;
   let refusedOverBranch: DemoRun;
   let countsAfterBranchRefusal: Record<string, number>;
+  let raced: DemoRun;
+  let latePaymentSurvived: boolean;
+  let racedLeftEverythingElse: boolean;
   let refusedOverPayment: DemoRun;
   let refusedOverInvoice: DemoRun;
   let resetWithoutFlag: DemoRun;
@@ -1006,6 +1039,57 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       const run = await demo('reset');
       refusals['financial records'] = { run, countsBefore, countsAfter: await tableCounts() };
     }
+    // ── a composition written for the reset that was not one transaction ────
+    // Three shapes of it, each over the real composition so that the rows it
+    // touches are really locked by the time it misbehaves.
+    const outside = `delete from organizations where tax_id = '${DEMO_ORG_TAX_ID}'`;
+    const variations: Record<string, RunVariation> = {
+      // It says nothing about transactions at all — the 0.104 composition.
+      'an undeclared composition': {
+        composition: (built) => ({
+          apply: () => built.apply(),
+          withdraw: () => built.withdraw(),
+        }),
+      },
+      // It claims to, and sends a statement through the bare connection: the
+      // pattern every withdrawal in this repository used until this issue.
+      'a statement on the bare connection': {
+        composition: (built, input) => ({
+          ...built,
+          withdraw: async () => {
+            const result = await built.withdraw();
+            await input.em.getConnection().execute(outside);
+            return result;
+          },
+        }),
+      },
+      // It brings a database client of its own, which no pool can see. The
+      // statement waits on rows the reset has deleted while the reset waits
+      // for the statement: the hang, bounded here to three seconds.
+      'a client of its own': {
+        bounds: { lockTimeoutMs: 3_000, idleTimeoutMs: 3_000 },
+        composition: (built) => ({
+          ...built,
+          withdraw: async () => {
+            const result = await built.withdraw();
+            await db.query(outside);
+            return result;
+          },
+        }),
+      },
+    };
+    for (const [name, variation] of Object.entries(variations)) {
+      const countsBefore = await tableCounts();
+      const started = Date.now();
+      const run = await demoVaried(variation, 'reset', FORCE);
+      refusals[name] = {
+        run,
+        countsBefore,
+        countsAfter: await tableCounts(),
+        tookMs: Date.now() - started,
+      };
+    }
+
     orderAfterRefusal = await buyOnCredit();
     countersBeforeReset = await promotionCounters();
 
@@ -1091,6 +1175,34 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       organization_id: fresh.organizationId,
       placed_by_customer_account_id: fresh.customerAccountId,
     });
+    // A payment another session commits while the reset is already running —
+    // after its snapshot, so after its pre-flight has counted none.
+    const lateCounts = await tableCounts();
+    let latePaymentId = '';
+    raced = await demoVaried(
+      {
+        composition: (built) => ({
+          ...built,
+          withdraw: async () => {
+            latePaymentId = await insert('demo', 'payments', {
+              order_id: bareOrderId,
+              status: 'paid',
+            });
+            return await built.withdraw();
+          },
+        }),
+      },
+      'reset',
+    );
+    const [late] = await query<{ n: string }>(
+      `select count(*)::text as n from payments where id = $1`,
+      [latePaymentId],
+    );
+    latePaymentSurvived = late!.n === '1';
+    await db.query(`delete from payments where id = $1`, [latePaymentId]);
+    racedLeftEverythingElse =
+      JSON.stringify(await tableCounts()) === JSON.stringify(lateCounts);
+
     const paymentId = await insert('demo', 'payments', { order_id: bareOrderId });
     refusedOverPayment = await demo('reset');
     await db.query(`delete from payments where id = $1`, [paymentId]);
@@ -1139,8 +1251,48 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
       it('leaves every table exactly as it found it', () => {
         expect(refusals[parent]!.countsAfter).toEqual(refusals[parent]!.countsBefore);
       });
+
+      it('is told as a refusal — that nothing changed, and no stack — wherever in the run it came', () => {
+        // The first is refused in the composition's withdrawal, the other two
+        // in a module's own; an operator reads the same thing for all three.
+        expect(refusals[parent]!.run.err).toContain('the database refused the demo reset');
+        expect(refusals[parent]!.run.err).toContain('Nothing has been changed');
+        expect(refusals[parent]!.run.err).not.toMatch(/^\s+at /m);
+      });
     },
   );
+
+  describe('a reset body written for the reset that was not one transaction', () => {
+    it('is refused before it starts when its composition does not declare the contract', () => {
+      const { run, countsBefore, countsAfter } = refusals['an undeclared composition']!;
+      expect(run.code).toBe(1);
+      expect(run.err).toContain('withdrawsInsideTransaction');
+      expect(run.err).toContain('Nothing has been changed');
+      expect(countsAfter).toEqual(countsBefore);
+    });
+
+    it('is refused on the spot when it sends a statement through the bare connection', () => {
+      const { run, countsBefore, countsAfter, tookMs } =
+        refusals['a statement on the bare connection']!;
+      expect(run.code).toBe(1);
+      expect(run.err).toContain('wrote outside the reset transaction');
+      expect(run.err).toContain('Nothing has been changed');
+      expect(run.err).not.toMatch(/^\s+at /m);
+      expect(countsAfter).toEqual(countsBefore);
+      // Not by waiting for anything: the statement is never sent.
+      expect(tookMs).toBeLessThan(60_000);
+    });
+
+    it('does not hang when it brings a client of its own: the reset is ended at the bound', () => {
+      const { run, countsBefore, countsAfter, tookMs } = refusals['a client of its own']!;
+      expect(run.code).toBe(1);
+      expect(run.err).toContain('did nothing for more than 3 s');
+      expect(run.err).toContain('wrote outside the reset transaction');
+      expect(countsAfter).toEqual(countsBefore);
+      // The default bound is two minutes and no bound is for ever.
+      expect(tookMs).toBeLessThan(90_000);
+    });
+  });
 
   describe('a reset of a demo that holds financial records, not told to delete them', () => {
     it('exits non-zero, saying what it found, that nothing changed, and how to force it', () => {
@@ -1168,7 +1320,7 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
     });
   });
 
-  describe('after four refused resets', () => {
+  describe('after seven refused resets', () => {
     it('leaves checkout working: the buyer places another order on credit', () => {
       expect(orderAfterRefusal).toMatch(/^[0-9a-f-]{36}$/);
       expect(orderAfterRefusal).not.toBe(demoOrderId);
@@ -1240,6 +1392,22 @@ describe('demo reset on a demo that has been used (issue #143)', () => {
 
     it('gives back a shop the buyer can buy from on credit', () => {
       expect(orderAfterReseed).toMatch(/^[0-9a-f-]{36}$/);
+    });
+  });
+
+  describe('a payment committed by another session while the reset is running', () => {
+    it('is not deleted behind the pre-flight that never saw it: the reset is refused', () => {
+      expect(raced.code).toBe(1);
+      expect(latePaymentSurvived).toBe(true);
+      expect(racedLeftEverythingElse).toBe(true);
+    });
+
+    it('is refused by the database, over the one snapshot the reset reads and deletes from', () => {
+      // Not by the count — which ran before the payment existed for it — but
+      // by the payment's foreign key onto the order the reset then removes.
+      expect(raced.err).not.toContain('holds financial records');
+      expect(raced.err).toMatch(/payments/);
+      expect(raced.err).toContain('Nothing has been changed');
     });
   });
 
